@@ -784,11 +784,11 @@ luque benchmark generate-graph \
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** evaluar el mecanismo de carga masiva recomendado por LadybugDB.
 
@@ -805,6 +805,16 @@ COPY
 ```text
 benchmarks/ladybug-bulk/report.md
 ```
+
+**Resultado registrado:**
+
+* `COPY` se probó con CSV temporales y una operación por tabla.
+* Escala inicial completa verificada: 200.040 nodos y 1.000.000 de aristas.
+* COPY: 666.615,5 registros/s durante la carga y 389.908,1 registros/s end-to-end incluyendo exportación CSV.
+* Pico RSS: 532.602.880 bytes; base: 43.065.344 bytes.
+* Comparación comparable en corpus reducido: `CREATE` 1.254,9 registros/s, batch 10.000 3.729,8 registros/s y COPY 671.567,7 registros/s.
+* `LADYBUG_BULK_LOAD_PASS`: aprobado; recuentos verificados, escala completa y RSS bajo 2 GiB.
+* Artefactos: `benchmarks/ladybug-bulk/results.json`, `benchmarks/ladybug-bulk/report.md` y `benchmarks/ladybug-bulk/full-scale/`.
 
 ---
 

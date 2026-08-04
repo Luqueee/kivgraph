@@ -73,6 +73,22 @@ La comparación registrada recomienda 10.000 registros por lote bajo el límite
 RSS de 2 GiB. Los escenarios se ejecutan en procesos separados para que sus
 mediciones de memoria no se contaminen entre sí.
 
+La carga bulk mediante `COPY` exporta el corpus a CSV temporal y ejecuta una
+operación `COPY` por tabla. En la escala inicial completa se verificaron
+200.040 nodos y 1.000.000 de aristas:
+
+```bash
+go run -tags ladybug ./benchmarks/ladybug-bulk \
+  --corpus testdata/generated/synthetic \
+  --database /tmp/luque-copy.db \
+  --output benchmarks/ladybug-bulk/full-scale
+```
+
+La comparación comparable con `CREATE` y transacciones por lotes se registra
+en `benchmarks/ladybug-bulk/report.md`; la medición full-scale queda en
+`benchmarks/ladybug-bulk/full-scale/`.
+
+
 
 ## Estructura
 

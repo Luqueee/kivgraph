@@ -1,0 +1,53 @@
+{
+  "benchmark": "ladybug-bulk-copy",
+  "command": "/home/devlabs/.cache/go-build/4e/4e7089d945d45446fdcdbb8c7d0e4a6f20f0be3e556fab46e503e44e0165f673-d/ladybug-bulk --corpus /tmp/luque-synthetic-reduced --database /tmp/luque-ladybug-copy-reduced-gated.db --output benchmarks/ladybug-bulk --individual-results benchmarks/ladybug-individual/results.json --batch-results benchmarks/ladybug-batch/results.json",
+  "commit": "d599f721ff740e039c8af105d806a437bae209d7-dirty",
+  "generated_at": "2026-08-04T18:29:26.638182852Z",
+  "corpus_seed": 42,
+  "full_initial_scale": false,
+  "repositories": 40,
+  "files": 10000,
+  "symbols": 10000,
+  "nodes": 20040,
+  "edges": 100000,
+  "csv_export_duration_ms": 130.113857,
+  "node_copy_duration_ms": 63.195949,
+  "edge_copy_duration_ms": 115.549984,
+  "copy_duration_ms": 178.745933,
+  "end_to_end_duration_ms": 308.85979,
+  "nodes_per_s": 317108.9336754797,
+  "edges_per_s": 865426.3422485632,
+  "records_per_s": 671567.7273619423,
+  "end_to_end_records_per_s": 388655.3183242143,
+  "peak_rss_bytes": 154759168,
+  "database_bytes": 4276224,
+  "comparison": [
+    {
+      "strategy": "COPY",
+      "records": 120040,
+      "records_per_s": 671567.7273619423,
+      "peak_rss_bytes": 154759168,
+      "comparable": true
+    },
+    {
+      "strategy": "CREATE",
+      "records": 120040,
+      "records_per_s": 1254.939242789036,
+      "peak_rss_bytes": 107200512,
+      "comparable": true
+    },
+    {
+      "strategy": "batch transaction (10000)",
+      "records": 120040,
+      "records_per_s": 3729.7698417102492,
+      "peak_rss_bytes": 1270525952,
+      "comparable": true
+    }
+  ],
+  "gate_assessment": {
+    "full_initial_scale": false,
+    "counts_verified": true,
+    "rss_within_2_gib": true,
+    "passed": false
+  }
+}
