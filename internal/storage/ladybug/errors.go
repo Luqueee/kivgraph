@@ -12,6 +12,12 @@ var (
 	ErrClosed = errors.New("LadybugDB database is closed")
 	// ErrInvalidPath reports an empty database path.
 	ErrInvalidPath = errors.New("LadybugDB database path is empty")
+	// ErrInvalidStableKey reports an empty symbol stable key.
+	ErrInvalidStableKey = errors.New("LadybugDB symbol stable key is empty")
+	// ErrInvalidLimit reports a non-positive or excessive result limit.
+	ErrInvalidLimit = errors.New("LadybugDB query limit is outside the supported range")
+	// ErrInvalidDepth reports a traversal depth outside the supported range.
+	ErrInvalidDepth = errors.New("LadybugDB traversal depth is outside the supported range")
 )
 
 // Error wraps a native or lifecycle failure with the Luque operation that failed.

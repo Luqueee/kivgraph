@@ -1,0 +1,110 @@
+{
+  "benchmark": "ladybug-direct-queries",
+  "command": "/tmp/go-build2190362627/b001/exe/ladybug-queries --database /tmp/luque-ladybug-copy-full-gated.db --corpus /tmp/luque-synthetic-42 --output benchmarks/ladybug-queries --iterations 100 --warmup 5",
+  "commit": "a1454bc7f3ca3481233b38d64067305b8c2bf933-dirty",
+  "generated_at": "2026-08-04T18:48:47.361925467Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "corpus": {
+    "schema_version": "001",
+    "seed": 42,
+    "repositories": 40,
+    "files": 100000,
+    "symbols": 100000,
+    "edges": 1000000,
+    "hub_symbols": [
+      "symbol-00000000",
+      "symbol-00000001"
+    ],
+    "depth_five_chain": [
+      "symbol-00000000",
+      "symbol-00000001",
+      "symbol-00000002",
+      "symbol-00000003",
+      "symbol-00000004",
+      "symbol-00000005"
+    ]
+  },
+  "iterations": 100,
+  "warmup": 5,
+  "operations": [
+    {
+      "operation": "get_symbol",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 1,
+      "p50_us": 12658.007,
+      "p95_us": 13305.047,
+      "p99_us": 13711.917,
+      "max_us": 14229.076,
+      "calls_per_s": 78.67244144624958
+    },
+    {
+      "operation": "incoming_references_100",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 100,
+      "p50_us": 142396.998,
+      "p95_us": 145724.816,
+      "p99_us": 148109.631,
+      "max_us": 151557.376,
+      "calls_per_s": 7.028957224388063
+    },
+    {
+      "operation": "outgoing_references_100",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 100,
+      "p50_us": 141971.026,
+      "p95_us": 146744.857,
+      "p99_us": 147466.813,
+      "max_us": 150958.395,
+      "calls_per_s": 7.040647941525139
+    },
+    {
+      "operation": "traverse_depth_3_100",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 100,
+      "p50_us": 45425.157,
+      "p95_us": 46657.737,
+      "p99_us": 47371.116,
+      "max_us": 48526.416,
+      "calls_per_s": 21.94804008698904
+    },
+    {
+      "operation": "traverse_depth_5_100",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 100,
+      "p50_us": 45582.028,
+      "p95_us": 47088.758,
+      "p99_us": 47335.287,
+      "max_us": 47506.987,
+      "calls_per_s": 21.911212557600415
+    },
+    {
+      "operation": "shortest_path_depth_5",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 2,
+      "p50_us": 83154.497,
+      "p95_us": 85451.108,
+      "p99_us": 86297.2,
+      "max_us": 87478.088,
+      "calls_per_s": 12.016132408045108
+    },
+    {
+      "operation": "incoming_by_repository",
+      "calls": 100,
+      "errors": 0,
+      "average_returned": 10,
+      "p50_us": 30522.389,
+      "p95_us": 33590.32,
+      "p99_us": 39003.87,
+      "max_us": 39526.59,
+      "calls_per_s": 32.391588128065095
+    }
+  ]
+}

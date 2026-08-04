@@ -824,11 +824,11 @@ benchmarks/ladybug-bulk/report.md
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Consultas:**
 
@@ -843,6 +843,17 @@ benchmarks/ladybug-bulk/report.md
 **Criterios de aceptación:**
 
 Las consultas deben devolver resultados correctos sobre el corpus sintético.
+
+**Resultado registrado:**
+
+* `Database.OpenReader` crea un lector reutilizable con conexión propia y sentencias preparadas.
+* Las referencias combinan `REFERENCES` y `CALLS_DIRECT`; los resultados tienen orden determinista y límites validados.
+* Los recorridos admiten profundidades 1–5, hasta 25.000 nodos, y devuelven cada destino a su menor profundidad.
+* Las pruebas nativas verifican lookup, ambas direcciones, profundidad 3 y 5, shortest path exacto, agrupación por repositorio, entradas inválidas, cierre y concurrencia.
+* Corpus completo: 100 llamadas medidas y 5 de warm-up por operación, con cero errores.
+* p95 directo: lookup 13,31 ms; incoming 100 145,72 ms; outgoing 100 146,74 ms; depth 3 46,66 ms; depth 5 47,09 ms; shortest path 85,45 ms; agrupación 33,59 ms.
+* No hay gate propio en esta tarea. Estas latencias caracterizan LadybugDB y no califican los SLO MCP del HotSnapshot.
+* Artefactos: `benchmarks/ladybug-queries/results.json` y `benchmarks/ladybug-queries/report.md`.
 
 ---
 

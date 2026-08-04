@@ -88,6 +88,20 @@ La comparación comparable con `CREATE` y transacciones por lotes se registra
 en `benchmarks/ladybug-bulk/report.md`; la medición full-scale queda en
 `benchmarks/ladybug-bulk/full-scale/`.
 
+Las consultas directas reutilizan una conexión y sentencias preparadas para
+lookup por stable key, referencias entrantes y salientes, recorridos acotados,
+shortest path y agrupación por repositorio:
+
+```bash
+go run -tags ladybug ./benchmarks/ladybug-queries \
+  --database /tmp/luque-copy.db \
+  --corpus testdata/generated/synthetic \
+  --output benchmarks/ladybug-queries
+```
+
+El benchmark ejecuta golden probes antes de medir. Sus resultados caracterizan
+LadybugDB como fuente canónica; no califican los SLO del HotSnapshot.
+
 
 
 ## Estructura

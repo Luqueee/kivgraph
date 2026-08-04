@@ -6,6 +6,7 @@ import "context"
 type Database interface {
 	Close() error
 	Health(context.Context) error
+	OpenReader(context.Context) (Reader, error)
 }
 
 // Config controls the native LadybugDB database configuration.
