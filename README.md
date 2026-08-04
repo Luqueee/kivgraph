@@ -57,6 +57,23 @@ El tamaño de transacción solo controla los commits; no agrupa registros en una
 misma sentencia. Los resultados se escriben en
 `benchmarks/ladybug-individual`.
 
+La variante por lotes usa una sentencia `UNWIND $rows` y una transacción por
+lote. Compara los tamaños exigidos por el plan:
+
+```bash
+go run -tags ladybug ./benchmarks/ladybug-batch \
+  --corpus testdata/generated/synthetic \
+  --database-dir /tmp/luque-batch \
+  --batch-sizes 100,1000,10000,50000
+```
+
+Cada escenario usa una base nueva y verifica los recuentos almacenados antes de
+registrar throughput, tiempo de commit, pico de RSS y tamaño en disco.
+La comparación registrada recomienda 10.000 registros por lote bajo el límite
+RSS de 2 GiB. Los escenarios se ejecutan en procesos separados para que sus
+mediciones de memoria no se contaminen entre sí.
+
+
 ## Estructura
 
 ```text

@@ -743,11 +743,11 @@ luque benchmark generate-graph \
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** mejorar la carga mediante batches.
 
@@ -767,6 +767,14 @@ luque benchmark generate-graph \
 * RSS;
 * commit time;
 * tamaño en disco.
+
+**Resultado registrado:**
+
+* Comparación aislada por proceso sobre 20.040 nodos y 100.000 aristas.
+* Throughput agregado para lotes 100/1.000/10.000/50.000: 2.652,7 / 3.205,4 / 3.729,8 / 3.894,3 registros/s.
+* Lote recomendado: 10.000, con 25.253,2 nodos/s, 3.185,7 aristas/s y 1.270.525.952 bytes de pico RSS.
+* El lote 50.000 supera el límite RSS de 2 GiB y su intento a escala completa excedió 600 segundos.
+* Artefactos: `benchmarks/ladybug-batch/results.json` y `benchmarks/ladybug-batch/report.md`.
 
 ---
 
