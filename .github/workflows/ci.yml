@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Go and TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          test -z "$(gofmt -l $(find . -type f -name '*.go' -not -path './.git/*'))"
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Selected Go race tests
+        run: go test -race ./cmd/luque/...
+
+      - name: Build Go
+        run: go build ./cmd/luque
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ts-worker/pnpm-lock.yaml
+
+      - name: Install TypeScript worker
+        working-directory: ts-worker
+        run: pnpm install --frozen-lockfile
+
+      - name: Check worker formatting
+        working-directory: ts-worker
+        run: pnpm format:check
+
+      - name: Lint TypeScript worker
+        working-directory: ts-worker
+        run: pnpm lint
+
+      - name: Typecheck TypeScript worker
+        working-directory: ts-worker
+        run: pnpm typecheck
+
+      - name: Test TypeScript worker
+        working-directory: ts-worker
+        run: pnpm test
+
+      - name: Build TypeScript worker
+        working-directory: ts-worker
+        run: pnpm build

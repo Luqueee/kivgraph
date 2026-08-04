@@ -1,0 +1,16 @@
+# Go
+/luque
+*.test
+*.out
+
+# TypeScript / Node.js
+ts-worker/node_modules/
+ts-worker/dist/
+ts-worker/coverage/
+
+testdata/generated/
+
+# Local tooling
+.DS_Store
+.env
+.env.*

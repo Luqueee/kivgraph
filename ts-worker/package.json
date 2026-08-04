@@ -1,0 +1,30 @@
+{
+  "name": "@luque/ts-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Persistent TypeScript worker for Luque",
+  "type": "module",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "hello": "pnpm build && node dist/index.js",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.7",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.1.2",
+    "eslint": "10.8.0",
+    "globals": "17.9.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}
