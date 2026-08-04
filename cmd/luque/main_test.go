@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/luque/internal/storage/ladybug"
 	"github.com/Luqueee/luque/internal/synthetic"
 	"github.com/Luqueee/luque/internal/version"
 )
@@ -35,8 +37,75 @@ func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "usage: luque version|serve|benchmark generate-graph") {
+	if !strings.Contains(stderr.String(), "usage: luque version|serve|doctor storage") {
 		t.Fatalf("stderr = %q, want usage", stderr.String())
+	}
+}
+
+func TestRunDoctorStorageReportsEveryHealthyCheck(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	checks := make([]ladybug.DiagnosticCheck, 0, 10)
+	for _, name := range []string{"location", "size", "permissions", "lock", "open", "version", "schema", "transactions", "counts", "integrity"} {
+		checks = append(checks, ladybug.DiagnosticCheck{Name: name, Status: ladybug.DiagnosticPass, Detail: name + " ok"})
+	}
+	diagnose := func(_ context.Context, path string) (ladybug.StorageDiagnosis, error) {
+		if path != "/tmp/graph.db" {
+			t.Fatalf("diagnostic path = %q", path)
+		}
+		return ladybug.StorageDiagnosis{Path: path, Checks: checks, Healthy: true}, nil
+	}
+
+	code := runWithStorageDiagnoser([]string{"luque", "doctor", "storage", "--database", "/tmp/graph.db"}, &stdout, &stderr, diagnose)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	for _, check := range checks {
+		if !strings.Contains(stdout.String(), "[PASS] "+check.Name+": "+check.Detail) {
+			t.Fatalf("stdout missing %s: %q", check.Name, stdout.String())
+		}
+	}
+}
+
+func TestRunDoctorStorageReturnsFailureForUnhealthyDatabase(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	diagnose := func(context.Context, string) (ladybug.StorageDiagnosis, error) {
+		return ladybug.StorageDiagnosis{
+			Path:   "/tmp/graph.db",
+			Checks: []ladybug.DiagnosticCheck{{Name: "integrity", Status: ladybug.DiagnosticFail, Detail: "1 violation"}},
+		}, nil
+	}
+
+	code := runWithStorageDiagnoser([]string{"luque", "doctor", "storage", "--database=/tmp/graph.db"}, &stdout, &stderr, diagnose)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stdout.String(), "storage doctor: FAIL") || !strings.Contains(stdout.String(), "[FAIL] integrity: 1 violation") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunDoctorStorageRequiresDatabasePath(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	diagnose := func(context.Context, string) (ladybug.StorageDiagnosis, error) {
+		called = true
+		return ladybug.StorageDiagnosis{}, nil
+	}
+
+	if code := runWithStorageDiagnoser([]string{"luque", "doctor", "storage"}, &stdout, &stderr, diagnose); code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if called {
+		t.Fatal("diagnoser was called")
+	}
+	if !strings.Contains(stderr.String(), "--database is required") {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 

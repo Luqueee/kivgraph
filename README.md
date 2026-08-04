@@ -137,6 +137,20 @@ dejando la copia sin posibilidad de reapertura. El comando devuelve estado no
 cero mientras exista esta limitación. La metodología y la evidencia completas
 están en `docs/testing/ladybug-recovery.md`.
 
+El diagnóstico operativo abre la base original en modo de solo lectura y
+ejecuta la prueba de transacciones sobre una copia temporal:
+
+```bash
+go run -tags ladybug ./cmd/luque doctor storage \
+  --database /tmp/luque-copy.db
+```
+
+El comando informa ubicación, tamaño, permisos efectivos, locks externos,
+versiones del motor, almacenamiento y binding Go, esquema, rollback, conteos e
+integridad referencial. Devuelve `0` solo cuando todos los checks están en
+`PASS`; una base bloqueada, incompleta o compilada sin el tag `ladybug` devuelve
+`1`. La base indicada no se modifica.
+
 
 
 ## Estructura

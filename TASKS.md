@@ -947,11 +947,11 @@ docs/testing/ladybug-recovery.md
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** diagnosticar la base.
 
@@ -967,6 +967,16 @@ docs/testing/ladybug-recovery.md
 * tamaño;
 * ubicación;
 * lock de otro proceso.
+
+**Resultado registrado: `PASS`.**
+
+* `luque doctor storage --database PATH` informa los diez diagnósticos requeridos y devuelve `0` únicamente si todos están en `PASS`.
+* La base original se abre en modo de solo lectura; la prueba `BEGIN`/mutación/`ROLLBACK` se ejecuta sobre una copia temporal y el SHA-256 del origen permanece idéntico.
+* Una base sintética completa de 40 repositorios, 100.000 archivos, 100.000 símbolos y 1.000.000 de aristas superó apertura, versiones, esquema, permisos, transacciones, conteos e integridad.
+* Un proceso externo con LadybugDB abierto fue detectado por PID y produjo estado no cero sin impedir el resto del informe.
+* La detección detallada de locks usa `/proc/locks` en Linux. En otras plataformas se informa `SKIP`; el soporte nativo sigue requiriendo `-tags ladybug`, CGO y la biblioteca LadybugDB.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -tags ladybug ./...`, `go vet -tags ladybug ./...` y `go test -race -tags ladybug ./...`.
+* Siguiente tarea: LUQUE-0212.
 
 ---
 
