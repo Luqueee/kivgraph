@@ -710,11 +710,11 @@ luque benchmark generate-graph \
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** medir la estrategia más simple.
 
@@ -726,6 +726,14 @@ luque benchmark generate-graph \
 * Medir throughput.
 
 **Este resultado será un baseline, no necesariamente la solución final.**
+
+**Resultado registrado:**
+
+* Corpus reducido acordado: 40 repositorios, 10.000 archivos, 10.000 símbolos y 100.000 aristas.
+* Transacciones de 1.000 registros; cada registro usa una sentencia preparada individual.
+* 2.648,7 nodos/s; 1.135,2 aristas/s; 1.254,9 registros/s.
+* El corpus completo se aplaza para comparar los loaders por lotes y bulk.
+* Artefactos: `benchmarks/ladybug-individual/results.json` y `benchmarks/ladybug-individual/report.md`.
 
 ---
 

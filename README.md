@@ -43,6 +43,19 @@ Por defecto genera 40 repositorios, 100.000 archivos, 100.000 símbolos y
 `repositories.jsonl`, `files.jsonl`, `symbols.jsonl`, `edges.jsonl` y un
 `manifest.json` con los recuentos y las estructuras controladas del grafo.
 
+La carga individual de referencia requiere la biblioteca nativa de LadybugDB y
+ejecuta una sentencia preparada por nodo o arista:
+
+```bash
+go run -tags ladybug ./benchmarks/ladybug-individual \
+  --corpus testdata/generated/synthetic \
+  --database /tmp/luque-individual.db \
+  --transaction-size 1000
+```
+
+El tamaño de transacción solo controla los commits; no agrupa registros en una
+misma sentencia. Los resultados se escriben en
+`benchmarks/ladybug-individual`.
 
 ## Estructura
 
