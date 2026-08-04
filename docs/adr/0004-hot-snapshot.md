@@ -94,6 +94,13 @@ publicadores concurrentes no puedan retroceder de generación. `Close` limpia el
 puntero activo e impide publicaciones posteriores, sin invalidar referencias que
 lectores ya conservaron. La construcción fallida nunca alcanza el puntero activo.
 
+### Búsquedas exactas
+
+Las tools consultan los mapas de stable key, nombre, nombre cualificado y
+repo/path sin recorrer tablas ni aplicar coincidencias nominales. Los resultados
+de nombre se devuelven en páginas acotadas (`limit` máximo 500), copiadas para
+que el slice del lector no exponga almacenamiento del snapshot.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de

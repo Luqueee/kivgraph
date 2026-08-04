@@ -1461,11 +1461,11 @@ atomic.Pointer[GraphSnapshot]
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Operaciones:**
 
@@ -1475,6 +1475,13 @@ exact name → symbols
 qualified name → symbols
 repo + path → file
 ```
+
+**Estado:** `PASS`.
+
+* Stable key y repo/path usan mapas exactos O(1); nombre y nombre cualificado usan índices exactos con resultados copiados.
+* `SearchSymbolsByName` y `SearchSymbolsByQName` aplican offset no negativo y límite máximo 500, informan total y `HasMore`, y no hacen substring ni case-folding.
+* Las pruebas cubren páginas primera/última/pasada, cualificado, near miss nominal y límites inválidos.
+* Siguiente tarea: LUQUE-0310.
 
 ---
 
