@@ -1,8 +1,8 @@
 {
   "benchmark": "ladybug-recovery",
-  "command": "/tmp/go-build2049762802/b001/exe/ladybug-recovery --database /tmp/luque-ladybug-qualification.db --output benchmarks/ladybug-recovery --documentation docs/testing/ladybug-recovery.md",
-  "commit": "e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty",
-  "generated_at": "2026-08-04T20:25:14.443342451Z",
+  "command": "/tmp/go-build3107653430/b001/exe/ladybug-recovery --database /tmp/luque-ladybug-qualification.db --output benchmarks/ladybug-recovery --documentation docs/testing/ladybug-recovery.md",
+  "commit": "d83058fa94eb5797b8355285ed60c72d6b944379-dirty",
+  "generated_at": "2026-08-04T20:59:56.542074636Z",
   "go_version": "go1.24.4",
   "goos": "linux",
   "goarch": "amd64",
@@ -15,7 +15,7 @@
       "case": "sigkill_during_insert",
       "expected": "SIGKILL interrupts an active transaction; reopening rolls it back",
       "observed": "all checks passed",
-      "duration_ms": 274.30001,
+      "duration_ms": 272.774843,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -31,7 +31,7 @@
       "case": "sigkill_before_commit",
       "expected": "SIGKILL immediately before COMMIT preserves the previous committed state",
       "observed": "all checks passed",
-      "duration_ms": 82.622908,
+      "duration_ms": 83.766719,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -47,7 +47,7 @@
       "case": "sigkill_during_bulk_load",
       "expected": "SIGKILL during COPY leaves no partially visible bulk rows",
       "observed": "all checks passed",
-      "duration_ms": 278.221988,
+      "duration_ms": 274.475185,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -63,7 +63,7 @@
       "case": "reopen_after_crash",
       "expected": "reopening recovers the database and accepts a new durable transaction",
       "observed": "all checks passed",
-      "duration_ms": 144.67657,
+      "duration_ms": 143.248613,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -79,7 +79,7 @@
       "case": "truncated_file",
       "expected": "Open or Health rejects a database truncated to half its committed size",
       "observed": "all checks passed",
-      "duration_ms": 19.242568,
+      "duration_ms": 19.487771,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -95,7 +95,7 @@
       "case": "permission_denied_directory",
       "expected": "an unwritable directory is rejected without creating a database",
       "observed": "all checks passed",
-      "duration_ms": 11.159703,
+      "duration_ms": 11.288163,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -109,25 +109,45 @@
     },
     {
       "case": "simulated_disk_full",
-      "expected": "an injected ENOSPC fails the mutation without partial state or permanent damage",
-      "observed": "ENOSPC status = \"ENOSPC after_apply\", want \"ENOSPC apply\"\nreopen recovered database: ladybug open: failed to open database with status 1",
-      "duration_ms": 4884.496101,
-      "passed": false,
+      "expected": "ENOSPC damages only a private candidate while CURRENT remains recoverable",
+      "observed": "all checks passed",
+      "duration_ms": 7196.79619,
+      "passed": true,
       "child": {
         "exit_code": 1,
         "stderr": "ENOSPC was not injected during Apply"
       },
       "checks": [
         "ENOSPC injector status: \"ENOSPC after_apply\"",
-        "worker exit code: 1"
+        "worker exit code: 1",
+        "candidate publication returned an error",
+        "CURRENT and the active database checksum were preserved",
+        "failed candidate was removed and the emergency reserve was released",
+        "failure incident was recorded",
+        "a later generation was published and the previous generation restored"
+      ]
+    },
+    {
+      "case": "generation_publication_enospc",
+      "expected": "generation rename, CURRENT write/fsync/rename and state-directory fsync failures preserve the active generation",
+      "observed": "all checks passed",
+      "duration_ms": 6026.260618,
+      "passed": true,
+      "checks": [
+        "rename_generation: CURRENT preserved",
+        "write_current: CURRENT preserved",
+        "sync_file: CURRENT preserved",
+        "rename_current: CURRENT preserved",
+        "sync_directory: CURRENT preserved",
+        "successful publication and restoration passed after injected failures"
       ]
     }
   ],
-  "all_passed": false,
+  "all_passed": true,
   "limitations": [
     "The probes cover Linux process termination and filesystem-call faults, not machine power loss or storage-controller cache loss.",
     "The full-disk case injects ENOSPC at the libc boundary only for the copied database file.",
     "The permission case assumes the benchmark is not run as root.",
-    "In the measured run, the first intercepted write occurred after Apply returned successfully; ENOSPC during close left the copied database unreopenable."
+    "The generation-publication cases inject directory and CURRENT failures through deterministic filesystem hooks."
   ]
 }

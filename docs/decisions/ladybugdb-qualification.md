@@ -7,9 +7,17 @@
 
 ## Decisión
 
-LadybugDB queda aceptada como motor candidato para el almacenamiento canónico de Luque, pero no queda autorizada todavía para continuar a la construcción de HotSnapshot. La carga masiva, las mutaciones transaccionales, la integridad y la recuperación ante terminación de proceso cumplen el contrato medido. La recuperación ante agotamiento de disco no lo cumple.
+LadybugDB queda aceptada como motor candidato para el almacenamiento canónico
+de Luque, pero todavía no se autoriza la construcción de HotSnapshot. La carga
+masiva, las mutaciones transaccionales, la integridad, la recuperación ante
+terminación de proceso y la publicación ante agotamiento de disco cumplen el
+contrato medido. El perfil de deltas continúa pendiente.
 
-El plan exige `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`, `LADYBUG_INCREMENTAL_PASS`, `LADYBUG_RECOVERY_PASS` y `LADYBUG_DELTA_PERFORMANCE_PASS` antes de derivar `LADYBUG_STORAGE_PASS`. Recuperación permanece en `FAIL` y el perfil de deltas está pendiente; emitir el gate global ocultaría ambos bloqueos.
+El plan exige `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`,
+`LADYBUG_INCREMENTAL_PASS`, `LADYBUG_RECOVERY_PASS` y
+`LADYBUG_DELTA_PERFORMANCE_PASS` antes de derivar `LADYBUG_STORAGE_PASS`.
+Recuperación ya está en `PASS`; emitir el gate global antes de LUQUE-0214
+ocultaría el bloqueo de rendimiento.
 
 ## Configuración calificada
 
@@ -31,9 +39,9 @@ Las versiones, assets y checksums están fijados en [`docs/dependencies/ladybugd
 | `LADYBUG_SCHEMA_PASS` | `PASS` | El doctor validó las siete tablas, claves, tipos y extremos de relaciones; los conteos e invariantes dieron cero violaciones. |
 | `LADYBUG_BULK_LOAD_PASS` | `PASS` | `COPY` cargó y verificó la escala completa con RSS inferior a 2 GiB. |
 | `LADYBUG_INCREMENTAL_PASS` | `PASS` | Altas, bajas, cambios, sustitución de relaciones, duplicados, atomicidad y rollback pasaron sobre una copia del corpus completo. |
-| `LADYBUG_RECOVERY_PASS` | `FAIL` | Seis casos pasaron; `simulated_disk_full` dejó la copia sin posibilidad de reapertura. |
+| `LADYBUG_RECOVERY_PASS` | `PASS` | Ocho casos pasan; `CURRENT`, checksum y reapertura permanecen intactos ante fallos de la candidata y de publicación. |
 | `LADYBUG_DELTA_PERFORMANCE_PASS` | `PENDING` | La corrección incremental pasa, pero todavía no se ha explicado ni reducido el coste de 878,656 ms para tres aristas. |
-| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | Requiere cerrar recuperación y rendimiento de deltas. |
+| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | Requiere cerrar únicamente el rendimiento de deltas. |
 
 ## Resultados reproducidos
 
@@ -118,45 +126,51 @@ Pasaron:
 - `SIGKILL` durante `COPY`;
 - reapertura y nueva escritura durable después de la caída;
 - fichero truncado como error controlado;
-- directorio sin permisos como error controlado.
+- directorio sin permisos como error controlado;
+- `ENOSPC` tardío durante el cierre de una candidata privada;
+- `ENOSPC` durante rename de generación, escritura/fsync/rename de `CURRENT` y
+  fsync del directorio de estado.
 
-Falló `simulated_disk_full`. `Writer.Apply` devolvió éxito; el primer `ENOSPC` interceptado apareció durante el cierre y la API nativa de cierre no pudo propagarlo. La copia resultante no volvió a abrirse. `luque doctor storage` detecta una base ya dañada, pero no previene el daño ni recupera la base activa.
+La publicación usa `state/generations/<id>.tmp/`, valida la candidata cerrada,
+la renombra a `<id>/` y solo después cambia `CURRENT`. Ante fallo libera la
+reserva para abortar y registrar, elimina la candidata y conserva la generación
+activa. El benchmark verificó además una publicación posterior y la restauración
+de la generación anterior.
 
 ## Límites obligatorios
 
-Hasta cerrar el gate:
-
-1. No se permiten mutaciones incrementales in-place sobre la única copia canónica.
-2. Ningún resultado de `Writer.Apply` se considera durable por sí solo ante `ENOSPC`.
+1. No se permiten mutaciones incrementales in-place sobre la generación activa.
+2. Ningún resultado de `Writer.Apply` se considera durable por sí solo ante
+   `ENOSPC`; la durabilidad empieza al publicar `CURRENT`.
 3. La base viva solo puede abrirla un proceso Luque; un lock externo es fallo operativo.
 4. El despliegue calificado requiere Linux amd64, CGO, `liblbug` fijada y verificación de checksum.
 5. Los backups y una restauración verificada siguen siendo obligatorios; el doctor no los sustituye.
 6. Las consultas MCP no se servirán directamente desde LadybugDB.
 
-## Condiciones para emitir `LADYBUG_STORAGE_PASS`
+## Resultado de LUQUE-0213
 
-LUQUE-0213 debe:
+LUQUE-0213 cumplió las doce condiciones de recuperación:
 
-1. almacenar bases en `state/generations/<id>/` y mantener la candidata en un directorio `.tmp`;
-2. usar un manifiesto pequeño `CURRENT` como única autoridad sobre la generación activa;
-3. comprobar antes de empezar el mayor entre `2 × base + snapshot + 1 GiB` y el 15 % del filesystem;
-4. mantener una reserva de emergencia preasignada y configurable, inicialmente de al menos 512 MiB;
-5. cerrar, sincronizar, reabrir y ejecutar doctor, integridad, golden probes y validación de HotSnapshot sobre la candidata;
-6. sincronizar los ficheros candidatos y su directorio;
-7. renombrar `<id>.tmp/` a `<id>/` y sincronizar `generations/` antes de cambiar el manifiesto;
-8. sincronizar `CURRENT.next`, renombrarlo atómicamente sobre `CURRENT` y sincronizar el directorio padre;
-9. conservar al menos la generación anterior y demostrar su restauración;
-10. inyectar `ENOSPC` durante aplicación, cierre y publicación, liberando la reserva solo para abortar, limpiar y registrar;
-11. demostrar que cada fallo deja `CURRENT`, el checksum, la reapertura y el último HotSnapshot válido sin cambios;
-12. repetir la suite de recuperación con `all_passed: true`.
+1. almacena bases en `state/generations/<id>/` y candidatas en `.tmp`;
+2. usa `CURRENT` como autoridad única;
+3. aplica el mayor entre `2 × base + snapshot + 1 GiB` y el 15 % del filesystem;
+4. preasigna una reserva configurable de al menos 512 MiB;
+5. exige un validador sobre la candidata cerrada y sincronizada;
+6. sincroniza ficheros y directorios candidatos;
+7. publica la generación antes de cambiar el manifiesto;
+8. sincroniza `CURRENT.next`, lo renombra y sincroniza el directorio padre;
+9. conserva y restaura la generación anterior;
+10. inyecta `ENOSPC` durante mutación y publicación;
+11. conserva `CURRENT`, checksum, reapertura y snapshot validado ante cada fallo;
+12. obtiene `all_passed: true` en la suite de recuperación.
 
 LUQUE-0214 debe localizar y reducir el coste de los deltas, demostrar batching
 real y cumplir los límites provisionales o registrar un nuevo bloqueo
 explícito.
 
-Solo después de emitir `LADYBUG_RECOVERY_PASS` y
-`LADYBUG_DELTA_PERFORMANCE_PASS` se podrá derivar
-`LADYBUG_STORAGE_PASS` y desbloquear LUQUE-0301.
+Cuando LUQUE-0214 emita `LADYBUG_DELTA_PERFORMANCE_PASS`, este gate y
+`LADYBUG_RECOVERY_PASS` permitirán derivar `LADYBUG_STORAGE_PASS` y desbloquear
+LUQUE-0301.
 
 ## Evidencia
 

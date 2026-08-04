@@ -16,9 +16,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/Luqueee/luque/internal/storage/generation"
 	"github.com/Luqueee/luque/internal/storage/ladybug"
 )
 
@@ -160,6 +163,7 @@ func run(ctx context.Context, cfg config) (benchmarkResults, error) {
 			"The probes cover Linux process termination and filesystem-call faults, not machine power loss or storage-controller cache loss.",
 			"The full-disk case injects ENOSPC at the libc boundary only for the copied database file.",
 			"The permission case assumes the benchmark is not run as root.",
+			"The generation-publication cases inject directory and CURRENT failures through deterministic filesystem hooks.",
 		},
 	}
 
@@ -171,6 +175,7 @@ func run(ctx context.Context, cfg config) (benchmarkResults, error) {
 		runTruncatedFile,
 		runPermissionDenied,
 		runDiskFull,
+		runGenerationPublicationFaults,
 	}
 	for _, runner := range runners {
 		if err := ctx.Err(); err != nil {
@@ -322,40 +327,301 @@ func runPermissionDenied(ctx context.Context, executable, workRoot string, cfg c
 func runDiskFull(ctx context.Context, executable, workRoot string, cfg config) caseResult {
 	const name = "simulated_disk_full"
 	start := time.Now()
-	databasePath, markerPath, err := prepareScenario(workRoot, name, cfg.DatabasePath)
+	directory := filepath.Join(workRoot, name)
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, err)
+	}
+	shimPath, err := buildENOSPCShim(directory, cfg.ShimSource)
 	if err != nil {
-		return failedCase(name, "ENOSPC rolls back the transaction and preserves reopenability", start, err)
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, err)
 	}
-	shimPath := filepath.Join(filepath.Dir(databasePath), "enospc.so")
-	shimSource, err := filepath.Abs(cfg.ShimSource)
+	store, err := generation.New(filepath.Join(directory, "state"), generation.DefaultConfig())
 	if err != nil {
-		return failedCase(name, "ENOSPC rolls back the transaction and preserves reopenability", start, err)
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, err)
 	}
-	if output, err := exec.Command("cc", "-shared", "-fPIC", "-O2", "-Wall", "-Wextra", "-o", shimPath, shimSource, "-ldl").CombinedOutput(); err != nil {
-		return failedCase(name, "ENOSPC rolls back the transaction and preserves reopenability", start, fmt.Errorf("build ENOSPC shim: %w: %s", err, output))
+	if _, err := publishRecoveryGeneration(ctx, store, "000001", cfg.DatabasePath); err != nil {
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, fmt.Errorf("publish baseline: %w", err))
 	}
-	statusPath := filepath.Join(filepath.Dir(databasePath), "enospc.injected")
+	baseline, err := store.Current(ctx)
+	if err != nil {
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, err)
+	}
+	baselineHash, err := fileSHA256(baseline.DatabasePath)
+	if err != nil {
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, err)
+	}
+	baselineSnapshotDigest, err := storageGoldenDigest(ctx, baseline.DatabasePath)
+	if err != nil {
+		return failedCase(name, "ENOSPC discards the candidate and preserves CURRENT", start, err)
+	}
+
+	markerPath := filepath.Join(directory, "worker.marker")
+	statusPath := filepath.Join(directory, "enospc.injected")
 	environment := []string{
 		"LD_PRELOAD=" + shimPath,
-		"LUQUE_ENOSPC_PATH=" + databasePath,
 		"LUQUE_ENOSPC_AFTER_BYTES=8192",
 		"LUQUE_ENOSPC_STATUS=" + statusPath,
 	}
-	observation, childErr := runChild(ctx, executable, workerArguments("disk-full", databasePath, markerPath, "", ""), environment, cfg.CaseTimeout)
+	var observation processObservation
+	_, publicationErr := store.Publish(ctx, generation.PublishRequest{
+		ID: "000002",
+		Build: func(ctx context.Context, candidatePath string) error {
+			databasePath := filepath.Join(candidatePath, "graph.db")
+			if err := copyFile(baseline.DatabasePath, databasePath); err != nil {
+				return err
+			}
+			if err := writeSnapshotDigest(candidatePath, baselineSnapshotDigest); err != nil {
+				return err
+			}
+			environment = append(environment, "LUQUE_ENOSPC_PATH="+databasePath)
+			var childErr error
+			observation, childErr = runChild(ctx, executable, workerArguments("disk-full", databasePath, markerPath, "", ""), environment, cfg.CaseTimeout)
+			if childErr != nil {
+				return childErr
+			}
+			if observation.ExitCode == 0 {
+				return errors.New("disk-full worker unexpectedly succeeded")
+			}
+			return fmt.Errorf("candidate mutation failed after injected write: %w", syscall.ENOSPC)
+		},
+		Validate: validateRecoveryGeneration,
+	})
 	status, statusErr := os.ReadFile(statusPath)
 	statusValue := strings.TrimSpace(string(status))
-	injectedDuringApply := statusErr == nil && statusValue == "ENOSPC apply"
-	var statusValidationErr error
-	if statusErr == nil && !injectedDuringApply {
-		statusValidationErr = fmt.Errorf("ENOSPC status = %q, want %q", statusValue, "ENOSPC apply")
+	injected := statusErr == nil && strings.HasPrefix(statusValue, "ENOSPC ")
+	currentErr := requireCurrentGeneration(ctx, store, "000001", baselineHash)
+	_, candidateErr := os.Stat(filepath.Join(directory, "state", "generations", "000002.tmp"))
+	_, finalErr := os.Stat(filepath.Join(directory, "state", "generations", "000002"))
+	_, reserveErr := os.Stat(filepath.Join(directory, "state", "space-reserve"))
+	_, failureErr := os.Stat(filepath.Join(directory, "state", "LAST_FAILURE.json"))
+
+	successful, successErr := publishRecoveryGeneration(ctx, store, "000002", baseline.DatabasePath)
+	if successErr == nil {
+		successErr = store.Restore(ctx, "000001", validateRecoveryGeneration)
 	}
-	verificationErr := verifyRecovered(ctx, databasePath, []string{"recovery-enospc-0000", "recovery-enospc-0999"}, "recovery-enospc-after")
-	checks := []string{fmt.Sprintf("ENOSPC injector status: %q", statusValue), fmt.Sprintf("worker exit code: %d", observation.ExitCode)}
-	if verificationErr == nil {
-		checks = append(checks, "the recovered database exposed no sampled failed symbols and persisted a new transaction")
+	if successErr == nil {
+		successErr = requireCurrentGeneration(ctx, store, "000001", baselineHash)
 	}
-	passed := childErr == nil && observation.ExitCode != 0 && observation.Signal == "" && injectedDuringApply && verificationErr == nil
-	return completedCase(name, "an injected ENOSPC fails the mutation without partial state or permanent damage", start, passed, errors.Join(childErr, statusErr, statusValidationErr, verificationErr), &observation, checks)
+	if successErr == nil && successful.PreviousID != "000001" {
+		successErr = fmt.Errorf("successful publication previous id = %q", successful.PreviousID)
+	}
+	checks := []string{
+		fmt.Sprintf("ENOSPC injector status: %q", statusValue),
+		fmt.Sprintf("worker exit code: %d", observation.ExitCode),
+		"candidate publication returned an error",
+		"CURRENT and the active database checksum were preserved",
+		"failed candidate was removed and the emergency reserve was released",
+		"failure incident was recorded",
+		"a later generation was published and the previous generation restored",
+	}
+	passed := publicationErr != nil && injected && currentErr == nil &&
+		errors.Is(candidateErr, os.ErrNotExist) && errors.Is(finalErr, os.ErrNotExist) &&
+		errors.Is(reserveErr, os.ErrNotExist) && failureErr == nil && successErr == nil
+	joined := errors.Join(statusErr, currentErr, successErr)
+	if publicationErr == nil {
+		joined = errors.Join(joined, errors.New("candidate publication unexpectedly succeeded"))
+	}
+	return completedCase(name, "ENOSPC damages only a private candidate while CURRENT remains recoverable", start, passed, joined, &observation, checks)
+}
+
+func runGenerationPublicationFaults(ctx context.Context, _ string, workRoot string, cfg config) caseResult {
+	const name = "generation_publication_enospc"
+	start := time.Now()
+	directory := filepath.Join(workRoot, name)
+	statePath := filepath.Join(directory, "state")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		return failedCase(name, "filesystem publication faults roll back CURRENT", start, err)
+	}
+	statePath, err := filepath.Abs(statePath)
+	if err != nil {
+		return failedCase(name, "filesystem publication faults roll back CURRENT", start, err)
+	}
+	var armed generation.Operation
+	var armedGenerationID string
+	var injected bool
+	storeConfig := generation.DefaultConfig()
+	storeConfig.FaultInjector = func(operation generation.Operation, path string) error {
+		if injected || operation != armed {
+			return nil
+		}
+		if operation == generation.OperationSyncFile && path != filepath.Join(statePath, "CURRENT.next") {
+			return nil
+		}
+		if operation == generation.OperationSyncDirectory {
+			if path != statePath {
+				return nil
+			}
+			current, err := os.ReadFile(filepath.Join(statePath, "CURRENT"))
+			if err != nil || strings.TrimSpace(string(current)) != armedGenerationID {
+				return nil
+			}
+		}
+		injected = true
+		return syscall.ENOSPC
+	}
+	store, err := generation.New(statePath, storeConfig)
+	if err != nil {
+		return failedCase(name, "filesystem publication faults roll back CURRENT", start, err)
+	}
+	if _, err := publishRecoveryGeneration(ctx, store, "000001", cfg.DatabasePath); err != nil {
+		return failedCase(name, "filesystem publication faults roll back CURRENT", start, err)
+	}
+	baseline, err := store.Current(ctx)
+	if err != nil {
+		return failedCase(name, "filesystem publication faults roll back CURRENT", start, err)
+	}
+	baselineHash, err := fileSHA256(baseline.DatabasePath)
+	if err != nil {
+		return failedCase(name, "filesystem publication faults roll back CURRENT", start, err)
+	}
+	operations := []generation.Operation{
+		generation.OperationRenameGeneration,
+		generation.OperationWriteCurrent,
+		generation.OperationSyncFile,
+		generation.OperationRenameCurrent,
+		generation.OperationSyncDirectory,
+	}
+	checks := make([]string, 0, len(operations)+1)
+	var probeErrs []error
+	for index, operation := range operations {
+		id := fmt.Sprintf("%06d", index+2)
+		armed = operation
+		armedGenerationID = id
+		injected = false
+		_, publishErr := publishRecoveryGeneration(ctx, store, id, baseline.DatabasePath)
+		if publishErr == nil || !injected {
+			probeErrs = append(probeErrs, fmt.Errorf("%s was not rejected after ENOSPC", operation))
+		}
+		if err := requireCurrentGeneration(ctx, store, "000001", baselineHash); err != nil {
+			probeErrs = append(probeErrs, fmt.Errorf("%s changed CURRENT: %w", operation, err))
+		}
+		if _, err := os.Stat(filepath.Join(statePath, "generations", id)); !errors.Is(err, os.ErrNotExist) {
+			probeErrs = append(probeErrs, fmt.Errorf("%s left generation %s", operation, id))
+		}
+		checks = append(checks, fmt.Sprintf("%s: CURRENT preserved", operation))
+	}
+	armed, armedGenerationID = "", ""
+	successID := fmt.Sprintf("%06d", len(operations)+2)
+	successful, successErr := publishRecoveryGeneration(ctx, store, successID, baseline.DatabasePath)
+	if successErr == nil {
+		successErr = store.Restore(ctx, "000001", validateRecoveryGeneration)
+	}
+	if successErr == nil {
+		successErr = requireCurrentGeneration(ctx, store, "000001", baselineHash)
+	}
+	if successErr == nil && successful.PreviousID != "000001" {
+		successErr = fmt.Errorf("successful publication previous id = %q", successful.PreviousID)
+	}
+	probeErrs = append(probeErrs, successErr)
+	checks = append(checks, "successful publication and restoration passed after injected failures")
+	return completedCase(name, "generation rename, CURRENT write/fsync/rename and state-directory fsync failures preserve the active generation", start, errors.Join(probeErrs...) == nil, errors.Join(probeErrs...), nil, checks)
+}
+
+func buildENOSPCShim(directory, source string) (string, error) {
+	shimPath := filepath.Join(directory, "enospc.so")
+	shimSource, err := filepath.Abs(source)
+	if err != nil {
+		return "", err
+	}
+	if output, err := exec.Command("cc", "-shared", "-fPIC", "-O2", "-Wall", "-Wextra", "-o", shimPath, shimSource, "-ldl").CombinedOutput(); err != nil {
+		return "", fmt.Errorf("build ENOSPC shim: %w: %s", err, output)
+	}
+	return shimPath, nil
+}
+
+func publishRecoveryGeneration(ctx context.Context, store *generation.Store, id, sourceDatabase string) (generation.Publication, error) {
+	digest, err := storageGoldenDigest(ctx, sourceDatabase)
+	if err != nil {
+		return generation.Publication{}, err
+	}
+	return store.Publish(ctx, generation.PublishRequest{
+		ID: id,
+		Build: func(_ context.Context, candidatePath string) error {
+			databasePath := filepath.Join(candidatePath, "graph.db")
+			if err := copyFile(sourceDatabase, databasePath); err != nil {
+				return err
+			}
+			return writeSnapshotDigest(candidatePath, digest)
+		},
+		Validate: validateRecoveryGeneration,
+	})
+}
+
+func validateRecoveryGeneration(ctx context.Context, candidate generation.Generation) error {
+	diagnosis, err := ladybug.DiagnoseStorage(ctx, candidate.DatabasePath)
+	if err != nil {
+		return err
+	}
+	if !diagnosis.Healthy {
+		return fmt.Errorf("storage doctor rejected generation: %#v", diagnosis.Checks)
+	}
+	expected, err := os.ReadFile(filepath.Join(candidate.Path, "snapshot.sha256"))
+	if err != nil {
+		return err
+	}
+	actual := diagnosisGoldenDigest(diagnosis)
+	if expected := strings.TrimSpace(string(expected)); expected != actual {
+		return fmt.Errorf("snapshot golden digest = %s, database digest = %s", expected, actual)
+	}
+	return nil
+}
+
+func storageGoldenDigest(ctx context.Context, databasePath string) (string, error) {
+	diagnosis, err := ladybug.DiagnoseStorage(ctx, databasePath)
+	if err != nil {
+		return "", err
+	}
+	if !diagnosis.Healthy {
+		return "", fmt.Errorf("storage doctor rejected generation: %#v", diagnosis.Checks)
+	}
+	return diagnosisGoldenDigest(diagnosis), nil
+}
+
+func diagnosisGoldenDigest(diagnosis ladybug.StorageDiagnosis) string {
+	countNames := make([]string, 0, len(diagnosis.Counts))
+	for name := range diagnosis.Counts {
+		countNames = append(countNames, name)
+	}
+	sort.Strings(countNames)
+	tableNames := make([]string, 0, len(diagnosis.Tables))
+	for name := range diagnosis.Tables {
+		tableNames = append(tableNames, name)
+	}
+	sort.Strings(tableNames)
+	hash := sha256.New()
+	fmt.Fprintf(hash, "engine=%s\nstorage=%d\n", diagnosis.EngineVersion, diagnosis.StorageVersion)
+	for _, name := range tableNames {
+		fmt.Fprintf(hash, "table:%s=%s\n", name, diagnosis.Tables[name])
+	}
+	for _, name := range countNames {
+		fmt.Fprintf(hash, "count:%s=%d\n", name, diagnosis.Counts[name])
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func writeSnapshotDigest(candidatePath, digest string) error {
+	return os.WriteFile(filepath.Join(candidatePath, "snapshot.sha256"), []byte(digest+"\n"), 0o600)
+}
+
+func requireCurrentGeneration(ctx context.Context, store *generation.Store, id, expectedHash string) error {
+	current, err := store.Current(ctx)
+	if err != nil {
+		return err
+	}
+	if current.ID != id {
+		return fmt.Errorf("CURRENT = %s, want %s", current.ID, id)
+	}
+	if err := validateRecoveryGeneration(ctx, current); err != nil {
+		return err
+	}
+	actualHash, err := fileSHA256(current.DatabasePath)
+	if err != nil {
+		return err
+	}
+	if actualHash != expectedHash {
+		return fmt.Errorf("active hash = %s, want %s", actualHash, expectedHash)
+	}
+	return nil
 }
 
 func prepareScenario(workRoot, name, sourcePath string) (string, string, error) {
@@ -540,14 +806,15 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 	}
 	fmt.Fprintln(&document, "## Metodología")
 	fmt.Fprintln(&document)
-	fmt.Fprintln(&document, "Cada caso usa una copia privada de la base cargada. Los workers se ejecutan en procesos separados para que un `SIGKILL`, una base corrupta o un error nativo no comprometan el coordinador ni el artefacto de entrada.")
+	fmt.Fprintln(&document, "Cada caso usa una copia privada de la base cargada. Los workers se ejecutan en procesos separados para que un `SIGKILL`, una base corrupta o un error nativo no comprometan el coordinador ni el artefacto de entrada. Los casos `ENOSPC` publican mediante generaciones inmutables y `CURRENT`.")
 	fmt.Fprintln(&document)
 	fmt.Fprintln(&document, "- **Inserción interrumpida:** el worker confirma 32 `CREATE` dentro de una transacción y el coordinador envía `SIGKILL`.")
 	fmt.Fprintln(&document, "- **Antes del commit:** el worker completa el `CREATE`, publica un marcador y queda bloqueado sin ejecutar `COMMIT`.")
 	fmt.Fprintln(&document, "- **Carga masiva:** `COPY Symbol` consume al menos 1 MiB de un CSV de un millón de filas antes del `SIGKILL`; un marcador separado demuestra que `COPY` no había terminado.")
 	fmt.Fprintln(&document, "- **Reapertura:** tras la caída se valida `Health`, un símbolo base, la ausencia del delta abortado y la persistencia de una transacción nueva después de una segunda reapertura.")
 	fmt.Fprintln(&document, "- **Truncado y permisos:** ambos `Open` se aíslan en workers y deben devolver errores controlados, sin señales ni timeouts.")
-	fmt.Fprintln(&document, "- **Disco lleno:** un shim `LD_PRELOAD` devuelve `ENOSPC` después de 8 KiB escritos únicamente sobre el descriptor de la copia. Después se comprueban rollback, reapertura y una escritura durable.")
+	fmt.Fprintln(&document, "- **Disco lleno:** el shim `LD_PRELOAD` daña únicamente una candidata privada. Se comprueba que `CURRENT`, su checksum y su reapertura quedan intactos; después se publica una generación nueva y se restaura la anterior.")
+	fmt.Fprintln(&document, "- **Publicación:** fault injection devuelve `ENOSPC` durante el rename de la generación, escritura/fsync/rename de `CURRENT` y fsync del directorio de estado. Cada fallo debe conservar la generación activa.")
 	fmt.Fprintln(&document)
 	fmt.Fprintln(&document, "## Reproducción")
 	fmt.Fprintln(&document)
@@ -564,7 +831,7 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 	for _, limitation := range result.Limitations {
 		fmt.Fprintf(&document, "- %s\n", limitation)
 	}
-	fmt.Fprintln(&document, "- Estas pruebas no sustituyen los backups. `luque doctor storage` diagnostica el estado posterior, pero no convierte el caso `ENOSPC` en una recuperación soportada.")
+	fmt.Fprintln(&document, "- Estas pruebas no sustituyen los backups ni simulan pérdida de alimentación. Cubren la recuperación de Luque ante los puntos `ENOSPC` inyectados y la publicación de `CURRENT` en Linux.")
 	return os.WriteFile(documentationPath, []byte(document.String()), 0o644)
 }
 

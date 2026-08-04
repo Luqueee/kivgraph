@@ -54,8 +54,8 @@ normalizados para evitar una lectura completa innecesaria.
 - La publicación requiere fsync de la candidata, rename atómico de `CURRENT`,
   fsync del directorio, una generación anterior y una reserva de emergencia.
 - Los backups, rollback e integridad forman parte del camino de recuperación.
-- Hasta cerrar `ENOSPC` y el rendimiento de deltas no se emite
-  `LADYBUG_STORAGE_PASS`.
+- `LADYBUG_RECOVERY_PASS` está emitido. El gate de almacenamiento permanece
+  bloqueado únicamente hasta medir y aceptar el rendimiento de deltas.
 
 ## Risks
 
@@ -70,12 +70,13 @@ normalizados para evitar una lectura completa innecesaria.
 
 ## Status
 
-Aceptada con límites tras la calificación de LUQUE-0212. Carga, integridad,
-mutaciones y recuperación ante terminación de proceso pasan, pero el caso
-`ENOSPC` puede manifestarse durante el cierre después de que la mutación haya
-devuelto éxito y dejar la base sin posibilidad de reapertura.
+Aceptada con límites tras LUQUE-0213. Carga, integridad, mutaciones,
+recuperación ante terminación de proceso y publicación ante `ENOSPC` pasan.
+La base activa ya no se muta: `internal/storage/generation` construye y valida
+una candidata, publica `CURRENT` de forma durable y conserva una generación
+restaurable.
 
-La decisión completa y las condiciones de desbloqueo están en
+La decisión completa y la evidencia están en
 [`docs/decisions/ladybugdb-qualification.md`](../decisions/ladybugdb-qualification.md).
-`LADYBUG_STORAGE_PASS` no se emite hasta que la suite de recuperación pase
-íntegramente y el rendimiento de deltas cumpla el gate medido.
+`LADYBUG_RECOVERY_PASS` está emitido. `LADYBUG_STORAGE_PASS` sigue bloqueado
+hasta que LUQUE-0214 emita `LADYBUG_DELTA_PERFORMANCE_PASS`.

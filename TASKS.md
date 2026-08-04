@@ -1030,11 +1030,11 @@ LADYBUG_STORAGE_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** impedir que un fallo de espacio invalide la única base canónica.
 
@@ -1064,6 +1064,16 @@ LADYBUG_STORAGE_PASS
 ```text
 LADYBUG_RECOVERY_PASS
 ```
+
+**Resultado registrado:** `LADYBUG_RECOVERY_PASS`.
+
+* `internal/storage/generation` implementa candidatas privadas, reserva de 512 MiB, política preventiva de espacio, publicación durable de `CURRENT` y restauración.
+* Fault injection cubre rename de generación, escritura/fsync/rename de `CURRENT` y fsync del directorio padre.
+* El caso de cierre tardío con `ENOSPC` destruye solo la candidata; la generación activa conserva `CURRENT`, checksum, reapertura y snapshot validado.
+* `benchmarks/ladybug-recovery/results.json` registra ocho casos en `PASS` y `all_passed: true`.
+* Limitación conservada: la prueba cubre Linux y fallos de syscalls, no pérdida eléctrica ni cachés del controlador.
+* `LADYBUG_STORAGE_PASS` continúa bloqueado únicamente por `LADYBUG_DELTA_PERFORMANCE_PASS`.
+* Siguiente tarea: LUQUE-0214.
 
 ---
 
