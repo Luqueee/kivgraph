@@ -1132,6 +1132,8 @@ LADYBUG_STORAGE_PASS
 
 **Resultado registrado:** `LADYBUG_DELTA_PERFORMANCE_PASS` **no emitido**.
 
+**Estado:** `BLOCKED` — `LADYBUG_DELTA_PERFORMANCE_PASS` no emitido.
+
 * `prepared_individual` se usa para 1–10 relaciones; p95 de 10 relaciones: 123,5 ms. Cumple el máximo tolerable de 150 ms, pero no el objetivo de 50 ms.
 * `prepared_batch` mantiene una única llamada nativa por tipo de relación y el borrado pasó a ser batch, pero el binding `UNWIND` da p95 de 19.249,3 ms para 1.000 relaciones; incumple el límite de 500 ms.
 * `staging_copy` midió p95 de 177,9 ms para 1.000 relaciones, pero no se adopta para deltas genéricos: el esquema permite multiplicidad y `COPY` no conserva la detección atómica de duplicados.
