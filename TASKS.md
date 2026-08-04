@@ -863,11 +863,11 @@ Las consultas deben devolver resultados correctos sobre el corpus sintético.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Probes:**
 
@@ -885,6 +885,17 @@ Las consultas deben devolver resultados correctos sobre el corpus sintético.
 * ausencia de ghost edges;
 * atomicidad;
 * rollback.
+
+**Resultado registrado:**
+
+* `Database.OpenWriter` expone un único escritor lógico; cada `Delta` se valida y aplica en una transacción explícita.
+* El contrato soporta altas, cambios y bajas de símbolos, altas y bajas de `REFERENCES`/`CALLS_DIRECT` y sustitución atómica de relaciones salientes.
+* Corpus completo: 100.000 símbolos y 1.000.000 de aristas. Probes: 1 símbolo 13,98 ms; 1.000 símbolos 4.731,66 ms; 3 aristas 864,60 ms; baja de arista 7,13 ms; cambio de propiedades 7,30 ms; sustitución saliente 799,31 ms; baja de símbolo 109,81 ms.
+* Un fallo tardío por destino inexistente tardó 400,36 ms y revirtió el símbolo insertado en la misma transacción.
+* Las pruebas y el probe final confirman rechazo de símbolos y relaciones duplicados, ausencia de ghost edges, atomicidad y rollback.
+* La base de entrada conservó el checksum SHA-256 `ada9dc0b704046c8b019e17efe3d443de58102b7a316964b9e105822ffc99191`.
+* No hay gate propio en esta tarea. Las mediciones excluyen la construcción y publicación del HotSnapshot, aplazadas a fases posteriores.
+* Artefactos: `benchmarks/ladybug-incremental/results.json` y `benchmarks/ladybug-incremental/report.md`.
 
 ---
 

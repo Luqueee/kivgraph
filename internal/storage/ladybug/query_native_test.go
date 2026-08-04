@@ -175,28 +175,47 @@ func newQueryFixture(t *testing.T) (Database, Reader) {
 	defer connection.Close()
 
 	for _, query := range []string{
+		"CREATE NODE TABLE File(stable_key STRING PRIMARY KEY, repository_key STRING, path STRING, content_hash STRING, language STRING)",
 		"CREATE NODE TABLE Symbol(stable_key STRING PRIMARY KEY, repository_key STRING, file_key STRING, name STRING, qualified_name STRING, kind STRING, signature STRING, start_line INT64, end_line INT64)",
+		"CREATE REL TABLE DEFINES(FROM File TO Symbol, relation_kind STRING)",
 		"CREATE REL TABLE REFERENCES(FROM Symbol TO Symbol, evidence_kind STRING, source_file_key STRING, target_file_key STRING)",
 		"CREATE REL TABLE CALLS_DIRECT(FROM Symbol TO Symbol, evidence_kind STRING, source_file_key STRING, target_file_key STRING)",
 	} {
 		mustExecuteQuery(t, connection, query)
 	}
 
+	createFile, err := connection.Prepare("CREATE (:File {stable_key: $stable_key, repository_key: $repository_key, path: $path, content_hash: $content_hash, language: $language})")
+	if err != nil {
+		t.Fatalf("prepare file: %v", err)
+	}
+	defer createFile.Close()
 	createSymbol, err := connection.Prepare("CREATE (:Symbol {stable_key: $stable_key, repository_key: $repository_key, file_key: $file_key, name: $name, qualified_name: $qualified_name, kind: $kind, signature: $signature, start_line: $start_line, end_line: $end_line})")
 	if err != nil {
 		t.Fatalf("prepare symbol: %v", err)
 	}
 	defer createSymbol.Close()
+	defines, err := connection.Prepare("MATCH (file:File {stable_key: $file_key}), (symbol:Symbol {stable_key: $symbol_key}) CREATE (file)-[:DEFINES {relation_kind: 'file_symbol'}]->(symbol)")
+	if err != nil {
+		t.Fatalf("prepare DEFINES: %v", err)
+	}
+	defer defines.Close()
 	for index := range 8 {
 		key := fmt.Sprintf("s%d", index)
 		repository := "r0"
 		if index >= 6 {
 			repository = "r1"
 		}
+		mustExecutePrepared(t, connection, createFile, map[string]any{
+			"stable_key": fmt.Sprintf("f%d", index), "repository_key": repository,
+			"path": fmt.Sprintf("/fixture/f%d", index), "content_hash": fmt.Sprintf("hash-%d", index), "language": "go",
+		})
 		mustExecutePrepared(t, connection, createSymbol, map[string]any{
 			"stable_key": key, "repository_key": repository, "file_key": fmt.Sprintf("f%d", index),
 			"name": key, "qualified_name": "fixture." + key, "kind": "function", "signature": key + "()",
 			"start_line": int64(index + 1), "end_line": int64(index + 5),
+		})
+		mustExecutePrepared(t, connection, defines, map[string]any{
+			"file_key": fmt.Sprintf("f%d", index), "symbol_key": key,
 		})
 	}
 

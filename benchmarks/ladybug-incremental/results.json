@@ -1,0 +1,125 @@
+{
+  "benchmark": "ladybug-incremental",
+  "command": "/tmp/go-build1461275480/b001/exe/ladybug-incremental --database /tmp/luque-ladybug-copy-full-gated.db --corpus /tmp/luque-synthetic-42 --output benchmarks/ladybug-incremental",
+  "commit": "23de693271f3a9e354b488785e687e8b0d21007d-dirty",
+  "generated_at": "2026-08-04T19:09:02.527724724Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "corpus": {
+    "schema_version": "001",
+    "seed": 42,
+    "repositories": 40,
+    "files": 100000,
+    "symbols": 100000,
+    "edges": 1000000
+  },
+  "base_database_bytes": 43065344,
+  "probes": [
+    {
+      "probe": "add_1_symbol",
+      "duration_ms": 13.979157,
+      "mutation": {
+        "added_symbols": 1,
+        "updated_symbols": 0,
+        "deleted_symbols": 0,
+        "added_references": 0,
+        "deleted_references": 0,
+        "replaced_sources": 0
+      }
+    },
+    {
+      "probe": "add_1000_symbols",
+      "duration_ms": 4731.656566,
+      "mutation": {
+        "added_symbols": 1000,
+        "updated_symbols": 0,
+        "deleted_symbols": 0,
+        "added_references": 0,
+        "deleted_references": 0,
+        "replaced_sources": 0
+      }
+    },
+    {
+      "probe": "add_edges",
+      "duration_ms": 864.599619,
+      "mutation": {
+        "added_symbols": 0,
+        "updated_symbols": 0,
+        "deleted_symbols": 0,
+        "added_references": 3,
+        "deleted_references": 0,
+        "replaced_sources": 0
+      }
+    },
+    {
+      "probe": "delete_edges",
+      "duration_ms": 7.127664,
+      "mutation": {
+        "added_symbols": 0,
+        "updated_symbols": 0,
+        "deleted_symbols": 0,
+        "added_references": 0,
+        "deleted_references": 1,
+        "replaced_sources": 0
+      }
+    },
+    {
+      "probe": "update_properties",
+      "duration_ms": 7.299284,
+      "mutation": {
+        "added_symbols": 0,
+        "updated_symbols": 1,
+        "deleted_symbols": 0,
+        "added_references": 0,
+        "deleted_references": 0,
+        "replaced_sources": 0
+      }
+    },
+    {
+      "probe": "replace_outgoing",
+      "duration_ms": 799.308693,
+      "mutation": {
+        "added_symbols": 0,
+        "updated_symbols": 0,
+        "deleted_symbols": 0,
+        "added_references": 2,
+        "deleted_references": 2,
+        "replaced_sources": 1
+      }
+    },
+    {
+      "probe": "delete_symbol",
+      "duration_ms": 109.805433,
+      "mutation": {
+        "added_symbols": 0,
+        "updated_symbols": 0,
+        "deleted_symbols": 1,
+        "added_references": 0,
+        "deleted_references": 1,
+        "replaced_sources": 0
+      }
+    },
+    {
+      "probe": "rollback_after_late_failure",
+      "duration_ms": 400.355448,
+      "mutation": {
+        "added_symbols": 0,
+        "updated_symbols": 0,
+        "deleted_symbols": 0,
+        "added_references": 0,
+        "deleted_references": 0,
+        "replaced_sources": 0
+      },
+      "expected_failure": "ErrNotFound"
+    }
+  ],
+  "integrity": {
+    "duplicate_symbols_rejected": true,
+    "duplicate_references_rejected": true,
+    "no_ghost_edges": true,
+    "atomicity_verified": true,
+    "rollback_verified": true,
+    "passed": true
+  }
+}

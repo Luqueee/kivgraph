@@ -18,6 +18,16 @@ var (
 	ErrInvalidLimit = errors.New("LadybugDB query limit is outside the supported range")
 	// ErrInvalidDepth reports a traversal depth outside the supported range.
 	ErrInvalidDepth = errors.New("LadybugDB traversal depth is outside the supported range")
+	// ErrReadOnly reports a writer requested from a read-only database.
+	ErrReadOnly = errors.New("LadybugDB database is read-only")
+	// ErrWriterOpen reports that the database already owns its single logical writer.
+	ErrWriterOpen = errors.New("LadybugDB writer is already open")
+	// ErrInvalidMutation reports a structurally invalid incremental delta.
+	ErrInvalidMutation = errors.New("LadybugDB incremental mutation is invalid")
+	// ErrAlreadyExists reports an attempted insertion of an existing entity.
+	ErrAlreadyExists = errors.New("LadybugDB entity already exists")
+	// ErrNotFound reports an update or deletion whose target does not exist.
+	ErrNotFound = errors.New("LadybugDB entity was not found")
 )
 
 // Error wraps a native or lifecycle failure with the Luque operation that failed.

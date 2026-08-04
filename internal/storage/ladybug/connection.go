@@ -10,11 +10,13 @@ import (
 )
 
 type database struct {
-	mu      sync.RWMutex
-	path    string
-	native  *lbug.Database
-	readers map[*reader]struct{}
-	closed  bool
+	mu       sync.RWMutex
+	path     string
+	native   *lbug.Database
+	readOnly bool
+	readers  map[*reader]struct{}
+	writer   *writer
+	closed   bool
 }
 
 // Open opens one LadybugDB database owned by the returned wrapper.
@@ -47,7 +49,7 @@ func Open(ctx context.Context, path string, config Config) (Database, error) {
 		native.Close()
 		return nil, &Error{Op: "open", Err: err}
 	}
-	return &database{path: path, native: native}, nil
+	return &database{path: path, native: native, readOnly: config.ReadOnly}, nil
 }
 
 func (db *database) Close() error {
@@ -62,6 +64,12 @@ func (db *database) Close() error {
 		reader.mu.Unlock()
 	}
 	clear(db.readers)
+	if db.writer != nil {
+		db.writer.mu.Lock()
+		db.writer.closeNative()
+		db.writer.mu.Unlock()
+		db.writer = nil
+	}
 	db.native.Close()
 	db.closed = true
 	return nil

@@ -102,6 +102,25 @@ go run -tags ladybug ./benchmarks/ladybug-queries \
 El benchmark ejecuta golden probes antes de medir. Sus resultados caracterizan
 LadybugDB como fuente canónica; no califican los SLO del HotSnapshot.
 
+La actualización incremental usa un único escritor lógico, valida el delta
+completo antes de mutar y aplica símbolos y relaciones en una transacción. El
+benchmark copia una base ya cargada, por lo que nunca modifica el artefacto de
+entrada:
+
+```bash
+go run -tags ladybug ./benchmarks/ladybug-incremental \
+  --database /tmp/luque-copy.db \
+  --corpus testdata/generated/synthetic \
+  --output benchmarks/ladybug-incremental
+```
+
+La secuencia mide altas individuales y por lote, altas y bajas de aristas,
+cambios de propiedades, sustitución de relaciones salientes y borrado de
+símbolos. Después comprueba rechazo de duplicados, ausencia de aristas
+fantasma y rollback de un fallo tardío. Los tiempos solo cubren la mutación
+transaccional de LadybugDB; la construcción y publicación de HotSnapshot
+pertenecen a fases posteriores.
+
 
 
 ## Estructura
