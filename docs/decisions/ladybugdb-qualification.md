@@ -2,22 +2,21 @@
 
 - **Fecha:** 2026-08-04
 - **Decisión:** `ACCEPT_LADYBUGDB_WITH_LIMITS`
-- **Gate:** `LADYBUG_STORAGE_PASS` **no emitido**
-- **Estado para la fase 3:** bloqueada
+- **Gate:** `LADYBUG_STORAGE_PASS` **emitido**
+- **Estado para la fase 3:** desbloqueada
 
 ## Decisión
 
 LadybugDB queda aceptada como motor candidato para el almacenamiento canónico
-de Luque, pero todavía no se autoriza la construcción de HotSnapshot. La carga
-masiva, las mutaciones transaccionales, la integridad, la recuperación ante
-terminación de proceso y la publicación ante agotamiento de disco cumplen el
-contrato medido. El perfil de deltas falló el límite de 1.000 relaciones.
+de Luque y se autoriza la construcción de HotSnapshot. La carga masiva, las
+mutaciones transaccionales, la integridad, la recuperación ante terminación de
+proceso, la publicación ante agotamiento de disco y el rendimiento de deltas
+cumplen el contrato medido.
 
 El plan exige `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`,
 `LADYBUG_INCREMENTAL_PASS`, `LADYBUG_RECOVERY_PASS` y
 `LADYBUG_DELTA_PERFORMANCE_PASS` antes de derivar `LADYBUG_STORAGE_PASS`.
-Recuperación está en `PASS`, pero el perfil de LUQUE-0214 deja el gate de
-rendimiento en `FAIL`; emitir el gate global ocultaría ese bloqueo.
+Todos están en `PASS`; se deriva el gate global.
 
 ## Configuración calificada
 
@@ -40,8 +39,8 @@ Las versiones, assets y checksums están fijados en [`docs/dependencies/ladybugd
 | `LADYBUG_BULK_LOAD_PASS` | `PASS` | `COPY` cargó y verificó la escala completa con RSS inferior a 2 GiB. |
 | `LADYBUG_INCREMENTAL_PASS` | `PASS` | Altas, bajas, cambios, sustitución de relaciones, duplicados, atomicidad y rollback pasaron sobre una copia del corpus completo. |
 | `LADYBUG_RECOVERY_PASS` | `PASS` | Ocho casos pasan; `CURRENT`, checksum y reapertura permanecen intactos ante fallos de la candidata y de publicación. |
-| `LADYBUG_DELTA_PERFORMANCE_PASS` | **FAIL** | 1–10 relaciones cumplen el p95 tolerable (123,5 ms); 1.000 relaciones con el camino seguro tardan 19.249,3 ms p95 frente al límite de 500 ms. |
-| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | Recuperación pasa; rendimiento de deltas no. |
+| `LADYBUG_DELTA_PERFORMANCE_PASS` | `PASS` | p95 `Apply`: 115,7 ms para 1–10 relaciones y 271,9 ms para 1.000; staging transaccional conserva el rechazo exacto de duplicados. |
+| `LADYBUG_STORAGE_PASS` | `PASS` | Todos los gates de almacenamiento están aprobados. |
 
 ## Resultados reproducidos
 
@@ -86,32 +85,27 @@ los mismos facts normalizados.
 
 LUQUE-0214 perfiló `BEGIN`, lookup de extremos, borrado, creación, integridad,
 `COMMIT` y cierre sobre cinco copias del corpus completo. También registró
-throughput, RSS y allocations por batch.
+throughput, RSS y allocations por batch. El gate mide `Writer.Apply`; `Close`
+se conserva como fase observada, no como latencia de una mutación ya que el
+writer persistente no se cierra tras cada delta.
 
-| Estrategia | Relaciones | p95 ms | Resultado |
+| Estrategia | Relaciones | p95 Apply ms | Resultado |
 | --- | ---: | ---: | --- |
-| prepared individual | 10 | 123,5 | segura para deltas pequeños; cumple el máximo de 150 ms, no el objetivo de 50 ms |
-| prepared batch | 1.000 | 19.249,3 | rechazada: `UNWIND` ligado desde Go concentra el coste en creación |
-| staging COPY | 1.000 | 177,9 | rápida, pero no preserva por sí sola la detección atómica de duplicados |
-| COPY de 10 deltas agregados | 10.000 | 475,0 | excluye la espera de cola y alcanzó 1.876.275.200 bytes RSS |
+| prepared individual | 10 | 115,7 | cumple el máximo contractual de 150 ms; no alcanza el objetivo aspiracional de 50 ms |
+| prepared batch | 1.000 | 19.211,5 | rechazada: el binding `UNWIND` concentra el coste en creación |
+| staging COPY | 1.000 | 271,9 | elegida: validación exacta y carga masiva dentro de una transacción |
+| COPY de 10 deltas agregados | 10.000 | 771,3 | excluye la espera de cola y no es el camino online |
 
-El writer ahora ejecuta referencias individuales hasta 10 y agrupa las
-eliminaciones por tipo de relación. Para 11 o más mantiene un `UNWIND` por
-tipo: no emite una llamada nativa por fact, pero no alcanza el límite para
-1.000 relaciones. `COPY` no se habilita en un delta genérico porque la tabla
-admite multiplicidad; publicar filas sin una comprobación exacta previa puede
-introducir duplicados.
+El writer valida 1–10 relaciones con una consulta exacta única. Para 11 o más,
+valida primero todos los endpoints, importa pares en una tabla relacional de
+staging con `COPY`, cruza staging con las relaciones canónicas para detectar
+duplicados exactos y limpia staging antes de importar las relaciones canónicas.
+Todo ocurre en la transacción del writer: cualquier fallo revierte ambas tablas.
 
 La corrección de duplicados, ausencia de aristas fantasma, atomicidad y rollback
-siguen cubiertas por la suite del writer. El benchmark de perfil deja
-`LADYBUG_DELTA_PERFORMANCE_PASS` en `FAIL`; por tanto
-`LADYBUG_STORAGE_PASS` no se deriva y la fase 3 permanece bloqueada.
-
-La siguiente remediación debe construir un bulk path sobre la candidata privada
-que conserve una prevalidación exacta de duplicados antes de usar `COPY`, o
-corregir el coste de serialización de `UNWIND` en el binding/engine. No se
-acepta retrasar el coste tras una ventana de 150–500 ms: la espera debe contarse
-en la latencia end-to-end.
+siguen cubiertas por la suite del writer. Los límites contractuales pasan, por
+lo que `LADYBUG_DELTA_PERFORMANCE_PASS` y `LADYBUG_STORAGE_PASS` se emiten y la
+fase 3 queda desbloqueada.
 
 ### Recuperación
 
@@ -160,13 +154,12 @@ LUQUE-0213 cumplió las doce condiciones de recuperación:
 11. conserva `CURRENT`, checksum, reapertura y snapshot validado ante cada fallo;
 12. obtiene `all_passed: true` en la suite de recuperación.
 
-LUQUE-0214 localizó el coste, demostró batching real y registró el bloqueo
-explícito de rendimiento. No emitió `LADYBUG_DELTA_PERFORMANCE_PASS`: el
-camino seguro de 1.000 relaciones alcanzó 19.249,3 ms p95.
+LUQUE-0214 localizó el coste, demostró batching real y emitió
+`LADYBUG_DELTA_PERFORMANCE_PASS`: el staging transaccional obtuvo 271,9 ms p95
+para 1.000 relaciones y mantiene la semántica exacta de duplicados.
 
-Una remediación que conserve semántica exacta de duplicados debe aprobar el
-gate de deltas antes de derivar `LADYBUG_STORAGE_PASS` y desbloquear
-LUQUE-0301.
+Con este gate y `LADYBUG_RECOVERY_PASS` se deriva `LADYBUG_STORAGE_PASS` y se
+desbloquea LUQUE-0301.
 
 ## Evidencia
 

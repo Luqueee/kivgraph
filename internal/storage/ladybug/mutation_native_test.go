@@ -173,10 +173,13 @@ func TestWriterDeletesReferencesInBatches(t *testing.T) {
 	}
 	defer writer.Close()
 
-	const referenceCount = 100
-	symbols := make([]Symbol, referenceCount+1)
+	const (
+		referenceCount         = 100
+		rejectedReferenceCount = maxIndividualReferenceMutations + 1
+	)
+	symbols := make([]Symbol, referenceCount+rejectedReferenceCount+1)
 	symbols[0] = mutationSymbol("delete-batch-source", "r0", "f0")
-	for index := 0; index < referenceCount; index++ {
+	for index := 0; index < len(symbols)-1; index++ {
 		symbols[index+1] = mutationSymbol(fmt.Sprintf("delete-batch-target-%03d", index), "r0", "f0")
 	}
 	if _, err := writer.Apply(context.Background(), Delta{AddSymbols: symbols}); err != nil {
@@ -196,6 +199,22 @@ func TestWriterDeletesReferencesInBatches(t *testing.T) {
 	if _, err := writer.Apply(context.Background(), Delta{AddReferences: references}); err != nil {
 		t.Fatalf("Apply(add references) error = %v", err)
 	}
+
+	rejected := make([]Reference, rejectedReferenceCount)
+	rejected[0] = references[0]
+	for index := 1; index < len(rejected); index++ {
+		rejected[index] = mutationReference(symbols[0].StableKey, symbols[referenceCount+index].StableKey, ReferenceKindReferences)
+	}
+	if _, err := writer.Apply(context.Background(), Delta{AddReferences: rejected}); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("Apply(copy batch with duplicate) error = %v, want ErrAlreadyExists", err)
+	}
+	outgoing, err := reader.OutgoingReferences(context.Background(), symbols[0].StableKey, referenceCount+rejectedReferenceCount)
+	if err != nil {
+		t.Fatalf("OutgoingReferences(after rejected copy batch) error = %v", err)
+	}
+	if len(outgoing) != referenceCount {
+		t.Fatalf("OutgoingReferences(after rejected copy batch) = %d references, want %d", len(outgoing), referenceCount)
+	}
 	result, err := writer.Apply(context.Background(), Delta{DeleteReferences: keys})
 	if err != nil {
 		t.Fatalf("Apply(delete references) error = %v", err)
@@ -203,7 +222,7 @@ func TestWriterDeletesReferencesInBatches(t *testing.T) {
 	if result.DeletedReferences != referenceCount {
 		t.Fatalf("Apply(delete references) = %#v", result)
 	}
-	outgoing, err := reader.OutgoingReferences(context.Background(), symbols[0].StableKey, referenceCount)
+	outgoing, err = reader.OutgoingReferences(context.Background(), symbols[0].StableKey, referenceCount)
 	if err != nil {
 		t.Fatalf("OutgoingReferences() error = %v", err)
 	}

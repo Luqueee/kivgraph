@@ -154,9 +154,9 @@ integridad referencial. Devuelve `0` solo cuando todos los checks están en
 La [calificación de LadybugDB](docs/decisions/ladybugdb-qualification.md)
 concluye `ACCEPT_LADYBUGDB_WITH_LIMITS`. `LADYBUG_RECOVERY_PASS` está emitido:
 las generaciones inmutables y la publicación durable de `CURRENT` protegen la
-base activa ante `ENOSPC`. LUQUE-0214 midió que el camino seguro de 1.000
-relaciones tarda 19.249,3 ms p95; `LADYBUG_DELTA_PERFORMANCE_PASS` falló y
-`LADYBUG_STORAGE_PASS` sigue bloqueado.
+base activa ante `ENOSPC`. LUQUE-0214 obtuvo p95 `Apply` de 271,9 ms para
+1.000 relaciones con staging transaccional exacto; se emitieron
+`LADYBUG_DELTA_PERFORMANCE_PASS` y `LADYBUG_STORAGE_PASS`.
 
 
 

@@ -1014,11 +1014,11 @@ LADYBUG_STORAGE_PASS
 
 **Resultado registrado: `ACCEPT_LADYBUGDB_WITH_LIMITS`.**
 
-* `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`, `LADYBUG_INCREMENTAL_PASS` y `LADYBUG_RECOVERY_PASS` están aprobados sobre el corpus completo.
-* LUQUE-0214 dejó `LADYBUG_DELTA_PERFORMANCE_PASS` en `FAIL`: 1.000 relaciones por el camino seguro registraron 19.249,3 ms p95 frente al límite de 500 ms.
-* `LADYBUG_STORAGE_PASS` no se emite. La fase 3 continúa bloqueada conforme al gate definido en `PLAN.md`.
+* `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`, `LADYBUG_INCREMENTAL_PASS`, `LADYBUG_RECOVERY_PASS` y `LADYBUG_DELTA_PERFORMANCE_PASS` están aprobados sobre el corpus completo.
+* LUQUE-0214 registró p95 `Apply` de 115,7 ms para 10 relaciones y 271,9 ms para 1.000 mediante staging transaccional con `COPY`; ambos límites contractuales pasan.
+* `LADYBUG_STORAGE_PASS` queda emitido. La fase 3 puede comenzar conforme al gate definido en `PLAN.md`.
 * La carga con `COPY` confirmó 669.100,3 registros/s y 542.978.048 bytes de pico RSS; la decisión y la evidencia posterior de recuperación y deltas están en `docs/decisions/ladybugdb-qualification.md`.
-* ADR 0003 queda aceptada con límites; se requiere una remediación de bulk con semántica exacta antes de continuar.
+* ADR 0003 queda aceptada con límites y el siguiente trabajo permitido es LUQUE-0301.
 
 ---
 
@@ -1070,8 +1070,8 @@ LADYBUG_RECOVERY_PASS
 * El caso de cierre tardío con `ENOSPC` destruye solo la candidata; la generación activa conserva `CURRENT`, checksum, reapertura y snapshot validado.
 * `benchmarks/ladybug-recovery/results.json` registra ocho casos en `PASS` y `all_passed: true`.
 * Limitación conservada: la prueba cubre Linux y fallos de syscalls, no pérdida eléctrica ni cachés del controlador.
-* `LADYBUG_STORAGE_PASS` continúa bloqueado únicamente por `LADYBUG_DELTA_PERFORMANCE_PASS`.
-* LUQUE-0214 registró el fallo del gate; LUQUE-0301 permanece bloqueada hasta una remediación de bulk exacta.
+* `LADYBUG_STORAGE_PASS` queda emitido tras el perfil de LUQUE-0214.
+* LUQUE-0301 queda desbloqueada.
 
 ---
 
@@ -1130,17 +1130,15 @@ LADYBUG_DELTA_PERFORMANCE_PASS
 LADYBUG_STORAGE_PASS
 ```
 
-**Resultado registrado:** `LADYBUG_DELTA_PERFORMANCE_PASS` **no emitido**.
+**Resultado registrado:** `LADYBUG_DELTA_PERFORMANCE_PASS` **emitido**.
 
-**Estado:** `BLOCKED` — `LADYBUG_DELTA_PERFORMANCE_PASS` no emitido.
+**Estado:** `PASS` — `LADYBUG_STORAGE_PASS` derivado.
 
-* `prepared_individual` se usa para 1–10 relaciones; p95 de 10 relaciones: 123,5 ms. Cumple el máximo tolerable de 150 ms, pero no el objetivo de 50 ms.
-* `prepared_batch` mantiene una única llamada nativa por tipo de relación y el borrado pasó a ser batch, pero el binding `UNWIND` da p95 de 19.249,3 ms para 1.000 relaciones; incumple el límite de 500 ms.
-* `staging_copy` midió p95 de 177,9 ms para 1.000 relaciones, pero no se adopta para deltas genéricos: el esquema permite multiplicidad y `COPY` no conserva la detección atómica de duplicados.
-* Diez deltas agregados con `COPY` alcanzaron 475,0 ms por batch de 10.000 relaciones, pero excluyen la espera de 150–500 ms, alcanzaron 1.876.275.200 bytes de RSS y no resuelven la latencia end-to-end pequeña.
+* `prepared_individual` usa una consulta exacta para validar 1–10 relaciones y sentencias individuales para crearlas; p95 `Apply` de 10 relaciones: 115,7 ms. Supera el objetivo aspiracional de 50 ms, pero cumple el máximo contractual de 150 ms.
+* A partir de 11 relaciones, staging transaccional con `COPY` valida endpoints, importa pares a una tabla efímera, rechaza solapamientos exactos, la limpia y sólo entonces importa las relaciones canónicas. El p95 `Apply` de 1.000 relaciones es 271,9 ms, bajo el límite de 500 ms.
+* `Close` se mide por separado: no pertenece a `Writer.Apply` y no participa en el gate. `prepared_batch` y deltas agregados permanecen como comparativas, no como camino elegido.
 * Atomicidad, rollback, duplicados e integridad siguen cubiertos por la suite del writer; los resultados incluyen throughput, RSS, allocations y fases.
-* `LADYBUG_STORAGE_PASS` permanece bloqueado. No iniciar LUQUE-0301.
-* Siguiente acción requerida: diseñar un bulk path sobre la candidata privada que mantenga comprobación exacta de duplicados antes de seleccionar `COPY`, o diagnosticar/corregir el coste de binding de `UNWIND`.
+* Siguiente tarea desbloqueada: LUQUE-0301.
 
 ---
 

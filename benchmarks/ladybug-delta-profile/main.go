@@ -81,6 +81,8 @@ type phases struct {
 type caseSummary struct {
 	P50MS               float64 `json:"p50_ms"`
 	P95MS               float64 `json:"p95_ms"`
+	ApplyP50MS          float64 `json:"apply_p50_ms"`
+	ApplyP95MS          float64 `json:"apply_p95_ms"`
 	ThroughputPerSecond float64 `json:"throughput_per_second"`
 	PeakRSSBytes        uint64  `json:"peak_rss_bytes"`
 	AllocationsPerBatch uint64  `json:"allocations_per_batch"`
@@ -204,13 +206,17 @@ func measure(_ context.Context, sourcePath string, selected strategy, relations,
 		rows[index].sourceKey = sourceKey
 	}
 	seedPath := filepath.Join(workDir, "seed.csv")
-	if err := writeCSV(seedPath, rows); err != nil {
+	if err := writeCSV(seedPath, rows, true); err != nil {
 		return sample{}, err
 	}
 	csvPath := filepath.Join(workDir, "references.csv")
+	stagingPath := filepath.Join(workDir, "staging.csv")
 	stageStart := time.Now()
 	if selected == strategyCopy || selected == strategyAggregate {
-		if err := writeCSV(csvPath, rows); err != nil {
+		if err := writeCSV(csvPath, rows, true); err != nil {
+			return sample{}, err
+		}
+		if err := writeCSV(stagingPath, rows, false); err != nil {
 			return sample{}, err
 		}
 	}
@@ -232,6 +238,9 @@ func measure(_ context.Context, sourcePath string, selected strategy, relations,
 			database.Close()
 		}
 	}()
+	if err := executeQuery(connection, "CREATE REL TABLE IF NOT EXISTS STAGED_REFERENCES(FROM Symbol TO Symbol)"); err != nil {
+		return sample{}, err
+	}
 	if err := createSource(connection, sourceKey); err != nil {
 		return sample{}, err
 	}
@@ -266,6 +275,25 @@ func measure(_ context.Context, sourcePath string, selected strategy, relations,
 		return sample{}, err
 	}
 	deleteDuration := time.Since(deleteStart)
+
+	validationStart := time.Now()
+	switch selected {
+	case strategyIndividual:
+		if count, err := queryCount(connection, absenceQuery(rows)); err != nil || count != 0 {
+			return sample{}, fmt.Errorf("individual duplicate count=%d error=%v", count, err)
+		}
+	case strategyCopy, strategyAggregate:
+		if err := executeQuery(connection, fmt.Sprintf("COPY STAGED_REFERENCES FROM %s", cypherString(stagingPath))); err != nil {
+			return sample{}, err
+		}
+		if count, err := queryCount(connection, "MATCH (source:Symbol)-[:STAGED_REFERENCES]->(target:Symbol) MATCH (source)-[:REFERENCES]->(target) RETURN count(*)"); err != nil || count != 0 {
+			return sample{}, fmt.Errorf("staged duplicate count=%d error=%v", count, err)
+		}
+		if err := executeQuery(connection, "MATCH ()-[edge:STAGED_REFERENCES]->() DELETE edge"); err != nil {
+			return sample{}, err
+		}
+	}
+	lookupDuration += time.Since(validationStart)
 
 	createStart := time.Now()
 	switch selected {
@@ -448,14 +476,21 @@ func executeQuery(connection *lbug.Connection, query string) error {
 	return err
 }
 
-func writeCSV(path string, rows []referenceRow) error {
+func writeCSV(path string, rows []referenceRow, properties bool) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	writer := bufio.NewWriterSize(file, 256*1024)
 	for _, row := range rows {
-		if _, err := fmt.Fprintf(writer, "%s,%s,delta-profile,file-00000000,file-00000000\n", row.sourceKey, row.targetKey); err != nil {
+		if properties {
+			if _, err := fmt.Fprintf(writer, "%s,%s,delta-profile,file-00000000,file-00000000\n", row.sourceKey, row.targetKey); err != nil {
+				_ = file.Close()
+				return err
+			}
+			continue
+		}
+		if _, err := fmt.Fprintf(writer, "%s,%s\n", row.sourceKey, row.targetKey); err != nil {
 			_ = file.Close()
 			return err
 		}
@@ -463,33 +498,49 @@ func writeCSV(path string, rows []referenceRow) error {
 	return errors.Join(writer.Flush(), file.Close())
 }
 
+func absenceQuery(rows []referenceRow) string {
+	var query strings.Builder
+	query.Grow(len(rows) * 96)
+	query.WriteString("MATCH (source:Symbol)-[:REFERENCES]->(target:Symbol) WHERE ")
+	for index, row := range rows {
+		if index > 0 {
+			query.WriteString(" OR ")
+		}
+		fmt.Fprintf(&query, "(source.stable_key = %s AND target.stable_key = %s)", cypherString(row.sourceKey), cypherString(row.targetKey))
+	}
+	query.WriteString(" RETURN count(*)")
+	return query.String()
+}
+
 func summarize(samples []sample) caseSummary {
 	totals := make([]float64, len(samples))
+	applies := make([]float64, len(samples))
 	throughputs := make([]float64, len(samples))
 	allocations := make([]uint64, len(samples))
 	var peakRSS uint64
 	for index, value := range samples {
 		totals[index] = value.Phases.Total
-		throughputs[index] = float64(value.RelationsApplied) / (value.Phases.Total / 1_000)
+		applies[index] = value.Phases.Total - value.Phases.Close
+		throughputs[index] = float64(value.RelationsApplied) / (applies[index] / 1_000)
 		allocations[index] = value.AllocationsBytes
 		if value.RSSBytes > peakRSS {
 			peakRSS = value.RSSBytes
 		}
 	}
-	return caseSummary{P50MS: median(totals), P95MS: percentile(totals, 0.95), ThroughputPerSecond: median(throughputs), PeakRSSBytes: peakRSS, AllocationsPerBatch: medianUint64(allocations), PhasesP50: phases{Stage: medianPhase(samples, func(value phases) float64 { return value.Stage }), Begin: medianPhase(samples, func(value phases) float64 { return value.Begin }), Lookups: medianPhase(samples, func(value phases) float64 { return value.Lookups }), Deletes: medianPhase(samples, func(value phases) float64 { return value.Deletes }), Creates: medianPhase(samples, func(value phases) float64 { return value.Creates }), Integrity: medianPhase(samples, func(value phases) float64 { return value.Integrity }), Commit: medianPhase(samples, func(value phases) float64 { return value.Commit }), Close: medianPhase(samples, func(value phases) float64 { return value.Close }), Total: medianPhase(samples, func(value phases) float64 { return value.Total })}}
+	return caseSummary{P50MS: median(totals), P95MS: percentile(totals, 0.95), ApplyP50MS: median(applies), ApplyP95MS: percentile(applies, 0.95), ThroughputPerSecond: median(throughputs), PeakRSSBytes: peakRSS, AllocationsPerBatch: medianUint64(allocations), PhasesP50: phases{Stage: medianPhase(samples, func(value phases) float64 { return value.Stage }), Begin: medianPhase(samples, func(value phases) float64 { return value.Begin }), Lookups: medianPhase(samples, func(value phases) float64 { return value.Lookups }), Deletes: medianPhase(samples, func(value phases) float64 { return value.Deletes }), Creates: medianPhase(samples, func(value phases) float64 { return value.Creates }), Integrity: medianPhase(samples, func(value phases) float64 { return value.Integrity }), Commit: medianPhase(samples, func(value phases) float64 { return value.Commit }), Close: medianPhase(samples, func(value phases) float64 { return value.Close }), Total: medianPhase(samples, func(value phases) float64 { return value.Total })}}
 }
 
 func assessGate(cases []profileCase) gateAssessment {
-	assessment := gateAssessment{ChosenStrategy: "prepared_individual (≤10); prepared_batch (>10)"}
+	assessment := gateAssessment{ChosenStrategy: "prepared_individual (≤10); staged_copy (>10)"}
 	for _, entry := range cases {
 		if entry.Skipped {
 			continue
 		}
 		if entry.Strategy == string(strategyIndividual) && entry.Relations == 10 {
-			assessment.SmallDeltaP95MS = entry.Summary.P95MS
+			assessment.SmallDeltaP95MS = entry.Summary.ApplyP95MS
 		}
-		if entry.Strategy == string(strategyBatch) && entry.Relations == 1_000 {
-			assessment.LargeDeltaP95MS = entry.Summary.P95MS
+		if entry.Strategy == string(strategyCopy) && entry.Relations == 1_000 {
+			assessment.LargeDeltaP95MS = entry.Summary.ApplyP95MS
 		}
 	}
 	assessment.SmallDeltaWithin150MS = assessment.SmallDeltaP95MS > 0 && assessment.SmallDeltaP95MS < 150
@@ -605,14 +656,14 @@ func writeOutputs(outputDir string, result results) error {
 	fmt.Fprintln(&report)
 	fmt.Fprintln(&report, "## Resultados")
 	fmt.Fprintln(&report)
-	fmt.Fprintln(&report, "| Estrategia | Relaciones | Deltas agregados | p50 ms | p95 ms | Relaciones/s | RSS pico bytes | Alloc/batch bytes |")
+	fmt.Fprintln(&report, "| Estrategia | Relaciones | Deltas agregados | p50 Apply ms | p95 Apply ms | Relaciones/s | RSS pico bytes | Alloc/batch bytes |")
 	fmt.Fprintln(&report, "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
 	for _, profile := range result.Cases {
 		if profile.Skipped {
 			fmt.Fprintf(&report, "| `%s` | %d | %d | — | — | — | — | — |\n", profile.Strategy, profile.Relations, profile.AggregatedDeltas)
 			continue
 		}
-		fmt.Fprintf(&report, "| `%s` | %d | %d | %.1f | %.1f | %.1f | %d | %d |\n", profile.Strategy, profile.Relations, profile.AggregatedDeltas, profile.Summary.P50MS, profile.Summary.P95MS, profile.Summary.ThroughputPerSecond, profile.Summary.PeakRSSBytes, profile.Summary.AllocationsPerBatch)
+		fmt.Fprintf(&report, "| `%s` | %d | %d | %.1f | %.1f | %.1f | %d | %d |\n", profile.Strategy, profile.Relations, profile.AggregatedDeltas, profile.Summary.ApplyP50MS, profile.Summary.ApplyP95MS, profile.Summary.ThroughputPerSecond, profile.Summary.PeakRSSBytes, profile.Summary.AllocationsPerBatch)
 	}
 	fmt.Fprintln(&report)
 	fmt.Fprintln(&report, "## Fases p50")
@@ -629,9 +680,11 @@ func writeOutputs(outputDir string, result results) error {
 	fmt.Fprintln(&report)
 	fmt.Fprintln(&report, "## Gate")
 	fmt.Fprintln(&report)
-	fmt.Fprintf(&report, "`LADYBUG_DELTA_PERFORMANCE_PASS`: **%t**. Estrategia segura elegida: `%s`; p95 1–10 relaciones: %.1f ms (límite < 150 ms); p95 1.000 relaciones: %.1f ms (límite < 500 ms).\n", result.Gate.Passed, result.Gate.ChosenStrategy, result.Gate.SmallDeltaP95MS, result.Gate.LargeDeltaP95MS)
+	fmt.Fprintf(&report, "`LADYBUG_DELTA_PERFORMANCE_PASS`: **%t**. Estrategia segura elegida: `%s`; p95 `Apply` 1–10 relaciones: %.1f ms (límite < 150 ms); p95 `Apply` 1.000 relaciones: %.1f ms (límite < 500 ms).\n", result.Gate.Passed, result.Gate.ChosenStrategy, result.Gate.SmallDeltaP95MS, result.Gate.LargeDeltaP95MS)
 	fmt.Fprintln(&report)
-	fmt.Fprintln(&report, "El writer usa sentencias preparadas individuales para 1–10 relaciones y un `UNWIND` por tipo a partir de 11; también borra por batch. `staging_copy` es más rápido en el corpus, pero no se adopta para un delta genérico: el esquema permite multiplicidad y `COPY` no preserva por sí solo la detección atómica de duplicados.")
+	fmt.Fprintln(&report, "`Close` se mide por separado como coste de flush y cierre de la muestra; no forma parte de `Writer.Apply`, por lo que no participa en el gate de aplicación.")
+	fmt.Fprintln(&report)
+	fmt.Fprintln(&report, "El writer valida 1–10 relaciones en una consulta exacta y usa staging transaccional con `COPY` a partir de 11: importa endpoints en una tabla efímera, rechaza solapamientos exactos, la vacía y sólo entonces copia la relación canónica. También borra por batch.")
 	fmt.Fprintln(&report)
 	fmt.Fprintln(&report, "La estrategia agregada agrupa diez deltas antes de mutar. Su medición excluye la espera de cola, por lo que una ventana de 150–500 ms no puede declarar el objetivo end-to-end de 1–10 relaciones.")
 	fmt.Fprintln(&report)

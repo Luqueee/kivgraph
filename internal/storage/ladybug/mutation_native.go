@@ -57,9 +57,7 @@ type mutationStatements struct {
 }
 
 type referenceMutationStatements struct {
-	count          *lbug.PreparedStatement
 	countBatch     *lbug.PreparedStatement
-	add            *lbug.PreparedStatement
 	addOne         *lbug.PreparedStatement
 	deleteBatch    *lbug.PreparedStatement
 	deleteOutgoing *lbug.PreparedStatement
@@ -91,6 +89,10 @@ func (db *database) OpenWriter(ctx context.Context) (Writer, error) {
 	}
 	native, err := lbug.OpenConnection(db.native)
 	if err != nil {
+		return nil, &Error{Op: "open writer", Err: err}
+	}
+	if err := prepareStagingTables(ctx, native); err != nil {
+		native.Close()
 		return nil, &Error{Op: "open writer", Err: err}
 	}
 	statements, err := prepareMutationStatements(native)
@@ -135,19 +137,10 @@ func prepareMutationStatements(connection *lbug.Connection) (mutationStatements,
 			query  string
 			target **lbug.PreparedStatement
 		}{
-			{"count", fmt.Sprintf(`MATCH (source:Symbol)-[edge:%s]->(target:Symbol)
-WHERE source.stable_key = $source_key AND target.stable_key = $target_key
-RETURN count(*)`, kind), &statements.references[index].count},
 			{"count batch", fmt.Sprintf(`UNWIND $rows AS row
 MATCH (source:Symbol)-[edge:%s]->(target:Symbol)
 WHERE source.stable_key = row.source_key AND target.stable_key = row.target_key
 RETURN count(*)`, kind), &statements.references[index].countBatch},
-			{"add", fmt.Sprintf(`UNWIND $rows AS row
-MATCH (source:Symbol), (target:Symbol)
-WHERE source.stable_key = row.source_key AND target.stable_key = row.target_key
-CREATE (source)-[:%s {evidence_kind: row.evidence_kind,
- source_file_key: row.source_file_key, target_file_key: row.target_file_key}]->(target)
-RETURN count(*)`, kind), &statements.references[index].add},
 			{"add one", fmt.Sprintf(`MATCH (source:Symbol), (target:Symbol)
 WHERE source.stable_key = $source_key AND target.stable_key = $target_key
 CREATE (source)-[:%s {evidence_kind: $evidence_kind,
@@ -196,9 +189,7 @@ func (statements *mutationStatements) close() {
 	for index := range statements.references {
 		reference := &statements.references[index]
 		for _, statement := range []*lbug.PreparedStatement{
-			reference.count,
 			reference.countBatch,
-			reference.add,
 			reference.addOne,
 			reference.deleteBatch,
 			reference.deleteOutgoing,
@@ -414,24 +405,11 @@ func (writer *writer) countSymbols(ctx context.Context, keys []string) (int64, e
 }
 
 func (writer *writer) requireReferencesAbsent(ctx context.Context, references []Reference) error {
-	for index, values := range referencesByKind(references) {
-		if len(values) == 0 {
+	for _, values := range referencesByKind(references) {
+		if len(values) == 0 || len(values) > maxIndividualReferenceMutations {
 			continue
 		}
-		statements := &writer.statements.references[index]
-		if len(values) <= maxIndividualReferenceMutations {
-			for _, reference := range values {
-				count, err := writer.executeCount(ctx, statements.count, map[string]any{"source_key": reference.SourceKey, "target_key": reference.TargetKey})
-				if err != nil {
-					return fmt.Errorf("check added %s reference: %w", reference.Kind, err)
-				}
-				if count != 0 {
-					return fmt.Errorf("add %s reference: %w", reference.Kind, ErrAlreadyExists)
-				}
-			}
-			continue
-		}
-		count, err := writer.executeCount(ctx, statements.countBatch, map[string]any{"rows": mutationReferenceRows(values)})
+		count, err := writer.transactionCount(ctx, referenceAbsenceQuery(values[0].Kind, values))
 		if err != nil {
 			return fmt.Errorf("check added %s references: %w", values[0].Kind, err)
 		}
@@ -463,14 +441,10 @@ func (writer *writer) addReferences(ctx context.Context, references []Reference)
 			}
 			continue
 		}
-		count, err := writer.executeCount(ctx, statements.add, map[string]any{"rows": mutationReferenceRows(values)})
-		if err != nil {
-			return 0, fmt.Errorf("add %s references: %w", values[0].Kind, err)
+		if err := writer.copyReferences(ctx, values[0].Kind, values); err != nil {
+			return 0, fmt.Errorf("copy %s references: %w", values[0].Kind, err)
 		}
-		if count != int64(len(values)) {
-			return 0, fmt.Errorf("add %s references: %w: inserted %d of %d", values[0].Kind, ErrNotFound, count, len(values))
-		}
-		added += int(count)
+		added += len(values)
 	}
 	return added, nil
 }

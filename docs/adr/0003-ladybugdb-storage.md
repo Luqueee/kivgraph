@@ -54,9 +54,9 @@ normalizados para evitar una lectura completa innecesaria.
 - La publicación requiere fsync de la candidata, rename atómico de `CURRENT`,
   fsync del directorio, una generación anterior y una reserva de emergencia.
 - Los backups, rollback e integridad forman parte del camino de recuperación.
-- `LADYBUG_RECOVERY_PASS` está emitido. El gate de almacenamiento permanece
-  bloqueado: LUQUE-0214 confirmó que el camino seguro de 1.000 relaciones no
-  cumple el límite de rendimiento de deltas.
+- `LADYBUG_RECOVERY_PASS` y `LADYBUG_DELTA_PERFORMANCE_PASS` están emitidos.
+  El staging transaccional con `COPY` mantiene duplicados exactos y registró
+  271,9 ms p95 para 1.000 relaciones; `LADYBUG_STORAGE_PASS` queda emitido.
 
 ## Risks
 
@@ -71,14 +71,13 @@ normalizados para evitar una lectura completa innecesaria.
 
 ## Status
 
-Aceptada con límites tras LUQUE-0213. Carga, integridad, mutaciones,
-recuperación ante terminación de proceso y publicación ante `ENOSPC` pasan.
-La base activa ya no se muta: `internal/storage/generation` construye y valida
-una candidata, publica `CURRENT` de forma durable y conserva una generación
-restaurable.
+Aceptada con límites tras LUQUE-0214. Carga, integridad, mutaciones,
+recuperación ante terminación de proceso, publicación ante `ENOSPC` y
+rendimiento de deltas pasan. La base activa ya no se muta:
+`internal/storage/generation` construye y valida una candidata, publica
+`CURRENT` de forma durable y conserva una generación restaurable.
 
 La decisión completa y la evidencia están en
 [`docs/decisions/ladybugdb-qualification.md`](../decisions/ladybugdb-qualification.md).
-`LADYBUG_RECOVERY_PASS` está emitido. `LADYBUG_DELTA_PERFORMANCE_PASS` falló
-con p95 de 19.249,3 ms para 1.000 relaciones en el camino seguro, por lo que
-`LADYBUG_STORAGE_PASS` continúa bloqueado.
+`LADYBUG_RECOVERY_PASS`, `LADYBUG_DELTA_PERFORMANCE_PASS` y
+`LADYBUG_STORAGE_PASS` están emitidos.

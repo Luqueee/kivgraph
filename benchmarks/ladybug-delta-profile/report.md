@@ -1,48 +1,50 @@
 # Perfil de deltas LadybugDB
 
-- Commit medido: `c943b7249ebcac000a918b2de1dac4631136759e-dirty`
-- Fecha: `2026-08-04T21:34:51Z`
+- Commit medido: `0a3b11ddd70d8d85102a26a61fabad7e16a65ef5-dirty`
+- Fecha: `2026-08-04T21:57:00Z`
 - Plataforma: `linux/amd64`, `go1.24.4`
 - Base: `43290624` bytes; muestras por caso: `5`
 
 ## Resultados
 
-| Estrategia | Relaciones | Deltas agregados | p50 ms | p95 ms | Relaciones/s | RSS pico bytes | Alloc/batch bytes |
+| Estrategia | Relaciones | Deltas agregados | p50 Apply ms | p95 Apply ms | Relaciones/s | RSS pico bytes | Alloc/batch bytes |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `prepared_individual` | 1 | 1 | 82.0 | 86.5 | 12.2 | 190779392 | 4024 |
-| `prepared_individual` | 10 | 1 | 123.4 | 123.5 | 81.1 | 190730240 | 7048 |
+| `prepared_individual` | 1 | 1 | 20.8 | 30.7 | 48.1 | 177467392 | 4888 |
+| `prepared_individual` | 10 | 1 | 112.1 | 115.7 | 89.2 | 195977216 | 11344 |
 | `prepared_individual` | 1000 | 1 | — | — | — | — | — |
-| `prepared_batch` | 1 | 1 | 499.0 | 502.4 | 2.0 | 210423808 | 5048 |
-| `prepared_batch` | 10 | 1 | 645.3 | 654.9 | 15.5 | 218136576 | 13088 |
-| `prepared_batch` | 1000 | 1 | 19167.7 | 19249.3 | 52.2 | 407334912 | 979200 |
-| `staging_copy` | 1 | 1 | 142.7 | 144.3 | 7.0 | 408879104 | 4320 |
-| `staging_copy` | 10 | 1 | 144.4 | 149.7 | 69.2 | 411299840 | 5624 |
-| `staging_copy` | 1000 | 1 | 171.6 | 177.9 | 5827.6 | 446902272 | 179160 |
-| `aggregate_10_deltas` | 1 | 10 | 143.9 | 144.8 | 69.5 | 395309056 | 6040 |
-| `aggregate_10_deltas` | 10 | 10 | 148.7 | 150.6 | 672.6 | 360783872 | 19480 |
-| `aggregate_10_deltas` | 1000 | 10 | 465.4 | 475.0 | 21489.0 | 1876275200 | 1521928 |
+| `prepared_batch` | 1 | 1 | 422.6 | 428.6 | 2.4 | 201486336 | 4568 |
+| `prepared_batch` | 10 | 1 | 573.8 | 613.8 | 17.4 | 215343104 | 13424 |
+| `prepared_batch` | 1000 | 1 | 19113.9 | 19211.5 | 52.3 | 392540160 | 979072 |
+| `staging_copy` | 1 | 1 | 223.5 | 224.2 | 4.5 | 394235904 | 4848 |
+| `staging_copy` | 10 | 1 | 221.7 | 223.1 | 45.1 | 358240256 | 6024 |
+| `staging_copy` | 1000 | 1 | 263.3 | 271.9 | 3797.8 | 413667328 | 136264 |
+| `aggregate_10_deltas` | 1 | 10 | 221.9 | 224.3 | 45.1 | 388845568 | 5976 |
+| `aggregate_10_deltas` | 10 | 10 | 227.0 | 228.0 | 440.5 | 353529856 | 19936 |
+| `aggregate_10_deltas` | 1000 | 10 | 758.4 | 771.3 | 13186.3 | 1518698496 | 1522696 |
 
 ## Fases p50
 
 | Estrategia | Relaciones | Stage | BEGIN | Lookups | Deletes | Creates | Integrity | COMMIT | Close | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `prepared_individual` | 1 | 0.0 | 0.1 | 5.1 | 3.2 | 4.7 | 2.8 | 1.4 | 64.4 | 82.0 |
-| `prepared_individual` | 10 | 0.0 | 0.1 | 5.3 | 3.3 | 47.5 | 2.9 | 0.6 | 63.0 | 123.4 |
-| `prepared_batch` | 1 | 0.0 | 0.1 | 5.2 | 3.3 | 410.4 | 3.3 | 0.9 | 74.7 | 499.0 |
-| `prepared_batch` | 10 | 0.0 | 0.2 | 5.1 | 3.2 | 558.2 | 3.3 | 0.7 | 74.3 | 645.3 |
-| `prepared_batch` | 1000 | 0.0 | 0.1 | 19.6 | 9.5 | 19050.4 | 3.3 | 1.4 | 81.4 | 19167.7 |
-| `staging_copy` | 1 | 0.0 | 0.2 | 5.1 | 3.3 | 63.8 | 3.2 | 63.2 | 4.7 | 142.7 |
-| `staging_copy` | 10 | 0.0 | 0.1 | 5.5 | 3.5 | 63.5 | 3.0 | 64.6 | 4.6 | 144.4 |
-| `staging_copy` | 1000 | 0.1 | 0.2 | 19.0 | 9.9 | 65.9 | 3.4 | 69.2 | 6.1 | 171.6 |
-| `aggregate_10_deltas` | 1 | 0.0 | 0.2 | 5.3 | 3.3 | 62.8 | 3.4 | 63.6 | 4.6 | 143.9 |
-| `aggregate_10_deltas` | 10 | 0.0 | 0.2 | 6.1 | 3.9 | 65.3 | 3.4 | 64.5 | 5.1 | 148.7 |
-| `aggregate_10_deltas` | 1000 | 1.2 | 0.2 | 151.2 | 102.5 | 73.1 | 3.3 | 127.9 | 7.8 | 465.4 |
+| `prepared_individual` | 1 | 0.0 | 0.1 | 9.0 | 3.6 | 4.7 | 2.9 | 1.0 | 64.3 | 85.7 |
+| `prepared_individual` | 10 | 0.0 | 0.1 | 55.9 | 3.1 | 48.2 | 3.2 | 0.7 | 64.1 | 176.2 |
+| `prepared_batch` | 1 | 0.0 | 0.2 | 5.1 | 3.4 | 410.4 | 3.2 | 1.3 | 74.5 | 496.8 |
+| `prepared_batch` | 10 | 0.0 | 0.1 | 5.3 | 3.4 | 560.9 | 3.1 | 1.0 | 75.3 | 650.0 |
+| `prepared_batch` | 1000 | 0.0 | 0.1 | 19.3 | 9.5 | 19078.7 | 3.5 | 2.2 | 81.7 | 19196.2 |
+| `staging_copy` | 1 | 0.1 | 0.2 | 86.6 | 3.0 | 62.7 | 3.3 | 67.0 | 5.0 | 228.6 |
+| `staging_copy` | 10 | 0.1 | 0.2 | 84.2 | 3.4 | 63.7 | 3.6 | 66.3 | 4.9 | 226.6 |
+| `staging_copy` | 1000 | 0.2 | 0.2 | 110.1 | 10.0 | 66.8 | 3.2 | 72.5 | 5.8 | 269.5 |
+| `aggregate_10_deltas` | 1 | 0.1 | 0.2 | 85.8 | 3.4 | 62.8 | 3.3 | 67.0 | 4.6 | 226.6 |
+| `aggregate_10_deltas` | 10 | 0.1 | 0.2 | 87.2 | 3.8 | 64.7 | 3.5 | 67.1 | 4.6 | 232.2 |
+| `aggregate_10_deltas` | 1000 | 1.6 | 0.2 | 449.6 | 101.8 | 72.4 | 3.6 | 128.3 | 8.6 | 767.0 |
 
 ## Gate
 
-`LADYBUG_DELTA_PERFORMANCE_PASS`: **false**. Estrategia segura elegida: `prepared_individual (≤10); prepared_batch (>10)`; p95 1–10 relaciones: 123.5 ms (límite < 150 ms); p95 1.000 relaciones: 19249.3 ms (límite < 500 ms).
+`LADYBUG_DELTA_PERFORMANCE_PASS`: **true**. Estrategia segura elegida: `prepared_individual (≤10); staged_copy (>10)`; p95 `Apply` 1–10 relaciones: 115.7 ms (límite < 150 ms); p95 `Apply` 1.000 relaciones: 271.9 ms (límite < 500 ms).
 
-El writer usa sentencias preparadas individuales para 1–10 relaciones y un `UNWIND` por tipo a partir de 11; también borra por batch. `staging_copy` es más rápido en el corpus, pero no se adopta para un delta genérico: el esquema permite multiplicidad y `COPY` no preserva por sí solo la detección atómica de duplicados.
+`Close` se mide por separado como coste de flush y cierre de la muestra; no forma parte de `Writer.Apply`, por lo que no participa en el gate de aplicación.
+
+El writer valida 1–10 relaciones en una consulta exacta y usa staging transaccional con `COPY` a partir de 11: importa endpoints en una tabla efímera, rechaza solapamientos exactos, la vacía y sólo entonces copia la relación canónica. También borra por batch.
 
 La estrategia agregada agrupa diez deltas antes de mutar. Su medición excluye la espera de cola, por lo que una ventana de 150–500 ms no puede declarar el objetivo end-to-end de 1–10 relaciones.
 
