@@ -85,6 +85,15 @@ construye índices exactos y entrega el snapshot únicamente tras la validación
 Los IDs de almacenamiento nunca se filtran a las filas de entrada ni sustituyen
 las claves durables.
 
+### Publicación atómica
+
+`SnapshotStore` mantiene un `atomic.Pointer[GraphSnapshot]`. `Load` devuelve la
+referencia completa que el lector usará sin bloqueos; `Publish` solo acepta un
+snapshot no nulo con un ID estrictamente superior y usa CAS para que
+publicadores concurrentes no puedan retroceder de generación. `Close` limpia el
+puntero activo e impide publicaciones posteriores, sin invalidar referencias que
+lectores ya conservaron. La construcción fallida nunca alcanza el puntero activo.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de

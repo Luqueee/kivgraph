@@ -1424,11 +1424,11 @@ semánticamente equivalente según un golden digest.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** cambiar de snapshot sin bloquear consultas.
 
@@ -1444,6 +1444,14 @@ atomic.Pointer[GraphSnapshot]
 * publicación concurrente;
 * lector usando snapshot antiguo;
 * fallo al construir snapshot nuevo.
+
+**Estado:** `PASS`.
+
+* `SnapshotStore` publica y carga `*GraphSnapshot` con `atomic.Pointer`, sin bloquear lectores.
+* `Publish` rechaza nil y generaciones no estrictamente crecientes, y usa CAS para resolver publicaciones concurrentes sin retrocesos.
+* `Close` limpia el puntero, impide publicaciones posteriores y no invalida referencias antiguas conservadas por lectores.
+* Las pruebas cubren lectores que conservan un snapshot anterior, 32 publicadores, 16 lectores concurrentes, generación final máxima y rechazo de candidatos inválidos.
+* Siguiente tarea: LUQUE-0309.
 
 ---
 
