@@ -75,11 +75,12 @@ Las golden probes pasaron sin errores. Los p95 medidos fueron:
 Estas latencias no satisfacen los SLO del MCP y confirman la separación prevista: LadybugDB conserva la verdad persistente y HotSnapshot deberá atender las consultas online.
 
 La latencia puntual no permite inferir el rendimiento de un scan columnar
-completo. Antes de validar a LadybugDB como fuente de construcción de
-HotSnapshot se medirán por separado la lectura de todos los símbolos, la
-lectura de todas las aristas, la normalización de IDs, ambos CSR, los índices y
-la validación. También se comparará con construir LadybugDB y HotSnapshot desde
-los mismos facts normalizados.
+completo. La API de lectura completa usa el Arrow C Data Interface de LadybugDB,
+cuatro conexiones de solo lectura y ordenación determinista en Go; omite
+`ORDER BY` nativo para evitar materializar un ordenamiento columnar costoso.
+Sobre el corpus de 1.200.040 filas, el benchmark p95 estimate fue `946,599 ms`,
+por debajo del límite de `1 s`, con `692.665.776 B/op` de materialización. El
+margen de `53,401 ms` exige repetir la medición en el hardware objetivo.
 
 ### Actualización incremental
 

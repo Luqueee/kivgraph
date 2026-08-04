@@ -1,6 +1,6 @@
 {
   "benchmark": "hotsnapshot",
-  "generated_at": "2026-08-04T22:46:51Z",
+  "generated_at": "2026-08-04T23:39:34Z",
   "go_version": "go1.24.4",
   "goos": "linux",
   "goarch": "amd64",
@@ -10,7 +10,13 @@
     "edges": 1000000,
     "repositories": 10,
     "packages": 100,
-    "files": 1000
+    "files": 1000,
+    "full_scan": {
+      "repositories": 40,
+      "files": 100000,
+      "symbols": 100000,
+      "edges": 1000000
+    }
   },
   "samples": 5,
   "p95_estimate_is_max_of_samples": true,
@@ -24,19 +30,26 @@
     "depth_3_ms": 0.015158,
     "depth_5_ms": 0.014242,
     "concurrent_find_ms": 0.0003777,
-    "rss_bytes": 419598336
+    "rss_bytes": 419598336,
+    "full_scan_ms": 946.599,
+    "full_scan_records": 1200040,
+    "full_scan_bytes_per_op": 692665776,
+    "full_scan_allocs_per_op": 294
   },
   "gates": {
-    "full_scan_ladybug_ms": null,
+    "full_scan_ladybug_ms": 946.599,
+    "full_scan_ladybug_le_1000": true,
     "build_ms_le_2000": true,
     "build_publish_ms_le_3000": true,
     "find_p95_ms_le_2": true,
     "references_p95_ms_le_5": true,
     "depth_3_p95_ms_le_20": true,
-    "hot_snapshot_pass": false
+    "hot_snapshot_pass": true
   },
   "limitations": [
-    "The repository has no complete ordered LadybugDB scan API; the benchmark measures the canonical-row builder, not a LadybugDB full scan.",
-    "RSS is VmHWM sampled from /proc/self/status during one build run; it is not a long-lived process baseline."
+    "Full scan uses the LadybugDB Arrow C Data Interface through the qualified Linux amd64 CGO ABI.",
+    "The full-scan p95 estimate is 946.599 ms, leaving 53.401 ms below the 1 s gate; repeat on target hardware before deployment.",
+    "Full scan materializes 1,200,040 rows and reports 692,665,776 B/op; this is not a long-lived RSS measurement.",
+    "RSS is VmHWM sampled from /proc/self/status during one builder run; it is not a long-lived process baseline."
   ]
 }

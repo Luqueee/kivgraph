@@ -1569,13 +1569,15 @@ references p95 ≤ 5 ms
 depth-3 p95 ≤ 20 ms
 ```
 
-**Estado:** `BLOCKED` — `HOT_SNAPSHOT_PASS` no emitido.
+**Estado:** `PASS` — `HOT_SNAPSHOT_PASS` emitido.
 
-* El corpus de 100.000 símbolos y 1.000.000 aristas mide build canónico en 712,804 ms p95 estimate, build + publish en 725,769 ms, find en 0,0000306 ms, references en 0,0001429 ms y depth-3 en 0,015158 ms; esos límites pasan.
-* El RSS `VmHWM` observado es 419.598.336 bytes; las allocations del build son 365.939.952 B/op y 408.660 allocs/op.
-* No existe un scan completo ordenado de LadybugDB en el repositorio: `internal/storage/ladybug` expone consultas puntuales y de referencias. El benchmark mide filas canónicas ya extraídas y no puede sustituir el requisito `full scan LadybugDB ≤ 1 s`.
+* El scan completo ordenado de LadybugDB, mediante Arrow C Data Interface, procesa 1.200.040 filas en 946,599 ms p95 estimate; el máximo de cinco muestras queda 53,401 ms por debajo de 1 s.
+* El scan usa cuatro conexiones de lectura, omite `ORDER BY` nativo para conservar el recorrido columnar y ordena en Go solo cuando la salida no está ya ordenada.
+* El scan registra 692.665.776 B/op y 294 allocs/op; la medición incluye materialización de todas las filas y no es un RSS de proceso persistente.
+* El build canónico mide 712,804 ms, build + publish 725,769 ms, find 0,0000306 ms, references 0,0001429 ms y depth-3 0,015158 ms; todos los límites pasan.
+* El RSS `VmHWM` del builder es 419.598.336 bytes. La calificación requiere el ABI CGO de LadybugDB en Linux amd64.
 * `benchmarks/hotsnapshot/results.json` y `benchmarks/hotsnapshot/report.md` conservan la evidencia reproducible.
-* Siguiente acción bloqueada: implementar o exponer el scan completo de LadybugDB y repetir este gate.
+* Siguiente tarea: LUQUE-0401.
 
 ---
 

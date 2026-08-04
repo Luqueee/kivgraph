@@ -34,6 +34,17 @@ LIMIT $limit`
 WHERE target.stable_key = $stable_key
 RETURN source.repository_key, count(*)
 ORDER BY source.repository_key`
+	scanRepositoriesQuery = `MATCH (repository:Repository)
+RETURN repository.stable_key, repository.name, repository.path, repository.language`
+	scanFilesQuery = `MATCH (file:File)
+RETURN file.stable_key, file.repository_key, file.path, file.content_hash, file.language`
+	scanSymbolsQuery = `MATCH (symbol:Symbol)
+RETURN symbol.stable_key, symbol.repository_key, symbol.file_key, symbol.name,
+       symbol.qualified_name, symbol.kind, symbol.signature, symbol.start_line, symbol.end_line`
+	scanEdgesQuery = `MATCH (source)-[edge:CONTAINS|:DEFINES|:REFERENCES|:CALLS_DIRECT]->(target)
+RETURN source.stable_key, target.stable_key, label(edge),
+       coalesce(edge.evidence_kind, edge.relation_kind, ''),
+       coalesce(edge.source_file_key, ''), coalesce(edge.target_file_key, '')`
 )
 
 type queryStatements struct {
@@ -44,7 +55,6 @@ type queryStatements struct {
 	traversal            [MaxTraversalDepth + 1]*lbug.PreparedStatement
 	shortestPath         [MaxTraversalDepth + 1]*lbug.PreparedStatement
 }
-
 type reader struct {
 	parent     *database
 	mu         sync.Mutex
@@ -320,6 +330,101 @@ func (reader *reader) IncomingReferencesByRepository(ctx context.Context, stable
 	return groups, nil
 }
 
+func (reader *reader) ScanAll(ctx context.Context) (ScanRows, error) {
+	if err := ctx.Err(); err != nil {
+		return ScanRows{}, &Error{Op: "scan all", Err: err}
+	}
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if reader.closed {
+		return ScanRows{}, &Error{Op: "scan all", Err: ErrClosed}
+	}
+	rows, err := reader.scanArrowAll(ctx)
+	if err != nil {
+		return ScanRows{}, &Error{Op: "scan all", Err: err}
+	}
+	return rows, nil
+}
+
+func (reader *reader) scanConnection(ctx context.Context, operation, query string, decode func(*lbug.FlatTuple) error) error {
+	if err := ctx.Err(); err != nil {
+		return &Error{Op: operation, Err: err}
+	}
+	connection, err := lbug.OpenConnection(reader.parent.native)
+	if err != nil {
+		return &Error{Op: operation, Err: err}
+	}
+	defer connection.Close()
+	if err := setQueryDeadline(connection, ctx); err != nil {
+		return &Error{Op: operation, Err: err}
+	}
+	statement, err := connection.Prepare(query)
+	if err != nil {
+		connection.SetTimeout(0)
+		return &Error{Op: operation, Err: err}
+	}
+	defer statement.Close()
+	result, err := connection.Execute(statement, map[string]any{})
+	if err != nil {
+		if result != nil {
+			result.Close()
+		}
+		connection.SetTimeout(0)
+		return &Error{Op: operation, Err: err}
+	}
+	defer func() {
+		result.Close()
+		connection.SetTimeout(0)
+	}()
+	for result.HasNext() {
+		if err := ctx.Err(); err != nil {
+			return &Error{Op: operation, Err: err}
+		}
+		tuple, err := nextTuple(result)
+		if err != nil {
+			return &Error{Op: operation, Err: err}
+		}
+		decodeErr := decode(tuple)
+		tuple.Close()
+		if decodeErr != nil {
+			return &Error{Op: operation, Err: decodeErr}
+		}
+	}
+	return nil
+}
+
+func decodeRepositoryRecord(tuple *lbug.FlatTuple) (RepositoryRecord, error) {
+	values := [4]string{}
+	var decodeErrors []error
+	for index := range values {
+		value, err := tupleString(tuple, uint64(index))
+		values[index] = value
+		if err != nil {
+			decodeErrors = append(decodeErrors, err)
+		}
+	}
+	if err := errors.Join(decodeErrors...); err != nil {
+		return RepositoryRecord{}, err
+	}
+	return RepositoryRecord{StableKey: values[0], Name: values[1], Path: values[2], Language: values[3]}, nil
+}
+
+func decodeFileRecord(tuple *lbug.FlatTuple) (FileRecord, error) {
+	values := [5]string{}
+	var decodeErrors []error
+	for index := range values {
+		value, err := tupleString(tuple, uint64(index))
+		values[index] = value
+		if err != nil {
+			decodeErrors = append(decodeErrors, err)
+		}
+	}
+	if err := errors.Join(decodeErrors...); err != nil {
+		return FileRecord{}, err
+	}
+	return FileRecord{StableKey: values[0], RepositoryKey: values[1], Path: values[2], ContentHash: values[3], Language: values[4]}, nil
+}
+
 func (reader *reader) execute(ctx context.Context, operation string, statement *lbug.PreparedStatement, arguments map[string]any) (*lbug.QueryResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, &Error{Op: operation, Err: err}
@@ -426,6 +531,17 @@ func decodeReference(tuple *lbug.FlatTuple) (Reference, error) {
 		EvidenceKind:  values[3],
 		SourceFileKey: values[4],
 		TargetFileKey: values[5],
+	}, nil
+}
+
+func decodeScanEdge(tuple *lbug.FlatTuple) (ScanEdge, error) {
+	reference, err := decodeReference(tuple)
+	if err != nil {
+		return ScanEdge{}, err
+	}
+	return ScanEdge{
+		SourceKey: reference.SourceKey, TargetKey: reference.TargetKey, Kind: reference.Kind,
+		EvidenceKind: reference.EvidenceKind, SourceFileKey: reference.SourceFileKey, TargetFileKey: reference.TargetFileKey,
 	}, nil
 }
 

@@ -21,6 +21,40 @@ type Reader interface {
 	TraverseOutgoing(context.Context, string, int, int) ([]TraversalNode, error)
 	ShortestPath(context.Context, string, string, int) (Path, bool, error)
 	IncomingReferencesByRepository(context.Context, string) ([]RepositoryReferenceCount, error)
+	ScanAll(context.Context) (ScanRows, error)
+}
+
+// ScanRows contains every row from the synthetic graph schema in deterministic
+// key order. Relationships retain their exact kind and evidence fields.
+type ScanRows struct {
+	Repositories []RepositoryRecord
+	Files        []FileRecord
+	Symbols      []Symbol
+	Edges        []ScanEdge
+}
+
+type ScanEdge struct {
+	SourceKey     string
+	TargetKey     string
+	Kind          string
+	EvidenceKind  string
+	SourceFileKey string
+	TargetFileKey string
+}
+
+type RepositoryRecord struct {
+	StableKey string
+	Name      string
+	Path      string
+	Language  string
+}
+
+type FileRecord struct {
+	StableKey     string
+	RepositoryKey string
+	Path          string
+	ContentHash   string
+	Language      string
 }
 
 // Symbol is the persisted synthetic symbol shape returned by stable-key lookup.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -97,6 +98,80 @@ func TestReaderQueriesSyntheticGraph(t *testing.T) {
 	}
 }
 
+func TestReaderScanAll(t *testing.T) {
+	databaseValue, reader := newQueryFixture(t)
+	database := databaseValue.(*database)
+	connection, err := lbug.OpenConnection(database.native)
+	if err != nil {
+		t.Fatalf("OpenConnection() error = %v", err)
+	}
+	defer connection.Close()
+	mustExecuteQuery(t, connection, "CREATE NODE TABLE Repository(stable_key STRING PRIMARY KEY, name STRING, path STRING, language STRING)")
+	for index := range 2 {
+		mustExecuteQuery(t, connection, fmt.Sprintf("CREATE (:Repository {stable_key: 'r%d', name: 'repository-r%d', path: '/fixture/r%d', language: 'go'})", index, index, index))
+	}
+	mustExecuteQuery(t, connection, "CREATE REL TABLE CONTAINS(FROM Repository TO File, relation_kind STRING)")
+	for index := range 8 {
+		repository := 0
+		if index >= 6 {
+			repository = 1
+		}
+		mustExecuteQuery(t, connection, fmt.Sprintf("MATCH (repository:Repository {stable_key: 'r%d'}), (file:File {stable_key: 'f%d'}) CREATE (repository)-[:CONTAINS {relation_kind: 'repository_file'}]->(file)", repository, index))
+	}
+
+	rows, err := reader.ScanAll(context.Background())
+	if err != nil {
+		t.Fatalf("ScanAll() error = %v", err)
+	}
+	runtime.GC()
+	if len(rows.Repositories) != 2 || len(rows.Files) != 8 || len(rows.Symbols) != 8 || len(rows.Edges) != 23 {
+		t.Fatalf("ScanAll() counts = repositories=%d files=%d symbols=%d edges=%d", len(rows.Repositories), len(rows.Files), len(rows.Symbols), len(rows.Edges))
+	}
+	if rows.Repositories[0] != (RepositoryRecord{StableKey: "r0", Name: "repository-r0", Path: "/fixture/r0", Language: "go"}) {
+		t.Fatalf("ScanAll() first repository = %#v", rows.Repositories[0])
+	}
+	if rows.Files[0] != (FileRecord{StableKey: "f0", RepositoryKey: "r0", Path: "/fixture/f0", ContentHash: "hash-0", Language: "go"}) {
+		t.Fatalf("ScanAll() first file = %#v", rows.Files[0])
+	}
+	if rows.Symbols[0].StableKey != "s0" || rows.Symbols[0].RepositoryKey != "r0" || rows.Symbols[0].FileKey != "f0" || rows.Symbols[0].StartLine != 1 || rows.Symbols[0].EndLine != 5 {
+		t.Fatalf("ScanAll() first symbol = %#v", rows.Symbols[0])
+	}
+	if rows.Edges[0] != (ScanEdge{SourceKey: "f0", TargetKey: "s0", Kind: "DEFINES", EvidenceKind: "file_symbol"}) {
+		t.Fatalf("ScanAll() first edge = %#v", rows.Edges[0])
+	}
+	if rows.Edges[8] != (ScanEdge{SourceKey: "r0", TargetKey: "f0", Kind: "CONTAINS", EvidenceKind: "repository_file"}) {
+		t.Fatalf("ScanAll() first contains edge = %#v", rows.Edges[8])
+	}
+	if rows.Edges[16] != (ScanEdge{SourceKey: "s0", TargetKey: "s1", Kind: ReferenceKindReferences, EvidenceKind: "fixture", SourceFileKey: "f0", TargetFileKey: "f1"}) {
+		t.Fatalf("ScanAll() first semantic edge = %#v", rows.Edges[16])
+	}
+	if rows.Edges[22] != (ScanEdge{SourceKey: "s7", TargetKey: "s0", Kind: ReferenceKindCallsDirect, EvidenceKind: "fixture", SourceFileKey: "f7", TargetFileKey: "f0"}) {
+		t.Fatalf("ScanAll() last edge = %#v", rows.Edges[22])
+	}
+}
+
+func TestReaderScanAllSortsRows(t *testing.T) {
+	databaseValue, reader := newQueryFixture(t)
+	database := databaseValue.(*database)
+	connection, err := lbug.OpenConnection(database.native)
+	if err != nil {
+		t.Fatalf("OpenConnection() error = %v", err)
+	}
+	defer connection.Close()
+	mustExecuteQuery(t, connection, "CREATE NODE TABLE Repository(stable_key STRING PRIMARY KEY, name STRING, path STRING, language STRING)")
+	mustExecuteQuery(t, connection, "CREATE (:Repository {stable_key: 'r2', name: 'repository-r2', path: '/fixture/r2', language: 'go'})")
+	mustExecuteQuery(t, connection, "CREATE REL TABLE CONTAINS(FROM Repository TO File, relation_kind STRING)")
+	mustExecuteQuery(t, connection, "CREATE (:Repository {stable_key: 'r1', name: 'repository-r1', path: '/fixture/r1', language: 'go'})")
+
+	rows, err := reader.ScanAll(context.Background())
+	if err != nil {
+		t.Fatalf("ScanAll() error = %v", err)
+	}
+	if len(rows.Repositories) != 2 || rows.Repositories[0].StableKey != "r1" || rows.Repositories[1].StableKey != "r2" {
+		t.Fatalf("ScanAll() repositories = %#v, want r1,r2", rows.Repositories)
+	}
+}
+
 func TestReaderValidatesInputsAndContext(t *testing.T) {
 	_, reader := newQueryFixture(t)
 	ctx := context.Background()
@@ -122,8 +197,14 @@ func TestReaderValidatesInputsAndContext(t *testing.T) {
 	if _, _, err := reader.GetSymbol(canceled, "s0"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("GetSymbol(canceled) error = %v, want context.Canceled", err)
 	}
+	if _, err := reader.ScanAll(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ScanAll(canceled) error = %v, want context.Canceled", err)
+	}
 	if err := reader.Close(); err != nil {
 		t.Fatalf("Reader.Close() error = %v", err)
+	}
+	if _, err := reader.ScanAll(ctx); !errors.Is(err, ErrClosed) {
+		t.Fatalf("ScanAll(after close) error = %v, want ErrClosed", err)
 	}
 	if err := reader.Close(); err != nil {
 		t.Fatalf("second Reader.Close() error = %v", err)
