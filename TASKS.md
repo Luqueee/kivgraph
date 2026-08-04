@@ -1191,11 +1191,11 @@ EdgeID       uint64
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** evitar duplicar nombres y paths.
 
@@ -1210,6 +1210,14 @@ EdgeID       uint64
 **Benchmark:**
 
 Comparar con strings duplicados.
+
+**Estado:** `PASS`.
+
+* `StringInterner` elimina duplicados durante la construcción y `Freeze` transfiere su almacenamiento a `StringTable`, inmutable y segura para lectura concurrente sin bloqueos.
+* La tabla soporta inserción, lookup por valor/ID, serialización determinista en orden de ID, restauración validada y estadísticas de entradas/bytes.
+* La serialización rechaza datos truncados, trailing bytes y strings duplicados; el interner rechaza inserciones después de congelarse.
+* El benchmark versionado muestra, sobre 100.000 entradas repetitivas, 144.250 B/op y 34 allocs/op internados frente a 6.405.634 B/op y 100.001 allocs/op con strings duplicados.
+* Siguiente tarea: LUQUE-0303.
 
 ---
 

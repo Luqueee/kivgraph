@@ -1,0 +1,28 @@
+{
+  "benchmark": "hotsnapshot-strings",
+  "commit": "a9893e2-dirty",
+  "generated_at": "2026-08-04T22:00:00Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "workload": {
+    "distinct_strings": 1000,
+    "repetitions_per_string": 100,
+    "total_inputs": 100000
+  },
+  "samples": 5,
+  "results": [
+    {
+      "strategy": "interned",
+      "median_ns_per_op": 773404,
+      "median_bytes_per_op": 144250,
+      "median_allocations_per_op": 34
+    },
+    {
+      "strategy": "duplicated_strings",
+      "median_ns_per_op": 1551387,
+      "median_bytes_per_op": 6405634,
+      "median_allocations_per_op": 100001
+    }
+  ]
+}

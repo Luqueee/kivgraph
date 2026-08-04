@@ -39,6 +39,13 @@ publicar o abortar. Una reconstrucción reinicia la numeración en cero. Ninguna
 tool, cursor, archivo durable ni protocolo intercambia estos IDs: las stable
 keys son la única identidad externa persistente.
 
+### Tabla de strings
+
+El builder interna strings y al congelarse transfiere la tabla ordenada por
+`InternedString` al snapshot. La tabla congelada admite lectura concurrente sin
+bloqueos; su serialización conserva ese orden y rechaza datos truncados o
+valores duplicados. Las cadenas, no sus IDs, son la representación durable.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de
