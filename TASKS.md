@@ -1273,11 +1273,11 @@ BLAKE3(canonical identity)
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe contener:**
 
@@ -1289,6 +1289,13 @@ BLAKE3(canonical identity)
 * conteos;
 * timestamp;
 * versión.
+
+**Estado:** `PASS`.
+
+* `GraphSnapshot` encapsula tablas densas, `StringTable`, metadatos versionados con timestamp y conteos derivados, CSR forward/reverse y los índices exactos previstos.
+* `NewGraphSnapshot` copia toda colección mutable antes de publicar y valida que los índices por stable key, nombre, nombre cualificado y repo/path cubren sus tablas sin IDs duplicados ni ajenos.
+* `PackedEdge` mantiene el layout compacto de 12 bytes; los getters no exponen slices mutables.
+* Siguiente tarea: LUQUE-0305.
 
 ---
 

@@ -56,6 +56,13 @@ de esa representación, expresado como base32 sin padding; la identidad canónic
 se conserva para auditoría. La posición de fuente no participa, por lo que mover
 una declaración no cambia su identidad.
 
+### Envelope del snapshot
+
+`GraphSnapshot` encapsula metadatos con versión y timestamp, tablas densas,
+ambas adyacencias, y los índices exactos por stable key, nombre, nombre
+cualificado y ruta de repositorio. Su constructor copia slices y mapas, valida
+que los índices cubran exactamente sus tablas y no expone colecciones mutables.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de
