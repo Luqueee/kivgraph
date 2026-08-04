@@ -1150,11 +1150,11 @@ LADYBUG_STORAGE_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** definir IDs internos compactos.
 
@@ -1174,6 +1174,14 @@ EdgeID       uint64
 * no se exponen como identidad persistente;
 * tienen validación de overflow;
 * se documenta su ciclo de vida.
+
+**Estado:** `PASS`.
+
+* `internal/hotsnapshot` define los seis tipos internos y centinelas inválidos; cero es el primer ID válido y los máximos de cada representación quedan reservados.
+* `IDAllocator` es privado al builder, no es concurrente y se descarta al publicar o abortar; cada snapshot reinicia su numeración. No hay API de persistencia ni identidad externa basada en estos IDs.
+* La validación impide overflow sin truncar y las pruebas cubren densidad zero-based, reinicio por snapshot y agotamiento de `uint32`/`uint64`.
+* El ciclo de vida queda documentado en ADR 0004. No hay benchmark ni gate propios para tipos y asignación sin I/O.
+* Siguiente tarea: LUQUE-0302.
 
 ---
 

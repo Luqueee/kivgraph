@@ -27,6 +27,18 @@ relaciones, índices y metadatos suficientes para paginar y declarar límites.
 Los IDs densos pueden cambiar entre snapshots; las stable keys permanecen como
 identidad externa.
 
+### Ciclo de vida de IDs densos
+
+`RepositoryID`, `PackageID`, `FileID`, `SymbolID` y `EvidenceID` son `uint32`;
+`EdgeID` es `uint64`. Son índices zero-based de tablas pertenecientes a un único
+snapshot. El valor máximo de cada representación queda reservado como centinela
+inválido, y el builder rechaza el overflow antes de truncar.
+
+El builder posee un asignador privado durante la construcción y lo descarta al
+publicar o abortar. Una reconstrucción reinicia la numeración en cero. Ninguna
+tool, cursor, archivo durable ni protocolo intercambia estos IDs: las stable
+keys son la única identidad externa persistente.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de
