@@ -75,7 +75,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	sort.Slice(packages, func(i, j int) bool { return packages[i].Key < packages[j].Key })
 	sort.Slice(files, func(i, j int) bool { return files[i].Key < files[j].Key })
 	sort.Slice(symbols, func(i, j int) bool { return symbols[i].StableKey < symbols[j].StableKey })
-	sort.Slice(edges, func(i, j int) bool { return edgeSortKey(edges[i]) < edgeSortKey(edges[j]) })
+	sort.Slice(edges, func(i, j int) bool { return edgeLess(edges[i], edges[j]) })
 
 	interner := NewStringInterner()
 	allocator := new(IDAllocator)
@@ -202,7 +202,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		targetID, targetExists := symbolIDs[row.TargetKey]
 		sourceFileID, sourceFileExists := fileIDs[row.EvidenceSourceFileKey]
 		targetFileID, targetFileExists := fileIDs[row.EvidenceTargetFileKey]
-		if !sourceExists || !targetExists || !sourceFileExists || !targetFileExists || row.EvidenceKind == "" || index > 0 && edgeSortKey(edges[index-1]) == edgeSortKey(row) {
+		if !sourceExists || !targetExists || !sourceFileExists || !targetFileExists || row.EvidenceKind == "" || index > 0 && edgeEqual(edges[index-1], row) {
 			return nil, ErrInvalidSnapshotRows
 		}
 		evidenceKind, err := interner.Intern(row.EvidenceKind)
@@ -237,6 +237,42 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	})
 }
 
-func edgeSortKey(row EdgeRow) string {
-	return string(row.SourceKey) + "\x00" + string(row.TargetKey) + "\x00" + string([]byte{row.Kind, row.Confidence, row.Provenance, row.Flags}) + "\x00" + row.EvidenceKind + "\x00" + row.EvidenceSourceFileKey + "\x00" + row.EvidenceTargetFileKey
+func edgeLess(left, right EdgeRow) bool {
+	if left.SourceKey != right.SourceKey {
+		return left.SourceKey < right.SourceKey
+	}
+	if left.TargetKey != right.TargetKey {
+		return left.TargetKey < right.TargetKey
+	}
+	if left.Kind != right.Kind {
+		return left.Kind < right.Kind
+	}
+	if left.Confidence != right.Confidence {
+		return left.Confidence < right.Confidence
+	}
+	if left.Provenance != right.Provenance {
+		return left.Provenance < right.Provenance
+	}
+	if left.Flags != right.Flags {
+		return left.Flags < right.Flags
+	}
+	if left.EvidenceKind != right.EvidenceKind {
+		return left.EvidenceKind < right.EvidenceKind
+	}
+	if left.EvidenceSourceFileKey != right.EvidenceSourceFileKey {
+		return left.EvidenceSourceFileKey < right.EvidenceSourceFileKey
+	}
+	return left.EvidenceTargetFileKey < right.EvidenceTargetFileKey
+}
+
+func edgeEqual(left, right EdgeRow) bool {
+	return left.SourceKey == right.SourceKey &&
+		left.TargetKey == right.TargetKey &&
+		left.Kind == right.Kind &&
+		left.Confidence == right.Confidence &&
+		left.Provenance == right.Provenance &&
+		left.Flags == right.Flags &&
+		left.EvidenceKind == right.EvidenceKind &&
+		left.EvidenceSourceFileKey == right.EvidenceSourceFileKey &&
+		left.EvidenceTargetFileKey == right.EvidenceTargetFileKey
 }

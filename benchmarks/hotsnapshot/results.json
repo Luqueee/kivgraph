@@ -1,0 +1,42 @@
+{
+  "benchmark": "hotsnapshot",
+  "generated_at": "2026-08-04T22:46:51Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+  "workload": {
+    "symbols": 100000,
+    "edges": 1000000,
+    "repositories": 10,
+    "packages": 100,
+    "files": 1000
+  },
+  "samples": 5,
+  "p95_estimate_is_max_of_samples": true,
+  "results": {
+    "build_ms": 712.804,
+    "build_bytes_per_op": 365939952,
+    "build_allocs_per_op": 408660,
+    "build_publish_ms": 725.769,
+    "find_exact_ms": 0.0000306,
+    "references_ms": 0.0001429,
+    "depth_3_ms": 0.015158,
+    "depth_5_ms": 0.014242,
+    "concurrent_find_ms": 0.0003777,
+    "rss_bytes": 419598336
+  },
+  "gates": {
+    "full_scan_ladybug_ms": null,
+    "build_ms_le_2000": true,
+    "build_publish_ms_le_3000": true,
+    "find_p95_ms_le_2": true,
+    "references_p95_ms_le_5": true,
+    "depth_3_p95_ms_le_20": true,
+    "hot_snapshot_pass": false
+  },
+  "limitations": [
+    "The repository has no complete ordered LadybugDB scan API; the benchmark measures the canonical-row builder, not a LadybugDB full scan.",
+    "RSS is VmHWM sampled from /proc/self/status during one build run; it is not a long-lived process baseline."
+  ]
+}

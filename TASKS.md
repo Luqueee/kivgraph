@@ -1525,11 +1525,11 @@ repo + path → file
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Corpus:**
 
@@ -1568,6 +1568,14 @@ find p95 ≤ 2 ms
 references p95 ≤ 5 ms
 depth-3 p95 ≤ 20 ms
 ```
+
+**Estado:** `BLOCKED` — `HOT_SNAPSHOT_PASS` no emitido.
+
+* El corpus de 100.000 símbolos y 1.000.000 aristas mide build canónico en 712,804 ms p95 estimate, build + publish en 725,769 ms, find en 0,0000306 ms, references en 0,0001429 ms y depth-3 en 0,015158 ms; esos límites pasan.
+* El RSS `VmHWM` observado es 419.598.336 bytes; las allocations del build son 365.939.952 B/op y 408.660 allocs/op.
+* No existe un scan completo ordenado de LadybugDB en el repositorio: `internal/storage/ladybug` expone consultas puntuales y de referencias. El benchmark mide filas canónicas ya extraídas y no puede sustituir el requisito `full scan LadybugDB ≤ 1 s`.
+* `benchmarks/hotsnapshot/results.json` y `benchmarks/hotsnapshot/report.md` conservan la evidencia reproducible.
+* Siguiente acción bloqueada: implementar o exponer el scan completo de LadybugDB y repetir este gate.
 
 ---
 
