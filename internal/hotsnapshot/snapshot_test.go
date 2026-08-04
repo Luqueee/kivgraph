@@ -88,6 +88,12 @@ func TestGraphSnapshotRejectsInvalidEnvelopeAndIndexes(t *testing.T) {
 	if _, err := NewGraphSnapshot(input); !errors.Is(err, ErrInvalidGraphSnapshot) {
 		t.Fatalf("invalid evidence ID error = %v", err)
 	}
+
+	input = graphSnapshotTestInput()
+	input.ReverseEdges[0].Target = 1
+	if _, err := NewGraphSnapshot(input); !errors.Is(err, ErrInvalidGraphSnapshot) {
+		t.Fatalf("invalid reverse counterpart error = %v", err)
+	}
 }
 
 func TestGraphSnapshotAllowsEmptyTables(t *testing.T) {

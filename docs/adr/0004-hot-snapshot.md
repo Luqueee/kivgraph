@@ -70,6 +70,13 @@ vector de offsets de longitud `símbolos + 1`. Conserva el orden de entrada para
 aristas del mismo origen y rechaza orígenes o destinos fuera de la tabla; el
 snapshot valida los offsets y las referencias a evidencia antes de publicarse.
 
+### Adyacencia reverse
+
+La CSR reverse se deriva de la forward validada: cada arista entrante conserva
+evidencia, tipo, confianza, procedencia y flags, y cambia únicamente su destino
+por el símbolo origen. La publicación compara ambas CSR como multisets exactos,
+incluyendo duplicados, para impedir aristas colgantes o contrapartes inventadas.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de

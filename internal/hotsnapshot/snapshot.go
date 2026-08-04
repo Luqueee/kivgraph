@@ -130,12 +130,18 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 	if forwardOffsets == nil {
 		forwardOffsets = []uint32{0}
 	}
+	reverseOffsets := input.ReverseOffsets
+	if reverseOffsets == nil {
+		reverseOffsets = []uint32{0}
+	}
 	if input.Version == 0 || input.CreatedAt.IsZero() ||
 		!fitsDenseTable(input.Repositories) || !fitsDenseTable(input.Packages) ||
 		!fitsDenseTable(input.Files) || !fitsDenseTable(input.Symbols) ||
 		!fitsDenseTable(input.Evidence) ||
 		len(input.ForwardEdges) != len(input.ReverseEdges) ||
 		!validCSR(len(input.Symbols), forwardOffsets, input.ForwardEdges) ||
+		!validCSR(len(input.Symbols), reverseOffsets, input.ReverseEdges) ||
+		!validReverseCounterpart(len(input.Symbols), forwardOffsets, input.ForwardEdges, reverseOffsets, input.ReverseEdges) ||
 		!validEvidenceIDs(input.ForwardEdges, len(input.Evidence)) ||
 		!validEvidenceIDs(input.ReverseEdges, len(input.Evidence)) {
 		return nil, ErrInvalidGraphSnapshot
@@ -159,11 +165,10 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		symbols:      append([]SymbolRecord(nil), input.Symbols...),
 		evidence:     append([]EvidenceRecord(nil), input.Evidence...),
 
-		forwardOffsets: append([]uint32(nil), forwardOffsets...),
-		forwardEdges:   append([]PackedEdge(nil), input.ForwardEdges...),
-		reverseOffsets: append([]uint32(nil), input.ReverseOffsets...),
-		reverseEdges:   append([]PackedEdge(nil), input.ReverseEdges...),
-
+		forwardOffsets:    append([]uint32(nil), forwardOffsets...),
+		forwardEdges:      append([]PackedEdge(nil), input.ForwardEdges...),
+		reverseOffsets:    append([]uint32(nil), reverseOffsets...),
+		reverseEdges:      append([]PackedEdge(nil), input.ReverseEdges...),
 		symbolByStableKey: cloneStableKeyIndex(input.SymbolByStableKey),
 		symbolsByName:     cloneSymbolLists(input.SymbolsByName),
 		symbolsByQName:    cloneSymbolLists(input.SymbolsByQName),
@@ -197,6 +202,16 @@ func (snapshot *GraphSnapshot) Outgoing(source SymbolID) []PackedEdge {
 	start := snapshot.forwardOffsets[source]
 	end := snapshot.forwardOffsets[source+1]
 	return append([]PackedEdge(nil), snapshot.forwardEdges[start:end]...)
+}
+
+// Incoming returns a copy of the target's contiguous reverse-CSR edge range.
+func (snapshot *GraphSnapshot) Incoming(target SymbolID) []PackedEdge {
+	if uint64(target) >= uint64(len(snapshot.symbols)) {
+		return nil
+	}
+	start := snapshot.reverseOffsets[target]
+	end := snapshot.reverseOffsets[target+1]
+	return append([]PackedEdge(nil), snapshot.reverseEdges[start:end]...)
 }
 
 // SymbolByStableKey returns the symbol matching key through the exact index.
@@ -267,6 +282,41 @@ func validEvidenceIDs(edges []PackedEdge, evidence int) bool {
 	return true
 }
 
+type csrEdgeKey struct {
+	source, target                      SymbolID
+	evidence                            EvidenceID
+	kind, confidence, provenance, flags uint8
+}
+
+func validReverseCounterpart(symbols int, forwardOffsets []uint32, forwardEdges []PackedEdge, reverseOffsets []uint32, reverseEdges []PackedEdge) bool {
+	counts := make(map[csrEdgeKey]int, len(forwardEdges))
+	for source := 0; source < symbols; source++ {
+		for _, edge := range forwardEdges[forwardOffsets[source]:forwardOffsets[source+1]] {
+			counts[csrEdgeKey{
+				source: SymbolID(source), target: edge.Target, evidence: edge.Evidence,
+				kind: edge.Kind, confidence: edge.Confidence, provenance: edge.Provenance, flags: edge.Flags,
+			}]++
+		}
+	}
+	for target := 0; target < symbols; target++ {
+		for _, edge := range reverseEdges[reverseOffsets[target]:reverseOffsets[target+1]] {
+			key := csrEdgeKey{
+				source: edge.Target, target: SymbolID(target), evidence: edge.Evidence,
+				kind: edge.Kind, confidence: edge.Confidence, provenance: edge.Provenance, flags: edge.Flags,
+			}
+			if counts[key] == 0 {
+				return false
+			}
+			counts[key]--
+		}
+	}
+	for _, count := range counts {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
+}
 func fitsDenseTable[T any](records []T) bool { return uint64(len(records)) < math.MaxUint32 }
 
 func cloneStableKeyIndex(source map[StableKey]SymbolID) map[StableKey]SymbolID {

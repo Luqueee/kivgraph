@@ -60,6 +60,43 @@ func TestBuildForwardCSRRejectsInvalidSymbolIDs(t *testing.T) {
 	}
 }
 
+func TestBuildReverseCSR(t *testing.T) {
+	forwardOffsets, forwardEdges, err := BuildForwardCSR(4, []SourcedEdge{
+		{Source: 2, Edge: PackedEdge{Target: 1, Evidence: 7, Kind: 2}},
+		{Source: 0, Edge: PackedEdge{Target: 3, Evidence: 8, Kind: 1}},
+		{Source: 2, Edge: PackedEdge{Target: 0, Evidence: 9, Kind: 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reverseOffsets, reverseEdges, err := BuildReverseCSR(4, forwardOffsets, forwardEdges)
+	if err != nil {
+		t.Fatalf("BuildReverseCSR() error = %v", err)
+	}
+	if !equalUint32s(reverseOffsets, []uint32{0, 1, 2, 2, 3}) {
+		t.Fatalf("reverse offsets = %v", reverseOffsets)
+	}
+	want := []struct {
+		target   SymbolID
+		evidence EvidenceID
+	}{
+		{target: 2, evidence: 9},
+		{target: 2, evidence: 7},
+		{target: 0, evidence: 8},
+	}
+	for index, edge := range reverseEdges {
+		if edge.Target != want[index].target || edge.Evidence != want[index].evidence {
+			t.Fatalf("reverse[%d] = %#v, want target=%d evidence=%d", index, edge, want[index].target, want[index].evidence)
+		}
+	}
+}
+
+func TestBuildReverseCSRRejectsMalformedForward(t *testing.T) {
+	if _, _, err := BuildReverseCSR(2, []uint32{0, 2}, []PackedEdge{{Target: 1}}); err != ErrInvalidCSR {
+		t.Fatalf("BuildReverseCSR() error = %v, want ErrInvalidCSR", err)
+	}
+}
+
 func TestGraphSnapshotOutgoingUsesForwardCSR(t *testing.T) {
 	input := graphSnapshotTestInput()
 	offsets, edges, err := BuildForwardCSR(2, []SourcedEdge{{Source: 1, Edge: PackedEdge{Target: 0, Evidence: 0}}})
@@ -68,6 +105,7 @@ func TestGraphSnapshotOutgoingUsesForwardCSR(t *testing.T) {
 	}
 	input.ForwardOffsets = offsets
 	input.ForwardEdges = edges
+	input.ReverseOffsets = []uint32{0, 1, 1}
 	input.ReverseEdges = []PackedEdge{{Target: 1, Evidence: 0}}
 	snapshot, err := NewGraphSnapshot(input)
 	if err != nil {
@@ -80,12 +118,23 @@ func TestGraphSnapshotOutgoingUsesForwardCSR(t *testing.T) {
 	if len(outgoing) != 1 || outgoing[0].Target != 0 {
 		t.Fatalf("Outgoing(1) = %v", outgoing)
 	}
+	incoming := snapshot.Incoming(0)
+	if len(incoming) != 1 || incoming[0].Target != 1 {
+		t.Fatalf("Incoming(0) = %v", incoming)
+	}
 	outgoing[0].Target = 1
+	incoming[0].Target = 0
 	if got := snapshot.Outgoing(1); got[0].Target != 0 {
 		t.Fatalf("Outgoing() exposed mutable storage: %v", got)
 	}
+	if got := snapshot.Incoming(0); got[0].Target != 1 {
+		t.Fatalf("Incoming() exposed mutable storage: %v", got)
+	}
 	if got := snapshot.Outgoing(2); got != nil {
 		t.Fatalf("Outgoing(2) = %v, want nil", got)
+	}
+	if got := snapshot.Incoming(2); got != nil {
+		t.Fatalf("Incoming(2) = %v, want nil", got)
 	}
 }
 

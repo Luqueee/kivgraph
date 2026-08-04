@@ -1336,11 +1336,11 @@ BLAKE3(canonical identity)
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** responder referencias entrantes sin recorrer todo el grafo.
 
@@ -1349,6 +1349,13 @@ BLAKE3(canonical identity)
 * el conteo reverse coincide con el forward;
 * cada arista tiene contraparte;
 * no hay IDs fuera de rango.
+
+**Estado:** `PASS`.
+
+* `BuildReverseCSR` deriva la adyacencia entrante de la CSR forward validada, conserva la metadata de cada arista y cambia el destino al origen original.
+* `NewGraphSnapshot` valida offsets, rangos, IDs de evidencia y la contraparte exacta de cada arista, incluyendo duplicados.
+* Las pruebas cubren buckets vacíos, múltiples aristas, el último símbolo, forward malformada, getter `Incoming` y rechazo de contrapartes inválidas.
+* Siguiente tarea: LUQUE-0307.
 
 ---
 
