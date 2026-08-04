@@ -152,9 +152,9 @@ integridad referencial. Devuelve `0` solo cuando todos los checks están en
 `1`. La base indicada no se modifica.
 
 La [calificación de LadybugDB](docs/decisions/ladybugdb-qualification.md)
-concluye `ACCEPT_LADYBUGDB_WITH_LIMITS`. El caso `ENOSPC` sigue fallando, por
-lo que `LADYBUG_STORAGE_PASS` no se ha emitido y HotSnapshot permanece
-bloqueado hasta publicar y validar las mutaciones desde una copia reemplazable.
+concluye `ACCEPT_LADYBUGDB_WITH_LIMITS`. `LADYBUG_STORAGE_PASS` no se ha
+emitido: falta publicar generaciones inmutables mediante `CURRENT`, cerrar el
+fallo `ENOSPC` y perfilar el coste de los deltas antes de integrar HotSnapshot.
 
 
 

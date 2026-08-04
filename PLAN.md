@@ -1002,39 +1002,68 @@ El DDL exacto se fijará después del benchmark de LadybugDB, porque el layout f
 
 ```text
 repositorios
-→ facts intermedios
+→ facts normalizados
 → archivos CSV/Parquet de staging
-→ base LadybugDB nueva
+→ generations/<id>.tmp/graph.lbdb
 → carga bulk
-→ integridad
-→ HotSnapshot
-→ golden probes
-→ publicación
+→ cierre y fsync
+→ reapertura
+→ doctor, integridad y golden probes
+→ HotSnapshot validado
+→ publicación atómica de CURRENT
 ```
 
-La base activa no se sobrescribirá durante la reconstrucción.
+La base activa no se sobrescribirá. Una generación solo pasa a ser visible
+cuando la base y el snapshot candidatos están cerrados, sincronizados,
+reabiertos y validados.
 
 ```text
-graph.lbdb
-graph.next.lbdb
-graph.backup.lbdb
+state/
+├── generations/
+│   ├── 000041/
+│   └── 000042.tmp/
+├── CURRENT
+└── space-reserve
+```
+
+`CURRENT` contiene únicamente el identificador de la generación activa. Tras
+sincronizar la candidata, la publicación renombra
+`generations/<id>.tmp/` a `generations/<id>/` y sincroniza `generations/`.
+Después escribe y sincroniza `CURRENT.next`, lo renombra atómicamente sobre
+`CURRENT` y sincroniza el directorio padre. Se conserva al menos la generación
+anterior. `space-reserve` se preasigna para registrar y limpiar después de
+`ENOSPC`, pero no sustituye la publicación generacional.
+
+Antes de crear una candidata debe cumplirse:
+
+```text
+espacio requerido =
+  2 × tamaño de la base activa
+  + tamaño estimado del snapshot
+  + 1 GiB de margen
+
+umbral efectivo =
+  max(espacio requerido, 15 % del filesystem)
 ```
 
 ## 10.4 Incremental
 
 ```text
 cambios
-→ facts eliminados
-→ facts añadidos
-→ BEGIN
-→ borrar relaciones salientes afectadas
-→ actualizar nodos
-→ insertar relaciones nuevas
-→ resolver referencias globales afectadas
-→ COMMIT
-→ construir nuevo HotSnapshot
-→ publicación atómica
+→ facts eliminados y añadidos
+→ clonar la generación activa como candidata
+→ aplicar un delta agregado en una transacción
+→ cerrar, sincronizar y reabrir
+→ doctor, integridad y golden probes
+→ construir y validar HotSnapshot
+→ publicar CURRENT
 ```
+
+Los eventos del filesystem se agruparán antes de escribir. El writer no
+emitirá una consulta por fact salvo que un benchmark lo justifique. Se medirá
+si conviene alimentar LadybugDB y HotSnapshot desde los mismos facts
+normalizados; el arranque y la recuperación siempre deben poder reconstruir el
+snapshot desde LadybugDB.
 
 ## 10.5 Extensiones
 
@@ -2048,12 +2077,14 @@ p95 backend ≤ 2 ms
 * bulk load;
 * incremental inserts;
 * deletes;
+* desglose de latencia de deltas;
 * reverse references;
 * depth-3;
 * depth-5;
 * reapertura;
 * cierre forzado;
 * recuperación;
+* `ENOSPC` durante escritura, cierre y publicación;
 * espacio;
 * RSS.
 
@@ -2064,9 +2095,13 @@ LADYBUG_SCHEMA_PASS
 LADYBUG_BULK_LOAD_PASS
 LADYBUG_INCREMENTAL_PASS
 LADYBUG_RECOVERY_PASS
+LADYBUG_DELTA_PERFORMANCE_PASS
+LADYBUG_STORAGE_PASS
 ```
 
-Si falla, se detiene el proyecto antes de construir indexadores.
+Si falla, se detiene la secuencia oficial antes de construir indexadores. Las
+estructuras puras de HotSnapshot podrán explorarse de forma aislada con
+fixtures, pero no se marcarán como completadas ni se integrarán con LadybugDB.
 
 ---
 
@@ -2080,12 +2115,16 @@ Si falla, se detiene el proyecto antes de construir indexadores.
 * índices;
 * BFS;
 * cursores;
-* atomic swap.
+* atomic swap;
+* extracción secuencial completa desde LadybugDB;
+* comparación con construcción directa desde facts normalizados.
 
 ### Gate
 
 ```text
+full scan LadybugDB ≤ 1 s
 1M edges snapshot build ≤ 2 s
+commit → snapshot publicado ≤ 3 s
 point lookup p95 ≤ 2 ms
 references p95 ≤ 5 ms
 depth-3 p95 ≤ 20 ms

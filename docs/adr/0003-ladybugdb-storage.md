@@ -14,15 +14,20 @@ de un servidor externo.
 
 LadybugDB será el almacenamiento canónico embebido y persistente en disco.
 
-El proceso principal será propietario de una única instancia `Database` en modo
-`READ_WRITE`. Las conexiones se derivarán de esa instancia y las transacciones
-de escritura se serializarán según las restricciones de LadybugDB. Las
-consultas de lectura podrán usar conexiones concurrentes de la misma instancia.
+Cada versión durable del grafo vivirá en una generación inmutable. `CURRENT`
+seleccionará la generación activa y solo una candidata privada se abrirá en
+modo `READ_WRITE`. Las conexiones de una misma base se derivarán de su única
+instancia `Database` y las escrituras se serializarán según las restricciones
+de LadybugDB.
 
-El grafo persistente será la fuente de verdad para full rebuild, deltas,
-verificación de integridad y recuperación. El layout exacto, las versiones y
-los límites de capacidad se fijarán con benchmarks antes de congelar el
-schema.
+La candidata se cerrará, sincronizará, reabrirá y validará antes de publicar
+`CURRENT` mediante rename atómico y fsync del directorio. La generación
+anterior permanecerá disponible para restauración.
+
+El grafo persistente seguirá siendo la fuente durable para full rebuild,
+integridad, auditoría y recuperación. En el camino incremental se medirá si
+LadybugDB y HotSnapshot deben construirse en paralelo desde los mismos facts
+normalizados para evitar una lectura completa innecesaria.
 
 ## Alternatives
 
@@ -42,11 +47,15 @@ schema.
   conexiones.
 - El schema y las versiones de LadybugDB pasan a ser dependencias de
   distribución que deben fijarse y auditarse.
-- Las escrituras se realizan dentro de transacciones y pueden requerir
-  coordinación para respetar una única escritura activa.
-- El HotSnapshot se construye desde el grafo persistente, pero no lo sustituye.
+- Las transacciones de escritura solo mutan una generación candidata y se
+  coordinan para respetar una única escritura activa por base.
+- El HotSnapshot atiende el fast path; debe poder reconstruirse desde el grafo
+  persistente durante arranque y recuperación.
+- La publicación requiere fsync de la candidata, rename atómico de `CURRENT`,
+  fsync del directorio, una generación anterior y una reserva de emergencia.
 - Los backups, rollback e integridad forman parte del camino de recuperación.
-- Hasta cerrar la recuperación ante `ENOSPC`, no se autoriza mutar in-place la única copia canónica ni emitir `LADYBUG_STORAGE_PASS`.
+- Hasta cerrar `ENOSPC` y el rendimiento de deltas no se emite
+  `LADYBUG_STORAGE_PASS`.
 
 ## Risks
 
@@ -69,4 +78,4 @@ devuelto éxito y dejar la base sin posibilidad de reapertura.
 La decisión completa y las condiciones de desbloqueo están en
 [`docs/decisions/ladybugdb-qualification.md`](../decisions/ladybugdb-qualification.md).
 `LADYBUG_STORAGE_PASS` no se emite hasta que la suite de recuperación pase
-íntegramente.
+íntegramente y el rendimiento de deltas cumpla el gate medido.

@@ -1016,6 +1016,7 @@ LADYBUG_STORAGE_PASS
 
 * `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS` y `LADYBUG_INCREMENTAL_PASS` están aprobados sobre el corpus completo.
 * `LADYBUG_RECOVERY_PASS` permanece en `FAIL`: un `ENOSPC` observado durante el cierre, después de que `Writer.Apply` devolviera éxito, dejó la copia sin posibilidad de reapertura.
+* `LADYBUG_DELTA_PERFORMANCE_PASS` queda pendiente: la corrección incremental pasa, pero tres aristas tardaron 878,656 ms y el coste aún no está desglosado.
 * `LADYBUG_STORAGE_PASS` no se emite. La fase 3 continúa bloqueada conforme al gate definido en `PLAN.md`.
 * La reproducción sobre `e902dd0d56563cd3b4d71c2ac19ca28caf955824` confirmó 669.100,3 registros/s con `COPY`, 542.978.048 bytes de pico RSS, integridad incremental y seis de siete casos de recuperación.
 * La decisión, límites y condiciones de desbloqueo están en `docs/decisions/ladybugdb-qualification.md`; ADR 0003 queda aceptada con límites.
@@ -1039,26 +1040,88 @@ LADYBUG_STORAGE_PASS
 
 **Acciones:**
 
-* Aplicar mutaciones sobre `graph.next.lbdb` o una copia privada.
-* Cerrar, reabrir y ejecutar doctor e integridad sobre la candidata.
-* Publicar mediante reemplazo atómico y conservar una copia anterior.
-* Definir reserva y umbral mínimo de espacio.
-* Inyectar `ENOSPC` durante aplicación, cierre y publicación.
-* Probar restauración desde la copia anterior.
+* Crear candidatas en `state/generations/<id>.tmp/`; nunca mutar la generación indicada por `CURRENT`.
+* Exigir el mayor entre `2 × base activa + snapshot + 1 GiB` y el 15 % libre del filesystem.
+* Mantener una reserva de emergencia preasignada y configurable de al menos 512 MiB.
+* Cerrar, hacer fsync, reabrir y ejecutar doctor, integridad, golden probes y validación de HotSnapshot.
+* Hacer fsync de la candidata y su directorio.
+* Renombrar `<id>.tmp/` a `<id>/` y hacer fsync del directorio `generations/` antes de cambiar `CURRENT`.
+* Publicar `CURRENT.next` mediante fsync, rename atómico y fsync del directorio padre.
+* Conservar y probar la restauración de al menos una generación anterior.
+* Inyectar `ENOSPC` durante aplicación, cierre y publicación de `CURRENT`.
+* Ante fallo, liberar la reserva solo para abortar, limpiar y registrar; continuar sirviendo el último HotSnapshot válido.
 
 **Criterios de aceptación:**
 
-* Cada fallo conserva el checksum y la posibilidad de reapertura de la base activa.
+* Cada fallo conserva `CURRENT`, el checksum y la posibilidad de reapertura de la base activa.
 * Una candidata fallida se descarta y nunca se publica.
-* El camino exitoso publica una base validada y permite restaurar la anterior.
+* El camino exitoso publica una generación validada y permite restaurar la anterior.
+* Los fsync y renames requeridos se verifican mediante fault injection.
 * `benchmarks/ladybug-recovery/results.json` termina con `all_passed: true`.
 
 **Gate:**
 
 ```text
 LADYBUG_RECOVERY_PASS
+```
+
+---
+
+## LUQUE-0214 — Perfilar y optimizar deltas LadybugDB
+
+**Dependencias:** LUQUE-0213.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
+**Objetivo:** eliminar el coste por fact y fijar una política medible de batching.
+
+**Desglosar:**
+
+```text
+BEGIN
+lookups de source/target
+borrado de relaciones
+creación de relaciones
+consultas de integridad
+COMMIT
+close/flush
+```
+
+**Comparar:**
+
+* sentencias preparadas individuales;
+* batches reales;
+* staging con `COPY`;
+* deltas agregados durante ventanas de 150–500 ms.
+
+**Entregables:**
+
+```text
+benchmarks/ladybug-delta-profile/results.json
+benchmarks/ladybug-delta-profile/report.md
+```
+
+**Criterios de aceptación:**
+
+* El writer no emite una operación nativa por fact sin justificación medida.
+* Un delta de 1–10 relaciones tiene objetivo menor de 50 ms y p95 máximo tolerable de 150 ms.
+* Un delta de 1.000 relaciones tiene p95 menor de 500 ms.
+* Atomicidad, rollback, duplicados e integridad siguen pasando.
+* La estrategia elegida registra throughput, RSS, allocations y tiempo por fase.
+
+**Gate:**
+
+```text
+LADYBUG_DELTA_PERFORMANCE_PASS
 LADYBUG_STORAGE_PASS
 ```
+
 ---
 
 # 6. Fase 3 — HotSnapshot
@@ -1261,6 +1324,28 @@ LadybugDB
 → validación
 ```
 
+**Medir por separado:**
+
+* scan secuencial de todos los símbolos;
+* scan secuencial de todas las aristas;
+* normalización de IDs;
+* construcción de forward CSR;
+* construcción de reverse CSR;
+* índices;
+* validación.
+
+**Comparar:**
+
+```text
+facts → LadybugDB → scan → HotSnapshot
+facts ├→ LadybugDB
+      └→ HotSnapshot
+```
+
+El arranque y la recuperación deben reconstruir siempre desde LadybugDB. El
+camino directo desde facts solo es válido si produce un snapshot byte a byte o
+semánticamente equivalente según un golden digest.
+
 ---
 
 ## LUQUE-0308 — Implementar publicación atómica
@@ -1362,9 +1447,12 @@ repo + path → file
 
 **Medir:**
 
-* construcción;
+* extracción completa desde LadybugDB;
+* construcción total y cada fase interna;
+* commit hasta snapshot publicado;
+* construcción directa desde facts normalizados;
 * carga;
-* RSS;
+* RSS y allocations;
 * find exacto;
 * references;
 * profundidad 3;
@@ -1380,7 +1468,9 @@ HOT_SNAPSHOT_PASS
 Requisitos:
 
 ```text
-build ≤ 2 s
+full scan LadybugDB ≤ 1 s
+build completo ≤ 2 s
+commit → snapshot publicado ≤ 3 s
 find p95 ≤ 2 ms
 references p95 ≤ 5 ms
 depth-3 p95 ≤ 20 ms

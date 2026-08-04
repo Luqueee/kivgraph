@@ -9,7 +9,7 @@
 
 LadybugDB queda aceptada como motor candidato para el almacenamiento canónico de Luque, pero no queda autorizada todavía para continuar a la construcción de HotSnapshot. La carga masiva, las mutaciones transaccionales, la integridad y la recuperación ante terminación de proceso cumplen el contrato medido. La recuperación ante agotamiento de disco no lo cumple.
 
-El plan exige simultáneamente `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`, `LADYBUG_INCREMENTAL_PASS` y `LADYBUG_RECOVERY_PASS`. El último permanece en `FAIL`; por tanto, emitir `LADYBUG_STORAGE_PASS` ocultaría un gate fallido.
+El plan exige `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`, `LADYBUG_INCREMENTAL_PASS`, `LADYBUG_RECOVERY_PASS` y `LADYBUG_DELTA_PERFORMANCE_PASS` antes de derivar `LADYBUG_STORAGE_PASS`. Recuperación permanece en `FAIL` y el perfil de deltas está pendiente; emitir el gate global ocultaría ambos bloqueos.
 
 ## Configuración calificada
 
@@ -32,7 +32,8 @@ Las versiones, assets y checksums están fijados en [`docs/dependencies/ladybugd
 | `LADYBUG_BULK_LOAD_PASS` | `PASS` | `COPY` cargó y verificó la escala completa con RSS inferior a 2 GiB. |
 | `LADYBUG_INCREMENTAL_PASS` | `PASS` | Altas, bajas, cambios, sustitución de relaciones, duplicados, atomicidad y rollback pasaron sobre una copia del corpus completo. |
 | `LADYBUG_RECOVERY_PASS` | `FAIL` | Seis casos pasaron; `simulated_disk_full` dejó la copia sin posibilidad de reapertura. |
-| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | No se puede derivar mientras `LADYBUG_RECOVERY_PASS` siga fallando. |
+| `LADYBUG_DELTA_PERFORMANCE_PASS` | `PENDING` | La corrección incremental pasa, pero todavía no se ha explicado ni reducido el coste de 878,656 ms para tres aristas. |
+| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | Requiere cerrar recuperación y rendimiento de deltas. |
 
 ## Resultados reproducidos
 
@@ -66,6 +67,13 @@ Las golden probes pasaron sin errores. Los p95 medidos fueron:
 
 Estas latencias no satisfacen los SLO del MCP y confirman la separación prevista: LadybugDB conserva la verdad persistente y HotSnapshot deberá atender las consultas online.
 
+La latencia puntual no permite inferir el rendimiento de un scan columnar
+completo. Antes de validar a LadybugDB como fuente de construcción de
+HotSnapshot se medirán por separado la lectura de todos los símbolos, la
+lectura de todas las aristas, la normalización de IDs, ambos CSR, los índices y
+la validación. También se comparará con construir LadybugDB y HotSnapshot desde
+los mismos facts normalizados.
+
 ### Actualización incremental
 
 | Probe | Resultado |
@@ -80,6 +88,26 @@ Estas latencias no satisfacen los SLO del MCP y confirman la separación previst
 | rollback tras fallo tardío | 403,419 ms |
 
 Se verificaron rechazo de duplicados, ausencia de aristas fantasma, atomicidad y rollback. La medición no incluye construir ni publicar HotSnapshot.
+
+Los 878,656 ms para tres aristas y los 4.748,766 ms para 1.000 símbolos
+demuestran un problema de latencia, pero no identifican su causa. LUQUE-0214
+deberá separar `BEGIN`, lookups, borrados, inserciones, integridad, `COMMIT` y
+cierre/flush; comparar prepared statements, batches y staging con `COPY`; y
+evitar una operación nativa por fact.
+
+Objetivos provisionales:
+
+```text
+delta de 1–10 relaciones:
+  objetivo < 50 ms
+  máximo tolerable p95 < 150 ms
+
+delta de 1.000 relaciones:
+  objetivo p95 < 500 ms
+```
+
+Si los eventos individuales no alcanzan estos límites, se agruparán durante
+150–500 ms y se publicará una sola transacción por delta agregado.
 
 ### Recuperación
 
@@ -109,16 +137,26 @@ Hasta cerrar el gate:
 
 LUQUE-0213 debe:
 
-1. aplicar cambios sobre `graph.next.lbdb` o una copia privada, nunca sobre la única base activa;
-2. cerrar, reabrir y ejecutar integridad/doctor sobre la candidata antes de publicarla;
-3. publicar mediante reemplazo atómico y conservar una copia anterior recuperable;
-4. definir reserva y umbral de espacio, sin tratarlos como sustituto de la publicación atómica;
-5. inyectar `ENOSPC` durante aplicación, cierre y publicación;
-6. demostrar que cada fallo conserva intactos el checksum y la reapertura de la base activa;
-7. demostrar el camino exitoso de publicación y restauración;
-8. repetir la suite de recuperación con `all_passed: true`.
+1. almacenar bases en `state/generations/<id>/` y mantener la candidata en un directorio `.tmp`;
+2. usar un manifiesto pequeño `CURRENT` como única autoridad sobre la generación activa;
+3. comprobar antes de empezar el mayor entre `2 × base + snapshot + 1 GiB` y el 15 % del filesystem;
+4. mantener una reserva de emergencia preasignada y configurable, inicialmente de al menos 512 MiB;
+5. cerrar, sincronizar, reabrir y ejecutar doctor, integridad, golden probes y validación de HotSnapshot sobre la candidata;
+6. sincronizar los ficheros candidatos y su directorio;
+7. renombrar `<id>.tmp/` a `<id>/` y sincronizar `generations/` antes de cambiar el manifiesto;
+8. sincronizar `CURRENT.next`, renombrarlo atómicamente sobre `CURRENT` y sincronizar el directorio padre;
+9. conservar al menos la generación anterior y demostrar su restauración;
+10. inyectar `ENOSPC` durante aplicación, cierre y publicación, liberando la reserva solo para abortar, limpiar y registrar;
+11. demostrar que cada fallo deja `CURRENT`, el checksum, la reapertura y el último HotSnapshot válido sin cambios;
+12. repetir la suite de recuperación con `all_passed: true`.
 
-Solo entonces se podrá emitir `LADYBUG_RECOVERY_PASS`, derivar `LADYBUG_STORAGE_PASS` y desbloquear LUQUE-0301.
+LUQUE-0214 debe localizar y reducir el coste de los deltas, demostrar batching
+real y cumplir los límites provisionales o registrar un nuevo bloqueo
+explícito.
+
+Solo después de emitir `LADYBUG_RECOVERY_PASS` y
+`LADYBUG_DELTA_PERFORMANCE_PASS` se podrá derivar
+`LADYBUG_STORAGE_PASS` y desbloquear LUQUE-0301.
 
 ## Evidencia
 
