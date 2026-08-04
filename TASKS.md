@@ -1365,11 +1365,11 @@ BLAKE3(canonical identity)
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** generar un snapshot completo.
 
@@ -1407,6 +1407,14 @@ facts ├→ LadybugDB
 El arranque y la recuperación deben reconstruir siempre desde LadybugDB. El
 camino directo desde facts solo es válido si produce un snapshot byte a byte o
 semánticamente equivalente según un golden digest.
+
+**Estado:** `PASS`.
+
+* `BuildGraphSnapshot` recibe filas canónicas, ordena repositorios, paquetes, archivos, símbolos y aristas por claves durables y asigna IDs densos nuevos.
+* El pipeline completa interning, índices exactos, CSR forward/reverse y validación de referencias, evidencia y contraparte.
+* Las pruebas cubren orden de entrada no determinista, igualdad de snapshot y tabla de strings, aristas completas y rechazo de filas colgantes o duplicadas.
+* La fuente implementada es la representación de filas canónicas producida por el scan de LadybugDB; no se añadió un segundo lector nominal.
+* Siguiente tarea: LUQUE-0308.
 
 ---
 

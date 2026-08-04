@@ -77,6 +77,14 @@ evidencia, tipo, confianza, procedencia y flags, y cambia únicamente su destino
 por el símbolo origen. La publicación compara ambas CSR como multisets exactos,
 incluyendo duplicados, para impedir aristas colgantes o contrapartes inventadas.
 
+### Construcción desde LadybugDB
+
+El builder recibe filas canónicas de LadybugDB, copia y ordena cada colección
+por su stable key, asigna IDs densos, interna strings, deriva ambas CSR,
+construye índices exactos y entrega el snapshot únicamente tras la validación.
+Los IDs de almacenamiento nunca se filtran a las filas de entrada ni sustituyen
+las claves durables.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de
