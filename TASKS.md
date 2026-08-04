@@ -905,11 +905,11 @@ Las consultas deben devolver resultados correctos sobre el corpus sintético.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Casos:**
 
@@ -927,6 +927,17 @@ Las consultas deben devolver resultados correctos sobre el corpus sintético.
 benchmarks/ladybug-recovery/results.json
 docs/testing/ladybug-recovery.md
 ```
+
+**Resultado registrado — PASS_WITH_LIMITS:**
+
+* Cada caso se ejecuta sobre una copia privada y los fallos potencialmente fatales quedan aislados en workers Linux.
+* Pasan `SIGKILL` durante inserción, antes de `COMMIT` y durante `COPY`: la reapertura conserva el estado previo y no expone filas parciales.
+* La reapertura posterior permite una transacción nueva que sigue presente tras cerrar y abrir otra vez la base.
+* Un fichero truncado a la mitad y un directorio sin permisos producen errores controlados, sin señales ni timeouts.
+* El caso de disco lleno queda en `FAIL`: el shim se armó antes de `Writer.Apply`, pero el primer `ENOSPC` interceptado ocurrió durante el cierre, después de que `Apply` devolviera éxito. La copia resultante no pudo reabrirse y la API nativa de cierre no expone un error.
+* La base de entrada mantuvo el SHA-256 `ada9dc0b704046c8b019e17efe3d443de58102b7a316964b9e105822ffc99191`.
+* No hay gate propio. La limitación de disco lleno queda visible y deberá diagnosticarse en LUQUE-0211; no se considera una recuperación soportada.
+* Artefactos: `benchmarks/ladybug-recovery/results.json` y `docs/testing/ladybug-recovery.md`.
 
 ---
 

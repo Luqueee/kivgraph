@@ -121,6 +121,22 @@ fantasma y rollback de un fallo tardío. Los tiempos solo cubren la mutación
 transaccional de LadybugDB; la construcción y publicación de HotSnapshot
 pertenecen a fases posteriores.
 
+La recuperación se prueba con workers aislados, `SIGKILL`, corrupción,
+permisos y un inyector Linux de `ENOSPC`. Cada escenario modifica únicamente
+una copia privada:
+
+```bash
+go run -tags ladybug ./benchmarks/ladybug-recovery \
+  --database /tmp/luque-copy.db
+```
+
+Los casos de caída, reapertura, truncado y permisos pasan. El resultado
+registrado conserva un `FAIL` explícito para disco lleno: `Writer.Apply`
+devolvió éxito y el primer `ENOSPC` interceptado apareció durante el cierre,
+dejando la copia sin posibilidad de reapertura. El comando devuelve estado no
+cero mientras exista esta limitación. La metodología y la evidencia completas
+están en `docs/testing/ladybug-recovery.md`.
+
 
 
 ## Estructura
