@@ -1227,11 +1227,11 @@ Comparar con strings duplicados.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** crear identidad externa persistente.
 
@@ -1257,6 +1257,13 @@ BLAKE3(canonical identity)
 * ausencia de colisión en corpus;
 * cambio ante identidad distinta;
 * estabilidad al mover línea.
+
+**Estado:** `PASS`.
+
+* `StableKeyIdentity` registra versión, lenguaje, repositorio, paquete o módulo, nombre cualificado, clase y discriminador; ninguna identidad incompleta ni versión desconocida puede producir una clave.
+* La identidad canónica usa campos prefijados por longitud y se conserva como texto auditable; `StableKey` es el BLAKE3-256 base32 sin padding de esa identidad.
+* Las pruebas cubren vector BLAKE3 determinista, cambios en cada componente de identidad, 20.000 símbolos distintos sin colisiones y estabilidad al mover una línea al excluir posiciones de fuente.
+* Siguiente tarea: LUQUE-0304.
 
 ---
 

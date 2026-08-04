@@ -46,6 +46,16 @@ El builder interna strings y al congelarse transfiere la tabla ordenada por
 bloqueos; su serialización conserva ese orden y rechaza datos truncados o
 valores duplicados. Las cadenas, no sus IDs, son la representación durable.
 
+### Identidad estable
+
+La identidad externa de un símbolo se codifica canónicamente con la versión de
+formato, lenguaje, repositorio, paquete o módulo, nombre cualificado, clase y
+discriminador. Cada campo está prefijado por su longitud, de modo que valores
+con separadores no pueden alterar sus límites. La `StableKey` es el BLAKE3-256
+de esa representación, expresado como base32 sin padding; la identidad canónica
+se conserva para auditoría. La posición de fuente no participa, por lo que mover
+una declaración no cambia su identidad.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de
