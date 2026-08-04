@@ -63,6 +63,13 @@ ambas adyacencias, y los índices exactos por stable key, nombre, nombre
 cualificado y ruta de repositorio. Su constructor copia slices y mapas, valida
 que los índices cubran exactamente sus tablas y no expone colecciones mutables.
 
+### Adyacencia forward
+
+El constructor CSR forward agrupa las aristas salientes por `SymbolID` con un
+vector de offsets de longitud `símbolos + 1`. Conserva el orden de entrada para
+aristas del mismo origen y rechaza orígenes o destinos fuera de la tabla; el
+snapshot valida los offsets y las referencias a evidencia antes de publicarse.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de

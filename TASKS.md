@@ -1305,12 +1305,11 @@ BLAKE3(canonical identity)
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
-
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 **Objetivo:** almacenar aristas salientes contiguamente.
 
 **Tests:**
@@ -1320,6 +1319,14 @@ BLAKE3(canonical identity)
 * miles de aristas;
 * último símbolo;
 * índices inválidos.
+
+**Estado:** `PASS`.
+
+* `BuildForwardCSR` agrupa aristas salientes por origen, conserva el orden de entrada de cada símbolo y construye offsets de longitud `símbolos + 1`.
+* Valida IDs de origen y destino antes de construir; el snapshot además rechaza offsets no monótonos, rangos inconsistentes y referencias a evidencia inexistente.
+* Las pruebas cubren símbolos sin aristas, una arista, 4.096 aristas del último símbolo, IDs inválidos y aislamiento de las colecciones devueltas.
+* Siguiente tarea: LUQUE-0306.
+
 
 ---
 

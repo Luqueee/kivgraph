@@ -126,11 +126,18 @@ type GraphSnapshot struct {
 // inputs. The caller can therefore reuse or mutate GraphSnapshotInput after the
 // call without changing the returned snapshot.
 func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
+	forwardOffsets := input.ForwardOffsets
+	if forwardOffsets == nil {
+		forwardOffsets = []uint32{0}
+	}
 	if input.Version == 0 || input.CreatedAt.IsZero() ||
 		!fitsDenseTable(input.Repositories) || !fitsDenseTable(input.Packages) ||
 		!fitsDenseTable(input.Files) || !fitsDenseTable(input.Symbols) ||
 		!fitsDenseTable(input.Evidence) ||
-		len(input.ForwardEdges) != len(input.ReverseEdges) {
+		len(input.ForwardEdges) != len(input.ReverseEdges) ||
+		!validCSR(len(input.Symbols), forwardOffsets, input.ForwardEdges) ||
+		!validEvidenceIDs(input.ForwardEdges, len(input.Evidence)) ||
+		!validEvidenceIDs(input.ReverseEdges, len(input.Evidence)) {
 		return nil, ErrInvalidGraphSnapshot
 	}
 
@@ -152,7 +159,7 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		symbols:      append([]SymbolRecord(nil), input.Symbols...),
 		evidence:     append([]EvidenceRecord(nil), input.Evidence...),
 
-		forwardOffsets: append([]uint32(nil), input.ForwardOffsets...),
+		forwardOffsets: append([]uint32(nil), forwardOffsets...),
 		forwardEdges:   append([]PackedEdge(nil), input.ForwardEdges...),
 		reverseOffsets: append([]uint32(nil), input.ReverseOffsets...),
 		reverseEdges:   append([]PackedEdge(nil), input.ReverseEdges...),
@@ -180,6 +187,16 @@ func (snapshot *GraphSnapshot) Symbol(id SymbolID) (SymbolRecord, bool) {
 		return SymbolRecord{}, false
 	}
 	return snapshot.symbols[id], true
+}
+
+// Outgoing returns a copy of the source's contiguous forward-CSR edge range.
+func (snapshot *GraphSnapshot) Outgoing(source SymbolID) []PackedEdge {
+	if uint64(source) >= uint64(len(snapshot.symbols)) {
+		return nil
+	}
+	start := snapshot.forwardOffsets[source]
+	end := snapshot.forwardOffsets[source+1]
+	return append([]PackedEdge(nil), snapshot.forwardEdges[start:end]...)
 }
 
 // SymbolByStableKey returns the symbol matching key through the exact index.
@@ -235,6 +252,15 @@ func validSymbolLists(index map[InternedString][]SymbolID, symbols []SymbolRecor
 	}
 	for _, found := range seen {
 		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func validEvidenceIDs(edges []PackedEdge, evidence int) bool {
+	for _, edge := range edges {
+		if uint64(edge.Evidence) >= uint64(evidence) {
 			return false
 		}
 	}
