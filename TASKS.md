@@ -1014,13 +1014,11 @@ LADYBUG_STORAGE_PASS
 
 **Resultado registrado: `ACCEPT_LADYBUGDB_WITH_LIMITS`.**
 
-* `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS` y `LADYBUG_INCREMENTAL_PASS` están aprobados sobre el corpus completo.
-* `LADYBUG_RECOVERY_PASS` permanece en `FAIL`: un `ENOSPC` observado durante el cierre, después de que `Writer.Apply` devolviera éxito, dejó la copia sin posibilidad de reapertura.
-* `LADYBUG_DELTA_PERFORMANCE_PASS` queda pendiente: la corrección incremental pasa, pero tres aristas tardaron 878,656 ms y el coste aún no está desglosado.
+* `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`, `LADYBUG_INCREMENTAL_PASS` y `LADYBUG_RECOVERY_PASS` están aprobados sobre el corpus completo.
+* LUQUE-0214 dejó `LADYBUG_DELTA_PERFORMANCE_PASS` en `FAIL`: 1.000 relaciones por el camino seguro registraron 19.249,3 ms p95 frente al límite de 500 ms.
 * `LADYBUG_STORAGE_PASS` no se emite. La fase 3 continúa bloqueada conforme al gate definido en `PLAN.md`.
-* La reproducción sobre `e902dd0d56563cd3b4d71c2ac19ca28caf955824` confirmó 669.100,3 registros/s con `COPY`, 542.978.048 bytes de pico RSS, integridad incremental y seis de siete casos de recuperación.
-* La decisión, límites y condiciones de desbloqueo están en `docs/decisions/ladybugdb-qualification.md`; ADR 0003 queda aceptada con límites.
-* Siguiente tarea: LUQUE-0213.
+* La carga con `COPY` confirmó 669.100,3 registros/s y 542.978.048 bytes de pico RSS; la decisión y la evidencia posterior de recuperación y deltas están en `docs/decisions/ladybugdb-qualification.md`.
+* ADR 0003 queda aceptada con límites; se requiere una remediación de bulk con semántica exacta antes de continuar.
 
 ---
 
@@ -1073,7 +1071,7 @@ LADYBUG_RECOVERY_PASS
 * `benchmarks/ladybug-recovery/results.json` registra ocho casos en `PASS` y `all_passed: true`.
 * Limitación conservada: la prueba cubre Linux y fallos de syscalls, no pérdida eléctrica ni cachés del controlador.
 * `LADYBUG_STORAGE_PASS` continúa bloqueado únicamente por `LADYBUG_DELTA_PERFORMANCE_PASS`.
-* Siguiente tarea: LUQUE-0214.
+* LUQUE-0214 registró el fallo del gate; LUQUE-0301 permanece bloqueada hasta una remediación de bulk exacta.
 
 ---
 
@@ -1083,11 +1081,11 @@ LADYBUG_RECOVERY_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** eliminar el coste por fact y fijar una política medible de batching.
 
@@ -1131,6 +1129,16 @@ benchmarks/ladybug-delta-profile/report.md
 LADYBUG_DELTA_PERFORMANCE_PASS
 LADYBUG_STORAGE_PASS
 ```
+
+**Resultado registrado:** `LADYBUG_DELTA_PERFORMANCE_PASS` **no emitido**.
+
+* `prepared_individual` se usa para 1–10 relaciones; p95 de 10 relaciones: 123,5 ms. Cumple el máximo tolerable de 150 ms, pero no el objetivo de 50 ms.
+* `prepared_batch` mantiene una única llamada nativa por tipo de relación y el borrado pasó a ser batch, pero el binding `UNWIND` da p95 de 19.249,3 ms para 1.000 relaciones; incumple el límite de 500 ms.
+* `staging_copy` midió p95 de 177,9 ms para 1.000 relaciones, pero no se adopta para deltas genéricos: el esquema permite multiplicidad y `COPY` no conserva la detección atómica de duplicados.
+* Diez deltas agregados con `COPY` alcanzaron 475,0 ms por batch de 10.000 relaciones, pero excluyen la espera de 150–500 ms, alcanzaron 1.876.275.200 bytes de RSS y no resuelven la latencia end-to-end pequeña.
+* Atomicidad, rollback, duplicados e integridad siguen cubiertos por la suite del writer; los resultados incluyen throughput, RSS, allocations y fases.
+* `LADYBUG_STORAGE_PASS` permanece bloqueado. No iniciar LUQUE-0301.
+* Siguiente acción requerida: diseñar un bulk path sobre la candidata privada que mantenga comprobación exacta de duplicados antes de seleccionar `COPY`, o diagnosticar/corregir el coste de binding de `UNWIND`.
 
 ---
 

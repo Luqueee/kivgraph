@@ -165,6 +165,53 @@ func TestWriterAddsOneThousandSymbolsWithoutDuplicates(t *testing.T) {
 	assertSymbol(t, reader, symbols[500])
 }
 
+func TestWriterDeletesReferencesInBatches(t *testing.T) {
+	database, reader := newQueryFixture(t)
+	writer, err := database.OpenWriter(context.Background())
+	if err != nil {
+		t.Fatalf("OpenWriter() error = %v", err)
+	}
+	defer writer.Close()
+
+	const referenceCount = 100
+	symbols := make([]Symbol, referenceCount+1)
+	symbols[0] = mutationSymbol("delete-batch-source", "r0", "f0")
+	for index := 0; index < referenceCount; index++ {
+		symbols[index+1] = mutationSymbol(fmt.Sprintf("delete-batch-target-%03d", index), "r0", "f0")
+	}
+	if _, err := writer.Apply(context.Background(), Delta{AddSymbols: symbols}); err != nil {
+		t.Fatalf("Apply(add symbols) error = %v", err)
+	}
+
+	references := make([]Reference, referenceCount)
+	keys := make([]ReferenceKey, referenceCount)
+	for index := range references {
+		kind := ReferenceKindReferences
+		if index%2 != 0 {
+			kind = ReferenceKindCallsDirect
+		}
+		references[index] = mutationReference(symbols[0].StableKey, symbols[index+1].StableKey, kind)
+		keys[index] = references[index].key()
+	}
+	if _, err := writer.Apply(context.Background(), Delta{AddReferences: references}); err != nil {
+		t.Fatalf("Apply(add references) error = %v", err)
+	}
+	result, err := writer.Apply(context.Background(), Delta{DeleteReferences: keys})
+	if err != nil {
+		t.Fatalf("Apply(delete references) error = %v", err)
+	}
+	if result.DeletedReferences != referenceCount {
+		t.Fatalf("Apply(delete references) = %#v", result)
+	}
+	outgoing, err := reader.OutgoingReferences(context.Background(), symbols[0].StableKey, referenceCount)
+	if err != nil {
+		t.Fatalf("OutgoingReferences() error = %v", err)
+	}
+	if len(outgoing) != 0 {
+		t.Fatalf("OutgoingReferences() = %d references, want 0", len(outgoing))
+	}
+}
+
 func TestWriterRollsBackAllChangesAfterLateFailure(t *testing.T) {
 	database, reader := newQueryFixture(t)
 	writer, err := database.OpenWriter(context.Background())

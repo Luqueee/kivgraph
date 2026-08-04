@@ -1,0 +1,1208 @@
+{
+  "benchmark": "ladybug-delta-profile",
+  "command": "/tmp/go-build1538572613/b001/exe/ladybug-delta-profile --database /tmp/luque-ladybug-qualification.db --output benchmarks/ladybug-delta-profile --samples 5",
+  "commit": "c943b7249ebcac000a918b2de1dac4631136759e-dirty",
+  "generated_at": "2026-08-04T21:34:51.167101259Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "base_database_bytes": 43290624,
+  "samples": 5,
+  "cases": [
+    {
+      "strategy": "prepared_individual",
+      "relations": 1,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.00042,
+            "begin": 0.126331,
+            "lookups": 8.599693,
+            "deletes": 4.247941,
+            "creates": 4.788602,
+            "integrity": 2.890481,
+            "commit": 1.41862,
+            "close": 64.350083,
+            "total": 86.455021
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4024,
+          "rss_bytes": 146169856
+        },
+        {
+          "phases_ms": {
+            "stage": 0.0007,
+            "begin": 0.1937,
+            "lookups": 5.017232,
+            "deletes": 3.186871,
+            "creates": 4.698181,
+            "integrity": 3.212011,
+            "commit": 1.497101,
+            "close": 64.807942,
+            "total": 82.642328
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 3880,
+          "rss_bytes": 158593024
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00057,
+            "begin": 0.180581,
+            "lookups": 5.148461,
+            "deletes": 3.004821,
+            "creates": 4.778982,
+            "integrity": 2.829011,
+            "commit": 1.0024,
+            "close": 65.005532,
+            "total": 81.983758
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4312,
+          "rss_bytes": 145231872
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00038,
+            "begin": 0.129881,
+            "lookups": 5.733222,
+            "deletes": 3.447911,
+            "creates": 4.706632,
+            "integrity": 2.71016,
+            "commit": 1.31134,
+            "close": 63.252752,
+            "total": 81.314328
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4312,
+          "rss_bytes": 190779392
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00036,
+            "begin": 0.10292,
+            "lookups": 5.072262,
+            "deletes": 3.032711,
+            "creates": 4.569362,
+            "integrity": 2.76375,
+            "commit": 1.499041,
+            "close": 62.060342,
+            "total": 79.123428
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 3864,
+          "rss_bytes": 154378240
+        }
+      ],
+      "summary": {
+        "p50_ms": 81.983758,
+        "p95_ms": 86.455021,
+        "throughput_per_second": 12.197537956237626,
+        "peak_rss_bytes": 190779392,
+        "allocations_per_batch": 4024,
+        "phases_p50_ms": {
+          "stage": 0.00042,
+          "begin": 0.129881,
+          "lookups": 5.148461,
+          "deletes": 3.186871,
+          "creates": 4.706632,
+          "integrity": 2.829011,
+          "commit": 1.41862,
+          "close": 64.350083,
+          "total": 81.983758
+        }
+      }
+    },
+    {
+      "strategy": "prepared_individual",
+      "relations": 10,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.00033,
+            "begin": 0.12193,
+            "lookups": 5.657002,
+            "deletes": 3.287552,
+            "creates": 47.499946,
+            "integrity": 2.772281,
+            "commit": 1.084681,
+            "close": 63.026151,
+            "total": 123.494933
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 8040,
+          "rss_bytes": 183484416
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00059,
+            "begin": 0.11932,
+            "lookups": 5.802081,
+            "deletes": 3.255842,
+            "creates": 46.922996,
+            "integrity": 3.694731,
+            "commit": 0.589971,
+            "close": 63.095753,
+            "total": 123.521364
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 7048,
+          "rss_bytes": 189722624
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00035,
+            "begin": 0.21943,
+            "lookups": 5.042023,
+            "deletes": 3.06026,
+            "creates": 48.510227,
+            "integrity": 2.926601,
+            "commit": 0.520631,
+            "close": 63.063552,
+            "total": 123.367244
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 6600,
+          "rss_bytes": 190177280
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00049,
+            "begin": 0.193541,
+            "lookups": 5.313841,
+            "deletes": 3.258931,
+            "creates": 46.609247,
+            "integrity": 3.053372,
+            "commit": 1.4581,
+            "close": 62.053622,
+            "total": 121.968584
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 8024,
+          "rss_bytes": 190730240
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00036,
+            "begin": 0.140089,
+            "lookups": 5.197562,
+            "deletes": 3.181442,
+            "creates": 47.743257,
+            "integrity": 2.81769,
+            "commit": 0.4973,
+            "close": 62.505333,
+            "total": 122.107303
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 6920,
+          "rss_bytes": 187265024
+        }
+      ],
+      "summary": {
+        "p50_ms": 123.367244,
+        "p95_ms": 123.521364,
+        "throughput_per_second": 81.05879385617142,
+        "peak_rss_bytes": 190730240,
+        "allocations_per_batch": 7048,
+        "phases_p50_ms": {
+          "stage": 0.00036,
+          "begin": 0.140089,
+          "lookups": 5.313841,
+          "deletes": 3.255842,
+          "creates": 47.499946,
+          "integrity": 2.926601,
+          "commit": 0.589971,
+          "close": 63.026151,
+          "total": 123.367244
+        }
+      }
+    },
+    {
+      "strategy": "prepared_individual",
+      "relations": 1000,
+      "aggregated_deltas": 1,
+      "skipped": true,
+      "reason": "would issue one native mutation query per relationship; excluded by the production batching policy",
+      "summary": {
+        "p50_ms": 0,
+        "p95_ms": 0,
+        "throughput_per_second": 0,
+        "peak_rss_bytes": 0,
+        "allocations_per_batch": 0,
+        "phases_p50_ms": {
+          "stage": 0,
+          "begin": 0,
+          "lookups": 0,
+          "deletes": 0,
+          "creates": 0,
+          "integrity": 0,
+          "commit": 0,
+          "close": 0,
+          "total": 0
+        }
+      }
+    },
+    {
+      "strategy": "prepared_batch",
+      "relations": 1,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.00018,
+            "begin": 0.126329,
+            "lookups": 5.242372,
+            "deletes": 3.033621,
+            "creates": 409.250998,
+            "integrity": 3.330111,
+            "commit": 0.90452,
+            "close": 73.494736,
+            "total": 495.409447
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 5048,
+          "rss_bytes": 208150528
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00015,
+            "begin": 0.133381,
+            "lookups": 5.379072,
+            "deletes": 3.290621,
+            "creates": 408.206948,
+            "integrity": 3.506421,
+            "commit": 0.8287,
+            "close": 76.285128,
+            "total": 497.666041
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 5496,
+          "rss_bytes": 189894656
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00015,
+            "begin": 0.141851,
+            "lookups": 5.402001,
+            "deletes": 3.223411,
+            "creates": 415.615052,
+            "integrity": 2.80668,
+            "commit": 0.532361,
+            "close": 74.662098,
+            "total": 502.411384
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 5496,
+          "rss_bytes": 201064448
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00017,
+            "begin": 0.13907,
+            "lookups": 5.092122,
+            "deletes": 3.322301,
+            "creates": 410.388581,
+            "integrity": 3.763732,
+            "commit": 1.39547,
+            "close": 74.874378,
+            "total": 499.003794
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 5016,
+          "rss_bytes": 210423808
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00019,
+            "begin": 0.12678,
+            "lookups": 4.860643,
+            "deletes": 3.671061,
+            "creates": 414.451404,
+            "integrity": 2.838692,
+            "commit": 0.862609,
+            "close": 73.913639,
+            "total": 500.755468
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4568,
+          "rss_bytes": 199454720
+        }
+      ],
+      "summary": {
+        "p50_ms": 499.003794,
+        "p95_ms": 502.411384,
+        "throughput_per_second": 2.0039927792613135,
+        "peak_rss_bytes": 210423808,
+        "allocations_per_batch": 5048,
+        "phases_p50_ms": {
+          "stage": 0.00017,
+          "begin": 0.133381,
+          "lookups": 5.242372,
+          "deletes": 3.290621,
+          "creates": 410.388581,
+          "integrity": 3.330111,
+          "commit": 0.862609,
+          "close": 74.662098,
+          "total": 499.003794
+        }
+      }
+    },
+    {
+      "strategy": "prepared_batch",
+      "relations": 10,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.00015,
+            "begin": 0.16053,
+            "lookups": 5.101252,
+            "deletes": 3.182501,
+            "creates": 550.566316,
+            "integrity": 3.282781,
+            "commit": 0.384061,
+            "close": 74.007758,
+            "total": 636.719419
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 13264,
+          "rss_bytes": 218136576
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00017,
+            "begin": 0.128369,
+            "lookups": 5.126282,
+            "deletes": 3.312751,
+            "creates": 564.941674,
+            "integrity": 3.172171,
+            "commit": 1.44922,
+            "close": 74.993849,
+            "total": 653.157806
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 13872,
+          "rss_bytes": 202506240
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00015,
+            "begin": 0.119621,
+            "lookups": 5.370022,
+            "deletes": 3.21958,
+            "creates": 558.230685,
+            "integrity": 3.025031,
+            "commit": 0.4121,
+            "close": 74.294448,
+            "total": 644.710757
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 13088,
+          "rss_bytes": 205848576
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00017,
+            "begin": 0.16769,
+            "lookups": 5.103422,
+            "deletes": 3.139542,
+            "creates": 557.575915,
+            "integrity": 3.800182,
+            "commit": 1.418291,
+            "close": 74.086348,
+            "total": 645.34621
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 12512,
+          "rss_bytes": 205168640
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00016,
+            "begin": 0.1654,
+            "lookups": 5.675003,
+            "deletes": 3.38092,
+            "creates": 566.122702,
+            "integrity": 3.427942,
+            "commit": 0.69858,
+            "close": 75.381479,
+            "total": 654.900837
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 12512,
+          "rss_bytes": 213807104
+        }
+      ],
+      "summary": {
+        "p50_ms": 645.34621,
+        "p95_ms": 654.900837,
+        "throughput_per_second": 15.495558577774865,
+        "peak_rss_bytes": 218136576,
+        "allocations_per_batch": 13088,
+        "phases_p50_ms": {
+          "stage": 0.00016,
+          "begin": 0.16053,
+          "lookups": 5.126282,
+          "deletes": 3.21958,
+          "creates": 558.230685,
+          "integrity": 3.282781,
+          "commit": 0.69858,
+          "close": 74.294448,
+          "total": 645.34621
+        }
+      }
+    },
+    {
+      "strategy": "prepared_batch",
+      "relations": 1000,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.00016,
+            "begin": 0.122761,
+            "lookups": 19.127276,
+            "deletes": 9.341075,
+            "creates": 19134.205081,
+            "integrity": 3.300652,
+            "commit": 1.16949,
+            "close": 80.999989,
+            "total": 19249.327434
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 979200,
+          "rss_bytes": 252497920
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00016,
+            "begin": 0.11284,
+            "lookups": 19.5653,
+            "deletes": 9.582824,
+            "creates": 19049.934526,
+            "integrity": 3.269592,
+            "commit": 1.441161,
+            "close": 82.686108,
+            "total": 19167.64931
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 935872,
+          "rss_bytes": 321257472
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00018,
+            "begin": 0.1094,
+            "lookups": 19.634551,
+            "deletes": 9.462605,
+            "creates": 19050.373772,
+            "integrity": 3.169152,
+            "commit": 1.886191,
+            "close": 82.177373,
+            "total": 19167.748815
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 979072,
+          "rss_bytes": 331018240
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00022,
+            "begin": 0.127921,
+            "lookups": 20.773773,
+            "deletes": 9.461046,
+            "creates": 19068.648014,
+            "integrity": 3.202422,
+            "commit": 1.096291,
+            "close": 79.734708,
+            "total": 19183.962746
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 979632,
+          "rss_bytes": 407334912
+        },
+        {
+          "phases_ms": {
+            "stage": 0.00021,
+            "begin": 0.304181,
+            "lookups": 20.277995,
+            "deletes": 9.902397,
+            "creates": 19028.556074,
+            "integrity": 3.541583,
+            "commit": 2.220331,
+            "close": 81.381036,
+            "total": 19147.463688
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 979744,
+          "rss_bytes": 406532096
+        }
+      ],
+      "summary": {
+        "p50_ms": 19167.748815,
+        "p95_ms": 19249.327434,
+        "throughput_per_second": 52.17096747519122,
+        "peak_rss_bytes": 407334912,
+        "allocations_per_batch": 979200,
+        "phases_p50_ms": {
+          "stage": 0.00018,
+          "begin": 0.122761,
+          "lookups": 19.634551,
+          "deletes": 9.462605,
+          "creates": 19050.373772,
+          "integrity": 3.269592,
+          "commit": 1.441161,
+          "close": 81.381036,
+          "total": 19167.748815
+        }
+      }
+    },
+    {
+      "strategy": "staging_copy",
+      "relations": 1,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.04239,
+            "begin": 0.32758,
+            "lookups": 5.012833,
+            "deletes": 3.520604,
+            "creates": 63.766681,
+            "integrity": 3.268653,
+            "commit": 63.17436,
+            "close": 5.240505,
+            "total": 144.334686
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 3872,
+          "rss_bytes": 401387520
+        },
+        {
+          "phases_ms": {
+            "stage": 0.014521,
+            "begin": 0.169711,
+            "lookups": 5.126464,
+            "deletes": 3.256383,
+            "creates": 62.359799,
+            "integrity": 3.293633,
+            "commit": 62.835761,
+            "close": 4.674613,
+            "total": 141.739384
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4320,
+          "rss_bytes": 376107008
+        },
+        {
+          "phases_ms": {
+            "stage": 0.053061,
+            "begin": 0.124691,
+            "lookups": 5.229533,
+            "deletes": 3.002944,
+            "creates": 63.773941,
+            "integrity": 3.194682,
+            "commit": 63.701741,
+            "close": 3.663544,
+            "total": 142.712416
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4336,
+          "rss_bytes": 406663168
+        },
+        {
+          "phases_ms": {
+            "stage": 0.02392,
+            "begin": 0.17264,
+            "lookups": 5.581015,
+            "deletes": 3.260142,
+            "creates": 62.586241,
+            "integrity": 3.216672,
+            "commit": 62.352512,
+            "close": 5.364473,
+            "total": 142.557795
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 4336,
+          "rss_bytes": 382873600
+        },
+        {
+          "phases_ms": {
+            "stage": 0.02422,
+            "begin": 0.11949,
+            "lookups": 5.147195,
+            "deletes": 3.136632,
+            "creates": 64.127472,
+            "integrity": 3.012562,
+            "commit": 63.546031,
+            "close": 4.156514,
+            "total": 143.266696
+          },
+          "relations_applied": 1,
+          "allocations_bytes": 3856,
+          "rss_bytes": 408879104
+        }
+      ],
+      "summary": {
+        "p50_ms": 142.712416,
+        "p95_ms": 144.334686,
+        "throughput_per_second": 7.007098807716913,
+        "peak_rss_bytes": 408879104,
+        "allocations_per_batch": 4320,
+        "phases_p50_ms": {
+          "stage": 0.02422,
+          "begin": 0.169711,
+          "lookups": 5.147195,
+          "deletes": 3.256383,
+          "creates": 63.766681,
+          "integrity": 3.216672,
+          "commit": 63.17436,
+          "close": 4.674613,
+          "total": 142.712416
+        }
+      }
+    },
+    {
+      "strategy": "staging_copy",
+      "relations": 10,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.02863,
+            "begin": 0.122249,
+            "lookups": 5.571526,
+            "deletes": 3.306132,
+            "creates": 64.178972,
+            "integrity": 2.893203,
+            "commit": 63.323911,
+            "close": 5.017174,
+            "total": 144.441417
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 5624,
+          "rss_bytes": 406573056
+        },
+        {
+          "phases_ms": {
+            "stage": 0.0349,
+            "begin": 0.3634,
+            "lookups": 6.108566,
+            "deletes": 3.212561,
+            "creates": 62.671591,
+            "integrity": 3.172543,
+            "commit": 62.484811,
+            "close": 4.823174,
+            "total": 142.860456
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 5624,
+          "rss_bytes": 411299840
+        },
+        {
+          "phases_ms": {
+            "stage": 0.0335,
+            "begin": 0.125411,
+            "lookups": 4.966284,
+            "deletes": 3.859743,
+            "creates": 61.798459,
+            "integrity": 3.544934,
+            "commit": 64.563992,
+            "close": 3.695213,
+            "total": 142.576426
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 5032,
+          "rss_bytes": 402944000
+        },
+        {
+          "phases_ms": {
+            "stage": 0.02284,
+            "begin": 0.13236,
+            "lookups": 5.148664,
+            "deletes": 3.729193,
+            "creates": 66.607445,
+            "integrity": 2.950322,
+            "commit": 66.568944,
+            "close": 4.577914,
+            "total": 149.743222
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 5976,
+          "rss_bytes": 407801856
+        },
+        {
+          "phases_ms": {
+            "stage": 0.02841,
+            "begin": 0.24476,
+            "lookups": 5.479974,
+            "deletes": 3.493783,
+            "creates": 63.487942,
+            "integrity": 3.005182,
+            "commit": 65.816973,
+            "close": 4.574434,
+            "total": 146.126388
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 5992,
+          "rss_bytes": 403632128
+        }
+      ],
+      "summary": {
+        "p50_ms": 144.441417,
+        "p95_ms": 149.743222,
+        "throughput_per_second": 69.23222028485085,
+        "peak_rss_bytes": 411299840,
+        "allocations_per_batch": 5624,
+        "phases_p50_ms": {
+          "stage": 0.02863,
+          "begin": 0.13236,
+          "lookups": 5.479974,
+          "deletes": 3.493783,
+          "creates": 63.487942,
+          "integrity": 3.005182,
+          "commit": 64.563992,
+          "close": 4.577914,
+          "total": 144.441417
+        }
+      }
+    },
+    {
+      "strategy": "staging_copy",
+      "relations": 1000,
+      "aggregated_deltas": 1,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.105401,
+            "begin": 0.18241,
+            "lookups": 20.365406,
+            "deletes": 9.668909,
+            "creates": 64.932472,
+            "integrity": 3.115263,
+            "commit": 68.188156,
+            "close": 5.004674,
+            "total": 171.48636
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 179608,
+          "rss_bytes": 446902272
+        },
+        {
+          "phases_ms": {
+            "stage": 0.10242,
+            "begin": 0.29876,
+            "lookups": 15.445712,
+            "deletes": 9.461588,
+            "creates": 64.824853,
+            "integrity": 3.513373,
+            "commit": 69.960347,
+            "close": 6.966786,
+            "total": 170.494519
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 135288,
+          "rss_bytes": 416333824
+        },
+        {
+          "phases_ms": {
+            "stage": 0.08094,
+            "begin": 0.155251,
+            "lookups": 18.565504,
+            "deletes": 10.900619,
+            "creates": 65.911544,
+            "integrity": 3.128263,
+            "commit": 68.228595,
+            "close": 4.685114,
+            "total": 171.59798
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 178920,
+          "rss_bytes": 437284864
+        },
+        {
+          "phases_ms": {
+            "stage": 0.11756,
+            "begin": 0.45138,
+            "lookups": 19.647396,
+            "deletes": 10.091248,
+            "creates": 67.064486,
+            "integrity": 3.584112,
+            "commit": 69.242728,
+            "close": 6.053154,
+            "total": 176.161734
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 179160,
+          "rss_bytes": 439267328
+        },
+        {
+          "phases_ms": {
+            "stage": 0.0789,
+            "begin": 0.15349,
+            "lookups": 19.003285,
+            "deletes": 9.937659,
+            "creates": 67.859125,
+            "integrity": 3.430524,
+            "commit": 70.340798,
+            "close": 7.151376,
+            "total": 177.908236
+          },
+          "relations_applied": 1000,
+          "allocations_bytes": 179384,
+          "rss_bytes": 442843136
+        }
+      ],
+      "summary": {
+        "p50_ms": 171.59798,
+        "p95_ms": 177.908236,
+        "throughput_per_second": 5827.574427158175,
+        "peak_rss_bytes": 446902272,
+        "allocations_per_batch": 179160,
+        "phases_p50_ms": {
+          "stage": 0.10242,
+          "begin": 0.18241,
+          "lookups": 19.003285,
+          "deletes": 9.937659,
+          "creates": 65.911544,
+          "integrity": 3.430524,
+          "commit": 69.242728,
+          "close": 6.053154,
+          "total": 171.59798
+        }
+      }
+    },
+    {
+      "strategy": "aggregate_10_deltas",
+      "relations": 1,
+      "aggregated_deltas": 10,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.01158,
+            "begin": 0.40912,
+            "lookups": 5.180425,
+            "deletes": 3.336532,
+            "creates": 62.824311,
+            "integrity": 3.110554,
+            "commit": 64.235892,
+            "close": 5.706685,
+            "total": 144.827299
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 6040,
+          "rss_bytes": 394895360
+        },
+        {
+          "phases_ms": {
+            "stage": 0.02481,
+            "begin": 0.168591,
+            "lookups": 5.245453,
+            "deletes": 3.148323,
+            "creates": 64.377363,
+            "integrity": 3.265413,
+            "commit": 63.024181,
+            "close": 4.633735,
+            "total": 143.887559
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 5064,
+          "rss_bytes": 394067968
+        },
+        {
+          "phases_ms": {
+            "stage": 0.06456,
+            "begin": 0.183669,
+            "lookups": 5.336395,
+            "deletes": 3.027352,
+            "creates": 62.696602,
+            "integrity": 3.427983,
+            "commit": 63.113522,
+            "close": 5.135544,
+            "total": 142.943177
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 6056,
+          "rss_bytes": 395309056
+        },
+        {
+          "phases_ms": {
+            "stage": 0.05521,
+            "begin": 0.18613,
+            "lookups": 5.297706,
+            "deletes": 3.693742,
+            "creates": 61.819521,
+            "integrity": 3.632563,
+            "commit": 63.722263,
+            "close": 3.657063,
+            "total": 142.030498
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 6040,
+          "rss_bytes": 390422528
+        },
+        {
+          "phases_ms": {
+            "stage": 0.02981,
+            "begin": 0.1283,
+            "lookups": 6.539715,
+            "deletes": 3.362143,
+            "creates": 63.598213,
+            "integrity": 3.401552,
+            "commit": 63.604073,
+            "close": 4.069743,
+            "total": 144.726539
+          },
+          "relations_applied": 10,
+          "allocations_bytes": 6040,
+          "rss_bytes": 341250048
+        }
+      ],
+      "summary": {
+        "p50_ms": 143.887559,
+        "p95_ms": 144.827299,
+        "throughput_per_second": 69.49871183790115,
+        "peak_rss_bytes": 395309056,
+        "allocations_per_batch": 6040,
+        "phases_p50_ms": {
+          "stage": 0.02981,
+          "begin": 0.183669,
+          "lookups": 5.297706,
+          "deletes": 3.336532,
+          "creates": 62.824311,
+          "integrity": 3.401552,
+          "commit": 63.604073,
+          "close": 4.633735,
+          "total": 143.887559
+        }
+      }
+    },
+    {
+      "strategy": "aggregate_10_deltas",
+      "relations": 10,
+      "aggregated_deltas": 10,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.036051,
+            "begin": 0.242369,
+            "lookups": 6.126456,
+            "deletes": 3.970542,
+            "creates": 65.265814,
+            "integrity": 3.341084,
+            "commit": 65.054833,
+            "close": 5.130885,
+            "total": 149.155213
+          },
+          "relations_applied": 100,
+          "allocations_bytes": 19464,
+          "rss_bytes": 350482432
+        },
+        {
+          "phases_ms": {
+            "stage": 0.03543,
+            "begin": 0.154201,
+            "lookups": 6.763615,
+            "deletes": 3.877953,
+            "creates": 67.746366,
+            "integrity": 3.153543,
+            "commit": 64.973224,
+            "close": 3.866683,
+            "total": 150.557665
+          },
+          "relations_applied": 100,
+          "allocations_bytes": 19480,
+          "rss_bytes": 353775616
+        },
+        {
+          "phases_ms": {
+            "stage": 0.03884,
+            "begin": 0.29397,
+            "lookups": 5.906496,
+            "deletes": 4.047743,
+            "creates": 65.758084,
+            "integrity": 3.445013,
+            "commit": 63.832894,
+            "close": 5.374954,
+            "total": 148.683644
+          },
+          "relations_applied": 100,
+          "allocations_bytes": 19704,
+          "rss_bytes": 360783872
+        },
+        {
+          "phases_ms": {
+            "stage": 0.01606,
+            "begin": 0.198061,
+            "lookups": 5.953224,
+            "deletes": 3.812003,
+            "creates": 64.815405,
+            "integrity": 3.416233,
+            "commit": 63.808343,
+            "close": 3.925163,
+            "total": 145.949512
+          },
+          "relations_applied": 100,
+          "allocations_bytes": 19480,
+          "rss_bytes": 356884480
+        },
+        {
+          "phases_ms": {
+            "stage": 0.01667,
+            "begin": 0.32746,
+            "lookups": 6.292746,
+            "deletes": 3.539933,
+            "creates": 64.679674,
+            "integrity": 3.458102,
+            "commit": 64.547204,
+            "close": 5.089204,
+            "total": 147.960983
+          },
+          "relations_applied": 100,
+          "allocations_bytes": 20152,
+          "rss_bytes": 359145472
+        }
+      ],
+      "summary": {
+        "p50_ms": 148.683644,
+        "p95_ms": 150.557665,
+        "throughput_per_second": 672.568934347614,
+        "peak_rss_bytes": 360783872,
+        "allocations_per_batch": 19480,
+        "phases_p50_ms": {
+          "stage": 0.03543,
+          "begin": 0.242369,
+          "lookups": 6.126456,
+          "deletes": 3.877953,
+          "creates": 65.265814,
+          "integrity": 3.416233,
+          "commit": 64.547204,
+          "close": 5.089204,
+          "total": 148.683644
+        }
+      }
+    },
+    {
+      "strategy": "aggregate_10_deltas",
+      "relations": 1000,
+      "aggregated_deltas": 10,
+      "samples": [
+        {
+          "phases_ms": {
+            "stage": 0.80499,
+            "begin": 0.180031,
+            "lookups": 151.193836,
+            "deletes": 102.519236,
+            "creates": 71.533769,
+            "integrity": 3.352724,
+            "commit": 128.248966,
+            "close": 8.304188,
+            "total": 465.35498
+          },
+          "relations_applied": 10000,
+          "allocations_bytes": 1521928,
+          "rss_bytes": 823484416
+        },
+        {
+          "phases_ms": {
+            "stage": 1.227061,
+            "begin": 0.179779,
+            "lookups": 158.539373,
+            "deletes": 102.440945,
+            "creates": 73.129182,
+            "integrity": 3.118543,
+            "commit": 128.640577,
+            "close": 8.927948,
+            "total": 475.003227
+          },
+          "relations_applied": 10000,
+          "allocations_bytes": 1521880,
+          "rss_bytes": 1312952320
+        },
+        {
+          "phases_ms": {
+            "stage": 1.345952,
+            "begin": 0.14524,
+            "lookups": 99.914364,
+            "deletes": 103.387877,
+            "creates": 71.03455,
+            "integrity": 3.000952,
+            "commit": 123.484074,
+            "close": 7.834406,
+            "total": 408.829963
+          },
+          "relations_applied": 10000,
+          "allocations_bytes": 1521720,
+          "rss_bytes": 1360400384
+        },
+        {
+          "phases_ms": {
+            "stage": 1.060601,
+            "begin": 0.25419,
+            "lookups": 158.349394,
+            "deletes": 103.190737,
+            "creates": 73.431132,
+            "integrity": 3.465752,
+            "commit": 127.898409,
+            "close": 7.050475,
+            "total": 473.668109
+          },
+          "relations_applied": 10000,
+          "allocations_bytes": 1521928,
+          "rss_bytes": 1860866048
+        },
+        {
+          "phases_ms": {
+            "stage": 1.173142,
+            "begin": 0.37479,
+            "lookups": 94.62156,
+            "deletes": 100.225334,
+            "creates": 75.110124,
+            "integrity": 3.278792,
+            "commit": 123.359056,
+            "close": 7.635996,
+            "total": 404.628982
+          },
+          "relations_applied": 10000,
+          "allocations_bytes": 1521944,
+          "rss_bytes": 1876275200
+        }
+      ],
+      "summary": {
+        "p50_ms": 465.35498,
+        "p95_ms": 475.003227,
+        "throughput_per_second": 21488.971709295987,
+        "peak_rss_bytes": 1876275200,
+        "allocations_per_batch": 1521928,
+        "phases_p50_ms": {
+          "stage": 1.173142,
+          "begin": 0.180031,
+          "lookups": 151.193836,
+          "deletes": 102.519236,
+          "creates": 73.129182,
+          "integrity": 3.278792,
+          "commit": 127.898409,
+          "close": 7.834406,
+          "total": 465.35498
+        }
+      }
+    }
+  ],
+  "gate": {
+    "small_delta_p95_ms": 123.521364,
+    "small_delta_within_150_ms": true,
+    "large_delta_p95_ms": 19249.327434,
+    "large_delta_within_500_ms": false,
+    "integrity_passed": true,
+    "chosen_strategy": "prepared_individual (≤10); prepared_batch (\u003e10)",
+    "passed": false
+  },
+  "limitations": [
+    "Each sample copies the qualified Linux amd64 database and measures one transaction; results do not generalize to other LadybugDB builds or filesystems.",
+    "The individual strategy is measured only for 1–10 relationships because 1,000 per-row native calls violate the production batching policy by design.",
+    "RSS is the process resident set observed after each sample; it is not a cgroup limit or a storage-controller measurement.",
+    "The aggregate result excludes its 150–500 ms queue wait, which must be added before claiming end-to-end latency."
+  ]
+}

@@ -43,6 +43,8 @@ MATCH (:File)-[edge:DEFINES]->(symbol:Symbol)
 WHERE symbol.stable_key = key
 DELETE edge
 RETURN count(*)`
+
+	maxIndividualReferenceMutations = 10
 )
 
 type mutationStatements struct {
@@ -58,7 +60,8 @@ type referenceMutationStatements struct {
 	count          *lbug.PreparedStatement
 	countBatch     *lbug.PreparedStatement
 	add            *lbug.PreparedStatement
-	delete         *lbug.PreparedStatement
+	addOne         *lbug.PreparedStatement
+	deleteBatch    *lbug.PreparedStatement
 	deleteOutgoing *lbug.PreparedStatement
 	deleteIncoming *lbug.PreparedStatement
 }
@@ -145,10 +148,16 @@ WHERE source.stable_key = row.source_key AND target.stable_key = row.target_key
 CREATE (source)-[:%s {evidence_kind: row.evidence_kind,
  source_file_key: row.source_file_key, target_file_key: row.target_file_key}]->(target)
 RETURN count(*)`, kind), &statements.references[index].add},
-			{"delete", fmt.Sprintf(`MATCH (source:Symbol)-[edge:%s]->(target:Symbol)
+			{"add one", fmt.Sprintf(`MATCH (source:Symbol), (target:Symbol)
 WHERE source.stable_key = $source_key AND target.stable_key = $target_key
+CREATE (source)-[:%s {evidence_kind: $evidence_kind,
+ source_file_key: $source_file_key, target_file_key: $target_file_key}]->(target)
+RETURN count(*)`, kind), &statements.references[index].addOne},
+			{"delete batch", fmt.Sprintf(`UNWIND $rows AS row
+MATCH (source:Symbol)-[edge:%s]->(target:Symbol)
+WHERE source.stable_key = row.source_key AND target.stable_key = row.target_key
 DELETE edge
-RETURN count(*)`, kind), &statements.references[index].delete},
+RETURN count(*)`, kind), &statements.references[index].deleteBatch},
 			{"delete outgoing", fmt.Sprintf(`UNWIND $keys AS key
 MATCH (source:Symbol)-[edge:%s]->()
 WHERE source.stable_key = key
@@ -186,7 +195,15 @@ func (statements *mutationStatements) close() {
 	}
 	for index := range statements.references {
 		reference := &statements.references[index]
-		for _, statement := range []*lbug.PreparedStatement{reference.count, reference.countBatch, reference.add, reference.delete, reference.deleteOutgoing, reference.deleteIncoming} {
+		for _, statement := range []*lbug.PreparedStatement{
+			reference.count,
+			reference.countBatch,
+			reference.add,
+			reference.addOne,
+			reference.deleteBatch,
+			reference.deleteOutgoing,
+			reference.deleteIncoming,
+		} {
 			if statement != nil {
 				statement.Close()
 			}
@@ -335,18 +352,24 @@ func (writer *writer) Apply(ctx context.Context, delta Delta) (mutationResult Mu
 
 func (writer *writer) deleteReferences(ctx context.Context, references []ReferenceKey) (int, error) {
 	deleted := 0
-	for _, reference := range references {
-		statements := writer.referenceStatements(reference.Kind)
-		count, err := writer.executeCount(ctx, statements.count, map[string]any{"source_key": reference.SourceKey, "target_key": reference.TargetKey})
-		if err != nil {
-			return 0, fmt.Errorf("check deleted reference %#v: %w", reference, err)
+	for index, values := range referenceKeysByKind(references) {
+		if len(values) == 0 {
+			continue
 		}
-		if count == 0 {
-			return 0, fmt.Errorf("delete reference %#v: %w", reference, ErrNotFound)
-		}
-		count, err = writer.executeCount(ctx, statements.delete, map[string]any{"source_key": reference.SourceKey, "target_key": reference.TargetKey})
+		statements := &writer.statements.references[index]
+		count, err := writer.executeCount(ctx, statements.countBatch, map[string]any{"rows": mutationReferenceKeyRows(values)})
 		if err != nil {
-			return 0, fmt.Errorf("delete reference %#v: %w", reference, err)
+			return 0, fmt.Errorf("check deleted %s references: %w", values[0].Kind, err)
+		}
+		if count != int64(len(values)) {
+			return 0, fmt.Errorf("delete %s references: %w: found %d of %d relationships", values[0].Kind, ErrNotFound, count, len(values))
+		}
+		count, err = writer.executeCount(ctx, statements.deleteBatch, map[string]any{"rows": mutationReferenceKeyRows(values)})
+		if err != nil {
+			return 0, fmt.Errorf("delete %s references: %w", values[0].Kind, err)
+		}
+		if count != int64(len(values)) {
+			return 0, fmt.Errorf("delete %s references: deleted %d of %d", values[0].Kind, count, len(values))
 		}
 		deleted += int(count)
 	}
@@ -395,7 +418,20 @@ func (writer *writer) requireReferencesAbsent(ctx context.Context, references []
 		if len(values) == 0 {
 			continue
 		}
-		count, err := writer.executeCount(ctx, writer.statements.references[index].countBatch, map[string]any{"rows": mutationReferenceRows(values)})
+		statements := &writer.statements.references[index]
+		if len(values) <= maxIndividualReferenceMutations {
+			for _, reference := range values {
+				count, err := writer.executeCount(ctx, statements.count, map[string]any{"source_key": reference.SourceKey, "target_key": reference.TargetKey})
+				if err != nil {
+					return fmt.Errorf("check added %s reference: %w", reference.Kind, err)
+				}
+				if count != 0 {
+					return fmt.Errorf("add %s reference: %w", reference.Kind, ErrAlreadyExists)
+				}
+			}
+			continue
+		}
+		count, err := writer.executeCount(ctx, statements.countBatch, map[string]any{"rows": mutationReferenceRows(values)})
 		if err != nil {
 			return fmt.Errorf("check added %s references: %w", values[0].Kind, err)
 		}
@@ -413,7 +449,21 @@ func (writer *writer) addReferences(ctx context.Context, references []Reference)
 		if len(values) == 0 {
 			continue
 		}
-		count, err := writer.executeCount(ctx, writer.statements.references[index].add, map[string]any{"rows": mutationReferenceRows(values)})
+		statements := &writer.statements.references[index]
+		if len(values) <= maxIndividualReferenceMutations {
+			for _, reference := range values {
+				count, err := writer.executeCount(ctx, statements.addOne, mutationReferenceArguments(reference))
+				if err != nil {
+					return 0, fmt.Errorf("add %s reference: %w", reference.Kind, err)
+				}
+				if count != 1 {
+					return 0, fmt.Errorf("add %s reference: %w: inserted %d", reference.Kind, ErrNotFound, count)
+				}
+				added++
+			}
+			continue
+		}
+		count, err := writer.executeCount(ctx, statements.add, map[string]any{"rows": mutationReferenceRows(values)})
 		if err != nil {
 			return 0, fmt.Errorf("add %s references: %w", values[0].Kind, err)
 		}
@@ -427,6 +477,15 @@ func (writer *writer) addReferences(ctx context.Context, references []Reference)
 
 func referencesByKind(references []Reference) [2][]Reference {
 	grouped := [2][]Reference{}
+	for _, reference := range references {
+		index := referenceKindIndex(reference.Kind)
+		grouped[index] = append(grouped[index], reference)
+	}
+	return grouped
+}
+
+func referenceKeysByKind(references []ReferenceKey) [2][]ReferenceKey {
+	grouped := [2][]ReferenceKey{}
 	for _, reference := range references {
 		index := referenceKindIndex(reference.Kind)
 		grouped[index] = append(grouped[index], reference)
@@ -545,6 +604,25 @@ func mutationReferenceRows(references []Reference) []any {
 		}
 	}
 	return rows
+}
+
+func mutationReferenceKeyRows(references []ReferenceKey) []any {
+	rows := make([]any, len(references))
+	for index, reference := range references {
+		rows[index] = map[string]any{
+			"source_key": reference.SourceKey,
+			"target_key": reference.TargetKey,
+		}
+	}
+	return rows
+}
+
+func mutationReferenceArguments(reference Reference) map[string]any {
+	return map[string]any{
+		"source_key": reference.SourceKey, "target_key": reference.TargetKey,
+		"evidence_kind": reference.EvidenceKind, "source_file_key": reference.SourceFileKey,
+		"target_file_key": reference.TargetFileKey,
+	}
 }
 
 func appendReferences(delta Delta) []Reference {

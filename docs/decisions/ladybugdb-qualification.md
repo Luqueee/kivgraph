@@ -11,13 +11,13 @@ LadybugDB queda aceptada como motor candidato para el almacenamiento canónico
 de Luque, pero todavía no se autoriza la construcción de HotSnapshot. La carga
 masiva, las mutaciones transaccionales, la integridad, la recuperación ante
 terminación de proceso y la publicación ante agotamiento de disco cumplen el
-contrato medido. El perfil de deltas continúa pendiente.
+contrato medido. El perfil de deltas falló el límite de 1.000 relaciones.
 
 El plan exige `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS`,
 `LADYBUG_INCREMENTAL_PASS`, `LADYBUG_RECOVERY_PASS` y
 `LADYBUG_DELTA_PERFORMANCE_PASS` antes de derivar `LADYBUG_STORAGE_PASS`.
-Recuperación ya está en `PASS`; emitir el gate global antes de LUQUE-0214
-ocultaría el bloqueo de rendimiento.
+Recuperación está en `PASS`, pero el perfil de LUQUE-0214 deja el gate de
+rendimiento en `FAIL`; emitir el gate global ocultaría ese bloqueo.
 
 ## Configuración calificada
 
@@ -40,8 +40,8 @@ Las versiones, assets y checksums están fijados en [`docs/dependencies/ladybugd
 | `LADYBUG_BULK_LOAD_PASS` | `PASS` | `COPY` cargó y verificó la escala completa con RSS inferior a 2 GiB. |
 | `LADYBUG_INCREMENTAL_PASS` | `PASS` | Altas, bajas, cambios, sustitución de relaciones, duplicados, atomicidad y rollback pasaron sobre una copia del corpus completo. |
 | `LADYBUG_RECOVERY_PASS` | `PASS` | Ocho casos pasan; `CURRENT`, checksum y reapertura permanecen intactos ante fallos de la candidata y de publicación. |
-| `LADYBUG_DELTA_PERFORMANCE_PASS` | `PENDING` | La corrección incremental pasa, pero todavía no se ha explicado ni reducido el coste de 878,656 ms para tres aristas. |
-| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | Requiere cerrar únicamente el rendimiento de deltas. |
+| `LADYBUG_DELTA_PERFORMANCE_PASS` | **FAIL** | 1–10 relaciones cumplen el p95 tolerable (123,5 ms); 1.000 relaciones con el camino seguro tardan 19.249,3 ms p95 frente al límite de 500 ms. |
+| `LADYBUG_STORAGE_PASS` | **BLOQUEADO** | Recuperación pasa; rendimiento de deltas no. |
 
 ## Resultados reproducidos
 
@@ -84,38 +84,34 @@ los mismos facts normalizados.
 
 ### Actualización incremental
 
-| Probe | Resultado |
-| --- | ---: |
-| añadir 1 símbolo | 14,040 ms |
-| añadir 1.000 símbolos | 4.748,766 ms |
-| añadir 3 aristas | 878,656 ms |
-| borrar 1 arista | 7,748 ms |
-| cambiar propiedades | 7,181 ms |
-| sustituir relaciones salientes | 822,885 ms |
-| borrar 1 símbolo | 113,111 ms |
-| rollback tras fallo tardío | 403,419 ms |
+LUQUE-0214 perfiló `BEGIN`, lookup de extremos, borrado, creación, integridad,
+`COMMIT` y cierre sobre cinco copias del corpus completo. También registró
+throughput, RSS y allocations por batch.
 
-Se verificaron rechazo de duplicados, ausencia de aristas fantasma, atomicidad y rollback. La medición no incluye construir ni publicar HotSnapshot.
+| Estrategia | Relaciones | p95 ms | Resultado |
+| --- | ---: | ---: | --- |
+| prepared individual | 10 | 123,5 | segura para deltas pequeños; cumple el máximo de 150 ms, no el objetivo de 50 ms |
+| prepared batch | 1.000 | 19.249,3 | rechazada: `UNWIND` ligado desde Go concentra el coste en creación |
+| staging COPY | 1.000 | 177,9 | rápida, pero no preserva por sí sola la detección atómica de duplicados |
+| COPY de 10 deltas agregados | 10.000 | 475,0 | excluye la espera de cola y alcanzó 1.876.275.200 bytes RSS |
 
-Los 878,656 ms para tres aristas y los 4.748,766 ms para 1.000 símbolos
-demuestran un problema de latencia, pero no identifican su causa. LUQUE-0214
-deberá separar `BEGIN`, lookups, borrados, inserciones, integridad, `COMMIT` y
-cierre/flush; comparar prepared statements, batches y staging con `COPY`; y
-evitar una operación nativa por fact.
+El writer ahora ejecuta referencias individuales hasta 10 y agrupa las
+eliminaciones por tipo de relación. Para 11 o más mantiene un `UNWIND` por
+tipo: no emite una llamada nativa por fact, pero no alcanza el límite para
+1.000 relaciones. `COPY` no se habilita en un delta genérico porque la tabla
+admite multiplicidad; publicar filas sin una comprobación exacta previa puede
+introducir duplicados.
 
-Objetivos provisionales:
+La corrección de duplicados, ausencia de aristas fantasma, atomicidad y rollback
+siguen cubiertas por la suite del writer. El benchmark de perfil deja
+`LADYBUG_DELTA_PERFORMANCE_PASS` en `FAIL`; por tanto
+`LADYBUG_STORAGE_PASS` no se deriva y la fase 3 permanece bloqueada.
 
-```text
-delta de 1–10 relaciones:
-  objetivo < 50 ms
-  máximo tolerable p95 < 150 ms
-
-delta de 1.000 relaciones:
-  objetivo p95 < 500 ms
-```
-
-Si los eventos individuales no alcanzan estos límites, se agruparán durante
-150–500 ms y se publicará una sola transacción por delta agregado.
+La siguiente remediación debe construir un bulk path sobre la candidata privada
+que conserve una prevalidación exacta de duplicados antes de usar `COPY`, o
+corregir el coste de serialización de `UNWIND` en el binding/engine. No se
+acepta retrasar el coste tras una ventana de 150–500 ms: la espera debe contarse
+en la latencia end-to-end.
 
 ### Recuperación
 
@@ -164,12 +160,12 @@ LUQUE-0213 cumplió las doce condiciones de recuperación:
 11. conserva `CURRENT`, checksum, reapertura y snapshot validado ante cada fallo;
 12. obtiene `all_passed: true` en la suite de recuperación.
 
-LUQUE-0214 debe localizar y reducir el coste de los deltas, demostrar batching
-real y cumplir los límites provisionales o registrar un nuevo bloqueo
-explícito.
+LUQUE-0214 localizó el coste, demostró batching real y registró el bloqueo
+explícito de rendimiento. No emitió `LADYBUG_DELTA_PERFORMANCE_PASS`: el
+camino seguro de 1.000 relaciones alcanzó 19.249,3 ms p95.
 
-Cuando LUQUE-0214 emita `LADYBUG_DELTA_PERFORMANCE_PASS`, este gate y
-`LADYBUG_RECOVERY_PASS` permitirán derivar `LADYBUG_STORAGE_PASS` y desbloquear
+Una remediación que conserve semántica exacta de duplicados debe aprobar el
+gate de deltas antes de derivar `LADYBUG_STORAGE_PASS` y desbloquear
 LUQUE-0301.
 
 ## Evidencia
@@ -180,6 +176,8 @@ LUQUE-0301.
 - [`benchmarks/ladybug-queries/report.md`](../../benchmarks/ladybug-queries/report.md)
 - [`benchmarks/ladybug-incremental/results.json`](../../benchmarks/ladybug-incremental/results.json)
 - [`benchmarks/ladybug-incremental/report.md`](../../benchmarks/ladybug-incremental/report.md)
+- [`benchmarks/ladybug-delta-profile/results.json`](../../benchmarks/ladybug-delta-profile/results.json)
+- [`benchmarks/ladybug-delta-profile/report.md`](../../benchmarks/ladybug-delta-profile/report.md)
 - [`benchmarks/ladybug-recovery/results.json`](../../benchmarks/ladybug-recovery/results.json)
 - [`docs/testing/ladybug-recovery.md`](../testing/ladybug-recovery.md)
 - [`docs/storage/synthetic-schema.md`](../storage/synthetic-schema.md)

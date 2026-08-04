@@ -55,7 +55,8 @@ normalizados para evitar una lectura completa innecesaria.
   fsync del directorio, una generación anterior y una reserva de emergencia.
 - Los backups, rollback e integridad forman parte del camino de recuperación.
 - `LADYBUG_RECOVERY_PASS` está emitido. El gate de almacenamiento permanece
-  bloqueado únicamente hasta medir y aceptar el rendimiento de deltas.
+  bloqueado: LUQUE-0214 confirmó que el camino seguro de 1.000 relaciones no
+  cumple el límite de rendimiento de deltas.
 
 ## Risks
 
@@ -78,5 +79,6 @@ restaurable.
 
 La decisión completa y la evidencia están en
 [`docs/decisions/ladybugdb-qualification.md`](../decisions/ladybugdb-qualification.md).
-`LADYBUG_RECOVERY_PASS` está emitido. `LADYBUG_STORAGE_PASS` sigue bloqueado
-hasta que LUQUE-0214 emita `LADYBUG_DELTA_PERFORMANCE_PASS`.
+`LADYBUG_RECOVERY_PASS` está emitido. `LADYBUG_DELTA_PERFORMANCE_PASS` falló
+con p95 de 19.249,3 ms para 1.000 relaciones en el camino seguro, por lo que
+`LADYBUG_STORAGE_PASS` continúa bloqueado.
