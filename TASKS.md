@@ -1491,11 +1491,11 @@ repo + path → file
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Operaciones:**
 
@@ -1508,6 +1508,14 @@ repo + path → file
 * agrupación por repositorio.
 
 **No usar mapas por nodo en el camino principal salvo justificación.**
+
+**Estado:** `PASS`.
+
+* `Traverse` ejecuta BFS outgoing o incoming sobre CSR y devuelve el origen en profundidad cero junto con visitas y agrupación por repositorio.
+* Aplica filtro de tipo, profundidad máxima 5, límite de nodos 25.000, truncamiento explícito y timeout por fecha límite.
+* El estado visitado usa un slice denso indexado por `SymbolID`; no se usa mapa por nodo.
+* Las pruebas cubren ciclo, ambas direcciones, profundidad, filtros, límite de nodos, timeout y opciones inválidas.
+* Siguiente tarea: LUQUE-0311.
 
 ---
 

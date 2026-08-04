@@ -101,6 +101,14 @@ repo/path sin recorrer tablas ni aplicar coincidencias nominales. Los resultados
 de nombre se devuelven en páginas acotadas (`limit` máximo 500), copiadas para
 que el slice del lector no exponga almacenamiento del snapshot.
 
+### Recorridos acotados
+
+`Traverse` ejecuta BFS sobre CSR forward o reverse usando un array denso de
+visitados indexado por `SymbolID`, no un mapa por nodo. El resultado incluye el
+origen en profundidad cero, agrupa repositorios, filtra tipos de arista y
+declara truncamiento por límite de nodos; una fecha límite vencida devuelve un
+resultado parcial con error de timeout.
+
 ## Alternatives
 
 - **Consultar LadybugDB directamente en cada tool:** reduciría duplicación de
