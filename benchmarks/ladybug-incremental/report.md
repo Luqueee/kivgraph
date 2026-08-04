@@ -1,22 +1,22 @@
 # LadybugDB incremental update probes
 
-- Command: `/tmp/go-build1461275480/b001/exe/ladybug-incremental --database /tmp/luque-ladybug-copy-full-gated.db --corpus /tmp/luque-synthetic-42 --output benchmarks/ladybug-incremental`
-- Commit: `23de693271f3a9e354b488785e687e8b0d21007d-dirty`
-- Generated at: `2026-08-04T19:09:02Z`
+- Command: `/tmp/go-build956227063/b001/exe/ladybug-incremental --database /tmp/luque-ladybug-qualification.db --corpus /tmp/luque-synthetic-42 --output benchmarks/ladybug-incremental`
+- Commit: `e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty`
+- Generated at: `2026-08-04T20:21:04Z`
 - Platform: `linux/amd64`, `go1.24.4`
 - Corpus: seed 42, 100000 symbols, 1000000 edges
-- Base database bytes: `43065344`
+- Base database bytes: `43290624`
 
 | Probe | Duration ms | Added symbols | Updated symbols | Deleted symbols | Added references | Deleted references | Replaced sources | Expected failure |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| add_1_symbol | 13.979 | 1 | 0 | 0 | 0 | 0 | 0 |  |
-| add_1000_symbols | 4731.657 | 1000 | 0 | 0 | 0 | 0 | 0 |  |
-| add_edges | 864.600 | 0 | 0 | 0 | 3 | 0 | 0 |  |
-| delete_edges | 7.128 | 0 | 0 | 0 | 0 | 1 | 0 |  |
-| update_properties | 7.299 | 0 | 1 | 0 | 0 | 0 | 0 |  |
-| replace_outgoing | 799.309 | 0 | 0 | 0 | 2 | 2 | 1 |  |
-| delete_symbol | 109.805 | 0 | 0 | 1 | 0 | 1 | 0 |  |
-| rollback_after_late_failure | 400.355 | 0 | 0 | 0 | 0 | 0 | 0 | ErrNotFound |
+| add_1_symbol | 14.040 | 1 | 0 | 0 | 0 | 0 | 0 |  |
+| add_1000_symbols | 4748.766 | 1000 | 0 | 0 | 0 | 0 | 0 |  |
+| add_edges | 878.656 | 0 | 0 | 0 | 3 | 0 | 0 |  |
+| delete_edges | 7.748 | 0 | 0 | 0 | 0 | 1 | 0 |  |
+| update_properties | 7.181 | 0 | 1 | 0 | 0 | 0 | 0 |  |
+| replace_outgoing | 822.885 | 0 | 0 | 0 | 2 | 2 | 1 |  |
+| delete_symbol | 113.111 | 0 | 0 | 1 | 0 | 1 | 0 |  |
+| rollback_after_late_failure | 403.419 | 0 | 0 | 0 | 0 | 0 | 0 | ErrNotFound |
 
 ## Integrity
 

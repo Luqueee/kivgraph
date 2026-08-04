@@ -4,26 +4,26 @@
 
 Estado global: **FAIL**. La base de entrada permaneció intacta: `true`.
 
-- Commit medido: `02eef0f7485b0cf4ac47207275cc65a878644acf-dirty`
-- Fecha: `2026-08-04T19:43:16Z`
+- Commit medido: `e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty`
+- Fecha: `2026-08-04T20:25:14Z`
 - Plataforma: `linux/amd64`, `go1.24.4`
-- Base: `43065344` bytes, SHA-256 `ada9dc0b704046c8b019e17efe3d443de58102b7a316964b9e105822ffc99191`
+- Base: `43290624` bytes, SHA-256 `11f9860e15f07981d4c5f1ddccf5e2c001cfa1c4ec060895ab95f50d9908e36a`
 
 | Caso | Resultado | Duración ms | Observación |
 | --- | --- | ---: | --- |
-| `sigkill_during_insert` | PASS | 277.1 | all checks passed |
-| `sigkill_before_commit` | PASS | 87.8 | all checks passed |
-| `sigkill_during_bulk_load` | PASS | 285.6 | all checks passed |
-| `reopen_after_crash` | PASS | 153.3 | all checks passed |
-| `truncated_file` | PASS | 22.0 | all checks passed |
-| `permission_denied_directory` | PASS | 12.7 | all checks passed |
-| `simulated_disk_full` | FAIL | 4855.6 | ENOSPC status = "ENOSPC after_apply", want "ENOSPC apply" reopen recovered database: ladybug open: failed to open database with status 1 |
+| `sigkill_during_insert` | PASS | 274.3 | all checks passed |
+| `sigkill_before_commit` | PASS | 82.6 | all checks passed |
+| `sigkill_during_bulk_load` | PASS | 278.2 | all checks passed |
+| `reopen_after_crash` | PASS | 144.7 | all checks passed |
+| `truncated_file` | PASS | 19.2 | all checks passed |
+| `permission_denied_directory` | PASS | 11.2 | all checks passed |
+| `simulated_disk_full` | FAIL | 4884.5 | ENOSPC status = "ENOSPC after_apply", want "ENOSPC apply" reopen recovered database: ladybug open: failed to open database with status 1 |
 
 ## Hallazgo crítico
 
 El caso de disco lleno no es recuperable con el comportamiento observado. El shim se armó justo antes de `Writer.Apply`; `Apply` devolvió éxito sin ninguna escritura interceptada. El primer `ENOSPC` apareció después, durante el cierre (`ENOSPC after_apply`), y la copia dejó de poder abrirse. La API nativa de cierre no devuelve un error que Luque pueda propagar.
 
-Este resultado queda registrado como **FAIL**, no como una recuperación soportada. LUQUE-0211 deberá diagnosticar esta condición y la estrategia operativa necesitará backups o reemplazo atómico de la base antes de considerar tolerado un agotamiento de disco.
+Este resultado queda registrado como **FAIL**, no como una recuperación soportada. `luque doctor storage` detecta la base dañada después del fallo, pero no evita la corrupción de la copia activa. La estrategia operativa necesita publicación atómica desde una copia validada y backups antes de considerar tolerado un agotamiento de disco.
 
 ## Metodología
 
@@ -52,4 +52,4 @@ go run -tags ladybug ./benchmarks/ladybug-recovery \
 - The full-disk case injects ENOSPC at the libc boundary only for the copied database file.
 - The permission case assumes the benchmark is not run as root.
 - In the measured run, the first intercepted write occurred after Apply returned successfully; ENOSPC during close left the copied database unreopenable.
-- Estas pruebas no sustituyen los backups ni validan todavía la política de recuperación operativa, que se expondrá mediante `luque doctor storage` en LUQUE-0211.
+- Estas pruebas no sustituyen los backups. `luque doctor storage` diagnostica el estado posterior, pero no convierte el caso `ENOSPC` en una recuperación soportada.

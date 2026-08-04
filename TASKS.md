@@ -986,11 +986,11 @@ docs/testing/ladybug-recovery.md
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Entregable:**
 
@@ -1012,6 +1012,53 @@ REJECT_LADYBUGDB
 LADYBUG_STORAGE_PASS
 ```
 
+**Resultado registrado: `ACCEPT_LADYBUGDB_WITH_LIMITS`.**
+
+* `LADYBUG_SCHEMA_PASS`, `LADYBUG_BULK_LOAD_PASS` y `LADYBUG_INCREMENTAL_PASS` están aprobados sobre el corpus completo.
+* `LADYBUG_RECOVERY_PASS` permanece en `FAIL`: un `ENOSPC` observado durante el cierre, después de que `Writer.Apply` devolviera éxito, dejó la copia sin posibilidad de reapertura.
+* `LADYBUG_STORAGE_PASS` no se emite. La fase 3 continúa bloqueada conforme al gate definido en `PLAN.md`.
+* La reproducción sobre `e902dd0d56563cd3b4d71c2ac19ca28caf955824` confirmó 669.100,3 registros/s con `COPY`, 542.978.048 bytes de pico RSS, integridad incremental y seis de siete casos de recuperación.
+* La decisión, límites y condiciones de desbloqueo están en `docs/decisions/ladybugdb-qualification.md`; ADR 0003 queda aceptada con límites.
+* Siguiente tarea: LUQUE-0213.
+
+---
+
+## LUQUE-0213 — Hacer segura la publicación ante `ENOSPC`
+
+**Dependencias:** LUQUE-0212.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
+**Objetivo:** impedir que un fallo de espacio invalide la única base canónica.
+
+**Acciones:**
+
+* Aplicar mutaciones sobre `graph.next.lbdb` o una copia privada.
+* Cerrar, reabrir y ejecutar doctor e integridad sobre la candidata.
+* Publicar mediante reemplazo atómico y conservar una copia anterior.
+* Definir reserva y umbral mínimo de espacio.
+* Inyectar `ENOSPC` durante aplicación, cierre y publicación.
+* Probar restauración desde la copia anterior.
+
+**Criterios de aceptación:**
+
+* Cada fallo conserva el checksum y la posibilidad de reapertura de la base activa.
+* Una candidata fallida se descarta y nunca se publica.
+* El camino exitoso publica una base validada y permite restaurar la anterior.
+* `benchmarks/ladybug-recovery/results.json` termina con `all_passed: true`.
+
+**Gate:**
+
+```text
+LADYBUG_RECOVERY_PASS
+LADYBUG_STORAGE_PASS
+```
 ---
 
 # 6. Fase 3 — HotSnapshot

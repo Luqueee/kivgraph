@@ -535,7 +535,7 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 		fmt.Fprintln(&document)
 		fmt.Fprintln(&document, "El caso de disco lleno no es recuperable con el comportamiento observado. El shim se armó justo antes de `Writer.Apply`; `Apply` devolvió éxito sin ninguna escritura interceptada. El primer `ENOSPC` apareció después, durante el cierre (`ENOSPC after_apply`), y la copia dejó de poder abrirse. La API nativa de cierre no devuelve un error que Luque pueda propagar.")
 		fmt.Fprintln(&document)
-		fmt.Fprintln(&document, "Este resultado queda registrado como **FAIL**, no como una recuperación soportada. LUQUE-0211 deberá diagnosticar esta condición y la estrategia operativa necesitará backups o reemplazo atómico de la base antes de considerar tolerado un agotamiento de disco.")
+		fmt.Fprintln(&document, "Este resultado queda registrado como **FAIL**, no como una recuperación soportada. `luque doctor storage` detecta la base dañada después del fallo, pero no evita la corrupción de la copia activa. La estrategia operativa necesita publicación atómica desde una copia validada y backups antes de considerar tolerado un agotamiento de disco.")
 		fmt.Fprintln(&document)
 	}
 	fmt.Fprintln(&document, "## Metodología")
@@ -564,7 +564,7 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 	for _, limitation := range result.Limitations {
 		fmt.Fprintf(&document, "- %s\n", limitation)
 	}
-	fmt.Fprintln(&document, "- Estas pruebas no sustituyen los backups ni validan todavía la política de recuperación operativa, que se expondrá mediante `luque doctor storage` en LUQUE-0211.")
+	fmt.Fprintln(&document, "- Estas pruebas no sustituyen los backups. `luque doctor storage` diagnostica el estado posterior, pero no convierte el caso `ENOSPC` en una recuperación soportada.")
 	return os.WriteFile(documentationPath, []byte(document.String()), 0o644)
 }
 

@@ -1,6 +1,6 @@
 # ADR 0003: LadybugDB como almacenamiento canónico
 
-- **Estado:** aceptada
+- **Estado:** aceptada con límites; gate de almacenamiento bloqueado
 - **Fecha:** 2026-08-04
 
 ## Context
@@ -46,6 +46,7 @@ schema.
   coordinación para respetar una única escritura activa.
 - El HotSnapshot se construye desde el grafo persistente, pero no lo sustituye.
 - Los backups, rollback e integridad forman parte del camino de recuperación.
+- Hasta cerrar la recuperación ante `ENOSPC`, no se autoriza mutar in-place la única copia canónica ni emitir `LADYBUG_STORAGE_PASS`.
 
 ## Risks
 
@@ -60,5 +61,12 @@ schema.
 
 ## Status
 
-Aceptada como dirección arquitectónica. La versión concreta de LadybugDB y el
-schema definitivo quedan pendientes de las tareas de calificación.
+Aceptada con límites tras la calificación de LUQUE-0212. Carga, integridad,
+mutaciones y recuperación ante terminación de proceso pasan, pero el caso
+`ENOSPC` puede manifestarse durante el cierre después de que la mutación haya
+devuelto éxito y dejar la base sin posibilidad de reapertura.
+
+La decisión completa y las condiciones de desbloqueo están en
+[`docs/decisions/ladybugdb-qualification.md`](../decisions/ladybugdb-qualification.md).
+`LADYBUG_STORAGE_PASS` no se emite hasta que la suite de recuperación pase
+íntegramente.

@@ -1,21 +1,21 @@
 {
   "benchmark": "ladybug-recovery",
-  "command": "/tmp/go-build1470796852/b001/exe/ladybug-recovery --database /tmp/luque-ladybug-copy-full-gated.db --output benchmarks/ladybug-recovery --documentation docs/testing/ladybug-recovery.md",
-  "commit": "02eef0f7485b0cf4ac47207275cc65a878644acf-dirty",
-  "generated_at": "2026-08-04T19:43:16.8348145Z",
+  "command": "/tmp/go-build2049762802/b001/exe/ladybug-recovery --database /tmp/luque-ladybug-qualification.db --output benchmarks/ladybug-recovery --documentation docs/testing/ladybug-recovery.md",
+  "commit": "e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty",
+  "generated_at": "2026-08-04T20:25:14.443342451Z",
   "go_version": "go1.24.4",
   "goos": "linux",
   "goarch": "amd64",
-  "base_database_bytes": 43065344,
-  "base_sha256_before": "ada9dc0b704046c8b019e17efe3d443de58102b7a316964b9e105822ffc99191",
-  "base_sha256_after": "ada9dc0b704046c8b019e17efe3d443de58102b7a316964b9e105822ffc99191",
+  "base_database_bytes": 43290624,
+  "base_sha256_before": "11f9860e15f07981d4c5f1ddccf5e2c001cfa1c4ec060895ab95f50d9908e36a",
+  "base_sha256_after": "11f9860e15f07981d4c5f1ddccf5e2c001cfa1c4ec060895ab95f50d9908e36a",
   "source_unchanged": true,
   "cases": [
     {
       "case": "sigkill_during_insert",
       "expected": "SIGKILL interrupts an active transaction; reopening rolls it back",
       "observed": "all checks passed",
-      "duration_ms": 277.05381,
+      "duration_ms": 274.30001,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -31,7 +31,7 @@
       "case": "sigkill_before_commit",
       "expected": "SIGKILL immediately before COMMIT preserves the previous committed state",
       "observed": "all checks passed",
-      "duration_ms": 87.8035,
+      "duration_ms": 82.622908,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -47,7 +47,7 @@
       "case": "sigkill_during_bulk_load",
       "expected": "SIGKILL during COPY leaves no partially visible bulk rows",
       "observed": "all checks passed",
-      "duration_ms": 285.603841,
+      "duration_ms": 278.221988,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -63,7 +63,7 @@
       "case": "reopen_after_crash",
       "expected": "reopening recovers the database and accepts a new durable transaction",
       "observed": "all checks passed",
-      "duration_ms": 153.274924,
+      "duration_ms": 144.67657,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -79,7 +79,7 @@
       "case": "truncated_file",
       "expected": "Open or Health rejects a database truncated to half its committed size",
       "observed": "all checks passed",
-      "duration_ms": 22.048788,
+      "duration_ms": 19.242568,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -95,7 +95,7 @@
       "case": "permission_denied_directory",
       "expected": "an unwritable directory is rejected without creating a database",
       "observed": "all checks passed",
-      "duration_ms": 12.692396,
+      "duration_ms": 11.159703,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -111,7 +111,7 @@
       "case": "simulated_disk_full",
       "expected": "an injected ENOSPC fails the mutation without partial state or permanent damage",
       "observed": "ENOSPC status = \"ENOSPC after_apply\", want \"ENOSPC apply\"\nreopen recovered database: ladybug open: failed to open database with status 1",
-      "duration_ms": 4855.619548,
+      "duration_ms": 4884.496101,
       "passed": false,
       "child": {
         "exit_code": 1,
