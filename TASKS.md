@@ -2059,23 +2059,33 @@ la tarea valida transición e integridad de árboles, no throughput.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Clasificar:**
+**Estado:** `PASS`.
 
-```text
-BODY_ONLY
-SIGNATURE_CHANGED
-IMPORTS_CHANGED
-EXPORTS_CHANGED
-DECLARATION_ADDED
-DECLARATION_REMOVED
-UNKNOWN
-```
+**Entregables:** `internal/syntax/changes.go` y
+`internal/syntax/changes_test.go`.
+
+**Resultado:**
+
+* se implementan `BODY_ONLY`, `SIGNATURE_CHANGED`, `IMPORTS_CHANGED`,
+  `EXPORTS_CHANGED`, `DECLARATION_ADDED`, `DECLARATION_REMOVED` y `UNKNOWN`;
+* la precedencia es imports, exports, declarations y signatures;
+* los cambios sin diferencias estructurales solo son `BODY_ONLY` cuando
+  existen changed ranges;
+* la clasificación compara multisets de candidatos y devuelve copias de los
+  changed ranges;
+* no se interpretan nombres ni coincidencias sintácticas como relaciones
+  semánticas.
+
+**Verificación:** `go test ./internal/syntax` pasa. No se requiere benchmark:
+la tarea clasifica cambios ya parseados.
+
+**Siguiente tarea:** LUQUE-0506.
 
 ---
 

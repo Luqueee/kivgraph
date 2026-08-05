@@ -29,6 +29,7 @@ type SyntaxCandidate struct {
 	Kind       CandidateKind
 	Name       string
 	NodeKind   string
+	Signature  string
 	StartByte  uint
 	EndByte    uint
 	StartPoint InputPoint
@@ -151,6 +152,7 @@ func makeCandidate(kind CandidateKind, node *tree_sitter.Node, source []byte) Sy
 		Kind:       kind,
 		Name:       candidateName(node, source),
 		NodeKind:   node.Kind(),
+		Signature:  candidateSignature(node, source),
 		StartByte:  start,
 		EndByte:    end,
 		StartPoint: pointFromTreeSitter(node.StartPosition()),
@@ -159,19 +161,58 @@ func makeCandidate(kind CandidateKind, node *tree_sitter.Node, source []byte) Sy
 }
 
 func candidateName(node *tree_sitter.Node, source []byte) string {
-	for _, field := range []string{"name", "declarator", "function", "constructor", "alias", "property", "left"} {
+	for _, field := range []string{"name", "function", "constructor", "alias", "property", "left", "declarator"} {
 		child := node.ChildByFieldName(field)
 		if child == nil || child.EndByte() > uint(len(source)) {
 			continue
 		}
 		if text := strings.TrimSpace(child.Utf8Text(source)); text != "" {
+			if field == "declarator" {
+				if nested := candidateName(child, source); nested != text {
+					return nested
+				}
+			}
 			return text
+		}
+	}
+	if isDeclarationNode(strings.ToLower(node.Kind())) {
+		for index := uint(0); index < node.NamedChildCount(); index++ {
+			child := node.NamedChild(index)
+			if child == nil || child.EndByte() > uint(len(source)) {
+				continue
+			}
+			childKind := strings.ToLower(child.Kind())
+			if !strings.Contains(childKind, "declarator") && !strings.HasSuffix(childKind, "_spec") {
+				continue
+			}
+			if nested := candidateName(child, source); nested != "" {
+				return nested
+			}
 		}
 	}
 	if node.EndByte() <= uint(len(source)) {
 		return strings.TrimSpace(node.Utf8Text(source))
 	}
 	return ""
+}
+
+func candidateSignature(node *tree_sitter.Node, source []byte) string {
+	if node.EndByte() > uint(len(source)) {
+		return ""
+	}
+	start, end := node.ByteRange()
+	signatureEnd := end
+	body := node.ChildByFieldName("body")
+	if body != nil && body.StartByte() >= start {
+		signatureEnd = body.StartByte()
+	}
+	text := strings.TrimSpace(string(source[start:signatureEnd]))
+	if body == nil {
+		if arrow := strings.Index(text, "=>"); arrow >= 0 {
+			text = strings.TrimSpace(text[:arrow])
+		}
+	}
+	return strings.Join(strings.Fields(text), " ")
 }
 
 func pointFromTreeSitter(point tree_sitter.Point) InputPoint {
