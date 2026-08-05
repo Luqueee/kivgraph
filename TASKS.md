@@ -5083,11 +5083,13 @@ lo que confirma que la medición sigue siendo exacta.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Crear un formato común para:**
 
@@ -5098,6 +5100,73 @@ lo que confirma que la medición sigue siendo exacta.
 * aristas;
 * evidencia;
 * unresolved.
+
+**Entregables:**
+
+```text
+internal/facts/facts.go          modelo canónico, validación y merge
+internal/facts/golang.go         normalizador Go
+internal/facts/typescript.go     contrato de cable ts-facts-v1 y normalizador
+ts-worker/src/facts-cli.ts       emisor del payload (`pnpm facts`)
+testdata/protocol/ts-facts-v1/   payloads reales del worker
+```
+
+**Modelo:**
+
+```text
+Repository Package File Symbol Evidence Edge UnresolvedReference
+```
+
+Con el vocabulario del plan: niveles de confianza, procedencias y clases de
+arista. `Set.Validate` rechaza claves duplicadas, referencias colgantes y
+cualquier arista que declare exactitud con una procedencia que no puede
+sostenerla.
+
+**Decisiones:**
+
+* **Las claves las deriva un solo lado.** El worker TypeScript reporta
+  componentes de identidad y posiciones; Go calcula la `StableKey`. Si cada
+  lenguaje calculara la suya, un mismo símbolo tendría dos identidades — el
+  fallo que ya apareció tres veces en la fase 8.
+* Las rutas del payload son **relativas al repositorio**: una clave no puede
+  incrustar la máquina que la produjo. Hay una prueba que normaliza el mismo
+  payload en dos rutas distintas y exige claves idénticas.
+* Una arista sólo existe si **ambos extremos tienen identidad durable**. Lo que
+  no la tiene no se degrada a un nombre: se descarta y se cuenta en el informe
+  de normalización, de modo que un hecho perdido es visible.
+* `Merge` deduplica por clave durable: dos repositorios indexados en la misma
+  pasada comparten los símbolos del provider y deben producir un solo nodo.
+* Un consumidor por sí solo **no valida**: sus destinos viven en el provider.
+  Es el comportamiento correcto y está cubierto por una prueba.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/facts
+go tool staticcheck ./internal/facts
+pnpm check                              # 15 archivos, 67 tests
+pnpm facts <repo> <root> <salida.json>  # regenera los payloads golden
+```
+
+La suite Go normaliza los fixtures reales de LUQUE-0811 de extremo a extremo
+—workspace, carga, definiciones, claves, referencias, cross-repository y no
+resueltas— y comprueba las ocho aristas cross-repository, la validación del
+grafo combinado y el determinismo. La suite TypeScript consume payloads
+**emitidos por el worker**, no muestras escritas a mano.
+
+**Limitaciones:**
+
+* El payload TypeScript aún no transporta la clase ni la firma del símbolo
+  destino de un `IMPORTS_SYMBOL`, así que esas aristas no se normalizan
+  todavía: inventar esos campos daría dos identidades a un mismo símbolo. Se
+  resuelve en LUQUE-0907.
+* El emisor de hechos es un CLI del worker; su integración con el protocolo
+  `ts-worker-v1` pertenece a la fase de supervisión.
+
+**Siguiente tarea:** LUQUE-0902.
 
 ---
 
@@ -5219,6 +5288,42 @@ graph.backup
 ```text
 CANONICAL_GRAPH_PASS
 ```
+
+---
+
+## LUQUE-0907 — Normalizar `IMPORTS_SYMBOL` de TypeScript
+
+**Dependencias:** LUQUE-0901 y LUQUE-0705.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
+**Motivo:** el payload `ts-facts-v1` transporta el binding consumidor y el
+símbolo destino de un import, pero no la **clase** ni la **firma** del destino.
+Sin esos dos campos, la clave del destino que derivaría el consumidor no
+coincide con la que el repositorio proveedor asigna a su propia declaración, y
+la arista quedaría colgando. Es el mismo fallo que la fase 8 encontró tres
+veces.
+
+**Acciones:**
+
+* extender `resolveImportedSymbols` para que el destino conserve clase y firma
+  tomadas del checker, nunca inferidas;
+* transportarlas en `ts-facts-v1`;
+* normalizar la arista `IMPORTS_SYMBOL` en `internal/facts`.
+
+**Criterios de aceptación:**
+
+* la clave del destino calculada por el consumidor coincide con la que produce
+  el propio provider al indexarse, comprobado sobre el fixture de LUQUE-0707;
+* un destino sin clase o sin firma no produce arista, sino una referencia no
+  resuelta;
+* `Set.Validate` sigue pasando sobre el grafo combinado.
 
 ---
 

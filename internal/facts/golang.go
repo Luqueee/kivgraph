@@ -1,0 +1,335 @@
+package facts
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/Luqueee/luque/internal/goloader"
+	"github.com/Luqueee/luque/internal/workspace"
+)
+
+// GoInput is one normalisation request: the facts of a single Go load.
+type GoInput struct {
+	Repository workspace.Repository
+	// Definitions carry the durable identity assigned by LUQUE-0804.
+	Definitions []goloader.KeyedDefinition
+	// References are the classified uses of LUQUE-0806, 0807 and 0814.
+	References []goloader.Reference
+	// CrossRepository attributes targets to their provider repository.
+	CrossRepository []goloader.CrossRepositoryReference
+	// Unresolved are the classified failures of LUQUE-0810.
+	Unresolved []goloader.UnresolvedReference
+}
+
+// GoReport records what normalisation could not keep, so a dropped fact is
+// visible instead of silently missing.
+type GoReport struct {
+	// EdgesWithoutSource counts references whose enclosing declaration has no
+	// durable identity, typically a use at file scope.
+	EdgesWithoutSource int
+	// EdgesWithoutTarget counts references whose target is not indexed in this
+	// pass and was not attributed to a provider repository.
+	EdgesWithoutTarget int
+	// UnresolvedWithoutFile counts module-level failures with no file.
+	UnresolvedWithoutFile int
+}
+
+// NormalizeGo converts the facts of one Go load into the canonical model.
+//
+// Only facts with a durable identity on both ends become edges. A reference
+// whose target is not indexed is not downgraded to a name: it is dropped and
+// counted, because a graph edge without identity is a wrong edge.
+func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Set{}, GoReport{}, err
+	}
+	name := strings.TrimSpace(input.Repository.Name)
+	if name == "" {
+		return Set{}, GoReport{}, fmt.Errorf("%w: repository name must not be empty", ErrInvalidFacts)
+	}
+	root := input.Repository.Path
+	if strings.TrimSpace(root) == "" {
+		return Set{}, GoReport{}, fmt.Errorf("%w: repository %q has no path", ErrInvalidFacts, name)
+	}
+
+	set := Set{Repositories: []Repository{{
+		Key:       RepositoryKey(name),
+		Name:      name,
+		RootPath:  filepath.Clean(root),
+		Commit:    input.Repository.Commit,
+		Branch:    input.Repository.Branch,
+		Dirty:     input.Repository.Dirty,
+		Languages: []Language{LanguageGo},
+	}}}
+	repositoryKey := set.Repositories[0].Key
+
+	packages := make(map[string]Package)
+	files := make(map[string]File)
+	symbolsByKey := make(map[string]Symbol)
+	// symbolsByQualifiedName resolves an edge endpoint declared in this pass.
+	symbolsByQualifiedName := make(map[string]string)
+
+	for _, definition := range input.Definitions {
+		if err := ctx.Err(); err != nil {
+			return Set{}, GoReport{}, err
+		}
+		packageKey := PackageKey(LanguageGo, name, definition.PackagePath)
+		if _, exists := packages[packageKey]; !exists {
+			packages[packageKey] = Package{
+				Key:           packageKey,
+				RepositoryKey: repositoryKey,
+				Language:      LanguageGo,
+				Name:          definition.PackagePath,
+				RootPath:      filepath.Dir(definition.FileName),
+				Container:     definition.ModulePath,
+			}
+		}
+		relative := repositoryRelativePath(root, definition.FileName)
+		fileKey := FileKey(name, relative)
+		if _, exists := files[fileKey]; !exists {
+			files[fileKey] = File{
+				Key:           fileKey,
+				RepositoryKey: repositoryKey,
+				PackageKey:    packageKey,
+				Path:          relative,
+				Language:      LanguageGo,
+			}
+		}
+		symbol := Symbol{
+			Key:               string(definition.StableKey),
+			CanonicalIdentity: definition.CanonicalIdentity,
+			RepositoryKey:     repositoryKey,
+			PackageKey:        packageKey,
+			FileKey:           fileKey,
+			Language:          LanguageGo,
+			Name:              definition.Name,
+			QualifiedName:     definition.QualifiedName,
+			Kind:              string(definition.Kind),
+			Exported:          definition.Exported,
+			Signature:         definition.Signature,
+			Start: Position{
+				Line:   definition.StartLine,
+				Column: definition.StartColumn,
+				Offset: definition.NameOffset,
+			},
+			End: Position{Line: definition.EndLine, Offset: definition.DeclarationEndOffset},
+		}
+		symbolsByKey[symbol.Key] = symbol
+		symbolsByQualifiedName[definition.PackagePath+"\x00"+definition.QualifiedName] = symbol.Key
+		set.Edges = append(set.Edges, Edge{
+			Kind:       Defines,
+			SourceKey:  fileKey,
+			TargetKey:  symbol.Key,
+			Confidence: StructuralCertain,
+			Provenance: GoTypesDefinition,
+		})
+	}
+
+	for _, entry := range packages {
+		set.Edges = append(set.Edges, Edge{
+			Kind:       ContainsPackage,
+			SourceKey:  repositoryKey,
+			TargetKey:  entry.Key,
+			Confidence: StructuralCertain,
+			Provenance: PackageManifest,
+		})
+	}
+	for _, file := range files {
+		set.Edges = append(set.Edges, Edge{
+			Kind:       ContainsFile,
+			SourceKey:  file.PackageKey,
+			TargetKey:  file.Key,
+			Confidence: StructuralCertain,
+			Provenance: PackageManifest,
+		})
+	}
+
+	report := GoReport{}
+	crossByLocation := make(map[string]goloader.CrossRepositoryReference, len(input.CrossRepository))
+	for _, reference := range input.CrossRepository {
+		crossByLocation[locationKey(reference.FileName, reference.Offset)] = reference
+	}
+
+	for _, reference := range input.References {
+		if err := ctx.Err(); err != nil {
+			return Set{}, GoReport{}, err
+		}
+		sourceKey, hasSource := symbolsByQualifiedName[reference.PackagePath+"\x00"+reference.SourceQualifiedName]
+		if !hasSource {
+			report.EdgesWithoutSource++
+			continue
+		}
+		targetKey, confidence, provenance, resolved := resolveGoTarget(
+			reference, crossByLocation, symbolsByQualifiedName)
+		if !resolved {
+			report.EdgesWithoutTarget++
+			continue
+		}
+		relative := repositoryRelativePath(root, reference.FileName)
+		fileKey := FileKey(name, relative)
+		if _, exists := files[fileKey]; !exists {
+			// A reference always lives in a file this pass already indexed.
+			report.EdgesWithoutSource++
+			continue
+		}
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, reference.Offset, reference.EndOffset),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start: Position{
+				Line:   reference.StartLine,
+				Column: reference.StartColumn,
+				Offset: reference.Offset,
+			},
+			End:  Position{Line: reference.StartLine, Offset: reference.EndOffset},
+			Text: reference.Name,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		set.Edges = append(set.Edges, Edge{
+			Kind:        goEdgeKind(reference.Kind),
+			SourceKey:   sourceKey,
+			TargetKey:   targetKey,
+			Confidence:  confidence,
+			Provenance:  provenance,
+			EvidenceKey: evidence.Key,
+		})
+	}
+
+	for _, entry := range input.Unresolved {
+		if err := ctx.Err(); err != nil {
+			return Set{}, GoReport{}, err
+		}
+		unresolved := UnresolvedReference{
+			RepositoryKey:    repositoryKey,
+			Language:         LanguageGo,
+			RequestedPackage: entry.RequestedPackagePath,
+			RequestedSymbol:  entry.RequestedSymbol,
+			Reason:           string(entry.Reason),
+			Detail:           entry.Detail,
+			Start: Position{
+				Line:   entry.StartLine,
+				Column: entry.StartColumn,
+				Offset: entry.Offset,
+			},
+		}
+		if entry.RequestedModulePath != "" {
+			unresolved.RequestedPackage = entry.RequestedModulePath
+			if entry.RequestedPackagePath != "" {
+				unresolved.RequestedPackage += " " + entry.RequestedPackagePath
+			}
+		}
+		if entry.FileName != "" {
+			fileKey := FileKey(name, repositoryRelativePath(root, entry.FileName))
+			if _, exists := files[fileKey]; exists {
+				unresolved.FileKey = fileKey
+			}
+		}
+		if unresolved.FileKey == "" {
+			report.UnresolvedWithoutFile++
+		}
+		set.Unresolved = append(set.Unresolved, unresolved)
+	}
+
+	set.Packages = make([]Package, 0, len(packages))
+	for _, entry := range packages {
+		set.Packages = append(set.Packages, entry)
+	}
+	set.Files = make([]File, 0, len(files))
+	for _, file := range files {
+		set.Files = append(set.Files, file)
+	}
+	set.Symbols = make([]Symbol, 0, len(symbolsByKey))
+	for _, symbol := range symbolsByKey {
+		set.Symbols = append(set.Symbols, symbol)
+	}
+	set.Evidence = deduplicateEvidence(set.Evidence)
+	set.Sort()
+	return set, report, nil
+}
+
+// resolveGoTarget finds the durable identity of a reference target.
+//
+// A cross-repository target keeps the key derived from its provider; a local
+// target uses the identity assigned in this pass. Anything else has no key and
+// must not become an edge.
+func resolveGoTarget(
+	reference goloader.Reference,
+	crossByLocation map[string]goloader.CrossRepositoryReference,
+	symbolsByQualifiedName map[string]string,
+) (string, Confidence, Provenance, bool) {
+	if cross, exists := crossByLocation[locationKey(reference.FileName, reference.Offset)]; exists {
+		if cross.Status == goloader.CrossRepositoryResolved && cross.TargetStableKey != "" {
+			return string(cross.TargetStableKey), ExactTypechecked, GoObjectPath, true
+		}
+		return "", "", "", false
+	}
+	key, exists := symbolsByQualifiedName[reference.TargetPackagePath+"\x00"+reference.TargetQualifiedName]
+	if !exists {
+		return "", "", "", false
+	}
+	return key, ExactTypechecked, goProvenance(reference), true
+}
+
+func goProvenance(reference goloader.Reference) Provenance {
+	switch {
+	case reference.Kind == goloader.ReferenceCallsDirect:
+		return GoASTCall
+	case reference.Kind == goloader.ReferencePassesAsCallback:
+		return GoASTCallback
+	case reference.Selection != goloader.SelectionNone:
+		return GoTypesSelection
+	default:
+		return GoTypesUse
+	}
+}
+
+func goEdgeKind(kind goloader.ReferenceKind) EdgeKind {
+	switch kind {
+	case goloader.ReferenceCallsDirect:
+		return CallsDirect
+	case goloader.ReferencePassesAsCallback:
+		return PassesAsCallback
+	case goloader.ReferenceAssignsFunction:
+		return AssignsFunction
+	case goloader.ReferenceReturnsFunction:
+		return ReturnsFunction
+	case goloader.ReferenceTypeUses:
+		return TypeUses
+	default:
+		return References
+	}
+}
+
+func locationKey(fileName string, offset int) string {
+	return fmt.Sprintf("%s\x00%d", fileName, offset)
+}
+
+// repositoryRelativePath keeps paths portable: a key must not embed the
+// machine that produced it.
+func repositoryRelativePath(root, path string) string {
+	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
+	if err != nil || strings.HasPrefix(relative, "..") {
+		return filepath.ToSlash(filepath.Clean(path))
+	}
+	return filepath.ToSlash(relative)
+}
+
+func deduplicateEvidence(entries []Evidence) []Evidence {
+	seen := make(map[string]struct{}, len(entries))
+	unique := make([]Evidence, 0, len(entries))
+	for _, entry := range entries {
+		if _, exists := seen[entry.Key]; exists {
+			continue
+		}
+		seen[entry.Key] = struct{}{}
+		unique = append(unique, entry)
+	}
+	sort.Slice(unique, func(left, right int) bool { return unique[left].Key < unique[right].Key })
+	return unique
+}
