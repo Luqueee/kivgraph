@@ -1944,19 +1944,38 @@ verificar el checksum antes de compilarlos.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Debe:**
+**Estado:** `PASS`.
 
-* reutilizar parsers;
-* limitar concurrencia;
-* liberar recursos;
-* soportar cancelación;
-* clasificar errores.
+**Entregables:**
+
+* `internal/syntax/parser_manager.go`;
+* `internal/syntax/parser_manager_test.go`;
+* runtime oficial `github.com/tree-sitter/go-tree-sitter v0.25.0`;
+* bindings oficiales de JavaScript, TypeScript/TSX y Go fijados en `go.mod`.
+
+**Resultado:**
+
+* los parsers se crean bajo demanda y se reutilizan por language;
+* un semaphore limita los parseos concurrentes;
+* `Close` espera parseos activos y libera todos los recursos nativos;
+* `context.Context` cancela la espera y el parseo;
+* los errores operativos se clasifican mediante `ParserError`;
+* los errores sintácticos permanecen en el árbol y se consultan con `HasError`;
+* `ParseIncremental` clona el árbol anterior para no mutar al llamador.
+
+**Verificación:** `go test ./...`, `go vet ./...` y
+`go test -race ./internal/syntax` pasan.
+
+**Limitación:** la implementación usa cgo y requiere que el runtime soporte el
+ABI de las grammars fijadas; por eso el binding oficial queda en `v0.25.0`.
+
+**Siguiente tarea:** LUQUE-0503.
 
 ---
 

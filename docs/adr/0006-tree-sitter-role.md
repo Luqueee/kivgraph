@@ -63,6 +63,11 @@ repositorio, commit y checksum. `internal/syntax.LoadManifest` rechaza
 manifiestos incompletos, URLs no fijadas, checksums con formato incorrecto y
 grammars faltantes antes de que un parser pueda consumirlos.
 
+El runtime oficial `github.com/tree-sitter/go-tree-sitter` se fija en
+`v0.25.0`. Las grammars seleccionadas generan ABI 15; el runtime `v0.24.0`
+rechaza ese ABI, por lo que no se permite reducir el runtime de forma
+independiente de las grammars.
+
 ## Status
 
 Aceptada. Tree-sitter queda limitado a aceleración y clasificación sintáctica.
