@@ -1,0 +1,816 @@
+{
+  "benchmark": "typescript-engine",
+  "command": "node run.mjs --sizes 250,1000,4000 --iterations 50 --warmup 5 --seed 42",
+  "commit": "f312471ee156d6d068c918f45380408290d435e3-dirty",
+  "generated_at": "2026-08-05T10:34:23.392Z",
+  "platform": "linux/x64",
+  "runtime": "node 25.9.0",
+  "engines": {
+    "ts7": "7.0.2",
+    "ts5": "5.9.3"
+  },
+  "seed": 42,
+  "sizes": [
+    250,
+    1000,
+    4000
+  ],
+  "iterations": 50,
+  "warmup": 5,
+  "comparisons": [
+    {
+      "modules": 250,
+      "cold_load": {
+        "ts7_us": 17940.731,
+        "ts5_us": 87854.45300000001,
+        "ts7_speedup": 4.9
+      },
+      "full_semantic_check": {
+        "ts7_us": 23658.762,
+        "ts5_us": 114674.165,
+        "ts7_speedup": 4.85,
+        "ts7_diagnostics": 0,
+        "ts5_diagnostics": 0
+      },
+      "rss": {
+        "ts7_bytes": 155979776,
+        "ts5_bytes": 352141312,
+        "ts7_reduction": 2.26
+      },
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "ts7_p50_us": 69.241,
+          "ts5_p50_us": 10.21,
+          "ts7_p95_us": 124.1,
+          "ts5_p95_us": 74.181,
+          "ts7_speedup": 0.15,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "ts7_p50_us": 278.901,
+          "ts5_p50_us": 407.141,
+          "ts7_p95_us": 428.241,
+          "ts5_p95_us": 592.132,
+          "ts7_speedup": 1.46,
+          "ts7_returned": 50,
+          "ts5_returned": 50,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "alias_declarations",
+          "ts7_p50_us": 136.01,
+          "ts5_p50_us": 3.44,
+          "ts7_p95_us": 203.671,
+          "ts5_p95_us": 10.11,
+          "ts7_speedup": 0.03,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "references_in_file",
+          "ts7_p50_us": 147.88,
+          "ts5_p50_us": 3534.784,
+          "ts7_p95_us": 184.35,
+          "ts5_p95_us": 4377.147,
+          "ts7_speedup": 23.9,
+          "ts7_returned": 2,
+          "ts5_returned": 2,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "exports_of_barrel",
+          "ts7_p50_us": 800.723,
+          "ts5_p50_us": 18.011,
+          "ts7_p95_us": 1059.504,
+          "ts5_p95_us": 79.241,
+          "ts7_speedup": 0.02,
+          "ts7_returned": 501,
+          "ts5_returned": 501,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "ts7_p50_us": 235.472,
+          "ts5_p50_us": 3809.495,
+          "ts7_p95_us": 261.891,
+          "ts5_p95_us": 5075.241,
+          "ts7_speedup": 16.18,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        }
+      ]
+    },
+    {
+      "modules": 1000,
+      "cold_load": {
+        "ts7_us": 19751.797,
+        "ts5_us": 87482.54,
+        "ts7_speedup": 4.43
+      },
+      "full_semantic_check": {
+        "ts7_us": 91278.635,
+        "ts5_us": 223862.511,
+        "ts7_speedup": 2.45,
+        "ts7_diagnostics": 0,
+        "ts5_diagnostics": 0
+      },
+      "rss": {
+        "ts7_bytes": 204185600,
+        "ts5_bytes": 444518400,
+        "ts7_reduction": 2.18
+      },
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "ts7_p50_us": 70.401,
+          "ts5_p50_us": 9.04,
+          "ts7_p95_us": 111.129,
+          "ts5_p95_us": 63.331,
+          "ts7_speedup": 0.13,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "ts7_p50_us": 285.611,
+          "ts5_p50_us": 383.162,
+          "ts7_p95_us": 411.201,
+          "ts5_p95_us": 503.672,
+          "ts7_speedup": 1.34,
+          "ts7_returned": 50,
+          "ts5_returned": 50,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "alias_declarations",
+          "ts7_p50_us": 139.84,
+          "ts5_p50_us": 3.27,
+          "ts7_p95_us": 197.251,
+          "ts5_p95_us": 5.7,
+          "ts7_speedup": 0.02,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "references_in_file",
+          "ts7_p50_us": 160.271,
+          "ts5_p50_us": 16329.993,
+          "ts7_p95_us": 181.681,
+          "ts5_p95_us": 19503.596,
+          "ts7_speedup": 101.89,
+          "ts7_returned": 2,
+          "ts5_returned": 2,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "exports_of_barrel",
+          "ts7_p50_us": 3212.773,
+          "ts5_p50_us": 61.74,
+          "ts7_p95_us": 4818.439,
+          "ts5_p95_us": 359.241,
+          "ts7_speedup": 0.02,
+          "ts7_returned": 2001,
+          "ts5_returned": 2001,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "ts7_p50_us": 299.681,
+          "ts5_p50_us": 7782.4,
+          "ts7_p95_us": 370.352,
+          "ts5_p95_us": 10736.361,
+          "ts7_speedup": 25.97,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        }
+      ]
+    },
+    {
+      "modules": 4000,
+      "cold_load": {
+        "ts7_us": 19233.425,
+        "ts5_us": 88043.783,
+        "ts7_speedup": 4.58
+      },
+      "full_semantic_check": {
+        "ts7_us": 350447.892,
+        "ts5_us": 506755.499,
+        "ts7_speedup": 1.45,
+        "ts7_diagnostics": 0,
+        "ts5_diagnostics": 0
+      },
+      "rss": {
+        "ts7_bytes": 399007744,
+        "ts5_bytes": 579031040,
+        "ts7_reduction": 1.45
+      },
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "ts7_p50_us": 83.29,
+          "ts5_p50_us": 15.75,
+          "ts7_p95_us": 131.641,
+          "ts5_p95_us": 62.49,
+          "ts7_speedup": 0.19,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "ts7_p50_us": 281.971,
+          "ts5_p50_us": 380.871,
+          "ts7_p95_us": 374.992,
+          "ts5_p95_us": 484.951,
+          "ts7_speedup": 1.35,
+          "ts7_returned": 50,
+          "ts5_returned": 50,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "alias_declarations",
+          "ts7_p50_us": 129.24,
+          "ts5_p50_us": 3.23,
+          "ts7_p95_us": 165.871,
+          "ts5_p95_us": 6.68,
+          "ts7_speedup": 0.02,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "references_in_file",
+          "ts7_p50_us": 156.921,
+          "ts5_p50_us": 74618.37,
+          "ts7_p95_us": 179.581,
+          "ts5_p95_us": 77787.783,
+          "ts7_speedup": 475.52,
+          "ts7_returned": 2,
+          "ts5_returned": 2,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "exports_of_barrel",
+          "ts7_p50_us": 15065.279,
+          "ts5_p50_us": 125.73,
+          "ts7_p95_us": 16318.563,
+          "ts5_p95_us": 231.38,
+          "ts7_speedup": 0.01,
+          "ts7_returned": 8001,
+          "ts5_returned": 8001,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "ts7_p50_us": 636.552,
+          "ts5_p50_us": 19086.063,
+          "ts7_p95_us": 1252.445,
+          "ts5_p95_us": 22971.66,
+          "ts7_speedup": 29.98,
+          "ts7_returned": 1,
+          "ts5_returned": 1,
+          "ts7_errors": 0,
+          "ts5_errors": 0
+        }
+      ]
+    }
+  ],
+  "raw": [
+    {
+      "engine": "typescript-7-native",
+      "engine_version": "7.0.2",
+      "runtime": "node 25.9.0",
+      "corpus": {
+        "schema_version": "001",
+        "seed": 42,
+        "modules": 250,
+        "corpus_files": 253,
+        "program_files": 346
+      },
+      "cold_load_us": 17940.731,
+      "full_semantic_check_us": 23658.762,
+      "semantic_diagnostics": 0,
+      "rss_bytes": 155979776,
+      "rss_delta_bytes": 105603072,
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 69.241,
+          "p95_us": 124.1,
+          "p99_us": 129.63,
+          "max_us": 129.63,
+          "calls_per_s": 12481.851388081735
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 50,
+          "p50_us": 278.901,
+          "p95_us": 428.241,
+          "p99_us": 2025.368,
+          "max_us": 2025.368,
+          "calls_per_s": 3140.3993407171247
+        },
+        {
+          "operation": "alias_declarations",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 136.01,
+          "p95_us": 203.671,
+          "p99_us": 205.331,
+          "max_us": 205.331,
+          "calls_per_s": 6775.740734140666
+        },
+        {
+          "operation": "references_in_file",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2,
+          "p50_us": 147.88,
+          "p95_us": 184.35,
+          "p99_us": 184.35,
+          "max_us": 184.35,
+          "calls_per_s": 6713.139493668166
+        },
+        {
+          "operation": "exports_of_barrel",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 501,
+          "p50_us": 800.723,
+          "p95_us": 1059.504,
+          "p99_us": 1059.504,
+          "max_us": 1059.504,
+          "calls_per_s": 1236.861133395226
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 235.472,
+          "p95_us": 261.891,
+          "p99_us": 261.891,
+          "max_us": 261.891,
+          "calls_per_s": 4209.606406010644
+        }
+      ]
+    },
+    {
+      "engine": "typescript-5-compiler-api",
+      "engine_version": "5.9.3",
+      "runtime": "node 25.9.0",
+      "corpus": {
+        "schema_version": "001",
+        "seed": 42,
+        "modules": 250,
+        "corpus_files": 253,
+        "program_files": 339
+      },
+      "cold_load_us": 87854.45300000001,
+      "full_semantic_check_us": 114674.165,
+      "semantic_diagnostics": 0,
+      "rss_bytes": 352141312,
+      "rss_delta_bytes": 301764608,
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 10.21,
+          "p95_us": 74.181,
+          "p99_us": 94.629,
+          "max_us": 94.629,
+          "calls_per_s": 41908.16245280094
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 50,
+          "p50_us": 407.141,
+          "p95_us": 592.132,
+          "p99_us": 993.425,
+          "max_us": 993.425,
+          "calls_per_s": 2312.9650852369264
+        },
+        {
+          "operation": "alias_declarations",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 3.44,
+          "p95_us": 10.11,
+          "p99_us": 12.6,
+          "max_us": 12.6,
+          "calls_per_s": 190831.68263927853
+        },
+        {
+          "operation": "references_in_file",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2,
+          "p50_us": 3534.784,
+          "p95_us": 4377.147,
+          "p99_us": 4377.147,
+          "max_us": 4377.147,
+          "calls_per_s": 287.4127637594118
+        },
+        {
+          "operation": "exports_of_barrel",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 501,
+          "p50_us": 18.011,
+          "p95_us": 79.241,
+          "p99_us": 79.241,
+          "max_us": 79.241,
+          "calls_per_s": 40335.26673711893
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 3809.495,
+          "p95_us": 5075.241,
+          "p99_us": 5075.241,
+          "max_us": 5075.241,
+          "calls_per_s": 260.6682386699246
+        }
+      ]
+    },
+    {
+      "engine": "typescript-7-native",
+      "engine_version": "7.0.2",
+      "runtime": "node 25.9.0",
+      "corpus": {
+        "schema_version": "001",
+        "seed": 42,
+        "modules": 1000,
+        "corpus_files": 1003,
+        "program_files": 1096
+      },
+      "cold_load_us": 19751.797,
+      "full_semantic_check_us": 91278.635,
+      "semantic_diagnostics": 0,
+      "rss_bytes": 204185600,
+      "rss_delta_bytes": 144723968,
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 70.401,
+          "p95_us": 111.129,
+          "p99_us": 127.361,
+          "max_us": 127.361,
+          "calls_per_s": 12739.191051176898
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 50,
+          "p50_us": 285.611,
+          "p95_us": 411.201,
+          "p99_us": 460.092,
+          "max_us": 460.092,
+          "calls_per_s": 3355.770462078854
+        },
+        {
+          "operation": "alias_declarations",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 139.84,
+          "p95_us": 197.251,
+          "p99_us": 246.221,
+          "max_us": 246.221,
+          "calls_per_s": 6728.190134347156
+        },
+        {
+          "operation": "references_in_file",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2,
+          "p50_us": 160.271,
+          "p95_us": 181.681,
+          "p99_us": 181.681,
+          "max_us": 181.681,
+          "calls_per_s": 6229.726135009379
+        },
+        {
+          "operation": "exports_of_barrel",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2001,
+          "p50_us": 3212.773,
+          "p95_us": 4818.439,
+          "p99_us": 4818.439,
+          "max_us": 4818.439,
+          "calls_per_s": 310.72107330516025
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 299.681,
+          "p95_us": 370.352,
+          "p99_us": 370.352,
+          "max_us": 370.352,
+          "calls_per_s": 3325.5161533621635
+        }
+      ]
+    },
+    {
+      "engine": "typescript-5-compiler-api",
+      "engine_version": "5.9.3",
+      "runtime": "node 25.9.0",
+      "corpus": {
+        "schema_version": "001",
+        "seed": 42,
+        "modules": 1000,
+        "corpus_files": 1003,
+        "program_files": 1089
+      },
+      "cold_load_us": 87482.54,
+      "full_semantic_check_us": 223862.511,
+      "semantic_diagnostics": 0,
+      "rss_bytes": 444518400,
+      "rss_delta_bytes": 386637824,
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 9.04,
+          "p95_us": 63.331,
+          "p99_us": 72.031,
+          "max_us": 72.031,
+          "calls_per_s": 48460.177848852705
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 50,
+          "p50_us": 383.162,
+          "p95_us": 503.672,
+          "p99_us": 574.902,
+          "max_us": 574.902,
+          "calls_per_s": 2524.6178006357804
+        },
+        {
+          "operation": "alias_declarations",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 3.27,
+          "p95_us": 5.7,
+          "p99_us": 10.51,
+          "max_us": 10.51,
+          "calls_per_s": 257503.65655192305
+        },
+        {
+          "operation": "references_in_file",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2,
+          "p50_us": 16329.993,
+          "p95_us": 19503.596,
+          "p99_us": 19503.596,
+          "max_us": 19503.596,
+          "calls_per_s": 62.35772967054922
+        },
+        {
+          "operation": "exports_of_barrel",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2001,
+          "p50_us": 61.74,
+          "p95_us": 359.241,
+          "p99_us": 359.241,
+          "max_us": 359.241,
+          "calls_per_s": 10840.29641706523
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 7782.4,
+          "p95_us": 10736.361,
+          "p99_us": 10736.361,
+          "max_us": 10736.361,
+          "calls_per_s": 126.1303041072265
+        }
+      ]
+    },
+    {
+      "engine": "typescript-7-native",
+      "engine_version": "7.0.2",
+      "runtime": "node 25.9.0",
+      "corpus": {
+        "schema_version": "001",
+        "seed": 42,
+        "modules": 4000,
+        "corpus_files": 4003,
+        "program_files": 4096
+      },
+      "cold_load_us": 19233.425,
+      "full_semantic_check_us": 350447.892,
+      "semantic_diagnostics": 0,
+      "rss_bytes": 399007744,
+      "rss_delta_bytes": 340078592,
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 83.29,
+          "p95_us": 131.641,
+          "p99_us": 145.591,
+          "max_us": 145.591,
+          "calls_per_s": 10719.313072116538
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 50,
+          "p50_us": 281.971,
+          "p95_us": 374.992,
+          "p99_us": 689.472,
+          "max_us": 689.472,
+          "calls_per_s": 3357.1809563507386
+        },
+        {
+          "operation": "alias_declarations",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 129.24,
+          "p95_us": 165.871,
+          "p99_us": 197.18,
+          "max_us": 197.18,
+          "calls_per_s": 7452.992115479638
+        },
+        {
+          "operation": "references_in_file",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2,
+          "p50_us": 156.921,
+          "p95_us": 179.581,
+          "p99_us": 179.581,
+          "max_us": 179.581,
+          "calls_per_s": 6376.993846838637
+        },
+        {
+          "operation": "exports_of_barrel",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 8001,
+          "p50_us": 15065.279,
+          "p95_us": 16318.563,
+          "p99_us": 16318.563,
+          "max_us": 16318.563,
+          "calls_per_s": 67.01348827387932
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 636.552,
+          "p95_us": 1252.445,
+          "p99_us": 1252.445,
+          "max_us": 1252.445,
+          "calls_per_s": 1455.331439364998
+        }
+      ]
+    },
+    {
+      "engine": "typescript-5-compiler-api",
+      "engine_version": "5.9.3",
+      "runtime": "node 25.9.0",
+      "corpus": {
+        "schema_version": "001",
+        "seed": 42,
+        "modules": 4000,
+        "corpus_files": 4003,
+        "program_files": 4089
+      },
+      "cold_load_us": 88043.783,
+      "full_semantic_check_us": 506755.499,
+      "semantic_diagnostics": 0,
+      "rss_bytes": 579031040,
+      "rss_delta_bytes": 520097792,
+      "operations": [
+        {
+          "operation": "symbol_at_position",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 15.75,
+          "p95_us": 62.49,
+          "p99_us": 80.13,
+          "max_us": 80.13,
+          "calls_per_s": 43998.398458296106
+        },
+        {
+          "operation": "symbol_batch_per_file",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 50,
+          "p50_us": 380.871,
+          "p95_us": 484.951,
+          "p99_us": 622.053,
+          "max_us": 622.053,
+          "calls_per_s": 2531.7420962935953
+        },
+        {
+          "operation": "alias_declarations",
+          "calls": 50,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 3.23,
+          "p95_us": 6.68,
+          "p99_us": 10.5,
+          "max_us": 10.5,
+          "calls_per_s": 242082.68576214887
+        },
+        {
+          "operation": "references_in_file",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 2,
+          "p50_us": 74618.37,
+          "p95_us": 77787.783,
+          "p99_us": 77787.783,
+          "max_us": 77787.783,
+          "calls_per_s": 13.40345015878337
+        },
+        {
+          "operation": "exports_of_barrel",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 8001,
+          "p50_us": 125.73,
+          "p95_us": 231.38,
+          "p99_us": 231.38,
+          "max_us": 231.38,
+          "calls_per_s": 7312.646344334965
+        },
+        {
+          "operation": "incremental_edit_and_resolve",
+          "calls": 10,
+          "errors": 0,
+          "average_returned": 1,
+          "p50_us": 19086.063,
+          "p95_us": 22971.66,
+          "p99_us": 22971.66,
+          "max_us": 22971.66,
+          "calls_per_s": 49.42648057405614
+        }
+      ]
+    }
+  ]
+}
