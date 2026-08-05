@@ -3425,18 +3425,77 @@ checker y el coste cross-repository se medirá con el corpus de fase.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Debe enlazar:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/imported-symbol-resolver.ts`;
+* `ts-worker/src/imported-symbol-resolver.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato:**
+
+```text
+resolveImportedSymbols(service, view, registry, options?)
+  -> { generation, configFileName, imports, exports, mappings, symbols }
+```
+
+Cada entrada de `symbols` enlaza:
 
 ```text
 símbolo consumidor
 → símbolo fuente del provider
 ```
+
+y conserva `kind: IMPORTS_SYMBOL`, package name, specifier, provider, nombre
+público solicitado, el binding consumidor con `symbolId`, offsets UTF-16 y
+líneas, y el símbolo destino con `symbolId`, nombre y cada sitio de
+declaración. Cada declaración añade las fuentes de LUQUE-0703 y su estado.
+
+**Decisiones:**
+
+* La arista exige tres hechos del compilador nativo: module specifier resuelto,
+  provider registrado y alias resuelto por `getAliasedSymbol` a un símbolo con
+  declaraciones. Ningún nombre coincidente produce una arista.
+* El binding consumidor se une a su import por la posición exacta del specifier,
+  no por el nombre del paquete.
+* Se cubren imports por defecto, nombrados, aliasados y `export ... from`.
+* Las posiciones destino se obtienen resolviendo los `NodeHandle` nativos; una
+  declaración que no se puede resolver no genera arista.
+
+**Verificación:**
+
+```text
+pnpm check                         # 10 archivos, 56 tests passed
+pnpm build
+gofmt -l .
+go test ./...                      # 11 paquetes ok, 2 sin tests
+go vet ./...
+go build ./cmd/luque
+```
+
+La cobertura verifica aristas exactas con posiciones, mapeo a fuente mediante
+declaration map, y ausencia de aristas para homónimos locales, módulos no
+resueltos, providers no registrados y exports inexistentes.
+
+No se requiere benchmark separado: la resolución reutiliza el lote del checker;
+el coste cross-repository y los SLO se medirán con el corpus de fase.
+
+**Limitaciones:**
+
+* Los imports de namespace y `import =` enlazan el módulo, no un símbolo; no
+  producen aristas exactas.
+* La posición destino es la del sitio de declaración, normalmente en `.d.ts`;
+  la fuente física llega file-level desde LUQUE-0703.
+* Las razones de no resolución se clasifican en LUQUE-0706.
+
+**Siguiente tarea:** LUQUE-0706.
 
 ---
 

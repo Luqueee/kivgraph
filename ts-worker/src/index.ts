@@ -50,6 +50,15 @@ export type {
   PackageDependencyResolution,
 } from "./package-dependency-resolver.js";
 
+export { resolveImportedSymbols } from "./imported-symbol-resolver.js";
+export type {
+  ImportedSymbol,
+  ImportedSymbolConsumer,
+  ImportedSymbolDeclaration,
+  ImportedSymbolResolution,
+  ImportedSymbolTarget,
+} from "./imported-symbol-resolver.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";
