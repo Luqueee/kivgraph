@@ -2397,11 +2397,18 @@ se ajustó a ese artefacto del instrumentado, no del supervisor.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `internal/workspace/typescript_versions.go`;
+* `internal/workspace/typescript_versions_test.go`.
 
 **Orden:**
 
@@ -2410,6 +2417,52 @@ TypeScript local
 TypeScript de workspace
 fallback fijado
 ```
+
+Implementado como una subida de directorios desde el `tsconfig` buscando
+`node_modules/typescript`, que es como resuelve Node. El primer hallazgo gana.
+Se clasifica `local` cuando cuelga del paquete propio del proyecto —el
+`package.json` más cercano— y `workspace` cuando lo encontró más arriba. Sin
+instalación, `pinned`: el compilador que Luque distribuye.
+
+**Qué decide la versión:** no el motor. Según el ADR 0010 el compilador es
+siempre el nativo; la versión del proyecto decide la **confianza**.
+`WithinSupportedWindow` es falso fuera de la ventana anunciada en `HELLO`, y
+`OutsideWindowReason` registra el motivo para la evidencia.
+
+**Decisiones:**
+
+* La versión **resuelta** manda; el rango declarado en `package.json`
+  (`^5.9.0`) se conserva solo como evidencia. Un rango no es una versión.
+* El recorrido se detiene en la raíz del repositorio registrado. Un compilador
+  instalado por encima no puede decidir en silencio la confianza de los hechos.
+* La clasificación sigue **dónde lo encontró Node**, no dónde vive el paquete:
+  con pnpm, `node_modules/typescript` es un enlace al almacén y se cuenta como
+  instalación del proyecto que lo enlaza.
+* Un `node_modules/typescript` que declara otro `name` es un error, no un
+  hallazgo. Igual que un manifiesto ilegible.
+* `ResolveProjects` falla entera si un proyecto no resuelve: un repositorio
+  indexado con una versión indeterminada produce hechos que nadie puede
+  auditar.
+* La comparación usa `golang.org/x/mod/semver`, ya presente en el grafo de
+  módulos, en lugar de un comparador propio. Queda como dependencia directa.
+
+**Verificación:** `go test ./...`, `go vet ./...`, `go test -race`,
+`go tool staticcheck` y `go mod verify`, todos en verde. Las pruebas se
+comprobaron por mutación: anular la clasificación local rompe tres, y anular la
+ventana soportada rompe cuatro.
+
+**Limitaciones:**
+
+* Un prerelease ordena por debajo de su versión final, así que `7.0.2-dev.N`
+  entra en una ventana cuyo máximo es `7.0.2`. Es el orden de semver, y la
+  prueba lo fija de forma explícita.
+* No se comprueba que el compilador instalado sea ejecutable ni que su
+  contenido coincida con su `package.json`; se toma la versión declarada por el
+  paquete instalado.
+* El resolutor todavía no se invoca desde el descubrimiento de proyectos: eso
+  es LUQUE-0606, que construye configs, referencias y DAG.
+
+**Siguiente tarea:** LUQUE-0606.
 
 ---
 
