@@ -4440,17 +4440,58 @@ conversión de tipo, lectura de campo y constante, determinismo y cancelación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Para cada argumento de llamada:**
 
 * determinar si es función o método;
 * crear `PASSES_AS_CALLBACK`;
 * no crear `CALLS_DIRECT` al callback.
+
+**Entregables:**
+
+* `internal/goloader/references.go` (rol de argumento);
+* `internal/goloader/references_test.go`.
+
+**Decisiones:**
+
+* Los roles se ordenan por fuerza: `callee` nunca se degrada a `argument`. Una
+  función invocada en su propio sitio es una llamada, aunque aparezca dentro de
+  los argumentos de otra.
+* Sólo un argumento que **nombra** un objeto produce callback. Una llamada
+  anidada es una expresión, no un identificador: su callee se clasifica por su
+  cuenta y no se convierte en callback.
+* Un método pasado como valor —`Bind(shape.Area)`— es callback, nunca llamada.
+* Un argumento que no resuelve a función ni método conserva su clase previa.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La suite comprueba función pasada a una conversión y a otra función, método
+pasado como valor, llamada anidada cuyo callee no se degrada, y que las
+funciones invocadas no producen callback.
+
+**Limitaciones:**
+
+* `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION` no tienen tarea en esta fase; el
+  worker TypeScript sí los emite. La paridad se resuelve en LUQUE-0814.
+* Los callbacks pasados dentro de literales compuestos o campos de estructura
+  no se clasifican todavía.
+
+**Siguiente tarea:** LUQUE-0808.
 
 ---
 
@@ -4588,6 +4629,38 @@ Requisito:
 ```text
 false exact edges = 0
 ```
+
+---
+
+## LUQUE-0814 — Igualar clases de referencia con TypeScript
+
+**Dependencias:** LUQUE-0807.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
+**Motivo:** el worker TypeScript emite `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION`
+desde LUQUE-0610; el extractor Go no. Sin esta paridad, el mismo hecho
+produciría aristas distintas según el lenguaje del repositorio.
+
+**Clasificar en Go:**
+
+```text
+ASSIGNS_FUNCTION
+RETURNS_FUNCTION
+```
+
+**Requisitos:**
+
+* la función o método debe resolverse por el checker, nunca por nombre;
+* una asignación a variable local no crea arista si el destino no es un
+  símbolo indexable;
+* no degradar `CALLS_DIRECT` ni `PASSES_AS_CALLBACK`.
 
 ---
 

@@ -27,6 +27,12 @@ func (shape *Shape) Area() int { return shape.Width }
 // Compute is a function.
 func Compute(input int) int { return input + Answer }
 
+// Register receives a callback and invokes it.
+func Register(handler Handler) int { return handler(Answer) }
+
+// Bind stores a niladic callback.
+func Bind(handler func() int) int { return handler() }
+
 // Hook is a package level variable holding a function.
 var Hook = Compute
 `
@@ -42,8 +48,12 @@ func Run(shape *provider.Shape) int {
 	expression := (*provider.Shape).Area(shape)
 	throughVariable := provider.Hook(2)
 	converted := provider.Handler(provider.Compute)
+	registered := provider.Register(provider.Compute)
 	read := provider.Answer + shape.Width
-	return direct + method + expression + throughVariable + converted(3) + read
+	bound := provider.Bind(shape.Area)
+	nested := provider.Compute(provider.Compute(1))
+	return direct + method + expression + throughVariable + converted(3) +
+		read + registered + bound + nested
 }
 `
 
@@ -92,17 +102,44 @@ func TestClassifyReferencesMarksDirectCalls(t *testing.T) {
 	references := classifiedReferences(t)
 	kinds := kindsByTarget(references)
 
-	// provider.Compute is called once and passed once as a conversion argument.
-	if got := countKind(kinds["Compute"], ReferenceCallsDirect); got != 1 {
-		t.Fatalf("Compute direct calls = %d, want 1 (kinds=%v)", got, kinds["Compute"])
+	// Called directly once, plus the two calls of the nested expression.
+	if got := countKind(kinds["Compute"], ReferenceCallsDirect); got != 3 {
+		t.Fatalf("Compute direct calls = %d, want 3 (kinds=%v)", got, kinds["Compute"])
 	}
-	if got := countKind(kinds["Compute"], ReferenceRead); got != 1 {
-		t.Fatalf("Compute plain reads = %d, want 1 (kinds=%v)", got, kinds["Compute"])
+	// Handed over twice as a value: to a conversion and to Register.
+	if got := countKind(kinds["Compute"], ReferencePassesAsCallback); got != 2 {
+		t.Fatalf("Compute callbacks = %d, want 2 (kinds=%v)", got, kinds["Compute"])
 	}
 
 	// The method value call and the method expression call are both direct.
 	if got := countKind(kinds["Shape.Area"], ReferenceCallsDirect); got != 2 {
 		t.Fatalf("Shape.Area direct calls = %d, want 2 (kinds=%v)", got, kinds["Shape.Area"])
+	}
+}
+
+func TestClassifyReferencesMarksCallbacksWithoutInventingCalls(t *testing.T) {
+	references := classifiedReferences(t)
+	kinds := kindsByTarget(references)
+
+	// A method handed over as a value is a callback, never a call.
+	if got := countKind(kinds["Shape.Area"], ReferencePassesAsCallback); got != 1 {
+		t.Fatalf("Shape.Area callbacks = %d, want 1 (kinds=%v)", got, kinds["Shape.Area"])
+	}
+
+	// The callee of a nested call keeps its own role: the inner call is an
+	// argument expression, not an argument identifier.
+	if got := countKind(kinds["Compute"], ReferenceCallsDirect); got != 3 {
+		t.Fatalf("Compute direct calls = %d, want 3 (kinds=%v)", got, kinds["Compute"])
+	}
+
+	// Register and Bind are invoked, so they are calls and not callbacks.
+	for _, name := range []string{"Register", "Bind"} {
+		if countKind(kinds[name], ReferencePassesAsCallback) != 0 {
+			t.Fatalf("%s kinds = %v, want no callback", name, kinds[name])
+		}
+		if countKind(kinds[name], ReferenceCallsDirect) != 1 {
+			t.Fatalf("%s kinds = %v, want one direct call", name, kinds[name])
+		}
 	}
 }
 

@@ -19,6 +19,9 @@ const (
 	ReferenceCallsDirect ReferenceKind = "CALLS_DIRECT"
 	// ReferenceTypeUses is a use of a type in a type position or conversion.
 	ReferenceTypeUses ReferenceKind = "TYPE_USES"
+	// ReferencePassesAsCallback is a function or method handed over as a
+	// value in a call argument, never invoked at that site.
+	ReferencePassesAsCallback ReferenceKind = "PASSES_AS_CALLBACK"
 )
 
 // Reference is one use classified as a graph edge.
@@ -68,10 +71,11 @@ func ClassifyReferences(ctx context.Context, result Result, uses []Use) ([]Refer
 // role is the syntactic position a use occupies.
 type role uint8
 
+// Roles are ordered by strength: a callee is never downgraded to an argument.
 const (
 	roleNone role = iota
-	roleCallee
 	roleArgument
+	roleCallee
 )
 
 type position struct {
@@ -83,6 +87,8 @@ func classifyUse(use Use, syntacticRole role) ReferenceKind {
 	switch {
 	case syntacticRole == roleCallee && isCallable(use.TargetKind):
 		return ReferenceCallsDirect
+	case syntacticRole == roleArgument && isCallable(use.TargetKind):
+		return ReferencePassesAsCallback
 	case use.TargetKind == KindType || use.TargetKind == KindAlias:
 		return ReferenceTypeUses
 	default:
@@ -119,8 +125,14 @@ func collectFileRoles(
 		if !isCall {
 			return true
 		}
+		// Arguments first: a callee of the same call always wins the role.
+		for _, argument := range call.Args {
+			if identifier := valueIdentifier(argument); identifier != nil {
+				setRole(roles, identifierPosition(fset, identifier), roleArgument)
+			}
+		}
 		if identifier := calleeIdentifier(call.Fun); identifier != nil {
-			roles[identifierPosition(fset, identifier)] = roleCallee
+			setRole(roles, identifierPosition(fset, identifier), roleCallee)
 		}
 		return true
 	})
@@ -143,6 +155,34 @@ func calleeIdentifier(expression ast.Expr) *ast.Ident {
 	default:
 		return nil
 	}
+}
+
+// valueIdentifier names the object an argument denotes, or nil when the
+// argument is not a plain named value. A nested call is not an argument
+// identifier: its own callee is classified separately.
+func valueIdentifier(expression ast.Expr) *ast.Ident {
+	switch typed := expression.(type) {
+	case *ast.Ident:
+		return typed
+	case *ast.ParenExpr:
+		return valueIdentifier(typed.X)
+	case *ast.SelectorExpr:
+		return typed.Sel
+	case *ast.IndexExpr:
+		return valueIdentifier(typed.X)
+	case *ast.IndexListExpr:
+		return valueIdentifier(typed.X)
+	default:
+		return nil
+	}
+}
+
+// setRole keeps the strongest role: a callee is never downgraded.
+func setRole(roles map[position]role, place position, candidate role) {
+	if existing, exists := roles[place]; exists && existing >= candidate {
+		return
+	}
+	roles[place] = candidate
 }
 
 func identifierPosition(fset *token.FileSet, identifier *ast.Ident) position {
