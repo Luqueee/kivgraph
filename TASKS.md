@@ -4486,8 +4486,8 @@ funciones invocadas no producen callback.
 
 **Limitaciones:**
 
-* `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION` no tienen tarea en esta fase; el
-  worker TypeScript sí los emite. La paridad se resuelve en LUQUE-0814.
+* `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION` quedaron fuera de esta tarea; la
+  paridad con el worker TypeScript se completó en LUQUE-0814.
 * Los callbacks pasados dentro de literales compuestos o campos de estructura
   no se clasifican todavía.
 
@@ -4998,15 +4998,17 @@ false exact edges = 0
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Motivo:** el worker TypeScript emite `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION`
 desde LUQUE-0610; el extractor Go no. Sin esta paridad, el mismo hecho
 produciría aristas distintas según el lenguaje del repositorio.
+
+**Estado:** `PASS`.
 
 **Clasificar en Go:**
 
@@ -5015,12 +5017,61 @@ ASSIGNS_FUNCTION
 RETURNS_FUNCTION
 ```
 
-**Requisitos:**
+**Requisitos cumplidos:**
 
 * la función o método debe resolverse por el checker, nunca por nombre;
 * una asignación a variable local no crea arista si el destino no es un
   símbolo indexable;
 * no degradar `CALLS_DIRECT` ni `PASSES_AS_CALLBACK`.
+
+**Entregables:**
+
+* `internal/goloader/references.go`;
+* `internal/goloader/references_test.go`.
+
+**Orden de fuerza de los roles:**
+
+```text
+CALLS_DIRECT > RETURNS_FUNCTION > ASSIGNS_FUNCTION > PASSES_AS_CALLBACK
+```
+
+Es el mismo orden que aplica `ts-worker/src/reference-extractor.ts`, de modo
+que un hecho equivalente produce la misma clase en ambos lenguajes.
+
+**Decisiones:**
+
+* Se reconocen `AssignStmt`, `ValueSpec` y `ReturnStmt`; sólo un operando que
+  **nombra** un objeto produce arista. Una llamada anidada es una expresión y su
+  callee se clasifica por su cuenta.
+* La clase sólo cambia cuando el destino es función o método: almacenar una
+  constante o un campo sigue siendo `REFERENCES`.
+* Llamar a una variable que contiene una función continúa siendo `REFERENCES`;
+  la asignación que la llenó sí produce `ASSIGNS_FUNCTION` hacia la función real.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+go run ./benchmarks/go-semantic        # GO_SEMANTIC_PASS, artefactos sin cambios
+```
+
+La suite comprueba función almacenada, función retornada, expresión de método
+almacenada en variable de paquete, ausencia de arista para símbolos no
+invocables y conservación de las clases más fuertes. Los artefactos de
+LUQUE-0813 no cambian: las nuevas clases no alteran las aristas del fixture,
+lo que confirma que la medición sigue siendo exacta.
+
+**Limitaciones:**
+
+* Los valores función dentro de literales compuestos o campos de estructura no
+  se clasifican todavía; tampoco en TypeScript.
+* Un canal o un mapa que transporta funciones queda fuera: eso exige SSA.
+
+**Siguiente tarea:** LUQUE-0901.
 
 ---
 

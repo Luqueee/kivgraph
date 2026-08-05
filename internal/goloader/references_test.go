@@ -52,9 +52,18 @@ func Run(shape *provider.Shape) int {
 	read := provider.Answer + shape.Width
 	bound := provider.Bind(shape.Area)
 	nested := provider.Compute(provider.Compute(1))
+	stored := provider.Compute
 	return direct + method + expression + throughVariable + converted(3) +
-		read + registered + bound + nested
+		read + registered + bound + nested + stored(4) + pick()(5) + rebind(shape)
 }
+
+// pick returns a function value instead of calling it.
+func pick() func(int) int {
+	return provider.Compute
+}
+
+// rebind stores a method value in a package level variable.
+var rebind = (*provider.Shape).Area
 `
 
 func classifiedReferences(t *testing.T) []Reference {
@@ -140,6 +149,40 @@ func TestClassifyReferencesMarksCallbacksWithoutInventingCalls(t *testing.T) {
 		if countKind(kinds[name], ReferenceCallsDirect) != 1 {
 			t.Fatalf("%s kinds = %v, want one direct call", name, kinds[name])
 		}
+	}
+}
+
+func TestClassifyReferencesMarksStoredAndReturnedFunctions(t *testing.T) {
+	references := classifiedReferences(t)
+	kinds := kindsByTarget(references)
+
+	// `stored := provider.Compute` keeps the function as a value.
+	if got := countKind(kinds["Compute"], ReferenceAssignsFunction); got != 1 {
+		t.Fatalf("Compute assignments = %d (kinds=%v)", got, kinds["Compute"])
+	}
+	// `return provider.Compute` hands it back to the caller.
+	if got := countKind(kinds["Compute"], ReferenceReturnsFunction); got != 1 {
+		t.Fatalf("Compute returns = %d (kinds=%v)", got, kinds["Compute"])
+	}
+	// A method expression stored in a package variable is also an assignment.
+	if got := countKind(kinds["Shape.Area"], ReferenceAssignsFunction); got != 1 {
+		t.Fatalf("Shape.Area assignments = %d (kinds=%v)", got, kinds["Shape.Area"])
+	}
+
+	// Storing a non-callable symbol is a plain read, not an assignment edge.
+	for _, name := range []string{"Answer", "Shape.Width", "Hook"} {
+		if countKind(kinds[name], ReferenceAssignsFunction) != 0 {
+			t.Fatalf("%s kinds = %v, want no assignment edge", name, kinds[name])
+		}
+	}
+
+	// The stronger roles are never downgraded.
+	if countKind(kinds["Compute"], ReferenceCallsDirect) != 3 ||
+		countKind(kinds["Compute"], ReferencePassesAsCallback) != 2 {
+		t.Fatalf("Compute kinds = %v", kinds["Compute"])
+	}
+	if countKind(kinds["pick"], ReferenceCallsDirect) != 1 {
+		t.Fatalf("pick kinds = %v, want the call of the returned value", kinds["pick"])
 	}
 }
 

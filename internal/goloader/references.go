@@ -22,6 +22,11 @@ const (
 	// ReferencePassesAsCallback is a function or method handed over as a
 	// value in a call argument, never invoked at that site.
 	ReferencePassesAsCallback ReferenceKind = "PASSES_AS_CALLBACK"
+	// ReferenceAssignsFunction is a function or method stored in a variable
+	// or constant, never invoked at that site.
+	ReferenceAssignsFunction ReferenceKind = "ASSIGNS_FUNCTION"
+	// ReferenceReturnsFunction is a function or method returned as a value.
+	ReferenceReturnsFunction ReferenceKind = "RETURNS_FUNCTION"
 )
 
 // Reference is one use classified as a graph edge.
@@ -71,10 +76,13 @@ func ClassifyReferences(ctx context.Context, result Result, uses []Use) ([]Refer
 // role is the syntactic position a use occupies.
 type role uint8
 
-// Roles are ordered by strength: a callee is never downgraded to an argument.
+// Roles are ordered by strength, matching the TypeScript worker: a callee is
+// never downgraded to a return, an assignment or an argument.
 const (
 	roleNone role = iota
 	roleArgument
+	roleAssignment
+	roleReturn
 	roleCallee
 )
 
@@ -84,10 +92,15 @@ type position struct {
 }
 
 func classifyUse(use Use, syntacticRole role) ReferenceKind {
+	callable := isCallable(use.TargetKind)
 	switch {
-	case syntacticRole == roleCallee && isCallable(use.TargetKind):
+	case syntacticRole == roleCallee && callable:
 		return ReferenceCallsDirect
-	case syntacticRole == roleArgument && isCallable(use.TargetKind):
+	case syntacticRole == roleReturn && callable:
+		return ReferenceReturnsFunction
+	case syntacticRole == roleAssignment && callable:
+		return ReferenceAssignsFunction
+	case syntacticRole == roleArgument && callable:
 		return ReferencePassesAsCallback
 	case use.TargetKind == KindType || use.TargetKind == KindAlias:
 		return ReferenceTypeUses
@@ -121,18 +134,35 @@ func collectFileRoles(
 	roles map[position]role,
 ) {
 	ast.Inspect(file, func(node ast.Node) bool {
-		call, isCall := node.(*ast.CallExpr)
-		if !isCall {
-			return true
-		}
-		// Arguments first: a callee of the same call always wins the role.
-		for _, argument := range call.Args {
-			if identifier := valueIdentifier(argument); identifier != nil {
-				setRole(roles, identifierPosition(fset, identifier), roleArgument)
+		switch typed := node.(type) {
+		case *ast.CallExpr:
+			// Arguments first: a callee of the same call wins the role.
+			for _, argument := range typed.Args {
+				if identifier := valueIdentifier(argument); identifier != nil {
+					setRole(roles, identifierPosition(fset, identifier), roleArgument)
+				}
 			}
-		}
-		if identifier := calleeIdentifier(call.Fun); identifier != nil {
-			setRole(roles, identifierPosition(fset, identifier), roleCallee)
+			if identifier := calleeIdentifier(typed.Fun); identifier != nil {
+				setRole(roles, identifierPosition(fset, identifier), roleCallee)
+			}
+		case *ast.AssignStmt:
+			for _, value := range typed.Rhs {
+				if identifier := valueIdentifier(value); identifier != nil {
+					setRole(roles, identifierPosition(fset, identifier), roleAssignment)
+				}
+			}
+		case *ast.ValueSpec:
+			for _, value := range typed.Values {
+				if identifier := valueIdentifier(value); identifier != nil {
+					setRole(roles, identifierPosition(fset, identifier), roleAssignment)
+				}
+			}
+		case *ast.ReturnStmt:
+			for _, value := range typed.Results {
+				if identifier := valueIdentifier(value); identifier != nil {
+					setRole(roles, identifierPosition(fset, identifier), roleReturn)
+				}
+			}
 		}
 		return true
 	})
