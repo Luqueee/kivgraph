@@ -4198,11 +4198,13 @@ determinismo y cancelación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Usar:**
 
@@ -4211,6 +4213,70 @@ determinismo y cancelación.
 * objectpath;
 * kind;
 * repository.
+
+**Entregables:**
+
+* `internal/goloader/stablekey.go`;
+* `internal/goloader/stablekey_test.go`.
+
+**Contrato:**
+
+```text
+AssignStableKeys(ctx, definitions) -> []KeyedDefinition
+```
+
+Cada entrada añade `ObjectPath`, la identidad canónica auditable y la
+`StableKey` BLAKE3 de LUQUE-0303.
+
+**Identidad:**
+
+```text
+language      go
+repository    nombre del repositorio
+package       module path + " " + package path
+qualified     objectpath:<path> | syntax:<nombre cualificado>
+kind          func|method|type|alias|const|var|field
+discriminator firma con paquetes cualificados
+```
+
+**Decisiones:**
+
+* El `objectpath` se incrusta **solo cuando es estable por nombre**, es decir
+  para objetos de ámbito de paquete: `Compute`, `Shape`.
+* Los miembros se direccionan por índice —un método es `Shape.M0` y un campo
+  `Shape.UF1`—, de modo que insertar un método o un campo rotaría la identidad
+  de todos los posteriores. Para ellos la identidad usa el nombre cualificado
+  sintáctico; el path indexado se conserva en `ObjectPath` para la resolución
+  cross-repository de LUQUE-0809.
+* Un objeto no exportado no tiene `objectpath` y usa la identidad sintáctica:
+  sigue siendo un símbolo del repositorio y no puede quedarse sin clave.
+* Repositorio, module path y package path son obligatorios: una identidad
+  incompleta produce error en lugar de una clave ambigua.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La suite comprueba unicidad dentro de un paquete, identidad canónica
+auditable, separación de homónimos entre paquetes, módulos y repositorios,
+estabilidad al mover líneas, **estabilidad al insertar un campo y un método
+antes de los existentes** —el caso que el path indexado rompería— y rechazo de
+identidades incompletas.
+
+**Limitaciones:**
+
+* Renombrar un símbolo cambia su clave: es un símbolo distinto, no un
+  movimiento.
+* La clave no distingue dos declaraciones homónimas dentro de una misma
+  función; esos símbolos locales no se indexan.
+
+**Siguiente tarea:** LUQUE-0805.
 
 ---
 
