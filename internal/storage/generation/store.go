@@ -57,6 +57,10 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 	} else if err != nil {
 		return Publication{}, err
 	}
+	previousBackupID, err := readPointer(store.backup)
+	if err != nil {
+		return Publication{}, err
+	}
 
 	candidatePath := filepath.Join(store.generations, request.ID+".tmp")
 	finalPath := filepath.Join(store.generations, request.ID)
@@ -72,11 +76,12 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 	candidateCreated := true
 	finalCreated := false
 	currentChanged := false
+	backupChanged := false
 	defer func() {
 		if returnErr == nil || !candidateCreated {
 			return
 		}
-		cleanupErr := store.abortPublication(request.ID, previous.ID, candidatePath, finalPath, finalCreated, currentChanged, returnErr)
+		cleanupErr := store.abortPublication(request.ID, previous.ID, previousBackupID, candidatePath, finalPath, finalCreated, currentChanged, backupChanged, returnErr)
 		returnErr = errors.Join(returnErr, cleanupErr)
 	}()
 
@@ -105,6 +110,17 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 	finalCreated = true
 	if err := store.syncDirectory(ctx, store.generations); err != nil {
 		return Publication{}, fmt.Errorf("sync generations directory: %w", err)
+	}
+	// The backup pointer only advances when a generation is actually being
+	// displaced; a first-ever publish has nothing to retain as a backup.
+	// It is written before CURRENT so a crash between the two renames can
+	// never leave BACKUP pointing at a generation that was never active.
+	if previous.ID != "" {
+		changed, writeErr := store.writeBackup(ctx, previous.ID)
+		backupChanged = changed
+		if writeErr != nil {
+			return Publication{}, writeErr
+		}
 	}
 	changed, err := store.writeCurrent(ctx, request.ID)
 	currentChanged = changed
@@ -151,15 +167,36 @@ func (store *Store) Restore(ctx context.Context, id string, validate ValidateFun
 	if target.ID == previous.ID {
 		return nil
 	}
+	previousBackupID, err := readPointer(store.backup)
+	if err != nil {
+		return err
+	}
 	currentChanged := false
+	backupChanged := false
 	defer func() {
-		if returnErr == nil || !currentChanged {
+		if returnErr == nil || (!currentChanged && !backupChanged) {
 			return
 		}
 		_ = store.releaseReserve()
-		returnErr = errors.Join(returnErr, store.restoreCurrent(previous.ID), store.recordFailure(id, returnErr))
+		joined := []error{returnErr}
+		if currentChanged {
+			joined = append(joined, store.restoreCurrent(previous.ID))
+		}
+		if backupChanged {
+			joined = append(joined, store.restoreBackup(previousBackupID))
+		}
+		joined = append(joined, store.recordFailure(id, returnErr))
+		returnErr = errors.Join(joined...)
 	}()
-	changed, err := store.writeCurrent(ctx, id)
+	// The generation being displaced becomes the new backup, symmetric with
+	// Publish: BACKUP is written before CURRENT so the pair is always
+	// interpretable after a crash (see backupGeneration).
+	changed, err := store.writeBackup(ctx, previous.ID)
+	backupChanged = changed
+	if err != nil {
+		return err
+	}
+	changed, err = store.writeCurrent(ctx, id)
 	currentChanged = changed
 	if err != nil {
 		return err
@@ -320,41 +357,7 @@ func (store *Store) generation(id, path string) Generation {
 	return Generation{ID: id, Path: path, DatabasePath: filepath.Join(path, store.config.DatabaseFile)}
 }
 
-func (store *Store) writeCurrent(ctx context.Context, id string) (bool, error) {
-	next := store.current + ".next"
-	_ = os.Remove(next)
-	if err := store.before(OperationWriteCurrent, next); err != nil {
-		return false, err
-	}
-	file, err := os.OpenFile(next, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		return false, fmt.Errorf("create CURRENT.next: %w", err)
-	}
-	if _, err := file.WriteString(id + "\n"); err != nil {
-		_ = file.Close()
-		return false, fmt.Errorf("write CURRENT.next: %w", err)
-	}
-	if err := store.before(OperationSyncFile, next); err != nil {
-		_ = file.Close()
-		return false, err
-	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return false, fmt.Errorf("sync CURRENT.next: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return false, fmt.Errorf("close CURRENT.next: %w", err)
-	}
-	if err := store.before(OperationRenameCurrent, store.current); err != nil {
-		return false, err
-	}
-	if err := os.Rename(next, store.current); err != nil {
-		return false, fmt.Errorf("rename CURRENT.next: %w", err)
-	}
-	return true, nil
-}
-
-func (store *Store) abortPublication(id, previousID, candidatePath, finalPath string, finalCreated, currentChanged bool, cause error) error {
+func (store *Store) abortPublication(id, previousID, previousBackupID, candidatePath, finalPath string, finalCreated, currentChanged, backupChanged bool, cause error) error {
 	var cleanupErrs []error
 	cleanupErrs = append(cleanupErrs, store.releaseReserve())
 	currentRestored := true
@@ -362,6 +365,11 @@ func (store *Store) abortPublication(id, previousID, candidatePath, finalPath st
 		if err := store.restoreCurrent(previousID); err != nil {
 			currentRestored = false
 			cleanupErrs = append(cleanupErrs, fmt.Errorf("restore CURRENT: %w", err))
+		}
+	}
+	if backupChanged {
+		if err := store.restoreBackup(previousBackupID); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("restore BACKUP: %w", err))
 		}
 	}
 	if err := os.RemoveAll(candidatePath); err != nil {
@@ -377,36 +385,6 @@ func (store *Store) abortPublication(id, previousID, candidatePath, finalPath st
 	}
 	cleanupErrs = append(cleanupErrs, store.recordFailure(id, cause))
 	return errors.Join(cleanupErrs...)
-}
-
-func (store *Store) restoreCurrent(id string) error {
-	if id == "" {
-		if err := os.Remove(store.current); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		return rawSyncDirectory(store.root)
-	}
-	temporary := store.current + ".rollback"
-	_ = os.Remove(temporary)
-	file, err := os.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	if _, err := file.WriteString(id + "\n"); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(temporary, store.current); err != nil {
-		return err
-	}
-	return rawSyncDirectory(store.root)
 }
 
 func (store *Store) releaseReserve() error {

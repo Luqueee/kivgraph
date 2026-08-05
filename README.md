@@ -219,6 +219,62 @@ fallo en cualquier etapa deja `CURRENT` y la generación anterior intactas y
 sirviéndose; el comando termina con estado distinto de cero y explica en la
 salida de error qué etapa falló.
 
+La consulta de estado resuelve los tres roles que debe mantener el
+`generation.Store` para backup y rollback, sin reconstruir nada:
+
+```bash
+go run -tags ladybug ./cmd/luque graph status \
+  --root /var/lib/luque/graph
+```
+
+El comando imprime `graph.active`, `graph.next` y `graph.backup` con la ruta
+que cada uno nombra en disco, y la lista completa de generaciones retenidas.
+Los tres son una lectura sobre el mismo layout descrito más arriba, no un
+layout nuevo: `graph.active` es la generación que apunta `--root/CURRENT`,
+`graph.next` es el candidato `--root/generations/<id>.tmp` que construiría
+la próxima `rebuild`, y `graph.backup` es la generación que un `rollback`
+restauraría, registrada en `--root/BACKUP` con la misma disciplina atómica
+que `CURRENT` (`BACKUP.next`, `fsync`, `rename`). Un store sin generación
+activa se reporta como `graph.active: none`, no como error; el comando solo
+devuelve estado distinto de cero si no puede abrir el `generation.Store`.
+
+`CURRENT` y `BACKUP` no pueden actualizarse en un único `rename`: cada
+publicación o rollback escribe primero `BACKUP` —apuntando a la generación
+que va a dejar de estar activa— y solo después `CURRENT`. Si el proceso
+muere entre ambas escrituras, `BACKUP` puede quedar apuntando a la misma
+generación que `CURRENT`; la regla de recuperación, autoconsistente y sin
+reparación manual, es que `BACKUP == CURRENT` significa que no hay backup.
+La retención tras cada `rebuild` conserva exactamente `graph.active` y
+`graph.backup`: cualquier otra generación publicada se poda, y un fallo de
+poda no invalida la publicación —el grafo activo ya es correcto y sigue
+sirviéndose— pero queda anotado en la etapa `publish` del informe.
+
+El rollback revierte `CURRENT` a una generación ya publicada, revalidándola
+antes de conmutar:
+
+```bash
+go run -tags ladybug ./cmd/luque rollback \
+  --root /var/lib/luque/graph \
+  --generation 000123
+```
+
+`--generation` es opcional: sin él, `rollback` usa el `graph.backup`
+registrado, y si no hay ninguno y tampoco se dio `--generation` explícito,
+el comando falla explicando que no hay a dónde volver. Antes de conmutar
+`CURRENT`, `rollback` recalcula el digest de la generación destino a partir
+de sus conteos por tabla —la misma fórmula que la etapa `snapshot` de
+`rebuild` ya escribió en su `snapshot.sha256`— y exige que los seis
+invariantes del grafo canónico sigan pasando; una generación sin
+`snapshot.sha256` nunca se reactiva a ciegas. Si cualquiera de las dos
+comprobaciones falla, `CURRENT` queda intacto: el propio `generation.Store`
+revierte el cambio cuando la validación no pasa, antes de que `rollback`
+necesite un mecanismo de deshacer propio. El comando imprime la transición,
+el digest esperado y el observado, y el veredicto de integridad, y termina
+en `0` solo si la generación quedó activa. Un rollback exitoso invierte los
+roles: la generación que antes era `graph.active` pasa a ser el nuevo
+`graph.backup`, así que siempre se puede volver a avanzar con otro
+rollback.
+
 La [calificación de LadybugDB](docs/decisions/ladybugdb-qualification.md)
 concluye `ACCEPT_LADYBUGDB_WITH_LIMITS`. `LADYBUG_RECOVERY_PASS` está emitido:
 las generaciones inmutables y la publicación durable de `CURRENT` protegen la

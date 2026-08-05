@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Luqueee/luque/internal/facts"
 	mcpserver "github.com/Luqueee/luque/internal/mcp"
@@ -35,6 +37,10 @@ type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, erro
 
 type graphVerifier func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
 
+type graphRoleResolver func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error)
+
+type graphRollbacker func(context.Context, rebuild.RollbackOptions) (rebuild.RollbackReport, error)
+
 func run(args []string, stdout, stderr io.Writer) int {
 	return runWithStorageDiagnoser(args, stdout, stderr, ladybug.DiagnoseStorage)
 }
@@ -48,6 +54,14 @@ func runWithGraphRebuilder(args []string, stdout, stderr io.Writer, diagnose sto
 }
 
 func runWithGraphVerifier(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier) int {
+	return runWithGraphRoles(args, stdout, stderr, diagnose, rebuilder, verify, rebuild.Roles)
+}
+
+func runWithGraphRoles(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier, roles graphRoleResolver) int {
+	return runWithGraphRollback(args, stdout, stderr, diagnose, rebuilder, verify, roles, rebuild.Rollback)
+}
+
+func runWithGraphRollback(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier, roles graphRoleResolver, rollback graphRollbacker) int {
 	if len(args) == 2 && args[1] == "version" {
 		fmt.Fprintln(stdout, version.Value)
 		return 0
@@ -64,8 +78,14 @@ func runWithGraphVerifier(args []string, stdout, stderr io.Writer, diagnose stor
 	if len(args) >= 2 && args[1] == "rebuild" {
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
 	}
+	if len(args) >= 3 && args[1] == "graph" && args[2] == "status" {
+		return runGraphStatus(args[3:], stdout, stderr, roles)
+	}
+	if len(args) >= 2 && args[1] == "rollback" {
+		return runRollback(args[2:], stdout, stderr, rollback)
+	}
 
-	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]\n", args[0])
 	return 2
 }
 
@@ -146,7 +166,15 @@ func writeIntegrityReport(stdout io.Writer, databasePath string, report ladybug.
 	}
 	fmt.Fprintf(stdout, "graph doctor: %s\n", state)
 	fmt.Fprintf(stdout, "database: %s\n", databasePath)
-	for _, finding := range report.Findings {
+	writeIntegrityFindings(stdout, report.Findings)
+}
+
+// writeIntegrityFindings prints one line per rule with its PASS/FAIL state
+// and violation count and, under every failed rule, the offending samples,
+// shared by doctor graph and rollback so both name a broken invariant
+// exactly the same way.
+func writeIntegrityFindings(stdout io.Writer, findings []ladybug.IntegrityFinding) {
+	for _, finding := range findings {
 		findingState := "FAIL"
 		if finding.Passed {
 			findingState = "PASS"
@@ -304,6 +332,11 @@ func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 	} else {
 		fmt.Fprintln(stdout, "generation published: none")
 	}
+	if len(report.Pruned) != 0 {
+		fmt.Fprintf(stdout, "generations pruned: %s\n", strings.Join(report.Pruned, ", "))
+	} else {
+		fmt.Fprintln(stdout, "generations pruned: none")
+	}
 }
 
 // rebuildFailureReason finds the first broken stage, check, invariant or
@@ -338,4 +371,131 @@ func rebuildState(passed bool) string {
 		return "PASS"
 	}
 	return "FAIL"
+}
+
+func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleResolver) int {
+	flags := flag.NewFlagSet("graph status", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var root string
+	flags.StringVar(&root, "root", "", "generation store root directory")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "graph status: unexpected arguments: %v\n", flags.Args())
+		return 2
+	}
+	if root == "" {
+		fmt.Fprintln(stderr, "graph status: --root is required")
+		return 2
+	}
+
+	layout, err := roles(context.Background(), rebuild.LayoutOptions{Root: root, Store: generation.DefaultConfig()})
+	if err != nil {
+		fmt.Fprintf(stderr, "graph status: %v\n", err)
+		return 1
+	}
+	writeGraphStatus(stdout, root, layout)
+	return 0
+}
+
+// writeGraphStatus prints the three roles LUQUE-0905 requires
+// (graph.active, graph.next, graph.backup) with the path each one names on
+// disk, plus the full retained set. graph.active and graph.backup print
+// "none" when the store has never published (respectively backed up) a
+// generation: that is a legitimate layout, not a rendering error, matching
+// the exit code runGraphStatus already returns for it (0).
+func writeGraphStatus(stdout io.Writer, root string, layout rebuild.Layout) {
+	fmt.Fprintf(stdout, "%s: ", rebuild.RoleActive)
+	if layout.Active.ID == "" {
+		fmt.Fprintln(stdout, "none")
+	} else {
+		fmt.Fprintf(stdout, "%s (%s)\n", layout.Active.ID, layout.Active.Path)
+	}
+
+	// graph.next never exists on disk until a rebuild actually publishes:
+	// this is where generation.Store.Publish would build it, following the
+	// documented <root>/generations/<id>.tmp layout.
+	generationsDir := filepath.Join(root, "generations")
+	if absRoot, err := filepath.Abs(root); err == nil {
+		generationsDir = filepath.Join(absRoot, "generations")
+	}
+	fmt.Fprintf(stdout, "%s: %s\n", rebuild.RoleNext, filepath.Join(generationsDir, layout.NextID+".tmp"))
+
+	fmt.Fprintf(stdout, "%s: ", rebuild.RoleBackup)
+	if !layout.HasBackup {
+		fmt.Fprintln(stdout, "none")
+	} else {
+		fmt.Fprintf(stdout, "%s (%s)\n", layout.Backup.ID, layout.Backup.Path)
+	}
+
+	if len(layout.Retained) == 0 {
+		fmt.Fprintln(stdout, "retained: none")
+		return
+	}
+	fmt.Fprintf(stdout, "retained: %s\n", strings.Join(layout.Retained, ", "))
+}
+
+func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollbacker) int {
+	flags := flag.NewFlagSet("rollback", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var root, generationID string
+	flags.StringVar(&root, "root", "", "generation store root directory")
+	flags.StringVar(&generationID, "generation", "", "six digit generation id to roll back to; defaults to the registered graph.backup")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "rollback: unexpected arguments: %v\n", flags.Args())
+		return 2
+	}
+	if root == "" {
+		fmt.Fprintln(stderr, "rollback: --root is required")
+		return 2
+	}
+
+	report, err := rollback(context.Background(), rebuild.RollbackOptions{
+		Root:         root,
+		Store:        generation.DefaultConfig(),
+		GenerationID: generationID,
+	})
+	writeRollbackReport(stdout, report)
+	if err != nil {
+		fmt.Fprintf(stderr, "rollback: %v\n", err)
+		return 1
+	}
+	if !report.Passed {
+		fmt.Fprintln(stderr, "rollback: report did not pass despite no error")
+		return 1
+	}
+	return 0
+}
+
+// writeRollbackReport prints where the rollback moved from and to, the
+// digest it expected (the generation's own snapshot.sha256) against the
+// one it recomputed from live table counts, and the invariant verdict, so
+// a failed rollback is diagnosable from stdout alone even though it never
+// reaches the passed state runRollback checks for the exit code.
+func writeRollbackReport(stdout io.Writer, report rebuild.RollbackReport) {
+	fmt.Fprintf(stdout, "rollback: %s -> %s\n", orNone(report.From.ID), orNone(report.To.ID))
+	fmt.Fprintf(stdout, "digest expected: %s\n", orNone(report.Expected))
+	fmt.Fprintf(stdout, "digest observed: %s\n", orNone(report.Digest))
+	if len(report.Invariants.Findings) == 0 {
+		fmt.Fprintln(stdout, "invariants: not evaluated")
+	} else {
+		invariantState := "FAIL"
+		if report.Invariants.Passed {
+			invariantState = "PASS"
+		}
+		fmt.Fprintf(stdout, "invariants: %s\n", invariantState)
+		writeIntegrityFindings(stdout, report.Invariants.Findings)
+	}
+	fmt.Fprintf(stdout, "rollback result: %s\n", rebuildState(report.Passed))
+}
+
+func orNone(value string) string {
+	if value == "" {
+		return "none"
+	}
+	return value
 }

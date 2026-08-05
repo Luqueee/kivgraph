@@ -17,6 +17,7 @@ const (
 
 var (
 	ErrNoCurrent         = errors.New("generation store has no current generation")
+	ErrNoBackup          = errors.New("generation store has no backup generation")
 	ErrInvalidID         = errors.New("invalid generation id")
 	ErrInsufficientSpace = errors.New("insufficient space for candidate generation")
 )
@@ -30,6 +31,9 @@ const (
 	OperationRenameGeneration Operation = "rename_generation"
 	OperationWriteCurrent     Operation = "write_current"
 	OperationRenameCurrent    Operation = "rename_current"
+	OperationWriteBackup      Operation = "write_backup"
+	OperationRenameBackup     Operation = "rename_backup"
+	OperationRemoveGeneration Operation = "remove_generation"
 )
 
 type FaultInjector func(Operation, string) error
@@ -86,6 +90,7 @@ type Store struct {
 	root        string
 	generations string
 	current     string
+	backup      string
 	reserve     string
 	failure     string
 	config      Config
@@ -127,6 +132,7 @@ func newStore(root string, config Config, enforceMinimums bool) (*Store, error) 
 		root:        absolute,
 		generations: filepath.Join(absolute, "generations"),
 		current:     filepath.Join(absolute, "CURRENT"),
+		backup:      filepath.Join(absolute, "BACKUP"),
 		reserve:     filepath.Join(absolute, "space-reserve"),
 		failure:     filepath.Join(absolute, "LAST_FAILURE.json"),
 		config:      config,

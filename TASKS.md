@@ -5637,15 +5637,15 @@ demostrando el cableado. Sin `make test-ladybug` habría pasado inadvertida.
 
 ## LUQUE-0905 — Implementar backup y rollback
 
-**Dependencias:** LUQUE-0903.
+**Dependencias:** LUQUE-0903 y LUQUE-0904.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Mantener:**
 
@@ -5654,6 +5654,117 @@ graph.active
 graph.next
 graph.backup
 ```
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+internal/storage/generation/backup.go    puntero BACKUP, List, Prune, NextID
+internal/storage/generation/store.go     BACKUP integrado en Publish y Restore
+internal/rebuild/rollback.go             Roles y Rollback verificado
+internal/rebuild/rebuild.go              retención tras publicar
+cmd/luque/main.go                        luque graph status y luque rollback
+```
+
+**Los tres nombres son roles, no directorios.** `generations/<id>` y `CURRENT`
+son load-bearing y están probados; renombrarlos a `graph.active` habría sido
+fidelidad cosmética a cambio de romper artefactos ya publicados. El mapeo:
+
+| Rol del plan | Qué es en disco |
+| --- | --- |
+| `graph.active` | la generación que apunta `CURRENT` |
+| `graph.next` | el candidato `<id>.tmp` que construye `Publish` |
+| `graph.backup` | la generación anterior, retenida en `BACKUP` |
+
+**El hueco real que se cerró.** «La anterior» sólo existía como
+`Publication.PreviousID` **en memoria**: tras un reinicio nadie sabía a dónde
+volver. Y nada podaba: cada rebuild acumulaba una generación más, con
+`CheckSpace` exigiendo el doble de la activa. Ahora hay un puntero persistente
+y retención de exactamente activa más backup.
+
+**Decisiones:**
+
+* `BACKUP` se escribe con la misma disciplina que `CURRENT` —fichero
+  transitorio, fsync, rename atómico, fsync del directorio— reutilizando un
+  `writePointer` generalizado en vez de duplicar la lógica.
+* **Consistencia ante caída con dos punteros.** No pueden actualizarse en un
+  solo rename. El orden es `BACKUP` primero y `CURRENT` después, y la regla de
+  recuperación es: **si `BACKUP` iguala a `CURRENT`, o apunta a una generación
+  que ya no existe, no hay backup**. Se interpreta al leer; no se repara el
+  fichero. Es autoconsistente y no exige intervención manual.
+* `abortPublication` y el camino de reversión de `Restore` devuelven **los dos**
+  punteros a su estado anterior, no sólo `CURRENT`.
+* Tras un rollback, la que era activa pasa a ser el backup. La simetría permite
+  volver hacia adelante y evita que un rollback destruya la única alternativa.
+* `Prune` nunca borra la activa, el backup ni un `<id>.tmp` en curso, y sin
+  `CURRENT` no borra nada: sin activa no se sabe qué proteger.
+* Un fallo de poda **no** invalida una publicación ya efectiva —el grafo activo
+  es correcto— pero se reporta en el `Detail` de la etapa `publish`.
+* `NextID` salta el reservado `000000` y cualquier id ya ocupado: dos rebuilds
+  seguidos no pueden colisionar.
+
+**Verificación del ciclo completo con biblioteca nativa**, sobre hechos
+derivados del fixture Go real:
+
+```text
+publish 000001   previous <none>
+publish 000002   previous 000001
+publish 000003   previous 000002; pruned generation(s) 000001
+
+graph.active: 000003    graph.next: generations/000004.tmp    graph.backup: 000002
+retained: 000002, 000003          en disco: 000002, 000003
+```
+
+Rollback y vuelta hacia adelante, con revalidación completa:
+
+```text
+rollback: 000003 -> 000002   digest esperado == observado   invariants: PASS   exit 0
+graph.active: 000002    graph.backup: 000003      ← roles invertidos
+rollback: 000002 -> 000003   →  graph.active: 000003    graph.backup: 000002
+```
+
+**Las cuatro defensas, probadas contra disco real.** En los cuatro casos
+`CURRENT` quedó intacto:
+
+| Manipulación | Resultado |
+| --- | --- |
+| digest del backup alterado | `snapshot digest mismatch: recomputed …, generation 000002 recorded …` |
+| `snapshot.sha256` ausente | `generation has no snapshot.sha256: cannot verify its digest before reactivating it` |
+| `BACKUP` igualado a `CURRENT` | `graph.backup: none`, rollback rechazado |
+| invariante roto en el backup | `integrity check failed: 1 invariant violation(s)` |
+
+El cuarto caso es el que más dice, y se aisló a propósito: la violación se
+inyectó con `SET r.provenance = 'TREE_SITTER_SYNTAX'` sobre una arista ya
+existente, **sin alterar ninguna cuenta**. El digest cuadró exactamente y el
+rollback se negó igualmente. Es la prueba de que la verificación de invariantes
+no es redundante con el digest: un grafo semánticamente roto puede tener las
+cuentas perfectas.
+
+```text
+gofmt -l .                                        sin diferencias
+go vet ./...                                      limpio
+go test ./...                                     todos los paquetes ok
+make test-ladybug                                 todos los paquetes ok
+go test -race ./internal/storage/generation ./internal/rebuild   ok
+```
+
+La consistencia ante caída está además probada con el `FaultInjector` del
+propio store: un fallo en `write_current` o `rename_current` **después** de
+haber escrito `BACKUP` deja los dos punteros como estaban.
+
+**Limitaciones:**
+
+* La retención es exactamente activa más backup, sin configurar. El plan pide
+  tres roles; una profundidad mayor de histórico no está pedida y no se inventa.
+* `NextID` envuelve de `999999` a `000001`. Con retención de dos generaciones el
+  reciclado es inofensivo, pero un histórico profundo necesitaría otra política.
+* El rollback exige `snapshot.sha256`. Las generaciones publicadas antes de
+  LUQUE-0903 no lo tienen y no son reactivables; no existe ninguna en uso.
+* `graph.next` sólo existe mientras `Publish` construye. `graph status` reporta
+  la ruta que ocuparía, no un directorio presente.
+
+**Siguiente tarea:** LUQUE-0906.
 
 ---
 

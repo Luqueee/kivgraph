@@ -187,6 +187,239 @@ func TestPublishRejectsInvalidGenerationAndSymlink(t *testing.T) {
 	}
 }
 
+func TestBackupTracksPreviousActive(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	if _, err := store.Backup(context.Background()); !errors.Is(err, ErrNoBackup) {
+		t.Fatalf("Backup() error = %v, want ErrNoBackup after first publish", err)
+	}
+	publishTestGeneration(t, store, "000002", "second")
+	backup, err := store.Backup(context.Background())
+	if err != nil {
+		t.Fatalf("Backup() error = %v", err)
+	}
+	if backup.ID != "000001" {
+		t.Fatalf("Backup().ID = %q, want 000001", backup.ID)
+	}
+}
+
+func TestRestoreInvertsActiveAndBackupRoles(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	publishTestGeneration(t, store, "000002", "second")
+	if err := store.Restore(context.Background(), "000001", validateTestGeneration("first")); err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	assertCurrentGeneration(t, store, "000001", "first")
+	backup, err := store.Backup(context.Background())
+	if err != nil {
+		t.Fatalf("Backup() error = %v", err)
+	}
+	if backup.ID != "000002" {
+		t.Fatalf("Backup().ID = %q, want 000002 (the generation that was active)", backup.ID)
+	}
+}
+
+func TestPublishFaultAfterBackupWrittenRevertsBothPointers(t *testing.T) {
+	for _, operation := range []Operation{OperationWriteCurrent, OperationRenameCurrent} {
+		t.Run(string(operation), func(t *testing.T) {
+			store := newTestStore(t)
+			publishTestGeneration(t, store, "000001", "first")
+			publishTestGeneration(t, store, "000002", "second")
+			injected := false
+			store.config.FaultInjector = func(op Operation, _ string) error {
+				if !injected && op == operation {
+					injected = true
+					return syscall.ENOSPC
+				}
+				return nil
+			}
+			_, err := store.Publish(context.Background(), PublishRequest{
+				ID:       "000003",
+				Build:    func(_ context.Context, path string) error { return writeTestGeneration(path, "third") },
+				Validate: validateTestGeneration("third"),
+			})
+			if !errors.Is(err, syscall.ENOSPC) {
+				t.Fatalf("Publish() error = %v, want ENOSPC", err)
+			}
+			if !injected {
+				t.Fatal("fault was not injected")
+			}
+			assertCurrentGeneration(t, store, "000002", "second")
+			backup, err := store.Backup(context.Background())
+			if err != nil {
+				t.Fatalf("Backup() error = %v", err)
+			}
+			if backup.ID != "000001" {
+				t.Fatalf("Backup().ID = %q, want 000001 unchanged", backup.ID)
+			}
+		})
+	}
+}
+
+func TestRestoreFaultAfterBackupWrittenRevertsBothPointers(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	publishTestGeneration(t, store, "000002", "second")
+	injected := false
+	store.config.FaultInjector = func(operation Operation, _ string) error {
+		if !injected && operation == OperationRenameCurrent {
+			injected = true
+			return syscall.ENOSPC
+		}
+		return nil
+	}
+	err := store.Restore(context.Background(), "000001", validateTestGeneration("first"))
+	if !errors.Is(err, syscall.ENOSPC) {
+		t.Fatalf("Restore() error = %v, want ENOSPC", err)
+	}
+	if !injected {
+		t.Fatal("fault was not injected")
+	}
+	assertCurrentGeneration(t, store, "000002", "second")
+	backup, err := store.Backup(context.Background())
+	if err != nil {
+		t.Fatalf("Backup() error = %v", err)
+	}
+	if backup.ID != "000001" {
+		t.Fatalf("Backup().ID = %q, want 000001 unchanged", backup.ID)
+	}
+}
+
+func TestBackupInterpretsInconsistentPointerAsAbsent(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	publishTestGeneration(t, store, "000002", "second")
+	if err := os.WriteFile(store.backup, []byte("000002\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Backup(context.Background()); !errors.Is(err, ErrNoBackup) {
+		t.Fatalf("Backup() error = %v, want ErrNoBackup when BACKUP == CURRENT", err)
+	}
+	if err := os.WriteFile(store.backup, []byte("000009\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Backup(context.Background()); !errors.Is(err, ErrNoBackup) {
+		t.Fatalf("Backup() error = %v, want ErrNoBackup when BACKUP targets a missing generation", err)
+	}
+}
+
+func TestListOrdersAndIgnoresJunk(t *testing.T) {
+	store := newTestStore(t)
+	empty, err := store.List(context.Background())
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("List() = %v, %v, want empty, nil", empty, err)
+	}
+	publishTestGeneration(t, store, "000003", "c")
+	publishTestGeneration(t, store, "000001", "a")
+	publishTestGeneration(t, store, "000002", "b")
+	if err := os.Mkdir(filepath.Join(store.generations, "000099.tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(store.generations, "not-an-id"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	generations, err := store.List(context.Background())
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	want := []string{"000001", "000002", "000003"}
+	if len(generations) != len(want) {
+		t.Fatalf("List() = %d generations, want %d: %v", len(generations), len(want), generations)
+	}
+	for i, generation := range generations {
+		if generation.ID != want[i] {
+			t.Fatalf("List()[%d].ID = %q, want %q", i, generation.ID, want[i])
+		}
+	}
+}
+
+func TestPruneKeepsActiveAndBackup(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "a")
+	publishTestGeneration(t, store, "000002", "b")
+	publishTestGeneration(t, store, "000003", "c")
+	candidatePath := filepath.Join(store.generations, "000099.tmp")
+	if err := os.Mkdir(candidatePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := store.Prune(context.Background())
+	if err != nil {
+		t.Fatalf("Prune() error = %v", err)
+	}
+	if len(removed) != 1 || removed[0] != "000001" {
+		t.Fatalf("Prune() removed = %v, want [000001]", removed)
+	}
+	assertAbsent(t, filepath.Join(store.generations, "000001"))
+	if _, err := os.Stat(filepath.Join(store.generations, "000002")); err != nil {
+		t.Fatalf("backup generation was pruned: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.generations, "000003")); err != nil {
+		t.Fatalf("active generation was pruned: %v", err)
+	}
+	if _, err := os.Stat(candidatePath); err != nil {
+		t.Fatalf("in-progress candidate was pruned: %v", err)
+	}
+}
+
+func TestPruneWithoutCurrentDeletesNothing(t *testing.T) {
+	store := newTestStore(t)
+	if err := os.MkdirAll(filepath.Join(store.generations, "000001"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Prune(context.Background()); !errors.Is(err, ErrNoCurrent) {
+		t.Fatalf("Prune() error = %v, want ErrNoCurrent", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.generations, "000001")); err != nil {
+		t.Fatalf("Prune() deleted a generation despite no CURRENT: %v", err)
+	}
+}
+
+func TestNextIDAdvancesAndSkipsOccupied(t *testing.T) {
+	store := newTestStore(t)
+	id, err := store.NextID(context.Background())
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	if id != "000001" {
+		t.Fatalf("NextID() = %q, want 000001 with no CURRENT", id)
+	}
+	publishTestGeneration(t, store, "000001", "a")
+	id, err = store.NextID(context.Background())
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	if id != "000002" {
+		t.Fatalf("NextID() = %q, want 000002", id)
+	}
+	leftover := filepath.Join(store.generations, "000002")
+	if err := os.MkdirAll(leftover, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestGeneration(leftover, "leftover"); err != nil {
+		t.Fatal(err)
+	}
+	id, err = store.NextID(context.Background())
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	if id != "000003" {
+		t.Fatalf("NextID() = %q, want 000003 since 000002 is occupied", id)
+	}
+}
+
+func TestNextIDWrapsPastReservedID(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "999999", "last")
+	id, err := store.NextID(context.Background())
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	if id != "000001" {
+		t.Fatalf("NextID() = %q, want 000001 after wrapping past 999999", id)
+	}
+}
+
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	config := Config{ReserveBytes: 4 << 10, DatabaseFile: "graph.db"}

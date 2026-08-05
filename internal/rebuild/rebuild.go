@@ -79,6 +79,7 @@ type Report struct {
 	Probes         []ladybug.CanonicalProbeResult
 	SnapshotDigest string
 	Publication    generation.Publication
+	Pruned         []string
 	Passed         bool
 }
 
@@ -360,11 +361,33 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	}
 
 	report.Publication = publication
+	detail := fmt.Sprintf("published generation %s (previous %s)", publication.Generation.ID, previousGenerationLabel(publication.PreviousID))
+
+	// Retention prunes every generation that is neither the one just
+	// published nor its new backup (the generation that was active a
+	// moment ago), so the store holds exactly graph.active and
+	// graph.backup once a publish lands. It only runs after Publish has
+	// already returned success, so CURRENT is durable before anything is
+	// removed. A pruning failure (a directory that would not remove, a
+	// transient I/O error) must not turn an effective publish into a
+	// reported failure: the active graph is already correct and serving,
+	// and a stray retained generation is a disk cost, not a correctness
+	// one — the next successful rebuild's own prune retries it. So the
+	// failure is folded into this stage's Detail, for an operator to see,
+	// instead of into Passed.
+	pruned, pruneErr := store.Prune(ctx)
+	report.Pruned = pruned
+	if pruneErr != nil {
+		detail += fmt.Sprintf("; prune failed: %v", pruneErr)
+	} else if len(pruned) != 0 {
+		detail += fmt.Sprintf("; pruned generation(s) %s", strings.Join(pruned, ", "))
+	}
+
 	report.Stages = append(report.Stages, Stage{
 		Name:       StagePublish,
 		Passed:     true,
-		Detail:     fmt.Sprintf("published generation %s (previous %s)", publication.Generation.ID, previousGenerationLabel(publication.PreviousID)),
-		DurationMS: publishDuration,
+		Detail:     detail,
+		DurationMS: elapsedMS(publishStart),
 	})
 	report.Passed = allStagesPassed(report.Stages)
 	return report, nil
@@ -392,6 +415,18 @@ func storeConfigIsZero(config generation.Config) bool {
 		config.FreePermille == 0 &&
 		config.DatabaseFile == "" &&
 		config.FaultInjector == nil
+}
+
+// openGenerationStore opens the generation store rooted at root, defaulting
+// config to generation.DefaultConfig() exactly like Run does when the
+// caller leaves its own Store field at the zero value. Roles and Rollback
+// both resolve a store this same way, so LayoutOptions.Store and
+// RollbackOptions.Store behave identically to Options.Store.
+func openGenerationStore(root string, config generation.Config) (*generation.Store, error) {
+	if storeConfigIsZero(config) {
+		config = generation.DefaultConfig()
+	}
+	return generation.New(root, config)
 }
 
 func previousGenerationLabel(id string) string {

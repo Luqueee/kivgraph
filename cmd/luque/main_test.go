@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -481,5 +483,230 @@ func TestRunRebuildRejectsInvalidFactsJSON(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "rebuild: decode facts") {
 		t.Fatalf("stderr = %q, want decode error", stderr.String())
+	}
+}
+
+func TestRunGraphStatusReportsRolesAndRetainedGenerations(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	roles := func(_ context.Context, options rebuild.LayoutOptions) (rebuild.Layout, error) {
+		if options.Root != "/tmp/luque-graph" {
+			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		}
+		return rebuild.Layout{
+			Active:    generation.Generation{ID: "000002", Path: "/tmp/luque-graph/generations/000002"},
+			Backup:    generation.Generation{ID: "000001", Path: "/tmp/luque-graph/generations/000001"},
+			HasBackup: true,
+			NextID:    "000003",
+			Retained:  []string{"000001", "000002"},
+		}, nil
+	}
+
+	code := runWithGraphRoles([]string{
+		"luque", "graph", "status", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "graph.active: 000002") {
+		t.Fatalf("stdout missing active role: %q", out)
+	}
+	if !strings.Contains(out, "graph.backup: 000001") {
+		t.Fatalf("stdout missing backup role: %q", out)
+	}
+	if !strings.Contains(out, "graph.next:") || !strings.Contains(out, "000003") {
+		t.Fatalf("stdout missing next role: %q", out)
+	}
+	if !strings.Contains(out, "retained: 000001, 000002") {
+		t.Fatalf("stdout missing retained generations: %q", out)
+	}
+}
+
+// TestRunGraphStatusReportsEmptyLayoutWithoutFailing is the point 5
+// contract: a store with no active generation is reported legibly, exit 0,
+// not treated as a program error.
+func TestRunGraphStatusReportsEmptyLayoutWithoutFailing(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	roles := func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) {
+		return rebuild.Layout{NextID: "000001"}, nil
+	}
+
+	code := runWithGraphRoles([]string{
+		"luque", "graph", "status", "--root", "/tmp/luque-empty",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q, want 0: an empty store is not a program error", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "graph.active: none") {
+		t.Fatalf("stdout missing empty active role: %q", out)
+	}
+	if !strings.Contains(out, "graph.backup: none") {
+		t.Fatalf("stdout missing empty backup role: %q", out)
+	}
+	if !strings.Contains(out, "retained: none") {
+		t.Fatalf("stdout missing empty retained set: %q", out)
+	}
+}
+
+func TestRunGraphStatusRequiresRoot(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	roles := func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) {
+		called = true
+		return rebuild.Layout{}, nil
+	}
+
+	code := runWithGraphRoles([]string{
+		"luque", "graph", "status",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if called {
+		t.Fatal("roles resolver was called")
+	}
+	if !strings.Contains(stderr.String(), "--root is required") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunGraphStatusReturnsFailureOnRolesError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	roles := func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) {
+		return rebuild.Layout{}, errors.New("open generation store: boom")
+	}
+
+	code := runWithGraphRoles([]string{
+		"luque", "graph", "status", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "boom") {
+		t.Fatalf("stderr = %q, want the roles error", stderr.String())
+	}
+}
+
+func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	rollback := func(_ context.Context, options rebuild.RollbackOptions) (rebuild.RollbackReport, error) {
+		if options.Root != "/tmp/luque-graph" {
+			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		}
+		if options.GenerationID != "000001" {
+			t.Fatalf("generation id = %q, want 000001", options.GenerationID)
+		}
+		return rebuild.RollbackReport{
+			From:     generation.Generation{ID: "000002"},
+			To:       generation.Generation{ID: "000001"},
+			Digest:   "deadbeef",
+			Expected: "deadbeef",
+			Invariants: ladybug.CanonicalIntegrityReport{
+				Findings: []ladybug.IntegrityFinding{{Rule: ladybug.RuleExactEdgeWithoutSource, Passed: true}},
+				Passed:   true,
+			},
+			Passed: true,
+		}, nil
+	}
+
+	code := runWithGraphRollback([]string{
+		"luque", "rollback", "--root", "/tmp/luque-graph", "--generation", "000001",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "rollback: 000002 -> 000001") {
+		t.Fatalf("stdout missing transition: %q", out)
+	}
+	if !strings.Contains(out, "digest expected: deadbeef") || !strings.Contains(out, "digest observed: deadbeef") {
+		t.Fatalf("stdout missing digests: %q", out)
+	}
+	if !strings.Contains(out, "invariants: PASS") {
+		t.Fatalf("stdout missing invariants verdict: %q", out)
+	}
+	if !strings.Contains(out, "rollback result: PASS") {
+		t.Fatalf("stdout missing overall verdict: %q", out)
+	}
+}
+
+func TestRunRollbackReturnsFailureAndExplainsCause(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	rollback := func(context.Context, rebuild.RollbackOptions) (rebuild.RollbackReport, error) {
+		return rebuild.RollbackReport{
+			From:     generation.Generation{ID: "000002"},
+			To:       generation.Generation{ID: "000001"},
+			Digest:   "aaa",
+			Expected: "bbb",
+			Passed:   false,
+		}, fmt.Errorf("%w: snapshot digest mismatch", rebuild.ErrRollbackFailed)
+	}
+
+	code := runWithGraphRollback([]string{
+		"luque", "rollback", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "snapshot digest mismatch") {
+		t.Fatalf("stderr = %q, want the rollback failure reason", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "digest expected: bbb") || !strings.Contains(stdout.String(), "digest observed: aaa") {
+		t.Fatalf("stdout = %q, want the mismatched digests reported even on failure", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "rollback result: FAIL") {
+		t.Fatalf("stdout = %q, want a FAIL verdict", stdout.String())
+	}
+}
+
+func TestRunRollbackRequiresRoot(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	rollback := func(context.Context, rebuild.RollbackOptions) (rebuild.RollbackReport, error) {
+		called = true
+		return rebuild.RollbackReport{}, nil
+	}
+
+	code := runWithGraphRollback([]string{
+		"luque", "rollback",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
+
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if called {
+		t.Fatal("rollback hook was called")
+	}
+	if !strings.Contains(stderr.String(), "--root is required") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+// TestRunRollbackWithoutGenerationDefaultsToBackup is the CLI half of
+// "--generation is optional": leaving it out must reach Rollback with an
+// empty GenerationID, letting Rollback itself resolve graph.backup.
+func TestRunRollbackWithoutGenerationDefaultsToBackup(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	rollback := func(_ context.Context, options rebuild.RollbackOptions) (rebuild.RollbackReport, error) {
+		if options.GenerationID != "" {
+			t.Fatalf("generation id = %q, want empty (defaults to the registered backup)", options.GenerationID)
+		}
+		return rebuild.RollbackReport{Passed: true, From: generation.Generation{ID: "000002"}, To: generation.Generation{ID: "000001"}}, nil
+	}
+
+	code := runWithGraphRollback([]string{
+		"luque", "rollback", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
 	}
 }
