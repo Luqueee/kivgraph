@@ -2565,20 +2565,80 @@ anular el `sort` sí falla.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/language-service.ts`;
+* `ts-worker/src/language-service.test.ts`.
 
 **Mantener:**
 
-* snapshots;
-* versions;
-* module cache;
-* Program;
-* TypeChecker;
-* proyecto.
+| Pieza | Cómo |
+| --- | --- |
+| snapshots | uno vivo; el anterior se libera tras crear el nuevo |
+| versions | versión y hash SHA-256 por archivo, solo suben si cambia el contenido |
+| module cache | caché de source files del cliente, con `invalidateAll` como recuperación |
+| Program | `program` del proyecto del snapshot vivo |
+| TypeChecker | `checker` del mismo proyecto, ligado a la generación |
+| proyecto | `openProject` y `closeProject`, con opens que persisten entre snapshots |
+
+**Invariante central:** los handles son **de snapshot**. Un `Project`,
+`Program` o `Checker` obtenido de un snapshot deja de ser válido cuando ese
+snapshot se libera, así que el servicio nunca entrega uno sin atarlo a su
+generación, y `assertFresh` rechaza una vista caduca.
+
+**Decisiones:**
+
+* Una versión sube solo si el contenido cambió de verdad. Un archivo anunciado
+  cuyo hash coincide se reporta como `unchanged` y no rueda el snapshot.
+* Un `content_hash` anunciado que no coincide con el disco se reporta como
+  `desynchronised` y **no se aplica**: el protocolo usa ese hash justamente
+  para detectar una lectura desincronizada, y aplicarla produciría hechos que
+  nadie puede atribuir a una revisión.
+* Un archivo anunciado que ya no existe también es desincronización, no una
+  lectura vacía.
+* Solo se versionan los archivos que pueden cambiar durante la sesión: los de
+  dentro del workspace y fuera de `node_modules`. Las declaraciones de
+  librería viven en la instalación del compilador y son inmutables.
+* El snapshot anterior se libera **después** de crear el siguiente, para que el
+  servidor nativo no vea una ventana sin snapshot.
+* `invalidateAll` limpia caché de cliente, versiones y estado del servidor; es
+  la ruta de recuperación cuando el estado incremental deja de ser fiable.
+
+**Verificación:** las pruebas ejercitan el **servidor nativo real**, que es el
+motor que fijó el ADR 0010; un mock no probaría nada de la persistencia que
+esta tarea entrega. 32 tests del worker en 0,9 s, más `pnpm format:check`,
+`pnpm lint`, `pnpm typecheck`, `pnpm build`, `go test ./...` y `go vet ./...`.
+
+Comprobación por mutación: quitar la verificación del hash anunciado rompe 1;
+subir siempre la versión rompe 1; no incrementar la generación rompe 2; no
+liberar el snapshot anterior rompe 1.
+
+**Fuga cubierta explícitamente:** el ADR 0005 advierte de acumulación de
+memoria en workers de larga duración. `snapshotsDisposed` es estado observable
+y una prueba comprueba que tras cuatro snapshots hay exactamente tres
+liberados, y cuatro tras cerrar.
+
+**Limitaciones:**
+
+* No hay política de reciclado por umbral de memoria; el ADR 0005 la deja
+  pendiente de medición y aquí solo se garantiza que no se acumulan snapshots.
+* `openFiles`/`closeFiles` de la API no se usan todavía: el worker trabaja por
+  proyecto, no por documento abierto.
+* El servicio aún no está conectado al protocolo; los mensajes
+  `INDEX_PROJECT`, `UPDATE_FILES` y `REMOVE_FILES` lo consumirán en las tareas
+  de extracción.
+* El hash es SHA-256 sobre los bytes del archivo. No es la stable key del
+  modelo semántico, que es BLAKE3 sobre la identidad canónica.
+
+**Siguiente tarea:** LUQUE-0608.
 
 ---
 
