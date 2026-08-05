@@ -8,15 +8,24 @@ import {
   isImportEqualsDeclaration,
   isImportTypeNode,
   isLiteralTypeNode,
+  isNamedExports,
+  isNamedImports,
+  isNamespaceExport,
+  isNamespaceImport,
   isStringLiteral,
 } from "typescript/unstable/ast/is";
 import { SyntaxKind } from "typescript/unstable/ast";
 import { SymbolFlags } from "typescript/unstable/async";
 import type {
+  ImportClause,
+  NamedExportBindings,
+  Node,
+  SourceFile,
+} from "typescript/unstable/ast";
+import type {
   Checker,
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
-import type { Node, SourceFile } from "typescript/unstable/ast";
 
 import type { LanguageService, ProjectView } from "./language-service.js";
 
@@ -46,9 +55,13 @@ export interface PackageImport {
   status: PackageImportStatus;
   provider: PackageProvider | undefined;
   resolvedFiles: readonly string[];
+  requestedExports: readonly string[];
+  exportMode: PackageExportMode;
   start: number;
   end: number;
 }
+
+export type PackageExportMode = "NONE" | "NAMED" | "STAR" | "NAMESPACE";
 
 export interface PackageImportResolutionOptions {
   /** Relative to the project directory; omitted means every project file. */
@@ -66,6 +79,12 @@ interface ImportRequest {
   node: Node;
   packageName: string;
   specifier: string;
+  selection: ExportSelection;
+}
+
+interface ExportSelection {
+  names: readonly string[];
+  mode: PackageExportMode;
 }
 
 /**
@@ -122,6 +141,8 @@ export async function resolvePackageImports(
         status,
         provider,
         resolvedFiles,
+        requestedExports: [...request.selection.names],
+        exportMode: request.selection.mode,
         start: request.node.getStart(request.file),
         end: request.node.getEnd(),
       } satisfies PackageImport;
@@ -200,19 +221,40 @@ function collectPackageImports(
 ): void {
   const visit = (node: Node): void => {
     if (isImportDeclaration(node)) {
-      addSpecifier(file, node.moduleSpecifier, requests);
+      addSpecifier(
+        file,
+        node.moduleSpecifier,
+        requests,
+        importSelection(node.importClause),
+      );
     } else if (
       isExportDeclaration(node) &&
       node.moduleSpecifier !== undefined
     ) {
-      addSpecifier(file, node.moduleSpecifier, requests);
+      addSpecifier(
+        file,
+        node.moduleSpecifier,
+        requests,
+        exportSelection(node.exportClause),
+      );
     } else if (
       isImportEqualsDeclaration(node) &&
       isExternalModuleReference(node.moduleReference)
     ) {
       addSpecifier(file, node.moduleReference.expression, requests);
     } else if (isImportTypeNode(node)) {
-      addSpecifier(file, node.argument, requests);
+      const qualifier = node.qualifier?.getText();
+      addSpecifier(
+        file,
+        node.argument,
+        requests,
+        qualifier === undefined
+          ? undefined
+          : {
+              names: [qualifier.split(".")[0] ?? qualifier],
+              mode: "NAMED",
+            },
+      );
     } else if (
       isCallExpression(node) &&
       node.expression.kind === SyntaxKind.ImportKeyword &&
@@ -228,11 +270,11 @@ function collectPackageImports(
 
   file.forEachChild(visit);
 }
-
 function addSpecifier(
   file: SourceFile,
   node: Node,
   requests: ImportRequest[],
+  selection: ExportSelection = { names: [], mode: "NONE" },
 ): void {
   const literal = stringLiteralFromNode(node);
   if (literal === undefined) {
@@ -247,7 +289,57 @@ function addSpecifier(
     node: literal.node,
     packageName,
     specifier: literal.specifier,
+    selection,
   });
+}
+
+function importSelection(clause: ImportClause | undefined): ExportSelection {
+  if (clause === undefined) {
+    return { names: [], mode: "NONE" };
+  }
+  const names = clause.name === undefined ? [] : ["default"];
+  if (clause.namedBindings === undefined) {
+    return { names, mode: names.length === 0 ? "NONE" : "NAMED" };
+  }
+  if (isNamedImports(clause.namedBindings)) {
+    return {
+      names: [
+        ...names,
+        ...clause.namedBindings.elements.map((element) =>
+          exportName(element.propertyName ?? element.name),
+        ),
+      ],
+      mode: "NAMED",
+    };
+  }
+  if (isNamespaceImport(clause.namedBindings)) {
+    return { names, mode: "NAMESPACE" };
+  }
+  return { names, mode: "NONE" };
+}
+
+function exportSelection(
+  clause: NamedExportBindings | undefined,
+): ExportSelection {
+  if (clause === undefined) {
+    return { names: [], mode: "STAR" };
+  }
+  if (isNamedExports(clause)) {
+    return {
+      names: clause.elements.map((element) =>
+        exportName(element.propertyName ?? element.name),
+      ),
+      mode: "NAMED",
+    };
+  }
+  if (isNamespaceExport(clause)) {
+    return { names: [], mode: "NAMESPACE" };
+  }
+  return { names: [], mode: "NONE" };
+}
+
+function exportName(node: Node): string {
+  return isStringLiteral(node) ? node.text : node.getText();
 }
 
 function stringLiteralFromNode(

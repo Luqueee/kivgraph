@@ -3175,23 +3175,81 @@ PACKAGE_IMPORTS_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Respetar:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/provider-export-resolver.ts`;
+* `ts-worker/src/package-import-resolver.ts` (selección de exports);
+* `ts-worker/src/package-import-resolver.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato:**
 
 ```text
-exports
-types
-typings
-typesVersions
-paths
-project references
-moduleResolution
+resolveProviderExports(service, view, registry, options?)
+  -> { generation, configFileName, imports, exports }
 ```
+
+Cada entrada de `imports` conserva la resolución de LUQUE-0701 y añade el modo
+de selección (`NAMED`, `STAR`, `NAMESPACE` o `NONE`) y los nombres solicitados.
+`exports` devuelve el nombre público, el estado (`RESOLVED`,
+`EXPORT_NOT_FOUND` o `MODULE_SYMBOL_NOT_FOUND`), el nombre destino y los
+archivos declarativos del símbolo cuando existen.
+
+**Decisiones:**
+
+* El `TypeChecker` sigue siendo la fuente de verdad para `exports`, `types`,
+  `typings`, `typesVersions`, `paths`, project references y `moduleResolution`;
+  el worker no duplica las reglas de resolución de TypeScript.
+* Los imports nombrados consultan `getMemberInModuleExports`; solo los imports
+  de namespace y los `export *` enumeran el módulo completo. `export *` omite
+  `default`, conforme a la semántica de TypeScript.
+* Los alias se siguen con `getAliasedSymbol` para conservar el nombre público y
+  localizar la declaración destino sin crear relaciones nominales.
+* Imports laterales, dinámicos e `import =` conservan su resolución de módulo,
+  pero no inventan nombres exportados que el AST no solicita.
+
+**Verificación:**
+
+```text
+7 archivos de tests
+49 tests passed
+pnpm check
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La cobertura incluye exports nombrados, `default`, tipos, alias,
+`export ... from`, namespace, `export *`, exports ausentes y módulos
+resueltos sin provider. No se requiere benchmark separado: esta tarea consulta
+símbolos del checker; el coste cross-repository y los SLO se medirán con el
+corpus de fase.
+
+**Limitaciones:**
+
+* La relación de un `.d.ts` con su fuente queda para LUQUE-0703.
+* La resolución de símbolos importados y las aristas `IMPORTS_SYMBOL` quedan
+  para LUQUE-0705.
+* Los imports sin una selección de nombres no generan una lista artificial de
+  exports; la resolución de módulo permanece disponible en `imports`.
+
+**Gate:**
+
+```text
+PROVIDER_EXPORTS_PASS
+```
+
+**Siguiente tarea:** LUQUE-0703.
 
 ---
 

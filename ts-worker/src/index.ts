@@ -19,6 +19,7 @@ export type {
 
 export { resolvePackageImports } from "./package-import-resolver.js";
 export type {
+  PackageExportMode,
   PackageImport,
   PackageImportResolution,
   PackageImportResolutionOptions,
@@ -26,6 +27,12 @@ export type {
   PackageProvider,
   PackageProviderRegistry,
 } from "./package-import-resolver.js";
+export { resolveProviderExports } from "./provider-export-resolver.js";
+export type {
+  ProviderExport,
+  ProviderExportResolution,
+  ProviderExportStatus,
+} from "./provider-export-resolver.js";
 
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {

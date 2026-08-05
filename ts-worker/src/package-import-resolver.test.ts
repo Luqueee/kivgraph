@@ -10,6 +10,7 @@ import {
   type PackageProvider,
   type PackageProviderRegistry,
 } from "./package-import-resolver.js";
+import { resolveProviderExports } from "./provider-export-resolver.js";
 
 const services: LanguageService[] = [];
 const workspaces: string[] = [];
@@ -230,5 +231,98 @@ import "./local.js";
       provider: undefined,
     });
     expect(resolution.imports[0]?.resolvedFiles.length).toBeGreaterThan(0);
+  });
+  it("resolves named, namespace, star, and missing provider exports", async () => {
+    const workspace = await createWorkspace({
+      "src/consumer.ts": `
+import defaultValue, { value, type Shape } from "registered";
+import * as namespace from "registered";
+import { missing } from "registered";
+export { value as alias } from "registered";
+export * from "registered";
+export type { Shape as ReexportedShape } from "registered";
+console.log(defaultValue, value, Shape, namespace, missing);
+`,
+      "node_modules/registered/package.json": `{
+  "name": "registered",
+  "version": "1.0.0",
+  "type": "module",
+  "types": "./index.d.ts"
+}`,
+      "node_modules/registered/index.d.ts": `
+declare const defaultValue: string;
+export default defaultValue;
+export declare const value: number;
+export interface Shape { value: string }
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const resolution = await resolveProviderExports(
+      service,
+      view,
+      registryFor([
+        {
+          name: "registered",
+          version: "1.0.0",
+          repository: "registered-repo",
+          rootPath: workspace.file("node_modules/registered"),
+        },
+      ]),
+    );
+
+    expect(resolution.imports).toHaveLength(6);
+    expect(
+      resolution.imports.map((entry) => [
+        entry.exportMode,
+        ...entry.requestedExports,
+      ]),
+    ).toEqual([
+      ["NAMED", "default", "value", "Shape"],
+      ["NAMESPACE"],
+      ["NAMED", "missing"],
+      ["NAMED", "value"],
+      ["STAR"],
+      ["NAMED", "Shape"],
+    ]);
+
+    const namedValue = resolution.exports.find(
+      (entry) =>
+        entry.exportedName === "value" &&
+        entry.specifier === "registered" &&
+        entry.fileName === workspace.file("src/consumer.ts"),
+    );
+    expect(namedValue).toMatchObject({
+      exportedName: "value",
+      status: "RESOLVED",
+      targetName: "value",
+      targetFiles: [workspace.file("node_modules/registered/index.d.ts")],
+    });
+    expect(
+      resolution.exports.some(
+        (entry) =>
+          entry.exportedName === "default" && entry.status === "RESOLVED",
+      ),
+    ).toBe(true);
+    expect(
+      resolution.exports.some(
+        (entry) =>
+          entry.exportedName === "missing" &&
+          entry.status === "EXPORT_NOT_FOUND",
+      ),
+    ).toBe(true);
+    expect(
+      resolution.exports.some(
+        (entry) =>
+          entry.exportedName === "alias" && entry.status === "RESOLVED",
+      ),
+    ).toBe(false);
+    expect(
+      resolution.exports.filter(
+        (entry) =>
+          entry.exportedName === "default" && entry.status === "RESOLVED",
+      ),
+    ).toHaveLength(2);
   });
 });
