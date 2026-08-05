@@ -79,6 +79,14 @@ export type {
 export { loadDeclarationSourceMap } from "./declaration-source-resolver.js";
 export type { DeclarationSourceMap } from "./declaration-source-resolver.js";
 
+export { resolveProviderSourcePositions } from "./provider-source-position-resolver.js";
+export type {
+  ProviderSourcePosition,
+  ProviderSourcePositionOptions,
+  ProviderSourcePositionResolution,
+} from "./provider-source-position-resolver.js";
+export { declarationName } from "./declaration-name.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";

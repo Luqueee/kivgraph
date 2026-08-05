@@ -49,8 +49,8 @@
     {
       "name": "consumer-negative",
       "metrics": {
-        "expectedEdges": 3,
-        "truePositives": 3,
+        "expectedEdges": 4,
+        "truePositives": 4,
         "falsePositives": 0,
         "falseNegatives": 0,
         "precision": 1,
@@ -59,8 +59,8 @@
         "expectedUnresolved": 4,
         "unresolvedCorrectlyClassified": 4,
         "unresolvedMisclassified": 0,
-        "expectedSourcePositions": 2,
-        "mappedSourcePositions": 2
+        "expectedSourcePositions": 3,
+        "mappedSourcePositions": 3
       },
       "missingEdges": [],
       "unexpectedEdges": [],
@@ -69,8 +69,8 @@
     }
   ],
   "totals": {
-    "expectedEdges": 8,
-    "truePositives": 8,
+    "expectedEdges": 9,
+    "truePositives": 9,
     "falsePositives": 0,
     "falseNegatives": 0,
     "precision": 1,
@@ -79,8 +79,8 @@
     "expectedUnresolved": 4,
     "unresolvedCorrectlyClassified": 4,
     "unresolvedMisclassified": 0,
-    "expectedSourcePositions": 7,
-    "mappedSourcePositions": 7
+    "expectedSourcePositions": 8,
+    "mappedSourcePositions": 8
   },
   "gate": "TYPESCRIPT_CROSS_REPO_PASS"
 }

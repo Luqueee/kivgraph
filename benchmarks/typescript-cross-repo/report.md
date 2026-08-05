@@ -10,14 +10,14 @@ Se regenera con `pnpm precision` desde `ts-worker`.
 
 ## Totales
 
-- true positives: 8
+- true positives: 9
 - false positives: 0
 - false negatives: 0
 - precision: 1.0000
 - recall: 1.0000
 - false exact edges: 0
 - unresolved correctly classified: 4/4
-- exact source positions: 7/7
+- exact source positions: 8/8
 
 ## Casos
 
@@ -25,7 +25,7 @@ Se regenera con `pnpm precision` desde `ts-worker`.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | consumer-a | 3 | 3 | 0 | 0 | 1.0000 | 1.0000 | 0/0 | 3/3 |
 | consumer-b | 2 | 2 | 0 | 0 | 1.0000 | 1.0000 | 0/0 | 2/2 |
-| consumer-negative | 3 | 3 | 0 | 0 | 1.0000 | 1.0000 | 4/4 | 2/2 |
+| consumer-negative | 4 | 4 | 0 | 0 | 1.0000 | 1.0000 | 4/4 | 3/3 |
 
 ## Gate
 

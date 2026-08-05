@@ -66,6 +66,15 @@ const providers: readonly PackageProvider[] = [
     "drifting",
     path.join(NEGATIVE, "drifting"),
   ),
+  {
+    ...provider(
+      "@luque-fixture/nomap",
+      "1.0.0",
+      "nomap",
+      path.join(NEGATIVE, "nomap"),
+    ),
+    projectPath: path.join(NEGATIVE, "nomap/tsconfig.json"),
+  },
 ];
 
 const registry: PackageProviderRegistry = {
@@ -141,6 +150,12 @@ describe("cross-repository negative fixture", () => {
         "@luque-fixture/unmapped",
         "unmapped",
         path.join(NEGATIVE, "unmapped/dist/index.d.ts"),
+      ],
+      [
+        "plain",
+        "@luque-fixture/nomap",
+        "plain",
+        path.join(NEGATIVE, "nomap/dist/index.d.ts"),
       ],
     ]);
   });

@@ -13,6 +13,7 @@ import type {
   PackageProvider,
   PackageProviderRegistry,
 } from "./package-import-resolver.js";
+import { resolveProviderSourcePositions } from "./provider-source-position-resolver.js";
 import {
   resolveUnresolvedReferences,
   type PackageProviderConflict,
@@ -162,6 +163,15 @@ const cases: readonly PrecisionCase[] = [
         "drifting",
         path.join(NEGATIVE, "drifting"),
       ),
+      {
+        ...provider(
+          "@luque-fixture/nomap",
+          "1.0.0",
+          "nomap",
+          path.join(NEGATIVE, "nomap"),
+        ),
+        projectPath: path.join(NEGATIVE, "nomap/tsconfig.json"),
+      },
     ],
     conflicts: [
       {
@@ -179,6 +189,7 @@ const cases: readonly PrecisionCase[] = [
       "src/consumer.ts#compute -> @luque-fixture/twin:compute -> cross-repository-negative/twin/dist/index.d.ts",
       "src/consumer.ts#sharedValue -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
       "src/consumer.ts#unmapped -> @luque-fixture/unmapped:unmapped -> cross-repository-negative/unmapped/dist/index.d.ts",
+      "src/consumer.ts#plain -> @luque-fixture/nomap:plain -> cross-repository-negative/nomap/dist/index.d.ts",
     ],
     expectedUnresolved: [
       "@luque-fixture/unmapped:DECLARATION_SOURCE_NOT_MAPPED:unmapped",
@@ -186,8 +197,9 @@ const cases: readonly PrecisionCase[] = [
       "@luque-fixture/duplicated:AMBIGUOUS_PACKAGE_PROVIDER:-",
       "@luque-fixture/drifting:VERSION_MISMATCH:-",
     ],
-    // `unmapped` ships no declaration map, so only two edges can be placed.
-    expectedSourcePositions: 2,
+    // `unmapped` publishes neither map nor sources, so it stays unplaceable;
+    // `nomap` has no map but its own project can place the symbol.
+    expectedSourcePositions: 3,
   },
 ];
 
@@ -264,9 +276,13 @@ async function measureCase(
       (entry) => !expectedUnresolved.has(entry),
     );
 
-    const mappedSourcePositions = resolution.symbols.filter(
-      (symbol) => symbol.target.declarations[0]?.sourcePosition !== undefined,
-    ).length;
+    // Positions come from the declaration map first and, when the provider
+    // ships none, from the provider's own project.
+    const providerPositions = await resolveProviderSourcePositions(resolution);
+    const mappedSourcePositions =
+      resolution.symbols.filter(
+        (symbol) => symbol.target.declarations[0]?.sourcePosition !== undefined,
+      ).length + providerPositions.positions.length;
     const truePositives = expectedEdges.size - missingEdges.length;
     const metrics: PrecisionMetrics = {
       expectedEdges: expectedEdges.size,

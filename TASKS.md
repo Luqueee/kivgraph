@@ -3854,11 +3854,90 @@ a través de barrel y alias, un mapa sin segmentos y un artefacto sin mapa.
 El gate `TYPESCRIPT_CROSS_REPO_PASS` se re-midió y sigue emitido, ahora también
 exigiendo que las posiciones esperadas estén todas mapeadas.
 
+**Limitaciones resueltas por LUQUE-0711:**
+
+* La posición correspondía al inicio de la declaración, no al identificador.
+* Un provider sin `declarationMap` conservaba únicamente el puente file-level.
+
+**Siguiente tarea:** LUQUE-0711.
+
+---
+
+## LUQUE-0711 — Posicionar el identificador y suplir el mapa ausente
+
+**Dependencias:** LUQUE-0710.
+
+**Checklist:**
+
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Motivo:** cerrar las dos limitaciones que dejó LUQUE-0710.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/declaration-name.ts`;
+* `ts-worker/src/imported-symbol-resolver.ts` (consulta por identificador);
+* `ts-worker/src/provider-source-position-resolver.ts`;
+* `ts-worker/src/provider-source-position-resolver.test.ts`;
+* `testdata/typescript/cross-repository-negative/nomap`;
+* `benchmarks/typescript-cross-repo/*`.
+
+**Contrato añadido:**
+
+```text
+resolveProviderSourcePositions(importedSymbolResolution, options?)
+  -> { positions, unresolved }
+```
+
+**Decisiones:**
+
+* El mapa se consulta en la posición del **nombre declarado**, no del inicio de
+  la sentencia. `declarationName` localiza ese token dentro de un nodo que el
+  checker ya seleccionó; no compara nombres entre paquetes.
+* Un provider sin `declarationMap` se resuelve abriendo **su propio proyecto**
+  TypeScript y preguntando a **su** checker qué símbolo exporta el módulo fuente
+  bajo ese nombre. La respuesta la da el compilador del repositorio dueño del
+  código; sigue sin existir coincidencia nominal entre paquetes.
+* La resolución por proyecto del provider es explícita y opcional: abre y cierra
+  un `LanguageService` por proyecto, coste que no se impone a quien solo
+  necesita las aristas.
+* Un provider sin proyecto propio ni fuentes publicadas no genera petición: no
+  hay nada que situar y no se inventa un destino.
+
+**Verificación:**
+
+```text
+pnpm check                         # 15 archivos, 67 tests passed
+pnpm precision                     # exact source positions 8/8
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+Posiciones comprobadas contra el código fuente real:
+
+```text
+value    src/value.ts:1:13
+Shape    src/value.ts:3:17
+compute  src/value.ts:7:16
+helper   src/helper.ts:3:16
+plain    nomap/src/index.ts:1:13    (sin declaration map)
+```
+
 **Limitaciones:**
 
-* La posición corresponde al inicio de la declaración, no al identificador
-  dentro de ella cuando el mapa no emite un segmento propio para el nombre.
-* Un provider sin `declarationMap` conserva únicamente el puente file-level.
+* Un provider que no publica ni mapa ni fuentes sigue sin posición; sólo existe
+  el artefacto compilado y no hay hecho que registrar.
+* Abrir el proyecto del provider tiene coste; cuando el provider ya esté
+  indexado como repositorio propio, LUQUE-0901 podrá reutilizar su símbolo en
+  lugar de recalcularlo.
 
 **Siguiente tarea:** LUQUE-0801.
 

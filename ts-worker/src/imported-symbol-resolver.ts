@@ -23,6 +23,7 @@ import type {
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
 
+import { declarationName } from "./declaration-name.js";
 import {
   DeclarationPositionMapper,
   type SourcePosition,
@@ -352,6 +353,15 @@ async function resolveDeclarations(
         const end = node.getEnd();
         const mapping = mappingsByFile.get(handle.path);
         const startPosition = sourceFile.getLineAndCharacterOfPosition(start);
+        // The declaration map is queried at the declared name, not at the
+        // statement start, so the source position points at the symbol.
+        const nameNode = declarationName(node);
+        const namePosition =
+          nameNode === undefined
+            ? startPosition
+            : sourceFile.getLineAndCharacterOfPosition(
+                nameNode.getStart(sourceFile),
+              );
         return {
           fileName: handle.path,
           start,
@@ -365,7 +375,7 @@ async function resolveDeclarations(
           sourcePosition: await lookupSourcePosition(
             mappers,
             handle.path,
-            startPosition,
+            namePosition,
           ),
         };
       },

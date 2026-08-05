@@ -102,7 +102,7 @@ describe("cross-repository positive fixture", () => {
         {
           fileName: path.join(SHARED_ROOT, "src/value.ts"),
           line: 7,
-          character: 0,
+          character: 16,
         },
       ],
       [
@@ -118,7 +118,7 @@ describe("cross-repository positive fixture", () => {
         {
           fileName: path.join(SHARED_ROOT, "src/value.ts"),
           line: 3,
-          character: 0,
+          character: 17,
         },
       ],
     ]);
@@ -167,7 +167,7 @@ describe("cross-repository positive fixture", () => {
       {
         fileName: path.join(SHARED_ROOT, "src/helper.ts"),
         line: 3,
-        character: 0,
+        character: 16,
       },
       {
         fileName: path.join(SHARED_ROOT, "src/value.ts"),

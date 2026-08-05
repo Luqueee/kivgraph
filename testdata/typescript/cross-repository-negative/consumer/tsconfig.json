@@ -21,6 +21,9 @@
       ],
       "@luque-fixture/shared": [
         "../../cross-repository/shared-library/dist/index.d.ts"
+      ],
+      "@luque-fixture/nomap": [
+        "../nomap/dist/index.d.ts"
       ]
     }
   },

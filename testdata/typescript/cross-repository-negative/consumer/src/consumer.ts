@@ -4,9 +4,10 @@ import { unmapped } from "@luque-fixture/unmapped";
 import { missing } from "@luque-fixture/unmapped";
 import { duplicated } from "@luque-fixture/duplicated";
 import { drifted } from "@luque-fixture/drifting";
+import { plain } from "@luque-fixture/nomap";
 
 /** Local homonym: shares its name with an export of the shared provider. */
 export const value = "local homonym";
 
 export const total =
-  compute(sharedValue) + unmapped + duplicated + drifted + Number(missing);
+  compute(sharedValue) + unmapped + duplicated + drifted + plain + Number(missing);
