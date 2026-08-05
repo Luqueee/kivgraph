@@ -198,23 +198,29 @@ func containsReplacementSource(sources []replacementSource, candidate replacemen
 	return false
 }
 
-// resolveReplacements promotes a replacement only when every module that
-// declares it agrees on the target, and the replaced module is not itself part
-// of the workspace: `use` already supersedes such a replacement.
+// resolveReplacements promotes the replacement of every module the workspace
+// does not already provide by `use`.
+//
+// When the members disagree, go refuses to load the whole workspace unless the
+// workspace itself overrides the replacement, so an override is emitted: the
+// alternative is losing every fact of every repository. The choice is
+// deterministic and the conflict is reported, so LUQUE-0810 can refuse every
+// edge that would depend on the guessed target.
 func resolveReplacements(plan *Plan, sources map[replacementKey][]replacementSource, included map[string]struct{}) {
 	for key, candidates := range sources {
 		if _, workspaceProvides := included[key.oldPath]; workspaceProvides {
 			continue
 		}
+		chosen := candidates[0]
 		if len(candidates) > 1 {
 			plan.Conflicts = append(plan.Conflicts, replaceConflict(key, candidates))
-			continue
+			chosen = smallestReplacement(candidates)
 		}
 		plan.Replaces = append(plan.Replaces, Replacement{
 			OldPath:    key.oldPath,
 			OldVersion: key.oldVersion,
-			NewPath:    candidates[0].newPath,
-			NewVersion: candidates[0].newVersion,
+			NewPath:    chosen.newPath,
+			NewVersion: chosen.newVersion,
 		})
 	}
 	sort.Slice(plan.Replaces, func(left, right int) bool {
@@ -223,6 +229,19 @@ func resolveReplacements(plan *Plan, sources map[replacementKey][]replacementSou
 		}
 		return plan.Replaces[left].OldVersion < plan.Replaces[right].OldVersion
 	})
+}
+
+// smallestReplacement picks the lexicographically first target so the emitted
+// workspace is reproducible across machines and runs.
+func smallestReplacement(candidates []replacementSource) replacementSource {
+	chosen := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if candidate.newPath < chosen.newPath ||
+			(candidate.newPath == chosen.newPath && candidate.newVersion < chosen.newVersion) {
+			chosen = candidate
+		}
+	}
+	return chosen
 }
 
 func ambiguousModuleConflict(modulePath string, candidates []Module) Conflict {

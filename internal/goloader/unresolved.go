@@ -150,6 +150,8 @@ func referenceReason(status CrossRepositoryStatus) (UnresolvedReason, bool) {
 		return UnresolvedAmbiguousModuleProvider, true
 	case ObjectPathUnavailable:
 		return UnresolvedObjectPathUnavailable, true
+	case ReplaceConflictTarget:
+		return UnresolvedReplaceConflict, true
 	default:
 		return "", false
 	}

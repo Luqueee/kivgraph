@@ -110,8 +110,12 @@ replace example.com/pinned => example.com/pinned v2.0.0
 	if got := modulePaths(plan); !equalStrings(got, []string{"example.com/consumer"}) {
 		t.Fatalf("modules = %v, want only the unambiguous module", got)
 	}
-	if len(plan.Replaces) != 0 {
-		t.Fatalf("replaces = %#v, want the conflicting directive excluded", plan.Replaces)
+	// go refuses to load a workspace whose members disagree on a replacement,
+	// so the workspace overrides it deterministically and reports the conflict.
+	if len(plan.Replaces) != 1 ||
+		plan.Replaces[0].OldPath != "example.com/pinned" ||
+		plan.Replaces[0].NewVersion != "v1.0.0" {
+		t.Fatalf("replaces = %#v, want the deterministic override", plan.Replaces)
 	}
 	if len(plan.Conflicts) != 2 {
 		t.Fatalf("conflicts = %#v, want ambiguous module and replace conflict", plan.Conflicts)

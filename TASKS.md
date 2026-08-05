@@ -4834,11 +4834,13 @@ clases de referencia por objetivo y la ausencia de referencias no resueltas.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Incluir:**
 
@@ -4847,6 +4849,63 @@ clases de referencia por objetivo y la ausencia de referencias no resueltas.
 * método del receiver incorrecto;
 * callback con mismo nombre;
 * replace conflictivo.
+
+**Entregables:**
+
+```text
+testdata/go/cross-repository-negative
+internal/goloader/fixture_negative_test.go
+internal/goworkspace/synthetic.go        (override determinista)
+internal/goloader/crossrepo.go           (estado REPLACE_CONFLICT)
+```
+
+**Casos y resultado esperado:**
+
+| Caso | Resultado |
+| --- | --- |
+| homónimo local | arista al símbolo local, nunca al provider |
+| módulo duplicado | `AMBIGUOUS_MODULE_PROVIDER`, sin identidad |
+| método de otro receptor | arista al receptor importado, nunca al homónimo |
+| callback homónimo | arista a la función local que se pasa |
+| replace conflictivo | `REPLACE_CONFLICT`, sin arista |
+
+**Hallazgo del toolchain:**
+
+`go` **rechaza cargar el workspace completo** cuando dos módulos usados
+declaran replacements distintos para el mismo módulo, aunque nadie lo importe.
+Excluir la directiva, como hacía LUQUE-0801, dejaba el fixture sin cargar y con
+él todos los repositorios.
+
+Decisión: el workspace emite un **override determinista** —el destino
+lexicográficamente menor— para que la carga sea posible, conserva el conflicto
+en el plan, y `ResolveCrossRepository` marca `REPLACE_CONFLICT` toda referencia
+a ese módulo. El override es un recurso de carga; ninguna arista se apoya en el
+destino adivinado.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader ./internal/goworkspace
+go tool staticcheck ./internal/goloader ./internal/goworkspace
+```
+
+La suite comprueba que el homónimo local y el del provider se cuentan por
+separado, que el callback resuelto es el local, que `Shape.Area` sólo se
+atribuye a dos receptores —el local y el importado—, que el módulo duplicado
+conserva ambos candidatos sin clave, y que una referencia a un módulo con
+replacement adivinado no produce arista.
+
+**Limitaciones:**
+
+* El fixture mantiene `mirror` sin importar: comprueba que un paquete presente
+  en el registro pero no importado nunca aparece como destino.
+* El conflicto de `replace` es declarativo; el caso con importación real se
+  cubre con el estado inyectado del mismo clasificador.
+
+**Siguiente tarea:** LUQUE-0813.
 
 ---
 

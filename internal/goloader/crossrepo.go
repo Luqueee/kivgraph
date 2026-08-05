@@ -28,6 +28,9 @@ const (
 	// ObjectPathUnavailable means the exported target has no object path, so
 	// it cannot be addressed from another repository.
 	ObjectPathUnavailable CrossRepositoryStatus = "OBJECT_PATH_UNAVAILABLE"
+	// ReplaceConflictTarget means the workspace had to guess the replacement
+	// of the target module, so no edge may depend on it.
+	ReplaceConflictTarget CrossRepositoryStatus = "REPLACE_CONFLICT"
 )
 
 // ModuleProvider is one module offered by a registered repository.
@@ -131,6 +134,9 @@ type CrossRepositoryOptions struct {
 	// IncludeSameModule keeps uses whose target is in the consumer module.
 	// They are intra-repository facts and are excluded by default.
 	IncludeSameModule bool
+	// ConflictingModules are module paths whose replacement the synthetic
+	// workspace had to guess. No edge may be built on them.
+	ConflictingModules []string
 }
 
 // ResolveCrossRepository attributes each use to the repository that provides
@@ -156,6 +162,10 @@ func ResolveCrossRepository(
 	}
 
 	encoders := make(map[string]*objectpath.Encoder)
+	conflicting := make(map[string]bool, len(options.ConflictingModules))
+	for _, modulePath := range options.ConflictingModules {
+		conflicting[strings.TrimSpace(modulePath)] = true
+	}
 	references := make([]CrossRepositoryReference, 0)
 	for _, use := range uses {
 		if err := ctx.Err(); err != nil {
@@ -173,6 +183,8 @@ func ResolveCrossRepository(
 		}
 		providers := registry.Providers(use.TargetModulePath)
 		switch {
+		case conflicting[use.TargetModulePath]:
+			reference.Status = ReplaceConflictTarget
 		case len(providers) == 0:
 			reference.Status = ModuleProviderNotFound
 		case len(providers) > 1:
