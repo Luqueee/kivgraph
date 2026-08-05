@@ -2095,23 +2095,30 @@ la tarea clasifica cambios ya parseados.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Objetivo:** garantizar que Tree-sitter no crea enlaces semánticos.
+**Estado:** `PASS`.
 
-**Criterio:**
+**Entregables:**
 
-El parser puede encontrar candidatos, pero no debe producir una arista exacta.
+* `testdata/syntax/false-homonym/left.ts`;
+* `testdata/syntax/false-homonym/right.ts`;
+* `internal/syntax/false_homonym_test.go`.
 
-**Gate:**
+**Resultado:** ambos archivos contienen candidatos con el mismo nombre
+`parse`, pero `right.ts` no importa `parse` desde `left.ts`. El inventario
+expone candidatos sintácticos únicamente; no contiene una salida de aristas
+exactas ni convierte el homónimo en relación semántica.
 
-```text
-TREE_SITTER_ACCELERATOR_PASS
-```
+**Verificación:** `go test ./internal/syntax -run
+'^TestFalseHomonymFixtureProducesCandidatesWithoutSemanticEdges$' -count=1`
+pasa. No se requiere benchmark.
+
+**Gate:** `TREE_SITTER_ACCELERATOR_PASS`.
 
 ---
 
