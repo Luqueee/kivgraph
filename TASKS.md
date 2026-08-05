@@ -4034,20 +4034,81 @@ metadatos ya descubiertos.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Configurar flags semánticos completos.**
+**Estado:** `PASS`.
 
-Debe soportar:
+**Entregables:**
 
-* context cancellation;
-* errores parciales;
-* módulos múltiples;
-* replace directives.
+* `internal/goloader/loader.go`;
+* `internal/goloader/loader_test.go`;
+* `golang.org/x/tools` promovido a dependencia directa.
+
+**Contrato:**
+
+```text
+Load(ctx, options) -> { Fset, Packages, Modules, Errors }
+```
+
+**Flags semánticos completos:**
+
+```text
+NeedName NeedFiles NeedCompiledGoFiles NeedSyntax
+NeedTypes NeedTypesInfo NeedTypesSizes NeedImports
+NeedDeps NeedModule
+```
+
+**Soporte verificado:**
+
+* **context cancellation:** el contexto viaja en `packages.Config` y se
+  comprueba antes y después de la carga.
+* **errores parciales:** clasificados en `LIST`, `PARSE`, `TYPE` y `UNKNOWN`,
+  con paquete y posición. Un paquete roto nunca descarta a los sanos.
+* **módulos múltiples:** la carga usa el `go.work` sintético de LUQUE-0801
+  mediante `GOWORK`.
+* **replace directives:** `Module.ReplacedBy` y `ReplacedDirectory` conservan
+  el destino real de la sustitución.
+
+**Decisiones:**
+
+* La indexación es hermética por defecto: `GOPROXY=off` y `-mod=readonly`. Una
+  dependencia ausente se reporta como error parcial, no se descarga. La red se
+  habilita explícitamente con `AllowNetwork`.
+* Se devuelven los `*packages.Package` reales, no una copia empobrecida: las
+  fases 0803 a 0805 necesitan `TypesInfo`, `Types` y `Syntax` del mismo
+  universo.
+* Cada carga crea un universo `go/types` nuevo; los resultados se ordenan por
+  package path para que la salida sea determinista.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...                       # 13 paquetes ok, 2 sin tests
+go vet ./...
+go build ./cmd/luque
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader ./internal/goworkspace
+```
+
+La suite comprueba, sobre proyectos reales del compilador: resolución
+cross-module de `TypesInfo.Uses` a un objeto del módulo proveedor con su
+posición en disco, un `replace` local seguido hasta su directorio, un paquete
+con error de tipos que no arrastra al válido, cancelación y peticiones
+inválidas.
+
+**Limitaciones:**
+
+* La extracción de definiciones, claves estables y usos pertenece a
+  LUQUE-0803, LUQUE-0804 y LUQUE-0805.
+* No se mide rendimiento aquí: el coste de carga se perfila con el corpus de
+  fase.
+
+**Siguiente tarea:** LUQUE-0803.
 
 ---
 
