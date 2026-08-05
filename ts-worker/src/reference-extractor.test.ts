@@ -178,6 +178,54 @@ export function externalValue(): number { return external; }
     ]);
   });
 
+  it("follows value and type import aliases to local declarations", async () => {
+    const workspace = await createWorkspace({
+      "src/definitions.ts": `
+export type Shape = { value: number };
+export function target(value: number): number {
+  return value;
+}
+`,
+      "src/consumer.ts": `
+import {
+  target as importedTarget,
+  type Shape as ImportedShape,
+} from "./definitions.js";
+
+export function use(
+  items: number[],
+  shape: ImportedShape,
+): typeof importedTarget {
+  importedTarget(1);
+  items.map(importedTarget);
+  return importedTarget;
+}
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+    const extraction = await extractLocalReferences(service, view, symbols, {
+      files: ["src/consumer.ts"],
+    });
+
+    expect(
+      extraction.references.map((reference) => [
+        reference.kind,
+        reference.text,
+        reference.target.name,
+        path.basename(reference.target.fileName),
+      ]),
+    ).toEqual([
+      ["TYPE_USES", "ImportedShape", "Shape", "definitions.ts"],
+      ["TYPE_USES", "importedTarget", "target", "definitions.ts"],
+      ["CALLS_DIRECT", "importedTarget", "target", "definitions.ts"],
+      ["PASSES_AS_CALLBACK", "importedTarget", "target", "definitions.ts"],
+      ["RETURNS_FUNCTION", "importedTarget", "target", "definitions.ts"],
+    ]);
+  });
+
   it("recognizes local arrow variables as callable targets", async () => {
     const workspace = await createWorkspace({
       "src/index.ts": `

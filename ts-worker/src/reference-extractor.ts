@@ -50,7 +50,8 @@ import type {
   Node,
   SourceFile,
 } from "typescript/unstable/ast";
-
+import { SymbolFlags } from "typescript/unstable/async";
+import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
 import {
   LanguageServiceError,
   type LanguageService,
@@ -113,9 +114,9 @@ const KIND_PRIORITY: Record<LocalReferenceKind, number> = {
 /**
  * Extract local references from the symbols and project view of one snapshot.
  *
- * `symbols` must have been produced from the same `view`. References are
- * omitted when TypeScript resolves them to an alias or external symbol that is
- * not present in that extraction; LUQUE-0610 resolves those aliases.
+ * `symbols` must have been produced from the same `view`. TypeScript aliases
+ * are followed through the native checker before the target is matched to a
+ * local declaration; unresolved and external aliases are omitted.
  */
 export async function extractLocalReferences(
   service: LanguageService,
@@ -180,13 +181,15 @@ export async function extractLocalReferences(
     }
   }
 
+  const localTargets = await resolveLocalTargets(
+    view,
+    referenceSymbols,
+    localById,
+  );
+
   const references: LocalReference[] = [];
   for (const [index, request] of requestList.entries()) {
-    const resolvedSymbol = referenceSymbols[index];
-    if (resolvedSymbol === undefined) {
-      continue;
-    }
-    const target = localById.get(resolvedSymbol.id);
+    const target = localTargets[index];
     if (target === undefined) {
       continue;
     }
@@ -214,6 +217,45 @@ export async function extractLocalReferences(
     configFileName: view.configFileName,
     references,
   };
+}
+
+async function resolveLocalTargets(
+  view: ProjectView,
+  resolvedSymbols: readonly (TypeScriptSymbol | undefined)[],
+  localById: ReadonlyMap<number, LocalSymbol>,
+): Promise<(LocalSymbol | undefined)[]> {
+  const aliasCandidates = new Map<number, TypeScriptSymbol>();
+  for (const symbol of resolvedSymbols) {
+    if (
+      symbol !== undefined &&
+      !localById.has(symbol.id) &&
+      (symbol.flags & SymbolFlags.Alias) !== 0
+    ) {
+      aliasCandidates.set(symbol.id, symbol);
+    }
+  }
+
+  const aliasResults = await Promise.all(
+    [...aliasCandidates.entries()].map(
+      async ([symbolId, symbol]): Promise<
+        readonly [number, LocalSymbol | undefined]
+      > => {
+        const target = await view.checker.getAliasedSymbol(symbol);
+        if (await view.checker.isUnknownSymbol(target)) {
+          return [symbolId, undefined];
+        }
+        return [symbolId, localById.get(target.id)];
+      },
+    ),
+  );
+  const resolvedAliases = new Map(aliasResults);
+
+  return resolvedSymbols.map((symbol) => {
+    if (symbol === undefined) {
+      return undefined;
+    }
+    return localById.get(symbol.id) ?? resolvedAliases.get(symbol.id);
+  });
 }
 
 async function selectLocalFiles(

@@ -2853,15 +2853,72 @@ stale.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Utilizar el TypeChecker.**
+**Estado:** `PASS`.
 
-No enlazar por nombre.
+**Entregables:**
+
+* `ts-worker/src/reference-extractor.ts`;
+* `ts-worker/src/reference-extractor.test.ts`.
+
+**Resolución implementada:**
+
+* Los símbolos que el checker marca con `SymbolFlags.Alias` se resuelven con
+  `checker.getAliasedSymbol`.
+* La resolución sigue toda la cadena de aliases y descarta el símbolo
+  `unknown` o cualquier destino que no esté en el índice de `LocalSymbol`.
+* El destino se asocia exclusivamente por `symbol.id`; no se compara por
+  nombre, texto ni nombre cualificado.
+* Las referencias a imports de valor y de tipo conservan la ocurrencia local,
+  pero apuntan al `LocalSymbol` declarado en el módulo origen.
+* Los aliases externos o no resueltos siguen omitidos.
+
+**Contrato conservado:**
+
+```text
+extractLocalReferences(service, view, symbols, options?)
+  -> { generation, configFileName, references }
+```
+
+La clasificación de LUQUE-0609 (`REFERENCES`, `CALLS_DIRECT`,
+`PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION` y `TYPE_USES`)
+se aplica después de resolver el destino final, por lo que un callback o
+función importada conserva su clasificación semántica.
+
+**Verificación:**
+
+```text
+5 archivos de tests
+42 tests passed
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La prueba nueva cubre imports aliasados de valor y tipo, verifica el archivo
+declarativo real del destino y conserva la exclusión de símbolos externos.
+
+**Limitaciones:**
+
+* `export`, `export *`, reexports, barrels y las formas de exportación
+  sintáctica siguen reservadas para LUQUE-0611.
+* No se infiere aliasing por asignación (`const local = imported`) ni flujo de
+  datos arbitrario; solo se resuelven aliases que el checker marca como tales.
+* `symbolId` permanece limitado al snapshot actual; la identidad durable será
+  la stable key del modelo Go.
+
+**Siguiente tarea:** LUQUE-0611.
 
 ---
 
