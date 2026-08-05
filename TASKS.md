@@ -1703,11 +1703,11 @@ repositories.yaml
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Detectar:**
 
@@ -1718,6 +1718,20 @@ tsconfig.*.json
 workspace declarations
 project references
 ```
+
+**Estado:** `PASS`.
+
+* `internal/workspace.DiscoverTypeScript` detecta `package.json`, `tsconfig.json`, `tsconfig.*.json`, `pnpm-workspace.yaml` y `pnpm-workspace.yml` con paths absolutos y orden determinista.
+* Las declaraciones `workspaces` de npm/Yarn y pnpm se validan sin resolver todavía el registro de paquetes; esa responsabilidad pertenece a LUQUE-0406.
+* Los `tsconfig` se leen como JSONC; las referencias se resuelven desde el archivo declarante, incluyendo referencias a directorios mediante `tsconfig.json`, y se rechazan targets ausentes o fuera del repositorio.
+* Se omiten `.git`, dependencias instaladas, symlinks y exclusiones configuradas.
+* Las pruebas cubren detección, workspaces array/objeto, pnpm, JSONC, referencias, escapes, targets ausentes, exclusiones, symlinks y cancelación.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/luque` y `go tool staticcheck ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/luque-ladybug-v0.19.0/lib`.
+* Smoke real: `go test ./internal/workspace -run '^TestDiscoverTypeScriptFindsManifestsWorkspacesAndReferences$' -count=1 -v` pasa con un árbol temporal de workspace.
+* Limitación: `go tool staticcheck ./...` conserva seis avisos fuera del alcance 0404 en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
+* No se requiere benchmark: el descubrimiento es una operación de configuración y filesystem; no se ha añadido un contrato de rendimiento.
+* Siguiente tarea: LUQUE-0405.
 
 ---
 

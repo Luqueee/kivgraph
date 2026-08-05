@@ -28,8 +28,26 @@ los realpaths duplicados, el anidamiento entre repositorios y las colisiones de
 nombre sin distinguir mayúsculas. Los paths declarativos de `manifests`,
 `roots` y `exclusions` se interpretan dentro del `realpath` del repositorio y
 no pueden escapar de él. La validación no exige todavía que esos archivos o
-directorios declarativos existan: su descubrimiento corresponde a LUQUE-0404 y
-LUQUE-0405.
+directorios declarativos existan; `DiscoverTypeScript` realiza el descubrimiento
+de manifests TypeScript y la resolución de referencias descrita a continuación.
+El descubrimiento Go permanece en LUQUE-0405.
+
+## Descubrimiento TypeScript
+
+`internal/workspace.DiscoverTypeScript` recorre el árbol del repositorio con un
+orden determinista y devuelve paths absolutos para `package.json`, `tsconfig`
+y declaraciones de workspace. Omite `.git`, dependencias instaladas y symlinks,
+además de las exclusiones configuradas.
+
+Las declaraciones `workspaces` de `package.json` admiten la forma array y la
+forma objeto de npm/Yarn. También se reconoce `pnpm-workspace.yaml`. Los
+patrones se validan para impedir escapes del repositorio, pero se conservan
+como patrones: la asignación de paquetes pertenece a LUQUE-0406.
+
+Los `tsconfig*.json` se leen como JSONC para admitir comentarios y trailing
+commas. Cada `references[].path` se resuelve relativo al `tsconfig` que lo
+declara; las referencias a directorios apuntan a su `tsconfig.json`, deben
+existir, ser regulares y permanecer dentro del realpath del repositorio.
 
 ## Consecuencias
 
