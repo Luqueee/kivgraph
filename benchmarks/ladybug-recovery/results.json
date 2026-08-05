@@ -1,21 +1,21 @@
 {
   "benchmark": "ladybug-recovery",
-  "command": "/tmp/go-build3107653430/b001/exe/ladybug-recovery --database /tmp/luque-ladybug-qualification.db --output benchmarks/ladybug-recovery --documentation docs/testing/ladybug-recovery.md",
-  "commit": "d83058fa94eb5797b8355285ed60c72d6b944379-dirty",
-  "generated_at": "2026-08-04T20:59:56.542074636Z",
+  "command": "/home/devlabs/.cache/go-build/d2/d224e1b796020ce81d96d0136c6e85aece8e460606d1de64764d6b8a1386fd76-d/ladybug-recovery",
+  "commit": "e7472c0f135df2e6152d96420a4f86223aa0b338-dirty",
+  "generated_at": "2026-08-05T18:43:23.430433024Z",
   "go_version": "go1.24.4",
   "goos": "linux",
   "goarch": "amd64",
-  "base_database_bytes": 43290624,
-  "base_sha256_before": "11f9860e15f07981d4c5f1ddccf5e2c001cfa1c4ec060895ab95f50d9908e36a",
-  "base_sha256_after": "11f9860e15f07981d4c5f1ddccf5e2c001cfa1c4ec060895ab95f50d9908e36a",
+  "base_database_bytes": 66936832,
+  "base_sha256_before": "6229a65c055316a5402d70d8da79e02bd7b67dcb840b3e4a1bb949826ff56031",
+  "base_sha256_after": "6229a65c055316a5402d70d8da79e02bd7b67dcb840b3e4a1bb949826ff56031",
   "source_unchanged": true,
   "cases": [
     {
       "case": "sigkill_during_insert",
       "expected": "SIGKILL interrupts an active transaction; reopening rolls it back",
       "observed": "all checks passed",
-      "duration_ms": 272.774843,
+      "duration_ms": 95.14958,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -31,7 +31,7 @@
       "case": "sigkill_before_commit",
       "expected": "SIGKILL immediately before COMMIT preserves the previous committed state",
       "observed": "all checks passed",
-      "duration_ms": 83.766719,
+      "duration_ms": 64.125748,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -47,7 +47,7 @@
       "case": "sigkill_during_bulk_load",
       "expected": "SIGKILL during COPY leaves no partially visible bulk rows",
       "observed": "all checks passed",
-      "duration_ms": 274.475185,
+      "duration_ms": 270.007386,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -63,7 +63,7 @@
       "case": "reopen_after_crash",
       "expected": "reopening recovers the database and accepts a new durable transaction",
       "observed": "all checks passed",
-      "duration_ms": 143.248613,
+      "duration_ms": 112.071328,
       "passed": true,
       "child": {
         "exit_code": -1,
@@ -79,7 +79,7 @@
       "case": "truncated_file",
       "expected": "Open or Health rejects a database truncated to half its committed size",
       "observed": "all checks passed",
-      "duration_ms": 19.487771,
+      "duration_ms": 25.224584,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -95,7 +95,7 @@
       "case": "permission_denied_directory",
       "expected": "an unwritable directory is rejected without creating a database",
       "observed": "all checks passed",
-      "duration_ms": 11.288163,
+      "duration_ms": 11.214108,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -111,7 +111,7 @@
       "case": "simulated_disk_full",
       "expected": "ENOSPC damages only a private candidate while CURRENT remains recoverable",
       "observed": "all checks passed",
-      "duration_ms": 7196.79619,
+      "duration_ms": 2530.159576,
       "passed": true,
       "child": {
         "exit_code": 1,
@@ -131,7 +131,7 @@
       "case": "generation_publication_enospc",
       "expected": "generation rename, CURRENT write/fsync/rename and state-directory fsync failures preserve the active generation",
       "observed": "all checks passed",
-      "duration_ms": 6026.260618,
+      "duration_ms": 6197.152701,
       "passed": true,
       "checks": [
         "rename_generation: CURRENT preserved",

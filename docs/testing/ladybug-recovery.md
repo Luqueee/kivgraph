@@ -4,21 +4,21 @@
 
 Estado global: **PASS**. La base de entrada permaneció intacta: `true`.
 
-- Commit medido: `d83058fa94eb5797b8355285ed60c72d6b944379-dirty`
-- Fecha: `2026-08-04T20:59:56Z`
+- Commit medido: `e7472c0f135df2e6152d96420a4f86223aa0b338-dirty`
+- Fecha: `2026-08-05T18:43:23Z`
 - Plataforma: `linux/amd64`, `go1.24.4`
-- Base: `43290624` bytes, SHA-256 `11f9860e15f07981d4c5f1ddccf5e2c001cfa1c4ec060895ab95f50d9908e36a`
+- Base: `66936832` bytes, SHA-256 `6229a65c055316a5402d70d8da79e02bd7b67dcb840b3e4a1bb949826ff56031`
 
 | Caso | Resultado | Duración ms | Observación |
 | --- | --- | ---: | --- |
-| `sigkill_during_insert` | PASS | 272.8 | all checks passed |
-| `sigkill_before_commit` | PASS | 83.8 | all checks passed |
-| `sigkill_during_bulk_load` | PASS | 274.5 | all checks passed |
-| `reopen_after_crash` | PASS | 143.2 | all checks passed |
-| `truncated_file` | PASS | 19.5 | all checks passed |
-| `permission_denied_directory` | PASS | 11.3 | all checks passed |
-| `simulated_disk_full` | PASS | 7196.8 | all checks passed |
-| `generation_publication_enospc` | PASS | 6026.3 | all checks passed |
+| `sigkill_during_insert` | PASS | 95.1 | all checks passed |
+| `sigkill_before_commit` | PASS | 64.1 | all checks passed |
+| `sigkill_during_bulk_load` | PASS | 270.0 | all checks passed |
+| `reopen_after_crash` | PASS | 112.1 | all checks passed |
+| `truncated_file` | PASS | 25.2 | all checks passed |
+| `permission_denied_directory` | PASS | 11.2 | all checks passed |
+| `simulated_disk_full` | PASS | 2530.2 | all checks passed |
+| `generation_publication_enospc` | PASS | 6197.2 | all checks passed |
 
 ## Metodología
 
