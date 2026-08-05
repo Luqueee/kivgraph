@@ -2209,7 +2209,9 @@ resolución de un símbolo suelto es entre `3x` y `7x` más lenta y por lotes de
 * `internal/tsworker/framing.go`;
 * `internal/tsworker/framing_test.go`;
 * `internal/tsworker/fixtures_test.go`;
-* `testdata/protocol/ts-worker-v1/` con ocho frames y su `manifest.json`.
+* `testdata/protocol/ts-worker-v1/` con ocho frames, su `manifest.json` y un
+  `README.md` generado con el volcado hexadecimal y el cuerpo decodificado de
+  cada frame; un test falla si cualquiera de los tres deriva del codec.
 
 **Tests:**
 

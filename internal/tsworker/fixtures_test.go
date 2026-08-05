@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // updateFixtures regenerates the shared wire fixtures consumed by the
@@ -82,7 +85,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "hello_request",
 		File:        "hello_request.bin",
-		Description: "Handshake request written by the supervisor.",
+		Description: "Petición de handshake escrita por el supervisor.",
 		Expect:      "ok",
 		Envelope:    &helloEnvelope,
 		Canonical:   true,
@@ -99,7 +102,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "facts_event",
 		File:        "facts_event.bin",
-		Description: "Worker-initiated event; events use id zero.",
+		Description: "Evento iniciado por el worker; los eventos usan id cero.",
 		Expect:      "ok",
 		Envelope:    &factsEnvelope,
 		Canonical:   true,
@@ -119,7 +122,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "error_response",
 		File:        "error_response.bin",
-		Description: "Classified error response carrying a protocol code.",
+		Description: "Respuesta de error clasificada, con código de protocolo.",
 		Expect:      "ok",
 		Envelope:    &errorEnvelope,
 		Canonical:   true,
@@ -132,7 +135,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "empty_body",
 		File:        "empty_body.bin",
-		Description: "Zero length prefix; the protocol forbids empty bodies.",
+		Description: "Prefijo de longitud cero; el protocolo prohíbe cuerpos vacíos.",
 		Expect:      "error",
 		ErrorCode:   string(FrameEmpty),
 		Fatal:       true,
@@ -143,7 +146,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "oversized_length",
 		File:        "oversized_length.bin",
-		Description: "Length prefix above the 16 MiB limit; must be rejected before allocating.",
+		Description: "Prefijo por encima del límite de 16 MiB; debe rechazarse antes de asignar memoria.",
 		Expect:      "error",
 		ErrorCode:   string(FrameTooLarge),
 		Fatal:       true,
@@ -153,7 +156,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "truncated_body",
 		File:        "truncated_body.bin",
-		Description: "Header announces more bytes than the stream provides.",
+		Description: "La cabecera anuncia más bytes de los que entrega el flujo.",
 		Expect:      "error",
 		ErrorCode:   string(FrameTruncated),
 		Fatal:       true,
@@ -162,7 +165,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "invalid_json",
 		File:        "invalid_json.bin",
-		Description: "Frame boundary is correct but the body is not valid JSON; recoverable.",
+		Description: "El frame está bien delimitado pero el cuerpo no es JSON válido; recuperable.",
 		Expect:      "error",
 		ErrorCode:   string(InvalidPayload),
 		Fatal:       false,
@@ -171,13 +174,104 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	appendCase(fixtureCase{
 		Name:        "foreign_version",
 		File:        "foreign_version.bin",
-		Description: "Envelope declares an unsupported protocol version.",
+		Description: "El sobre declara una versión de protocolo no soportada.",
 		Expect:      "error",
 		ErrorCode:   string(VersionMismatch),
 		Fatal:       true,
 	}, rawFrame(`{"v":2,"id":3,"type":"HELLO","payload":{}}`))
 
 	return manifest, bodies
+}
+
+// buildFixtureReadme renders a human-readable view of the wire fixtures so the
+// TypeScript implementation can be written without a hex viewer.
+func buildFixtureReadme(manifest fixtureManifest, bodies map[string][]byte) string {
+	var out strings.Builder
+	out.WriteString("# Fixtures del protocolo Go–TypeScript, versión 1\n\n")
+	out.WriteString("Archivo generado. No se edita a mano: lo produce\n")
+	out.WriteString("`go test ./internal/tsworker -args -update-fixtures` y un test falla si diverge.\n\n")
+	out.WriteString("Cada `.bin` es un frame literal del cable, tal y como viaja por el pipe.\n")
+	out.WriteString("Los primeros bytes son el prefijo de longitud y no son texto imprimible,\n")
+	out.WriteString("por lo que un editor los trata como binarios.\n\n")
+	fmt.Fprintf(&out, "- Protocolo: `%s`, versión `%d`\n", manifest.Protocol, manifest.Version)
+	fmt.Fprintf(&out, "- Prefijo: %d bytes, %s, cuenta solo el cuerpo\n", manifest.HeaderBytes, manifest.ByteOrder)
+	fmt.Fprintf(&out, "- Cuerpo máximo: %d bytes\n", manifest.MaxFrameBytes)
+	out.WriteString("- Especificación: `docs/protocol/ts-worker-v1.md`\n\n")
+
+	out.WriteString("## Resumen\n\n")
+	out.WriteString("| Archivo | Resultado | Código | Fatal |\n")
+	out.WriteString("| --- | --- | --- | --- |\n")
+	for _, entry := range manifest.Cases {
+		code := entry.ErrorCode
+		if code == "" {
+			code = "-"
+		}
+		fmt.Fprintf(&out, "| `%s` | %s | `%s` | %t |\n", entry.File, entry.Expect, code, entry.Fatal)
+	}
+
+	for _, entry := range manifest.Cases {
+		frame := bodies[entry.File]
+		fmt.Fprintf(&out, "\n## %s\n\n", entry.File)
+		fmt.Fprintf(&out, "%s\n\n", entry.Description)
+		declared := "sin prefijo completo"
+		if len(frame) >= frameHeaderBytes {
+			declared = fmt.Sprintf("%d", binary.BigEndian.Uint32(frame[:frameHeaderBytes]))
+		}
+		fmt.Fprintf(&out, "- Tamaño del archivo: %d bytes\n", len(frame))
+		fmt.Fprintf(&out, "- Longitud declarada: %s\n", declared)
+		fmt.Fprintf(&out, "- Bytes de cuerpo presentes: %d\n", max(0, len(frame)-frameHeaderBytes))
+		if entry.Expect == "ok" {
+			out.WriteString("- Esperado: el lector decodifica el sobre\n")
+		} else {
+			fmt.Fprintf(&out, "- Esperado: error `%s`, sesión %s\n", entry.ErrorCode, sessionOutcome(entry.Fatal))
+		}
+		out.WriteString("\n```text\n")
+		out.WriteString(hexDump(frame))
+		out.WriteString("```\n")
+		if body := frame[min(len(frame), frameHeaderBytes):]; len(body) != 0 && utf8.Valid(body) {
+			out.WriteString("\nCuerpo como texto:\n\n```text\n")
+			out.Write(body)
+			out.WriteString("\n```\n")
+		}
+	}
+	return out.String()
+}
+
+func sessionOutcome(fatal bool) string {
+	if fatal {
+		return "terminada"
+	}
+	return "conservada"
+}
+
+// hexDump renders offset, hexadecimal bytes and printable ASCII per line.
+func hexDump(frame []byte) string {
+	var out strings.Builder
+	for offset := 0; offset < len(frame); offset += 16 {
+		end := min(offset+16, len(frame))
+		chunk := frame[offset:end]
+		fmt.Fprintf(&out, "%08x  ", offset)
+		for index := 0; index < 16; index++ {
+			if index < len(chunk) {
+				fmt.Fprintf(&out, "%02x ", chunk[index])
+			} else {
+				out.WriteString("   ")
+			}
+			if index == 7 {
+				out.WriteByte(' ')
+			}
+		}
+		out.WriteString(" |")
+		for _, value := range chunk {
+			if value >= 0x20 && value < 0x7f {
+				out.WriteByte(value)
+			} else {
+				out.WriteByte('.')
+			}
+		}
+		out.WriteString("|\n")
+	}
+	return out.String()
 }
 
 func TestSharedFixturesMatchTheGoImplementation(t *testing.T) {
@@ -199,6 +293,9 @@ func TestSharedFixturesMatchTheGoImplementation(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(fixtureDirectory, "manifest.json"), append(encoded, '\n'), 0o600); err != nil {
 			t.Fatalf("WriteFile(manifest) error = %v", err)
 		}
+		if err := os.WriteFile(filepath.Join(fixtureDirectory, "README.md"), []byte(buildFixtureReadme(manifest, bodies)), 0o600); err != nil {
+			t.Fatalf("WriteFile(README) error = %v", err)
+		}
 	}
 
 	stored, err := os.ReadFile(filepath.Join(fixtureDirectory, "manifest.json"))
@@ -214,6 +311,14 @@ func TestSharedFixturesMatchTheGoImplementation(t *testing.T) {
 	}
 	if len(storedManifest.Cases) != len(manifest.Cases) {
 		t.Fatalf("stored manifest has %d cases, want %d; regenerate with -update-fixtures", len(storedManifest.Cases), len(manifest.Cases))
+	}
+
+	storedReadme, err := os.ReadFile(filepath.Join(fixtureDirectory, "README.md"))
+	if err != nil {
+		t.Fatalf("read README error = %v; regenerate with -update-fixtures", err)
+	}
+	if string(storedReadme) != buildFixtureReadme(manifest, bodies) {
+		t.Fatal("README.md drifted from the fixtures; regenerate with -update-fixtures")
 	}
 
 	for _, entry := range storedManifest.Cases {

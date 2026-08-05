@@ -8,7 +8,7 @@
     {
       "name": "hello_request",
       "file": "hello_request.bin",
-      "description": "Handshake request written by the supervisor.",
+      "description": "Petición de handshake escrita por el supervisor.",
       "expect": "ok",
       "fatal": false,
       "envelope": {
@@ -21,7 +21,7 @@
     {
       "name": "facts_event",
       "file": "facts_event.bin",
-      "description": "Worker-initiated event; events use id zero.",
+      "description": "Evento iniciado por el worker; los eventos usan id cero.",
       "expect": "ok",
       "fatal": false,
       "envelope": {
@@ -34,7 +34,7 @@
     {
       "name": "error_response",
       "file": "error_response.bin",
-      "description": "Classified error response carrying a protocol code.",
+      "description": "Respuesta de error clasificada, con código de protocolo.",
       "expect": "ok",
       "fatal": false,
       "envelope": {
@@ -47,7 +47,7 @@
     {
       "name": "empty_body",
       "file": "empty_body.bin",
-      "description": "Zero length prefix; the protocol forbids empty bodies.",
+      "description": "Prefijo de longitud cero; el protocolo prohíbe cuerpos vacíos.",
       "expect": "error",
       "error_code": "FRAME_EMPTY",
       "fatal": true,
@@ -56,7 +56,7 @@
     {
       "name": "oversized_length",
       "file": "oversized_length.bin",
-      "description": "Length prefix above the 16 MiB limit; must be rejected before allocating.",
+      "description": "Prefijo por encima del límite de 16 MiB; debe rechazarse antes de asignar memoria.",
       "expect": "error",
       "error_code": "FRAME_TOO_LARGE",
       "fatal": true,
@@ -65,7 +65,7 @@
     {
       "name": "truncated_body",
       "file": "truncated_body.bin",
-      "description": "Header announces more bytes than the stream provides.",
+      "description": "La cabecera anuncia más bytes de los que entrega el flujo.",
       "expect": "error",
       "error_code": "FRAME_TRUNCATED",
       "fatal": true,
@@ -74,7 +74,7 @@
     {
       "name": "invalid_json",
       "file": "invalid_json.bin",
-      "description": "Frame boundary is correct but the body is not valid JSON; recoverable.",
+      "description": "El frame está bien delimitado pero el cuerpo no es JSON válido; recuperable.",
       "expect": "error",
       "error_code": "INVALID_PAYLOAD",
       "fatal": false,
@@ -83,7 +83,7 @@
     {
       "name": "foreign_version",
       "file": "foreign_version.bin",
-      "description": "Envelope declares an unsupported protocol version.",
+      "description": "El sobre declara una versión de protocolo no soportada.",
       "expect": "error",
       "error_code": "VERSION_MISMATCH",
       "fatal": true,
