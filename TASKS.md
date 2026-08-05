@@ -3505,22 +3505,81 @@ el coste cross-repository y los SLO se medirán con el corpus de fase.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Razones mínimas:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/unresolved-reference-resolver.ts`;
+* `ts-worker/src/unresolved-reference-resolver.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato:**
 
 ```text
-PACKAGE_PROVIDER_NOT_FOUND
-EXPORT_NOT_FOUND
-DECLARATION_SOURCE_NOT_MAPPED
+resolveUnresolvedReferences(service, view, registry, options?)
+  -> { generation, configFileName, imports, exports, mappings, symbols, unresolved }
+```
+
+**Razones emitidas:**
+
+```text
 AMBIGUOUS_PACKAGE_PROVIDER
 VERSION_MISMATCH
+PACKAGE_PROVIDER_NOT_FOUND
+MODULE_NOT_RESOLVED
 TYPECHECK_FAILED
+EXPORT_NOT_FOUND
+DECLARATION_SOURCE_NOT_MAPPED
 ```
+
+Cada entrada conserva archivo, specifier, package name, símbolo solicitado
+cuando la razón es por nombre, provider, evidencia observada y los offsets
+UTF-16 del specifier.
+
+**Decisiones:**
+
+* La precedencia es de módulo antes que de nombre: un provider ambiguo, una
+  versión en conflicto, un provider ausente o un módulo no resuelto anulan las
+  razones por nombre de la misma ocurrencia.
+* `AMBIGUOUS_PACKAGE_PROVIDER` y `VERSION_MISMATCH` provienen de los conflictos
+  que emite `internal/workspace.DetectProviderConflicts`; el worker no decide
+  identidad entre repositorios.
+* `TYPECHECK_FAILED` exige un error semántico real en un módulo del provider y
+  solo se emite cuando ese módulo no produjo ninguna arista exacta: un símbolo
+  que el checker sí resuelve sigue siendo un hecho válido.
+* `MODULE_NOT_RESOLVED` se añade al mínimo exigido para no perder el hecho de
+  un provider registrado cuyo módulo TypeScript no resuelve.
+* `DECLARATION_SOURCE_NOT_MAPPED` requiere que todos los destinos declarativos
+  del export carezcan de fuentes en el mapeo de LUQUE-0703.
+
+**Verificación:**
+
+```text
+pnpm check                         # 11 archivos, 59 tests passed
+pnpm build
+gofmt -l .
+go test ./...                      # 11 paquetes ok, 2 sin tests
+go vet ./...
+go build ./cmd/luque
+```
+
+La cobertura ejercita las siete razones sobre proyectos reales del compilador
+nativo, incluida la precedencia entre razones de módulo y de nombre.
+
+**Limitaciones:**
+
+* Los conflictos cross-repository se reciben como entrada; su detección
+  pertenece a LUQUE-0408.
+* La evidencia de `TYPECHECK_FAILED` es el primer error semántico del módulo,
+  no el conjunto completo de diagnósticos.
+
+**Siguiente tarea:** LUQUE-0707.
 
 ---
 

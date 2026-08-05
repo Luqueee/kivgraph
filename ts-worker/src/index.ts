@@ -59,6 +59,15 @@ export type {
   ImportedSymbolTarget,
 } from "./imported-symbol-resolver.js";
 
+export { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
+export type {
+  PackageProviderConflict,
+  UnresolvedReference,
+  UnresolvedReferenceOptions,
+  UnresolvedReferenceReason,
+  UnresolvedReferenceResolution,
+} from "./unresolved-reference-resolver.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";
