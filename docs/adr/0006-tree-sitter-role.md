@@ -53,6 +53,16 @@ clasifica como `CANDIDATE` o `UNRESOLVED`.
 - El parser puede aceptar sintaxis inválida parcialmente; esa tolerancia no se
   interpreta como evidencia de compilación.
 
+## Versionado reproducible
+
+`grammars/manifest.json` es la fuente versionada de las grammars iniciales:
+TypeScript, TSX, JavaScript y Go. Cada entrada fija el tag, el commit de 40
+caracteres, la ruta dentro del archivo fuente, la URL del archivo `tar.gz`, su
+SHA-256 y la licencia MIT. TypeScript y TSX comparten deliberadamente el mismo
+repositorio, commit y checksum. `internal/syntax.LoadManifest` rechaza
+manifiestos incompletos, URLs no fijadas, checksums con formato incorrecto y
+grammars faltantes antes de que un parser pueda consumirlos.
+
 ## Status
 
 Aceptada. Tree-sitter queda limitado a aceleración y clasificación sintáctica.

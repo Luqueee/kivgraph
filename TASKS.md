@@ -1898,25 +1898,43 @@ REPOSITORY_REGISTRY_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Grammars iniciales:**
+**Estado:** `PASS`.
 
-* TypeScript;
-* TSX;
-* JavaScript;
-* Go.
+**Entregables:**
 
-**Registrar:**
+* `grammars/manifest.json`;
+* `internal/syntax/grammar_manifest.go`;
+* `internal/syntax/grammar_manifest_test.go`;
+* ADR 0006 actualizado.
 
-* versión;
-* commit;
-* checksum;
-* licencia.
+**Resultado:**
+
+* TypeScript y TSX quedan fijados en `v0.23.2`, commit
+  `f975a621f4e7f532fe322e13c4f79495e0a7b2e7`;
+* JavaScript queda fijado en `v0.25.0`, commit
+  `44c892e0be055ac465d5eeddae6d3e194424e7de`;
+* Go queda fijado en `v0.25.0`, commit
+  `1547678a9da59885853f5f5cc8a99cc203fa2e2c`;
+* cada entrada registra ruta de fuente, URL del archivo `tar.gz`, SHA-256 y
+  licencia MIT;
+* `LoadManifest` valida esquema, grammars requeridas, tags, commits, URLs,
+  checksums y licencias antes de exponer el manifiesto.
+
+**Verificación:** `go test ./...`, `go vet ./...`, `go test -race ./internal/syntax`,
+`go tool staticcheck ./internal/syntax` y la comprobación de SHA-256 de los
+tres archivos fuente oficiales pasan.
+
+**Limitación:** los archivos fuente todavía no se vendorizan; el parser manager
+de LUQUE-0502 deberá descargarlos o resolverlos desde el archivo fijado y
+verificar el checksum antes de compilarlos.
+
+**Siguiente tarea:** LUQUE-0502.
 
 ---
 
