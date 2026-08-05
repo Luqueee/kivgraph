@@ -4501,13 +4501,70 @@ funciones invocadas no producen callback.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Usar `TypesInfo.Selections`.**
+
+**Entregables:**
+
+* `internal/goloader/methods.go`;
+* `internal/goloader/methods_test.go`.
+
+**Contrato:**
+
+```text
+ResolveMethods(ctx, result, uses) -> []MethodResolution
+```
+
+Cada resolución separa dos hechos distintos:
+
+```text
+receptor de la expresión   -> tipo, paquete, puntero, interfaz
+tipo que declara el método -> tipo, paquete, receptor puntero
+promoción                  -> campos embebidos atravesados
+```
+
+**Decisiones:**
+
+* El receptor es lo que tiene la expresión; el tipo declarante es donde vive
+  el método. Difieren cuando hay promoción, y esa diferencia es justamente el
+  hecho que el grafo necesita: `Wrapper.Describe()` es una llamada al método de
+  `Base`, no a un método de `Wrapper`.
+* La ruta de promoción se reconstruye recorriendo `Selection.Index()` sobre los
+  campos reales de la estructura; no se busca por nombre.
+* Una llamada a través de un valor de interfaz se marca como tal y su tipo
+  declarante es la interfaz. No se inventa la implementación concreta.
+* Un método declarado sobre puntero se distingue de la indirección del
+  receptor: son dos propiedades independientes.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La suite comprueba método promovido por embedding de valor, promovido por
+embedding de puntero, llamada concreta con receptor puntero, llamada a través
+de interfaz, expresión de método sin promoción, determinismo y cancelación.
+
+**Limitaciones:**
+
+* La relación interfaz → implementación concreta es la arista `IMPLEMENTS`, que
+  no pertenece a esta tarea ni al MVP de Go.
+* Un método alcanzado por una interfaz embebida en otra interfaz conserva el
+  receptor de la expresión; su cadena de embebidos no se reconstruye.
+
+**Siguiente tarea:** LUQUE-0809.
 
 ---
 
