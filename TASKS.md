@@ -4758,11 +4758,13 @@ consumidor con la que el provider asigna a su propia declaración.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Incluir:**
 
@@ -4773,6 +4775,56 @@ consumidor con la que el provider asigna a su propia declaración.
 * módulo consumidor;
 * módulo proveedor;
 * replace válido.
+
+**Entregables:**
+
+```text
+testdata/go/cross-repository/shared-library
+testdata/go/cross-repository/consumer-a
+testdata/go/cross-repository/consumer-b
+internal/goloader/fixture_positive_test.go
+```
+
+**Cobertura:**
+
+| Caso | Dónde |
+| --- | --- |
+| direct call | `consumer-a` llama `api.Compute` |
+| callback | `consumer-a` pasa `api.Compute` a `api.Register` |
+| method | `consumer-a` llama `shape.Area()` |
+| package alias | `consumer-b` importa `shared "…/shared/api"` |
+| módulo proveedor | `shared-library` |
+| módulo consumidor | `consumer-a` y `consumer-b` |
+| replace válido | `consumer-b` sustituye `legacy` por `./internal/legacy` |
+
+**Decisiones:**
+
+* Los módulos se resuelven con el `go.work` sintético de LUQUE-0801, escrito
+  fuera del fixture: no se instala nada ni se modifica ningún repositorio.
+* El `replace` apunta a un módulo anidado del propio repositorio, que es la
+  única forma de sustitución local que el descubrimiento de LUQUE-0405 acepta.
+* Un repositorio puede contener varios módulos; cada uno se carga por separado,
+  como hará el indexador real.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go tool staticcheck ./internal/goloader
+```
+
+La prueba decisiva compara la clave de cada destino cross-repository con la que
+el repositorio proveedor asigna a su propia declaración; también comprueba las
+clases de referencia por objetivo y la ausencia de referencias no resueltas.
+
+**Limitaciones:**
+
+* El fixture no usa dependencias descargadas: la indexación es hermética y una
+  dependencia externa se reportaría como no cargada.
+
+**Siguiente tarea:** LUQUE-0812.
 
 ---
 
