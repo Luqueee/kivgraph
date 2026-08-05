@@ -139,9 +139,12 @@ type RepositoriesFile struct {
 
 // Repository identifies one source repository to index.
 type Repository struct {
-	Name      string   `yaml:"name"`
-	Path      string   `yaml:"path"`
-	Languages []string `yaml:"languages"`
+	Name       string   `yaml:"name"`
+	Path       string   `yaml:"path"`
+	Languages  []string `yaml:"languages"`
+	Manifests  []string `yaml:"manifests,omitempty"`
+	Roots      []string `yaml:"roots,omitempty"`
+	Exclusions []string `yaml:"exclusions,omitempty"`
 }
 
 // Loaded combines the validated configuration and its repository registry.

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,12 @@ repositories:
     languages:
       - go
       - typescript
+    manifests:
+      - package.json
+    roots:
+      - src
+    exclusions:
+      - node_modules
 `)
 
 	loaded, err := Load(configPath)
@@ -62,6 +69,9 @@ repositories:
 	repository := loaded.Repositories.Repositories[0]
 	if repository.Name != "service-a" || repository.Path != filepath.Join(root, "sources", "service-a") {
 		t.Fatalf("repository = %#v", repository)
+	}
+	if !reflect.DeepEqual(repository.Manifests, []string{"package.json"}) || !reflect.DeepEqual(repository.Roots, []string{"src"}) || !reflect.DeepEqual(repository.Exclusions, []string{"node_modules"}) {
+		t.Fatalf("repository configuration = %#v", repository)
 	}
 }
 

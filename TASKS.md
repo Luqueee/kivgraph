@@ -1629,11 +1629,11 @@ repositories.yaml
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe registrar:**
 
@@ -1647,6 +1647,16 @@ repositories.yaml
 * manifests;
 * roots;
 * exclusiones.
+
+**Estado:** `PASS`.
+
+* `internal/workspace.NewRegistry` conserva el orden declarado y registra nombre, ruta, `realpath`, commit, branch, dirty, lenguajes, manifests, roots y exclusiones.
+* La metadata Git usa comandos con `exec.CommandContext`, sin shell; soporta branch normal y HEAD desacoplado, y marca cambios sin commitear incluyendo untracked.
+* `List` y `Get` devuelven copias profundas para impedir mutaciones del registro interno.
+* La ruta debe existir, ser un directorio y ser un repositorio Git operativo; la validación entre repositorios queda para LUQUE-0403 y el descubrimiento automático de manifests para LUQUE-0404/0405.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/luque`, `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan; `go tool staticcheck ./internal/config ./internal/workspace` no reporta incidencias.
+* Smoke real: `TestNewRegistryReadsRealGitMetadata` creó un repositorio Git temporal, verificó commit, branch `main`, estado limpio y detección posterior de untracked.
+* Siguiente tarea: LUQUE-0403.
 
 ---
 
