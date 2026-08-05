@@ -5176,11 +5176,13 @@ grafo combinado y el determinismo. La suite TypeScript consume payloads
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Crear nodos y relaciones definitivos.**
 
@@ -5192,6 +5194,75 @@ Documentar:
 * constraints;
 * propiedades;
 * versión.
+
+**Entregables:**
+
+```text
+internal/storage/ladybug/canonical_schema.go
+internal/storage/ladybug/canonical_schema_test.go
+internal/storage/ladybug/canonical_schema_native_test.go
+schemas/ladybug/002-canonical.cypher
+docs/storage/canonical-schema.md
+```
+
+**Esquema, versión `002`:**
+
+```text
+nodos        GraphMetadata Repository Package File Symbol Evidence
+             UnresolvedReference
+relaciones   CONTAINS_PACKAGE CONTAINS_FILE DEFINES OBSERVED_IN
+             REPORTS_UNRESOLVED PACKAGE_DEPENDS_ON MODULE_DEPENDS_ON
+             IMPORTS_SYMBOL EXPORTS REEXPORTS REFERENCES CALLS_DIRECT
+             PASSES_AS_CALLBACK ASSIGNS_FUNCTION RETURNS_FUNCTION TYPE_USES
+             IMPLEMENTS EXTENDS EMBEDS OVERRIDES
+```
+
+**Decisiones:**
+
+* El DDL y la documentación se **generan desde una sola fuente de metadatos**
+  en Go. Dos pruebas comparan los archivos versionados con lo generado: un
+  esquema documentado que la base no tiene es peor que no documentarlo.
+* Toda clave primaria es `stable_key`, una clave durable de Luque. Ninguna se
+  deriva de un nombre visible ni la genera la base.
+* Las relaciones de contención son `ONE_MANY` y `OBSERVED_IN` es `MANY_ONE`;
+  las semánticas son `MANY_MANY`, porque un símbolo puede llamar al mismo
+  destino desde varios sitios y cada ocurrencia lleva su evidencia.
+* Toda relación semántica transporta `confidence`, `provenance`,
+  `evidence_key`, `source_snapshot` y `resolver_version`, como fija el plan.
+* `REPORTS_UNRESOLVED` cuelga del repositorio: un fallo de módulo no tiene
+  archivo y colgarlo de uno inventado sería falsear su origen.
+* `GraphMetadata` guarda versión de esquema y de resolutor: una base con otra
+  versión se reconstruye, no se migra en caliente.
+* **Índices:** sólo el de clave primaria, que LadybugDB crea. No se declaran
+  secundarios; las búsquedas exactas las sirve el HotSnapshot. Declarar índices
+  que la versión fijada no soporta sería documentación falsa.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go vet -tags ladybug ./internal/storage/ladybug
+go tool staticcheck ./internal/facts
+```
+
+Las pruebas comprueban: paridad entre **todas** las clases de arista del modelo
+canónico y las tablas del esquema, claves primarias durables, multiplicidades
+por tipo de relación, propiedades obligatorias de las aristas semánticas, orden
+de creación —ningún `REL` antes de sus nodos— y que los archivos versionados
+coinciden con los metadatos.
+
+**Limitaciones:**
+
+* La prueba que carga el DDL en una base real está tras `-tags ladybug` y
+  requiere CGO y la biblioteca nativa; compila (`go vet -tags ladybug`) pero no
+  se ejecutó aquí porque la biblioteca no está instalada en este entorno.
+* `internal/storage/ladybug` conserva avisos de `staticcheck` anteriores a esta
+  tarea en `query.go`, `query_native.go`, `mutation_native.go` y
+  `arrow_scan_native.go`; los archivos nuevos no añaden ninguno.
+
+**Siguiente tarea:** LUQUE-0903.
 
 ---
 
