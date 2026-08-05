@@ -1,0 +1,8 @@
+{
+  "name": "@luque-fixture/consumer-a",
+  "version": "2.0.0",
+  "type": "module",
+  "dependencies": {
+    "@luque-fixture/shared": "1.4.2"
+  }
+}

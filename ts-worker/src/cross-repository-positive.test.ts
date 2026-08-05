@@ -1,0 +1,165 @@
+import path from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { LanguageService } from "./language-service.js";
+import type {
+  PackageProvider,
+  PackageProviderRegistry,
+} from "./package-import-resolver.js";
+import { resolvePackageDependencies } from "./package-dependency-resolver.js";
+import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
+
+const FIXTURE = path.resolve(
+  import.meta.dirname,
+  "../../testdata/typescript/cross-repository",
+);
+const SHARED_ROOT = path.join(FIXTURE, "shared-library");
+
+const services: LanguageService[] = [];
+
+function openConsumer(name: string): {
+  service: LanguageService;
+  configFileName: string;
+  root: string;
+} {
+  const root = path.join(FIXTURE, name);
+  const service = LanguageService.create({ cwd: root });
+  services.push(service);
+  return { service, configFileName: path.join(root, "tsconfig.json"), root };
+}
+
+const sharedProvider: PackageProvider = {
+  name: "@luque-fixture/shared",
+  version: "1.4.2",
+  repository: "shared-library",
+  rootPath: SHARED_ROOT,
+  manifestPath: path.join(SHARED_ROOT, "package.json"),
+  projectPath: path.join(SHARED_ROOT, "tsconfig.json"),
+  typesPath: path.join(SHARED_ROOT, "dist/index.d.ts"),
+  sourceRoots: [path.join(SHARED_ROOT, "src")],
+  declarationRoots: [path.join(SHARED_ROOT, "dist")],
+  rootDir: "src",
+  outDir: "dist",
+};
+
+const registry: PackageProviderRegistry = {
+  get: (name) => (name === sharedProvider.name ? sharedProvider : undefined),
+};
+
+afterEach(async () => {
+  await Promise.all(services.splice(0).map((service) => service.close()));
+});
+
+describe("cross-repository positive fixture", () => {
+  it("resolves direct value and type imports to mapped provider sources", async () => {
+    const { service, configFileName, root } = openConsumer("consumer-a");
+    await service.openProject(configFileName);
+    const view = service.project(configFileName);
+    const resolution = await resolveUnresolvedReferences(
+      service,
+      view,
+      registry,
+    );
+
+    expect(resolution.unresolved).toEqual([]);
+    expect(
+      resolution.symbols.map((entry) => [
+        entry.consumer.name,
+        entry.exportedName,
+        entry.target.name,
+      ]),
+    ).toEqual([
+      ["compute", "compute", "compute"],
+      ["value", "value", "value"],
+      ["Shape", "Shape", "Shape"],
+    ]);
+    expect(
+      resolution.symbols.every(
+        (entry) =>
+          entry.consumer.fileName === path.join(root, "src/direct.ts") &&
+          entry.provider.repository === "shared-library",
+      ),
+    ).toBe(true);
+    for (const entry of resolution.symbols) {
+      expect(entry.target.declarations).toEqual([
+        expect.objectContaining({
+          fileName: path.join(SHARED_ROOT, "dist/value.d.ts"),
+          sourceStatus: "DECLARATION_MAP",
+          sourceFiles: [path.join(SHARED_ROOT, "src/value.ts")],
+        }),
+      ]);
+    }
+  });
+
+  it("resolves barrels, aliases, and reexports without namespace edges", async () => {
+    const { service, configFileName, root } = openConsumer("consumer-b");
+    await service.openProject(configFileName);
+    const view = service.project(configFileName);
+    const resolution = await resolveUnresolvedReferences(
+      service,
+      view,
+      registry,
+    );
+
+    expect(resolution.unresolved).toEqual([]);
+    expect(
+      resolution.symbols.map((entry) => [
+        entry.consumer.name,
+        entry.exportedName,
+        entry.target.name,
+        entry.target.declarations[0]?.fileName,
+        entry.target.declarations[0]?.sourceFiles[0],
+      ]),
+    ).toEqual([
+      [
+        "helper",
+        "aliasedHelper",
+        "helper",
+        path.join(SHARED_ROOT, "dist/helper.d.ts"),
+        path.join(SHARED_ROOT, "src/helper.ts"),
+      ],
+      [
+        "republished",
+        "value",
+        "value",
+        path.join(SHARED_ROOT, "dist/value.d.ts"),
+        path.join(SHARED_ROOT, "src/value.ts"),
+      ],
+    ]);
+    expect(
+      resolution.imports.some((entry) => entry.exportMode === "NAMESPACE"),
+    ).toBe(true);
+    expect(
+      resolution.symbols.every(
+        (entry) => entry.consumer.fileName === path.join(root, "src/barrel.ts"),
+      ),
+    ).toBe(true);
+  });
+
+  it("creates one package dependency per consumer repository", async () => {
+    const { service, configFileName } = openConsumer("consumer-b");
+    await service.openProject(configFileName);
+    const view = service.project(configFileName);
+    const resolution = await resolvePackageDependencies(
+      service,
+      view,
+      registry,
+      {
+        name: "@luque-fixture/consumer-b",
+        version: "3.1.0",
+        repository: "consumer-b",
+        rootPath: path.join(FIXTURE, "consumer-b"),
+        manifestPath: path.join(FIXTURE, "consumer-b/package.json"),
+      },
+    );
+
+    expect(resolution.dependencies).toHaveLength(1);
+    expect(resolution.dependencies[0]).toMatchObject({
+      kind: "PACKAGE_DEPENDS_ON",
+      consumer: { repository: "consumer-b" },
+      provider: { repository: "shared-library", version: "1.4.2" },
+    });
+    expect(resolution.dependencies[0]?.imports).toHaveLength(3);
+  });
+});

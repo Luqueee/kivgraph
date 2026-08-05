@@ -3589,21 +3589,61 @@ nativo, incluida la precedencia entre razones de módulo y de nombre.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Crear repositorios sintéticos:**
+**Estado:** `PASS`.
+
+**Entregables:**
 
 ```text
-shared-library
-consumer-a
-consumer-b
+testdata/typescript/cross-repository/shared-library
+testdata/typescript/cross-repository/consumer-a
+testdata/typescript/cross-repository/consumer-b
+ts-worker/src/cross-repository-positive.test.ts
 ```
 
-Con imports directos, barrels y aliases.
+**Contenido:**
+
+* `shared-library` publica `@luque-fixture/shared@1.4.2` con barrel,
+  reexport aliasado y `declaration maps` hacia sus fuentes reales.
+* `consumer-a` usa imports directos de valor y de tipo.
+* `consumer-b` usa alias de import, reexport y namespace.
+
+**Decisiones:**
+
+* Los consumidores resuelven el provider mediante `paths`, de modo que el
+  fixture no instala ni enlaza `node_modules` dentro del repositorio y no se
+  modifica ningún repositorio indexado.
+* Las declaraciones publicadas incluyen `.d.ts.map`, por lo que el fixture
+  ejercita la rama `DECLARATION_MAP` de LUQUE-0703.
+* El import de namespace se conserva deliberadamente: comprueba que no genera
+  una arista exacta.
+
+**Verificación:**
+
+```text
+pnpm check                         # 12 archivos, 62 tests passed
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La suite comprueba tres aristas exactas en `consumer-a`, dos en `consumer-b`
+—alias y reexport—, el mapeo a fuentes del provider, la ausencia de
+referencias no resueltas y una única arista `PACKAGE_DEPENDS_ON` por consumidor.
+
+**Limitaciones:**
+
+* El fixture no cubre `node_modules` reales ni enlaces de workspace; esa
+  resolución ya está cubierta por las suites temporales de LUQUE-0701.
+
+**Siguiente tarea:** LUQUE-0708.
 
 ---
 
