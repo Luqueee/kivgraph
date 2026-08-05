@@ -22,7 +22,7 @@ Todos están en `PASS`; se deriva el gate global.
 
 | Elemento | Valor |
 | --- | --- |
-| LadybugDB core | `v0.19.0`, commit `c934f673b6b1c5b680bdae3295cbd909b5855cef` |
+| LadybugDB core | `v0.13.1` (corregido el 2026-08-05; ver la nota de abajo) |
 | Binding Go | `github.com/LadybugDB/go-ladybug v0.13.1`, commit `14a9f84900d0a8295c59419d91461c5430c692b5` |
 | Toolchain medido | Go `1.24.4`, CGO habilitado |
 | Plataforma calificada | `linux/amd64` |
@@ -30,6 +30,20 @@ Todos están en `PASS`; se deriva el gate global.
 | Esquema sintético | `001` |
 
 Las versiones, assets y checksums están fijados en [`docs/dependencies/ladybugdb.md`](../dependencies/ladybugdb.md). Esta decisión no amplía la calificación a otras plataformas.
+
+### Corrección del 2026-08-05
+
+Esta decisión registraba el core `v0.19.0` junto al binding `v0.13.1`. Ese par
+**no es compatible a nivel de ABI**: el core `v0.19.0` amplía
+`lbug_system_config` con cuatro campos y el binding la devuelve por valor, de
+modo que la primera llamada C provoca `SIGSEGV`. El par correcto es core y
+binding en `v0.13.1`, con el que la suite `-tags ladybug` completa pasa.
+
+La calificación de rendimiento y recuperación se midió antes de esa
+corrección; sus cifras quedan como registro histórico y deben repetirse sobre
+el par fijado cuando la fase de rendimiento vuelva a medirse. Los gates de
+almacenamiento **no se rebajan aquí**: lo que cambia es la biblioteca con la
+que se reproducen, y `scripts/fetch-ladybug.sh` la deja disponible.
 
 ## Evaluación de gates
 

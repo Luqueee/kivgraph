@@ -15,3 +15,6 @@ testdata/generated/
 .DS_Store
 .env
 .env.*
+
+# Downloaded toolchain artifacts
+.tooling/

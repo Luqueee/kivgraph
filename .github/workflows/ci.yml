@@ -77,3 +77,27 @@ jobs:
       - name: Build TypeScript worker
         working-directory: ts-worker
         run: pnpm build
+
+  ladybug:
+    name: Verify against a real LadybugDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      # The pinned core and the pinned Go binding must share a version: a
+      # mismatched pair segfaults on the first C call instead of failing a
+      # test, which is why this job exists at all.
+      - name: Fetch the pinned LadybugDB library
+        run: scripts/fetch-ladybug.sh
+
+      - name: Go tests with LadybugDB
+        run: make test-ladybug

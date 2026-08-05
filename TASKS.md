@@ -5255,12 +5255,101 @@ coinciden con los metadatos.
 
 **Limitaciones:**
 
-* La prueba que carga el DDL en una base real está tras `-tags ladybug` y
-  requiere CGO y la biblioteca nativa; compila (`go vet -tags ladybug`) pero no
-  se ejecutó aquí porque la biblioteca no está instalada en este entorno.
 * `internal/storage/ladybug` conserva avisos de `staticcheck` anteriores a esta
   tarea en `query.go`, `query_native.go`, `mutation_native.go` y
   `arrow_scan_native.go`; los archivos nuevos no añaden ninguno.
+
+**Actualización del 2026-08-05:** la prueba que carga el DDL en una base real
+quedó sin ejecutar en esta tarea por falta de la biblioteca nativa. LUQUE-0908
+la hizo obtenible de forma reproducible y **la prueba pasa**: el esquema `002`
+se crea en un LadybugDB real y volver a aplicarlo es idempotente.
+
+**Siguiente tarea:** LUQUE-0908.
+
+---
+
+## LUQUE-0908 — Obtener LadybugDB de forma reproducible
+
+**Dependencias:** LUQUE-0201 y LUQUE-0902.
+
+**Checklist:**
+
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Motivo:** las suites `-tags ladybug` no se podían ejecutar. La biblioteca
+nativa vivía en `/tmp`, el «paso de build» que debía descargarla nunca se
+implementó y la CI no ejecutaba ninguna prueba contra una base real. Todo lo
+que las fases 2 y 3 declararon verificado con LadybugDB era irreproducible.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+scripts/fetch-ladybug.sh
+Makefile                          objetivos ladybug-lib y test-ladybug
+.github/workflows/ci.yml          job ladybug
+docs/dependencies/ladybugdb.md    par corregido y checksums
+docs/decisions/ladybugdb-qualification.md
+THIRD_PARTY_NOTICES.md
+```
+
+**Hallazgo: el par fijado no era compatible.**
+
+LUQUE-0201 fijaba el core `v0.19.0` con el binding `v0.13.1`. Con ese par, la
+primera llamada C revienta:
+
+```text
+SIGSEGV: segmentation violation
+signal arrived during cgo execution
+github.com/LadybugDB/go-ladybug._Cfunc_lbug_default_system_config()
+```
+
+La causa es de ABI, no de configuración: el core `v0.19.0` añade cuatro campos
+a `lbug_system_config` —`throw_on_wal_replay_failure`, `enable_checksums`,
+`enable_multi_writes` y `enable_default_hash_index`— y el binding devuelve esa
+estructura **por valor** compilando contra su cabecera, más pequeña. La pila se
+corrompe antes de abrir ninguna base.
+
+El core `v0.13.1` declara exactamente la misma estructura que la cabecera del
+binding. Verificado por diff de cabeceras y ejecutando la suite completa.
+
+**Regla derivada:** el core y el binding se fijan **con la misma versión**.
+Subir uno obliga a subir el otro y a repetir esta comprobación.
+
+**Decisiones:**
+
+* La descarga usa la URL del tag inmutable y **verifica el SHA-256 antes de
+  extraer**; un digest que no cuadra borra el archivo y falla.
+* La biblioteca se deja en `.tooling/ladybug/<versión>`, ignorada por Git: el
+  artefacto nativo no entra en el repositorio.
+* El script es idempotente y revalida por digest, de modo que un `.verified`
+  manipulado fuerza una nueva descarga.
+* La CI ejecuta un job `ladybug` dedicado: si el par vuelve a romperse, se ve
+  en la CI y no seis fases después.
+
+**Verificación:**
+
+```text
+scripts/fetch-ladybug.sh        descarga, verifica digest, idempotente
+make test-ladybug               go test -tags ladybug ./...  → todos los paquetes ok
+```
+
+Con el par corregido pasan, entre otras, las suites nativas de esquema
+sintético y canónico, writer, doctor, consultas, staging, recuperación y los
+benchmarks de LadybugDB.
+
+**Limitaciones:**
+
+* La calificación de rendimiento de LUQUE-0212 y LUQUE-0214 se midió con el
+  core anterior; sus cifras quedan como registro histórico y deben repetirse
+  sobre el par fijado en la fase de rendimiento.
+* Windows arm64 sigue sin asset soportado; macOS usa el asset universal que
+  publica `v0.13.1`.
 
 **Siguiente tarea:** LUQUE-0903.
 

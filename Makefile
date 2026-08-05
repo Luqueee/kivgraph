@@ -1,24 +1,24 @@
-.PHONY: build format lint test check version
+.PHONY: build test version ladybug-lib test-ladybug
 
-GO_FILES := $(shell find . -type f -name '*.go' -not -path './.git/*')
-
-build:
+build: test version
 	go build ./cmd/luque
-
-format:
-	gofmt -w $(GO_FILES)
-
-lint:
-	go vet ./...
-	go tool staticcheck ./...
 
 test:
 	go test ./...
 
-check:
-	@test -z "$$(gofmt -l $(GO_FILES))"
-	$(MAKE) lint
-	$(MAKE) test
+version:
+	go run ./cmd/luque version
 
-version: build
-	./luque version
+# ladybug-lib downloads the pinned native library and verifies its digest.
+ladybug-lib:
+	@scripts/fetch-ladybug.sh
+
+# test-ladybug runs the suites that need a real LadybugDB. The pinned core and
+# the pinned Go binding must share a version: a mismatched pair segfaults on
+# the first C call instead of failing a test.
+test-ladybug:
+	@LIB="$$(scripts/fetch-ladybug.sh)"; \
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$$LIB" \
+	CGO_LDFLAGS="-L$$LIB -llbug -Wl,-rpath,$$LIB" \
+	go test -tags ladybug ./...
