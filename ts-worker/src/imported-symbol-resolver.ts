@@ -23,6 +23,10 @@ import type {
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
 
+import {
+  DeclarationPositionMapper,
+  type SourcePosition,
+} from "./declaration-position-mapper.js";
 import type {
   DeclarationSourceMapping,
   DeclarationSourceStatus,
@@ -61,6 +65,11 @@ export interface ImportedSymbolDeclaration {
   /** Source files mapped by LUQUE-0703 for a declaration artifact. */
   readonly sourceFiles: readonly string[];
   readonly sourceStatus: DeclarationSourceStatus;
+  /**
+   * Exact position in the source file, decoded from the declaration map.
+   * Undefined when the artifact has no map or no segment covers the symbol.
+   */
+  readonly sourcePosition: SourcePosition | undefined;
 }
 
 /** The provider symbol the consumer binding resolves to. */
@@ -130,6 +139,10 @@ export async function resolveImportedSymbols(
       mapping,
     ]),
   );
+  const mappers = new Map<
+    string,
+    Promise<DeclarationPositionMapper | undefined>
+  >();
 
   const importsByLocation = new Map<string, PackageImport>();
   for (const packageImport of providerExports.imports) {
@@ -181,6 +194,7 @@ export async function resolveImportedSymbols(
       view,
       target.declarations,
       mappingsByFile,
+      mappers,
     );
     if (declarations.length === 0) {
       continue;
@@ -324,6 +338,7 @@ async function resolveDeclarations(
   view: ProjectView,
   handles: readonly NodeHandle[],
   mappingsByFile: ReadonlyMap<string, DeclarationSourceMapping>,
+  mappers: Map<string, Promise<DeclarationPositionMapper | undefined>>,
 ): Promise<ImportedSymbolDeclaration[]> {
   const declarations = await Promise.all(
     handles.map(
@@ -336,16 +351,22 @@ async function resolveDeclarations(
         const start = node.getStart(sourceFile);
         const end = node.getEnd();
         const mapping = mappingsByFile.get(handle.path);
+        const startPosition = sourceFile.getLineAndCharacterOfPosition(start);
         return {
           fileName: handle.path,
           start,
           end,
-          startLine: sourceFile.getLineAndCharacterOfPosition(start).line + 1,
+          startLine: startPosition.line + 1,
           endLine:
             sourceFile.getLineAndCharacterOfPosition(Math.max(start, end - 1))
               .line + 1,
           sourceFiles: mapping?.sourceFiles ?? [],
           sourceStatus: mapping?.status ?? "UNRESOLVED",
+          sourcePosition: await lookupSourcePosition(
+            mappers,
+            handle.path,
+            startPosition,
+          ),
         };
       },
     ),
@@ -361,6 +382,25 @@ async function resolveDeclarations(
         left.start - right.start ||
         left.end - right.end,
     );
+}
+
+/**
+ * Resolve one declaration position through its declaration map.
+ *
+ * Mappers are cached per declaration file: a provider barrel is asked for
+ * dozens of symbols and the map is parsed once.
+ */
+async function lookupSourcePosition(
+  mappers: Map<string, Promise<DeclarationPositionMapper | undefined>>,
+  declarationFile: string,
+  position: { line: number; character: number },
+): Promise<SourcePosition | undefined> {
+  let mapper = mappers.get(declarationFile);
+  if (mapper === undefined) {
+    mapper = DeclarationPositionMapper.create(declarationFile);
+    mappers.set(declarationFile, mapper);
+  }
+  return (await mapper)?.lookup(position.line + 1, position.character);
 }
 
 function compareImportedSymbols(

@@ -90,6 +90,38 @@ describe("cross-repository positive fixture", () => {
         }),
       ]);
     }
+
+    expect(
+      resolution.symbols.map((entry) => [
+        entry.consumer.name,
+        entry.target.declarations[0]?.sourcePosition,
+      ]),
+    ).toEqual([
+      [
+        "compute",
+        {
+          fileName: path.join(SHARED_ROOT, "src/value.ts"),
+          line: 7,
+          character: 0,
+        },
+      ],
+      [
+        "value",
+        {
+          fileName: path.join(SHARED_ROOT, "src/value.ts"),
+          line: 1,
+          character: 13,
+        },
+      ],
+      [
+        "Shape",
+        {
+          fileName: path.join(SHARED_ROOT, "src/value.ts"),
+          line: 3,
+          character: 0,
+        },
+      ],
+    ]);
   });
 
   it("resolves barrels, aliases, and reexports without namespace edges", async () => {
@@ -126,6 +158,22 @@ describe("cross-repository positive fixture", () => {
         path.join(SHARED_ROOT, "dist/value.d.ts"),
         path.join(SHARED_ROOT, "src/value.ts"),
       ],
+    ]);
+    expect(
+      resolution.symbols.map(
+        (entry) => entry.target.declarations[0]?.sourcePosition,
+      ),
+    ).toEqual([
+      {
+        fileName: path.join(SHARED_ROOT, "src/helper.ts"),
+        line: 3,
+        character: 0,
+      },
+      {
+        fileName: path.join(SHARED_ROOT, "src/value.ts"),
+        line: 1,
+        character: 13,
+      },
     ]);
     expect(
       resolution.imports.some((entry) => entry.exportMode === "NAMESPACE"),

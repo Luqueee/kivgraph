@@ -184,20 +184,27 @@ async function mapDeclarationFile(
   };
 }
 
-async function mapWithDeclarationMap(
+/**
+ * Load the declaration map of an artifact with its sources already resolved.
+ *
+ * A source that does not exist on disk is reported as `undefined` so callers
+ * never build a fact on a path nobody can open, while the segment indexes of
+ * `mappings` stay aligned with `sources`.
+ */
+export async function loadDeclarationSourceMap(
   declarationFile: string,
-): Promise<string[]> {
+): Promise<DeclarationSourceMap | undefined> {
   const mapFile = `${declarationFile}.map`;
   const contents = await readText(mapFile);
   if (contents === undefined) {
-    return [];
+    return undefined;
   }
   const parsed = parseSourceMap(contents);
   if (parsed === undefined || parsed.sources.length === 0) {
-    return [];
+    return undefined;
   }
   const sourceRoot = parsed.sourceRoot ?? "";
-  const sourceFiles = await Promise.all(
+  const sources = await Promise.all(
     parsed.sources.map(async (source) => {
       const resolved = resolveSourcePath(mapFile, sourceRoot, source);
       return resolved !== undefined && (await exists(resolved))
@@ -205,8 +212,20 @@ async function mapWithDeclarationMap(
         : undefined;
     }),
   );
+  return { sources, mappings: parsed.mappings };
+}
+
+async function mapWithDeclarationMap(
+  declarationFile: string,
+): Promise<string[]> {
+  const sourceMap = await loadDeclarationSourceMap(declarationFile);
+  if (sourceMap === undefined) {
+    return [];
+  }
   return uniqueSorted(
-    sourceFiles.filter((source): source is string => source !== undefined),
+    sourceMap.sources.filter(
+      (source): source is string => source !== undefined,
+    ),
   );
 }
 
@@ -279,9 +298,18 @@ interface CompilerOptionsConfig {
   readonly declarationDir?: unknown;
 }
 
+/** A declaration map with every source resolved against the map file. */
+export interface DeclarationSourceMap {
+  /** Absolute path per source index, or undefined when it does not exist. */
+  readonly sources: readonly (string | undefined)[];
+  /** Raw VLQ segments, aligned with `sources` by index. */
+  readonly mappings: string;
+}
+
 interface SourceMapDocument {
   readonly sourceRoot?: string;
   readonly sources: readonly string[];
+  readonly mappings: string;
 }
 
 interface ProjectHints {
@@ -515,6 +543,7 @@ function parseSourceMap(contents: string): SourceMapDocument | undefined {
   const rawSourceMap = parsed as {
     sourceRoot?: unknown;
     sources?: unknown;
+    mappings?: unknown;
   };
   if (
     !Array.isArray(rawSourceMap.sources) ||
@@ -528,6 +557,8 @@ function parseSourceMap(contents: string): SourceMapDocument | undefined {
         ? rawSourceMap.sourceRoot
         : undefined,
     sources: rawSourceMap.sources,
+    mappings:
+      typeof rawSourceMap.mappings === "string" ? rawSourceMap.mappings : "",
   };
 }
 

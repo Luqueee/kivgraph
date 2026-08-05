@@ -17,14 +17,15 @@ Se regenera con `pnpm precision` desde `ts-worker`.
 - recall: 1.0000
 - false exact edges: 0
 - unresolved correctly classified: 4/4
+- exact source positions: 7/7
 
 ## Casos
 
-| Caso | Aristas esperadas | TP | FP | FN | Precisión | Recall | No resueltas correctas |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| consumer-a | 3 | 3 | 0 | 0 | 1.0000 | 1.0000 | 0/0 |
-| consumer-b | 2 | 2 | 0 | 0 | 1.0000 | 1.0000 | 0/0 |
-| consumer-negative | 3 | 3 | 0 | 0 | 1.0000 | 1.0000 | 4/4 |
+| Caso | Aristas esperadas | TP | FP | FN | Precisión | Recall | No resueltas correctas | Posiciones en fuente |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| consumer-a | 3 | 3 | 0 | 0 | 1.0000 | 1.0000 | 0/0 | 3/3 |
+| consumer-b | 2 | 2 | 0 | 0 | 1.0000 | 1.0000 | 0/0 | 2/2 |
+| consumer-negative | 3 | 3 | 0 | 0 | 1.0000 | 1.0000 | 4/4 | 2/2 |
 
 ## Gate
 

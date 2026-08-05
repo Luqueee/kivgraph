@@ -41,6 +41,9 @@ export interface PrecisionMetrics {
   readonly expectedUnresolved: number;
   readonly unresolvedCorrectlyClassified: number;
   readonly unresolvedMisclassified: number;
+  /** Edges whose declaration was placed in its real source position. */
+  readonly expectedSourcePositions: number;
+  readonly mappedSourcePositions: number;
 }
 
 export interface PrecisionCaseReport {
@@ -68,6 +71,8 @@ interface PrecisionCase {
   readonly expectedEdges: readonly string[];
   /** `package:reason:requestedSymbol`. */
   readonly expectedUnresolved: readonly string[];
+  /** Edges whose declaration map must place the symbol in its source. */
+  readonly expectedSourcePositions: number;
 }
 
 function provider(
@@ -114,6 +119,7 @@ const cases: readonly PrecisionCase[] = [
       "src/direct.ts#Shape -> @luque-fixture/shared:Shape -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
+    expectedSourcePositions: 3,
   },
   {
     name: "consumer-b",
@@ -125,6 +131,7 @@ const cases: readonly PrecisionCase[] = [
       "src/barrel.ts#republished -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
+    expectedSourcePositions: 2,
   },
   {
     name: "consumer-negative",
@@ -179,6 +186,8 @@ const cases: readonly PrecisionCase[] = [
       "@luque-fixture/duplicated:AMBIGUOUS_PACKAGE_PROVIDER:-",
       "@luque-fixture/drifting:VERSION_MISMATCH:-",
     ],
+    // `unmapped` ships no declaration map, so only two edges can be placed.
+    expectedSourcePositions: 2,
   },
 ];
 
@@ -199,7 +208,8 @@ export async function measureCrossRepositoryPrecision(): Promise<PrecisionReport
     gate:
       totals.falseExactEdges === 0 &&
       totals.falseNegatives === 0 &&
-      totals.unresolvedMisclassified === 0
+      totals.unresolvedMisclassified === 0 &&
+      totals.mappedSourcePositions === totals.expectedSourcePositions
         ? "TYPESCRIPT_CROSS_REPO_PASS"
         : "TYPESCRIPT_CROSS_REPO_FAIL",
   };
@@ -254,6 +264,9 @@ async function measureCase(
       (entry) => !expectedUnresolved.has(entry),
     );
 
+    const mappedSourcePositions = resolution.symbols.filter(
+      (symbol) => symbol.target.declarations[0]?.sourcePosition !== undefined,
+    ).length;
     const truePositives = expectedEdges.size - missingEdges.length;
     const metrics: PrecisionMetrics = {
       expectedEdges: expectedEdges.size,
@@ -268,6 +281,8 @@ async function measureCase(
         expectedUnresolved.size - missingUnresolved.length,
       unresolvedMisclassified:
         missingUnresolved.length + unexpectedUnresolved.length,
+      expectedSourcePositions: testCase.expectedSourcePositions,
+      mappedSourcePositions,
     };
 
     return {
@@ -308,6 +323,8 @@ function aggregate(metrics: readonly PrecisionMetrics[]): PrecisionMetrics {
       (value) => value.unresolvedCorrectlyClassified,
     ),
     unresolvedMisclassified: sum((value) => value.unresolvedMisclassified),
+    expectedSourcePositions: sum((value) => value.expectedSourcePositions),
+    mappedSourcePositions: sum((value) => value.mappedSourcePositions),
   };
 }
 

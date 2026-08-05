@@ -152,6 +152,7 @@ export interface Shape { value: string }
     expect(declaration?.endLine).toBe(3);
     expect(declaration?.sourceStatus).toBe("UNRESOLVED");
     expect(declaration?.start).toBeLessThan(declaration?.end ?? 0);
+    expect(declaration?.sourcePosition).toBeUndefined();
   });
 
   it("maps declarations to sources when the provider ships a declaration map", async () => {
@@ -197,6 +198,11 @@ export interface Shape { value: string }
       sourceStatus: "DECLARATION_MAP",
       sourceFiles: [path.join(providerRoot, "src/index.ts")],
     });
+    // A map with no segments cannot place the symbol: the file bridge holds,
+    // the exact position does not, and nothing is guessed.
+    expect(
+      resolution.symbols[0]?.target.declarations[0]?.sourcePosition,
+    ).toBeUndefined();
   });
 
   it("emits no edge for homonyms, unresolved modules, or unregistered providers", async () => {

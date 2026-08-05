@@ -1,10 +1,1 @@
-{
-  "version": 3,
-  "file": "helper.d.ts",
-  "sourceRoot": "",
-  "sources": [
-    "../src/helper.ts"
-  ],
-  "names": [],
-  "mappings": ""
-}
+{"version":3,"file":"helper.d.ts","sourceRoot":"","sources":["../src/helper.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,MAAM,YAAY,CAAC;AAExC,wBAAgB,MAAM,CAAC,KAAK,EAAE,KAAK,GAAG,MAAM,CAE3C"}

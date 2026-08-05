@@ -16,7 +16,9 @@
         "falseExactEdges": 0,
         "expectedUnresolved": 0,
         "unresolvedCorrectlyClassified": 0,
-        "unresolvedMisclassified": 0
+        "unresolvedMisclassified": 0,
+        "expectedSourcePositions": 3,
+        "mappedSourcePositions": 3
       },
       "missingEdges": [],
       "unexpectedEdges": [],
@@ -35,7 +37,9 @@
         "falseExactEdges": 0,
         "expectedUnresolved": 0,
         "unresolvedCorrectlyClassified": 0,
-        "unresolvedMisclassified": 0
+        "unresolvedMisclassified": 0,
+        "expectedSourcePositions": 2,
+        "mappedSourcePositions": 2
       },
       "missingEdges": [],
       "unexpectedEdges": [],
@@ -54,7 +58,9 @@
         "falseExactEdges": 0,
         "expectedUnresolved": 4,
         "unresolvedCorrectlyClassified": 4,
-        "unresolvedMisclassified": 0
+        "unresolvedMisclassified": 0,
+        "expectedSourcePositions": 2,
+        "mappedSourcePositions": 2
       },
       "missingEdges": [],
       "unexpectedEdges": [],
@@ -72,7 +78,9 @@
     "falseExactEdges": 0,
     "expectedUnresolved": 4,
     "unresolvedCorrectlyClassified": 4,
-    "unresolvedMisclassified": 0
+    "unresolvedMisclassified": 0,
+    "expectedSourcePositions": 7,
+    "mappedSourcePositions": 7
   },
   "gate": "TYPESCRIPT_CROSS_REPO_PASS"
 }

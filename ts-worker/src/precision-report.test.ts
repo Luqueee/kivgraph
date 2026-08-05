@@ -32,6 +32,8 @@ describe("cross-repository precision", () => {
       falseExactEdges: 0,
       expectedUnresolved: 4,
       unresolvedCorrectlyClassified: 4,
+      expectedSourcePositions: 7,
+      mappedSourcePositions: 7,
       unresolvedMisclassified: 0,
     });
     expect(report.gate).toBe("TYPESCRIPT_CROSS_REPO_PASS");

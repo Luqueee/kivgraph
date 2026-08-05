@@ -3784,6 +3784,82 @@ Requisito obligatorio cumplido:
 false exact edges = 0
 ```
 
+**Siguiente tarea:** LUQUE-0710.
+
+---
+
+## LUQUE-0710 — Mapear posiciones exactas hacia fuente
+
+**Dependencias:** LUQUE-0703, LUQUE-0705 y LUQUE-0709.
+
+**Checklist:**
+
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Motivo:** LUQUE-0703 estableció un puente *file-level* y LUQUE-0705 publicó la
+posición del símbolo en el artefacto `.d.ts`. Ninguna tarea cubría la posición
+exacta del símbolo en su archivo fuente, de modo que `get_symbol` habría
+devuelto la línea del artefacto compilado en lugar de la del código real.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/declaration-position-mapper.ts`;
+* `ts-worker/src/declaration-source-resolver.ts` (`loadDeclarationSourceMap`);
+* `ts-worker/src/imported-symbol-resolver.ts` (`sourcePosition`);
+* `ts-worker/src/index.ts` (exportación pública);
+* `benchmarks/typescript-cross-repo/*` (métrica de posiciones exactas).
+
+**Contrato:**
+
+```text
+DeclarationPositionMapper.create(declarationFile)
+  -> lookup(line, character) -> { fileName, line, character } | undefined
+```
+
+Cada `ImportedSymbolDeclaration` añade `sourcePosition`: la línea 1-based y el
+carácter 0-based del símbolo en su archivo fuente real.
+
+**Decisiones:**
+
+* Se decodifica el campo `mappings` del `.d.ts.map` en segmentos VLQ; se toma el
+  segmento precedente más cercano **de la misma línea generada**, que es lo
+  único que el formato garantiza. Sin segmento cubriente, la posición queda
+  `undefined`: no se aproxima ni se cae a la línea 1.
+* Un `source` inexistente en disco anula la posición aunque el segmento exista;
+  se conserva el alineamiento por índice con `sources`.
+* Los mapas se parsean una vez por archivo de declaración y se cachean durante
+  la resolución: un barrel se consulta decenas de veces.
+* Los fixtures de LUQUE-0707 y LUQUE-0708 se regeneraron con `tsc` real para que
+  sus `mappings` sean auténticos y no cadenas vacías.
+
+**Verificación:**
+
+```text
+pnpm check                         # 14 archivos, 65 tests passed
+pnpm precision                     # exact source positions 7/7
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La cobertura comprueba posiciones exactas de `const`, `function` e `interface`
+a través de barrel y alias, un mapa sin segmentos y un artefacto sin mapa.
+El gate `TYPESCRIPT_CROSS_REPO_PASS` se re-midió y sigue emitido, ahora también
+exigiendo que las posiciones esperadas estén todas mapeadas.
+
+**Limitaciones:**
+
+* La posición corresponde al inicio de la declaración, no al identificador
+  dentro de ella cuando el mapa no emite un segmento propio para el nombre.
+* Un provider sin `declarationMap` conserva únicamente el puente file-level.
+
 **Siguiente tarea:** LUQUE-0801.
 
 ---

@@ -55,11 +55,11 @@ function renderReport(report: PrecisionReport): string {
     "",
     "## Casos",
     "",
-    "| Caso | Aristas esperadas | TP | FP | FN | Precisión | Recall | No resueltas correctas |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Caso | Aristas esperadas | TP | FP | FN | Precisión | Recall | No resueltas correctas | Posiciones en fuente |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...report.cases.map((entry) => {
       const metrics = entry.metrics;
-      return `| ${entry.name} | ${metrics.expectedEdges} | ${metrics.truePositives} | ${metrics.falsePositives} | ${metrics.falseNegatives} | ${format(metrics.precision)} | ${format(metrics.recall)} | ${metrics.unresolvedCorrectlyClassified}/${metrics.expectedUnresolved} |`;
+      return `| ${entry.name} | ${metrics.expectedEdges} | ${metrics.truePositives} | ${metrics.falsePositives} | ${metrics.falseNegatives} | ${format(metrics.precision)} | ${format(metrics.recall)} | ${metrics.unresolvedCorrectlyClassified}/${metrics.expectedUnresolved} | ${metrics.mappedSourcePositions}/${metrics.expectedSourcePositions} |`;
     }),
     "",
     "## Gate",
@@ -81,6 +81,7 @@ function renderMetrics(metrics: PrecisionMetrics): string[] {
     `- recall: ${format(metrics.recall)}`,
     `- false exact edges: ${metrics.falseExactEdges}`,
     `- unresolved correctly classified: ${metrics.unresolvedCorrectlyClassified}/${metrics.expectedUnresolved}`,
+    `- exact source positions: ${metrics.mappedSourcePositions}/${metrics.expectedSourcePositions}`,
   ];
 }
 

@@ -1,10 +1,1 @@
-{
-  "version": 3,
-  "file": "value.d.ts",
-  "sourceRoot": "",
-  "sources": [
-    "../src/value.ts"
-  ],
-  "names": [],
-  "mappings": ""
-}
+{"version":3,"file":"value.d.ts","sourceRoot":"","sources":["../src/value.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,KAAK,IAAI,CAAC;AAEvB,MAAM,WAAW,KAAK;IACpB,QAAQ,CAAC,KAAK,EAAE,MAAM,CAAC;CACxB;AAED,wBAAgB,OAAO,CAAC,KAAK,EAAE,MAAM,GAAG,MAAM,CAE7C"}

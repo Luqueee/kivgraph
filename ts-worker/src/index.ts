@@ -68,6 +68,17 @@ export type {
   UnresolvedReferenceResolution,
 } from "./unresolved-reference-resolver.js";
 
+export {
+  DeclarationPositionMapper,
+  decodeMappings,
+} from "./declaration-position-mapper.js";
+export type {
+  DeclarationMapSegment,
+  SourcePosition,
+} from "./declaration-position-mapper.js";
+export { loadDeclarationSourceMap } from "./declaration-source-resolver.js";
+export type { DeclarationSourceMap } from "./declaration-source-resolver.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";

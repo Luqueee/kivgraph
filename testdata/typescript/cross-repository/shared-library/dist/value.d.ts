@@ -1,4 +1,4 @@
-export declare const value: number;
+export declare const value = 1;
 export interface Shape {
     readonly value: number;
 }
