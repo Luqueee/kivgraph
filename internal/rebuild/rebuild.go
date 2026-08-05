@@ -4,10 +4,16 @@
 // The pipeline is eight checkpoints — facts, staging, graph.next, bulk load,
 // integrity, snapshot, golden probes, publish — and every one of them is
 // recorded on the returned Report, in that order, whether or not it passed.
-// The package never talks to LadybugDB itself: staging, loading, counting
-// and probing are hooks the caller supplies (Options.Load/Counts/Probes),
-// which default to the real ladybug implementations. That is what lets the
-// orchestration be exercised without cgo.
+// The integrity checkpoint itself has two gates: canonical table row counts
+// must match what the fact set implies, and the semantic invariants of
+// LUQUE-0904 (no dangling exact edges, no missing evidence, no duplicate
+// stable keys, no unknown confidence or provenance, no invalid repository
+// ownership) must hold over the graph that was just loaded.
+// The package never talks to LadybugDB itself: staging, loading, counting,
+// probing and invariant checking are hooks the caller supplies
+// (Options.Load/Counts/Probes/Integrity), which default to the real
+// ladybug implementations. That is what lets the orchestration be
+// exercised without cgo.
 package rebuild
 
 import (
@@ -69,6 +75,7 @@ type Report struct {
 	Stages         []Stage
 	Load           ladybug.LoadReport
 	Integrity      []IntegrityCheck
+	Invariants     ladybug.CanonicalIntegrityReport
 	Probes         []ladybug.CanonicalProbeResult
 	SnapshotDigest string
 	Publication    generation.Publication
@@ -84,11 +91,13 @@ type Options struct {
 	SnapshotID      int64
 	Store           generation.Config
 
-	// Load, Counts and Probes default to the ladybug implementations; tests
-	// substitute them so the orchestration is exercised without cgo.
-	Load   func(context.Context, string, facts.Set, ladybug.CanonicalLoadOptions) (ladybug.LoadReport, error)
-	Counts func(context.Context, string) (map[string]int64, error)
-	Probes func(context.Context, string, []ladybug.CanonicalProbe) ([]ladybug.CanonicalProbeResult, error)
+	// Load, Counts, Probes and Integrity default to the ladybug
+	// implementations; tests substitute them so the orchestration is
+	// exercised without cgo.
+	Load      func(context.Context, string, facts.Set, ladybug.CanonicalLoadOptions) (ladybug.LoadReport, error)
+	Counts    func(context.Context, string) (map[string]int64, error)
+	Probes    func(context.Context, string, []ladybug.CanonicalProbe) ([]ladybug.CanonicalProbeResult, error)
+	Integrity func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
 }
 
 // snapshotFileName is the digest file Run writes next to the candidate
@@ -142,6 +151,10 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	if runProbes == nil {
 		runProbes = ladybug.RunCanonicalProbes
 	}
+	verifyIntegrity := options.Integrity
+	if verifyIntegrity == nil {
+		verifyIntegrity = ladybug.VerifyCanonicalIntegrity
+	}
 	storeConfig := options.Store
 	if storeConfigIsZero(storeConfig) {
 		storeConfig = generation.DefaultConfig()
@@ -172,10 +185,11 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	probesStage := Stage{Name: StageProbes}
 
 	var (
-		loadReport      ladybug.LoadReport
-		integrityChecks []IntegrityCheck
-		probeResults    []ladybug.CanonicalProbeResult
-		snapshotDigest  string
+		loadReport       ladybug.LoadReport
+		integrityChecks  []IntegrityCheck
+		invariantsReport ladybug.CanonicalIntegrityReport
+		probeResults     []ladybug.CanonicalProbeResult
+		snapshotDigest   string
 	)
 
 	build := func(buildCtx context.Context, candidatePath string) error {
@@ -235,8 +249,14 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	}
 
 	validate := func(validateCtx context.Context, candidate generation.Generation) error {
-		// integrity: every canonical table, including the ones the fact set
-		// implies zero rows for, must match what LadybugDB actually holds.
+		// integrity: two gates, both required. Every canonical table,
+		// including the ones the fact set implies zero rows for, must match
+		// what LadybugDB actually holds, and the semantic invariants (no
+		// dangling exact edges, no missing evidence, no duplicate stable
+		// keys, no unknown confidence or provenance, no invalid repository
+		// ownership) must hold over the graph that was just loaded. Both
+		// halves always run, so a failure on either always reports how the
+		// other half fared too.
 		integrityStart := time.Now()
 		expected, expectedErr := ladybug.CanonicalTableRows(options.Facts, loadOptions)
 		if expectedErr != nil {
@@ -260,15 +280,21 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			}
 			checks = append(checks, IntegrityCheck{Table: table, Expected: expectedCount, Observed: observedCount, Passed: passed})
 		}
+		invariants, invariantsErr := verifyIntegrity(validateCtx, candidate.DatabasePath)
+		if invariantsErr != nil {
+			integrityStage = Stage{Name: StageIntegrity, Detail: invariantsErr.Error(), DurationMS: elapsedMS(integrityStart)}
+			return fmt.Errorf("verify canonical integrity: %w", invariantsErr)
+		}
 		integrityChecks = checks
+		invariantsReport = invariants
 		integrityStage = Stage{
 			Name:       StageIntegrity,
-			Passed:     mismatched == 0,
-			Detail:     integrityDetail(checks, mismatched),
+			Passed:     mismatched == 0 && invariants.Passed,
+			Detail:     integrityDetail(checks, mismatched, invariants),
 			DurationMS: elapsedMS(integrityStart),
 		}
-		if mismatched != 0 {
-			return fmt.Errorf("integrity check failed: %d of %d canonical table(s) mismatched", mismatched, len(tableNames))
+		if mismatched != 0 || !invariants.Passed {
+			return fmt.Errorf("integrity check failed: %d of %d canonical table(s) mismatched, %d invariant violation(s)", mismatched, len(tableNames), invariants.Violations())
 		}
 
 		// golden probes: a handful of reads against the candidate graph,
@@ -324,6 +350,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	report.Stages = append(report.Stages, stagingStage, graphNextStage, bulkLoadStage, integrityStage, snapshotStage, probesStage)
 	report.Load = loadReport
 	report.Integrity = integrityChecks
+	report.Invariants = invariantsReport
 	report.Probes = probeResults
 	report.SnapshotDigest = snapshotDigest
 
@@ -381,17 +408,41 @@ func factsSummary(set facts.Set) string {
 	)
 }
 
-func integrityDetail(checks []IntegrityCheck, mismatched int) string {
-	if mismatched == 0 {
-		return fmt.Sprintf("%d canonical table(s) matched their expected count", len(checks))
+// integrityDetail summarizes both halves of the integrity stage: how many
+// canonical tables matched their expected row count, and how many semantic
+// invariant violations VerifyCanonicalIntegrity found over the graph that
+// was just loaded. Every broken rule is named, so a failure is diagnosable
+// from the stage Detail alone, without a separate doctor graph run.
+func integrityDetail(checks []IntegrityCheck, mismatched int, invariants ladybug.CanonicalIntegrityReport) string {
+	matched := len(checks) - mismatched
+	detail := fmt.Sprintf("%d of %d canonical table(s) matched their expected count", matched, len(checks))
+	if mismatched != 0 {
+		mismatches := make([]string, 0, mismatched)
+		for _, check := range checks {
+			if !check.Passed {
+				mismatches = append(mismatches, fmt.Sprintf("%s expected=%d observed=%d", check.Table, check.Expected, check.Observed))
+			}
+		}
+		detail += fmt.Sprintf(" (%s)", strings.Join(mismatches, "; "))
 	}
-	mismatches := make([]string, 0, mismatched)
-	for _, check := range checks {
-		if !check.Passed {
-			mismatches = append(mismatches, fmt.Sprintf("%s expected=%d observed=%d", check.Table, check.Expected, check.Observed))
+	detail += fmt.Sprintf("; %d invariant violation(s)", invariants.Violations())
+	if failedRules := failedIntegrityRuleNames(invariants); len(failedRules) != 0 {
+		detail += fmt.Sprintf(" in rule(s) %s", strings.Join(failedRules, ", "))
+	}
+	return detail
+}
+
+// failedIntegrityRuleNames names every rule with at least one violation, in
+// the order the report already carries — CanonicalIntegrityRules fixes that
+// order — so the integrity stage Detail never depends on map iteration.
+func failedIntegrityRuleNames(report ladybug.CanonicalIntegrityReport) []string {
+	names := make([]string, 0, len(report.Findings))
+	for _, finding := range report.Findings {
+		if !finding.Passed {
+			names = append(names, string(finding.Rule))
 		}
 	}
-	return fmt.Sprintf("%d of %d canonical table(s) mismatched: %s", mismatched, len(checks), strings.Join(mismatches, "; "))
+	return names
 }
 
 func probesDetail(results []ladybug.CanonicalProbeResult, failed int) string {

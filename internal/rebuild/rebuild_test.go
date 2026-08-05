@@ -61,9 +61,10 @@ func sampleFacts() facts.Set {
 }
 
 // buildOptions wires the real canonical rendering (ladybug.CanonicalTableRows,
-// landed with no build tag) behind fake Load/Counts/Probes hooks, so these
-// tests exercise Run's orchestration without cgo while still catching a real
-// mismatch between what gets "loaded" and what integrity expects.
+// landed with no build tag) behind fake Load/Counts/Probes/Integrity hooks,
+// so these tests exercise Run's orchestration without cgo while still
+// catching a real mismatch between what gets "loaded" and what integrity
+// expects.
 func buildOptions(t *testing.T, root, generationID string, set facts.Set) Options {
 	t.Helper()
 	return Options{
@@ -75,6 +76,7 @@ func buildOptions(t *testing.T, root, generationID string, set facts.Set) Option
 		Load:            fakeLoad,
 		Counts:          fakeCounts,
 		Probes:          fakePassingProbes,
+		Integrity:       fakeIntegrityPassing,
 	}
 }
 
@@ -151,6 +153,42 @@ func fakeFailingProbes(_ context.Context, _ string, probes []ladybug.CanonicalPr
 		results[index] = ladybug.CanonicalProbeResult{Probe: probe.Name, Rows: probe.MinRows, Passed: true, Detail: "fake probe passed"}
 	}
 	return results, nil
+}
+
+// fakeIntegrityPassing stands in for ladybug.VerifyCanonicalIntegrity: every
+// rule in CanonicalIntegrityRules reports zero violations, so the invariant
+// gate never blocks a rebuild on its own.
+func fakeIntegrityPassing(context.Context, string) (ladybug.CanonicalIntegrityReport, error) {
+	rules := ladybug.CanonicalIntegrityRules()
+	findings := make([]ladybug.IntegrityFinding, 0, len(rules))
+	for _, rule := range rules {
+		findings = append(findings, ladybug.IntegrityFinding{Rule: rule, Passed: true})
+	}
+	return ladybug.CanonicalIntegrityReport{Findings: findings, Passed: true}, nil
+}
+
+// fakeIntegrityWithViolation reports every rule passing except the one
+// given, which carries a single sample violation. It forces an invariant
+// failure deterministically, independent of what was actually loaded — the
+// same role fakeCountsWithMismatch plays for table counts.
+func fakeIntegrityWithViolation(rule ladybug.IntegrityRule, sample ladybug.IntegrityViolation) func(context.Context, string) (ladybug.CanonicalIntegrityReport, error) {
+	return func(context.Context, string) (ladybug.CanonicalIntegrityReport, error) {
+		rules := ladybug.CanonicalIntegrityRules()
+		findings := make([]ladybug.IntegrityFinding, 0, len(rules))
+		for _, candidate := range rules {
+			if candidate != rule {
+				findings = append(findings, ladybug.IntegrityFinding{Rule: candidate, Passed: true})
+				continue
+			}
+			findings = append(findings, ladybug.IntegrityFinding{
+				Rule:       rule,
+				Violations: 1,
+				Samples:    []ladybug.IntegrityViolation{sample},
+				Passed:     false,
+			})
+		}
+		return ladybug.CanonicalIntegrityReport{Findings: findings, Passed: false}, nil
+	}
 }
 
 func canonicalNodeTableNames() map[string]bool {
@@ -328,6 +366,120 @@ func TestRunIntegrityMismatchPreservesCurrentGeneration(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "generations", "000002")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("generation 000002 should not exist: stat err = %v", err)
+	}
+}
+
+// TestRunInvariantViolationBlocksPublishDespiteMatchingCounts is the (a)
+// contract from LUQUE-0904: a semantic invariant violation blocks
+// publication and CURRENT keeps pointing at the previous generation, even
+// though every canonical table count matches what the fact set implies.
+func TestRunInvariantViolationBlocksPublishDespiteMatchingCounts(t *testing.T) {
+	root := t.TempDir()
+	set := sampleFacts()
+
+	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
+		t.Fatalf("first Run() error = %v", err)
+	}
+
+	second := buildOptions(t, root, "000002", set)
+	second.Integrity = fakeIntegrityWithViolation(ladybug.RuleDuplicateStableKey, ladybug.IntegrityViolation{
+		Rule:   ladybug.RuleDuplicateStableKey,
+		Table:  "Package",
+		Key:    "pkg:go:acme/widgets:widgets",
+		Detail: "also used by table File",
+	})
+
+	report, err := Run(context.Background(), second)
+	if err == nil {
+		t.Fatal("Run() error = nil, want an invariant violation error")
+	}
+	if !errors.Is(err, ErrRebuildFailed) {
+		t.Fatalf("errors.Is(err, ErrRebuildFailed) = false; err = %v", err)
+	}
+	if report.Passed {
+		t.Fatal("Report.Passed = true, want false")
+	}
+	integrityStage, ok := stageByName(report.Stages, StageIntegrity)
+	if !ok || integrityStage.Passed {
+		t.Fatalf("integrity stage = %+v, want a recorded failure", integrityStage)
+	}
+	for _, check := range report.Integrity {
+		if !check.Passed {
+			t.Fatalf("table count check %+v failed, want every count to still match: the failure must come from the invariant report alone", check)
+		}
+	}
+	if report.Invariants.Passed {
+		t.Fatal("Report.Invariants.Passed = true, want false")
+	}
+	if report.Invariants.Violations() != 1 {
+		t.Fatalf("Report.Invariants.Violations() = %d, want 1", report.Invariants.Violations())
+	}
+
+	if got := currentGenerationID(t, root); got != "000001" {
+		t.Fatalf("CURRENT = %q, want 000001 (unchanged)", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "generations", "000002")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("generation 000002 should not exist: stat err = %v", err)
+	}
+}
+
+// TestIntegrityStageDetailNamesFailedInvariantRules is the (b) contract: the
+// integrity stage Detail names every broken invariant rule, not just a
+// violation count, so a failure is diagnosable without a second doctor
+// graph run.
+func TestIntegrityStageDetailNamesFailedInvariantRules(t *testing.T) {
+	root := t.TempDir()
+	options := buildOptions(t, root, "000001", sampleFacts())
+	options.Integrity = fakeIntegrityWithViolation(ladybug.RuleUnknownConfidence, ladybug.IntegrityViolation{
+		Rule:   ladybug.RuleUnknownConfidence,
+		Table:  "CALLS_DIRECT",
+		Key:    "symbol:go:acme/widgets.New->symbol:go:acme/widgets.Helper",
+		Detail: `confidence "BOGUS" is not a known facts.Confidence`,
+	})
+
+	report, err := Run(context.Background(), options)
+	if err == nil {
+		t.Fatal("Run() error = nil, want an invariant violation error")
+	}
+	if !errors.Is(err, ErrRebuildFailed) {
+		t.Fatalf("errors.Is(err, ErrRebuildFailed) = false; err = %v", err)
+	}
+	integrityStage, ok := stageByName(report.Stages, StageIntegrity)
+	if !ok {
+		t.Fatal("integrity stage not recorded")
+	}
+	if !strings.Contains(integrityStage.Detail, string(ladybug.RuleUnknownConfidence)) {
+		t.Fatalf("integrity stage Detail = %q, want it to name %q", integrityStage.Detail, ladybug.RuleUnknownConfidence)
+	}
+}
+
+// TestRunDefaultsIntegrityToLadybugVerifyCanonicalIntegrity confirms Options
+// wires its Integrity default exactly like Load, Counts and Probes already
+// do: a caller that leaves it nil reaches the real
+// ladybug.VerifyCanonicalIntegrity, not a silently skipped check.
+//
+// The assertion cannot name the failure text, because it differs per build:
+// the stub reports ErrUnavailable while the native build fails opening the
+// path the fake loader never turned into a database. What both share is the
+// ladybug error wrapper, and only ladybug can produce it here.
+func TestRunDefaultsIntegrityToLadybugVerifyCanonicalIntegrity(t *testing.T) {
+	root := t.TempDir()
+	options := buildOptions(t, root, "000001", sampleFacts())
+	options.Integrity = nil
+
+	report, err := Run(context.Background(), options)
+	if err == nil {
+		t.Fatal("Run() error = nil, want the default ladybug.VerifyCanonicalIntegrity to reject a database the fake loader never wrote")
+	}
+	if !errors.Is(err, ErrRebuildFailed) {
+		t.Fatalf("errors.Is(err, ErrRebuildFailed) = false; err = %v", err)
+	}
+	integrityStage, ok := stageByName(report.Stages, StageIntegrity)
+	if !ok || integrityStage.Passed {
+		t.Fatalf("integrity stage = %+v, want a recorded failure", integrityStage)
+	}
+	if !strings.HasPrefix(integrityStage.Detail, "ladybug ") {
+		t.Fatalf("integrity stage Detail = %q, want a ladybug error: that prefix is what proves Options.Integrity defaulted to ladybug.VerifyCanonicalIntegrity", integrityStage.Detail)
 	}
 }
 

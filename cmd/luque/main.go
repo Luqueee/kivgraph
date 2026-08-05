@@ -33,6 +33,8 @@ type storageDiagnoser func(context.Context, string) (ladybug.StorageDiagnosis, e
 
 type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, error)
 
+type graphVerifier func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
+
 func run(args []string, stdout, stderr io.Writer) int {
 	return runWithStorageDiagnoser(args, stdout, stderr, ladybug.DiagnoseStorage)
 }
@@ -42,12 +44,19 @@ func runWithStorageDiagnoser(args []string, stdout, stderr io.Writer, diagnose s
 }
 
 func runWithGraphRebuilder(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder) int {
+	return runWithGraphVerifier(args, stdout, stderr, diagnose, rebuilder, ladybug.VerifyCanonicalIntegrity)
+}
+
+func runWithGraphVerifier(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier) int {
 	if len(args) == 2 && args[1] == "version" {
 		fmt.Fprintln(stdout, version.Value)
 		return 0
 	}
 	if len(args) >= 3 && args[1] == "doctor" && args[2] == "storage" {
 		return runDoctorStorage(args[3:], stdout, stderr, diagnose)
+	}
+	if len(args) >= 3 && args[1] == "doctor" && args[2] == "graph" {
+		return runDoctorGraph(args[3:], stdout, stderr, verify)
 	}
 	if len(args) >= 3 && args[1] == "benchmark" && args[2] == "generate-graph" {
 		return runGenerateGraph(args[3:], stdout, stderr)
@@ -56,7 +65,7 @@ func runWithGraphRebuilder(args []string, stdout, stderr io.Writer, diagnose sto
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
 	}
 
-	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]\n", args[0])
 	return 2
 }
 
@@ -95,6 +104,61 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 		return 0
 	}
 	return 1
+}
+
+func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifier) int {
+	flags := flag.NewFlagSet("doctor graph", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var databasePath string
+	flags.StringVar(&databasePath, "database", "", "published canonical LadybugDB database path")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "doctor graph: unexpected arguments: %v\n", flags.Args())
+		return 2
+	}
+	if databasePath == "" {
+		fmt.Fprintln(stderr, "doctor graph: --database is required")
+		return 2
+	}
+
+	report, err := verify(context.Background(), databasePath)
+	if err != nil {
+		fmt.Fprintf(stderr, "doctor graph: %v\n", err)
+		return 1
+	}
+	writeIntegrityReport(stdout, databasePath, report)
+	if report.Passed {
+		return 0
+	}
+	return 1
+}
+
+// writeIntegrityReport prints one line per canonical integrity rule with its
+// PASS/FAIL state and violation count and, under every failed rule, the
+// offending samples VerifyCanonicalIntegrity already bounded: table, key and
+// detail.
+func writeIntegrityReport(stdout io.Writer, databasePath string, report ladybug.CanonicalIntegrityReport) {
+	state := "FAIL"
+	if report.Passed {
+		state = "PASS"
+	}
+	fmt.Fprintf(stdout, "graph doctor: %s\n", state)
+	fmt.Fprintf(stdout, "database: %s\n", databasePath)
+	for _, finding := range report.Findings {
+		findingState := "FAIL"
+		if finding.Passed {
+			findingState = "PASS"
+		}
+		fmt.Fprintf(stdout, "[%s] %s: %d violation(s)\n", findingState, finding.Rule, finding.Violations)
+		if finding.Passed {
+			continue
+		}
+		for _, sample := range finding.Samples {
+			fmt.Fprintf(stdout, "    %s %s: %s\n", sample.Table, sample.Key, sample.Detail)
+		}
+	}
 }
 
 func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
@@ -215,6 +279,15 @@ func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 		}
 		fmt.Fprintf(stdout, "[FAIL] integrity %s: expected %d, observed %d\n", check.Table, check.Expected, check.Observed)
 	}
+	for _, finding := range report.Invariants.Findings {
+		if finding.Passed {
+			continue
+		}
+		fmt.Fprintf(stdout, "[FAIL] invariant %s: %d violation(s)\n", finding.Rule, finding.Violations)
+		for _, sample := range finding.Samples {
+			fmt.Fprintf(stdout, "    %s %s: %s\n", sample.Table, sample.Key, sample.Detail)
+		}
+	}
 	for _, probe := range report.Probes {
 		if probe.Passed {
 			continue
@@ -233,8 +306,9 @@ func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 	}
 }
 
-// rebuildFailureReason finds the first broken stage, check or probe so the
-// exit path always names a concrete cause instead of a generic failure.
+// rebuildFailureReason finds the first broken stage, check, invariant or
+// probe so the exit path always names a concrete cause instead of a
+// generic failure.
 func rebuildFailureReason(report rebuild.Report) string {
 	for _, stage := range report.Stages {
 		if !stage.Passed {
@@ -244,6 +318,11 @@ func rebuildFailureReason(report rebuild.Report) string {
 	for _, check := range report.Integrity {
 		if !check.Passed {
 			return fmt.Sprintf("integrity check %q failed: expected %d, observed %d", check.Table, check.Expected, check.Observed)
+		}
+	}
+	for _, finding := range report.Invariants.Findings {
+		if !finding.Passed {
+			return fmt.Sprintf("invariant %q failed: %d violation(s)", finding.Rule, finding.Violations)
 		}
 	}
 	for _, probe := range report.Probes {

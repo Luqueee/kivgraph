@@ -112,6 +112,101 @@ func TestRunDoctorStorageRequiresDatabasePath(t *testing.T) {
 	}
 }
 
+func TestRunDoctorGraphReportsCleanInvariants(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	report := ladybug.CanonicalIntegrityReport{
+		Findings: []ladybug.IntegrityFinding{
+			{Rule: ladybug.RuleExactEdgeWithoutSource, Passed: true},
+			{Rule: ladybug.RuleDuplicateStableKey, Passed: true},
+		},
+		Passed: true,
+	}
+	verify := func(_ context.Context, path string) (ladybug.CanonicalIntegrityReport, error) {
+		if path != "/tmp/graph.db" {
+			t.Fatalf("verify path = %q, want /tmp/graph.db", path)
+		}
+		return report, nil
+	}
+
+	code := runWithGraphVerifier([]string{"luque", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "graph doctor: PASS") {
+		t.Fatalf("stdout = %q, want overall PASS", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "[PASS] exact_edge_without_source: 0 violation(s)") {
+		t.Fatalf("stdout missing passing rule: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "[PASS] duplicate_stable_key: 0 violation(s)") {
+		t.Fatalf("stdout missing passing rule: %q", stdout.String())
+	}
+}
+
+func TestRunDoctorGraphReportsViolationsAndSamples(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	report := ladybug.CanonicalIntegrityReport{
+		Findings: []ladybug.IntegrityFinding{
+			{Rule: ladybug.RuleExactEdgeWithoutSource, Passed: true},
+			{
+				Rule:       ladybug.RuleDuplicateStableKey,
+				Violations: 2,
+				Passed:     false,
+				Samples: []ladybug.IntegrityViolation{
+					{Rule: ladybug.RuleDuplicateStableKey, Table: "Package", Key: "pkg:acme/widgets", Detail: "also used by table File"},
+				},
+			},
+		},
+		Passed: false,
+	}
+	verify := func(context.Context, string) (ladybug.CanonicalIntegrityReport, error) {
+		return report, nil
+	}
+
+	code := runWithGraphVerifier([]string{"luque", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stdout.String(), "graph doctor: FAIL") {
+		t.Fatalf("stdout missing overall FAIL: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "[FAIL] duplicate_stable_key: 2 violation(s)") {
+		t.Fatalf("stdout missing failed rule: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Package pkg:acme/widgets: also used by table File") {
+		t.Fatalf("stdout missing sample: %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "[FAIL] exact_edge_without_source") {
+		t.Fatalf("stdout should not report the passing rule as failed: %q", stdout.String())
+	}
+}
+
+// TestRunDoctorGraphRequiresDatabasePath is the (d) contract: doctor graph
+// without --database exits with the same usage failure code (2) that
+// doctor storage already uses for a missing required flag.
+func TestRunDoctorGraphRequiresDatabasePath(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	verify := func(context.Context, string) (ladybug.CanonicalIntegrityReport, error) {
+		called = true
+		return ladybug.CanonicalIntegrityReport{}, nil
+	}
+
+	code := runWithGraphVerifier([]string{"luque", "doctor", "graph"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if called {
+		t.Fatal("verifier was called")
+	}
+	if !strings.Contains(stderr.String(), "--database is required") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
 func TestRunGenerateGraph(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "synthetic")
 	var stdout, stderr bytes.Buffer
@@ -276,6 +371,20 @@ func TestRunRebuildReportsIntegrityDiscrepanciesAndFailedProbes(t *testing.T) {
 				{Table: "Symbol", Expected: 100, Observed: 99, Passed: false},
 				{Table: "File", Expected: 10, Observed: 10, Passed: true},
 			},
+			Invariants: ladybug.CanonicalIntegrityReport{
+				Findings: []ladybug.IntegrityFinding{
+					{Rule: ladybug.RuleExactEdgeWithoutSource, Passed: true},
+					{
+						Rule:       ladybug.RuleDuplicateStableKey,
+						Violations: 1,
+						Passed:     false,
+						Samples: []ladybug.IntegrityViolation{
+							{Rule: ladybug.RuleDuplicateStableKey, Table: "Package", Key: "pkg:acme/widgets", Detail: "also used by table File"},
+						},
+					},
+				},
+				Passed: false,
+			},
 			Probes: []ladybug.CanonicalProbeResult{
 				{Probe: "calls-direct", Rows: 0, Passed: false, Detail: "no rows"},
 				{Probe: "imports-symbol", Rows: 5, Passed: true},
@@ -306,6 +415,15 @@ func TestRunRebuildReportsIntegrityDiscrepanciesAndFailedProbes(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "imports-symbol") {
 		t.Fatalf("stdout should not report a passing probe: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "invariant duplicate_stable_key: 1 violation(s)") {
+		t.Fatalf("stdout missing invariant violation: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Package pkg:acme/widgets: also used by table File") {
+		t.Fatalf("stdout missing invariant sample: %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "invariant exact_edge_without_source") {
+		t.Fatalf("stdout should not report a passing invariant: %q", stdout.String())
 	}
 }
 

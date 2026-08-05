@@ -5504,11 +5504,11 @@ make test-ladybug todos los paquetes ok, incluidas las suites nativas nuevas
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Comprobar:**
 
@@ -5520,6 +5520,118 @@ make test-ladybug todos los paquetes ok, incluidas las suites nativas nuevas
 0 unknown confidence
 0 invalid repository ownership
 ```
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+internal/storage/ladybug/canonical_integrity.go            reglas, catálogos y tipos
+internal/storage/ladybug/canonical_integrity_native.go     los seis invariantes en Cypher
+internal/storage/ladybug/canonical_integrity_stub.go       degradado sin CGO
+internal/rebuild/rebuild.go                                etapa integrity ampliada
+cmd/luque/main.go                                          comando luque doctor graph
+```
+
+**Decisión de semántica: «sin origen» no puede significar «el nodo no existe».**
+LadybugDB garantiza los dos extremos de toda relación, así que una arista sin
+extremo es inexpresable en el almacén. La regla que sí tiene contenido es
+**no declarado**: un `Symbol` sin `DEFINES` entrante, o un `Package` sin
+`CONTAINS_PACKAGE` entrante, es un marcador de posición, y una arista exacta
+anclada ahí está colgando. Es la lectura fiel del principio del plan: una
+referencia omitida es degradación aceptable; una arista exacta hacia un símbolo
+que nadie declara es un fallo de integridad.
+
+**Las seis reglas, tal como se evalúan:**
+
+| Regla | Qué recorre |
+| --- | --- |
+| `exact_edge_without_source` | aristas semánticas con confianza exacta cuyo origen no está declarado |
+| `exact_edge_without_target` | lo mismo para el destino |
+| `missing_evidence_file` | `evidence_key` sin `Evidence`, o `Evidence` sin `OBSERVED_IN` a un `File` |
+| `duplicate_stable_key` | una misma clave usada por dos tablas de nodo distintas |
+| `unknown_confidence` | `confidence`/`provenance` fuera de catálogo, y exactitud declarada con procedencia no exacta |
+| `invalid_repository_ownership` | `repository_key` que la cadena de contención no confirma, o repositorio inexistente |
+
+**Decisiones:**
+
+* Las tablas semánticas y las que llevan `confidence` se **derivan** de
+  `CanonicalRelationshipTables()`. No hay lista escrita a mano de quince
+  tablas que pueda desincronizarse del esquema.
+* Una regla violada **no es un error**: es un informe. Sólo un fallo del motor
+  devuelve error. Un verificador que aborta en la primera violación no sirve
+  para diagnosticar.
+* La cuenta de violaciones es exacta; las muestras están acotadas a
+  `MaxIntegritySamples` y ordenadas por tabla y clave. Un grafo roto debe poder
+  diagnosticarse sin volcar el grafo entero.
+* La etapa `integrity` del rebuild exige ahora **las dos cosas**: paridad de
+  cuentas e invariantes. Cualquiera de las dos aborta la publicación, así que un
+  grafo que viole un invariante nunca llega a `CURRENT`.
+* `facts` no expone un enumerador de sus constantes, así que el catálogo se
+  declara una vez en `canonical_integrity.go` y un test parsea `facts.go` con
+  `go/parser` para fallar si el catálogo y las constantes se separan.
+
+**Verificación sobre un grafo canónico real.** Hechos derivados del fixture
+`testdata/go/cross-repository` con `goloader` + `facts.NormalizeGo`, publicados
+con `luque rebuild`:
+
+```text
+[PASS] integrity  27 of 27 canonical table(s) matched their expected count; 0 invariant violation(s)
+[PASS] publish    published generation 000001
+
+luque doctor graph --database generations/000001/graph.db  →  graph doctor: PASS
+  exact_edge_without_source 0   exact_edge_without_target 0   missing_evidence_file 0
+  duplicate_stable_key 0        unknown_confidence 0          invalid_repository_ownership 0
+```
+
+**Y las seis reglas muerden.** Cada violación se inyectó con Cypher crudo sobre
+una copia de la generación publicada —`LoadCanonical` valida los hechos, así que
+una violación sólo puede entrar escribiendo directamente— y se comprobó por la
+ruta del operador, `luque doctor graph`, que salió 1 en los seis casos:
+
+| Inyección | Regla que falla | Muestra emitida |
+| --- | --- | --- |
+| `Symbol` huérfano con arista exacta hacia él | `exact_edge_without_source` | `source confidence EXACT_TYPECHECKED has no declaring DEFINES from File` |
+| `evidence_key` inexistente | `missing_evidence_file` | `evidence_key NO_EXISTE has no Evidence observed in a File` |
+| clave de `File` reutilizada en `Evidence` | `duplicate_stable_key` | `stable_key also used by File` |
+| `confidence: MUY_SEGURO` | `unknown_confidence` | `is not a facts.Confidence value` |
+| exacta con `TREE_SITTER_SYNTAX` | `unknown_confidence` | `claims exactness but provenance … is not exact` |
+| `repository_key` contradictorio | `invalid_repository_ownership` | `is not confirmed by the containment chain` |
+
+El primer caso incumple además `invalid_repository_ownership`, y es correcto: un
+símbolo huérfano tampoco tiene cadena de contención que confirme su repositorio.
+Una sola inyección puede violar dos reglas legítimamente.
+
+```text
+gofmt -l .        sin diferencias
+go vet ./...      limpio
+go test ./...     todos los paquetes ok
+make test-ladybug todos los paquetes ok, con las suites nativas nuevas
+```
+
+**Bug corregido en el camino:** una prueba nueva de `internal/rebuild` aseveraba
+el mensaje del *stub* (`ErrUnavailable`) para demostrar que `Options.Integrity`
+usa su valor por defecto. Con `-tags ladybug` ese mensaje no existe y la prueba
+fallaba **sólo en la ejecución nativa**. Ahora asevera el prefijo del envoltorio
+`ladybug `, que es lo único que ambas compilaciones comparten y sigue
+demostrando el cableado. Sin `make test-ladybug` habría pasado inadvertida.
+
+**Limitaciones:**
+
+* Que un invariante violado impida la publicación está probado con un informe
+  inyectado, no con una carga real que los produzca: `LoadCanonical` rechaza
+  antes los hechos que lo causarían. La función que corre dentro de `Validate`
+  es exactamente la que `doctor graph` ejerce contra un grafo real y roto.
+* `DiagnoseStorage` sigue validando el esquema `001-synthetic`; `doctor storage`
+  no reconoce todavía una base canónica. Son diagnósticos distintos —fichero
+  frente a grafo— y unificarlos no pertenece a esta tarea.
+* `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` se verifican si existen, pero
+  `NormalizeGo` aún no las produce: el grafo real no contiene ninguna, así que
+  esas tres clases no están ejercitadas sobre datos reales.
+* Los arneses usados para derivar hechos e inyectar violaciones son andamios y
+  no se han dejado en el árbol.
+
+**Siguiente tarea:** LUQUE-0905.
 
 ---
 

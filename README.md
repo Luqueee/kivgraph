@@ -151,6 +151,43 @@ integridad referencial. Devuelve `0` solo cuando todos los checks están en
 `PASS`; una base bloqueada, incompleta o compilada sin el tag `ladybug` devuelve
 `1`. La base indicada no se modifica.
 
+La verificación de integridad semántica comprueba los seis invariantes del
+grafo canónico sobre una base ya publicada, sin reconstruirla:
+
+```bash
+go run -tags ladybug ./cmd/luque doctor graph \
+  --database /var/lib/luque/graph/CURRENT/graph.db
+```
+
+El comando imprime una línea por regla con su estado (`PASS`/`FAIL`) y su
+número de violaciones y, bajo cada regla incumplida, hasta
+`ladybug.MaxIntegritySamples` (20) muestras con la tabla, la clave y el
+detalle de la fila que la rompe. Los seis invariantes, todos a cero en un
+grafo sano:
+
+- `exact_edge_without_source`: una arista semántica con `confidence` exacta
+  cuyo nodo origen no está declarado, por ejemplo un `Symbol` sin `DEFINES`
+  entrante desde ningún `File`.
+- `exact_edge_without_target`: lo mismo para el nodo destino.
+- `missing_evidence_file`: una arista con `evidence_key` cuya `Evidence` no
+  existe, o que existe pero no tiene `OBSERVED_IN` hacia un `File`.
+- `duplicate_stable_key`: una misma `stable_key` usada por dos tablas de
+  nodo distintas.
+- `unknown_confidence`: una `confidence` o `provenance` fuera del
+  vocabulario de `facts.Confidence`/`facts.Provenance`, o una arista que
+  declara exactitud respaldada por una procedencia no exacta.
+- `invalid_repository_ownership`: un nodo cuyo `repository_key` no coincide
+  con el repositorio alcanzable por contención (`Package` vía
+  `CONTAINS_PACKAGE`, `File` vía `CONTAINS_FILE`, `Symbol` vía `DEFINES`,
+  `Evidence` vía `OBSERVED_IN`), o que apunta a un `Repository` inexistente.
+
+LadybugDB garantiza que toda relación tiene sus dos extremos, así que "sin
+origen" nunca significa que el nodo no exista: significa que ningún hecho lo
+declaró. Una arista exacta anclada a un símbolo que ningún archivo declara
+es un fallo del invariante correspondiente, no una degradación aceptable.
+El comando devuelve `0` solo si las seis reglas pasan; la base indicada no
+se modifica.
+
 La reconstrucción completa conecta facts, staging, `graph.next`, carga bulk,
 integridad, snapshot, golden probes y publicación en una sola operación sobre
 un `facts.Set` serializado:
@@ -169,13 +206,15 @@ go run -tags ladybug ./cmd/luque rebuild \
 que recibirá la nueva generación; `--generation` son sus seis dígitos y
 `--resolver-version` queda grabado en cada arista semántica junto con
 `--snapshot-id` (por defecto `0`). El comando imprime en la salida estándar
-una línea por etapa con su estado y duración, las discrepancias de
-integridad y las sondas fallidas si las hay, el digest del snapshot y la
-generación publicada.
+una línea por etapa con su estado y duración, las discrepancias de conteo y
+las violaciones de invariantes que encontró la etapa de integridad, las
+sondas fallidas si las hay, el digest del snapshot y la generación
+publicada.
 
 La publicación es atómica: `rebuild` construye y valida el candidato en
 `--root/generations/<generación>/graph.db` y solo actualiza `--root/CURRENT`
-para apuntarlo si la carga, la integridad y las golden probes pasan. Un
+para apuntarlo si la carga, la integridad —conteos por tabla e invariantes
+semánticos— y las golden probes pasan. Un
 fallo en cualquier etapa deja `CURRENT` y la generación anterior intactas y
 sirviéndose; el comando termina con estado distinto de cero y explica en la
 salida de error qué etapa falló.
