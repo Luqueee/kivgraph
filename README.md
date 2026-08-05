@@ -151,6 +151,35 @@ integridad referencial. Devuelve `0` solo cuando todos los checks están en
 `PASS`; una base bloqueada, incompleta o compilada sin el tag `ladybug` devuelve
 `1`. La base indicada no se modifica.
 
+La reconstrucción completa conecta facts, staging, `graph.next`, carga bulk,
+integridad, snapshot, golden probes y publicación en una sola operación sobre
+un `facts.Set` serializado:
+
+```bash
+go run -tags ladybug ./cmd/luque rebuild \
+  --facts facts.json \
+  --root /var/lib/luque/graph \
+  --generation 000123 \
+  --resolver-version go-tsserver-1.0.0
+```
+
+`--facts` apunta a un JSON con un `facts.Set` (`Repositories`, `Packages`,
+`Files`, `Symbols`, `Evidence`, `Edges`, `Unresolved`) ya normalizado con
+`Set.Sort()` y `Set.Validate()`. `--root` es la raíz del `generation.Store`
+que recibirá la nueva generación; `--generation` son sus seis dígitos y
+`--resolver-version` queda grabado en cada arista semántica junto con
+`--snapshot-id` (por defecto `0`). El comando imprime en la salida estándar
+una línea por etapa con su estado y duración, las discrepancias de
+integridad y las sondas fallidas si las hay, el digest del snapshot y la
+generación publicada.
+
+La publicación es atómica: `rebuild` construye y valida el candidato en
+`--root/generations/<generación>/graph.db` y solo actualiza `--root/CURRENT`
+para apuntarlo si la carga, la integridad y las golden probes pasan. Un
+fallo en cualquier etapa deja `CURRENT` y la generación anterior intactas y
+sirviéndose; el comando termina con estado distinto de cero y explica en la
+salida de error qué etapa falló.
+
 La [calificación de LadybugDB](docs/decisions/ladybugdb-qualification.md)
 concluye `ACCEPT_LADYBUGDB_WITH_LIMITS`. `LADYBUG_RECOVERY_PASS` está emitido:
 las generaciones inmutables y la publicación durable de `CURRENT` protegen la

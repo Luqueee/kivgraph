@@ -5357,15 +5357,15 @@ benchmarks de LadybugDB.
 
 ## LUQUE-0903 — Implementar full rebuild
 
-**Dependencias:** LUQUE-0902.
+**Dependencias:** LUQUE-0902 y LUQUE-0908.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Pipeline:**
 
@@ -5379,6 +5379,122 @@ facts
 → golden probes
 → publish
 ```
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+internal/rebuild/rebuild.go                          orquestador de las ocho etapas
+internal/storage/ladybug/canonical_load.go           render determinista del esquema 002
+internal/storage/ladybug/canonical_load_native.go    staging CSV + COPY + counts + sondas
+internal/storage/ladybug/canonical_load_stub.go      degradado sin CGO
+internal/facts/facts.go                              UnresolvedKey
+cmd/luque/main.go                                    comando luque rebuild
+```
+
+**Punto de partida real:** cada etapa existía aislada y **ninguna llamaba a la
+siguiente**. No había un solo consumidor de `facts.Set` fuera de su paquete, ni
+un camino que escribiera el esquema canónico `002` en una base: hasta esta
+tarea, `002` sólo estaba probado como DDL, mientras el `Reader`/`Writer` seguían
+sobre el esquema experimental `001-synthetic`.
+
+**Decisiones:**
+
+* La publicación **no se reimplementa**: la etapa `publish` es
+  `generation.Store.Publish`, con la carga y el snapshot dentro de `Build` y la
+  integridad y las sondas dentro de `Validate`. Un fallo en cualquiera de las
+  dos deja el `CURRENT` anterior intacto porque es el propio store el que
+  aborta.
+* `CanonicalColumns` se deriva **en vivo** de `CanonicalNodeTables()` y
+  `CanonicalRelationshipTables()`. No hay una lista paralela de columnas que
+  pueda desincronizarse del esquema.
+* El COPY carga **todas las tablas de nodo antes de cualquier relación**;
+  ninguna arista puede entrar antes que sus extremos.
+* `OBSERVED_IN` y `REPORTS_UNRESOLVED` no son `facts.EdgeKind`: se **derivan**
+  de `Evidence.FileKey` y de `UnresolvedReference.RepositoryKey`. Una arista de
+  esas dos clases no puede inventarse desde el conjunto de aristas.
+* Las sondas golden se **derivan del propio conjunto de hechos** —primer
+  símbolo en orden de clave, par (símbolo, tabla) con más salientes, y una
+  arista concreta origen→destino—, nunca de claves escritas a mano. Sólo las
+  relaciones `Symbol→Symbol` pueden respaldar una sonda anclada en símbolos.
+* El digest de snapshot es SHA-256 sobre la versión del esquema y las cuentas
+  por tabla, ordenadas: sin reloj y sin rutas de máquina, de modo que dos
+  reconstrucciones del mismo conjunto coinciden byte a byte.
+* La integridad de esta tarea es **paridad de cuentas** por tabla, incluidas
+  las de cuenta cero. Los seis invariantes semánticos son LUQUE-0904.
+
+**Verificación de extremo a extremo sobre código Go real.** No es una fixture
+escrita a mano: los hechos se derivaron del fixture `testdata/go/cross-repository`
+con `goloader` + `facts.NormalizeGo`, cargando **cada módulo** de cada
+repositorio —incluido el módulo anidado `internal/legacy` de `consumer-b`, que
+no forma parte del `./...` de su padre— y combinando con `Set.Merge`:
+
+```text
+3 repositorios, 4 paquetes, 4 archivos, 9 símbolos, 32 aristas, 0 no resueltas
+Set.Validate() pasa: 0 aristas colgantes
+```
+
+Sobre esos hechos, `luque rebuild` con la biblioteca nativa:
+
+```text
+[PASS] facts          validated 3 repositories, 4 packages, 4 files, 9 symbols, 32 edges
+[PASS] staging        staged 14 canonical table(s)
+[PASS] graph.next     generations/000001.tmp
+[PASS] bulk load      copied 39 node(s) and 47 edge(s)
+[PASS] integrity      27 canonical table(s) matched their expected count
+[PASS] snapshot       digest ac40aef4a329929332f17cd8c1a4613074bf60b32b5dfa89d39ddc8a2e8b5845
+[PASS] golden probes  3 golden probe(s) passed
+[PASS] publish        published generation 000001
+```
+
+La generación publicada se leyó **después** del rename atómico, con un lector
+independiente del que la escribió:
+
+```text
+Repository 3   Package 4   File 4   Symbol 9   Evidence 15   GraphMetadata 4
+CONTAINS_PACKAGE 4   CONTAINS_FILE 4   DEFINES 9   OBSERVED_IN 15
+REFERENCES 7   CALLS_DIRECT 5   TYPE_USES 2   PASSES_AS_CALLBACK 1
+generación 000002, 86 filas en 27 tablas
+```
+
+Atomicidad comprobada en disco real, no sólo con hooks inyectados:
+
+```text
+000002 publicada        CURRENT = 000002
+hechos con arista colgante  falla en `facts`, CURRENT sigue 000002, sin directorio nuevo
+id de generación ya usado   falla en `publish`, CURRENT sigue 000002, sin restos .tmp
+```
+
+Dos reconstrucciones del mismo conjunto emitieron el **mismo digest**
+(`ac40aef4…`), que es la prueba de determinismo contra una base real.
+
+```text
+gofmt -l .        sin diferencias
+go vet ./...      limpio
+go test ./...     todos los paquetes ok
+make test-ladybug todos los paquetes ok, incluidas las suites nativas nuevas
+```
+
+**Limitaciones:**
+
+* La integridad es paridad de cuentas. Los seis invariantes semánticos
+  (`0 exact edges without source`, evidencia ausente, claves duplicadas,
+  confianza desconocida, propiedad de repositorio inválida) llegan en
+  LUQUE-0904.
+* `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` tienen tabla y se cargan si existen,
+  pero `facts.NormalizeGo` todavía no las produce: `goloader.ResolveMethods`
+  existe y no está conectado al normalizador. El grafo real construido hoy no
+  contiene ninguna de las tres.
+* `IMPORTS_SYMBOL` de TypeScript sigue pendiente de LUQUE-0907.
+* `DiagnoseStorage` continúa validando el esquema `001-synthetic`; no reconoce
+  todavía una base canónica. No lo toqué: pertenece a la verificación de
+  LUQUE-0904.
+* El comando consume un `facts.Set` en JSON. El indexado que lo produce desde
+  repositorios reales es de fases posteriores; el derivador usado para verificar
+  esta tarea fue un andamio y no se ha dejado en el árbol.
+
+**Siguiente tarea:** LUQUE-0904.
 
 ---
 

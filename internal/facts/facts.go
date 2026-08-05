@@ -250,6 +250,15 @@ func EvidenceKey(fileKey string, start, end int) string {
 	return fmt.Sprintf("evidence:%s:%d:%d", fileKey, start, end)
 }
 
+// UnresolvedKey derives the durable key of an unresolved reference from the
+// same identity Merge deduplicates on.
+func UnresolvedKey(reference UnresolvedReference) string {
+	return fmt.Sprintf("unresolved:%s:%s:%s:%s:%d",
+		strings.TrimSpace(reference.FileKey), strings.TrimSpace(reference.Reason),
+		strings.TrimSpace(reference.RequestedPackage), strings.TrimSpace(reference.RequestedSymbol),
+		reference.Start.Offset)
+}
+
 // Sort orders every collection by its durable key, so two runs over the same
 // sources produce byte identical output.
 func (set *Set) Sort() {

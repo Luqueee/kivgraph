@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/luque/internal/rebuild"
+	"github.com/Luqueee/luque/internal/storage/generation"
 	"github.com/Luqueee/luque/internal/storage/ladybug"
 	"github.com/Luqueee/luque/internal/synthetic"
 	"github.com/Luqueee/luque/internal/version"
@@ -148,5 +151,217 @@ func TestRunGenerateGraphRejectsInvalidSize(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "edges must be at least") {
 		t.Fatalf("stderr = %q, want validation error", stderr.String())
+	}
+}
+
+func writeFactsFile(t *testing.T, set facts.Set) string {
+	t.Helper()
+	data, err := json.Marshal(set)
+	if err != nil {
+		t.Fatalf("marshal facts: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "facts.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write facts file: %v", err)
+	}
+	return path
+}
+
+func TestRunRebuildPrintsAllStagesOnSuccess(t *testing.T) {
+	factsPath := writeFactsFile(t, facts.Set{})
+	var stdout, stderr bytes.Buffer
+
+	rebuilder := func(_ context.Context, options rebuild.Options) (rebuild.Report, error) {
+		if options.GenerationID != "000123" {
+			t.Fatalf("generation id = %q, want 000123", options.GenerationID)
+		}
+		if options.Root != "/tmp/luque-graph" {
+			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		}
+		if options.ResolverVersion != "resolver-v1" {
+			t.Fatalf("resolver version = %q, want resolver-v1", options.ResolverVersion)
+		}
+		if options.SnapshotID != 7 {
+			t.Fatalf("snapshot id = %d, want 7", options.SnapshotID)
+		}
+		return rebuild.Report{
+			GenerationID: options.GenerationID,
+			Stages: []rebuild.Stage{
+				{Name: rebuild.StageFacts, Passed: true, DurationMS: 1},
+				{Name: rebuild.StageStaging, Passed: true, DurationMS: 2},
+				{Name: rebuild.StageGraphNext, Passed: true, DurationMS: 3},
+				{Name: rebuild.StageBulkLoad, Passed: true, DurationMS: 4},
+				{Name: rebuild.StageIntegrity, Passed: true, DurationMS: 5},
+				{Name: rebuild.StageSnapshot, Passed: true, DurationMS: 6},
+				{Name: rebuild.StageProbes, Passed: true, DurationMS: 7},
+				{Name: rebuild.StagePublish, Passed: true, DurationMS: 8},
+			},
+			SnapshotDigest: "deadbeef",
+			Publication: generation.Publication{
+				Generation: generation.Generation{ID: "000123", Path: "/tmp/luque-graph/generations/000123"},
+			},
+			Passed: true,
+		}, nil
+	}
+
+	code := runWithGraphRebuilder([]string{
+		"luque", "rebuild",
+		"--facts", factsPath,
+		"--root", "/tmp/luque-graph",
+		"--generation", "000123",
+		"--resolver-version", "resolver-v1",
+		"--snapshot-id", "7",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
+
+	if code != 0 {
+		t.Fatalf("run() exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	for _, stage := range []rebuild.StageName{
+		rebuild.StageFacts, rebuild.StageStaging, rebuild.StageGraphNext, rebuild.StageBulkLoad,
+		rebuild.StageIntegrity, rebuild.StageSnapshot, rebuild.StageProbes, rebuild.StagePublish,
+	} {
+		if !strings.Contains(stdout.String(), string(stage)) {
+			t.Fatalf("stdout missing stage %q: %q", stage, stdout.String())
+		}
+	}
+	if !strings.Contains(stdout.String(), "000123") {
+		t.Fatalf("stdout missing published generation id: %q", stdout.String())
+	}
+}
+
+func TestRunRebuildReturnsFailureAndExplainsStage(t *testing.T) {
+	factsPath := writeFactsFile(t, facts.Set{})
+	var stdout, stderr bytes.Buffer
+
+	rebuilder := func(context.Context, rebuild.Options) (rebuild.Report, error) {
+		return rebuild.Report{
+			Stages: []rebuild.Stage{
+				{Name: rebuild.StageFacts, Passed: true, DurationMS: 1},
+				{Name: rebuild.StageStaging, Passed: true, DurationMS: 2},
+				{Name: rebuild.StageGraphNext, Passed: false, Detail: "unresolved package for symbol", DurationMS: 3},
+			},
+			Passed: false,
+		}, nil
+	}
+
+	code := runWithGraphRebuilder([]string{
+		"luque", "rebuild",
+		"--facts", factsPath,
+		"--root", "/tmp/luque-graph",
+		"--generation", "000124",
+		"--resolver-version", "resolver-v1",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), string(rebuild.StageGraphNext)) || !strings.Contains(stderr.String(), "unresolved package for symbol") {
+		t.Fatalf("stderr = %q, want failing stage explanation", stderr.String())
+	}
+}
+
+func TestRunRebuildReportsIntegrityDiscrepanciesAndFailedProbes(t *testing.T) {
+	factsPath := writeFactsFile(t, facts.Set{})
+	var stdout, stderr bytes.Buffer
+
+	rebuilder := func(context.Context, rebuild.Options) (rebuild.Report, error) {
+		return rebuild.Report{
+			Stages: []rebuild.Stage{
+				{Name: rebuild.StageIntegrity, Passed: false, Detail: "1 mismatch", DurationMS: 1},
+			},
+			Integrity: []rebuild.IntegrityCheck{
+				{Table: "Symbol", Expected: 100, Observed: 99, Passed: false},
+				{Table: "File", Expected: 10, Observed: 10, Passed: true},
+			},
+			Probes: []ladybug.CanonicalProbeResult{
+				{Probe: "calls-direct", Rows: 0, Passed: false, Detail: "no rows"},
+				{Probe: "imports-symbol", Rows: 5, Passed: true},
+			},
+			Passed: false,
+		}, nil
+	}
+
+	code := runWithGraphRebuilder([]string{
+		"luque", "rebuild",
+		"--facts", factsPath,
+		"--root", "/tmp/luque-graph",
+		"--generation", "000127",
+		"--resolver-version", "resolver-v1",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stdout.String(), "integrity Symbol: expected 100, observed 99") {
+		t.Fatalf("stdout missing integrity discrepancy: %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "integrity File") {
+		t.Fatalf("stdout should not report a passing integrity check: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "calls-direct") || !strings.Contains(stdout.String(), "no rows") {
+		t.Fatalf("stdout missing failed probe: %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "imports-symbol") {
+		t.Fatalf("stdout should not report a passing probe: %q", stdout.String())
+	}
+}
+
+func TestRunRebuildRequiresFacts(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	rebuilder := func(context.Context, rebuild.Options) (rebuild.Report, error) {
+		called = true
+		return rebuild.Report{}, nil
+	}
+
+	code := runWithGraphRebuilder([]string{
+		"luque", "rebuild",
+		"--root", "/tmp/luque-graph",
+		"--generation", "000125",
+		"--resolver-version", "resolver-v1",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
+
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if called {
+		t.Fatal("rebuilder was called")
+	}
+	if !strings.Contains(stderr.String(), "--facts is required") {
+		t.Fatalf("stderr = %q, want missing flag message", stderr.String())
+	}
+}
+
+func TestRunRebuildRejectsInvalidFactsJSON(t *testing.T) {
+	factsPath := filepath.Join(t.TempDir(), "facts.json")
+	if err := os.WriteFile(factsPath, []byte("not json"), 0o644); err != nil {
+		t.Fatalf("write facts file: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	called := false
+	rebuilder := func(context.Context, rebuild.Options) (rebuild.Report, error) {
+		called = true
+		return rebuild.Report{}, nil
+	}
+
+	code := runWithGraphRebuilder([]string{
+		"luque", "rebuild",
+		"--facts", factsPath,
+		"--root", "/tmp/luque-graph",
+		"--generation", "000126",
+		"--resolver-version", "resolver-v1",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if called {
+		t.Fatal("rebuilder was called")
+	}
+	if !strings.Contains(stderr.String(), "rebuild: decode facts") {
+		t.Fatalf("stderr = %q, want decode error", stderr.String())
 	}
 }
