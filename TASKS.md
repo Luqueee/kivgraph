@@ -2261,15 +2261,53 @@ entre frames; queda declarado en la API mediante `SupportsInterruption`.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Debe ser compatible byte a byte con Go.**
+**Estado:** `PASS`.
 
-Crear tests cruzados mediante fixtures compartidos.
+**Entregables:**
+
+* `ts-worker/src/framing.ts`;
+* `ts-worker/src/framing.test.ts`;
+* worker migrado a `typescript@7.0.2`, conforme al ADR 0010.
+
+**Compatibilidad byte a byte:** las pruebas leen los fixtures de
+`testdata/protocol/ts-worker-v1/`, comprueban las constantes del manifiesto,
+decodifican los ocho casos con el mismo código de error y reencodean los frames
+canónicos verificando bytes idénticos a los que produjo Go. Se comprobó además
+la dirección inversa: frames generados en TypeScript decodificados por
+`internal/tsworker` y comparados con `cmp` contra los fixtures de Go, sin
+diferencias.
+
+**Resultado:**
+
+* `FrameDecoder` incremental que espera un frame parcial en lugar de adivinar;
+* longitud validada antes de asignar memoria, y cuerpo vacío rechazado;
+* EOF limpio distinguido de truncamiento;
+* `INVALID_PAYLOAD` conserva la sesión y el flujo sigue alineado; el resto de
+  clases la terminan, igual que en Go;
+* `canonicalJSON` ordena las claves como lo hace `encoding/json` con mapas, que
+  es lo que reproduce los mismos bytes;
+* `readFrames` reensambla frames partidos en cualquier punto del flujo.
+
+**Cambio de toolchain:** `typescript-eslint@8.66.0` rechaza explícitamente
+TypeScript 7.0. Se retiró ESLint y el linter del worker pasa a ser el de Biome,
+que no depende del compilador. Registrado en el ADR 0010. Se pierden las reglas
+con información de tipos; las opciones estrictas del `tsconfig` se mantienen.
+
+**Verificación:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`,
+`pnpm test` con 14 pruebas y `pnpm build` pasan con el compilador nativo, junto
+a `go test ./...` y `go vet ./...`.
+
+**Limitación:** la igualdad de bytes depende de que los payloads se serialicen
+con claves ordenadas. Un payload emitido desde una struct de Go con orden de
+campos no alfabético rompería esa igualdad; los fixtures lo detectarían.
+
+**Siguiente tarea:** LUQUE-0604.
 
 ---
 

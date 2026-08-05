@@ -100,6 +100,11 @@ JavaScript no es el componente que domina el coste.
   test de contrato convierte esa rotura en un fallo de CI.
 - Añadir más adelante la ruta de la Compiler API es un cambio aditivo y exige
   un ADR nuevo.
+- El worker no puede usar `typescript-eslint`: su versión `8.66.0` rechaza
+  explícitamente TypeScript 7.0 y su soporte se sigue en el issue 10940 del
+  proyecto. El linter del worker pasa a ser el de Biome, que tiene su propio
+  parser y no depende del compilador. Se pierden las reglas con información de
+  tipos; las comprobaciones estrictas del `tsconfig` siguen cubriendo el resto.
 
 ## Riesgos
 
