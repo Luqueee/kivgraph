@@ -42,7 +42,8 @@ además de las exclusiones configuradas.
 Las declaraciones `workspaces` de `package.json` admiten la forma array y la
 forma objeto de npm/Yarn. También se reconoce `pnpm-workspace.yaml`. Los
 patrones se validan para impedir escapes del repositorio, pero se conservan
-como patrones: la asignación de paquetes pertenece a LUQUE-0406.
+como patrones: la asignación de paquetes pertenece a `LUQUE-0406`, que
+construye el registro de providers nombrados.
 
 Los `tsconfig*.json` se leen como JSONC para admitir comentarios y trailing
 commas. Cada `references[].path` se resuelve relativo al `tsconfig` que lo
@@ -64,6 +65,30 @@ atravesar symlinks. Las sustituciones remotas se conservan sin resolverlas.
 El descubrimiento omite `.git`, `vendor`, dependencias instaladas, symlinks y
 exclusiones configuradas. No carga tipos ni dependencias: esa responsabilidad
 pertenece a la fase de carga con `go/packages` y al registro de módulos.
+
+## Registro de paquetes TypeScript
+
+`internal/workspace.NewTypeScriptPackageRegistry` compone el descubrimiento
+TypeScript y crea un índice inmutable por nombre para cada repositorio. Solo
+los `package.json` con `name` actúan como providers; los manifests sin nombre
+son válidos como manifests de raíz y se omiten. Los nombres duplicados dentro
+del mismo repositorio se rechazan y los providers privados se conservan para
+permitir referencias internas.
+
+Cada provider conserva nombre, versión, privacidad, repositorio, raíz,
+manifest y `exports` JSON sin perder su forma original. `types` tiene
+precedencia sobre `typings`; las rutas de declaraciones y exports relativos se
+validan para que permanezcan dentro de la raíz del paquete, pero no se exige
+que los artefactos generados existan todavía. El proyecto TypeScript más
+profundo que contiene el paquete se registra como `ProjectPath`.
+
+Las raíces fuente se derivan de `rootDirs`, `rootDir`, `include` y `files` del
+proyecto; si no hay una raíz aplicable se usa la raíz del paquete. Las raíces
+declarativas se derivan de `types` y `declarationDir`. Las listas y el JSON
+devueltos por `List` y `Get` son copias profundas. La ambigüedad entre
+repositorios y las incompatibilidades de versión quedan para LUQUE-0408.
+
+---
 
 ## Consecuencias
 

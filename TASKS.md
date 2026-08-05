@@ -1778,11 +1778,11 @@ replace directives
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Mapa:**
 
@@ -1794,7 +1794,20 @@ package name
 → exports
 → types
 → source roots
+→ declaration roots
+→ TypeScript project
 ```
+
+**Estado:** `PASS`.
+
+* `internal/workspace.NewTypeScriptPackageRegistry` compone `DiscoverTypeScript` y registra manifests `package.json` nombrados, con nombre, versión, privacidad, repositorio, raíz, manifest y `exports` JSON preservado.
+* Los manifests sin `name` se omiten como providers de raíz; los nombres duplicados dentro del repositorio se rechazan. `types` precede a `typings`; `ProjectPath` selecciona el `tsconfig` más profundo que contiene cada paquete.
+* Las raíces fuente se derivan de `rootDirs`, `rootDir`, `include` y `files`; las raíces declarativas de `types` y `declarationDir`. Las rutas de tipos y exports se limitan a la raíz del paquete sin exigir que artefactos generados existan.
+* `List` y `Get` devuelven copias profundas; el índice queda ordenado y la ambigüedad entre repositorios se reserva para LUQUE-0408.
+* Las pruebas cubren providers, versiones, exports, roots, proyecto más profundo, privacidad, omisión de raíz sin nombre, duplicados, escapes y cancelación.
+* Verificación: `go test ./internal/workspace`, `go test -race ./internal/workspace`, `go vet ./internal/workspace`, `go tool staticcheck ./internal/workspace` y smoke focal pasan.
+* No se requiere benchmark: el registro es una operación de configuración y filesystem; la carga semántica y la resolución cross-repository pertenecen a fases posteriores.
+* Siguiente tarea: LUQUE-0407.
 
 ---
 
