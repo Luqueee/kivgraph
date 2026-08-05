@@ -1,0 +1,93 @@
+{
+  "protocol": "luque-ts-worker",
+  "version": 1,
+  "byte_order": "big-endian",
+  "header_bytes": 4,
+  "max_frame_bytes": 16777216,
+  "cases": [
+    {
+      "name": "hello_request",
+      "file": "hello_request.bin",
+      "description": "Handshake request written by the supervisor.",
+      "expect": "ok",
+      "fatal": false,
+      "envelope": {
+        "v": 1,
+        "id": 1,
+        "type": "HELLO"
+      },
+      "canonical_encoding": true
+    },
+    {
+      "name": "facts_event",
+      "file": "facts_event.bin",
+      "description": "Worker-initiated event; events use id zero.",
+      "expect": "ok",
+      "fatal": false,
+      "envelope": {
+        "v": 1,
+        "id": 0,
+        "type": "FACTS"
+      },
+      "canonical_encoding": true
+    },
+    {
+      "name": "error_response",
+      "file": "error_response.bin",
+      "description": "Classified error response carrying a protocol code.",
+      "expect": "ok",
+      "fatal": false,
+      "envelope": {
+        "v": 1,
+        "id": 4,
+        "type": "ERROR"
+      },
+      "canonical_encoding": true
+    },
+    {
+      "name": "empty_body",
+      "file": "empty_body.bin",
+      "description": "Zero length prefix; the protocol forbids empty bodies.",
+      "expect": "error",
+      "error_code": "FRAME_EMPTY",
+      "fatal": true,
+      "canonical_encoding": false
+    },
+    {
+      "name": "oversized_length",
+      "file": "oversized_length.bin",
+      "description": "Length prefix above the 16 MiB limit; must be rejected before allocating.",
+      "expect": "error",
+      "error_code": "FRAME_TOO_LARGE",
+      "fatal": true,
+      "canonical_encoding": false
+    },
+    {
+      "name": "truncated_body",
+      "file": "truncated_body.bin",
+      "description": "Header announces more bytes than the stream provides.",
+      "expect": "error",
+      "error_code": "FRAME_TRUNCATED",
+      "fatal": true,
+      "canonical_encoding": false
+    },
+    {
+      "name": "invalid_json",
+      "file": "invalid_json.bin",
+      "description": "Frame boundary is correct but the body is not valid JSON; recoverable.",
+      "expect": "error",
+      "error_code": "INVALID_PAYLOAD",
+      "fatal": false,
+      "canonical_encoding": false
+    },
+    {
+      "name": "foreign_version",
+      "file": "foreign_version.bin",
+      "description": "Envelope declares an unsupported protocol version.",
+      "expect": "error",
+      "error_code": "VERSION_MISMATCH",
+      "fatal": true,
+      "canonical_encoding": false
+    }
+  ]
+}

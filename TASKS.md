@@ -2196,20 +2196,60 @@ resolución de un símbolo suelto es entre `3x` y `7x` más lenta y por lotes de
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `internal/tsworker/framing.go`;
+* `internal/tsworker/framing_test.go`;
+* `internal/tsworker/fixtures_test.go`;
+* `testdata/protocol/ts-worker-v1/` con ocho frames y su `manifest.json`.
 
 **Tests:**
 
-* frame válido;
-* frame parcial;
-* longitud excesiva;
-* JSON inválido;
-* EOF;
-* timeout.
+* frame válido, incluido el prefijo big-endian comprobado contra bytes
+  literales y el round-trip completo;
+* frame parcial entregado en dos escrituras separadas, más el caso de
+  truncamiento real;
+* longitud excesiva rechazada antes de reservar memoria, y cuerpo vacío;
+* JSON inválido y sobre inválido, ambos recuperables y sin desalinear el flujo;
+* EOF limpio entre frames frente a EOF dentro de un frame;
+* timeout y cancelación sobre un pipe, comprobando que el transporte sigue
+  usable después.
+
+**Resultado:**
+
+* prefijo de 32 bits big-endian, cuerpo JSON UTF-8, frame máximo de 16 MiB;
+* errores clasificados mediante `FramingError` con `Kind` y `Fatal`; solo
+  `INVALID_PAYLOAD` conserva la sesión, el resto la termina;
+* sin resincronización del flujo, por decisión del protocolo;
+* la longitud se valida antes de cualquier asignación y los buffers se
+  reutilizan entre frames;
+* la cancelación es real: el reader usa `SetReadDeadline` cuando el transporte
+  lo soporta e informa de ello con `SupportsInterruption`;
+* el writer es seguro para emisores concurrentes.
+
+**Corrección durante el gate:** `go test -race` reveló que el vigilante de
+cancelación podía aplicar un deadline vencido después de que la lectura
+terminara, contaminando la lectura siguiente. El cierre ahora espera a que el
+vigilante termine antes de limpiar el deadline. Sin esa espera el caso de
+cancelación fallaba de forma intermitente.
+
+**Verificación:** `go test ./...`, `go vet ./...`, `go build ./cmd/luque`,
+`go tool staticcheck ./internal/tsworker`, `go test -race ./internal/tsworker`
+repetido cinco veces, y la suite Ladybug completa pasan.
+
+**Limitación:** un transporte sin soporte de deadlines solo puede cancelarse
+entre frames; queda declarado en la API mediante `SupportsInterruption`.
+
+**Siguiente tarea:** LUQUE-0603, que debe consumir los fixtures de
+`testdata/protocol/ts-worker-v1/` y coincidir byte a byte.
 
 ---
 
