@@ -1741,11 +1741,11 @@ project references
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Detectar:**
 
@@ -1756,6 +1756,19 @@ go.work existente
 packages
 replace directives
 ```
+
+**Estado:** `PASS`.
+
+* `internal/workspace.DiscoverGo` detecta `go.mod`, `go.sum`, `go.work`, paquetes Go y directivas `replace` mediante `golang.org/x/mod/modfile`, sin ejecutar comandos externos.
+* Los módulos de `go.work use` se resuelven a sus `go.mod`; las sustituciones locales se canonicalizan y se mantienen dentro del repositorio, mientras que las remotas se conservan sin resolver.
+* Los paquetes se agrupan por directorio, se identifican mediante la cláusula `package`, se asignan al módulo más profundo y se omiten `vendor`, dependencias instaladas, symlinks y exclusiones.
+* Las pruebas cubren módulos anidados, sums, workspaces, replacements locales, paquetes de test externos, escapes, targets ausentes, conflictos de paquetes, symlinks y cancelación.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/luque` y `go tool staticcheck ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/luque-ladybug-v0.19.0/lib`.
+* Smoke real: `go test ./internal/workspace -run '^TestDiscoverGoFindsModulesWorkspacesPackagesAndReplaces$' -count=1 -v` pasa con módulos y workspace temporales.
+* Limitación: `go tool staticcheck ./...` conserva seis avisos fuera del alcance 0405 en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
+* No se requiere benchmark: el descubrimiento es una operación de configuración y filesystem; la carga semántica con `go/packages` pertenece a fases posteriores.
+* Siguiente tarea: LUQUE-0406.
 
 ---
 

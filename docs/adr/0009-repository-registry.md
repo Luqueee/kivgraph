@@ -30,7 +30,7 @@ nombre sin distinguir mayúsculas. Los paths declarativos de `manifests`,
 no pueden escapar de él. La validación no exige todavía que esos archivos o
 directorios declarativos existan; `DiscoverTypeScript` realiza el descubrimiento
 de manifests TypeScript y la resolución de referencias descrita a continuación.
-El descubrimiento Go permanece en LUQUE-0405.
+El descubrimiento Go se describe a continuación; el registro de módulos queda para LUQUE-0407.
 
 ## Descubrimiento TypeScript
 
@@ -48,6 +48,22 @@ Los `tsconfig*.json` se leen como JSONC para admitir comentarios y trailing
 commas. Cada `references[].path` se resuelve relativo al `tsconfig` que lo
 declara; las referencias a directorios apuntan a su `tsconfig.json`, deben
 existir, ser regulares y permanecer dentro del realpath del repositorio.
+
+## Descubrimiento Go
+
+`internal/workspace.DiscoverGo` usa `golang.org/x/mod/modfile` para leer
+`go.mod` y `go.work` sin ejecutar comandos externos. Detecta también `go.sum`
+y paquetes agrupando archivos `.go` por directorio y leyendo solo su cláusula
+`package`.
+
+Los módulos declarados por `go.work use` se resuelven a su `go.mod` y deben
+permanecer dentro del repositorio. Las sustituciones locales de `go.mod` y
+`go.work` se canonicalizan, se conservan en la salida y no pueden escapar ni
+atravesar symlinks. Las sustituciones remotas se conservan sin resolverlas.
+
+El descubrimiento omite `.git`, `vendor`, dependencias instaladas, symlinks y
+exclusiones configuradas. No carga tipos ni dependencias: esa responsabilidad
+pertenece a la fase de carga con `go/packages` y al registro de módulos.
 
 ## Consecuencias
 
