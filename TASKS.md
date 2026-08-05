@@ -3259,13 +3259,40 @@ PROVIDER_EXPORTS_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Orden:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/declaration-source-resolver.ts`;
+* `ts-worker/src/declaration-source-resolver.test.ts`;
+* `ts-worker/src/package-import-resolver.ts` (metadata de provider);
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato:**
+
+```text
+resolveDeclarationSources(service, view, providerExportResolution)
+  -> { generation, configFileName, mappings }
+```
+
+Cada mapping es file-level y conserva el `.d.ts`, sus fuentes físicas
+encontradas y el estado:
+
+```text
+DECLARATION_MAP
+PROJECT_REFERENCE
+PROVIDER_REGISTRY
+ROOT_DIR_OUT_DIR
+UNRESOLVED
+```
+
+**Precedencia:**
 
 ```text
 declarationMap
@@ -3274,6 +3301,47 @@ provider export registry
 rootDir/outDir
 unresolved
 ```
+
+`*.d.ts.map` se consulta primero y sus `sourceRoot`/`sources` se resuelven
+contra el archivo de mapa. Después se consultan el `projectPath` del provider,
+sus `declarationRoots`/`sourceRoots` y, por último, las rutas explícitas
+`declarationDir`/`outDir` y `rootDir`. Solo se publican fuentes que existen;
+no se crean destinos por coincidencia nominal.
+
+**Verificación:**
+
+```text
+8 archivos de tests
+51 tests passed
+pnpm check
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La cobertura verifica las cinco ramas de precedencia, configuración de proyecto,
+source maps, raíces relativas, fuentes ausentes y el estado `UNRESOLVED`.
+No se requiere benchmark separado: el mapeo es una consulta de metadata de
+archivos; los SLO se medirán con el corpus de fase.
+
+**Limitaciones:**
+
+* El resultado es file-level; la posición exacta de cada símbolo y la arista
+  `IMPORTS_SYMBOL` quedan para LUQUE-0705.
+* Un declaration map que referencia fuentes inexistentes cae a las
+  estrategias siguientes y finalmente a `UNRESOLVED`.
+* No se inventan fuentes para declaraciones sin mapa, raíces del provider o
+  configuración `rootDir`/`outDir`.
+
+**Gate:**
+
+```text
+DECLARATION_SOURCE_MAP_PASS
+```
+
+**Siguiente tarea:** LUQUE-0704.
 
 ---
 

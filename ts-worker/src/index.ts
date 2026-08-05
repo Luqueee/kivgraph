@@ -33,6 +33,12 @@ export type {
   ProviderExportResolution,
   ProviderExportStatus,
 } from "./provider-export-resolver.js";
+export { resolveDeclarationSources } from "./declaration-source-resolver.js";
+export type {
+  DeclarationSourceMapping,
+  DeclarationSourceResolution,
+  DeclarationSourceStatus,
+} from "./declaration-source-resolver.js";
 
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {

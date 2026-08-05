@@ -35,6 +35,14 @@ export interface PackageProvider {
   readonly version: string;
   readonly repository: string;
   readonly rootPath: string;
+  readonly manifestPath?: string;
+  readonly typesPath?: string;
+  readonly projectPath?: string;
+  readonly sourceRoots?: readonly string[];
+  readonly declarationRoots?: readonly string[];
+  readonly rootDir?: string;
+  readonly outDir?: string;
+  readonly declarationDir?: string;
 }
 
 /** Read-only package-name lookup shared with the workspace registry. */
@@ -183,7 +191,19 @@ function moduleDeclarationFiles(
 function cloneProvider(
   provider: PackageProvider | undefined,
 ): PackageProvider | undefined {
-  return provider === undefined ? undefined : { ...provider };
+  return provider === undefined
+    ? undefined
+    : {
+        ...provider,
+        sourceRoots:
+          provider.sourceRoots === undefined
+            ? undefined
+            : [...provider.sourceRoots],
+        declarationRoots:
+          provider.declarationRoots === undefined
+            ? undefined
+            : [...provider.declarationRoots],
+      };
 }
 
 async function selectProjectFiles(
