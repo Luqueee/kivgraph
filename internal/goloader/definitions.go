@@ -287,11 +287,16 @@ func qualifiedName(owner, name string) string {
 	return owner + "." + name
 }
 
-// packageQualifier prints imported names by package path, so a signature is
-// unambiguous across modules.
-func packageQualifier(current *types.Package) types.Qualifier {
+// packageQualifier prints every named type by its package path, including the
+// current package.
+//
+// The signature feeds the stable key discriminator, so it must not depend on
+// who is looking: the provider printing `Shape` and a consumer printing
+// `example.com/provider/api.Shape` for the same object would produce two keys
+// for one symbol and leave every cross-repository edge dangling.
+func packageQualifier(_ *types.Package) types.Qualifier {
 	return func(other *types.Package) string {
-		if other == nil || other == current {
+		if other == nil {
 			return ""
 		}
 		return other.Path()

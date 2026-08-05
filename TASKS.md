@@ -4574,11 +4574,13 @@ de interfaz, expresión de método sin promoción, determinismo y cancelación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Usar:**
 
@@ -4589,6 +4591,73 @@ objectpath
 go.work sintético
 replace
 ```
+
+**Entregables:**
+
+* `internal/goloader/crossrepo.go`;
+* `internal/goloader/crossrepo_test.go`;
+* `internal/goloader/stablekey.go` (`ObjectIdentity` reutilizable).
+
+**Contrato:**
+
+```text
+NewModuleRegistry(ctx, repositories)                  -> *ModuleRegistry
+ResolveCrossRepository(ctx, uses, registry, options)  -> []CrossRepositoryReference
+```
+
+**Estados:**
+
+```text
+RESOLVED
+MODULE_PROVIDER_NOT_FOUND
+AMBIGUOUS_MODULE_PROVIDER
+OBJECT_PATH_UNAVAILABLE
+```
+
+**Decisiones:**
+
+* El module path lo aporta el cargador, que ya siguió el `go.work` sintético y
+  cualquier `replace`: el provider es el módulo que realmente entregó el
+  código, no el que deletrea el import path.
+* Dos repositorios que declaran el mismo module path no se desempatan: la
+  referencia queda ambigua y conserva ambos candidatos.
+* Un destino sin `objectpath` no puede direccionarse desde otro repositorio y
+  se reporta, no se adivina.
+* La identidad del destino se calcula con el mismo `ObjectIdentity` que usa
+  LUQUE-0804, de modo que la clave del consumidor y la del provider coinciden
+  por construcción.
+
+**Corrección encontrada por la prueba:**
+
+La firma del discriminador dependía del observador: el provider imprimía
+`Shape` y el consumidor `example.com/provider/api.Shape` para el mismo objeto,
+produciendo dos claves para un símbolo y dejando colgando toda arista
+cross-repository. El qualifier ahora imprime siempre la ruta del paquete,
+incluido el propio.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La prueba decisiva compara la clave que el consumidor deriva para cada destino
+con la que el repositorio proveedor asigna a su propia declaración: función,
+constante, tipo, método y campo coinciden exactamente. También cubre módulo
+duplicado, provider no registrado y exclusión de usos intra-módulo.
+
+**Limitaciones:**
+
+* La taxonomía completa de razones —incluidas `PACKAGE_NOT_LOADED`,
+  `REPLACE_CONFLICT` y `TYPECHECK_FAILED`— se emite en LUQUE-0810.
+* La biblioteca estándar no pertenece a ningún repositorio registrado y se
+  reporta como provider no encontrado.
+
+**Siguiente tarea:** LUQUE-0810.
 
 ---
 

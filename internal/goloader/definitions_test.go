@@ -140,7 +140,7 @@ func TestExtractDefinitionsCollectsAddressableSymbolsOnly(t *testing.T) {
 	}
 
 	scale := byQualifiedName["Shape.Scale"]
-	if scale.Owner != "Shape" || scale.Receiver != "*Shape" {
+	if scale.Owner != "Shape" || scale.Receiver != "*example.com/module/sample.Shape" {
 		t.Fatalf("Scale owner=%q receiver=%q", scale.Owner, scale.Receiver)
 	}
 	read := byQualifiedName["Reader.Read"]

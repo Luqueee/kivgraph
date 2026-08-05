@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go/types"
 	"strings"
 
 	"golang.org/x/tools/go/types/objectpath"
@@ -60,36 +61,82 @@ func keyDefinition(
 	definition Definition,
 	encoders map[string]*objectpath.Encoder,
 ) (KeyedDefinition, error) {
-	if strings.TrimSpace(definition.Repository) == "" {
-		return KeyedDefinition{}, fmt.Errorf("%w: %s", ErrMissingRepository, definition.QualifiedName)
-	}
-	if strings.TrimSpace(definition.ModulePath) == "" {
-		return KeyedDefinition{}, fmt.Errorf("%w: %s", ErrMissingModulePath, definition.QualifiedName)
-	}
-	if strings.TrimSpace(definition.PackagePath) == "" {
-		return KeyedDefinition{}, fmt.Errorf("definition %q has no package path", definition.QualifiedName)
-	}
-
-	path := objectPathFor(definition, encoders)
-	identity := hotsnapshot.StableKeyIdentity{
-		FormatVersion: hotsnapshot.StableKeyFormatVersion,
-		Language:      GoLanguage,
+	resolved, err := ObjectIdentity{
 		Repository:    definition.Repository,
-		Package:       definition.ModulePath + " " + definition.PackagePath,
-		QualifiedName: qualifiedIdentity(definition, path),
-		Kind:          string(definition.Kind),
-		Discriminator: discriminator(definition),
-	}
-	canonical, err := identity.Canonical()
+		ModulePath:    definition.ModulePath,
+		PackagePath:   definition.PackagePath,
+		QualifiedName: definition.QualifiedName,
+		Kind:          definition.Kind,
+		Signature:     definition.Signature,
+		Object:        definition.Object(),
+	}.Resolve(encoders)
 	if err != nil {
-		return KeyedDefinition{}, fmt.Errorf("definition %q identity: %w", definition.QualifiedName, err)
-	}
-	key, err := identity.Key()
-	if err != nil {
-		return KeyedDefinition{}, fmt.Errorf("definition %q key: %w", definition.QualifiedName, err)
+		return KeyedDefinition{}, err
 	}
 	return KeyedDefinition{
 		Definition:        definition,
+		ObjectPath:        resolved.ObjectPath,
+		CanonicalIdentity: resolved.CanonicalIdentity,
+		StableKey:         resolved.StableKey,
+	}, nil
+}
+
+// ObjectIdentity is everything needed to derive the durable key of one Go
+// object, whether it was extracted as a definition or reached as the target of
+// a use in another repository.
+type ObjectIdentity struct {
+	Repository    string
+	ModulePath    string
+	PackagePath   string
+	QualifiedName string
+	Kind          DefinitionKind
+	Signature     string
+	Object        types.Object
+}
+
+// ResolvedIdentity is the durable identity of one object.
+type ResolvedIdentity struct {
+	ObjectPath        string
+	CanonicalIdentity string
+	StableKey         hotsnapshot.StableKey
+}
+
+// Resolve derives the object path, canonical identity and stable key.
+//
+// Encoders are cached per package path; pass the same map across calls to
+// avoid rebuilding the object path index of a package.
+func (identity ObjectIdentity) Resolve(
+	encoders map[string]*objectpath.Encoder,
+) (ResolvedIdentity, error) {
+	if strings.TrimSpace(identity.Repository) == "" {
+		return ResolvedIdentity{}, fmt.Errorf("%w: %s", ErrMissingRepository, identity.QualifiedName)
+	}
+	if strings.TrimSpace(identity.ModulePath) == "" {
+		return ResolvedIdentity{}, fmt.Errorf("%w: %s", ErrMissingModulePath, identity.QualifiedName)
+	}
+	if strings.TrimSpace(identity.PackagePath) == "" {
+		return ResolvedIdentity{}, fmt.Errorf("object %q has no package path", identity.QualifiedName)
+	}
+
+	path := objectPathFor(identity.PackagePath, identity.Object, encoders)
+	stable := hotsnapshot.StableKeyIdentity{
+		FormatVersion: hotsnapshot.StableKeyFormatVersion,
+		Language:      GoLanguage,
+		Repository:    identity.Repository,
+		Package:       identity.ModulePath + " " + identity.PackagePath,
+		QualifiedName: qualifiedIdentity(identity.QualifiedName, path),
+		Kind:          string(identity.Kind),
+		Discriminator: discriminator(identity.Signature),
+	}
+	canonical, err := stable.Canonical()
+	if err != nil {
+		return ResolvedIdentity{}, fmt.Errorf("object %q identity: %w", identity.QualifiedName, err)
+	}
+	key, err := stable.Key()
+	if err != nil {
+		return ResolvedIdentity{}, fmt.Errorf("object %q key: %w", identity.QualifiedName, err)
+	}
+	return ResolvedIdentity{
 		ObjectPath:        path,
 		CanonicalIdentity: canonical,
 		StableKey:         key,
@@ -98,15 +145,18 @@ func keyDefinition(
 
 // objectPathFor returns the go/types object path, or an empty string when the
 // object is not reachable from the package scope.
-func objectPathFor(definition Definition, encoders map[string]*objectpath.Encoder) string {
-	object := definition.Object()
+func objectPathFor(
+	packagePath string,
+	object types.Object,
+	encoders map[string]*objectpath.Encoder,
+) string {
 	if object == nil || object.Pkg() == nil {
 		return ""
 	}
-	encoder := encoders[definition.PackagePath]
+	encoder := encoders[packagePath]
 	if encoder == nil {
 		encoder = new(objectpath.Encoder)
-		encoders[definition.PackagePath] = encoder
+		encoders[packagePath] = encoder
 	}
 	path, err := encoder.For(object)
 	if err != nil {
@@ -123,19 +173,19 @@ func objectPathFor(definition Definition, encoders map[string]*objectpath.Encode
 // every later member. Identity must survive reordering, so those objects use
 // the syntactic qualified name instead. The index-based path is still kept in
 // `KeyedDefinition.ObjectPath` for cross-repository resolution.
-func qualifiedIdentity(definition Definition, path string) string {
-	if path != "" && path == definition.QualifiedName {
+func qualifiedIdentity(qualifiedName, path string) string {
+	if path != "" && path == qualifiedName {
 		return "objectpath:" + path
 	}
-	return "syntax:" + definition.QualifiedName
+	return "syntax:" + qualifiedName
 }
 
 // discriminator separates symbols that share every other identity field, such
 // as a method and a field with the same qualified name.
-func discriminator(definition Definition) string {
-	signature := strings.TrimSpace(definition.Signature)
-	if signature == "" {
+func discriminator(signature string) string {
+	trimmed := strings.TrimSpace(signature)
+	if trimmed == "" {
 		return "none"
 	}
-	return signature
+	return trimmed
 }
