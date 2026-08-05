@@ -2025,18 +2025,31 @@ nodo; la autoridad semántica queda para las fases TypeScript y Go.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Debe aceptar:**
+**Estado:** `PASS`.
 
-* árbol anterior;
-* edición;
-* nuevo contenido;
-* changed ranges.
+**Entregables:** `ParserManager.ParseIncremental`,
+`ParserManager.ParseIncrementalWithRanges`, `SyntaxRange` y las pruebas
+incrementales de `internal/syntax/parser_manager_test.go`.
+
+**Resultado:**
+
+* se acepta el árbol anterior, una edición, el nuevo contenido y los puntos
+  de byte correspondientes;
+* el árbol anterior se clona y permanece sin mutar;
+* Tree-sitter devuelve los changed ranges estructurales como `SyntaxRange`;
+* una cancelación o edición inválida se clasifica y no deja árboles nativos
+  abiertos.
+
+**Verificación:** `go test ./internal/syntax` pasa. No se requiere benchmark:
+la tarea valida transición e integridad de árboles, no throughput.
+
+**Siguiente tarea:** LUQUE-0505.
 
 ---
 

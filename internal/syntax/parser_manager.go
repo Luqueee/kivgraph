@@ -110,6 +110,14 @@ func (edit InputEdit) toTreeSitter() tree_sitter.InputEdit {
 	}
 }
 
+// SyntaxRange is a changed structural range returned by incremental parsing.
+type SyntaxRange struct {
+	StartByte  uint
+	EndByte    uint
+	StartPoint InputPoint
+	EndPoint   InputPoint
+}
+
 // SyntaxTree owns one Tree-sitter tree. Call Close when the tree is no longer
 // needed; a closed tree cannot be used for inventory or incremental parsing.
 type SyntaxTree struct {
@@ -170,6 +178,30 @@ func (tree *SyntaxTree) Edit(edit InputEdit) error {
 	native := edit.toTreeSitter()
 	tree.tree.Edit(&native)
 	return nil
+}
+
+// ChangedRanges compares this tree as the old tree against other.
+func (tree *SyntaxTree) ChangedRanges(other *SyntaxTree) ([]SyntaxRange, error) {
+	if tree == nil || tree.tree == nil || other == nil || other.tree == nil {
+		return nil, ErrSyntaxTreeClosed
+	}
+	if tree.language != other.language {
+		return nil, newParserError(ParserErrorInvalidInput, other.language, fmt.Errorf("trees use languages %q and %q", tree.language, other.language))
+	}
+	return convertRanges(tree.tree.ChangedRanges(other.tree)), nil
+}
+
+func convertRanges(ranges []tree_sitter.Range) []SyntaxRange {
+	result := make([]SyntaxRange, len(ranges))
+	for index, changed := range ranges {
+		result[index] = SyntaxRange{
+			StartByte:  changed.StartByte,
+			EndByte:    changed.EndByte,
+			StartPoint: pointFromTreeSitter(changed.StartPoint),
+			EndPoint:   pointFromTreeSitter(changed.EndPoint),
+		}
+	}
+	return result
 }
 
 func (tree *SyntaxTree) cloneAndEdit(edit InputEdit) (*tree_sitter.Tree, error) {
@@ -254,37 +286,51 @@ func (manager *ParserManager) Parse(ctx context.Context, language Language, sour
 // ParseIncremental applies edit to a private clone of previous and parses the
 // new source. The caller's previous tree remains usable and unchanged.
 func (manager *ParserManager) ParseIncremental(ctx context.Context, language Language, source []byte, previous *SyntaxTree, edit InputEdit) (*SyntaxTree, error) {
+	tree, _, err := manager.ParseIncrementalWithRanges(ctx, language, source, previous, edit)
+	return tree, err
+}
+
+// ParseIncrementalWithRanges is ParseIncremental plus the structural ranges
+// that Tree-sitter changed between the previous and new trees.
+func (manager *ParserManager) ParseIncrementalWithRanges(ctx context.Context, language Language, source []byte, previous *SyntaxTree, edit InputEdit) (*SyntaxTree, []SyntaxRange, error) {
+	ctx = normalizeContext(ctx)
+	if err := ctx.Err(); err != nil {
+		return nil, nil, newParserError(ParserErrorCanceled, language, err)
+	}
 	if previous == nil {
-		return manager.Parse(ctx, language, source)
+		tree, err := manager.Parse(ctx, language, source)
+		return tree, nil, err
 	}
 	if previous.Language() != language {
-		return nil, newParserError(ParserErrorInvalidInput, language, fmt.Errorf("previous tree uses language %q", previous.Language()))
+		return nil, nil, newParserError(ParserErrorInvalidInput, language, fmt.Errorf("previous tree uses language %q", previous.Language()))
 	}
 	clone, err := previous.cloneAndEdit(edit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	ctx = normalizeContext(ctx)
 	lease, err := manager.acquire(ctx, language)
 	if err != nil {
 		clone.Close()
-		return nil, err
+		return nil, nil, err
 	}
 	defer lease.release()
 
 	nativeTree := lease.parser.ParseCtx(ctx, source, clone)
-	clone.Close()
 	if err := ctx.Err(); err != nil {
+		clone.Close()
 		if nativeTree != nil {
 			nativeTree.Close()
 		}
-		return nil, newParserError(ParserErrorCanceled, language, err)
+		return nil, nil, newParserError(ParserErrorCanceled, language, err)
 	}
 	if nativeTree == nil {
-		return nil, newParserError(ParserErrorParse, language, errors.New("Tree-sitter returned no tree"))
+		clone.Close()
+		return nil, nil, newParserError(ParserErrorParse, language, errors.New("Tree-sitter returned no tree"))
 	}
-	return &SyntaxTree{language: language, tree: nativeTree}, nil
+	ranges := convertRanges(clone.ChangedRanges(nativeTree))
+	clone.Close()
+	return &SyntaxTree{language: language, tree: nativeTree}, ranges, nil
 }
 
 // Stats reports parser reuse and concurrency state.

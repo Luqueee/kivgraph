@@ -176,6 +176,41 @@ func TestParserManagerIncrementalParseKeepsPreviousTreeUsable(t *testing.T) {
 		t.Fatalf("incremental trees old=%q new=%q", oldText, newText)
 	}
 }
+func TestParserManagerIncrementalParseReturnsChangedRanges(t *testing.T) {
+	manager, err := NewParserManager(1)
+	if err != nil {
+		t.Fatalf("NewParserManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	oldSource := []byte("const value = 1;\n")
+	previous, err := manager.Parse(context.Background(), LanguageJavaScript, oldSource)
+	if err != nil {
+		t.Fatalf("initial Parse() error = %v", err)
+	}
+	defer previous.Close()
+	newSource := []byte("const value = foo(1);\n")
+	updated, ranges, err := manager.ParseIncrementalWithRanges(context.Background(), LanguageJavaScript, newSource, previous, InputEdit{
+		StartByte:   14,
+		OldEndByte:  15,
+		NewEndByte:  20,
+		StartPoint:  InputPoint{Row: 0, Column: 14},
+		OldEndPoint: InputPoint{Row: 0, Column: 15},
+		NewEndPoint: InputPoint{Row: 0, Column: 20},
+	})
+	if err != nil {
+		t.Fatalf("ParseIncrementalWithRanges() error = %v", err)
+	}
+	defer updated.Close()
+	if len(ranges) == 0 {
+		t.Fatal("ParseIncrementalWithRanges() returned no changed ranges")
+	}
+	for _, changed := range ranges {
+		if changed.EndByte <= changed.StartByte || changed.EndByte > uint(len(newSource)) {
+			t.Fatalf("invalid changed range = %#v", changed)
+		}
+	}
+}
 
 func TestNewParserManagerRejectsInvalidConcurrency(t *testing.T) {
 	if _, err := NewParserManager(0); err == nil {
