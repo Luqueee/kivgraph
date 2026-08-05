@@ -3951,11 +3951,13 @@ plain    nomap/src/index.ts:1:13    (sin declaration map)
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Ubicación:**
 
@@ -3964,6 +3966,65 @@ plain    nomap/src/index.ts:1:13    (sin declaration map)
 ```
 
 **No modificar repositorios.**
+
+**Entregables:**
+
+* `internal/goworkspace/synthetic.go`;
+* `internal/goworkspace/synthetic_test.go`;
+* `internal/goworkspace/toolchain_test.go`.
+
+**Contrato:**
+
+```text
+BuildPlan(ctx, repositories, options) -> Plan
+Plan.Render()                         -> bytes go.work
+Write(ctx, path, plan, repositories)  -> Result
+```
+
+`Plan` conserva versión de Go, módulos incluidos, replacements promovidos y los
+conflictos excluidos.
+
+**Decisiones:**
+
+* La ruta destino se rechaza si cae dentro de cualquier repositorio registrado,
+  comparando `path` y `realpath`. Un error de configuración no puede hacer que
+  Luque escriba un `go.work` en código indexado.
+* La versión del workspace es la **más alta** declarada por sus módulos: un
+  workspace no puede prometer menos que sus miembros.
+* Un `module path` declarado por dos repositorios se excluye como
+  `AMBIGUOUS_MODULE_PROVIDER`; el propio `go` rechaza un workspace con dos
+  directorios sirviendo el mismo módulo.
+* Un `replace` con destinos distintos entre módulos se excluye como
+  `MODULE_REPLACE_CONFLICT`; no se elige ganador.
+* Un `replace` cuyo módulo sustituido ya está en `use` no se promueve: el
+  workspace ya lo sirve desde disco y la directiva lo ocultaría.
+* La escritura es atómica —temporal, `fsync`, `rename`, `fsync` del
+  directorio— e idempotente: contenido idéntico no reescribe el archivo.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...                       # 12 paquetes ok, 2 sin tests
+go vet ./...
+go build ./cmd/luque
+go test -race ./internal/goworkspace
+go tool staticcheck ./internal/goworkspace
+```
+
+Prueba de humo con la toolchain real: sobre el `go.work` emitido,
+`go list -m all` reporta ambos módulos y `go run .` resuelve un import
+cross-module y imprime `42`. No se requiere benchmark: la tarea compone
+metadatos ya descubiertos.
+
+**Limitaciones:**
+
+* Los conflictos se reportan en el `Plan`; su publicación como referencias no
+  resueltas del grafo pertenece a LUQUE-0901.
+* Los replacements locales que escapan del repositorio siguen rechazados por
+  el descubrimiento de LUQUE-0405, de modo que no llegan al workspace.
+
+**Siguiente tarea:** LUQUE-0802.
 
 ---
 

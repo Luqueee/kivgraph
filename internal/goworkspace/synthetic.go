@@ -1,0 +1,440 @@
+// Package goworkspace builds the synthetic go.work Luque uses to load every
+// registered Go module in a single go/packages universe.
+//
+// The file is written outside every repository, under the configured state
+// directory. Luque never writes a go.work inside an indexed repository.
+package goworkspace
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
+
+	"github.com/Luqueee/luque/internal/workspace"
+)
+
+// ErrRepositoryTarget reports a synthetic workspace path inside a repository.
+var ErrRepositoryTarget = errors.New("synthetic go.work path is inside a registered repository")
+
+// ErrNoModules reports that no registered repository declares a Go module.
+var ErrNoModules = errors.New("no registered repository declares a Go module")
+
+// ConflictKind classifies a fact excluded from the synthetic workspace.
+type ConflictKind string
+
+const (
+	// AmbiguousModule marks one module path declared by several repositories.
+	AmbiguousModule ConflictKind = "AMBIGUOUS_MODULE_PROVIDER"
+	// ReplaceConflict marks one replaced path with incompatible targets.
+	ReplaceConflict ConflictKind = "MODULE_REPLACE_CONFLICT"
+)
+
+// Module is one Go module included in the synthetic workspace.
+type Module struct {
+	Repository   string
+	ModulePath   string
+	RootPath     string
+	ManifestPath string
+	GoVersion    string
+}
+
+// Replacement is a replace directive promoted to the synthetic workspace.
+type Replacement struct {
+	OldPath    string
+	OldVersion string
+	NewPath    string
+	NewVersion string
+}
+
+// Conflict is a fact deliberately excluded because it cannot be decided.
+type Conflict struct {
+	Kind         ConflictKind
+	Subject      string
+	Repositories []string
+	Details      []string
+}
+
+// Plan is the deterministic content of one synthetic workspace.
+type Plan struct {
+	GoVersion string
+	Modules   []Module
+	Replaces  []Replacement
+	Conflicts []Conflict
+}
+
+// Options tunes how the plan is built.
+type Options struct {
+	// GoVersion overrides the version derived from the module manifests.
+	GoVersion string
+}
+
+// BuildPlan discovers every Go module of the registered repositories and
+// composes the workspace content without writing anything.
+//
+// Ambiguous module paths and incompatible replacements are excluded and
+// reported: go itself rejects a workspace with two directories providing the
+// same module, and a replacement Luque cannot decide must never be guessed.
+func BuildPlan(ctx context.Context, repositories []workspace.Repository, options Options) (Plan, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Plan{}, err
+	}
+
+	byModulePath := make(map[string][]Module)
+	replacements := make(map[replacementKey][]replacementSource)
+	for _, repository := range repositories {
+		if err := ctx.Err(); err != nil {
+			return Plan{}, err
+		}
+		name := strings.TrimSpace(repository.Name)
+		if name == "" {
+			return Plan{}, fmt.Errorf("repository %q: name must not be empty", repository.Path)
+		}
+		registry, err := workspace.NewGoModuleRegistry(ctx, repository)
+		if err != nil {
+			return Plan{}, fmt.Errorf("repository %q Go modules: %w", name, err)
+		}
+		for _, provider := range registry.List() {
+			byModulePath[provider.ModulePath] = append(byModulePath[provider.ModulePath], Module{
+				Repository:   name,
+				ModulePath:   provider.ModulePath,
+				RootPath:     provider.RootPath,
+				ManifestPath: provider.ManifestPath,
+				GoVersion:    provider.GoVersion,
+			})
+			collectReplacements(replacements, name, provider)
+		}
+	}
+
+	plan := Plan{}
+	for modulePath, candidates := range byModulePath {
+		if len(candidates) > 1 {
+			plan.Conflicts = append(plan.Conflicts, ambiguousModuleConflict(modulePath, candidates))
+			continue
+		}
+		plan.Modules = append(plan.Modules, candidates[0])
+	}
+	if len(plan.Modules) == 0 {
+		return Plan{}, ErrNoModules
+	}
+	sort.Slice(plan.Modules, func(left, right int) bool {
+		if plan.Modules[left].ModulePath != plan.Modules[right].ModulePath {
+			return plan.Modules[left].ModulePath < plan.Modules[right].ModulePath
+		}
+		return plan.Modules[left].RootPath < plan.Modules[right].RootPath
+	})
+
+	included := make(map[string]struct{}, len(plan.Modules))
+	for _, module := range plan.Modules {
+		included[module.ModulePath] = struct{}{}
+	}
+	resolveReplacements(&plan, replacements, included)
+
+	version, err := workspaceGoVersion(plan.Modules, options.GoVersion)
+	if err != nil {
+		return Plan{}, err
+	}
+	plan.GoVersion = version
+
+	sort.Slice(plan.Conflicts, func(left, right int) bool {
+		if plan.Conflicts[left].Kind != plan.Conflicts[right].Kind {
+			return plan.Conflicts[left].Kind < plan.Conflicts[right].Kind
+		}
+		return plan.Conflicts[left].Subject < plan.Conflicts[right].Subject
+	})
+	return plan, nil
+}
+
+type replacementKey struct {
+	oldPath    string
+	oldVersion string
+}
+
+type replacementSource struct {
+	repository string
+	module     string
+	newPath    string
+	newVersion string
+}
+
+func collectReplacements(sink map[replacementKey][]replacementSource, repository string, provider workspace.GoModuleProvider) {
+	directives := make([]workspace.GoReplacement, 0, len(provider.Replaces)+len(provider.WorkspaceReplaces))
+	directives = append(directives, provider.Replaces...)
+	directives = append(directives, provider.WorkspaceReplaces...)
+	for _, directive := range directives {
+		newPath := directive.NewPath
+		if directive.NewLocalPath != "" {
+			newPath = directive.NewLocalPath
+		}
+		key := replacementKey{oldPath: directive.OldPath, oldVersion: directive.OldVersion}
+		source := replacementSource{
+			repository: repository,
+			module:     provider.ModulePath,
+			newPath:    newPath,
+			newVersion: directive.NewVersion,
+		}
+		if containsReplacementSource(sink[key], source) {
+			continue
+		}
+		sink[key] = append(sink[key], source)
+	}
+}
+
+func containsReplacementSource(sources []replacementSource, candidate replacementSource) bool {
+	for _, source := range sources {
+		if source.newPath == candidate.newPath && source.newVersion == candidate.newVersion {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveReplacements promotes a replacement only when every module that
+// declares it agrees on the target, and the replaced module is not itself part
+// of the workspace: `use` already supersedes such a replacement.
+func resolveReplacements(plan *Plan, sources map[replacementKey][]replacementSource, included map[string]struct{}) {
+	for key, candidates := range sources {
+		if _, workspaceProvides := included[key.oldPath]; workspaceProvides {
+			continue
+		}
+		if len(candidates) > 1 {
+			plan.Conflicts = append(plan.Conflicts, replaceConflict(key, candidates))
+			continue
+		}
+		plan.Replaces = append(plan.Replaces, Replacement{
+			OldPath:    key.oldPath,
+			OldVersion: key.oldVersion,
+			NewPath:    candidates[0].newPath,
+			NewVersion: candidates[0].newVersion,
+		})
+	}
+	sort.Slice(plan.Replaces, func(left, right int) bool {
+		if plan.Replaces[left].OldPath != plan.Replaces[right].OldPath {
+			return plan.Replaces[left].OldPath < plan.Replaces[right].OldPath
+		}
+		return plan.Replaces[left].OldVersion < plan.Replaces[right].OldVersion
+	})
+}
+
+func ambiguousModuleConflict(modulePath string, candidates []Module) Conflict {
+	repositories := make([]string, 0, len(candidates))
+	manifests := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		repositories = appendUnique(repositories, candidate.Repository)
+		manifests = appendUnique(manifests, candidate.ManifestPath)
+	}
+	sort.Strings(repositories)
+	sort.Strings(manifests)
+	return Conflict{
+		Kind:         AmbiguousModule,
+		Subject:      modulePath,
+		Repositories: repositories,
+		Details:      manifests,
+	}
+}
+
+func replaceConflict(key replacementKey, candidates []replacementSource) Conflict {
+	repositories := make([]string, 0, len(candidates))
+	details := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		repositories = appendUnique(repositories, candidate.repository)
+		target := candidate.newPath
+		if candidate.newVersion != "" {
+			target += "@" + candidate.newVersion
+		}
+		details = appendUnique(details, candidate.module+" => "+target)
+	}
+	sort.Strings(repositories)
+	sort.Strings(details)
+	subject := key.oldPath
+	if key.oldVersion != "" {
+		subject += "@" + key.oldVersion
+	}
+	return Conflict{
+		Kind:         ReplaceConflict,
+		Subject:      subject,
+		Repositories: repositories,
+		Details:      details,
+	}
+}
+
+// workspaceGoVersion returns the highest language version declared by the
+// included modules: a workspace must not claim less than its members.
+func workspaceGoVersion(modules []Module, override string) (string, error) {
+	if trimmed := strings.TrimSpace(override); trimmed != "" {
+		if !semver.IsValid("v" + trimmed) {
+			return "", fmt.Errorf("invalid go version override %q", override)
+		}
+		return trimmed, nil
+	}
+	highest := ""
+	for _, module := range modules {
+		version := strings.TrimSpace(module.GoVersion)
+		if version == "" {
+			continue
+		}
+		if !semver.IsValid("v" + version) {
+			return "", fmt.Errorf("module %q declares an invalid go version %q", module.ModulePath, version)
+		}
+		if highest == "" || semver.Compare("v"+version, "v"+highest) > 0 {
+			highest = version
+		}
+	}
+	if highest == "" {
+		return "", fmt.Errorf("no included module declares a go version")
+	}
+	return highest, nil
+}
+
+// Render produces the canonical go.work bytes for this plan.
+func (plan Plan) Render() ([]byte, error) {
+	file := &modfile.WorkFile{Syntax: &modfile.FileSyntax{}}
+	if err := file.AddGoStmt(plan.GoVersion); err != nil {
+		return nil, fmt.Errorf("go directive: %w", err)
+	}
+	for _, module := range plan.Modules {
+		if err := file.AddUse(filepath.ToSlash(module.RootPath), module.ModulePath); err != nil {
+			return nil, fmt.Errorf("use %q: %w", module.RootPath, err)
+		}
+	}
+	for _, replacement := range plan.Replaces {
+		if err := file.AddReplace(replacement.OldPath, replacement.OldVersion, replacement.NewPath, replacement.NewVersion); err != nil {
+			return nil, fmt.Errorf("replace %q: %w", replacement.OldPath, err)
+		}
+	}
+	file.SortBlocks()
+	file.Cleanup()
+	return modfile.Format(file.Syntax), nil
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
+// Result reports what a write did.
+type Result struct {
+	Path    string
+	Bytes   int
+	Changed bool
+}
+
+// Write renders the plan and installs it atomically at path.
+//
+// The path is rejected when it falls inside any registered repository, so a
+// misconfiguration cannot make Luque write a go.work into indexed code.
+func Write(ctx context.Context, path string, plan Plan, repositories []workspace.Repository) (Result, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	target, err := resolveTarget(path, repositories)
+	if err != nil {
+		return Result{}, err
+	}
+	contents, err := plan.Render()
+	if err != nil {
+		return Result{}, err
+	}
+	if existing, err := os.ReadFile(target); err == nil && string(existing) == string(contents) {
+		return Result{Path: target, Bytes: len(contents), Changed: false}, nil
+	}
+	if err := writeAtomic(target, contents); err != nil {
+		return Result{}, err
+	}
+	return Result{Path: target, Bytes: len(contents), Changed: true}, nil
+}
+
+func resolveTarget(path string, repositories []workspace.Repository) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", fmt.Errorf("synthetic go.work path must not be empty")
+	}
+	absolute, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("resolve %q: %w", path, err)
+	}
+	absolute = filepath.Clean(absolute)
+	for _, repository := range repositories {
+		for _, root := range []string{repository.Path, repository.RealPath} {
+			root = strings.TrimSpace(root)
+			if root == "" {
+				continue
+			}
+			rootAbsolute, err := filepath.Abs(root)
+			if err != nil {
+				continue
+			}
+			if pathWithin(filepath.Clean(rootAbsolute), absolute) {
+				return "", fmt.Errorf("%w: %q is inside %q", ErrRepositoryTarget, absolute, rootAbsolute)
+			}
+		}
+	}
+	return absolute, nil
+}
+
+func writeAtomic(target string, contents []byte) error {
+	directory := filepath.Dir(target)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return fmt.Errorf("create %q: %w", directory, err)
+	}
+	temporary, err := os.CreateTemp(directory, ".go.work-*")
+	if err != nil {
+		return fmt.Errorf("create temporary workspace: %w", err)
+	}
+	name := temporary.Name()
+	defer os.Remove(name)
+	if _, err := temporary.Write(contents); err != nil {
+		temporary.Close()
+		return fmt.Errorf("write temporary workspace: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return fmt.Errorf("sync temporary workspace: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close temporary workspace: %w", err)
+	}
+	if err := os.Chmod(name, 0o644); err != nil {
+		return fmt.Errorf("chmod temporary workspace: %w", err)
+	}
+	if err := os.Rename(name, target); err != nil {
+		return fmt.Errorf("install workspace: %w", err)
+	}
+	return syncDirectory(directory)
+}
+
+func syncDirectory(directory string) error {
+	handle, err := os.Open(directory)
+	if err != nil {
+		return fmt.Errorf("open %q: %w", directory, err)
+	}
+	defer handle.Close()
+	if err := handle.Sync(); err != nil {
+		return fmt.Errorf("sync %q: %w", directory, err)
+	}
+	return nil
+}
+
+func pathWithin(parent, child string) bool {
+	relative, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
+}
