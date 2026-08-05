@@ -1,0 +1,78 @@
+{
+  "fixtures": [
+    "testdata/go/cross-repository",
+    "testdata/go/cross-repository-negative"
+  ],
+  "cases": [
+    {
+      "name": "consumer-a",
+      "metrics": {
+        "expected_edges": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "false_exact_edges": 0,
+        "expected_unresolved": 0,
+        "unresolved_correctly_classified": 0,
+        "unresolved_misclassified": 0
+      },
+      "missing_edges": null,
+      "unexpected_edges": null,
+      "missing_unresolved": null,
+      "unexpected_unresolved": null
+    },
+    {
+      "name": "consumer-b",
+      "metrics": {
+        "expected_edges": 3,
+        "true_positives": 3,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "false_exact_edges": 0,
+        "expected_unresolved": 0,
+        "unresolved_correctly_classified": 0,
+        "unresolved_misclassified": 0
+      },
+      "missing_edges": null,
+      "unexpected_edges": null,
+      "missing_unresolved": null,
+      "unexpected_unresolved": null
+    },
+    {
+      "name": "consumer-negative",
+      "metrics": {
+        "expected_edges": 5,
+        "true_positives": 5,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "false_exact_edges": 0,
+        "expected_unresolved": 2,
+        "unresolved_correctly_classified": 2,
+        "unresolved_misclassified": 0
+      },
+      "missing_edges": null,
+      "unexpected_edges": null,
+      "missing_unresolved": null,
+      "unexpected_unresolved": null
+    }
+  ],
+  "totals": {
+    "expected_edges": 16,
+    "true_positives": 16,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "precision": 1,
+    "recall": 1,
+    "false_exact_edges": 0,
+    "expected_unresolved": 2,
+    "unresolved_correctly_classified": 2,
+    "unresolved_misclassified": 0
+  },
+  "gate": "GO_SEMANTIC_PASS"
+}

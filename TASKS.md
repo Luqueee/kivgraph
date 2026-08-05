@@ -4915,11 +4915,66 @@ replacement adivinado no produce arista.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+internal/goloader/precision.go
+internal/goloader/precision_test.go
+benchmarks/go-semantic/main.go
+benchmarks/go-semantic/results.json
+benchmarks/go-semantic/report.md
+```
+
+**Métricas medidas:**
+
+```text
+true positives                    16
+false positives                   0
+false negatives                   0
+precision                         1.0000
+recall                            1.0000
+false exact edges                 0
+unresolved correctly classified   2/2
+```
+
+**Decisiones:**
+
+* El ground truth enumera cada arista esperada como
+  `origen -> CLASE -> paquete.destino`, con **multiconjunto**: dos lecturas del
+  mismo campo cuentan dos veces y una arista de más aparece como sobrante.
+* La medición usa el pipeline real completo —workspace sintético, carga,
+  usos, clasificación, resolución cross-repository y no resueltas—; no hay
+  mocks del compilador.
+* Los artefactos se regeneran con `go run ./benchmarks/go-semantic` y son
+  deterministas: sin marcas de tiempo ni rutas de máquina.
+* El caso negativo mide también que el módulo ambiguo y el `replace` en
+  conflicto se clasifican, no que desaparecen.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader ./benchmarks/go-semantic
+go run ./benchmarks/go-semantic        # GO_SEMANTIC_PASS
+```
+
+**Limitaciones:**
+
+* El corpus es el de los fixtures de fase; la precisión sobre repositorios
+  reales a escala se mide en la fase de aceptación final.
+* Las aristas intra-módulo no entran en la métrica: esta fase mide la
+  resolución cross-repository.
 
 **Gate:**
 
@@ -4927,11 +4982,13 @@ replacement adivinado no produce arista.
 GO_SEMANTIC_PASS
 ```
 
-Requisito:
+Requisito cumplido:
 
 ```text
 false exact edges = 0
 ```
+
+**Siguiente tarea:** LUQUE-0814.
 
 ---
 
