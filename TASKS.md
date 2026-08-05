@@ -1855,11 +1855,11 @@ module path
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Errores:**
 
@@ -1870,11 +1870,23 @@ PACKAGE_VERSION_MISMATCH
 MODULE_REPLACE_CONFLICT
 ```
 
+**Estado:** `PASS`.
+
+* `internal/workspace.DetectProviderConflicts` construye ambos registries para cada repositorio y devuelve un `ProviderConflictReport` determinista sin seleccionar providers automáticamente.
+* Los nombres de paquete duplicados producen `AMBIGUOUS_PACKAGE_PROVIDER`; si sus versiones difieren se añade `PACKAGE_VERSION_MISMATCH`.
+* Los `module path` duplicados producen `AMBIGUOUS_MODULE_PROVIDER`; los conjuntos de replacements de `go.mod` y `go.work` distintos producen `MODULE_REPLACE_CONFLICT`, incluido el mismo módulo sustituido desde módulos distintos.
+* Cada conflicto conserva clase, provider, repositorios, manifests y versiones aplicables. `List` devuelve copias profundas y `HasConflicts` permite comprobar el resultado.
+* Las pruebas cubren los cuatro tipos de conflicto, ausencia de conflicto, orden determinista, versiones, manifests, validación de repositorios, cancelación y mutabilidad.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/luque`, `go tool staticcheck ./internal/workspace`, smoke focal y suite Ladybug pasan.
+* No se requiere benchmark: esta tarea valida metadatos de configuración ya descubiertos.
+
 **Gate:**
 
 ```text
 REPOSITORY_REGISTRY_PASS
 ```
+
+**Siguiente tarea:** LUQUE-0501.
 
 ---
 

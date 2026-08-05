@@ -88,6 +88,29 @@ continúa en la fase `go/packages`.
 
 ---
 
+## Detección de providers ambiguos
+
+`internal/workspace.DetectProviderConflicts` construye ambos registros por
+repositorio y devuelve un `ProviderConflictReport` determinista. No selecciona
+automáticamente un provider cuando dos repositorios declaran el mismo nombre
+de paquete o `module path`.
+
+Cada conflicto conserva la clase, el provider afectado, los repositorios,
+manifests y, para paquetes, las versiones. Se emiten
+`AMBIGUOUS_PACKAGE_PROVIDER` y `AMBIGUOUS_MODULE_PROVIDER` para duplicados;
+cuando las versiones del mismo paquete difieren se añade
+`PACKAGE_VERSION_MISMATCH`.
+
+Los replacements de módulo se comparan después de combinar `go.mod` y
+`go.work`, eliminando únicamente duplicados exactos. Cualquier conjunto
+distinto para el mismo `module path` produce `MODULE_REPLACE_CONFLICT`;
+además, replacements para el mismo módulo sustituido desde módulos
+distintos se comparan por origen y destino. Los destinos locales distintos
+también son conflictos. El reporte y sus listas devuelven copias profundas;
+un reporte sin conflictos tiene `HasConflicts() == false`.
+
+---
+
 ## Registro de paquetes TypeScript
 
 `internal/workspace.NewTypeScriptPackageRegistry` compone el descubrimiento
@@ -108,7 +131,8 @@ Las raíces fuente se derivan de `rootDirs`, `rootDir`, `include` y `files` del
 proyecto; si no hay una raíz aplicable se usa la raíz del paquete. Las raíces
 declarativas se derivan de `types` y `declarationDir`. Las listas y el JSON
 devueltos por `List` y `Get` son copias profundas. La ambigüedad entre
-repositorios y las incompatibilidades de versión quedan para LUQUE-0408.
+repositorios y las incompatibilidades de versión se clasifican mediante
+`DetectProviderConflicts`.
 
 ---
 
