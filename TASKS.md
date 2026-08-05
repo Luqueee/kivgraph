@@ -2755,22 +2755,95 @@ rechazo de una vista stale, y preservación de declaraciones sobrecargadas.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Clasificar:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/reference-extractor.ts`;
+* `ts-worker/src/reference-extractor.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato del extractor:**
 
 ```text
-REFERENCES
-CALLS_DIRECT
-PASSES_AS_CALLBACK
-ASSIGNS_FUNCTION
-RETURNS_FUNCTION
-TYPE_USES
+extractLocalReferences(service, view, symbols, options?)
+  -> { generation, configFileName, references }
 ```
+
+Cada `LocalReference` conserva el archivo, la ocurrencia AST, offsets UTF-16,
+líneas 1-based, texto, símbolo local destino y símbolo local contenedor cuando
+existe. Las ocurrencias de nivel superior tienen `source` indefinido.
+
+**Clasificación:**
+
+* `REFERENCES`: uso ordinario de un identificador local;
+* `CALLS_DIRECT`: identificador o miembro local usado como callee de una
+  llamada o construcción;
+* `PASSES_AS_CALLBACK`: valor callable local pasado como argumento;
+* `ASSIGNS_FUNCTION`: valor callable local usado en el lado derecho de una
+  asignación o inicializador;
+* `RETURNS_FUNCTION`: valor callable local devuelto;
+* `TYPE_USES`: uso local dentro de una posición de tipo.
+
+**Decisiones:**
+
+* El AST solo descubre ocurrencias; cada destino se resuelve con el
+  `TypeChecker` nativo en una única llamada batched a
+  `checker.getSymbolAtLocation`.
+* No se emiten referencias por coincidencia textual, nombre cualificado o
+  símbolo externo. Solo se conservan destinos presentes en la extracción de
+  `LocalSymbol` de LUQUE-0608.
+* La extracción exige que `ProjectView` y `LocalSymbolExtraction` pertenezcan
+  a la misma generación y comprueba `assertFresh` antes y después de las
+  llamadas nativas.
+* Imports, exports y aliases de módulo se omiten deliberadamente; LUQUE-0610
+  resolverá esos bindings sin convertirlos en referencias nominales.
+* La clasificación de callback, asignación y retorno solo se mantiene cuando
+  el destino es callable según una función o método declarado, o una variable
+  inicializada con una función/arrow local; en otro caso se degrada a
+  `REFERENCES`.
+* La salida es determinista por archivo, posición, clasificación y nombre de
+  destino.
+
+**Verificación:**
+
+```text
+5 archivos de tests
+41 tests passed
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La suite nueva cubre resolución con el checker, llamadas directas, callbacks,
+asignaciones, retornos, usos de tipos, valores función en variables arrow,
+selección por archivo, exclusión de símbolos externos y rechazo de snapshots
+stale.
+
+**Limitaciones:**
+
+* Referencias que llegan mediante imports, `export *`, reexports o aliases
+  locales no se materializan todavía; requieren la resolución explícita de
+  LUQUE-0610.
+* La detección de valores función no intenta inferir aliasing o flujo de datos
+  arbitrario; conserva únicamente las formas locales observables soportadas
+  por esta tarea para evitar aristas semánticas especulativas.
+* `symbolId` y los objetos `LocalSymbol` siguen siendo válidos solo durante la
+  vida del snapshot; la identidad durable será la stable key del modelo Go.
+
+**Siguiente tarea:** LUQUE-0610.
 
 ---
 

@@ -9,6 +9,13 @@ export type {
   LocalSymbolKind,
   SymbolExtractionOptions,
 } from "./symbol-extractor.js";
+export { extractLocalReferences } from "./reference-extractor.js";
+export type {
+  LocalReference,
+  LocalReferenceExtraction,
+  LocalReferenceKind,
+  ReferenceExtractionOptions,
+} from "./reference-extractor.js";
 
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
