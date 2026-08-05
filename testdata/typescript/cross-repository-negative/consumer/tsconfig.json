@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@luque-fixture/duplicated": [
+        "../duplicated-a/dist/index.d.ts"
+      ],
+      "@luque-fixture/drifting": [
+        "../drifting/dist/index.d.ts"
+      ],
+      "@luque-fixture/unmapped": [
+        "../unmapped/dist/index.d.ts"
+      ],
+      "@luque-fixture/twin": [
+        "../twin/dist/index.d.ts"
+      ],
+      "@luque-fixture/shared": [
+        "../../cross-repository/shared-library/dist/index.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

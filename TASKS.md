@@ -3653,20 +3653,58 @@ referencias no resueltas y una única arista `PACKAGE_DEPENDS_ON` por consumidor
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Incluir:**
+**Estado:** `PASS`.
 
-* homónimo local;
-* package duplicado;
-* export ausente;
-* versión incompatible;
-* `.d.ts` sin source map;
-* otro paquete con mismo símbolo.
+**Entregables:**
+
+```text
+testdata/typescript/cross-repository-negative
+ts-worker/src/cross-repository-negative.test.ts
+```
+
+**Casos cubiertos:**
+
+| Caso | Resultado esperado |
+| --- | --- |
+| homónimo local | ninguna arista |
+| package duplicado | `AMBIGUOUS_PACKAGE_PROVIDER`, sin arista |
+| export ausente | `EXPORT_NOT_FOUND` |
+| versión incompatible | `VERSION_MISMATCH`, sin arista |
+| `.d.ts` sin source map | `DECLARATION_SOURCE_NOT_MAPPED` |
+| otro paquete con mismo símbolo | arista al paquete importado, nunca al homónimo |
+
+**Decisiones:**
+
+* Un conflicto de registro invalida la arista exacta: sin identidad probada del
+  provider, la arista sería un `false exact edge`. `resolveUnresolvedReferences`
+  descarta esas aristas y conserva únicamente la razón.
+* Un `.d.ts` sin mapa sigue produciendo arista al símbolo declarado; lo que
+  falta es la fuente física, y eso se reporta como razón, no como ausencia de
+  hecho.
+
+**Verificación:**
+
+```text
+pnpm check                         # 13 archivos, 64 tests passed
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+**Limitaciones:**
+
+* Los conflictos se inyectan como entrada del worker; su detección real
+  pertenece a LUQUE-0408.
+
+**Siguiente tarea:** LUQUE-0709.
 
 ---
 

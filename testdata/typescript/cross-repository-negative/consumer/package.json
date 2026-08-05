@@ -1,0 +1,12 @@
+{
+  "name": "@luque-fixture/consumer-negative",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@luque-fixture/duplicated": "1.0.0",
+    "@luque-fixture/drifting": "1.0.0",
+    "@luque-fixture/shared": "1.4.2",
+    "@luque-fixture/twin": "1.0.0",
+    "@luque-fixture/unmapped": "1.0.0"
+  }
+}

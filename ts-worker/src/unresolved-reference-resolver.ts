@@ -207,7 +207,11 @@ export async function resolveUnresolvedReferences(
     imports: resolution.imports,
     exports: resolution.exports,
     mappings: resolution.mappings,
-    symbols: resolution.symbols,
+    // A conflicted package has no proven provider identity, so an edge built
+    // from it would be a false exact edge.
+    symbols: resolution.symbols.filter(
+      (symbol) => !conflicts.has(symbol.packageName),
+    ),
     unresolved,
   };
 }
