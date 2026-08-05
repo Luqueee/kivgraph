@@ -172,6 +172,69 @@ export default defaultValue;
     );
   });
 
+  it("resolves named, default, alias, export-from, star and barrel exports", async () => {
+    const workspace = await createWorkspace({
+      "src/definitions.ts": `
+export const named = 1;
+export function callable(): number {
+  return named;
+}
+export type Shape = { value: number };
+export default function defaultFn(): number {
+  return named;
+}
+`,
+      "src/aliases.ts": `
+export { named as renamed, default as aliasedDefault } from "./definitions.js";
+export type { Shape as PublicShape } from "./definitions.js";
+export * from "./definitions.js";
+`,
+      "src/barrel.ts": `export * from "./aliases.js";\n`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const extraction = await extractLocalSymbols(
+      service,
+      service.project(workspace.configFileName),
+    );
+
+    const exportsByFile = new Map<string, string[]>();
+    for (const entry of extraction.exports) {
+      const key = path.basename(entry.fileName);
+      const entries = exportsByFile.get(key) ?? [];
+      entries.push(
+        `${entry.exportedName}:${entry.localName}:${entry.symbolId}:${entry.isTypeOnly ? "type" : "value"}`,
+      );
+      exportsByFile.set(key, entries);
+    }
+    for (const entries of exportsByFile.values()) {
+      entries.sort();
+    }
+
+    expect(exportsByFile.get("definitions.ts")).toEqual([
+      expect.stringMatching(/^Shape:Shape:\d+:type$/u),
+      expect.stringMatching(/^callable:callable:\d+:value$/u),
+      expect.stringMatching(/^default:defaultFn:\d+:value$/u),
+      expect.stringMatching(/^named:named:\d+:value$/u),
+    ]);
+    expect(exportsByFile.get("aliases.ts")).toEqual([
+      expect.stringMatching(/^PublicShape:Shape:\d+:type$/u),
+      expect.stringMatching(/^Shape:Shape:\d+:type$/u),
+      expect.stringMatching(/^aliasedDefault:default:\d+:value$/u),
+      expect.stringMatching(/^callable:callable:\d+:value$/u),
+      expect.stringMatching(/^named:named:\d+:value$/u),
+      expect.stringMatching(/^renamed:named:\d+:value$/u),
+    ]);
+    expect(exportsByFile.get("barrel.ts")).toEqual([
+      expect.stringMatching(/^PublicShape:Shape:\d+:type$/u),
+      expect.stringMatching(/^Shape:Shape:\d+:type$/u),
+      expect.stringMatching(/^aliasedDefault:defaultFn:\d+:value$/u),
+      expect.stringMatching(/^callable:callable:\d+:value$/u),
+      expect.stringMatching(/^named:named:\d+:value$/u),
+      expect.stringMatching(/^renamed:named:\d+:value$/u),
+    ]);
+  });
+
   it("limits extraction to project-local files and requested files", async () => {
     const workspace = await createWorkspace({
       "src/first.ts": "export const first = 1;\n",

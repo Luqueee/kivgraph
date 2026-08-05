@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "hello": "pnpm build && node dist/index.js",

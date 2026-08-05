@@ -50,14 +50,13 @@ import type {
   Node,
   SourceFile,
 } from "typescript/unstable/ast";
-import { SymbolFlags } from "typescript/unstable/async";
-import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
 import {
   LanguageServiceError,
   type LanguageService,
   type ProjectView,
 } from "./language-service.js";
 import type { LocalSymbol, LocalSymbolExtraction } from "./symbol-extractor.js";
+import { resolveLocalSymbols } from "./symbol-resolution.js";
 
 /** Classification emitted for one resolved local use. */
 export type LocalReferenceKind =
@@ -181,8 +180,8 @@ export async function extractLocalReferences(
     }
   }
 
-  const localTargets = await resolveLocalTargets(
-    view,
+  const localTargets = await resolveLocalSymbols(
+    view.checker,
     referenceSymbols,
     localById,
   );
@@ -217,45 +216,6 @@ export async function extractLocalReferences(
     configFileName: view.configFileName,
     references,
   };
-}
-
-async function resolveLocalTargets(
-  view: ProjectView,
-  resolvedSymbols: readonly (TypeScriptSymbol | undefined)[],
-  localById: ReadonlyMap<number, LocalSymbol>,
-): Promise<(LocalSymbol | undefined)[]> {
-  const aliasCandidates = new Map<number, TypeScriptSymbol>();
-  for (const symbol of resolvedSymbols) {
-    if (
-      symbol !== undefined &&
-      !localById.has(symbol.id) &&
-      (symbol.flags & SymbolFlags.Alias) !== 0
-    ) {
-      aliasCandidates.set(symbol.id, symbol);
-    }
-  }
-
-  const aliasResults = await Promise.all(
-    [...aliasCandidates.entries()].map(
-      async ([symbolId, symbol]): Promise<
-        readonly [number, LocalSymbol | undefined]
-      > => {
-        const target = await view.checker.getAliasedSymbol(symbol);
-        if (await view.checker.isUnknownSymbol(target)) {
-          return [symbolId, undefined];
-        }
-        return [symbolId, localById.get(target.id)];
-      },
-    ),
-  );
-  const resolvedAliases = new Map(aliasResults);
-
-  return resolvedSymbols.map((symbol) => {
-    if (symbol === undefined) {
-      return undefined;
-    }
-    return localById.get(symbol.id) ?? resolvedAliases.get(symbol.id);
-  });
 }
 
 async function selectLocalFiles(

@@ -2928,13 +2928,37 @@ declarativo real del destino y conserva la exclusión de símbolos externos.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Cubrir:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/symbol-extractor.ts`;
+* `ts-worker/src/symbol-resolution.ts`;
+* `ts-worker/src/symbol-extractor.test.ts`;
+* `ts-worker/package.json`.
+
+**Resolución implementada:**
+
+* Los exports locales directos, aliases de exportación y `default` conservan
+  su `LocalExport` respaldado por el símbolo nativo.
+* `export { ... } from` se resuelve con
+  `checker.getExportSpecifierLocalTargetSymbol`.
+* `export * from` obtiene los exports del módulo con
+  `checker.getExportsOfModule`.
+* Los barrels siguen las cadenas de aliases hasta el `LocalSymbol` declarado
+  en el archivo origen.
+* La resolución común usa `SymbolFlags.Alias`, `getAliasedSymbol`,
+  `isUnknownSymbol` y `symbol.id`; no compara nombres ni texto.
+* Los reexports se representan en `LocalExport` con el archivo que los
+  publica y el símbolo local declarado en el módulo origen.
+
+**Casos cubiertos:**
 
 ```text
 named export
@@ -2944,6 +2968,44 @@ export from
 export *
 barrels
 ```
+
+**Script de comprobación:**
+
+```text
+pnpm check
+  -> pnpm format:check
+  -> pnpm lint
+  -> pnpm typecheck
+  -> pnpm test
+```
+
+**Verificación:**
+
+```text
+5 archivos de tests
+43 tests passed
+pnpm check
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La prueba nueva comprueba exports directos, `default`, aliases, exports desde
+otro módulo, `export *` y propagación a través de un barrel, incluyendo
+destinos de tipo y valor.
+
+**Limitaciones:**
+
+* Un `export default` anónimo no genera `LocalSymbol` porque carece de un
+  nombre declarativo estable.
+* `export * as namespace` no se convierte en un único `LocalExport`, porque
+  representa un namespace y no una declaración local individual.
+* La identidad de los símbolos sigue limitada al snapshot actual; la stable
+  key durable se añadirá en las capas posteriores.
+
+**Siguiente tarea:** LUQUE-0612.
 
 ---
 

@@ -41,6 +41,7 @@ import type {
 import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
 
 import type { LanguageService, ProjectView } from "./language-service.js";
+import { resolveLocalSymbols } from "./symbol-resolution.js";
 
 /** Kinds emitted by the local declaration extractor. */
 export type LocalSymbolKind =
@@ -116,11 +117,20 @@ interface ExportRequest {
   exportedName: string;
   localName: string;
   isTypeOnly: boolean;
+  reExport: boolean;
+}
+
+interface ExportStarRequest {
+  file: SourceFile;
+  node: Node;
+  moduleSpecifier: Node;
+  isTypeOnly: boolean;
 }
 
 interface CollectedFile {
   candidates: Candidate[];
   exports: ExportRequest[];
+  exportStars: ExportStarRequest[];
 }
 
 /**
@@ -158,16 +168,24 @@ export async function extractLocalSymbols(
 
   const candidates = collected.flatMap((file) => file.candidates);
   const exportRequests = collected.flatMap((file) => file.exports);
+  const exportStarRequests = collected.flatMap((file) => file.exportStars);
   const requestedNodes = [
     ...candidates.map((candidate) => candidate.nameNode),
     ...exportRequests.map((request) => request.nameNode),
+    ...exportStarRequests.map((request) => request.moduleSpecifier),
   ];
   const resolved =
     requestedNodes.length === 0
       ? []
       : await view.checker.getSymbolAtLocation(requestedNodes);
   const candidateSymbols = resolved.slice(0, candidates.length);
-  const exportSymbols = resolved.slice(candidates.length);
+  const exportSymbols = resolved.slice(
+    candidates.length,
+    candidates.length + exportRequests.length,
+  );
+  const exportStarModuleSymbols = resolved.slice(
+    candidates.length + exportRequests.length,
+  );
 
   const localById = new Map<number, LocalSymbol[]>();
   const symbols: LocalSymbol[] = [];
@@ -191,15 +209,16 @@ export async function extractLocalSymbols(
         fileName: candidate.file.fileName,
         exportedName: candidate.directExportName,
         localName: candidate.name,
-        isTypeOnly: candidate.kind === "interface" || candidate.kind === "type",
-        symbolId: symbol.id,
-        symbol,
+        isTypeOnly: isTypeSymbol(local),
+        symbolId: local.symbolId,
+        symbol: local.symbol,
         start: candidate.declaration.getStart(candidate.file),
         end: candidate.declaration.getEnd(),
       });
     }
   }
 
+  const exportTargetSymbols: (TypeScriptSymbol | undefined)[] = [];
   for (const [index, request] of exportRequests.entries()) {
     let symbol = exportSymbols[index];
     if (
@@ -210,30 +229,79 @@ export async function extractLocalSymbols(
         request.node,
       );
     }
-    if (symbol === undefined) {
-      continue;
-    }
-    const locals = localById.get(symbol.id);
+    exportTargetSymbols.push(symbol);
+  }
+  const exportTargets = await resolveLocalSymbols(
+    view.checker,
+    exportTargetSymbols,
+    localById,
+  );
+
+  for (const [index, request] of exportRequests.entries()) {
+    const locals = exportTargets[index];
     if (locals === undefined) {
-      // Re-exports from another module and unresolved aliases are not local
-      // declarations. They belong to the later alias-resolution task.
       continue;
     }
     for (const local of locals) {
-      if (!local.exportedNames.includes(request.exportedName)) {
-        local.exportedNames.push(request.exportedName);
-        local.exportedNames.sort();
+      if (!request.reExport) {
+        if (!local.exportedNames.includes(request.exportedName)) {
+          local.exportedNames.push(request.exportedName);
+          local.exportedNames.sort();
+        }
+        local.exported = true;
       }
-      local.exported = true;
       exports.push({
         fileName: request.file.fileName,
         exportedName: request.exportedName,
         localName: request.localName,
-        isTypeOnly: request.isTypeOnly,
-        symbolId: symbol.id,
-        symbol,
+        isTypeOnly: request.isTypeOnly || isTypeSymbol(local),
+        symbolId: local.symbolId,
+        symbol: local.symbol,
         start: request.node.getStart(request.file),
         end: request.node.getEnd(),
+      });
+    }
+  }
+
+  const starEntries = (
+    await Promise.all(
+      exportStarRequests.map(async (request, index) => {
+        const moduleSymbol = exportStarModuleSymbols[index];
+        if (moduleSymbol === undefined) {
+          return [];
+        }
+        const moduleExports =
+          await view.checker.getExportsOfModule(moduleSymbol);
+        return moduleExports
+          .filter((symbol) => symbol.name !== "default")
+          .map((symbol) => ({
+            request,
+            symbol,
+            exportedName: symbol.name,
+          }));
+      }),
+    )
+  ).flat();
+  const starTargets = await resolveLocalSymbols(
+    view.checker,
+    starEntries.map((entry) => entry.symbol),
+    localById,
+  );
+  for (const [index, entry] of starEntries.entries()) {
+    const locals = starTargets[index];
+    if (locals === undefined) {
+      continue;
+    }
+    for (const local of locals) {
+      exports.push({
+        fileName: entry.request.file.fileName,
+        exportedName: entry.exportedName,
+        localName: local.name,
+        isTypeOnly: entry.request.isTypeOnly || isTypeSymbol(local),
+        symbolId: local.symbolId,
+        symbol: local.symbol,
+        start: entry.request.node.getStart(entry.request.file),
+        end: entry.request.node.getEnd(),
       });
     }
   }
@@ -280,6 +348,7 @@ function selectLocalFiles(
 function collectFile(file: SourceFile): CollectedFile {
   const candidates: Candidate[] = [];
   const exports: ExportRequest[] = [];
+  const exportStars: ExportStarRequest[] = [];
 
   const visit = (
     node: Node,
@@ -317,7 +386,7 @@ function collectFile(file: SourceFile): CollectedFile {
     }
 
     if (isExportDeclaration(node)) {
-      collectExportDeclaration(file, node, exports);
+      collectExportDeclaration(file, node, exports, exportStars);
     } else if (isExportAssignment(node)) {
       collectExportAssignment(file, node, exports);
     }
@@ -334,7 +403,7 @@ function collectFile(file: SourceFile): CollectedFile {
   };
 
   file.forEachChild((child) => visit(child, [], false));
-  return { candidates, exports };
+  return { candidates, exports, exportStars };
 }
 
 function declarationCandidate(
@@ -411,31 +480,40 @@ function declarationCandidate(
         : undefined,
   };
 }
-
 function collectExportDeclaration(
   file: SourceFile,
   node: Node,
   output: ExportRequest[],
+  starOutput: ExportStarRequest[],
 ): void {
-  if (!isExportDeclaration(node) || node.moduleSpecifier !== undefined) {
+  if (!isExportDeclaration(node)) {
     return;
   }
   const clause = node.exportClause;
-  if (!clause || !isNamedExports(clause)) {
+  if (clause !== undefined && isNamedExports(clause)) {
+    for (const specifier of clause.elements) {
+      if (!isExportSpecifier(specifier)) {
+        continue;
+      }
+      const localNode = specifier.propertyName ?? specifier.name;
+      output.push({
+        file,
+        node: specifier,
+        nameNode: localNode,
+        exportedName: displayName(specifier.name, file),
+        localName: displayName(localNode, file),
+        isTypeOnly: node.isTypeOnly || specifier.isTypeOnly,
+        reExport: node.moduleSpecifier !== undefined,
+      });
+    }
     return;
   }
-  for (const specifier of clause.elements) {
-    if (!isExportSpecifier(specifier)) {
-      continue;
-    }
-    const localNode = specifier.propertyName ?? specifier.name;
-    output.push({
+  if (node.moduleSpecifier !== undefined && clause === undefined) {
+    starOutput.push({
       file,
-      node: specifier,
-      nameNode: localNode,
-      exportedName: displayName(specifier.name, file),
-      localName: displayName(localNode, file),
-      isTypeOnly: node.isTypeOnly || specifier.isTypeOnly,
+      node,
+      moduleSpecifier: node.moduleSpecifier,
+      isTypeOnly: node.isTypeOnly,
     });
   }
 }
@@ -455,6 +533,7 @@ function collectExportAssignment(
     exportedName: node.isExportEquals ? "export=" : "default",
     localName: displayName(node.expression, file),
     isTypeOnly: false,
+    reExport: false,
   });
 }
 
@@ -557,6 +636,10 @@ function modifierFlags(node: Node): number {
     return node.modifierFlags;
   }
   return ModifierFlags.None;
+}
+
+function isTypeSymbol(symbol: LocalSymbol): boolean {
+  return symbol.kind === "interface" || symbol.kind === "type";
 }
 
 function compareSymbols(left: LocalSymbol, right: LocalSymbol): number {
