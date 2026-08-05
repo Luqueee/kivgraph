@@ -2134,31 +2134,59 @@ pasa. No se requiere benchmark.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Transporte:**
+**Estado:** `PASS`.
 
-```text
-stdin/stdout
-uint32 length prefix
-JSON UTF-8
-```
+**Entregables:**
 
-**Mensajes mínimos:**
+* `docs/protocol/ts-worker-v1.md`;
+* `docs/adr/0010-typescript-engine.md`;
+* `docs/adr/0005-typescript-worker.md` revisado;
+* `benchmarks/typescript-engine/results.json` y `report.md`.
 
-```text
-HELLO
-OPEN_WORKSPACE
-INDEX_PROJECT
-UPDATE_FILES
-REMOVE_FILES
-STATUS
-SHUTDOWN
-```
+**Transporte:** stdin/stdout, prefijo de longitud de 32 bits big-endian, JSON
+UTF-8, frame máximo de 16 MiB, `stdout` reservado a frames y `stderr` a logs.
+
+**Mensajes:** `HELLO`, `OPEN_WORKSPACE`, `INDEX_PROJECT`, `UPDATE_FILES`,
+`REMOVE_FILES`, `GET_STATUS`, `CANCEL` y `SHUTDOWN`. `GET_STATUS` es el nombre
+normativo de `STATUS`.
+
+**Resultado:**
+
+* el motor semántico es el compilador nativo de TypeScript 7, decidido en el
+  ADR 0010 y respaldado por benchmark versionado;
+* el protocolo es por lotes y con granularidad de archivo, con posiciones en
+  lista y respuesta en el mismo orden; queda prohibida la petición por símbolo;
+* la correlación es por `id`, con cancelación explícita y respuestas fuera de
+  orden permitidas;
+* los hechos se emiten agrupados por archivo y un lote incompleto se descarta
+  entero;
+* un proyecto fuera de la ventana de versiones soportadas degrada sus hechos a
+  `CANDIDATE` con motivo y versión efectiva registrados.
+
+**Benchmark:** `benchmarks/typescript-engine`, corpus de 250, 1000 y 4000
+módulos, 50 iteraciones y 5 de calentamiento por operación. Carga en frío entre
+`4.4x` y `4.9x` más rápida, chequeo completo entre `1.45x` y `4.85x`,
+referencias con alcance de archivo entre `21x` y `462x`, re-resolución
+incremental entre `20x` y `37x`, residente entre `1.4x` y `2.3x` menor. La
+resolución de un símbolo suelto es entre `3x` y `7x` más lenta y por lotes de
+50 vuelve a ganar entre `1.34x` y `1.48x`; de ahí la regla de lotes.
+
+**Limitaciones:**
+
+* la superficie consumida del compilador está marcada `unstable`, por lo que
+  LUQUE-0607 debe incluir un test de contrato que falle ante un cambio;
+* la equivalencia semántica entre TypeScript 5 y 7 no se ha medido sobre
+  repositorios reales; por eso la degradación a `CANDIDATE` es obligatoria;
+* el framing todavía no está implementado: es LUQUE-0602 en Go y LUQUE-0603 en
+  TypeScript, que deben coincidir byte a byte.
+
+**Siguiente tarea:** LUQUE-0602.
 
 ---
 

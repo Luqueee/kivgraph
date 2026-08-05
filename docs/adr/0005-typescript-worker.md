@@ -25,9 +25,11 @@ timeouts, salida inesperada y versiones incompatibles; cada caso se clasifica y
 puede invalidar el estado del worker sin contaminar el grafo con hechos
 incompletos.
 
-La TypeScript Compiler API es la autoridad semántica para símbolos,
-referencias, exports, reexports y resolución de módulos. Tree-sitter no puede
-sustituirla.
+La autoridad semántica para símbolos, referencias, exports, reexports y
+resolución de módulos es el compilador de TypeScript del proyecto analizado.
+Tree-sitter no puede sustituirla. El ADR 0010 fija qué motor concreto la
+implementa y sustituye la suposición original de este ADR de que dicha
+autoridad se ejecutaba con la Compiler API JavaScript dentro del propio worker.
 
 ## Alternatives
 
@@ -64,3 +66,11 @@ sustituirla.
 
 Aceptada. El protocolo inicial y el supervisor se implementarán después de la
 fase de aceleración sintáctica.
+
+## Revisiones
+
+- 2026-08-05: el ADR 0010 sustituye la Compiler API JavaScript en proceso por
+  el compilador nativo de TypeScript 7 consumido mediante su API asíncrona. El
+  worker Node.js persistente, el framing sobre stdin/stdout y las
+  responsabilidades del supervisor se mantienen sin cambios; el worker pasa a
+  ser el cliente del compilador nativo y su protocolo debe ser por lotes.
