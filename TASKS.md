@@ -2472,20 +2472,90 @@ ventana soportada rompe cuatro.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `internal/workspace/typescript_program.go` — tipo `TypeScriptProgram`, grafo
+  y orquestación;
+* `internal/workspace/typescript_config.go` — cadena `extends` y opciones
+  efectivas;
+* `internal/workspace/typescript_sources.go` — `files`, `include`, `exclude`;
+* `internal/workspace/typescript_graph.go` — orden topológico y ciclos;
+* los cuatro archivos de prueba correspondientes.
 
 **Construir:**
 
-* parsed configs;
-* project references;
-* DAG;
-* versión;
-* compiler options;
-* source files.
+| Pieza | Dónde |
+| --- | --- |
+| parsed configs | `resolveTypeScriptConfig`, JSONC y cadena `extends` |
+| project references | ya resueltas en el descubrimiento; no se heredan por `extends` |
+| DAG | `topologicalTypeScriptOrder`, con dependientes inversos |
+| versión | `TypeScriptVersionResolver` de LUQUE-0605, por proyecto |
+| compiler options | merge por clave con rebase de rutas |
+| source files | globs con `**` propios, extensiones según `allowJs` |
+
+**Decisiones:**
+
+* `extends` acepta cadena y array. En array gana el elemento más a la derecha,
+  y el hijo gana sobre todos. `files`, `include` y `exclude` **reemplazan**, no
+  se fusionan; es la semántica de TypeScript, y fusionarlas silenciosamente
+  cambiaría qué archivos posee un proyecto.
+* Una opción de ruta heredada es relativa **al archivo que la declaró**. Un
+  `declarationDir` del config base apunta junto al base, no dentro del paquete
+  que lo hereda.
+* `paths` no se absolutiza: sus valores son relativos a `baseUrl` por
+  definición, y `baseUrl` ya queda absoluto.
+* Un ciclo de `extends` y un ciclo de project references son errores que
+  nombran los configs implicados, no bucles infinitos ni avisos.
+* Una referencia a un config no descubierto es un error que nombra origen y
+  destino. Ignorarla en silencio produciría un grafo incompleto que nadie
+  detectaría.
+* El orden topológico desempata lexicográficamente y no depende del recorrido
+  de mapas de Go: dos ejecuciones sobre la misma entrada dan la misma lista.
+* `node_modules` se poda de la expansión de comodines incluso con `exclude`
+  declarado, y una entrada que salta dentro (`node_modules/pkg/**/*.ts`)
+  tampoco la burla.
+* `Get`, `Programs` y `Unsupported` devuelven copias: el grafo es inmutable
+  tras construirse.
+
+**Ejecución:** las tres piezas —`extends`, source files y DAG— se
+implementaron en paralelo con un contrato de tipos y firmas fijado antes de
+empezar. La integración compiló y pasó los ocho tests de extremo a extremo a la
+primera, incluidas las reglas que cruzan piezas.
+
+**Verificación:** `go test ./...`, `go vet ./...`, `go test -race`,
+`go tool staticcheck` y `go build`, todos en verde. 70 tests en el paquete.
+
+Comprobación por mutación sobre el paquete integrado: quitar la exclusión de
+`node_modules` rompe 2 pruebas; invertir la precedencia del merge rompe 2;
+limitar `**` a un nivel rompe 1.
+
+**Prueba vacua encontrada y corregida:** el desempate lexicográfico del orden
+topológico no estaba defendido. Su prueba solo liberaba proyectos a la vez, y
+en ese caso la cola FIFO ya coincide con el orden lexicográfico; anular el
+`sort` no rompía nada. Se añadió
+`TestTopologicalTypeScriptOrderPrefersALateSmallerCandidate`, donde un
+proyecto se libera más tarde y es menor que otro ya encolado. Con esa prueba,
+anular el `sort` sí falla.
+
+**Limitaciones:**
+
+* La resolución de `extends` por módulo Node no aplica el endurecimiento
+  contra symlinks que sí hace `resolveProjectReference`; la contención se
+  comprueba de forma léxica.
+* No se interpretan `compilerOptions` más allá de su rebase de rutas: no se
+  validan valores ni se resuelven `paths` contra el sistema de archivos.
+* El grafo aún no lo consume nadie; el Language Service persistente es
+  LUQUE-0607.
+
+**Siguiente tarea:** LUQUE-0607.
 
 ---
 
