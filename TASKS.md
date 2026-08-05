@@ -3351,13 +3351,71 @@ DECLARATION_SOURCE_MAP_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**La dependencia debe enlazar paquetes reales, no cadenas nominales.**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/package-dependency-resolver.ts`;
+* `ts-worker/src/package-dependency-resolver.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato:**
+
+```text
+resolvePackageDependencies(service, view, registry, consumer, options?)
+  -> { generation, configFileName, imports, dependencies }
+```
+
+Cada dependencia conserva:
+
+```text
+kind: PACKAGE_DEPENDS_ON
+consumer: PackageProvider
+provider: PackageProvider
+imports: file, specifier y offsets UTF-16
+```
+
+`createPackageDependencies` agrupa las ocurrencias por identidad completa del
+provider y ordena tanto las aristas como su evidencia de forma determinista.
+
+**Decisiones:**
+
+* La identidad del paquete consumidor llega desde el registro de Go; el worker
+  no vuelve a descubrir ni a inferir `package.json`.
+* Solo una entrada `RESOLVED` con provider registrado y cuyo nombre coincide
+  con el package name puede producir una arista.
+* Providers ausentes, módulos no resueltos, nombres inconsistentes y
+  auto-referencias no producen aristas nominales.
+* El resultado conserva la resolución de imports para que las capas posteriores
+  puedan clasificar referencias no resueltas y construir stable keys.
+
+**Verificación:**
+
+```text
+pnpm check                         # 9 archivos, 53 tests passed
+gofmt -l .
+go test ./...                      # 11 paquetes ok, 2 sin tests
+go vet ./...
+go build ./cmd/luque
+```
+
+No se requiere benchmark separado: la tarea agrupa metadata ya resuelta por el
+checker y el coste cross-repository se medirá con el corpus de fase.
+
+**Limitaciones:**
+
+* La arista todavía es un resultado del worker; su persistencia, stable key y
+  almacenamiento pertenecen a las capas Go posteriores.
+* La ambigüedad entre providers de distintos repositorios y la compatibilidad
+  de versiones permanecen bajo LUQUE-0408 y LUQUE-0706.
+
+**Siguiente tarea:** LUQUE-0705.
 
 ---
 

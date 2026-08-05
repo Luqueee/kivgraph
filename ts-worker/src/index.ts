@@ -40,6 +40,16 @@ export type {
   DeclarationSourceStatus,
 } from "./declaration-source-resolver.js";
 
+export {
+  createPackageDependencies,
+  resolvePackageDependencies,
+} from "./package-dependency-resolver.js";
+export type {
+  PackageDependency,
+  PackageDependencyImport,
+  PackageDependencyResolution,
+} from "./package-dependency-resolver.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";
