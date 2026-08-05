@@ -1589,11 +1589,11 @@ depth-3 p95 ≤ 20 ms
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Archivos:**
 
@@ -1609,6 +1609,17 @@ repositories.yaml
 * paths expandidos;
 * errores claros;
 * versión del schema.
+
+**Estado:** `PASS`.
+
+* `internal/config` carga y combina `config.yaml` con `repositories.yaml` usando YAML estricto (`KnownFields`) y exige schema `version: 1`.
+* Los defaults siguen el contrato de `PLAN.md`; `Load` devuelve paths absolutos tras expandir `~`, variables de entorno y rutas relativas respecto al archivo que las declara.
+* La validación rechaza versiones incompatibles, campos desconocidos, límites incoherentes, duraciones inválidas, transportes no soportados y registros con nombres, paths o lenguajes duplicados.
+* Los paths se resuelven sin comprobar todavía existencia, permisos, symlinks o anidamiento; esas comprobaciones pertenecen a LUQUE-0403.
+* Las pruebas cubren defaults, expansión, documentos inválidos, variables ausentes, duplicados y registro vacío explícito.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race` del paquete y `go build ./cmd/luque` pasan; `go tool staticcheck ./internal/config` no reporta incidencias.
+* Limitación de repositorio: `go tool staticcheck ./...` sigue reportando avisos preexistentes fuera de `internal/config` en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
+* Siguiente tarea: LUQUE-0402.
 
 ---
 
