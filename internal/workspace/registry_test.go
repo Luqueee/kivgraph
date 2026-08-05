@@ -131,7 +131,7 @@ func TestNewRegistryRejectsInvalidEntriesAndContext(t *testing.T) {
 			source: config.RepositoriesFile{Repositories: []config.Repository{{
 				Name: "service", Path: filepath.Join(root, "missing"), Languages: []string{"go"},
 			}}},
-			wantError: "stat path",
+			wantError: "does not exist or is inaccessible",
 		},
 		{
 			name: "file path",
@@ -160,7 +160,7 @@ func TestNewRegistryRejectsInvalidEntriesAndContext(t *testing.T) {
 				{Name: "service", Path: root, Languages: []string{"go"}},
 				{Name: "service", Path: root, Languages: []string{"go"}},
 			}},
-			wantError: "duplicate name of repositories[0]",
+			wantError: "name collision with repositories[0]",
 		},
 	}
 	if err := os.WriteFile(filepath.Join(root, "file"), []byte("not a directory"), 0o600); err != nil {

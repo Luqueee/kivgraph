@@ -21,12 +21,15 @@ La metadata Git se obtiene con `exec.CommandContext` sin shell desde el
 desacoplado) y `git status --porcelain`. Las listas devueltas por el registro
 son copias profundas para impedir mutaciones accidentales del índice interno.
 
-El registro exige que la ruta exista, sea un directorio y sea un repositorio Git
-operativo porque esos datos son necesarios para registrar commit y branch. No
-realiza todavía comprobaciones entre repositorios de duplicados reales,
-anidamiento, escapes, symlinks fuera del repositorio o permisos; esas reglas
-pertenecen a LUQUE-0403. Tampoco descubre manifests automáticamente; esa
-responsabilidad pertenece a LUQUE-0404 y LUQUE-0405.
+El registro exige que cada ruta exista, sea un directorio y tenga permisos
+POSIX de lectura y búsqueda, sin ser world-writable. Antes de ejecutar Git,
+`NewRegistry` canonicaliza cada path y rechaza cualquier componente symlink,
+los realpaths duplicados, el anidamiento entre repositorios y las colisiones de
+nombre sin distinguir mayúsculas. Los paths declarativos de `manifests`,
+`roots` y `exclusions` se interpretan dentro del `realpath` del repositorio y
+no pueden escapar de él. La validación no exige todavía que esos archivos o
+directorios declarativos existan: su descubrimiento corresponde a LUQUE-0404 y
+LUQUE-0405.
 
 ## Consecuencias
 
@@ -36,3 +39,9 @@ responsabilidad pertenece a LUQUE-0404 y LUQUE-0405.
   repositorio y cancela comandos Git en curso.
 - La configuración declarativa sigue siendo la fuente de orden y de los campos
   de languages, manifests, roots y exclusions.
+- La política de symlinks es deliberadamente estricta: un componente symlink
+  en la ruta configurada del repositorio invalida la entrada, aunque su
+  destino esté dentro del árbol.
+- Los errores de límites de paths se producen antes de cualquier comando Git,
+  por lo que una configuración inválida no deja un registro parcialmente
+  construido.

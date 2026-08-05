@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -34,9 +33,9 @@ type Registry struct {
 
 type gitRunner func(context.Context, string, ...string) (string, error)
 
-// NewRegistry resolves configured paths and records filesystem and Git metadata.
-// It preserves the order from repositories.yaml and does not perform the
-// cross-repository path checks assigned to LUQUE-0403.
+// NewRegistry resolves configured paths, validates repository boundaries and
+// records filesystem and Git metadata. It preserves the order from
+// repositories.yaml.
 func NewRegistry(ctx context.Context, source config.RepositoriesFile) (*Registry, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -48,6 +47,10 @@ func newRegistry(ctx context.Context, source config.RepositoriesFile, git gitRun
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	validatedPaths, err := validatePaths(ctx, source)
+	if err != nil {
+		return nil, fmt.Errorf("validate paths: %w", err)
+	}
 	registry := &Registry{
 		repositories: make([]Repository, 0, len(source.Repositories)),
 		byName:       make(map[string]int, len(source.Repositories)),
@@ -56,7 +59,7 @@ func newRegistry(ctx context.Context, source config.RepositoriesFile, git gitRun
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		repository, err := registerRepository(ctx, configured, git)
+		repository, err := registerRepository(ctx, configured, validatedPaths[index], git)
 		if err != nil {
 			return nil, fmt.Errorf("register repositories[%d] %q: %w", index, configured.Name, err)
 		}
@@ -69,7 +72,7 @@ func newRegistry(ctx context.Context, source config.RepositoriesFile, git gitRun
 	return registry, nil
 }
 
-func registerRepository(ctx context.Context, configured config.Repository, git gitRunner) (Repository, error) {
+func registerRepository(ctx context.Context, configured config.Repository, validated validatedRepositoryPath, git gitRunner) (Repository, error) {
 	name := strings.TrimSpace(configured.Name)
 	if name == "" {
 		return Repository{}, fmt.Errorf("name must not be empty")
@@ -78,25 +81,8 @@ func registerRepository(ctx context.Context, configured config.Repository, git g
 	if err != nil {
 		return Repository{}, err
 	}
-	if !filepath.IsAbs(configured.Path) {
-		return Repository{}, fmt.Errorf("path must be absolute, got %q", configured.Path)
-	}
-	path := filepath.Clean(configured.Path)
-	info, err := os.Stat(path)
-	if err != nil {
-		return Repository{}, fmt.Errorf("stat path %q: %w", path, err)
-	}
-	if !info.IsDir() {
-		return Repository{}, fmt.Errorf("path %q is not a directory", path)
-	}
-	realPath, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return Repository{}, fmt.Errorf("resolve realpath %q: %w", path, err)
-	}
-	realPath, err = filepath.Abs(realPath)
-	if err != nil {
-		return Repository{}, fmt.Errorf("make realpath absolute: %w", err)
-	}
+	path := validated.path
+	realPath := validated.realPath
 
 	commit, err := git(ctx, realPath, "rev-parse", "HEAD")
 	if err != nil {

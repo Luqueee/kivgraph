@@ -1666,11 +1666,11 @@ repositories.yaml
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Comprobar:**
 
@@ -1681,6 +1681,19 @@ repositories.yaml
 * escapes;
 * permisos;
 * colisión de nombres.
+
+**Estado:** `PASS`.
+
+* `internal/workspace.ValidatePaths` valida rutas absolutas existentes, directorios, permisos POSIX legibles y buscables, ausencia de componentes symlink y realpath canónico.
+* La validación rechaza nombres vacíos o inválidos, colisiones de nombres sin distinguir mayúsculas, realpaths duplicados, repositorios anidados y escapes en `manifests`, `roots` y `exclusions`.
+* `workspace.NewRegistry` ejecuta estas comprobaciones antes de invocar Git y conserva los paths ya validados para evitar una segunda resolución divergente.
+* Las pruebas cubren aceptación de metadatos acotados, duplicados, anidamiento, symlinks, escapes, permisos, colisiones, entradas inválidas y cancelación de contexto.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/luque` y `go tool staticcheck ./internal/config ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/luque-ladybug-v0.19.0/lib`.
+* Smoke real: `go test ./internal/workspace -run 'Test(NewRegistryReadsRealGitMetadata|ValidatePathsAcceptsScopedMetadata)$' -count=1 -v` pasa con un repositorio Git temporal y metadatos acotados.
+* Limitación: `go tool staticcheck ./...` conserva seis avisos preexistentes en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`; ninguno pertenece al alcance 0403.
+* No se requiere benchmark: la tarea solo valida configuración y límites de filesystem.
+* Siguiente tarea: LUQUE-0404.
 
 ---
 
