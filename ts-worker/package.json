@@ -15,6 +15,7 @@
     "format:check": "biome format .",
     "hello": "pnpm build && node dist/index.js",
     "lint": "biome lint .",
+    "precision": "pnpm build && node dist/precision-cli.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

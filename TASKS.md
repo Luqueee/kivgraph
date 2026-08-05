@@ -3714,22 +3714,63 @@ go build ./cmd/luque
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Métricas:**
+**Estado:** `PASS`.
+
+**Entregables:**
 
 ```text
-true positives
-false positives
-false negatives
-precision
-recall
-unresolved correctly classified
+ts-worker/src/precision-report.ts
+ts-worker/src/precision-report.test.ts
+ts-worker/src/precision-cli.ts
+benchmarks/typescript-cross-repo/results.json
+benchmarks/typescript-cross-repo/report.md
 ```
+
+**Métricas medidas:**
+
+```text
+true positives                    8
+false positives                   0
+false negatives                   0
+precision                         1.0000
+recall                            1.0000
+false exact edges                 0
+unresolved correctly classified   4/4
+```
+
+**Decisiones:**
+
+* El ground truth vive en `precision-report.ts` como conjuntos explícitos de
+  aristas y razones; una regresión aparece como arista sobrante o ausente, no
+  como una métrica difusa.
+* Los artefactos se regeneran con `pnpm precision` y son deterministas: sin
+  marcas de tiempo ni rutas de la máquina, de modo que el diff es la evidencia.
+* La medición usa el resolver real sobre los tres proyectos de fixture; no hay
+  mocks del compilador.
+
+**Verificación:**
+
+```text
+pnpm check                         # 14 archivos, 65 tests passed
+pnpm precision                     # TYPESCRIPT_CROSS_REPO_PASS
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+**Limitaciones:**
+
+* El corpus es el de los fixtures de fase; la precisión sobre repositorios
+  reales a escala se medirá en la fase de aceptación final.
+* El recall se mide contra aristas declaradas como esperadas; los imports de
+  namespace siguen fuera del contrato exacto.
 
 **Gate:**
 
@@ -3737,11 +3778,13 @@ unresolved correctly classified
 TYPESCRIPT_CROSS_REPO_PASS
 ```
 
-Requisito obligatorio:
+Requisito obligatorio cumplido:
 
 ```text
 false exact edges = 0
 ```
+
+**Siguiente tarea:** LUQUE-0801.
 
 ---
 

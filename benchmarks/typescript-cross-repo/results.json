@@ -1,0 +1,78 @@
+{
+  "fixtures": [
+    "testdata/typescript/cross-repository",
+    "testdata/typescript/cross-repository-negative"
+  ],
+  "cases": [
+    {
+      "name": "consumer-a",
+      "metrics": {
+        "expectedEdges": 3,
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "falseExactEdges": 0,
+        "expectedUnresolved": 0,
+        "unresolvedCorrectlyClassified": 0,
+        "unresolvedMisclassified": 0
+      },
+      "missingEdges": [],
+      "unexpectedEdges": [],
+      "missingUnresolved": [],
+      "unexpectedUnresolved": []
+    },
+    {
+      "name": "consumer-b",
+      "metrics": {
+        "expectedEdges": 2,
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "falseExactEdges": 0,
+        "expectedUnresolved": 0,
+        "unresolvedCorrectlyClassified": 0,
+        "unresolvedMisclassified": 0
+      },
+      "missingEdges": [],
+      "unexpectedEdges": [],
+      "missingUnresolved": [],
+      "unexpectedUnresolved": []
+    },
+    {
+      "name": "consumer-negative",
+      "metrics": {
+        "expectedEdges": 3,
+        "truePositives": 3,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "falseExactEdges": 0,
+        "expectedUnresolved": 4,
+        "unresolvedCorrectlyClassified": 4,
+        "unresolvedMisclassified": 0
+      },
+      "missingEdges": [],
+      "unexpectedEdges": [],
+      "missingUnresolved": [],
+      "unexpectedUnresolved": []
+    }
+  ],
+  "totals": {
+    "expectedEdges": 8,
+    "truePositives": 8,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "precision": 1,
+    "recall": 1,
+    "falseExactEdges": 0,
+    "expectedUnresolved": 4,
+    "unresolvedCorrectlyClassified": 4,
+    "unresolvedMisclassified": 0
+  },
+  "gate": "TYPESCRIPT_CROSS_REPO_PASS"
+}
