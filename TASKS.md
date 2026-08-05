@@ -2119,6 +2119,10 @@ exactas ni convierte el homónimo en relación semántica.
 pasa. No se requiere benchmark.
 
 **Gate:** `TREE_SITTER_ACCELERATOR_PASS`.
+**Gate de fase:** `TREE_SITTER_ACCELERATOR_PASS` emitido tras
+`go test ./...`, `go vet ./...`, `go test -race ./...`, `go build ./cmd/luque`,
+`go test -tags ladybug ./...`, `go vet -tags ladybug ./...`,
+`go tool staticcheck ./internal/syntax` y `go mod verify`.
 
 ---
 

@@ -121,10 +121,6 @@ func multisetDifference(left, right map[string]int) map[string]int {
 	return result
 }
 
-func equalCandidateMultisets(left, right map[string]int) bool {
-	return equalStringMultisets(left, right)
-}
-
 func equalStringMultisets(left, right map[string]int) bool {
 	if len(left) != len(right) {
 		return false

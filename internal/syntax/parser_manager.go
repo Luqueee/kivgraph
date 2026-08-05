@@ -270,7 +270,7 @@ func (manager *ParserManager) Parse(ctx context.Context, language Language, sour
 	}
 	defer lease.release()
 
-	nativeTree := lease.parser.ParseCtx(ctx, source, nil)
+	nativeTree := parseWithContext(ctx, lease.parser, source, nil)
 	if err := ctx.Err(); err != nil {
 		if nativeTree != nil {
 			nativeTree.Close()
@@ -278,7 +278,7 @@ func (manager *ParserManager) Parse(ctx context.Context, language Language, sour
 		return nil, newParserError(ParserErrorCanceled, language, err)
 	}
 	if nativeTree == nil {
-		return nil, newParserError(ParserErrorParse, language, errors.New("Tree-sitter returned no tree"))
+		return nil, newParserError(ParserErrorParse, language, errors.New("tree-sitter returned no tree"))
 	}
 	return &SyntaxTree{language: language, tree: nativeTree}, nil
 }
@@ -316,7 +316,7 @@ func (manager *ParserManager) ParseIncrementalWithRanges(ctx context.Context, la
 	}
 	defer lease.release()
 
-	nativeTree := lease.parser.ParseCtx(ctx, source, clone)
+	nativeTree := parseWithContext(ctx, lease.parser, source, clone)
 	if err := ctx.Err(); err != nil {
 		clone.Close()
 		if nativeTree != nil {
@@ -326,7 +326,7 @@ func (manager *ParserManager) ParseIncrementalWithRanges(ctx context.Context, la
 	}
 	if nativeTree == nil {
 		clone.Close()
-		return nil, nil, newParserError(ParserErrorParse, language, errors.New("Tree-sitter returned no tree"))
+		return nil, nil, newParserError(ParserErrorParse, language, errors.New("tree-sitter returned no tree"))
 	}
 	ranges := convertRanges(clone.ChangedRanges(nativeTree))
 	clone.Close()
@@ -384,6 +384,19 @@ func normalizeContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return ctx
+}
+func parseWithContext(ctx context.Context, parser *tree_sitter.Parser, source []byte, oldTree *tree_sitter.Tree) *tree_sitter.Tree {
+	length := len(source)
+	return parser.ParseWithOptions(func(offset int, _ tree_sitter.Point) []byte {
+		if offset < length {
+			return source[offset:]
+		}
+		return []byte{}
+	}, oldTree, &tree_sitter.ParseOptions{
+		ProgressCallback: func(tree_sitter.ParseState) bool {
+			return ctx.Err() != nil
+		},
+	})
 }
 
 type parserLease struct {
