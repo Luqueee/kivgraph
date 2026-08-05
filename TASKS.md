@@ -4366,17 +4366,71 @@ determinismo y cancelación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Para cada `ast.CallExpr`:**
 
 * resolver `Fun`;
 * localizar objeto;
 * crear `CALLS_DIRECT`.
+
+**Entregables:**
+
+* `internal/goloader/references.go`;
+* `internal/goloader/references_test.go`.
+
+**Contrato:**
+
+```text
+ClassifyReferences(ctx, result, uses) -> []Reference
+```
+
+**Clases emitidas:**
+
+```text
+CALLS_DIRECT  TYPE_USES  REFERENCES
+```
+
+**Decisiones:**
+
+* El callee se desenvuelve a través de paréntesis, selectores e instanciación
+  genérica —`IndexExpr` e `IndexListExpr`—, de modo que
+  `(*Shape).Area(shape)` y `Generic[int](x)` son llamadas directas.
+* `CALLS_DIRECT` exige que el objeto resuelto sea función o método. Llamar a
+  una variable que contiene una función no lo es: el destino exacto no se
+  conoce en esta capa y se conserva como `REFERENCES`.
+* Una conversión nombra un tipo; nunca produce una llamada. Los destinos de
+  clase tipo o alias se clasifican `TYPE_USES`, en el vocabulario del plan.
+* La clasificación se une con los usos por archivo y offset, sin recalcular la
+  resolución del checker.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go tool staticcheck ./internal/goloader
+```
+
+La suite comprueba llamada directa a función, llamada por valor de método,
+llamada por expresión de método, llamada a través de variable de paquete,
+conversión de tipo, lectura de campo y constante, determinismo y cancelación.
+
+**Limitaciones:**
+
+* `PASSES_AS_CALLBACK` llega en LUQUE-0807; hasta entonces un argumento de
+  función se conserva como `REFERENCES`.
+* Las llamadas a través de variables e interfaces necesitan SSA, fuera del MVP
+  según el plan.
+
+**Siguiente tarea:** LUQUE-0807.
 
 ---
 
