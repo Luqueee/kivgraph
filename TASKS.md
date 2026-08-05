@@ -4286,11 +4286,13 @@ identidades incompletas.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Usar:**
 
@@ -4298,6 +4300,63 @@ identidades incompletas.
 TypesInfo.Uses
 TypesInfo.Selections
 ```
+
+**Entregables:**
+
+* `internal/goloader/uses.go`;
+* `internal/goloader/uses_test.go`.
+
+**Contrato:**
+
+```text
+ExtractUses(ctx, result, options) -> []Use
+```
+
+Cada uso conserva la declaración que lo contiene, el objeto destino con su
+módulo, paquete, nombre cualificado y clase, la selección cuando existe y la
+posición exacta.
+
+**Selecciones clasificadas:**
+
+```text
+field  method_value  method_expression
+```
+
+**Decisiones:**
+
+* El destino es el objeto que resolvió el checker, no lo que deletrea la
+  fuente: un homónimo de otro paquete nunca puede confundirse con él.
+* Un campo no conoce el tipo que lo declara; su propietario sale de
+  `Selection.Recv()`, nunca de una heurística de nombres.
+* Los objetos del universo —`int`, `error`— se descartan: no pertenecen a
+  ningún repositorio.
+* Variables locales, parámetros y nombres de paquete no son destinos.
+* `IndirectReceiver` conserva si la selección atravesó un puntero o un campo
+  embebido, dato que LUQUE-0808 necesita.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La suite comprueba, sobre paquetes reales: uso cross-package de función y
+constante con su módulo, selección de campo con receptor puntero, valor de
+método, expresión de método, exclusión de locales y nombres de paquete,
+determinismo y cancelación.
+
+**Limitaciones:**
+
+* La clasificación semántica —`CALLS_DIRECT`, `PASSES_AS_CALLBACK`— pertenece
+  a LUQUE-0806 y LUQUE-0807; aquí sólo se resuelven las ocurrencias.
+* Los usos dentro de funciones literales se atribuyen a la declaración que las
+  contiene.
+
+**Siguiente tarea:** LUQUE-0806.
 
 ---
 
