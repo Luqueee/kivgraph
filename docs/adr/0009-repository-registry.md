@@ -30,7 +30,8 @@ nombre sin distinguir mayúsculas. Los paths declarativos de `manifests`,
 no pueden escapar de él. La validación no exige todavía que esos archivos o
 directorios declarativos existan; `DiscoverTypeScript` realiza el descubrimiento
 de manifests TypeScript y la resolución de referencias descrita a continuación.
-El descubrimiento Go se describe a continuación; el registro de módulos queda para LUQUE-0407.
+El descubrimiento Go se describe a continuación y el registro de módulos se
+construye con `LUQUE-0407`.
 
 ## Descubrimiento TypeScript
 
@@ -65,6 +66,27 @@ atravesar symlinks. Las sustituciones remotas se conservan sin resolverlas.
 El descubrimiento omite `.git`, `vendor`, dependencias instaladas, symlinks y
 exclusiones configuradas. No carga tipos ni dependencias: esa responsabilidad
 pertenece a la fase de carga con `go/packages` y al registro de módulos.
+
+## Registro de módulos Go
+
+`internal/workspace.NewGoModuleRegistry` compone `DiscoverGo` y crea un índice
+inmutable por `module path` para cada repositorio. Cada provider conserva la
+raíz y el manifest del módulo, `go.sum`, versión de Go, repositorio y los
+paquetes cuya ruta pertenece al módulo más específico.
+
+Los `replace` declarados en `go.mod` se conservan en `Replaces`. Los
+`replace` declarados en los `go.work` que incluyen el módulo se conservan por
+separado en `WorkspaceReplaces`, con duplicados exactos eliminados y
+conflictos semánticos preservados para LUQUE-0408. Los módulos sin paquetes
+siguen siendo providers válidos; los paquetes fuera de cualquier módulo no
+crean providers.
+
+Dos módulos del mismo repositorio no pueden declarar el mismo `module path`.
+`List` y `Get` devuelven copias profundas y el índice se ordena por
+`module path`. El registro no carga tipos ni dependencias: esa responsabilidad
+continúa en la fase `go/packages`.
+
+---
 
 ## Registro de paquetes TypeScript
 

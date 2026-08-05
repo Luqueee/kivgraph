@@ -1817,11 +1817,11 @@ package name
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Mapa:**
 
@@ -1829,7 +1829,23 @@ package name
 module path
 → repository
 → module root
+→ manifest
+→ go.sum
+→ packages
+→ go.mod replaces
+→ go.work replaces
 ```
+
+**Estado:** `PASS`.
+
+* `internal/workspace.NewGoModuleRegistry` compone `DiscoverGo` y registra módulos por `module path`, con repositorio, raíz, manifest, `go.sum`, versión de Go y paquetes asociados.
+* Los paquetes se asignan al módulo más específico y se ignoran los que quedan fuera de cualquier módulo. Los módulos sin paquetes siguen siendo providers válidos.
+* Se conservan los `replace` de `go.mod` y, por separado, los de `go.work` que incluyen cada módulo; los duplicados exactos se eliminan y los conflictos se conservan.
+* Los `module path` duplicados dentro del mismo repositorio se rechazan. `List` y `Get` devuelven copias profundas ordenadas por módulo.
+* Las pruebas cubren providers, paquetes, módulos anidados, replaces de `go.mod` y `go.work`, duplicados, estado sin módulos y cancelación.
+* Verificación: `go test ./internal/workspace`, `go test -race ./internal/workspace`, `go vet ./internal/workspace`, `go tool staticcheck ./internal/workspace` y smoke focal pasan.
+* No se requiere benchmark: el registro solo normaliza metadatos ya descubiertos; la carga semántica con `go/packages` pertenece a fases posteriores.
+* Siguiente tarea: LUQUE-0408.
 
 ---
 
