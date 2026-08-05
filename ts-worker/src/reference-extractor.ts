@@ -56,7 +56,10 @@ import {
   type ProjectView,
 } from "./language-service.js";
 import type { LocalSymbol, LocalSymbolExtraction } from "./symbol-extractor.js";
-import { resolveLocalSymbols } from "./symbol-resolution.js";
+import {
+  resolveLocalSymbols,
+  symbolDeclarationKey,
+} from "./symbol-resolution.js";
 
 /** Classification emitted for one resolved local use. */
 export type LocalReferenceKind =
@@ -138,18 +141,27 @@ export async function extractLocalReferences(
   }
 
   const localFiles = await selectLocalFiles(view, options.files);
+  const allLocalFiles = await selectLocalFiles(view, undefined);
   const requests = new Map<string, ReferenceRequest>();
   const functionValueNodes: Identifier[] = [];
+  const sourceFiles = new Map<string, SourceFile>();
 
-  for (const fileName of localFiles) {
+  for (const fileName of allLocalFiles) {
     const sourceFile = await view.program.getSourceFile(fileName);
-    if (sourceFile === undefined) {
+    if (
+      sourceFile === undefined ||
+      (await view.program.isSourceFileFromExternalLibrary(sourceFile))
+    ) {
       continue;
     }
-    if (await view.program.isSourceFileFromExternalLibrary(sourceFile)) {
-      continue;
+    sourceFiles.set(fileName, sourceFile);
+    collectFunctionValueNodes(sourceFile, functionValueNodes);
+  }
+  for (const fileName of localFiles) {
+    const sourceFile = sourceFiles.get(fileName);
+    if (sourceFile !== undefined) {
+      collectFileReferences(sourceFile, requests);
     }
-    collectFileReferences(sourceFile, requests, functionValueNodes);
   }
 
   const requestList = [...requests.values()];
@@ -165,10 +177,16 @@ export async function extractLocalReferences(
   const functionValueSymbols = resolved.slice(requestList.length);
 
   const localById = new Map<number, LocalSymbol>();
+  const localByDeclaration = new Map<string, LocalSymbol>();
   const functionSymbolIds = new Set<number>();
   for (const local of symbols.symbols) {
     if (!localById.has(local.symbolId)) {
       localById.set(local.symbolId, local);
+    }
+    for (const declaration of local.symbol.declarations) {
+      if (!localByDeclaration.has(symbolDeclarationKey(declaration))) {
+        localByDeclaration.set(symbolDeclarationKey(declaration), local);
+      }
     }
     if (local.kind === "function" || local.kind === "method") {
       functionSymbolIds.add(local.symbolId);
@@ -184,6 +202,7 @@ export async function extractLocalReferences(
     view.checker,
     referenceSymbols,
     localById,
+    localByDeclaration,
   );
 
   const references: LocalReference[] = [];
@@ -247,7 +266,6 @@ async function selectLocalFiles(
 function collectFileReferences(
   file: SourceFile,
   requests: Map<string, ReferenceRequest>,
-  functionValueNodes: Identifier[],
 ): void {
   const visit = (
     node: Node,
@@ -263,18 +281,8 @@ function collectFileReferences(
       });
     }
 
-    if (!ignoredHere) {
-      if (isCallExpression(node) || isNewExpression(node)) {
-        addDirectCallee(requests, file, node.expression);
-      }
-      if (
-        isVariableDeclaration(node) &&
-        node.initializer !== undefined &&
-        (isArrowFunction(node.initializer) ||
-          isFunctionExpression(node.initializer))
-      ) {
-        functionValueNodes.push(...bindingIdentifiers(node.name));
-      }
+    if (!ignoredHere && (isCallExpression(node) || isNewExpression(node))) {
+      addDirectCallee(requests, file, node.expression);
     }
 
     const nextDefaultKind =
@@ -288,6 +296,25 @@ function collectFileReferences(
   };
 
   file.forEachChild((child) => visit(child, undefined, false));
+}
+
+function collectFunctionValueNodes(
+  file: SourceFile,
+  output: Identifier[],
+): void {
+  const visit = (node: Node): void => {
+    if (
+      isVariableDeclaration(node) &&
+      node.initializer !== undefined &&
+      (isArrowFunction(node.initializer) ||
+        isFunctionExpression(node.initializer))
+    ) {
+      output.push(...bindingIdentifiers(node.name));
+    }
+    node.forEachChild(visit);
+  };
+
+  file.forEachChild(visit);
 }
 
 function childContext(

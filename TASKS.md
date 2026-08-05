@@ -3015,29 +3015,67 @@ destinos de tipo y valor.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Fixtures:**
+**Estado:** `PASS`.
 
-* homónimos;
-* shadowing;
-* overloads;
-* métodos;
-* generics;
-* barrels;
-* callbacks;
-* alias;
-* código roto.
+**Entregables:**
 
-**Gate:**
+* `ts-worker/src/local-suite.test.ts`;
+* `ts-worker/src/reference-extractor.ts`;
+* `ts-worker/src/symbol-resolution.ts`.
+
+**Cobertura:**
+
+La suite crea proyectos temporales y ejecuta el servidor nativo de TypeScript 7
+real. Verifica homónimos en módulos distintos, shadowing en scopes anidados,
+declaraciones overload, métodos genéricos, tipos genéricos, barrels,
+callbacks, aliases de valor y tipo, y resolución de exports locales.
+El fixture de código roto confirma que los diagnósticos semánticos se exponen,
+los símbolos resolubles se conservan y los destinos inexistentes no se emiten.
+
+**Decisiones:**
+
+* La suite usa fixtures temporales para aislar cada snapshot y no modificar
+  repositorios indexados.
+* Los valores función se descubren en todos los archivos locales del proyecto,
+  aunque las referencias solicitadas estén limitadas por archivo; así un
+  callback exportado y aliasado conserva `PASSES_AS_CALLBACK`.
+* Los símbolos instanciados de miembros genéricos se asocian mediante sus
+  `declaration handles` cuando el `symbolId` de uso difiere del declarado.
+* Las referencias siguen resolviéndose mediante `TypeChecker`; no se añade
+  coincidencia nominal ni textual.
+
+**Verificación:**
 
 ```text
-TYPESCRIPT_LOCAL_PASS
+6 archivos de tests
+45 tests passed
+pnpm check
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
 ```
+
+No se ejecutó un benchmark separado: esta tarea fija cobertura local de
+corrección; los SLO y benchmarks permanecen en sus tareas de rendimiento.
+
+**Limitaciones:**
+
+* La suite no resuelve imports de paquetes entre repositorios; esa cobertura
+  pertenece a LUQUE-0701.
+* La extracción sigue siendo snapshot-scoped y los `symbolId` no son identidad
+  durable; la stable key se definirá en las capas Go.
+* El fixture roto usa un error semántico y un destino inexistente; no pretende
+  validar recuperación de errores sintácticos arbitrarios.
+
+**Siguiente tarea:** LUQUE-0701.
 
 ---
 
