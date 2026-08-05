@@ -3087,21 +3087,85 @@ corrección; los SLO y benchmarks permanecen en sus tareas de rendimiento.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Pipeline:**
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `ts-worker/src/package-import-resolver.ts`;
+* `ts-worker/src/package-import-resolver.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Contrato:**
 
 ```text
-consumer import
-→ TypeScript module resolution
-→ package name
-→ package registry
-→ provider repo
+resolvePackageImports(service, view, registry, options?)
+  -> { generation, configFileName, imports }
 ```
+
+Cada entrada conserva archivo, specifier, package name, offsets UTF-16,
+archivos resueltos por TypeScript, estado y provider repository. Se reconocen
+imports estáticos, `export ... from`, `import =`, `import type(...)` y
+`import(...)` dinámico. Los imports relativos, built-ins `node:` y aliases
+internos `#` quedan fuera de este contrato.
+
+**Decisiones:**
+
+* El `TypeChecker` nativo resuelve primero el module specifier en un lote. El
+  package registry solo aporta el provider después de esa resolución.
+* `RESOLVED` requiere simultáneamente declaraciones resueltas y un provider
+  registrado; no se crean aristas por nombre, ruta o coincidencia textual.
+* `MODULE_NOT_RESOLVED` y `PACKAGE_PROVIDER_NOT_FOUND` conservan el contexto
+  suficiente para las referencias no resueltas de LUQUE-0706.
+* El registry se recibe como una interfaz de solo lectura compatible con los
+  providers producidos por Go; el worker no duplica el descubrimiento de
+  `package.json`.
+* La selección por archivo, la exclusión de librerías externas y la ordenación
+  de resultados son deterministas y están ligadas a la generación del snapshot.
+
+**Verificación:**
+
+```text
+7 archivos de tests
+48 tests passed
+pnpm check
+pnpm build
+gofmt -l .
+go test ./...
+go vet ./...
+go build ./cmd/luque
+```
+
+La suite cubre providers registrados, providers ausentes, módulos no
+resueltos, paquetes scoped y subpaths, imports de valor y tipo, barrels,
+imports dinámicos y exclusión de imports locales o built-ins.
+
+No se requiere benchmark separado: esta tarea resuelve metadatos de imports y
+provider; el coste cross-repository y los SLO se medirán con el corpus de fase.
+
+**Limitaciones:**
+
+* `exports`, `types`, `typings`, `typesVersions`, `paths` y project references
+  del provider no se interpretan aquí; corresponden a LUQUE-0702.
+* La relación de un `.d.ts` con su fuente queda para LUQUE-0703.
+* La resolución de símbolos importados y las aristas `IMPORTS_SYMBOL` quedan
+  para LUQUE-0705.
+* `rootPath` del provider se conserva como metadata, pero la comprobación de
+  mapeo físico del archivo resuelto se reserva para la fase de declaraciones,
+  porque los workspaces pueden resolver mediante enlaces de `node_modules`.
+
+**Gate:**
+
+```text
+PACKAGE_IMPORTS_PASS
+```
+
+**Siguiente tarea:** LUQUE-0702.
 
 ---
 

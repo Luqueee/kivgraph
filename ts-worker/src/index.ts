@@ -17,6 +17,16 @@ export type {
   ReferenceExtractionOptions,
 } from "./reference-extractor.js";
 
+export { resolvePackageImports } from "./package-import-resolver.js";
+export type {
+  PackageImport,
+  PackageImportResolution,
+  PackageImportResolutionOptions,
+  PackageImportStatus,
+  PackageProvider,
+  PackageProviderRegistry,
+} from "./package-import-resolver.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";
