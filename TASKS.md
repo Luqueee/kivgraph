@@ -4118,17 +4118,77 @@ inválidas.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Usar:**
 
 ```text
 TypesInfo.Defs
 ```
+
+**Entregables:**
+
+* `internal/goloader/definitions.go`;
+* `internal/goloader/definitions_test.go`.
+
+**Contrato:**
+
+```text
+ExtractDefinitions(ctx, result, options) -> []Definition
+```
+
+Cada definición conserva repositorio, module path, package path y nombre,
+nombre cualificado, clase, propietario, visibilidad, firma con paquetes
+cualificados, receptor, la posición del nombre y el rango de la declaración.
+`Definition.Object()` expone el objeto `go/types` del mismo universo de carga.
+
+**Clases emitidas:**
+
+```text
+func method type alias const var field
+```
+
+**Decisiones:**
+
+* Solo se recorren los paquetes raíz: sus dependencias se cargan para dar
+  identidad a los tipos, no para indexarlas.
+* Variables locales, parámetros, receptores y etiquetas se omiten: no son
+  símbolos direccionables del grafo.
+* El propietario de métodos sale del receptor real y el de campos del
+  `TypeSpec` que los contiene, no de una heurística de nombres.
+* La firma se imprime con rutas de paquete completas, de modo que dos tipos
+  homónimos de módulos distintos no comparten discriminador.
+* La salida se ordena por package path, archivo y offset del nombre.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La suite comprueba las siete clases sobre un paquete real, la exclusión exacta
+de locales y parámetros, metadatos de módulo y paquete, posición del nombre,
+receptor puntero, campos exportados y no exportados, método de interfaz,
+determinismo y cancelación.
+
+**Limitaciones:**
+
+* Las claves estables se calculan en LUQUE-0804; aquí la identidad es local a
+  la carga.
+* Los símbolos declarados dentro de funciones —tipos y clausuras locales— no
+  se indexan.
+
+**Siguiente tarea:** LUQUE-0804.
 
 ---
 
