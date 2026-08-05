@@ -1985,22 +1985,37 @@ ABI de las grammars fijadas; por eso el binding oficial queda en `v0.25.0`.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Extraer candidatos de:**
+**Estado:** `PASS`.
 
-* declaraciones;
-* imports;
-* exports;
-* calls;
-* identificadores;
-* clases;
-* interfaces;
-* métodos.
+**Entregables:**
+
+* `internal/syntax/inventory.go`;
+* `internal/syntax/inventory_test.go`.
+
+**Resultado:**
+
+* se extraen declaraciones, imports, exports, calls, identificadores,
+  clases, interfaces y métodos;
+* cada candidato conserva tipo de nodo, nombre, rango de bytes y posiciones;
+* la salida es determinista y `List` devuelve una copia;
+* los árboles con errores sintácticos se conservan y se marcan en
+  `SyntaxInventory.HasErrors`;
+* el inventario no crea símbolos, providers ni aristas semánticas.
+
+**Verificación:** `go test ./internal/syntax` y `go test ./...` pasan.
+No se requiere benchmark: el contrato añade extracción de metadatos, no un
+pipeline de rendimiento.
+
+**Limitación:** las clasificaciones son deliberadamente heurísticas por tipo de
+nodo; la autoridad semántica queda para las fases TypeScript y Go.
+
+**Siguiente tarea:** LUQUE-0504.
 
 ---
 
