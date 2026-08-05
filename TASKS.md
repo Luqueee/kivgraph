@@ -2317,22 +2317,77 @@ campos no alfabético rompería esa igualdad; los fixtures lo detectarían.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+* `internal/tsworker/supervisor.go`;
+* `internal/tsworker/messages.go`;
+* `internal/tsworker/process_unix.go` y `process_other.go`;
+* `internal/tsworker/supervisor_test.go` y `fake_worker_test.go`.
 
 **Debe soportar:**
 
-* arranque;
-* handshake;
-* shutdown;
-* timeout;
-* reinicio;
-* límite de reinicios;
-* captura separada de stderr;
-* estado observable.
+| Comportamiento | Implementación | Prueba |
+| --- | --- | --- |
+| arranque | `Start` deja la sesión lista o devuelve error | `TestSupervisorStartCompletesHandshakeAndExposesCapabilities` |
+| handshake | `HELLO` con oferta de versiones y validación de límites | `TestSupervisorStartRejectsHandshakeOutsideProtocolLimits` |
+| shutdown | `SHUTDOWN`, cierre de stdin, gracia, `SIGTERM`, `SIGKILL` | `TestSupervisorShutdownIsClean` y las dos de escalada |
+| timeout | handshake y petición, con códigos distintos | `TestSupervisorHandshakeTimesOut`, `TestSupervisorRequestTimeoutInvalidatesTheSession` |
+| reinicio | nueva sesión y handshake tras muerte inesperada | `TestSupervisorRestartsAfterAnUnexpectedExit` |
+| límite de reinicios | ventana deslizante; agotada pasa a `FAILED` | `TestSupervisorStopsRestartingAfterTheBudget` |
+| captura separada de stderr | bomba por líneas con cola acotada | `TestSupervisorCapturesStderrOutsideTheProtocol` |
+| estado observable | `Status` con estado, generación, contadores y capacidades | presente en todas las anteriores |
+
+**Decisiones:**
+
+* Cancelar por `context` y agotar el timeout **no** son lo mismo. Cancelar envía
+  `CANCEL` y conserva la sesión, según la sección 3.7. Un timeout la invalida,
+  porque la sección 6 lo clasifica junto a EOF y salida inesperada.
+* El grupo de procesos se aísla con `setpgid`, de modo que el servidor nativo
+  que arranca el worker muere con él en lugar de quedar huérfano.
+* Un único propietario llama a `cmd.Wait`. `os/exec` cierra los pipes durante
+  `Wait`, así que hacerlo mientras el bucle de lectura sigue vivo es una
+  carrera con reutilización de descriptores.
+* Las anomalías del supervisor —respuestas sin destinatario, frames con cuerpo
+  inválido— se cuentan en `Status`, no se disfrazan de salida del worker.
+  `StderrTail` contiene solo lo que escribió el worker.
+* Un `INVALID_PAYLOAD` no termina la sesión: el límite del frame se respetó y
+  el flujo sigue alineado.
+
+**Lote incompleto:** al morir una sesión se abortan sus peticiones con
+`ENGINE_UNAVAILABLE` y se emite `SessionLoss` con los `id` afectados, que es lo
+que permite al consumidor descartar entero un lote a medio emitir.
+Verificado en `TestSupervisorReportsPartialBatchesAsLostOnSessionDeath`.
+
+**Verificación:** `go test ./...`, `go vet ./...`, `go tool staticcheck
+./internal/tsworker` y cinco ejecuciones consecutivas de
+`go test -race ./internal/tsworker`, todas en verde.
+
+**Hallazgo de las pruebas:** el worker falso es el propio binario de test
+reejecutado, lo que las hace herméticas —sin Node ni build previo— y garantiza
+que habla el códec real. Con `-race`, un binario Go tarda ~1 s en salir tras su
+última escritura; medido y aislado en un caso mínimo. La gracia de las pruebas
+se ajustó a ese artefacto del instrumentado, no del supervisor.
+
+**Limitaciones:**
+
+* El supervisor no lee todavía `config.typescript.worker_command`: se
+  configura por `Options`. El cableado corresponde a su primer consumidor.
+* `Call` es petición y respuesta. El ensamblado de lotes de hechos y su
+  terminación por `PROJECT_INDEXED` es de LUQUE-0608 y LUQUE-0609; aquí los
+  eventos se entregan por callback.
+* No se pudo ejecutar la suite con `-tags ladybug`: la biblioteca nativa
+  extraída en `/tmp` fue borrada por la limpieza del sistema. Ningún archivo de
+  `internal/storage/ladybug` cambia en esta tarea.
+
+**Siguiente tarea:** LUQUE-0605.
 
 ---
 
