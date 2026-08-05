@@ -256,3 +256,108 @@ func TestResolveCrossRepositoryExcludesIntraModuleUses(t *testing.T) {
 		t.Fatalf("intra-module uses were reported as cross-repository: %#v", references)
 	}
 }
+
+// TestResolveCrossRepositoryFollowsGenericOrigins proves that a member of an
+// instantiated generic keeps the identity of the declared member: the encoder
+// indexes declarations, so the instance must fall back to its origin.
+func TestResolveCrossRepositoryFollowsGenericOrigins(t *testing.T) {
+	root := t.TempDir()
+	provider := filepath.Join(root, "provider")
+	consumer := filepath.Join(root, "consumer")
+	writeFiles(t, provider, map[string]string{
+		"go.mod": "module example.com/provider\n\ngo 1.24\n",
+		"api/api.go": `package api
+
+// Box is a generic container.
+type Box[T any] struct {
+	// Value is the stored item.
+	Value T
+}
+
+// Unwrap returns the stored item.
+func (box Box[T]) Unwrap() T { return box.Value }
+`,
+	})
+	writeFiles(t, consumer, map[string]string{
+		"go.mod": "module example.com/consumer\n\ngo 1.24\n",
+		"main.go": `package main
+
+import "example.com/provider/api"
+
+func main() {
+	box := api.Box[int]{Value: 1}
+	_ = box.Unwrap()
+}
+`,
+	})
+	repositories := []workspace.Repository{
+		{Name: "provider", Path: provider, RealPath: provider},
+		{Name: "consumer", Path: consumer, RealPath: consumer},
+	}
+	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	workFile := filepath.Join(root, "state", "go.work")
+	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	result, err := Load(context.Background(), Options{Directory: consumer, WorkFile: workFile})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	uses, err := ExtractUses(context.Background(), result, UseOptions{Repository: "consumer"})
+	if err != nil {
+		t.Fatalf("ExtractUses() error = %v", err)
+	}
+	registry, err := NewModuleRegistry(context.Background(), repositories)
+	if err != nil {
+		t.Fatalf("NewModuleRegistry() error = %v", err)
+	}
+	references, err := ResolveCrossRepository(context.Background(), uses, registry,
+		CrossRepositoryOptions{ConsumerRepository: "consumer"})
+	if err != nil {
+		t.Fatalf("ResolveCrossRepository() error = %v", err)
+	}
+
+	paths := make(map[string]string, len(references))
+	for _, reference := range references {
+		if reference.Status != CrossRepositoryResolved {
+			t.Fatalf("reference %q status = %q", reference.TargetQualifiedName, reference.Status)
+		}
+		paths[reference.TargetQualifiedName] = reference.TargetObjectPath
+	}
+	if paths["Box.Unwrap"] == "" || paths["Box.Value"] == "" {
+		t.Fatalf("generic members were not addressed: %#v", paths)
+	}
+
+	// The identity must match what the provider assigns to its declaration.
+	providerResult, err := Load(context.Background(), Options{Directory: provider})
+	if err != nil {
+		t.Fatalf("Load(provider) error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), providerResult,
+		DefinitionOptions{Repository: "provider"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+	keyed, err := AssignStableKeys(context.Background(), definitions)
+	if err != nil {
+		t.Fatalf("AssignStableKeys() error = %v", err)
+	}
+	own := make(map[string]KeyedDefinition, len(keyed))
+	for _, definition := range keyed {
+		own[definition.QualifiedName] = definition
+	}
+	for _, reference := range references {
+		declaration, declared := own[reference.TargetQualifiedName]
+		if !declared {
+			t.Fatalf("provider does not declare %q", reference.TargetQualifiedName)
+		}
+		if reference.TargetStableKey != declaration.StableKey {
+			t.Fatalf("generic target %q key differs:\nuse: %s\nown: %s",
+				reference.TargetQualifiedName,
+				reference.TargetCanonicalIdentity, declaration.CanonicalIdentity)
+		}
+	}
+}

@@ -197,13 +197,17 @@ func extractFileUses(
 			SourceKind:          sourceKind,
 			TargetModulePath:    modules[targetPackage],
 			TargetPackagePath:   targetPackage,
-			TargetQualifiedName: useTargetQualifiedName(object, selection),
-			TargetKind:          kind,
-			Offset:              position.Offset,
-			EndOffset:           fset.Position(identifier.End()).Offset,
-			StartLine:           position.Line,
-			StartColumn:         position.Column,
-			object:              object,
+			TargetQualifiedName: useTargetQualifiedName(
+				object,
+				selection,
+				compositeLiteralOwner(loaded, stack),
+			),
+			TargetKind:  kind,
+			Offset:      position.Offset,
+			EndOffset:   fset.Position(identifier.End()).Offset,
+			StartLine:   position.Line,
+			StartColumn: position.Column,
+			object:      object,
 		}
 		if _, isLocal := localPackages[targetPackage]; isLocal {
 			use.TargetIsLocalPackage = true
@@ -234,9 +238,14 @@ func selectionKind(kind types.SelectionKind) SelectionKind {
 
 // useTargetQualifiedName names the target as Owner.Name for members.
 //
-// A field object does not know the type that declares it, so the owner comes
-// from the selection the checker resolved, never from the spelling.
-func useTargetQualifiedName(object types.Object, selection *types.Selection) string {
+// A field object does not know the type that declares it. The owner comes
+// from the selection the checker resolved, or from the type of the composite
+// literal being written, never from the spelling.
+func useTargetQualifiedName(
+	object types.Object,
+	selection *types.Selection,
+	literalOwner string,
+) string {
 	switch typed := object.(type) {
 	case *types.Func:
 		if receiver := typed.Signature().Recv(); receiver != nil {
@@ -245,13 +254,42 @@ func useTargetQualifiedName(object types.Object, selection *types.Selection) str
 			}
 		}
 	case *types.Var:
-		if typed.IsField() && selection != nil {
+		if !typed.IsField() {
+			break
+		}
+		if selection != nil {
 			if owner := receiverTypeName(selection.Recv()); owner != "" {
 				return owner + "." + typed.Name()
 			}
 		}
+		if literalOwner != "" {
+			return literalOwner + "." + typed.Name()
+		}
 	}
 	return object.Name()
+}
+
+// compositeLiteralOwner names the type of the composite literal a field key
+// belongs to, taken from the checker rather than from the written syntax.
+func compositeLiteralOwner(loaded *packages.Package, stack []declarationContext) string {
+	if len(stack) < 3 {
+		return ""
+	}
+	if _, isKeyValue := stack[len(stack)-2].node.(*ast.KeyValueExpr); !isKeyValue {
+		return ""
+	}
+	literal, isLiteral := stack[len(stack)-3].node.(*ast.CompositeLit)
+	if !isLiteral {
+		return ""
+	}
+	literalType := loaded.TypesInfo.Types[literal].Type
+	if literalType == nil {
+		return ""
+	}
+	if pointer, isPointer := literalType.(*types.Pointer); isPointer {
+		literalType = pointer.Elem()
+	}
+	return receiverTypeName(literalType)
 }
 
 // enclosingDeclaration returns the declaration that contains a use.

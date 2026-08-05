@@ -145,6 +145,11 @@ func (identity ObjectIdentity) Resolve(
 
 // objectPathFor returns the go/types object path, or an empty string when the
 // object is not reachable from the package scope.
+//
+// Members of an instantiated generic have no path of their own: the encoder
+// indexes the declaration, not the instance. Falling back to the generic
+// origin is what keeps `Box[int].Unwrap` addressable as the declared
+// `Box.Unwrap` instead of losing the edge.
 func objectPathFor(
 	packagePath string,
 	object types.Object,
@@ -158,11 +163,30 @@ func objectPathFor(
 		encoder = new(objectpath.Encoder)
 		encoders[packagePath] = encoder
 	}
-	path, err := encoder.For(object)
+	if path, err := encoder.For(object); err == nil {
+		return string(path)
+	}
+	origin := genericOrigin(object)
+	if origin == nil || origin == object {
+		return ""
+	}
+	path, err := encoder.For(origin)
 	if err != nil {
 		return ""
 	}
 	return string(path)
+}
+
+// genericOrigin returns the declared object an instantiated one comes from.
+func genericOrigin(object types.Object) types.Object {
+	switch typed := object.(type) {
+	case *types.Func:
+		return typed.Origin()
+	case *types.Var:
+		return typed.Origin()
+	default:
+		return nil
+	}
 }
 
 // qualifiedIdentity embeds the object path only when it is name based, which

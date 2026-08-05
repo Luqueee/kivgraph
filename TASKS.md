@@ -4667,11 +4667,13 @@ duplicado, provider no registrado y exclusión de usos intra-módulo.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
 
 **Razones:**
 
@@ -4683,6 +4685,70 @@ AMBIGUOUS_MODULE_PROVIDER
 REPLACE_CONFLICT
 TYPECHECK_FAILED
 ```
+
+**Entregables:**
+
+* `internal/goloader/unresolved.go`;
+* `internal/goloader/unresolved_test.go`;
+* `internal/goloader/uses.go` y `crossrepo.go` (correcciones de identidad).
+
+**Contrato:**
+
+```text
+ClassifyUnresolved(ctx, result, references, options) -> []UnresolvedReference
+```
+
+Cada entrada conserva repositorio, paquete, archivo, posición, el módulo,
+paquete y símbolo solicitados, la razón y la evidencia observada.
+
+**Origen de cada razón:**
+
+```text
+MODULE_PROVIDER_NOT_FOUND   estado de LUQUE-0809
+AMBIGUOUS_MODULE_PROVIDER   estado de LUQUE-0809 + candidatos
+OBJECT_PATH_UNAVAILABLE     estado de LUQUE-0809
+PACKAGE_NOT_LOADED          import sin tipos completos o con diagnósticos
+TYPECHECK_FAILED            errores TYPE y PARSE del cargador
+REPLACE_CONFLICT            conflictos del go.work sintético de LUQUE-0801
+```
+
+**Correcciones encontradas por las pruebas:**
+
+* Un miembro de un genérico instanciado no tiene `objectpath` propio. Ahora se
+  resuelve por su **origen declarado**: `Box[int].Unwrap` es el símbolo
+  `Box.Unwrap`, no una referencia perdida.
+* La firma de un miembro instanciado se toma también del origen: el consumidor
+  ve `int` donde el provider declara `T`, y firmar la instancia daba dos
+  identidades a un mismo símbolo.
+* Un campo escrito en un literal compuesto no llega por selección, así que
+  quedaba como `Value` en lugar de `Box.Value`. El propietario se toma ahora
+  del tipo del literal según el checker.
+
+**Verificación:**
+
+```text
+gofmt -l .
+go test ./...
+go vet ./...
+go test -race ./internal/goloader
+go tool staticcheck ./internal/goloader
+```
+
+La suite cubre las seis razones: módulo duplicado con candidatos, provider no
+registrado, import que no carga con su diagnóstico, error de tipos con
+posición, conflicto de `replace` del workspace y el mapeo de
+`OBJECT_PATH_UNAVAILABLE`. La prueba de genéricos compara la clave del
+consumidor con la que el provider asigna a su propia declaración.
+
+**Limitaciones:**
+
+* `OBJECT_PATH_UNAVAILABLE` no se observó con entradas reales tras el
+  fallback al origen genérico; se conserva como guarda y se prueba a nivel de
+  clasificador.
+* La biblioteca estándar no pertenece a ningún repositorio registrado y produce
+  `MODULE_PROVIDER_NOT_FOUND`; filtrarla es decisión de la fase de grafo.
+
+**Siguiente tarea:** LUQUE-0811.
 
 ---
 

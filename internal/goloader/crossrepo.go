@@ -229,9 +229,16 @@ func resolveTargetIdentity(
 
 // targetSignature prints the target type with fully qualified package paths,
 // so the discriminator is comparable across loads and repositories.
+//
+// An instantiated generic member is signed by its declared origin: the
+// consumer sees `int` where the provider declares `T`, and signing the
+// instance would give one symbol two identities.
 func targetSignature(object types.Object) string {
 	if object == nil {
 		return ""
+	}
+	if origin := genericOrigin(object); origin != nil {
+		object = origin
 	}
 	return types.TypeString(object.Type(), func(other *types.Package) string {
 		if other == nil {
