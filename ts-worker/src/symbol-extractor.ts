@@ -1,0 +1,607 @@
+/**
+ * Snapshot-scoped extraction of local TypeScript declarations.
+ *
+ * The native TypeScript 7 server is the source of symbol identity. AST walking
+ * only finds declaration sites; every emitted symbol is backed by the checker
+ * and every checker lookup is batched for the whole selected file set.
+ */
+
+import path from "node:path";
+
+import { ModifierFlags } from "typescript/unstable/ast";
+import {
+  isArrayBindingPattern,
+  isClassDeclaration,
+  isConstructorDeclaration,
+  isExportAssignment,
+  isExportDeclaration,
+  isExportSpecifier,
+  isFunctionDeclaration,
+  isGetAccessorDeclaration,
+  isIdentifier,
+  isInterfaceDeclaration,
+  isMethodDeclaration,
+  isModuleDeclaration,
+  isNamedExports,
+  isObjectBindingPattern,
+  isPropertyDeclaration,
+  isSetAccessorDeclaration,
+  isTypeAliasDeclaration,
+  isVariableDeclaration,
+  isVariableDeclarationList,
+  isVariableStatement,
+  isEnumDeclaration,
+} from "typescript/unstable/ast/is";
+import type {
+  BindingName,
+  Identifier,
+  Node,
+  SourceFile,
+} from "typescript/unstable/ast";
+import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
+
+import type { LanguageService, ProjectView } from "./language-service.js";
+
+/** Kinds emitted by the local declaration extractor. */
+export type LocalSymbolKind =
+  | "function"
+  | "class"
+  | "interface"
+  | "method"
+  | "variable"
+  | "property"
+  | "type"
+  | "enum"
+  | "namespace";
+
+/** A declaration backed by a checker symbol in one live snapshot. */
+export interface LocalSymbol {
+  /** TypeScript's snapshot-local symbol id. */
+  symbolId: number;
+  /** Snapshot-scoped checker object used by the next extraction stages. */
+  symbol: TypeScriptSymbol;
+  fileName: string;
+  name: string;
+  qualifiedName: string;
+  kind: LocalSymbolKind;
+  /** UTF-16 source offsets, with `end` exclusive. */
+  start: number;
+  end: number;
+  startLine: number;
+  endLine: number;
+  /** A compact declaration header, not an inferred semantic signature. */
+  signature: string;
+  exported: boolean;
+  exportedNames: string[];
+}
+
+/** A local export binding resolved to its declaration symbol. */
+export interface LocalExport {
+  fileName: string;
+  exportedName: string;
+  localName: string;
+  isTypeOnly: boolean;
+  symbolId: number;
+  symbol: TypeScriptSymbol;
+  start: number;
+  end: number;
+}
+
+export interface SymbolExtractionOptions {
+  /** Restrict extraction to these project source files. */
+  files?: readonly string[];
+}
+
+export interface LocalSymbolExtraction {
+  generation: number;
+  configFileName: string;
+  symbols: LocalSymbol[];
+  exports: LocalExport[];
+}
+
+interface Candidate {
+  file: SourceFile;
+  declaration: Node;
+  nameNode: Node;
+  name: string;
+  scope: readonly string[];
+  kind: LocalSymbolKind;
+  directExportName: string | undefined;
+}
+
+interface ExportRequest {
+  file: SourceFile;
+  node: Node;
+  nameNode: Node;
+  exportedName: string;
+  localName: string;
+  isTypeOnly: boolean;
+}
+
+interface CollectedFile {
+  candidates: Candidate[];
+  exports: ExportRequest[];
+}
+
+/**
+ * Extract declarations and local export bindings from one live project view.
+ *
+ * `view` is snapshot-scoped. The service is checked before and after all
+ * native calls so a concurrent update cannot return handles from a disposed
+ * snapshot as if they were current.
+ */
+export async function extractLocalSymbols(
+  service: LanguageService,
+  view: ProjectView,
+  options: SymbolExtractionOptions = {},
+): Promise<LocalSymbolExtraction> {
+  service.assertFresh(view);
+
+  const sourceFileNames = await view.program.getSourceFileNames();
+  const selected = selectLocalFiles(
+    sourceFileNames,
+    options.files,
+    view.configFileName,
+  );
+  const collected: CollectedFile[] = [];
+
+  for (const fileName of selected) {
+    const sourceFile = await view.program.getSourceFile(fileName);
+    if (sourceFile === undefined) {
+      continue;
+    }
+    if (await view.program.isSourceFileFromExternalLibrary(sourceFile)) {
+      continue;
+    }
+    collected.push(collectFile(sourceFile));
+  }
+
+  const candidates = collected.flatMap((file) => file.candidates);
+  const exportRequests = collected.flatMap((file) => file.exports);
+  const requestedNodes = [
+    ...candidates.map((candidate) => candidate.nameNode),
+    ...exportRequests.map((request) => request.nameNode),
+  ];
+  const resolved =
+    requestedNodes.length === 0
+      ? []
+      : await view.checker.getSymbolAtLocation(requestedNodes);
+  const candidateSymbols = resolved.slice(0, candidates.length);
+  const exportSymbols = resolved.slice(candidates.length);
+
+  const localById = new Map<number, LocalSymbol[]>();
+  const symbols: LocalSymbol[] = [];
+  const exports: LocalExport[] = [];
+
+  for (const [index, candidate] of candidates.entries()) {
+    const symbol = candidateSymbols[index];
+    if (symbol === undefined) {
+      continue;
+    }
+    const local = makeLocalSymbol(candidate, symbol);
+    symbols.push(local);
+    const entries = localById.get(symbol.id);
+    if (entries === undefined) {
+      localById.set(symbol.id, [local]);
+    } else {
+      entries.push(local);
+    }
+    if (candidate.directExportName !== undefined) {
+      exports.push({
+        fileName: candidate.file.fileName,
+        exportedName: candidate.directExportName,
+        localName: candidate.name,
+        isTypeOnly: candidate.kind === "interface" || candidate.kind === "type",
+        symbolId: symbol.id,
+        symbol,
+        start: candidate.declaration.getStart(candidate.file),
+        end: candidate.declaration.getEnd(),
+      });
+    }
+  }
+
+  for (const [index, request] of exportRequests.entries()) {
+    let symbol = exportSymbols[index];
+    if (
+      isExportSpecifier(request.node) &&
+      (symbol === undefined || !localById.has(symbol.id))
+    ) {
+      symbol = await view.checker.getExportSpecifierLocalTargetSymbol(
+        request.node,
+      );
+    }
+    if (symbol === undefined) {
+      continue;
+    }
+    const locals = localById.get(symbol.id);
+    if (locals === undefined) {
+      // Re-exports from another module and unresolved aliases are not local
+      // declarations. They belong to the later alias-resolution task.
+      continue;
+    }
+    for (const local of locals) {
+      if (!local.exportedNames.includes(request.exportedName)) {
+        local.exportedNames.push(request.exportedName);
+        local.exportedNames.sort();
+      }
+      local.exported = true;
+      exports.push({
+        fileName: request.file.fileName,
+        exportedName: request.exportedName,
+        localName: request.localName,
+        isTypeOnly: request.isTypeOnly,
+        symbolId: symbol.id,
+        symbol,
+        start: request.node.getStart(request.file),
+        end: request.node.getEnd(),
+      });
+    }
+  }
+
+  service.assertFresh(view);
+  symbols.sort(compareSymbols);
+  exports.sort(compareExports);
+
+  return {
+    generation: view.generation,
+    configFileName: view.configFileName,
+    symbols,
+    exports,
+  };
+}
+
+function selectLocalFiles(
+  sourceFileNames: readonly string[],
+  requested: readonly string[] | undefined,
+  configFileName: string,
+): string[] {
+  const projectRoot = pathDirectory(configFileName);
+  const requestedSet =
+    requested === undefined
+      ? undefined
+      : new Set(
+          requested.map((fileName) =>
+            path.isAbsolute(fileName)
+              ? resolvePath(fileName)
+              : path.resolve(projectRoot, fileName),
+          ),
+        );
+
+  return sourceFileNames
+    .map((fileName) => resolvePath(fileName))
+    .filter((fileName, index, names) => names.indexOf(fileName) === index)
+    .filter((fileName) =>
+      requestedSet === undefined ? true : requestedSet.has(fileName),
+    )
+    .filter((fileName) => isWithin(fileName, projectRoot))
+    .sort();
+}
+
+function collectFile(file: SourceFile): CollectedFile {
+  const candidates: Candidate[] = [];
+  const exports: ExportRequest[] = [];
+
+  const visit = (
+    node: Node,
+    scope: readonly string[],
+    exportedVariableList: boolean,
+  ): void => {
+    const flags = modifierFlags(node);
+    const directExport = (flags & ModifierFlags.Export) !== 0;
+    const directDefault = (flags & ModifierFlags.Default) !== 0;
+    const candidate = declarationCandidate(
+      file,
+      node,
+      scope,
+      exportedVariableList || directExport,
+      directDefault,
+    );
+    if (candidate !== undefined) {
+      candidates.push(candidate);
+      if (isVariableDeclaration(node)) {
+        const names = bindingIdentifiers(node.name);
+        for (const nameNode of names.slice(1)) {
+          const name = displayName(nameNode, file);
+          if (name === "") {
+            continue;
+          }
+          candidates.push({
+            ...candidate,
+            nameNode,
+            name,
+            directExportName:
+              candidate.directExportName === undefined ? undefined : name,
+          });
+        }
+      }
+    }
+
+    if (isExportDeclaration(node)) {
+      collectExportDeclaration(file, node, exports);
+    } else if (isExportAssignment(node)) {
+      collectExportAssignment(file, node, exports);
+    }
+
+    const nextScope = declarationScope(node, scope);
+    const childExportedVariableList = isVariableStatement(node)
+      ? directExport
+      : isVariableDeclarationList(node)
+        ? exportedVariableList
+        : false;
+    node.forEachChild((child) =>
+      visit(child, nextScope, childExportedVariableList),
+    );
+  };
+
+  file.forEachChild((child) => visit(child, [], false));
+  return { candidates, exports };
+}
+
+function declarationCandidate(
+  file: SourceFile,
+  node: Node,
+  scope: readonly string[],
+  exportedByVariableList: boolean,
+  directDefault: boolean,
+): Candidate | undefined {
+  let nameNode: Node | undefined;
+  let kind: LocalSymbolKind | undefined;
+
+  if (isFunctionDeclaration(node)) {
+    nameNode = node.name;
+    kind = "function";
+  } else if (isClassDeclaration(node)) {
+    nameNode = node.name;
+    kind = "class";
+  } else if (isInterfaceDeclaration(node)) {
+    nameNode = node.name;
+    kind = "interface";
+  } else if (isTypeAliasDeclaration(node)) {
+    nameNode = node.name;
+    kind = "type";
+  } else if (isVariableDeclaration(node)) {
+    const names = bindingIdentifiers(node.name);
+    // A destructuring declaration has one Candidate per bound identifier. The
+    // caller's recursive walk sees the same declaration once, so only the
+    // first identifier is emitted here; the remaining identifiers are emitted
+    // by this helper's synthetic sibling handling below.
+    nameNode = names[0];
+    kind = "variable";
+  } else if (isPropertyDeclaration(node)) {
+    nameNode = node.name;
+    kind = "property";
+  } else if (
+    isMethodDeclaration(node) ||
+    isGetAccessorDeclaration(node) ||
+    isSetAccessorDeclaration(node)
+  ) {
+    nameNode = node.name;
+    kind = "method";
+  } else if (isConstructorDeclaration(node)) {
+    return undefined;
+  } else if (isEnumDeclaration(node)) {
+    nameNode = node.name;
+    kind = "enum";
+  } else if (isModuleDeclaration(node) && isIdentifier(node.name)) {
+    nameNode = node.name;
+    kind = "namespace";
+  }
+
+  if (nameNode === undefined || kind === undefined) {
+    return undefined;
+  }
+
+  const name = displayName(nameNode, file);
+  if (name === "") {
+    return undefined;
+  }
+
+  return {
+    file,
+    declaration: node,
+    nameNode,
+    name,
+    scope,
+    kind,
+    directExportName:
+      exportedByVariableList || modifierFlags(node) & ModifierFlags.Export
+        ? directDefault
+          ? "default"
+          : name
+        : undefined,
+  };
+}
+
+function collectExportDeclaration(
+  file: SourceFile,
+  node: Node,
+  output: ExportRequest[],
+): void {
+  if (!isExportDeclaration(node) || node.moduleSpecifier !== undefined) {
+    return;
+  }
+  const clause = node.exportClause;
+  if (!clause || !isNamedExports(clause)) {
+    return;
+  }
+  for (const specifier of clause.elements) {
+    if (!isExportSpecifier(specifier)) {
+      continue;
+    }
+    const localNode = specifier.propertyName ?? specifier.name;
+    output.push({
+      file,
+      node: specifier,
+      nameNode: localNode,
+      exportedName: displayName(specifier.name, file),
+      localName: displayName(localNode, file),
+      isTypeOnly: node.isTypeOnly || specifier.isTypeOnly,
+    });
+  }
+}
+
+function collectExportAssignment(
+  file: SourceFile,
+  node: Node,
+  output: ExportRequest[],
+): void {
+  if (!isExportAssignment(node) || !isIdentifier(node.expression)) {
+    return;
+  }
+  output.push({
+    file,
+    node,
+    nameNode: node.expression,
+    exportedName: node.isExportEquals ? "export=" : "default",
+    localName: displayName(node.expression, file),
+    isTypeOnly: false,
+  });
+}
+
+function declarationScope(
+  node: Node,
+  scope: readonly string[],
+): readonly string[] {
+  const name = scopeName(node);
+  return name === undefined ? scope : [...scope, name];
+}
+
+function scopeName(node: Node): string | undefined {
+  const named = namedDeclarationName(node);
+  if (named !== undefined && isIdentifier(named)) {
+    return named.getText();
+  }
+  if (
+    isMethodDeclaration(node) ||
+    isGetAccessorDeclaration(node) ||
+    isSetAccessorDeclaration(node) ||
+    isPropertyDeclaration(node)
+  ) {
+    return displayName(node.name);
+  }
+  return undefined;
+}
+
+function makeLocalSymbol(
+  candidate: Candidate,
+  symbol: TypeScriptSymbol,
+): LocalSymbol {
+  const start = candidate.declaration.getStart(candidate.file);
+  const end = candidate.declaration.getEnd();
+  const startLine =
+    candidate.file.getLineAndCharacterOfPosition(start).line + 1;
+  const endPosition = Math.max(start, end - 1);
+  const endLine =
+    candidate.file.getLineAndCharacterOfPosition(endPosition).line + 1;
+  const qualifiedName = [...candidate.scope, candidate.name].join(".");
+  const directExportNames =
+    candidate.directExportName === undefined
+      ? []
+      : [candidate.directExportName];
+
+  return {
+    symbolId: symbol.id,
+    symbol,
+    fileName: candidate.file.fileName,
+    name: candidate.name,
+    qualifiedName,
+    kind: candidate.kind,
+    start,
+    end,
+    startLine,
+    endLine,
+    signature: compactSignature(candidate.declaration, candidate.file),
+    exported: directExportNames.length > 0,
+    exportedNames: directExportNames,
+  };
+}
+
+function compactSignature(node: Node, file: SourceFile): string {
+  const text = node.getText(file).replace(/\s+/gu, " ").trim();
+  const body = text.indexOf("{");
+  const withoutBody = body >= 0 ? text.slice(0, body).trim() : text;
+  const equals =
+    isVariableDeclaration(node) && withoutBody.includes("=")
+      ? withoutBody.slice(0, withoutBody.indexOf("=")).trim()
+      : withoutBody;
+  return equals.length > 512 ? `${equals.slice(0, 509)}...` : equals;
+}
+
+function bindingIdentifiers(name: BindingName): Identifier[] {
+  if (isIdentifier(name)) {
+    return [name];
+  }
+  if (isObjectBindingPattern(name) || isArrayBindingPattern(name)) {
+    return name.elements.flatMap((element) =>
+      element.name === undefined ? [] : bindingIdentifiers(element.name),
+    );
+  }
+  return [];
+}
+
+function displayName(node: Node, file?: SourceFile): string {
+  const text = file === undefined ? node.getText() : node.getText(file);
+  const trimmed = text.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function modifierFlags(node: Node): number {
+  if ("modifierFlags" in node && typeof node.modifierFlags === "number") {
+    return node.modifierFlags;
+  }
+  return ModifierFlags.None;
+}
+
+function compareSymbols(left: LocalSymbol, right: LocalSymbol): number {
+  return (
+    left.fileName.localeCompare(right.fileName) ||
+    left.start - right.start ||
+    left.end - right.end ||
+    left.kind.localeCompare(right.kind) ||
+    left.name.localeCompare(right.name)
+  );
+}
+
+function compareExports(left: LocalExport, right: LocalExport): number {
+  return (
+    left.fileName.localeCompare(right.fileName) ||
+    left.start - right.start ||
+    left.end - right.end ||
+    left.exportedName.localeCompare(right.exportedName) ||
+    left.localName.localeCompare(right.localName)
+  );
+}
+
+function namedDeclarationName(node: Node): Node | undefined {
+  if (isClassDeclaration(node) || isFunctionDeclaration(node)) {
+    return node.name;
+  }
+  if (
+    isInterfaceDeclaration(node) ||
+    isTypeAliasDeclaration(node) ||
+    isEnumDeclaration(node) ||
+    isModuleDeclaration(node)
+  ) {
+    return node.name;
+  }
+  return undefined;
+}
+
+function resolvePath(fileName: string): string {
+  return path.resolve(fileName);
+}
+
+function pathDirectory(fileName: string): string {
+  return path.dirname(resolvePath(fileName));
+}
+
+function isWithin(fileName: string, root: string): boolean {
+  return fileName === root || fileName.startsWith(`${root}${path.sep}`);
+}

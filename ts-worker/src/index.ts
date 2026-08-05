@@ -1,6 +1,15 @@
 import { pathToFileURL } from "node:url";
 import { createInterface } from "node:readline";
 
+export { extractLocalSymbols } from "./symbol-extractor.js";
+export type {
+  LocalExport,
+  LocalSymbol,
+  LocalSymbolExtraction,
+  LocalSymbolKind,
+  SymbolExtractionOptions,
+} from "./symbol-extractor.js";
+
 export function handleCommand(command: string): string {
   if (command.trim() === "hello") {
     return "hello";

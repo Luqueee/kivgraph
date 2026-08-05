@@ -2648,23 +2648,104 @@ liberados, y cuatro tras cerrar.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Extraer:**
+**Estado:** `PASS`.
 
-* funciones;
+**Entregables:**
+
+* `ts-worker/src/symbol-extractor.ts`;
+* `ts-worker/src/symbol-extractor.test.ts`;
+* `ts-worker/src/index.ts` (exportación pública).
+
+**Extrae:**
+
+* funciones declaradas;
 * clases;
 * interfaces;
-* métodos;
-* variables;
-* tipos;
+* métodos y accessors;
+* variables, incluyendo bindings simples y destructuring;
+* propiedades de clase;
+* alias de tipo;
 * enums;
 * namespaces;
-* exports.
+* exports locales directos, `export { local as public }`, `export default
+  local` y `export = local`.
+
+**Contrato del extractor:**
+
+```text
+extractLocalSymbols(service, view, options?)
+  -> { generation, configFileName, symbols, exports }
+```
+
+Cada `LocalSymbol` contiene el `Symbol` del checker nativo, `symbolId`,
+archivo, nombre, nombre cualificado, kind, offsets UTF-16, líneas 1-based,
+cabecera de declaración compacta y nombres exportados. Cada `LocalExport`
+conserva el binding local, el nombre público, si es type-only y el mismo
+`Symbol` del checker.
+
+**Decisiones:**
+
+* El AST solo localiza declaraciones; ningún símbolo se emite si el checker
+  nativo no puede resolverlo.
+* Todos los nombres de declaración y bindings de export se resuelven en una
+  única llamada batched a `checker.getSymbolAtLocation`. Solo los aliases
+  cuyo target no aparece en ese lote usan la primitiva específica de
+  `ExportSpecifier`.
+* La extracción está atada a la generación del `ProjectView`. Se comprueba
+  `assertFresh` antes y después de las llamadas nativas; una vista caduca
+  produce `STALE_GENERATION`.
+* “Local” significa fuente del proyecto bajo el directorio del tsconfig,
+  fuera de librerías externas. Las reexportaciones desde otro módulo no se
+  convierten en símbolos locales; LUQUE-0610 resolverá aliases.
+* El orden de símbolos y exports es determinista por archivo, posición y
+  nombre.
+* Las declaraciones sobrecargadas se conservan por sitio de declaración aunque
+  compartan el mismo `symbolId`; la stable key futura podrá discriminarlas por
+  firma.
+* No se materializa el conjunto completo de exports del módulo: se recorren
+  únicamente los `export` sintácticos del archivo seleccionado, respetando
+  ADR 0010.
+
+**Verificación:**
+
+```text
+4 archivos de tests
+37 tests passed
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+go test ./...
+go vet ./...
+git diff --check
+```
+
+Los tests ejecutan el servidor nativo de TypeScript 7 real y cubren
+declaraciones, scopes anidados, exports directos y aliasados, default exports,
+destructuring, selección por archivo relativo, exclusión de fuentes externas y
+rechazo de una vista stale, y preservación de declaraciones sobrecargadas.
+
+**Limitaciones:**
+
+* Los constructores no se emiten como símbolos independientes porque la API
+  AST no les proporciona un name node con el que resolver un símbolo local.
+* Las expresiones anónimas de `export default`, `export *` y reexports desde
+  otro módulo no generan `LocalSymbol`; requieren identidad de módulo y
+  resolución de aliases.
+* `signature` es una cabecera sintáctica compacta, no el tipo inferido por
+  `TypeChecker`; la firma semántica se añadirá cuando el modelo de hechos la
+  necesite.
+* Los `symbolId` son válidos solo durante la vida del snapshot; la identidad
+  durable será la stable key del modelo Go.
+
+**Siguiente tarea:** LUQUE-0609.
 
 ---
 
