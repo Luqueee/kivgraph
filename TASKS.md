@@ -6058,13 +6058,65 @@ en [`docs/decisions/canonical-graph-qualification.md`](docs/decisions/canonical-
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** detectar cambios en repositorios registrados.
+
+**Entregables:**
+
+```text
+internal/watcher/watcher.go
+internal/watcher/ignore.go
+internal/watcher/watcher_test.go
+go.mod
+go.sum
+```
+
+**Criterios de aceptación:**
+
+* `fsnotify` queda fijado en `v1.9.0`.
+* Se observan recursivamente los directorios existentes y los nuevos
+  directorios creados después de iniciar el watcher.
+* Se omiten symlinks, árboles de dependencias por defecto y exclusiones
+  configuradas con los mismos segmentos y `**` de descubrimiento.
+* Cada evento entrega repository, path absoluto limpio y operaciones portables;
+  los errores del backend se entregan por un canal separado.
+* `Close`, cancelación y cierre de canales son idempotentes y no dejan la
+  goroutine de procesamiento pendiente.
+
+**Estado:** `PASS`.
+
+**Archivos creados:** los tres archivos de `internal/watcher/`.
+
+**Archivos modificados:** `go.mod` y `go.sum`.
+
+**Tests ejecutados:**
+
+```text
+go test ./internal/watcher -count=10
+go test -race ./internal/watcher
+go test ./...
+go vet ./...
+make build
+```
+
+**Resultados:** todas las pruebas pasan; el watcher informa escrituras,
+creaciones y cancelación, y no registra rutas excluidas.
+
+**Benchmarks:** no aplica; esta tarea integra la señal cruda. Debounce,
+batching, hash y reconciliación pertenecen a LUQUE-1002, LUQUE-1003 y
+LUQUE-1004.
+
+**Limitaciones:** `fsnotify` es una señal de cambio y puede emitir eventos
+duplicados o perder eventos por overflow; el watcher no intenta convertirlos
+en cambios semánticos ni calcula hashes. La reconciliación posterior es la
+fuente de recuperación.
+
+**Siguiente tarea:** LUQUE-1002.
 
 ---
 
