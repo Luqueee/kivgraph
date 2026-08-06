@@ -8318,13 +8318,79 @@ un modo degradado explícito, y si se quisiera uno sería una decisión nueva.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **El segundo proceso debe fallar de manera clara y segura.**
+
+**Hallazgo:**
+
+Se midió primero el comportamiento real con dos procesos: el segundo es
+rechazado en **10 ms**, antes de escribir nada. Seguro, sí. Claro, no:
+
+```text
+ladybug open: failed to open database with status 1
+```
+
+Ese es **exactamente** el mismo mensaje que produce una base corrupta —el mismo
+que aparece en el informe del doctor de LUQUE-1205—. Un operador no podía
+distinguir «hay otra instancia corriendo» de «el archivo está dañado», que son
+dos acciones opuestas: matar el duplicado o restaurar una copia.
+
+**Implementación:**
+
+`ladybug.Open` clasifica ahora el fallo de apertura. Cuando el motor rechaza
+abrir, se consulta la tabla de cerrojos del sistema —la misma inspección que ya
+usaba el chequeo `lock` del doctor— y, si otro proceso vivo retiene el archivo,
+el error se envuelve en `ErrDatabaseLocked` nombrando los PIDs:
+
+```text
+ladybug open: LadybugDB database is held by another process (pids [12345]):
+failed to open database with status 1
+```
+
+La distinción viene de fuera del motor porque el motor no la da. La causa
+original se conserva envuelta: no se sustituye un diagnóstico por otro.
+
+**Pruebas:** `internal/storage/ladybug/duplicate_process_linux_test.go` levanta
+un segundo proceso real que retiene la base y comprueba que `Open` y
+`ApplyCanonicalDelta` se rechazan con `ErrDatabaseLocked`, que el error nombra
+los PIDs, y que al morir el proceso la base vuelve a ser utilizable —el cerrojo
+es del kernel, no un archivo obsoleto que Ladygraph deje atrás—.
+
+**Control:** `TestDamagedDatabaseIsNotReportedAsLocked` — una base destruida
+conserva su propio error. Sin él, clasificar todo como «locked» también pasaría.
+
+**Comprobación por mutación:** revertir la clasificación deja el test en rojo
+con el mensaje genérico; restaurarla lo devuelve a verde.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1206.
+
+**Verificación:**
+
+```text
+go test -tags ladybug ./internal/storage/ladybug -run 'TestSecondProcessIsRefused|TestDamagedDatabaseIsNotReportedAsLocked' -count=1
+go test ./... -count=1
+make test-ladybug
+go vet ./...
+make build
+```
+
+**Limitaciones:** la detección del proceso que retiene es **de Linux**: lee
+`/proc/locks`. En otras plataformas `externalStorageLocks` declara que no está
+soportado y el error vuelve a ser el genérico del motor —seguro igualmente, pero
+sin nombrar la causa—. No existe un cerrojo propio de Ladygraph: la exclusión la
+da LadybugDB sobre el archivo de base, de modo que dos procesos que trabajen
+sobre **generaciones distintas** de la misma raíz no se excluyen entre sí. Ese
+caso —dos `rebuild` concurrentes publicando en la misma raíz— no lo cubre esta
+tarea y necesitaría un cerrojo de raíz, que sería una decisión nueva.
+
+**Siguiente tarea:** LUQUE-1207.
 
 ---
 

@@ -4,6 +4,7 @@ package ladybug
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	lbug "github.com/LadybugDB/go-ladybug"
@@ -43,13 +44,26 @@ func Open(ctx context.Context, path string, config Config) (Database, error) {
 
 	native, err := lbug.OpenDatabase(path, nativeConfig)
 	if err != nil {
-		return nil, &Error{Op: "open", Err: err}
+		return nil, &Error{Op: "open", Err: classifyOpenFailure(path, err)}
 	}
 	if err := ctx.Err(); err != nil {
 		native.Close()
 		return nil, &Error{Op: "open", Err: err}
 	}
 	return &database{path: path, native: native, readOnly: config.ReadOnly}, nil
+}
+
+// classifyOpenFailure tells a duplicate process apart from a damaged database.
+// The engine reports both as the same status, so the distinction has to come
+// from outside it: if another live process holds a lock on this file, that is
+// the reason, and saying so is the difference between an operator restarting
+// the right thing and an operator restoring a backup they did not need.
+func classifyOpenFailure(path string, cause error) error {
+	pids, supported, lockErr := externalStorageLocks(path)
+	if !supported || lockErr != nil || len(pids) == 0 {
+		return cause
+	}
+	return fmt.Errorf("%w (pids %v): %w", ErrDatabaseLocked, pids, cause)
 }
 
 func (db *database) Close() error {

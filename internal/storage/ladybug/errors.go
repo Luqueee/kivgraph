@@ -28,6 +28,11 @@ var (
 	ErrAlreadyExists = errors.New("LadybugDB entity already exists")
 	// ErrNotFound reports an update or deletion whose target does not exist.
 	ErrNotFound = errors.New("LadybugDB entity was not found")
+	// ErrDatabaseLocked reports that another live process holds the database.
+	// It is separated from a generic open failure on purpose: a duplicate
+	// Ladygraph instance and a damaged file are the same status code coming
+	// out of the engine, and an operator needs to tell them apart.
+	ErrDatabaseLocked = errors.New("LadybugDB database is held by another process")
 )
 
 // Error wraps a native or lifecycle failure with the Ladygraph operation that failed.
