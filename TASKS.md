@@ -6196,13 +6196,66 @@ el cierre normal del input sí lo entrega completo.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**No reindexar cuando el contenido no cambie.**
+**Objetivo:** no reindexar cuando el contenido no cambie.
+
+**Contrato:**
+
+* El algoritmo es `SHA-256` en hexadecimal, compatible con el
+  `contentHash` del worker TypeScript.
+* El hasher recibe los hashes conocidos del grafo indexado y mantiene una
+  caché en memoria por `repository` y path absoluto.
+* Un hash nuevo o distinto produce `Changed`; uno igual produce
+  `Unchanged`; un archivo conocido que desaparece o deja de ser regular produce
+  `Removed`.
+* Directorios y paths no conocidos producen `Skipped` y nunca una arista ni una
+  reindexación.
+* Los errores o cancelaciones no aplican actualizaciones parciales a la caché.
+
+**Entregables:**
+
+```text
+internal/watcher/hash.go
+internal/watcher/hash_test.go
+```
+
+**Estado:** `PASS`.
+
+**Archivos creados:** `internal/watcher/hash.go` y
+`internal/watcher/hash_test.go`.
+
+**Archivos modificados:** ninguno adicional.
+
+**Tests ejecutados:**
+
+```text
+go test ./internal/watcher -count=10
+go test ./...
+go vet ./...
+go test -race ./internal/watcher
+make build
+```
+
+**Resultados:** todas las pruebas pasan. La suite verifica cambios,
+contenido idéntico sin reindexación, eliminaciones, directorios ignorados,
+eventos duplicados, reemplazo por una ruta no regular, hashes inválidos y
+cancelación.
+
+**Benchmarks:** no aplica todavía; medir el hash aislado no representa el coste
+del pipeline incremental completo. El benchmark de extremo a extremo queda
+para la integración del indexador.
+
+**Limitaciones:** la caché es en memoria y debe reconstruirse desde el grafo al
+reiniciar el proceso. La lectura observa el contenido disponible durante el
+stream; no intenta resolver una escritura concurrente posterior al `Lstat`.
+La clasificación semántica e invalidación siguen siendo tareas posteriores.
+
+**Siguiente tarea:** LUQUE-1004.
 
 ---
 
