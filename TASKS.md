@@ -8148,13 +8148,75 @@ comprometidos.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Ladygraph debe cargar el último snapshot válido o reconstruirlo.**
+
+**Implementación:**
+
+Lo primero es qué significa «snapshot corrupto» en esta arquitectura. Lo único
+que se persiste junto a una generación es `snapshot.sha256`, el digest de sus
+contadores canónicos. El `HotSnapshot` **nunca se escribe**: se deriva del grafo
+definitivo en cada construcción. Por eso de las dos ramas del requisito siempre
+se toma la segunda: no hay snapshot que cargar, hay grafo que reconstruir.
+
+`internal/rebuild/snapshot_corruption_test.go` fija las tres consecuencias:
+
+```text
+digest corrupto  -> SnapshotGeneration sigue reconstruyendo un snapshot válido
+digest corrupto  -> Rollback a esa generación se rechaza…
+                    …y vuelve a funcionar tras recomputarlo desde la base
+grafo inconvertible -> ErrSnapshotBuildFailed, nada utilizable devuelto
+```
+
+El rechazo importa más que la recuperación: una generación cuyo digest no
+concuerda con su contenido es una generación por la que nadie responde, y
+reactivarla sustituiría un grafo que funciona por otro sin verificar. La
+recuperación no es una reparación del archivo, es una **recomputación** desde
+los contadores que la base declara ahora.
+
+`internal/resilience/snapshot_test.go` lo mira desde el cliente:
+
+```text
+corromper el digest            -> las respuestas servidas no cambian
+reconstruir y publicar          -> los lectores pasan al grafo nuevo de golpe
+grafo inconvertible sin publicar-> INDEX_NOT_READY, nunca un grafo a medias
+```
+
+La tercera es la que cierra el requisito por el lado honesto: si no hay nada
+válido que servir, la respuesta correcta es decirlo, no entregar un grafo
+parcialmente construido.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1204.
+
+**Verificación:**
+
+```text
+go test ./internal/rebuild -count=1
+go test ./internal/resilience -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/rebuild ./internal/resilience -count=1
+make build
+```
+
+**Limitaciones:** no existe un snapshot serializado, así que «cargar el último
+válido» sólo puede significar hoy «seguir sirviendo el que ya está en memoria».
+Un arranque en frío siempre reconstruye; el coste de esa reconstrucción sobre un
+corpus real se mide en LUQUE-1602, y si resultara prohibitivo, persistir el
+`HotSnapshot` sería una decisión nueva, no una corrección de ésta. Tampoco hay
+recuperación automática: nadie vigila el digest ni dispara la reconstrucción
+sola, porque `serve` aún no cablea ese ciclo. La corrupción de la **base** —no
+del digest— es LUQUE-1205.
+
+**Siguiente tarea:** LUQUE-1205.
 
 ---
 

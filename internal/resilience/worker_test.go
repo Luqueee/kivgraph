@@ -3,7 +3,9 @@ package resilience
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -71,18 +73,12 @@ func TestClosedSnapshotStoreStopsServing(t *testing.T) {
 
 	store.Close()
 
-	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
-		Name:      "get_symbol",
-		Arguments: map[string]any{"stable_key": "sym-root"},
-	})
-	if err != nil {
-		t.Fatalf("CallTool() transport error = %v", err)
+	code, text, err := lookupSymbol(session, "sym-root")
+	if err == nil {
+		t.Fatalf("get_symbol still answered after Close: %q", text)
 	}
-	if !result.IsError {
-		t.Fatalf("get_symbol still answered after Close: %#v", result.StructuredContent)
-	}
-	if text := contentText(result); !contains(text, tools.CodeIndexNotReady) {
-		t.Fatalf("error content = %q, want %q", text, tools.CodeIndexNotReady)
+	if code != tools.CodeIndexNotReady {
+		t.Fatalf("error code = %q, want %q (%q)", code, tools.CodeIndexNotReady, text)
 	}
 }
 
@@ -127,17 +123,22 @@ func contentText(result *sdkmcp.CallToolResult) string {
 	return ""
 }
 
-func contains(haystack, needle string) bool {
-	return len(haystack) >= len(needle) && (haystack == needle || indexOf(haystack, needle) >= 0)
-}
-
-func indexOf(haystack, needle string) int {
-	for index := 0; index+len(needle) <= len(haystack); index++ {
-		if haystack[index:index+len(needle)] == needle {
-			return index
-		}
+// lookupSymbol calls get_symbol and reports the classified error code when the
+// call fails, so a test can assert on the contract instead of on message text.
+func lookupSymbol(session *sdkmcp.ClientSession, stableKey string) (string, string, error) {
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "get_symbol",
+		Arguments: map[string]any{"stable_key": stableKey},
+	})
+	if err != nil {
+		return "", "", err
 	}
-	return -1
+	text := contentText(result)
+	if result.IsError {
+		code, _, _ := strings.Cut(text, ":")
+		return code, text, errors.New(text)
+	}
+	return "", text, nil
 }
 
 func connectServer(t *testing.T, store *hotsnapshot.SnapshotStore) *sdkmcp.ClientSession {
