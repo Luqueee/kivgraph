@@ -8226,11 +8226,11 @@ del digest— es LUQUE-1205.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe:**
 
@@ -8238,6 +8238,77 @@ del digest— es LUQUE-1205.
 * bloquear escrituras;
 * conservar snapshot válido;
 * informar mediante doctor.
+
+**Implementación:**
+
+«Base corrupta» aquí es el **archivo dañado** —truncado o sobrescrito—, no un
+esquema alterado: eso último ya lo cubrían las pruebas del doctor desde
+LUQUE-0205. Es el estado que deja un fallo de disco, una copia interrumpida o
+un restore parcial.
+
+`internal/storage/ladybug/corruption_native_test.go` cubre los tres primeros
+puntos contra el motor real:
+
+```text
+detectar          DiagnoseStorage devuelve Healthy=false y nombra el check caído,
+                  sin tocar el archivo que inspecciona
+bloquear escrituras LoadCanonical y ApplyCanonicalDelta fallan, y el hash del
+                  archivo no cambia: un rechazo no añade daño al daño
+bloquear lecturas ScanCanonical falla y no devuelve un grafo parcial junto al error
+```
+
+La comprobación de que el hash no cambia es la que importa: un `LoadCanonical`
+contra una ruta que ya no es una base podría haber creado una base nueva encima
+y destruido la evidencia. No lo hace.
+
+`internal/resilience/database_native_test.go` junta los cuatro puntos en una
+sola historia: con un servidor MCP sirviendo y una base canónica real, se
+destruye el archivo y se comprueba que el doctor lo reporta, que el motor
+rechaza cargar, y que **las respuestas servidas no cambian**. El grafo servido
+está en memoria y es derivado; destruir su origen no puede alcanzarlo.
+
+**Control:** `TestHealthyDatabasePassesTheSameChecks` — las mismas aserciones
+pasan sobre una base sana, así que no fallan por construcción.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1205.
+
+**Verificación:**
+
+```text
+go test -tags ladybug ./internal/storage/ladybug -run 'TestDiagnoseStorageDetectsADamaged|TestCorruptDatabase|TestHealthyDatabasePasses' -count=1
+go test -tags ladybug ./internal/resilience -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/resilience -count=1
+make build
+```
+
+El informe por CLI se comprobó ejecutándolo de verdad sobre un archivo
+destruido:
+
+```text
+storage doctor: FAIL
+[PASS] lock: no external database lock detected
+[FAIL] open: failed to open database with status 1
+[SKIP] schema/transactions/counts/integrity: database did not open
+exit=1
+```
+
+Los checks posteriores se declaran `SKIP`, no `PASS`: una base que no abre no ha
+superado nada.
+
+**Limitaciones:** el daño se inyecta a nivel de archivo completo. Una corrupción
+de una sola página que el motor abriera sin quejarse produciría un grafo que
+parece válido, y frente a eso la defensa no es el doctor de almacenamiento sino
+las invariantes canónicas de `doctor graph`, que se ejecutan por separado.
+«Bloquear escrituras» se cumple porque cada operación abre la base y falla, no
+porque exista un cerrojo global que marque la base como no escribible: no hay
+un modo degradado explícito, y si se quisiera uno sería una decisión nueva.
+
+**Siguiente tarea:** LUQUE-1206.
 
 ---
 
