@@ -7982,13 +7982,75 @@ que ya está cubierto.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **El grafo activo no debe cambiar.**
+
+**Implementación:**
+
+«Grafo activo» son dos cosas distintas y las dos se comprueban.
+
+En disco, `internal/rebuild/failure_test.go` inyecta un fallo en cada punto de
+la tubería y exige el mismo invariante en todos:
+
+```text
+facts · bulk load · counts · integrity · snapshot scan · golden probes
+```
+
+Tras cada fallo: `ErrRebuildFailed`, la etapa registrada como fallida, sin
+publicación, `CURRENT` intacto, y el candidato inexistente en disco. La
+comparación no es del puntero: `captureGeneration` renderiza `CURRENT` **y los
+bytes de todos los archivos de la generación activa**, de modo que una escritura
+parcial dentro de la generación viva también se detectaría.
+
+Se añaden dos casos que las pruebas por etapa no cubrían: cancelación del
+contexto a mitad de ejecución —con la base candidata ya escrita— y cinco fallos
+consecutivos, que es lo que un operador sufre de verdad.
+
+En memoria, `internal/resilience/rebuild_test.go` mira lo mismo desde el
+cliente: con un snapshot publicado y consultas vivas contra el servidor MCP
+real, un rebuild que falla no altera la respuesta de `get_symbol`. Que
+`rebuild.Run` y `SnapshotStore.Publish` sean pasos separados es justo lo que
+hace imposible que una ejecución que no llegó a publicar toque el store.
+
+**Controles:** cada aserción de «no cambió» tiene su contraprueba, porque una
+comparación que nunca observa un cambio no demuestra nada.
+
+```text
+TestSuccessfulRebuildDoesChangeTheActiveGeneration   captureGeneration sí ve una publicación
+TestServedGraphChangesWhenANewerSnapshotIsPublished  querySymbol sí ve una generación nueva
+TestSnapshotStoreRejectsAStaleCandidate              publicar hacia atrás se rechaza y no cambia nada
+```
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1202.
+
+**Verificación:**
+
+```text
+go test ./internal/rebuild -count=1
+go test ./internal/resilience -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/rebuild ./internal/resilience -count=1
+make build
+```
+
+**Limitaciones:** los ganchos `Load`, `Counts`, `Probes`, `Integrity` y `Scan`
+son los falsos que ya usaba `internal/rebuild`, así que se ejercita la
+orquestación, no LadybugDB: un fallo que sólo ocurra dentro del motor nativo
+—por ejemplo una transacción a medias— no lo cubre esta tarea, sino LUQUE-1205.
+La cancelación se inyecta después del bulk load; no hay forma determinista de
+cancelar dentro de una etapa nativa sin cgo. El store en memoria se publica a
+mano porque `serve` aún no cablea el ciclo de indexación.
+
+**Siguiente tarea:** LUQUE-1203.
 
 ---
 

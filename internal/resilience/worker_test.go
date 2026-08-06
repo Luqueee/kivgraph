@@ -159,6 +159,10 @@ func connectServer(t *testing.T, store *hotsnapshot.SnapshotStore) *sdkmcp.Clien
 	return clientSession
 }
 
+// publishedSnapshotTime fixes the build time of every fixture snapshot, so a
+// comparison across calls cannot drift on wall clock alone.
+var publishedSnapshotTime = time.Unix(1_700_000_000, 0).UTC()
+
 func publishedSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
@@ -176,7 +180,7 @@ func publishedSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 			Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse,
 			EvidenceKind: "types", EvidenceSourceFileKey: "file-a", EvidenceTargetFileKey: "file-a",
 		}},
-	}, 91, time.Unix(1_700_000_000, 0).UTC(), 1)
+	}, 91, publishedSnapshotTime, 1)
 	if err != nil {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
