@@ -541,6 +541,19 @@ func writeSnapshotDigest(candidatePath string, tables map[string]int64) (string,
 	return digest, nil
 }
 
+// RefreshSnapshotDigest recomputes snapshot.sha256 for an already published
+// generation whose graph was mutated in place by an incremental delta.
+//
+// Rollback revalidates a destination by recomputing this digest from the
+// live row counts and comparing it against the recorded file, so a
+// generation mutated after publication must have its digest rewritten or it
+// can never be rolled back to again. Both paths share writeSnapshotDigest,
+// so an in-place update and a fresh publish can never disagree about what a
+// generation's digest means.
+func RefreshSnapshotDigest(generationPath string, tables map[string]int64) (string, error) {
+	return writeSnapshotDigest(generationPath, tables)
+}
+
 // canonicalSnapshotDigest hashes the canonical schema version together with
 // the row count of every canonical table, sorted by table name, so two
 // rebuilds of the same fact set always agree byte for byte: no machine path,

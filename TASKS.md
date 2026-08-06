@@ -6480,11 +6480,11 @@ alcance de proyecto.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe:**
 
@@ -6543,6 +6543,83 @@ campo a campo) y los seis invariantes pasan.
 **Lo que esta tarea sí tiene que decidir:** cuándo se aplica un delta sobre la
 generación activa y cuándo conviene republicar entera, y cómo encaja eso con
 `graph.active`/`graph.next`/`graph.backup` de LUQUE-0905.
+
+**Decisión tomada — cuándo delta y cuándo republicar:**
+
+`indexer.Decide` elige una de tres rutas y explica por qué:
+
+```text
+NOOP       el delta no cambia nada
+DELTA      se aplica transaccionalmente sobre graph.active
+REPUBLISH  rebuild.Run construye graph.next y hace atomic swap
+```
+
+* `REBUILD_REGISTRY` o `REINDEX_PROJECT` en cualquier plan **fuerzan**
+  republicación: ambas cambian la identidad o la resolución de los paquetes,
+  y ninguna retirada por archivo las retira.
+* Sin generación activa no hay nada que mutar: republicación.
+* Por encima de `DefaultRepublishRatio` (0,5 de los archivos indexados) el
+  delta deja de ser más barato que una carga limpia, y la republicación
+  además da swap atómico y un `graph.backup` nuevo en vez de mutar la
+  generación desde la que se sirven consultas.
+* En el resto, delta sobre `graph.active`.
+
+**Hallazgo propio de esta tarea:** mutar `graph.active` in situ invalida su
+`snapshot.sha256`. `rebuild.Rollback` revalida el destino recomputando ese
+digest desde los contadores vivos y comparándolo con el archivo grabado, así
+que una generación mutada sin refrescarlo **nunca podría volver a ser
+destino de rollback**. La ruta delta reescribe el digest con
+`rebuild.RefreshSnapshotDigest`, que reutiliza `writeSnapshotDigest`: la
+mutación in situ y una publicación nueva no pueden discrepar sobre qué
+significa el digest de una generación.
+
+**Entregables:**
+
+```text
+internal/indexer/delta.go
+internal/indexer/delta_test.go
+internal/indexer/delta_native_test.go
+```
+
+**Archivos modificados:**
+
+```text
+internal/rebuild/rebuild.go
+```
+
+Se añadió `RefreshSnapshotDigest`, único punto de entrada exportado al
+cálculo que ya usaban publicación y rollback.
+
+**Estado:** `PASS`.
+
+**Verificado sobre almacenamiento real**, no sobre hooks: con LadybugDB
+nativo se carga el estado previo, se ejecuta `Update`, y el grafo mutado se
+compara campo a campo (`ScanCanonical`) con una carga desde cero del estado
+siguiente. Coincide, los invariantes pasan, y el caso de eliminación de
+archivo no deja símbolos ni aristas fantasma. Los tests sin cgo cubren la
+decisión de ruta, la provenance propagada al applier, el refresco del digest,
+el no-op y los fallos.
+
+**Comprobación por mutación:** quitar el refresco del digest rompe 1 prueba;
+vaciar la lista de acciones que fuerzan republicación rompe 1; ignorar
+`Report.Passed == false` rompe 1.
+
+**Verificación:** `go test ./...`, `go vet ./...`,
+`go test -race ./internal/indexer ./internal/rebuild`,
+`go test ./internal/indexer -count=10`, `make build` y `make test-ladybug`
+pasan.
+
+**Benchmarks:** no aplica todavía. El coste de un delta frente a una carga
+completa ya está medido en `benchmarks/ladybug-delta-profile`; medir la
+orquestación aislada no añadiría información hasta que el watcher alimente el
+pipeline completo.
+
+**Limitaciones:** el ratio de republicación es un umbral fijo, no una
+estimación de coste medida; `Update` recibe los dos estados indexados ya
+calculados —no invoca a los motores de lenguaje— y la reconstrucción del
+HotSnapshot tras un delta pertenece a LUQUE-1008.
+
+**Siguiente tarea:** LUQUE-1008.
 
 ---
 
