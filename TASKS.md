@@ -6346,13 +6346,11 @@ posteriores.
 
 **Dependencias:** LUQUE-1002 y LUQUE-1003.
 
-**Checklist:**
-
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Distinguir:**
 
@@ -6365,19 +6363,62 @@ manifest
 project config
 ```
 
+**Contrato implementado:**
+
+* `ClassifyTypeScriptChange` consume inventarios Tree-sitter y rangos ya
+  observados; nunca convierte candidatos sintácticos en símbolos o aristas.
+* `BODY_ONLY` solo reindexa el archivo; cambios de firma, exportación o
+  declaraciones invalidan consumidores y resuelven referencias afectadas.
+* Imports invalidan la resolución de módulos; manifests y configuración de
+  proyecto reconstruyen el registro, invalidan la resolución y fuerzan una
+  reindexación de proyecto.
+* `package.json`, lockfiles comunes y `tsconfig`/`jsconfig` se reconocen por
+  ruta, y los manifests o configuraciones no convencionales pueden marcarse
+  explícitamente.
+* Inventarios con errores sintácticos y clasificaciones no acotables caen en
+  `UNKNOWN` y `REINDEX_PROJECT`, nunca en una falsa precisión.
+
+**Entregables:**
+
+```text
+internal/indexer/invalidation.go
+internal/indexer/typescript.go
+internal/indexer/invalidation_test.go
+```
+
+**Estado:** `PASS`.
+
+**Resultados:** la clasificación conserva repository/package/file/path y
+rangos ordenados, deduplica acciones y separa reindexación local, invalidación
+de consumidores, resolución de referencias y reconstrucción de registry. La
+implementación no aplica todavía cambios al grafo; esa orquestación pertenece a
+LUQUE-1007.
+
+**Verificación:** `go test ./internal/indexer -count=10`, `go test ./...`,
+`go vet ./...`, `go test -race ./internal/indexer` y `make build` pasan.
+
+**Benchmarks:** no aplica; el clasificador es una decisión acotada por
+inventarios y metadatos. El coste extremo a extremo queda para la integración
+incremental.
+
+**Limitaciones:** la clasificación de TypeScript depende de que el worker o
+el parser entregue los inventarios anterior y actual; no resuelve referencias
+ni escribe hechos por sí misma. Una configuración de proyecto usa el alcance
+amplio de proyecto para evitar snapshots parciales.
+
+**Siguiente tarea:** LUQUE-1006.
+
 ---
 
 ## LUQUE-1006 — Implementar invalidación Go
 
 **Dependencias:** LUQUE-1002 y LUQUE-1003.
 
-**Checklist:**
-
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Distinguir:**
 
@@ -6389,6 +6430,47 @@ go.mod
 replace
 package deletion
 ```
+
+**Contrato implementado:**
+
+* `ClassifyGoChange` consume señales explícitas del loader y aplica
+  precedencia conservadora: eliminación de paquete, replace, go.mod,
+  eliminación de archivo, imports, firma y cuerpo.
+* `ClassifyGoSourceChange` compara imports y fingerprints de declaraciones con
+  `go/parser` y `go/format`; un parseo inválido devuelve error y solicita
+  `REINDEX_PROJECT`.
+* `ClassifyGoModChange` usa `golang.org/x/mod/modfile` y distingue cambios de
+  `replace` de cambios ordinarios del módulo.
+* Las clasificaciones no crean símbolos, providers ni aristas; solo describen
+  el alcance que consumirá la etapa incremental.
+
+**Entregables:**
+
+```text
+internal/indexer/invalidation.go
+internal/indexer/go.go
+internal/indexer/invalidation_test.go
+```
+
+**Estado:** `PASS`.
+
+**Resultados:** cuerpo reindexa el archivo; firma reindexa el provider e
+invalida consumidores; imports reindexan el package e invalidan resolución;
+go.mod/replace reconstruyen registry y proyecto; eliminaciones retiran archivo
+o paquete e invalidan referencias entrantes.
+
+**Verificación:** `go test ./internal/indexer -count=10`, `go test ./...`,
+`go vet ./...`, `go test -race ./internal/indexer` y `make build` pasan.
+
+**Benchmarks:** no aplica por la misma razón que LUQUE-1005; el benchmark debe
+medir el pipeline que carga, normaliza y publica el delta.
+
+**Limitaciones:** el comparador de fuente recibe bytes de una transición y
+requiere que el loader sea la autoridad para errores de tipos y resolución de
+paquetes. Un fallo sintáctico no se degrada a `BODY_ONLY`; se propaga y usa
+alcance de proyecto.
+
+**Siguiente tarea:** LUQUE-1007.
 
 ---
 
