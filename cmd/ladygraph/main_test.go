@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
@@ -31,6 +32,44 @@ func TestRunVersion(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunServeStopsMCPOnContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	started := make(chan struct{})
+	stopped := make(chan struct{})
+	result := make(chan error, 1)
+	go func() {
+		result <- runServe(ctx, func(ctx context.Context) error {
+			close(started)
+			<-ctx.Done()
+			close(stopped)
+			return ctx.Err()
+		})
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("MCP runner did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("runServe() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runServe() did not return after cancellation")
+	}
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("runServe() returned before the MCP runner stopped")
 	}
 }
 

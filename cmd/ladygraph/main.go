@@ -3,13 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
+	"github.com/Luqueee/ladygraph/internal/app"
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
@@ -20,9 +24,13 @@ import (
 	"github.com/Luqueee/ladygraph/internal/version"
 )
 
+type mcpRunner func(context.Context) error
+
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "serve" {
-		if err := mcpserver.Run(context.Background()); err != nil {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := runServe(ctx, mcpserver.Run); err != nil {
 			fmt.Fprintf(os.Stderr, "serve: %v\n", err)
 			os.Exit(1)
 		}
@@ -30,6 +38,29 @@ func main() {
 	}
 
 	os.Exit(run(os.Args, os.Stdout, os.Stderr))
+}
+
+// runServe owns the MCP loop through the application lifecycle. MCP's stdio
+// session is closed by cancelling the shared context; future long-lived
+// components register their watcher, worker, connections, and database with
+// the same lifecycle before this function waits.
+func runServe(ctx context.Context, runMCP mcpRunner) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	lifecycle := app.NewLifecycle(ctx)
+	if err := lifecycle.Go("mcp", app.RunFunc(runMCP)); err != nil {
+		return err
+	}
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- lifecycle.Wait() }()
+	select {
+	case runErr := <-runDone:
+		return errors.Join(runErr, lifecycle.Shutdown(context.Background()))
+	case <-ctx.Done():
+		return lifecycle.Shutdown(context.Background())
+	}
 }
 
 type storageDiagnoser func(context.Context, string) (ladybug.StorageDiagnosis, error)

@@ -8400,11 +8400,11 @@ tarea y necesitaría un cerrojo de raíz, que sería una decisión nueva.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe cerrar:**
 
@@ -8413,6 +8413,107 @@ tarea y necesitaría un cerrojo de raíz, que sería una decisión nueva.
 * worker;
 * conexiones;
 * LadybugDB.
+
+**Implementación:**
+
+Se añadió `internal/app`, el coordinador de ciclo de vida que faltaba entre
+los componentes ya existentes y el proceso `serve`:
+
+```text
+internal/app/lifecycle.go
+internal/app/shutdown.go
+```
+
+`Lifecycle` comparte un `context.Context` cancelable con todos los bucles de
+larga duración. Los recursos se registran en **orden explícito de apagado**,
+no en orden inverso de construcción:
+
+```text
+MCP ingress / connections
+→ HotSnapshot
+→ watcher
+→ worker
+→ conexiones persistentes
+→ LadybugDB
+```
+
+El primer paso de `Shutdown` cancela el contexto. Así `sdkmcp.Server.Run`
+cierra su sesión STDIO y el `watcher.Run` abandona su select. Después se
+ejecutan todos los `Close`, aunque uno falle; al final se espera a que terminen
+los bucles. Los errores se conservan con el nombre del componente mediante
+`errors.Join`, por lo que un fallo al cerrar el watcher no oculta el cierre del
+worker o la base.
+
+El cierre es idempotente y seguro para llamadas concurrentes. El segundo
+llamador espera la misma operación y puede poner su propio deadline. Después de
+`Wait` o `Shutdown` no se pueden registrar bucles ni recursos nuevos: esto
+evita extender un `WaitGroup` mientras se está drenando.
+
+`cmd/ladygraph` usa `signal.NotifyContext` para `SIGINT` y `SIGTERM` y ejecuta
+`serve` dentro del coordinador. El smoke contra el binario real terminó con
+`SIGTERM` y código **0**, sin dejar el proceso vivo.
+
+**Pruebas:**
+
+* `internal/app/lifecycle_test.go` comprueba cancelación del runner, orden
+  watcher → worker → conexión → LadybugDB, cierre idempotente, continuación
+  después de un error, respeto de deadlines y que los recursos se cierran
+  antes de drenar un runner que depende de ellos.
+* `internal/app/shutdown_native_test.go` carga una base canónica real, ejecuta
+  `Health` —que abre y cierra una conexión nativa—, cierra el `Database` a
+  través del coordinador y lo reabre; el lock queda liberado.
+* `internal/resilience/shutdown_test.go` usa sesiones MCP reales en transportes
+  en memoria, `watcher.New`/`Run`, un `tsworker.Supervisor` real y un
+  `SnapshotStore`. Después del shutdown las sesiones no aceptan llamadas, los
+  canales del watcher están cerrados, el worker está en `CLOSED` y el snapshot
+  deja de servirse.
+* `cmd/ladygraph/main_test.go` verifica que cancelar el contexto de `serve`
+  detiene el runner MCP y no devuelve error de apagado esperado.
+
+**Comprobación por mutación:** invertir temporalmente el recorrido de recursos
+en `Shutdown` hace fallar dos tests con el orden observado
+`ladybug,worker,connection,watcher`; restaurar el orden explícito devuelve la
+suite a verde.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1207.
+
+**Verificación:**
+
+```text
+go test ./... -count=1
+make test-ladybug
+go test -tags ladybug ./internal/app ./internal/resilience -run 'TestLifecycleCloses' -count=1 -v
+go vet ./...
+go test -race ./internal/app ./internal/resilience ./cmd/ladygraph -count=1
+make build
+```
+
+Resultados observados:
+
+```text
+19 paquetes Go sin tag: PASS; 3 sin tests
+24 paquetes con LadybugDB: PASS
+go vet: limpio
+3 paquetes con race: PASS
+make build: PASS
+smoke SIGTERM al binario serve: exit 0
+```
+
+**Limitaciones:** el comando `serve` todavía sólo construye el servidor MCP
+con el `SnapshotStore` nulo; el cableado del watcher, supervisor y base a ese
+proceso pertenece a la integración del pipeline de indexación. El coordinador
+ya ofrece el contrato para registrarlos y la prueba de costura ejerce los
+cuatro componentes reales donde existen. `generation.Store` no mantiene
+descriptores ni conexiones persistentes: sus operaciones abren recursos
+locales con `defer`, así que no necesita `Close`; sólo debe dejar de recibir
+operaciones al cancelar el pipeline. En plataformas sin señal POSIX, el
+coordinador sigue funcionando mediante cancelación de contexto, pero el
+adaptador de señales del CLI es específico de Unix.
+
+**Siguiente tarea:** LUQUE-1208.
+
 
 ---
 
