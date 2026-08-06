@@ -8494,7 +8494,7 @@ Resultados observados:
 
 ```text
 19 paquetes Go sin tag: PASS; 3 sin tests
-24 paquetes con LadybugDB: PASS
+25 paquetes con LadybugDB: PASS; 4 sin tests
 go vet: limpio
 3 paquetes con race: PASS
 make build: PASS
