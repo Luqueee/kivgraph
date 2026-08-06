@@ -7254,17 +7254,58 @@ snapshot activo.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Entrada principal:**
+**Implementación:**
+
+Se añadió `internal/mcp/tools/get_symbol.go`, una consulta read-only que
+resuelve `stable_key` mediante el índice exacto del `HotSnapshot`. La respuesta
+usa el envelope estándar con un único `SymbolDetails`, incluyendo identidad
+canónica, repositorio, paquete, ruta de archivo, nombre, kind, signature y
+rango de líneas.
+
+`GraphSnapshot` expone getters inmutables para `Package` y `File`, permitiendo
+reconstruir la cadena de contención sin consultar LadybugDB ni el filesystem.
+La tool se registra en las variantes de servidor con y sin `SnapshotStore`.
+
+Errores clasificados:
 
 ```text
-stable_key
+INVALID_ARGUMENT
+SYMBOL_NOT_FOUND
+INDEX_NOT_READY
+SNAPSHOT_UNAVAILABLE
 ```
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1105.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/mcp/...
+make build
+```
+
+Las pruebas cubren lookup encontrado, detalle de identidad y contención,
+ausencia de stable key, entradas inválidas, snapshot no publicado y registro
+read-only. El smoke STDIO real confirmó el handshake MCP y la publicación de
+`get_symbol` en `tools/list`.
+
+**Limitaciones:** el `HotSnapshot` actual conserva para símbolos el rango de
+líneas, no columnas ni offsets; `get_symbol` devuelve únicamente metadatos
+presentes en el snapshot y no inventa esos campos. No se añadió un benchmark
+separado: el lookup usa el índice exacto ya cubierto por el objetivo de
+latencia documentado.
+
+**Siguiente tarea:** LUQUE-1106.
 
 ---
 

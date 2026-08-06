@@ -198,6 +198,22 @@ func (snapshot *GraphSnapshot) Repository(id RepositoryID) (RepositoryRecord, bo
 	return snapshot.repositories[id], true
 }
 
+// Package returns one package by its dense immutable ID.
+func (snapshot *GraphSnapshot) Package(id PackageID) (PackageRecord, bool) {
+	if uint64(id) >= uint64(len(snapshot.packages)) {
+		return PackageRecord{}, false
+	}
+	return snapshot.packages[id], true
+}
+
+// File returns one file by its dense immutable ID.
+func (snapshot *GraphSnapshot) File(id FileID) (FileRecord, bool) {
+	if uint64(id) >= uint64(len(snapshot.files)) {
+		return FileRecord{}, false
+	}
+	return snapshot.files[id], true
+}
+
 // Symbol returns the record at one dense ID.
 func (snapshot *GraphSnapshot) Symbol(id SymbolID) (SymbolRecord, bool) {
 	if uint64(id) >= uint64(len(snapshot.symbols)) {

@@ -43,7 +43,9 @@ func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore
 	tools.RegisterGraphStatusWithObserver(server, observer)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore)
+	tools.RegisterGetSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	return server
+
 }
 
 // Run serves one MCP session over the process stdin/stdout transport.
