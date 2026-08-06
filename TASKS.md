@@ -6197,6 +6197,56 @@ package deletion
 * actualizar unresolved;
 * ejecutar una transacción.
 
+**Los cinco puntos ya están implementados y probados como primitivos**; esta
+tarea los orquesta desde la invalidación de LUQUE-1005/1006, no los escribe:
+
+```text
+facts.Diff(previous, next) (Delta, error)      el cambio, en unidades de archivo
+facts.Delta{ReplacedFiles, RemovedFiles, Upsert}
+ladybug.ApplyCanonicalDelta(ctx, path, delta, options)   transaccional
+```
+
+**Por qué existían antes de tiempo:** el escritor que había (`ladybug.Writer`,
+`Delta`, `Apply`) sirve al esquema experimental `001-synthetic`, no al
+canónico: `validateDelta` acepta dos de las dieciocho clases de arista y
+`addSymbolsQuery` escribe un `Symbol` de nueve columnas cuando el canónico
+tiene dieciséis. No es un ajuste, es otra ruta. Se dejó intacto porque sus
+únicos consumidores son `benchmarks/ladybug-incremental` y
+`benchmarks/ladybug-recovery`, que miden LadybugDB sobre el corpus sintético
+y para los que es la herramienta correcta.
+
+**La unidad es el archivo**, porque es la unidad a la que reacciona un índice
+incremental y la única con la que se puede garantizar «0 ghost edges»: todo lo
+que un archivo afirmaba se retira y se vuelve a afirmar.
+
+**Dos hallazgos del motor, ya resueltos, que habrían costado caro aquí:**
+
+* `UNWIND`+`MATCH`+`MERGE` **omite en silencio** las filas cuyo extremo no
+  existe, sin error. Por eso la existencia de los dos extremos se verifica
+  antes de fusionar, y no es opcional.
+* El `COPY` de la carga completa almacena un `evidence_key` vacío como `NULL`,
+  mientras el camino `MERGE` escribe `''`. `NULL <> ''`, así que reafirmar una
+  arista existente la habría duplicado. Se normaliza antes de fusionar.
+
+**Y un fallo de modelo que sólo apareció ejecutando un cambio real:** una
+arista `PACKAGE_DEPENDS_ON` une dos paquetes, que un delta por archivo nunca
+retira, pero la afirma el archivo donde se observó el import y lleva su
+evidencia. Retirar sólo las aristas que tocan un nodo retirado la dejaba viva
+apuntando a evidencia inexistente. La regla es la misma que para todo lo
+demás —una arista la afirma un archivo— alcanzada a través de la evidencia en
+vez de a través de un extremo, y está implementada en los dos lados:
+`facts.edgeAnchor` y `deleteCanonicalEdgesEvidencedBy`.
+
+**Verificado sobre código real**, no sobre fixtures: indexar
+`testdata/go/type-relations`, publicarlo, editar un archivo fuente, indexar de
+nuevo, `Diff` y `ApplyCanonicalDelta`. El grafo resultante es **idéntico** al
+que produce una carga desde cero del estado final (`ScanCanonical` comparado
+campo a campo) y los seis invariantes pasan.
+
+**Lo que esta tarea sí tiene que decidir:** cuándo se aplica un delta sobre la
+generación activa y cuándo conviene republicar entera, y cómo encaja eso con
+`graph.active`/`graph.next`/`graph.backup` de LUQUE-0905.
+
 ---
 
 ## LUQUE-1008 — Implementar reconstrucción de snapshot tras delta
