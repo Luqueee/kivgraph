@@ -54,6 +54,27 @@ func TestExactSearchesAndPagination(t *testing.T) {
 	}
 }
 
+func TestPrefixSearchIsNameOnlyAndStable(t *testing.T) {
+	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := snapshot.SearchSymbolsByNamePrefix("sha", 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || len(page.IDs) != 2 || page.IDs[0] != 0 || page.IDs[1] != 1 || page.HasMore {
+		t.Fatalf("prefix page = %#v", page)
+	}
+	page, err = snapshot.SearchSymbolsByNamePrefix("A.", 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 0 || len(page.IDs) != 0 {
+		t.Fatalf("qualified-name prefix unexpectedly matched = %#v", page)
+	}
+}
+
 func TestExactSearchRejectsInvalidPagination(t *testing.T) {
 	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
 	if err != nil {

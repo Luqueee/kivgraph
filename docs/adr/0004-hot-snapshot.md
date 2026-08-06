@@ -101,9 +101,12 @@ lectores ya conservaron. La construcción fallida nunca alcanza el puntero activ
 Las tools consultan los mapas de stable key, nombre, nombre cualificado y
 repo/path sin recorrer tablas ni aplicar coincidencias nominales. La tool
 `list_repositories` recorre la tabla de repositorios ya ordenada por stable key
-y devuelve sus metadatos de display desde el snapshot. Los resultados de
-nombre se devuelven en páginas acotadas (`limit` máximo 500), copiadas para
-que el slice del lector no exponga almacenamiento del snapshot.
+y devuelve sus metadatos de display desde el snapshot. `find_symbol` usa los
+índices exactos para `exact` y `qualified_exact`; `prefix` recorre únicamente
+los nombres de símbolo del snapshot, siempre en orden de stable key, y no hace
+fuzzy matching. Los resultados paginables se devuelven en páginas acotadas
+(`limit` máximo 500), copiadas para que el slice del lector no exponga
+almacenamiento del snapshot.
 
 ### Recorridos acotados
 

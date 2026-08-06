@@ -1,6 +1,9 @@
 package hotsnapshot
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 const MaxExactResults = 500
 
@@ -27,6 +30,25 @@ func (snapshot *GraphSnapshot) SearchSymbolsByName(name InternedString, offset, 
 // SearchSymbolsByQName returns one exact interned-qualified-name page.
 func (snapshot *GraphSnapshot) SearchSymbolsByQName(name InternedString, offset, limit int) (SymbolPage, error) {
 	return exactSymbolPage(snapshot.symbolsByQName[name], offset, limit)
+}
+
+// SearchSymbolsByNamePrefix returns symbols whose unqualified name starts
+// with prefix. Results retain the snapshot's stable-key order.
+func (snapshot *GraphSnapshot) SearchSymbolsByNamePrefix(prefix string, offset, limit int) (SymbolPage, error) {
+	if offset < 0 {
+		return SymbolPage{}, ErrInvalidExactOffset
+	}
+	if limit < 1 || limit > MaxExactResults {
+		return SymbolPage{}, ErrInvalidExactLimit
+	}
+	ids := make([]SymbolID, 0)
+	for index, symbol := range snapshot.symbols {
+		name, found := snapshot.strings.String(symbol.Name)
+		if found && strings.HasPrefix(name, prefix) {
+			ids = append(ids, SymbolID(index))
+		}
+	}
+	return exactSymbolPage(ids, offset, limit)
 }
 
 func exactSymbolPage(ids []SymbolID, offset, limit int) (SymbolPage, error) {

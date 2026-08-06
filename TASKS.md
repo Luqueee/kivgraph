@@ -7194,21 +7194,57 @@ filesystem durante la petición.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Modos iniciales:**
+**Implementación:**
+
+Se añadió `internal/mcp/tools/find_symbol.go`, que registra la tool
+read-only sobre el `HotSnapshot` publicado. La entrada usa `name`, `mode`,
+`limit` y `cursor`; el modo vacío equivale a `exact`. Los modos soportados son
+`exact`, `qualified_exact` y `prefix`; cualquier intento de fuzzy matching o
+modo desconocido devuelve `INVALID_ARGUMENT`.
+
+`exact` y `qualified_exact` consultan los índices internados del snapshot.
+`prefix` recorre solo los nombres de símbolo y conserva el orden ascendente de
+stable key. Los resultados exponen stable key, identidad canónica, nombre,
+nombre cualificado, kind y signature. La respuesta usa el envelope estándar,
+paginación acotada a 500 resultados y cursores ligados al snapshot, consulta y
+ordenación. Un snapshot ausente devuelve `INDEX_NOT_READY`; una inconsistencia
+interna devuelve `SNAPSHOT_UNAVAILABLE`.
+
+`internal/hotsnapshot/search.go` incorpora la página de prefijo y
+`internal/mcp/server.go` registra `find_symbol` en las variantes de servidor
+con y sin observador.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1104.
+
+**Verificación:**
 
 ```text
-exact
-qualified_exact
-prefix
+go test ./...
+go vet ./...
+go test -race ./internal/mcp/...
+make build
 ```
 
-No fuzzy en el MVP.
+Las pruebas cubren exact, qualified_exact, prefix, coincidencias exactas
+ambiguas, ausencia de resultados, paginación con cursor, expiración de cursor,
+modos no soportados, nombres inválidos, límites inválidos y
+`INDEX_NOT_READY`. Todos los comandos pasan.
+
+**Limitaciones:** `prefix` usa un recorrido lineal de los nombres del snapshot;
+no se añade un índice de prefijos hasta que un benchmark del corpus real lo
+justifique. El entrypoint CLI sigue sin cargar y publicar un `SnapshotStore`,
+por lo que la tool solo devuelve datos cuando recibe explícitamente un
+snapshot activo.
+
+**Siguiente tarea:** LUQUE-1105.
 
 ---
 
