@@ -9075,13 +9075,35 @@ conclusión.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe incluir comparación antes/después.**
+
+**Estado:** `PASS`.
+
+**Ejecución:** se repitió tres veces el benchmark de 32 clientes sobre el
+commit limpio `cf8fc65`, con 10.000 llamadas, 100 warm-up por operación y
+cliente, 100.000 símbolos, 1.000.000 de aristas y seed 42. Todos los runs
+terminaron sin errores y con `slo_passed: true`.
+
+**Comparación:** frente al baseline publicado, la media aritmética de las tres
+repeticiones obtuvo `Bytes/op` `128502.3 → 110197.4` (`-14.2%`) y
+`Allocs/op` `2018.944 → 2018.572`. La variación de latencia queda registrada
+sin atribución causal; el tercer run tuvo un RSS de `688136192` bytes frente a
+aproximadamente `502 MB` en los otros dos. El informe completo está en
+`benchmarks/mcp-client-32/report.md`.
+
+**Verificación adicional:** `go test ./... -count=1` y `go vet ./...` pasan.
+
+**Limitaciones:** el baseline es una sola ejecución histórica y el benchmark
+usa transporte MCP en memoria; no mide STDIO, sockets ni red. La siguiente
+tarea debe verificar regresiones de precisión con la suite semántica completa.
+
+**Siguiente tarea desbloqueada:** LUQUE-1309.
 
 ---
 

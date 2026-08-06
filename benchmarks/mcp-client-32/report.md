@@ -79,8 +79,45 @@ wrote the raw result to `/tmp/luque-mcp-client-32-after-clean/results.json`.
 | RSS bytes | 500662272 | 502259712 | +0.3% |
 | Errors | 0 | 0 | 0 |
 
-The microbenchmark demonstrates the allocation reduction directly. The
-32-client result is one comparative run and is not a release gate; repeat it
-for LUQUE-1308 before attributing latency or throughput movement to this
-change. The pool retains scratch capacity for concurrent readers, so RSS did
-not decrease.
+The microbenchmark demonstrates the allocation reduction directly. LUQUE-1308
+repeats the 32-client workload below before treating latency or throughput
+movement as a conclusion. The pool retains scratch capacity for concurrent
+readers, so RSS can vary independently of the allocation reduction.
+
+## LUQUE-1308 repeated benchmark
+
+Command for each run: `go run ./benchmarks/mcp-client --clients 32 --calls
+10000 --warmup 100 --symbols 100000 --edges 1000000 --seed 42 --output
+/tmp/luque-mcp-client-32-repeat-N`
+
+All three runs used the clean commit `cf8fc65`, the same Linux/amd64 host,
+corpus, workload distribution, and seed. Every run reported zero errors and
+`slo_passed: true`.
+
+| Run | p50 ms | p95 ms | p99 ms | Throughput/s | Allocs/op | Bytes/op | RSS bytes |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.569 | 3.783 | 9.033 | 24513.7 | 2018.552 | 109775.2 | 502386688 |
+| 2 | 0.695 | 3.581 | 8.791 | 26236.0 | 2018.554 | 110034.2 | 501907456 |
+| 3 | 0.676 | 3.857 | 9.433 | 24520.5 | 2018.610 | 110783.0 | 688136192 |
+| Arithmetic mean | 0.646 | 3.740 | 9.086 | 25090.1 | 2018.572 | 110197.4 | 564143445 |
+
+The third run observed an RSS peak of `688136192` bytes while the other two
+were approximately `502 MB`; the median repeated RSS is `502386688` bytes.
+This is recorded as environmental variance, not as a memory-growth finding:
+all runs reported `memory_growth_detected: false`.
+
+### Baseline versus repeated mean
+
+The baseline is the single published pre-optimization run in
+`benchmarks/mcp-client-32/results.json`; the after column is the arithmetic
+mean of the three post-optimization runs.
+
+| Metric | Baseline | Repeated mean | Delta |
+| --- | ---: | ---: | ---: |
+| p50 round-trip ms | 0.601 | 0.646 | +7.6% |
+| p95 round-trip ms | 3.781 | 3.740 | -1.1% |
+| p99 round-trip ms | 9.775 | 9.086 | -7.1% |
+| Throughput/s | 25351.8 | 25090.1 | -1.0% |
+| Allocs/op | 2018.944 | 2018.572 | -0.02% |
+| Bytes/op | 128502.3 | 110197.4 | -14.2% |
+| RSS bytes (median after) | 500662272 | 502386688 | +0.3% |
