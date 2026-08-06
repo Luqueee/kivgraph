@@ -6702,11 +6702,11 @@ pipeline existente; esta tarea cubre la reconstrucción posterior a un delta.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Casos:**
 
@@ -6715,6 +6715,55 @@ pipeline existente; esta tarea cubre la reconstrucción posterior a un delta.
 * export;
 * consumidor;
 * paquete.
+
+**Implementación de pruebas:**
+
+```text
+internal/indexer/additions_native_test.go
+```
+
+El test ejecuta cada alta contra LadybugDB real y compara el grafo mutado,
+campo a campo (`ScanCanonical`), con una carga completa desde cero del estado
+siguiente:
+
+* archivo nuevo sin símbolo;
+* símbolo nuevo en un archivo existente;
+* arista `EXPORTS` nueva con evidencia;
+* consumidor nuevo con `CALLS_DIRECT`, evidencia y contención;
+* repositorio, paquete, archivo y símbolo nuevos con sus aristas de
+  contención.
+
+Cada caso exige ruta `DELTA`, al menos un upsert, todos los invariantes
+canónicos en verde y cero diferencias respecto a la carga completa. Los casos
+aislados de `facts.Diff` ya cubrían además la inclusión de contenedores para
+un archivo en un paquete existente y para un paquete/repositorio nuevos.
+
+**Estado:** `PASS`.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/facts ./internal/indexer
+make build
+make test-ladybug
+```
+
+Todos pasan. El smoke test nativo de altas ejecuta los cinco casos definidos
+por la tarea sobre el motor real.
+
+**Benchmarks:** no aplica. Son pruebas de corrección de altas; el coste de
+delta frente a carga completa ya está medido en
+`benchmarks/ladybug-delta-profile`.
+
+**Limitaciones:** el caso consumidor usa un consumidor nuevo con una llamada
+exacta y el caso export usa una arista `EXPORTS` con evidencia explícita. La
+resolución desde los motores Go/TypeScript y la clasificación de cambios
+pertenecen a las tareas de los respectivos normalizadores; aquí se prueba el
+contrato canónico que recibe LadybugDB.
+
+**Siguiente tarea:** LUQUE-1010.
 
 ---
 
