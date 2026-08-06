@@ -7368,6 +7368,7 @@ la consulta ya está acotada por el símbolo y el SLO existente cubre hasta 100
 referencias.
 
 **Siguiente tarea:** LUQUE-1107.
+---
 
 ## LUQUE-1107 — Implementar `find_cross_repo_consumers`
 
