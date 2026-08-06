@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/mcpworkload"
 )
 
 func TestPercentileUsesNearestRank(t *testing.T) {
@@ -43,5 +45,52 @@ func TestRunSmallOneClientBenchmark(t *testing.T) {
 	}
 	if len(result.Operations) != 5 {
 		t.Fatalf("operations = %d, want 5", len(result.Operations))
+	}
+}
+
+func TestPartitionRequestsPreservesOrderAcrossClients(t *testing.T) {
+	requests := make([]mcpworkload.Request, 7)
+	for index := range requests {
+		requests[index].Sequence = index
+	}
+	batches := partitionRequests(requests, 4)
+	if len(batches) != 4 {
+		t.Fatalf("batches = %d, want 4", len(batches))
+	}
+	for clientIndex, batch := range batches {
+		for itemIndex, request := range batch {
+			wantSequence := clientIndex + itemIndex*len(batches)
+			if request.Sequence != wantSequence {
+				t.Fatalf("batch %d item %d sequence = %d, want %d", clientIndex, itemIndex, request.Sequence, wantSequence)
+			}
+		}
+	}
+	if got := len(batches[0]) + len(batches[1]) + len(batches[2]) + len(batches[3]); got != len(requests) {
+		t.Fatalf("partitioned requests = %d, want %d", got, len(requests))
+	}
+}
+
+func TestRunSmallFourClientBenchmark(t *testing.T) {
+	result, err := run(context.Background(), config{Calls: 20, Warmup: 1, Clients: 4, Symbols: 100, Edges: 1_000, Seed: 42})
+	if err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+	if result.Clients != 4 || result.Workload.Calls != 20 {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.Metrics.Errors != 0 {
+		t.Fatalf("metrics = %#v", result.Metrics)
+	}
+	for _, check := range result.SLOChecks {
+		if !check.Passed {
+			t.Fatalf("SLO check failed: %#v", check)
+		}
+	}
+	totalCalls := 0
+	for _, operation := range result.Operations {
+		totalCalls += operation.Calls
+	}
+	if totalCalls != 20 {
+		t.Fatalf("operation calls = %d, want 20", totalCalls)
 	}
 }

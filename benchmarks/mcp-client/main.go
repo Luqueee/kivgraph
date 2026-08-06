@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +29,7 @@ import (
 const (
 	defaultCalls           = mcpworkload.DefaultCallCount
 	defaultWarmup          = 100
+	defaultClients         = 1
 	defaultSymbols         = 100_000
 	defaultEdges           = 1_000_000
 	defaultSeed      int64 = mcpworkload.DefaultSeed
@@ -39,6 +41,7 @@ const (
 type config struct {
 	Calls     int
 	Warmup    int
+	Clients   int
 	Symbols   int
 	Edges     int
 	Seed      int64
@@ -51,6 +54,7 @@ type results struct {
 	Commit      string            `json:"commit"`
 	GeneratedAt time.Time         `json:"generated_at"`
 	Environment environment       `json:"environment"`
+	Clients     int               `json:"clients"`
 	Dataset     dataset           `json:"dataset"`
 	Workload    workloadSummary   `json:"workload"`
 	WarmupCalls int               `json:"warmup_calls"`
@@ -122,16 +126,24 @@ type latencyObserver struct {
 	mu        sync.Mutex
 	durations map[mcpworkload.Operation][]int64
 }
+type clientSession struct {
+	server *sdkmcp.ServerSession
+	client *sdkmcp.ClientSession
+}
 
 func main() {
-	cfg := config{}
+	cfg := config{Clients: defaultClients}
 	flag.IntVar(&cfg.Calls, "calls", defaultCalls, "measured MCP calls")
-	flag.IntVar(&cfg.Warmup, "warmup", defaultWarmup, "warm-up calls per operation")
+	flag.IntVar(&cfg.Warmup, "warmup", defaultWarmup, "warm-up calls per operation and client")
+	flag.IntVar(&cfg.Clients, "clients", defaultClients, "concurrent MCP clients")
 	flag.IntVar(&cfg.Symbols, "symbols", defaultSymbols, "synthetic snapshot symbols")
 	flag.IntVar(&cfg.Edges, "edges", defaultEdges, "synthetic snapshot semantic edges")
 	flag.Int64Var(&cfg.Seed, "seed", defaultSeed, "workload seed")
-	flag.StringVar(&cfg.OutputDir, "output", defaultOutputDir, "results output directory")
+	flag.StringVar(&cfg.OutputDir, "output", "", "results output directory")
 	flag.Parse()
+	if cfg.OutputDir == "" {
+		cfg.OutputDir = outputDirForClients(cfg.Clients)
+	}
 
 	result, err := run(context.Background(), cfg)
 	if err != nil {
@@ -142,17 +154,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("one-client MCP benchmark: p50 %.3f ms, p95 %.3f ms, p99 %.3f ms, allocations/op %.1f, errors %d\n",
-		result.Metrics.P50MS, result.Metrics.P95MS, result.Metrics.P99MS,
+	fmt.Printf("MCP benchmark (%d clients): p50 %.3f ms, p95 %.3f ms, p99 %.3f ms, allocations/op %.1f, errors %d\n",
+		result.Clients, result.Metrics.P50MS, result.Metrics.P95MS, result.Metrics.P99MS,
 		result.Metrics.AllocationsPerOperation, result.Metrics.Errors)
 }
 
 func run(ctx context.Context, cfg config) (results, error) {
+	if cfg.Clients == 0 {
+		cfg.Clients = defaultClients
+	}
 	if cfg.Calls < 1 {
 		return results{}, errors.New("calls must be positive")
 	}
 	if cfg.Warmup < 0 {
 		return results{}, errors.New("warmup must not be negative")
+	}
+	if cfg.Clients < 1 {
+		return results{}, errors.New("clients must be positive")
 	}
 	if cfg.Symbols < 20 {
 		return results{}, errors.New("symbols must be at least 20")
@@ -170,18 +188,11 @@ func run(ctx context.Context, cfg config) (results, error) {
 	store := hotsnapshot.NewSnapshotStore(snapshot)
 	observer := &latencyObserver{durations: make(map[mcpworkload.Operation][]int64)}
 	server := ladygraphmcp.NewServerWithObserverAndSnapshotStore(observer.observe, store)
-	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
-	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	sessions, closeSessions, err := newSessions(ctx, server, cfg.Clients)
 	if err != nil {
-		return results{}, fmt.Errorf("server.Connect(): %w", err)
+		return results{}, fmt.Errorf("create %d client sessions: %w", cfg.Clients, err)
 	}
-	defer serverSession.Close()
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "mcp-client-benchmark", Version: "0.1.0"}, nil)
-	clientSession, err := client.Connect(ctx, clientTransport, nil)
-	if err != nil {
-		return results{}, fmt.Errorf("client.Connect(): %w", err)
-	}
-	defer clientSession.Close()
+	defer closeSessions()
 
 	workload, err := mcpworkload.Generate(ctx, mcpworkload.Config{
 		Calls:  cfg.Calls,
@@ -191,7 +202,8 @@ func run(ctx context.Context, cfg config) (results, error) {
 	if err != nil {
 		return results{}, fmt.Errorf("generate workload: %w", err)
 	}
-	if err := warmup(ctx, clientSession, workload.Requests, cfg.Warmup); err != nil {
+	batches := partitionRequests(workload.Requests, cfg.Clients)
+	if err := warmupAll(ctx, sessions, workload.Requests, cfg.Warmup); err != nil {
 		return results{}, fmt.Errorf("warm-up: %w", err)
 	}
 	observer.reset()
@@ -205,18 +217,40 @@ func run(ctx context.Context, cfg config) (results, error) {
 	roundTrip := make(map[mcpworkload.Operation][]int64, len(operationOrder()))
 	allRoundTrip := make([]int64, 0, len(workload.Requests))
 	errorCounts := make(map[mcpworkload.Operation]int, len(operationOrder()))
-	for _, request := range workload.Requests {
-		callStart := time.Now()
-		result, callErr := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
-			Name: string(request.Operation), Arguments: request.Arguments,
-		})
-		elapsed := time.Since(callStart).Nanoseconds()
-		roundTrip[request.Operation] = append(roundTrip[request.Operation], elapsed)
-		allRoundTrip = append(allRoundTrip, elapsed)
-		if callErr != nil || result == nil || result.IsError {
-			errorCounts[request.Operation]++
-		}
+	var measurements sync.WaitGroup
+	var measurementsMu sync.Mutex
+	for clientIndex, session := range sessions {
+		requests := batches[clientIndex]
+		measurements.Add(1)
+		go func(client *sdkmcp.ClientSession, requests []mcpworkload.Request) {
+			defer measurements.Done()
+			localRoundTrip := make(map[mcpworkload.Operation][]int64, len(operationOrder()))
+			localAllRoundTrip := make([]int64, 0, len(requests))
+			localErrors := make(map[mcpworkload.Operation]int, len(operationOrder()))
+			for _, request := range requests {
+				callStart := time.Now()
+				result, callErr := client.CallTool(ctx, &sdkmcp.CallToolParams{
+					Name: string(request.Operation), Arguments: request.Arguments,
+				})
+				elapsed := time.Since(callStart).Nanoseconds()
+				localRoundTrip[request.Operation] = append(localRoundTrip[request.Operation], elapsed)
+				localAllRoundTrip = append(localAllRoundTrip, elapsed)
+				if callErr != nil || result == nil || result.IsError {
+					localErrors[request.Operation]++
+				}
+			}
+			measurementsMu.Lock()
+			for operation, durations := range localRoundTrip {
+				roundTrip[operation] = append(roundTrip[operation], durations...)
+			}
+			allRoundTrip = append(allRoundTrip, localAllRoundTrip...)
+			for operation, count := range localErrors {
+				errorCounts[operation] += count
+			}
+			measurementsMu.Unlock()
+		}(session.client, requests)
 	}
+	measurements.Wait()
 	elapsed := time.Since(start)
 	observerDurations := observer.snapshot()
 
@@ -224,7 +258,7 @@ func run(ctx context.Context, cfg config) (results, error) {
 	runtime.ReadMemStats(&after)
 	growthSamples := []int64{startRSS, readRSSBytes()}
 	for range growthBatches {
-		if err := exercise(ctx, clientSession, workload.Requests, growthCalls); err != nil {
+		if err := exerciseAll(ctx, sessions, batches, growthCalls); err != nil {
 			return results{}, fmt.Errorf("growth probe: %w", err)
 		}
 		runtime.GC()
@@ -290,11 +324,12 @@ func run(ctx context.Context, cfg config) (results, error) {
 		MemoryGrowthDetected:    memoryGrowth,
 	}
 	return results{
-		Benchmark:   "mcp-client-one",
+		Benchmark:   fmt.Sprintf("mcp-client-%d", cfg.Clients),
 		Command:     commandForConfig(cfg),
 		Commit:      gitState(),
 		GeneratedAt: time.Now().UTC(),
 		Environment: environment{OS: runtime.GOOS, Arch: runtime.GOARCH, CPU: cpuModel(), Memory: memoryTotal(), Go: runtime.Version()},
+		Clients:     cfg.Clients,
 		Dataset:     data,
 		Workload:    workloadSummary{SchemaVersion: workload.SchemaVersion, Calls: workload.Calls, Distribution: workload.Distribution},
 		WarmupCalls: cfg.Warmup,
@@ -308,12 +343,19 @@ func run(ctx context.Context, cfg config) (results, error) {
 func commandForConfig(cfg config) string {
 	output := cfg.OutputDir
 	if output == "" {
-		output = defaultOutputDir
+		output = outputDirForClients(cfg.Clients)
 	}
 	return fmt.Sprintf(
-		"go run ./benchmarks/mcp-client --calls %d --warmup %d --symbols %d --edges %d --seed %d --output %s",
-		cfg.Calls, cfg.Warmup, cfg.Symbols, cfg.Edges, cfg.Seed, output,
+		"go run ./benchmarks/mcp-client --clients %d --calls %d --warmup %d --symbols %d --edges %d --seed %d --output %s",
+		cfg.Clients, cfg.Calls, cfg.Warmup, cfg.Symbols, cfg.Edges, cfg.Seed, output,
 	)
+}
+
+func outputDirForClients(clients int) string {
+	if clients <= defaultClients {
+		return defaultOutputDir
+	}
+	return fmt.Sprintf("benchmarks/mcp-client-%d", clients)
 }
 
 func buildCorpus(symbols, edges int) (hotsnapshot.LadybugSnapshotRows, mcpworkload.Corpus, dataset) {
@@ -386,6 +428,42 @@ func operationOrder() []mcpworkload.Operation {
 	}
 }
 
+func partitionRequests(requests []mcpworkload.Request, clients int) [][]mcpworkload.Request {
+	if clients < 1 {
+		return nil
+	}
+	batches := make([][]mcpworkload.Request, clients)
+	for index, request := range requests {
+		clientIndex := index % clients
+		batches[clientIndex] = append(batches[clientIndex], request)
+	}
+	return batches
+}
+
+func warmupAll(ctx context.Context, sessions []clientSession, requests []mcpworkload.Request, callsPerOperation int) error {
+	if callsPerOperation == 0 {
+		return nil
+	}
+	var waitGroup sync.WaitGroup
+	var errorsMu sync.Mutex
+	var firstError error
+	for clientIndex, session := range sessions {
+		waitGroup.Add(1)
+		go func(clientIndex int, client *sdkmcp.ClientSession) {
+			defer waitGroup.Done()
+			if err := warmup(ctx, client, requests, callsPerOperation); err != nil {
+				errorsMu.Lock()
+				if firstError == nil {
+					firstError = fmt.Errorf("client %d: %w", clientIndex, err)
+				}
+				errorsMu.Unlock()
+			}
+		}(clientIndex, session.client)
+	}
+	waitGroup.Wait()
+	return firstError
+}
+
 func warmup(ctx context.Context, client *sdkmcp.ClientSession, requests []mcpworkload.Request, callsPerOperation int) error {
 	if callsPerOperation == 0 {
 		return nil
@@ -403,14 +481,27 @@ func warmup(ctx context.Context, client *sdkmcp.ClientSession, requests []mcpwor
 	return nil
 }
 
-func exercise(ctx context.Context, client *sdkmcp.ClientSession, requests []mcpworkload.Request, count int) error {
-	if len(requests) == 0 {
-		return nil
-	}
-	for index := 0; index < count; index++ {
-		if err := call(ctx, client, requests[index%len(requests)]); err != nil {
-			return err
+func exerciseAll(ctx context.Context, sessions []clientSession, batches [][]mcpworkload.Request, count int) error {
+	var waitGroup sync.WaitGroup
+	var errorCount atomic.Int64
+	for clientIndex, session := range sessions {
+		requests := batches[clientIndex]
+		if len(requests) == 0 || count == 0 {
+			continue
 		}
+		waitGroup.Add(1)
+		go func(client *sdkmcp.ClientSession, requests []mcpworkload.Request) {
+			defer waitGroup.Done()
+			for index := 0; index < count; index++ {
+				if err := call(ctx, client, requests[index%len(requests)]); err != nil {
+					errorCount.Add(1)
+				}
+			}
+		}(session.client, requests)
+	}
+	waitGroup.Wait()
+	if count := errorCount.Load(); count != 0 {
+		return fmt.Errorf("%d calls returned errors", count)
 	}
 	return nil
 }
@@ -424,6 +515,36 @@ func call(ctx context.Context, client *sdkmcp.ClientSession, request mcpworkload
 		return fmt.Errorf("%s returned an error result", request.Operation)
 	}
 	return nil
+}
+
+func newSessions(ctx context.Context, server *sdkmcp.Server, count int) ([]clientSession, func(), error) {
+	if count < 1 {
+		return nil, func() {}, errors.New("clients must be positive")
+	}
+	sessions := make([]clientSession, 0, count)
+	closeSessions := func() {
+		for index := len(sessions) - 1; index >= 0; index-- {
+			_ = sessions[index].client.Close()
+			_ = sessions[index].server.Close()
+		}
+	}
+	for range count {
+		serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+		serverSession, err := server.Connect(ctx, serverTransport, nil)
+		if err != nil {
+			closeSessions()
+			return nil, func() {}, fmt.Errorf("server.Connect(): %w", err)
+		}
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "mcp-client-benchmark", Version: "0.1.0"}, nil)
+		session, err := client.Connect(ctx, clientTransport, nil)
+		if err != nil {
+			_ = serverSession.Close()
+			closeSessions()
+			return nil, func() {}, fmt.Errorf("client.Connect(): %w", err)
+		}
+		sessions = append(sessions, clientSession{server: serverSession, client: session})
+	}
+	return sessions, closeSessions, nil
 }
 
 func (observer *latencyObserver) observe(tool string, elapsed time.Duration) {
@@ -514,14 +635,15 @@ func writeOutputs(outputDir string, result results) error {
 	}
 
 	var report strings.Builder
-	fmt.Fprintln(&report, "# MCP one-client benchmark")
+	fmt.Fprintf(&report, "# MCP benchmark with %d clients\n", result.Clients)
 	fmt.Fprintln(&report)
 	fmt.Fprintf(&report, "- Command: `%s`\n", result.Command)
 	fmt.Fprintf(&report, "- Commit: `%s`\n", result.Commit)
 	fmt.Fprintf(&report, "- Generated at: `%s`\n", result.GeneratedAt.Format(time.RFC3339))
 	fmt.Fprintf(&report, "- Environment: `%s/%s`, `%s`, `%s`, `%s`\n", result.Environment.OS, result.Environment.Arch, result.Environment.CPU, result.Environment.Memory, result.Environment.Go)
+	fmt.Fprintf(&report, "- Clients: %d concurrent SDK sessions\n", result.Clients)
 	fmt.Fprintf(&report, "- Dataset: `%s`, %d symbols, %d edges, seed %d\n", result.Dataset.Name, result.Dataset.Symbols, result.Dataset.Edges, result.Dataset.Seed)
-	fmt.Fprintf(&report, "- Workload: %d calls, warm-up %d calls per operation\n\n", result.Workload.Calls, result.WarmupCalls)
+	fmt.Fprintf(&report, "- Workload: %d total calls, warm-up %d calls per operation and client\n\n", result.Workload.Calls, result.WarmupCalls)
 	fmt.Fprintln(&report, "## Overall metrics")
 	fmt.Fprintln(&report)
 	fmt.Fprintln(&report, "| p50 round-trip ms | p95 round-trip ms | p99 round-trip ms | Throughput/s | Allocs/op | Bytes/op | RSS bytes | Goroutines | Errors | Memory growth |")
@@ -545,8 +667,8 @@ func writeOutputs(outputDir string, result results) error {
 		fmt.Fprintf(&report, "| `%s` | %.3f | %.3f | %.3f | %.3f | %t |\n", check.Operation, check.P95MS, check.P95LimitMS, check.P99MS, check.P99LimitMS, check.Passed)
 	}
 	fmt.Fprintf(&report, "\nOverall SLO result: `%t`.\n\n", result.SLOPassed)
-	fmt.Fprintln(&report, "Allocations/op and bytes/op are process-wide deltas over the measured mixed workload after warm-up. Repeat with the same command on target hardware before treating this one-client result as a release gate.")
-	fmt.Fprintln(&report, "The client uses the SDK in-memory transport; this result excludes stdio, socket and network overhead.")
+	fmt.Fprintf(&report, "Allocations/op and bytes/op are process-wide deltas over the measured mixed workload after warm-up. The %d clients share one MCP server and snapshot. Repeat with the same command on target hardware before treating this result as a release gate.\n", result.Clients)
+	fmt.Fprintln(&report, "The clients use the SDK in-memory transport; this result excludes stdio, socket and network overhead.")
 	fmt.Fprintln(&report, "RSS is the process peak and includes synthetic corpus and HotSnapshot construction before measurement.")
 	if err := os.WriteFile(filepath.Join(outputDir, "report.md"), []byte(report.String()), 0o644); err != nil {
 		return fmt.Errorf("write report: %w", err)
