@@ -70,13 +70,29 @@ export type LocalReferenceKind =
   | "RETURNS_FUNCTION"
   | "TYPE_USES";
 
-/** One source occurrence resolved to one local symbol. */
+/**
+ * The import binding a reference falls back to when it never resolves to a
+ * genuine local declaration — LUQUE-0907's "import" kind symbol, described
+ * just enough for a reference to target it.
+ */
+export interface ImportBindingSymbol {
+  readonly symbolId: number;
+  readonly fileName: string;
+  readonly name: string;
+  readonly qualifiedName: string;
+  readonly start: number;
+  readonly end: number;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/** One source occurrence resolved to one local symbol or import binding. */
 export interface LocalReference {
   fileName: string;
   kind: LocalReferenceKind;
   /** Undefined for a top-level use without a containing local declaration. */
   source: LocalSymbol | undefined;
-  target: LocalSymbol;
+  target: LocalSymbol | ImportBindingSymbol;
   /** UTF-16 source offsets, with `end` exclusive. */
   start: number;
   end: number;
@@ -88,6 +104,13 @@ export interface LocalReference {
 export interface ReferenceExtractionOptions {
   /** Restrict extraction to these project source files. */
   files?: readonly string[];
+  /**
+   * Import bindings already emitted as "import" kind symbols elsewhere in
+   * the payload, keyed implicitly by their own checker symbol id: a use that
+   * never resolves to a genuine local declaration can still target the
+   * binding itself, exactly as LUQUE-0907 already targets it from `imports`.
+   */
+  importBindings?: readonly ImportBindingSymbol[];
 }
 
 export interface LocalReferenceExtraction {
@@ -198,11 +221,19 @@ export async function extractLocalReferences(
     }
   }
 
-  const localTargets = await resolveLocalSymbols(
+  const importBindingById = new Map<number, ImportBindingSymbol>();
+  for (const binding of options.importBindings ?? []) {
+    importBindingById.set(binding.symbolId, binding);
+  }
+
+  const localTargets = await resolveLocalSymbols<
+    LocalSymbol | ImportBindingSymbol
+  >(
     view.checker,
     referenceSymbols,
     localById,
     localByDeclaration,
+    importBindingById,
   );
 
   const references: LocalReference[] = [];
@@ -402,7 +433,7 @@ function kindForIdentifier(
 function normaliseKind(
   kind: LocalReferenceKind,
   functionSymbolIds: Set<number>,
-  target: LocalSymbol,
+  target: LocalSymbol | ImportBindingSymbol,
 ): LocalReferenceKind {
   if (
     (kind === "PASSES_AS_CALLBACK" ||

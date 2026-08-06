@@ -23,8 +23,8 @@ describe("cross-repository precision", () => {
     }
 
     expect(report.totals).toMatchObject({
-      expectedEdges: 9,
-      truePositives: 9,
+      expectedEdges: 10,
+      truePositives: 10,
       falsePositives: 0,
       falseNegatives: 0,
       precision: 1,
@@ -32,8 +32,8 @@ describe("cross-repository precision", () => {
       falseExactEdges: 0,
       expectedUnresolved: 4,
       unresolvedCorrectlyClassified: 4,
-      expectedSourcePositions: 8,
-      mappedSourcePositions: 8,
+      expectedSourcePositions: 9,
+      mappedSourcePositions: 9,
       unresolvedMisclassified: 0,
     });
     expect(report.gate).toBe("TYPESCRIPT_CROSS_REPO_PASS");

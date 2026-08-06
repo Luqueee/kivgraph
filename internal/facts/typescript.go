@@ -10,8 +10,8 @@ import (
 	"github.com/Luqueee/luque/internal/hotsnapshot"
 )
 
-// TypeScriptWireVersion is the version of the `ts-facts-v2` payload.
-const TypeScriptWireVersion = 2
+// TypeScriptWireVersion is the version of the `ts-facts-v3` payload.
+const TypeScriptWireVersion = 3
 
 // TypeScriptPayload is the fact payload the worker emits for one repository.
 //
@@ -26,6 +26,7 @@ type TypeScriptPayload struct {
 	Symbols    []TypeScriptSymbol     `json:"symbols"`
 	References []TypeScriptReference  `json:"references"`
 	Imports    []TypeScriptImport     `json:"imports"`
+	Exports    []TypeScriptExport     `json:"exports"`
 	Unresolved []TypeScriptUnresolved `json:"unresolved"`
 }
 
@@ -75,6 +76,10 @@ type TypeScriptReference struct {
 // itself: computed from the provider's own source, at the position
 // LUQUE-0703's declaration map bridge resolved. Never derived from the
 // consumer's `.d.ts` text, which is not guaranteed to restate the source.
+//
+// A `TypeScriptExport` that crosses into another repository reuses this
+// exact shape: a re-exported symbol needs the same provider-source proof an
+// imported one does.
 type TypeScriptImportTarget struct {
 	Repository    string `json:"repository"`
 	Package       string `json:"package"`
@@ -104,6 +109,36 @@ type TypeScriptImport struct {
 	Detail           string                  `json:"detail"`
 }
 
+// TypeScriptExport is one export or re-export binding of the file: the
+// worker turns the public name itself into an "export" kind TypeScriptSymbol,
+// so QualifiedName here names an entry already present in Symbols. It
+// resolves exactly one of two ways:
+//
+//   - TargetQualifiedName/TargetFile name a declaration already present in
+//     this same payload's Symbols — a direct export, or a re-export whose
+//     `from` clause stays inside this repository.
+//   - Target carries the provider-source identity of a declaration in
+//     another repository — a re-export whose `from` clause names a package.
+//     Target is nil when that identity is not exactly known, exactly like an
+//     import without one: the binding still becomes an UnresolvedReference,
+//     never a guessed edge.
+type TypeScriptExport struct {
+	File                string                  `json:"file"`
+	Kind                string                  `json:"kind"`
+	QualifiedName       string                  `json:"qualifiedName"`
+	Start               int                     `json:"start"`
+	End                 int                     `json:"end"`
+	StartLine           int                     `json:"startLine"`
+	Text                string                  `json:"text"`
+	TargetQualifiedName string                  `json:"targetQualifiedName"`
+	TargetFile          string                  `json:"targetFile"`
+	Target              *TypeScriptImportTarget `json:"target"`
+	RequestedPackage    string                  `json:"requestedPackage"`
+	RequestedSymbol     string                  `json:"requestedSymbol"`
+	Reason              string                  `json:"reason"`
+	Detail              string                  `json:"detail"`
+}
+
 // TypeScriptUnresolved is one classified failure of the worker.
 type TypeScriptUnresolved struct {
 	File             string `json:"file"`
@@ -124,9 +159,13 @@ type TypeScriptReport struct {
 	// is not exactly known: no declaration map reached it, or the reached
 	// declaration carries no class or no signature.
 	ImportsWithoutTarget int
+	// ExportsWithoutTarget counts export/re-export bindings whose declaration
+	// is not exactly known: neither a local declaration in this payload nor a
+	// provider declaration reached with a class and a signature.
+	ExportsWithoutTarget int
 }
 
-// DecodeTypeScriptPayload parses a `ts-facts-v2` document.
+// DecodeTypeScriptPayload parses a `ts-facts-v3` document.
 func DecodeTypeScriptPayload(data []byte) (TypeScriptPayload, error) {
 	var payload TypeScriptPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
@@ -360,6 +399,87 @@ func NormalizeTypeScript(
 			Kind:        ImportsSymbol,
 			SourceKey:   sourceKey,
 			TargetKey:   string(targetKey),
+			Confidence:  ExactTypechecked,
+			Provenance:  TypeScriptChecker,
+			EvidenceKey: evidence.Key,
+		})
+	}
+
+	for _, exp := range payload.Exports {
+		if err := ctx.Err(); err != nil {
+			return Set{}, TypeScriptReport{}, err
+		}
+		kind := EdgeKind(exp.Kind)
+		if kind != Exports && kind != Reexports {
+			return Set{}, TypeScriptReport{}, fmt.Errorf("%w: export %q has unknown kind %q",
+				ErrInvalidFacts, exp.QualifiedName, exp.Kind)
+		}
+		sourceKey, hasSource := symbolKeys[exp.File+"\x00"+exp.QualifiedName]
+		if !hasSource {
+			// Every export/re-export binding is already an "export" kind
+			// symbol before this payload is built; a miss here is the
+			// payload contradicting itself, exactly like the Imports loop.
+			report.EdgesWithoutSource++
+			continue
+		}
+		fileKey := FileKey(name, exp.File)
+
+		var targetKey string
+		switch {
+		case exp.TargetQualifiedName != "" && exp.TargetFile != "":
+			// A local target: the declaration already lives in this same
+			// payload's Symbols, exactly like a References target.
+			key, hasTarget := symbolKeys[exp.TargetFile+"\x00"+exp.TargetQualifiedName]
+			if !hasTarget {
+				report.EdgesWithoutTarget++
+				continue
+			}
+			targetKey = key
+		case exp.Target != nil && strings.TrimSpace(exp.Target.Kind) != "" && strings.TrimSpace(exp.Target.Signature) != "":
+			// A cross-repository target, proven the exact same way an
+			// IMPORTS_SYMBOL target is: the provider's own source, read at
+			// the position LUQUE-0703's declaration map bridge resolved.
+			targetIdentity := typeScriptSymbolIdentity(exp.Target.Repository, exp.Target.Package, exp.Target.QualifiedName, exp.Target.Kind, exp.Target.Signature)
+			key, err := targetIdentity.Key()
+			if err != nil {
+				return Set{}, TypeScriptReport{}, fmt.Errorf("export %q target identity: %w", exp.QualifiedName, err)
+			}
+			targetKey = string(key)
+		default:
+			// Neither a local declaration nor a provable provider identity:
+			// dropped as an unresolved reference, never guessed.
+			set.Unresolved = append(set.Unresolved, UnresolvedReference{
+				RepositoryKey:    repositoryKey,
+				FileKey:          fileKey,
+				Language:         LanguageTypeScript,
+				SourceSymbolKey:  sourceKey,
+				RequestedPackage: exp.RequestedPackage,
+				RequestedSymbol:  exp.RequestedSymbol,
+				Reason:           exp.Reason,
+				Detail:           exp.Detail,
+				Start:            Position{Line: exp.StartLine, Offset: exp.Start},
+			})
+			report.ExportsWithoutTarget++
+			continue
+		}
+
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, exp.Start, exp.End),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start:         Position{Line: exp.StartLine, Offset: exp.Start},
+			End:           Position{Line: exp.StartLine, Offset: exp.End},
+			Text:          exp.Text,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		// TargetKey names a symbol the PROVIDER repository normalises when
+		// it crosses repositories: this Set alone will fail Validate() with
+		// a dangling edge until the caller merges the provider's Set in,
+		// exactly like an IMPORTS_SYMBOL edge.
+		set.Edges = append(set.Edges, Edge{
+			Kind:        kind,
+			SourceKey:   sourceKey,
+			TargetKey:   targetKey,
 			Confidence:  ExactTypechecked,
 			Provenance:  TypeScriptChecker,
 			EvidenceKey: evidence.Key,

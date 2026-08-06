@@ -5,6 +5,12 @@ package ladybug
 import "context"
 
 // DiagnoseStorage reports filesystem facts and native unavailability.
+//
+// Schema stays SchemaUnknown for every diagnosis this build produces:
+// with no native binding, the database is never opened, so the schema it
+// actually stores can never be told apart from its absence. Guessing
+// SchemaSynthetic or SchemaCanonical here would be worse than reporting
+// nothing; newStorageDiagnosis already sets the honest default.
 func DiagnoseStorage(ctx context.Context, path string) (StorageDiagnosis, error) {
 	if err := ctx.Err(); err != nil {
 		return StorageDiagnosis{}, err

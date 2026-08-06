@@ -1,7 +1,7 @@
 /**
  * Emit the canonical fact payload of one TypeScript repository.
  *
- * The payload is the wire contract `ts-facts-v2` consumed by
+ * The payload is the wire contract `ts-facts-v3` consumed by
  * `internal/facts`: the worker reports identity components and positions, and
  * Go derives the durable keys. Nothing here computes a key, so both languages
  * cannot drift into two identities for one symbol.
@@ -13,6 +13,15 @@
  * edge is byte-identical to the key the provider would assign itself. An edge
  * without that proof still gets a `FactImport` (with `target: null` and a
  * `reason`) plus a matching `unresolved` entry, never a guess.
+ *
+ * `exports` is the same idea turned outward: the public name a module exposes
+ * a declaration under is its own "export" kind symbol, and it reaches the
+ * declaration through `EXPORTS` when the declaration is defined here without
+ * a `from` clause, or `REEXPORTS` when a `from` clause introduced it — the
+ * same clause can point at this repository or at another one, and a
+ * cross-repository `REEXPORTS` target carries the identical provider-source
+ * identity an import does, with the same fallback to `target: null` plus an
+ * `unresolved` entry when that identity cannot be proven.
  *
  * Usage:
  *
@@ -27,22 +36,26 @@
  * shape `cross-repository-positive.test.ts` builds by hand for its registry.
  * Repeat the flag once per provider repository.
  *
- * Regenerate the `ts-facts-v2` goldens, from `ts-worker/`:
+ * Regenerate the `ts-facts-v3` goldens, from `ts-worker/`:
  *
  *   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \
- *     ../testdata/protocol/ts-facts-v2/shared-library.json
+ *     ../testdata/protocol/ts-facts-v3/shared-library.json
  *   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \
- *     ../testdata/protocol/ts-facts-v2/consumer-a.json \
+ *     ../testdata/protocol/ts-facts-v3/consumer-a.json \
  *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
  *   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \
- *     ../testdata/protocol/ts-facts-v2/consumer-b.json \
+ *     ../testdata/protocol/ts-facts-v3/consumer-b.json \
  *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ImportedSymbol } from "./imported-symbol-resolver.js";
+import type { ImportBindingSymbol } from "./reference-extractor.js";
+import type {
+  ImportedSymbol,
+  ReexportedSymbol,
+} from "./imported-symbol-resolver.js";
 import { LanguageService } from "./language-service.js";
 import type {
   PackageProvider,
@@ -50,10 +63,11 @@ import type {
 } from "./package-import-resolver.js";
 import { extractLocalReferences } from "./reference-extractor.js";
 import { extractLocalSymbols } from "./symbol-extractor.js";
+import type { LocalExport } from "./symbol-extractor.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
 interface FactsPayload {
-  readonly version: 2;
+  readonly version: 3;
   readonly repository: { readonly name: string };
   readonly package: {
     readonly name: string;
@@ -65,6 +79,7 @@ interface FactsPayload {
   readonly symbols: readonly FactSymbol[];
   readonly references: readonly FactReference[];
   readonly imports: readonly FactImport[];
+  readonly exports: readonly FactExport[];
   readonly unresolved: readonly FactUnresolved[];
 }
 
@@ -133,6 +148,37 @@ interface FactImportTarget {
   readonly startLine: number;
 }
 
+/**
+ * One export or re-export binding of the file, and the declaration it
+ * exposes. `EXPORTS` always resolves within `targetQualifiedName` /
+ * `targetFile`, a declaration already present in this payload's `symbols`.
+ * `REEXPORTS` resolves that way when the `from` clause stays inside this
+ * repository, or through `target` — the same provider-source identity an
+ * import carries — when it crosses into another one.
+ */
+interface FactExport {
+  readonly file: string;
+  readonly kind: "EXPORTS" | "REEXPORTS";
+  /** Qualified name of the export binding symbol emitted in `symbols`. */
+  readonly qualifiedName: string;
+  readonly start: number;
+  readonly end: number;
+  readonly startLine: number;
+  /** Source text of the export site, the evidence of the edge. */
+  readonly text: string;
+  /** Local declaration this exposes, when it lives in this repository. */
+  readonly targetQualifiedName: string | null;
+  readonly targetFile: string | null;
+  /** Provider identity of a cross-repository target, or null when local. */
+  readonly target: FactImportTarget | null;
+  /** Package requested from a `from` clause, null for a local target. */
+  readonly requestedPackage: string | null;
+  readonly requestedSymbol: string | null;
+  /** Why a cross-repository target has no identity. Null otherwise. */
+  readonly reason: string | null;
+  readonly detail: string | null;
+}
+
 interface FactUnresolved {
   readonly file: string;
   readonly reason: string;
@@ -155,18 +201,51 @@ export async function collectFacts(
     const view = service.project(configFileName);
 
     const symbols = await extractLocalSymbols(service, view);
-    const references = await extractLocalReferences(service, view, symbols);
+    // Resolved first: reference extraction needs the "import" bindings this
+    // produces so a use that never resolves to a genuine local declaration
+    // can still target the binding itself, exactly as `imports` does.
     const resolution = await resolveUnresolvedReferences(
       service,
       view,
       registry,
     );
     const importSymbols = importFactSymbols(root, resolution.symbols);
+    // An export's public name frequently repeats the local declaration it
+    // exposes (`export function foo() {}` names both "foo"), unlike an
+    // import's local name, which TypeScript's own scoping already keeps
+    // unique against every other binding in the file. Reserving every
+    // qualified name already claimed by a declaration or an import keeps
+    // `exportFactSymbols` from minting one that collides and silently
+    // shadows the real symbol in Go's file+qualifiedName lookup.
+    const reservedQualifiedNames = new Set<string>();
+    for (const local of symbols.symbols) {
+      reservedQualifiedNames.add(
+        `${local.fileName}\u0000${local.qualifiedName}`,
+      );
+    }
+    for (const entry of resolution.symbols) {
+      const qualifiedName =
+        importSymbols.qualifiedNames.get(entry) ?? entry.consumer.name;
+      reservedQualifiedNames.add(
+        `${entry.consumer.fileName}\u0000${qualifiedName}`,
+      );
+    }
+    const exportSymbols = exportFactSymbols(
+      root,
+      symbols.exports,
+      resolution.reexports,
+      reservedQualifiedNames,
+    );
+    const references = await extractLocalReferences(service, view, symbols, {
+      importBindings: importSymbols.referenceTargets,
+    });
 
     const files = [
       ...new Set([
         ...symbols.symbols.map((symbol) => symbol.fileName),
+        ...symbols.exports.map((entry) => entry.fileName),
         ...resolution.symbols.map((entry) => entry.consumer.fileName),
+        ...resolution.reexports.map((entry) => entry.export.fileName),
       ]),
     ].sort();
 
@@ -197,10 +276,11 @@ export async function collectFacts(
             start: entry.consumer.start,
           }),
         ),
+      ...exportSymbols.unresolved,
     ].sort(compareUnresolved);
 
     return {
-      version: 2,
+      version: 3,
       repository: { name: repositoryName },
       package: await readPackage(root),
       files: files.map((file) => relative(root, file)),
@@ -220,6 +300,7 @@ export async function collectFacts(
           }),
         ),
         ...importSymbols.symbols,
+        ...exportSymbols.symbols,
       ],
       references: references.references.map(
         (reference): FactReference => ({
@@ -262,6 +343,7 @@ export async function collectFacts(
           detail: entry.target.identityDetail ?? null,
         };
       }),
+      exports: exportSymbols.exports,
       unresolved,
     };
   } finally {
@@ -278,6 +360,11 @@ export async function collectFacts(
  * name — a re-export alongside a same-named import, for instance. The first
  * keeps the plain name; the rest are disambiguated deterministically so every
  * `FactImport.qualifiedName` still resolves to exactly one `FactSymbol`.
+ *
+ * `referenceTargets` restates the same bindings as `ImportBindingSymbol`s, so
+ * `reference-extractor.ts` can target one when a use never resolves to a
+ * genuine local declaration — the qualified name there must be byte-identical
+ * to the one on `symbols`, since both name the very same graph node.
  */
 function importFactSymbols(
   root: string,
@@ -285,10 +372,12 @@ function importFactSymbols(
 ): {
   readonly symbols: readonly FactSymbol[];
   readonly qualifiedNames: ReadonlyMap<ImportedSymbol, string>;
+  readonly referenceTargets: readonly ImportBindingSymbol[];
 } {
   const occurrences = new Map<string, number>();
   const qualifiedNames = new Map<ImportedSymbol, string>();
   const symbols: FactSymbol[] = [];
+  const referenceTargets: ImportBindingSymbol[] = [];
 
   for (const entry of imports) {
     const key = `${entry.consumer.fileName}\u0000${entry.consumer.name}`;
@@ -311,9 +400,156 @@ function importFactSymbols(
       start: entry.consumer.start,
       end: entry.consumer.end,
     });
+    referenceTargets.push({
+      symbolId: entry.consumer.symbolId,
+      fileName: entry.consumer.fileName,
+      name: entry.consumer.name,
+      qualifiedName,
+      start: entry.consumer.start,
+      end: entry.consumer.end,
+      startLine: entry.consumer.startLine,
+      endLine: entry.consumer.endLine,
+    });
   }
 
-  return { symbols, qualifiedNames };
+  return { symbols, qualifiedNames, referenceTargets };
+}
+
+/**
+ * Turn every local export and every exact cross-repository re-export into
+ * the public-name `FactSymbol` decision 1 requires, plus the `FactExport`
+ * edge from it to the declaration it exposes.
+ *
+ * `locals` (same repository, computed by `symbol-extractor.ts`) and
+ * `reexports` (another repository, computed by `imported-symbol-resolver.ts`)
+ * never name the same binding: a relative specifier never becomes a
+ * `PackageImport`, so the two sources partition every `export`/`export …
+ * from` statement in the file without overlap. Qualified names are
+ * disambiguated by public name, never by the local name they expose — one
+ * declaration re-exported under two public names must not collide just
+ * because the underlying local name repeats.
+ *
+ * `reservedQualifiedNames` additionally keeps a public name from colliding
+ * with a declaration or an import that already claims it in the same file —
+ * `export function foo() {}` names both the function and its export "foo",
+ * unlike an import's local name, which TypeScript's own scoping already
+ * keeps unique against every other binding in the file.
+ */
+function exportFactSymbols(
+  root: string,
+  locals: readonly LocalExport[],
+  reexports: readonly ReexportedSymbol[],
+  reservedQualifiedNames: ReadonlySet<string>,
+): {
+  readonly symbols: readonly FactSymbol[];
+  readonly exports: readonly FactExport[];
+  readonly unresolved: readonly FactUnresolved[];
+} {
+  const occurrences = new Map<string, number>();
+  const symbols: FactSymbol[] = [];
+  const exports: FactExport[] = [];
+  const unresolved: FactUnresolved[] = [];
+
+  const qualify = (fileName: string, exportedName: string): string => {
+    const key = `${fileName}\u0000${exportedName}`;
+    let occurrence = occurrences.get(key) ?? 0;
+    let candidate: string;
+    do {
+      occurrence += 1;
+      candidate =
+        occurrence === 1 ? exportedName : `${exportedName}#${occurrence}`;
+    } while (reservedQualifiedNames.has(`${fileName}\u0000${candidate}`));
+    occurrences.set(key, occurrence);
+    return candidate;
+  };
+
+  for (const local of locals) {
+    const qualifiedName = qualify(local.fileName, local.exportedName);
+    symbols.push({
+      file: relative(root, local.fileName),
+      name: local.exportedName,
+      qualifiedName,
+      kind: "export",
+      exported: true,
+      signature: local.text,
+      startLine: local.startLine,
+      endLine: local.endLine,
+      start: local.start,
+      end: local.end,
+    });
+    exports.push({
+      file: relative(root, local.fileName),
+      kind: local.reExport ? "REEXPORTS" : "EXPORTS",
+      qualifiedName,
+      start: local.start,
+      end: local.end,
+      startLine: local.startLine,
+      text: local.text,
+      targetQualifiedName: local.targetQualifiedName,
+      targetFile: relative(root, local.targetFile),
+      target: null,
+      requestedPackage: null,
+      requestedSymbol: null,
+      reason: null,
+      detail: null,
+    });
+  }
+
+  for (const entry of reexports) {
+    const qualifiedName = qualify(entry.export.fileName, entry.export.name);
+    const identity = entry.target.identity;
+    symbols.push({
+      file: relative(root, entry.export.fileName),
+      name: entry.export.name,
+      qualifiedName,
+      kind: "export",
+      exported: true,
+      signature: entry.export.text,
+      startLine: entry.export.startLine,
+      endLine: entry.export.endLine,
+      start: entry.export.start,
+      end: entry.export.end,
+    });
+    exports.push({
+      file: relative(root, entry.export.fileName),
+      kind: "REEXPORTS",
+      qualifiedName,
+      start: entry.export.start,
+      end: entry.export.end,
+      startLine: entry.export.startLine,
+      text: entry.export.text,
+      targetQualifiedName: null,
+      targetFile: null,
+      target:
+        identity === undefined
+          ? null
+          : {
+              repository: identity.repository,
+              package: identity.package,
+              qualifiedName: identity.qualifiedName,
+              kind: identity.kind,
+              signature: identity.signature,
+              file: identity.file,
+              startLine: identity.startLine,
+            },
+      requestedPackage: entry.packageName,
+      requestedSymbol: entry.exportedName,
+      reason: entry.target.identityReason ?? null,
+      detail: entry.target.identityDetail ?? null,
+    });
+    if (identity === undefined) {
+      unresolved.push({
+        file: relative(root, entry.export.fileName),
+        reason: entry.target.identityReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
+        requestedPackage: entry.packageName,
+        requestedSymbol: entry.exportedName,
+        detail: entry.target.identityDetail ?? null,
+        start: entry.export.start,
+      });
+    }
+  }
+
+  return { symbols, exports, unresolved };
 }
 
 function compareUnresolved(
@@ -497,7 +733,7 @@ interface CliArgs {
 
 const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--provider <name>=<path>]...
 
-Emits the ts-facts-v2 payload of <repository-root>, named <repository-name>.
+Emits the ts-facts-v3 payload of <repository-root>, named <repository-name>.
 
   --provider <name>=<path>   A provider repository this run may import from.
                               <name> is the repository name (as Luque names
@@ -507,15 +743,15 @@ Emits the ts-facts-v2 payload of <repository-root>, named <repository-name>.
                               package name, version and source/declaration
                               roots. Repeatable.
 
-Example — regenerate the ts-facts-v2 goldens, from ts-worker/:
+Example — regenerate the ts-facts-v3 goldens, from ts-worker/:
 
   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \\
-    ../testdata/protocol/ts-facts-v2/shared-library.json
+    ../testdata/protocol/ts-facts-v3/shared-library.json
   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \\
-    ../testdata/protocol/ts-facts-v2/consumer-a.json \\
+    ../testdata/protocol/ts-facts-v3/consumer-a.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \\
-    ../testdata/protocol/ts-facts-v2/consumer-b.json \\
+    ../testdata/protocol/ts-facts-v3/consumer-b.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
 `;
 
@@ -572,7 +808,8 @@ if (cliArgv.includes("--help") || cliArgv.includes("-h")) {
         "utf8",
       );
       process.stdout.write(
-        `${payload.symbols.length} symbols, ${payload.references.length} references, ${payload.imports.length} imports\n`,
+        `${payload.symbols.length} symbols, ${payload.references.length} references, ` +
+          `${payload.imports.length} imports, ${payload.exports.length} exports\n`,
       );
     } catch (error) {
       process.stderr.write(

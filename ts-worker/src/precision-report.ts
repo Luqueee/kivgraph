@@ -129,10 +129,11 @@ const cases: readonly PrecisionCase[] = [
     conflicts: [],
     expectedEdges: [
       "src/barrel.ts#helper -> @luque-fixture/shared:aliasedHelper -> cross-repository/shared-library/dist/helper.d.ts",
+      "src/barrel.ts#compute -> @luque-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
       "src/barrel.ts#republished -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
-    expectedSourcePositions: 2,
+    expectedSourcePositions: 3,
   },
   {
     name: "consumer-negative",
@@ -245,14 +246,20 @@ async function measureCase(
       { conflicts: testCase.conflicts },
     );
 
+    const crossRepositoryEdges = [
+      ...resolution.symbols,
+      ...resolution.reexports,
+    ];
     const observedEdges = new Set(
-      resolution.symbols.map((symbol) =>
-        [
-          path.relative(testCase.root, symbol.consumer.fileName),
-          `#${symbol.consumer.name} -> ${symbol.packageName}:${symbol.exportedName} -> `,
-          shortDeclaration(symbol.target.declarations[0]?.fileName ?? ""),
-        ].join(""),
-      ),
+      crossRepositoryEdges.map((edge) => {
+        const binding =
+          edge.kind === "IMPORTS_SYMBOL" ? edge.consumer : edge.export;
+        return [
+          path.relative(testCase.root, binding.fileName),
+          `#${binding.name} -> ${edge.packageName}:${edge.exportedName} -> `,
+          shortDeclaration(edge.target.declarations[0]?.fileName ?? ""),
+        ].join("");
+      }),
     );
     const observedUnresolved = new Set(
       resolution.unresolved.map(
@@ -280,8 +287,8 @@ async function measureCase(
     // ships none, from the provider's own project.
     const providerPositions = await resolveProviderSourcePositions(resolution);
     const mappedSourcePositions =
-      resolution.symbols.filter(
-        (symbol) => symbol.target.declarations[0]?.sourcePosition !== undefined,
+      crossRepositoryEdges.filter(
+        (edge) => edge.target.declarations[0]?.sourcePosition !== undefined,
       ).length + providerPositions.positions.length;
     const truePositives = expectedEdges.size - missingEdges.length;
     const metrics: PrecisionMetrics = {

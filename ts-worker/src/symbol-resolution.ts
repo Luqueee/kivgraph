@@ -28,12 +28,21 @@ export function symbolDeclarationKey(declaration: {
  * external targets return undefined. Declaration handles provide a fallback
  * for instantiated generic members whose checker id is not their declaration
  * symbol id.
+ *
+ * `importBindingById` is consulted last, keyed by the *original* symbol
+ * (never the alias target): LUQUE-0907 already turns an import binding into
+ * an emitted symbol, so a use that never resolves to a genuine local
+ * declaration — because the alias leads outside the project — can still
+ * target the binding itself. A real local declaration always wins: this
+ * fallback only fires when both `findLocal` and the alias-following above it
+ * produced nothing.
  */
 export async function resolveLocalSymbols<T>(
   checker: AliasChecker,
   symbols: readonly (TypeScriptSymbol | undefined)[],
   localById: ReadonlyMap<number, T>,
   localByDeclaration?: ReadonlyMap<string, T>,
+  importBindingById?: ReadonlyMap<number, T>,
 ): Promise<(T | undefined)[]> {
   const findLocal = (symbol: TypeScriptSymbol): T | undefined => {
     const direct = localById.get(symbol.id);
@@ -79,6 +88,10 @@ export async function resolveLocalSymbols<T>(
     if (symbol === undefined) {
       return undefined;
     }
-    return findLocal(symbol) ?? resolvedAliases.get(symbol.id);
+    return (
+      findLocal(symbol) ??
+      resolvedAliases.get(symbol.id) ??
+      importBindingById?.get(symbol.id)
+    );
   });
 }

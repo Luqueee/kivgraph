@@ -124,7 +124,7 @@ describe("cross-repository positive fixture", () => {
     ]);
   });
 
-  it("resolves barrels, aliases, and reexports without namespace edges", async () => {
+  it("resolves barrels, aliases, and a namespace member, keeping re-exports separate", async () => {
     const { service, configFileName, root } = openConsumer("consumer-b");
     await service.openProject(configFileName);
     const view = service.project(configFileName);
@@ -135,6 +135,10 @@ describe("cross-repository positive fixture", () => {
     );
 
     expect(resolution.unresolved).toEqual([]);
+    // "helper" is a genuine import; "compute" is read off the namespace
+    // import `shared.compute` — both are `IMPORTS_SYMBOL` edges. The
+    // re-export "republished" is a different edge kind entirely, checked
+    // separately below.
     expect(
       resolution.symbols.map((entry) => [
         entry.consumer.name,
@@ -152,9 +156,9 @@ describe("cross-repository positive fixture", () => {
         path.join(SHARED_ROOT, "src/helper.ts"),
       ],
       [
-        "republished",
-        "value",
-        "value",
+        "compute",
+        "compute",
+        "compute",
         path.join(SHARED_ROOT, "dist/value.d.ts"),
         path.join(SHARED_ROOT, "src/value.ts"),
       ],
@@ -171,8 +175,8 @@ describe("cross-repository positive fixture", () => {
       },
       {
         fileName: path.join(SHARED_ROOT, "src/value.ts"),
-        line: 1,
-        character: 13,
+        line: 7,
+        character: 16,
       },
     ]);
     expect(
@@ -181,6 +185,36 @@ describe("cross-repository positive fixture", () => {
     expect(
       resolution.symbols.every(
         (entry) => entry.consumer.fileName === path.join(root, "src/barrel.ts"),
+      ),
+    ).toBe(true);
+
+    // `export { value as republished } from "@luque-fixture/shared"` is a
+    // re-export, not an import: it reaches the provider's "value" through
+    // `REEXPORTS`, resolved by the exact same identity machinery.
+    expect(
+      resolution.reexports.map((entry) => [
+        entry.export.name,
+        entry.exportedName,
+        entry.target.name,
+        entry.target.declarations[0]?.fileName,
+        entry.target.declarations[0]?.sourcePosition,
+      ]),
+    ).toEqual([
+      [
+        "republished",
+        "value",
+        "value",
+        path.join(SHARED_ROOT, "dist/value.d.ts"),
+        {
+          fileName: path.join(SHARED_ROOT, "src/value.ts"),
+          line: 1,
+          character: 13,
+        },
+      ],
+    ]);
+    expect(
+      resolution.reexports.every(
+        (entry) => entry.export.fileName === path.join(root, "src/barrel.ts"),
       ),
     ).toBe(true);
   });

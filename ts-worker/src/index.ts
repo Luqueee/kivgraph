@@ -11,6 +11,7 @@ export type {
 } from "./symbol-extractor.js";
 export { extractLocalReferences } from "./reference-extractor.js";
 export type {
+  ImportBindingSymbol,
   LocalReference,
   LocalReferenceExtraction,
   LocalReferenceKind,
@@ -57,6 +58,8 @@ export type {
   ImportedSymbolDeclaration,
   ImportedSymbolResolution,
   ImportedSymbolTarget,
+  ReexportedSymbol,
+  ReexportedSymbolExport,
 } from "./imported-symbol-resolver.js";
 
 export { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";

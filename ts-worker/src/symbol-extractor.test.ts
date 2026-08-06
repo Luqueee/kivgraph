@@ -334,4 +334,50 @@ export function overloaded(value: string | number): string | number {
     ).toBe(1);
     expect(extraction.exports).toHaveLength(3);
   });
+
+  it("marks re-exports and threads the exposed declaration through", async () => {
+    const workspace = await createWorkspace({
+      "src/lib.ts": `export function helper(): number {
+  return 1;
+}
+`,
+      "src/index.ts": `export { helper as aliasedHelper } from "./lib.js";
+export * from "./lib.js";
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const extraction = await extractLocalSymbols(
+      service,
+      service.project(workspace.configFileName),
+    );
+
+    const byExportSite = new Map(
+      extraction.exports.map((entry) => [
+        `${path.basename(entry.fileName)}#${entry.exportedName}`,
+        entry,
+      ]),
+    );
+
+    const direct = byExportSite.get("lib.ts#helper");
+    expect(direct?.reExport).toBe(false);
+    expect(direct?.targetQualifiedName).toBe("helper");
+    expect(direct?.targetFile).toBe(workspace.file("src/lib.ts"));
+
+    const aliased = byExportSite.get("index.ts#aliasedHelper");
+    expect(aliased?.reExport).toBe(true);
+    expect(aliased?.targetQualifiedName).toBe("helper");
+    expect(aliased?.targetFile).toBe(workspace.file("src/lib.ts"));
+
+    const starred = byExportSite.get("index.ts#helper");
+    expect(starred?.reExport).toBe(true);
+    expect(starred?.targetQualifiedName).toBe("helper");
+    expect(starred?.targetFile).toBe(workspace.file("src/lib.ts"));
+
+    // The star and named re-exports share the module specifier's whole
+    // statement as their evidence text, and both are anchored on the
+    // `export ...` statement rather than the exposed declaration's body.
+    expect(aliased?.text).toBe("helper as aliasedHelper");
+    expect(starred?.text).toBe('export * from "./lib.js";');
+  });
 });

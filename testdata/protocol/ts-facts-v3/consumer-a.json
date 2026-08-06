@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "repository": {
     "name": "consumer-a"
   },
@@ -60,9 +60,55 @@
       "endLine": 1,
       "start": 30,
       "end": 35
+    },
+    {
+      "file": "src/direct.ts",
+      "name": "total",
+      "qualifiedName": "total#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "total",
+      "startLine": 3,
+      "endLine": 3,
+      "start": 85,
+      "end": 90
     }
   ],
-  "references": [],
+  "references": [
+    {
+      "file": "src/direct.ts",
+      "kind": "TYPE_USES",
+      "sourceQualifiedName": "total",
+      "targetQualifiedName": "Shape",
+      "targetFile": "src/direct.ts",
+      "startLine": 3,
+      "start": 98,
+      "end": 103,
+      "text": "Shape"
+    },
+    {
+      "file": "src/direct.ts",
+      "kind": "CALLS_DIRECT",
+      "sourceQualifiedName": "total",
+      "targetQualifiedName": "compute",
+      "targetFile": "src/direct.ts",
+      "startLine": 4,
+      "start": 124,
+      "end": 131,
+      "text": "compute"
+    },
+    {
+      "file": "src/direct.ts",
+      "kind": "REFERENCES",
+      "sourceQualifiedName": "total",
+      "targetQualifiedName": "value",
+      "targetFile": "src/direct.ts",
+      "startLine": 4,
+      "start": 132,
+      "end": 137,
+      "text": "value"
+    }
+  ],
   "imports": [
     {
       "file": "src/direct.ts",
@@ -124,6 +170,24 @@
         "file": "src/value.ts",
         "startLine": 3
       },
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "exports": [
+    {
+      "file": "src/direct.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "total#2",
+      "start": 85,
+      "end": 90,
+      "startLine": 3,
+      "text": "total",
+      "targetQualifiedName": "total",
+      "targetFile": "src/direct.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
       "reason": null,
       "detail": null
     }

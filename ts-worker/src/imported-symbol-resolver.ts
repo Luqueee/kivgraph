@@ -1,11 +1,32 @@
 /**
- * Exact `IMPORTS_SYMBOL` edges between a consumer binding and the symbol the
- * provider really declares.
+ * Exact `IMPORTS_SYMBOL` and `REEXPORTS` edges between one repository and the
+ * symbol another provider declares.
  *
  * Every edge is produced by the native checker: the module specifier is
- * resolved by TypeScript, the local binding is resolved to its alias symbol,
- * and the alias is followed to the declaration it targets. A name that spells
+ * resolved by TypeScript, the binding is resolved to its alias symbol, and
+ * the alias is followed to the declaration it targets. A name that spells
  * the same in two packages never produces an edge.
+ *
+ * Two shapes of binding produce this pair of edge kinds:
+ *
+ *  - An import (`import { x } from "pkg"`, a default import, or a namespace
+ *    member access `ns.x`) consumes the provider symbol into this file's own
+ *    scope and becomes `IMPORTS_SYMBOL`, anchored at the binding itself.
+ *  - A re-export with a `from` clause (`export { x } from "pkg"`, or
+ *    `export * from "pkg"`) exposes the provider symbol under a public name
+ *    of this module and becomes `REEXPORTS`, anchored at the export site.
+ *    A `from` clause is what makes it a re-export, never whether the target
+ *    happens to live in this repository: a same-repository
+ *    `export { x } from "./y.js"` is `REEXPORTS` too, just resolved locally
+ *    by `symbol-extractor.ts` instead of here, since a relative specifier
+ *    never becomes a `PackageImport` in the first place.
+ *
+ * A namespace import (`import * as ns from "pkg"`) never itself produces an
+ * edge — the binding names no concrete symbol — but each property access on
+ * it (`ns.member`) does, exactly as if `member` had been imported by name:
+ * the checker, never the object expression's spelling, decides whether an
+ * access truly targets the namespace binding or some shadowing local of the
+ * same name.
  *
  * LUQUE-0907 adds the provider's own identity to the target. The durable key
  * a consumer would derive for a symbol must be byte-identical to the one the
@@ -13,16 +34,22 @@
  * computed by reading the provider's source at the exact position LUQUE-0703
  * mapped and classifying it with the same functions the provider runs on
  * itself (`declaration-classifier.ts`) — never inferred from the `.d.ts`
- * text, which the provider itself never classifies against.
+ * text, which the provider itself never classifies against. `REEXPORTS`
+ * targets reuse this exact machinery: a re-exported symbol reached across
+ * repositories needs the same proof an import does, or it is an unresolved
+ * reference, never a guessed edge.
  */
 
 import path from "node:path";
 
 import {
   isExportDeclaration,
+  isIdentifier,
   isImportDeclaration,
   isNamedExports,
   isNamedImports,
+  isNamespaceImport,
+  isPropertyAccessExpression,
   isStringLiteral,
 } from "typescript/unstable/ast/is";
 import { SymbolFlags } from "typescript/unstable/async";
@@ -73,6 +100,21 @@ export interface ImportedSymbolConsumer {
   readonly endLine: number;
 }
 
+/** The public name a re-export exposes, and the provider symbol it reaches. */
+export interface ReexportedSymbolExport {
+  readonly fileName: string;
+  readonly symbolId: number;
+  /** Public name this module exposes the provider symbol under. */
+  readonly name: string;
+  /** Source text of the export site: the specifier, or the whole star clause. */
+  readonly text: string;
+  /** UTF-16 source offsets, with `end` exclusive. */
+  readonly start: number;
+  readonly end: number;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
 /** One declaration site of the provider symbol. */
 export interface ImportedSymbolDeclaration {
   readonly fileName: string;
@@ -115,7 +157,7 @@ export interface ImportedSymbolIdentity {
   readonly startLine: number;
 }
 
-/** The provider symbol the consumer binding resolves to. */
+/** The provider symbol a binding or a re-export resolves to. */
 export interface ImportedSymbolTarget {
   readonly symbolId: number;
   readonly name: string;
@@ -131,16 +173,26 @@ export interface ImportedSymbolTarget {
   readonly identityDetail: string | undefined;
 }
 
-/** One exact symbol-level dependency across packages. */
-export interface ImportedSymbol {
-  readonly kind: "IMPORTS_SYMBOL";
+/** Fields shared by every exact cross-repository symbol edge. */
+interface CrossRepositorySymbolEdge {
   readonly packageName: string;
   readonly specifier: string;
   readonly provider: PackageProvider;
   /** Public name requested from the provider module. */
   readonly exportedName: string;
-  readonly consumer: ImportedSymbolConsumer;
   readonly target: ImportedSymbolTarget;
+}
+
+/** One exact symbol-level dependency across packages. */
+export interface ImportedSymbol extends CrossRepositorySymbolEdge {
+  readonly kind: "IMPORTS_SYMBOL";
+  readonly consumer: ImportedSymbolConsumer;
+}
+
+/** One exact re-export of a provider symbol under a public name. */
+export interface ReexportedSymbol extends CrossRepositorySymbolEdge {
+  readonly kind: "REEXPORTS";
+  readonly export: ReexportedSymbolExport;
 }
 
 export interface ImportedSymbolResolution {
@@ -150,9 +202,11 @@ export interface ImportedSymbolResolution {
   readonly exports: readonly ProviderExport[];
   readonly mappings: readonly DeclarationSourceMapping[];
   readonly symbols: readonly ImportedSymbol[];
+  readonly reexports: readonly ReexportedSymbol[];
 }
 
 interface BindingRequest {
+  origin: "import" | "export";
   file: SourceFile;
   nameNode: Node;
   localName: string;
@@ -161,24 +215,54 @@ interface BindingRequest {
   packageImport: PackageImport;
 }
 
+/** A namespace import binding (`import * as ns from "pkg"`) in one file. */
+interface NamespaceImportBinding {
+  file: SourceFile;
+  nameNode: Node;
+  localName: string;
+  packageImport: PackageImport;
+}
+
+/** A property access that might read a member off a namespace import. */
+interface NamespaceMemberCandidate {
+  file: SourceFile;
+  node: Node;
+  objectNode: Node;
+  objectName: string;
+  memberNode: Node;
+}
+
+/** A star re-export (`export * from "pkg"`) whose members are not yet known. */
+interface StarReexportRequest {
+  file: SourceFile;
+  node: Node;
+  moduleSpecifier: Node;
+  packageImport: PackageImport;
+}
+
 /** A resolved edge, still missing the provider identity of its target. */
 interface PendingSymbol {
+  origin: "import" | "export";
   packageName: string;
   specifier: string;
   provider: PackageProvider;
   exportedName: string;
-  consumer: ImportedSymbolConsumer;
+  binding: ImportedSymbolConsumer;
   targetSymbolId: number;
   targetName: string;
   declarations: ImportedSymbolDeclaration[];
 }
 
 /**
- * Resolve exact `IMPORTS_SYMBOL` edges for one live project view.
+ * Resolve exact `IMPORTS_SYMBOL` and `REEXPORTS` edges for one live project
+ * view.
  *
  * The resolution reuses LUQUE-0701 module resolution, LUQUE-0702 provider
  * exports and the LUQUE-0703 declaration-to-source bridge, and adds the
- * symbol-level link the graph stores.
+ * symbol-level link the graph stores. Both edge kinds share every stage past
+ * "which binding, from which package, resolves to which alias" — only the
+ * shape of the binding (a consumed import vs. an exposed public name)
+ * differs, so they are computed together and split apart only at the end.
  */
 export async function resolveImportedSymbols(
   service: LanguageService,
@@ -220,6 +304,9 @@ export async function resolveImportedSymbols(
   }
 
   const requests: BindingRequest[] = [];
+  const namespaceBindings: NamespaceImportBinding[] = [];
+  const memberCandidates: NamespaceMemberCandidate[] = [];
+  const starRequests: StarReexportRequest[] = [];
   for (const fileName of [
     ...new Set(
       providerExports.imports
@@ -231,7 +318,71 @@ export async function resolveImportedSymbols(
     if (sourceFile === undefined) {
       continue;
     }
-    collectBindings(sourceFile, importsByLocation, requests);
+    collectBindings(
+      sourceFile,
+      importsByLocation,
+      requests,
+      namespaceBindings,
+      memberCandidates,
+      starRequests,
+    );
+  }
+
+  // A namespace member (`ns.member`) has no declaration site of its own to
+  // anchor on; the checker resolves whether the object expression it looks
+  // like it reads from really is the namespace binding, never the object's
+  // spelling alone. Both node sets are resolved in one batch: the binding's
+  // own name (to know what it *is*) and every candidate's object expression
+  // (to know what it resolves to at that specific use).
+  const namespaceByKey = new Map<string, NamespaceImportBinding>();
+  for (const binding of namespaceBindings) {
+    namespaceByKey.set(
+      `${binding.file.fileName}\u0000${binding.localName}`,
+      binding,
+    );
+  }
+  const namespaceCandidates = memberCandidates.filter((candidate) =>
+    namespaceByKey.has(
+      `${candidate.file.fileName}\u0000${candidate.objectName}`,
+    ),
+  );
+  const namespaceCheckNodes = [
+    ...namespaceBindings.map((binding) => binding.nameNode),
+    ...namespaceCandidates.map((candidate) => candidate.objectNode),
+  ];
+  const namespaceCheckSymbols =
+    namespaceCheckNodes.length === 0
+      ? []
+      : await view.checker.getSymbolAtLocation(namespaceCheckNodes);
+  const namespaceById = new Map<number, NamespaceImportBinding>();
+  for (const [index, binding] of namespaceBindings.entries()) {
+    const symbol = namespaceCheckSymbols[index];
+    if (symbol !== undefined) {
+      namespaceById.set(symbol.id, binding);
+    }
+  }
+  const namespaceObjectSymbols = namespaceCheckSymbols.slice(
+    namespaceBindings.length,
+  );
+  for (const [index, candidate] of namespaceCandidates.entries()) {
+    const objectSymbol = namespaceObjectSymbols[index];
+    if (objectSymbol === undefined) {
+      continue;
+    }
+    const binding = namespaceById.get(objectSymbol.id);
+    if (binding === undefined) {
+      continue;
+    }
+    const memberName = bindingName(candidate.memberNode);
+    requests.push({
+      origin: "import",
+      file: candidate.file,
+      nameNode: candidate.memberNode,
+      localName: memberName,
+      exportedName: memberName,
+      text: candidate.node.getText(candidate.file),
+      packageImport: binding.packageImport,
+    });
   }
 
   const aliasSymbols =
@@ -247,68 +398,98 @@ export async function resolveImportedSymbols(
     if (alias === undefined) {
       continue;
     }
-    const target = await resolveAliasTarget(view.checker, alias);
-    if (target === undefined || target.declarations.length === 0) {
-      continue;
-    }
-    const provider = request.packageImport.provider;
-    if (provider === undefined) {
-      continue;
-    }
-    const declarations = await resolveDeclarations(
-      view,
-      target.declarations,
-      mappingsByFile,
-      mappers,
-    );
-    if (declarations.length === 0) {
-      continue;
-    }
-    const start = request.nameNode.getStart(request.file);
-    const end = request.nameNode.getEnd();
-    pending.push({
-      packageName: request.packageImport.packageName,
-      specifier: request.packageImport.specifier,
-      provider,
+    const entry = await buildPendingSymbol(view, mappingsByFile, mappers, {
+      origin: request.origin,
+      packageImport: request.packageImport,
       exportedName: request.exportedName,
-      consumer: {
-        fileName: request.file.fileName,
-        symbolId: alias.id,
-        name: request.localName,
-        text: request.text,
-        start,
-        end,
-        startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
-        endLine:
-          request.file.getLineAndCharacterOfPosition(Math.max(start, end - 1))
-            .line + 1,
-      },
-      targetSymbolId: target.id,
-      targetName: target.name,
-      declarations,
+      file: request.file,
+      node: request.nameNode,
+      localName: request.localName,
+      text: request.text,
+      alias,
     });
+    if (entry !== undefined) {
+      pending.push(entry);
+    }
+  }
+
+  // `export * from "pkg"` re-exports every member of the module; each member
+  // already has its own checker symbol from `getExportsOfModule`, so it
+  // skips straight to alias-following instead of a `getSymbolAtLocation`
+  // round trip on a name that is never spelled in this file's own source.
+  const starModuleSymbols =
+    starRequests.length === 0
+      ? []
+      : await view.checker.getSymbolAtLocation(
+          starRequests.map((request) => request.moduleSpecifier),
+        );
+  const starMembers = (
+    await Promise.all(
+      starRequests.map(async (request, index) => {
+        const moduleSymbol = starModuleSymbols[index];
+        if (moduleSymbol === undefined) {
+          return [];
+        }
+        const moduleExports =
+          await view.checker.getExportsOfModule(moduleSymbol);
+        return moduleExports
+          .filter((symbol) => symbol.name !== "default")
+          .map((symbol) => ({ request, symbol }));
+      }),
+    )
+  ).flat();
+  for (const { request, symbol } of starMembers) {
+    const entry = await buildPendingSymbol(view, mappingsByFile, mappers, {
+      origin: "export",
+      packageImport: request.packageImport,
+      exportedName: symbol.name,
+      file: request.file,
+      node: request.node,
+      localName: symbol.name,
+      text: request.node.getText(request.file),
+      alias: symbol,
+    });
+    if (entry !== undefined) {
+      pending.push(entry);
+    }
   }
 
   const identities = await resolveTargetIdentities(pending);
-  const symbols: ImportedSymbol[] = pending.map(
-    (entry, index): ImportedSymbol => ({
-      kind: "IMPORTS_SYMBOL",
-      packageName: entry.packageName,
-      specifier: entry.specifier,
-      provider: entry.provider,
-      exportedName: entry.exportedName,
-      consumer: entry.consumer,
-      target: {
-        symbolId: entry.targetSymbolId,
-        name: entry.targetName,
-        declarations: entry.declarations,
-        ...(identities[index] ?? IDENTITY_NOT_ATTEMPTED),
-      },
-    }),
-  );
+  const symbols: ImportedSymbol[] = [];
+  const reexports: ReexportedSymbol[] = [];
+  for (const [index, entry] of pending.entries()) {
+    const target: ImportedSymbolTarget = {
+      symbolId: entry.targetSymbolId,
+      name: entry.targetName,
+      declarations: entry.declarations,
+      ...(identities[index] ?? IDENTITY_NOT_ATTEMPTED),
+    };
+    if (entry.origin === "import") {
+      symbols.push({
+        kind: "IMPORTS_SYMBOL",
+        packageName: entry.packageName,
+        specifier: entry.specifier,
+        provider: entry.provider,
+        exportedName: entry.exportedName,
+        consumer: entry.binding,
+        target,
+      });
+    } else {
+      reexports.push({
+        kind: "REEXPORTS",
+        packageName: entry.packageName,
+        specifier: entry.specifier,
+        provider: entry.provider,
+        exportedName: entry.exportedName,
+        export: entry.binding,
+        target,
+      });
+    }
+  }
 
   service.assertFresh(view);
   symbols.sort(compareImportedSymbols);
+  reexports.sort(compareReexportedSymbols);
   return {
     generation: view.generation,
     configFileName: view.configFileName,
@@ -316,6 +497,7 @@ export async function resolveImportedSymbols(
     exports: providerExports.exports,
     mappings: declarationSources.mappings,
     symbols,
+    reexports,
   };
 }
 
@@ -323,6 +505,9 @@ function collectBindings(
   file: SourceFile,
   importsByLocation: ReadonlyMap<string, PackageImport>,
   requests: BindingRequest[],
+  namespaceBindings: NamespaceImportBinding[],
+  memberCandidates: NamespaceMemberCandidate[],
+  starRequests: StarReexportRequest[],
 ): void {
   const visit = (node: Node): void => {
     if (isImportDeclaration(node)) {
@@ -335,6 +520,7 @@ function collectBindings(
       if (packageImport !== undefined && clause !== undefined) {
         if (clause.name !== undefined) {
           requests.push({
+            origin: "import",
             file,
             nameNode: clause.name,
             localName: bindingName(clause.name),
@@ -343,12 +529,46 @@ function collectBindings(
             packageImport,
           });
         }
+        if (clause.namedBindings !== undefined) {
+          if (isNamedImports(clause.namedBindings)) {
+            for (const element of clause.namedBindings.elements) {
+              requests.push({
+                origin: "import",
+                file,
+                nameNode: element.name,
+                localName: bindingName(element.name),
+                exportedName: bindingName(element.propertyName ?? element.name),
+                text: element.getText(file),
+                packageImport,
+              });
+            }
+          } else if (isNamespaceImport(clause.namedBindings)) {
+            namespaceBindings.push({
+              file,
+              nameNode: clause.namedBindings.name,
+              localName: bindingName(clause.namedBindings.name),
+              packageImport,
+            });
+          }
+        }
+      }
+    } else if (
+      isExportDeclaration(node) &&
+      node.moduleSpecifier !== undefined
+    ) {
+      const packageImport = importFor(
+        file,
+        node.moduleSpecifier,
+        importsByLocation,
+      );
+      if (packageImport !== undefined) {
         if (
-          clause.namedBindings !== undefined &&
-          isNamedImports(clause.namedBindings)
+          node.exportClause !== undefined &&
+          isNamedExports(node.exportClause)
         ) {
-          for (const element of clause.namedBindings.elements) {
+          for (const element of node.exportClause.elements) {
             requests.push({
+              origin: "export",
               file,
               nameNode: element.name,
               localName: bindingName(element.name),
@@ -357,31 +577,27 @@ function collectBindings(
               packageImport,
             });
           }
-        }
-      }
-    } else if (
-      isExportDeclaration(node) &&
-      node.moduleSpecifier !== undefined &&
-      node.exportClause !== undefined &&
-      isNamedExports(node.exportClause)
-    ) {
-      const packageImport = importFor(
-        file,
-        node.moduleSpecifier,
-        importsByLocation,
-      );
-      if (packageImport !== undefined) {
-        for (const element of node.exportClause.elements) {
-          requests.push({
+        } else if (node.exportClause === undefined) {
+          starRequests.push({
             file,
-            nameNode: element.name,
-            localName: bindingName(element.name),
-            exportedName: bindingName(element.propertyName ?? element.name),
-            text: element.getText(file),
+            node,
+            moduleSpecifier: node.moduleSpecifier,
             packageImport,
           });
         }
       }
+    } else if (
+      isPropertyAccessExpression(node) &&
+      isIdentifier(node.expression) &&
+      isIdentifier(node.name)
+    ) {
+      memberCandidates.push({
+        file,
+        node,
+        objectNode: node.expression,
+        objectName: bindingName(node.expression),
+        memberNode: node.name,
+      });
     }
     node.forEachChild(visit);
   };
@@ -416,6 +632,77 @@ async function resolveAliasTarget(
   }
   const target = await checker.getAliasedSymbol(symbol);
   return (await checker.isUnknownSymbol(target)) ? undefined : target;
+}
+
+/** One binding request whose alias has already been resolved to `alias`. */
+interface PendingRequest {
+  readonly origin: "import" | "export";
+  readonly packageImport: PackageImport;
+  readonly exportedName: string;
+  /** File and anchor node the binding's position and text come from. */
+  readonly file: SourceFile;
+  readonly node: Node;
+  readonly localName: string;
+  readonly text: string;
+  readonly alias: TypeScriptSymbol;
+}
+
+/**
+ * Follow one already-resolved alias to its provider declaration and build
+ * the pending edge, or drop the request when the alias leads nowhere exact.
+ *
+ * Shared by every binding shape this module resolves — named and default
+ * imports, namespace members, named re-exports and star re-export members —
+ * because all of them reduce to the same question once an alias symbol is in
+ * hand: does it lead to a real declaration this consumer's provider owns?
+ */
+async function buildPendingSymbol(
+  view: ProjectView,
+  mappingsByFile: ReadonlyMap<string, DeclarationSourceMapping>,
+  mappers: Map<string, Promise<DeclarationPositionMapper | undefined>>,
+  request: PendingRequest,
+): Promise<PendingSymbol | undefined> {
+  const target = await resolveAliasTarget(view.checker, request.alias);
+  if (target === undefined || target.declarations.length === 0) {
+    return undefined;
+  }
+  const provider = request.packageImport.provider;
+  if (provider === undefined) {
+    return undefined;
+  }
+  const declarations = await resolveDeclarations(
+    view,
+    target.declarations,
+    mappingsByFile,
+    mappers,
+  );
+  if (declarations.length === 0) {
+    return undefined;
+  }
+  const start = request.node.getStart(request.file);
+  const end = request.node.getEnd();
+  return {
+    origin: request.origin,
+    packageName: request.packageImport.packageName,
+    specifier: request.packageImport.specifier,
+    provider,
+    exportedName: request.exportedName,
+    binding: {
+      fileName: request.file.fileName,
+      symbolId: request.alias.id,
+      name: request.localName,
+      text: request.text,
+      start,
+      end,
+      startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
+      endLine:
+        request.file.getLineAndCharacterOfPosition(Math.max(start, end - 1))
+          .line + 1,
+    },
+    targetSymbolId: target.id,
+    targetName: target.name,
+    declarations,
+  };
 }
 
 async function resolveDeclarations(
@@ -668,6 +955,18 @@ function compareImportedSymbols(
     left.consumer.fileName.localeCompare(right.consumer.fileName) ||
     left.consumer.start - right.consumer.start ||
     left.consumer.end - right.consumer.end ||
+    left.exportedName.localeCompare(right.exportedName)
+  );
+}
+
+function compareReexportedSymbols(
+  left: ReexportedSymbol,
+  right: ReexportedSymbol,
+): number {
+  return (
+    left.export.fileName.localeCompare(right.export.fileName) ||
+    left.export.start - right.export.start ||
+    left.export.end - right.export.end ||
     left.exportedName.localeCompare(right.exportedName)
   );
 }

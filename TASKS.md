@@ -5482,10 +5482,9 @@ make test-ladybug todos los paquetes ok, incluidas las suites nativas nuevas
   (`0 exact edges without source`, evidencia ausente, claves duplicadas,
   confianza desconocida, propiedad de repositorio inválida) llegan en
   LUQUE-0904.
-* `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` tienen tabla y se cargan si existen,
-  pero `facts.NormalizeGo` todavía no las produce: `goloader.ResolveMethods`
-  existe y no está conectado al normalizador. El grafo real construido hoy no
-  contiene ninguna de las tres.
+* ~~`IMPLEMENTS`, `EMBEDS` y `OVERRIDES` no tenían productor.~~ Cerrado
+  después: `goloader.ResolveTypeRelations` las calcula con el comprobador de
+  tipos y `NormalizeGo` las emite.
 * `IMPORTS_SYMBOL` de TypeScript sigue pendiente de LUQUE-0907.
 * `DiagnoseStorage` continúa validando el esquema `001-synthetic`; no reconoce
   todavía una base canónica. No lo toqué: pertenece a la verificación de
@@ -5622,12 +5621,11 @@ demostrando el cableado. Sin `make test-ladybug` habría pasado inadvertida.
   inyectado, no con una carga real que los produzca: `LoadCanonical` rechaza
   antes los hechos que lo causarían. La función que corre dentro de `Validate`
   es exactamente la que `doctor graph` ejerce contra un grafo real y roto.
-* `DiagnoseStorage` sigue validando el esquema `001-synthetic`; `doctor storage`
-  no reconoce todavía una base canónica. Son diagnósticos distintos —fichero
-  frente a grafo— y unificarlos no pertenece a esta tarea.
-* `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` se verifican si existen, pero
-  `NormalizeGo` aún no las produce: el grafo real no contiene ninguna, así que
-  esas tres clases no están ejercitadas sobre datos reales.
+* ~~`doctor storage` no reconocía una base canónica.~~ Cerrado después:
+  detecta el esquema, valida el que corresponda y lo declara en su salida.
+* ~~`IMPLEMENTS`, `EMBEDS` y `OVERRIDES` no estaban ejercitadas sobre datos
+  reales.~~ Cerrado después: el fixture `testdata/go/type-relations` las
+  produce y la generación mixta las almacena.
 * Los arneses usados para derivar hechos e inyectar violaciones son andamios y
   no se han dejado en el árbol.
 
@@ -5889,8 +5887,8 @@ make test-ladybug todos los paquetes ok
 
 * El corpus es el fixture Go de tres repositorios; la escala grande es
   LUQUE-1602.
-* `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` se codifican y se cargan, pero
-  `NormalizeGo` no las produce: no aparecen en este grafo.
+* ~~`IMPLEMENTS`, `EMBEDS` y `OVERRIDES` no aparecían en el grafo.~~ Cerrado
+  después: ya se producen y se publican.
 * El grafo calificado es sólo Go: `IMPORTS_SYMBOL` de TypeScript es LUQUE-0907.
 * El snapshot vive en memoria. Persistirlo y publicarlo a los lectores MCP es
   de fases posteriores.
@@ -6036,17 +6034,17 @@ make test-ladybug todos los paquetes ok
 pnpm check        16 ficheros, 71 tests, limpio
 ```
 
-**Limitaciones:**
+**Limitaciones, todas cerradas después** en la tanda de completitud registrada
+en [`docs/decisions/canonical-graph-qualification.md`](docs/decisions/canonical-graph-qualification.md):
 
-* Un import de namespace (`import * as shared`) sigue sin producir arista
-  exacta: el binding no nombra un símbolo concreto. Es la degradación conocida
-  de LUQUE-0705, no una regresión.
-* Los usos locales de un binding importado no producen todavía `REFERENCES`
-  hacia el símbolo `import`: el extractor de referencias sólo resuelve destinos
-  dentro del proyecto. El import queda representado por su arista
-  `IMPORTS_SYMBOL`, no por sus usos.
-* `EXPORTS` y `REEXPORTS` tienen tabla y vocabulario pero nadie las produce
-  todavía, ni en Go ni en TypeScript.
+* ~~Un import de namespace no producía arista exacta.~~ Ahora cada **miembro
+  usado** de un namespace (`shared.compute`) produce su `IMPORTS_SYMBOL`. El
+  binding `shared` sigue sin producirla, y es correcto: no nombra un símbolo.
+* ~~Los usos locales de un binding importado no producían `REFERENCES`.~~ El
+  extractor resuelve ahora el uso contra el propio binding local.
+* ~~`EXPORTS` y `REEXPORTS` no tenían productor.~~ El nombre público es ahora un
+  símbolo de clase `export`, con `EXPORTS` hacia la declaración del mismo
+  repositorio y `REEXPORTS` cuando llega por un `from`.
 
 **Siguiente tarea:** LUQUE-1001, ya en la fase 10.
 

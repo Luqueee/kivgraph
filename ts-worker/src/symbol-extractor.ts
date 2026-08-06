@@ -58,16 +58,33 @@ export interface LocalSymbol {
   exportedNames: string[];
 }
 
-/** A local export binding resolved to its declaration symbol. */
+/**
+ * A local export binding resolved to its declaration symbol.
+ *
+ * `reExport` is true for every binding that arrives through a `from` clause
+ * — `export { x } from "./y.js"` and `export * from "./y.js"` alike — even
+ * when `./y.js` is this same repository: the `EXPORTS` vs `REEXPORTS` line
+ * is drawn at "did a `from` clause introduce it", never at "is the
+ * declaration in this repository".
+ */
 export interface LocalExport {
   fileName: string;
   exportedName: string;
   localName: string;
   isTypeOnly: boolean;
+  reExport: boolean;
   symbolId: number;
   symbol: TypeScriptSymbol;
+  /** Qualified name of the local declaration this export exposes. */
+  targetQualifiedName: string;
+  /** File of the local declaration this export exposes. */
+  targetFile: string;
+  /** Source excerpt anchoring the export site itself. */
+  text: string;
   start: number;
   end: number;
+  startLine: number;
+  endLine: number;
 }
 
 export interface SymbolExtractionOptions {
@@ -177,15 +194,24 @@ export async function extractLocalSymbols(
       entries.push(local);
     }
     if (candidate.directExportName !== undefined) {
+      const nameStart = candidate.nameNode.getStart(candidate.file);
+      const nameEnd = candidate.nameNode.getEnd();
+      const nameSpan = lineSpan(candidate.file, nameStart, nameEnd);
       exports.push({
         fileName: candidate.file.fileName,
         exportedName: candidate.directExportName,
         localName: candidate.name,
         isTypeOnly: isTypeSymbol(local),
+        reExport: false,
         symbolId: local.symbolId,
         symbol: local.symbol,
-        start: candidate.declaration.getStart(candidate.file),
-        end: candidate.declaration.getEnd(),
+        targetQualifiedName: local.qualifiedName,
+        targetFile: local.fileName,
+        text: candidate.name,
+        start: nameStart,
+        end: nameEnd,
+        startLine: nameSpan.startLine,
+        endLine: nameSpan.endLine,
       });
     }
   }
@@ -222,15 +248,24 @@ export async function extractLocalSymbols(
         }
         local.exported = true;
       }
+      const start = request.node.getStart(request.file);
+      const end = request.node.getEnd();
+      const span = lineSpan(request.file, start, end);
       exports.push({
         fileName: request.file.fileName,
         exportedName: request.exportedName,
         localName: request.localName,
         isTypeOnly: request.isTypeOnly || isTypeSymbol(local),
+        reExport: request.reExport,
         symbolId: local.symbolId,
         symbol: local.symbol,
-        start: request.node.getStart(request.file),
-        end: request.node.getEnd(),
+        targetQualifiedName: local.qualifiedName,
+        targetFile: local.fileName,
+        text: request.node.getText(request.file),
+        start,
+        end,
+        startLine: span.startLine,
+        endLine: span.endLine,
       });
     }
   }
@@ -265,15 +300,24 @@ export async function extractLocalSymbols(
       continue;
     }
     for (const local of locals) {
+      const start = entry.request.node.getStart(entry.request.file);
+      const end = entry.request.node.getEnd();
+      const span = lineSpan(entry.request.file, start, end);
       exports.push({
         fileName: entry.request.file.fileName,
         exportedName: entry.exportedName,
         localName: local.name,
         isTypeOnly: entry.request.isTypeOnly || isTypeSymbol(local),
+        reExport: true,
         symbolId: local.symbolId,
         symbol: local.symbol,
-        start: entry.request.node.getStart(entry.request.file),
-        end: entry.request.node.getEnd(),
+        targetQualifiedName: local.qualifiedName,
+        targetFile: local.fileName,
+        text: entry.request.node.getText(entry.request.file),
+        start,
+        end,
+        startLine: span.startLine,
+        endLine: span.endLine,
       });
     }
   }
@@ -435,17 +479,25 @@ function collectExportAssignment(
   });
 }
 
+/** The one-based start/end line pair of a `[start, end)` source span. */
+function lineSpan(
+  file: SourceFile,
+  start: number,
+  end: number,
+): { startLine: number; endLine: number } {
+  const startLine = file.getLineAndCharacterOfPosition(start).line + 1;
+  const endLine =
+    file.getLineAndCharacterOfPosition(Math.max(start, end - 1)).line + 1;
+  return { startLine, endLine };
+}
+
 function makeLocalSymbol(
   candidate: DeclarationCandidate,
   symbol: TypeScriptSymbol,
 ): LocalSymbol {
   const start = candidate.declaration.getStart(candidate.file);
   const end = candidate.declaration.getEnd();
-  const startLine =
-    candidate.file.getLineAndCharacterOfPosition(start).line + 1;
-  const endPosition = Math.max(start, end - 1);
-  const endLine =
-    candidate.file.getLineAndCharacterOfPosition(endPosition).line + 1;
+  const { startLine, endLine } = lineSpan(candidate.file, start, end);
   const qualifiedName = [...candidate.scope, candidate.name].join(".");
   const directExportNames =
     candidate.directExportName === undefined

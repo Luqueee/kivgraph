@@ -112,14 +112,24 @@ export async function resolveProviderSourcePositions(
   return { positions, unresolved: unresolved.sort() };
 }
 
+/** The `provider` and `target` fields shared by imports and re-exports. */
+type CrossRepositoryEdge = Pick<
+  ImportedSymbolResolution["symbols"][number],
+  "provider" | "target"
+>;
+
 function collectRequests(resolution: ImportedSymbolResolution): Request[] {
   const requests = new Map<string, Request>();
-  for (const symbol of resolution.symbols) {
-    const projectPath = symbol.provider.projectPath;
+  const edges: readonly CrossRepositoryEdge[] = [
+    ...resolution.symbols,
+    ...resolution.reexports,
+  ];
+  for (const edge of edges) {
+    const projectPath = edge.provider.projectPath;
     if (projectPath === undefined) {
       continue;
     }
-    for (const declaration of symbol.target.declarations) {
+    for (const declaration of edge.target.declarations) {
       if (
         declaration.sourcePosition !== undefined ||
         declaration.sourceFiles.length === 0
@@ -129,7 +139,7 @@ function collectRequests(resolution: ImportedSymbolResolution): Request[] {
       const request: Request = {
         projectPath,
         declarationFile: declaration.fileName,
-        exportedName: symbol.target.name,
+        exportedName: edge.target.name,
         sourceFiles: declaration.sourceFiles,
       };
       requests.set(requestKey(request), request);

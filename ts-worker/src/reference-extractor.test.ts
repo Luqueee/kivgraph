@@ -4,7 +4,9 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { resolveImportedSymbols } from "./imported-symbol-resolver.js";
 import { LanguageService } from "./language-service.js";
+import type { PackageProviderRegistry } from "./package-import-resolver.js";
 import {
   extractLocalReferences,
   type LocalReference,
@@ -280,5 +282,83 @@ export function use(items: number[]): typeof callback {
     ).rejects.toThrowError(
       expect.objectContaining({ code: "STALE_GENERATION" }),
     );
+  });
+
+  it("targets the emitted import binding when a use never resolves to a genuine local declaration", async () => {
+    const workspace = await createWorkspace({
+      "src/consumer.ts": `
+import { helper } from "shared";
+export const used = helper;
+`,
+      "node_modules/shared/package.json": `{
+  "name": "shared",
+  "version": "1.0.0",
+  "type": "module",
+  "types": "./index.d.ts"
+}`,
+      "node_modules/shared/index.d.ts": `export declare function helper(): number;\n`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+
+    // Baseline: without the fallback, "helper" resolves past the alias to
+    // a declaration in another package, which is never a local symbol —
+    // the same use of a cross-repository binding produces nothing.
+    const withoutFallback = await extractLocalReferences(
+      service,
+      view,
+      symbols,
+    );
+    expect(
+      localReferences(
+        withoutFallback.references,
+        workspace.file("src/consumer.ts"),
+      ),
+    ).toEqual([]);
+
+    const registry: PackageProviderRegistry = {
+      get: (name) =>
+        name === "shared"
+          ? {
+              name: "shared",
+              version: "1.0.0",
+              repository: "shared-repo",
+              rootPath: workspace.file("node_modules/shared"),
+            }
+          : undefined,
+    };
+    const resolution = await resolveImportedSymbols(service, view, registry);
+    expect(resolution.symbols).toHaveLength(1);
+    const binding = resolution.symbols[0]?.consumer;
+    if (binding === undefined) {
+      throw new Error("expected one resolved import binding");
+    }
+
+    const withFallback = await extractLocalReferences(service, view, symbols, {
+      importBindings: [
+        {
+          symbolId: binding.symbolId,
+          fileName: binding.fileName,
+          name: binding.name,
+          qualifiedName: binding.name,
+          start: binding.start,
+          end: binding.end,
+          startLine: binding.startLine,
+          endLine: binding.endLine,
+        },
+      ],
+    });
+    const references = localReferences(
+      withFallback.references,
+      workspace.file("src/consumer.ts"),
+    );
+    expect(references).toHaveLength(1);
+    expect(references[0]).toMatchObject({
+      kind: "REFERENCES",
+      text: "helper",
+      target: { name: "helper", qualifiedName: "helper" },
+    });
   });
 });

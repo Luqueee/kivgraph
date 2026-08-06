@@ -20,6 +20,10 @@ type GoInput struct {
 	References []goloader.Reference
 	// CrossRepository attributes targets to their provider repository.
 	CrossRepository []goloader.CrossRepositoryReference
+	// TypeRelations are the IMPLEMENTS, EMBEDS and OVERRIDES facts: structural
+	// relations the type checker decides on its own, with no source
+	// occurrence of their own to anchor them.
+	TypeRelations []goloader.TypeRelation
 	// Unresolved are the classified failures of LUQUE-0810.
 	Unresolved []goloader.UnresolvedReference
 }
@@ -27,11 +31,13 @@ type GoInput struct {
 // GoReport records what normalisation could not keep, so a dropped fact is
 // visible instead of silently missing.
 type GoReport struct {
-	// EdgesWithoutSource counts references whose enclosing declaration has no
-	// durable identity, typically a use at file scope.
+	// EdgesWithoutSource counts references and type relations whose
+	// enclosing declaration has no durable identity, typically a use at
+	// file scope.
 	EdgesWithoutSource int
-	// EdgesWithoutTarget counts references whose target is not indexed in this
-	// pass and was not attributed to a provider repository.
+	// EdgesWithoutTarget counts references and type relations whose target
+	// is not indexed in this pass and was not attributed to a provider
+	// repository.
 	EdgesWithoutTarget int
 	// UnresolvedWithoutFile counts module-level failures with no file.
 	UnresolvedWithoutFile int
@@ -201,6 +207,58 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		})
 	}
 
+	crossByTarget := make(map[string]goloader.CrossRepositoryReference, len(input.CrossRepository))
+	for _, reference := range input.CrossRepository {
+		if reference.Status != goloader.CrossRepositoryResolved || reference.TargetStableKey == "" {
+			continue
+		}
+		crossByTarget[reference.TargetPackagePath+"\x00"+reference.TargetQualifiedName] = reference
+	}
+
+	for _, relation := range input.TypeRelations {
+		if err := ctx.Err(); err != nil {
+			return Set{}, GoReport{}, err
+		}
+		sourceKey, hasSource := symbolsByQualifiedName[relation.PackagePath+"\x00"+relation.SourceQualifiedName]
+		if !hasSource {
+			report.EdgesWithoutSource++
+			continue
+		}
+		targetKey, confidence, provenance, resolved := resolveGoRelationTarget(relation, crossByTarget, symbolsByQualifiedName)
+		if !resolved {
+			report.EdgesWithoutTarget++
+			continue
+		}
+		relative := repositoryRelativePath(root, relation.FileName)
+		fileKey := FileKey(name, relative)
+		if _, exists := files[fileKey]; !exists {
+			// A relation always lives in a file this pass already indexed.
+			report.EdgesWithoutSource++
+			continue
+		}
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, relation.Offset, relation.EndOffset),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start: Position{
+				Line:   relation.StartLine,
+				Column: relation.StartColumn,
+				Offset: relation.Offset,
+			},
+			End:  Position{Line: relation.StartLine, Offset: relation.EndOffset},
+			Text: relation.Name,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		set.Edges = append(set.Edges, Edge{
+			Kind:        goRelationEdgeKind(relation.Kind),
+			SourceKey:   sourceKey,
+			TargetKey:   targetKey,
+			Confidence:  confidence,
+			Provenance:  provenance,
+			EvidenceKey: evidence.Key,
+		})
+	}
+
 	for _, entry := range input.Unresolved {
 		if err := ctx.Err(); err != nil {
 			return Set{}, GoReport{}, err
@@ -301,6 +359,39 @@ func goEdgeKind(kind goloader.ReferenceKind) EdgeKind {
 		return ReturnsFunction
 	case goloader.ReferenceTypeUses:
 		return TypeUses
+	default:
+		return References
+	}
+}
+
+// resolveGoRelationTarget finds the durable identity of a type relation's
+// target: a local target uses the identity assigned in this pass, exactly
+// like a reference; a cross-repository target reuses the identity any other
+// reference to the same symbol already resolved, since that identity
+// depends only on the target, never on the occurrence that reached it.
+func resolveGoRelationTarget(
+	relation goloader.TypeRelation,
+	crossByTarget map[string]goloader.CrossRepositoryReference,
+	symbolsByQualifiedName map[string]string,
+) (string, Confidence, Provenance, bool) {
+	if key, exists := symbolsByQualifiedName[relation.TargetPackagePath+"\x00"+relation.TargetQualifiedName]; exists {
+		return key, ExactTypechecked, GoTypesUse, true
+	}
+	if cross, exists := crossByTarget[relation.TargetPackagePath+"\x00"+relation.TargetQualifiedName]; exists {
+		return string(cross.TargetStableKey), ExactTypechecked, GoObjectPath, true
+	}
+	return "", "", "", false
+}
+
+// goRelationEdgeKind maps a structural relation to its canonical edge kind.
+func goRelationEdgeKind(kind goloader.TypeRelationKind) EdgeKind {
+	switch kind {
+	case goloader.RelationImplements:
+		return Implements
+	case goloader.RelationEmbeds:
+		return Embeds
+	case goloader.RelationOverrides:
+		return Overrides
 	default:
 		return References
 	}

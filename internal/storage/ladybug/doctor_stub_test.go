@@ -21,6 +21,9 @@ func TestDiagnoseStorageReportsNativeSupportUnavailable(t *testing.T) {
 	if diagnosis.Healthy {
 		t.Fatal("Healthy = true")
 	}
+	if diagnosis.Schema != SchemaUnknown {
+		t.Fatalf("Schema = %q, want %q", diagnosis.Schema, SchemaUnknown)
+	}
 	check, found := diagnosis.Check("open")
 	if !found || check.Status != DiagnosticFail || check.Detail != ErrUnavailable.Error() {
 		t.Fatalf("open check = %#v, found=%t", check, found)

@@ -15,6 +15,7 @@ import type { DeclarationSourceMapping } from "./declaration-source-resolver.js"
 import {
   resolveImportedSymbols,
   type ImportedSymbol,
+  type ReexportedSymbol,
 } from "./imported-symbol-resolver.js";
 import type { LanguageService, ProjectView } from "./language-service.js";
 import type {
@@ -76,6 +77,7 @@ export interface UnresolvedReferenceResolution {
   readonly exports: readonly ProviderExport[];
   readonly mappings: readonly DeclarationSourceMapping[];
   readonly symbols: readonly ImportedSymbol[];
+  readonly reexports: readonly ReexportedSymbol[];
   readonly unresolved: readonly UnresolvedReference[];
 }
 
@@ -115,11 +117,14 @@ export async function resolveUnresolvedReferences(
     resolution.mappings.map((mapping) => [mapping.declarationFile, mapping]),
   );
   const brokenModules = await collectBrokenModules(view, resolution.imports);
-  const modulesWithEdges = new Set(
-    resolution.symbols.map((symbol) =>
+  const modulesWithEdges = new Set([
+    ...resolution.symbols.map((symbol) =>
       specifierKey(symbol.consumer.fileName, symbol.specifier),
     ),
-  );
+    ...resolution.reexports.map((entry) =>
+      specifierKey(entry.export.fileName, entry.specifier),
+    ),
+  ]);
 
   const unresolved: UnresolvedReference[] = [];
   const failedImports = new Set<string>();
@@ -211,6 +216,9 @@ export async function resolveUnresolvedReferences(
     // from it would be a false exact edge.
     symbols: resolution.symbols.filter(
       (symbol) => !conflicts.has(symbol.packageName),
+    ),
+    reexports: resolution.reexports.filter(
+      (entry) => !conflicts.has(entry.packageName),
     ),
     unresolved,
   };

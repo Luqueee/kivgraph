@@ -85,6 +85,7 @@ export { value as reexported } from "shared";
 import * as namespace from "shared";
 import { local } from "./local.js";
 console.log(defaultValue, value, aliased, missing, namespace, local);
+console.log(namespace.value);
 export type Used = Shape;
 `,
       "src/local.ts": `export const local = 1;\n`,
@@ -119,6 +120,9 @@ export interface Shape { value: string }
     );
 
     expect(resolution.generation).toBe(view.generation);
+    // The bare namespace binding (passed to `console.log` above) names no
+    // concrete symbol and produces nothing; `namespace.value` does, exactly
+    // like the named import of `value` a few lines above it.
     expect(
       resolution.symbols.map((entry) => [
         entry.consumer.name,
@@ -130,7 +134,7 @@ export interface Shape { value: string }
       ["value", "value", "value"],
       ["Shape", "Shape", "Shape"],
       ["aliased", "value", "value"],
-      ["reexported", "value", "value"],
+      ["value", "value", "value"],
     ]);
     expect(
       resolution.symbols.every(
@@ -141,6 +145,18 @@ export interface Shape { value: string }
           entry.consumer.fileName === workspace.file("src/consumer.ts"),
       ),
     ).toBe(true);
+
+    // `export { value as reexported } from "shared"` is a re-export, not an
+    // import: it never appears in `.symbols`.
+    expect(
+      resolution.reexports.map((entry) => [
+        entry.export.name,
+        entry.exportedName,
+        entry.target.name,
+      ]),
+    ).toEqual([["reexported", "value", "value"]]);
+    expect(resolution.reexports[0]?.kind).toBe("REEXPORTS");
+    expect(resolution.reexports[0]?.provider.repository).toBe("shared-repo");
 
     const value = resolution.symbols.find(
       (entry) => entry.consumer.name === "value",
@@ -153,6 +169,14 @@ export interface Shape { value: string }
     expect(declaration?.sourceStatus).toBe("UNRESOLVED");
     expect(declaration?.start).toBeLessThan(declaration?.end ?? 0);
     expect(declaration?.sourcePosition).toBeUndefined();
+
+    // The two "value" entries are genuinely distinct occurrences: one at the
+    // named import, one at the namespace member access.
+    const namespaceMember = resolution.symbols.filter(
+      (entry) => entry.consumer.name === "value",
+    )[1];
+    expect(namespaceMember?.consumer.text).toBe("namespace.value");
+    expect(namespaceMember?.consumer.start).not.toBe(value?.consumer.start);
   });
 
   it("maps declarations to sources when the provider ships a declaration map", async () => {

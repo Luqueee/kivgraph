@@ -150,9 +150,12 @@ luque snapshot --root ROOT
   se codifican, pero `facts.NormalizeGo` todavía no las produce: no aparecen en
   este grafo.
 * Los dos lenguajes están calificados por separado, no combinados en un solo
-  grafo. Ver la ampliación de abajo.
+  grafo.
 * El snapshot vive en memoria. Su persistencia y su publicación a los lectores
   MCP pertenecen a fases posteriores.
+
+Los dos límites intermedios quedaron cerrados el mismo día; ver la segunda
+ampliación.
 
 ## Ampliación del 2026-08-06: TypeScript
 
@@ -180,7 +183,95 @@ del proveedor. Que `doctor graph` pase lo confirma de forma independiente:
 `exact_edge_without_source` y `exact_edge_without_target` exigen que ambos
 extremos estén declarados, y una clave mal derivada los violaría.
 
-Sigue pendiente combinar Go y TypeScript en **una misma generación**: cada
-lenguaje se calificó en su propio grafo. La convergencia de ambos en un solo
-`Set` está probada en `internal/facts` desde LUQUE-0901, pero no se ha
-publicado todavía un grafo mixto.
+## Segunda ampliación del 2026-08-06: completitud y grafo mixto
+
+Esta tanda cierra los huecos que las tareas de la fase 9 habían ido declarando,
+y publica por primera vez **una generación con los dos lenguajes dentro**.
+
+### Clases de arista que no tenían productor
+
+| Clase | Antes | Ahora |
+| --- | --- | --- |
+| `IMPLEMENTS` | sin productor | `types.Implements` sobre los tipos cargados, distinguiendo satisfacción por valor y por puntero |
+| `EMBEDS` | sin productor | campo anónimo de struct y tipo embebido en interfaz, distinguiendo valor y puntero |
+| `OVERRIDES` | sin productor | método del tipo exterior que oculta el promovido de un embebido, decidido por el conjunto de métodos y su profundidad |
+| `EXPORTS` | sin productor | el nombre público es un símbolo de clase `export` y apunta a la declaración del mismo repositorio |
+| `REEXPORTS` | sin productor | igual, cuando la declaración llega por un `from`, con identidad del proveedor si cruza de repositorio |
+
+`IMPLEMENTS` es satisfacción **real** de interfaz, nunca coincidencia de nombres
+de método: sólo hay arista si el compilador lo afirma. La interfaz vacía queda
+excluida, porque la satisface todo y no informa de nada. `OVERRIDES` no modela
+sobrescritura virtual —Go no la tiene— sino sombreado de método promovido.
+
+Go no tenía dónde probar esto: el fixture cross-repository no contiene ninguna
+interfaz implementada, ningún embedding ni ningún método sombreado, y es el que
+mide `GO_SEMANTIC_PASS`. Se añadió `testdata/go/type-relations/` en vez de
+tocarlo; el gate de precisión sigue emitiendo las mismas métricas.
+
+### Degradaciones de TypeScript, cerradas
+
+* Cada **miembro usado** de un import de namespace (`shared.compute`) produce
+  ahora su `IMPORTS_SYMBOL`. El binding `shared` sigue sin producirla, y es
+  correcto: no nombra un símbolo concreto.
+* Un uso local de un binding importado (`used = helper`) produce ahora
+  `REFERENCES` hacia ese binding.
+
+### Un fallo de identidad que apareció al conectarlo
+
+El nombre público de un export coincide a menudo con el nombre cualificado de la
+declaración local en el mismo fichero: `export function foo(){}` produce ambos
+como `foo`. Con los bindings de import eso no podía pasar —el ámbito de
+TypeScript garantiza nombres distintos—, pero con los exports es lo normal, y
+colisionaba en silencio en el mapa `(fichero, nombre cualificado)` del lado Go,
+corrompiendo la resolución de aristas. El emisor reserva ahora los nombres ya
+ocupados por declaraciones y por imports antes de nombrar un símbolo `export`.
+
+### `doctor storage` reconoce el esquema canónico
+
+Validaba siempre el esquema experimental `001`, así que una generación publicada
+por `luque rebuild` fallaba el diagnóstico aunque estuviese perfecta. Ahora
+detecta cuál de los dos esquemas tiene la base, valida el que corresponda
+—derivando las tablas exigidas de la metadata, no de una lista escrita a mano— y
+**declara en su salida contra cuál validó**. Un diagnóstico que no lo dice no se
+puede interpretar.
+
+### La generación mixta
+
+Un solo `Set` con los tres repositorios Go del fixture cross-repository, el
+fixture nuevo de relaciones de tipo, y los tres repositorios TypeScript:
+
+```text
+repos=4  packages=8  files=10  symbols=55 (go=31 typescript=24)  edges=137
+
+  CALLS_DIRECT 6    CONTAINS_FILE 10   CONTAINS_PACKAGE 8   DEFINES 55
+  EMBEDS 3          EXPORTS 7          IMPLEMENTS 2         IMPORTS_SYMBOL 5
+  OVERRIDES 1       PASSES_AS_CALLBACK 1                    REEXPORTS 5
+  REFERENCES 21     TYPE_USES 13
+```
+
+```text
+[PASS] bulk load  copied 140 node(s) and 196 edge(s)
+[PASS] integrity  27 of 27 canonical table(s) matched; 0 invariant violation(s)
+[PASS] snapshot   55 symbols, 64 edges in the CSR
+[PASS] publish    published generation 000001
+
+luque doctor storage   PASS, schema: canonical (version 2)
+luque doctor graph     PASS, los seis invariantes a cero
+luque snapshot         PASS
+```
+
+Trece de las dieciocho clases de arista del modelo aparecen en un grafo real y
+verificado, con los dos lenguajes conviviendo.
+
+### Lo que sigue sin productor
+
+Con honestidad, y sin inventar que está hecho:
+
+* `EXTENDS`: `class A extends B` y `interface A extends B` son reales en
+  TypeScript y no se producen todavía. Es la única clase sin productor en
+  ninguno de los dos lenguajes.
+* `PACKAGE_DEPENDS_ON` y `MODULE_DEPENDS_ON`: hay materia prima
+  (`package-dependency-resolver.ts` en el worker, el registro de módulos en Go)
+  pero ningún normalizador las emite.
+* `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION` tienen productor en ambos lenguajes;
+  simplemente los fixtures publicados aquí no las ejercitan.

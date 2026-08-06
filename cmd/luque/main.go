@@ -127,6 +127,13 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 	}
 	fmt.Fprintf(stdout, "storage doctor: %s\n", state)
 	fmt.Fprintf(stdout, "database: %s\n", diagnosis.Path)
+	// A diagnosis that does not say which layout it validated cannot be
+	// interpreted: the same path can hold either schema.
+	if diagnosis.Schema == ladybug.SchemaCanonical {
+		fmt.Fprintf(stdout, "schema: %s (version %d)\n", diagnosis.Schema, diagnosis.SchemaVersion)
+	} else {
+		fmt.Fprintf(stdout, "schema: %s\n", diagnosis.Schema)
+	}
 	for _, check := range diagnosis.Checks {
 		fmt.Fprintf(stdout, "[%s] %s: %s\n", check.Status, check.Name, check.Detail)
 	}

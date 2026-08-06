@@ -1,0 +1,228 @@
+{
+  "version": 3,
+  "repository": {
+    "name": "consumer-b"
+  },
+  "package": {
+    "name": "@luque-fixture/consumer-b",
+    "version": "3.1.0",
+    "rootPath": ".",
+    "manifestPath": "package.json"
+  },
+  "files": [
+    "src/barrel.ts"
+  ],
+  "symbols": [
+    {
+      "file": "src/barrel.ts",
+      "name": "used",
+      "qualifiedName": "used",
+      "kind": "variable",
+      "exported": true,
+      "signature": "used",
+      "startLine": 6,
+      "endLine": 6,
+      "start": 191,
+      "end": 204
+    },
+    {
+      "file": "src/barrel.ts",
+      "name": "namespaced",
+      "qualifiedName": "namespaced",
+      "kind": "variable",
+      "exported": true,
+      "signature": "namespaced",
+      "startLine": 7,
+      "endLine": 7,
+      "start": 219,
+      "end": 246
+    },
+    {
+      "file": "src/barrel.ts",
+      "name": "helper",
+      "qualifiedName": "helper",
+      "kind": "import",
+      "exported": false,
+      "signature": "aliasedHelper as helper",
+      "startLine": 1,
+      "endLine": 1,
+      "start": 26,
+      "end": 32
+    },
+    {
+      "file": "src/barrel.ts",
+      "name": "compute",
+      "qualifiedName": "compute",
+      "kind": "import",
+      "exported": false,
+      "signature": "shared.compute",
+      "startLine": 7,
+      "endLine": 7,
+      "start": 239,
+      "end": 246
+    },
+    {
+      "file": "src/barrel.ts",
+      "name": "used",
+      "qualifiedName": "used#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "used",
+      "startLine": 6,
+      "endLine": 6,
+      "start": 191,
+      "end": 195
+    },
+    {
+      "file": "src/barrel.ts",
+      "name": "namespaced",
+      "qualifiedName": "namespaced#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "namespaced",
+      "startLine": 7,
+      "endLine": 7,
+      "start": 219,
+      "end": 229
+    },
+    {
+      "file": "src/barrel.ts",
+      "name": "republished",
+      "qualifiedName": "republished",
+      "kind": "export",
+      "exported": true,
+      "signature": "value as republished",
+      "startLine": 4,
+      "endLine": 4,
+      "start": 133,
+      "end": 144
+    }
+  ],
+  "references": [
+    {
+      "file": "src/barrel.ts",
+      "kind": "REFERENCES",
+      "sourceQualifiedName": "used",
+      "targetQualifiedName": "helper",
+      "targetFile": "src/barrel.ts",
+      "startLine": 6,
+      "start": 198,
+      "end": 204,
+      "text": "helper"
+    },
+    {
+      "file": "src/barrel.ts",
+      "kind": "REFERENCES",
+      "sourceQualifiedName": "namespaced",
+      "targetQualifiedName": "compute",
+      "targetFile": "src/barrel.ts",
+      "startLine": 7,
+      "start": 239,
+      "end": 246,
+      "text": "compute"
+    }
+  ],
+  "imports": [
+    {
+      "file": "src/barrel.ts",
+      "qualifiedName": "helper",
+      "start": 26,
+      "end": 32,
+      "startLine": 1,
+      "text": "aliasedHelper as helper",
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "aliasedHelper",
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "helper",
+        "kind": "function",
+        "signature": "export function helper(shape: Shape): number",
+        "file": "src/helper.ts",
+        "startLine": 3
+      },
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/barrel.ts",
+      "qualifiedName": "compute",
+      "start": 239,
+      "end": 246,
+      "startLine": 7,
+      "text": "shared.compute",
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "compute",
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "compute",
+        "kind": "function",
+        "signature": "export function compute(input: number): number",
+        "file": "src/value.ts",
+        "startLine": 7
+      },
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "exports": [
+    {
+      "file": "src/barrel.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "used#2",
+      "start": 191,
+      "end": 195,
+      "startLine": 6,
+      "text": "used",
+      "targetQualifiedName": "used",
+      "targetFile": "src/barrel.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/barrel.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "namespaced#2",
+      "start": 219,
+      "end": 229,
+      "startLine": 7,
+      "text": "namespaced",
+      "targetQualifiedName": "namespaced",
+      "targetFile": "src/barrel.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/barrel.ts",
+      "kind": "REEXPORTS",
+      "qualifiedName": "republished",
+      "start": 133,
+      "end": 144,
+      "startLine": 4,
+      "text": "value as republished",
+      "targetQualifiedName": null,
+      "targetFile": null,
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "value",
+        "kind": "variable",
+        "signature": "value",
+        "file": "src/value.ts",
+        "startLine": 1
+      },
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "value",
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "unresolved": []
+}
