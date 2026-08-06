@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/mcpworkload"
@@ -92,5 +94,25 @@ func TestRunSmallFourClientBenchmark(t *testing.T) {
 	}
 	if totalCalls != 20 {
 		t.Fatalf("operation calls = %d, want 20", totalCalls)
+	}
+}
+
+func TestRunWritesAllProfiles(t *testing.T) {
+	profileDir := t.TempDir()
+	_, err := run(context.Background(), config{
+		Calls: 20, Warmup: 1, Clients: 4, Symbols: 100, Edges: 1_000, Seed: 42,
+		ProfileDir: profileDir,
+	})
+	if err != nil {
+		t.Fatalf("run() with profiles error = %v", err)
+	}
+	for _, name := range []string{"cpu.pprof", "heap.pprof", "allocs.pprof", "mutex.pprof", "block.pprof", "trace.out"} {
+		info, err := os.Stat(filepath.Join(profileDir, name))
+		if err != nil {
+			t.Fatalf("profile %s: %v", name, err)
+		}
+		if info.Size() == 0 {
+			t.Fatalf("profile %s is empty", name)
+		}
 	}
 }

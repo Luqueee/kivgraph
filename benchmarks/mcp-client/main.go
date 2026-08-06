@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
+	"runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,13 +41,93 @@ const (
 )
 
 type config struct {
-	Calls     int
-	Warmup    int
-	Clients   int
-	Symbols   int
-	Edges     int
-	Seed      int64
-	OutputDir string
+	Calls      int
+	Warmup     int
+	Clients    int
+	Symbols    int
+	Edges      int
+	Seed       int64
+	OutputDir  string
+	ProfileDir string
+}
+
+type profileCapture struct {
+	cpuFile               *os.File
+	traceFile             *os.File
+	previousMutexFraction int
+}
+
+func startProfileCapture(dir string) (*profileCapture, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create profile directory: %w", err)
+	}
+	cpuFile, err := os.Create(filepath.Join(dir, "cpu.pprof"))
+	if err != nil {
+		return nil, fmt.Errorf("create CPU profile: %w", err)
+	}
+	if err := pprof.StartCPUProfile(cpuFile); err != nil {
+		_ = cpuFile.Close()
+		return nil, fmt.Errorf("start CPU profile: %w", err)
+	}
+	traceFile, err := os.Create(filepath.Join(dir, "trace.out"))
+	if err != nil {
+		pprof.StopCPUProfile()
+		_ = cpuFile.Close()
+		return nil, fmt.Errorf("create trace: %w", err)
+	}
+	if err := trace.Start(traceFile); err != nil {
+		pprof.StopCPUProfile()
+		_ = cpuFile.Close()
+		_ = traceFile.Close()
+		return nil, fmt.Errorf("start trace: %w", err)
+	}
+	capture := &profileCapture{
+		cpuFile:               cpuFile,
+		traceFile:             traceFile,
+		previousMutexFraction: runtime.SetMutexProfileFraction(1),
+	}
+	runtime.SetBlockProfileRate(1)
+	return capture, nil
+}
+
+func (capture *profileCapture) stop(dir string) error {
+	if capture == nil {
+		return nil
+	}
+	pprof.StopCPUProfile()
+	trace.Stop()
+	runtime.SetMutexProfileFraction(capture.previousMutexFraction)
+	runtime.SetBlockProfileRate(0)
+
+	var profileErrors []error
+	for _, name := range []string{"heap", "allocs", "mutex", "block"} {
+		profile := pprof.Lookup(name)
+		if profile == nil {
+			profileErrors = append(profileErrors, fmt.Errorf("profile %q is unavailable", name))
+			continue
+		}
+		file, err := os.Create(filepath.Join(dir, name+".pprof"))
+		if err != nil {
+			profileErrors = append(profileErrors, fmt.Errorf("create %s profile: %w", name, err))
+			continue
+		}
+		if err := profile.WriteTo(file, 0); err != nil {
+			profileErrors = append(profileErrors, fmt.Errorf("write %s profile: %w", name, err))
+		}
+		if err := file.Close(); err != nil {
+			profileErrors = append(profileErrors, fmt.Errorf("close %s profile: %w", name, err))
+		}
+	}
+	if err := capture.cpuFile.Close(); err != nil {
+		profileErrors = append(profileErrors, fmt.Errorf("close CPU profile: %w", err))
+	}
+	if err := capture.traceFile.Close(); err != nil {
+		profileErrors = append(profileErrors, fmt.Errorf("close trace: %w", err))
+	}
+	return errors.Join(profileErrors...)
 }
 
 type results struct {
@@ -140,6 +222,7 @@ func main() {
 	flag.IntVar(&cfg.Edges, "edges", defaultEdges, "synthetic snapshot semantic edges")
 	flag.Int64Var(&cfg.Seed, "seed", defaultSeed, "workload seed")
 	flag.StringVar(&cfg.OutputDir, "output", "", "results output directory")
+	flag.StringVar(&cfg.ProfileDir, "profile-dir", "", "write CPU, heap, allocation, mutex, block and trace profiles")
 	flag.Parse()
 	if cfg.OutputDir == "" {
 		cfg.OutputDir = outputDirForClients(cfg.Clients)
@@ -208,6 +291,10 @@ func run(ctx context.Context, cfg config) (results, error) {
 	}
 	observer.reset()
 	runtime.GC()
+	profiles, err := startProfileCapture(cfg.ProfileDir)
+	if err != nil {
+		return results{}, err
+	}
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
 	startRSS := readRSSBytes()
@@ -253,6 +340,9 @@ func run(ctx context.Context, cfg config) (results, error) {
 	measurements.Wait()
 	elapsed := time.Since(start)
 	observerDurations := observer.snapshot()
+	if err := profiles.stop(cfg.ProfileDir); err != nil {
+		return results{}, fmt.Errorf("stop profiles: %w", err)
+	}
 
 	runtime.GC()
 	runtime.ReadMemStats(&after)
@@ -345,10 +435,14 @@ func commandForConfig(cfg config) string {
 	if output == "" {
 		output = outputDirForClients(cfg.Clients)
 	}
-	return fmt.Sprintf(
+	command := fmt.Sprintf(
 		"go run ./benchmarks/mcp-client --clients %d --calls %d --warmup %d --symbols %d --edges %d --seed %d --output %s",
 		cfg.Clients, cfg.Calls, cfg.Warmup, cfg.Symbols, cfg.Edges, cfg.Seed, output,
 	)
+	if cfg.ProfileDir != "" {
+		command += fmt.Sprintf(" --profile-dir %s", cfg.ProfileDir)
+	}
+	return command
 }
 
 func outputDirForClients(clients int) string {
