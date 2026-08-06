@@ -6126,11 +6126,11 @@ fuente de recuperación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Defaults:**
 
@@ -6138,6 +6138,55 @@ fuente de recuperación.
 debounce: 150 ms
 maximum batch: 500 ms
 ```
+
+**Entregables:**
+
+```text
+internal/watcher/debounce.go
+internal/watcher/debounce_test.go
+```
+
+**Criterios de aceptación:**
+
+* El debounce se reinicia con cada evento y emite después del período quieto.
+* El máximo comienza con el primer evento y no se prolonga por eventos
+  posteriores.
+* Eventos del mismo `repository` y `path` se coalescen mediante OR de
+  `Operations`, conservando el orden de primera aparición de cada path.
+* El cierre del canal de entrada entrega el batch pendiente; la cancelación
+  explícita detiene el ciclo sin emitir trabajo pendiente.
+* Se rechazan duraciones no positivas y un máximo menor que el debounce.
+
+**Estado:** `PASS`.
+
+**Archivos creados:** `internal/watcher/debounce.go` y
+`internal/watcher/debounce_test.go`.
+
+**Archivos modificados:** ninguno adicional.
+
+**Tests ejecutados:**
+
+```text
+go test ./internal/watcher -count=10
+go test ./...
+go vet ./...
+go test -race ./internal/watcher
+make build
+```
+
+**Resultados:** todas las pruebas pasan. La suite cubre validación de
+duraciones, coalescencia y orden, período quieto, límite máximo, cierre de
+entrada y cancelación.
+
+**Benchmarks:** no aplica; el comportamiento temporal depende de timers y la
+implementación no introduce un camino de análisis cuyo rendimiento sea todavía
+representativo. El benchmark debe hacerse al integrar el pipeline incremental.
+
+**Limitaciones:** el batcher no hace `stat`, hashing ni clasificación semántica.
+La cancelación descarta únicamente el batch aún no emitido, de forma explícita;
+el cierre normal del input sí lo entrega completo.
+
+**Siguiente tarea:** LUQUE-1003.
 
 ---
 
