@@ -8523,11 +8523,43 @@ adaptador de señales del CLI es específico de Unix.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Entregable:** `docs/testing/resilience-matrix.md`.
+
+La matriz reúne LUQUE-1202 a LUQUE-1207 y exige, por escenario, un fallo
+inyectado, un invariante observable, la prueba que lo demuestra, un control
+positivo y las limitaciones que siguen abiertas. Todas las filas quedaron en
+`PASS`; el gate `RESILIENCE_PASS` queda justificado.
+
+**Verificación ejecutada:**
+
+```text
+go test ./... -count=1: PASS; 19 paquetes con tests, 3 sin tests
+make test-ladybug: PASS
+go vet ./...: PASS
+go test -race ./internal/app ./internal/indexer ./internal/rebuild ./internal/resilience ./internal/tsworker -count=1: PASS; 5 paquetes
+make build: PASS
+smoke del binario serve + SIGTERM: exit 0
+```
+
+**Benchmarks:** no aplican a este gate; la matriz verifica invariantes de
+seguridad, recuperación y cierre, no latencia ni throughput.
+
+**Limitaciones registradas:** la integración de `serve` todavía no instancia
+el pipeline completo; la corrupción cubierta es truncado/sobrescritura; la
+clasificación con PIDs es específica de Linux; no se cubren dos rebuilds
+concurrentes sobre generaciones distintas, pérdida de alimentación ni
+restauración de backup. `HotSnapshot` no se serializa y no hay recuperación
+automática en `serve`.
+
+**Estado:** `PASS`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1301.
 
 **Gate:**
 
