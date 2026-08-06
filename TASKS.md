@@ -8577,21 +8577,61 @@ RESILIENCE_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Distribución:**
+**Implementación:**
+
+- `internal/mcpworkload/workload.go` genera una secuencia determinista de
+  `CallTool` con `math/rand/v2`, semilla explícita y probes de corpus.
+- La distribución usa asignación de resto mayor y respeta exactamente
+  `40/25/20/10/5` cuando el número de llamadas es divisible por 20.
+- Cada operación recibe argumentos válidos para la superficie MCP actual:
+  `find_symbol`, `get_symbol`, `find_references`,
+  `find_cross_repo_consumers` y `get_blast_radius`.
+- `internal/mcpworkload/workload_test.go` cubre distribución, reproducibilidad,
+  semillas distintas, argumentos, recuentos pequeños, validación y cancelación.
+- `internal/mcpworkload/integration_test.go` envía las solicitudes generadas a
+  un servidor MCP real sobre `SnapshotStore` y exige cero errores.
+- `benchmarks/mcp-workload/main.go` expone el generador como CLI y escribe un
+  documento JSON autocontenido (`schema_version`, semilla, distribución y
+  solicitudes).
+
+**Uso:**
 
 ```text
-40 % find_symbol
-25 % get_symbol
-20 % find_references
-10 % find_cross_repo_consumers
-5 % blast_radius
+go run ./benchmarks/mcp-workload \
+  --calls 10000 \
+  --seed 42 \
+  --output /tmp/mcp-workload.json
 ```
+
+**Verificación ejecutada:**
+
+```text
+go test ./internal/mcpworkload ./benchmarks/mcp-workload -count=1: PASS
+go test ./... -count=1: PASS; 20 paquetes con tests, 4 sin tests
+go vet ./...: PASS
+go test -race ./internal/mcpworkload ./benchmarks/mcp-workload -count=1: PASS
+go run ... --calls 20 --seed 42: PASS; 8/5/4/2/1 solicitudes
+dos ejecuciones CLI con la misma semilla: JSON idéntico
+```
+
+**Benchmarks:** el generador no mide latencia; LUQUE-1302 consumirá este
+documento para medir un cliente y conservará las métricas por operación.
+
+**Limitaciones:** el CLI recibe un probe explícito (`--symbol-name` y
+`--stable-key`); la API Go acepta múltiples probes para distribuir consultas
+entre símbolos. Los probes deben existir en el snapshot y, para workloads de
+éxito, deben tener las relaciones necesarias para las operaciones de
+referencias, consumidores y blast radius.
+
+**Estado:** `PASS`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1302.
 
 ---
 
