@@ -1,0 +1,146 @@
+{
+  "benchmark": "mcp-client-one",
+  "command": "go run ./benchmarks/mcp-client --calls 10000 --warmup 100 --symbols 100000 --edges 1000000 --seed 42 --output benchmarks/mcp-client",
+  "commit": "039645de0d527f661b803a5589cb89be14ac2f37",
+  "generated_at": "2026-08-06T21:22:17.554604695Z",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "memory": "24543904 kB",
+    "go": "go1.24.4"
+  },
+  "dataset": {
+    "name": "synthetic-mcp-client",
+    "seed": 42,
+    "repositories": 10,
+    "packages": 100,
+    "files": 1000,
+    "symbols": 100000,
+    "edges": 1000000
+  },
+  "workload": {
+    "schema_version": "mcp-workload-v1",
+    "calls": 10000,
+    "distribution": {
+      "find_cross_repo_consumers": 1000,
+      "find_references": 2000,
+      "find_symbol": 4000,
+      "get_blast_radius": 500,
+      "get_symbol": 2500
+    }
+  },
+  "warmup_calls": 100,
+  "metrics": {
+    "p50_ms": 0.12665,
+    "p95_ms": 1.186112,
+    "p99_ms": 1.326593,
+    "throughput_per_s": 3532.922449694765,
+    "allocations_per_op": 2018.8276,
+    "bytes_per_op": 128477.2576,
+    "rss_bytes": 500506624,
+    "goroutines": 5,
+    "errors": 0,
+    "memory_growth_detected": false
+  },
+  "operations": [
+    {
+      "operation": "find_symbol",
+      "calls": 4000,
+      "backend_p50_ms": 0.00198,
+      "backend_p95_ms": 0.00289,
+      "backend_p99_ms": 0.004,
+      "round_trip_p50_ms": 0.09775,
+      "round_trip_p95_ms": 0.153901,
+      "round_trip_p99_ms": 0.18629,
+      "errors": 0
+    },
+    {
+      "operation": "get_symbol",
+      "calls": 2500,
+      "backend_p50_ms": 0.0009,
+      "backend_p95_ms": 0.00117,
+      "backend_p99_ms": 0.00141,
+      "round_trip_p50_ms": 0.11782,
+      "round_trip_p95_ms": 0.17369,
+      "round_trip_p99_ms": 0.20297,
+      "errors": 0
+    },
+    {
+      "operation": "find_references",
+      "calls": 2000,
+      "backend_p50_ms": 0.00538,
+      "backend_p95_ms": 0.00815,
+      "backend_p99_ms": 0.01271,
+      "round_trip_p50_ms": 0.443931,
+      "round_trip_p95_ms": 0.629362,
+      "round_trip_p99_ms": 0.707351,
+      "errors": 0
+    },
+    {
+      "operation": "find_cross_repo_consumers",
+      "calls": 1000,
+      "backend_p50_ms": 0.00809,
+      "backend_p95_ms": 0.01369,
+      "backend_p99_ms": 0.021761,
+      "round_trip_p50_ms": 0.509152,
+      "round_trip_p95_ms": 0.680892,
+      "round_trip_p99_ms": 0.837102,
+      "errors": 0
+    },
+    {
+      "operation": "get_blast_radius",
+      "calls": 500,
+      "backend_p50_ms": 0.03627,
+      "backend_p95_ms": 0.05249,
+      "backend_p99_ms": 0.063121,
+      "round_trip_p50_ms": 1.251203,
+      "round_trip_p95_ms": 1.544693,
+      "round_trip_p99_ms": 2.099885,
+      "errors": 0
+    }
+  ],
+  "slo_checks": [
+    {
+      "operation": "find_symbol",
+      "p95_limit_ms": 2,
+      "p99_limit_ms": 5,
+      "backend_p95_ms": 0.00289,
+      "backend_p99_ms": 0.004,
+      "passed": true
+    },
+    {
+      "operation": "get_symbol",
+      "p95_limit_ms": 1,
+      "p99_limit_ms": 2,
+      "backend_p95_ms": 0.00117,
+      "backend_p99_ms": 0.00141,
+      "passed": true
+    },
+    {
+      "operation": "find_references",
+      "p95_limit_ms": 5,
+      "p99_limit_ms": 10,
+      "backend_p95_ms": 0.00815,
+      "backend_p99_ms": 0.01271,
+      "passed": true
+    },
+    {
+      "operation": "find_cross_repo_consumers",
+      "p95_limit_ms": 5,
+      "p99_limit_ms": 15,
+      "backend_p95_ms": 0.01369,
+      "backend_p99_ms": 0.021761,
+      "passed": true
+    },
+    {
+      "operation": "get_blast_radius",
+      "p95_limit_ms": 20,
+      "p99_limit_ms": 40,
+      "backend_p95_ms": 0.05249,
+      "backend_p99_ms": 0.063121,
+      "passed": true
+    }
+  ],
+  "slo_passed": true
+}
