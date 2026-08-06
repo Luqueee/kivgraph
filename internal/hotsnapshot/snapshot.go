@@ -3,6 +3,7 @@ package hotsnapshot
 import (
 	"errors"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -174,6 +175,10 @@ type GraphSnapshot struct {
 	symbolsByName     map[InternedString][]SymbolID
 	symbolsByQName    map[InternedString][]SymbolID
 	fileByRepoPath    map[RepoPathKey]FileID
+
+	// traversalWorkspacePool owns reusable per-call scratch buffers. It does not
+	// participate in the immutable graph state returned to readers.
+	traversalWorkspacePool sync.Pool
 }
 
 // NewGraphSnapshot validates the supplied graph envelope and copies all mutable

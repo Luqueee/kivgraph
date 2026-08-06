@@ -69,58 +69,61 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 		return TraversalResult{}, ErrTraversalTimeout
 	}
 
+	workspace := snapshot.traversalWorkspacePool.Get()
+	if workspace == nil {
+		workspace = &traversalWorkspace{}
+	}
+	scratch := workspace.(*traversalWorkspace)
+	generation := scratch.prepare(len(snapshot.symbols), len(snapshot.repositories), options.MaxNodes)
+	defer snapshot.traversalWorkspacePool.Put(scratch)
+
 	result := TraversalResult{Visits: make([]TraversalVisit, 0, minInt(options.MaxNodes, 64))}
-	visited := make([]uint32, len(snapshot.symbols))
-	queue := make([]traversalQueueItem, 0, minInt(options.MaxNodes, 64))
-	visited[start] = 1
-	queue = append(queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
-	repositoryCounts := make([]int, len(snapshot.repositories))
-	repositoriesSeen := make([]bool, len(snapshot.repositories))
-	repositories := make([]RepositoryID, 0)
+	scratch.visited[start] = generation
+	scratch.queue = append(scratch.queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
 	discovered := 1
 
-	for queueIndex := 0; queueIndex < len(queue); queueIndex++ {
+	edges := snapshot.forwardEdges
+	offsets := snapshot.forwardOffsets
+	if options.Direction == TraversalIncoming {
+		edges = snapshot.reverseEdges
+		offsets = snapshot.reverseOffsets
+	}
+	for queueIndex := 0; queueIndex < len(scratch.queue); queueIndex++ {
 		if deadlineExceeded(options.Deadline) {
-			result.Repositories = traversalRepositoryGroups(repositoryCounts, repositories)
+			result.Repositories = traversalRepositoryGroups(scratch.repositoryCounts, scratch.repositories)
 			return result, ErrTraversalTimeout
 		}
-		item := queue[queueIndex]
+		item := scratch.queue[queueIndex]
 		result.Visits = append(result.Visits, TraversalVisit{ID: item.ID, Depth: item.Depth, Source: item.Source, Edge: item.Edge})
 		if repository, ok := snapshot.symbolRepository(item.ID); ok {
-			if !repositoriesSeen[repository] {
-				repositoriesSeen[repository] = true
-				repositories = append(repositories, repository)
+			if !scratch.repositoriesSeen[repository] {
+				scratch.repositoriesSeen[repository] = true
+				scratch.repositories = append(scratch.repositories, repository)
 			}
-			repositoryCounts[repository]++
+			scratch.repositoryCounts[repository]++
 		}
 		if int(item.Depth) >= options.MaxDepth {
 			continue
 		}
 
-		edges := snapshot.forwardEdges
-		offsets := snapshot.forwardOffsets
-		if options.Direction == TraversalIncoming {
-			edges = snapshot.reverseEdges
-			offsets = snapshot.reverseOffsets
-		}
 		for _, edge := range edges[offsets[item.ID]:offsets[item.ID+1]] {
 			if deadlineExceeded(options.Deadline) {
-				result.Repositories = traversalRepositoryGroups(repositoryCounts, repositories)
+				result.Repositories = traversalRepositoryGroups(scratch.repositoryCounts, scratch.repositories)
 				return result, ErrTraversalTimeout
 			}
-			if !codeAllowed(edge.Kind, options.EdgeKinds) || !codeAllowed(edge.Confidence, options.Confidences) || visited[edge.Target] != 0 {
+			if !codeAllowed(edge.Kind, options.EdgeKinds) || !codeAllowed(edge.Confidence, options.Confidences) || scratch.visited[edge.Target] == generation {
 				continue
 			}
 			if discovered >= options.MaxNodes {
 				result.Truncated = true
 				continue
 			}
-			visited[edge.Target] = 1
+			scratch.visited[edge.Target] = generation
 			discovered++
-			queue = append(queue, traversalQueueItem{ID: edge.Target, Depth: item.Depth + 1, Source: item.ID, Edge: edge})
+			scratch.queue = append(scratch.queue, traversalQueueItem{ID: edge.Target, Depth: item.Depth + 1, Source: item.ID, Edge: edge})
 		}
 	}
-	result.Repositories = traversalRepositoryGroups(repositoryCounts, repositories)
+	result.Repositories = traversalRepositoryGroups(scratch.repositoryCounts, scratch.repositories)
 	return result, nil
 }
 
@@ -129,6 +132,54 @@ type traversalQueueItem struct {
 	Depth  uint32
 	Source SymbolID
 	Edge   PackedEdge
+}
+
+type traversalWorkspace struct {
+	visited          []uint32
+	generation       uint32
+	queue            []traversalQueueItem
+	repositoryCounts []int
+	repositoriesSeen []bool
+	repositories     []RepositoryID
+}
+
+func (workspace *traversalWorkspace) prepare(symbolCount, repositoryCount, maxNodes int) uint32 {
+	if cap(workspace.visited) < symbolCount {
+		workspace.visited = make([]uint32, symbolCount)
+	} else {
+		workspace.visited = workspace.visited[:symbolCount]
+	}
+	workspace.generation++
+	if workspace.generation == 0 {
+		clear(workspace.visited)
+		workspace.generation = 1
+	}
+
+	initialQueueCapacity := minInt(maxNodes, 64)
+	if cap(workspace.queue) < initialQueueCapacity {
+		workspace.queue = make([]traversalQueueItem, 0, initialQueueCapacity)
+	} else {
+		workspace.queue = workspace.queue[:0]
+	}
+
+	if cap(workspace.repositoryCounts) < repositoryCount {
+		workspace.repositoryCounts = make([]int, repositoryCount)
+	} else {
+		workspace.repositoryCounts = workspace.repositoryCounts[:repositoryCount]
+		clear(workspace.repositoryCounts)
+	}
+	if cap(workspace.repositoriesSeen) < repositoryCount {
+		workspace.repositoriesSeen = make([]bool, repositoryCount)
+	} else {
+		workspace.repositoriesSeen = workspace.repositoriesSeen[:repositoryCount]
+		clear(workspace.repositoriesSeen)
+	}
+	if cap(workspace.repositories) < repositoryCount {
+		workspace.repositories = make([]RepositoryID, 0, repositoryCount)
+	} else {
+		workspace.repositories = workspace.repositories[:0]
+	}
+	return workspace.generation
 }
 
 func (snapshot *GraphSnapshot) symbolRepository(symbol SymbolID) (RepositoryID, bool) {

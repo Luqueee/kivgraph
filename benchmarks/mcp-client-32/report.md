@@ -41,3 +41,46 @@ Overall SLO result: `true`.
 Allocations/op and bytes/op are process-wide deltas over the measured mixed workload after warm-up. The 32 clients share one MCP server and snapshot. Repeat with the same command on target hardware before treating this result as a release gate.
 The clients use the SDK in-memory transport; this result excludes stdio, socket and network overhead.
 RSS is the process peak and includes synthetic corpus and HotSnapshot construction before measurement.
+
+
+## LUQUE-1307 allocation optimization
+
+The change reuses per-snapshot traversal scratch buffers through a
+`sync.Pool` and generation-stamped visited state. It covers the `allocations`
+category only; no serialization, index, traversal algorithm, or snapshot-layout
+change was included.
+
+### HotSnapshot microbenchmark
+
+Command: `go test ./internal/hotsnapshot -run '^$' -bench='BenchmarkHotSnapshotDepth3|BenchmarkHotSnapshotDepth5' -benchmem -count=5`
+
+| Benchmark | Before B/op | After B/op | Before allocs/op | After allocs/op | After median ns/op |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `Depth3` | 404912 | 1752 | 12 | 4 | 1040 |
+| `Depth5` | 404912 | 1752 | 12 | 4 | 1671 |
+
+The before values are the five-run baseline from the same checkout before
+LUQUE-1307; the after values are the five-run measurement after the change.
+
+### 32-client comparison
+
+The same command, corpus, seed, and hardware were run before and after the
+change. The after run used the LUQUE-1307 post-change checkout and wrote its
+raw result to `/tmp/luque-mcp-client-32-after/results.json`.
+
+| Metric | Before | After | Delta |
+| --- | ---: | ---: | ---: |
+| p50 round-trip ms | 0.601 | 0.559 | -7.0% |
+| p95 round-trip ms | 3.781 | 3.605 | -4.6% |
+| p99 round-trip ms | 9.775 | 9.348 | -4.4% |
+| Throughput/s | 25351.8 | 25025.3 | -1.3% |
+| Allocs/op | 2018.9 | 2018.5 | -0.02% |
+| Bytes/op | 128502.3 | 109295.0 | -14.9% |
+| RSS bytes | 500662272 | 501927936 | +0.3% |
+| Errors | 0 | 0 | 0 |
+
+The microbenchmark demonstrates the allocation reduction directly. The
+32-client result is one comparative run and is not a release gate; repeat it
+for LUQUE-1308 before attributing latency or throughput movement to this
+change. The pool retains scratch capacity for concurrent readers, so RSS did
+not decrease.

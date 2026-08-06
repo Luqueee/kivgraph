@@ -9026,11 +9026,11 @@ contador directo de contención global.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 No optimizar más de una categoría por tarea.
 
@@ -9043,6 +9043,29 @@ indexes
 traversal
 snapshot layout
 ```
+
+**Estado:** `PASS`.
+
+**Implementación:** `GraphSnapshot` reutiliza buffers de recorrido por snapshot
+mediante `sync.Pool`; el estado `visited` usa generaciones para evitar el
+borrado completo de la tabla densa en cada llamada. La optimización queda
+limitada a la categoría `allocations`.
+
+**Tests y benchmarks:** `go test ./internal/hotsnapshot -count=1`,
+`go test -race ./internal/hotsnapshot -count=1`, `go test ./... -count=1`,
+`go vet ./...`, `go test ./benchmarks/mcp-client -count=1` y
+`go test -race ./benchmarks/mcp-client -count=1` pasan. El microbenchmark
+reduce `Depth3` y `Depth5` de `404912 B/op, 12 allocs/op` a
+`1752 B/op, 4 allocs/op`. El benchmark de 32 clientes reduce `Bytes/op` de
+`128502.3` a `109295.0`, sin errores; la comparación completa está en
+`benchmarks/mcp-client-32/report.md`.
+
+**Limitaciones:** el benchmark de 32 clientes es una comparación única y el
+pool retiene capacidad de scratch para lectores concurrentes; LUQUE-1308 debe
+repetirlo antes de convertir el movimiento de latencia o throughput en una
+conclusión.
+
+**Siguiente tarea desbloqueada:** LUQUE-1308.
 
 ---
 

@@ -2,6 +2,8 @@ package hotsnapshot
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -30,6 +32,40 @@ func TestTraverseOutgoingIncomingAndGrouping(t *testing.T) {
 	}
 	if len(result.Visits) != 3 || result.Visits[0].ID != 0 || result.Visits[1].ID != 2 || result.Visits[2].ID != 1 {
 		t.Fatalf("incoming traversal = %#v", result)
+	}
+}
+
+func TestTraverseConcurrentWorkspaceReuse(t *testing.T) {
+	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const calls = 64
+	var group sync.WaitGroup
+	failures := make(chan error, calls)
+	group.Add(calls)
+	for call := 0; call < calls; call++ {
+		go func() {
+			defer group.Done()
+			result, err := snapshot.Traverse(0, TraversalOptions{
+				Direction: TraversalOutgoing,
+				MaxDepth:  5,
+				MaxNodes:  10,
+			})
+			if err != nil {
+				failures <- err
+				return
+			}
+			if len(result.Visits) != 3 || result.Visits[0].ID != 0 || result.Visits[1].ID != 1 || result.Visits[2].ID != 2 {
+				failures <- fmt.Errorf("concurrent traversal = %#v", result)
+			}
+		}()
+	}
+	group.Wait()
+	close(failures)
+	for err := range failures {
+		t.Error(err)
 	}
 }
 
