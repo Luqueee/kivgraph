@@ -7638,11 +7638,11 @@ a profundidad 3 y 50 ms a profundidad 5 se medirá en LUQUE-1602.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Filtros:**
 
@@ -7651,6 +7651,62 @@ a profundidad 3 y 50 ms a profundidad 5 se medirá en LUQUE-1602.
 * símbolo;
 * motivo;
 * lenguaje.
+
+**Implementación:**
+
+Se añadió `internal/mcp/tools/unresolved.go`: lectura paginada de
+`GraphSnapshot.UnresolvedReferences()`, registrada read-only en el servidor MCP.
+Con esto quedan expuestas las nueve tools del plan.
+
+El filtro «paquete» se implementa como **dos** filtros, porque son dos hechos
+distintos y colisionan en cuanto un repositorio consume un paquete que se llama
+como uno indexado:
+
+```text
+repo, package, language -> dónde se observó el fallo
+requested_package, requested_symbol -> qué pidió el resolutor y no encontró
+reason -> por qué falló
+```
+
+Una fila es evidencia de una petición fallida, nunca una identidad inferida:
+`requested_package` y `requested_symbol` son las cadenas que usó el resolutor,
+no claves del grafo. `file_key`, `package_key` y `source_symbol_key` se dejan
+vacíos cuando el fallo es de nivel módulo y no hay tal identidad que declarar.
+
+`reason` se filtra por coincidencia exacta sin validar contra un vocabulario:
+hoy no existe uno común entre lenguajes. El cargador Go emite valores de
+`goloader.UnresolvedReason` como `package_not_found`, y el worker TypeScript
+emite los suyos, como `PACKAGE_PROVIDER_NOT_FOUND`. Validar contra una lista
+inventada aquí rechazaría hechos reales; unificar el vocabulario sería un cambio
+de contrato de los cargadores, no de esta tool.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1110.
+
+**Verificación:**
+
+```text
+go test ./internal/mcp/tools -run TestGetUnresolvedReferences -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/mcp/... -count=1
+make build
+```
+
+Las pruebas cubren fallos de nivel símbolo y de nivel módulo, los cinco filtros
+por separado y combinados, la separación entre paquete observado y solicitado,
+la paginación con cursor y los errores clasificados. El smoke STDIO devolvió
+`INVALID_ARGUMENT: repo must not have surrounding whitespace` e
+`INDEX_NOT_READY`.
+
+**Limitaciones:** el recorrido de las referencias no resueltas es lineal sobre
+la tabla del snapshot; no hay índice por repositorio ni por paquete solicitado,
+porque el conjunto está acotado por el corpus indexado. Si `get_unresolved_references`
+aparece como caliente en LUQUE-1602, ese índice es el primer candidato.
+
+**Siguiente tarea:** LUQUE-1111.
 
 ---
 
