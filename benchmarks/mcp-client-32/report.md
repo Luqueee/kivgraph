@@ -65,18 +65,18 @@ LUQUE-1307; the after values are the five-run measurement after the change.
 ### 32-client comparison
 
 The same command, corpus, seed, and hardware were run before and after the
-change. The after run used the LUQUE-1307 post-change checkout and wrote its
-raw result to `/tmp/luque-mcp-client-32-after/results.json`.
+change. The after values below use the clean published commit `69c86a7` and
+wrote the raw result to `/tmp/luque-mcp-client-32-after-clean/results.json`.
 
 | Metric | Before | After | Delta |
 | --- | ---: | ---: | ---: |
-| p50 round-trip ms | 0.601 | 0.559 | -7.0% |
-| p95 round-trip ms | 3.781 | 3.605 | -4.6% |
-| p99 round-trip ms | 9.775 | 9.348 | -4.4% |
-| Throughput/s | 25351.8 | 25025.3 | -1.3% |
-| Allocs/op | 2018.9 | 2018.5 | -0.02% |
-| Bytes/op | 128502.3 | 109295.0 | -14.9% |
-| RSS bytes | 500662272 | 501927936 | +0.3% |
+| p50 round-trip ms | 0.601 | 0.687 | +14.3% |
+| p95 round-trip ms | 3.781 | 4.016 | +6.2% |
+| p99 round-trip ms | 9.775 | 8.308 | -15.0% |
+| Throughput/s | 25351.8 | 24369.7 | -3.9% |
+| Allocs/op | 2018.9 | 2018.6 | -0.02% |
+| Bytes/op | 128502.3 | 109860.6 | -14.5% |
+| RSS bytes | 500662272 | 502259712 | +0.3% |
 | Errors | 0 | 0 | 0 |
 
 The microbenchmark demonstrates the allocation reduction directly. The

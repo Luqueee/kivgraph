@@ -9056,9 +9056,9 @@ limitada a la categoría `allocations`.
 `go vet ./...`, `go test ./benchmarks/mcp-client -count=1` y
 `go test -race ./benchmarks/mcp-client -count=1` pasan. El microbenchmark
 reduce `Depth3` y `Depth5` de `404912 B/op, 12 allocs/op` a
-`1752 B/op, 4 allocs/op`. El benchmark de 32 clientes reduce `Bytes/op` de
-`128502.3` a `109295.0`, sin errores; la comparación completa está en
-`benchmarks/mcp-client-32/report.md`.
+`1752 B/op, 4 allocs/op`. El benchmark limpio de 32 clientes reduce
+`Bytes/op` de `128502.3` a `109860.6`, sin errores; la comparación completa
+está en `benchmarks/mcp-client-32/report.md`.
 
 **Limitaciones:** el benchmark de 32 clientes es una comparación única y el
 pool retiene capacidad de scratch para lectores concurrentes; LUQUE-1308 debe
