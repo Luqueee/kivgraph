@@ -8714,11 +8714,70 @@ atribución exacta por operación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Entregables:**
+
+```text
+benchmarks/mcp-client/main.go
+benchmarks/mcp-client/main_test.go
+benchmarks/mcp-client-4/results.json
+benchmarks/mcp-client-4/report.md
+```
+
+La implementación generaliza el benchmark para `--clients N`, manteniendo
+LUQUE-1302 con un cliente y habilitando las fases 1303, 1304 y 1305 sin
+duplicar el motor. En esta tarea se ejecutan exactamente cuatro sesiones SDK
+concurrentes que comparten un servidor MCP y un `HotSnapshot`. El workload
+total se mantiene en 10.000 llamadas, se reparte round-robin entre clientes y
+cada cliente recibe 100 llamadas de warm-up por operación antes de medir.
+
+**Resultado medido en `linux/amd64`, Go 1.24.4, Ryzen 7 9700X:**
+
+```text
+p50 round-trip:       0.129969 ms
+p95 round-trip:       1.172731 ms
+p99 round-trip:       1.587841 ms
+throughput:           13359.9 calls/s
+allocations/op:       2018.7892
+bytes/op:             128898.48
+RSS máximo:           500944896 bytes
+goroutines:           17
+errores:              0
+crecimiento continuo de RSS: false
+```
+
+Distribución observada: `find_symbol` 4.000, `get_symbol` 2.500,
+`find_references` 2.000, `find_cross_repo_consumers` 1.000 y
+`get_blast_radius` 500. Todos los checks SLO pasaron
+(`SLOPassed=true`). El máximo backend fue `0.079121/0.190920 ms` p95/p99
+para `get_blast_radius`.
+
+**Verificación ejecutada:**
+
+```text
+go test ./benchmarks/mcp-client -count=1: PASS
+go test ./... -count=1: PASS; 21 paquetes con tests, 4 sin tests
+go vet ./...: PASS
+go test -race ./benchmarks/mcp-client -count=1: PASS
+benchmark de 4 clientes con 10000 llamadas: PASS; 0 errores
+```
+
+**Limitaciones:** el transporte es `NewInMemoryTransports`; no mide STDIO,
+sockets ni red. El RSS incluye la construcción del corpus y del
+`HotSnapshot`. El corpus es sintético y la medición es una ejecución en un
+hardware concreto. Las allocations/op son un delta de proceso sobre el
+workload mixto. No existe todavía un contador directo de contención global;
+la ejecución verifica concurrencia, latencias, errores y crecimiento de RSS,
+pero no demuestra ausencia absoluta de contención.
+
+**Estado:** `PASS`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1304.
 
 ---
 
