@@ -5774,11 +5774,11 @@ haber escrito `BACKUP` deja los dos punteros como estaban.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe generarse desde el grafo definitivo.**
 
@@ -5787,6 +5787,118 @@ haber escrito `BACKUP` deja los dos punteros como estaban.
 ```text
 CANONICAL_GRAPH_PASS
 ```
+
+**Estado:** `PASS`. Gate emitido en
+[`docs/decisions/canonical-graph-qualification.md`](docs/decisions/canonical-graph-qualification.md).
+
+**Entregables:**
+
+```text
+internal/facts/codes.go                              numeración canónica congelada
+internal/storage/ladybug/canonical_scan.go           lectura del grafo definitivo
+internal/storage/ladybug/canonical_scan_native.go
+internal/rebuild/snapshot.go                         adaptador y construcción
+internal/hotsnapshot/builder.go                      dos correcciones de contrato
+cmd/luque/main.go                                    comando luque snapshot
+```
+
+**El hueco que había.** `BuildGraphSnapshot` existía desde la fase 6 y **nunca
+se había invocado fuera de sus propios tests**, con fixtures escritas a mano. No
+existía lectura del grafo canónico, ni adaptador, ni —lo más grave— ninguna
+tabla de correspondencia para los códigos `uint8` que el HotSnapshot almacena
+en cada arista. El contenedor sabía guardar números que nadie sabía interpretar.
+
+**Decisiones:**
+
+* **La numeración vive en `internal/facts`**, que es el dueño del vocabulario.
+  `hotsnapshot` no puede importarlo —sería un ciclo— y debe seguir siendo un
+  contenedor numérico. El código `0` queda reservado: un campo sin asignar no
+  puede leerse como un valor legítimo. La tabla está congelada y un test la
+  compara contra las constantes reales parseando `facts.go`, así que añadir una
+  constante sin código rompe la compilación de la prueba.
+* **El adaptador vive en `internal/rebuild`**, dueño del pipeline. Crear un
+  cuarto paquete de snapshot al lado de `hotsnapshot` habría introducido una
+  segunda convención.
+* **El snapshot se deriva de la base, nunca de los hechos.** Ni `ScanCanonical`
+  ni el adaptador reciben un `facts.Set`.
+* La etapa `snapshot` del rebuild **construye el HotSnapshot real** además de
+  escribir el digest, y falla la publicación si el grafo no puede convertirse.
+  Un grafo que no se puede consultar no debe llegar a `CURRENT`.
+
+**Dos defectos que sólo aparecieron con datos reales.** Los dos cortes en
+paralelo pasaron sus pruebas con fixtures fabricadas; el grafo real no
+construía. Ninguno es un fallo de los cortes: son contratos equivocados en
+`hotsnapshot`, escritos contra fixtures donde todo estaba poblado.
+
+1. **El builder exigía riqueza descriptiva, no identidad.** Rechazaba un
+   repositorio sin `commit`, un paquete sin `module_path` y un símbolo sin
+   `signature`. Los tres son legítimamente vacíos: un checkout sin metadatos de
+   git, un paquete npm, una constante. Los tests existentes sólo defendían
+   integridad referencial; esas exigencias habían entrado como condiciones
+   incidentales en el mismo `if`. Ahora la validación separa identidad e
+   integridad referencial —que se exigen— de los campos descriptivos, y hay
+   pruebas para ambas mitades de la línea.
+2. **`EdgeRow` no podía representar dos ocurrencias de la misma relación.** El
+   esquema declara las relaciones semánticas `MANY_MANY` justamente porque el
+   mismo símbolo puede alcanzar el mismo destino desde varios sitios, cada uno
+   con su evidencia. La fila del snapshot tiraba la clave de evidencia, así que
+   dos usos distintos colapsaban en filas idénticas y el detector de duplicados
+   rechazaba el grafo entero. Ocurre en el corpus real:
+
+```text
+REFERENCES  consumer-a:main -> shared-library:Shape.Width
+  evidence:file:consumer-a:main.go:158:163
+  evidence:file:consumer-a:main.go:206:211
+```
+
+`EdgeRow` ganó `EvidenceKey`, presente en la ordenación, la igualdad y el
+digest. Además `ErrInvalidSnapshotRows` era un centinela **sin detalle**:
+rechazaba el grafo sin decir qué fila ni por qué, y diagnosticarlo exigió
+añadírselo. Ahora cada rechazo nombra la fila, su clave y el motivo.
+
+**Verificación de extremo a extremo**, sobre hechos derivados del fixture Go:
+
+```text
+[PASS] snapshot   hot snapshot 1 built (3 repositories, 4 packages, 4 files,
+                  9 symbols, 15 edges, 17 edge(s) not represented in the CSR)
+[PASS] publish    published generation 000001
+
+luque snapshot --root …   PASS   digest 0c8ce3bf…   9 símbolos, 15 aristas
+segunda construcción      mismo digest
+```
+
+El snapshot no sólo se construye: **se consulta**. Las nueve claves durables
+hacen ida y vuelta por `SymbolByStableKey`, la adyacencia responde, y la
+travesía cross-repository —la consulta que justifica el proyecto— alcanza siete
+nodos en dos repositorios desde el `main` de `consumer-a` hasta los símbolos
+declarados en `shared-library`.
+
+De las 32 aristas, 15 entran en el CSR y 17 no: contención y paquete a paquete
+no caben en un índice símbolo a símbolo. No es pérdida —la contención está en
+los propios nodos y la dependencia entre paquetes en la base canónica— y se
+declara en cada informe.
+
+```text
+gofmt -l .        sin diferencias
+go vet ./...      limpio
+go test ./...     todos los paquetes ok
+make test-ladybug todos los paquetes ok
+```
+
+**Limitaciones:**
+
+* El corpus es el fixture Go de tres repositorios; la escala grande es
+  LUQUE-1602.
+* `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` se codifican y se cargan, pero
+  `NormalizeGo` no las produce: no aparecen en este grafo.
+* El grafo calificado es sólo Go: `IMPORTS_SYMBOL` de TypeScript es LUQUE-0907.
+* El snapshot vive en memoria. Persistirlo y publicarlo a los lectores MCP es
+  de fases posteriores.
+* `ScanCanonical` lee con `Query`+`nextTuple`, medido en ~229k filas/s. A un
+  millón de símbolos son decenas de segundos; si eso pesa, la ruta Arrow ya
+  está demostrada en `arrow_scan_native.go`.
+
+**Siguiente tarea:** LUQUE-0907.
 
 ---
 

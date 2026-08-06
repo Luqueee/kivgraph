@@ -90,6 +90,61 @@ func TestBuildGraphSnapshotRejectsDanglingAndDuplicateRows(t *testing.T) {
 	}
 }
 
+// TestBuildGraphSnapshotAcceptsAbsentDescriptiveFields fixes the line between
+// identity and description. A checkout without git metadata has no commit, an
+// npm package has no Go module path, and a constant has no signature: real
+// graphs carry those gaps, and rejecting them would make the snapshot
+// unbuildable from the definitive graph.
+func TestBuildGraphSnapshotAcceptsAbsentDescriptiveFields(t *testing.T) {
+	rows := builderRows()
+	rows.Repositories[0].Commit = ""
+	rows.Repositories[1].Commit = ""
+	rows.Packages[0].ModulePath = ""
+	rows.Symbols[0].Signature = ""
+
+	snapshot, err := BuildGraphSnapshot(rows, 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v, want a snapshot: commit, module path and signature are descriptive, not identity", err)
+	}
+
+	// The gaps must survive as gaps, never as invented placeholder text.
+	id, ok := snapshot.SymbolByStableKey("s-a")
+	if !ok {
+		t.Fatal("SymbolByStableKey(s-a) missing")
+	}
+	symbol, ok := snapshot.Symbol(id)
+	if !ok {
+		t.Fatal("Symbol() missing")
+	}
+	signature, ok := snapshot.Strings().String(symbol.Signature)
+	if !ok || signature != "(): void" {
+		t.Fatalf("signature = %q, %v; want the row value preserved", signature, ok)
+	}
+}
+
+// TestBuildGraphSnapshotRejectsMissingIdentity keeps the other half of that
+// line: a row without the fields the snapshot indexes by is not a gap, it is
+// an unusable row.
+func TestBuildGraphSnapshotRejectsMissingIdentity(t *testing.T) {
+	for name, mutate := range map[string]func(*LadybugSnapshotRows){
+		"repository without key":  func(rows *LadybugSnapshotRows) { rows.Repositories[0].Key = "" },
+		"repository without name": func(rows *LadybugSnapshotRows) { rows.Repositories[0].Name = "" },
+		"package without name":    func(rows *LadybugSnapshotRows) { rows.Packages[0].Name = "" },
+		"file without path":       func(rows *LadybugSnapshotRows) { rows.Files[0].Path = "" },
+		"symbol without key":      func(rows *LadybugSnapshotRows) { rows.Symbols[0].StableKey = "" },
+		"symbol without name":     func(rows *LadybugSnapshotRows) { rows.Symbols[0].Name = "" },
+		"symbol without kind":     func(rows *LadybugSnapshotRows) { rows.Symbols[0].Kind = "" },
+		"symbol without identity": func(rows *LadybugSnapshotRows) { rows.Symbols[0].CanonicalIdentity = "" },
+		"edge without evidence":   func(rows *LadybugSnapshotRows) { rows.Edges[0].EvidenceKind = "" },
+	} {
+		rows := builderRows()
+		mutate(&rows)
+		if _, err := BuildGraphSnapshot(rows, 1, time.Unix(1, 0).UTC(), 1); !errors.Is(err, ErrInvalidSnapshotRows) {
+			t.Errorf("%s: error = %v, want ErrInvalidSnapshotRows", name, err)
+		}
+	}
+}
+
 func builderRows() LadybugSnapshotRows {
 	return LadybugSnapshotRows{
 		Repositories: []RepositoryRow{

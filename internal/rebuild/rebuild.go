@@ -8,10 +8,15 @@
 // must match what the fact set implies, and the semantic invariants of
 // LUQUE-0904 (no dangling exact edges, no missing evidence, no duplicate
 // stable keys, no unknown confidence or provenance, no invalid repository
-// ownership) must hold over the graph that was just loaded.
+// ownership) must hold over the graph that was just loaded. The snapshot
+// checkpoint also has two gates: it writes the deterministic digest of the
+// candidate's per-table counts (snapshot.sha256, next to the candidate
+// database), and it builds the real in-memory HotSnapshot from the
+// candidate's definitive graph (BuildSnapshot) — a graph the latter cannot
+// convert is never published, however clean its integrity gate looked.
 // The package never talks to LadybugDB itself: staging, loading, counting,
-// probing and invariant checking are hooks the caller supplies
-// (Options.Load/Counts/Probes/Integrity), which default to the real
+// scanning, probing and invariant checking are hooks the caller supplies
+// (Options.Load/Counts/Scan/Probes/Integrity), which default to the real
 // ladybug implementations. That is what lets the orchestration be
 // exercised without cgo.
 package rebuild
@@ -78,6 +83,7 @@ type Report struct {
 	Invariants     ladybug.CanonicalIntegrityReport
 	Probes         []ladybug.CanonicalProbeResult
 	SnapshotDigest string
+	Snapshot       SnapshotReport
 	Publication    generation.Publication
 	Pruned         []string
 	Passed         bool
@@ -92,13 +98,14 @@ type Options struct {
 	SnapshotID      int64
 	Store           generation.Config
 
-	// Load, Counts, Probes and Integrity default to the ladybug
+	// Load, Counts, Probes, Integrity and Scan default to the ladybug
 	// implementations; tests substitute them so the orchestration is
 	// exercised without cgo.
 	Load      func(context.Context, string, facts.Set, ladybug.CanonicalLoadOptions) (ladybug.LoadReport, error)
 	Counts    func(context.Context, string) (map[string]int64, error)
 	Probes    func(context.Context, string, []ladybug.CanonicalProbe) ([]ladybug.CanonicalProbeResult, error)
 	Integrity func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
+	Scan      func(context.Context, string) (ladybug.CanonicalGraph, error)
 }
 
 // snapshotFileName is the digest file Run writes next to the candidate
@@ -156,6 +163,10 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	if verifyIntegrity == nil {
 		verifyIntegrity = ladybug.VerifyCanonicalIntegrity
 	}
+	scan := options.Scan
+	if scan == nil {
+		scan = ladybug.ScanCanonical
+	}
 	storeConfig := options.Store
 	if storeConfigIsZero(storeConfig) {
 		storeConfig = generation.DefaultConfig()
@@ -191,6 +202,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		invariantsReport ladybug.CanonicalIntegrityReport
 		probeResults     []ladybug.CanonicalProbeResult
 		snapshotDigest   string
+		snapshotReport   SnapshotReport
 	)
 
 	build := func(buildCtx context.Context, candidatePath string) error {
@@ -233,6 +245,12 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		// snapshot: digest the graph the load just produced, from the same
 		// per-table counts the loader reported, and write it beside the
 		// candidate database before Publish ever renames the directory.
+		// That digest only proves the row counts match what the fact set
+		// implies; it says nothing about whether the definitive graph the
+		// candidate now holds can actually become the HotSnapshot the
+		// serving path reads. Build it here, from the candidate database
+		// itself, and abort the publish if it cannot: a graph that cannot
+		// become a snapshot must not become CURRENT.
 		snapshotStart := time.Now()
 		digest, digestErr := writeSnapshotDigest(candidatePath, result.Tables)
 		if digestErr != nil {
@@ -240,10 +258,27 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			return fmt.Errorf("write snapshot digest: %w", digestErr)
 		}
 		snapshotDigest = digest
+
+		_, hotSnapshotReport, hotSnapshotErr := BuildSnapshot(buildCtx, BuildSnapshotOptions{
+			DatabasePath: databasePath,
+			SnapshotID:   uint64(options.SnapshotID),
+			Scan:         scan,
+		})
+		snapshotReport = hotSnapshotReport
+		if hotSnapshotErr != nil {
+			detail := fmt.Sprintf("wrote %s with digest %s; %v", snapshotFileName, digest, hotSnapshotErr)
+			snapshotStage = Stage{Name: StageSnapshot, Detail: detail, DurationMS: elapsedMS(snapshotStart)}
+			return fmt.Errorf("build hot snapshot: %w", hotSnapshotErr)
+		}
 		snapshotStage = Stage{
-			Name:       StageSnapshot,
-			Passed:     true,
-			Detail:     fmt.Sprintf("wrote %s with digest %s", snapshotFileName, digest),
+			Name:   StageSnapshot,
+			Passed: true,
+			Detail: fmt.Sprintf(
+				"wrote %s with digest %s; hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols, %d edges, %d edge(s) not represented in the CSR)",
+				snapshotFileName, digest, hotSnapshotReport.SnapshotID,
+				hotSnapshotReport.Stats.Repositories, hotSnapshotReport.Stats.Packages, hotSnapshotReport.Stats.Files,
+				hotSnapshotReport.Stats.Symbols, hotSnapshotReport.Stats.Edges, hotSnapshotReport.Stats.SkippedEdges,
+			),
 			DurationMS: elapsedMS(snapshotStart),
 		}
 		return nil
@@ -354,6 +389,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	report.Invariants = invariantsReport
 	report.Probes = probeResults
 	report.SnapshotDigest = snapshotDigest
+	report.Snapshot = snapshotReport
 
 	if publishErr != nil {
 		report.Stages = append(report.Stages, Stage{Name: StagePublish, Detail: publishErr.Error(), DurationMS: publishDuration})

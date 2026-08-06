@@ -2,6 +2,7 @@ package hotsnapshot
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 )
@@ -50,6 +51,12 @@ type SymbolRow struct {
 	EndLine           uint32
 }
 
+// EdgeRow is one occurrence of a semantic relation. The canonical model is
+// MANY_MANY on purpose: the same symbol may reach the same target from several
+// places, and each occurrence carries its own evidence. EvidenceKey is what
+// keeps two such occurrences distinguishable; without it they collapse into
+// byte-identical rows and the duplicate check below cannot tell a real
+// duplicate from a second, legitimate use.
 type EdgeRow struct {
 	SourceKey             StableKey
 	TargetKey             StableKey
@@ -57,6 +64,7 @@ type EdgeRow struct {
 	Confidence            uint8
 	Provenance            uint8
 	Flags                 uint8
+	EvidenceKey           string
 	EvidenceKind          string
 	EvidenceSourceFileKey string
 	EvidenceTargetFileKey string
@@ -85,9 +93,14 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	symbolIDs := make(map[StableKey]SymbolID, len(symbols))
 
 	repositoryRecords := make([]RepositoryRecord, len(repositories))
+	// Validation covers identity and referential integrity only. Commit,
+	// module path and signature are descriptive: a checkout without git
+	// metadata has no commit, an npm package has no Go module path, and a
+	// constant or a field has no signature. Requiring them would reject real
+	// graphs to satisfy a fixture.
 	for index, row := range repositories {
-		if row.Key == "" || row.Name == "" || row.Commit == "" || index > 0 && repositories[index-1].Key == row.Key {
-			return nil, ErrInvalidSnapshotRows
+		if row.Key == "" || row.Name == "" || index > 0 && repositories[index-1].Key == row.Key {
+			return nil, fmt.Errorf("%w: repository %d %q", ErrInvalidSnapshotRows, index, row.Key)
 		}
 		id, err := allocator.Repository()
 		if err != nil {
@@ -108,8 +121,8 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	packageRecords := make([]PackageRecord, len(packages))
 	for index, row := range packages {
 		repositoryID, exists := repositoryIDs[row.RepositoryKey]
-		if row.Key == "" || row.Name == "" || row.ModulePath == "" || !exists || index > 0 && packages[index-1].Key == row.Key {
-			return nil, ErrInvalidSnapshotRows
+		if row.Key == "" || row.Name == "" || !exists || index > 0 && packages[index-1].Key == row.Key {
+			return nil, fmt.Errorf("%w: package %d %q of repository %q", ErrInvalidSnapshotRows, index, row.Key, row.RepositoryKey)
 		}
 		id, err := allocator.Package()
 		if err != nil {
@@ -133,10 +146,10 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		repositoryID, repositoryExists := repositoryIDs[row.RepositoryKey]
 		packageID, packageExists := packageIDs[row.PackageKey]
 		if row.Key == "" || row.Path == "" || !repositoryExists || !packageExists || index > 0 && files[index-1].Key == row.Key {
-			return nil, ErrInvalidSnapshotRows
+			return nil, fmt.Errorf("%w: file %d %q of repository %q package %q", ErrInvalidSnapshotRows, index, row.Key, row.RepositoryKey, row.PackageKey)
 		}
 		if packageRecords[packageID].Repository != repositoryID {
-			return nil, ErrInvalidSnapshotRows
+			return nil, fmt.Errorf("%w: file %q claims repository %q but its package belongs to another", ErrInvalidSnapshotRows, row.Key, row.RepositoryKey)
 		}
 		id, err := allocator.File()
 		if err != nil {
@@ -148,7 +161,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		}
 		key := RepoPathKey{Repository: repositoryID, Path: path}
 		if _, exists := fileIndex[key]; exists {
-			return nil, ErrInvalidSnapshotRows
+			return nil, fmt.Errorf("%w: repository %q holds two files at %q", ErrInvalidSnapshotRows, row.RepositoryKey, row.Path)
 		}
 		fileIDs[row.Key] = id
 		fileIndex[key] = id
@@ -161,8 +174,8 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	symbolsByQName := make(map[InternedString][]SymbolID)
 	for index, row := range symbols {
 		fileID, fileExists := fileIDs[row.FileKey]
-		if row.StableKey == "" || row.CanonicalIdentity == "" || row.Name == "" || row.QualifiedName == "" || row.Kind == "" || row.Signature == "" || !fileExists || index > 0 && symbols[index-1].StableKey == row.StableKey {
-			return nil, ErrInvalidSnapshotRows
+		if row.StableKey == "" || row.CanonicalIdentity == "" || row.Name == "" || row.QualifiedName == "" || row.Kind == "" || !fileExists || index > 0 && symbols[index-1].StableKey == row.StableKey {
+			return nil, fmt.Errorf("%w: symbol %d %q in file %q", ErrInvalidSnapshotRows, index, string(row.StableKey), row.FileKey)
 		}
 		id, err := allocator.Symbol()
 		if err != nil {
@@ -203,7 +216,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		sourceFileID, sourceFileExists := fileIDs[row.EvidenceSourceFileKey]
 		targetFileID, targetFileExists := fileIDs[row.EvidenceTargetFileKey]
 		if !sourceExists || !targetExists || !sourceFileExists || !targetFileExists || row.EvidenceKind == "" || index > 0 && edgeEqual(edges[index-1], row) {
-			return nil, ErrInvalidSnapshotRows
+			return nil, fmt.Errorf("%w: edge %d %q->%q kind %d evidence %q files %q/%q", ErrInvalidSnapshotRows, index, string(row.SourceKey), string(row.TargetKey), row.Kind, row.EvidenceKind, row.EvidenceSourceFileKey, row.EvidenceTargetFileKey)
 		}
 		evidenceKind, err := interner.Intern(row.EvidenceKind)
 		if err != nil {
@@ -256,6 +269,9 @@ func edgeLess(left, right EdgeRow) bool {
 	if left.Flags != right.Flags {
 		return left.Flags < right.Flags
 	}
+	if left.EvidenceKey != right.EvidenceKey {
+		return left.EvidenceKey < right.EvidenceKey
+	}
 	if left.EvidenceKind != right.EvidenceKind {
 		return left.EvidenceKind < right.EvidenceKind
 	}
@@ -272,6 +288,7 @@ func edgeEqual(left, right EdgeRow) bool {
 		left.Confidence == right.Confidence &&
 		left.Provenance == right.Provenance &&
 		left.Flags == right.Flags &&
+		left.EvidenceKey == right.EvidenceKey &&
 		left.EvidenceKind == right.EvidenceKind &&
 		left.EvidenceSourceFileKey == right.EvidenceSourceFileKey &&
 		left.EvidenceTargetFileKey == right.EvidenceTargetFileKey

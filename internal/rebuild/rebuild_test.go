@@ -61,10 +61,10 @@ func sampleFacts() facts.Set {
 }
 
 // buildOptions wires the real canonical rendering (ladybug.CanonicalTableRows,
-// landed with no build tag) behind fake Load/Counts/Probes/Integrity hooks,
-// so these tests exercise Run's orchestration without cgo while still
-// catching a real mismatch between what gets "loaded" and what integrity
-// expects.
+// landed with no build tag) behind fake Load/Counts/Probes/Integrity/Scan
+// hooks, so these tests exercise Run's orchestration without cgo while
+// still catching a real mismatch between what gets "loaded" and what
+// integrity expects.
 func buildOptions(t *testing.T, root, generationID string, set facts.Set) Options {
 	t.Helper()
 	return Options{
@@ -77,7 +77,18 @@ func buildOptions(t *testing.T, root, generationID string, set facts.Set) Option
 		Counts:          fakeCounts,
 		Probes:          fakePassingProbes,
 		Integrity:       fakeIntegrityPassing,
+		Scan:            fakeScan,
 	}
+}
+
+// fakeScan stands in for ladybug.ScanCanonical: a small, valid, hand
+// written definitive graph (fakeCanonicalGraph, in snapshot_test.go) so
+// Run's snapshot stage has real content to convert, decoupled from
+// whatever facts.Set the test under test seeds — the same "canned, not
+// derived from the input" stance fakeIntegrityPassing and
+// fakePassingProbes already take toward the fact set they're paired with.
+func fakeScan(context.Context, string) (ladybug.CanonicalGraph, error) {
+	return fakeCanonicalGraph(), nil
 }
 
 // fakeLoad stands in for ladybug.LoadCanonical: it renders the set through
@@ -296,6 +307,19 @@ func TestRunPublishesHappyPathWithAllStages(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(digestBytes)); got != report.SnapshotDigest {
 		t.Fatalf("%s content = %q, want %q", snapshotFileName, got, report.SnapshotDigest)
+	}
+	if !report.Snapshot.Passed {
+		t.Fatalf("Report.Snapshot.Passed = false, want true: %+v", report.Snapshot)
+	}
+	if report.Snapshot.Stats.Symbols == 0 {
+		t.Fatalf("Report.Snapshot.Stats = %+v, want a non-empty snapshot built from the definitive graph", report.Snapshot.Stats)
+	}
+	if len(report.Snapshot.Digest) != 64 {
+		t.Fatalf("Report.Snapshot.Digest = %q, want a 64 character sha256 hex digest", report.Snapshot.Digest)
+	}
+	snapshotStage, ok := stageByName(report.Stages, StageSnapshot)
+	if !ok || !strings.Contains(snapshotStage.Detail, "hot snapshot") {
+		t.Fatalf("snapshot stage Detail = %q, want it to mention the hot snapshot build", snapshotStage.Detail)
 	}
 }
 
@@ -557,6 +581,12 @@ func TestRunProducesDeterministicSnapshotDigestAcrossRuns(t *testing.T) {
 	if first.SnapshotDigest != second.SnapshotDigest {
 		t.Fatalf("digest changed across identical runs: %s != %s", first.SnapshotDigest, second.SnapshotDigest)
 	}
+	if first.Snapshot.Digest != second.Snapshot.Digest {
+		t.Fatalf("hot snapshot digest changed across identical runs: %s != %s", first.Snapshot.Digest, second.Snapshot.Digest)
+	}
+	if first.Snapshot.Stats != second.Snapshot.Stats {
+		t.Fatalf("hot snapshot stats changed across identical runs: %+v != %+v", first.Snapshot.Stats, second.Snapshot.Stats)
+	}
 }
 
 // TestRunRequiresGenerationIDAndResolverVersion covers the point 3 defaults:
@@ -640,5 +670,69 @@ func TestDeriveGoldenProbesIsDeterministicAndSymbolAnchored(t *testing.T) {
 
 	if probes := deriveGoldenProbes(facts.Set{}); probes != nil {
 		t.Fatalf("deriveGoldenProbes(empty set) = %+v, want nil", probes)
+	}
+}
+
+// TestRunSnapshotStageFailsAndPreservesCurrentGenerationWhenGraphCannotConvert
+// is the (f) contract: a candidate whose definitive graph cannot become a
+// HotSnapshot fails the snapshot stage and is never published.
+func TestRunSnapshotStageFailsAndPreservesCurrentGenerationWhenGraphCannotConvert(t *testing.T) {
+	root := t.TempDir()
+	set := sampleFacts()
+
+	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
+		t.Fatalf("first Run() error = %v", err)
+	}
+
+	broken := fakeCanonicalGraph()
+	broken.Edges[len(broken.Edges)-1].Confidence = "BOGUS_CONFIDENCE"
+	second := buildOptions(t, root, "000002", set)
+	second.Scan = fixedScan(broken)
+
+	report, err := Run(context.Background(), second)
+	if err == nil {
+		t.Fatal("Run() error = nil, want a hot snapshot build failure")
+	}
+	if !errors.Is(err, ErrRebuildFailed) {
+		t.Fatalf("errors.Is(err, ErrRebuildFailed) = false; err = %v", err)
+	}
+	if report.Passed {
+		t.Fatal("Report.Passed = true, want false")
+	}
+	snapshotStage, ok := stageByName(report.Stages, StageSnapshot)
+	if !ok || snapshotStage.Passed {
+		t.Fatalf("snapshot stage = %+v, want a recorded failure", snapshotStage)
+	}
+	if report.Snapshot.Passed {
+		t.Fatalf("Report.Snapshot.Passed = true, want false: %+v", report.Snapshot)
+	}
+
+	if got := currentGenerationID(t, root); got != "000001" {
+		t.Fatalf("CURRENT = %q, want 000001 (unchanged)", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "generations", "000002")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("generation 000002 should not exist: stat err = %v", err)
+	}
+}
+
+// TestRunDefaultsScanToLadybugScanCanonical confirms Options wires its Scan
+// default exactly like Load, Counts, Probes and Integrity already do: a
+// caller that leaves it nil reaches the real ladybug.ScanCanonical, not a
+// silently skipped snapshot build.
+func TestRunDefaultsScanToLadybugScanCanonical(t *testing.T) {
+	root := t.TempDir()
+	options := buildOptions(t, root, "000001", sampleFacts())
+	options.Scan = nil
+
+	report, err := Run(context.Background(), options)
+	if err == nil {
+		t.Fatal("Run() error = nil, want the default ladybug.ScanCanonical to reject a database the fake loader never wrote")
+	}
+	if !errors.Is(err, ErrRebuildFailed) {
+		t.Fatalf("errors.Is(err, ErrRebuildFailed) = false; err = %v", err)
+	}
+	snapshotStage, ok := stageByName(report.Stages, StageSnapshot)
+	if !ok || snapshotStage.Passed {
+		t.Fatalf("snapshot stage = %+v, want a recorded failure", snapshotStage)
 	}
 }

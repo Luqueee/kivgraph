@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/luque/internal/hotsnapshot"
 	mcpserver "github.com/Luqueee/luque/internal/mcp"
 	"github.com/Luqueee/luque/internal/rebuild"
 	"github.com/Luqueee/luque/internal/storage/generation"
@@ -41,6 +42,8 @@ type graphRoleResolver func(context.Context, rebuild.LayoutOptions) (rebuild.Lay
 
 type graphRollbacker func(context.Context, rebuild.RollbackOptions) (rebuild.RollbackReport, error)
 
+type snapshotBuilder func(context.Context, rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error)
+
 func run(args []string, stdout, stderr io.Writer) int {
 	return runWithStorageDiagnoser(args, stdout, stderr, ladybug.DiagnoseStorage)
 }
@@ -62,6 +65,10 @@ func runWithGraphRoles(args []string, stdout, stderr io.Writer, diagnose storage
 }
 
 func runWithGraphRollback(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier, roles graphRoleResolver, rollback graphRollbacker) int {
+	return runWithSnapshotBuilder(args, stdout, stderr, diagnose, rebuilder, verify, roles, rollback, rebuild.SnapshotGeneration)
+}
+
+func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier, roles graphRoleResolver, rollback graphRollbacker, build snapshotBuilder) int {
 	if len(args) == 2 && args[1] == "version" {
 		fmt.Fprintln(stdout, version.Value)
 		return 0
@@ -84,8 +91,11 @@ func runWithGraphRollback(args []string, stdout, stderr io.Writer, diagnose stor
 	if len(args) >= 2 && args[1] == "rollback" {
 		return runRollback(args[2:], stdout, stderr, rollback)
 	}
+	if len(args) >= 2 && args[1] == "snapshot" {
+		return runSnapshot(args[2:], stdout, stderr, build)
+	}
 
-	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]\n", args[0])
 	return 2
 }
 
@@ -498,4 +508,61 @@ func orNone(value string) string {
 		return "none"
 	}
 	return value
+}
+
+func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder) int {
+	flags := flag.NewFlagSet("snapshot", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	var root, generationID string
+	var snapshotID int64
+	flags.StringVar(&root, "root", "", "generation store root directory")
+	flags.StringVar(&generationID, "generation", "", "six digit generation id to snapshot; defaults to the registered graph.active")
+	flags.Int64Var(&snapshotID, "snapshot-id", 0, "snapshot id stamped on the built HotSnapshot")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "snapshot: unexpected arguments: %v\n", flags.Args())
+		return 2
+	}
+	if root == "" {
+		fmt.Fprintln(stderr, "snapshot: --root is required")
+		return 2
+	}
+
+	_, report, err := build(context.Background(), rebuild.GenerationSnapshotOptions{
+		Root:         root,
+		Store:        generation.DefaultConfig(),
+		GenerationID: generationID,
+		SnapshotID:   uint64(snapshotID),
+	})
+	writeSnapshotReport(stdout, report)
+	if err != nil {
+		fmt.Fprintf(stderr, "snapshot: %v\n", err)
+		return 1
+	}
+	if !report.Passed {
+		fmt.Fprintln(stderr, "snapshot: report did not pass despite no error")
+		return 1
+	}
+	return 0
+}
+
+// writeSnapshotReport prints the account BuildSnapshot/SnapshotGeneration
+// already computed: id, row format version, content digest, per table
+// counts, and the edges that cannot be represented in the CSR (structural
+// and Package to Package relations — see README.md), so an operator can
+// tell a healthy generation from a broken one without a debugger.
+func writeSnapshotReport(stdout io.Writer, report rebuild.SnapshotReport) {
+	fmt.Fprintf(stdout, "snapshot: %s\n", rebuildState(report.Passed))
+	fmt.Fprintf(stdout, "snapshot id: %d\n", report.SnapshotID)
+	fmt.Fprintf(stdout, "version: %d\n", report.Version)
+	fmt.Fprintf(stdout, "digest: %s\n", orNone(report.Digest))
+	fmt.Fprintf(stdout, "repositories: %d\n", report.Stats.Repositories)
+	fmt.Fprintf(stdout, "packages: %d\n", report.Stats.Packages)
+	fmt.Fprintf(stdout, "files: %d\n", report.Stats.Files)
+	fmt.Fprintf(stdout, "symbols: %d\n", report.Stats.Symbols)
+	fmt.Fprintf(stdout, "evidence: %d\n", report.Stats.Evidence)
+	fmt.Fprintf(stdout, "edges: %d\n", report.Stats.Edges)
+	fmt.Fprintf(stdout, "edges not represented in the CSR: %d\n", report.Stats.SkippedEdges)
 }

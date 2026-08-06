@@ -275,6 +275,37 @@ roles: la generación que antes era `graph.active` pasa a ser el nuevo
 `graph.backup`, así que siempre se puede volver a avanzar con otro
 rollback.
 
+La construcción del HotSnapshot lee la generación ya publicada y produce,
+en memoria, el índice denso que servirán las consultas MCP:
+
+```bash
+go run -tags ladybug ./cmd/luque snapshot \
+  --root /var/lib/luque/graph \
+  --generation 000123
+```
+
+`--generation` es opcional: sin él, `snapshot` construye desde el
+`graph.active` registrado. El snapshot se deriva del grafo canónico ya
+publicado en LadybugDB, nunca del `facts.Set` que lo originó: lee
+`Repository`, `Package`, `File`, `Symbol`, `Evidence` y las relaciones
+semánticas directamente de la base indicada —la misma fuente que verifica
+`doctor graph`—, que no se modifica. Las aristas estructurales
+(`CONTAINS_PACKAGE`, `CONTAINS_FILE`, `DEFINES`, `OBSERVED_IN`,
+`REPORTS_UNRESOLVED`) y las de dependencia entre paquetes
+(`PACKAGE_DEPENDS_ON`, `MODULE_DEPENDS_ON`) no entran en el CSR del
+HotSnapshot, que solo indexa `Symbol` por su `stable_key` y solo conserva
+adyacencias símbolo a símbolo; eso no pierde información, porque la
+contención ya vive en los propios nodos (`File.package_key`,
+`Package.repository_key`, `Symbol.file_key`) y la dependencia entre
+paquetes sigue consultable directamente en LadybugDB, que continúa siendo
+la fuente de verdad para ella. El comando imprime el identificador y la
+versión del snapshot, su digest de contenido, las cuentas por tabla y el
+número de aristas no representadas en el CSR, y termina en `0` solo si el
+grafo pudo convertirse en snapshot; una tabla de arista fuera del
+vocabulario canónico o un `confidence`/`provenance` desconocido hacen
+fallar la construcción en vez de admitir un snapshot silenciosamente
+incompleto.
+
 La [calificación de LadybugDB](docs/decisions/ladybugdb-qualification.md)
 concluye `ACCEPT_LADYBUGDB_WITH_LIMITS`. `LADYBUG_RECOVERY_PASS` está emitido:
 las generaciones inmutables y la publicación durable de `CURRENT` protegen la

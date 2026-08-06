@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/luque/internal/hotsnapshot"
 	"github.com/Luqueee/luque/internal/rebuild"
 	"github.com/Luqueee/luque/internal/storage/generation"
 	"github.com/Luqueee/luque/internal/storage/ladybug"
@@ -706,6 +707,136 @@ func TestRunRollbackWithoutGenerationDefaultsToBackup(t *testing.T) {
 	code := runWithGraphRollback([]string{
 		"luque", "rollback", "--root", "/tmp/luque-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
+func TestRunSnapshotPrintsReportOnSuccess(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	build := func(_ context.Context, options rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+		if options.Root != "/tmp/luque-graph" {
+			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		}
+		if options.GenerationID != "000002" {
+			t.Fatalf("generation id = %q, want 000002", options.GenerationID)
+		}
+		return nil, rebuild.SnapshotReport{
+			SnapshotID: 9, Version: 1, Digest: "deadbeef",
+			Stats:  rebuild.SnapshotStats{Repositories: 1, Packages: 1, Files: 2, Symbols: 2, Evidence: 1, Edges: 1, SkippedEdges: 5},
+			Passed: true,
+		}, nil
+	}
+
+	code := runWithSnapshotBuilder([]string{
+		"luque", "snapshot", "--root", "/tmp/luque-graph", "--generation", "000002",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "snapshot: PASS") {
+		t.Fatalf("stdout missing verdict: %q", out)
+	}
+	if !strings.Contains(out, "digest: deadbeef") {
+		t.Fatalf("stdout missing digest: %q", out)
+	}
+	if !strings.Contains(out, "symbols: 2") || !strings.Contains(out, "edges not represented in the CSR: 5") {
+		t.Fatalf("stdout missing stats: %q", out)
+	}
+}
+
+func TestRunSnapshotReturnsFailureWhenBuildErrors(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	build := func(context.Context, rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+		return nil, rebuild.SnapshotReport{}, fmt.Errorf("%w: edge table \"BOGUS\" is outside the canonical vocabulary", rebuild.ErrSnapshotBuildFailed)
+	}
+
+	code := runWithSnapshotBuilder([]string{
+		"luque", "snapshot", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "outside the canonical vocabulary") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunSnapshotReturnsFailureWhenReportDidNotPass(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	build := func(context.Context, rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+		return nil, rebuild.SnapshotReport{Passed: false}, nil
+	}
+
+	code := runWithSnapshotBuilder([]string{
+		"luque", "snapshot", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "report did not pass") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunSnapshotRequiresRoot(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	build := func(context.Context, rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+		called = true
+		return nil, rebuild.SnapshotReport{}, nil
+	}
+
+	code := runWithSnapshotBuilder([]string{
+		"luque", "snapshot",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if called {
+		t.Fatal("build hook was called")
+	}
+	if !strings.Contains(stderr.String(), "--root is required") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+// TestRunSnapshotWithoutGenerationDefaultsToEmpty is the CLI half of
+// "--generation is optional": leaving it out must reach SnapshotGeneration
+// with an empty GenerationID, letting it resolve graph.active itself.
+func TestRunSnapshotWithoutGenerationDefaultsToEmpty(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	build := func(_ context.Context, options rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+		if options.GenerationID != "" {
+			t.Fatalf("generation id = %q, want empty (defaults to graph.active)", options.GenerationID)
+		}
+		return nil, rebuild.SnapshotReport{Passed: true}, nil
+	}
+
+	code := runWithSnapshotBuilder([]string{
+		"luque", "snapshot", "--root", "/tmp/luque-graph",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
+func TestRunSnapshotPassesSnapshotIDFlagThrough(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	build := func(_ context.Context, options rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+		if options.SnapshotID != 42 {
+			t.Fatalf("snapshot id = %d, want 42", options.SnapshotID)
+		}
+		return nil, rebuild.SnapshotReport{Passed: true}, nil
+	}
+
+	code := runWithSnapshotBuilder([]string{
+		"luque", "snapshot", "--root", "/tmp/luque-graph", "--snapshot-id", "42",
+	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
 	}
