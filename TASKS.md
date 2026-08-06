@@ -7315,21 +7315,59 @@ latencia documentado.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Filtros:**
+**Implementación:**
 
-* repo;
-* language;
-* edge kinds;
-* confidence;
-* incoming/outgoing.
+Se añadió `internal/mcp/tools/find_references.go` como consulta read-only
+paginada sobre el CSR entrante/saliente del `HotSnapshot`. La entrada exige
+`stable_key` y admite `direction` (`incoming` por defecto), `repo`, `language`,
+`edge_kinds`, `confidence`, `limit` y cursor opaco. La respuesta reutiliza el
+envelope estándar y devuelve cada relación con sus claves de símbolos,
+repositorios, lenguajes, archivos, evidencia, kind, confidence y provenance.
 
----
+Los filtros se aplican sobre la arista canónica y sobre el extremo relacionado
+con el símbolo consultado. Las aristas de contención no se exponen como
+referencias; los códigos desconocidos, la evidencia ausente y el metadata
+inconsistente se clasifican como `SNAPSHOT_UNAVAILABLE`. La cobertura separa
+relaciones exactas, candidatas y `UNRESOLVED`.
+
+El `HotSnapshot` conserva ahora claves y lenguajes en `PackageRecord`,
+`FileRecord` y `SymbolRecord`, y también la identidad, ruta y lenguajes del
+repositorio. La conversión canónica rellena esos campos sin consultar de nuevo
+LadybugDB durante la consulta.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1106.
+
+**Verificación:**
+
+```text
+go test ./internal/mcp/tools -run 'TestFindReferences' -count=1
+go test ./...
+go vet ./...
+go test -race ./internal/mcp/...
+make build
+```
+
+Todas las comprobaciones pasan. Las pruebas cubren referencias entrantes y
+salientes, paginación, filtros de repositorio/lenguaje/kind/confidence,
+metadatos de evidencia, límites, errores clasificados, snapshot ausente y
+registro read-only.
+
+**Limitaciones:** la consulta recorre únicamente la página CSR inmediata del
+símbolo; no hace recorrido transitivo ni inventa referencias para
+`UnresolvedReference` sin un destino `Symbol`. El índice exacto de aristas
+continúa siendo el CSR del snapshot; no se añadió un índice adicional porque
+la consulta ya está acotada por el símbolo y el SLO existente cubre hasta 100
+referencias.
+
+**Siguiente tarea:** LUQUE-1107.
 
 ## LUQUE-1107 — Implementar `find_cross_repo_consumers`
 

@@ -39,12 +39,14 @@ type FileRow struct {
 	RepositoryKey string
 	PackageKey    string
 	Path          string
+	Language      string
 }
 
 type SymbolRow struct {
 	StableKey         StableKey
 	CanonicalIdentity string
 	FileKey           string
+	Language          string
 	Name              string
 	QualifiedName     string
 	Kind              string
@@ -161,12 +163,12 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		if err != nil {
 			return nil, err
 		}
-		key := RepoPathKey{Repository: repositoryID, Path: path}
-		if _, exists := fileIndex[key]; exists {
+		repoPath := RepoPathKey{Repository: repositoryID, Path: path}
+		if _, exists := fileIndex[repoPath]; exists {
 			return nil, fmt.Errorf("%w: repository %q holds two files at %q", ErrInvalidSnapshotRows, row.RepositoryKey, row.Path)
 		}
 		fileIDs[row.Key] = id
-		fileIndex[key] = id
+		fileIndex[repoPath] = id
 		fileRecords[index] = FileRecord{Repository: repositoryID, Package: packageID, Path: path}
 	}
 
@@ -260,6 +262,32 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		repositoryRecords[index].Key = key
 		repositoryRecords[index].Path = path
 		repositoryRecords[index].Languages = languages
+	}
+	for index, row := range packages {
+		key, err := interner.Intern(row.Key)
+		if err != nil {
+			return nil, err
+		}
+		packageRecords[index].Key = key
+	}
+	for index, row := range files {
+		key, err := interner.Intern(row.Key)
+		if err != nil {
+			return nil, err
+		}
+		language, err := interner.Intern(row.Language)
+		if err != nil {
+			return nil, err
+		}
+		fileRecords[index].Key = key
+		fileRecords[index].Language = language
+	}
+	for index, row := range symbols {
+		language, err := interner.Intern(row.Language)
+		if err != nil {
+			return nil, err
+		}
+		symbolRecords[index].Language = language
 	}
 
 	return NewGraphSnapshot(GraphSnapshotInput{

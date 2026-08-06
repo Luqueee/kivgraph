@@ -20,6 +20,7 @@ type RepositoryRecord struct {
 
 // PackageRecord belongs to one repository.
 type PackageRecord struct {
+	Key        InternedString
 	Repository RepositoryID
 	Name       InternedString
 	ModulePath InternedString
@@ -27,9 +28,11 @@ type PackageRecord struct {
 
 // FileRecord belongs to one package.
 type FileRecord struct {
+	Key        InternedString
 	Repository RepositoryID
 	Package    PackageID
 	Path       InternedString
+	Language   InternedString
 }
 
 // SymbolRecord stores source-independent and display identities for a symbol.
@@ -37,6 +40,7 @@ type SymbolRecord struct {
 	StableKey          StableKey
 	CanonicalIdentity  InternedString
 	File               FileID
+	Language           InternedString
 	Name               InternedString
 	QualifiedName      InternedString
 	Kind               InternedString
@@ -212,6 +216,14 @@ func (snapshot *GraphSnapshot) File(id FileID) (FileRecord, bool) {
 		return FileRecord{}, false
 	}
 	return snapshot.files[id], true
+}
+
+// Evidence returns one evidence record by its dense immutable ID.
+func (snapshot *GraphSnapshot) Evidence(id EvidenceID) (EvidenceRecord, bool) {
+	if uint64(id) >= uint64(len(snapshot.evidence)) {
+		return EvidenceRecord{}, false
+	}
+	return snapshot.evidence[id], true
 }
 
 // Symbol returns the record at one dense ID.

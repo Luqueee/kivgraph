@@ -230,7 +230,10 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 
 	rows.Files = make([]hotsnapshot.FileRow, len(graph.Files))
 	for index, file := range graph.Files {
-		rows.Files[index] = hotsnapshot.FileRow{Key: file.StableKey, RepositoryKey: file.RepositoryKey, PackageKey: file.PackageKey, Path: file.Path}
+		rows.Files[index] = hotsnapshot.FileRow{
+			Key: file.StableKey, RepositoryKey: file.RepositoryKey, PackageKey: file.PackageKey,
+			Path: file.Path, Language: file.Language,
+		}
 	}
 
 	// symbolFileKeys backs EvidenceSourceFileKey/EvidenceTargetFileKey
@@ -251,7 +254,7 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 		}
 		rows.Symbols[index] = hotsnapshot.SymbolRow{
 			StableKey: hotsnapshot.StableKey(symbol.StableKey), CanonicalIdentity: symbol.CanonicalIdentity,
-			FileKey: symbol.FileKey, Name: symbol.Name, QualifiedName: symbol.QualifiedName,
+			FileKey: symbol.FileKey, Language: symbol.Language, Name: symbol.Name, QualifiedName: symbol.QualifiedName,
 			Kind: symbol.Kind, Signature: symbol.Signature, StartLine: startLine, EndLine: endLine,
 		}
 		symbolFileKeys[symbol.StableKey] = symbol.FileKey
