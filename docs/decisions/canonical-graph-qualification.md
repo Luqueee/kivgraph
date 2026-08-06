@@ -149,7 +149,38 @@ luque snapshot --root ROOT
 * `IMPLEMENTS`, `EMBEDS` y `OVERRIDES` tienen tabla, se cargan, se verifican y
   se codifican, pero `facts.NormalizeGo` todavía no las produce: no aparecen en
   este grafo.
-* `IMPORTS_SYMBOL` de TypeScript sigue pendiente de LUQUE-0907, así que el
-  grafo calificado es sólo Go.
+* Los dos lenguajes están calificados por separado, no combinados en un solo
+  grafo. Ver la ampliación de abajo.
 * El snapshot vive en memoria. Su persistencia y su publicación a los lectores
   MCP pertenecen a fases posteriores.
+
+## Ampliación del 2026-08-06: TypeScript
+
+LUQUE-0907 cerró el hueco que este documento registraba como límite. El grafo
+TypeScript recorre ahora la misma cadena completa, con sus propias aristas
+cross-repository:
+
+```text
+shared-library   4 símbolos    consumer-a  3 IMPORTS_SYMBOL
+consumer-b       2 IMPORTS_SYMBOL, uno de ellos a través de un alias
+
+[PASS] facts      3 repositories, 3 packages, 4 files, 12 symbols, 26 edges
+[PASS] integrity  27 of 27 canonical table(s) matched; 0 invariant violation(s)
+[PASS] snapshot   12 symbols, 7 edges in the CSR
+[PASS] publish    published generation 000001
+
+luque doctor graph   PASS, los seis invariantes a cero
+```
+
+Las cinco aristas `IMPORTS_SYMBOL` son `EXACT_TYPECHECKED` y su destino coincide
+exactamente con la clave que el proveedor asigna a su propia declaración,
+incluidos los casos con alias (`value as republished`,
+`aliasedHelper as helper`), donde el nombre local del binding no coincide con el
+del proveedor. Que `doctor graph` pase lo confirma de forma independiente:
+`exact_edge_without_source` y `exact_edge_without_target` exigen que ambos
+extremos estén declarados, y una clave mal derivada los violaría.
+
+Sigue pendiente combinar Go y TypeScript en **una misma generación**: cada
+lenguaje se calificó en su propio grafo. La convergencia de ambos en un solo
+`Set` está probada en `internal/facts` desde LUQUE-0901, pero no se ha
+publicado todavía un grafo mixto.

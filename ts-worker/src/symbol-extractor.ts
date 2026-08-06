@@ -10,50 +10,32 @@ import path from "node:path";
 
 import { ModifierFlags } from "typescript/unstable/ast";
 import {
-  isArrayBindingPattern,
-  isClassDeclaration,
-  isConstructorDeclaration,
   isExportAssignment,
   isExportDeclaration,
   isExportSpecifier,
-  isFunctionDeclaration,
-  isGetAccessorDeclaration,
   isIdentifier,
-  isInterfaceDeclaration,
-  isMethodDeclaration,
-  isModuleDeclaration,
   isNamedExports,
-  isObjectBindingPattern,
-  isPropertyDeclaration,
-  isSetAccessorDeclaration,
-  isTypeAliasDeclaration,
   isVariableDeclaration,
   isVariableDeclarationList,
   isVariableStatement,
-  isEnumDeclaration,
 } from "typescript/unstable/ast/is";
-import type {
-  BindingName,
-  Identifier,
-  Node,
-  SourceFile,
-} from "typescript/unstable/ast";
+import type { Node, SourceFile } from "typescript/unstable/ast";
 import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
 
+import {
+  bindingIdentifiers,
+  compactSignature,
+  declarationCandidate,
+  declarationScope,
+  displayName,
+  modifierFlags,
+  type DeclarationCandidate,
+  type LocalSymbolKind,
+} from "./declaration-classifier.js";
 import type { LanguageService, ProjectView } from "./language-service.js";
 import { resolveLocalSymbols } from "./symbol-resolution.js";
 
-/** Kinds emitted by the local declaration extractor. */
-export type LocalSymbolKind =
-  | "function"
-  | "class"
-  | "interface"
-  | "method"
-  | "variable"
-  | "property"
-  | "type"
-  | "enum"
-  | "namespace";
+export type { LocalSymbolKind } from "./declaration-classifier.js";
 
 /** A declaration backed by a checker symbol in one live snapshot. */
 export interface LocalSymbol {
@@ -100,16 +82,6 @@ export interface LocalSymbolExtraction {
   exports: LocalExport[];
 }
 
-interface Candidate {
-  file: SourceFile;
-  declaration: Node;
-  nameNode: Node;
-  name: string;
-  scope: readonly string[];
-  kind: LocalSymbolKind;
-  directExportName: string | undefined;
-}
-
 interface ExportRequest {
   file: SourceFile;
   node: Node;
@@ -128,7 +100,7 @@ interface ExportStarRequest {
 }
 
 interface CollectedFile {
-  candidates: Candidate[];
+  candidates: DeclarationCandidate[];
   exports: ExportRequest[];
   exportStars: ExportStarRequest[];
 }
@@ -346,7 +318,7 @@ function selectLocalFiles(
 }
 
 function collectFile(file: SourceFile): CollectedFile {
-  const candidates: Candidate[] = [];
+  const candidates: DeclarationCandidate[] = [];
   const exports: ExportRequest[] = [];
   const exportStars: ExportStarRequest[] = [];
 
@@ -406,80 +378,6 @@ function collectFile(file: SourceFile): CollectedFile {
   return { candidates, exports, exportStars };
 }
 
-function declarationCandidate(
-  file: SourceFile,
-  node: Node,
-  scope: readonly string[],
-  exportedByVariableList: boolean,
-  directDefault: boolean,
-): Candidate | undefined {
-  let nameNode: Node | undefined;
-  let kind: LocalSymbolKind | undefined;
-
-  if (isFunctionDeclaration(node)) {
-    nameNode = node.name;
-    kind = "function";
-  } else if (isClassDeclaration(node)) {
-    nameNode = node.name;
-    kind = "class";
-  } else if (isInterfaceDeclaration(node)) {
-    nameNode = node.name;
-    kind = "interface";
-  } else if (isTypeAliasDeclaration(node)) {
-    nameNode = node.name;
-    kind = "type";
-  } else if (isVariableDeclaration(node)) {
-    const names = bindingIdentifiers(node.name);
-    // A destructuring declaration has one Candidate per bound identifier. The
-    // caller's recursive walk sees the same declaration once, so only the
-    // first identifier is emitted here; the remaining identifiers are emitted
-    // by this helper's synthetic sibling handling below.
-    nameNode = names[0];
-    kind = "variable";
-  } else if (isPropertyDeclaration(node)) {
-    nameNode = node.name;
-    kind = "property";
-  } else if (
-    isMethodDeclaration(node) ||
-    isGetAccessorDeclaration(node) ||
-    isSetAccessorDeclaration(node)
-  ) {
-    nameNode = node.name;
-    kind = "method";
-  } else if (isConstructorDeclaration(node)) {
-    return undefined;
-  } else if (isEnumDeclaration(node)) {
-    nameNode = node.name;
-    kind = "enum";
-  } else if (isModuleDeclaration(node) && isIdentifier(node.name)) {
-    nameNode = node.name;
-    kind = "namespace";
-  }
-
-  if (nameNode === undefined || kind === undefined) {
-    return undefined;
-  }
-
-  const name = displayName(nameNode, file);
-  if (name === "") {
-    return undefined;
-  }
-
-  return {
-    file,
-    declaration: node,
-    nameNode,
-    name,
-    scope,
-    kind,
-    directExportName:
-      exportedByVariableList || modifierFlags(node) & ModifierFlags.Export
-        ? directDefault
-          ? "default"
-          : name
-        : undefined,
-  };
-}
 function collectExportDeclaration(
   file: SourceFile,
   node: Node,
@@ -537,32 +435,8 @@ function collectExportAssignment(
   });
 }
 
-function declarationScope(
-  node: Node,
-  scope: readonly string[],
-): readonly string[] {
-  const name = scopeName(node);
-  return name === undefined ? scope : [...scope, name];
-}
-
-function scopeName(node: Node): string | undefined {
-  const named = namedDeclarationName(node);
-  if (named !== undefined && isIdentifier(named)) {
-    return named.getText();
-  }
-  if (
-    isMethodDeclaration(node) ||
-    isGetAccessorDeclaration(node) ||
-    isSetAccessorDeclaration(node) ||
-    isPropertyDeclaration(node)
-  ) {
-    return displayName(node.name);
-  }
-  return undefined;
-}
-
 function makeLocalSymbol(
-  candidate: Candidate,
+  candidate: DeclarationCandidate,
   symbol: TypeScriptSymbol,
 ): LocalSymbol {
   const start = candidate.declaration.getStart(candidate.file);
@@ -595,49 +469,6 @@ function makeLocalSymbol(
   };
 }
 
-function compactSignature(node: Node, file: SourceFile): string {
-  const text = node.getText(file).replace(/\s+/gu, " ").trim();
-  const body = text.indexOf("{");
-  const withoutBody = body >= 0 ? text.slice(0, body).trim() : text;
-  const equals =
-    isVariableDeclaration(node) && withoutBody.includes("=")
-      ? withoutBody.slice(0, withoutBody.indexOf("=")).trim()
-      : withoutBody;
-  return equals.length > 512 ? `${equals.slice(0, 509)}...` : equals;
-}
-
-function bindingIdentifiers(name: BindingName): Identifier[] {
-  if (isIdentifier(name)) {
-    return [name];
-  }
-  if (isObjectBindingPattern(name) || isArrayBindingPattern(name)) {
-    return name.elements.flatMap((element) =>
-      element.name === undefined ? [] : bindingIdentifiers(element.name),
-    );
-  }
-  return [];
-}
-
-function displayName(node: Node, file?: SourceFile): string {
-  const text = file === undefined ? node.getText() : node.getText(file);
-  const trimmed = text.trim();
-  if (
-    trimmed.length >= 2 &&
-    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'")))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function modifierFlags(node: Node): number {
-  if ("modifierFlags" in node && typeof node.modifierFlags === "number") {
-    return node.modifierFlags;
-  }
-  return ModifierFlags.None;
-}
-
 function isTypeSymbol(symbol: LocalSymbol): boolean {
   return symbol.kind === "interface" || symbol.kind === "type";
 }
@@ -660,21 +491,6 @@ function compareExports(left: LocalExport, right: LocalExport): number {
     left.exportedName.localeCompare(right.exportedName) ||
     left.localName.localeCompare(right.localName)
   );
-}
-
-function namedDeclarationName(node: Node): Node | undefined {
-  if (isClassDeclaration(node) || isFunctionDeclaration(node)) {
-    return node.name;
-  }
-  if (
-    isInterfaceDeclaration(node) ||
-    isTypeAliasDeclaration(node) ||
-    isEnumDeclaration(node) ||
-    isModuleDeclaration(node)
-  ) {
-    return node.name;
-  }
-  return undefined;
 }
 
 function resolvePath(fileName: string): string {

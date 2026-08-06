@@ -1,0 +1,132 @@
+{
+  "version": 2,
+  "repository": {
+    "name": "consumer-a"
+  },
+  "package": {
+    "name": "@luque-fixture/consumer-a",
+    "version": "2.0.0",
+    "rootPath": ".",
+    "manifestPath": "package.json"
+  },
+  "files": [
+    "src/direct.ts"
+  ],
+  "symbols": [
+    {
+      "file": "src/direct.ts",
+      "name": "total",
+      "qualifiedName": "total",
+      "kind": "function",
+      "exported": true,
+      "signature": "export function total(shape: Shape): number",
+      "startLine": 3,
+      "endLine": 5,
+      "start": 69,
+      "end": 155
+    },
+    {
+      "file": "src/direct.ts",
+      "name": "compute",
+      "qualifiedName": "compute",
+      "kind": "import",
+      "exported": false,
+      "signature": "compute",
+      "startLine": 1,
+      "endLine": 1,
+      "start": 9,
+      "end": 16
+    },
+    {
+      "file": "src/direct.ts",
+      "name": "value",
+      "qualifiedName": "value",
+      "kind": "import",
+      "exported": false,
+      "signature": "value",
+      "startLine": 1,
+      "endLine": 1,
+      "start": 18,
+      "end": 23
+    },
+    {
+      "file": "src/direct.ts",
+      "name": "Shape",
+      "qualifiedName": "Shape",
+      "kind": "import",
+      "exported": false,
+      "signature": "type Shape",
+      "startLine": 1,
+      "endLine": 1,
+      "start": 30,
+      "end": 35
+    }
+  ],
+  "references": [],
+  "imports": [
+    {
+      "file": "src/direct.ts",
+      "qualifiedName": "compute",
+      "start": 9,
+      "end": 16,
+      "startLine": 1,
+      "text": "compute",
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "compute",
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "compute",
+        "kind": "function",
+        "signature": "export function compute(input: number): number",
+        "file": "src/value.ts",
+        "startLine": 7
+      },
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/direct.ts",
+      "qualifiedName": "value",
+      "start": 18,
+      "end": 23,
+      "startLine": 1,
+      "text": "value",
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "value",
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "value",
+        "kind": "variable",
+        "signature": "value",
+        "file": "src/value.ts",
+        "startLine": 1
+      },
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/direct.ts",
+      "qualifiedName": "Shape",
+      "start": 30,
+      "end": 35,
+      "startLine": 1,
+      "text": "type Shape",
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "Shape",
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "Shape",
+        "kind": "interface",
+        "signature": "export interface Shape",
+        "file": "src/value.ts",
+        "startLine": 3
+      },
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "unresolved": []
+}

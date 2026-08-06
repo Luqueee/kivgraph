@@ -5908,11 +5908,11 @@ make test-ladybug todos los paquetes ok
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Motivo:** el payload `ts-facts-v1` transporta el binding consumidor y el
 símbolo destino de un import, pero no la **clase** ni la **firma** del destino.
@@ -5935,6 +5935,120 @@ veces.
 * un destino sin clase o sin firma no produce arista, sino una referencia no
   resuelta;
 * `Set.Validate` sigue pasando sobre el grafo combinado.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+ts-worker/src/declaration-classifier.ts     clasificación compartida
+ts-worker/src/imported-symbol-resolver.ts   identidad del destino
+ts-worker/src/facts-cli.ts                  registry real y wire v2
+internal/facts/typescript.go                normalización de IMPORTS_SYMBOL
+testdata/protocol/ts-facts-v2/              tres goldens reales
+```
+
+**El fallo era más profundo que un campo ausente.** No bastaba con transportar
+clase y firma: la firma que **ve** el consumidor no es la que **indexa** el
+proveedor. El consumidor resuelve el import hasta `dist/value.d.ts`, cuyo texto
+es `export declare function compute(input: number): number`, mientras el
+proveedor se indexa desde `src/value.ts` y produce
+`export function compute(input: number): number`. Como el discriminador de la
+clave **es** la firma, copiar el texto del `.d.ts` habría generado dos claves
+distintas para el mismo símbolo. Es exactamente el fallo de la fase 8: la
+identidad no puede depender de quién mira.
+
+**Solución: leer la fuente del proveedor, con el mismo código.** LUQUE-0703 ya
+mapea cada declaración de un `.d.ts` a su posición real en la fuente. El
+consumidor abre esa fuente, localiza la declaración por esa posición y la
+clasifica con **las mismas funciones** que el proveedor usa sobre sí mismo
+—`declarationCandidate` y `compactSignature`, extraídas a
+`declaration-classifier.ts`—. Mismo código sobre los mismos bytes: la clave
+coincide por construcción, no por coincidencia.
+
+**Decisiones:**
+
+* **Sin mapa de declaración no hay arista.** Si `sourceStatus` no es
+  `DECLARATION_MAP`, o la posición no cae sobre una declaración reconocible, la
+  clase y la firma del proveedor son desconocidas y se emite una referencia no
+  resuelta con razón explícita (`PROVIDER_SOURCE_UNAVAILABLE`). Nunca se
+  infiere ni se cae al texto del `.d.ts`.
+* **El binding importado es un símbolo del consumidor**, de clase `import`, para
+  que la arista sea de verdad `Symbol→Symbol` como exige el esquema canónico.
+* **El wire sube a `ts-facts-v2`.** Un payload sin campo de imports es
+  indistinguible de uno donde no se importó nada, y esa ambigüedad es
+  justamente la que el proyecto rechaza en todo lo demás.
+* **Se eliminó el `emptyRegistry` del CLI.** `pnpm facts` no resolvía ningún
+  import externo: el registro de proveedores estaba fijado a vacío, así que
+  todo import cruzado caía en `PACKAGE_PROVIDER_NOT_FOUND`. Ahora acepta
+  repositorios proveedores y construye el registry de verdad.
+* La identidad del destino se construye con **el mismo helper** que construye la
+  de un símbolo local, para que no puedan divergir.
+
+**Una arista `IMPORTS_SYMBOL` apunta fuera de su payload.** El destino vive en
+el repositorio proveedor, así que el `Set` de un consumidor **por sí solo no
+valida**: la arista está colgando hasta que se combina con el `Set` del
+proveedor por `Set.Merge`. Es el mismo comportamiento que ya tenía Go, y está
+documentado en el código.
+
+**Verificación: paridad de claves sobre el fixture de LUQUE-0707.** Los tres
+goldens se generaron con el CLI real y se normalizaron y combinaron:
+
+```text
+shared-library   symbols=4 edges=9  imports_symbol=0
+consumer-a       symbols=4 edges=9  imports_symbol=3
+consumer-b       symbols=4 edges=8  imports_symbol=2
+
+  Shape        -> Shape    (shared-library, interface)  coincide con la clave del proveedor
+  republished  -> value    (shared-library, variable)   coincide con la clave del proveedor
+  compute      -> compute  (shared-library, function)   coincide con la clave del proveedor
+  value        -> value    (shared-library, variable)   coincide con la clave del proveedor
+  helper       -> helper   (shared-library, function)   coincide con la clave del proveedor
+```
+
+`republished` y `helper` son los casos exigentes: el nombre local del binding
+**no** coincide con el del proveedor (`value as republished`,
+`aliasedHelper as helper`), y aun así la clave del destino es la del proveedor.
+La identidad depende sólo del destino, nunca del nombre que le dé el consumidor.
+
+**Y la arista llega al grafo canónico**, no se queda en el normalizador:
+
+```text
+[PASS] facts      3 repositories, 3 packages, 4 files, 12 symbols, 26 edges
+[PASS] integrity  27 of 27 canonical table(s) matched; 0 invariant violation(s)
+[PASS] snapshot   hot snapshot built (12 symbols, 7 edges, 19 not in the CSR)
+[PASS] publish    published generation 000001
+
+luque doctor graph   PASS, los seis invariantes a cero
+luque snapshot       PASS
+```
+
+Que `doctor graph` pase importa aquí especialmente: las cinco aristas son
+`EXACT_TYPECHECKED` y `exact_edge_without_source`/`_target` exigen que ambos
+extremos estén **declarados**. Si la clave del destino no coincidiera con la del
+proveedor, ese invariante lo cazaría.
+
+```text
+gofmt -l .        sin diferencias
+go vet ./...      limpio
+go test ./...     todos los paquetes ok
+make test-ladybug todos los paquetes ok
+pnpm check        16 ficheros, 71 tests, limpio
+```
+
+**Limitaciones:**
+
+* Un import de namespace (`import * as shared`) sigue sin producir arista
+  exacta: el binding no nombra un símbolo concreto. Es la degradación conocida
+  de LUQUE-0705, no una regresión.
+* Los usos locales de un binding importado no producen todavía `REFERENCES`
+  hacia el símbolo `import`: el extractor de referencias sólo resuelve destinos
+  dentro del proyecto. El import queda representado por su arista
+  `IMPORTS_SYMBOL`, no por sus usos.
+* `EXPORTS` y `REEXPORTS` tienen tabla y vocabulario pero nadie las produce
+  todavía, ni en Go ni en TypeScript.
+
+**Siguiente tarea:** LUQUE-1001, ya en la fase 10.
 
 ---
 

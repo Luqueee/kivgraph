@@ -6,7 +6,17 @@
  * resolved by TypeScript, the local binding is resolved to its alias symbol,
  * and the alias is followed to the declaration it targets. A name that spells
  * the same in two packages never produces an edge.
+ *
+ * LUQUE-0907 adds the provider's own identity to the target. The durable key
+ * a consumer would derive for a symbol must be byte-identical to the one the
+ * provider assigns its own declaration, or the edge dangles. That identity is
+ * computed by reading the provider's source at the exact position LUQUE-0703
+ * mapped and classifying it with the same functions the provider runs on
+ * itself (`declaration-classifier.ts`) — never inferred from the `.d.ts`
+ * text, which the provider itself never classifies against.
  */
+
+import path from "node:path";
 
 import {
   isExportDeclaration,
@@ -23,6 +33,11 @@ import type {
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
 
+import {
+  classifyDeclarationAt,
+  compactSignature,
+  type LocalSymbolKind,
+} from "./declaration-classifier.js";
 import { declarationName } from "./declaration-name.js";
 import {
   DeclarationPositionMapper,
@@ -33,7 +48,7 @@ import type {
   DeclarationSourceStatus,
 } from "./declaration-source-resolver.js";
 import { resolveDeclarationSources } from "./declaration-source-resolver.js";
-import type { LanguageService, ProjectView } from "./language-service.js";
+import { LanguageService, type ProjectView } from "./language-service.js";
 import type {
   PackageImport,
   PackageImportResolutionOptions,
@@ -49,6 +64,8 @@ export interface ImportedSymbolConsumer {
   readonly symbolId: number;
   /** Local name introduced in the consumer module. */
   readonly name: string;
+  /** Source text of the binding: the specifier, or the identifier alone. */
+  readonly text: string;
   /** UTF-16 source offsets, with `end` exclusive. */
   readonly start: number;
   readonly end: number;
@@ -73,11 +90,45 @@ export interface ImportedSymbolDeclaration {
   readonly sourcePosition: SourcePosition | undefined;
 }
 
+/** Why `ImportedSymbolTarget.identity` could not be computed. */
+export type ImportedSymbolIdentityReason =
+  | "PROVIDER_SOURCE_UNAVAILABLE"
+  | "PROVIDER_DECLARATION_NOT_FOUND";
+
+/**
+ * The provider declaration, described exactly as the provider indexes it.
+ *
+ * `repository` and `package` come straight from the registry-supplied
+ * `PackageProvider`; `qualifiedName`, `kind` and `signature` are computed by
+ * parsing the provider's own source and classifying the node with
+ * `declaration-classifier.ts` — the same code path the provider runs when it
+ * indexes itself, over the same bytes.
+ */
+export interface ImportedSymbolIdentity {
+  readonly repository: string;
+  readonly package: string;
+  readonly qualifiedName: string;
+  readonly kind: LocalSymbolKind;
+  readonly signature: string;
+  /** Provider source file, relative to the provider repository root. */
+  readonly file: string;
+  readonly startLine: number;
+}
+
 /** The provider symbol the consumer binding resolves to. */
 export interface ImportedSymbolTarget {
   readonly symbolId: number;
   readonly name: string;
   readonly declarations: readonly ImportedSymbolDeclaration[];
+  /**
+   * The provider's own identity for this declaration, or undefined when it
+   * cannot be reproduced exactly. Never a guess: a consumer that cannot
+   * prove the identity reports none, rather than risk a false edge.
+   */
+  readonly identity: ImportedSymbolIdentity | undefined;
+  /** Why `identity` is undefined. Undefined when `identity` is set. */
+  readonly identityReason: ImportedSymbolIdentityReason | undefined;
+  readonly identityDetail: string | undefined;
 }
 
 /** One exact symbol-level dependency across packages. */
@@ -105,8 +156,21 @@ interface BindingRequest {
   file: SourceFile;
   nameNode: Node;
   localName: string;
+  text: string;
   exportedName: string;
   packageImport: PackageImport;
+}
+
+/** A resolved edge, still missing the provider identity of its target. */
+interface PendingSymbol {
+  packageName: string;
+  specifier: string;
+  provider: PackageProvider;
+  exportedName: string;
+  consumer: ImportedSymbolConsumer;
+  targetSymbolId: number;
+  targetName: string;
+  declarations: ImportedSymbolDeclaration[];
 }
 
 /**
@@ -177,7 +241,7 @@ export async function resolveImportedSymbols(
           requests.map((request) => request.nameNode),
         );
 
-  const symbols: ImportedSymbol[] = [];
+  const pending: PendingSymbol[] = [];
   for (const [index, request] of requests.entries()) {
     const alias = aliasSymbols[index];
     if (alias === undefined) {
@@ -202,8 +266,7 @@ export async function resolveImportedSymbols(
     }
     const start = request.nameNode.getStart(request.file);
     const end = request.nameNode.getEnd();
-    symbols.push({
-      kind: "IMPORTS_SYMBOL",
+    pending.push({
       packageName: request.packageImport.packageName,
       specifier: request.packageImport.specifier,
       provider,
@@ -212,6 +275,7 @@ export async function resolveImportedSymbols(
         fileName: request.file.fileName,
         symbolId: alias.id,
         name: request.localName,
+        text: request.text,
         start,
         end,
         startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
@@ -219,13 +283,29 @@ export async function resolveImportedSymbols(
           request.file.getLineAndCharacterOfPosition(Math.max(start, end - 1))
             .line + 1,
       },
-      target: {
-        symbolId: target.id,
-        name: target.name,
-        declarations,
-      },
+      targetSymbolId: target.id,
+      targetName: target.name,
+      declarations,
     });
   }
+
+  const identities = await resolveTargetIdentities(pending);
+  const symbols: ImportedSymbol[] = pending.map(
+    (entry, index): ImportedSymbol => ({
+      kind: "IMPORTS_SYMBOL",
+      packageName: entry.packageName,
+      specifier: entry.specifier,
+      provider: entry.provider,
+      exportedName: entry.exportedName,
+      consumer: entry.consumer,
+      target: {
+        symbolId: entry.targetSymbolId,
+        name: entry.targetName,
+        declarations: entry.declarations,
+        ...(identities[index] ?? IDENTITY_NOT_ATTEMPTED),
+      },
+    }),
+  );
 
   service.assertFresh(view);
   symbols.sort(compareImportedSymbols);
@@ -259,6 +339,7 @@ function collectBindings(
             nameNode: clause.name,
             localName: bindingName(clause.name),
             exportedName: "default",
+            text: clause.name.getText(file),
             packageImport,
           });
         }
@@ -272,6 +353,7 @@ function collectBindings(
               nameNode: element.name,
               localName: bindingName(element.name),
               exportedName: bindingName(element.propertyName ?? element.name),
+              text: element.getText(file),
               packageImport,
             });
           }
@@ -295,6 +377,7 @@ function collectBindings(
             nameNode: element.name,
             localName: bindingName(element.name),
             exportedName: bindingName(element.propertyName ?? element.name),
+            text: element.getText(file),
             packageImport,
           });
         }
@@ -411,6 +494,170 @@ async function lookupSourcePosition(
     mappers.set(declarationFile, mapper);
   }
   return (await mapper)?.lookup(position.line + 1, position.character);
+}
+
+/** The three `ImportedSymbolTarget` fields an identity lookup produces. */
+type TargetIdentityOutcome = Pick<
+  ImportedSymbolTarget,
+  "identity" | "identityReason" | "identityDetail"
+>;
+
+const IDENTITY_NOT_ATTEMPTED: TargetIdentityOutcome = identityUnresolved(
+  "PROVIDER_SOURCE_UNAVAILABLE",
+  "no declaration map places this symbol in the provider's source",
+);
+
+function identityUnresolved(
+  reason: ImportedSymbolIdentityReason,
+  detail: string,
+): TargetIdentityOutcome {
+  return {
+    identity: undefined,
+    identityReason: reason,
+    identityDetail: detail,
+  };
+}
+
+/** One target whose provider identity still needs to be classified. */
+interface IdentityRequest {
+  readonly index: number;
+  readonly provider: PackageProvider;
+  readonly declaration: ImportedSymbolDeclaration;
+}
+
+/**
+ * Compute the provider identity of every pending target that has an exact
+ * source position, grouped by provider project so each project opens once.
+ *
+ * Opening the provider's own project has real cost, so it only happens for a
+ * target a declaration map actually places: everything else keeps the
+ * default "not attempted" outcome without spawning anything.
+ */
+async function resolveTargetIdentities(
+  pending: readonly PendingSymbol[],
+): Promise<TargetIdentityOutcome[]> {
+  const outcomes: TargetIdentityOutcome[] = pending.map(
+    () => IDENTITY_NOT_ATTEMPTED,
+  );
+  const byProject = new Map<string, IdentityRequest[]>();
+
+  for (const [index, entry] of pending.entries()) {
+    const declaration = entry.declarations.find(
+      (candidate) =>
+        candidate.sourceStatus === "DECLARATION_MAP" &&
+        candidate.sourcePosition !== undefined,
+    );
+    if (declaration === undefined) {
+      continue;
+    }
+    if (entry.provider.projectPath === undefined) {
+      outcomes[index] = identityUnresolved(
+        "PROVIDER_SOURCE_UNAVAILABLE",
+        `provider ${entry.provider.repository} declares no project of its own`,
+      );
+      continue;
+    }
+    const projectPath = path.resolve(entry.provider.projectPath);
+    const request: IdentityRequest = {
+      index,
+      provider: entry.provider,
+      declaration,
+    };
+    const group = byProject.get(projectPath);
+    if (group === undefined) {
+      byProject.set(projectPath, [request]);
+    } else {
+      group.push(request);
+    }
+  }
+
+  for (const [projectPath, group] of [...byProject.entries()].sort(
+    ([left], [right]) => left.localeCompare(right),
+  )) {
+    const providerService = LanguageService.create({
+      cwd: path.dirname(projectPath),
+    });
+    try {
+      await providerService.openProject(projectPath);
+      const providerView = providerService.project(projectPath);
+      for (const request of group) {
+        outcomes[request.index] = await classifyTarget(providerView, request);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      for (const request of group) {
+        outcomes[request.index] = identityUnresolved(
+          "PROVIDER_SOURCE_UNAVAILABLE",
+          detail,
+        );
+      }
+    } finally {
+      await providerService.close();
+    }
+  }
+
+  return outcomes;
+}
+
+/**
+ * Classify one target in the provider's own, already-open project.
+ *
+ * The provider source is parsed and walked with the exact same functions
+ * `symbol-extractor.ts` uses to index that repository, so the qualified
+ * name, kind and signature this produces are identical to what the provider
+ * would report for itself — by construction, not by coincidence.
+ */
+async function classifyTarget(
+  providerView: ProjectView,
+  request: IdentityRequest,
+): Promise<TargetIdentityOutcome> {
+  // The request was only queued for a declaration with a source position;
+  // this guards the type, not a real branch.
+  const position = request.declaration.sourcePosition;
+  if (position === undefined) {
+    return identityUnresolved(
+      "PROVIDER_SOURCE_UNAVAILABLE",
+      "declaration map segment has no source position",
+    );
+  }
+  const sourceFile = await providerView.program.getSourceFile(
+    position.fileName,
+  );
+  if (sourceFile === undefined) {
+    return identityUnresolved(
+      "PROVIDER_SOURCE_UNAVAILABLE",
+      `${position.fileName} is not part of the provider's own project`,
+    );
+  }
+  const offset = sourceFile.getPositionOfLineAndCharacter(
+    position.line - 1,
+    position.character,
+  );
+  const candidate = classifyDeclarationAt(sourceFile, offset);
+  if (candidate === undefined) {
+    return identityUnresolved(
+      "PROVIDER_DECLARATION_NOT_FOUND",
+      `no declaration at ${position.fileName}:${position.line}:${position.character}`,
+    );
+  }
+  const declarationStart = candidate.declaration.getStart(sourceFile);
+  return {
+    identity: {
+      repository: request.provider.repository,
+      package: request.provider.name,
+      qualifiedName: [...candidate.scope, candidate.name].join("."),
+      kind: candidate.kind,
+      signature: compactSignature(candidate.declaration, sourceFile),
+      file: path
+        .relative(request.provider.rootPath, sourceFile.fileName)
+        .split(path.sep)
+        .join("/"),
+      startLine:
+        sourceFile.getLineAndCharacterOfPosition(declarationStart).line + 1,
+    },
+    identityReason: undefined,
+    identityDetail: undefined,
+  };
 }
 
 function compareImportedSymbols(

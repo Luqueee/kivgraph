@@ -10,8 +10,8 @@ import (
 	"github.com/Luqueee/luque/internal/hotsnapshot"
 )
 
-// TypeScriptWireVersion is the version of the `ts-facts-v1` payload.
-const TypeScriptWireVersion = 1
+// TypeScriptWireVersion is the version of the `ts-facts-v2` payload.
+const TypeScriptWireVersion = 2
 
 // TypeScriptPayload is the fact payload the worker emits for one repository.
 //
@@ -25,6 +25,7 @@ type TypeScriptPayload struct {
 	Files      []string               `json:"files"`
 	Symbols    []TypeScriptSymbol     `json:"symbols"`
 	References []TypeScriptReference  `json:"references"`
+	Imports    []TypeScriptImport     `json:"imports"`
 	Unresolved []TypeScriptUnresolved `json:"unresolved"`
 }
 
@@ -69,6 +70,40 @@ type TypeScriptReference struct {
 	Text                string `json:"text"`
 }
 
+// TypeScriptImportTarget is the provider declaration an import binding
+// reaches, described exactly as the provider indexes it when it normalises
+// itself: computed from the provider's own source, at the position
+// LUQUE-0703's declaration map bridge resolved. Never derived from the
+// consumer's `.d.ts` text, which is not guaranteed to restate the source.
+type TypeScriptImportTarget struct {
+	Repository    string `json:"repository"`
+	Package       string `json:"package"`
+	QualifiedName string `json:"qualifiedName"`
+	Kind          string `json:"kind"`
+	Signature     string `json:"signature"`
+	File          string `json:"file"`
+	StartLine     int    `json:"startLine"`
+}
+
+// TypeScriptImport is one import binding of the consumer. The worker already
+// turns the binding itself into an "import" kind TypeScriptSymbol, so
+// QualifiedName here names an entry already present in Symbols; Target is
+// the provider declaration it reaches, or nil when that declaration is not
+// exactly known.
+type TypeScriptImport struct {
+	File             string                  `json:"file"`
+	QualifiedName    string                  `json:"qualifiedName"`
+	Start            int                     `json:"start"`
+	End              int                     `json:"end"`
+	StartLine        int                     `json:"startLine"`
+	Text             string                  `json:"text"`
+	RequestedPackage string                  `json:"requestedPackage"`
+	RequestedSymbol  string                  `json:"requestedSymbol"`
+	Target           *TypeScriptImportTarget `json:"target"`
+	Reason           string                  `json:"reason"`
+	Detail           string                  `json:"detail"`
+}
+
 // TypeScriptUnresolved is one classified failure of the worker.
 type TypeScriptUnresolved struct {
 	File             string `json:"file"`
@@ -85,9 +120,13 @@ type TypeScriptReport struct {
 	EdgesWithoutSource int
 	// EdgesWithoutTarget counts uses whose target is not in this payload.
 	EdgesWithoutTarget int
+	// ImportsWithoutTarget counts import bindings whose provider declaration
+	// is not exactly known: no declaration map reached it, or the reached
+	// declaration carries no class or no signature.
+	ImportsWithoutTarget int
 }
 
-// DecodeTypeScriptPayload parses a `ts-facts-v1` document.
+// DecodeTypeScriptPayload parses a `ts-facts-v2` document.
 func DecodeTypeScriptPayload(data []byte) (TypeScriptPayload, error) {
 	var payload TypeScriptPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
@@ -186,15 +225,7 @@ func NormalizeTypeScript(
 			return Set{}, TypeScriptReport{}, fmt.Errorf("%w: symbol %q lives in unreported file %q",
 				ErrInvalidFacts, symbol.QualifiedName, symbol.File)
 		}
-		identity := hotsnapshot.StableKeyIdentity{
-			FormatVersion: hotsnapshot.StableKeyFormatVersion,
-			Language:      string(LanguageTypeScript),
-			Repository:    name,
-			Package:       payload.Package.Name,
-			QualifiedName: symbol.QualifiedName,
-			Kind:          symbol.Kind,
-			Discriminator: discriminatorOf(symbol.Signature),
-		}
+		identity := typeScriptSymbolIdentity(name, payload.Package.Name, symbol.QualifiedName, symbol.Kind, symbol.Signature)
 		canonical, err := identity.Canonical()
 		if err != nil {
 			return Set{}, TypeScriptReport{}, fmt.Errorf("symbol %q identity: %w", symbol.QualifiedName, err)
@@ -263,6 +294,78 @@ func NormalizeTypeScript(
 		})
 	}
 
+	for _, imp := range payload.Imports {
+		if err := ctx.Err(); err != nil {
+			return Set{}, TypeScriptReport{}, err
+		}
+		sourceKey, hasSource := symbolKeys[imp.File+"\x00"+imp.QualifiedName]
+		if !hasSource {
+			// The worker always turns an import binding into an "import"
+			// kind symbol before this payload is built, so a miss here is
+			// the payload contradicting itself, not an ordinary unresolved
+			// import. Mirrors the source handling of the References loop.
+			report.EdgesWithoutSource++
+			continue
+		}
+		fileKey := FileKey(name, imp.File)
+		target := imp.Target
+		if target == nil || strings.TrimSpace(target.Kind) == "" || strings.TrimSpace(target.Signature) == "" {
+			// No declaration map reached an exact provider declaration, or it
+			// reached one whose class or signature is unclassified. Either
+			// way the provider's stable key cannot be derived, so this is a
+			// dropped edge recorded as an unresolved reference, never a
+			// guess: LUQUE-0907 forbids inferring kind or signature.
+			set.Unresolved = append(set.Unresolved, UnresolvedReference{
+				RepositoryKey:    repositoryKey,
+				FileKey:          fileKey,
+				Language:         LanguageTypeScript,
+				SourceSymbolKey:  sourceKey,
+				RequestedPackage: imp.RequestedPackage,
+				RequestedSymbol:  imp.RequestedSymbol,
+				Reason:           imp.Reason,
+				Detail:           imp.Detail,
+				Start:            Position{Line: imp.StartLine, Offset: imp.Start},
+			})
+			report.ImportsWithoutTarget++
+			continue
+		}
+
+		// Build the target identity with the exact function that computes a
+		// provider's own symbol identity when it normalises itself, over the
+		// class and signature read from the provider's source at the
+		// declaration map position. Same code over the same bytes yields the
+		// same key by construction, so this consumer-derived key is byte
+		// identical to the key the provider assigns its own declaration.
+		targetIdentity := typeScriptSymbolIdentity(target.Repository, target.Package, target.QualifiedName, target.Kind, target.Signature)
+		targetKey, err := targetIdentity.Key()
+		if err != nil {
+			return Set{}, TypeScriptReport{}, fmt.Errorf("import %q target identity: %w", imp.QualifiedName, err)
+		}
+
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, imp.Start, imp.End),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start:         Position{Line: imp.StartLine, Offset: imp.Start},
+			End:           Position{Line: imp.StartLine, Offset: imp.End},
+			Text:          imp.Text,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		// TargetKey names a symbol the PROVIDER repository normalises, not
+		// one in this payload's own Symbols: this Set alone will fail
+		// Validate() with a dangling edge, by design. The edge only becomes
+		// valid once the caller merges the provider's Set in with
+		// Set.Merge, exactly like Go's cross-package edges already do.
+		set.Edges = append(set.Edges, Edge{
+			Kind:        ImportsSymbol,
+			SourceKey:   sourceKey,
+			TargetKey:   string(targetKey),
+			Confidence:  ExactTypechecked,
+			Provenance:  TypeScriptChecker,
+			EvidenceKey: evidence.Key,
+		})
+	}
+
 	for _, entry := range payload.Unresolved {
 		unresolved := UnresolvedReference{
 			RepositoryKey:    repositoryKey,
@@ -291,4 +394,22 @@ func discriminatorOf(signature string) string {
 		return "none"
 	}
 	return trimmed
+}
+
+// typeScriptSymbolIdentity builds the stable key identity of a TypeScript
+// declaration from its identity components alone, regardless of who computes
+// it: a provider uses it over its own source when it normalises itself, and
+// NormalizeTypeScript's imports loop uses it again over the provider source
+// reached through a declaration map. The two call sites can never diverge
+// because they are the same code.
+func typeScriptSymbolIdentity(repository, packageName, qualifiedName, kind, signature string) hotsnapshot.StableKeyIdentity {
+	return hotsnapshot.StableKeyIdentity{
+		FormatVersion: hotsnapshot.StableKeyFormatVersion,
+		Language:      string(LanguageTypeScript),
+		Repository:    repository,
+		Package:       packageName,
+		QualifiedName: qualifiedName,
+		Kind:          kind,
+		Discriminator: discriminatorOf(signature),
+	}
 }
