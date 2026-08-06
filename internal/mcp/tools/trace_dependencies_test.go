@@ -37,10 +37,10 @@ func TestTraceDependenciesWalksDepthAndRecordsDiscoveringEdge(t *testing.T) {
 			t.Fatalf("node %d = %#v, want %q at depth %d", index, node, wantKeys[index], index+1)
 		}
 	}
-	if first := trace.Nodes[0]; first.ViaSourceKey != "sym-root" || first.ViaKind != string(facts.CallsDirect) || first.ViaConfidence != string(facts.ExactTypechecked) {
+	if first := trace.Nodes[0]; first.ReachedFromKey != "sym-root" || first.ViaKind != string(facts.CallsDirect) || first.ViaConfidence != string(facts.ExactTypechecked) {
 		t.Fatalf("first hop = %#v, want an exact call from the root", first)
 	}
-	if third := trace.Nodes[2]; third.ViaSourceKey != "sym-level2" || third.RepositoryKey != "repo-other" {
+	if third := trace.Nodes[2]; third.ReachedFromKey != "sym-level2" || third.RepositoryKey != "repo-other" {
 		t.Fatalf("third hop = %#v, want discovery from level2 in the other repository", third)
 	}
 	if response.Coverage != (Coverage{Exact: 2, Candidate: 1}) {

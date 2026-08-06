@@ -7495,9 +7495,12 @@ repositorio se sigue devolviendo.
 
 `TraversalVisit` conserva ahora `Source` y la `PackedEdge` por la que el BFS
 llegó por primera vez a cada símbolo, y `TraversalOptions` admite `Confidences`
-junto a `EdgeKinds`. La respuesta expone esa arista como `via_source_key`,
-`via_kind`, `via_confidence` y `via_provenance`: es el camino más corto que el
-frente encontró, no el único posible, y así queda documentado.
+junto a `EdgeKinds`. La respuesta expone esa arista como `reached_from_key`,
+`via_kind`, `via_confidence` y `via_provenance`. El campo se llama
+`reached_from_key` y no `via_source_key` porque nombra el símbolo ya alcanzado
+desde el que se descubrió éste, que en un recorrido entrante es el **destino**
+de la arista: el nombre no debe afirmar una orientación falsa. Es el camino más
+corto que el frente encontró, no el único posible.
 
 El sobre estándar pagina sobre `nodes`; la metainformación del recorrido
 —`reached`, `deepest_depth`, `traversal_truncated`— vive dentro de `results`
@@ -7572,7 +7575,8 @@ tool reutiliza `dependencyTraversalOptions` y sólo invierte la dirección, de
 modo que profundidad, `max_nodes`, `edge_kinds`, confianza y errores
 clasificados se comportan igual en ambas herramientas.
 
-El resultado son cuatro ejes sobre el mismo conjunto de símbolos alcanzados:
+El resultado es la lista de símbolos afectados —misma forma `ReachedSymbol` que
+`trace_dependencies`— más cuatro ejes sobre ese mismo conjunto:
 
 ```text
 by_repository   clave de repositorio -> símbolos afectados
@@ -7583,10 +7587,17 @@ by_kind         tipo de relación -> símbolos afectados
 
 La raíz nunca se cuenta: un símbolo no se ve afectado por su propio cambio.
 
-El sobre pagina **sólo sobre `by_package`**, que es el único eje que crece con
-el corpus; repositorios, profundidades y tipos son pocos por construcción y se
-devuelven completos en cada página. `total` y `returned` cuentan grupos de
-paquete; `affected` —el total real de símbolos— vive dentro de `results`.
+`by_kind` no se lee de la arista descubridora. Un consumidor puede tocar el
+subgrafo por varias relaciones a la vez —llamar a una función y usar su tipo—, y
+publicar sólo la arista que el BFS tomó primero ocultaría las demás. Se inspecciona
+**cada** arista del símbolo afectado hacia el conjunto visitado, bajo los mismos
+filtros del recorrido, contando una vez por tipo distinto. Consecuencia explícita:
+`by_repository`, `by_package` y `by_depth` particionan `affected`, mientras que
+`by_kind` puede sumar más.
+
+El sobre pagina sobre `symbols`. Los cuatro ejes se calculan sobre el recorrido
+completo, no sobre la página, así que no encogen al avanzar el cursor.
+`affected` es el total real de símbolos y vive dentro de `results`.
 
 **Estado:** `PASS`.
 
@@ -7603,18 +7614,19 @@ go test -race ./internal/mcp/... ./internal/hotsnapshot -count=1
 make build
 ```
 
-Las pruebas comprueban que los cuatro ejes suman exactamente `affected`, que un
-filtro de confianza excluye al consumidor candidato junto con su subárbol, que
-`max_nodes` marca `traversal_truncated`, y que la paginación de paquetes no
-recorta los demás ejes. El smoke STDIO devolvió `INVALID_ARGUMENT: max_nodes
-must be between 1 and 25000` e `INDEX_NOT_READY` clasificados.
+Las pruebas comprueban que `by_repository` particiona `affected`, que un
+consumidor con dos relaciones aparece en dos entradas de `by_kind` sin duplicarse
+como símbolo afectado, que un filtro de confianza excluye al consumidor candidato
+junto con su subárbol y también de `by_kind`, que `max_nodes` marca
+`traversal_truncated`, y que paginar símbolos no recorta los agregados. El smoke
+STDIO devolvió `INVALID_ARGUMENT: max_nodes must be between 1 and 25000` e
+`INDEX_NOT_READY` clasificados, y `tools/list` publica `symbols` y
+`reached_from_key` en el esquema de salida.
 
-**Limitaciones:** la herramienta no devuelve el listado de símbolos afectados,
-sólo los agregados; para enumerarlos está `find_references` sobre cada nodo. Un
-símbolo alcanzable por dos caminos se cuenta una sola vez, y su `by_kind` es el
-de la arista con la que el BFS llegó primero, no el de todas las relaciones que
-lo conectan con la raíz. El SLO de 20 ms p95 a profundidad 3 y 50 ms a
-profundidad 5 se medirá en LUQUE-1602.
+**Limitaciones:** un símbolo alcanzado por dos caminos aparece una sola vez, con
+la profundidad y la arista del camino más corto que encontró el BFS; sus demás
+relaciones con el subgrafo sí quedan reflejadas en `by_kind`. El SLO de 20 ms p95
+a profundidad 3 y 50 ms a profundidad 5 se medirá en LUQUE-1602.
 
 **Siguiente tarea:** LUQUE-1110.
 

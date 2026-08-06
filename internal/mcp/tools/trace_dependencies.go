@@ -42,20 +42,21 @@ type TraceDependenciesInput struct {
 // it, and one page of reached symbols. The envelope's total, returned and
 // next_cursor page over Nodes.
 type DependencyTrace struct {
-	RootKey            string           `json:"root_key"`
-	RootRepositoryKey  string           `json:"root_repository_key"`
-	Depth              int              `json:"depth"`
-	MaxNodes           int              `json:"max_nodes"`
-	Reached            int              `json:"reached"`
-	DeepestDepth       int              `json:"deepest_depth"`
-	TraversalTruncated bool             `json:"traversal_truncated"`
-	Nodes              []DependencyNode `json:"nodes"`
+	RootKey            string          `json:"root_key"`
+	RootRepositoryKey  string          `json:"root_repository_key"`
+	Depth              int             `json:"depth"`
+	MaxNodes           int             `json:"max_nodes"`
+	Reached            int             `json:"reached"`
+	DeepestDepth       int             `json:"deepest_depth"`
+	TraversalTruncated bool            `json:"traversal_truncated"`
+	Nodes              []ReachedSymbol `json:"nodes"`
 }
 
-// DependencyNode is one reached symbol together with the edge the traversal
-// first arrived by. That edge is a fact of this traversal, not the only route:
-// a breadth-first frontier records the shortest one it found.
-type DependencyNode struct {
+// ReachedSymbol is one symbol a bounded traversal reached, together with the
+// edge it first arrived by. That edge is a fact of this traversal, not the only
+// route: a breadth-first frontier records the shortest one it found. Both
+// trace_dependencies and get_blast_radius return this shape.
+type ReachedSymbol struct {
 	StableKey     string `json:"stable_key"`
 	Name          string `json:"name"`
 	QualifiedName string `json:"qualified_name"`
@@ -66,10 +67,13 @@ type DependencyNode struct {
 	FileKey       string `json:"file_key"`
 	FilePath      string `json:"file_path"`
 
-	ViaSourceKey  string `json:"via_source_key"`
-	ViaKind       string `json:"via_kind"`
-	ViaConfidence string `json:"via_confidence"`
-	ViaProvenance string `json:"via_provenance"`
+	// ReachedFromKey is the already-reached symbol this one was discovered
+	// from, which is the edge's target when the traversal runs incoming. The
+	// edge's own orientation is therefore not implied by this field.
+	ReachedFromKey string `json:"reached_from_key"`
+	ViaKind        string `json:"via_kind"`
+	ViaConfidence  string `json:"via_confidence"`
+	ViaProvenance  string `json:"via_provenance"`
 }
 
 type traceDependenciesOptions struct {
@@ -214,7 +218,7 @@ func traceDependencies(
 	if end > total {
 		end = total
 	}
-	page := append([]DependencyNode(nil), nodes[offset:end]...)
+	page := append([]ReachedSymbol(nil), nodes[offset:end]...)
 	hasMore := end < total
 	var nextCursor *string
 	if hasMore {
@@ -334,8 +338,8 @@ func dependencyNodes(
 	snapshot *hotsnapshot.GraphSnapshot,
 	visits []hotsnapshot.TraversalVisit,
 	options traceDependenciesOptions,
-) ([]DependencyNode, Coverage, int, error) {
-	nodes := make([]DependencyNode, 0, len(visits))
+) ([]ReachedSymbol, Coverage, int, error) {
+	nodes := make([]ReachedSymbol, 0, len(visits))
 	coverage := Coverage{}
 	deepest := 0
 	for _, visit := range visits {
@@ -377,11 +381,11 @@ func dependencyNodes(
 			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
 		}
 		addReferenceCoverage(&coverage, decoded.Confidence)
-		nodes = append(nodes, DependencyNode{
+		nodes = append(nodes, ReachedSymbol{
 			StableKey: string(symbol.StableKey), Name: name, QualifiedName: qualifiedName, Kind: kind,
 			Depth: int(visit.Depth), RepositoryKey: repositoryKey, Language: firstString(languages),
 			FileKey: file.key, FilePath: file.path,
-			ViaSourceKey: string(source.StableKey), ViaKind: string(decoded.Kind),
+			ReachedFromKey: string(source.StableKey), ViaKind: string(decoded.Kind),
 			ViaConfidence: string(decoded.Confidence), ViaProvenance: string(decoded.Provenance),
 		})
 	}

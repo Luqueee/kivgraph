@@ -35,12 +35,12 @@ type GetBlastRadiusInput struct {
 	Cursor     string   `json:"cursor,omitempty"`
 }
 
-// BlastRadius is the impact of changing one symbol, grouped along the four
-// axes a reviewer acts on. Counts are symbols reached by the incoming
-// traversal, excluding the root itself.
+// BlastRadius is the impact of changing one symbol: the affected symbols
+// themselves plus the four axes a reviewer acts on. The root is excluded
+// everywhere, because a symbol is not affected by its own change.
 //
-// The envelope pages over ByPackage, the only axis that grows with the corpus;
-// ByRepository, ByDepth and ByKind are complete in every page.
+// The envelope pages over Symbols. Every axis is computed over the whole
+// traversal, not over the page, so aggregates stay stable while paging.
 type BlastRadius struct {
 	RootKey            string                    `json:"root_key"`
 	RootRepositoryKey  string                    `json:"root_repository_key"`
@@ -49,6 +49,7 @@ type BlastRadius struct {
 	Affected           int                       `json:"affected"`
 	DeepestDepth       int                       `json:"deepest_depth"`
 	TraversalTruncated bool                      `json:"traversal_truncated"`
+	Symbols            []ReachedSymbol           `json:"symbols"`
 	ByRepository       []BlastRadiusGroup        `json:"by_repository"`
 	ByDepth            []BlastRadiusDepthGroup   `json:"by_depth"`
 	ByKind             []BlastRadiusGroup        `json:"by_kind"`
@@ -56,7 +57,9 @@ type BlastRadius struct {
 }
 
 // BlastRadiusGroup counts affected symbols under one repository key or one
-// relation kind.
+// relation kind. A symbol reaching the traversed subgraph through several
+// relation kinds is counted once per kind, so by_kind can exceed affected;
+// by_repository and by_package always partition it.
 type BlastRadiusGroup struct {
 	Key   string `json:"key"`
 	Count int    `json:"count"`
@@ -199,7 +202,7 @@ func getBlastRadius(
 		return nil, Response[BlastRadius]{}, classifyTraversalError(err)
 	}
 
-	radius, coverage, err := blastRadiusGroups(snapshot, traversal.Visits)
+	radius, coverage, err := blastRadiusGroups(snapshot, traversal.Visits, traversalOptions)
 	if err != nil {
 		return nil, Response[BlastRadius]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid impact metadata", err)
 	}
@@ -209,7 +212,7 @@ func getBlastRadius(
 	radius.MaxNodes = options.MaxNodes
 	radius.TraversalTruncated = traversal.Truncated
 
-	total := len(radius.ByPackage)
+	total := len(radius.Symbols)
 	if offset > total {
 		offset = total
 	}
@@ -217,7 +220,7 @@ func getBlastRadius(
 	if end > total {
 		end = total
 	}
-	radius.ByPackage = append([]BlastRadiusPackageGroup(nil), radius.ByPackage[offset:end]...)
+	radius.Symbols = append([]ReachedSymbol(nil), radius.Symbols[offset:end]...)
 	hasMore := end < total
 	var nextCursor *string
 	if hasMore {
@@ -236,7 +239,7 @@ func getBlastRadius(
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[BlastRadius]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
-		Total: total, Returned: len(radius.ByPackage), Truncated: hasMore, NextCursor: nextCursor,
+		Total: total, Returned: len(radius.Symbols), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage, Results: radius,
 	}, nil
 }
@@ -293,24 +296,33 @@ func blastRadiusTraversalOptions(ctx context.Context, options blastRadiusOptions
 	return traversal, nil
 }
 
-// blastRadiusGroups folds the frontier into the four aggregation axes. The root
-// is excluded: a symbol is not affected by its own change.
+// blastRadiusGroups folds the frontier into the affected symbol list and the
+// four aggregation axes. The root is excluded: a symbol is not affected by its
+// own change.
+//
+// by_kind is not read off the discovering edge. A consumer can reach the
+// traversed subgraph through several relations at once -- calling a function
+// and using its type, say -- and reporting only the edge BFS happened to take
+// first would hide the others. Every edge from the affected symbol into the
+// visited set is inspected, under the same filters the traversal used.
 func blastRadiusGroups(
 	snapshot *hotsnapshot.GraphSnapshot,
 	visits []hotsnapshot.TraversalVisit,
+	traversal hotsnapshot.TraversalOptions,
 ) (BlastRadius, Coverage, error) {
-	radius := BlastRadius{}
+	radius := BlastRadius{Symbols: make([]ReachedSymbol, 0, len(visits))}
 	coverage := Coverage{}
 	repositories := make(map[string]int)
 	kinds := make(map[string]int)
 	depths := make(map[int]int)
 	packages := make(map[string]*BlastRadiusPackageGroup)
+	visited := visitedSymbolSet(visits)
 
 	for _, visit := range visits {
 		if visit.Source == hotsnapshot.InvalidSymbolID {
 			continue
 		}
-		symbol, _, repositoryKey, _, err := symbolReferenceLocation(snapshot, visit.ID)
+		symbol, file, repositoryKey, languages, err := symbolReferenceLocation(snapshot, visit.ID)
 		if err != nil {
 			return BlastRadius{}, Coverage{}, err
 		}
@@ -325,14 +337,27 @@ func blastRadiusGroups(
 		if err != nil {
 			return BlastRadius{}, Coverage{}, err
 		}
+		source, found := snapshot.Symbol(visit.Source)
+		if !found {
+			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol index %d is missing", visit.Source)
+		}
+		table := snapshot.Strings()
+		name, nameOK := table.String(symbol.Name)
+		qualifiedName, qualifiedOK := table.String(symbol.QualifiedName)
+		kind, kindOK := table.String(symbol.Kind)
+		if !nameOK || !qualifiedOK || !kindOK {
+			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
+		}
 
 		radius.Affected++
 		if int(visit.Depth) > radius.DeepestDepth {
 			radius.DeepestDepth = int(visit.Depth)
 		}
 		repositories[repositoryKey]++
-		kinds[string(decoded.Kind)]++
 		depths[int(visit.Depth)]++
+		if err := countImpactKinds(snapshot, visit.ID, visited, traversal, kinds); err != nil {
+			return BlastRadius{}, Coverage{}, err
+		}
 		group, exists := packages[packageKey]
 		if !exists {
 			group = &BlastRadiusPackageGroup{PackageKey: packageKey, PackageName: packageName, RepositoryKey: repositoryKey}
@@ -340,6 +365,13 @@ func blastRadiusGroups(
 		}
 		group.Count++
 		addReferenceCoverage(&coverage, decoded.Confidence)
+		radius.Symbols = append(radius.Symbols, ReachedSymbol{
+			StableKey: string(symbol.StableKey), Name: name, QualifiedName: qualifiedName, Kind: kind,
+			Depth: int(visit.Depth), RepositoryKey: repositoryKey, Language: firstString(languages),
+			FileKey: file.key, FilePath: file.path,
+			ReachedFromKey: string(source.StableKey), ViaKind: string(decoded.Kind),
+			ViaConfidence: string(decoded.Confidence), ViaProvenance: string(decoded.Provenance),
+		})
 	}
 
 	radius.ByRepository = sortedBlastRadiusGroups(repositories)
@@ -355,6 +387,64 @@ func blastRadiusGroups(
 	}
 	sort.Slice(radius.ByPackage, func(i, j int) bool { return radius.ByPackage[i].PackageKey < radius.ByPackage[j].PackageKey })
 	return radius, coverage, nil
+}
+
+// visitedSymbolSet marks every symbol the traversal reached, including the
+// root: an edge into the root is part of the impact just like an edge into any
+// other reached symbol.
+func visitedSymbolSet(visits []hotsnapshot.TraversalVisit) map[hotsnapshot.SymbolID]struct{} {
+	visited := make(map[hotsnapshot.SymbolID]struct{}, len(visits))
+	for _, visit := range visits {
+		visited[visit.ID] = struct{}{}
+	}
+	return visited
+}
+
+// countImpactKinds records each distinct relation kind through which symbol
+// touches the traversed subgraph. Distinct is per symbol: two calls to the same
+// function are one CALLS_DIRECT reason for that consumer, not two.
+func countImpactKinds(
+	snapshot *hotsnapshot.GraphSnapshot,
+	symbol hotsnapshot.SymbolID,
+	visited map[hotsnapshot.SymbolID]struct{},
+	traversal hotsnapshot.TraversalOptions,
+	kinds map[string]int,
+) error {
+	seen := make(map[string]struct{}, 2)
+	for _, edge := range snapshot.Outgoing(symbol) {
+		if _, reached := visited[edge.Target]; !reached {
+			continue
+		}
+		if !traversalCodeAllowed(edge.Kind, traversal.EdgeKinds) ||
+			!traversalCodeAllowed(edge.Confidence, traversal.Confidences) {
+			continue
+		}
+		decoded, isReference, err := decodeReferenceEdge(edge)
+		if err != nil {
+			return err
+		}
+		if !isReference {
+			return fmt.Errorf("symbol edge %d->%d has non-reference kind %d", symbol, edge.Target, edge.Kind)
+		}
+		if _, exists := seen[string(decoded.Kind)]; exists {
+			continue
+		}
+		seen[string(decoded.Kind)] = struct{}{}
+		kinds[string(decoded.Kind)]++
+	}
+	return nil
+}
+
+func traversalCodeAllowed(code uint8, allowed []uint8) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, candidate := range allowed {
+		if code == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func symbolPackageIdentity(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolRecord) (string, string, error) {

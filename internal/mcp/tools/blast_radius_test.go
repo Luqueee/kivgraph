@@ -11,11 +11,11 @@ import (
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
-// TestGetBlastRadiusGroupsImpactAlongFourAxes checks the direction and the
-// aggregation contract at once: the traversal walks incoming edges, the root is
-// never counted as affected by its own change, and every axis accounts for the
-// same set of symbols.
-func TestGetBlastRadiusGroupsImpactAlongFourAxes(t *testing.T) {
+// TestGetBlastRadiusListsAffectedSymbolsAndGroupsThem checks the direction and
+// the aggregation contract at once: the traversal walks incoming edges, the
+// root is never counted as affected by its own change, the affected symbols are
+// listed, and by_repository partitions them.
+func TestGetBlastRadiusListsAffectedSymbolsAndGroupsThem(t *testing.T) {
 	store := blastRadiusStore(t, 41)
 
 	_, response, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-core"}, store)
@@ -29,6 +29,23 @@ func TestGetBlastRadiusGroupsImpactAlongFourAxes(t *testing.T) {
 	if radius.Affected != 3 || radius.DeepestDepth != 2 || radius.TraversalTruncated {
 		t.Fatalf("impact metadata = %#v, want three affected symbols across two depths", radius)
 	}
+	if response.Total != 3 || response.Returned != 3 || response.Truncated {
+		t.Fatalf("pagination = %#v, want the three affected symbols", response)
+	}
+	wantSymbols := []string{"sym-direct", "sym-loose", "sym-indirect"}
+	for index, symbol := range radius.Symbols {
+		if symbol.StableKey != wantSymbols[index] {
+			t.Fatalf("symbols = %#v, want %v", radius.Symbols, wantSymbols)
+		}
+	}
+	// The traversal runs incoming, so the symbol a consumer was reached from is
+	// the target of its own edge.
+	if direct := radius.Symbols[0]; direct.ReachedFromKey != "sym-core" || direct.Depth != 1 {
+		t.Fatalf("direct consumer = %#v", direct)
+	}
+	if indirect := radius.Symbols[2]; indirect.ReachedFromKey != "sym-direct" || indirect.Depth != 2 {
+		t.Fatalf("indirect consumer = %#v", indirect)
+	}
 	wantRepositories := []BlastRadiusGroup{{Key: "repo-app", Count: 2}, {Key: "repo-core", Count: 1}}
 	if len(radius.ByRepository) != 2 || radius.ByRepository[0] != wantRepositories[0] || radius.ByRepository[1] != wantRepositories[1] {
 		t.Fatalf("by_repository = %#v, want %#v", radius.ByRepository, wantRepositories)
@@ -37,49 +54,88 @@ func TestGetBlastRadiusGroupsImpactAlongFourAxes(t *testing.T) {
 	if len(radius.ByDepth) != 2 || radius.ByDepth[0] != wantDepths[0] || radius.ByDepth[1] != wantDepths[1] {
 		t.Fatalf("by_depth = %#v, want %#v", radius.ByDepth, wantDepths)
 	}
-	wantKinds := []BlastRadiusGroup{{Key: string(facts.CallsDirect), Count: 2}, {Key: string(facts.References), Count: 1}}
-	if len(radius.ByKind) != 2 || radius.ByKind[0] != wantKinds[0] || radius.ByKind[1] != wantKinds[1] {
-		t.Fatalf("by_kind = %#v, want %#v", radius.ByKind, wantKinds)
-	}
 	if total := blastRadiusGroupTotal(radius); total != radius.Affected {
-		t.Fatalf("axes account for %d symbols, want %d", total, radius.Affected)
+		t.Fatalf("by_repository accounts for %d symbols, want %d", total, radius.Affected)
 	}
 	if response.Coverage != (Coverage{Exact: 2, Candidate: 1}) {
 		t.Fatalf("coverage = %#v", response.Coverage)
 	}
 }
 
-// TestGetBlastRadiusPagesPackagesAndKeepsOtherAxesComplete fixes what the
-// envelope pages over: only the package axis, because it is the one that grows
-// with the corpus.
-func TestGetBlastRadiusPagesPackagesAndKeepsOtherAxesComplete(t *testing.T) {
-	store := blastRadiusStore(t, 42)
+// TestGetBlastRadiusCountsEveryRelationKindReachingTheSubgraph is the reason
+// by_kind is not read off the discovering edge: sym-direct both calls and uses
+// the type of sym-core, and a reviewer needs to see both reasons.
+func TestGetBlastRadiusCountsEveryRelationKindReachingTheSubgraph(t *testing.T) {
+	store := blastRadiusStore(t, 45)
 
-	_, first, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-core", Limit: 1}, store)
+	_, response, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-core"}, store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Total != 2 || first.Returned != 1 || !first.Truncated || first.NextCursor == nil {
-		t.Fatalf("first page = %#v, want one of two package groups", first)
+	wantKinds := []BlastRadiusGroup{
+		{Key: string(facts.CallsDirect), Count: 2},
+		{Key: string(facts.References), Count: 1},
+		{Key: string(facts.TypeUses), Count: 1},
 	}
-	if first.Results.ByPackage[0].PackageKey != "pkg-app" || first.Results.ByPackage[0].Count != 2 {
-		t.Fatalf("first package group = %#v", first.Results.ByPackage)
+	radius := response.Results
+	if len(radius.ByKind) != len(wantKinds) {
+		t.Fatalf("by_kind = %#v, want %#v", radius.ByKind, wantKinds)
 	}
-	if len(first.Results.ByRepository) != 2 || len(first.Results.ByDepth) != 2 || first.Results.Affected != 3 {
-		t.Fatalf("non-paged axes = %#v, want the complete aggregate on every page", first.Results)
+	for index := range wantKinds {
+		if radius.ByKind[index] != wantKinds[index] {
+			t.Fatalf("by_kind = %#v, want %#v", radius.ByKind, wantKinds)
+		}
+	}
+	// sym-direct contributes to two kinds but is still one affected symbol.
+	if radius.Affected != 3 {
+		t.Fatalf("affected = %d, want 3 despite four kind memberships", radius.Affected)
+	}
+	// A confidence gate applies to the kind axis too, not only to reachability.
+	_, exactOnly, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{
+		StableKey: "sym-core", Confidence: string(facts.ExactTypechecked),
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range exactOnly.Results.ByKind {
+		if group.Key == string(facts.References) {
+			t.Fatalf("exact-only by_kind = %#v, want the candidate relation excluded", exactOnly.Results.ByKind)
+		}
+	}
+}
+
+// TestGetBlastRadiusPagesSymbolsAndKeepsAxesComplete fixes what the envelope
+// pages over: the affected symbols. Aggregates cover the whole traversal, so
+// they do not shrink page by page.
+func TestGetBlastRadiusPagesSymbolsAndKeepsAxesComplete(t *testing.T) {
+	store := blastRadiusStore(t, 42)
+
+	_, first, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-core", Limit: 2}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Total != 3 || first.Returned != 2 || !first.Truncated || first.NextCursor == nil {
+		t.Fatalf("first page = %#v, want two of three affected symbols", first)
+	}
+	if len(first.Results.ByRepository) != 2 || len(first.Results.ByDepth) != 2 ||
+		len(first.Results.ByPackage) != 2 || first.Results.Affected != 3 {
+		t.Fatalf("aggregates on first page = %#v, want the complete traversal", first.Results)
 	}
 
 	_, second, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{
-		StableKey: "sym-core", Limit: 1, Cursor: *first.NextCursor,
+		StableKey: "sym-core", Limit: 2, Cursor: *first.NextCursor,
 	}, store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if second.Returned != 1 || second.Truncated || second.NextCursor != nil {
-		t.Fatalf("second page = %#v, want the final package group", second)
+		t.Fatalf("second page = %#v, want the final affected symbol", second)
 	}
-	if second.Results.ByPackage[0].PackageKey != "pkg-core" || second.Results.ByPackage[0].RepositoryKey != "repo-core" {
-		t.Fatalf("second package group = %#v", second.Results.ByPackage)
+	if second.Results.Symbols[0].StableKey != "sym-indirect" || second.Results.Affected != 3 {
+		t.Fatalf("second page = %#v", second.Results)
+	}
+	if len(second.Results.ByPackage) != 2 {
+		t.Fatalf("by_package on second page = %#v, want the complete aggregate", second.Results.ByPackage)
 	}
 }
 
@@ -214,6 +270,9 @@ func blastRadiusStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 		},
 		Edges: []hotsnapshot.EdgeRow{
 			{SourceKey: "sym-direct", TargetKey: "sym-core", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-app", EvidenceTargetFileKey: "file-core"},
+			// The same consumer also depends on sym-core's type: one affected
+			// symbol, two reasons.
+			{SourceKey: "sym-direct", TargetKey: "sym-core", Kind: facts.CodeTypeUses, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-app", EvidenceTargetFileKey: "file-core"},
 			{SourceKey: "sym-loose", TargetKey: "sym-core", Kind: facts.CodeReferences, Confidence: facts.CodeCandidate, Provenance: facts.CodeTreeSitterSyntax, EvidenceKind: "syntax", EvidenceSourceFileKey: "file-core", EvidenceTargetFileKey: "file-core"},
 			{SourceKey: "sym-indirect", TargetKey: "sym-direct", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-app", EvidenceTargetFileKey: "file-app"},
 		},
