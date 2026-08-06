@@ -7890,11 +7890,11 @@ conjunto.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Probar:**
 
@@ -7905,6 +7905,74 @@ conjunto.
 * timeout.
 
 **El último snapshot debe seguir disponible.**
+
+**Implementación:**
+
+`internal/tsworker/recovery_test.go` cubre los cinco modos de fallo contra un
+proceso hijo real:
+
+```text
+SIGTERM / SIGKILL externos -> nueva sesión, PID distinto, Call vuelve a servir
+protocolo inválido recuperable -> InvalidFrames++, misma generación, sesión viva
+protocolo inválido fatal -> sesión reemplazada (trama truncada y sobredimensionada)
+crash loop -> estado FAILED, reinicios acotados, Call falla con RESTART_LIMIT
+timeout -> TIMEOUT clasificado y worker sustituido
+```
+
+La distinción entre trama inválida recuperable y fatal no es decorativa: sólo
+`INVALID_PAYLOAD` deja el flujo alineado, porque respetó el límite de trama. Una
+longitud corrupta o excesiva pierde el límite y el protocolo prohíbe
+resincronizar, así que la sesión debe morir.
+
+Se añadió `internal/resilience`, un paquete **sin código de producción** para
+las pruebas de costura de la fase 12: cada componente ya prueba su propia
+recuperación, pero ninguno puede afirmar solo la propiedad que pide el plan.
+`TestPublishedSnapshotSurvivesWorkerLoss` mata el worker, agota su presupuesto
+de reinicios hasta `FAILED`, y comprueba a través del **servidor MCP real** que
+`get_symbol` devuelve exactamente la misma respuesta antes, durante y después.
+
+Su control es `TestClosedSnapshotStoreStopsServing`: al cerrar el store, la
+misma consulta pasa a `INDEX_NOT_READY`. Sin ese contraste, «sigue sirviendo» no
+demostraría nada.
+
+**Hallazgos durante la verificación:**
+
+El primer fake de trama inválida escribía `{"not":"an envelope"}`, que **sí**
+decodifica como envelope con versión 0 y por tanto es `VERSION_MISMATCH`: fatal,
+no recuperable. El caso recuperable exige un cuerpo que no sea JSON en absoluto.
+
+El primer fake de flujo corrupto escribía una cabecera larga y se quedaba
+bloqueado; el lector se quedaba esperando los bytes prometidos en vez de fallar.
+`FRAME_TRUNCATED` sólo se observa al llegar al fin de la entrada, así que el
+worker debe morir tras la trama parcial. Ambos son comportamientos correctos del
+supervisor que el test describía mal.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1201.
+
+**Verificación:**
+
+```text
+go test ./internal/tsworker -run 'TestSupervisorRecovers|TestSupervisorSurvives|TestSupervisorRestartsAfterFatal|TestSupervisorFailsClosed|TestSupervisorTimeoutInvalidates' -count=1
+go test ./internal/resilience -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/tsworker ./internal/resilience -count=1
+make build
+```
+
+**Limitaciones:** el worker de las pruebas es el propio binario de test
+reejecutado, no el worker TypeScript real; habla el mismo códec porque enlaza el
+mismo paquete, pero no ejerce Node.js ni el motor de TypeScript. La prueba de
+snapshot usa un `SnapshotStore` publicado a mano: `serve` todavía no cablea el
+ciclo de indexación, así que lo que se demuestra es que la ruta de consulta no
+depende del worker, no que un despliegue completo sobreviva. `SIGSTOP` (worker
+congelado, no muerto) no se prueba: hoy se manifestaría como timeout de petición,
+que ya está cubierto.
+
+**Siguiente tarea:** LUQUE-1202.
 
 ---
 

@@ -2,6 +2,7 @@ package tsworker
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -31,6 +32,9 @@ const (
 	fakeIgnoreShutdown    = "ignore-shutdown"
 	fakeIgnoreSignals     = "ignore-signals"
 	fakeUnsolicitedFrames = "unsolicited-frames"
+	fakeInvalidPayload    = "invalid-payload"
+	fakeCorruptStream     = "corrupt-stream"
+	fakeOversizedFrame    = "oversized-frame"
 )
 
 func TestMain(m *testing.M) {
@@ -143,6 +147,26 @@ func runFakeWorker(behaviour string) int {
 		// A reply to an id nobody asked for, plus a well-formed event.
 		writeFake(writer, 4242, MessageGetStatus, map[string]any{"stray": true})
 		writeFake(writer, 0, "PROJECT_INDEXED", map[string]any{"project_id": "repo-a"})
+	case fakeInvalidPayload:
+		// A well-framed body that is not JSON at all. The frame boundary is
+		// honoured, so the stream stays aligned and the session must survive.
+		// A body that parses as an envelope with the wrong version would be a
+		// different, fatal case: VERSION_MISMATCH.
+		writeRawFrame(os.Stdout, []byte("this is not json"))
+		writeFake(writer, 0, "PROJECT_INDEXED", map[string]any{"project_id": "repo-a"})
+	case fakeCorruptStream:
+		// A length prefix promising more bytes than follow, then death: the
+		// reader hits end of input mid-frame, which is FRAME_TRUNCATED. The
+		// exit is part of the scenario, since a stalled writer would simply
+		// leave the reader blocked rather than corrupt anything.
+		_, _ = os.Stdout.Write([]byte{0x00, 0x00, 0x10, 0x00})
+		_, _ = os.Stdout.Write([]byte("truncated"))
+		return 11
+	case fakeOversizedFrame:
+		header := make([]byte, frameHeaderBytes)
+		binary.BigEndian.PutUint32(header, uint32(MaxFrameBytes)+1)
+		_, _ = os.Stdout.Write(header)
+		blockForever()
 	}
 
 	for {
@@ -200,6 +224,15 @@ func runFakeWorker(behaviour string) int {
 			})
 		}
 	}
+}
+
+// writeRawFrame emits a correctly framed body without going through Envelope,
+// so a test can put bytes on the wire that the codec would never produce.
+func writeRawFrame(out *os.File, body []byte) {
+	header := make([]byte, frameHeaderBytes)
+	binary.BigEndian.PutUint32(header, uint32(len(body)))
+	_, _ = out.Write(header)
+	_, _ = out.Write(body)
 }
 
 func writeFake(writer *Writer, id uint64, messageType string, payload any) {
