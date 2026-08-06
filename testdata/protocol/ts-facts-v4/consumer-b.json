@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "repository": {
     "name": "consumer-b"
   },
@@ -222,6 +222,18 @@
       "requestedSymbol": "value",
       "reason": null,
       "detail": null
+    }
+  ],
+  "extends": [],
+  "dependencies": [
+    {
+      "repository": "shared-library",
+      "package": "@luque-fixture/shared",
+      "file": "src/barrel.ts",
+      "specifier": "@luque-fixture/shared",
+      "start": 40,
+      "end": 63,
+      "startLine": 1
     }
   ],
   "unresolved": []

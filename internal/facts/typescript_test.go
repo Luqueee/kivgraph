@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var typeScriptGolden = filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v3")
+var typeScriptGolden = filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v4")
 
 func loadPayload(t *testing.T, name string) TypeScriptPayload {
 	t.Helper()
@@ -67,7 +67,7 @@ func TestNormalizeTypeScriptConsumesRealWorkerOutput(t *testing.T) {
 		}
 		byFileAndQualifiedName[fileAndName] = symbol.Key
 	}
-	for _, name := range []string{"value", "compute", "helper"} {
+	for _, name := range []string{"value", "compute", "helper", "Named", "NamedShape", "Widget"} {
 		if _, declared := byQualifiedName[name]; !declared {
 			t.Fatalf("symbol %q missing: %v", name, byQualifiedName)
 		}
@@ -95,17 +95,21 @@ func TestNormalizeTypeScriptConsumesRealWorkerOutput(t *testing.T) {
 		t.Fatalf("no local reference edge was produced: %#v", set.Edges)
 	}
 	// `src/index.ts` re-exports `aliasedHelper`, and star re-exports
-	// `value`, `Shape` and `compute`; `src/helper.ts` exports its own
-	// declaration directly, and `src/value.ts` exports `value`, `Shape`
-	// and `compute` directly.
-	if reexports != 8 {
-		t.Fatalf("EXPORTS/REEXPORTS edges = %d, want 8: %#v", reexports, set.Edges)
+	// `value`, `Shape`, `compute`, `Named`, `NamedShape` and `Widget`;
+	// `src/helper.ts` exports its own declaration directly, `src/value.ts`
+	// exports `value`, `Shape` and `compute` directly, and `src/inheritance.
+	// ts` exports `Named`, `NamedShape` and `Widget` directly.
+	if reexports != 14 {
+		t.Fatalf("EXPORTS/REEXPORTS edges = %d, want 14: %#v", reexports, set.Edges)
 	}
 	if report.EdgesWithoutTarget != 0 {
 		t.Fatalf("dropped targets = %d", report.EdgesWithoutTarget)
 	}
 	if report.ExportsWithoutTarget != 0 {
 		t.Fatalf("dropped export targets = %d", report.ExportsWithoutTarget)
+	}
+	if report.ExtendsWithoutTarget != 0 {
+		t.Fatalf("dropped extends targets = %d", report.ExtendsWithoutTarget)
 	}
 }
 
@@ -455,8 +459,9 @@ func TestNormalizeTypeScriptReferenceTargetsImportBinding(t *testing.T) {
 // TestNormalizeTypeScriptMergedRepositoriesValidate merges the whole
 // three-repository fixture — shared-library, consumer-a and consumer-b — and
 // requires the combined graph to validate with no dangling edge: every
-// IMPORTS_SYMBOL and REEXPORTS edge produced by any of the three must close
-// against a symbol one of the other two declares.
+// IMPORTS_SYMBOL, REEXPORTS, EXTENDS and PACKAGE_DEPENDS_ON edge produced by
+// any of the three must close against a symbol or package one of the other
+// two declares.
 func TestNormalizeTypeScriptMergedRepositoriesValidate(t *testing.T) {
 	ctx := context.Background()
 
@@ -484,10 +489,15 @@ func TestNormalizeTypeScriptMergedRepositoriesValidate(t *testing.T) {
 	for _, edge := range merged.Edges {
 		kinds[edge.Kind]++
 	}
-	for _, kind := range []EdgeKind{ImportsSymbol, Exports, Reexports, References} {
+	for _, kind := range []EdgeKind{ImportsSymbol, Exports, Reexports, References, Extends, PackageDependsOn} {
 		if kinds[kind] == 0 {
 			t.Fatalf("edge kind %q missing from the merged graph: %#v", kind, kinds)
 		}
+	}
+	// TypeScript has no module concept distinct from its package: it must
+	// never emit MODULE_DEPENDS_ON, only Go's package/module split does.
+	if kinds[ModuleDependsOn] != 0 {
+		t.Fatalf("TypeScript must never emit MODULE_DEPENDS_ON: %#v", kinds)
 	}
 }
 
@@ -699,5 +709,252 @@ func TestDecodeTypeScriptPayloadRejectsForeignVersions(t *testing.T) {
 		Version: TypeScriptWireVersion,
 	}, "/repositories/x"); !errors.Is(err, ErrInvalidFacts) {
 		t.Fatalf("NormalizeTypeScript() must reject a payload without repository")
+	}
+}
+
+// TestNormalizeTypeScriptLocalExtendsResolveWithinOneRepository covers
+// shared-library's own `interface NamedShape extends Shape, Named`: both
+// bases are declared in this same repository — Shape in src/value.ts, Named
+// in src/inheritance.ts — so each becomes its own EXTENDS edge entirely
+// within shared-library's own Set, no merge required.
+func TestNormalizeTypeScriptLocalExtendsResolveWithinOneRepository(t *testing.T) {
+	payload := loadPayload(t, "shared-library.json")
+	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/shared-library")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.ExtendsWithoutTarget != 0 {
+		t.Fatalf("dropped extends targets = %d", report.ExtendsWithoutTarget)
+	}
+
+	source := findSymbol(t, set.Symbols, "shared-library", "src/inheritance.ts", "NamedShape")
+	cases := []struct {
+		targetFile          string
+		targetQualifiedName string
+	}{
+		{"src/value.ts", "Shape"},
+		{"src/inheritance.ts", "Named"},
+	}
+	for _, testCase := range cases {
+		target := findSymbol(t, set.Symbols, "shared-library", testCase.targetFile, testCase.targetQualifiedName)
+		matched := false
+		for _, edge := range set.Edges {
+			if edge.Kind == Extends && edge.SourceKey == source.Key && edge.TargetKey == target.Key {
+				matched = true
+				if !edge.Confidence.Exact() || edge.EvidenceKey == "" {
+					t.Fatalf("EXTENDS edge to %q = %#v", testCase.targetQualifiedName, edge)
+				}
+				break
+			}
+		}
+		if !matched {
+			t.Fatalf("no EXTENDS edge from NamedShape (%s) to %s#%s (%s)",
+				source.Key, testCase.targetFile, testCase.targetQualifiedName, target.Key)
+		}
+	}
+}
+
+// TestNormalizeTypeScriptExtendsTargetKeyMatchesProvider is the EXTENDS
+// half of the parity proof LUQUE-0907 already established for
+// IMPORTS_SYMBOL: consumer-a's `class LabeledWidget extends Widget` crosses
+// into shared-library through the same import that also backs
+// LabeledWidget's IMPORTS_SYMBOL and PACKAGE_DEPENDS_ON edges, so the
+// EXTENDS target must derive the exact same provider-source key the
+// provider assigns its own declaration — the same proof, for a different
+// edge kind.
+func TestNormalizeTypeScriptExtendsTargetKeyMatchesProvider(t *testing.T) {
+	ctx := context.Background()
+
+	providerPayload := loadPayload(t, "shared-library.json")
+	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, "/repositories/shared-library")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
+	}
+
+	consumerPayload := loadPayload(t, "consumer-a.json")
+	consumerSet, report, err := NormalizeTypeScript(ctx, consumerPayload, "/repositories/consumer-a")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
+	}
+	if report.ExtendsWithoutTarget != 0 {
+		t.Fatalf("consumer-a dropped %d extends bases without a target, want 0", report.ExtendsWithoutTarget)
+	}
+
+	source := findSymbol(t, consumerSet.Symbols, "consumer-a", "src/derived.ts", "LabeledWidget")
+	var extendsEdges []Edge
+	for _, edge := range consumerSet.Edges {
+		if edge.Kind == Extends && edge.SourceKey == source.Key {
+			extendsEdges = append(extendsEdges, edge)
+		}
+	}
+	if len(extendsEdges) != 1 {
+		t.Fatalf("EXTENDS edges from LabeledWidget = %d, want 1: %#v", len(extendsEdges), consumerSet.Edges)
+	}
+
+	// A consumer Set alone can never validate: the EXTENDS edge names a
+	// symbol the provider owns. It only closes once the provider is merged.
+	if err := consumerSet.Validate(); err == nil {
+		t.Fatalf("Validate() on consumer-a alone unexpectedly passed: an EXTENDS " +
+			"edge should dangle until the provider is merged in")
+	}
+
+	provided := findSymbol(t, providerSet.Symbols, "shared-library", "src/inheritance.ts", "Widget")
+	if extendsEdges[0].TargetKey != provided.Key {
+		t.Fatalf("LabeledWidget's EXTENDS edge targets %s, want the provider's key for Widget (%s)",
+			extendsEdges[0].TargetKey, provided.Key)
+	}
+	if !extendsEdges[0].Confidence.Exact() || extendsEdges[0].EvidenceKey == "" {
+		t.Fatalf("EXTENDS edge = %#v", extendsEdges[0])
+	}
+
+	merged := providerSet
+	merged.Merge(consumerSet)
+	if err := merged.Validate(); err != nil {
+		t.Fatalf("Validate() on the merged graph = %v", err)
+	}
+}
+
+// TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider covers
+// consumer-a's real dependency on @luque-fixture/shared: the edge connects
+// consumer-a's own package key to shared-library's package key, exactly as
+// PackageKey derives them independently on each side — the package-level
+// analogue of the symbol-level parity tests above.
+func TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider(t *testing.T) {
+	ctx := context.Background()
+
+	providerSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "shared-library.json"), "/repositories/shared-library")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
+	}
+	consumerSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-a.json"), "/repositories/consumer-a")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
+	}
+
+	consumerPackageKey := PackageKey(LanguageTypeScript, "consumer-a", "@luque-fixture/consumer-a")
+	providerPackageKey := PackageKey(LanguageTypeScript, "shared-library", "@luque-fixture/shared")
+
+	var dependsOnEdges []Edge
+	for _, edge := range consumerSet.Edges {
+		if edge.Kind == PackageDependsOn {
+			dependsOnEdges = append(dependsOnEdges, edge)
+		}
+	}
+	if len(dependsOnEdges) != 1 {
+		t.Fatalf("PACKAGE_DEPENDS_ON edges from consumer-a = %d, want 1: %#v", len(dependsOnEdges), consumerSet.Edges)
+	}
+	edge := dependsOnEdges[0]
+	if edge.SourceKey != consumerPackageKey {
+		t.Fatalf("PACKAGE_DEPENDS_ON source = %s, want consumer-a's own package key %s", edge.SourceKey, consumerPackageKey)
+	}
+	if edge.TargetKey != providerPackageKey {
+		t.Fatalf("PACKAGE_DEPENDS_ON target = %s, want shared-library's package key %s", edge.TargetKey, providerPackageKey)
+	}
+	if !edge.Confidence.Exact() || edge.EvidenceKey == "" {
+		t.Fatalf("PACKAGE_DEPENDS_ON edge = %#v", edge)
+	}
+
+	if err := providerSet.Validate(); err != nil {
+		t.Fatalf("Validate(shared-library) error = %v", err)
+	}
+	merged := providerSet
+	merged.Merge(consumerSet)
+	if err := merged.Validate(); err != nil {
+		t.Fatalf("Validate() on the merged graph = %v", err)
+	}
+}
+
+// TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge covers
+// consumer-a's package.json, which lists a dependency on
+// @luque-fixture/unused that nothing in src/ actually imports: decision 1
+// forbids an edge from a nominal package.json string, so the worker itself
+// never reports one for it — facts-cli.ts derives PACKAGE_DEPENDS_ON purely
+// from checker-resolved imports, never from package.json — and the
+// normalised graph carries exactly the one PACKAGE_DEPENDS_ON edge a real
+// import backs: consumer-a to @luque-fixture/shared.
+func TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge(t *testing.T) {
+	consumerSet, _, err := NormalizeTypeScript(context.Background(), loadPayload(t, "consumer-a.json"), "/repositories/consumer-a")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
+	}
+
+	sharedPackageKey := PackageKey(LanguageTypeScript, "shared-library", "@luque-fixture/shared")
+	var dependsOnEdges []Edge
+	for _, edge := range consumerSet.Edges {
+		if edge.Kind == PackageDependsOn {
+			dependsOnEdges = append(dependsOnEdges, edge)
+		}
+	}
+	if len(dependsOnEdges) != 1 || dependsOnEdges[0].TargetKey != sharedPackageKey {
+		t.Fatalf("PACKAGE_DEPENDS_ON edges from consumer-a = %#v, want exactly one targeting %s "+
+			"(@luque-fixture/unused is declared in package.json but never imported, so it must "+
+			"produce none)", dependsOnEdges, sharedPackageKey)
+	}
+}
+
+// TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved covers an extends
+// base whose provider identity could not be proven — no declaration map
+// reached it, or the base resolved to neither a local declaration nor an
+// import at all: it must become an UnresolvedReference, never a guessed
+// edge, exactly like an import or an export without a target.
+func TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved(t *testing.T) {
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "consumer-x"},
+		Package: &TypeScriptPackage{
+			Name: "@luque-fixture/consumer-x", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/index.ts"},
+		Symbols: []TypeScriptSymbol{{
+			File: "src/index.ts", Name: "Derived", QualifiedName: "Derived", Kind: "class",
+			Signature: "export class Derived extends Base",
+			StartLine: 1, EndLine: 3, Start: 0, End: 60,
+		}},
+		Extends: []TypeScriptExtends{{
+			File: "src/index.ts", QualifiedName: "Derived",
+			Start: 30, End: 34, StartLine: 1,
+			Text:                "Base",
+			TargetQualifiedName: "",
+			TargetFile:          "",
+			Target:              nil,
+			RequestedPackage:    "@luque-fixture/shared",
+			RequestedSymbol:     "Base",
+			Reason:              "PROVIDER_SOURCE_UNAVAILABLE",
+			Detail:              "no declaration map places this symbol in the provider's source",
+		}},
+	}
+
+	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.ExtendsWithoutTarget != 1 {
+		t.Fatalf("ExtendsWithoutTarget = %d, want 1", report.ExtendsWithoutTarget)
+	}
+	for _, edge := range set.Edges {
+		if edge.Kind == Extends {
+			t.Fatalf("an extends base without a target must not produce an edge: %#v", edge)
+		}
+	}
+	if len(set.Unresolved) != 1 {
+		t.Fatalf("unresolved = %#v, want 1 entry", set.Unresolved)
+	}
+	entry := set.Unresolved[0]
+	if entry.Reason != "PROVIDER_SOURCE_UNAVAILABLE" ||
+		entry.RequestedPackage != "@luque-fixture/shared" ||
+		entry.RequestedSymbol != "Base" ||
+		entry.Language != LanguageTypeScript ||
+		entry.FileKey != FileKey("consumer-x", "src/index.ts") {
+		t.Fatalf("unresolved entry = %#v", entry)
+	}
+	if entry.SourceSymbolKey == "" {
+		t.Fatalf("the extends unresolved entry should carry the declaring class as its source symbol")
 	}
 }

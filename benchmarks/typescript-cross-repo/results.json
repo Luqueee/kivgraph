@@ -7,6 +7,27 @@
     {
       "name": "consumer-a",
       "metrics": {
+        "expectedEdges": 4,
+        "truePositives": 4,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "falseExactEdges": 0,
+        "expectedUnresolved": 0,
+        "unresolvedCorrectlyClassified": 0,
+        "unresolvedMisclassified": 0,
+        "expectedSourcePositions": 4,
+        "mappedSourcePositions": 4
+      },
+      "missingEdges": [],
+      "unexpectedEdges": [],
+      "missingUnresolved": [],
+      "unexpectedUnresolved": []
+    },
+    {
+      "name": "consumer-b",
+      "metrics": {
         "expectedEdges": 3,
         "truePositives": 3,
         "falsePositives": 0,
@@ -19,27 +40,6 @@
         "unresolvedMisclassified": 0,
         "expectedSourcePositions": 3,
         "mappedSourcePositions": 3
-      },
-      "missingEdges": [],
-      "unexpectedEdges": [],
-      "missingUnresolved": [],
-      "unexpectedUnresolved": []
-    },
-    {
-      "name": "consumer-b",
-      "metrics": {
-        "expectedEdges": 2,
-        "truePositives": 2,
-        "falsePositives": 0,
-        "falseNegatives": 0,
-        "precision": 1,
-        "recall": 1,
-        "falseExactEdges": 0,
-        "expectedUnresolved": 0,
-        "unresolvedCorrectlyClassified": 0,
-        "unresolvedMisclassified": 0,
-        "expectedSourcePositions": 2,
-        "mappedSourcePositions": 2
       },
       "missingEdges": [],
       "unexpectedEdges": [],
@@ -69,8 +69,8 @@
     }
   ],
   "totals": {
-    "expectedEdges": 9,
-    "truePositives": 9,
+    "expectedEdges": 11,
+    "truePositives": 11,
     "falsePositives": 0,
     "falseNegatives": 0,
     "precision": 1,
@@ -79,8 +79,8 @@
     "expectedUnresolved": 4,
     "unresolvedCorrectlyClassified": 4,
     "unresolvedMisclassified": 0,
-    "expectedSourcePositions": 8,
-    "mappedSourcePositions": 8
+    "expectedSourcePositions": 10,
+    "mappedSourcePositions": 10
   },
   "gate": "TYPESCRIPT_CROSS_REPO_PASS"
 }

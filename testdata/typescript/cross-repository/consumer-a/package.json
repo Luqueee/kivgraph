@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "type": "module",
   "dependencies": {
-    "@luque-fixture/shared": "1.4.2"
+    "@luque-fixture/shared": "1.4.2",
+    "@luque-fixture/unused": "1.0.0"
   }
 }

@@ -86,6 +86,10 @@ func normalizeFixture(t *testing.T, repositoryName string) (Set, GoReport) {
 		if err != nil {
 			t.Fatalf("ExtractUses() error = %v", err)
 		}
+		packageDependencies, err := goloader.ResolvePackageDependencies(context.Background(), uses)
+		if err != nil {
+			t.Fatalf("ResolvePackageDependencies() error = %v", err)
+		}
 		references, err := goloader.ClassifyReferences(context.Background(), result, uses)
 		if err != nil {
 			t.Fatalf("ClassifyReferences() error = %v", err)
@@ -102,11 +106,12 @@ func normalizeFixture(t *testing.T, repositoryName string) (Set, GoReport) {
 		}
 
 		set, report, err := NormalizeGo(context.Background(), GoInput{
-			Repository:      repository,
-			Definitions:     keyed,
-			References:      references,
-			CrossRepository: cross,
-			Unresolved:      unresolved,
+			Repository:          repository,
+			Definitions:         keyed,
+			References:          references,
+			CrossRepository:     cross,
+			PackageDependencies: packageDependencies,
+			Unresolved:          unresolved,
 		})
 		if err != nil {
 			t.Fatalf("NormalizeGo() error = %v", err)
@@ -295,11 +300,21 @@ func normalizeTypeRelationsFixture(t *testing.T) (Set, GoReport) {
 	if err != nil {
 		t.Fatalf("ResolveTypeRelations() error = %v", err)
 	}
+	uses, err := goloader.ExtractUses(context.Background(), result,
+		goloader.UseOptions{Repository: repository.Name})
+	if err != nil {
+		t.Fatalf("ExtractUses() error = %v", err)
+	}
+	packageDependencies, err := goloader.ResolvePackageDependencies(context.Background(), uses)
+	if err != nil {
+		t.Fatalf("ResolvePackageDependencies() error = %v", err)
+	}
 
 	set, report, err := NormalizeGo(context.Background(), GoInput{
-		Repository:    repository,
-		Definitions:   keyed,
-		TypeRelations: relations,
+		Repository:          repository,
+		Definitions:         keyed,
+		TypeRelations:       relations,
+		PackageDependencies: packageDependencies,
 	})
 	if err != nil {
 		t.Fatalf("NormalizeGo() error = %v", err)
@@ -465,5 +480,227 @@ func TestNormalizeGoResolvesTypeRelationTargetsAcrossRepositories(t *testing.T) 
 	}
 	if !found {
 		t.Fatalf("expected an IMPLEMENTS edge to the cross-repository target: %#v", set.Edges)
+	}
+}
+
+// TestNormalizeGoEmitsPackageDependencyEdgesAcrossRepositories proves
+// acceptance criteria (a) and (c) of the Go package-dependency wiring:
+// consumer-a depends on shared/api across repositories, so it gets both
+// PACKAGE_DEPENDS_ON and, because shared and consumer-a are different Go
+// modules, MODULE_DEPENDS_ON too. The target key of both edges must be byte
+// identical to the key the provider repository assigns to its own package
+// when it normalises itself — the same parity already proven for symbols in
+// TestNormalizeGoKeepsCrossRepositoryIdentity.
+func TestNormalizeGoEmitsPackageDependencyEdgesAcrossRepositories(t *testing.T) {
+	provider, _ := normalizeFixture(t, "shared-library")
+	consumer, report := normalizeFixture(t, "consumer-a")
+
+	if len(provider.Packages) != 1 {
+		t.Fatalf("provider packages = %#v, want exactly the shared/api package", provider.Packages)
+	}
+	providerPackage := provider.Packages[0]
+	if providerPackage.Name != "example.com/luque-fixture/shared/api" {
+		t.Fatalf("provider package = %#v", providerPackage)
+	}
+	if len(consumer.Packages) != 1 {
+		t.Fatalf("consumer packages = %#v, want exactly the consumer-a package", consumer.Packages)
+	}
+	consumerPackage := consumer.Packages[0]
+
+	var packageDepends, moduleDepends []Edge
+	for _, edge := range consumer.Edges {
+		switch edge.Kind {
+		case PackageDependsOn:
+			packageDepends = append(packageDepends, edge)
+		case ModuleDependsOn:
+			moduleDepends = append(moduleDepends, edge)
+		}
+	}
+	if len(packageDepends) != 1 {
+		t.Fatalf("PACKAGE_DEPENDS_ON edges = %#v, want exactly one: consumer-a's single package "+
+			"uses many symbols of shared/api, but they form a single dependency", packageDepends)
+	}
+	if len(moduleDepends) != 1 {
+		t.Fatalf("MODULE_DEPENDS_ON edges = %#v, want exactly one: shared and consumer-a are "+
+			"different Go modules", moduleDepends)
+	}
+
+	dependency := packageDepends[0]
+	// The parity check covers both ends: the source key this pass derived
+	// must match the key consumer-a assigns to its own package, and the
+	// target key must match the key the provider assigns to its own
+	// package — the same parity already proven for symbols in
+	// TestNormalizeGoKeepsCrossRepositoryIdentity.
+	if dependency.SourceKey != consumerPackage.Key {
+		t.Fatalf("PACKAGE_DEPENDS_ON source = %q, want the consumer's own key %q",
+			dependency.SourceKey, consumerPackage.Key)
+	}
+	if dependency.TargetKey != providerPackage.Key {
+		t.Fatalf("PACKAGE_DEPENDS_ON target = %q, want the provider's own key %q",
+			dependency.TargetKey, providerPackage.Key)
+	}
+	if dependency.Confidence != ExactTypechecked || dependency.Provenance != GoObjectPath {
+		t.Fatalf("PACKAGE_DEPENDS_ON edge = %#v", dependency)
+	}
+	if dependency.EvidenceKey == "" {
+		t.Fatalf("PACKAGE_DEPENDS_ON edge carries no evidence: %#v", dependency)
+	}
+
+	// MODULE_DEPENDS_ON must describe exactly the same pair, sharing the
+	// same evidence: one witness proves both facts about the same use.
+	if moduleDepends[0].SourceKey != dependency.SourceKey ||
+		moduleDepends[0].TargetKey != dependency.TargetKey ||
+		moduleDepends[0].EvidenceKey != dependency.EvidenceKey {
+		t.Fatalf("MODULE_DEPENDS_ON = %#v, want the same pair and evidence as PACKAGE_DEPENDS_ON %#v",
+			moduleDepends[0], dependency)
+	}
+
+	if report.EdgesWithoutTarget != 0 {
+		t.Fatalf("dropped package targets = %d, want none in the positive fixture", report.EdgesWithoutTarget)
+	}
+
+	merged := Set{}
+	merged.Merge(provider)
+	merged.Merge(consumer)
+	if err := merged.Validate(); err != nil {
+		t.Fatalf("merged Validate() error = %v", err)
+	}
+}
+
+// TestNormalizeGoEmitsPackageDependencyForANestedModuleOfTheSameRepository
+// proves a dependency that crosses a module boundary without crossing a
+// repository boundary still gets MODULE_DEPENDS_ON: consumer-b reaches its
+// own internal/legacy module through a local replace directive, and that
+// nested module is a different Go module even though it lives in the same
+// repository as the consumer.
+func TestNormalizeGoEmitsPackageDependencyForANestedModuleOfTheSameRepository(t *testing.T) {
+	provider, _ := normalizeFixture(t, "shared-library")
+	consumer, report := normalizeFixture(t, "consumer-b")
+
+	// consumer-b also references shared-library's Answer and Compute, so it
+	// only validates once merged with its other provider, exactly like
+	// TestNormalizeGoKeepsCrossRepositoryIdentity already establishes.
+	merged := Set{}
+	merged.Merge(provider)
+	merged.Merge(consumer)
+	if err := merged.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	byName := make(map[string]Package, len(consumer.Packages))
+	for _, entry := range consumer.Packages {
+		byName[entry.Name] = entry
+	}
+	main, hasMain := byName["example.com/luque-fixture/consumer-b"]
+	legacy, hasLegacy := byName["example.com/luque-fixture/legacy"]
+	if !hasMain || !hasLegacy {
+		t.Fatalf("packages = %#v, want both main and legacy", consumer.Packages)
+	}
+	if legacy.RepositoryKey != main.RepositoryKey {
+		t.Fatalf("legacy repository = %q, main repository = %q, want the same repository",
+			legacy.RepositoryKey, main.RepositoryKey)
+	}
+	if legacy.Container == main.Container {
+		t.Fatalf("legacy and main share a module %q, want different modules", legacy.Container)
+	}
+
+	var packageDepends, moduleDepends []Edge
+	for _, edge := range consumer.Edges {
+		if edge.SourceKey != main.Key || edge.TargetKey != legacy.Key {
+			continue
+		}
+		switch edge.Kind {
+		case PackageDependsOn:
+			packageDepends = append(packageDepends, edge)
+		case ModuleDependsOn:
+			moduleDepends = append(moduleDepends, edge)
+		}
+	}
+	if len(packageDepends) != 1 || len(moduleDepends) != 1 {
+		t.Fatalf("main -> legacy edges: PACKAGE_DEPENDS_ON=%#v MODULE_DEPENDS_ON=%#v, want one of each",
+			packageDepends, moduleDepends)
+	}
+	if report.EdgesWithoutTarget != 0 {
+		t.Fatalf("dropped package targets = %d, want none: legacy is indexed in this same repository pass",
+			report.EdgesWithoutTarget)
+	}
+}
+
+// TestNormalizeGoEmitsIntraModulePackageDependencyWithoutModuleDependsOn
+// proves acceptance criterion (b): two packages of the same Go module
+// produce PACKAGE_DEPENDS_ON but never MODULE_DEPENDS_ON, because they share
+// one Container. The cross-repository fixture has no same-module,
+// two-package case, so the type-relations fixture's units package exercises
+// it instead.
+func TestNormalizeGoEmitsIntraModulePackageDependencyWithoutModuleDependsOn(t *testing.T) {
+	set, _ := normalizeTypeRelationsFixture(t)
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	byName := make(map[string]Package, len(set.Packages))
+	for _, entry := range set.Packages {
+		byName[entry.Name] = entry
+	}
+	units, hasUnits := byName["example.com/luque-fixture/type-relations/units"]
+	geometry, hasGeometry := byName["example.com/luque-fixture/type-relations"]
+	if !hasUnits || !hasGeometry {
+		t.Fatalf("packages = %#v, want both units and the geometry root package", set.Packages)
+	}
+	if units.Container == "" || units.Container != geometry.Container {
+		t.Fatalf("units.Container = %q, geometry.Container = %q, want the same module",
+			units.Container, geometry.Container)
+	}
+
+	var packageDepends, moduleDepends []Edge
+	for _, edge := range set.Edges {
+		if edge.SourceKey != units.Key || edge.TargetKey != geometry.Key {
+			continue
+		}
+		switch edge.Kind {
+		case PackageDependsOn:
+			packageDepends = append(packageDepends, edge)
+		case ModuleDependsOn:
+			moduleDepends = append(moduleDepends, edge)
+		}
+	}
+	if len(packageDepends) != 1 {
+		t.Fatalf("PACKAGE_DEPENDS_ON units -> geometry edges = %#v, want exactly one", packageDepends)
+	}
+	if packageDepends[0].Confidence != ExactTypechecked || packageDepends[0].Provenance != GoTypesUse {
+		t.Fatalf("PACKAGE_DEPENDS_ON edge = %#v, want a local resolution", packageDepends[0])
+	}
+	if len(moduleDepends) != 0 {
+		t.Fatalf("MODULE_DEPENDS_ON units -> geometry edges = %#v, want none: same module", moduleDepends)
+	}
+}
+
+// TestNormalizeGoNeverDuplicatesAPackageDependencyEdge proves acceptance
+// criterion (d): PACKAGE_DEPENDS_ON and MODULE_DEPENDS_ON never repeat for
+// the same (source, target) package pair, however many uses cross that
+// boundary.
+func TestNormalizeGoNeverDuplicatesAPackageDependencyEdge(t *testing.T) {
+	consumerA, _ := normalizeFixture(t, "consumer-a")
+	consumerB, _ := normalizeFixture(t, "consumer-b")
+	typeRelations, _ := normalizeTypeRelationsFixture(t)
+
+	checked := 0
+	for _, set := range []Set{consumerA, consumerB, typeRelations} {
+		counts := make(map[string]int)
+		for _, edge := range set.Edges {
+			if edge.Kind != PackageDependsOn && edge.Kind != ModuleDependsOn {
+				continue
+			}
+			counts[string(edge.Kind)+"\x00"+edge.SourceKey+"\x00"+edge.TargetKey]++
+			checked++
+		}
+		for key, count := range counts {
+			if count != 1 {
+				t.Fatalf("edge %q appears %d times, want exactly one", key, count)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatalf("no PACKAGE_DEPENDS_ON or MODULE_DEPENDS_ON edges were produced to check")
 	}
 }

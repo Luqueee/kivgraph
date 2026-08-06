@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "repository": {
     "name": "consumer-a"
   },
@@ -10,9 +10,22 @@
     "manifestPath": "package.json"
   },
   "files": [
+    "src/derived.ts",
     "src/direct.ts"
   ],
   "symbols": [
+    {
+      "file": "src/derived.ts",
+      "name": "LabeledWidget",
+      "qualifiedName": "LabeledWidget",
+      "kind": "class",
+      "exported": true,
+      "signature": "export class LabeledWidget extends Widget",
+      "startLine": 3,
+      "endLine": 10,
+      "start": 49,
+      "end": 178
+    },
     {
       "file": "src/direct.ts",
       "name": "total",
@@ -24,6 +37,18 @@
       "endLine": 5,
       "start": 69,
       "end": 155
+    },
+    {
+      "file": "src/derived.ts",
+      "name": "Widget",
+      "qualifiedName": "Widget",
+      "kind": "import",
+      "exported": false,
+      "signature": "Widget",
+      "startLine": 1,
+      "endLine": 1,
+      "start": 9,
+      "end": 15
     },
     {
       "file": "src/direct.ts",
@@ -62,6 +87,18 @@
       "end": 35
     },
     {
+      "file": "src/derived.ts",
+      "name": "LabeledWidget",
+      "qualifiedName": "LabeledWidget#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "LabeledWidget",
+      "startLine": 3,
+      "endLine": 3,
+      "start": 62,
+      "end": 75
+    },
+    {
       "file": "src/direct.ts",
       "name": "total",
       "qualifiedName": "total#2",
@@ -75,6 +112,17 @@
     }
   ],
   "references": [
+    {
+      "file": "src/derived.ts",
+      "kind": "TYPE_USES",
+      "sourceQualifiedName": "LabeledWidget",
+      "targetQualifiedName": "Widget",
+      "targetFile": "src/derived.ts",
+      "startLine": 3,
+      "start": 84,
+      "end": 90,
+      "text": "Widget"
+    },
     {
       "file": "src/direct.ts",
       "kind": "TYPE_USES",
@@ -110,6 +158,27 @@
     }
   ],
   "imports": [
+    {
+      "file": "src/derived.ts",
+      "qualifiedName": "Widget",
+      "start": 9,
+      "end": 15,
+      "startLine": 1,
+      "text": "Widget",
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "Widget",
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "Widget",
+        "kind": "class",
+        "signature": "export class Widget",
+        "file": "src/inheritance.ts",
+        "startLine": 26
+      },
+      "reason": null,
+      "detail": null
+    },
     {
       "file": "src/direct.ts",
       "qualifiedName": "compute",
@@ -176,6 +245,22 @@
   ],
   "exports": [
     {
+      "file": "src/derived.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "LabeledWidget#2",
+      "start": 62,
+      "end": 75,
+      "startLine": 3,
+      "text": "LabeledWidget",
+      "targetQualifiedName": "LabeledWidget",
+      "targetFile": "src/derived.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
       "file": "src/direct.ts",
       "kind": "EXPORTS",
       "qualifiedName": "total#2",
@@ -190,6 +275,42 @@
       "requestedSymbol": null,
       "reason": null,
       "detail": null
+    }
+  ],
+  "extends": [
+    {
+      "file": "src/derived.ts",
+      "qualifiedName": "LabeledWidget",
+      "start": 84,
+      "end": 90,
+      "startLine": 3,
+      "text": "Widget",
+      "targetQualifiedName": null,
+      "targetFile": null,
+      "target": {
+        "repository": "shared-library",
+        "package": "@luque-fixture/shared",
+        "qualifiedName": "Widget",
+        "kind": "class",
+        "signature": "export class Widget",
+        "file": "src/inheritance.ts",
+        "startLine": 26
+      },
+      "requestedPackage": "@luque-fixture/shared",
+      "requestedSymbol": "Widget",
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "dependencies": [
+    {
+      "repository": "shared-library",
+      "package": "@luque-fixture/shared",
+      "file": "src/derived.ts",
+      "specifier": "@luque-fixture/shared",
+      "start": 23,
+      "end": 46,
+      "startLine": 1
     }
   ],
   "unresolved": []

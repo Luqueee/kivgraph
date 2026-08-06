@@ -267,11 +267,168 @@ verificado, con los dos lenguajes conviviendo.
 
 Con honestidad, y sin inventar que está hecho:
 
-* `EXTENDS`: `class A extends B` y `interface A extends B` son reales en
-  TypeScript y no se producen todavía. Es la única clase sin productor en
-  ninguno de los dos lenguajes.
-* `PACKAGE_DEPENDS_ON` y `MODULE_DEPENDS_ON`: hay materia prima
-  (`package-dependency-resolver.ts` en el worker, el registro de módulos en Go)
-  pero ningún normalizador las emite.
 * `ASSIGNS_FUNCTION` y `RETURNS_FUNCTION` tienen productor en ambos lenguajes;
   simplemente los fixtures publicados aquí no las ejercitan.
+
+## Tercera ampliación del 2026-08-06: EXTENDS, PACKAGE_DEPENDS_ON y MODULE_DEPENDS_ON
+
+Esta tanda cierra las tres últimas clases de arista sin productor. Con esto,
+las dieciocho clases de `facts.EdgeKind` tienen productor en al menos un
+lenguaje.
+
+### Clases de arista que no tenían productor
+
+| Clase | Antes | Ahora |
+| --- | --- | --- |
+| `EXTENDS` | sin productor | TypeScript: `class A extends B` e `interface A extends B, C`, una arista por base. Go no la tiene — el embedding ya se modela como `EMBEDS` |
+| `PACKAGE_DEPENDS_ON` | sin productor | Go: `internal/goloader/packagedependencies.go` agrupa cada `Use` que cruza frontera de paquete; TypeScript: `package-dependency-resolver.ts`, ya escrito y probado desde antes, ahora cableado en `facts-cli.ts` |
+| `MODULE_DEPENDS_ON` | sin productor | Go únicamente: la misma dependencia de paquete, cuando además cruza una frontera de módulo (`Container` distinto en los dos extremos). TypeScript no tiene módulos propios y nunca la emite |
+
+### TypeScript: EXTENDS y PACKAGE_DEPENDS_ON
+
+`extends-resolver.ts` resuelve el destino de cada base exactamente como el
+resto del pipeline: local contra el índice del proyecto
+(`resolveLocalSymbols`, la misma función que usa `reference-extractor.ts`), o
+cross-repository reutilizando la identidad ya calculada por la resolución de
+`IMPORTS_SYMBOL` — nunca una segunda resolución de fuente declarativa.
+`implements` queda fuera deliberadamente: el checker prueba `extends`, pero
+`implements` exigiría una comprobación de conformidad estructural que este
+módulo no intenta.
+
+`resolvePackageDependencies` ya existía, probado, sin ningún llamador; ahora
+`facts-cli.ts` construye el `PackageProvider` del propio repositorio indexado
+(el mismo `loadProvider` que ya usa para `--provider`) y lo llama. Un
+`package.json` con una dependencia que nada importa nunca produce arista: la
+prueba está en el fixture (`consumer-a` declara `@luque-fixture/unused`, que
+ningún fichero importa).
+
+El wire sube a `ts-facts-v4`: dos campos nuevos, `extends` (por base de
+herencia, con la misma forma que `FactExport`: local o identidad de
+proveedor) y `dependencies` (por paquete real dependido). Los tres goldens
+(`shared-library`, `consumer-a`, `consumer-b`) se regeneraron con
+`pnpm facts`, y `ts-facts-v3` se borró.
+
+El fixture ganó `shared-library/src/inheritance.ts` (`NamedShape extends
+Shape, Named` — herencia local con dos bases, cada una su propia arista — y
+la clase `Widget`) y `consumer-a/src/derived.ts` (`LabeledWidget extends
+Widget`, herencia cross-repository). `shared-library/dist/` se recompiló de
+verdad con `tsc`, así que el declaration map cubre las declaraciones nuevas.
+
+Verificado con las tres normalizaciones, mergeadas y validadas:
+
+```text
+repos=3  packages=3  files=7  symbols=36  edges=86  evidence=32  unresolved=0
+
+  CALLS_DIRECT 1        CONTAINS_FILE 7         CONTAINS_PACKAGE 3
+  DEFINES 36             EXPORTS 11              EXTENDS 3
+  IMPORTS_SYMBOL 6       PACKAGE_DEPENDS_ON 2     REEXPORTS 8
+  REFERENCES 4           TYPE_USES 5
+
+Set.Validate() en el grafo combinado: sin aristas colgantes.
+```
+
+Las tres `EXTENDS`: dos locales dentro de `shared-library` (`NamedShape` a
+`Shape` y a `Named`) y una cross-repository (`consumer-a`'s `LabeledWidget` a
+`shared-library`'s `Widget`), con la misma prueba de paridad que ya existía
+para `IMPORTS_SYMBOL`: la clave que deriva el consumidor coincide con la que
+el proveedor asigna a su propia declaración. Las dos `PACKAGE_DEPENDS_ON`
+(`consumer-a` y `consumer-b`, ambas hacia `shared-library`) resuelven
+`Package→Package` con la misma prueba de clave en ambos extremos. Ninguna
+`MODULE_DEPENDS_ON`: TypeScript nunca la emite.
+
+`ts-worker`: `pnpm check` limpio (formato, lint, `tsc --noEmit`, `vitest`, 78
+tests, incluidos los 5 nuevos de `extends-resolver.test.ts`).
+`TYPESCRIPT_CROSS_REPO_PASS` sigue emitiéndose (`pnpm precision`), con el
+nuevo `Widget` sumado a sus métricas.
+
+Go: `go build ./internal/...` y `go test ./internal/facts` limpios, con
+cuatro pruebas nuevas — `TestNormalizeTypeScriptLocalExtendsResolveWithinOneRepository`,
+`TestNormalizeTypeScriptExtendsTargetKeyMatchesProvider`,
+`TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider`,
+`TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge`.
+
+### Go: PACKAGE_DEPENDS_ON y MODULE_DEPENDS_ON
+
+`internal/goloader/packagedependencies.go` agrupa cada `Use` que cruza
+frontera de paquete en un `PackageDependency` por par (source, target),
+deduplicado con un testigo determinista (primero por fichero y posición).
+`NormalizeGo` gana el bucle sobre `input.PackageDependencies`: resuelve el
+destino local contra el mapa de paquetes ya construido, o cross-repository
+contra el mismo `crossByLocation` que ya usan las `References`. Emite
+`PACKAGE_DEPENDS_ON` siempre que ambos extremos resuelvan, y además
+`MODULE_DEPENDS_ON` cuando el `Container` difiere entre los dos — la lectura
+que decide dónde cae la frontera de módulo, documentada en el propio código.
+`Confidence` es siempre `EXACT_TYPECHECKED`; `Provenance` es `GO_TYPES_USE`
+(local) o `GO_OBJECT_PATH` (cross-repository), sin provenance nueva: el
+mismo criterio que ya usan `References` y las relaciones de tipo.
+
+El fixture ganó `testdata/go/type-relations/units/units.go` — un paquete que
+depende de la raíz de su propio módulo, para probar `PACKAGE_DEPENDS_ON` sin
+`MODULE_DEPENDS_ON` — sin tocar `testdata/go/cross-repository*`, que sigue
+alimentando `GO_SEMANTIC_PASS` con las mismas métricas. Nueve pruebas nuevas:
+cinco en `internal/goloader/packagedependencies_test.go`
+(`TestResolvePackageDependenciesGroupsUsesIntoOnePerPair`,
+`TestResolvePackageDependenciesExcludesSelfDependencies`,
+`TestResolvePackageDependenciesChoosesTheEarliestWitnessRegardlessOfInputOrder`,
+`TestResolvePackageDependenciesSortsDistinctPairs`,
+`TestResolvePackageDependenciesIsDeterministicAndCancellable`) y cuatro en
+`internal/facts/golang_test.go`
+(`TestNormalizeGoEmitsPackageDependencyEdgesAcrossRepositories`,
+`TestNormalizeGoEmitsPackageDependencyForANestedModuleOfTheSameRepository`,
+`TestNormalizeGoEmitsIntraModulePackageDependencyWithoutModuleDependsOn`,
+`TestNormalizeGoNeverDuplicatesAPackageDependencyEdge`). `go build
+./internal/...`, `go vet` y `go test` de `internal/goloader` e
+`internal/facts` limpios; `go run ./benchmarks/go-semantic` sigue en
+`GO_SEMANTIC_PASS` con `report.md`/`results.json` byte-idénticos.
+
+### El vocabulario completo, en una generación publicada
+
+Los dos pendientes que este cierre dejaba abiertos se resolvieron a
+continuación.
+
+`ASSIGNS_FUNCTION` y `RETURNS_FUNCTION` tenían productor pero ningún fixture
+las ejercitaba: ninguno de los corpus pasaba una función **como valor**. Se
+añadió `testdata/go/type-relations/units/handlers.go`, que guarda
+`geometry.Measure` en una variable de paquete y la devuelve desde una función,
+más la propia `Measure` en `geometry.go`. Es la distinción que separa esas dos
+clases de `CALLS_DIRECT`: la misma función, usada como valor en vez de
+llamada.
+
+Con eso, un solo `Set` con los tres repositorios Go de cross-repository, el
+fixture de relaciones de tipo y los tres repositorios TypeScript ejercita
+**las dieciocho clases**:
+
+```text
+repos=4  packages=9  files=14  symbols=72 (go=36 typescript=36)  edges=191
+
+  ASSIGNS_FUNCTION 1    CALLS_DIRECT 7        CONTAINS_FILE 13
+  CONTAINS_PACKAGE 9    DEFINES 72            EMBEDS 3
+  EXPORTS 11            EXTENDS 3             IMPLEMENTS 2
+  IMPORTS_SYMBOL 6      MODULE_DEPENDS_ON 3   OVERRIDES 1
+  PACKAGE_DEPENDS_ON 6  PASSES_AS_CALLBACK 1  REEXPORTS 8
+  REFERENCES 22         RETURNS_FUNCTION 1    TYPE_USES 20
+
+  clases presentes: 18 de 18
+```
+
+Y esta vez sí atraviesa el pipeline entero hasta una generación publicada, no
+sólo la normalización:
+
+```text
+[PASS] integrity  27 of 27 canonical table(s) matched; 0 invariant violation(s)
+[PASS] snapshot   72 symbols, 87 edges in the CSR
+[PASS] publish    published generation 000001
+
+luque doctor storage   PASS, schema: canonical (version 2)
+luque doctor graph     PASS, los seis invariantes a cero
+luque snapshot         PASS
+```
+
+Que `doctor graph` pase sobre este grafo importa más que sobre los anteriores:
+las clases nuevas incluyen aristas exactas cross-repository —`EXTENDS` hacia
+`Widget`, `PACKAGE_DEPENDS_ON` y `MODULE_DEPENDS_ON` entre paquetes de
+repositorios distintos— y `exact_edge_without_source`/`_target` exigen que
+ambos extremos estén declarados. Una sola clave mal derivada, en cualquiera de
+los tres productores nuevos, lo habría roto.
+
+No queda ninguna clase del modelo sin productor ni sin ejercitar.

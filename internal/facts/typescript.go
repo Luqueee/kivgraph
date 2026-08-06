@@ -10,8 +10,8 @@ import (
 	"github.com/Luqueee/luque/internal/hotsnapshot"
 )
 
-// TypeScriptWireVersion is the version of the `ts-facts-v3` payload.
-const TypeScriptWireVersion = 3
+// TypeScriptWireVersion is the version of the `ts-facts-v4` payload.
+const TypeScriptWireVersion = 4
 
 // TypeScriptPayload is the fact payload the worker emits for one repository.
 //
@@ -19,15 +19,17 @@ const TypeScriptWireVersion = 3
 // key. Deriving keys on a single side is what keeps one symbol from getting
 // two identities when a consumer and its provider are indexed separately.
 type TypeScriptPayload struct {
-	Version    int                    `json:"version"`
-	Repository TypeScriptRepository   `json:"repository"`
-	Package    *TypeScriptPackage     `json:"package"`
-	Files      []string               `json:"files"`
-	Symbols    []TypeScriptSymbol     `json:"symbols"`
-	References []TypeScriptReference  `json:"references"`
-	Imports    []TypeScriptImport     `json:"imports"`
-	Exports    []TypeScriptExport     `json:"exports"`
-	Unresolved []TypeScriptUnresolved `json:"unresolved"`
+	Version      int                    `json:"version"`
+	Repository   TypeScriptRepository   `json:"repository"`
+	Package      *TypeScriptPackage     `json:"package"`
+	Files        []string               `json:"files"`
+	Symbols      []TypeScriptSymbol     `json:"symbols"`
+	References   []TypeScriptReference  `json:"references"`
+	Imports      []TypeScriptImport     `json:"imports"`
+	Exports      []TypeScriptExport     `json:"exports"`
+	Extends      []TypeScriptExtends    `json:"extends"`
+	Dependencies []TypeScriptDependency `json:"dependencies"`
+	Unresolved   []TypeScriptUnresolved `json:"unresolved"`
 }
 
 // TypeScriptRepository names the repository the payload belongs to.
@@ -139,6 +141,59 @@ type TypeScriptExport struct {
 	Detail              string                  `json:"detail"`
 }
 
+// TypeScriptExtends is one base of a `class ... extends` or `interface ...
+// extends` clause: QualifiedName names the class or interface declaring the
+// clause, already present in Symbols — a heritage clause introduces no
+// binding of its own, unlike an import or an export. It resolves exactly
+// one of two ways, exactly like TypeScriptExport:
+//
+//   - TargetQualifiedName/TargetFile name a declaration already present in
+//     this same payload's Symbols — a base declared in this repository.
+//   - Target carries the provider-source identity of a declaration in
+//     another repository — a base introduced by an import whose module
+//     specifier names a package. Target is nil when that identity is not
+//     exactly known, exactly like an import without one: the base still
+//     becomes an UnresolvedReference, never a guessed edge.
+//
+// TypeScript's `implements` never produces one of these: see the worker's
+// extends-resolver.ts for why.
+type TypeScriptExtends struct {
+	File                string                  `json:"file"`
+	QualifiedName       string                  `json:"qualifiedName"`
+	Start               int                     `json:"start"`
+	End                 int                     `json:"end"`
+	StartLine           int                     `json:"startLine"`
+	Text                string                  `json:"text"`
+	TargetQualifiedName string                  `json:"targetQualifiedName"`
+	TargetFile          string                  `json:"targetFile"`
+	Target              *TypeScriptImportTarget `json:"target"`
+	RequestedPackage    string                  `json:"requestedPackage"`
+	RequestedSymbol     string                  `json:"requestedSymbol"`
+	Reason              string                  `json:"reason"`
+	Detail              string                  `json:"detail"`
+}
+
+// TypeScriptDependency is one real dependency from this repository's own
+// package to another package the checker proved this repository imports
+// from — never a nominal `package.json` entry, which may list a package
+// nothing actually imports. TypeScript has no module concept distinct from
+// its package, so this alone never becomes MODULE_DEPENDS_ON; only a Go
+// package crossing a module boundary does.
+type TypeScriptDependency struct {
+	// Repository and Package name the provider exactly as PackageKey derives
+	// it: the repository Luque indexes it under, and its own package name.
+	Repository string `json:"repository"`
+	Package    string `json:"package"`
+	// File, Specifier, Start, End and StartLine are one deterministic import
+	// occurrence proving the dependency — never every occurrence, since a
+	// single edge needs only one witness.
+	File      string `json:"file"`
+	Specifier string `json:"specifier"`
+	Start     int    `json:"start"`
+	End       int    `json:"end"`
+	StartLine int    `json:"startLine"`
+}
+
 // TypeScriptUnresolved is one classified failure of the worker.
 type TypeScriptUnresolved struct {
 	File             string `json:"file"`
@@ -163,9 +218,13 @@ type TypeScriptReport struct {
 	// is not exactly known: neither a local declaration in this payload nor a
 	// provider declaration reached with a class and a signature.
 	ExportsWithoutTarget int
+	// ExtendsWithoutTarget counts extends bases whose declaration is not
+	// exactly known: neither a local declaration in this payload nor a
+	// provider declaration reached with a class and a signature.
+	ExtendsWithoutTarget int
 }
 
-// DecodeTypeScriptPayload parses a `ts-facts-v3` document.
+// DecodeTypeScriptPayload parses a `ts-facts-v4` document.
 func DecodeTypeScriptPayload(data []byte) (TypeScriptPayload, error) {
 	var payload TypeScriptPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
@@ -480,6 +539,117 @@ func NormalizeTypeScript(
 			Kind:        kind,
 			SourceKey:   sourceKey,
 			TargetKey:   targetKey,
+			Confidence:  ExactTypechecked,
+			Provenance:  TypeScriptChecker,
+			EvidenceKey: evidence.Key,
+		})
+	}
+
+	for _, ext := range payload.Extends {
+		if err := ctx.Err(); err != nil {
+			return Set{}, TypeScriptReport{}, err
+		}
+		sourceKey, hasSource := symbolKeys[ext.File+"\x00"+ext.QualifiedName]
+		if !hasSource {
+			// The class or interface declaring every extends clause is
+			// already a symbol in this same payload; a miss here is the
+			// payload contradicting itself, exactly like the Imports and
+			// Exports loops.
+			report.EdgesWithoutSource++
+			continue
+		}
+		fileKey := FileKey(name, ext.File)
+
+		var targetKey string
+		switch {
+		case ext.TargetQualifiedName != "" && ext.TargetFile != "":
+			// A local base: the declaration already lives in this same
+			// payload's Symbols, exactly like a References target.
+			key, hasTarget := symbolKeys[ext.TargetFile+"\x00"+ext.TargetQualifiedName]
+			if !hasTarget {
+				report.EdgesWithoutTarget++
+				continue
+			}
+			targetKey = key
+		case ext.Target != nil && strings.TrimSpace(ext.Target.Kind) != "" && strings.TrimSpace(ext.Target.Signature) != "":
+			// A cross-repository base, proven the exact same way an
+			// IMPORTS_SYMBOL target is: the provider's own source, read at
+			// the position LUQUE-0703's declaration map bridge resolved.
+			targetIdentity := typeScriptSymbolIdentity(ext.Target.Repository, ext.Target.Package, ext.Target.QualifiedName, ext.Target.Kind, ext.Target.Signature)
+			key, err := targetIdentity.Key()
+			if err != nil {
+				return Set{}, TypeScriptReport{}, fmt.Errorf("extends %q target identity: %w", ext.QualifiedName, err)
+			}
+			targetKey = string(key)
+		default:
+			// Neither a local declaration nor a provable provider identity:
+			// dropped as an unresolved reference, never guessed.
+			set.Unresolved = append(set.Unresolved, UnresolvedReference{
+				RepositoryKey:    repositoryKey,
+				FileKey:          fileKey,
+				Language:         LanguageTypeScript,
+				SourceSymbolKey:  sourceKey,
+				RequestedPackage: ext.RequestedPackage,
+				RequestedSymbol:  ext.RequestedSymbol,
+				Reason:           ext.Reason,
+				Detail:           ext.Detail,
+				Start:            Position{Line: ext.StartLine, Offset: ext.Start},
+			})
+			report.ExtendsWithoutTarget++
+			continue
+		}
+
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, ext.Start, ext.End),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start:         Position{Line: ext.StartLine, Offset: ext.Start},
+			End:           Position{Line: ext.StartLine, Offset: ext.End},
+			Text:          ext.Text,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		// TargetKey names a symbol the PROVIDER repository normalises when
+		// the base crosses repositories: this Set alone will fail
+		// Validate() with a dangling edge until the caller merges the
+		// provider's Set in, exactly like an IMPORTS_SYMBOL edge.
+		set.Edges = append(set.Edges, Edge{
+			Kind:        Extends,
+			SourceKey:   sourceKey,
+			TargetKey:   targetKey,
+			Confidence:  ExactTypechecked,
+			Provenance:  TypeScriptChecker,
+			EvidenceKey: evidence.Key,
+		})
+	}
+
+	// PACKAGE_DEPENDS_ON needs no symbol lookup at all: both ends are the
+	// package keys the payload and the provider registry already name.
+	// TypeScript has no module concept distinct from its package, so this
+	// worker never emits MODULE_DEPENDS_ON — only Go's package/module split
+	// does.
+	for _, dependency := range payload.Dependencies {
+		if err := ctx.Err(); err != nil {
+			return Set{}, TypeScriptReport{}, err
+		}
+		targetPackageKey := PackageKey(LanguageTypeScript, dependency.Repository, dependency.Package)
+		fileKey := FileKey(name, dependency.File)
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, dependency.Start, dependency.End),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start:         Position{Line: dependency.StartLine, Offset: dependency.Start},
+			End:           Position{Line: dependency.StartLine, Offset: dependency.End},
+			Text:          dependency.Specifier,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		// TargetKey names a package the PROVIDER repository normalises, not
+		// one in this payload's own Packages: this Set alone will fail
+		// Validate() with a dangling edge until the caller merges the
+		// provider's Set in, exactly like an IMPORTS_SYMBOL edge.
+		set.Edges = append(set.Edges, Edge{
+			Kind:        PackageDependsOn,
+			SourceKey:   packageKey,
+			TargetKey:   targetPackageKey,
 			Confidence:  ExactTypechecked,
 			Provenance:  TypeScriptChecker,
 			EvidenceKey: evidence.Key,

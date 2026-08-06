@@ -1,7 +1,7 @@
 /**
  * Emit the canonical fact payload of one TypeScript repository.
  *
- * The payload is the wire contract `ts-facts-v3` consumed by
+ * The payload is the wire contract `ts-facts-v4` consumed by
  * `internal/facts`: the worker reports identity components and positions, and
  * Go derives the durable keys. Nothing here computes a key, so both languages
  * cannot drift into two identities for one symbol.
@@ -23,6 +23,22 @@
  * identity an import does, with the same fallback to `target: null` plus an
  * `unresolved` entry when that identity cannot be proven.
  *
+ * `extends` is the same idea again, for `class A extends B` and `interface A
+ * extends B, C`: one entry per base, whose `qualifiedName` names the class or
+ * interface declaring the clause — already an emitted symbol, since a
+ * heritage clause introduces no binding of its own. A base declared in this
+ * repository resolves through `targetQualifiedName`/`targetFile`; a base
+ * introduced by an import reuses the exact provider-source identity an
+ * `IMPORTS_SYMBOL` edge for that same binding already carries, never a
+ * second resolution of its own. `implements` never appears here: see
+ * `extends-resolver.ts` for why.
+ *
+ * `dependencies` is `PACKAGE_DEPENDS_ON`: one entry per package this
+ * repository's own package really imports from, backed by a checker-resolved
+ * module, never by a `package.json` entry nothing imports. TypeScript has no
+ * module concept distinct from its package, so this worker never emits
+ * `MODULE_DEPENDS_ON` — only Go's package/module split does.
+ *
  * Usage:
  *
  *   pnpm facts <repository-name> <repository-root> <output.json> \
@@ -36,38 +52,45 @@
  * shape `cross-repository-positive.test.ts` builds by hand for its registry.
  * Repeat the flag once per provider repository.
  *
- * Regenerate the `ts-facts-v3` goldens, from `ts-worker/`:
+ * Regenerate the `ts-facts-v4` goldens, from `ts-worker/`:
  *
  *   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \
- *     ../testdata/protocol/ts-facts-v3/shared-library.json
+ *     ../testdata/protocol/ts-facts-v4/shared-library.json
  *   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \
- *     ../testdata/protocol/ts-facts-v3/consumer-a.json \
+ *     ../testdata/protocol/ts-facts-v4/consumer-a.json \
  *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
  *   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \
- *     ../testdata/protocol/ts-facts-v3/consumer-b.json \
+ *     ../testdata/protocol/ts-facts-v4/consumer-b.json \
  *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ImportBindingSymbol } from "./reference-extractor.js";
+import { type ExtendsEdge, resolveExtends } from "./extends-resolver.js";
 import type {
   ImportedSymbol,
   ReexportedSymbol,
 } from "./imported-symbol-resolver.js";
-import { LanguageService } from "./language-service.js";
+import { LanguageService, type ProjectView } from "./language-service.js";
+import {
+  type PackageDependency,
+  resolvePackageDependencies,
+} from "./package-dependency-resolver.js";
 import type {
   PackageProvider,
   PackageProviderRegistry,
 } from "./package-import-resolver.js";
-import { extractLocalReferences } from "./reference-extractor.js";
-import { extractLocalSymbols } from "./symbol-extractor.js";
+import {
+  extractLocalReferences,
+  type ImportBindingSymbol,
+} from "./reference-extractor.js";
 import type { LocalExport } from "./symbol-extractor.js";
+import { extractLocalSymbols } from "./symbol-extractor.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
 interface FactsPayload {
-  readonly version: 3;
+  readonly version: 4;
   readonly repository: { readonly name: string };
   readonly package: {
     readonly name: string;
@@ -80,6 +103,8 @@ interface FactsPayload {
   readonly references: readonly FactReference[];
   readonly imports: readonly FactImport[];
   readonly exports: readonly FactExport[];
+  readonly extends: readonly FactExtends[];
+  readonly dependencies: readonly FactDependency[];
   readonly unresolved: readonly FactUnresolved[];
 }
 
@@ -179,6 +204,62 @@ interface FactExport {
   readonly detail: string | null;
 }
 
+/**
+ * One base of a `class ... extends` or `interface ... extends` clause, and
+ * the declaration it names. `qualifiedName` names the class or interface
+ * declaring the clause — already present in this payload's `symbols`, since
+ * a heritage clause introduces no binding of its own, unlike an import or an
+ * export. It resolves exactly one of two ways, exactly like `FactExport`:
+ *
+ *   - `targetQualifiedName`/`targetFile` name a declaration already present
+ *     in this same payload's `symbols` — a base declared in this
+ *     repository.
+ *   - `target` carries the provider-source identity of a declaration in
+ *     another repository — a base introduced by an import whose module
+ *     specifier names a package. `target` is null when that identity is
+ *     not exactly known, exactly like an import without one: the base
+ *     still becomes an `UnresolvedReference`, never a guessed edge.
+ */
+interface FactExtends {
+  readonly file: string;
+  /** Qualified name of the class/interface symbol emitted in `symbols`. */
+  readonly qualifiedName: string;
+  readonly start: number;
+  readonly end: number;
+  readonly startLine: number;
+  /** Source text of the base, the evidence of the edge. */
+  readonly text: string;
+  readonly targetQualifiedName: string | null;
+  readonly targetFile: string | null;
+  readonly target: FactImportTarget | null;
+  /** Package the base was imported from, null for a local target. */
+  readonly requestedPackage: string | null;
+  readonly requestedSymbol: string | null;
+  /** Why a cross-repository target has no identity. Null otherwise. */
+  readonly reason: string | null;
+  readonly detail: string | null;
+}
+
+/**
+ * One real dependency from this repository's own package to another package
+ * the checker proved this repository imports from — never a nominal
+ * `package.json` entry, which may list a package nothing actually imports.
+ * TypeScript has no module concept distinct from its package, so this never
+ * becomes `MODULE_DEPENDS_ON`; only Go's package/module split does.
+ */
+interface FactDependency {
+  /** Provider repository, as Luque names it. */
+  readonly repository: string;
+  /** Provider package name. */
+  readonly package: string;
+  /** One deterministic import occurrence proving the dependency. */
+  readonly file: string;
+  readonly specifier: string;
+  readonly start: number;
+  readonly end: number;
+  readonly startLine: number;
+}
+
 interface FactUnresolved {
   readonly file: string;
   readonly reason: string;
@@ -208,6 +289,24 @@ export async function collectFacts(
       service,
       view,
       registry,
+    );
+
+    // The consumer is this same repository: the identical `loadProvider`
+    // used for every `--provider` flag, applied to the repository being
+    // indexed. Package identity stays authoritative on both ends of a
+    // PACKAGE_DEPENDS_ON edge, exactly as decision 1 requires.
+    const consumerProvider = await loadProvider(repositoryName, root);
+    const dependencyResolution = await resolvePackageDependencies(
+      service,
+      view,
+      registry,
+      consumerProvider,
+    );
+    const extendsResolution = await resolveExtends(
+      service,
+      view,
+      symbols,
+      resolution.symbols,
     );
     const importSymbols = importFactSymbols(root, resolution.symbols);
     // An export's public name frequently repeats the local declaration it
@@ -240,12 +339,23 @@ export async function collectFacts(
       importBindings: importSymbols.referenceTargets,
     });
 
+    const dependencyFacts = await dependencyFactSymbols(
+      view,
+      root,
+      dependencyResolution.dependencies,
+    );
+    const extendsFacts = extendsFactSymbols(root, extendsResolution.extends);
+
+    const dependencyEvidenceFiles = dependencyResolution.dependencies
+      .map((dependency) => dependency.imports[0]?.fileName)
+      .filter((fileName): fileName is string => fileName !== undefined);
     const files = [
       ...new Set([
         ...symbols.symbols.map((symbol) => symbol.fileName),
         ...symbols.exports.map((entry) => entry.fileName),
         ...resolution.symbols.map((entry) => entry.consumer.fileName),
         ...resolution.reexports.map((entry) => entry.export.fileName),
+        ...dependencyEvidenceFiles,
       ]),
     ].sort();
 
@@ -277,10 +387,11 @@ export async function collectFacts(
           }),
         ),
       ...exportSymbols.unresolved,
+      ...extendsFacts.unresolved,
     ].sort(compareUnresolved);
 
     return {
-      version: 3,
+      version: 4,
       repository: { name: repositoryName },
       package: await readPackage(root),
       files: files.map((file) => relative(root, file)),
@@ -344,6 +455,8 @@ export async function collectFacts(
         };
       }),
       exports: exportSymbols.exports,
+      extends: extendsFacts.extends,
+      dependencies: dependencyFacts,
       unresolved,
     };
   } finally {
@@ -552,6 +665,103 @@ function exportFactSymbols(
   return { symbols, exports, unresolved };
 }
 
+/**
+ * Turn every checker-resolved package dependency into its `FactDependency`,
+ * with a single deterministic import occurrence as evidence — never every
+ * occurrence, since one witness is enough for a `PACKAGE_DEPENDS_ON` edge.
+ * `dependency.imports` is already sorted deterministically by
+ * `createPackageDependencies`, so its first entry is that witness.
+ */
+async function dependencyFactSymbols(
+  view: ProjectView,
+  root: string,
+  dependencies: readonly PackageDependency[],
+): Promise<readonly FactDependency[]> {
+  const facts: FactDependency[] = [];
+  for (const dependency of dependencies) {
+    const evidence = dependency.imports[0];
+    if (evidence === undefined) {
+      // createPackageDependencies only ever creates a dependency alongside
+      // at least one contributing import; an empty list never happens.
+      continue;
+    }
+    const sourceFile = await view.program.getSourceFile(evidence.fileName);
+    const startLine =
+      sourceFile === undefined
+        ? 0
+        : sourceFile.getLineAndCharacterOfPosition(evidence.start).line + 1;
+    facts.push({
+      repository: dependency.provider.repository,
+      package: dependency.provider.name,
+      file: relative(root, evidence.fileName),
+      specifier: evidence.specifier,
+      start: evidence.start,
+      end: evidence.end,
+      startLine,
+    });
+  }
+  return facts;
+}
+
+/**
+ * Turn every resolved `extends` base into its `FactExtends` edge, and every
+ * one without a proven identity into a matching `FactUnresolved` entry too —
+ * exactly like `exportFactSymbols` does for a cross-repository re-export.
+ */
+function extendsFactSymbols(
+  root: string,
+  edges: readonly ExtendsEdge[],
+): {
+  readonly extends: readonly FactExtends[];
+  readonly unresolved: readonly FactUnresolved[];
+} {
+  const facts: FactExtends[] = [];
+  const unresolved: FactUnresolved[] = [];
+
+  for (const edge of edges) {
+    const identity = edge.identity;
+    facts.push({
+      file: relative(root, edge.base.fileName),
+      qualifiedName: edge.base.sourceQualifiedName,
+      start: edge.base.start,
+      end: edge.base.end,
+      startLine: edge.base.startLine,
+      text: edge.base.text,
+      targetQualifiedName: edge.targetQualifiedName ?? null,
+      targetFile:
+        edge.targetFile === undefined ? null : relative(root, edge.targetFile),
+      target:
+        identity === undefined
+          ? null
+          : {
+              repository: identity.repository,
+              package: identity.package,
+              qualifiedName: identity.qualifiedName,
+              kind: identity.kind,
+              signature: identity.signature,
+              file: identity.file,
+              startLine: identity.startLine,
+            },
+      requestedPackage: edge.packageName ?? null,
+      requestedSymbol: edge.exportedName ?? null,
+      reason: edge.unresolvedReason ?? null,
+      detail: edge.unresolvedDetail ?? null,
+    });
+    if (edge.targetQualifiedName === undefined && identity === undefined) {
+      unresolved.push({
+        file: relative(root, edge.base.fileName),
+        reason: edge.unresolvedReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
+        requestedPackage: edge.packageName ?? "",
+        requestedSymbol: edge.exportedName ?? null,
+        detail: edge.unresolvedDetail ?? null,
+        start: edge.base.start,
+      });
+    }
+  }
+
+  return { extends: facts, unresolved };
+}
+
 function compareUnresolved(
   left: FactUnresolved,
   right: FactUnresolved,
@@ -651,13 +861,15 @@ function stringOption(value: unknown): string | undefined {
 }
 
 /**
- * Build the `PackageProvider` of one repository declared with `--provider`.
+ * Build the `PackageProvider` of one repository: a provider declared with
+ * `--provider`, or the repository being indexed itself, which supplies its
+ * own `PackageProvider` as the consumer side of `PACKAGE_DEPENDS_ON`.
  *
  * Only `package.json` and `tsconfig.json` are read — the same two files
  * `cross-repository-positive.test.ts` reads by hand to build its registry.
- * A provider whose manifest cannot be read fails the whole run: a provider
- * named on the command line that silently resolves to nothing would hide
- * real imports behind `PACKAGE_PROVIDER_NOT_FOUND`.
+ * A repository whose manifest cannot be read fails the whole run: silently
+ * resolving to nothing would hide real imports behind
+ * `PACKAGE_PROVIDER_NOT_FOUND`, or a real dependency behind no edge at all.
  */
 async function loadProvider(
   repository: string,
@@ -668,7 +880,7 @@ async function loadProvider(
   const manifest = await readManifest(manifestPath);
   if (manifest === undefined) {
     throw new Error(
-      `--provider ${repository}=${rootPath}: no valid package.json at ${manifestPath}`,
+      `repository ${repository} (${rootPath}): no valid package.json at ${manifestPath}`,
     );
   }
   const projectPath = path.join(root, "tsconfig.json");
@@ -733,7 +945,7 @@ interface CliArgs {
 
 const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--provider <name>=<path>]...
 
-Emits the ts-facts-v3 payload of <repository-root>, named <repository-name>.
+Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
 
   --provider <name>=<path>   A provider repository this run may import from.
                               <name> is the repository name (as Luque names
@@ -743,15 +955,15 @@ Emits the ts-facts-v3 payload of <repository-root>, named <repository-name>.
                               package name, version and source/declaration
                               roots. Repeatable.
 
-Example — regenerate the ts-facts-v3 goldens, from ts-worker/:
+Example — regenerate the ts-facts-v4 goldens, from ts-worker/:
 
   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \\
-    ../testdata/protocol/ts-facts-v3/shared-library.json
+    ../testdata/protocol/ts-facts-v4/shared-library.json
   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \\
-    ../testdata/protocol/ts-facts-v3/consumer-a.json \\
+    ../testdata/protocol/ts-facts-v4/consumer-a.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \\
-    ../testdata/protocol/ts-facts-v3/consumer-b.json \\
+    ../testdata/protocol/ts-facts-v4/consumer-b.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
 `;
 
@@ -809,7 +1021,8 @@ if (cliArgv.includes("--help") || cliArgv.includes("-h")) {
       );
       process.stdout.write(
         `${payload.symbols.length} symbols, ${payload.references.length} references, ` +
-          `${payload.imports.length} imports, ${payload.exports.length} exports\n`,
+          `${payload.imports.length} imports, ${payload.exports.length} exports, ` +
+          `${payload.extends.length} extends, ${payload.dependencies.length} dependencies\n`,
       );
     } catch (error) {
       process.stderr.write(

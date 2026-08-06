@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "repository": {
     "name": "shared-library"
   },
@@ -12,6 +12,7 @@
   "files": [
     "src/helper.ts",
     "src/index.ts",
+    "src/inheritance.ts",
     "src/value.ts"
   ],
   "symbols": [
@@ -26,6 +27,42 @@
       "endLine": 5,
       "start": 42,
       "end": 112
+    },
+    {
+      "file": "src/inheritance.ts",
+      "name": "Named",
+      "qualifiedName": "Named",
+      "kind": "interface",
+      "exported": true,
+      "signature": "export interface Named",
+      "startLine": 9,
+      "endLine": 11,
+      "start": 332,
+      "end": 383
+    },
+    {
+      "file": "src/inheritance.ts",
+      "name": "NamedShape",
+      "qualifiedName": "NamedShape",
+      "kind": "interface",
+      "exported": true,
+      "signature": "export interface NamedShape extends Shape, Named",
+      "startLine": 18,
+      "endLine": 20,
+      "start": 559,
+      "end": 637
+    },
+    {
+      "file": "src/inheritance.ts",
+      "name": "Widget",
+      "qualifiedName": "Widget",
+      "kind": "class",
+      "exported": true,
+      "signature": "export class Widget",
+      "startLine": 26,
+      "endLine": 28,
+      "start": 773,
+      "end": 834
     },
     {
       "file": "src/value.ts",
@@ -113,15 +150,87 @@
     },
     {
       "file": "src/index.ts",
+      "name": "Named",
+      "qualifiedName": "Named",
+      "kind": "export",
+      "exported": true,
+      "signature": "export * from \"./inheritance.js\";",
+      "startLine": 2,
+      "endLine": 2,
+      "start": 28,
+      "end": 61
+    },
+    {
+      "file": "src/index.ts",
+      "name": "NamedShape",
+      "qualifiedName": "NamedShape",
+      "kind": "export",
+      "exported": true,
+      "signature": "export * from \"./inheritance.js\";",
+      "startLine": 2,
+      "endLine": 2,
+      "start": 28,
+      "end": 61
+    },
+    {
+      "file": "src/index.ts",
+      "name": "Widget",
+      "qualifiedName": "Widget",
+      "kind": "export",
+      "exported": true,
+      "signature": "export * from \"./inheritance.js\";",
+      "startLine": 2,
+      "endLine": 2,
+      "start": 28,
+      "end": 61
+    },
+    {
+      "file": "src/index.ts",
       "name": "aliasedHelper",
       "qualifiedName": "aliasedHelper",
       "kind": "export",
       "exported": true,
       "signature": "helper as aliasedHelper",
-      "startLine": 2,
-      "endLine": 2,
-      "start": 37,
-      "end": 60
+      "startLine": 3,
+      "endLine": 3,
+      "start": 71,
+      "end": 94
+    },
+    {
+      "file": "src/inheritance.ts",
+      "name": "Named",
+      "qualifiedName": "Named#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "Named",
+      "startLine": 9,
+      "endLine": 9,
+      "start": 349,
+      "end": 354
+    },
+    {
+      "file": "src/inheritance.ts",
+      "name": "NamedShape",
+      "qualifiedName": "NamedShape#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "NamedShape",
+      "startLine": 18,
+      "endLine": 18,
+      "start": 576,
+      "end": 586
+    },
+    {
+      "file": "src/inheritance.ts",
+      "name": "Widget",
+      "qualifiedName": "Widget#2",
+      "kind": "export",
+      "exported": true,
+      "signature": "Widget",
+      "startLine": 26,
+      "endLine": 26,
+      "start": 786,
+      "end": 792
     },
     {
       "file": "src/value.ts",
@@ -171,6 +280,28 @@
       "start": 72,
       "end": 77,
       "text": "Shape"
+    },
+    {
+      "file": "src/inheritance.ts",
+      "kind": "TYPE_USES",
+      "sourceQualifiedName": "NamedShape",
+      "targetQualifiedName": "Shape",
+      "targetFile": "src/value.ts",
+      "startLine": 18,
+      "start": 595,
+      "end": 600,
+      "text": "Shape"
+    },
+    {
+      "file": "src/inheritance.ts",
+      "kind": "TYPE_USES",
+      "sourceQualifiedName": "NamedShape",
+      "targetQualifiedName": "Named",
+      "targetFile": "src/inheritance.ts",
+      "startLine": 18,
+      "start": 602,
+      "end": 607,
+      "text": "Named"
     },
     {
       "file": "src/value.ts",
@@ -253,13 +384,109 @@
     {
       "file": "src/index.ts",
       "kind": "REEXPORTS",
-      "qualifiedName": "aliasedHelper",
-      "start": 37,
-      "end": 60,
+      "qualifiedName": "Named",
+      "start": 28,
+      "end": 61,
       "startLine": 2,
+      "text": "export * from \"./inheritance.js\";",
+      "targetQualifiedName": "Named",
+      "targetFile": "src/inheritance.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/index.ts",
+      "kind": "REEXPORTS",
+      "qualifiedName": "NamedShape",
+      "start": 28,
+      "end": 61,
+      "startLine": 2,
+      "text": "export * from \"./inheritance.js\";",
+      "targetQualifiedName": "NamedShape",
+      "targetFile": "src/inheritance.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/index.ts",
+      "kind": "REEXPORTS",
+      "qualifiedName": "Widget",
+      "start": 28,
+      "end": 61,
+      "startLine": 2,
+      "text": "export * from \"./inheritance.js\";",
+      "targetQualifiedName": "Widget",
+      "targetFile": "src/inheritance.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/index.ts",
+      "kind": "REEXPORTS",
+      "qualifiedName": "aliasedHelper",
+      "start": 71,
+      "end": 94,
+      "startLine": 3,
       "text": "helper as aliasedHelper",
       "targetQualifiedName": "helper",
       "targetFile": "src/helper.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/inheritance.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "Named#2",
+      "start": 349,
+      "end": 354,
+      "startLine": 9,
+      "text": "Named",
+      "targetQualifiedName": "Named",
+      "targetFile": "src/inheritance.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/inheritance.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "NamedShape#2",
+      "start": 576,
+      "end": 586,
+      "startLine": 18,
+      "text": "NamedShape",
+      "targetQualifiedName": "NamedShape",
+      "targetFile": "src/inheritance.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/inheritance.ts",
+      "kind": "EXPORTS",
+      "qualifiedName": "Widget#2",
+      "start": 786,
+      "end": 792,
+      "startLine": 26,
+      "text": "Widget",
+      "targetQualifiedName": "Widget",
+      "targetFile": "src/inheritance.ts",
       "target": null,
       "requestedPackage": null,
       "requestedSymbol": null,
@@ -315,5 +542,38 @@
       "detail": null
     }
   ],
+  "extends": [
+    {
+      "file": "src/inheritance.ts",
+      "qualifiedName": "NamedShape",
+      "start": 595,
+      "end": 600,
+      "startLine": 18,
+      "text": "Shape",
+      "targetQualifiedName": "Shape",
+      "targetFile": "src/value.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "file": "src/inheritance.ts",
+      "qualifiedName": "NamedShape",
+      "start": 602,
+      "end": 607,
+      "startLine": 18,
+      "text": "Named",
+      "targetQualifiedName": "Named",
+      "targetFile": "src/inheritance.ts",
+      "target": null,
+      "requestedPackage": null,
+      "requestedSymbol": null,
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "dependencies": [],
   "unresolved": []
 }

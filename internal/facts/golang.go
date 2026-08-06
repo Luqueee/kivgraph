@@ -20,6 +20,11 @@ type GoInput struct {
 	References []goloader.Reference
 	// CrossRepository attributes targets to their provider repository.
 	CrossRepository []goloader.CrossRepositoryReference
+	// PackageDependencies are the deduplicated (source, target) package
+	// pairs a package-boundary use belongs to. Each one may become
+	// PACKAGE_DEPENDS_ON and, when it also crosses a Go module boundary,
+	// MODULE_DEPENDS_ON.
+	PackageDependencies []goloader.PackageDependency
 	// TypeRelations are the IMPLEMENTS, EMBEDS and OVERRIDES facts: structural
 	// relations the type checker decides on its own, with no source
 	// occurrence of their own to anchor them.
@@ -31,13 +36,13 @@ type GoInput struct {
 // GoReport records what normalisation could not keep, so a dropped fact is
 // visible instead of silently missing.
 type GoReport struct {
-	// EdgesWithoutSource counts references and type relations whose
-	// enclosing declaration has no durable identity, typically a use at
-	// file scope.
+	// EdgesWithoutSource counts references, type relations and package
+	// dependencies whose source has no durable identity in this pass,
+	// typically a use at file scope or a package with no definitions.
 	EdgesWithoutSource int
-	// EdgesWithoutTarget counts references and type relations whose target
-	// is not indexed in this pass and was not attributed to a provider
-	// repository.
+	// EdgesWithoutTarget counts references, type relations and package
+	// dependencies whose target is not indexed in this pass and was not
+	// attributed to a provider repository.
 	EdgesWithoutTarget int
 	// UnresolvedWithoutFile counts module-level failures with no file.
 	UnresolvedWithoutFile int
@@ -259,6 +264,68 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		})
 	}
 
+	for _, dependency := range input.PackageDependencies {
+		if err := ctx.Err(); err != nil {
+			return Set{}, GoReport{}, err
+		}
+		sourcePackage, hasSource := packages[PackageKey(LanguageGo, name, dependency.PackagePath)]
+		if !hasSource {
+			report.EdgesWithoutSource++
+			continue
+		}
+		target, resolved := resolveGoPackageTarget(dependency, name, packages, crossByLocation)
+		if !resolved {
+			report.EdgesWithoutTarget++
+			continue
+		}
+		relative := repositoryRelativePath(root, dependency.FileName)
+		fileKey := FileKey(name, relative)
+		if _, exists := files[fileKey]; !exists {
+			// A dependency always lives in a file this pass already indexed.
+			report.EdgesWithoutSource++
+			continue
+		}
+		evidence := Evidence{
+			Key:           EvidenceKey(fileKey, dependency.Offset, dependency.EndOffset),
+			RepositoryKey: repositoryKey,
+			FileKey:       fileKey,
+			Start: Position{
+				Line:   dependency.StartLine,
+				Column: dependency.StartColumn,
+				Offset: dependency.Offset,
+			},
+			End:  Position{Line: dependency.StartLine, Offset: dependency.EndOffset},
+			Text: dependency.Name,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		set.Edges = append(set.Edges, Edge{
+			Kind:        PackageDependsOn,
+			SourceKey:   sourcePackage.Key,
+			TargetKey:   target.Key,
+			Confidence:  ExactTypechecked,
+			Provenance:  target.Provenance,
+			EvidenceKey: evidence.Key,
+		})
+		// MODULE_DEPENDS_ON has no container of its own in the model: a Go
+		// module is not one of the graph's node kinds, so the edge stays
+		// Package -> Package exactly like PACKAGE_DEPENDS_ON and is told
+		// apart only by Kind. It is emitted in addition to, never instead
+		// of, PACKAGE_DEPENDS_ON: two packages of the same module produce
+		// only the first; two packages of different modules produce both,
+		// because a dependency that also crosses a module boundary is
+		// still, first of all, a package dependency.
+		if sourcePackage.Container != target.ModulePath {
+			set.Edges = append(set.Edges, Edge{
+				Kind:        ModuleDependsOn,
+				SourceKey:   sourcePackage.Key,
+				TargetKey:   target.Key,
+				Confidence:  ExactTypechecked,
+				Provenance:  target.Provenance,
+				EvidenceKey: evidence.Key,
+			})
+		}
+	}
+
 	for _, entry := range input.Unresolved {
 		if err := ctx.Err(); err != nil {
 			return Set{}, GoReport{}, err
@@ -395,6 +462,48 @@ func goRelationEdgeKind(kind goloader.TypeRelationKind) EdgeKind {
 	default:
 		return References
 	}
+}
+
+// packageTarget is the resolved identity of a package dependency's target:
+// its durable key, its module path (Container in the model), and the
+// provenance that identity carries — which differs between a local and a
+// cross-repository resolution exactly like it does for a plain reference.
+type packageTarget struct {
+	Key        string
+	ModulePath string
+	Provenance Provenance
+}
+
+// resolveGoPackageTarget finds the identity of a package dependency's
+// target.
+//
+// A local target is one of the packages this pass already indexed from its
+// own definitions, found the same way the packages map itself was built. A
+// cross-repository target is attributed through the CrossRepositoryReference
+// of the dependency's witness use, keyed by that use's location exactly like
+// resolveGoTarget keys a plain reference: the witness is a real use, so the
+// same lookup that would resolve its symbol also resolves the package that
+// symbol belongs to, complete with the provider repository the module
+// registry attributed it to.
+func resolveGoPackageTarget(
+	dependency goloader.PackageDependency,
+	repositoryName string,
+	packages map[string]Package,
+	crossByLocation map[string]goloader.CrossRepositoryReference,
+) (packageTarget, bool) {
+	localKey := PackageKey(LanguageGo, repositoryName, dependency.TargetPackagePath)
+	if local, exists := packages[localKey]; exists {
+		return packageTarget{Key: local.Key, ModulePath: local.Container, Provenance: GoTypesUse}, true
+	}
+	cross, exists := crossByLocation[locationKey(dependency.FileName, dependency.Offset)]
+	if !exists || cross.Status != goloader.CrossRepositoryResolved {
+		return packageTarget{}, false
+	}
+	return packageTarget{
+		Key:        PackageKey(LanguageGo, cross.Provider.Repository, cross.TargetPackagePath),
+		ModulePath: cross.Provider.ModulePath,
+		Provenance: GoObjectPath,
+	}, true
 }
 
 func locationKey(fileName string, offset int) string {

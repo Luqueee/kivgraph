@@ -15,8 +15,8 @@ import type {
 } from "./package-import-resolver.js";
 import { resolveProviderSourcePositions } from "./provider-source-position-resolver.js";
 import {
-  resolveUnresolvedReferences,
   type PackageProviderConflict,
+  resolveUnresolvedReferences,
 } from "./unresolved-reference-resolver.js";
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
@@ -115,12 +115,13 @@ const cases: readonly PrecisionCase[] = [
     providers: [sharedProvider],
     conflicts: [],
     expectedEdges: [
+      "src/derived.ts#Widget -> @luque-fixture/shared:Widget -> cross-repository/shared-library/dist/inheritance.d.ts",
       "src/direct.ts#compute -> @luque-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
       "src/direct.ts#value -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
       "src/direct.ts#Shape -> @luque-fixture/shared:Shape -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
-    expectedSourcePositions: 3,
+    expectedSourcePositions: 4,
   },
   {
     name: "consumer-b",

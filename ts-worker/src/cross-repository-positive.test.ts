@@ -3,11 +3,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LanguageService } from "./language-service.js";
+import { resolvePackageDependencies } from "./package-dependency-resolver.js";
 import type {
   PackageProvider,
   PackageProviderRegistry,
 } from "./package-import-resolver.js";
-import { resolvePackageDependencies } from "./package-dependency-resolver.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
 const FIXTURE = path.resolve(
@@ -63,6 +63,8 @@ describe("cross-repository positive fixture", () => {
     );
 
     expect(resolution.unresolved).toEqual([]);
+    // "Widget" comes from src/derived.ts, which sorts before src/direct.ts;
+    // the other three are direct.ts's value and type imports.
     expect(
       resolution.symbols.map((entry) => [
         entry.consumer.name,
@@ -70,18 +72,36 @@ describe("cross-repository positive fixture", () => {
         entry.target.name,
       ]),
     ).toEqual([
+      ["Widget", "Widget", "Widget"],
       ["compute", "compute", "compute"],
       ["value", "value", "value"],
       ["Shape", "Shape", "Shape"],
     ]);
+    const [widget, ...directImports] = resolution.symbols;
+
+    expect(widget?.consumer.fileName).toBe(path.join(root, "src/derived.ts"));
+    expect(widget?.provider.repository).toBe("shared-library");
+    expect(widget?.target.declarations).toEqual([
+      expect.objectContaining({
+        fileName: path.join(SHARED_ROOT, "dist/inheritance.d.ts"),
+        sourceStatus: "DECLARATION_MAP",
+        sourceFiles: [path.join(SHARED_ROOT, "src/inheritance.ts")],
+      }),
+    ]);
+    expect(widget?.target.declarations[0]?.sourcePosition).toEqual({
+      fileName: path.join(SHARED_ROOT, "src/inheritance.ts"),
+      line: 26,
+      character: 13,
+    });
+
     expect(
-      resolution.symbols.every(
+      directImports.every(
         (entry) =>
           entry.consumer.fileName === path.join(root, "src/direct.ts") &&
           entry.provider.repository === "shared-library",
       ),
     ).toBe(true);
-    for (const entry of resolution.symbols) {
+    for (const entry of directImports) {
       expect(entry.target.declarations).toEqual([
         expect.objectContaining({
           fileName: path.join(SHARED_ROOT, "dist/value.d.ts"),
@@ -92,7 +112,7 @@ describe("cross-repository positive fixture", () => {
     }
 
     expect(
-      resolution.symbols.map((entry) => [
+      directImports.map((entry) => [
         entry.consumer.name,
         entry.target.declarations[0]?.sourcePosition,
       ]),

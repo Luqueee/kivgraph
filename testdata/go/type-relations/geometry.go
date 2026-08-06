@@ -71,3 +71,9 @@ type Triangle struct {
 
 // Perimeter is unrelated to Shape; Triangle never satisfies the interface.
 func (triangle Triangle) Perimeter() float64 { return 2 * (triangle.Width + triangle.Height) }
+
+// Measure is declared to be handed around as a value, not only called: the
+// units package assigns it to a variable and returns it from a function,
+// which is what tells ASSIGNS_FUNCTION and RETURNS_FUNCTION apart from a
+// plain call.
+func Measure(shape Shape) float64 { return shape.Area() }

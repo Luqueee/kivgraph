@@ -1,6 +1,7 @@
 # Fixture type-relations Go
 
-Módulo único usado por los tests de IMPLEMENTS, EMBEDS y OVERRIDES.
+Módulo único usado por los tests de IMPLEMENTS, EMBEDS, OVERRIDES y de
+dependencias de paquete intra-módulo.
 
 - `Shape`: interfaz de un método (`Area`), satisfecha por `Circle` (por
   valor) y por `*Square` (sólo por puntero); `Triangle` no la implementa,
@@ -16,6 +17,12 @@ Módulo único usado por los tests de IMPLEMENTS, EMBEDS y OVERRIDES.
 - `Circle.String`: satisface `fmt.Stringer`, interfaz de una dependencia sin
   repositorio propio en este workspace: la relación existe pero su destino
   no tiene clave derivable en este paso y debe descartarse.
+- `units` (subpaquete): depende del paquete raíz `geometry` vía
+  `units.Identify`, ejercitando una dependencia de paquete intra-repositorio
+  e intra-módulo: produce `PACKAGE_DEPENDS_ON` pero nunca
+  `MODULE_DEPENDS_ON`, porque ambos paquetes comparten módulo. El fixture
+  cross-repository no tiene un caso de dos paquetes en un mismo módulo, así
+  que vive aquí.
 
 No usa el `go.work` sintético: es un único módulo autocontenido, cargado
 directamente con `goloader.Load`.
