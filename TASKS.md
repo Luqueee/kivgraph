@@ -8060,13 +8060,85 @@ mano porque `serve` aún no cablea el ciclo de indexación.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **La transacción debe hacer rollback.**
+
+**Implementación:**
+
+`internal/indexer/delta_rollback_native_test.go` prueba el rollback contra el
+motor real, no contra un doble: tras un delta fallido, `ScanCanonical` devuelve
+un grafo idéntico al de antes y las invariantes siguen pasando.
+
+Llegar a la transacción costó más de lo que parece, y ese es el hallazgo de la
+tarea. El primer intento inyectaba una arista con destino inexistente en el
+conjunto de hechos: **nunca abría transacción**, porque `facts.Diff` rechaza el
+conjunto antes.
+
+```text
+incremental update failed: diff indexed state: invalid delta: next set:
+invalid fact set: edge CALLS_DIRECT has unknown target "…Ghost"
+```
+
+Un test verde que no ejercitaba nada. El fallo se inyecta ahora como ocurre en
+operación —**deriva de estado**—: la base activa se carga desde un grafo que
+nunca tuvo `b.go`, mientras el indexador difunde dos estados que sí lo
+contienen. Ambos conjuntos validan, el delta está bien formado, y el motor es
+el primer componente en posición de notar que el destino de la arista no está
+en la base que muta. El delta además retira y reafirma `a.go`, de modo que hay
+trabajo real aplicado antes del statement que falla: sin una única transacción,
+ese trabajo sobreviviría.
+
+El test exige además que el error provenga de `apply delta to`. Sin esa
+comprobación, cualquier rechazo anterior volvería a dejar la prueba vacía.
+
+**Control:** `TestUpdateDeltaRouteSucceedsAfterARollback` — la base no sólo
+quedó igual, quedó **usable**: un delta que sí resuelve se aplica limpiamente
+justo después y produce el mismo grafo que una carga completa.
+
+`internal/indexer/delta_failure_test.go` cubre lo que ninguna transacción puede
+deshacer: la orquestación. Para cada paso que puede fallar —aplicar, contar,
+construir el snapshot, informe que no pasa— el snapshot publicado no cambia y
+el update no se declara exitoso. Una cancelación previa ni siquiera abre
+transacción.
+
+**Ventana documentada:** una vez el motor hace COMMIT, la base está mutada y un
+fallo posterior no la deshace. Si lo que falla es el refresco del digest, la
+generación conserva el digest del contenido anterior.
+`TestUpdateLeavesAStaleDigestWhenTheMutationOutlivesTheUpdate` lo fija como
+comportamiento observado, y **falla cerrado**: `Rollback` revalida el destino
+recomputando el digest desde la base, así que una generación cuyo digest ya no
+corresponde a su contenido se rechaza en vez de restaurarse en silencio.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1203.
+
+**Verificación:**
+
+```text
+go test -tags ladybug ./internal/indexer -run TestUpdateDeltaRoute -count=1
+go test ./internal/indexer -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/indexer -count=1
+make build
+```
+
+**Limitaciones:** el fallo dentro de la transacción se provoca por deriva de
+estado, que es realista pero es **un** camino; un fallo de E/S o una caída del
+proceso a mitad de COMMIT dependen de la durabilidad de LadybugDB y se abordan
+en LUQUE-1205. La ventana post-commit del digest queda documentada, no cerrada:
+cerrarla exige refrescar el digest dentro de la misma transacción, lo que hoy
+no es posible porque el digest se calcula desde fuera, con los contadores ya
+comprometidos.
+
+**Siguiente tarea:** LUQUE-1204.
 
 ---
 
