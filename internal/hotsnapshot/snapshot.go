@@ -22,6 +22,7 @@ type RepositoryRecord struct {
 type PackageRecord struct {
 	Key        InternedString
 	Repository RepositoryID
+	Language   InternedString
 	Name       InternedString
 	ModulePath InternedString
 }
@@ -50,10 +51,39 @@ type SymbolRecord struct {
 
 // EvidenceRecord describes the source that supports an edge.
 type EvidenceRecord struct {
+	Key        InternedString
 	SourceFile FileID
 	TargetFile FileID
 	Kind       InternedString
 	Provenance InternedString
+}
+
+// PackageDependencyRecord preserves a Package to Package relation that is
+// outside the symbol CSR.
+type PackageDependencyRecord struct {
+	Source     PackageID
+	Target     PackageID
+	Kind       uint8
+	Confidence uint8
+	Provenance uint8
+	Evidence   InternedString
+}
+
+// UnresolvedReferenceRecord preserves a reference that has no exact symbol
+// target. File and Source are optional for module-level failures.
+type UnresolvedReferenceRecord struct {
+	Key              InternedString
+	Repository       RepositoryID
+	File             FileID
+	Source           SymbolID
+	Language         InternedString
+	RequestedPackage InternedString
+	RequestedSymbol  InternedString
+	Reason           InternedString
+	Detail           InternedString
+	StartLine        uint32
+	StartColumn      uint32
+	StartOffset      uint32
 }
 
 // PackedEdge keeps adjacency compact while preserving its exact target and
@@ -88,6 +118,9 @@ type GraphSnapshotInput struct {
 	Symbols      []SymbolRecord
 	Evidence     []EvidenceRecord
 
+	PackageDependencies []PackageDependencyRecord
+	Unresolved          []UnresolvedReferenceRecord
+
 	ForwardOffsets []uint32
 	ForwardEdges   []PackedEdge
 	ReverseOffsets []uint32
@@ -119,6 +152,10 @@ type GraphSnapshot struct {
 	symbols      []SymbolRecord
 	evidence     []EvidenceRecord
 
+	packageDependencies []PackageDependencyRecord
+	packageIncoming     map[PackageID][]PackageDependencyRecord
+	unresolved          []UnresolvedReferenceRecord
+
 	forwardOffsets []uint32
 	forwardEdges   []PackedEdge
 	reverseOffsets []uint32
@@ -146,6 +183,8 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		!fitsDenseTable(input.Repositories) || !fitsDenseTable(input.Packages) ||
 		!fitsDenseTable(input.Files) || !fitsDenseTable(input.Symbols) ||
 		!fitsDenseTable(input.Evidence) ||
+		!validPackageDependencies(len(input.Packages), input.PackageDependencies) ||
+		!validUnresolvedReferences(len(input.Repositories), len(input.Files), len(input.Symbols), input.Unresolved) ||
 		len(input.ForwardEdges) != len(input.ReverseEdges) ||
 		!validCSR(len(input.Symbols), forwardOffsets, input.ForwardEdges) ||
 		!validCSR(len(input.Symbols), reverseOffsets, input.ReverseEdges) ||
@@ -162,6 +201,8 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		Symbols:      uint64(len(input.Symbols)),
 		Evidence:     uint64(len(input.Evidence)),
 		Edges:        uint64(len(input.ForwardEdges)),
+		PackageEdges: uint64(len(input.PackageDependencies)),
+		Unresolved:   uint64(len(input.Unresolved)),
 	}
 	snapshot := &GraphSnapshot{
 		metadata: SnapshotMetadata{ID: input.ID, CreatedAt: input.CreatedAt, Version: input.Version, Counts: counts},
@@ -172,6 +213,10 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		files:        append([]FileRecord(nil), input.Files...),
 		symbols:      append([]SymbolRecord(nil), input.Symbols...),
 		evidence:     append([]EvidenceRecord(nil), input.Evidence...),
+
+		packageDependencies: append([]PackageDependencyRecord(nil), input.PackageDependencies...),
+		packageIncoming:     buildPackageIncoming(input.PackageDependencies),
+		unresolved:          append([]UnresolvedReferenceRecord(nil), input.Unresolved...),
 
 		forwardOffsets:    append([]uint32(nil), forwardOffsets...),
 		forwardEdges:      append([]PackedEdge(nil), input.ForwardEdges...),
@@ -224,6 +269,25 @@ func (snapshot *GraphSnapshot) Evidence(id EvidenceID) (EvidenceRecord, bool) {
 		return EvidenceRecord{}, false
 	}
 	return snapshot.evidence[id], true
+}
+
+// PackageDependencies returns the package relations entering target. A target
+// with no incoming relation, including one that is not a package ID at all,
+// has no entry in the index and yields no rows.
+func (snapshot *GraphSnapshot) PackageDependencies(target PackageID) []PackageDependencyRecord {
+	return append([]PackageDependencyRecord(nil), snapshot.packageIncoming[target]...)
+}
+
+// AllPackageDependencies returns all package relations in deterministic input
+// order.
+func (snapshot *GraphSnapshot) AllPackageDependencies() []PackageDependencyRecord {
+	return append([]PackageDependencyRecord(nil), snapshot.packageDependencies...)
+}
+
+// UnresolvedReferences returns unresolved references in deterministic input
+// order.
+func (snapshot *GraphSnapshot) UnresolvedReferences() []UnresolvedReferenceRecord {
+	return append([]UnresolvedReferenceRecord(nil), snapshot.unresolved...)
 }
 
 // Symbol returns the record at one dense ID.
@@ -311,6 +375,42 @@ func validSymbolLists(index map[InternedString][]SymbolID, symbols []SymbolRecor
 		}
 	}
 	return true
+}
+
+func validPackageDependencies(packages int, dependencies []PackageDependencyRecord) bool {
+	for _, dependency := range dependencies {
+		if uint64(dependency.Source) >= uint64(packages) || uint64(dependency.Target) >= uint64(packages) ||
+			dependency.Kind == 0 || dependency.Confidence == 0 || dependency.Provenance == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func validUnresolvedReferences(repositories, files, symbols int, references []UnresolvedReferenceRecord) bool {
+	for _, reference := range references {
+		if uint64(reference.Repository) >= uint64(repositories) {
+			return false
+		}
+		if reference.File != InvalidFileID && uint64(reference.File) >= uint64(files) {
+			return false
+		}
+		if reference.Source != InvalidSymbolID && uint64(reference.Source) >= uint64(symbols) {
+			return false
+		}
+	}
+	return true
+}
+
+func buildPackageIncoming(dependencies []PackageDependencyRecord) map[PackageID][]PackageDependencyRecord {
+	incoming := make(map[PackageID][]PackageDependencyRecord)
+	for _, dependency := range dependencies {
+		incoming[dependency.Target] = append(incoming[dependency.Target], dependency)
+	}
+	for target, values := range incoming {
+		incoming[target] = append([]PackageDependencyRecord(nil), values...)
+	}
+	return incoming
 }
 
 func validEvidenceIDs(edges []PackedEdge, evidence int) bool {

@@ -79,6 +79,23 @@ type CanonicalEvidence struct {
 	Text          string
 }
 
+// CanonicalUnresolvedReference is one unresolved import/reference finding.
+// It is kept outside CanonicalEdge because it has no symbol target.
+type CanonicalUnresolvedReference struct {
+	StableKey        string
+	RepositoryKey    string
+	FileKey          string
+	SourceSymbolKey  string
+	Language         string
+	RequestedPackage string
+	RequestedSymbol  string
+	Reason           string
+	Detail           string
+	StartLine        int64
+	StartColumn      int64
+	StartOffset      int64
+}
+
 // CanonicalEdge is one relationship row, with the table it came from.
 //
 // Confidence and Provenance are always populated: every edge table of the
@@ -108,6 +125,7 @@ type CanonicalGraph struct {
 	Symbols       []CanonicalSymbol
 	Evidence      []CanonicalEvidence
 	Edges         []CanonicalEdge
+	Unresolved    []CanonicalUnresolvedReference
 }
 
 // canonicalEdgeVocabularyTables returns the relationship tables that carry a

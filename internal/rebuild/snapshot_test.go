@@ -211,24 +211,30 @@ func TestBuildSnapshotRejectsSymbolLineOverflowingUint32(t *testing.T) {
 	}
 }
 
-// TestBuildSnapshotCountsPackageToPackageEdgesAsSkippedNotEdges extends the
-// (e) contract (already partly exercised in the (a) test via structural
-// edges) to the Package to Package relations specifically.
-func TestBuildSnapshotCountsPackageToPackageEdgesAsSkippedNotEdges(t *testing.T) {
+// TestBuildSnapshotKeepsPackageToPackageEdgesOutsideSymbolCSR checks that
+// package dependencies remain queryable in the HotSnapshot instead of being
+// silently counted as discarded structural rows.
+func TestBuildSnapshotKeepsPackageToPackageEdgesOutsideSymbolCSR(t *testing.T) {
 	graph := fakeCanonicalGraph()
 	graph.Edges = append(graph.Edges, ladybug.CanonicalEdge{
 		Table: "MODULE_DEPENDS_ON", SourceKey: "pkg-stable-1", TargetKey: "pkg-stable-1",
 		Confidence: string(facts.StructuralCertain), Provenance: string(facts.PackageManifest),
 	})
-	_, report, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{DatabasePath: "x", SnapshotID: 1, Scan: fixedScan(graph)})
+	snapshot, report, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{DatabasePath: "x", SnapshotID: 1, Scan: fixedScan(graph)})
 	if err != nil {
 		t.Fatalf("BuildSnapshot() error = %v", err)
 	}
 	if report.Stats.Edges != 1 {
 		t.Fatalf("Stats.Edges = %d, want 1 (only the CALLS_DIRECT edge)", report.Stats.Edges)
 	}
-	if report.Stats.SkippedEdges != 6 {
-		t.Fatalf("Stats.SkippedEdges = %d, want 6 (5 structural + 1 MODULE_DEPENDS_ON)", report.Stats.SkippedEdges)
+	if report.Stats.PackageEdges != 1 {
+		t.Fatalf("Stats.PackageEdges = %d, want 1", report.Stats.PackageEdges)
+	}
+	if report.Stats.SkippedEdges != 5 {
+		t.Fatalf("Stats.SkippedEdges = %d, want 5 structural edges", report.Stats.SkippedEdges)
+	}
+	if dependencies := snapshot.PackageDependencies(0); len(dependencies) != 1 {
+		t.Fatalf("PackageDependencies(target=0) = %v, want one dependency", dependencies)
 	}
 }
 

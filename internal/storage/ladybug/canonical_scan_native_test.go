@@ -220,6 +220,7 @@ func wantCanonicalScanGraph(set facts.Set, options CanonicalLoadOptions) Canonic
 		Symbols:       make([]CanonicalSymbol, len(set.Symbols)),
 		Evidence:      make([]CanonicalEvidence, len(set.Evidence)),
 		Edges:         make([]CanonicalEdge, len(set.Edges)),
+		Unresolved:    make([]CanonicalUnresolvedReference, len(set.Unresolved)),
 	}
 
 	for index, repository := range set.Repositories {
@@ -280,6 +281,16 @@ func wantCanonicalScanGraph(set facts.Set, options CanonicalLoadOptions) Canonic
 		want.Edges[index] = canonical
 	}
 	sort.Slice(want.Edges, func(i, j int) bool { return canonicalEdgeLess(want.Edges[i], want.Edges[j]) })
+	for index, unresolved := range set.Unresolved {
+		want.Unresolved[index] = CanonicalUnresolvedReference{
+			StableKey: facts.UnresolvedKey(unresolved), RepositoryKey: unresolved.RepositoryKey, FileKey: unresolved.FileKey,
+			SourceSymbolKey: unresolved.SourceSymbolKey, Language: string(unresolved.Language),
+			RequestedPackage: unresolved.RequestedPackage, RequestedSymbol: unresolved.RequestedSymbol,
+			Reason: unresolved.Reason, Detail: unresolved.Detail,
+			StartLine: int64(unresolved.Start.Line), StartColumn: int64(unresolved.Start.Column), StartOffset: int64(unresolved.Start.Offset),
+		}
+	}
+	sort.Slice(want.Unresolved, func(i, j int) bool { return want.Unresolved[i].StableKey < want.Unresolved[j].StableKey })
 
 	return want
 }
@@ -357,6 +368,9 @@ func TestScanCanonicalRoundTripsFixtureFieldByField(t *testing.T) {
 	}
 	if !reflect.DeepEqual(graph.Edges, want.Edges) {
 		t.Fatalf("Edges =\n%#v\nwant\n%#v", graph.Edges, want.Edges)
+	}
+	if !reflect.DeepEqual(graph.Unresolved, want.Unresolved) {
+		t.Fatalf("Unresolved =\n%#v\nwant\n%#v", graph.Unresolved, want.Unresolved)
 	}
 
 	// The fixture declares five distinct semantic classes plus three

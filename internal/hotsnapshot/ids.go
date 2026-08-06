@@ -40,6 +40,8 @@ type IDCounts struct {
 	Symbols      uint64
 	Evidence     uint64
 	Edges        uint64
+	PackageEdges uint64
+	Unresolved   uint64
 }
 
 // IDAllocator assigns dense IDs while one snapshot is built. It is deliberately

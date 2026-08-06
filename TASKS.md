@@ -7376,11 +7376,11 @@ referencias.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Separar:**
 
@@ -7390,6 +7390,62 @@ package consumers
 candidate consumers
 unresolved consumers
 ```
+
+**Implementación:**
+
+Se añadió `internal/mcp/tools/find_cross_repo_consumers.go` como consulta
+read-only y paginada sobre el `HotSnapshot`. La entrada exige `stable_key` y
+admite `repo`, `language`, `limit` y cursor opaco validado contra el snapshot.
+
+Las cuatro categorías salen de tres fuentes distintas del snapshot, nunca de
+coincidencias nominales sobre el nombre de un símbolo:
+
+```text
+exact_symbol -> CSR entrante con confianza exacta
+candidate    -> CSR entrante con confianza no exacta
+package      -> PACKAGE_DEPENDS_ON / MODULE_DEPENDS_ON entrantes del paquete
+unresolved   -> UnresolvedReference cuyo paquete solicitado es el del objetivo
+```
+
+Un consumidor del mismo repositorio que el objetivo se descarta: la consulta es
+cross-repo por definición. El orden es determinista por categoría y después por
+claves de repositorio, paquete, símbolo, archivo, kind, evidencia y unresolved.
+
+`GraphSnapshot.PackageDependencies` es un índice de entrada: un paquete ve
+quién depende de él, no de qué depende. `targetLocation` conserva ahora el
+`PackageID` resuelto, de modo que la consulta no vuelve a buscar el símbolo por
+stable key para localizar su paquete.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1107.
+
+**Verificación:**
+
+```text
+go test ./internal/mcp/tools -run TestFindCrossRepoConsumers -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/mcp/... -count=1
+make build
+```
+
+El smoke STDIO confirmó `find_cross_repo_consumers` en `tools/list` marcada
+read-only, con su esquema de entrada y salida, y `INDEX_NOT_READY` clasificado
+cuando no hay snapshot publicado.
+
+**Limitaciones:** el emparejamiento de `UnresolvedReference` con el objetivo
+compara el paquete solicitado contra la clave, el nombre y la ruta de módulo
+del paquete objetivo, y el símbolo solicitado contra su clave, nombre y nombre
+cualificado, incluido el sufijo `.Nombre` o `::Nombre`. Es una coincidencia
+sobre lo que el resolutor pidió, registrada como evidencia de resolución
+fallida en la categoría `unresolved`; no crea ninguna arista ni identidad de
+símbolo. La consulta recorre las referencias no resueltas del snapshot en orden
+lineal: no hay índice por paquete solicitado, porque el conjunto está acotado
+por el corpus indexado y el SLO de 5 ms p95 se mide en LUQUE-1602.
+
+**Siguiente tarea:** LUQUE-1108.
 
 ---
 

@@ -34,7 +34,7 @@ var ErrSnapshotBuildFailed = errors.New("snapshot build failed")
 // constant changes only when this adapter's own row shaping rules change in
 // a way that would produce a different snapshot for the same canonical
 // graph.
-const snapshotRowFormatVersion uint32 = 2
+const snapshotRowFormatVersion uint32 = 3
 
 // SnapshotStats accounts for what a built snapshot contains.
 type SnapshotStats struct {
@@ -44,6 +44,8 @@ type SnapshotStats struct {
 	Symbols      int
 	Evidence     int
 	Edges        int
+	PackageEdges int
+	Unresolved   int
 	SkippedEdges int
 }
 
@@ -110,8 +112,6 @@ func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnaps
 	// Stats are read back from the snapshot's own metadata rather than
 	// hand accumulated during conversion, so they can never drift from
 	// what the snapshot actually holds; SkippedEdges is the one count
-	// convertCanonicalGraph alone knows, since BuildGraphSnapshot never
-	// sees the rows that were left out.
 	counts := snapshot.Metadata().Counts
 	report.Stats = SnapshotStats{
 		Repositories: int(counts.Repositories),
@@ -120,6 +120,8 @@ func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnaps
 		Symbols:      int(counts.Symbols),
 		Evidence:     int(counts.Evidence),
 		Edges:        int(counts.Edges),
+		PackageEdges: int(counts.PackageEdges),
+		Unresolved:   int(counts.Unresolved),
 		SkippedEdges: skippedEdges,
 	}
 	report.Passed = true
@@ -219,7 +221,7 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 	rows.Packages = make([]hotsnapshot.PackageRow, len(graph.Packages))
 	for index, pkg := range graph.Packages {
 		rows.Packages[index] = hotsnapshot.PackageRow{
-			Key: pkg.StableKey, RepositoryKey: pkg.RepositoryKey, Name: pkg.Name,
+			Key: pkg.StableKey, RepositoryKey: pkg.RepositoryKey, Language: pkg.Language, Name: pkg.Name,
 			// canonical_schema.go documents Package.container as "holds the
 			// Go module" — it is the schema's own name for what hotsnapshot
 			// calls a module path, and the only column a Go module path is
@@ -264,27 +266,49 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 	for _, evidence := range graph.Evidence {
 		evidenceExists[evidence.StableKey] = true
 	}
-
 	symbolTables := symbolToSymbolTables()
+	packageKeys := make(map[string]bool, len(graph.Packages))
+	for _, pkg := range graph.Packages {
+		packageKeys[pkg.StableKey] = true
+	}
 	skippedEdges := 0
 	rows.Edges = make([]hotsnapshot.EdgeRow, 0, len(graph.Edges))
+	rows.PackageDependencies = make([]hotsnapshot.PackageDependencyRow, 0)
 	for _, edge := range graph.Edges {
+		isPackageDependency := edge.Table == string(facts.PackageDependsOn) || edge.Table == string(facts.ModuleDependsOn)
+		if isPackageDependency {
+			kindCode, err := facts.EdgeKind(edge.Table).Code()
+			if err != nil {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: package edge %s->%s: %w", ErrSnapshotBuildFailed, edge.SourceKey, edge.TargetKey, err)
+			}
+			confidenceCode, err := facts.Confidence(edge.Confidence).Code()
+			if err != nil {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: package edge %s->%s: %w", ErrSnapshotBuildFailed, edge.SourceKey, edge.TargetKey, err)
+			}
+			provenanceCode, err := facts.Provenance(edge.Provenance).Code()
+			if err != nil {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: package edge %s->%s: %w", ErrSnapshotBuildFailed, edge.SourceKey, edge.TargetKey, err)
+			}
+			if !packageKeys[edge.SourceKey] || !packageKeys[edge.TargetKey] {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: package edge %s->%s has a dangling package", ErrSnapshotBuildFailed, edge.SourceKey, edge.TargetKey)
+			}
+			if edge.EvidenceKey != "" && !evidenceExists[edge.EvidenceKey] {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: package edge %s->%s: evidence_key %q does not resolve", ErrSnapshotBuildFailed, edge.SourceKey, edge.TargetKey, edge.EvidenceKey)
+			}
+			rows.PackageDependencies = append(rows.PackageDependencies, hotsnapshot.PackageDependencyRow{
+				SourceKey: edge.SourceKey, TargetKey: edge.TargetKey, Kind: kindCode,
+				Confidence: confidenceCode, Provenance: provenanceCode, EvidenceKey: edge.EvidenceKey,
+			})
+			continue
+		}
+
 		isSymbolToSymbol, known := symbolTables[edge.Table]
 		if !known {
 			return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: edge table %q is outside the canonical vocabulary", ErrSnapshotBuildFailed, edge.Table)
 		}
 		if !isSymbolToSymbol {
-			// Structural edges (CONTAINS_PACKAGE, CONTAINS_FILE, DEFINES,
-			// OBSERVED_IN, REPORTS_UNRESOLVED) and the two Package to
-			// Package relations (PACKAGE_DEPENDS_ON, MODULE_DEPENDS_ON)
-			// cannot become CSR edges: hotsnapshot indexes only Symbol by
-			// StableKey, and both its forward and reverse adjacency are
-			// symbol to symbol. This is not a loss of information —
-			// containment already lives on the nodes themselves
-			// (File.PackageKey, Package.RepositoryKey, Symbol.FileKey), and
-			// package level dependency stays queryable straight from the
-			// canonical database, which remains the source of truth for it
-			// regardless of what the in-memory snapshot indexes.
+			// Structural edges have already been represented by node ownership
+			// fields, so they are intentionally not copied into symbol CSR.
 			skippedEdges++
 			continue
 		}
@@ -338,6 +362,56 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 		})
 	}
 
+	rows.Unresolved = make([]hotsnapshot.UnresolvedReferenceRow, 0, len(graph.Unresolved))
+	repositoryKeys := make(map[string]bool, len(graph.Repositories))
+	for _, repository := range graph.Repositories {
+		repositoryKeys[repository.StableKey] = true
+	}
+	fileKeys := make(map[string]string, len(graph.Files))
+	for _, file := range graph.Files {
+		fileKeys[file.StableKey] = file.RepositoryKey
+	}
+	for _, unresolved := range graph.Unresolved {
+		if unresolved.StableKey == "" || !repositoryKeys[unresolved.RepositoryKey] ||
+			unresolved.RequestedPackage == "" || unresolved.Reason == "" {
+			return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: invalid unresolved reference %q", ErrSnapshotBuildFailed, unresolved.StableKey)
+		}
+		if unresolved.FileKey != "" && fileKeys[unresolved.FileKey] != unresolved.RepositoryKey {
+			return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved reference %q file %q does not belong to repository %q", ErrSnapshotBuildFailed, unresolved.StableKey, unresolved.FileKey, unresolved.RepositoryKey)
+		}
+		if unresolved.SourceSymbolKey != "" {
+			sourceFileKey, sourceFound := symbolFileKeys[unresolved.SourceSymbolKey]
+			if !sourceFound {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved reference %q source symbol %q not found", ErrSnapshotBuildFailed, unresolved.StableKey, unresolved.SourceSymbolKey)
+			}
+			if unresolved.FileKey != "" && sourceFileKey != unresolved.FileKey {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved reference %q source/file mismatch", ErrSnapshotBuildFailed, unresolved.StableKey)
+			}
+			if fileKeys[sourceFileKey] != unresolved.RepositoryKey {
+				return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved reference %q source repository mismatch", ErrSnapshotBuildFailed, unresolved.StableKey)
+			}
+		}
+		startLine, err := lineToUint32(unresolved.StartLine)
+		if err != nil {
+			return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved %s start_line: %w", ErrSnapshotBuildFailed, unresolved.StableKey, err)
+		}
+		startColumn, err := lineToUint32(unresolved.StartColumn)
+		if err != nil {
+			return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved %s start_column: %w", ErrSnapshotBuildFailed, unresolved.StableKey, err)
+		}
+		startOffset, err := lineToUint32(unresolved.StartOffset)
+		if err != nil {
+			return hotsnapshot.LadybugSnapshotRows{}, 0, fmt.Errorf("%w: unresolved %s start_offset: %w", ErrSnapshotBuildFailed, unresolved.StableKey, err)
+		}
+		rows.Unresolved = append(rows.Unresolved, hotsnapshot.UnresolvedReferenceRow{
+			Key: unresolved.StableKey, RepositoryKey: unresolved.RepositoryKey, FileKey: unresolved.FileKey,
+			SourceKey: hotsnapshot.StableKey(unresolved.SourceSymbolKey), Language: unresolved.Language,
+			RequestedPackage: unresolved.RequestedPackage, RequestedSymbol: unresolved.RequestedSymbol,
+			Reason: unresolved.Reason, Detail: unresolved.Detail,
+			StartLine: startLine, StartColumn: startColumn, StartOffset: startOffset,
+		})
+	}
+
 	return rows, skippedEdges, nil
 }
 
@@ -353,9 +427,10 @@ func lineToUint32(value int64) (uint32, error) {
 }
 
 // snapshotContentDigest hashes exactly what ends up inside the built
-// snapshot — repositories, packages, files, symbols and the semantic edges
-// hotsnapshot actually keeps — sorted by durable key so the row order
-// ScanCanonical happens to return never changes the digest.
+// snapshot — repositories, packages, files, symbols, package dependencies,
+// unresolved references, and the semantic edges hotsnapshot actually keeps —
+// sorted by durable key so the row order ScanCanonical happens to return never
+// changes the digest.
 //
 // It deliberately excludes SnapshotID, CreatedAt and the skipped edge
 // count: two builds of the same underlying graph, published as different
@@ -367,7 +442,6 @@ func lineToUint32(value int64) (uint32, error) {
 // counts read from LadybugDB, not row content, so two structurally
 // different graphs that happen to share matching counts would collide.
 // This hashes the sorted rows themselves, using the same SHA-256/hex
-// criterion.
 func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 	repositories := append([]hotsnapshot.RepositoryRow(nil), rows.Repositories...)
 	sort.Slice(repositories, func(i, j int) bool { return repositories[i].Key < repositories[j].Key })
@@ -377,6 +451,21 @@ func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 	sort.Slice(files, func(i, j int) bool { return files[i].Key < files[j].Key })
 	symbols := append([]hotsnapshot.SymbolRow(nil), rows.Symbols...)
 	sort.Slice(symbols, func(i, j int) bool { return symbols[i].StableKey < symbols[j].StableKey })
+	packageDependencies := append([]hotsnapshot.PackageDependencyRow(nil), rows.PackageDependencies...)
+	sort.Slice(packageDependencies, func(i, j int) bool {
+		if packageDependencies[i].SourceKey != packageDependencies[j].SourceKey {
+			return packageDependencies[i].SourceKey < packageDependencies[j].SourceKey
+		}
+		if packageDependencies[i].TargetKey != packageDependencies[j].TargetKey {
+			return packageDependencies[i].TargetKey < packageDependencies[j].TargetKey
+		}
+		if packageDependencies[i].Kind != packageDependencies[j].Kind {
+			return packageDependencies[i].Kind < packageDependencies[j].Kind
+		}
+		return packageDependencies[i].EvidenceKey < packageDependencies[j].EvidenceKey
+	})
+	unresolved := append([]hotsnapshot.UnresolvedReferenceRow(nil), rows.Unresolved...)
+	sort.Slice(unresolved, func(i, j int) bool { return unresolved[i].Key < unresolved[j].Key })
 	edges := append([]hotsnapshot.EdgeRow(nil), rows.Edges...)
 	sort.Slice(edges, func(i, j int) bool { return edgeRowLess(edges[i], edges[j]) })
 
@@ -387,14 +476,26 @@ func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 			repository.Key, repository.Name, repository.Path, repository.Languages, repository.Commit)
 	}
 	for _, pkg := range packages {
-		fmt.Fprintf(hash, "package:%s repository=%s name=%s module_path=%s\n", pkg.Key, pkg.RepositoryKey, pkg.Name, pkg.ModulePath)
+		fmt.Fprintf(hash, "package:%s repository=%s language=%s name=%s module_path=%s\n",
+			pkg.Key, pkg.RepositoryKey, pkg.Language, pkg.Name, pkg.ModulePath)
 	}
 	for _, file := range files {
-		fmt.Fprintf(hash, "file:%s repository=%s package=%s path=%s\n", file.Key, file.RepositoryKey, file.PackageKey, file.Path)
+		fmt.Fprintf(hash, "file:%s repository=%s package=%s path=%s language=%s\n",
+			file.Key, file.RepositoryKey, file.PackageKey, file.Path, file.Language)
 	}
 	for _, symbol := range symbols {
-		fmt.Fprintf(hash, "symbol:%s identity=%s file=%s name=%s qname=%s kind=%s signature=%s start=%d end=%d\n",
-			symbol.StableKey, symbol.CanonicalIdentity, symbol.FileKey, symbol.Name, symbol.QualifiedName, symbol.Kind, symbol.Signature, symbol.StartLine, symbol.EndLine)
+		fmt.Fprintf(hash, "symbol:%s identity=%s file=%s language=%s name=%s qname=%s kind=%s signature=%s start=%d end=%d\n",
+			symbol.StableKey, symbol.CanonicalIdentity, symbol.FileKey, symbol.Language, symbol.Name, symbol.QualifiedName, symbol.Kind, symbol.Signature, symbol.StartLine, symbol.EndLine)
+	}
+	for _, dependency := range packageDependencies {
+		fmt.Fprintf(hash, "package_edge:%s->%s kind=%d confidence=%d provenance=%d evidence_key=%s\n",
+			dependency.SourceKey, dependency.TargetKey, dependency.Kind, dependency.Confidence, dependency.Provenance, dependency.EvidenceKey)
+	}
+	for _, reference := range unresolved {
+		fmt.Fprintf(hash, "unresolved:%s repository=%s file=%s source=%s language=%s requested_package=%s requested_symbol=%s reason=%s detail=%s start=%d:%d:%d\n",
+			reference.Key, reference.RepositoryKey, reference.FileKey, reference.SourceKey, reference.Language,
+			reference.RequestedPackage, reference.RequestedSymbol, reference.Reason, reference.Detail,
+			reference.StartLine, reference.StartColumn, reference.StartOffset)
 	}
 	for _, edge := range edges {
 		fmt.Fprintf(hash, "edge:%s->%s kind=%d confidence=%d provenance=%d flags=%d evidence_key=%s evidence_kind=%s evidence_source=%s evidence_target=%s\n",

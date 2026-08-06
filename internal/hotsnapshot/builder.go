@@ -12,11 +12,13 @@ var ErrInvalidSnapshotRows = errors.New("invalid snapshot rows")
 // LadybugSnapshotRows is the ordered, canonical row set read from LadybugDB.
 // Keys are durable database keys; the builder alone assigns dense snapshot IDs.
 type LadybugSnapshotRows struct {
-	Repositories []RepositoryRow
-	Packages     []PackageRow
-	Files        []FileRow
-	Symbols      []SymbolRow
-	Edges        []EdgeRow
+	Repositories        []RepositoryRow
+	Packages            []PackageRow
+	Files               []FileRow
+	Symbols             []SymbolRow
+	Edges               []EdgeRow
+	PackageDependencies []PackageDependencyRow
+	Unresolved          []UnresolvedReferenceRow
 }
 
 type RepositoryRow struct {
@@ -30,6 +32,7 @@ type RepositoryRow struct {
 type PackageRow struct {
 	Key           string
 	RepositoryKey string
+	Language      string
 	Name          string
 	ModulePath    string
 }
@@ -74,20 +77,57 @@ type EdgeRow struct {
 	EvidenceTargetFileKey string
 }
 
+type PackageDependencyRow struct {
+	SourceKey   string
+	TargetKey   string
+	Kind        uint8
+	Confidence  uint8
+	Provenance  uint8
+	EvidenceKey string
+}
+
+type UnresolvedReferenceRow struct {
+	Key              string
+	RepositoryKey    string
+	FileKey          string
+	SourceKey        StableKey
+	Language         string
+	RequestedPackage string
+	RequestedSymbol  string
+	Reason           string
+	Detail           string
+	StartLine        uint32
+	StartColumn      uint32
+	StartOffset      uint32
+}
+
 // BuildGraphSnapshot converts canonical LadybugDB rows into one validated,
-// immutable snapshot. Every input collection is copied and sorted by its
-// durable key before IDs, strings, CSR, and exact indexes are assigned.
 func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt time.Time, version uint32) (*GraphSnapshot, error) {
 	repositories := append([]RepositoryRow(nil), rows.Repositories...)
 	packages := append([]PackageRow(nil), rows.Packages...)
 	files := append([]FileRow(nil), rows.Files...)
 	symbols := append([]SymbolRow(nil), rows.Symbols...)
 	edges := append([]EdgeRow(nil), rows.Edges...)
+	packageDependencies := append([]PackageDependencyRow(nil), rows.PackageDependencies...)
+	unresolved := append([]UnresolvedReferenceRow(nil), rows.Unresolved...)
 	sort.Slice(repositories, func(i, j int) bool { return repositories[i].Key < repositories[j].Key })
 	sort.Slice(packages, func(i, j int) bool { return packages[i].Key < packages[j].Key })
 	sort.Slice(files, func(i, j int) bool { return files[i].Key < files[j].Key })
 	sort.Slice(symbols, func(i, j int) bool { return symbols[i].StableKey < symbols[j].StableKey })
 	sort.Slice(edges, func(i, j int) bool { return edgeLess(edges[i], edges[j]) })
+	sort.Slice(packageDependencies, func(i, j int) bool {
+		if packageDependencies[i].SourceKey != packageDependencies[j].SourceKey {
+			return packageDependencies[i].SourceKey < packageDependencies[j].SourceKey
+		}
+		if packageDependencies[i].TargetKey != packageDependencies[j].TargetKey {
+			return packageDependencies[i].TargetKey < packageDependencies[j].TargetKey
+		}
+		if packageDependencies[i].Kind != packageDependencies[j].Kind {
+			return packageDependencies[i].Kind < packageDependencies[j].Kind
+		}
+		return packageDependencies[i].EvidenceKey < packageDependencies[j].EvidenceKey
+	})
+	sort.Slice(unresolved, func(i, j int) bool { return unresolved[i].Key < unresolved[j].Key })
 
 	interner := NewStringInterner()
 	allocator := new(IDAllocator)
@@ -289,10 +329,103 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		}
 		symbolRecords[index].Language = language
 	}
+	for index, row := range edges {
+		key, err := interner.Intern(row.EvidenceKey)
+		if err != nil {
+			return nil, err
+		}
+		evidenceRecords[index].Key = key
+	}
+
+	for index, row := range packages {
+		language, err := interner.Intern(row.Language)
+		if err != nil {
+			return nil, err
+		}
+		packageRecords[index].Language = language
+	}
+	packageDependencyRecords := make([]PackageDependencyRecord, len(packageDependencies))
+	for index, row := range packageDependencies {
+		sourceID, sourceExists := packageIDs[row.SourceKey]
+		targetID, targetExists := packageIDs[row.TargetKey]
+		if !sourceExists || !targetExists || row.Kind == 0 || row.Confidence == 0 || row.Provenance == 0 ||
+			index > 0 && packageDependencyEqual(packageDependencies[index-1], row) {
+			return nil, fmt.Errorf("%w: package dependency %d %q->%q", ErrInvalidSnapshotRows, index, row.SourceKey, row.TargetKey)
+		}
+		evidence, err := interner.Intern(row.EvidenceKey)
+		if err != nil {
+			return nil, err
+		}
+		packageDependencyRecords[index] = PackageDependencyRecord{
+			Source: sourceID, Target: targetID, Kind: row.Kind, Confidence: row.Confidence,
+			Provenance: row.Provenance, Evidence: evidence,
+		}
+	}
+
+	unresolvedRecords := make([]UnresolvedReferenceRecord, len(unresolved))
+	for index, row := range unresolved {
+		repositoryID, repositoryExists := repositoryIDs[row.RepositoryKey]
+		if row.Key == "" || !repositoryExists || row.RequestedPackage == "" || row.Reason == "" ||
+			index > 0 && unresolved[index-1].Key == row.Key {
+			return nil, fmt.Errorf("%w: unresolved reference %d %q", ErrInvalidSnapshotRows, index, row.Key)
+		}
+		fileID := InvalidFileID
+		if row.FileKey != "" {
+			var fileExists bool
+			fileID, fileExists = fileIDs[row.FileKey]
+			if !fileExists || fileRecords[fileID].Repository != repositoryID {
+				return nil, fmt.Errorf("%w: unresolved reference %q file %q", ErrInvalidSnapshotRows, row.Key, row.FileKey)
+			}
+		}
+		sourceID := InvalidSymbolID
+		if row.SourceKey != "" {
+			var sourceExists bool
+			sourceID, sourceExists = symbolIDs[row.SourceKey]
+			if !sourceExists {
+				return nil, fmt.Errorf("%w: unresolved reference %q source %q", ErrInvalidSnapshotRows, row.Key, row.SourceKey)
+			}
+			if symbolRecords[sourceID].File != fileID && fileID != InvalidFileID {
+				return nil, fmt.Errorf("%w: unresolved reference %q source/file mismatch", ErrInvalidSnapshotRows, row.Key)
+			}
+			if repositoryForSymbol := fileRecords[symbolRecords[sourceID].File].Repository; repositoryForSymbol != repositoryID {
+				return nil, fmt.Errorf("%w: unresolved reference %q source repository mismatch", ErrInvalidSnapshotRows, row.Key)
+			}
+		}
+		key, err := interner.Intern(row.Key)
+		if err != nil {
+			return nil, err
+		}
+		language, err := interner.Intern(row.Language)
+		if err != nil {
+			return nil, err
+		}
+		requestedPackage, err := interner.Intern(row.RequestedPackage)
+		if err != nil {
+			return nil, err
+		}
+		requestedSymbol, err := interner.Intern(row.RequestedSymbol)
+		if err != nil {
+			return nil, err
+		}
+		reason, err := interner.Intern(row.Reason)
+		if err != nil {
+			return nil, err
+		}
+		detail, err := interner.Intern(row.Detail)
+		if err != nil {
+			return nil, err
+		}
+		unresolvedRecords[index] = UnresolvedReferenceRecord{
+			Key: key, Repository: repositoryID, File: fileID, Source: sourceID, Language: language,
+			RequestedPackage: requestedPackage, RequestedSymbol: requestedSymbol, Reason: reason, Detail: detail,
+			StartLine: row.StartLine, StartColumn: row.StartColumn, StartOffset: row.StartOffset,
+		}
+	}
 
 	return NewGraphSnapshot(GraphSnapshotInput{
 		ID: snapshotID, CreatedAt: createdAt, Version: version, Strings: interner.Freeze(),
 		Repositories: repositoryRecords, Packages: packageRecords, Files: fileRecords, Symbols: symbolRecords, Evidence: evidenceRecords,
+		PackageDependencies: packageDependencyRecords, Unresolved: unresolvedRecords,
 		ForwardOffsets: forwardOffsets, ForwardEdges: forwardEdges, ReverseOffsets: reverseOffsets, ReverseEdges: reverseEdges,
 		SymbolByStableKey: symbolByStableKey, SymbolsByName: symbolsByName, SymbolsByQName: symbolsByQName, FileByRepoPath: fileIndex,
 	})
@@ -327,6 +460,15 @@ func edgeLess(left, right EdgeRow) bool {
 		return left.EvidenceSourceFileKey < right.EvidenceSourceFileKey
 	}
 	return left.EvidenceTargetFileKey < right.EvidenceTargetFileKey
+}
+
+func packageDependencyEqual(left, right PackageDependencyRow) bool {
+	return left.SourceKey == right.SourceKey &&
+		left.TargetKey == right.TargetKey &&
+		left.Kind == right.Kind &&
+		left.Confidence == right.Confidence &&
+		left.Provenance == right.Provenance &&
+		left.EvidenceKey == right.EvidenceKey
 }
 
 func edgeEqual(left, right EdgeRow) bool {

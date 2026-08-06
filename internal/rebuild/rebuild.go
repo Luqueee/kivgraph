@@ -274,10 +274,11 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			Name:   StageSnapshot,
 			Passed: true,
 			Detail: fmt.Sprintf(
-				"wrote %s with digest %s; hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols, %d edges, %d edge(s) not represented in the CSR)",
+				"wrote %s with digest %s; hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols, %d symbol edges, %d package edges, %d unresolved reference(s), %d edge(s) not represented in the CSR)",
 				snapshotFileName, digest, hotSnapshotReport.SnapshotID,
 				hotSnapshotReport.Stats.Repositories, hotSnapshotReport.Stats.Packages, hotSnapshotReport.Stats.Files,
-				hotSnapshotReport.Stats.Symbols, hotSnapshotReport.Stats.Edges, hotSnapshotReport.Stats.SkippedEdges,
+				hotSnapshotReport.Stats.Symbols, hotSnapshotReport.Stats.Edges, hotSnapshotReport.Stats.PackageEdges,
+				hotSnapshotReport.Stats.Unresolved, hotSnapshotReport.Stats.SkippedEdges,
 			),
 			DurationMS: elapsedMS(snapshotStart),
 		}

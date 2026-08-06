@@ -109,6 +109,46 @@ func TestGraphSnapshotAllowsEmptyTables(t *testing.T) {
 	}
 }
 
+// TestGraphSnapshotPackageDependenciesReturnsIncomingOnly pins the direction
+// of the package index: a package sees who depends on it, not what it depends
+// on, and the returned rows never alias snapshot storage.
+func TestGraphSnapshotPackageDependenciesReturnsIncomingOnly(t *testing.T) {
+	rows := builderRows()
+	rows.PackageDependencies = []PackageDependencyRow{
+		{SourceKey: "pkg-a", TargetKey: "pkg-b", Kind: 20, Confidence: 5, Provenance: 3, EvidenceKey: "manifest-a"},
+	}
+	snapshot, err := BuildGraphSnapshot(rows, 7, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	source, target := packageIDByKey(t, snapshot, "pkg-a"), packageIDByKey(t, snapshot, "pkg-b")
+
+	if outgoing := snapshot.PackageDependencies(source); len(outgoing) != 0 {
+		t.Fatalf("PackageDependencies(pkg-a) = %#v, want no incoming relation", outgoing)
+	}
+	incoming := snapshot.PackageDependencies(target)
+	if len(incoming) != 1 || incoming[0].Source != source || incoming[0].Kind != 20 {
+		t.Fatalf("PackageDependencies(pkg-b) = %#v, want one relation from pkg-a", incoming)
+	}
+	incoming[0].Source = target
+	if again := snapshot.PackageDependencies(target); again[0].Source != source {
+		t.Fatalf("snapshot rows escaped through the getter: %#v", again[0])
+	}
+}
+
+func packageIDByKey(t *testing.T, snapshot *GraphSnapshot, key string) PackageID {
+	t.Helper()
+	for id := PackageID(0); ; id++ {
+		pkg, found := snapshot.Package(id)
+		if !found {
+			t.Fatalf("package %q is not in the snapshot", key)
+		}
+		if value, ok := snapshot.Strings().String(pkg.Key); ok && value == key {
+			return id
+		}
+	}
+}
+
 func TestPackedEdgeIsCompact(t *testing.T) {
 	if size := unsafe.Sizeof(PackedEdge{}); size < 12 || size > 16 {
 		t.Fatalf("PackedEdge size = %d, want 12–16", size)

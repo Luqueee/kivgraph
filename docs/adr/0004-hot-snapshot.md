@@ -23,10 +23,11 @@ petición; un builder prepara la siguiente versión fuera del fast path y la
 publica solo cuando la verificación de integridad ha pasado.
 
 Cada snapshot incluye un identificador, edad, contadores, tablas de símbolos,
-relaciones, índices y metadatos suficientes para paginar y declarar límites.
-La tabla de repositorios conserva su stable key, nombre, ruta raíz y lenguajes
-ordenados; `list_repositories` la lee sin consultar LadybugDB ni el filesystem.
-Los IDs densos pueden cambiar entre snapshots; las stable keys permanecen como
+relaciones de símbolo, dependencias de paquete, referencias no resueltas,
+índices y metadatos suficientes para paginar y declarar límites. La tabla de
+repositorios conserva su stable key, nombre, ruta raíz y lenguajes ordenados;
+`list_repositories` la lee sin consultar LadybugDB ni el filesystem. Los IDs
+densos pueden cambiar entre snapshots; las stable keys permanecen como
 identidad externa.
 
 ### Ciclo de vida de IDs densos
@@ -78,6 +79,21 @@ La CSR reverse se deriva de la forward validada: cada arista entrante conserva
 evidencia, tipo, confianza, procedencia y flags, y cambia únicamente su destino
 por el símbolo origen. La publicación compara ambas CSR como multisets exactos,
 incluyendo duplicados, para impedir aristas colgantes o contrapartes inventadas.
+
+### Dependencias de paquete y referencias no resueltas
+
+Las relaciones `PACKAGE_DEPENDS_ON` y `MODULE_DEPENDS_ON` no entran en la CSR,
+porque sus extremos son `Package` y no `Symbol`. El builder las conserva como
+filas densas de `PackageID` con sus códigos de tipo, confianza, procedencia y
+evidencia; una consulta puede recorrer las dependencias entrantes sin volver a
+LadybugDB.
+
+`UnresolvedReference` tampoco se convierte en una arista inventada: conserva
+su stable key, repositorio, archivo o símbolo origen opcionales, paquete y
+símbolo solicitados, motivo, detalle y posición. `find_cross_repo_consumers`
+las devuelve con categoría `unresolved`, separada de consumidores exactos,
+de paquete y candidatos. La categoría expresa evidencia de resolución fallida,
+no una identidad de símbolo inferida por coincidencia nominal.
 
 ### Construcción desde LadybugDB
 

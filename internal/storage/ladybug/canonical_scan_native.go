@@ -15,7 +15,7 @@ import (
 
 // ScanCanonical reads the definitive graph out of the database at path.
 //
-// It runs one query per table (metadata, five node tables, eighteen edge
+// It runs one query per table (metadata, six node tables, eighteen edge
 // tables) and decodes rows tuple by tuple through nextTuple/GetValue -- the
 // same shape every other read in this package already uses: queryCount,
 // runIntegritySampleQuery, reader.references. It deliberately does not use
@@ -26,12 +26,13 @@ import (
 // large columnar chunks (arrowScanChunkSize = 2,000,000 rows), at the cost of
 // a hand written, pointer-arithmetic decoder per column shape -- offsets
 // buffer, validity bitmap, and all -- that has to be extended whenever a
-// column is added. The canonical schema already has twenty four tables
-// (GraphMetadata, five node tables, eighteen edge tables) and grows with
-// every future edge kind; committing to one hand rolled Arrow decoder per
-// table multiplies arrow_scan_native.go's maintenance and memory-safety
-// surface by the schema's whole width, for a saving that only matters if the
-// per-row cgo crossing actually dominates. Go-side memory is O(rows scanned)
+// column is added. The canonical schema already has twenty seven canonical
+// tables (six node tables and twenty one edge tables), plus GraphMetadata,
+// and grows with every future edge kind; committing to one hand rolled Arrow
+// decoder per table multiplies arrow_scan_native.go's maintenance and
+// memory-safety surface by the schema's whole width, for a saving that only
+// matters if the per-row cgo crossing actually dominates. Go-side memory is
+// O(rows scanned)
 // either way, because CanonicalGraph itself holds every row as a slice --
 // tuple-by-tuple decoding never buffers a second full copy on the engine
 // side of the boundary the way materialising an intermediate Arrow batch
@@ -105,6 +106,10 @@ func ScanCanonical(ctx context.Context, path string) (CanonicalGraph, error) {
 	if err != nil {
 		return CanonicalGraph{}, &Error{Op: "scan canonical", Err: fmt.Errorf("scan Evidence: %w", err)}
 	}
+	unresolved, err := scanCanonicalUnresolvedReferences(ctx, native)
+	if err != nil {
+		return CanonicalGraph{}, &Error{Op: "scan canonical", Err: fmt.Errorf("scan UnresolvedReference: %w", err)}
+	}
 
 	// Every relationship table of the vocabulary is read in turn on this one
 	// connection, in CanonicalRelationshipTables order; the result is then
@@ -120,10 +125,6 @@ func ScanCanonical(ctx context.Context, path string) (CanonicalGraph, error) {
 		edges = append(edges, tableEdges...)
 	}
 	sort.Slice(edges, func(i, j int) bool { return canonicalEdgeLess(edges[i], edges[j]) })
-
-	if err := ctx.Err(); err != nil {
-		return CanonicalGraph{}, &Error{Op: "scan canonical", Err: err}
-	}
 	return CanonicalGraph{
 		SchemaVersion: schemaVersion,
 		Metadata:      metadata,
@@ -133,6 +134,7 @@ func ScanCanonical(ctx context.Context, path string) (CanonicalGraph, error) {
 		Symbols:       symbols,
 		Evidence:      evidence,
 		Edges:         edges,
+		Unresolved:    unresolved,
 	}, nil
 }
 
@@ -312,6 +314,38 @@ func decodeCanonicalEvidence(tuple *lbug.FlatTuple) (CanonicalEvidence, error) {
 	return CanonicalEvidence{
 		StableKey: stableKey, RepositoryKey: repositoryKey, FileKey: fileKey,
 		StartLine: startLine, StartColumn: startColumn, StartOffset: startOffset, EndOffset: endOffset, Text: text,
+	}, nil
+}
+
+func scanCanonicalUnresolvedReferences(ctx context.Context, connection *lbug.Connection) ([]CanonicalUnresolvedReference, error) {
+	const query = `MATCH (n:UnresolvedReference)
+RETURN n.stable_key, n.repository_key, n.file_key, n.source_symbol_key,
+       n.language, n.requested_package, n.requested_symbol, n.reason, n.detail,
+       n.start_line, n.start_column, n.start_offset
+ORDER BY n.stable_key`
+	return scanCanonicalRows(ctx, connection, query, decodeCanonicalUnresolvedReference)
+}
+
+func decodeCanonicalUnresolvedReference(tuple *lbug.FlatTuple) (CanonicalUnresolvedReference, error) {
+	stableKey, err1 := tupleOptionalString(tuple, 0)
+	repositoryKey, err2 := tupleOptionalString(tuple, 1)
+	fileKey, err3 := tupleOptionalString(tuple, 2)
+	sourceSymbolKey, err4 := tupleOptionalString(tuple, 3)
+	language, err5 := tupleOptionalString(tuple, 4)
+	requestedPackage, err6 := tupleOptionalString(tuple, 5)
+	requestedSymbol, err7 := tupleOptionalString(tuple, 6)
+	reason, err8 := tupleOptionalString(tuple, 7)
+	detail, err9 := tupleOptionalString(tuple, 8)
+	startLine, err10 := tupleInt64(tuple, 9)
+	startColumn, err11 := tupleInt64(tuple, 10)
+	startOffset, err12 := tupleInt64(tuple, 11)
+	if err := errors.Join(err1, err2, err3, err4, err5, err6, err7, err8, err9, err10, err11, err12); err != nil {
+		return CanonicalUnresolvedReference{}, err
+	}
+	return CanonicalUnresolvedReference{
+		StableKey: stableKey, RepositoryKey: repositoryKey, FileKey: fileKey, SourceSymbolKey: sourceSymbolKey,
+		Language: language, RequestedPackage: requestedPackage, RequestedSymbol: requestedSymbol,
+		Reason: reason, Detail: detail, StartLine: startLine, StartColumn: startColumn, StartOffset: startOffset,
 	}, nil
 }
 
