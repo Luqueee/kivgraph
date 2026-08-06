@@ -9,17 +9,13 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 // TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState drives the delta route
-// end to end against a real LadybugDB: load the previous state, run Update
-// with the real applier, then compare the mutated graph field by field
-// against a from-scratch load of the next state. Anything the delta leaves
-// behind -- a ghost symbol, a ghost edge, a stale digest -- shows up as a
-// difference here, which a hook-substituted test can never prove.
 func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 	ctx := context.Background()
 	previous := updateFixture(t)
@@ -36,6 +32,7 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 		Active: generation.Generation{ID: "000001", Path: activePath, DatabasePath: activeDatabase},
 		NextID: "000002",
 	}
+	hotStore := hotsnapshot.NewSnapshotStore(nil)
 	result, err := Update(ctx, UpdateOptions{
 		Root:            t.TempDir(),
 		Plans:           []InvalidationPlan{{Class: ChangeBodyOnly, Actions: []InvalidationAction{ActionReindexFile}}},
@@ -43,6 +40,7 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 		Next:            next,
 		SnapshotID:      options.SnapshotID,
 		ResolverVersion: options.ResolverVersion,
+		SnapshotStore:   hotStore,
 		Layout: func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) {
 			return layout, nil
 		},
@@ -53,6 +51,9 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
+	}
+	if snapshot := hotStore.Load(); snapshot == nil || snapshot.Metadata().ID != 1 {
+		t.Fatalf("published HotSnapshot = %#v, want native snapshot generation 1", snapshot)
 	}
 	if result.Decision.Route != RouteDelta || !result.Passed {
 		t.Fatalf("result = %#v, want a passing DELTA route", result)

@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
@@ -211,6 +213,114 @@ func TestUpdateAppliesDeltaAndRefreshesDigest(t *testing.T) {
 	}
 	if result.SnapshotDigest != expected {
 		t.Fatalf("digest = %q, want the rebuild calculation %q", result.SnapshotDigest, expected)
+	}
+}
+func testHotSnapshot(t *testing.T, id uint64) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{}, id, time.Unix(int64(id), 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot(%d): %v", id, err)
+	}
+	return snapshot
+}
+
+func TestUpdateRebuildsAndPublishesHotSnapshotAfterDelta(t *testing.T) {
+	previous := updateFixture(t)
+	next := touchFileA(t, previous)
+	layout := publishedLayout(t)
+	store := hotsnapshot.NewSnapshotStore(testHotSnapshot(t, 1))
+	var builtPath string
+	var builtID uint64
+
+	result, err := Update(context.Background(), UpdateOptions{
+		Root: "/state", Plans: []InvalidationPlan{{Actions: []InvalidationAction{ActionReindexFile}}},
+		Previous: previous, Next: next, SnapshotID: 2, SnapshotStore: store,
+		Layout: func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) { return layout, nil },
+		ApplyDelta: func(context.Context, string, facts.Delta, ladybug.CanonicalLoadOptions) (ladybug.CanonicalMutationResult, error) {
+			return ladybug.CanonicalMutationResult{}, nil
+		},
+		Counts: func(context.Context, string) (map[string]int64, error) {
+			return map[string]int64{"File": 2}, nil
+		},
+		BuildSnapshot: func(_ context.Context, options rebuild.BuildSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+			builtPath, builtID = options.DatabasePath, options.SnapshotID
+			return testHotSnapshot(t, options.SnapshotID), rebuild.SnapshotReport{SnapshotID: options.SnapshotID, Passed: true}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if result.Decision.Route != RouteDelta || !result.Passed {
+		t.Fatalf("result = %#v, want passing DELTA", result)
+	}
+	if builtPath != layout.Active.DatabasePath || builtID != 2 {
+		t.Fatalf("build = path %q id %d, want %q id 2", builtPath, builtID, layout.Active.DatabasePath)
+	}
+	if got := store.Load(); got == nil || got.Metadata().ID != 2 {
+		t.Fatalf("published snapshot = %#v, want generation 2", got)
+	}
+	if result.Snapshot.Report.SnapshotID != 2 {
+		t.Fatalf("snapshot report = %#v, want id 2", result.Snapshot)
+	}
+}
+
+func TestUpdateKeepsPreviousHotSnapshotWhenRebuildFails(t *testing.T) {
+	previous := updateFixture(t)
+	next := touchFileA(t, previous)
+	layout := publishedLayout(t)
+	initial := testHotSnapshot(t, 1)
+	store := hotsnapshot.NewSnapshotStore(initial)
+	buildFailure := errors.New("invalid canonical graph")
+
+	result, err := Update(context.Background(), UpdateOptions{
+		Root: "/state", Plans: []InvalidationPlan{{Actions: []InvalidationAction{ActionReindexFile}}},
+		Previous: previous, Next: next, SnapshotID: 2, SnapshotStore: store,
+		Layout: func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) { return layout, nil },
+		ApplyDelta: func(context.Context, string, facts.Delta, ladybug.CanonicalLoadOptions) (ladybug.CanonicalMutationResult, error) {
+			return ladybug.CanonicalMutationResult{}, nil
+		},
+		Counts: func(context.Context, string) (map[string]int64, error) { return map[string]int64{"File": 2}, nil },
+		BuildSnapshot: func(context.Context, rebuild.BuildSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+			return nil, rebuild.SnapshotReport{}, buildFailure
+		},
+	})
+	if !errors.Is(err, ErrUpdateFailed) || !errors.Is(err, buildFailure) {
+		t.Fatalf("Update() error = %v, want wrapped snapshot build failure", err)
+	}
+	if result.Passed {
+		t.Fatalf("result = %#v, want failed update", result)
+	}
+	if got := store.Load(); got != initial {
+		t.Fatalf("active snapshot = %p, want previous %p", got, initial)
+	}
+}
+func TestUpdateRejectsStaleHotSnapshotGenerationWithoutReplacingReader(t *testing.T) {
+	previous := updateFixture(t)
+	next := touchFileA(t, previous)
+	layout := publishedLayout(t)
+	initial := testHotSnapshot(t, 3)
+	store := hotsnapshot.NewSnapshotStore(initial)
+
+	result, err := Update(context.Background(), UpdateOptions{
+		Root: "/state", Plans: []InvalidationPlan{{Actions: []InvalidationAction{ActionReindexFile}}},
+		Previous: previous, Next: next, SnapshotID: 3, SnapshotStore: store,
+		Layout: func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) { return layout, nil },
+		ApplyDelta: func(context.Context, string, facts.Delta, ladybug.CanonicalLoadOptions) (ladybug.CanonicalMutationResult, error) {
+			return ladybug.CanonicalMutationResult{}, nil
+		},
+		Counts: func(context.Context, string) (map[string]int64, error) { return map[string]int64{"File": 2}, nil },
+		BuildSnapshot: func(_ context.Context, options rebuild.BuildSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
+			return testHotSnapshot(t, options.SnapshotID), rebuild.SnapshotReport{SnapshotID: options.SnapshotID, Passed: true}, nil
+		},
+	})
+	if !errors.Is(err, ErrUpdateFailed) || !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+		t.Fatalf("Update() error = %v, want stale-generation failure", err)
+	}
+	if result.Passed {
+		t.Fatalf("result = %#v, want failed update", result)
+	}
+	if got := store.Load(); got != initial {
+		t.Fatalf("active snapshot = %p, want previous %p", got, initial)
 	}
 }
 

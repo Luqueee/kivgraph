@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
@@ -134,12 +135,15 @@ type UpdateOptions struct {
 	// RepublishRatio overrides DefaultRepublishRatio.
 	RepublishRatio float64
 
-	// GenerationID, ResolverVersion and SnapshotID are used by the
-	// republish route; SnapshotID also stamps the provenance of every edge
-	// a delta upserts.
 	GenerationID    string
 	ResolverVersion string
 	SnapshotID      int64
+
+	// SnapshotStore is optional for callers that do not serve in-memory
+	// queries. When set, the delta route rebuilds a complete immutable
+	// HotSnapshot from the mutated database before publishing it atomically.
+	SnapshotStore *hotsnapshot.SnapshotStore
+	BuildSnapshot func(context.Context, rebuild.BuildSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error)
 
 	// Layout, ApplyDelta, Counts and Republish default to the real
 	// implementations; tests substitute them so the orchestration runs
@@ -148,6 +152,12 @@ type UpdateOptions struct {
 	ApplyDelta func(context.Context, string, facts.Delta, ladybug.CanonicalLoadOptions) (ladybug.CanonicalMutationResult, error)
 	Counts     func(context.Context, string) (map[string]int64, error)
 	Republish  func(context.Context, rebuild.Options) (rebuild.Report, error)
+}
+
+// SnapshotBuild is the in-memory publication report produced after a delta.
+// It is present only when UpdateOptions.SnapshotStore is configured.
+type SnapshotBuild struct {
+	Report rebuild.SnapshotReport
 }
 
 // UpdateResult accounts for one incremental update.
@@ -162,6 +172,9 @@ type UpdateResult struct {
 	// SnapshotDigest is the refreshed digest recorded for the mutated
 	// generation on the delta route.
 	SnapshotDigest string
+	// Snapshot is populated after a successful full HotSnapshot rebuild and
+	// atomic publication on the delta route.
+	Snapshot SnapshotBuild
 	// Rebuild is populated on the republish route.
 	Rebuild rebuild.Report
 	Passed  bool
@@ -175,6 +188,11 @@ type UpdateResult struct {
 // mutation left behind: rollback revalidates a destination by recomputing
 // that digest, so a generation mutated in place without refreshing it could
 // never be rolled back to again.
+//
+// When SnapshotStore is configured, the mutated database is then scanned and
+// rebuilt into a complete immutable HotSnapshot. Only after that build passes
+// validation does SnapshotStore.Publish atomically replace the pointer seen by
+// readers. A failed build leaves the previous in-memory snapshot serving.
 //
 // On the republish route nothing touches graph.active: rebuild.Run builds
 // graph.next, verifies it and swaps it in, leaving the previous generation
@@ -242,8 +260,30 @@ func applyDeltaRoute(ctx context.Context, options UpdateOptions, layout rebuild.
 	if err != nil {
 		return result, fmt.Errorf("%w: refresh snapshot digest: %w", ErrUpdateFailed, err)
 	}
-
 	result.SnapshotDigest = digest
+	if options.SnapshotStore != nil {
+		build := options.BuildSnapshot
+		if build == nil {
+			build = rebuild.BuildSnapshot
+		}
+		if options.SnapshotID < 0 {
+			return result, fmt.Errorf("%w: snapshot id %d is negative", ErrUpdateFailed, options.SnapshotID)
+		}
+		snapshot, report, err := build(ctx, rebuild.BuildSnapshotOptions{
+			DatabasePath: layout.Active.DatabasePath,
+			SnapshotID:   uint64(options.SnapshotID),
+		})
+		if err != nil {
+			return result, fmt.Errorf("%w: rebuild HotSnapshot: %w", ErrUpdateFailed, err)
+		}
+		if !report.Passed {
+			return result, fmt.Errorf("%w: rebuild HotSnapshot did not pass", ErrUpdateFailed)
+		}
+		if err := options.SnapshotStore.Publish(snapshot); err != nil {
+			return result, fmt.Errorf("%w: publish HotSnapshot: %w", ErrUpdateFailed, err)
+		}
+		result.Snapshot = SnapshotBuild{Report: report}
+	}
 	result.Generation = layout.Active
 	result.Passed = true
 	return result, nil

@@ -6629,11 +6629,11 @@ HotSnapshot tras un delta pertenece a LUQUE-1008.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 Primera versión:
 
@@ -6644,6 +6644,55 @@ delta DB
 ```
 
 Optimizar solo si excede el presupuesto.
+
+**Implementación:**
+
+`indexer.Update` acepta un `hotsnapshot.SnapshotStore` opcional. Después de
+aplicar el delta y refrescar `snapshot.sha256`, reconstruye el HotSnapshot
+completo desde la base canónica mutada mediante `rebuild.BuildSnapshot`.
+`SnapshotStore.Publish` sólo se ejecuta después de que el builder y su informe
+pasen; el CAS del store hace el reemplazo atómico para los lectores. Si la
+reconstrucción falla o el candidato tiene una generación obsoleta, el
+snapshot anterior permanece publicado y `Update` devuelve `ErrUpdateFailed`.
+
+**Archivos modificados:**
+
+```text
+internal/indexer/delta.go
+internal/indexer/delta_test.go
+internal/indexer/delta_native_test.go
+```
+
+**Estado:** `PASS`.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/indexer ./internal/rebuild
+make build
+make test-ladybug
+```
+
+Todos pasan. El test unitario cubre publicación, fallo de build conservando
+el snapshot anterior y rechazo de una generación obsoleta. El test nativo
+carga una base canónica real, ejecuta `Update` con `ApplyCanonicalDelta` y
+reconstruye/publica el snapshot usando `ScanCanonical` real.
+
+**Comprobación por mutación:** eliminar `SnapshotStore.Publish` rompe la
+prueba de publicación; restaurar el código original deja la suite en verde.
+
+**Benchmark:** no aplica: LUQUE-1008 implementa deliberadamente el rebuild
+completo pedido por el contrato. La optimización incremental se reserva para
+cuando el presupuesto de reconstrucción real se exceda.
+
+**Limitaciones:** el store HotSnapshot se actualiza sólo cuando el llamador
+lo proporciona; esto conserva la compatibilidad con consumidores que sólo
+usan el grafo persistente. La ruta de republicación completa seguirá su
+pipeline existente; esta tarea cubre la reconstrucción posterior a un delta.
+
+**Siguiente tarea:** LUQUE-1009.
 
 ---
 
