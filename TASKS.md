@@ -8946,20 +8946,77 @@ identifica ni cuantifica el recurso contendido.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Capturar:**
+**Entregables:**
 
-* CPU;
-* heap;
-* allocations;
-* mutex;
-* block;
-* trace.
+```text
+benchmarks/mcp-client/main.go
+benchmarks/mcp-client/main_test.go
+benchmarks/mcp-client-32/profiles/cpu.pprof
+benchmarks/mcp-client-32/profiles/heap.pprof
+benchmarks/mcp-client-32/profiles/allocs.pprof
+benchmarks/mcp-client-32/profiles/mutex.pprof
+benchmarks/mcp-client-32/profiles/block.pprof
+benchmarks/mcp-client-32/profiles/trace.out
+benchmarks/mcp-client-32/profiles/report.md
+```
+
+Se añadió `--profile-dir` al benchmark MCP. La captura cubre el workload
+representativo de LUQUE-1305: 32 clientes, 10.000 llamadas, 100 warm-up por
+operación y cliente, 100.000 símbolos, 1.000.000 de aristas y seed 42.
+
+**Observaciones principales:**
+
+* CPU: 5.650 ms de muestras sobre 601,46 ms de reloj; domina
+  `encoding/json` (`stateInString` 16,99 %, `checkValid` 7,43 %,
+  `decodeState.skip` 7,26 %) y la validación JSON Schema (17,35 %
+  acumulado).
+* Heap: 128,91 MB vivos; `hotsnapshot.NewGraphSnapshot` retiene 57,33 MB
+  acumulados, seguido por `StringInterner.Intern` (14,11 MB) y
+  `buildCorpus` (9 MB).
+* Allocations: 6,05 GB acumulados y 76.336.687 objetos; dominan
+  `GraphSnapshot.Traverse` (1,36 GB), JSON marshal/decode, validación Schema y
+  `reflect.copyVal` (24.379.739 objetos, 31,94 %).
+* Mutex: 1,91 s agregados; 91,78 % aparece en `sync.Mutex.Unlock`, con la
+  ruta acumulada en `jsonrpc2.Connection.write`/`mcp.ioConn.Write`.
+* Block: 51,61 s agregados; 92,09 % en `runtime.selectgo`, seguido por
+  recepción de canales, locks y esperas de `WaitGroup`. El tiempo agregado
+  suma goroutines y no es latencia de pared.
+* Trace: el perfil sync confirma 51.714 ms agregados, 91,89 % en
+  `runtime.selectgo`; el perfil scheduler muestra 52 % en `runtime.chansend1`
+  y 20,57 % en `jsonrpc2.Connection.handleAsync`.
+
+La primera categoría accionable para LUQUE-1307 es **allocations/serialización**:
+JSON, validación Schema y reflexión dominan CPU y allocations; el recorrido del
+grafo es el mayor allocator propio del snapshot. LUQUE-1306 no modifica aún
+el comportamiento de producción.
+
+**Verificación ejecutada:**
+
+```text
+go test ./benchmarks/mcp-client -count=1: PASS
+go test ./... -count=1: PASS; 21 paquetes con tests, 4 sin tests
+go vet ./...: PASS
+go test -race ./benchmarks/mcp-client -count=1: PASS
+go tool pprof -top sobre CPU, heap, allocs, mutex y block: PASS
+go tool trace -pprof=sync y -pprof=sched: PASS
+```
+
+**Limitaciones:** CPU y trace incluyen overhead de instrumentación. Heap y
+allocations incluyen estado de setup, snapshot, workload, SDK y runtime de
+profiling. Los tiempos mutex/block/trace son agregados y no se pueden
+atribuir directamente a una llamada. El transporte es en memoria; no se
+profilan STDIO, sockets, red ni un checkout real. No existe todavía un
+contador directo de contención global.
+
+**Estado:** `PASS`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1307.
 
 ---
 
