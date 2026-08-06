@@ -3,9 +3,12 @@ package mcp
 import (
 	"context"
 	"testing"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/version"
 )
 
@@ -45,5 +48,98 @@ func TestServerInitializesWithIdentityAndCapabilities(t *testing.T) {
 	}
 	if result.Capabilities == nil {
 		t.Fatal("InitializeResult().Capabilities = nil")
+	}
+}
+
+func TestServerRecordsQueryMetrics(t *testing.T) {
+	ctx := context.Background()
+	registry := metrics.NewRegistry()
+	server := NewServerWithMetrics(registry)
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	defer serverSession.Close()
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer clientSession.Close()
+
+	if _, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{Name: "graph_status"}); err != nil {
+		t.Fatalf("graph_status call error = %v", err)
+	}
+	result, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "find_symbol",
+		Arguments: map[string]any{"name": "missing"},
+	})
+	if err != nil {
+		t.Fatalf("find_symbol transport error = %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("find_symbol result = %#v, want classified tool error", result)
+	}
+
+	report := registry.Report()
+	status := report.Queries["graph_status"]
+	if status.Calls != 1 || status.Errors != 0 || status.Results != 1 {
+		t.Fatalf("graph_status metrics = %+v", status)
+	}
+	find := report.Queries["find_symbol"]
+	if find.Calls != 1 || find.Errors != 1 || find.Results != 0 {
+		t.Fatalf("find_symbol metrics = %+v", find)
+	}
+}
+
+func TestServerRecordsResultAndTruncationMetrics(t *testing.T) {
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-a", Name: "a", Languages: "go"},
+			{Key: "repo-b", Name: "b", Languages: "go"},
+		},
+	}, 1, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+
+	ctx := context.Background()
+	registry := metrics.NewRegistry()
+	server := NewServerWithMetricsAndSnapshotStore(registry, hotsnapshot.NewSnapshotStore(snapshot))
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	defer serverSession.Close()
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "list_repositories",
+		Arguments: map[string]any{"limit": 1},
+	})
+	if err != nil {
+		t.Fatalf("list_repositories transport error = %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("list_repositories result = %#v, want success", result)
+	}
+
+	report := registry.ReportAt(time.Unix(1_700_000_000, 0).UTC())
+	repositories := report.Queries["list_repositories"]
+	if repositories.Calls != 1 || repositories.Results != 1 || repositories.Truncated != 1 || repositories.Errors != 0 {
+		t.Fatalf("list_repositories metrics = %+v", repositories)
+	}
+	if report.Snapshot.ID != 1 {
+		t.Fatalf("snapshot metrics = %+v, want id 1", report.Snapshot)
 	}
 }

@@ -119,7 +119,9 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -127,7 +129,7 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[BlastRadius], error) {
 		return getBlastRadius(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -136,7 +138,7 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[BlastRadius], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observer(blastRadiusToolName, time.Since(start))
+			observe(observer, callObserver, blastRadiusToolName, start, response, err)
 			return result, response, err
 		}
 	}

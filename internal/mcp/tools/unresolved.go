@@ -104,7 +104,9 @@ func RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -112,7 +114,7 @@ func RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[[]UnresolvedReferenceSummary], error) {
 		return getUnresolvedReferences(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -121,7 +123,7 @@ func RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[[]UnresolvedReferenceSummary], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observer(unresolvedReferencesToolName, time.Since(start))
+			observe(observer, callObserver, unresolvedReferencesToolName, start, response, err)
 			return result, response, err
 		}
 	}

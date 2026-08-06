@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Luqueee/ladygraph/internal/metrics"
 )
 
 // --- arranque y handshake -------------------------------------------------
@@ -525,5 +527,38 @@ func TestSupervisorRejectsASecondStart(t *testing.T) {
 func TestNewSupervisorRequiresACommand(t *testing.T) {
 	if _, err := NewSupervisor(Options{}); ErrorCode(err) != CodeSpawn {
 		t.Fatalf("NewSupervisor() error = %v, want %q", err, CodeSpawn)
+	}
+}
+
+func TestSupervisorRecordsRestartMetrics(t *testing.T) {
+	registry := metrics.NewRegistry()
+	supervisor := &Supervisor{
+		options: Options{Metrics: registry, RestartWindow: time.Minute},
+	}
+
+	supervisor.mu.Lock()
+	supervisor.recordRestartLocked()
+	supervisor.recordRestartLocked()
+	supervisor.mu.Unlock()
+
+	observed := registry.Report().Worker
+	if observed.Restarts != 2 {
+		t.Fatalf("worker metrics = %+v, want two restarts", observed)
+	}
+}
+
+func TestSupervisorRecordsWorkerMemoryMetrics(t *testing.T) {
+	registry := metrics.NewRegistry()
+	supervisor := newFakeSupervisor(t, fakeHealthy, func(options *Options) {
+		options.Metrics = registry
+	})
+	if err := supervisor.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if status := supervisor.Status(); status.PID == 0 {
+		t.Fatalf("Status().PID = %d, want a running worker", status.PID)
+	}
+	if got := registry.Report().Worker.MemoryBytes; got <= 0 {
+		t.Fatalf("worker memory metric = %d, want a positive resident size", got)
 	}
 }

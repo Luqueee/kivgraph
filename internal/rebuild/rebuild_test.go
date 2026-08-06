@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
@@ -734,5 +735,38 @@ func TestRunDefaultsScanToLadybugScanCanonical(t *testing.T) {
 	snapshotStage, ok := stageByName(report.Stages, StageSnapshot)
 	if !ok || snapshotStage.Passed {
 		t.Fatalf("snapshot stage = %+v, want a recorded failure", snapshotStage)
+	}
+}
+
+func TestRunRecordsMetrics(t *testing.T) {
+	root := t.TempDir()
+	set := sampleFacts()
+	registry := metrics.NewRegistry()
+	options := buildOptions(t, root, "000001", set)
+	options.Metrics = registry
+
+	report, err := Run(context.Background(), options)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !report.Passed {
+		t.Fatalf("report = %+v, want a passing rebuild", report)
+	}
+
+	observed := registry.Report()
+	if observed.Index.Files != uint64(len(set.Files)) ||
+		observed.Index.Symbols != uint64(len(set.Symbols)) ||
+		observed.Index.Edges != uint64(len(set.Edges)) ||
+		observed.Index.Unresolved != uint64(len(set.Unresolved)) ||
+		observed.Index.Duration <= 0 {
+		t.Fatalf("index metrics = %+v", observed.Index)
+	}
+	if observed.Ladybug.Transactions != 1 || observed.Ladybug.TransactionTotal <= 0 || observed.Ladybug.DatabaseBytes <= 0 {
+		t.Fatalf("Ladybug metrics = %+v", observed.Ladybug)
+	}
+	if observed.Snapshot.ID != uint64(options.SnapshotID) ||
+		observed.Snapshot.BuildDuration <= 0 ||
+		observed.Snapshot.Bytes <= 0 {
+		t.Fatalf("snapshot metrics = %+v", observed.Snapshot)
 	}
 }

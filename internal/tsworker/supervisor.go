@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/Luqueee/ladygraph/internal/metrics"
 )
 
 // State is the observable lifecycle state of a supervisor.
@@ -145,6 +147,10 @@ type Options struct {
 
 	// StderrTailLines bounds the retained stderr tail.
 	StderrTailLines int
+
+	// Metrics receives worker restart and best-effort resident-memory
+	// observations when configured. Non-Linux platforms report zero memory.
+	Metrics *metrics.Registry
 
 	// OnStderr receives every stderr line. stderr never carries protocol data.
 	OnStderr func(line string)
@@ -374,7 +380,6 @@ func (supervisor *Supervisor) markNotReadyLocked(state State) {
 // Status returns a snapshot of the supervisor state.
 func (supervisor *Supervisor) Status() Status {
 	supervisor.mu.Lock()
-	defer supervisor.mu.Unlock()
 
 	status := Status{
 		State:            supervisor.state,
@@ -395,6 +400,13 @@ func (supervisor *Supervisor) Status() Status {
 		status.Handshake = &info
 		status.Uptime = time.Since(sess.started)
 		status.PID = sess.pid()
+	}
+	supervisor.mu.Unlock()
+	if supervisor.options.Metrics != nil {
+		supervisor.options.Metrics.ObserveWorker(metrics.WorkerObservation{
+			Restarts:    uint64(status.Restarts),
+			MemoryBytes: processMemoryBytes(status.PID),
+		})
 	}
 	return status
 }
@@ -708,6 +720,7 @@ func (supervisor *Supervisor) recordRestartLocked() {
 	supervisor.pruneRestartsLocked()
 	supervisor.restartLog = append(supervisor.restartLog, time.Now())
 	supervisor.restarts++
+	supervisor.options.Metrics.RecordWorkerRestart()
 }
 
 func (supervisor *Supervisor) pruneRestartsLocked() {

@@ -60,7 +60,9 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -68,7 +70,7 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
 		return getSymbol(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -77,7 +79,7 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
 			start := time.Now()
 			result, symbol, err := underlying(ctx, request, arguments)
-			observer(getSymbolToolName, time.Since(start))
+			observe(observer, callObserver, getSymbolToolName, start, symbol, err)
 			return result, symbol, err
 		}
 	}

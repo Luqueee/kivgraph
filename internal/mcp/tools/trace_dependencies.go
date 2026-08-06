@@ -122,7 +122,9 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -130,7 +132,7 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[DependencyTrace], error) {
 		return traceDependencies(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -139,7 +141,7 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[DependencyTrace], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observer(traceDependenciesToolName, time.Since(start))
+			observe(observer, callObserver, traceDependenciesToolName, start, response, err)
 			return result, response, err
 		}
 	}

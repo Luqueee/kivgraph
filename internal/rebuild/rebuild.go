@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
@@ -97,6 +98,7 @@ type Options struct {
 	ResolverVersion string
 	SnapshotID      int64
 	Store           generation.Config
+	Metrics         *metrics.Registry
 
 	// Load, Counts, Probes, Integrity and Scan default to the ladybug
 	// implementations; tests substitute them so the orchestration is
@@ -117,6 +119,18 @@ const snapshotFileName = "snapshot.sha256"
 // through the generation store's atomic swap. A failure at any stage aborts
 // the publish, so the previous CURRENT generation is left untouched.
 func Run(ctx context.Context, options Options) (Report, error) {
+	runStart := time.Now()
+	if options.Metrics != nil {
+		defer func() {
+			options.Metrics.ObserveIndex(metrics.IndexObservation{
+				Duration:   time.Since(runStart),
+				Files:      uint64(len(options.Facts.Files)),
+				Symbols:    uint64(len(options.Facts.Symbols)),
+				Edges:      uint64(len(options.Facts.Edges)),
+				Unresolved: uint64(len(options.Facts.Unresolved)),
+			})
+		}()
+	}
 	report := Report{GenerationID: options.GenerationID}
 
 	if err := ctx.Err(); err != nil {
@@ -220,6 +234,16 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		loadStart := time.Now()
 		result, loadErr := load(buildCtx, databasePath, options.Facts, loadOptions)
 		loadReport = result
+		if options.Metrics != nil {
+			databaseBytes := int64(0)
+			if info, err := os.Stat(databasePath); err == nil {
+				databaseBytes = info.Size()
+			}
+			options.Metrics.ObserveLadybug(metrics.LadybugObservation{
+				TransactionDuration: time.Since(loadStart),
+				DatabaseBytes:       databaseBytes,
+			})
+		}
 		if loadErr != nil {
 			// The loader does not report where staging ended and copying
 			// began when it fails, so the whole elapsed time is charged to
@@ -245,12 +269,6 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		// snapshot: digest the graph the load just produced, from the same
 		// per-table counts the loader reported, and write it beside the
 		// candidate database before Publish ever renames the directory.
-		// That digest only proves the row counts match what the fact set
-		// implies; it says nothing about whether the definitive graph the
-		// candidate now holds can actually become the HotSnapshot the
-		// serving path reads. Build it here, from the candidate database
-		// itself, and abort the publish if it cannot: a graph that cannot
-		// become a snapshot must not become CURRENT.
 		snapshotStart := time.Now()
 		digest, digestErr := writeSnapshotDigest(candidatePath, result.Tables)
 		if digestErr != nil {
@@ -262,6 +280,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		_, hotSnapshotReport, hotSnapshotErr := BuildSnapshot(buildCtx, BuildSnapshotOptions{
 			DatabasePath: databasePath,
 			SnapshotID:   uint64(options.SnapshotID),
+			Metrics:      options.Metrics,
 			Scan:         scan,
 		})
 		snapshotReport = hotSnapshotReport

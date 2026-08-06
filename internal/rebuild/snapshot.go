@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"time"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
@@ -62,6 +64,7 @@ type SnapshotReport struct {
 type BuildSnapshotOptions struct {
 	DatabasePath string
 	SnapshotID   uint64
+	Metrics      *metrics.Registry
 
 	// Scan defaults to ladybug.ScanCanonical, exactly like Options.Load,
 	// Options.Counts, Options.Probes and Options.Integrity already default
@@ -78,6 +81,7 @@ type BuildSnapshotOptions struct {
 // ErrSnapshotBuildFailed; a *hotsnapshot.GraphSnapshot is only ever
 // returned once hotsnapshot.BuildGraphSnapshot has itself validated it.
 func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnapshot.GraphSnapshot, SnapshotReport, error) {
+	buildStart := time.Now()
 	report := SnapshotReport{SnapshotID: options.SnapshotID, Version: snapshotRowFormatVersion}
 	if err := ctx.Err(); err != nil {
 		return nil, report, fmt.Errorf("%w: %w", ErrSnapshotBuildFailed, err)
@@ -125,6 +129,19 @@ func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnaps
 		SkippedEdges: skippedEdges,
 	}
 	report.Passed = true
+	if options.Metrics != nil {
+		databaseBytes := int64(0)
+		if info, err := os.Stat(options.DatabasePath); err == nil {
+			databaseBytes = info.Size()
+		}
+		metadata := snapshot.Metadata()
+		options.Metrics.ObserveSnapshot(metrics.SnapshotObservation{
+			ID:            metadata.ID,
+			CreatedAt:     metadata.CreatedAt,
+			BuildDuration: time.Since(buildStart),
+			Bytes:         databaseBytes,
+		})
+	}
 	return snapshot, report, nil
 }
 
@@ -133,8 +150,9 @@ func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnaps
 // resolution RollbackOptions already does for Rollback, applied here to
 // BuildSnapshot instead of generation.Store.Restore.
 type GenerationSnapshotOptions struct {
-	Root  string
-	Store generation.Config
+	Root    string
+	Store   generation.Config
+	Metrics *metrics.Registry
 
 	// GenerationID selects which published generation to snapshot; empty
 	// means graph.active — the generation actually serving right now,
@@ -162,6 +180,7 @@ func SnapshotGeneration(ctx context.Context, options GenerationSnapshotOptions) 
 	return BuildSnapshot(ctx, BuildSnapshotOptions{
 		DatabasePath: target.DatabasePath,
 		SnapshotID:   options.SnapshotID,
+		Metrics:      options.Metrics,
 		Scan:         options.Scan,
 	})
 }

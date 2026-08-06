@@ -9206,11 +9206,11 @@ truncamientos pertenecen a LUQUE-1402.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Métricas:**
 
@@ -9223,6 +9223,53 @@ truncamientos pertenecen a LUQUE-1402.
 * unresolved;
 * workers;
 * LadybugDB.
+
+**Estado:** `PASS`.
+
+**Entregables:**
+
+```text
+internal/metrics/metrics.go
+internal/metrics/metrics_test.go
+internal/mcp/tools/observer.go
+internal/mcp/tools/blast_radius.go
+internal/mcp/tools/find_cross_repo_consumers.go
+internal/mcp/tools/find_references.go
+internal/mcp/tools/find_symbol.go
+internal/mcp/tools/get_symbol.go
+internal/mcp/tools/repositories.go
+internal/mcp/tools/status.go
+internal/mcp/tools/trace_dependencies.go
+internal/mcp/tools/unresolved.go
+internal/mcp/server.go
+internal/indexer/delta.go
+internal/rebuild/rebuild.go
+internal/rebuild/snapshot.go
+internal/tsworker/supervisor.go
+internal/tsworker/process_memory_linux.go
+internal/tsworker/process_memory_other.go
+benchmarks/internal-metrics/results.json
+docs/adr/0012-internal-metrics.md
+```
+
+**Implementación:** registro protegido por mutex con contadores, latencias,
+gauges y máximos; observación común de las nueve herramientas MCP; métricas de
+indexación, rebuild, snapshot, worker TypeScript y LadybugDB; RSS del worker
+desde `/proc/<pid>/statm` en Linux; informes consistentes sin payloads ni
+etiquetas de alta cardinalidad.
+
+**Verificación:** `go test ./... -count=1` pasa con 23 paquetes y 4 sin tests;
+`go vet ./...` pasa; `go test -race ./internal/metrics ./internal/mcp
+./internal/rebuild ./internal/indexer ./internal/tsworker -count=1` pasa;
+`go test ./internal/metrics -bench=BenchmarkObserveQuery -benchmem -count=3`
+mide 0 allocaciones por operación y aproximadamente 30.5 ns/op.
+
+**Limitaciones:** el registro todavía es interno y no tiene exportador ni
+endpoint público; la exposición mediante `graph_status` corresponde a
+LUQUE-1403. El RSS devuelve cero en sistemas sin `/proc`; el worker conserva
+la métrica del último `Status()` observado.
+
+**Siguiente tarea desbloqueada:** LUQUE-1403.
 
 ---
 

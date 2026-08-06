@@ -1,0 +1,28 @@
+{
+  "benchmark": "internal-metrics",
+  "generated_at": "2026-08-06T23:01:00Z",
+  "command": "go test ./internal/metrics -bench=BenchmarkObserveQuery -benchmem -count=3",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+  "samples": 3,
+  "results": {
+    "observe_query_ns_per_op": [
+      30.83,
+      30.64,
+      30.47
+    ],
+    "observe_query_bytes_per_op": 0,
+    "observe_query_allocs_per_op": 0
+  },
+  "summary": {
+    "observe_query_mean_ns_per_op": 30.6467,
+    "observe_query_min_ns_per_op": 30.47,
+    "observe_query_max_ns_per_op": 30.83
+  },
+  "limitations": [
+    "The benchmark measures the in-process observer only; it does not include future graph_status serialization or transport overhead.",
+    "The samples are a local Linux amd64 measurement on the recorded CPU."
+  ]
+}

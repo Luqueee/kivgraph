@@ -128,7 +128,9 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -136,7 +138,7 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[[]CrossRepoConsumerSummary], error) {
 		return findCrossRepoConsumers(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -145,7 +147,7 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[[]CrossRepoConsumerSummary], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observer(findCrossRepoConsumersToolName, time.Since(start))
+			observe(observer, callObserver, findCrossRepoConsumersToolName, start, response, err)
 			return result, response, err
 		}
 	}

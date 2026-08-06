@@ -58,7 +58,9 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -66,7 +68,7 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
 		return listRepositories(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -75,7 +77,7 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
 			start := time.Now()
 			result, repositories, err := underlying(ctx, request, arguments)
-			observer(repositoryQueryToolName, time.Since(start))
+			observe(observer, callObserver, repositoryQueryToolName, start, repositories, err)
 			return result, repositories, err
 		}
 	}

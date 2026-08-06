@@ -108,7 +108,9 @@ func RegisterGraphStatusWithObserverAndSnapshotStore(
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
 	probe HostStatusProbe,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -116,7 +118,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
 		return graphStatus(ctx, request, arguments, snapshotStore, probe)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -125,7 +127,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
 			start := time.Now()
 			result, status, err := underlying(ctx, request, arguments)
-			observer(graphStatusToolName, time.Since(start))
+			observe(observer, callObserver, graphStatusToolName, start, status, err)
 			return result, status, err
 		}
 	}

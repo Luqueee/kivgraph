@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
@@ -122,8 +125,9 @@ func changedFileKeys(delta facts.Delta) []string {
 
 // UpdateOptions configures one incremental update.
 type UpdateOptions struct {
-	Root  string
-	Store generation.Config
+	Root    string
+	Store   generation.Config
+	Metrics *metrics.Registry
 
 	// Plans are the invalidation plans that motivated this update.
 	Plans []InvalidationPlan
@@ -198,6 +202,18 @@ type UpdateResult struct {
 // graph.next, verifies it and swaps it in, leaving the previous generation
 // as graph.backup.
 func Update(ctx context.Context, options UpdateOptions) (UpdateResult, error) {
+	updateStart := time.Now()
+	if options.Metrics != nil {
+		defer func() {
+			options.Metrics.ObserveIndex(metrics.IndexObservation{
+				Duration:   time.Since(updateStart),
+				Files:      uint64(len(options.Next.Files)),
+				Symbols:    uint64(len(options.Next.Symbols)),
+				Edges:      uint64(len(options.Next.Edges)),
+				Unresolved: uint64(len(options.Next.Unresolved)),
+			})
+		}()
+	}
 	var result UpdateResult
 	if err := ctx.Err(); err != nil {
 		return result, fmt.Errorf("%w: %v", ErrUpdateFailed, err)
@@ -243,6 +259,7 @@ func applyDeltaRoute(ctx context.Context, options UpdateOptions, layout rebuild.
 		counts = ladybug.CanonicalTableCounts
 	}
 
+	mutationStart := time.Now()
 	mutation, err := apply(ctx, layout.Active.DatabasePath, delta, ladybug.CanonicalLoadOptions{
 		SnapshotID:      options.SnapshotID,
 		ResolverVersion: options.ResolverVersion,
@@ -251,6 +268,16 @@ func applyDeltaRoute(ctx context.Context, options UpdateOptions, layout rebuild.
 		return result, fmt.Errorf("%w: apply delta to %s: %w", ErrUpdateFailed, rebuild.RoleActive, err)
 	}
 	result.Mutation = mutation
+	if options.Metrics != nil {
+		databaseBytes := int64(0)
+		if info, statErr := os.Stat(layout.Active.DatabasePath); statErr == nil {
+			databaseBytes = info.Size()
+		}
+		options.Metrics.ObserveLadybug(metrics.LadybugObservation{
+			TransactionDuration: time.Since(mutationStart),
+			DatabaseBytes:       databaseBytes,
+		})
+	}
 
 	tables, err := counts(ctx, layout.Active.DatabasePath)
 	if err != nil {
@@ -272,6 +299,7 @@ func applyDeltaRoute(ctx context.Context, options UpdateOptions, layout rebuild.
 		snapshot, report, err := build(ctx, rebuild.BuildSnapshotOptions{
 			DatabasePath: layout.Active.DatabasePath,
 			SnapshotID:   uint64(options.SnapshotID),
+			Metrics:      options.Metrics,
 		})
 		if err != nil {
 			return result, fmt.Errorf("%w: rebuild HotSnapshot: %w", ErrUpdateFailed, err)
@@ -306,6 +334,7 @@ func republishRoute(ctx context.Context, options UpdateOptions, layout rebuild.L
 		ResolverVersion: options.ResolverVersion,
 		SnapshotID:      options.SnapshotID,
 		Store:           options.Store,
+		Metrics:         options.Metrics,
 	})
 	result.Rebuild = report
 	if err != nil {

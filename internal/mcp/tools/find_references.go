@@ -103,7 +103,9 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
+	callObservers ...CallObserver,
 ) {
+	callObserver := firstCallObserver(callObservers)
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
@@ -111,7 +113,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 	) (*sdkmcp.CallToolResult, Response[[]ReferenceSummary], error) {
 		return findReferences(ctx, request, arguments, snapshotStore)
 	}
-	if observer != nil {
+	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
@@ -120,7 +122,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[[]ReferenceSummary], error) {
 			start := time.Now()
 			result, references, err := underlying(ctx, request, arguments)
-			observer(findReferencesToolName, time.Since(start))
+			observe(observer, callObserver, findReferencesToolName, start, references, err)
 			return result, references, err
 		}
 	}
