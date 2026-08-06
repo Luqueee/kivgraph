@@ -8,10 +8,14 @@ import (
 
 var ErrInvalidGraphSnapshot = errors.New("invalid graph snapshot")
 
-// RepositoryRecord stores the interned identity of one indexed repository.
+// RepositoryRecord stores the durable identity and display metadata for one
+// indexed repository.
 type RepositoryRecord struct {
-	Name   InternedString
-	Commit InternedString
+	Key       InternedString
+	Name      InternedString
+	Path      InternedString
+	Languages InternedString
+	Commit    InternedString
 }
 
 // PackageRecord belongs to one repository.
@@ -21,7 +25,7 @@ type PackageRecord struct {
 	ModulePath InternedString
 }
 
-// FileRecord belongs to one repository and package.
+// FileRecord belongs to one package.
 type FileRecord struct {
 	Repository RepositoryID
 	Package    PackageID
@@ -185,6 +189,14 @@ func (snapshot *GraphSnapshot) Metadata() SnapshotMetadata { return snapshot.met
 
 // Strings returns the immutable interning table owned by the snapshot.
 func (snapshot *GraphSnapshot) Strings() StringTable { return snapshot.strings }
+
+// Repository returns one repository by its dense immutable ID.
+func (snapshot *GraphSnapshot) Repository(id RepositoryID) (RepositoryRecord, bool) {
+	if uint64(id) >= uint64(len(snapshot.repositories)) {
+		return RepositoryRecord{}, false
+	}
+	return snapshot.repositories[id], true
+}
 
 // Symbol returns the record at one dense ID.
 func (snapshot *GraphSnapshot) Symbol(id SymbolID) (SymbolRecord, bool) {

@@ -5,33 +5,53 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/mcp/tools"
 	"github.com/Luqueee/ladygraph/internal/version"
 )
 
 const serverName = "ladygraph"
 
-// NewServer creates the empty Ladygraph MCP server with its advertised identity.
+// NewServer creates the Ladygraph MCP server with no graph source.
 func NewServer() *sdkmcp.Server {
-	return newServer(nil)
+	return newServer(nil, nil)
 }
 
-// NewServerWithObserver creates the empty server and observes tool-handler latency.
+// NewServerWithObserver creates the server without a graph source and observes
+// tool-handler latency.
 func NewServerWithObserver(observer tools.Observer) *sdkmcp.Server {
-	return newServer(observer)
+	return newServer(observer, nil)
 }
 
-func newServer(observer tools.Observer) *sdkmcp.Server {
+// NewServerWithSnapshotStore creates the server backed by the published
+// immutable HotSnapshot.
+func NewServerWithSnapshotStore(snapshotStore *hotsnapshot.SnapshotStore) *sdkmcp.Server {
+	return newServer(nil, snapshotStore)
+}
+
+// NewServerWithObserverAndSnapshotStore creates the snapshot-backed server and
+// observes tool-handler latency.
+func NewServerWithObserverAndSnapshotStore(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore) *sdkmcp.Server {
+	return newServer(observer, snapshotStore)
+}
+
+func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore) *sdkmcp.Server {
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name:    serverName,
 		Version: version.Value,
 	}, nil)
 	tools.RegisterGraphStatusWithObserver(server, observer)
-	tools.RegisterListRepositoriesWithObserver(server, observer)
+	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	return server
 }
 
 // Run serves one MCP session over the process stdin/stdout transport.
 func Run(ctx context.Context) error {
-	return NewServer().Run(ctx, &sdkmcp.StdioTransport{})
+	return RunWithSnapshotStore(ctx, nil)
+}
+
+// RunWithSnapshotStore serves one MCP session using snapshotStore as the
+// immutable graph source for query tools.
+func RunWithSnapshotStore(ctx context.Context, snapshotStore *hotsnapshot.SnapshotStore) error {
+	return NewServerWithSnapshotStore(snapshotStore).Run(ctx, &sdkmcp.StdioTransport{})
 }

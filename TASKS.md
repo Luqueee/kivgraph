@@ -7138,13 +7138,53 @@ transporta estado íntegro, no un secreto.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Debe usar el HotSnapshot.**
+**Implementación:**
+
+`internal/mcp/tools/repositories.go` dejó de devolver un stub y ahora consume
+el `HotSnapshot` publicado en un `SnapshotStore`. La entrada admite `limit`
+(por defecto 50, máximo 500) y `cursor`; la respuesta devuelve los metadatos
+del envelope estándar, la edad del snapshot y repositorios ordenados por stable
+key. El cursor contiene la identidad del snapshot, hash de consulta, offset,
+ordenación `stable-key-v1` y checksum, y distingue `CURSOR_INVALID`,
+`CURSOR_SNAPSHOT_EXPIRED`, `INDEX_NOT_READY` y `SNAPSHOT_UNAVAILABLE`.
+
+`internal/hotsnapshot` conserva en cada registro de repositorio la stable key,
+la ruta raíz y los lenguajes ordenados, además del nombre y commit existentes.
+`internal/rebuild/snapshot.go` incrementó el formato de filas a la versión 2 y
+incluyó esos campos en la conversión y el digest determinista. `internal/mcp`
+expone la inyección mediante `NewServerWithSnapshotStore`,
+`NewServerWithObserverAndSnapshotStore` y `RunWithSnapshotStore`.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1103.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/mcp/...
+make build
+```
+
+Las pruebas in-memory cubren snapshot vacío, snapshot poblado, ordenación por
+stable key, campos de display, paginación con cursor, cursor final y rechazo
+de límites fuera de rango. Todos los comandos pasan.
+
+**Limitaciones:** `NewServer` y el entrypoint CLI conservan el modo sin fuente y
+devuelven la página vacía compatible mientras no se inyecte un `SnapshotStore`.
+La carga y publicación del snapshot desde el ciclo de indexación se cableará en
+las tareas de integración posteriores; la tool ya no consulta LadybugDB ni el
+filesystem durante la petición.
+
+**Siguiente tarea:** LUQUE-1104.
 
 ---
 

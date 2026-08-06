@@ -24,6 +24,8 @@ publica solo cuando la verificación de integridad ha pasado.
 
 Cada snapshot incluye un identificador, edad, contadores, tablas de símbolos,
 relaciones, índices y metadatos suficientes para paginar y declarar límites.
+La tabla de repositorios conserva su stable key, nombre, ruta raíz y lenguajes
+ordenados; `list_repositories` la lee sin consultar LadybugDB ni el filesystem.
 Los IDs densos pueden cambiar entre snapshots; las stable keys permanecen como
 identidad externa.
 
@@ -97,8 +99,10 @@ lectores ya conservaron. La construcción fallida nunca alcanza el puntero activ
 ### Búsquedas exactas
 
 Las tools consultan los mapas de stable key, nombre, nombre cualificado y
-repo/path sin recorrer tablas ni aplicar coincidencias nominales. Los resultados
-de nombre se devuelven en páginas acotadas (`limit` máximo 500), copiadas para
+repo/path sin recorrer tablas ni aplicar coincidencias nominales. La tool
+`list_repositories` recorre la tabla de repositorios ya ordenada por stable key
+y devuelve sus metadatos de display desde el snapshot. Los resultados de
+nombre se devuelven en páginas acotadas (`limit` máximo 500), copiadas para
 que el slice del lector no exponga almacenamiento del snapshot.
 
 ### Recorridos acotados

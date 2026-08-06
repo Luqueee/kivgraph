@@ -34,7 +34,7 @@ var ErrSnapshotBuildFailed = errors.New("snapshot build failed")
 // constant changes only when this adapter's own row shaping rules change in
 // a way that would produce a different snapshot for the same canonical
 // graph.
-const snapshotRowFormatVersion uint32 = 1
+const snapshotRowFormatVersion uint32 = 2
 
 // SnapshotStats accounts for what a built snapshot contains.
 type SnapshotStats struct {
@@ -210,7 +210,10 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 
 	rows.Repositories = make([]hotsnapshot.RepositoryRow, len(graph.Repositories))
 	for index, repository := range graph.Repositories {
-		rows.Repositories[index] = hotsnapshot.RepositoryRow{Key: repository.StableKey, Name: repository.Name, Commit: repository.Commit}
+		rows.Repositories[index] = hotsnapshot.RepositoryRow{
+			Key: repository.StableKey, Name: repository.Name, Path: repository.RootPath,
+			Languages: repository.Languages, Commit: repository.Commit,
+		}
 	}
 
 	rows.Packages = make([]hotsnapshot.PackageRow, len(graph.Packages))
@@ -377,7 +380,8 @@ func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 	hash := sha256.New()
 	fmt.Fprintf(hash, "snapshot_row_format=%d\n", snapshotRowFormatVersion)
 	for _, repository := range repositories {
-		fmt.Fprintf(hash, "repository:%s name=%s commit=%s\n", repository.Key, repository.Name, repository.Commit)
+		fmt.Fprintf(hash, "repository:%s name=%s path=%s languages=%s commit=%s\n",
+			repository.Key, repository.Name, repository.Path, repository.Languages, repository.Commit)
 	}
 	for _, pkg := range packages {
 		fmt.Fprintf(hash, "package:%s repository=%s name=%s module_path=%s\n", pkg.Key, pkg.RepositoryKey, pkg.Name, pkg.ModulePath)

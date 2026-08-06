@@ -20,9 +20,11 @@ type LadybugSnapshotRows struct {
 }
 
 type RepositoryRow struct {
-	Key    string
-	Name   string
-	Commit string
+	Key       string
+	Name      string
+	Path      string
+	Languages string
+	Commit    string
 }
 
 type PackageRow struct {
@@ -242,6 +244,24 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	if err != nil {
 		return nil, err
 	}
+	for index, row := range repositories {
+		key, err := interner.Intern(row.Key)
+		if err != nil {
+			return nil, err
+		}
+		path, err := interner.Intern(row.Path)
+		if err != nil {
+			return nil, err
+		}
+		languages, err := interner.Intern(row.Languages)
+		if err != nil {
+			return nil, err
+		}
+		repositoryRecords[index].Key = key
+		repositoryRecords[index].Path = path
+		repositoryRecords[index].Languages = languages
+	}
+
 	return NewGraphSnapshot(GraphSnapshotInput{
 		ID: snapshotID, CreatedAt: createdAt, Version: version, Strings: interner.Freeze(),
 		Repositories: repositoryRecords, Packages: packageRecords, Files: fileRecords, Symbols: symbolRecords, Evidence: evidenceRecords,
