@@ -1,5 +1,5 @@
 {
-  "name": "@luque-fixture/shared",
+  "name": "@ladygraph-fixture/shared",
   "version": "1.4.2",
   "type": "module",
   "types": "./dist/index.d.ts",

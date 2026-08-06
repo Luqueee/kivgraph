@@ -4,7 +4,7 @@
     "name": "shared-library"
   },
   "package": {
-    "name": "@luque-fixture/shared",
+    "name": "@ladygraph-fixture/shared",
     "version": "1.4.2",
     "rootPath": ".",
     "manifestPath": "package.json"

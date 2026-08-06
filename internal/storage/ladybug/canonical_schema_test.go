@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
 // TestCanonicalSchemaFileMatchesTheMetadata keeps the versioned DDL and the Go
@@ -46,7 +46,7 @@ func TestCanonicalSchemaDocumentationMatchesTheMetadata(t *testing.T) {
 }
 
 // TestCanonicalSchemaCoversEveryEdgeKind is the parity invariant with the
-// canonical model: an edge Luque can produce and cannot store is a fact lost
+// canonical model: an edge Ladygraph can produce and cannot store is a fact lost
 // at write time.
 func TestCanonicalSchemaCoversEveryEdgeKind(t *testing.T) {
 	tables := make(map[string]SchemaRelationshipTable, len(CanonicalRelationshipTables()))

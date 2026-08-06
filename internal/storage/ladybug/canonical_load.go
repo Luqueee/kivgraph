@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
 // ErrInvalidCanonicalLoad reports a fact set or option that cannot become a
@@ -53,7 +53,7 @@ func CanonicalColumns(table string) ([]string, bool) {
 	return nil, false
 }
 
-// columnsOrError looks up a table Luque itself names, as opposed to a table
+// columnsOrError looks up a table Ladygraph itself names, as opposed to a table
 // name derived from fact data (an edge kind). Any miss here means this file
 // and canonical_schema.go have drifted apart, which is a bug, not bad input.
 func columnsOrError(table string) ([]string, error) {

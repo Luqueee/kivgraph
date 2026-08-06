@@ -66,25 +66,25 @@ lbug_state lbug_query_result_get_arrow_schema(lbug_query_result*, ArrowSchema*);
 lbug_state lbug_query_result_get_next_arrow_chunk(lbug_query_result*, int64_t, ArrowArray*);
 void lbug_destroy_string(char*);
 
-static ArrowSchema* luque_schema_child(ArrowSchema* schema, int64_t index) {
+static ArrowSchema* ladygraph_schema_child(ArrowSchema* schema, int64_t index) {
 	return schema->children[index];
 }
 
-static ArrowArray* luque_array_child(ArrowArray* array, int64_t index) {
+static ArrowArray* ladygraph_array_child(ArrowArray* array, int64_t index) {
 	return array->children[index];
 }
 
-static const void* luque_array_buffer(ArrowArray* array, int64_t index) {
+static const void* ladygraph_array_buffer(ArrowArray* array, int64_t index) {
 	return array->buffers[index];
 }
 
-static void luque_release_schema(ArrowSchema* schema) {
+static void ladygraph_release_schema(ArrowSchema* schema) {
 	if (schema->release != NULL) {
 		schema->release(schema);
 	}
 }
 
-static void luque_release_array(ArrowArray* array) {
+static void ladygraph_release_array(ArrowArray* array) {
 	if (array->release != NULL) {
 		array->release(array);
 	}
@@ -271,14 +271,14 @@ func newArrowArenaColumn(column arrowColumn) (arrowArenaColumn, error) {
 	if array.n_buffers < 3 {
 		return arrowArenaColumn{}, fmt.Errorf("Arrow string column has %d buffers, want at least 3", array.n_buffers)
 	}
-	offsets := C.luque_array_buffer(array, 1)
-	data := C.luque_array_buffer(array, 2)
+	offsets := C.ladygraph_array_buffer(array, 1)
+	data := C.ladygraph_array_buffer(array, 2)
 	if offsets == nil || data == nil {
 		return arrowArenaColumn{}, fmt.Errorf("Arrow string column has nil offsets or data buffer")
 	}
 	var validity unsafe.Pointer
 	if array.null_count != 0 {
-		validity = C.luque_array_buffer(array, 0)
+		validity = C.ladygraph_array_buffer(array, 0)
 		if validity == nil {
 			return arrowArenaColumn{}, fmt.Errorf("Arrow string column has null count %d but no validity buffer", array.null_count)
 		}
@@ -442,13 +442,13 @@ func newArrowInt64Column(column arrowColumn) (arrowInt64Column, error) {
 	if array.n_buffers < 2 {
 		return arrowInt64Column{}, fmt.Errorf("Arrow int64 column has %d buffers, want at least 2", array.n_buffers)
 	}
-	values := C.luque_array_buffer(array, 1)
+	values := C.ladygraph_array_buffer(array, 1)
 	if values == nil {
 		return arrowInt64Column{}, fmt.Errorf("Arrow int64 column has nil values buffer")
 	}
 	var validity unsafe.Pointer
 	if array.null_count != 0 {
-		validity = C.luque_array_buffer(array, 0)
+		validity = C.ladygraph_array_buffer(array, 0)
 		if validity == nil {
 			return arrowInt64Column{}, fmt.Errorf("Arrow int64 column has null count %d but no validity buffer", array.null_count)
 		}
@@ -500,7 +500,7 @@ func scanArrowQuery(ctx context.Context, connection *C.lbug_connection, query st
 		return arrowQueryError(&result, "get Arrow schema")
 	}
 	formats, err := arrowSchemaFormats(&schema)
-	C.luque_release_schema(&schema)
+	C.ladygraph_release_schema(&schema)
 	if err != nil {
 		return err
 	}
@@ -522,13 +522,13 @@ func scanArrowQuery(ctx context.Context, connection *C.lbug_connection, query st
 			return arrowQueryError(&result, "get Arrow chunk")
 		}
 		chunkErr := func() error {
-			defer C.luque_release_array(&array)
+			defer C.ladygraph_release_array(&array)
 			if array.n_children != C.int64_t(len(formats)) {
 				return fmt.Errorf("Arrow chunk columns = %d, want %d", array.n_children, len(formats))
 			}
 			columns := make([]arrowColumn, len(formats))
 			for index, format := range formats {
-				columns[index] = arrowColumn{format: format, array: C.luque_array_child(&array, C.int64_t(index))}
+				columns[index] = arrowColumn{format: format, array: C.ladygraph_array_child(&array, C.int64_t(index))}
 				if columns[index].array == nil {
 					return fmt.Errorf("Arrow chunk column %d is nil", index)
 				}
@@ -548,7 +548,7 @@ func arrowSchemaFormats(schema *C.ArrowSchema) ([]string, error) {
 	}
 	formats := make([]string, int(schema.n_children))
 	for index := range formats {
-		child := C.luque_schema_child(schema, C.int64_t(index))
+		child := C.ladygraph_schema_child(schema, C.int64_t(index))
 		if child == nil || child.format == nil {
 			return nil, fmt.Errorf("Arrow schema column %d has no format", index)
 		}

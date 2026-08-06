@@ -281,7 +281,7 @@ async function createTypeScript5Engine(corpus) {
 
 async function main() {
 	const options = parseArguments(process.argv.slice(2));
-	const root = options.corpusRoot || path.join(process.env.TMPDIR ?? "/tmp", `luque-ts-corpus-${options.files}-${options.seed}`);
+	const root = options.corpusRoot || path.join(process.env.TMPDIR ?? "/tmp", `ladygraph-ts-corpus-${options.files}-${options.seed}`);
 	const corpus = generateCorpus({ root, files: options.files, seed: options.seed });
 
 	const rssBefore = processTreeRSS();

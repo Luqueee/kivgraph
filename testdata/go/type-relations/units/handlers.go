@@ -1,6 +1,6 @@
 package units
 
-import geometry "example.com/luque-fixture/type-relations"
+import geometry "example.com/ladygraph-fixture/type-relations"
 
 // measurer is a function stored in a package level variable rather than
 // called: the checker sees geometry.Measure as a value here, which is what

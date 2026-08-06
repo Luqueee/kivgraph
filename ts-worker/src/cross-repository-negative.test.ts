@@ -38,10 +38,15 @@ function provider(
 }
 
 const providers: readonly PackageProvider[] = [
-  provider("@luque-fixture/twin", "1.0.0", "twin", path.join(NEGATIVE, "twin")),
+  provider(
+    "@ladygraph-fixture/twin",
+    "1.0.0",
+    "twin",
+    path.join(NEGATIVE, "twin"),
+  ),
   {
     ...provider(
-      "@luque-fixture/shared",
+      "@ladygraph-fixture/shared",
       "1.4.2",
       "shared-library",
       SHARED_ROOT,
@@ -49,26 +54,26 @@ const providers: readonly PackageProvider[] = [
     projectPath: path.join(SHARED_ROOT, "tsconfig.json"),
   },
   provider(
-    "@luque-fixture/unmapped",
+    "@ladygraph-fixture/unmapped",
     "1.0.0",
     "unmapped",
     path.join(NEGATIVE, "unmapped"),
   ),
   provider(
-    "@luque-fixture/duplicated",
+    "@ladygraph-fixture/duplicated",
     "1.0.0",
     "duplicated-a",
     path.join(NEGATIVE, "duplicated-a"),
   ),
   provider(
-    "@luque-fixture/drifting",
+    "@ladygraph-fixture/drifting",
     "2.0.0",
     "drifting",
     path.join(NEGATIVE, "drifting"),
   ),
   {
     ...provider(
-      "@luque-fixture/nomap",
+      "@ladygraph-fixture/nomap",
       "1.0.0",
       "nomap",
       path.join(NEGATIVE, "nomap"),
@@ -99,12 +104,12 @@ describe("cross-repository negative fixture", () => {
       {
         conflicts: [
           {
-            packageName: "@luque-fixture/duplicated",
+            packageName: "@ladygraph-fixture/duplicated",
             kind: "AMBIGUOUS_PACKAGE_PROVIDER",
             repositories: ["duplicated-a", "duplicated-b"],
           },
           {
-            packageName: "@luque-fixture/drifting",
+            packageName: "@ladygraph-fixture/drifting",
             kind: "PACKAGE_VERSION_MISMATCH",
             versions: ["1.0.0", "2.0.0"],
           },
@@ -119,10 +124,18 @@ describe("cross-repository negative fixture", () => {
         entry.requestedSymbol,
       ]),
     ).toEqual([
-      ["@luque-fixture/unmapped", "DECLARATION_SOURCE_NOT_MAPPED", "unmapped"],
-      ["@luque-fixture/unmapped", "EXPORT_NOT_FOUND", "missing"],
-      ["@luque-fixture/duplicated", "AMBIGUOUS_PACKAGE_PROVIDER", undefined],
-      ["@luque-fixture/drifting", "VERSION_MISMATCH", undefined],
+      [
+        "@ladygraph-fixture/unmapped",
+        "DECLARATION_SOURCE_NOT_MAPPED",
+        "unmapped",
+      ],
+      ["@ladygraph-fixture/unmapped", "EXPORT_NOT_FOUND", "missing"],
+      [
+        "@ladygraph-fixture/duplicated",
+        "AMBIGUOUS_PACKAGE_PROVIDER",
+        undefined,
+      ],
+      ["@ladygraph-fixture/drifting", "VERSION_MISMATCH", undefined],
     ]);
 
     expect(
@@ -135,25 +148,25 @@ describe("cross-repository negative fixture", () => {
     ).toEqual([
       [
         "compute",
-        "@luque-fixture/twin",
+        "@ladygraph-fixture/twin",
         "compute",
         path.join(NEGATIVE, "twin/dist/index.d.ts"),
       ],
       [
         "sharedValue",
-        "@luque-fixture/shared",
+        "@ladygraph-fixture/shared",
         "value",
         path.join(SHARED_ROOT, "dist/value.d.ts"),
       ],
       [
         "unmapped",
-        "@luque-fixture/unmapped",
+        "@ladygraph-fixture/unmapped",
         "unmapped",
         path.join(NEGATIVE, "unmapped/dist/index.d.ts"),
       ],
       [
         "plain",
-        "@luque-fixture/nomap",
+        "@ladygraph-fixture/nomap",
         "plain",
         path.join(NEGATIVE, "nomap/dist/index.d.ts"),
       ],
@@ -180,7 +193,7 @@ describe("cross-repository negative fixture", () => {
     const compute = resolution.symbols.find(
       (entry) => entry.consumer.name === "compute",
     );
-    expect(compute?.packageName).toBe("@luque-fixture/twin");
+    expect(compute?.packageName).toBe("@ladygraph-fixture/twin");
     expect(
       compute?.target.declarations.every((declaration) =>
         declaration.fileName.startsWith(path.join(NEGATIVE, "twin")),

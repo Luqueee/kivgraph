@@ -11,19 +11,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/hotsnapshot"
-	"github.com/Luqueee/luque/internal/rebuild"
-	"github.com/Luqueee/luque/internal/storage/generation"
-	"github.com/Luqueee/luque/internal/storage/ladybug"
-	"github.com/Luqueee/luque/internal/synthetic"
-	"github.com/Luqueee/luque/internal/version"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/rebuild"
+	"github.com/Luqueee/ladygraph/internal/storage/generation"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/synthetic"
+	"github.com/Luqueee/ladygraph/internal/version"
 )
 
 func TestRunVersion(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"luque", "version"}, &stdout, &stderr); got != 0 {
+	if got := run([]string{"ladygraph", "version"}, &stdout, &stderr); got != 0 {
 		t.Fatalf("run() exit code = %d, want 0", got)
 	}
 	if got := stdout.String(); got != version.Value+"\n" {
@@ -37,13 +37,13 @@ func TestRunVersion(t *testing.T) {
 func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"luque"}, &stdout, &stderr); got != 2 {
+	if got := run([]string{"ladygraph"}, &stdout, &stderr); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "usage: luque version|serve|doctor storage") {
+	if !strings.Contains(stderr.String(), "usage: ladygraph version|serve|doctor storage") {
 		t.Fatalf("stderr = %q, want usage", stderr.String())
 	}
 }
@@ -61,7 +61,7 @@ func TestRunDoctorStorageReportsEveryHealthyCheck(t *testing.T) {
 		return ladybug.StorageDiagnosis{Path: path, Checks: checks, Healthy: true}, nil
 	}
 
-	code := runWithStorageDiagnoser([]string{"luque", "doctor", "storage", "--database", "/tmp/graph.db"}, &stdout, &stderr, diagnose)
+	code := runWithStorageDiagnoser([]string{"ladygraph", "doctor", "storage", "--database", "/tmp/graph.db"}, &stdout, &stderr, diagnose)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
@@ -84,7 +84,7 @@ func TestRunDoctorStorageReturnsFailureForUnhealthyDatabase(t *testing.T) {
 		}, nil
 	}
 
-	code := runWithStorageDiagnoser([]string{"luque", "doctor", "storage", "--database=/tmp/graph.db"}, &stdout, &stderr, diagnose)
+	code := runWithStorageDiagnoser([]string{"ladygraph", "doctor", "storage", "--database=/tmp/graph.db"}, &stdout, &stderr, diagnose)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
@@ -104,7 +104,7 @@ func TestRunDoctorStorageRequiresDatabasePath(t *testing.T) {
 		return ladybug.StorageDiagnosis{}, nil
 	}
 
-	if code := runWithStorageDiagnoser([]string{"luque", "doctor", "storage"}, &stdout, &stderr, diagnose); code != 2 {
+	if code := runWithStorageDiagnoser([]string{"ladygraph", "doctor", "storage"}, &stdout, &stderr, diagnose); code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
 	if called {
@@ -131,7 +131,7 @@ func TestRunDoctorGraphReportsCleanInvariants(t *testing.T) {
 		return report, nil
 	}
 
-	code := runWithGraphVerifier([]string{"luque", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	code := runWithGraphVerifier([]string{"ladygraph", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -169,7 +169,7 @@ func TestRunDoctorGraphReportsViolationsAndSamples(t *testing.T) {
 		return report, nil
 	}
 
-	code := runWithGraphVerifier([]string{"luque", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	code := runWithGraphVerifier([]string{"ladygraph", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
@@ -198,7 +198,7 @@ func TestRunDoctorGraphRequiresDatabasePath(t *testing.T) {
 		return ladybug.CanonicalIntegrityReport{}, nil
 	}
 
-	code := runWithGraphVerifier([]string{"luque", "doctor", "graph"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	code := runWithGraphVerifier([]string{"ladygraph", "doctor", "graph"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
@@ -214,7 +214,7 @@ func TestRunGenerateGraph(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "synthetic")
 	var stdout, stderr bytes.Buffer
 	args := []string{
-		"luque", "benchmark", "generate-graph",
+		"ladygraph", "benchmark", "generate-graph",
 		"--repositories", "2",
 		"--files", "10",
 		"--symbols", "20",
@@ -243,7 +243,7 @@ func TestRunGenerateGraph(t *testing.T) {
 
 func TestRunGenerateGraphRejectsInvalidSize(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	args := []string{"luque", "benchmark", "generate-graph", "--files", "2", "--symbols", "9", "--edges", "10"}
+	args := []string{"ladygraph", "benchmark", "generate-graph", "--files", "2", "--symbols", "9", "--edges", "10"}
 	if got := run(args, &stdout, &stderr); got != 1 {
 		t.Fatalf("run() exit code = %d, want 1", got)
 	}
@@ -273,8 +273,8 @@ func TestRunRebuildPrintsAllStagesOnSuccess(t *testing.T) {
 		if options.GenerationID != "000123" {
 			t.Fatalf("generation id = %q, want 000123", options.GenerationID)
 		}
-		if options.Root != "/tmp/luque-graph" {
-			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		if options.Root != "/tmp/ladygraph-graph" {
+			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
 		}
 		if options.ResolverVersion != "resolver-v1" {
 			t.Fatalf("resolver version = %q, want resolver-v1", options.ResolverVersion)
@@ -296,16 +296,16 @@ func TestRunRebuildPrintsAllStagesOnSuccess(t *testing.T) {
 			},
 			SnapshotDigest: "deadbeef",
 			Publication: generation.Publication{
-				Generation: generation.Generation{ID: "000123", Path: "/tmp/luque-graph/generations/000123"},
+				Generation: generation.Generation{ID: "000123", Path: "/tmp/ladygraph-graph/generations/000123"},
 			},
 			Passed: true,
 		}, nil
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"luque", "rebuild",
+		"ladygraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/luque-graph",
+		"--root", "/tmp/ladygraph-graph",
 		"--generation", "000123",
 		"--resolver-version", "resolver-v1",
 		"--snapshot-id", "7",
@@ -346,9 +346,9 @@ func TestRunRebuildReturnsFailureAndExplainsStage(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"luque", "rebuild",
+		"ladygraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/luque-graph",
+		"--root", "/tmp/ladygraph-graph",
 		"--generation", "000124",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -397,9 +397,9 @@ func TestRunRebuildReportsIntegrityDiscrepanciesAndFailedProbes(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"luque", "rebuild",
+		"ladygraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/luque-graph",
+		"--root", "/tmp/ladygraph-graph",
 		"--generation", "000127",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -439,8 +439,8 @@ func TestRunRebuildRequiresFacts(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"luque", "rebuild",
-		"--root", "/tmp/luque-graph",
+		"ladygraph", "rebuild",
+		"--root", "/tmp/ladygraph-graph",
 		"--generation", "000125",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -469,9 +469,9 @@ func TestRunRebuildRejectsInvalidFactsJSON(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"luque", "rebuild",
+		"ladygraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/luque-graph",
+		"--root", "/tmp/ladygraph-graph",
 		"--generation", "000126",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -490,12 +490,12 @@ func TestRunRebuildRejectsInvalidFactsJSON(t *testing.T) {
 func TestRunGraphStatusReportsRolesAndRetainedGenerations(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	roles := func(_ context.Context, options rebuild.LayoutOptions) (rebuild.Layout, error) {
-		if options.Root != "/tmp/luque-graph" {
-			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		if options.Root != "/tmp/ladygraph-graph" {
+			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
 		}
 		return rebuild.Layout{
-			Active:    generation.Generation{ID: "000002", Path: "/tmp/luque-graph/generations/000002"},
-			Backup:    generation.Generation{ID: "000001", Path: "/tmp/luque-graph/generations/000001"},
+			Active:    generation.Generation{ID: "000002", Path: "/tmp/ladygraph-graph/generations/000002"},
+			Backup:    generation.Generation{ID: "000001", Path: "/tmp/ladygraph-graph/generations/000001"},
 			HasBackup: true,
 			NextID:    "000003",
 			Retained:  []string{"000001", "000002"},
@@ -503,7 +503,7 @@ func TestRunGraphStatusReportsRolesAndRetainedGenerations(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"luque", "graph", "status", "--root", "/tmp/luque-graph",
+		"ladygraph", "graph", "status", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -536,7 +536,7 @@ func TestRunGraphStatusReportsEmptyLayoutWithoutFailing(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"luque", "graph", "status", "--root", "/tmp/luque-empty",
+		"ladygraph", "graph", "status", "--root", "/tmp/ladygraph-empty",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q, want 0: an empty store is not a program error", code, stderr.String())
@@ -562,7 +562,7 @@ func TestRunGraphStatusRequiresRoot(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"luque", "graph", "status",
+		"ladygraph", "graph", "status",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -582,7 +582,7 @@ func TestRunGraphStatusReturnsFailureOnRolesError(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"luque", "graph", "status", "--root", "/tmp/luque-graph",
+		"ladygraph", "graph", "status", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -595,8 +595,8 @@ func TestRunGraphStatusReturnsFailureOnRolesError(t *testing.T) {
 func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	rollback := func(_ context.Context, options rebuild.RollbackOptions) (rebuild.RollbackReport, error) {
-		if options.Root != "/tmp/luque-graph" {
-			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		if options.Root != "/tmp/ladygraph-graph" {
+			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
 		}
 		if options.GenerationID != "000001" {
 			t.Fatalf("generation id = %q, want 000001", options.GenerationID)
@@ -615,7 +615,7 @@ func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"luque", "rollback", "--root", "/tmp/luque-graph", "--generation", "000001",
+		"ladygraph", "rollback", "--root", "/tmp/ladygraph-graph", "--generation", "000001",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 
 	if code != 0 {
@@ -652,7 +652,7 @@ func TestRunRollbackReturnsFailureAndExplainsCause(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"luque", "rollback", "--root", "/tmp/luque-graph",
+		"ladygraph", "rollback", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 
 	if code != 1 {
@@ -678,7 +678,7 @@ func TestRunRollbackRequiresRoot(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"luque", "rollback",
+		"ladygraph", "rollback",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 
 	if code != 2 {
@@ -705,7 +705,7 @@ func TestRunRollbackWithoutGenerationDefaultsToBackup(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"luque", "rollback", "--root", "/tmp/luque-graph",
+		"ladygraph", "rollback", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -715,8 +715,8 @@ func TestRunRollbackWithoutGenerationDefaultsToBackup(t *testing.T) {
 func TestRunSnapshotPrintsReportOnSuccess(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	build := func(_ context.Context, options rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
-		if options.Root != "/tmp/luque-graph" {
-			t.Fatalf("root = %q, want /tmp/luque-graph", options.Root)
+		if options.Root != "/tmp/ladygraph-graph" {
+			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
 		}
 		if options.GenerationID != "000002" {
 			t.Fatalf("generation id = %q, want 000002", options.GenerationID)
@@ -729,7 +729,7 @@ func TestRunSnapshotPrintsReportOnSuccess(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"luque", "snapshot", "--root", "/tmp/luque-graph", "--generation", "000002",
+		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph", "--generation", "000002",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -756,7 +756,7 @@ func TestRunSnapshotReturnsFailureWhenBuildErrors(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"luque", "snapshot", "--root", "/tmp/luque-graph",
+		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -773,7 +773,7 @@ func TestRunSnapshotReturnsFailureWhenReportDidNotPass(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"luque", "snapshot", "--root", "/tmp/luque-graph",
+		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -792,7 +792,7 @@ func TestRunSnapshotRequiresRoot(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"luque", "snapshot",
+		"ladygraph", "snapshot",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -818,7 +818,7 @@ func TestRunSnapshotWithoutGenerationDefaultsToEmpty(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"luque", "snapshot", "--root", "/tmp/luque-graph",
+		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -835,7 +835,7 @@ func TestRunSnapshotPassesSnapshotIDFlagThrough(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"luque", "snapshot", "--root", "/tmp/luque-graph", "--snapshot-id", "42",
+		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph", "--snapshot-id", "42",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())

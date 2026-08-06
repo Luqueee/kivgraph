@@ -1,7 +1,7 @@
 # Avisos y licencias de terceros
 
 Este archivo es el inventario de avisos, copyright y licencias de las
-dependencias que se distribuyan junto con Luque.
+dependencias que se distribuyan junto con Ladygraph.
 
 ## Dependencias registradas
 

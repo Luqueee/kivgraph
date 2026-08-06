@@ -1,5 +1,5 @@
 {
-  "protocol": "luque-ts-worker",
+  "protocol": "ladygraph-ts-worker",
   "version": 1,
   "byte_order": "big-endian",
   "header_bytes": 4,

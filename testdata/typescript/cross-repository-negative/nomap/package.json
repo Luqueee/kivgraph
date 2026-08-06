@@ -1,5 +1,5 @@
 {
-  "name": "@luque-fixture/nomap",
+  "name": "@ladygraph-fixture/nomap",
   "version": "1.0.0",
   "type": "module",
   "types": "./dist/index.d.ts"

@@ -11,9 +11,9 @@ import (
 )
 
 func BenchmarkReaderScanAll(b *testing.B) {
-	databasePath := os.Getenv("LUQUE_LADYBUG_SCAN_DB")
+	databasePath := os.Getenv("LADYGRAPH_LADYBUG_SCAN_DB")
 	if databasePath == "" {
-		b.Skip("set LUQUE_LADYBUG_SCAN_DB to a populated synthetic LadybugDB database")
+		b.Skip("set LADYGRAPH_LADYBUG_SCAN_DB to a populated synthetic LadybugDB database")
 	}
 	ctx := context.Background()
 	database, err := Open(ctx, databasePath, Config{EnableCompression: true, ReadOnly: true})
@@ -48,10 +48,10 @@ func BenchmarkReaderScanAll(b *testing.B) {
 
 func validateScanBenchmarkCounts(rows ScanRows) error {
 	expected := map[string]int{
-		"repositories": scanBenchmarkCount("LUQUE_LADYBUG_SCAN_REPOSITORIES", 40),
-		"files":        scanBenchmarkCount("LUQUE_LADYBUG_SCAN_FILES", 100000),
-		"symbols":      scanBenchmarkCount("LUQUE_LADYBUG_SCAN_SYMBOLS", 100000),
-		"edges":        scanBenchmarkCount("LUQUE_LADYBUG_SCAN_EDGES", 1000000),
+		"repositories": scanBenchmarkCount("LADYGRAPH_LADYBUG_SCAN_REPOSITORIES", 40),
+		"files":        scanBenchmarkCount("LADYGRAPH_LADYBUG_SCAN_FILES", 100000),
+		"symbols":      scanBenchmarkCount("LADYGRAPH_LADYBUG_SCAN_SYMBOLS", 100000),
+		"edges":        scanBenchmarkCount("LADYGRAPH_LADYBUG_SCAN_EDGES", 1000000),
 	}
 	actual := map[string]int{
 		"repositories": len(rows.Repositories),

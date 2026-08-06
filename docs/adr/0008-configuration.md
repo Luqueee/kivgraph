@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Luque necesita cargar un documento principal `config.yaml` y el registro
+Ladygraph necesita cargar un documento principal `config.yaml` y el registro
 independiente `repositories.yaml` antes de iniciar el indexador. La
 configuración debe ser reproducible entre invocaciones y no puede aceptar
 campos desconocidos silenciosamente.

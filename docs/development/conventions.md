@@ -1,6 +1,6 @@
 # Convenciones de desarrollo
 
-Este documento fija las convenciones mínimas de Luque. Las decisiones que
+Este documento fija las convenciones mínimas de Ladygraph. Las decisiones que
 cambien la arquitectura, el contrato MCP, el formato persistente o la política
 de compatibilidad deben registrarse además en un ADR.
 
@@ -69,7 +69,7 @@ Los mensajes pueden cambiar sin romper clientes.
 
 ### Interno frente a no resuelto
 
-Un error interno indica que Luque no pudo cumplir una operación del sistema:
+Un error interno indica que Ladygraph no pudo cumplir una operación del sistema:
 fallo de I/O, corrupción, bug, dependencia caída o violación de una
 invariante. Debe clasificarse como error y no convertirse en un resultado
 semántico silencioso.

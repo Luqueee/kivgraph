@@ -6,7 +6,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/luque/internal/version"
+	"github.com/Luqueee/ladygraph/internal/version"
 )
 
 func TestServerInitializesWithIdentityAndCapabilities(t *testing.T) {

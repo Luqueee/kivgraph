@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/goworkspace"
-	"github.com/Luqueee/luque/internal/workspace"
+	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 var goFixtureRoot = filepath.Join("..", "..", "testdata", "go", "cross-repository")
@@ -155,7 +155,7 @@ func TestGoFixtureConsumerBResolvesAliasAndReplacedModule(t *testing.T) {
 		t.Fatalf("aliased import was not resolved: %#v", facts.cross)
 	}
 	if aliased.Provider.Repository != "shared-library" ||
-		aliased.TargetPackagePath != "example.com/luque-fixture/shared/api" {
+		aliased.TargetPackagePath != "example.com/ladygraph-fixture/shared/api" {
 		t.Fatalf("aliased target = %#v", aliased)
 	}
 	if aliased.Status != CrossRepositoryResolved || aliased.TargetObjectPath != "Compute" {
@@ -169,7 +169,7 @@ func TestGoFixtureConsumerBResolvesAliasAndReplacedModule(t *testing.T) {
 		t.Fatalf("replaced module target missing: %#v", facts.cross)
 	}
 	if legacy.Provider.Repository != "consumer-b" ||
-		legacy.TargetModulePath != "example.com/luque-fixture/legacy" {
+		legacy.TargetModulePath != "example.com/ladygraph-fixture/legacy" {
 		t.Fatalf("replaced target = %#v", legacy)
 	}
 	if legacy.Status != CrossRepositoryResolved {

@@ -1,6 +1,6 @@
 # LadybugDB incremental update probes
 
-- Command: `/tmp/go-build956227063/b001/exe/ladybug-incremental --database /tmp/luque-ladybug-qualification.db --corpus /tmp/luque-synthetic-42 --output benchmarks/ladybug-incremental`
+- Command: `/tmp/go-build956227063/b001/exe/ladybug-incremental --database /tmp/ladygraph-ladybug-qualification.db --corpus /tmp/ladygraph-synthetic-42 --output benchmarks/ladybug-incremental`
 - Commit: `e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty`
 - Generated at: `2026-08-04T20:21:04Z`
 - Platform: `linux/amd64`, `go1.24.4`

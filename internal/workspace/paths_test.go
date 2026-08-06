@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/config"
+	"github.com/Luqueee/ladygraph/internal/config"
 )
 
 func TestValidatePathsAcceptsScopedMetadata(t *testing.T) {

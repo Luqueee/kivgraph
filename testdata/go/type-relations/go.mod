@@ -1,3 +1,3 @@
-module example.com/luque-fixture/type-relations
+module example.com/ladygraph-fixture/type-relations
 
 go 1.24

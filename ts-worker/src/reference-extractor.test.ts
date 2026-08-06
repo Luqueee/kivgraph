@@ -34,7 +34,7 @@ interface Workspace {
 async function createWorkspace(
   files: Record<string, string>,
 ): Promise<Workspace> {
-  const root = await mkdtemp(path.join(tmpdir(), "luque-references-"));
+  const root = await mkdtemp(path.join(tmpdir(), "ladygraph-references-"));
   workspaces.push(root);
   const workspace: Workspace = {
     root,

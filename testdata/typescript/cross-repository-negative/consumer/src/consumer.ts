@@ -1,10 +1,10 @@
-import { compute } from "@luque-fixture/twin";
-import { value as sharedValue } from "@luque-fixture/shared";
-import { unmapped } from "@luque-fixture/unmapped";
-import { missing } from "@luque-fixture/unmapped";
-import { duplicated } from "@luque-fixture/duplicated";
-import { drifted } from "@luque-fixture/drifting";
-import { plain } from "@luque-fixture/nomap";
+import { compute } from "@ladygraph-fixture/twin";
+import { value as sharedValue } from "@ladygraph-fixture/shared";
+import { unmapped } from "@ladygraph-fixture/unmapped";
+import { missing } from "@ladygraph-fixture/unmapped";
+import { duplicated } from "@ladygraph-fixture/duplicated";
+import { drifted } from "@ladygraph-fixture/drifting";
+import { plain } from "@ladygraph-fixture/nomap";
 
 /** Local homonym: shares its name with an export of the shared provider. */
 export const value = "local homonym";

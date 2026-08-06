@@ -2,7 +2,7 @@ package ladybug
 
 import "context"
 
-// Database is the Luque-owned abstraction over one LadybugDB database.
+// Database is the Ladygraph-owned abstraction over one LadybugDB database.
 type Database interface {
 	Close() error
 	Health(context.Context) error

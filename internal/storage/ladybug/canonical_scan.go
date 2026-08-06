@@ -3,7 +3,7 @@ package ladybug
 import (
 	"errors"
 
-	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
 // ErrInvalidCanonicalScan reports a definitive graph that cannot become a

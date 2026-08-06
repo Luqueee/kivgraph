@@ -8,7 +8,7 @@
 ## Decisión
 
 LadybugDB queda aceptada como motor candidato para el almacenamiento canónico
-de Luque y se autoriza la construcción de HotSnapshot. La carga masiva, las
+de Ladygraph y se autoriza la construcción de HotSnapshot. La carga masiva, las
 mutaciones transaccionales, la integridad, la recuperación ante terminación de
 proceso, la publicación ante agotamiento de disco y el rendimiento de deltas
 cumplen el contrato medido.
@@ -147,7 +147,7 @@ de la generación anterior.
 1. No se permiten mutaciones incrementales in-place sobre la generación activa.
 2. Ningún resultado de `Writer.Apply` se considera durable por sí solo ante
    `ENOSPC`; la durabilidad empieza al publicar `CURRENT`.
-3. La base viva solo puede abrirla un proceso Luque; un lock externo es fallo operativo.
+3. La base viva solo puede abrirla un proceso Ladygraph; un lock externo es fallo operativo.
 4. El despliegue calificado requiere Linux amd64, CGO, `liblbug` fijada y verificación de checksum.
 5. Los backups y una restauración verificada siguen siendo obligatorios; el doctor no los sustituye.
 6. Las consultas MCP no se servirán directamente desde LadybugDB.

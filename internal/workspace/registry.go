@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Luqueee/luque/internal/config"
+	"github.com/Luqueee/ladygraph/internal/config"
 )
 
 // Repository is the runtime metadata registered for one source repository.

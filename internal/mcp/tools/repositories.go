@@ -40,7 +40,7 @@ func RegisterListRepositoriesWithObserver(server *sdkmcp.Server, observer Observ
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "list_repositories",
-		Description: "Lists repositories registered with Luque.",
+		Description: "Lists repositories registered with Ladygraph.",
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }

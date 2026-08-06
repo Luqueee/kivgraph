@@ -246,7 +246,7 @@ func run(ctx context.Context, cfg config) (results, error) {
 }
 
 func exportCSV(ctx context.Context, corpusDir string) (csvCorpus, error) {
-	directory, err := os.MkdirTemp("", "luque-ladybug-copy-")
+	directory, err := os.MkdirTemp("", "ladygraph-ladybug-copy-")
 	if err != nil {
 		return csvCorpus{}, fmt.Errorf("create CSV directory: %w", err)
 	}

@@ -11,7 +11,7 @@ import (
 
 	lbug "github.com/LadybugDB/go-ladybug"
 
-	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
 // VerifyCanonicalIntegrity evaluates every canonical invariant against the

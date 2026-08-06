@@ -2,7 +2,7 @@
 
 Tres repositorios sintéticos usados por LUQUE-0811 y LUQUE-0813.
 
-- `shared-library`: provider `example.com/luque-fixture/shared`, con función,
+- `shared-library`: provider `example.com/ladygraph-fixture/shared`, con función,
   método, campo, constante y una función que recibe callbacks.
 - `consumer-a`: llamada directa, llamada a método y callback.
 - `consumer-b`: import con alias de paquete y un `replace` local válido hacia

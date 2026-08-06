@@ -14,16 +14,16 @@ import (
 )
 
 const (
-	// CurrentSchemaVersion is the configuration schema understood by Luque.
+	// CurrentSchemaVersion is the configuration schema understood by Ladygraph.
 	CurrentSchemaVersion = 1
 
-	defaultConfigFile       = "~/.config/luque/config.yaml"
-	defaultRepositoriesFile = "~/.config/luque/repositories.yaml"
+	defaultConfigFile       = "~/.config/ladygraph/config.yaml"
+	defaultRepositoriesFile = "~/.config/ladygraph/repositories.yaml"
 
-	defaultDatabasePath  = "~/.local/state/luque/graph.lbdb"
-	defaultSnapshotsPath = "~/.local/state/luque/snapshots"
-	defaultBackupsPath   = "~/.local/state/luque/backups"
-	defaultSyntheticWork = "~/.local/state/luque/go.work"
+	defaultDatabasePath  = "~/.local/state/ladygraph/graph.lbdb"
+	defaultSnapshotsPath = "~/.local/state/ladygraph/snapshots"
+	defaultBackupsPath   = "~/.local/state/ladygraph/backups"
+	defaultSyntheticWork = "~/.local/state/ladygraph/go.work"
 
 	maximumConfiguredDepth = 5
 )
@@ -54,7 +54,7 @@ func (duration Duration) String() string {
 	return time.Duration(duration).String()
 }
 
-// Config is the complete Luque configuration document.
+// Config is the complete Ladygraph configuration document.
 type Config struct {
 	Version    int              `yaml:"version"`
 	Workspace  WorkspaceConfig  `yaml:"workspace"`
@@ -189,7 +189,7 @@ func DefaultConfig() Config {
 			ReconciliationInterval:   Duration(10 * time.Minute),
 		},
 		TypeScript: TypeScriptConfig{
-			WorkerCommand:      "luque-ts-worker",
+			WorkerCommand:      "ladygraph-ts-worker",
 			MaximumWorkers:     3,
 			ProjectIdleTimeout: Duration(30 * time.Minute),
 		},
@@ -219,7 +219,7 @@ func DefaultRepositoriesPath() (string, error) {
 }
 
 // Load reads, validates, and combines config.yaml with its repositories.yaml.
-// An empty path selects ~/.config/luque/config.yaml.
+// An empty path selects ~/.config/ladygraph/config.yaml.
 func Load(path string) (Loaded, error) {
 	configPath, err := resolveConfigPath(path)
 	if err != nil {
@@ -261,7 +261,7 @@ func LoadConfig(path string) (Config, error) {
 }
 
 // LoadRepositories reads and validates a repository registry document.
-// An empty path selects ~/.config/luque/repositories.yaml.
+// An empty path selects ~/.config/ladygraph/repositories.yaml.
 func LoadRepositories(path string) (RepositoriesFile, error) {
 	repositoriesPath, err := resolveRepositoriesPath(path)
 	if err != nil {

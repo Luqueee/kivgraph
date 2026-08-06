@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/luque/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 const (
@@ -104,7 +104,7 @@ func run(ctx context.Context, cfg config) (results, error) {
 	if !baseInfo.Mode().IsRegular() {
 		return results{}, errors.New("base database must be a regular file")
 	}
-	workDir, err := os.MkdirTemp("", "luque-ladybug-incremental-")
+	workDir, err := os.MkdirTemp("", "ladygraph-ladybug-incremental-")
 	if err != nil {
 		return results{}, err
 	}

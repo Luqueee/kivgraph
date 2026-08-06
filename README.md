@@ -1,6 +1,6 @@
-# Luque
+# Ladygraph
 
-Luque será un servidor MCP autónomo y local para inteligencia de código cross-repository en TypeScript y Go.
+Ladygraph será un servidor MCP autónomo y local para inteligencia de código cross-repository en TypeScript y Go.
 
 ## Estado
 
@@ -21,8 +21,8 @@ make version
 El comando provisional de versión también puede ejecutarse directamente:
 
 ```bash
-go build ./cmd/luque
-./luque version
+go build ./cmd/ladygraph
+./ladygraph version
 ```
 
 ### Corpus sintético de LadybugDB
@@ -31,7 +31,7 @@ El generador crea un corpus JSON Lines reproducible para los benchmarks de
 almacenamiento:
 
 ```bash
-go run ./cmd/luque benchmark generate-graph \
+go run ./cmd/ladygraph benchmark generate-graph \
   --symbols 100000 \
   --edges 1000000 \
   --seed 42
@@ -49,7 +49,7 @@ ejecuta una sentencia preparada por nodo o arista:
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-individual \
   --corpus testdata/generated/synthetic \
-  --database /tmp/luque-individual.db \
+  --database /tmp/ladygraph-individual.db \
   --transaction-size 1000
 ```
 
@@ -63,7 +63,7 @@ lote. Compara los tamaños exigidos por el plan:
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-batch \
   --corpus testdata/generated/synthetic \
-  --database-dir /tmp/luque-batch \
+  --database-dir /tmp/ladygraph-batch \
   --batch-sizes 100,1000,10000,50000
 ```
 
@@ -80,7 +80,7 @@ operación `COPY` por tabla. En la escala inicial completa se verificaron
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-bulk \
   --corpus testdata/generated/synthetic \
-  --database /tmp/luque-copy.db \
+  --database /tmp/ladygraph-copy.db \
   --output benchmarks/ladybug-bulk/full-scale
 ```
 
@@ -94,7 +94,7 @@ shortest path y agrupación por repositorio:
 
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-queries \
-  --database /tmp/luque-copy.db \
+  --database /tmp/ladygraph-copy.db \
   --corpus testdata/generated/synthetic \
   --output benchmarks/ladybug-queries
 ```
@@ -109,7 +109,7 @@ entrada:
 
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-incremental \
-  --database /tmp/luque-copy.db \
+  --database /tmp/ladygraph-copy.db \
   --corpus testdata/generated/synthetic \
   --output benchmarks/ladybug-incremental
 ```
@@ -127,7 +127,7 @@ una copia privada:
 
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-recovery \
-  --database /tmp/luque-copy.db
+  --database /tmp/ladygraph-copy.db
 ```
 
 Los casos de caída, reapertura, truncado y permisos pasan. El resultado
@@ -141,8 +141,8 @@ El diagnóstico operativo abre la base original en modo de solo lectura y
 ejecuta la prueba de transacciones sobre una copia temporal:
 
 ```bash
-go run -tags ladybug ./cmd/luque doctor storage \
-  --database /tmp/luque-copy.db
+go run -tags ladybug ./cmd/ladygraph doctor storage \
+  --database /tmp/ladygraph-copy.db
 ```
 
 El comando informa ubicación, tamaño, permisos efectivos, locks externos,
@@ -155,8 +155,8 @@ La verificación de integridad semántica comprueba los seis invariantes del
 grafo canónico sobre una base ya publicada, sin reconstruirla:
 
 ```bash
-go run -tags ladybug ./cmd/luque doctor graph \
-  --database /var/lib/luque/graph/CURRENT/graph.db
+go run -tags ladybug ./cmd/ladygraph doctor graph \
+  --database /var/lib/ladygraph/graph/CURRENT/graph.db
 ```
 
 El comando imprime una línea por regla con su estado (`PASS`/`FAIL`) y su
@@ -193,9 +193,9 @@ integridad, snapshot, golden probes y publicación en una sola operación sobre
 un `facts.Set` serializado:
 
 ```bash
-go run -tags ladybug ./cmd/luque rebuild \
+go run -tags ladybug ./cmd/ladygraph rebuild \
   --facts facts.json \
-  --root /var/lib/luque/graph \
+  --root /var/lib/ladygraph/graph \
   --generation 000123 \
   --resolver-version go-tsserver-1.0.0
 ```
@@ -223,8 +223,8 @@ La consulta de estado resuelve los tres roles que debe mantener el
 `generation.Store` para backup y rollback, sin reconstruir nada:
 
 ```bash
-go run -tags ladybug ./cmd/luque graph status \
-  --root /var/lib/luque/graph
+go run -tags ladybug ./cmd/ladygraph graph status \
+  --root /var/lib/ladygraph/graph
 ```
 
 El comando imprime `graph.active`, `graph.next` y `graph.backup` con la ruta
@@ -253,8 +253,8 @@ El rollback revierte `CURRENT` a una generación ya publicada, revalidándola
 antes de conmutar:
 
 ```bash
-go run -tags ladybug ./cmd/luque rollback \
-  --root /var/lib/luque/graph \
+go run -tags ladybug ./cmd/ladygraph rollback \
+  --root /var/lib/ladygraph/graph \
   --generation 000123
 ```
 
@@ -279,8 +279,8 @@ La construcción del HotSnapshot lee la generación ya publicada y produce,
 en memoria, el índice denso que servirán las consultas MCP:
 
 ```bash
-go run -tags ladybug ./cmd/luque snapshot \
-  --root /var/lib/luque/graph \
+go run -tags ladybug ./cmd/ladygraph snapshot \
+  --root /var/lib/ladygraph/graph \
   --generation 000123
 ```
 
@@ -318,8 +318,8 @@ base activa ante `ENOSPC`. LUQUE-0214 obtuvo p95 `Apply` de 271,9 ms para
 ## Estructura
 
 ```text
-cmd/luque/   Ejecutable principal.
-internal/    Paquetes internos de Luque.
+cmd/ladygraph/   Ejecutable principal.
+internal/    Paquetes internos de Ladygraph.
 ts-worker/   Worker TypeScript.
 testdata/    Fixtures y corpus de pruebas.
 benchmarks/  Resultados de benchmarks.
@@ -329,10 +329,10 @@ scripts/     Automatización auxiliar.
 
 ## Licencia
 
-Luque se distribuye bajo [Apache License 2.0](LICENSE).
+Ladygraph se distribuye bajo [Apache License 2.0](LICENSE).
 
 ## Licencias de terceros
 
-Los avisos y las licencias de las dependencias distribuidas con Luque se
+Los avisos y las licencias de las dependencias distribuidas con Ladygraph se
 registran en [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). La lista se
 actualiza al incorporar cada dependencia al producto distribuible.

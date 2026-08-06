@@ -1,5 +1,5 @@
 /**
- * Classification of TypeScript cross-repository references Luque cannot turn
+ * Classification of TypeScript cross-repository references Ladygraph cannot turn
  * into an exact edge.
  *
  * Every reason is backed by an observed fact: a registry conflict reported by

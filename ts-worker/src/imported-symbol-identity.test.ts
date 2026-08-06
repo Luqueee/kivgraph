@@ -44,7 +44,7 @@ afterEach(async () => {
 // Same shape `cross-repository-positive.test.ts` builds by hand: a real
 // declaration map lives on disk for every declaration this provider reaches.
 const sharedProvider: PackageProvider = {
-  name: "@luque-fixture/shared",
+  name: "@ladygraph-fixture/shared",
   version: "1.4.2",
   repository: "shared-library",
   rootPath: SHARED_ROOT,
@@ -86,7 +86,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     // proving the signature came from `src/value.ts` is the whole ticket.
     expect(compute?.target.identity).toEqual({
       repository: "shared-library",
-      package: "@luque-fixture/shared",
+      package: "@ladygraph-fixture/shared",
       qualifiedName: "compute",
       kind: "function",
       signature: "export function compute(input: number): number",
@@ -107,7 +107,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     expect(helper?.target.identityReason).toBeUndefined();
     expect(helper?.target.identity).toEqual({
       repository: "shared-library",
-      package: "@luque-fixture/shared",
+      package: "@ladygraph-fixture/shared",
       qualifiedName: "helper",
       kind: "function",
       signature: "export function helper(shape: Shape): number",
@@ -118,7 +118,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
 
   it("reports no identity, only a reason, for a provider with no declaration map", async () => {
     const nomapProvider: PackageProvider = {
-      name: "@luque-fixture/nomap",
+      name: "@ladygraph-fixture/nomap",
       version: "1.0.0",
       repository: "nomap",
       rootPath: NOMAP_ROOT,

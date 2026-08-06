@@ -1,3 +1,3 @@
-module example.com/luque-fixture/consumer-a
+module example.com/ladygraph-fixture/consumer-a
 
 go 1.24

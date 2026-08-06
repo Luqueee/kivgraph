@@ -5,7 +5,7 @@
 // same-module, two-package case to prove this on, so it lives here instead.
 package units
 
-import geometry "example.com/luque-fixture/type-relations"
+import geometry "example.com/ladygraph-fixture/type-relations"
 
 // Identify names a Base by delegating to its own ID method, giving this
 // package a real, checker-resolved use of geometry.

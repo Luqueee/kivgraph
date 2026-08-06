@@ -7,7 +7,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@luque-fixture/shared": [
+      "@ladygraph-fixture/shared": [
         "../shared-library/dist/index.d.ts"
       ]
     }

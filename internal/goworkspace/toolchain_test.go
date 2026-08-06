@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/workspace"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 // TestWrittenWorkspaceIsAcceptedByTheGoToolchain proves the emitted file is a

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/hotsnapshot"
-	"github.com/Luqueee/luque/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 // fakeCanonicalGraph is a small, valid, hand written definitive graph: one

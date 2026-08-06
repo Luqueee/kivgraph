@@ -1,18 +1,18 @@
-# ADR 0002: Núcleo de Luque en Go
+# ADR 0002: Núcleo de Ladygraph en Go
 
 - **Estado:** aceptada
 - **Fecha:** 2026-08-04
 
 ## Context
 
-Luque debe ejecutar un servidor MCP local, coordinar el indexado, gestionar el
+Ladygraph debe ejecutar un servidor MCP local, coordinar el indexado, gestionar el
 almacenamiento canónico y responder consultas de baja latencia. El proceso
 principal necesita buen control de concurrencia, distribución sencilla como
 binario y acceso a las APIs oficiales de LadybugDB y `go/packages`.
 
 ## Decision
 
-El núcleo de Luque se implementa en Go. El binario principal será responsable
+El núcleo de Ladygraph se implementa en Go. El binario principal será responsable
 del ciclo de vida del servidor, la configuración, la persistencia, el índice
 incremental, el HotSnapshot y la superficie MCP. El análisis semántico
 TypeScript se delega al worker definido en ADR 0005.

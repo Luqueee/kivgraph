@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestOpenWithoutNativeSupportReturnsLuqueError(t *testing.T) {
+func TestOpenWithoutNativeSupportReturnsLadygraphError(t *testing.T) {
 	_, err := Open(context.Background(), ":memory:", DefaultConfig())
 	if err == nil {
 		t.Fatal("Open() error = nil, want unavailable error")
@@ -18,7 +18,7 @@ func TestOpenWithoutNativeSupportReturnsLuqueError(t *testing.T) {
 	}
 	var wrapped *Error
 	if !errors.As(err, &wrapped) || wrapped.Op != "open" {
-		t.Fatalf("Open() error = %#v, want Luque open error", err)
+		t.Fatalf("Open() error = %#v, want Ladygraph open error", err)
 	}
 }
 

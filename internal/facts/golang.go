@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/luque/internal/goloader"
-	"github.com/Luqueee/luque/internal/workspace"
+	"github.com/Luqueee/ladygraph/internal/goloader"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 // GoInput is one normalisation request: the facts of a single Go load.

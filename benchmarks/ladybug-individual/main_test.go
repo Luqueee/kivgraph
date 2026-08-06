@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/synthetic"
+	"github.com/Luqueee/ladygraph/internal/synthetic"
 )
 
 func TestRunLoadsEveryRecordWithConfiguredTransactions(t *testing.T) {

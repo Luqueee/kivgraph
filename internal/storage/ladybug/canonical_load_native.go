@@ -13,7 +13,7 @@ import (
 
 	lbug "github.com/LadybugDB/go-ladybug"
 
-	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
 // LoadReport records what a canonical load wrote.
@@ -65,7 +65,7 @@ func LoadCanonical(ctx context.Context, path string, set facts.Set, options Cano
 	if err != nil {
 		return LoadReport{}, err
 	}
-	stagingDir, err := os.MkdirTemp("", "luque-ladybug-canonical-staging-*")
+	stagingDir, err := os.MkdirTemp("", "ladygraph-ladybug-canonical-staging-*")
 	if err != nil {
 		return LoadReport{}, &Error{Op: "load canonical", Err: err}
 	}

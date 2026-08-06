@@ -4,7 +4,7 @@
 
 **Fecha de verificación:** 2026-08-06
 
-Este documento emite el gate de la fase 9. Certifica que Luque construye el
+Este documento emite el gate de la fase 9. Certifica que Ladygraph construye el
 grafo canónico definitivo desde código real, lo verifica, lo publica de forma
 atómica y deriva de él un HotSnapshot **consultable**.
 
@@ -30,9 +30,9 @@ código Go real
 → goloader + facts.NormalizeGo   3 repos, 4 paquetes, 4 archivos, 9 símbolos,
                                  15 evidencias, 32 aristas, 0 no resueltas
 → Set.Validate                   0 aristas colgantes
-→ luque rebuild                  las ocho etapas en PASS
+→ ladygraph rebuild                  las ocho etapas en PASS
 → generación 000001 publicada
-→ luque snapshot                 9 símbolos, 15 aristas en el CSR
+→ ladygraph snapshot                 9 símbolos, 15 aristas en el CSR
 ```
 
 Las ocho etapas del rebuild, con biblioteca nativa:
@@ -51,7 +51,7 @@ Las ocho etapas del rebuild, con biblioteca nativa:
 
 ## El snapshot se deriva del grafo, no de los hechos
 
-`luque snapshot --root …` lee la generación **publicada** con `ScanCanonical` y
+`ladygraph snapshot --root …` lee la generación **publicada** con `ScanCanonical` y
 construye el HotSnapshot desde esas filas. Ni el escáner ni el adaptador ven un
 `facts.Set`. Es la diferencia que hace significativa la calificación: lo que se
 consulta es lo que de verdad quedó almacenado.
@@ -137,9 +137,9 @@ clave y el motivo, conservando `errors.Is`.
 ```bash
 scripts/fetch-ladybug.sh
 make test-ladybug
-luque rebuild --facts FACTS.json --root ROOT --generation 000001 \
-  --resolver-version luque-0906 --snapshot-id 1
-luque snapshot --root ROOT
+ladygraph rebuild --facts FACTS.json --root ROOT --generation 000001 \
+  --resolver-version ladygraph-0906 --snapshot-id 1
+ladygraph snapshot --root ROOT
 ```
 
 ## Límites de esta calificación
@@ -172,7 +172,7 @@ consumer-b       2 IMPORTS_SYMBOL, uno de ellos a través de un alias
 [PASS] snapshot   12 symbols, 7 edges in the CSR
 [PASS] publish    published generation 000001
 
-luque doctor graph   PASS, los seis invariantes a cero
+ladygraph doctor graph   PASS, los seis invariantes a cero
 ```
 
 Las cinco aristas `IMPORTS_SYMBOL` son `EXACT_TYPECHECKED` y su destino coincide
@@ -229,7 +229,7 @@ ocupados por declaraciones y por imports antes de nombrar un símbolo `export`.
 ### `doctor storage` reconoce el esquema canónico
 
 Validaba siempre el esquema experimental `001`, así que una generación publicada
-por `luque rebuild` fallaba el diagnóstico aunque estuviese perfecta. Ahora
+por `ladygraph rebuild` fallaba el diagnóstico aunque estuviese perfecta. Ahora
 detecta cuál de los dos esquemas tiene la base, valida el que corresponda
 —derivando las tablas exigidas de la metadata, no de una lista escrita a mano— y
 **declara en su salida contra cuál validó**. Un diagnóstico que no lo dice no se
@@ -255,9 +255,9 @@ repos=4  packages=8  files=10  symbols=55 (go=31 typescript=24)  edges=137
 [PASS] snapshot   55 symbols, 64 edges in the CSR
 [PASS] publish    published generation 000001
 
-luque doctor storage   PASS, schema: canonical (version 2)
-luque doctor graph     PASS, los seis invariantes a cero
-luque snapshot         PASS
+ladygraph doctor storage   PASS, schema: canonical (version 2)
+ladygraph doctor graph     PASS, los seis invariantes a cero
+ladygraph snapshot         PASS
 ```
 
 Trece de las dieciocho clases de arista del modelo aparecen en un grafo real y
@@ -299,7 +299,7 @@ módulo no intenta.
 `facts-cli.ts` construye el `PackageProvider` del propio repositorio indexado
 (el mismo `loadProvider` que ya usa para `--provider`) y lo llama. Un
 `package.json` con una dependencia que nada importa nunca produce arista: la
-prueba está en el fixture (`consumer-a` declara `@luque-fixture/unused`, que
+prueba está en el fixture (`consumer-a` declara `@ladygraph-fixture/unused`, que
 ningún fichero importa).
 
 El wire sube a `ts-facts-v4`: dos campos nuevos, `extends` (por base de
@@ -419,9 +419,9 @@ sólo la normalización:
 [PASS] snapshot   72 symbols, 87 edges in the CSR
 [PASS] publish    published generation 000001
 
-luque doctor storage   PASS, schema: canonical (version 2)
-luque doctor graph     PASS, los seis invariantes a cero
-luque snapshot         PASS
+ladygraph doctor storage   PASS, schema: canonical (version 2)
+ladygraph doctor graph     PASS, los seis invariantes a cero
+ladygraph snapshot         PASS
 ```
 
 Que `doctor graph` pase sobre este grafo importa más que sobre los anteriores:

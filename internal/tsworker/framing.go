@@ -1,4 +1,4 @@
-// Package tsworker implements the Go side of the Luque TypeScript worker
+// Package tsworker implements the Go side of the Ladygraph TypeScript worker
 // protocol described in docs/protocol/ts-worker-v1.md.
 package tsworker
 

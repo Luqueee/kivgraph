@@ -1,4 +1,4 @@
-import { Widget } from "@luque-fixture/shared";
+import { Widget } from "@ladygraph-fixture/shared";
 
 export class LabeledWidget extends Widget {
   constructor(

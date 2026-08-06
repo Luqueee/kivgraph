@@ -1,6 +1,6 @@
 # LadybugDB batch insert benchmark
 
-- Command: `/home/devlabs/.cache/go-build/5f/5f66bb20e5127104195eea41c98693406959dd04c51b9708e2c076ddccc0d28f-d/ladybug-batch --corpus /tmp/luque-synthetic-reduced --database-dir /tmp/luque-ladybug-batch-isolated-final --output benchmarks/ladybug-batch --batch-sizes 100,1000,10000,50000`
+- Command: `/home/devlabs/.cache/go-build/5f/5f66bb20e5127104195eea41c98693406959dd04c51b9708e2c076ddccc0d28f-d/ladybug-batch --corpus /tmp/ladygraph-synthetic-reduced --database-dir /tmp/ladygraph-ladybug-batch-isolated-final --output benchmarks/ladybug-batch --batch-sizes 100,1000,10000,50000`
 - Commit: `cf5e17a108422f06e1a9cf5fc1475642ebab6d80-dirty`
 - Generated at: `2026-08-04T18:00:23Z`
 - Corpus seed: `42`

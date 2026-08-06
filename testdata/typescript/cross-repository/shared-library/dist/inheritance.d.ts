@@ -18,7 +18,7 @@ export interface NamedShape extends Shape, Named {
 }
 /**
  * Cross-repository inheritance target: consumer-a's `LabeledWidget`
- * `extends` this class through `@luque-fixture/shared`.
+ * `extends` this class through `@ladygraph-fixture/shared`.
  */
 export declare class Widget {
     readonly id: string;

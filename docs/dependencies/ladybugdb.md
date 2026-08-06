@@ -4,7 +4,7 @@
 
 **Fecha de verificación:** 2026-08-05
 
-Este documento fija la combinación de LadybugDB que puede entrar en Luque. No se
+Este documento fija la combinación de LadybugDB que puede entrar en Ladygraph. No se
 usarán ramas, alias `latest` ni scripts que resuelvan una versión en tiempo de
 build.
 
@@ -86,7 +86,7 @@ sha256sum liblbug-linux-x86_64.tar.gz
 ```
 
 y debe compararse con esta tabla antes de extraerlo. Los artefactos nativos no
-se suben al repositorio de Luque: `scripts/fetch-ladybug.sh` los descarga desde
+se suben al repositorio de Ladygraph: `scripts/fetch-ladybug.sh` los descarga desde
 la URL versionada, comprueba el digest antes de extraer y deja la biblioteca
 en `.tooling/ladybug/<versión>`, que está en `.gitignore`.
 
@@ -115,11 +115,11 @@ UCRT64 y describe Windows x86_64. Se debe reabrir esta decisión si una versión
 posterior del binding añade soporte Windows arm64.
 
 El binding incluye un script `download_lbug.sh` que sigue
-`releases/latest`; ese script **no forma parte del build reproducible de Luque**.
+`releases/latest`; ese script **no forma parte del build reproducible de Ladygraph**.
 El empaquetado posterior colocará el asset fijo de cada arquitectura en el
 layout esperado por CGO y verificará su SHA-256 antes de compilar.
 
-## Plataformas soportadas por Luque en esta selección
+## Plataformas soportadas por Ladygraph en esta selección
 
 - Linux amd64 (`linux/amd64`).
 - Linux arm64 (`linux/arm64`).

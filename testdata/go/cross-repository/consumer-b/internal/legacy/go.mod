@@ -1,3 +1,3 @@
-module example.com/luque-fixture/legacy
+module example.com/ladygraph-fixture/legacy
 
 go 1.24

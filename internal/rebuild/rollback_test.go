@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 // publishTwoGenerations runs Run twice against the same root with the same

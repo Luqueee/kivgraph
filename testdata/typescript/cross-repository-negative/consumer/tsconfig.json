@@ -7,22 +7,22 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@luque-fixture/duplicated": [
+      "@ladygraph-fixture/duplicated": [
         "../duplicated-a/dist/index.d.ts"
       ],
-      "@luque-fixture/drifting": [
+      "@ladygraph-fixture/drifting": [
         "../drifting/dist/index.d.ts"
       ],
-      "@luque-fixture/unmapped": [
+      "@ladygraph-fixture/unmapped": [
         "../unmapped/dist/index.d.ts"
       ],
-      "@luque-fixture/twin": [
+      "@ladygraph-fixture/twin": [
         "../twin/dist/index.d.ts"
       ],
-      "@luque-fixture/shared": [
+      "@ladygraph-fixture/shared": [
         "../../cross-repository/shared-library/dist/index.d.ts"
       ],
-      "@luque-fixture/nomap": [
+      "@ladygraph-fixture/nomap": [
         "../nomap/dist/index.d.ts"
       ]
     }

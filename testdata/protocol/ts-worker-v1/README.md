@@ -7,7 +7,7 @@ Cada `.bin` es un frame literal del cable, tal y como viaja por el pipe.
 Los primeros bytes son el prefijo de longitud y no son texto imprimible,
 por lo que un editor los trata como binarios.
 
-- Protocolo: `luque-ts-worker`, versión `1`
+- Protocolo: `ladygraph-ts-worker`, versión `1`
 - Prefijo: 4 bytes, big-endian, cuenta solo el cuerpo
 - Cuerpo máximo: 16777216 bytes
 - Especificación: `docs/protocol/ts-worker-v1.md`

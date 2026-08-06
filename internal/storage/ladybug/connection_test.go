@@ -47,6 +47,6 @@ func TestOpenConvertsNativeError(t *testing.T) {
 	}
 	var wrapped *Error
 	if !errors.As(err, &wrapped) || wrapped.Op != "open" {
-		t.Fatalf("Open() error = %#v, want Luque open error", err)
+		t.Fatalf("Open() error = %#v, want Ladygraph open error", err)
 	}
 }

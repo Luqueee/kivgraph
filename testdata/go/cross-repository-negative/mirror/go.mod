@@ -1,3 +1,3 @@
-module example.com/luque-fixture/mirror
+module example.com/ladygraph-fixture/mirror
 
 go 1.24

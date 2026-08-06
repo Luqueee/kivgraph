@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/Luqueee/luque/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
 // TypeScriptWireVersion is the version of the `ts-facts-v4` payload.
@@ -181,7 +181,7 @@ type TypeScriptExtends struct {
 // package crossing a module boundary does.
 type TypeScriptDependency struct {
 	// Repository and Package name the provider exactly as PackageKey derives
-	// it: the repository Luque indexes it under, and its own package name.
+	// it: the repository Ladygraph indexes it under, and its own package name.
 	Repository string `json:"repository"`
 	Package    string `json:"package"`
 	// File, Specifier, Start, End and StartLine are one deterministic import

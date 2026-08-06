@@ -23,14 +23,14 @@ const (
 	// TypeScriptVersionWorkspace is a compiler hoisted to an ancestor of the
 	// project but still inside the repository.
 	TypeScriptVersionWorkspace TypeScriptVersionSource = "workspace"
-	// TypeScriptVersionPinned is the compiler Luque ships, used when the
+	// TypeScriptVersionPinned is the compiler Ladygraph ships, used when the
 	// project has none installed.
 	TypeScriptVersionPinned TypeScriptVersionSource = "pinned"
 )
 
 const typeScriptPackageDirectory = "typescript"
 
-// TypeScriptEngine describes the compiler Luque actually runs and the version
+// TypeScriptEngine describes the compiler Ladygraph actually runs and the version
 // window whose facts may be exact. It mirrors the HELLO announcement of the
 // worker; per ADR 0010 the engine never changes with the project, only the
 // confidence of the facts does.
@@ -117,7 +117,7 @@ type TypeScriptProjectVersion struct {
 
 // ResolveProjects resolves the compiler of every discovered project, in the
 // order the discovery reported them. One unreadable install fails the whole
-// batch: a repository indexed with a version Luque could not determine would
+// batch: a repository indexed with a version Ladygraph could not determine would
 // produce facts whose confidence nobody can audit.
 func (resolver *TypeScriptVersionResolver) ResolveProjects(discovery TypeScriptDiscovery) ([]TypeScriptProjectVersion, error) {
 	if resolver == nil {

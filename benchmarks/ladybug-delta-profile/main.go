@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultDatabase = "/tmp/luque-ladybug-qualification.db"
+	defaultDatabase = "/tmp/ladygraph-ladybug-qualification.db"
 	defaultOutput   = "benchmarks/ladybug-delta-profile"
 	sampleCount     = 5
 )
@@ -190,7 +190,7 @@ func run(ctx context.Context, cfg config) (results, error) {
 }
 
 func measure(_ context.Context, sourcePath string, selected strategy, relations, aggregatedDeltas, sampleIndex int) (sample, error) {
-	workDir, err := os.MkdirTemp("", "luque-ladybug-delta-profile-")
+	workDir, err := os.MkdirTemp("", "ladygraph-ladybug-delta-profile-")
 	if err != nil {
 		return sample{}, err
 	}

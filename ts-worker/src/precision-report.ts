@@ -95,7 +95,7 @@ function provider(
 }
 
 const sharedProvider = provider(
-  "@luque-fixture/shared",
+  "@ladygraph-fixture/shared",
   "1.4.2",
   "shared-library",
   SHARED_ROOT,
@@ -115,10 +115,10 @@ const cases: readonly PrecisionCase[] = [
     providers: [sharedProvider],
     conflicts: [],
     expectedEdges: [
-      "src/derived.ts#Widget -> @luque-fixture/shared:Widget -> cross-repository/shared-library/dist/inheritance.d.ts",
-      "src/direct.ts#compute -> @luque-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
-      "src/direct.ts#value -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
-      "src/direct.ts#Shape -> @luque-fixture/shared:Shape -> cross-repository/shared-library/dist/value.d.ts",
+      "src/derived.ts#Widget -> @ladygraph-fixture/shared:Widget -> cross-repository/shared-library/dist/inheritance.d.ts",
+      "src/direct.ts#compute -> @ladygraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
+      "src/direct.ts#value -> @ladygraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      "src/direct.ts#Shape -> @ladygraph-fixture/shared:Shape -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
     expectedSourcePositions: 4,
@@ -129,9 +129,9 @@ const cases: readonly PrecisionCase[] = [
     providers: [sharedProvider],
     conflicts: [],
     expectedEdges: [
-      "src/barrel.ts#helper -> @luque-fixture/shared:aliasedHelper -> cross-repository/shared-library/dist/helper.d.ts",
-      "src/barrel.ts#compute -> @luque-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
-      "src/barrel.ts#republished -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      "src/barrel.ts#helper -> @ladygraph-fixture/shared:aliasedHelper -> cross-repository/shared-library/dist/helper.d.ts",
+      "src/barrel.ts#compute -> @ladygraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
+      "src/barrel.ts#republished -> @ladygraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
     expectedSourcePositions: 3,
@@ -142,32 +142,32 @@ const cases: readonly PrecisionCase[] = [
     providers: [
       sharedProvider,
       provider(
-        "@luque-fixture/twin",
+        "@ladygraph-fixture/twin",
         "1.0.0",
         "twin",
         path.join(NEGATIVE, "twin"),
       ),
       provider(
-        "@luque-fixture/unmapped",
+        "@ladygraph-fixture/unmapped",
         "1.0.0",
         "unmapped",
         path.join(NEGATIVE, "unmapped"),
       ),
       provider(
-        "@luque-fixture/duplicated",
+        "@ladygraph-fixture/duplicated",
         "1.0.0",
         "duplicated-a",
         path.join(NEGATIVE, "duplicated-a"),
       ),
       provider(
-        "@luque-fixture/drifting",
+        "@ladygraph-fixture/drifting",
         "2.0.0",
         "drifting",
         path.join(NEGATIVE, "drifting"),
       ),
       {
         ...provider(
-          "@luque-fixture/nomap",
+          "@ladygraph-fixture/nomap",
           "1.0.0",
           "nomap",
           path.join(NEGATIVE, "nomap"),
@@ -177,27 +177,27 @@ const cases: readonly PrecisionCase[] = [
     ],
     conflicts: [
       {
-        packageName: "@luque-fixture/duplicated",
+        packageName: "@ladygraph-fixture/duplicated",
         kind: "AMBIGUOUS_PACKAGE_PROVIDER",
         repositories: ["duplicated-a", "duplicated-b"],
       },
       {
-        packageName: "@luque-fixture/drifting",
+        packageName: "@ladygraph-fixture/drifting",
         kind: "PACKAGE_VERSION_MISMATCH",
         versions: ["1.0.0", "2.0.0"],
       },
     ],
     expectedEdges: [
-      "src/consumer.ts#compute -> @luque-fixture/twin:compute -> cross-repository-negative/twin/dist/index.d.ts",
-      "src/consumer.ts#sharedValue -> @luque-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
-      "src/consumer.ts#unmapped -> @luque-fixture/unmapped:unmapped -> cross-repository-negative/unmapped/dist/index.d.ts",
-      "src/consumer.ts#plain -> @luque-fixture/nomap:plain -> cross-repository-negative/nomap/dist/index.d.ts",
+      "src/consumer.ts#compute -> @ladygraph-fixture/twin:compute -> cross-repository-negative/twin/dist/index.d.ts",
+      "src/consumer.ts#sharedValue -> @ladygraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      "src/consumer.ts#unmapped -> @ladygraph-fixture/unmapped:unmapped -> cross-repository-negative/unmapped/dist/index.d.ts",
+      "src/consumer.ts#plain -> @ladygraph-fixture/nomap:plain -> cross-repository-negative/nomap/dist/index.d.ts",
     ],
     expectedUnresolved: [
-      "@luque-fixture/unmapped:DECLARATION_SOURCE_NOT_MAPPED:unmapped",
-      "@luque-fixture/unmapped:EXPORT_NOT_FOUND:missing",
-      "@luque-fixture/duplicated:AMBIGUOUS_PACKAGE_PROVIDER:-",
-      "@luque-fixture/drifting:VERSION_MISMATCH:-",
+      "@ladygraph-fixture/unmapped:DECLARATION_SOURCE_NOT_MAPPED:unmapped",
+      "@ladygraph-fixture/unmapped:EXPORT_NOT_FOUND:missing",
+      "@ladygraph-fixture/duplicated:AMBIGUOUS_PACKAGE_PROVIDER:-",
+      "@ladygraph-fixture/drifting:VERSION_MISMATCH:-",
     ],
     // `unmapped` publishes neither map nor sources, so it stays unplaceable;
     // `nomap` has no map but its own project can place the symbol.

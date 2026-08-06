@@ -27,7 +27,7 @@ async function createWorkspace(
   files: Record<string, string>,
 ): Promise<Workspace> {
   const root = await mkdtemp(
-    path.join(tmpdir(), "luque-package-dependencies-"),
+    path.join(tmpdir(), "ladygraph-package-dependencies-"),
   );
   workspaces.push(root);
   const workspace: Workspace = {

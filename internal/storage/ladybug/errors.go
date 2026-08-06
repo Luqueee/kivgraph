@@ -30,7 +30,7 @@ var (
 	ErrNotFound = errors.New("LadybugDB entity was not found")
 )
 
-// Error wraps a native or lifecycle failure with the Luque operation that failed.
+// Error wraps a native or lifecycle failure with the Ladygraph operation that failed.
 type Error struct {
 	Op  string
 	Err error

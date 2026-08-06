@@ -1,3 +1,3 @@
-module example.com/luque-fixture/shared
+module example.com/ladygraph-fixture/shared
 
 go 1.24

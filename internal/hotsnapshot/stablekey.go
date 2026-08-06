@@ -9,6 +9,7 @@ import (
 )
 
 const StableKeyFormatVersion uint16 = 1
+const stableKeyNamespace = "luque-stable-key" // Persistent namespace; retained across the Ladygraph rename.
 
 var (
 	ErrUnsupportedStableKeyFormat = errors.New("unsupported stable key format")
@@ -56,7 +57,7 @@ func (identity StableKeyIdentity) Canonical() (string, error) {
 	}
 
 	version := strconv.FormatUint(uint64(identity.FormatVersion), 10)
-	size := len("luque-stable-key\x00version=") + len(version)
+	size := len(stableKeyNamespace+"\x00version=") + len(version)
 	for index := range fields {
 		if fields[index].value == "" {
 			return "", ErrInvalidStableKeyIdentity
@@ -67,7 +68,7 @@ func (identity StableKeyIdentity) Canonical() (string, error) {
 
 	var canonical strings.Builder
 	canonical.Grow(size)
-	canonical.WriteString("luque-stable-key\x00version=")
+	canonical.WriteString(stableKeyNamespace + "\x00version=")
 	canonical.WriteString(version)
 	for _, field := range fields {
 		canonical.WriteByte('\x00')

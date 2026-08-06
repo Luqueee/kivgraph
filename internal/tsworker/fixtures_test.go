@@ -65,7 +65,7 @@ func buildFixtures(t *testing.T) (fixtureManifest, map[string][]byte) {
 	t.Helper()
 	bodies := map[string][]byte{}
 	manifest := fixtureManifest{
-		Protocol:      "luque-ts-worker",
+		Protocol:      "ladygraph-ts-worker",
 		Version:       ProtocolVersion,
 		ByteOrder:     "big-endian",
 		HeaderBytes:   frameHeaderBytes,

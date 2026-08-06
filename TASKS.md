@@ -1,4 +1,4 @@
-# LUQUE — Backlog de tareas para desarrollo asistido por IA
+# LADYGRAPH — Backlog de tareas para desarrollo asistido por IA
 
 ## 1. Reglas de ejecución
 
@@ -82,7 +82,7 @@ PASS_WITH_LIMITS
 - [x] Verificar criterios de aceptación y el gate aplicable.
 - [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Objetivo:** crear la estructura inicial del repositorio Luque.
+**Objetivo:** crear la estructura inicial del repositorio Ladygraph.
 
 **Acciones:**
 
@@ -93,14 +93,14 @@ PASS_WITH_LIMITS
 * Crear `.gitignore`.
 * Crear `Makefile`.
 * Crear los directorios principales.
-* Inicializar el paquete `cmd/luque`.
+* Inicializar el paquete `cmd/ladygraph`.
 * Añadir un comando que muestre la versión provisional.
 
 **Estructura mínima:**
 
 ```text
-luque/
-├── cmd/luque/
+ladygraph/
+├── cmd/ladygraph/
 ├── internal/
 ├── ts-worker/
 ├── testdata/
@@ -116,8 +116,8 @@ luque/
 **Criterios de aceptación:**
 
 ```bash
-go build ./cmd/luque
-./luque version
+go build ./cmd/ladygraph
+./ladygraph version
 ```
 
 deben completarse correctamente.
@@ -418,7 +418,7 @@ PROJECT_FOUNDATION_PASS
 
 * El servidor responde a `initialize`.
 * Publica `serverInfo`.
-* `serverInfo.version` coincide con `luque version`.
+* `serverInfo.version` coincide con `ladygraph version`.
 * Se cierra correctamente al terminar stdin.
 
 ---
@@ -616,7 +616,7 @@ type Database interface {
 * La base se abre.
 * Se cierra limpiamente.
 * Puede reabrirse.
-* Los errores nativos se convierten en errores propios de Luque.
+* Los errores nativos se convierten en errores propios de Ladygraph.
 
 ---
 
@@ -696,7 +696,7 @@ docs/storage/synthetic-schema.md
 **Comando:**
 
 ```bash
-luque benchmark generate-graph \
+ladygraph benchmark generate-graph \
   --symbols 100000 \
   --edges 1000000 \
   --seed 42
@@ -941,7 +941,7 @@ docs/testing/ladybug-recovery.md
 
 ---
 
-## LUQUE-0211 — Crear comando `luque doctor storage`
+## LUQUE-0211 — Crear comando `ladygraph doctor storage`
 
 **Dependencias:** LUQUE-0210.
 
@@ -970,7 +970,7 @@ docs/testing/ladybug-recovery.md
 
 **Resultado registrado: `PASS`.**
 
-* `luque doctor storage --database PATH` informa los diez diagnósticos requeridos y devuelve `0` únicamente si todos están en `PASS`.
+* `ladygraph doctor storage --database PATH` informa los diez diagnósticos requeridos y devuelve `0` únicamente si todos están en `PASS`.
 * La base original se abre en modo de solo lectura; la prueba `BEGIN`/mutación/`ROLLBACK` se ejecuta sobre una copia temporal y el SHA-256 del origen permanece idéntico.
 * Una base sintética completa de 40 repositorios, 100.000 archivos, 100.000 símbolos y 1.000.000 de aristas superó apertura, versiones, esquema, permisos, transacciones, conteos e integridad.
 * Un proceso externo con LadybugDB abierto fue detectado por PID y produjo estado no cero sin impedir el resto del informe.
@@ -1617,7 +1617,7 @@ repositories.yaml
 * La validación rechaza versiones incompatibles, campos desconocidos, límites incoherentes, duraciones inválidas, transportes no soportados y registros con nombres, paths o lenguajes duplicados.
 * Los paths se resuelven sin comprobar todavía existencia, permisos, symlinks o anidamiento; esas comprobaciones pertenecen a LUQUE-0403.
 * Las pruebas cubren defaults, expansión, documentos inválidos, variables ausentes, duplicados y registro vacío explícito.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race` del paquete y `go build ./cmd/luque` pasan; `go tool staticcheck ./internal/config` no reporta incidencias.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race` del paquete y `go build ./cmd/ladygraph` pasan; `go tool staticcheck ./internal/config` no reporta incidencias.
 * Limitación de repositorio: `go tool staticcheck ./...` sigue reportando avisos preexistentes fuera de `internal/config` en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
 * Siguiente tarea: LUQUE-0402.
 
@@ -1654,7 +1654,7 @@ repositories.yaml
 * La metadata Git usa comandos con `exec.CommandContext`, sin shell; soporta branch normal y HEAD desacoplado, y marca cambios sin commitear incluyendo untracked.
 * `List` y `Get` devuelven copias profundas para impedir mutaciones del registro interno.
 * La ruta debe existir, ser un directorio y ser un repositorio Git operativo; la validación entre repositorios queda para LUQUE-0403 y el descubrimiento automático de manifests para LUQUE-0404/0405.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/luque`, `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan; `go tool staticcheck ./internal/config ./internal/workspace` no reporta incidencias.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/ladygraph`, `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan; `go tool staticcheck ./internal/config ./internal/workspace` no reporta incidencias.
 * Smoke real: `TestNewRegistryReadsRealGitMetadata` creó un repositorio Git temporal, verificó commit, branch `main`, estado limpio y detección posterior de untracked.
 * Siguiente tarea: LUQUE-0403.
 
@@ -1688,8 +1688,8 @@ repositories.yaml
 * La validación rechaza nombres vacíos o inválidos, colisiones de nombres sin distinguir mayúsculas, realpaths duplicados, repositorios anidados y escapes en `manifests`, `roots` y `exclusions`.
 * `workspace.NewRegistry` ejecuta estas comprobaciones antes de invocar Git y conserva los paths ya validados para evitar una segunda resolución divergente.
 * Las pruebas cubren aceptación de metadatos acotados, duplicados, anidamiento, symlinks, escapes, permisos, colisiones, entradas inválidas y cancelación de contexto.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/luque` y `go tool staticcheck ./internal/config ./internal/workspace` pasan.
-* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/luque-ladybug-v0.19.0/lib`.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/ladygraph` y `go tool staticcheck ./internal/config ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/ladygraph-ladybug-v0.19.0/lib`.
 * Smoke real: `go test ./internal/workspace -run 'Test(NewRegistryReadsRealGitMetadata|ValidatePathsAcceptsScopedMetadata)$' -count=1 -v` pasa con un repositorio Git temporal y metadatos acotados.
 * Limitación: `go tool staticcheck ./...` conserva seis avisos preexistentes en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`; ninguno pertenece al alcance 0403.
 * No se requiere benchmark: la tarea solo valida configuración y límites de filesystem.
@@ -1726,8 +1726,8 @@ project references
 * Los `tsconfig` se leen como JSONC; las referencias se resuelven desde el archivo declarante, incluyendo referencias a directorios mediante `tsconfig.json`, y se rechazan targets ausentes o fuera del repositorio.
 * Se omiten `.git`, dependencias instaladas, symlinks y exclusiones configuradas.
 * Las pruebas cubren detección, workspaces array/objeto, pnpm, JSONC, referencias, escapes, targets ausentes, exclusiones, symlinks y cancelación.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/luque` y `go tool staticcheck ./internal/workspace` pasan.
-* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/luque-ladybug-v0.19.0/lib`.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/ladygraph` y `go tool staticcheck ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/ladygraph-ladybug-v0.19.0/lib`.
 * Smoke real: `go test ./internal/workspace -run '^TestDiscoverTypeScriptFindsManifestsWorkspacesAndReferences$' -count=1 -v` pasa con un árbol temporal de workspace.
 * Limitación: `go tool staticcheck ./...` conserva seis avisos fuera del alcance 0404 en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
 * No se requiere benchmark: el descubrimiento es una operación de configuración y filesystem; no se ha añadido un contrato de rendimiento.
@@ -1763,8 +1763,8 @@ replace directives
 * Los módulos de `go.work use` se resuelven a sus `go.mod`; las sustituciones locales se canonicalizan y se mantienen dentro del repositorio, mientras que las remotas se conservan sin resolver.
 * Los paquetes se agrupan por directorio, se identifican mediante la cláusula `package`, se asignan al módulo más profundo y se omiten `vendor`, dependencias instaladas, symlinks y exclusiones.
 * Las pruebas cubren módulos anidados, sums, workspaces, replacements locales, paquetes de test externos, escapes, targets ausentes, conflictos de paquetes, symlinks y cancelación.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/luque` y `go tool staticcheck ./internal/workspace` pasan.
-* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/luque-ladybug-v0.19.0/lib`.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/ladygraph` y `go tool staticcheck ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/ladygraph-ladybug-v0.19.0/lib`.
 * Smoke real: `go test ./internal/workspace -run '^TestDiscoverGoFindsModulesWorkspacesPackagesAndReplaces$' -count=1 -v` pasa con módulos y workspace temporales.
 * Limitación: `go tool staticcheck ./...` conserva seis avisos fuera del alcance 0405 en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
 * No se requiere benchmark: el descubrimiento es una operación de configuración y filesystem; la carga semántica con `go/packages` pertenece a fases posteriores.
@@ -1877,7 +1877,7 @@ MODULE_REPLACE_CONFLICT
 * Los `module path` duplicados producen `AMBIGUOUS_MODULE_PROVIDER`; los conjuntos de replacements de `go.mod` y `go.work` distintos producen `MODULE_REPLACE_CONFLICT`, incluido el mismo módulo sustituido desde módulos distintos.
 * Cada conflicto conserva clase, provider, repositorios, manifests y versiones aplicables. `List` devuelve copias profundas y `HasConflicts` permite comprobar el resultado.
 * Las pruebas cubren los cuatro tipos de conflicto, ausencia de conflicto, orden determinista, versiones, manifests, validación de repositorios, cancelación y mutabilidad.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/luque`, `go tool staticcheck ./internal/workspace`, smoke focal y suite Ladybug pasan.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/ladygraph`, `go tool staticcheck ./internal/workspace`, smoke focal y suite Ladybug pasan.
 * No se requiere benchmark: esta tarea valida metadatos de configuración ya descubiertos.
 
 **Gate:**
@@ -2120,7 +2120,7 @@ pasa. No se requiere benchmark.
 
 **Gate:** `TREE_SITTER_ACCELERATOR_PASS`.
 **Gate de fase:** `TREE_SITTER_ACCELERATOR_PASS` emitido tras
-`go test ./...`, `go vet ./...`, `go test -race ./...`, `go build ./cmd/luque`,
+`go test ./...`, `go vet ./...`, `go test -race ./...`, `go build ./cmd/ladygraph`,
 `go test -tags ladybug ./...`, `go vet -tags ladybug ./...`,
 `go tool staticcheck ./internal/syntax` y `go mod verify`.
 
@@ -2243,7 +2243,7 @@ terminara, contaminando la lectura siguiente. El cierre ahora espera a que el
 vigilante termine antes de limpiar el deadline. Sin esa espera el caso de
 cancelación fallaba de forma intermitente.
 
-**Verificación:** `go test ./...`, `go vet ./...`, `go build ./cmd/luque`,
+**Verificación:** `go test ./...`, `go vet ./...`, `go build ./cmd/ladygraph`,
 `go tool staticcheck ./internal/tsworker`, `go test -race ./internal/tsworker`
 repetido cinco veces, y la suite Ladybug completa pasan.
 
@@ -2422,7 +2422,7 @@ Implementado como una subida de directorios desde el `tsconfig` buscando
 `node_modules/typescript`, que es como resuelve Node. El primer hallazgo gana.
 Se clasifica `local` cuando cuelga del paquete propio del proyecto —el
 `package.json` más cercano— y `workspace` cuando lo encontró más arriba. Sin
-instalación, `pinned`: el compilador que Luque distribuye.
+instalación, `pinned`: el compilador que Ladygraph distribuye.
 
 **Qué decide la versión:** no el motor. Según el ADR 0010 el compilador es
 siempre el nativo; la versión del proyecto decide la **confianza**.
@@ -2824,7 +2824,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La suite nueva cubre resolución con el checker, llamadas directas, callbacks,
@@ -2903,7 +2903,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La prueba nueva cubre imports aliasados de valor y tipo, verifica el archivo
@@ -2989,7 +2989,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La prueba nueva comprueba exports directos, `default`, aliases, exports desde
@@ -3060,7 +3060,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 No se ejecutó un benchmark separado: esta tarea fija cobertura local de
@@ -3138,7 +3138,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La suite cubre providers registrados, providers ausentes, módulos no
@@ -3226,7 +3226,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La cobertura incluye exports nombrados, `default`, tipos, alias,
@@ -3318,7 +3318,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La cobertura verifica las cinco ramas de precedencia, configuración de proyecto,
@@ -3402,7 +3402,7 @@ pnpm check                         # 9 archivos, 53 tests passed
 gofmt -l .
 go test ./...                      # 11 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 No se requiere benchmark separado: la tarea agrupa metadata ya resuelta por el
@@ -3477,7 +3477,7 @@ pnpm build
 gofmt -l .
 go test ./...                      # 11 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La cobertura verifica aristas exactas con posiciones, mapeo a fuente mediante
@@ -3566,7 +3566,7 @@ pnpm build
 gofmt -l .
 go test ./...                      # 11 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La cobertura ejercita las siete razones sobre proyectos reales del compilador
@@ -3608,7 +3608,7 @@ ts-worker/src/cross-repository-positive.test.ts
 
 **Contenido:**
 
-* `shared-library` publica `@luque-fixture/shared@1.4.2` con barrel,
+* `shared-library` publica `@ladygraph-fixture/shared@1.4.2` con barrel,
   reexport aliasado y `declaration maps` hacia sus fuentes reales.
 * `consumer-a` usa imports directos de valor y de tipo.
 * `consumer-b` usa alias de import, reexport y namespace.
@@ -3631,7 +3631,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La suite comprueba tres aristas exactas en `consumer-a`, dos en `consumer-b`
@@ -3696,7 +3696,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 **Limitaciones:**
@@ -3762,7 +3762,7 @@ pnpm precision                     # TYPESCRIPT_CROSS_REPO_PASS
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 **Limitaciones:**
@@ -3846,7 +3846,7 @@ pnpm precision                     # exact source positions 7/7
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 La cobertura comprueba posiciones exactas de `const`, `function` e `interface`
@@ -3918,7 +3918,7 @@ pnpm precision                     # exact source positions 8/8
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 ```
 
 Posiciones comprobadas contra el código fuente real:
@@ -3962,7 +3962,7 @@ plain    nomap/src/index.ts:1:13    (sin declaration map)
 **Ubicación:**
 
 ```text
-~/.local/state/luque/go.work
+~/.local/state/ladygraph/go.work
 ```
 
 **No modificar repositorios.**
@@ -3988,7 +3988,7 @@ conflictos excluidos.
 
 * La ruta destino se rechaza si cae dentro de cualquier repositorio registrado,
   comparando `path` y `realpath`. Un error de configuración no puede hacer que
-  Luque escriba un `go.work` en código indexado.
+  Ladygraph escriba un `go.work` en código indexado.
 * La versión del workspace es la **más alta** declarada por sus módulos: un
   workspace no puede prometer menos que sus miembros.
 * Un `module path` declarado por dos repositorios se excluye como
@@ -4007,7 +4007,7 @@ conflictos excluidos.
 gofmt -l .
 go test ./...                       # 12 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 go test -race ./internal/goworkspace
 go tool staticcheck ./internal/goworkspace
 ```
@@ -4090,7 +4090,7 @@ NeedDeps NeedModule
 gofmt -l .
 go test ./...                       # 13 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/luque
+go build ./cmd/ladygraph
 go test -race ./internal/goloader
 go tool staticcheck ./internal/goloader ./internal/goworkspace
 ```
@@ -5222,7 +5222,7 @@ relaciones   CONTAINS_PACKAGE CONTAINS_FILE DEFINES OBSERVED_IN
 * El DDL y la documentación se **generan desde una sola fuente de metadatos**
   en Go. Dos pruebas comparan los archivos versionados con lo generado: un
   esquema documentado que la base no tiene es peor que no documentarlo.
-* Toda clave primaria es `stable_key`, una clave durable de Luque. Ninguna se
+* Toda clave primaria es `stable_key`, una clave durable de Ladygraph. Ninguna se
   deriva de un nombre visible ni la genera la base.
 * Las relaciones de contención son `ONE_MANY` y `OBSERVED_IN` es `MANY_ONE`;
   las semánticas son `MANY_MANY`, porque un símbolo puede llamar al mismo
@@ -5390,7 +5390,7 @@ internal/storage/ladybug/canonical_load.go           render determinista del esq
 internal/storage/ladybug/canonical_load_native.go    staging CSV + COPY + counts + sondas
 internal/storage/ladybug/canonical_load_stub.go      degradado sin CGO
 internal/facts/facts.go                              UnresolvedKey
-cmd/luque/main.go                                    comando luque rebuild
+cmd/ladygraph/main.go                                    comando ladygraph rebuild
 ```
 
 **Punto de partida real:** cada etapa existía aislada y **ninguna llamaba a la
@@ -5435,7 +5435,7 @@ no forma parte del `./...` de su padre— y combinando con `Set.Merge`:
 Set.Validate() pasa: 0 aristas colgantes
 ```
 
-Sobre esos hechos, `luque rebuild` con la biblioteca nativa:
+Sobre esos hechos, `ladygraph rebuild` con la biblioteca nativa:
 
 ```text
 [PASS] facts          validated 3 repositories, 4 packages, 4 files, 9 symbols, 32 edges
@@ -5529,7 +5529,7 @@ internal/storage/ladybug/canonical_integrity.go            reglas, catálogos y 
 internal/storage/ladybug/canonical_integrity_native.go     los seis invariantes en Cypher
 internal/storage/ladybug/canonical_integrity_stub.go       degradado sin CGO
 internal/rebuild/rebuild.go                                etapa integrity ampliada
-cmd/luque/main.go                                          comando luque doctor graph
+cmd/ladygraph/main.go                                          comando ladygraph doctor graph
 ```
 
 **Decisión de semántica: «sin origen» no puede significar «el nodo no existe».**
@@ -5572,13 +5572,13 @@ que nadie declara es un fallo de integridad.
 
 **Verificación sobre un grafo canónico real.** Hechos derivados del fixture
 `testdata/go/cross-repository` con `goloader` + `facts.NormalizeGo`, publicados
-con `luque rebuild`:
+con `ladygraph rebuild`:
 
 ```text
 [PASS] integrity  27 of 27 canonical table(s) matched their expected count; 0 invariant violation(s)
 [PASS] publish    published generation 000001
 
-luque doctor graph --database generations/000001/graph.db  →  graph doctor: PASS
+ladygraph doctor graph --database generations/000001/graph.db  →  graph doctor: PASS
   exact_edge_without_source 0   exact_edge_without_target 0   missing_evidence_file 0
   duplicate_stable_key 0        unknown_confidence 0          invalid_repository_ownership 0
 ```
@@ -5586,7 +5586,7 @@ luque doctor graph --database generations/000001/graph.db  →  graph doctor: PA
 **Y las seis reglas muerden.** Cada violación se inyectó con Cypher crudo sobre
 una copia de la generación publicada —`LoadCanonical` valida los hechos, así que
 una violación sólo puede entrar escribiendo directamente— y se comprobó por la
-ruta del operador, `luque doctor graph`, que salió 1 en los seis casos:
+ruta del operador, `ladygraph doctor graph`, que salió 1 en los seis casos:
 
 | Inyección | Regla que falla | Muestra emitida |
 | --- | --- | --- |
@@ -5662,7 +5662,7 @@ internal/storage/generation/backup.go    puntero BACKUP, List, Prune, NextID
 internal/storage/generation/store.go     BACKUP integrado en Publish y Restore
 internal/rebuild/rollback.go             Roles y Rollback verificado
 internal/rebuild/rebuild.go              retención tras publicar
-cmd/luque/main.go                        luque graph status y luque rollback
+cmd/ladygraph/main.go                        ladygraph graph status y ladygraph rollback
 ```
 
 **Los tres nombres son roles, no directorios.** `generations/<id>` y `CURRENT`
@@ -5797,7 +5797,7 @@ internal/storage/ladybug/canonical_scan.go           lectura del grafo definitiv
 internal/storage/ladybug/canonical_scan_native.go
 internal/rebuild/snapshot.go                         adaptador y construcción
 internal/hotsnapshot/builder.go                      dos correcciones de contrato
-cmd/luque/main.go                                    comando luque snapshot
+cmd/ladygraph/main.go                                    comando ladygraph snapshot
 ```
 
 **El hueco que había.** `BuildGraphSnapshot` existía desde la fase 6 y **nunca
@@ -5861,7 +5861,7 @@ añadírselo. Ahora cada rechazo nombra la fila, su clave y el motivo.
                   9 symbols, 15 edges, 17 edge(s) not represented in the CSR)
 [PASS] publish    published generation 000001
 
-luque snapshot --root …   PASS   digest 0c8ce3bf…   9 símbolos, 15 aristas
+ladygraph snapshot --root …   PASS   digest 0c8ce3bf…   9 símbolos, 15 aristas
 segunda construcción      mismo digest
 ```
 
@@ -6017,8 +6017,8 @@ La identidad depende sólo del destino, nunca del nombre que le dé el consumido
 [PASS] snapshot   hot snapshot built (12 symbols, 7 edges, 19 not in the CSR)
 [PASS] publish    published generation 000001
 
-luque doctor graph   PASS, los seis invariantes a cero
-luque snapshot       PASS
+ladygraph doctor graph   PASS, los seis invariantes a cero
+ladygraph snapshot       PASS
 ```
 
 Que `doctor graph` pase importa aquí especialmente: las cinco aristas son
@@ -6718,7 +6718,7 @@ MCP_SURFACE_PASS
 - [ ] Verificar criterios de aceptación y el gate aplicable.
 - [ ] Registrar resultados, limitaciones y siguiente tarea.
 
-**Luque debe cargar el último snapshot válido o reconstruirlo.**
+**Ladygraph debe cargar el último snapshot válido o reconstruirlo.**
 
 ---
 
@@ -7097,7 +7097,7 @@ OBSERVABILITY_PASS
 
 ---
 
-## LUQUE-1502 — Implementar `luque version --json`
+## LUQUE-1502 — Implementar `ladygraph version --json`
 
 **Dependencias:** LUQUE-1501.
 
@@ -7111,7 +7111,7 @@ OBSERVABILITY_PASS
 
 **Mostrar:**
 
-* Luque;
+* Ladygraph;
 * commit;
 * Go;
 * Node;
@@ -7155,10 +7155,10 @@ Generar SHA-256 de todos los artefactos.
 **Comandos esperados:**
 
 ```bash
-luque init
-luque doctor
-luque index --full
-luque serve
+ladygraph init
+ladygraph doctor
+ladygraph index --full
+ladygraph serve
 ```
 
 ---
@@ -7353,9 +7353,9 @@ docs/release/production-qualification.md
 **Decisiones válidas:**
 
 ```text
-ACCEPT_LUQUE_FOR_PRODUCTION
-ACCEPT_LUQUE_WITH_LIMITS
-REJECT_LUQUE_FOR_PRODUCTION
+ACCEPT_LADYGRAPH_FOR_PRODUCTION
+ACCEPT_LADYGRAPH_WITH_LIMITS
+REJECT_LADYGRAPH_FOR_PRODUCTION
 ```
 
 ---
@@ -7381,7 +7381,7 @@ OBSERVABILITY_PASS
 DISTRIBUTION_PASS
 ```
 
-No se puede aprobar Luque sin todos ellos.
+No se puede aprobar Ladygraph sin todos ellos.
 
 ---
 
@@ -7415,7 +7415,7 @@ No debe implementar TypeScript, Go ni Tree-sitter antes de que LadybugDB y el Ho
 # 22. Plantilla de prompt para cada tarea
 
 ```text
-Trabaja en la tarea <TASK-ID> del backlog de Luque.
+Trabaja en la tarea <TASK-ID> del backlog de Ladygraph.
 
 Reglas:
 

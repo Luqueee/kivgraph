@@ -30,7 +30,7 @@ function openConsumer(name: string): {
 }
 
 const sharedProvider: PackageProvider = {
-  name: "@luque-fixture/shared",
+  name: "@ladygraph-fixture/shared",
   version: "1.4.2",
   repository: "shared-library",
   rootPath: SHARED_ROOT,
@@ -208,7 +208,7 @@ describe("cross-repository positive fixture", () => {
       ),
     ).toBe(true);
 
-    // `export { value as republished } from "@luque-fixture/shared"` is a
+    // `export { value as republished } from "@ladygraph-fixture/shared"` is a
     // re-export, not an import: it reaches the provider's "value" through
     // `REEXPORTS`, resolved by the exact same identity machinery.
     expect(
@@ -248,7 +248,7 @@ describe("cross-repository positive fixture", () => {
       view,
       registry,
       {
-        name: "@luque-fixture/consumer-b",
+        name: "@ladygraph-fixture/consumer-b",
         version: "3.1.0",
         repository: "consumer-b",
         rootPath: path.join(FIXTURE, "consumer-b"),

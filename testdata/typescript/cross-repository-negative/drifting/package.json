@@ -1,5 +1,5 @@
 {
-  "name": "@luque-fixture/drifting",
+  "name": "@ladygraph-fixture/drifting",
   "version": "2.0.0",
   "type": "module",
   "types": "./dist/index.d.ts"

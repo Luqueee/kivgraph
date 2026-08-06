@@ -1,4 +1,4 @@
-module github.com/Luqueee/luque
+module github.com/Luqueee/ladygraph
 
 go 1.24.0
 

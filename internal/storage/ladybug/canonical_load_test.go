@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
 // TestCanonicalColumnsMatchesSchemaMetadata is the parity invariant with the

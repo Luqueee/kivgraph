@@ -5,7 +5,7 @@ package main
 import (
 	"testing"
 
-	"github.com/Luqueee/luque/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 func TestPercentileUsesNearestRank(t *testing.T) {

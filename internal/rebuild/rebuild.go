@@ -33,9 +33,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/storage/generation"
-	"github.com/Luqueee/luque/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/storage/generation"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 // ErrRebuildFailed reports that a full rebuild did not reach a published

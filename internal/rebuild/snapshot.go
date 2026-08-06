@@ -10,10 +10,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/hotsnapshot"
-	"github.com/Luqueee/luque/internal/storage/generation"
-	"github.com/Luqueee/luque/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/storage/generation"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 // ErrSnapshotBuildFailed reports that the definitive graph read from a

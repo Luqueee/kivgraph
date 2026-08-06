@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/workspace"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 func TestBuildPlanComposesEveryModuleAndAgreedReplacements(t *testing.T) {
@@ -182,7 +182,7 @@ go 1.24
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
 
-	state := filepath.Join(root, "state", "luque")
+	state := filepath.Join(root, "state", "ladygraph")
 	target := filepath.Join(state, "go.work")
 	first, err := Write(context.Background(), target, plan, repositories)
 	if err != nil {

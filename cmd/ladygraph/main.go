@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Luqueee/luque/internal/facts"
-	"github.com/Luqueee/luque/internal/hotsnapshot"
-	mcpserver "github.com/Luqueee/luque/internal/mcp"
-	"github.com/Luqueee/luque/internal/rebuild"
-	"github.com/Luqueee/luque/internal/storage/generation"
-	"github.com/Luqueee/luque/internal/storage/ladybug"
-	"github.com/Luqueee/luque/internal/synthetic"
-	"github.com/Luqueee/luque/internal/version"
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
+	"github.com/Luqueee/ladygraph/internal/rebuild"
+	"github.com/Luqueee/ladygraph/internal/storage/generation"
+	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/synthetic"
+	"github.com/Luqueee/ladygraph/internal/version"
 )
 
 func main() {

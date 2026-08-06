@@ -1,6 +1,6 @@
 # LadybugDB direct query benchmark
 
-- Command: `/tmp/go-build1319215104/b001/exe/ladybug-queries --database /tmp/luque-ladybug-qualification.db --corpus /tmp/luque-synthetic-42 --output benchmarks/ladybug-queries --iterations 100 --warmup 5`
+- Command: `/tmp/go-build1319215104/b001/exe/ladybug-queries --database /tmp/ladygraph-ladybug-qualification.db --corpus /tmp/ladygraph-synthetic-42 --output benchmarks/ladybug-queries --iterations 100 --warmup 5`
 - Commit: `e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty`
 - Generated at: `2026-08-04T20:20:00Z`
 - Platform: `linux/amd64`, `go1.24.4`

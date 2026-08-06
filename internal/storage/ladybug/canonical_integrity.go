@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
 // ErrCanonicalIntegrity reports that VerifyCanonicalIntegrity could not run

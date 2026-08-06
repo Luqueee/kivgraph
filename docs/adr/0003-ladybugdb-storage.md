@@ -5,7 +5,7 @@
 
 ## Context
 
-Luque necesita persistir un grafo semántico cross-repository con nodos,
+Ladygraph necesita persistir un grafo semántico cross-repository con nodos,
 relaciones, hechos de evidencia y referencias no resueltas. El almacenamiento
 debe ser embebido, transaccional y capaz de reconstruir snapshots sin depender
 de un servidor externo.
@@ -43,7 +43,7 @@ normalizados para evitar una lectura completa innecesaria.
 
 ## Consequences
 
-- Luque debe gestionar explícitamente el ciclo de vida de la base y sus
+- Ladygraph debe gestionar explícitamente el ciclo de vida de la base y sus
   conexiones.
 - El schema y las versiones de LadybugDB pasan a ser dependencias de
   distribución que deben fijarse y auditarse.

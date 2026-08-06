@@ -45,7 +45,7 @@
  *     [--provider <name>=<path>]...
  *
  * `--provider <name>=<path>` declares one provider repository this indexing
- * run may import from: `<name>` is the repository name (as Luque names it,
+ * run may import from: `<name>` is the repository name (as Ladygraph names it,
  * not the npm package name) and `<path>` is its root directory. The CLI
  * derives the provider's package name, version and source/declaration roots
  * by reading `<path>/package.json` and `<path>/tsconfig.json` — the same
@@ -158,7 +158,7 @@ interface FactImport {
 
 /** The provider declaration, described exactly as the provider indexes it. */
 interface FactImportTarget {
-  /** Provider repository, as Luque names it. */
+  /** Provider repository, as Ladygraph names it. */
   readonly repository: string;
   /** Provider package name. */
   readonly package: string;
@@ -248,7 +248,7 @@ interface FactExtends {
  * becomes `MODULE_DEPENDS_ON`; only Go's package/module split does.
  */
 interface FactDependency {
-  /** Provider repository, as Luque names it. */
+  /** Provider repository, as Ladygraph names it. */
   readonly repository: string;
   /** Provider package name. */
   readonly package: string;
@@ -948,7 +948,7 @@ const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.jso
 Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
 
   --provider <name>=<path>   A provider repository this run may import from.
-                              <name> is the repository name (as Luque names
+                              <name> is the repository name (as Ladygraph names
                               it, not the npm package name); <path> is its
                               root directory. package.json and tsconfig.json
                               under <path> are read to derive the provider's

@@ -49,7 +49,7 @@ function gitState() {
 }
 
 function runEngine(engine, size, options) {
-	const corpusRoot = path.join(os.tmpdir(), `luque-ts-engine-${size}-${options.seed}`);
+	const corpusRoot = path.join(os.tmpdir(), `ladygraph-ts-engine-${size}-${options.seed}`);
 	const stdout = execFileSync(
 		process.execPath,
 		[
@@ -171,11 +171,11 @@ function buildReport(results) {
 		"- The programs differ slightly in default library files because each compiler version ships its own `lib.*.d.ts` set; the corpus source files are identical.",
 		"- Every measurement runs in its own Node process, so no engine benefits from the other's warm heap.",
 		"",
-		"## Consequences for Luque",
+		"## Consequences for Ladygraph",
 		"",
 		"- The native engine does not make every operation faster; it changes the cost model. Project-scale work becomes much cheaper, while each individual request pays a fixed inter-process round trip of roughly 70 to 140 microseconds.",
-		"- Operations that Luque runs once per project or per file change (load, full check, incremental re-resolve, file-scoped references) are decisively faster on the native engine, and the gap widens with corpus size.",
-		"- Operations that Luque would run once per symbol are slower on the native engine unless they are batched. The batched form is faster than the JavaScript Compiler API, so the worker protocol must be batch-oriented per file rather than chatty per symbol.",
+		"- Operations that Ladygraph runs once per project or per file change (load, full check, incremental re-resolve, file-scoped references) are decisively faster on the native engine, and the gap widens with corpus size.",
+		"- Operations that Ladygraph would run once per symbol are slower on the native engine unless they are batched. The batched form is faster than the JavaScript Compiler API, so the worker protocol must be batch-oriented per file rather than chatty per symbol.",
 		"- Transferring large symbol sets is the worst case: reading every export of a barrel costs one round trip per symbol payload and degrades with the export count. Bulk extraction must avoid materialising whole module export sets when a narrower query exists.",
 		"- Resident memory is consistently lower for the native engine even after counting the spawned server process.",
 		"",

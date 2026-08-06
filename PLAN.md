@@ -1,4 +1,4 @@
-# LUQUE
+# LADYGRAPH
 
 ## MCP ultrarrápido de inteligencia de código cross-repository para TypeScript y Go
 
@@ -6,7 +6,7 @@
 
 # 1. Resumen ejecutivo
 
-**Luque** será un servidor MCP autónomo, local y de solo lectura especializado en construir y consultar un grafo semántico entre múltiples repositorios.
+**Ladygraph** será un servidor MCP autónomo, local y de solo lectura especializado en construir y consultar un grafo semántico entre múltiples repositorios.
 
 Su objetivo será responder con precisión y muy baja latencia preguntas como:
 
@@ -20,7 +20,7 @@ Su objetivo será responder con precisión y muy baja latencia preguntas como:
 * ¿Qué camino de dependencias conecta dos símbolos?
 * ¿Qué repositorios dependen directa o transitivamente de un paquete?
 
-Luque no será:
+Ladygraph no será:
 
 * un editor;
 * un agente;
@@ -60,7 +60,7 @@ PLANO DE CONSULTA
 Cliente MCP
     │
     ▼
-Luque MCP
+Ladygraph MCP
     │
     ▼
 HotSnapshot inmutable en RAM
@@ -79,7 +79,7 @@ La regla principal será:
 
 ```yaml
 project:
-  name: Luque
+  name: Ladygraph
   type: autonomous_mcp_server
   primary_language: Go
   initial_languages:
@@ -140,7 +140,7 @@ llm:
   required: false
 ```
 
-LadybugDB es una base de grafos embebida, por lo que se ejecuta dentro del proceso de la aplicación. Ofrece API oficial para Go, persistencia on-disk, WAL y transacciones ACID. El diseño de Luque respetará su modelo de concurrencia: una única instancia `Database` será propietaria del fichero, y todas las conexiones procederán de esa misma instancia.
+LadybugDB es una base de grafos embebida, por lo que se ejecuta dentro del proceso de la aplicación. Ofrece API oficial para Go, persistencia on-disk, WAL y transacciones ACID. El diseño de Ladygraph respetará su modelo de concurrencia: una única instancia `Database` será propietaria del fichero, y todas las conexiones procederán de esa misma instancia.
 
 ---
 
@@ -178,7 +178,7 @@ petición
 
 ## 3.2 Exactitud antes que cobertura aparente
 
-Luque nunca creará una arista exacta únicamente porque:
+Ladygraph nunca creará una arista exacta únicamente porque:
 
 * dos símbolos tengan el mismo nombre;
 * exista un único candidato global;
@@ -235,7 +235,7 @@ coverage
 
 ## 3.5 Los repositorios analizados son de solo lectura
 
-Luque no escribirá:
+Ladygraph no escribirá:
 
 ```text
 archivos de configuración
@@ -251,9 +251,9 @@ dentro de los repositorios.
 Todo su estado vivirá en:
 
 ```text
-~/.config/luque/
-~/.local/state/luque/
-~/.cache/luque/
+~/.config/ladygraph/
+~/.local/state/ladygraph/
+~/.cache/ladygraph/
 ```
 
 ---
@@ -362,7 +362,7 @@ logs:
 ## 5.1 Proceso principal
 
 ```text
-luque
+ladygraph
 ```
 
 Implementado en Go.
@@ -385,7 +385,7 @@ Responsabilidades:
 ## 5.2 Worker TypeScript
 
 ```text
-luque-ts-worker
+ladygraph-ts-worker
 ```
 
 Proceso Node.js persistente.
@@ -439,9 +439,9 @@ TypeScript Checker / go/types:
 # 6. Estructura del repositorio
 
 ```text
-luque/
+ladygraph/
 ├── cmd/
-│   └── luque/
+│   └── ladygraph/
 │       └── main.go
 │
 ├── internal/
@@ -604,7 +604,7 @@ luque/
 ## 7.1 Archivo principal
 
 ```text
-~/.config/luque/config.yaml
+~/.config/ladygraph/config.yaml
 ```
 
 Ejemplo:
@@ -613,12 +613,12 @@ Ejemplo:
 version: 1
 
 workspace:
-  repositories_file: ~/.config/luque/repositories.yaml
+  repositories_file: ~/.config/ladygraph/repositories.yaml
 
 storage:
-  database_path: ~/.local/state/luque/graph.lbdb
-  snapshots_path: ~/.local/state/luque/snapshots
-  backups_path: ~/.local/state/luque/backups
+  database_path: ~/.local/state/ladygraph/graph.lbdb
+  snapshots_path: ~/.local/state/ladygraph/snapshots
+  backups_path: ~/.local/state/ladygraph/backups
   retain_snapshots: 3
 
 mcp:
@@ -641,12 +641,12 @@ watcher:
   reconciliation_interval: 10m
 
 typescript:
-  worker_command: luque-ts-worker
+  worker_command: ladygraph-ts-worker
   maximum_workers: 3
   project_idle_timeout: 30m
 
 go:
-  synthetic_work_file: ~/.local/state/luque/go.work
+  synthetic_work_file: ~/.local/state/ladygraph/go.work
   include_tests: false
 
 telemetry:
@@ -661,7 +661,7 @@ logging:
 ## 7.2 Registro de repositorios
 
 ```text
-~/.config/luque/repositories.yaml
+~/.config/ladygraph/repositories.yaml
 ```
 
 ```yaml
@@ -685,7 +685,7 @@ repositories:
       - go
 ```
 
-Luque no debe depender de convenciones de nombres de carpetas.
+Ladygraph no debe depender de convenciones de nombres de carpetas.
 
 ---
 
@@ -1067,7 +1067,7 @@ snapshot desde LadybugDB.
 
 ## 10.5 Extensiones
 
-Luque no descargará ni instalará automáticamente extensiones de LadybugDB.
+Ladygraph no descargará ni instalará automáticamente extensiones de LadybugDB.
 
 Toda extensión deberá:
 
@@ -1195,7 +1195,7 @@ Orden de selección:
 ```text
 1. dependencia del repositorio;
 2. dependencia del workspace;
-3. versión fallback fijada por Luque.
+3. versión fallback fijada por Ladygraph.
 ```
 
 Se agruparán proyectos compatibles para reducir workers.
@@ -1212,7 +1212,7 @@ workspace manifests
 
 ## 12.3 Resolución de módulos
 
-Luque deberá respetar:
+Ladygraph deberá respetar:
 
 ```text
 moduleResolution
@@ -1228,7 +1228,7 @@ project references
 declaration maps
 ```
 
-TypeScript adapta su resolución según la configuración del proyecto y el formato de módulos, por lo que Luque debe utilizar las opciones reales del proyecto y no un resolvedor nominal propio.
+TypeScript adapta su resolución según la configuración del proyecto y el formato de módulos, por lo que Ladygraph debe utilizar las opciones reales del proyecto y no un resolvedor nominal propio.
 
 ## 12.4 Resolución de símbolos
 
@@ -1343,10 +1343,10 @@ Cada ejecución de `packages.Load` crea un universo nuevo de identidad de tipos,
 
 ## 13.2 Workspace sintético
 
-Luque generará:
+Ladygraph generará:
 
 ```text
-~/.local/state/luque/go.work
+~/.local/state/ladygraph/go.work
 ```
 
 Nunca escribirá un `go.work` en los repositorios.
@@ -1461,7 +1461,7 @@ Todo fallo debe quedar clasificado.
 
 ## 15.1 Watcher
 
-`fsnotify` proporciona notificaciones de filesystem multiplataforma para Go. Luque lo utilizará como señal de cambio, no como única fuente de verdad.
+`fsnotify` proporciona notificaciones de filesystem multiplataforma para Go. Ladygraph lo utilizará como señal de cambio, no como única fuente de verdad.
 
 ```text
 evento
@@ -1591,7 +1591,7 @@ No se utilizará gRPC.
 
 # 17. Superficie MCP
 
-Luque utilizará el SDK oficial de MCP para Go, que proporciona las APIs para construir servidores, registrar tools y gestionar el protocolo.
+Ladygraph utilizará el SDK oficial de MCP para Go, que proporciona las APIs para construir servidores, registrar tools y gestionar el protocolo.
 
 ## 17.1 Tools
 
@@ -1684,33 +1684,33 @@ INDEX_NOT_READY
 # 18. CLI
 
 ```bash
-luque init
-luque serve
-luque index
-luque update
-luque status
-luque doctor
-luque benchmark
-luque inspect
-luque export
-luque version
+ladygraph init
+ladygraph serve
+ladygraph index
+ladygraph update
+ladygraph status
+ladygraph doctor
+ladygraph benchmark
+ladygraph inspect
+ladygraph export
+ladygraph version
 ```
 
-## `luque init`
+## `ladygraph init`
 
 * crea configuración;
 * crea directorios;
 * valida LadybugDB;
 * registra repositorios iniciales.
 
-## `luque index`
+## `ladygraph index`
 
 ```bash
-luque index --full
-luque index --repository service-a
+ladygraph index --full
+ladygraph index --repository service-a
 ```
 
-## `luque doctor`
+## `ladygraph doctor`
 
 Comprueba:
 
@@ -1727,7 +1727,7 @@ Comprueba:
 * toolchain Go;
 * repositorios inaccesibles.
 
-## `luque inspect`
+## `ladygraph inspect`
 
 Permite consultas administrativas seguras y predefinidas.
 
@@ -1757,28 +1757,28 @@ No registrar contenido fuente por defecto.
 ## 19.2 Métricas
 
 ```text
-luque_query_duration
-luque_query_total
-luque_query_errors
-luque_query_results
-luque_query_truncated
+ladygraph_query_duration
+ladygraph_query_total
+ladygraph_query_errors
+ladygraph_query_results
+ladygraph_query_truncated
 
-luque_snapshot_id
-luque_snapshot_age
-luque_snapshot_build_duration
-luque_snapshot_bytes
+ladygraph_snapshot_id
+ladygraph_snapshot_age
+ladygraph_snapshot_build_duration
+ladygraph_snapshot_bytes
 
-luque_index_duration
-luque_index_files
-luque_index_symbols
-luque_index_edges
-luque_index_unresolved
+ladygraph_index_duration
+ladygraph_index_files
+ladygraph_index_symbols
+ladygraph_index_edges
+ladygraph_index_unresolved
 
-luque_ladybug_transaction_duration
-luque_ladybug_database_bytes
+ladygraph_ladybug_transaction_duration
+ladygraph_ladybug_database_bytes
 
-luque_ts_worker_restarts
-luque_ts_worker_memory
+ladygraph_ts_worker_restarts
+ladygraph_ts_worker_memory
 ```
 
 OpenTelemetry Go permite instrumentar métricas y trazas; se añadirá después de estabilizar el MVP, manteniendo exportadores desactivados por defecto.
@@ -1842,12 +1842,12 @@ umask:       0077
 
 ## 20.5 Base
 
-LadybugDB solo será abierta por Luque.
+LadybugDB solo será abierta por Ladygraph.
 
 No se permitirá simultáneamente:
 
 ```text
-otro proceso Luque
+otro proceso Ladygraph
 CLI de LadybugDB
 explorador
 script externo
@@ -1890,9 +1890,9 @@ CGO flags
 ## 21.3 Artefacto
 
 ```text
-luque/
-├── bin/luque
-├── bin/luque-ts-worker
+ladygraph/
+├── bin/ladygraph
+├── bin/ladygraph-ts-worker
 ├── lib/libladybug.*
 ├── grammars/
 ├── licenses/
@@ -1901,11 +1901,11 @@ luque/
 
 ## 21.4 Proveniencia
 
-`luque version --json`:
+`ladygraph version --json`:
 
 ```json
 {
-  "luque": "0.1.0",
+  "ladygraph": "0.1.0",
   "commit": "...",
   "go": "...",
   "ladybug": "...",
@@ -2418,7 +2418,7 @@ ROLLBACK_PASS
 Para aprobar:
 
 ```text
-ACCEPT_LUQUE_FOR_PRODUCTION
+ACCEPT_LADYGRAPH_FOR_PRODUCTION
 ```
 
 deben pasar:
@@ -2515,7 +2515,7 @@ PGO podrá evaluarse cuando exista un workload estable; Go permite alimentar al 
 
 # 27. Resultado esperado
 
-Luque deberá terminar con esta arquitectura:
+Ladygraph deberá terminar con esta arquitectura:
 
 ```text
                      INDEXACIÓN
@@ -2550,7 +2550,7 @@ Luque deberá terminar con esta arquitectura:
 Cliente MCP
     │
     ▼
-Luque MCP
+Ladygraph MCP
     │
     ▼
 HotSnapshot
@@ -2586,4 +2586,4 @@ MCP:
   interfaz de consulta cerrada y segura
 ```
 
-Luque será rápido porque no analizará código cuando recibe una pregunta. Recibirá los resultados de análisis previamente certificados y consultará estructuras compactas en memoria.
+Ladygraph será rápido porque no analizará código cuando recibe una pregunta. Recibirá los resultados de análisis previamente certificados y consultará estructuras compactas en memoria.

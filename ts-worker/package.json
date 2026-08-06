@@ -1,8 +1,8 @@
 {
-  "name": "@luque/ts-worker",
+  "name": "@ladygraph/ts-worker",
   "version": "0.1.0",
   "private": true,
-  "description": "Persistent TypeScript worker for Luque",
+  "description": "Persistent TypeScript worker for Ladygraph",
   "type": "module",
   "packageManager": "pnpm@11.5.1",
   "engines": {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Luqueee/luque/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
 // ErrInvalidCanonicalDelta reports a facts.Delta that cannot be applied to
@@ -223,7 +223,7 @@ func canonicalUpsertRows(upsert facts.Set, options CanonicalLoadOptions) (map[st
 // row.start_line is a string, even though the identical value bound as a
 // plain top level parameter, not a struct field, is cast implicitly).
 // "from"/"to" (relationship endpoint keys) and every node primary key are
-// always STRING: a canonical key is always a durable Luque string.
+// always STRING: a canonical key is always a durable Ladygraph string.
 func canonicalColumnTypes(table string) (map[string]string, bool) {
 	for _, node := range CanonicalNodeTables() {
 		if node.Name != table {

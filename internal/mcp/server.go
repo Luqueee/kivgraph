@@ -5,13 +5,13 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/luque/internal/mcp/tools"
-	"github.com/Luqueee/luque/internal/version"
+	"github.com/Luqueee/ladygraph/internal/mcp/tools"
+	"github.com/Luqueee/ladygraph/internal/version"
 )
 
-const serverName = "luque"
+const serverName = "ladygraph"
 
-// NewServer creates the empty Luque MCP server with its advertised identity.
+// NewServer creates the empty Ladygraph MCP server with its advertised identity.
 func NewServer() *sdkmcp.Server {
 	return newServer(nil)
 }

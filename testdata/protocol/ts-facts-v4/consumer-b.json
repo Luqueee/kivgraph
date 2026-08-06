@@ -4,7 +4,7 @@
     "name": "consumer-b"
   },
   "package": {
-    "name": "@luque-fixture/consumer-b",
+    "name": "@ladygraph-fixture/consumer-b",
     "version": "3.1.0",
     "rootPath": ".",
     "manifestPath": "package.json"
@@ -130,11 +130,11 @@
       "end": 32,
       "startLine": 1,
       "text": "aliasedHelper as helper",
-      "requestedPackage": "@luque-fixture/shared",
+      "requestedPackage": "@ladygraph-fixture/shared",
       "requestedSymbol": "aliasedHelper",
       "target": {
         "repository": "shared-library",
-        "package": "@luque-fixture/shared",
+        "package": "@ladygraph-fixture/shared",
         "qualifiedName": "helper",
         "kind": "function",
         "signature": "export function helper(shape: Shape): number",
@@ -151,11 +151,11 @@
       "end": 246,
       "startLine": 7,
       "text": "shared.compute",
-      "requestedPackage": "@luque-fixture/shared",
+      "requestedPackage": "@ladygraph-fixture/shared",
       "requestedSymbol": "compute",
       "target": {
         "repository": "shared-library",
-        "package": "@luque-fixture/shared",
+        "package": "@ladygraph-fixture/shared",
         "qualifiedName": "compute",
         "kind": "function",
         "signature": "export function compute(input: number): number",
@@ -211,14 +211,14 @@
       "targetFile": null,
       "target": {
         "repository": "shared-library",
-        "package": "@luque-fixture/shared",
+        "package": "@ladygraph-fixture/shared",
         "qualifiedName": "value",
         "kind": "variable",
         "signature": "value",
         "file": "src/value.ts",
         "startLine": 1
       },
-      "requestedPackage": "@luque-fixture/shared",
+      "requestedPackage": "@ladygraph-fixture/shared",
       "requestedSymbol": "value",
       "reason": null,
       "detail": null
@@ -228,9 +228,9 @@
   "dependencies": [
     {
       "repository": "shared-library",
-      "package": "@luque-fixture/shared",
+      "package": "@ladygraph-fixture/shared",
       "file": "src/barrel.ts",
-      "specifier": "@luque-fixture/shared",
+      "specifier": "@ladygraph-fixture/shared",
       "start": 40,
       "end": 63,
       "startLine": 1

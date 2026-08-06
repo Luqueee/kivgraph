@@ -24,7 +24,7 @@ var (
 	versionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
 )
 
-// GrammarManifest pins every grammar source used by Luque.
+// GrammarManifest pins every grammar source used by Ladygraph.
 type GrammarManifest struct {
 	SchemaVersion int             `json:"schema_version"`
 	ArchiveFormat string          `json:"archive_format"`

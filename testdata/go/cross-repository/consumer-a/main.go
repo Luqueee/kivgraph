@@ -1,7 +1,7 @@
 // Package main exercises direct calls, methods and callbacks.
 package main
 
-import "example.com/luque-fixture/shared/api"
+import "example.com/ladygraph-fixture/shared/api"
 
 func main() {
 	shape := api.Shape{Width: api.Answer}

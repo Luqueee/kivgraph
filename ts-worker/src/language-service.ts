@@ -1,5 +1,5 @@
 /**
- * Persistent TypeScript Language Service for the Luque worker.
+ * Persistent TypeScript Language Service for the Ladygraph worker.
  *
  * Per ADR 0010 the engine is always the native TypeScript compiler, driven
  * through its asynchronous API. This module owns everything that must survive

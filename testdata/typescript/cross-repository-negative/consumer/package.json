@@ -1,13 +1,13 @@
 {
-  "name": "@luque-fixture/consumer-negative",
+  "name": "@ladygraph-fixture/consumer-negative",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "@luque-fixture/drifting": "1.0.0",
-    "@luque-fixture/duplicated": "1.0.0",
-    "@luque-fixture/nomap": "1.0.0",
-    "@luque-fixture/shared": "1.4.2",
-    "@luque-fixture/twin": "1.0.0",
-    "@luque-fixture/unmapped": "1.0.0"
+    "@ladygraph-fixture/drifting": "1.0.0",
+    "@ladygraph-fixture/duplicated": "1.0.0",
+    "@ladygraph-fixture/nomap": "1.0.0",
+    "@ladygraph-fixture/shared": "1.4.2",
+    "@ladygraph-fixture/twin": "1.0.0",
+    "@ladygraph-fixture/unmapped": "1.0.0"
   }
 }

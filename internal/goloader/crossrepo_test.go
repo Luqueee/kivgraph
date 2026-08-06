@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/goworkspace"
-	"github.com/Luqueee/luque/internal/workspace"
+	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 const crossProviderSource = `package api

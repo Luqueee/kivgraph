@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/luque/internal/config"
+	"github.com/Luqueee/ladygraph/internal/config"
 )
 
 func TestNewRegistryRecordsMetadataAndCopiesResults(t *testing.T) {
@@ -72,7 +72,7 @@ func TestNewRegistryReadsRealGitMetadata(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	gitTestCommand(t, "-C", root, "add", "README.md")
-	gitTestCommand(t, "-C", root, "-c", "user.name=Luque Test", "-c", "user.email=luque-test@example.invalid", "commit", "-qm", "initial")
+	gitTestCommand(t, "-C", root, "-c", "user.name=Ladygraph Test", "-c", "user.email=ladygraph-test@example.invalid", "commit", "-qm", "initial")
 
 	source := config.RepositoriesFile{
 		Version: 1,

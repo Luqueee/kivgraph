@@ -205,7 +205,7 @@ func runIsolated(ctx context.Context, cfg config) (benchmarkResults, error) {
 	if err != nil {
 		return benchmarkResults{}, err
 	}
-	outputRoot, err := os.MkdirTemp("", "luque-ladybug-batch-")
+	outputRoot, err := os.MkdirTemp("", "ladygraph-ladybug-batch-")
 	if err != nil {
 		return benchmarkResults{}, fmt.Errorf("create scenario output directory: %w", err)
 	}

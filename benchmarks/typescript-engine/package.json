@@ -1,8 +1,8 @@
 {
-  "name": "@luque/benchmark-typescript-engine",
+  "name": "@ladygraph/benchmark-typescript-engine",
   "version": "0.1.0",
   "private": true,
-  "description": "Compares the TypeScript 7 native engine against the TypeScript 5 JavaScript Compiler API for the semantic operations Luque needs",
+  "description": "Compares the TypeScript 7 native engine against the TypeScript 5 JavaScript Compiler API for the semantic operations Ladygraph needs",
   "type": "module",
   "packageManager": "pnpm@11.5.1",
   "engines": {

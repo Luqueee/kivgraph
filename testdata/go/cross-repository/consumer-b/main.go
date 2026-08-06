@@ -2,9 +2,9 @@
 package main
 
 import (
-	shared "example.com/luque-fixture/shared/api"
+	shared "example.com/ladygraph-fixture/shared/api"
 
-	"example.com/luque-fixture/legacy"
+	"example.com/ladygraph-fixture/legacy"
 )
 
 func main() {

@@ -1,13 +1,13 @@
 .PHONY: build test version ladybug-lib test-ladybug
 
 build: test version
-	go build ./cmd/luque
+	go build ./cmd/ladygraph
 
 test:
 	go test ./...
 
 version:
-	go run ./cmd/luque version
+	go run ./cmd/ladygraph version
 
 # ladybug-lib downloads the pinned native library and verifies its digest.
 ladybug-lib:

@@ -22,7 +22,7 @@ const services: LanguageService[] = [];
 
 const providers: readonly PackageProvider[] = [
   {
-    name: "@luque-fixture/nomap",
+    name: "@ladygraph-fixture/nomap",
     version: "1.0.0",
     repository: "nomap",
     rootPath: NOMAP_ROOT,
@@ -31,7 +31,7 @@ const providers: readonly PackageProvider[] = [
     projectPath: path.join(NOMAP_ROOT, "tsconfig.json"),
   },
   {
-    name: "@luque-fixture/unmapped",
+    name: "@ladygraph-fixture/unmapped",
     version: "1.0.0",
     repository: "unmapped",
     rootPath: UNMAPPED_ROOT,
@@ -90,7 +90,7 @@ describe("provider source positions", () => {
     const view = service.project(configFileName);
     const resolution = await resolveImportedSymbols(service, view, {
       get: (name) =>
-        name === "@luque-fixture/unmapped" ? providers[1] : undefined,
+        name === "@ladygraph-fixture/unmapped" ? providers[1] : undefined,
     });
 
     const unmapped = resolution.symbols.find(

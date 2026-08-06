@@ -39,7 +39,7 @@ import (
 //
 // Measured, single connection, no concurrency, on development hardware (AMD
 // Ryzen 7 9700X): BenchmarkScanCanonicalAtScale in
-// canonical_scan_native_test.go (run with LUQUE_LADYBUG_SCAN_BENCH=1) scans
+// canonical_scan_native_test.go (run with LADYGRAPH_LADYBUG_SCAN_BENCH=1) scans
 // a synthetic graph of 100,000 symbols, 2,000 files, 20 packages and 602,020
 // edge rows -- 704,041 rows total, the same order of magnitude as a
 // million-symbol repository once containment and reference edges are

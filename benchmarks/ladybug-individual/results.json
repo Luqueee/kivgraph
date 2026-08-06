@@ -1,6 +1,6 @@
 {
   "benchmark": "ladybug-individual",
-  "command": "/tmp/go-build1029130918/b001/exe/ladybug-individual --corpus /tmp/luque-synthetic-reduced --database /tmp/luque-ladybug-individual-reduced.db --output benchmarks/ladybug-individual --transaction-size 1000",
+  "command": "/tmp/go-build1029130918/b001/exe/ladybug-individual --corpus /tmp/ladygraph-synthetic-reduced --database /tmp/ladygraph-ladybug-individual-reduced.db --output benchmarks/ladybug-individual --transaction-size 1000",
   "commit": "6d2edb5a28ffda42b564f5b2d02e135e30b44864-dirty",
   "generated_at": "2026-08-04T17:37:48.190492274Z",
   "corpus_seed": 42,
