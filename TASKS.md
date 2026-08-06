@@ -9160,13 +9160,43 @@ PERFORMANCE_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Formato:** JSON a stderr.
+
+**Estado:** `PASS`.
+
+**Implementación:** `internal/logging` usa `log/slog.JSONHandler` de la
+biblioteca estándar. `cmd/ladygraph` registra inicio y cierre de `serve`, y
+adapta los errores heredados del CLI a eventos JSON `ERROR` sin escribir
+diagnósticos en stdout ni registrar argumentos completos, payloads MCP o
+credenciales.
+
+**Entregables:**
+
+```text
+internal/logging/logging.go
+internal/logging/logging_test.go
+cmd/ladygraph/main.go
+cmd/ladygraph/main_test.go
+docs/adr/0011-structured-logging.md
+```
+
+**Verificación:** `go test ./... -count=1` pasa con 22 paquetes y 4 sin tests;
+`go vet ./...` pasa; `go test -race ./internal/logging ./cmd/ladygraph -count=1`
+pasa. El CLI sin argumentos y el ciclo `serve` producen registros JSON válidos
+en `stderr`; `version` no produce logging espurio.
+
+**Limitaciones:** el adaptador normaliza las escrituras del propio CLI, pero
+una dependencia externa que escriba directamente en `stderr` puede seguir
+produciendo texto. Las métricas de consultas, latencias, resultados y
+truncamientos pertenecen a LUQUE-1402.
+
+**Siguiente tarea desbloqueada:** LUQUE-1402.
 
 ---
 

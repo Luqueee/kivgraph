@@ -14,6 +14,7 @@ import (
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/logging"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
@@ -84,6 +85,30 @@ func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "usage: ladygraph version|serve|doctor storage") {
 		t.Fatalf("stderr = %q, want usage", stderr.String())
+	}
+}
+
+func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	logger := logging.New(&stderr)
+
+	if got := run([]string{"ladygraph"}, &stdout, logging.NewErrorWriter(logger)); got != 2 {
+		t.Fatalf("run() exit code = %d, want 2", got)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	var record map[string]any
+	if err := json.Unmarshal(stderr.Bytes(), &record); err != nil {
+		t.Fatalf("stderr = %q, want one JSON record: %v", stderr.String(), err)
+	}
+	if record["level"] != "ERROR" || record["msg"] != "command stderr" {
+		t.Fatalf("record = %#v, want structured command error", record)
+	}
+	message, ok := record["message"].(string)
+	if !ok || !strings.Contains(message, "usage: ladygraph version|serve|doctor storage") {
+		t.Fatalf("record message = %#v, want usage", record["message"])
 	}
 }
 

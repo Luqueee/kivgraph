@@ -16,6 +16,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/app"
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/logging"
 	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
@@ -27,17 +28,24 @@ import (
 type mcpRunner func(context.Context) error
 
 func main() {
+	logger := logging.New(os.Stderr)
 	if len(os.Args) == 2 && os.Args[1] == "serve" {
+		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := runServe(ctx, mcpserver.Run); err != nil {
-			fmt.Fprintf(os.Stderr, "serve: %v\n", err)
+			logger.Error("MCP server stopped with error", "command", "serve", "error", err)
 			os.Exit(1)
 		}
+		logger.Info("MCP server stopped", "command", "serve")
 		return
 	}
 
-	os.Exit(run(os.Args, os.Stdout, os.Stderr))
+	exitCode := run(os.Args, os.Stdout, logging.NewErrorWriter(logger))
+	if exitCode != 0 {
+		logger.Error("command failed", "command", "cli", "exit_code", exitCode)
+	}
+	os.Exit(exitCode)
 }
 
 // runServe owns the MCP loop through the application lifecycle. MCP's stdio
