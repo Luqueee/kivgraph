@@ -6894,11 +6894,11 @@ republicación. Esta tarea cubre las eliminaciones expresables por el delta.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Gate:**
 
@@ -6914,6 +6914,73 @@ imports/exports p95 ≤ 2 s
 manifest p95 ≤ 5 s
 0 ghost edges
 ```
+
+**Implementación:**
+
+```text
+benchmarks/ladybug-incremental/main.go
+benchmarks/ladybug-incremental/main_test.go
+benchmarks/ladybug-incremental/results.json
+benchmarks/ladybug-incremental/report.md
+```
+
+Se sustituyó el benchmark experimental del esquema sintético por una
+medición del pipeline canónico real:
+
+```text
+facts.Set previo
+→ rebuild.Run de una generación aislada
+→ indexer.Update
+→ Diff + decisión DELTA/REPUBLISH
+→ ApplyCanonicalDelta o republicación completa
+→ digest + HotSnapshot + publicación atómica
+→ VerifyCanonicalIntegrity
+```
+
+El corpus determinista contiene 1 repositorio, 1 paquete, 1.000 archivos,
+10.000 símbolos, 10.000 evidencias y 21.001 aristas. Cada escenario tiene
+cinco muestras independientes:
+
+* `simple_file`: cambio de cuerpo, ruta `DELTA`;
+* `imports_exports`: dos aristas semánticas nuevas con evidencia, ruta
+  `DELTA`;
+* `manifest`: cambio de versión y manifest, ruta `REPUBLISH`.
+
+**Resultados medidos en Linux amd64, Go 1.24.4, LadybugDB fijado:**
+
+```text
+simple_file       p95 571.6 ms
+imports_exports   p95 617.8 ms
+manifest          p95 845.3 ms
+ghost edges       0
+```
+
+**Estado:** `PASS`.
+
+**Gate emitido:** `INCREMENTAL_INDEXING_PASS`.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/facts ./internal/indexer ./internal/rebuild
+make build
+make test-ladybug
+go test -tags ladybug ./benchmarks/ladybug-incremental
+```
+
+La ejecución nativa del benchmark también devuelve `gate: true`. El detalle
+reproducible queda en `benchmarks/ladybug-incremental/results.json` y
+`report.md`.
+
+**Limitaciones:** el ejecutable recibe facts canónicos ya normalizados; no
+incluye el tiempo de parseo ni de resolución de los motores Go/TypeScript.
+El coste de construcción de cada baseline se registra aparte. La medición
+actual cubre la orquestación y almacenamiento canónicos con el corpus
+determinista documentado, no todos los tamaños o topologías de repositorio.
+
+**Siguiente tarea:** LUQUE-1101.
 
 ---
 

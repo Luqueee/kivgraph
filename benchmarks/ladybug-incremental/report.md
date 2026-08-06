@@ -1,30 +1,32 @@
-# LadybugDB incremental update probes
+# Benchmark de indexación incremental
 
-- Command: `/tmp/go-build956227063/b001/exe/ladybug-incremental --database /tmp/ladygraph-ladybug-qualification.db --corpus /tmp/ladygraph-synthetic-42 --output benchmarks/ladybug-incremental`
-- Commit: `e902dd0d56563cd3b4d71c2ac19ca28caf955824-dirty`
-- Generated at: `2026-08-04T20:21:04Z`
-- Platform: `linux/amd64`, `go1.24.4`
-- Corpus: seed 42, 100000 symbols, 1000000 edges
-- Base database bytes: `43290624`
+- Commit medido: `3fbd7a4347cbabb9add1332af0c5047bcd7e5758`
+- Fecha: `2026-08-06T16:27:55Z`
+- Plataforma: `linux/amd64`, `go1.24.4`
+- Muestras por escenario: `5`
+- Corpus: `1` repositorio, `1` paquete, `1000` archivos, `10000` símbolos, `10000` evidencias, `21001` aristas
 
-| Probe | Duration ms | Added symbols | Updated symbols | Deleted symbols | Added references | Deleted references | Replaced sources | Expected failure |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| add_1_symbol | 14.040 | 1 | 0 | 0 | 0 | 0 | 0 |  |
-| add_1000_symbols | 4748.766 | 1000 | 0 | 0 | 0 | 0 | 0 |  |
-| add_edges | 878.656 | 0 | 0 | 0 | 3 | 0 | 0 |  |
-| delete_edges | 7.748 | 0 | 0 | 0 | 0 | 1 | 0 |  |
-| update_properties | 7.181 | 0 | 1 | 0 | 0 | 0 | 0 |  |
-| replace_outgoing | 822.885 | 0 | 0 | 0 | 2 | 2 | 1 |  |
-| delete_symbol | 113.111 | 0 | 0 | 1 | 0 | 1 | 0 |  |
-| rollback_after_late_failure | 403.419 | 0 | 0 | 0 | 0 | 0 | 0 | ErrNotFound |
+## Resultados
 
-## Integrity
+Los tiempos son la llamada completa a `indexer.Update`: cálculo del delta, decisión de ruta, mutación o republicación, digest, reconstrucción del HotSnapshot cuando corresponde y publicación atómica.
 
-- Duplicate symbols rejected: `true`
-- Duplicate references rejected: `true`
-- No ghost edges: `true`
-- Atomicity verified: `true`
-- Rollback verified: `true`
-- Result: `true`
+| Escenario | Ruta | p50 ms | p95 ms | mínimo ms | máximo ms | setup base p50 ms | integridad |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `simple_file` | `DELTA` | 560.9 | 571.6 | 558.4 | 571.6 | 885.6 | `true`, 0 violaciones |
+| `imports_exports` | `DELTA` | 592.7 | 617.8 | 576.1 | 617.8 | 867.3 | `true`, 0 violaciones |
+| `manifest` | `REPUBLISH` | 830.2 | 845.3 | 826.0 | 845.3 | 880.4 | `true`, 0 violaciones |
 
-The probe sequence runs against one temporary copy of the full synthetic LadybugDB database. Timings cover the transactional database mutation only; HotSnapshot construction and publication are not implemented in this phase.
+## Gate `INCREMENTAL_INDEXING_PASS`
+
+- archivo simple p95: `571.6 ms` (límite `≤ 750 ms`) — `true`
+- imports/exports p95: `617.8 ms` (límite `≤ 2 s`) — `true`
+- manifest p95: `845.3 ms` (límite `≤ 5 s`) — `true`
+- ghost edges: `0` — `true`
+- Resultado: `true`
+
+## Limitaciones
+
+- The corpus is deterministic and generated in memory; source parsing and language-engine normalization are not part of this executable because indexer.Update accepts canonical facts after those stages.
+- Each sample builds an isolated baseline generation before timing one complete Update call. Baseline construction is reported separately and is excluded from the update latency gate.
+- DELTA samples include canonical mutation, row-count digest refresh, complete HotSnapshot rebuild and atomic in-memory publication. The manifest sample measures the forced full REPUBLISH path.
+- Results describe the pinned LadybugDB build, Linux amd64 and the configured corpus size; they are not a guarantee for another filesystem or repository shape.
