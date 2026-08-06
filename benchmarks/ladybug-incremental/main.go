@@ -8,75 +8,117 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/indexer"
+	"github.com/Luqueee/ladygraph/internal/rebuild"
+	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 )
 
 const (
-	defaultDatabase = "benchmarks/ladybug-bulk/graph.db"
-	defaultCorpus   = "testdata/generated/synthetic"
-	defaultOutput   = "benchmarks/ladybug-incremental"
+	defaultOutputDir      = "benchmarks/ladybug-incremental"
+	defaultSamples        = 5
+	defaultFiles          = 1_000
+	defaultSymbolsPerFile = 10
+	resolverVersion       = "incremental-benchmark-v1"
 )
 
 type config struct {
-	DatabasePath string
-	CorpusDir    string
-	OutputDir    string
+	OutputDir      string
+	Samples        int
+	Files          int
+	SymbolsPerFile int
 }
 
 type results struct {
-	Benchmark         string              `json:"benchmark"`
-	Command           string              `json:"command"`
-	Commit            string              `json:"commit"`
-	GeneratedAt       time.Time           `json:"generated_at"`
-	GoVersion         string              `json:"go_version"`
-	GOOS              string              `json:"goos"`
-	GOARCH            string              `json:"goarch"`
-	Corpus            manifest            `json:"corpus"`
-	BaseDatabaseBytes int64               `json:"base_database_bytes"`
-	Probes            []probeResult       `json:"probes"`
-	Integrity         integrityAssessment `json:"integrity"`
+	Benchmark   string           `json:"benchmark"`
+	Command     string           `json:"command"`
+	Commit      string           `json:"commit"`
+	GeneratedAt time.Time        `json:"generated_at"`
+	GoVersion   string           `json:"go_version"`
+	GOOS        string           `json:"goos"`
+	GOARCH      string           `json:"goarch"`
+	Samples     int              `json:"samples"`
+	Corpus      corpusStats      `json:"corpus"`
+	Scenarios   []scenarioResult `json:"scenarios"`
+	Gate        gateAssessment   `json:"gate"`
+	Limitations []string         `json:"limitations"`
 }
 
-type probeResult struct {
-	Probe           string                 `json:"probe"`
-	DurationMS      float64                `json:"duration_ms"`
-	Mutation        ladybug.MutationResult `json:"mutation"`
-	ExpectedFailure string                 `json:"expected_failure,omitempty"`
+type corpusStats struct {
+	Seed         int64 `json:"seed"`
+	Repositories int   `json:"repositories"`
+	Packages     int   `json:"packages"`
+	Files        int   `json:"files"`
+	Symbols      int   `json:"symbols"`
+	Evidence     int   `json:"evidence"`
+	Edges        int   `json:"edges"`
+}
+
+type scenarioResult struct {
+	Scenario      string              `json:"scenario"`
+	ExpectedRoute indexer.Route       `json:"expected_route"`
+	Samples       []sampleResult      `json:"samples"`
+	Summary       summary             `json:"summary"`
+	Integrity     integrityAssessment `json:"integrity"`
+}
+
+type sampleResult struct {
+	Sample    int                             `json:"sample"`
+	SetupMS   float64                         `json:"baseline_setup_ms"`
+	UpdateMS  float64                         `json:"update_publish_ms"`
+	Route     indexer.Route                   `json:"route"`
+	Mutation  ladybug.CanonicalMutationResult `json:"mutation,omitempty"`
+	Integrity integrityAssessment             `json:"integrity"`
+}
+
+type summary struct {
+	P50MS float64 `json:"p50_ms"`
+	P95MS float64 `json:"p95_ms"`
+	MinMS float64 `json:"min_ms"`
+	MaxMS float64 `json:"max_ms"`
 }
 
 type integrityAssessment struct {
-	DuplicateSymbolsRejected    bool `json:"duplicate_symbols_rejected"`
-	DuplicateReferencesRejected bool `json:"duplicate_references_rejected"`
-	NoGhostEdges                bool `json:"no_ghost_edges"`
-	AtomicityVerified           bool `json:"atomicity_verified"`
-	RollbackVerified            bool `json:"rollback_verified"`
-	Passed                      bool `json:"passed"`
+	Passed     bool  `json:"passed"`
+	Violations int64 `json:"violations"`
 }
 
-type manifest struct {
-	SchemaVersion string `json:"schema_version"`
-	Seed          int64  `json:"seed"`
-	Repositories  int    `json:"repositories"`
-	Files         int    `json:"files"`
-	Symbols       int    `json:"symbols"`
-	Edges         int    `json:"edges"`
+type gateAssessment struct {
+	SimpleFileP95MS       float64 `json:"simple_file_p95_ms"`
+	ImportsExportsP95MS   float64 `json:"imports_exports_p95_ms"`
+	ManifestP95MS         float64 `json:"manifest_p95_ms"`
+	SimpleFileWithin750MS bool    `json:"simple_file_within_750_ms"`
+	ImportsWithin2S       bool    `json:"imports_exports_within_2_s"`
+	ManifestWithin5S      bool    `json:"manifest_within_5_s"`
+	NoGhostEdges          bool    `json:"no_ghost_edges"`
+	Passed                bool    `json:"passed"`
+}
+
+type scenario struct {
+	Name          string
+	ExpectedRoute indexer.Route
+	Plan          indexer.InvalidationPlan
+	Mutate        func(facts.Set) facts.Set
 }
 
 func main() {
 	cfg := config{}
-	flag.StringVar(&cfg.DatabasePath, "database", defaultDatabase, "loaded LadybugDB database to copy")
-	flag.StringVar(&cfg.CorpusDir, "corpus", defaultCorpus, "synthetic corpus directory")
-	flag.StringVar(&cfg.OutputDir, "output", defaultOutput, "results output directory")
+	flag.StringVar(&cfg.OutputDir, "output", defaultOutputDir, "results output directory")
+	flag.IntVar(&cfg.Samples, "samples", defaultSamples, "independent samples per scenario")
+	flag.IntVar(&cfg.Files, "files", defaultFiles, "files in the deterministic benchmark corpus")
+	flag.IntVar(&cfg.SymbolsPerFile, "symbols-per-file", defaultSymbolsPerFile, "symbols per source file")
 	flag.Parse()
+
 	result, err := run(context.Background(), cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -86,253 +128,309 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	for _, probe := range result.Probes {
-		fmt.Printf("%s: %.3f ms\n", probe.Probe, probe.DurationMS)
+	fmt.Printf("simple file p95: %.1f ms; imports/exports p95: %.1f ms; manifest p95: %.1f ms; gate: %t\n",
+		result.Gate.SimpleFileP95MS, result.Gate.ImportsExportsP95MS, result.Gate.ManifestP95MS, result.Gate.Passed)
+	if !result.Gate.Passed {
+		fmt.Fprintln(os.Stderr, "INCREMENTAL_INDEXING_PASS not emitted; see results.json and report.md")
+		os.Exit(1)
 	}
-	fmt.Printf("integrity pass: %t\n", result.Integrity.Passed)
 }
 
 func run(ctx context.Context, cfg config) (results, error) {
-	corpus, err := readManifest(filepath.Join(cfg.CorpusDir, "manifest.json"))
-	if err != nil {
-		return results{}, err
+	if cfg.Samples < 1 {
+		return results{}, errors.New("samples must be positive")
 	}
-	baseInfo, err := os.Stat(cfg.DatabasePath)
-	if err != nil {
-		return results{}, fmt.Errorf("stat base database: %w", err)
+	if cfg.Files < 1 {
+		return results{}, errors.New("files must be positive")
 	}
-	if !baseInfo.Mode().IsRegular() {
-		return results{}, errors.New("base database must be a regular file")
-	}
-	workDir, err := os.MkdirTemp("", "ladygraph-ladybug-incremental-")
-	if err != nil {
-		return results{}, err
-	}
-	defer os.RemoveAll(workDir)
-	workDatabase := filepath.Join(workDir, "graph.db")
-	if err := copyFile(cfg.DatabasePath, workDatabase); err != nil {
-		return results{}, fmt.Errorf("copy base database: %w", err)
+	if cfg.SymbolsPerFile < 2 {
+		return results{}, errors.New("symbols-per-file must be at least 2")
 	}
 
-	database, err := ladybug.Open(ctx, workDatabase, ladybug.DefaultConfig())
-	if err != nil {
-		return results{}, fmt.Errorf("open work database: %w", err)
+	base := benchmarkCorpus(cfg.Files, cfg.SymbolsPerFile)
+	if err := base.Validate(); err != nil {
+		return results{}, fmt.Errorf("validate benchmark corpus: %w", err)
 	}
-	defer database.Close()
-	reader, err := database.OpenReader(ctx)
-	if err != nil {
-		return results{}, fmt.Errorf("open reader: %w", err)
+	stats := corpusStats{
+		Seed: 42, Repositories: len(base.Repositories), Packages: len(base.Packages), Files: len(base.Files),
+		Symbols: len(base.Symbols), Evidence: len(base.Evidence), Edges: len(base.Edges),
 	}
-	defer reader.Close()
-	writer, err := database.OpenWriter(ctx)
-	if err != nil {
-		return results{}, fmt.Errorf("open writer: %w", err)
-	}
-	defer writer.Close()
-
 	result := results{
-		Benchmark:         "ladybug-incremental",
-		Command:           strings.Join(os.Args, " "),
-		Commit:            gitState(),
-		GeneratedAt:       time.Now().UTC(),
-		GoVersion:         runtime.Version(),
-		GOOS:              runtime.GOOS,
-		GOARCH:            runtime.GOARCH,
-		Corpus:            corpus,
-		BaseDatabaseBytes: baseInfo.Size(),
+		Benchmark:   "ladybug-incremental",
+		Command:     strings.Join(os.Args, " "),
+		Commit:      gitState(),
+		GeneratedAt: time.Now().UTC(),
+		GoVersion:   runtime.Version(), GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+		Samples: cfg.Samples, Corpus: stats,
+		Limitations: []string{
+			"The corpus is deterministic and generated in memory; source parsing and language-engine normalization are not part of this executable because indexer.Update accepts canonical facts after those stages.",
+			"Each sample builds an isolated baseline generation before timing one complete Update call. Baseline construction is reported separately and is excluded from the update latency gate.",
+			"DELTA samples include canonical mutation, row-count digest refresh, complete HotSnapshot rebuild and atomic in-memory publication. The manifest sample measures the forced full REPUBLISH path.",
+			"Results describe the pinned LadybugDB build, Linux amd64 and the configured corpus size; they are not a guarantee for another filesystem or repository shape.",
+		},
 	}
-
-	single := incrementalSymbol("incremental-single", 0)
-	probe, err := applyProbe(ctx, writer, "add_1_symbol", ladybug.Delta{AddSymbols: []ladybug.Symbol{single}})
-	if err != nil {
-		return results{}, err
+	for _, scenario := range benchmarkScenarios(base) {
+		measured := scenarioResult{Scenario: scenario.Name, ExpectedRoute: scenario.ExpectedRoute}
+		for sampleIndex := 1; sampleIndex <= cfg.Samples; sampleIndex++ {
+			measurement, err := measureScenario(ctx, base, scenario, sampleIndex)
+			if err != nil {
+				return results{}, fmt.Errorf("measure %s sample %d: %w", scenario.Name, sampleIndex, err)
+			}
+			measured.Samples = append(measured.Samples, measurement)
+		}
+		measured.Summary = summarizeSamples(measured.Samples)
+		measured.Integrity = summarizeIntegrity(measured.Samples)
+		result.Scenarios = append(result.Scenarios, measured)
 	}
-	result.Probes = append(result.Probes, probe)
-
-	batch := make([]ladybug.Symbol, 1_000)
-	for index := range batch {
-		batch[index] = incrementalSymbol(fmt.Sprintf("incremental-%04d", index), index+1)
-	}
-	probe, err = applyProbe(ctx, writer, "add_1000_symbols", ladybug.Delta{AddSymbols: batch})
-	if err != nil {
-		return results{}, err
-	}
-	result.Probes = append(result.Probes, probe)
-
-	initialReferences := []ladybug.Reference{
-		incrementalReference(single, batch[0], ladybug.ReferenceKindReferences),
-		incrementalReference(single, batch[1], ladybug.ReferenceKindCallsDirect),
-		incrementalReference(batch[2], single, ladybug.ReferenceKindReferences),
-	}
-	probe, err = applyProbe(ctx, writer, "add_edges", ladybug.Delta{AddReferences: initialReferences})
-	if err != nil {
-		return results{}, err
-	}
-	result.Probes = append(result.Probes, probe)
-
-	probe, err = applyProbe(ctx, writer, "delete_edges", ladybug.Delta{DeleteReferences: []ladybug.ReferenceKey{{
-		SourceKey: batch[2].StableKey, TargetKey: single.StableKey, Kind: ladybug.ReferenceKindReferences,
-	}}})
-	if err != nil {
-		return results{}, err
-	}
-	result.Probes = append(result.Probes, probe)
-
-	updated := single
-	updated.Name = "incremental_renamed"
-	updated.QualifiedName = "synthetic.incremental_renamed"
-	updated.Signature = "incremental_renamed(value string)"
-	updated.StartLine = 100
-	updated.EndLine = 120
-	probe, err = applyProbe(ctx, writer, "update_properties", ladybug.Delta{UpdateSymbols: []ladybug.Symbol{updated}})
-	if err != nil {
-		return results{}, err
-	}
-	result.Probes = append(result.Probes, probe)
-
-	replacement := []ladybug.Reference{
-		incrementalReference(updated, batch[3], ladybug.ReferenceKindCallsDirect),
-		incrementalReference(updated, batch[4], ladybug.ReferenceKindReferences),
-	}
-	probe, err = applyProbe(ctx, writer, "replace_outgoing", ladybug.Delta{ReplaceOutgoing: []ladybug.OutgoingReplacement{{
-		SourceKey: updated.StableKey, References: replacement,
-	}}})
-	if err != nil {
-		return results{}, err
-	}
-	result.Probes = append(result.Probes, probe)
-
-	probe, err = applyProbe(ctx, writer, "delete_symbol", ladybug.Delta{DeleteSymbolKeys: []string{batch[4].StableKey}})
-	if err != nil {
-		return results{}, err
-	}
-	result.Probes = append(result.Probes, probe)
-
-	rollbackSymbol := incrementalSymbol("incremental-must-rollback", 2_000)
-	rollbackReference := incrementalReference(rollbackSymbol, incrementalSymbol("incremental-missing", 2_001), ladybug.ReferenceKindReferences)
-	start := time.Now()
-	_, rollbackErr := writer.Apply(ctx, ladybug.Delta{
-		AddSymbols:    []ladybug.Symbol{rollbackSymbol},
-		AddReferences: []ladybug.Reference{rollbackReference},
-	})
-	rollbackDuration := time.Since(start)
-	if !errors.Is(rollbackErr, ladybug.ErrNotFound) {
-		return results{}, fmt.Errorf("rollback probe error = %v, want ErrNotFound", rollbackErr)
-	}
-	result.Probes = append(result.Probes, probeResult{
-		Probe: "rollback_after_late_failure", DurationMS: milliseconds(rollbackDuration), ExpectedFailure: "ErrNotFound",
-	})
-
-	assessment, err := verifyIntegrity(ctx, writer, reader, updated, batch, replacement, rollbackSymbol)
-	if err != nil {
-		return results{}, err
-	}
-	result.Integrity = assessment
+	result.Gate = assessGate(result.Scenarios)
 	return result, nil
 }
 
-func applyProbe(ctx context.Context, writer ladybug.Writer, name string, delta ladybug.Delta) (probeResult, error) {
+func measureScenario(ctx context.Context, base facts.Set, scenario scenario, sample int) (sampleResult, error) {
+	root, err := os.MkdirTemp("", "ladygraph-incremental-benchmark-")
+	if err != nil {
+		return sampleResult{}, err
+	}
+	defer os.RemoveAll(root)
+
+	setupStart := time.Now()
+	if _, err := rebuild.Run(ctx, rebuild.Options{
+		Root: root, GenerationID: "000001", Facts: base, ResolverVersion: resolverVersion, SnapshotID: 1,
+		Store: generation.DefaultConfig(),
+	}); err != nil {
+		return sampleResult{}, fmt.Errorf("build baseline: %w", err)
+	}
+	setupMS := milliseconds(time.Since(setupStart))
+
+	next := scenario.Mutate(cloneSet(base))
+	if err := next.Validate(); err != nil {
+		return sampleResult{}, fmt.Errorf("validate next facts: %w", err)
+	}
 	start := time.Now()
-	mutation, err := writer.Apply(ctx, delta)
-	duration := time.Since(start)
+	update, err := indexer.Update(ctx, indexer.UpdateOptions{
+		Root: root, Store: generation.DefaultConfig(), Plans: []indexer.InvalidationPlan{scenario.Plan},
+		Previous: base, Next: next, GenerationID: "000002", ResolverVersion: resolverVersion,
+		SnapshotID: 2, SnapshotStore: hotsnapshot.NewSnapshotStore(nil),
+	})
+	updateMS := milliseconds(time.Since(start))
 	if err != nil {
-		return probeResult{}, fmt.Errorf("probe %s: %w", name, err)
+		return sampleResult{}, fmt.Errorf("update: %w", err)
 	}
-	return probeResult{Probe: name, DurationMS: milliseconds(duration), Mutation: mutation}, nil
+	if update.Decision.Route != scenario.ExpectedRoute {
+		return sampleResult{}, fmt.Errorf("route = %s, want %s", update.Decision.Route, scenario.ExpectedRoute)
+	}
+	if !update.Passed {
+		return sampleResult{}, errors.New("update returned Passed=false")
+	}
+	if update.Generation.DatabasePath == "" {
+		return sampleResult{}, errors.New("update returned no serving database")
+	}
+
+	integrity, err := ladybug.VerifyCanonicalIntegrity(ctx, update.Generation.DatabasePath)
+	if err != nil {
+		return sampleResult{}, fmt.Errorf("verify integrity: %w", err)
+	}
+	assessment := integrityAssessment{Passed: integrity.Passed, Violations: integrity.Violations()}
+	if !assessment.Passed || assessment.Violations != 0 {
+		return sampleResult{}, fmt.Errorf("integrity failed: passed=%t violations=%d", assessment.Passed, assessment.Violations)
+	}
+	return sampleResult{
+		Sample: sample, SetupMS: setupMS, UpdateMS: updateMS, Route: update.Decision.Route,
+		Mutation: update.Mutation, Integrity: assessment,
+	}, nil
 }
 
-func verifyIntegrity(ctx context.Context, writer ladybug.Writer, reader ladybug.Reader, updated ladybug.Symbol, batch []ladybug.Symbol, replacement []ladybug.Reference, rollbackSymbol ladybug.Symbol) (integrityAssessment, error) {
-	assessment := integrityAssessment{}
-	for _, symbol := range []ladybug.Symbol{updated, batch[0], batch[500], batch[len(batch)-1]} {
-		persisted, found, err := reader.GetSymbol(ctx, symbol.StableKey)
-		if err != nil {
-			return assessment, err
+func benchmarkScenarios(base facts.Set) []scenario {
+	repositoryKey := base.Repositories[0].Key
+	packageKey := base.Packages[0].Key
+	bodyFile := base.Files[1]
+	importFile := base.Files[2]
+	manifestFile := base.Files[0]
+	return []scenario{
+		{
+			Name: "simple_file", ExpectedRoute: indexer.RouteDelta,
+			Plan: indexer.InvalidationPlan{
+				Language: facts.LanguageTypeScript, RepositoryKey: repositoryKey, PackageKey: packageKey,
+				FileKey: bodyFile.Key, Path: bodyFile.Path, Class: indexer.ChangeBodyOnly,
+				Actions: []indexer.InvalidationAction{indexer.ActionReindexFile},
+			},
+			Mutate: func(set facts.Set) facts.Set {
+				for index := range set.Files {
+					if set.Files[index].Key == bodyFile.Key {
+						set.Files[index].ContentHash = "body-v2"
+					}
+				}
+				set.Sort()
+				return set
+			},
+		},
+		{
+			Name: "imports_exports", ExpectedRoute: indexer.RouteDelta,
+			Plan: indexer.InvalidationPlan{
+				Language: facts.LanguageTypeScript, RepositoryKey: repositoryKey, PackageKey: packageKey,
+				FileKey: importFile.Key, Path: importFile.Path, Class: indexer.ChangeImportsChanged,
+				Actions: []indexer.InvalidationAction{indexer.ActionReindexFile, indexer.ActionInvalidateModuleResolution, indexer.ActionResolveReferences},
+			},
+			Mutate: func(set facts.Set) facts.Set {
+				source := symbolForFile(set, importFile.Key, 0)
+				target := symbolForFile(set, base.Files[3].Key, 0)
+				importEvidence := benchmarkEvidence(importFile.Key, 700_001, "import/export")
+				exportEvidence := benchmarkEvidence(importFile.Key, 700_002, "import/export")
+				set.Evidence = append(set.Evidence, importEvidence, exportEvidence)
+				set.Edges = append(set.Edges,
+					facts.Edge{Kind: facts.ImportsSymbol, SourceKey: source.Key, TargetKey: target.Key, Confidence: facts.ExactTypechecked, Provenance: facts.TypeScriptChecker, EvidenceKey: importEvidence.Key},
+					facts.Edge{Kind: facts.Exports, SourceKey: source.Key, TargetKey: target.Key, Confidence: facts.ExactTypechecked, Provenance: facts.TypeScriptChecker, EvidenceKey: exportEvidence.Key},
+				)
+				set.Sort()
+				return set
+			},
+		},
+		{
+			Name: "manifest", ExpectedRoute: indexer.RouteRepublish,
+			Plan: indexer.InvalidationPlan{
+				Language: facts.LanguageTypeScript, RepositoryKey: repositoryKey, PackageKey: packageKey,
+				FileKey: manifestFile.Key, Path: manifestFile.Path, Class: indexer.ChangeManifestChanged,
+				Actions: []indexer.InvalidationAction{indexer.ActionRebuildRegistry, indexer.ActionInvalidateModuleResolution, indexer.ActionReindexProject},
+			},
+			Mutate: func(set facts.Set) facts.Set {
+				for index := range set.Packages {
+					if set.Packages[index].Key == packageKey {
+						set.Packages[index].Version = "2.0.0"
+					}
+				}
+				for index := range set.Files {
+					if set.Files[index].Key == manifestFile.Key {
+						set.Files[index].ContentHash = "manifest-v2"
+					}
+				}
+				set.Sort()
+				return set
+			},
+		},
+	}
+}
+
+func benchmarkCorpus(fileCount, symbolsPerFile int) facts.Set {
+	const repoName = "benchmark/incremental"
+	repositoryKey := facts.RepositoryKey(repoName)
+	packageKey := facts.PackageKey(facts.LanguageTypeScript, repositoryKey, "incremental")
+	set := facts.Set{
+		Repositories: []facts.Repository{{Key: repositoryKey, Name: repoName, RootPath: "/synthetic/benchmark/incremental", Branch: "main", Languages: []facts.Language{facts.LanguageTypeScript}}},
+		Packages:     []facts.Package{{Key: packageKey, RepositoryKey: repositoryKey, Language: facts.LanguageTypeScript, Name: "incremental", Version: "1.0.0", RootPath: "/synthetic/benchmark/incremental", ManifestPath: "package.json"}},
+	}
+	set.Edges = append(set.Edges, facts.Edge{Kind: facts.ContainsPackage, SourceKey: repositoryKey, TargetKey: packageKey, Confidence: facts.StructuralCertain, Provenance: facts.PackageManifest})
+	totalSymbols := fileCount * symbolsPerFile
+	for fileIndex := 0; fileIndex < fileCount; fileIndex++ {
+		path := fmt.Sprintf("src/file-%05d.ts", fileIndex)
+		if fileIndex == 0 {
+			path = "package.json"
 		}
-		if !found || !reflect.DeepEqual(persisted, symbol) {
-			return assessment, fmt.Errorf("symbol %s = %#v, found=%t", symbol.StableKey, persisted, found)
+		fileKey := facts.FileKey(repositoryKey, path)
+		set.Files = append(set.Files, facts.File{Key: fileKey, RepositoryKey: repositoryKey, PackageKey: packageKey, Path: path, Language: facts.LanguageTypeScript, ContentHash: fmt.Sprintf("file-%05d-v1", fileIndex)})
+		set.Edges = append(set.Edges, facts.Edge{Kind: facts.ContainsFile, SourceKey: packageKey, TargetKey: fileKey, Confidence: facts.StructuralCertain, Provenance: facts.PackageManifest})
+		for symbolIndex := 0; symbolIndex < symbolsPerFile; symbolIndex++ {
+			global := fileIndex*symbolsPerFile + symbolIndex
+			name := fmt.Sprintf("symbol_%05d_%02d", fileIndex, symbolIndex)
+			symbolKey := fmt.Sprintf("symbol:typescript:%s:%s", repositoryKey, name)
+			set.Symbols = append(set.Symbols, facts.Symbol{
+				Key: symbolKey, CanonicalIdentity: symbolKey, RepositoryKey: repositoryKey, PackageKey: packageKey, FileKey: fileKey,
+				Language: facts.LanguageTypeScript, Name: name, QualifiedName: "incremental." + name, Kind: "function", Exported: symbolIndex == 0,
+				Signature: name + "()", Start: facts.Position{Line: symbolIndex*4 + 1, Offset: global * 20}, End: facts.Position{Line: symbolIndex*4 + 3, Offset: global*20 + 18},
+			})
+			set.Edges = append(set.Edges, facts.Edge{Kind: facts.Defines, SourceKey: fileKey, TargetKey: symbolKey, Confidence: facts.StructuralCertain, Provenance: facts.TypeScriptChecker})
 		}
 	}
-	if _, found, err := reader.GetSymbol(ctx, batch[4].StableKey); err != nil || found {
-		return assessment, fmt.Errorf("deleted symbol %s found=%t error=%v", batch[4].StableKey, found, err)
+	for global := 0; global < totalSymbols; global++ {
+		source := set.Symbols[global].Key
+		target := set.Symbols[(global+1)%totalSymbols].Key
+		sourceFile := set.Symbols[global].FileKey
+		evidence := benchmarkEvidence(sourceFile, global+1, "calls")
+		set.Evidence = append(set.Evidence, evidence)
+		set.Edges = append(set.Edges, facts.Edge{Kind: facts.CallsDirect, SourceKey: source, TargetKey: target, Confidence: facts.ExactTypechecked, Provenance: facts.TypeScriptChecker, EvidenceKey: evidence.Key})
 	}
-	if _, found, err := reader.GetSymbol(ctx, rollbackSymbol.StableKey); err != nil || found {
-		return assessment, fmt.Errorf("rolled-back symbol %s found=%t error=%v", rollbackSymbol.StableKey, found, err)
-	}
-	assessment.AtomicityVerified = true
-	assessment.RollbackVerified = true
-
-	outgoing, err := reader.OutgoingReferences(ctx, updated.StableKey, ladybug.MaxReferenceResults)
-	if err != nil {
-		return assessment, err
-	}
-	wantOutgoing := []ladybug.Reference{replacement[0]}
-	if !reflect.DeepEqual(outgoing, wantOutgoing) {
-		return assessment, fmt.Errorf("final outgoing references = %#v, want %#v", outgoing, wantOutgoing)
-	}
-	assessment.NoGhostEdges = true
-
-	if _, err := writer.Apply(ctx, ladybug.Delta{AddSymbols: []ladybug.Symbol{updated}}); !errors.Is(err, ladybug.ErrAlreadyExists) {
-		return assessment, fmt.Errorf("duplicate symbol error = %v, want ErrAlreadyExists", err)
-	}
-	assessment.DuplicateSymbolsRejected = true
-	if _, err := writer.Apply(ctx, ladybug.Delta{AddReferences: []ladybug.Reference{replacement[0]}}); !errors.Is(err, ladybug.ErrAlreadyExists) {
-		return assessment, fmt.Errorf("duplicate reference error = %v, want ErrAlreadyExists", err)
-	}
-	assessment.DuplicateReferencesRejected = true
-
-	outgoingAfterDuplicates, err := reader.OutgoingReferences(ctx, updated.StableKey, ladybug.MaxReferenceResults)
-	if err != nil {
-		return assessment, err
-	}
-	if !reflect.DeepEqual(outgoingAfterDuplicates, wantOutgoing) {
-		return assessment, fmt.Errorf("duplicates changed outgoing references: %#v", outgoingAfterDuplicates)
-	}
-	assessment.Passed = assessment.DuplicateSymbolsRejected && assessment.DuplicateReferencesRejected && assessment.NoGhostEdges && assessment.AtomicityVerified && assessment.RollbackVerified
-	return assessment, nil
+	set.Sort()
+	return set
 }
 
-func incrementalSymbol(stableKey string, index int) ladybug.Symbol {
-	return ladybug.Symbol{
-		StableKey: stableKey, RepositoryKey: "repository-0000", FileKey: "file-00000000",
-		Name: stableKey, QualifiedName: "synthetic." + stableKey, Kind: "function",
-		Signature: stableKey + "()", StartLine: int64(index + 1), EndLine: int64(index + 5),
+func benchmarkEvidence(fileKey string, offset int, text string) facts.Evidence {
+	return facts.Evidence{Key: facts.EvidenceKey(fileKey, offset, offset+len(text)), RepositoryKey: repositoryFromFileKey(fileKey), FileKey: fileKey, Start: facts.Position{Line: offset, Offset: offset}, End: facts.Position{Line: offset, Offset: offset + len(text)}, Text: text}
+}
+
+func repositoryFromFileKey(_ string) string {
+	return "repository:benchmark/incremental"
+}
+
+func symbolForFile(set facts.Set, fileKey string, index int) facts.Symbol {
+	matches := make([]facts.Symbol, 0, 1)
+	for _, symbol := range set.Symbols {
+		if symbol.FileKey == fileKey {
+			matches = append(matches, symbol)
+		}
+	}
+	sort.Slice(matches, func(left, right int) bool { return matches[left].Key < matches[right].Key })
+	return matches[index%len(matches)]
+}
+
+func cloneSet(set facts.Set) facts.Set {
+	return facts.Set{
+		Repositories: append([]facts.Repository(nil), set.Repositories...), Packages: append([]facts.Package(nil), set.Packages...),
+		Files: append([]facts.File(nil), set.Files...), Symbols: append([]facts.Symbol(nil), set.Symbols...),
+		Evidence: append([]facts.Evidence(nil), set.Evidence...), Edges: append([]facts.Edge(nil), set.Edges...),
+		Unresolved: append([]facts.UnresolvedReference(nil), set.Unresolved...),
 	}
 }
 
-func incrementalReference(source, target ladybug.Symbol, kind string) ladybug.Reference {
-	return ladybug.Reference{
-		SourceKey: source.StableKey, TargetKey: target.StableKey, Kind: kind,
-		EvidenceKind: "incremental_probe", SourceFileKey: source.FileKey, TargetFileKey: target.FileKey,
+func summarizeSamples(samples []sampleResult) summary {
+	values := make([]float64, len(samples))
+	for index, sample := range samples {
+		values[index] = sample.UpdateMS
 	}
+	sortedValues := append([]float64(nil), values...)
+	sort.Float64s(sortedValues)
+	return summary{P50MS: percentile(values, 0.50), P95MS: percentile(values, 0.95), MinMS: sortedValues[0], MaxMS: sortedValues[len(sortedValues)-1]}
 }
 
-func copyFile(sourcePath, targetPath string) error {
-	source, err := os.Open(sourcePath)
-	if err != nil {
-		return err
+func summarizeIntegrity(samples []sampleResult) integrityAssessment {
+	assessment := integrityAssessment{Passed: true}
+	for _, sample := range samples {
+		assessment.Violations += sample.Integrity.Violations
+		assessment.Passed = assessment.Passed && sample.Integrity.Passed && sample.Integrity.Violations == 0
 	}
-	defer source.Close()
-	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(target, source); err != nil {
-		_ = target.Close()
-		return err
-	}
-	return target.Close()
+	return assessment
 }
 
-func readManifest(path string) (manifest, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return manifest{}, fmt.Errorf("read manifest: %w", err)
+func percentile(values []float64, quantile float64) float64 {
+	if len(values) == 0 {
+		return 0
 	}
-	var value manifest
-	if err := json.Unmarshal(data, &value); err != nil {
-		return manifest{}, fmt.Errorf("decode manifest: %w", err)
+	copied := append([]float64(nil), values...)
+	sort.Float64s(copied)
+	index := int(float64(len(copied)-1)*quantile + 0.999999)
+	return copied[index]
+}
+
+func assessGate(scenarios []scenarioResult) gateAssessment {
+	gate := gateAssessment{}
+	for _, scenario := range scenarios {
+		switch scenario.Scenario {
+		case "simple_file":
+			gate.SimpleFileP95MS = scenario.Summary.P95MS
+		case "imports_exports":
+			gate.ImportsExportsP95MS = scenario.Summary.P95MS
+		case "manifest":
+			gate.ManifestP95MS = scenario.Summary.P95MS
+		}
+		gate.NoGhostEdges = gate.NoGhostEdges || scenario.Integrity.Passed
 	}
-	return value, nil
+	gate.SimpleFileWithin750MS = gate.SimpleFileP95MS > 0 && gate.SimpleFileP95MS <= 750
+	gate.ImportsWithin2S = gate.ImportsExportsP95MS > 0 && gate.ImportsExportsP95MS <= 2_000
+	gate.ManifestWithin5S = gate.ManifestP95MS > 0 && gate.ManifestP95MS <= 5_000
+	gate.NoGhostEdges = len(scenarios) == 3 && gate.NoGhostEdges
+	for _, scenario := range scenarios {
+		gate.NoGhostEdges = gate.NoGhostEdges && scenario.Integrity.Passed && scenario.Integrity.Violations == 0
+	}
+	gate.Passed = gate.SimpleFileWithin750MS && gate.ImportsWithin2S && gate.ManifestWithin5S && gate.NoGhostEdges
+	return gate
 }
 
 func writeOutputs(outputDir string, result results) error {
@@ -347,31 +445,43 @@ func writeOutputs(outputDir string, result results) error {
 		return err
 	}
 	var report strings.Builder
-	fmt.Fprintln(&report, "# LadybugDB incremental update probes")
+	fmt.Fprintln(&report, "# Benchmark de indexación incremental")
 	fmt.Fprintln(&report)
-	fmt.Fprintf(&report, "- Command: `%s`\n", result.Command)
-	fmt.Fprintf(&report, "- Commit: `%s`\n", result.Commit)
-	fmt.Fprintf(&report, "- Generated at: `%s`\n", result.GeneratedAt.Format(time.RFC3339))
-	fmt.Fprintf(&report, "- Platform: `%s/%s`, `%s`\n", result.GOOS, result.GOARCH, result.GoVersion)
-	fmt.Fprintf(&report, "- Corpus: seed %d, %d symbols, %d edges\n", result.Corpus.Seed, result.Corpus.Symbols, result.Corpus.Edges)
-	fmt.Fprintf(&report, "- Base database bytes: `%d`\n", result.BaseDatabaseBytes)
+	fmt.Fprintf(&report, "- Commit medido: `%s`\n", result.Commit)
+	fmt.Fprintf(&report, "- Fecha: `%s`\n", result.GeneratedAt.Format(time.RFC3339))
+	fmt.Fprintf(&report, "- Plataforma: `%s/%s`, `%s`\n", result.GOOS, result.GOARCH, result.GoVersion)
+	fmt.Fprintf(&report, "- Muestras por escenario: `%d`\n", result.Samples)
+	fmt.Fprintf(&report, "- Corpus: `%d` repositorio, `%d` paquete, `%d` archivos, `%d` símbolos, `%d` evidencias, `%d` aristas\n", result.Corpus.Repositories, result.Corpus.Packages, result.Corpus.Files, result.Corpus.Symbols, result.Corpus.Evidence, result.Corpus.Edges)
 	fmt.Fprintln(&report)
-	fmt.Fprintln(&report, "| Probe | Duration ms | Added symbols | Updated symbols | Deleted symbols | Added references | Deleted references | Replaced sources | Expected failure |")
-	fmt.Fprintln(&report, "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |")
-	for _, probe := range result.Probes {
-		fmt.Fprintf(&report, "| %s | %.3f | %d | %d | %d | %d | %d | %d | %s |\n", probe.Probe, probe.DurationMS, probe.Mutation.AddedSymbols, probe.Mutation.UpdatedSymbols, probe.Mutation.DeletedSymbols, probe.Mutation.AddedReferences, probe.Mutation.DeletedReferences, probe.Mutation.ReplacedSources, probe.ExpectedFailure)
+	fmt.Fprintln(&report, "## Resultados")
+	fmt.Fprintln(&report)
+	fmt.Fprintln(&report, "Los tiempos son la llamada completa a `indexer.Update`: cálculo del delta, decisión de ruta, mutación o republicación, digest, reconstrucción del HotSnapshot cuando corresponde y publicación atómica.")
+	fmt.Fprintln(&report)
+	fmt.Fprintln(&report, "| Escenario | Ruta | p50 ms | p95 ms | mínimo ms | máximo ms | setup base p50 ms | integridad |")
+	fmt.Fprintln(&report, "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |")
+	for _, scenario := range result.Scenarios {
+		setupValues := make([]float64, len(scenario.Samples))
+		for index, sample := range scenario.Samples {
+			setupValues[index] = sample.SetupMS
+		}
+		fmt.Fprintf(&report, "| `%s` | `%s` | %.1f | %.1f | %.1f | %.1f | %.1f | `%t`, %d violaciones |\n",
+			scenario.Scenario, scenario.ExpectedRoute, scenario.Summary.P50MS, scenario.Summary.P95MS, scenario.Summary.MinMS, scenario.Summary.MaxMS,
+			percentile(setupValues, 0.50), scenario.Integrity.Passed, scenario.Integrity.Violations)
 	}
 	fmt.Fprintln(&report)
-	fmt.Fprintln(&report, "## Integrity")
+	fmt.Fprintln(&report, "## Gate `INCREMENTAL_INDEXING_PASS`")
 	fmt.Fprintln(&report)
-	fmt.Fprintf(&report, "- Duplicate symbols rejected: `%t`\n", result.Integrity.DuplicateSymbolsRejected)
-	fmt.Fprintf(&report, "- Duplicate references rejected: `%t`\n", result.Integrity.DuplicateReferencesRejected)
-	fmt.Fprintf(&report, "- No ghost edges: `%t`\n", result.Integrity.NoGhostEdges)
-	fmt.Fprintf(&report, "- Atomicity verified: `%t`\n", result.Integrity.AtomicityVerified)
-	fmt.Fprintf(&report, "- Rollback verified: `%t`\n", result.Integrity.RollbackVerified)
-	fmt.Fprintf(&report, "- Result: `%t`\n", result.Integrity.Passed)
+	fmt.Fprintf(&report, "- archivo simple p95: `%.1f ms` (límite `≤ 750 ms`) — `%t`\n", result.Gate.SimpleFileP95MS, result.Gate.SimpleFileWithin750MS)
+	fmt.Fprintf(&report, "- imports/exports p95: `%.1f ms` (límite `≤ 2 s`) — `%t`\n", result.Gate.ImportsExportsP95MS, result.Gate.ImportsWithin2S)
+	fmt.Fprintf(&report, "- manifest p95: `%.1f ms` (límite `≤ 5 s`) — `%t`\n", result.Gate.ManifestP95MS, result.Gate.ManifestWithin5S)
+	fmt.Fprintf(&report, "- ghost edges: `0` — `%t`\n", result.Gate.NoGhostEdges)
+	fmt.Fprintf(&report, "- Resultado: `%t`\n", result.Gate.Passed)
 	fmt.Fprintln(&report)
-	fmt.Fprintln(&report, "The probe sequence runs against one temporary copy of the full synthetic LadybugDB database. Timings cover the transactional database mutation only; HotSnapshot construction and publication are not implemented in this phase.")
+	fmt.Fprintln(&report, "## Limitaciones")
+	fmt.Fprintln(&report)
+	for _, limitation := range result.Limitations {
+		fmt.Fprintf(&report, "- %s\n", limitation)
+	}
 	return os.WriteFile(filepath.Join(outputDir, "report.md"), []byte(report.String()), 0o644)
 }
 
@@ -385,9 +495,8 @@ func gitState() string {
 		return "unknown"
 	}
 	commit := strings.TrimSpace(string(output))
-	status, err := exec.Command("git", "status", "--porcelain").Output()
-	if err == nil && len(status) > 0 {
-		commit += "-dirty"
+	if err := exec.Command("git", "diff", "--quiet").Run(); err != nil {
+		return commit + "-dirty"
 	}
 	return commit
 }
