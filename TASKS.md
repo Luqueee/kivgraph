@@ -8787,11 +8787,75 @@ pero no demuestra ausencia absoluta de contención.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Entregables:**
+
+```text
+benchmarks/mcp-client/main.go
+benchmarks/mcp-client/main_test.go
+benchmarks/mcp-client-16/results.json
+benchmarks/mcp-client-16/report.md
+```
+
+Se reutiliza el benchmark parametrizable de LUQUE-1303 con exactamente
+dieciséis sesiones SDK concurrentes, un servidor MCP y un `HotSnapshot`
+compartidos. El workload conserva 10.000 llamadas totales, distribución
+40/25/20/10/5, reparto round-robin entre clientes y 100 llamadas de warm-up
+por operación y cliente.
+
+**Resultado medido en `linux/amd64`, Go 1.24.4, Ryzen 7 9700X:**
+
+```text
+p50 round-trip:       0.190770 ms
+p95 round-trip:       2.271372 ms
+p99 round-trip:       4.759554 ms
+throughput:           24287.8 calls/s
+allocations/op:       2018.9348
+bytes/op:             128828.2264
+RSS máximo:           500953088 bytes
+goroutines:           65
+errores:              0
+crecimiento continuo de RSS: false
+```
+
+Distribución observada: `find_symbol` 4.000, `get_symbol` 2.500,
+`find_references` 2.000, `find_cross_repo_consumers` 1.000 y
+`get_blast_radius` 500. Los checks SLO backend pasaron (`SLOPassed=true`).
+El máximo backend fue `0.202610/0.560781 ms` p95/p99 para
+`get_blast_radius`. Las point queries quedaron por debajo de 5 ms p95 y
+15 ms p99; `get_blast_radius` quedó por debajo de 20 ms p95.
+
+Frente a LUQUE-1303, el throughput observado pasa de 13.359,9 a 24.287,8
+llamadas/s, mientras el p95 round-trip pasa de 1,172731 a 2,271372 ms y el
+p99 de 1,587841 a 4,759554 ms. La ejecución no muestra errores ni crecimiento
+continuo de RSS.
+
+**Verificación ejecutada:**
+
+```text
+go test ./... -count=1: PASS; 21 paquetes con tests, 4 sin tests
+go vet ./...: PASS
+go test -race ./benchmarks/mcp-client -count=1: PASS
+smoke de 16 clientes: PASS; 20 llamadas, 0 errores
+benchmark de 16 clientes con 10000 llamadas: PASS; 0 errores
+```
+
+**Limitaciones:** el transporte es `NewInMemoryTransports`; no mide STDIO,
+sockets ni red. El RSS incluye la construcción del corpus y del
+`HotSnapshot`. El corpus es sintético y la medición es una ejecución en un
+hardware concreto. Las allocations/op son un delta de proceso sobre el
+workload mixto. No existe todavía un contador directo de contención global;
+la degradación de latencia se observa en las métricas round-trip, pero no
+identifica qué recurso la causa.
+
+**Estado:** `PASS`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1305.
 
 ---
 
