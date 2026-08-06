@@ -1,0 +1,231 @@
+package tools
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+)
+
+// TestTraceDependenciesWalksDepthAndRecordsDiscoveringEdge pins the traversal
+// contract: the root is not its own dependency, each node carries the depth and
+// the edge it was reached by, and depth is a hard bound.
+func TestTraceDependenciesWalksDepthAndRecordsDiscoveringEdge(t *testing.T) {
+	store := traceDependenciesStore(t, 31)
+
+	_, response, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-root"}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	if response.Total != 3 || response.Returned != 3 || response.Truncated {
+		t.Fatalf("pagination = %#v, want three untruncated dependencies", response)
+	}
+	trace := response.Results
+	if trace.RootKey != "sym-root" || trace.RootRepositoryKey != "repo-root" {
+		t.Fatalf("root = %#v", trace)
+	}
+	if trace.Depth != DefaultDependencyDepth || trace.Reached != 3 || trace.DeepestDepth != 3 || trace.TraversalTruncated {
+		t.Fatalf("traversal metadata = %#v", trace)
+	}
+	wantKeys := []string{"sym-level1", "sym-level2", "sym-level3"}
+	for index, node := range trace.Nodes {
+		if node.StableKey != wantKeys[index] || node.Depth != index+1 {
+			t.Fatalf("node %d = %#v, want %q at depth %d", index, node, wantKeys[index], index+1)
+		}
+	}
+	if first := trace.Nodes[0]; first.ViaSourceKey != "sym-root" || first.ViaKind != string(facts.CallsDirect) || first.ViaConfidence != string(facts.ExactTypechecked) {
+		t.Fatalf("first hop = %#v, want an exact call from the root", first)
+	}
+	if third := trace.Nodes[2]; third.ViaSourceKey != "sym-level2" || third.RepositoryKey != "repo-other" {
+		t.Fatalf("third hop = %#v, want discovery from level2 in the other repository", third)
+	}
+	if response.Coverage != (Coverage{Exact: 2, Candidate: 1}) {
+		t.Fatalf("coverage = %#v, want two exact and one candidate hop", response.Coverage)
+	}
+
+	_, shallow, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-root", Depth: 1}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shallow.Total != 1 || shallow.Results.DeepestDepth != 1 {
+		t.Fatalf("depth-1 trace = %#v, want only the direct dependency", shallow.Results)
+	}
+}
+
+// TestTraceDependenciesSeparatesReachabilityFromRowFilters is the honest part
+// of the contract: confidence gates which edges may be followed, while repo
+// only selects rows already reached.
+func TestTraceDependenciesSeparatesReachabilityFromRowFilters(t *testing.T) {
+	store := traceDependenciesStore(t, 32)
+
+	_, exactOnly, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", Confidence: string(facts.ExactTypechecked),
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exactOnly.Total != 1 || exactOnly.Results.Nodes[0].StableKey != "sym-level1" {
+		t.Fatalf("confidence-gated trace = %#v, want the candidate hop to cut the path", exactOnly.Results)
+	}
+
+	_, byRepo, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", Repo: "repo-other",
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byRepo.Total != 1 || byRepo.Results.Nodes[0].StableKey != "sym-level3" || byRepo.Results.Reached != 3 {
+		t.Fatalf("repo-filtered trace = %#v, want the depth-3 node reached through repo-root", byRepo.Results)
+	}
+
+	_, byKind, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", EdgeKinds: []string{string(facts.TypeUses)},
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byKind.Total != 0 || byKind.Results.Reached != 0 {
+		t.Fatalf("kind-gated trace = %#v, want no reachable dependency", byKind.Results)
+	}
+}
+
+func TestTraceDependenciesPaginatesWithSnapshotCursor(t *testing.T) {
+	store := traceDependenciesStore(t, 33)
+
+	_, first, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-root", Limit: 2}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Returned != 2 || !first.Truncated || first.NextCursor == nil {
+		t.Fatalf("first page = %#v, want two nodes and a cursor", first)
+	}
+	_, second, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", Limit: 2, Cursor: *first.NextCursor,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Returned != 1 || second.Truncated || second.NextCursor != nil {
+		t.Fatalf("second page = %#v, want the final node", second)
+	}
+	if second.Results.Nodes[0].StableKey != "sym-level3" {
+		t.Fatalf("second page node = %#v", second.Results.Nodes[0])
+	}
+}
+
+func TestTraceDependenciesClassifiesFailures(t *testing.T) {
+	store := traceDependenciesStore(t, 34)
+	expired, cancel := context.WithDeadline(context.Background(), time.Unix(1, 0))
+	defer cancel()
+
+	cases := []struct {
+		name      string
+		ctx       context.Context
+		arguments TraceDependenciesInput
+		store     *hotsnapshot.SnapshotStore
+		wantCode  string
+	}{
+		{name: "empty key", ctx: context.Background(), arguments: TraceDependenciesInput{}, store: store, wantCode: CodeInvalidArgument},
+		{name: "depth above maximum", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root", Depth: MaximumDependencyDepth + 1}, store: store, wantCode: CodeInvalidArgument},
+		{name: "max_nodes above maximum", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root", MaxNodes: MaximumDependencyMaxNodes + 1}, store: store, wantCode: CodeInvalidArgument},
+		{name: "limit above maximum", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root", Limit: MaximumDependencyLimit + 1}, store: store, wantCode: CodeInvalidArgument},
+		{name: "unsupported edge kind", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root", EdgeKinds: []string{"CONTAINS_FILE"}}, store: store, wantCode: CodeInvalidArgument},
+		{name: "unsupported confidence", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root", Confidence: "MAYBE"}, store: store, wantCode: CodeInvalidArgument},
+		{name: "missing symbol", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-missing"}, store: store, wantCode: CodeSymbolNotFound},
+		{name: "invalid cursor", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root", Cursor: "not-a-cursor"}, store: store, wantCode: CodeCursorInvalid},
+		{name: "unpublished snapshot", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root"}, store: hotsnapshot.NewSnapshotStore(nil), wantCode: CodeIndexNotReady},
+		{name: "missing store", ctx: context.Background(), arguments: TraceDependenciesInput{StableKey: "sym-root"}, wantCode: CodeIndexNotReady},
+		{name: "expired request deadline", ctx: expired, arguments: TraceDependenciesInput{StableKey: "sym-root"}, store: store, wantCode: CodeTraversalLimitReached},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := traceDependencies(test.ctx, nil, test.arguments, test.store)
+			if got := ErrorCode(err); got != test.wantCode {
+				t.Fatalf("error code = %q, want %q (err=%v)", got, test.wantCode, err)
+			}
+		})
+	}
+}
+
+func TestTraceDependenciesReportsNodeLimitTruncation(t *testing.T) {
+	store := traceDependenciesStore(t, 35)
+	_, response, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-root", MaxNodes: 2}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !response.Results.TraversalTruncated || response.Results.Reached != 1 {
+		t.Fatalf("node-bounded trace = %#v, want one dependency and a truncated traversal", response.Results)
+	}
+}
+
+func TestTraceDependenciesIsRegisteredReadOnly(t *testing.T) {
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	RegisterTraceDependencies(server)
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	listed, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	for _, tool := range listed.Tools {
+		if tool.Name == traceDependenciesToolName {
+			if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+				t.Fatalf("trace_dependencies annotations = %#v, want read-only", tool.Annotations)
+			}
+			return
+		}
+	}
+	t.Fatal("trace_dependencies is not registered")
+}
+
+// traceDependenciesStore builds a chain root -> level1 -> level2 -> level3 that
+// crosses into a second repository at the last hop, with one candidate edge in
+// the middle so confidence filters have something to cut.
+func traceDependenciesStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-root", Name: "root", Languages: "go"},
+			{Key: "repo-other", Name: "other", Languages: "ts"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "pkg-root", RepositoryKey: "repo-root", Language: "go", Name: "root", ModulePath: "example.com/root"},
+			{Key: "pkg-other", RepositoryKey: "repo-other", Language: "ts", Name: "other", ModulePath: "example.com/other"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-root", RepositoryKey: "repo-root", PackageKey: "pkg-root", Path: "root.go", Language: "go"},
+			{Key: "file-other", RepositoryKey: "repo-other", PackageKey: "pkg-other", Path: "other.ts", Language: "ts"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-root", CanonicalIdentity: "go:root.Root", FileKey: "file-root", Language: "go", Name: "Root", QualifiedName: "root.Root", Kind: "func"},
+			{StableKey: "sym-level1", CanonicalIdentity: "go:root.Level1", FileKey: "file-root", Language: "go", Name: "Level1", QualifiedName: "root.Level1", Kind: "func"},
+			{StableKey: "sym-level2", CanonicalIdentity: "go:root.Level2", FileKey: "file-root", Language: "go", Name: "Level2", QualifiedName: "root.Level2", Kind: "func"},
+			{StableKey: "sym-level3", CanonicalIdentity: "ts:other.Level3", FileKey: "file-other", Language: "ts", Name: "Level3", QualifiedName: "other.Level3", Kind: "function"},
+		},
+		Edges: []hotsnapshot.EdgeRow{
+			{SourceKey: "sym-root", TargetKey: "sym-level1", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-root", EvidenceTargetFileKey: "file-root"},
+			{SourceKey: "sym-level1", TargetKey: "sym-level2", Kind: facts.CodeReferences, Confidence: facts.CodeCandidate, Provenance: facts.CodeTreeSitterSyntax, EvidenceKind: "syntax", EvidenceSourceFileKey: "file-root", EvidenceTargetFileKey: "file-root"},
+			{SourceKey: "sym-level2", TargetKey: "sym-level3", Kind: facts.CodeImportsSymbol, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-root", EvidenceTargetFileKey: "file-other"},
+		},
+	}, id, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}

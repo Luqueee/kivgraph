@@ -7455,11 +7455,11 @@ por el corpus indexado y el SLO de 5 ms p95 se mide en LUQUE-1602.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Aplicar:**
 
@@ -7468,6 +7468,80 @@ por el corpus indexado y el SLO de 5 ms p95 se mide en LUQUE-1602.
 * filtros;
 * paginación;
 * typed errors.
+
+**Implementación:**
+
+Se añadió `internal/mcp/tools/trace_dependencies.go`: BFS saliente y acotado
+sobre la CSR forward del `HotSnapshot`, registrada read-only en el servidor MCP.
+
+```text
+depth       1..5    por defecto 3   (hotsnapshot.MaxTraversalDepth)
+max_nodes   1..25000 por defecto 5000 (hotsnapshot.MaxTraversalNodes)
+limit       1..500  por defecto 50
+```
+
+La distinción clave del contrato es qué filtro corta el grafo y cuál sólo
+selecciona filas:
+
+```text
+edge_kinds, confidence -> gobiernan qué aristas puede seguir el recorrido
+repo, language         -> seleccionan qué símbolos alcanzados se devuelven
+```
+
+Un filtro de confianza corta el camino: los símbolos que sólo eran alcanzables
+a través de una arista descartada dejan de existir para la consulta. Un filtro
+de repositorio no lo hace: una dependencia encontrada atravesando otro
+repositorio se sigue devolviendo.
+
+`TraversalVisit` conserva ahora `Source` y la `PackedEdge` por la que el BFS
+llegó por primera vez a cada símbolo, y `TraversalOptions` admite `Confidences`
+junto a `EdgeKinds`. La respuesta expone esa arista como `via_source_key`,
+`via_kind`, `via_confidence` y `via_provenance`: es el camino más corto que el
+frente encontró, no el único posible, y así queda documentado.
+
+El sobre estándar pagina sobre `nodes`; la metainformación del recorrido
+—`reached`, `deepest_depth`, `traversal_truncated`— vive dentro de `results`
+porque `truncated` del sobre ya significa "hay más páginas".
+
+**Errores clasificados:**
+
+```text
+INVALID_ARGUMENT         stable_key, depth, max_nodes, limit, edge_kinds, confidence
+SYMBOL_NOT_FOUND         la raíz no está en el snapshot
+CURSOR_INVALID           cursor corrupto
+CURSOR_SNAPSHOT_EXPIRED  cursor de otra generación
+INDEX_NOT_READY          no hay snapshot publicado
+TRAVERSAL_LIMIT_REACHED  el deadline de la petición venció durante el BFS
+SNAPSHOT_UNAVAILABLE     metadatos del snapshot inconsistentes
+```
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1108.
+
+**Verificación:**
+
+```text
+go test ./internal/mcp/tools -run TestTraceDependencies -count=1
+go test ./internal/hotsnapshot -run TestTraverse -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/mcp/... ./internal/hotsnapshot -count=1
+make build
+```
+
+El smoke STDIO confirmó `INVALID_ARGUMENT: depth must be between 1 and 5` y
+`INDEX_NOT_READY` clasificados por el servidor real.
+
+**Limitaciones:** el recorrido es sólo saliente; la dirección inversa y su
+agrupación pertenecen a `get_blast_radius` (LUQUE-1109). El timeout lógico se
+toma del deadline de la propia petición: sin deadline de cliente, los únicos
+límites son `depth` y `max_nodes`. `traversal_truncated` indica que el BFS tocó
+`max_nodes`, es decir, que el subgrafo devuelto es incompleto por diseño, no un
+error. El SLO de 12 ms p95 a profundidad 3 se medirá en LUQUE-1602.
+
+**Siguiente tarea:** LUQUE-1109.
 
 ---
 

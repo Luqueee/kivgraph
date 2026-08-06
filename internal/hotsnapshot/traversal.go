@@ -22,18 +22,27 @@ const (
 )
 
 // TraversalOptions bounds one breadth-first traversal. The start symbol is
-// included at depth zero and counts toward MaxNodes.
+// included at depth zero and counts toward MaxNodes. EdgeKinds and Confidences
+// gate which edges the traversal may follow, so they change reachability, not
+// just the shape of the result.
 type TraversalOptions struct {
-	Direction TraversalDirection
-	MaxDepth  int
-	MaxNodes  int
-	EdgeKinds []uint8
-	Deadline  time.Time
+	Direction   TraversalDirection
+	MaxDepth    int
+	MaxNodes    int
+	EdgeKinds   []uint8
+	Confidences []uint8
+	Deadline    time.Time
 }
 
+// TraversalVisit is one reached symbol. Source and Edge record how the BFS
+// first arrived at it, which is the only path fact a breadth-first frontier
+// can state without retaining every route. The start symbol has no such edge:
+// its Source is InvalidSymbolID and its Edge is zero.
 type TraversalVisit struct {
-	ID    SymbolID
-	Depth uint32
+	ID     SymbolID
+	Depth  uint32
+	Source SymbolID
+	Edge   PackedEdge
 }
 
 type TraversalRepositoryGroup struct {
@@ -64,7 +73,7 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 	visited := make([]uint32, len(snapshot.symbols))
 	queue := make([]traversalQueueItem, 0, minInt(options.MaxNodes, 64))
 	visited[start] = 1
-	queue = append(queue, traversalQueueItem{ID: start})
+	queue = append(queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
 	repositoryCounts := make([]int, len(snapshot.repositories))
 	repositoriesSeen := make([]bool, len(snapshot.repositories))
 	repositories := make([]RepositoryID, 0)
@@ -76,12 +85,12 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 			return result, ErrTraversalTimeout
 		}
 		item := queue[queueIndex]
-		result.Visits = append(result.Visits, TraversalVisit{ID: item.ID, Depth: item.Depth})
-		if repository, ok := snapshot.symbolRepository(item.ID); ok && !repositoriesSeen[repository] {
-			repositoriesSeen[repository] = true
-			repositories = append(repositories, repository)
-		}
+		result.Visits = append(result.Visits, TraversalVisit{ID: item.ID, Depth: item.Depth, Source: item.Source, Edge: item.Edge})
 		if repository, ok := snapshot.symbolRepository(item.ID); ok {
+			if !repositoriesSeen[repository] {
+				repositoriesSeen[repository] = true
+				repositories = append(repositories, repository)
+			}
 			repositoryCounts[repository]++
 		}
 		if int(item.Depth) >= options.MaxDepth {
@@ -99,7 +108,7 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 				result.Repositories = traversalRepositoryGroups(repositoryCounts, repositories)
 				return result, ErrTraversalTimeout
 			}
-			if !edgeKindAllowed(edge.Kind, options.EdgeKinds) || visited[edge.Target] != 0 {
+			if !codeAllowed(edge.Kind, options.EdgeKinds) || !codeAllowed(edge.Confidence, options.Confidences) || visited[edge.Target] != 0 {
 				continue
 			}
 			if discovered >= options.MaxNodes {
@@ -108,7 +117,7 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 			}
 			visited[edge.Target] = 1
 			discovered++
-			queue = append(queue, traversalQueueItem{ID: edge.Target, Depth: item.Depth + 1})
+			queue = append(queue, traversalQueueItem{ID: edge.Target, Depth: item.Depth + 1, Source: item.ID, Edge: edge})
 		}
 	}
 	result.Repositories = traversalRepositoryGroups(repositoryCounts, repositories)
@@ -116,8 +125,10 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 }
 
 type traversalQueueItem struct {
-	ID    SymbolID
-	Depth uint32
+	ID     SymbolID
+	Depth  uint32
+	Source SymbolID
+	Edge   PackedEdge
 }
 
 func (snapshot *GraphSnapshot) symbolRepository(symbol SymbolID) (RepositoryID, bool) {
@@ -135,12 +146,12 @@ func (snapshot *GraphSnapshot) symbolRepository(symbol SymbolID) (RepositoryID, 
 	return repository, true
 }
 
-func edgeKindAllowed(kind uint8, allowed []uint8) bool {
+func codeAllowed(code uint8, allowed []uint8) bool {
 	if len(allowed) == 0 {
 		return true
 	}
 	for _, candidate := range allowed {
-		if kind == candidate {
+		if code == candidate {
 			return true
 		}
 	}

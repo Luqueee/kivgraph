@@ -58,6 +58,42 @@ func TestTraverseAppliesDepthKindAndNodeLimits(t *testing.T) {
 	}
 }
 
+// TestTraverseRecordsDiscoveringEdgeAndFiltersConfidence covers the two facts
+// a dependency query needs from the frontier: how each symbol was reached, and
+// that a confidence filter gates reachability instead of only hiding rows.
+func TestTraverseRecordsDiscoveringEdgeAndFiltersConfidence(t *testing.T) {
+	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := snapshot.Traverse(0, TraversalOptions{Direction: TraversalOutgoing, MaxDepth: 5, MaxNodes: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Visits) != 3 {
+		t.Fatalf("traversal = %#v, want three visits", result.Visits)
+	}
+	if root := result.Visits[0]; root.Source != InvalidSymbolID || root.Edge != (PackedEdge{}) {
+		t.Fatalf("start visit = %#v, want no discovering edge", root)
+	}
+	if first := result.Visits[1]; first.Source != 0 || first.Edge.Target != 1 || first.Edge.Kind != 1 || first.Edge.Confidence != 9 {
+		t.Fatalf("s-b visit = %#v, want discovery from s-a over kind 1", first)
+	}
+	if second := result.Visits[2]; second.Source != 1 || second.Edge.Target != 2 || second.Edge.Kind != 2 || second.Edge.Confidence != 8 {
+		t.Fatalf("s-c visit = %#v, want discovery from s-b over kind 2", second)
+	}
+
+	// Only the s-a -> s-b edge carries confidence 9, so s-c becomes
+	// unreachable rather than merely unlisted.
+	filtered, err := snapshot.Traverse(0, TraversalOptions{Direction: TraversalOutgoing, MaxDepth: 5, MaxNodes: 10, Confidences: []uint8{9}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filtered.Visits) != 2 || filtered.Visits[1].ID != 1 || filtered.Truncated {
+		t.Fatalf("confidence-filtered traversal = %#v", filtered)
+	}
+}
+
 func TestTraverseRejectsInvalidOptions(t *testing.T) {
 	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
 	if err != nil {
