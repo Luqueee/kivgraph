@@ -6265,19 +6265,80 @@ La clasificación semántica e invalidación siguen siendo tareas posteriores.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Detectar:**
+**Objetivo:** recuperar cambios aunque `fsnotify` haya perdido o no haya
+entregado un evento.
 
-* eventos perdidos;
-* archivos nuevos;
-* eliminaciones;
-* renombrados;
-* manifest modificado.
+**Contrato:**
+
+* `Reconciler.Reconcile` recorre cada repositorio, omitiendo symlinks,
+  exclusiones por defecto/configuradas y respetando las raíces de código.
+* El recorrido incluye fuentes Go/TypeScript y manifests comunes o declarados
+  explícitamente por la configuración.
+* La comparación usa `ContentHasher`: separa `Added`, `Modified`, `Unchanged`,
+  `Removed` y `Skipped`, y actualiza la caché solo después de observar todo el
+  batch.
+* Un renombrado solo se reporta cuando existe exactamente una ruta eliminada y
+  una nueva con el mismo hash; los hashes duplicados quedan como add/remove y
+  no se adivina una relación.
+* `ManifestChanges` identifica cambios de manifests para que la invalidación
+  posterior pueda reconstruir el registro afectado.
+* `Reconciler.Run` ejecuta una pasada inmediata y repite cada intervalo
+  positivo; errores de lectura, del sink o cancelaciones se devuelven.
+
+**Entregables:**
+
+```text
+internal/watcher/reconcile.go
+internal/watcher/reconcile_test.go
+```
+
+**Archivos modificados:**
+
+```text
+internal/watcher/hash.go
+```
+
+Se añadió `ContentHasher.KnownFiles`, que devuelve una copia ordenada de la
+caché para comparar el estado anterior con el recorrido actual sin exponer
+mutabilidad interna.
+
+**Estado:** `PASS`.
+
+**Tests ejecutados:**
+
+```text
+go test ./internal/watcher -count=10
+go test -race ./internal/watcher
+go test ./...
+go vet ./...
+make build
+```
+
+**Resultados:** todas las pruebas pasan. La suite cubre recuperación sin
+eventos, archivos nuevos, modificaciones, archivos eliminados, renombrados
+unívocos, renombrados ambiguos, manifests configurados, exclusiones,
+cancelación periódica y validación de argumentos.
+
+**Benchmarks:** no aplica todavía; la tarea define detección y recuperación,
+pero no integra aún el pipeline de reindexación. El coste de recorrer y
+hashear el repositorio debe medirse con el indexador incremental completo.
+
+**Limitaciones:** la caché sigue siendo en memoria y se reconstruye desde el
+grafo al reiniciar. La reconciliación detecta diferencias respecto al último
+estado conocido, pero no puede demostrar si una diferencia proviene de un
+overflow de `fsnotify` o de una modificación ocurrida fuera del proceso. Un
+archivo que cambia mientras se lee puede requerir otra pasada. Renombrados con
+contenido idéntico en varias rutas no se clasifican para evitar falsos
+positivos. La invalidación semántica y la reindexación pertenecen a tareas
+posteriores.
+
+**Siguiente tarea:** LUQUE-1005.
 
 ---
 

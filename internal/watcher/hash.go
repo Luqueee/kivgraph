@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -86,6 +87,30 @@ func (hasher *ContentHasher) KnownHash(repository, path string) (string, bool) {
 	defer hasher.mu.Unlock()
 	hash, exists := hasher.known[key]
 	return hash, exists
+}
+
+// KnownFiles returns a sorted copy of all hashes currently in the cache.
+func (hasher *ContentHasher) KnownFiles() []FileHash {
+	if hasher == nil {
+		return nil
+	}
+	hasher.mu.Lock()
+	defer hasher.mu.Unlock()
+	records := make([]FileHash, 0, len(hasher.known))
+	for key, hash := range hasher.known {
+		records = append(records, FileHash{
+			Repository:  key.Repository,
+			Path:        key.Path,
+			ContentHash: hash,
+		})
+	}
+	sort.Slice(records, func(left, right int) bool {
+		if records[left].Repository != records[right].Repository {
+			return records[left].Repository < records[right].Repository
+		}
+		return records[left].Path < records[right].Path
+	})
+	return records
 }
 
 // Process hashes every unique event path in batch. A regular file with no
