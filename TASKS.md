@@ -6773,11 +6773,11 @@ contrato canónico que recibe LadybugDB.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Casos:**
 
@@ -6787,6 +6787,45 @@ contrato canónico que recibe LadybugDB.
 * import;
 * provider.
 
+**Implementación de pruebas:**
+
+```text
+internal/indexer/modifications_native_test.go
+```
+
+La prueba ejecuta contra LadybugDB real cinco modificaciones y compara
+`ScanCanonical` del grafo mutado con una carga completa del estado siguiente:
+
+* cambio de cuerpo;
+* cambio de firma;
+* modificación de evidencia de `PASSES_AS_CALLBACK`;
+* conversión de una referencia unresolved en `IMPORTS_SYMBOL`;
+* cambio de firma del provider.
+
+Cada caso reconstruye y publica también el HotSnapshot, exige ruta `DELTA` y
+verifica todos los invariantes canónicos.
+
+**Estado:** `PASS`.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/facts ./internal/indexer ./internal/rebuild
+make build
+make test-ladybug
+```
+
+Todos pasan, incluidos los cinco subcasos nativos.
+
+**Limitaciones:** las transiciones usan facts canónicos deterministas; la
+clasificación de bytes fuente y la resolución de los motores se cubren en sus
+respectivas tareas. Aquí se prueba que el delta resultante no deja estado
+anterior en LadybugDB ni en HotSnapshot.
+
+**Siguiente tarea:** LUQUE-1011.
+
 ---
 
 ## LUQUE-1011 — Probar eliminaciones
@@ -6795,11 +6834,11 @@ contrato canónico que recibe LadybugDB.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Comprobar:**
 
@@ -6807,6 +6846,45 @@ contrato canónico que recibe LadybugDB.
 * 0 ghost edges;
 * referencias convertidas en unresolved;
 * snapshot consistente.
+
+**Implementación de pruebas:**
+
+```text
+internal/indexer/deletions_native_test.go
+```
+
+La prueba ejecuta dos eliminaciones sobre LadybugDB real:
+
+* desaparición de un símbolo provider manteniendo el archivo;
+* desaparición completa del archivo provider.
+
+En ambos casos la llamada que deja de resolver se convierte en
+`UnresolvedReference`. Se comprueba que no quedan símbolos ni aristas
+fantasma, que el contador de unresolved coincide con una carga completa del
+estado siguiente, que todos los invariantes pasan y que el HotSnapshot
+publicado conserva el símbolo fuente pero no el eliminado.
+
+**Estado:** `PASS`.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/facts ./internal/indexer ./internal/rebuild
+make build
+make test-ladybug
+```
+
+Todos pasan, incluidos los dos subcasos nativos de eliminación y conversión
+a unresolved.
+
+**Limitaciones:** la eliminación de paquetes o repositorios no se fuerza por
+delta: el contrato file-grained de `facts.Delta` sólo retira hechos anclados a
+archivos; cambios de identidad/resolución deben tomar la ruta de
+republicación. Esta tarea cubre las eliminaciones expresables por el delta.
+
+**Siguiente tarea:** LUQUE-1012.
 
 ---
 
