@@ -57,14 +57,17 @@ func TestListRepositoriesReturnsStableEmptyPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Marshal structured content: %v", err)
 	}
-	var page RepositoryList
-	if err := json.Unmarshal(data, &page); err != nil {
+	var response Response[[]RepositorySummary]
+	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatalf("Unmarshal structured content: %v", err)
 	}
-	if page.Repositories == nil || len(page.Repositories) != 0 {
-		t.Fatalf("repositories = %#v, want empty array", page.Repositories)
+	if response.Results == nil || len(response.Results) != 0 {
+		t.Fatalf("repositories = %#v, want empty array", response.Results)
 	}
-	if page.Total != 0 || page.Returned != 0 || page.Truncated {
-		t.Fatalf("page metadata = %#v, want zero non-truncated page", page)
+	if response.Total != 0 || response.Returned != 0 || response.Truncated {
+		t.Fatalf("page metadata = %#v, want zero non-truncated page", response)
+	}
+	if response.SnapshotID != nil || response.SnapshotAgeMS != nil || response.NextCursor != nil {
+		t.Fatalf("optional metadata = %#v, want nil for empty graph", response)
 	}
 }

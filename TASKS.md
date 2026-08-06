@@ -6992,11 +6992,11 @@ determinista documentado, no todos los tamaños o topologías de repositorio.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Campos:**
 
@@ -7010,6 +7010,55 @@ next_cursor
 coverage
 results
 ```
+
+**Implementación:**
+
+Se añadió `internal/mcp/tools/response.go` con el envelope genérico
+`Response[T]` y `Coverage`. Todas las respuestas declaran:
+
+```text
+snapshot_id
+snapshot_age_ms
+total
+returned
+truncated
+next_cursor
+coverage
+results
+```
+
+Los metadatos de snapshot y cursor se serializan como `null` mientras no
+exista una generación publicada. `graph_status` usa el envelope con un
+resultado de estado; `list_repositories` usa un array vacío no nulo.
+
+Se añadió `internal/mcp/tools/errors.go` con los códigos de error del
+contrato, `ToolError`, `ErrorCode`, `NewToolError` y `WrapToolError`. El
+payload JSON conserva únicamente `code`, `message` y `details`; las causas
+internas no se exponen.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1101.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/mcp/...
+make build
+```
+
+Las pruebas MCP in-memory validan el envelope de ambas herramientas y el
+smoke STDIO de `ladygraph serve` devolvió `structuredContent` con los ocho
+campos del contrato para `list_repositories`.
+
+**Limitaciones:** el servidor todavía devuelve un grafo vacío; la carga desde
+`HotSnapshot`, los cursores y los errores de dominio se implementan en las
+tareas siguientes. El envelope ya fija sus formas y los valores `null` de
+estado sin snapshot.
+
+**Siguiente tarea:** LUQUE-1102.
 
 ---
 

@@ -57,11 +57,18 @@ func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Marshal structured content: %v", err)
 	}
-	var status GraphStatus
-	if err := json.Unmarshal(data, &status); err != nil {
+	var response Response[GraphStatus]
+	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatalf("Unmarshal structured content: %v", err)
 	}
-	if status.Status != "empty" || status.SnapshotID != nil || status.Repositories != 0 || status.Symbols != 0 || status.Edges != 0 {
+	status := response.Results
+	if status.Status != "empty" || status.Repositories != 0 || status.Symbols != 0 || status.Edges != 0 {
 		t.Fatalf("graph status = %#v, want empty response", status)
+	}
+	if response.SnapshotID != nil || response.SnapshotAgeMS != nil || response.NextCursor != nil {
+		t.Fatalf("optional metadata = %#v, want nil for empty graph", response)
+	}
+	if response.Total != 1 || response.Returned != 1 || response.Truncated {
+		t.Fatalf("response metadata = %#v, want one untruncated status result", response)
 	}
 }

@@ -14,14 +14,6 @@ type RepositorySummary struct {
 	Languages []string `json:"languages"`
 }
 
-// RepositoryList is the paginated repository response.
-type RepositoryList struct {
-	Repositories []RepositorySummary `json:"repositories"`
-	Total        int                 `json:"total"`
-	Returned     int                 `json:"returned"`
-	Truncated    bool                `json:"truncated"`
-}
-
 // RegisterListRepositories adds the read-only repository listing tool.
 func RegisterListRepositories(server *sdkmcp.Server) {
 	RegisterListRepositoriesWithObserver(server, nil)
@@ -31,7 +23,7 @@ func RegisterListRepositories(server *sdkmcp.Server) {
 func RegisterListRepositoriesWithObserver(server *sdkmcp.Server, observer Observer) {
 	handler := listRepositories
 	if observer != nil {
-		handler = func(ctx context.Context, request *sdkmcp.CallToolRequest, arguments struct{}) (*sdkmcp.CallToolResult, RepositoryList, error) {
+		handler = func(ctx context.Context, request *sdkmcp.CallToolRequest, arguments struct{}) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
 			start := time.Now()
 			result, repositories, err := listRepositories(ctx, request, arguments)
 			observer("list_repositories", time.Since(start))
@@ -49,11 +41,10 @@ func listRepositories(
 	_ context.Context,
 	_ *sdkmcp.CallToolRequest,
 	_ struct{},
-) (*sdkmcp.CallToolResult, RepositoryList, error) {
-	return nil, RepositoryList{
-		Repositories: []RepositorySummary{},
-		Total:        0,
-		Returned:     0,
-		Truncated:    false,
+) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
+	return nil, Response[[]RepositorySummary]{
+		Total:    0,
+		Returned: 0,
+		Results:  []RepositorySummary{},
 	}, nil
 }
