@@ -7068,11 +7068,11 @@ estado sin snapshot.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Incluir:**
 
@@ -7081,6 +7081,54 @@ estado sin snapshot.
 * offset;
 * sorting version;
 * checksum.
+
+**Implementación:**
+
+Se añadió `internal/mcp/tools/cursor.go` con:
+
+```text
+CursorFormatVersion
+snapshot_id
+query_hash
+offset
+sorting_version
+checksum
+```
+
+`HashQuery` calcula SHA-256 hexadecimal sobre JSON determinista. `NewCursor`
+valida la identidad y genera el checksum; `Encode` usa JSON versionado dentro
+de base64url sin padding; `DecodeCursor` rechaza payloads truncados, campos
+desconocidos, versiones incompatibles, hashes inválidos y checksums alterados.
+`ValidateAgainst` distingue `CURSOR_SNAPSHOT_EXPIRED` de
+`CURSOR_INVALID`.
+
+La ordenación pública inicial queda identificada como
+`stable-key-v1`, consistente con la asignación de IDs de símbolos del
+`HotSnapshot`, que parte de stable keys ascendentes.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1102.
+
+**Verificación:**
+
+```text
+go test ./...
+go vet ./...
+go test -race ./internal/mcp/...
+make build
+```
+
+Las pruebas cubren hashes equivalentes y distintos, round-trip determinista,
+token opaco URL-safe, campos ausentes, payloads desconocidos, manipulación del
+offset, checksum, expiración por snapshot y cambios de consulta u ordenación.
+
+**Limitaciones:** los cursores todavía no están consumidos por una herramienta
+con datos reales; `list_repositories` se conectará al `HotSnapshot` en
+LUQUE-1103. El checksum no es un mecanismo de autenticación: el cursor
+transporta estado íntegro, no un secreto.
+
+**Siguiente tarea:** LUQUE-1103.
 
 ---
 
