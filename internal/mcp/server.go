@@ -47,6 +47,7 @@ func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore
 	tools.RegisterFindReferencesWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	tools.RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	tools.RegisterTraceDependenciesWithObserverAndSnapshotStore(server, observer, snapshotStore)
+	tools.RegisterGetBlastRadiusWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	return server
 
 }

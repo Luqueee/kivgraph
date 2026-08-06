@@ -7551,11 +7551,11 @@ error. El SLO de 12 ms p95 a profundidad 3 se medirá en LUQUE-1602.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Agrupar por:**
 
@@ -7563,6 +7563,60 @@ error. El SLO de 12 ms p95 a profundidad 3 se medirá en LUQUE-1602.
 * paquete;
 * profundidad;
 * tipo de relación.
+
+**Implementación:**
+
+Se añadió `internal/mcp/tools/blast_radius.go`: el mismo BFS acotado de
+LUQUE-1108 pero en dirección **entrante**, y agregando en vez de listando. La
+tool reutiliza `dependencyTraversalOptions` y sólo invierte la dirección, de
+modo que profundidad, `max_nodes`, `edge_kinds`, confianza y errores
+clasificados se comportan igual en ambas herramientas.
+
+El resultado son cuatro ejes sobre el mismo conjunto de símbolos alcanzados:
+
+```text
+by_repository   clave de repositorio -> símbolos afectados
+by_package      paquete + repositorio -> símbolos afectados
+by_depth        profundidad 1..depth -> símbolos afectados
+by_kind         tipo de relación -> símbolos afectados
+```
+
+La raíz nunca se cuenta: un símbolo no se ve afectado por su propio cambio.
+
+El sobre pagina **sólo sobre `by_package`**, que es el único eje que crece con
+el corpus; repositorios, profundidades y tipos son pocos por construcción y se
+devuelven completos en cada página. `total` y `returned` cuentan grupos de
+paquete; `affected` —el total real de símbolos— vive dentro de `results`.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1109.
+
+**Verificación:**
+
+```text
+go test ./internal/mcp/tools -run TestGetBlastRadius -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/mcp/... ./internal/hotsnapshot -count=1
+make build
+```
+
+Las pruebas comprueban que los cuatro ejes suman exactamente `affected`, que un
+filtro de confianza excluye al consumidor candidato junto con su subárbol, que
+`max_nodes` marca `traversal_truncated`, y que la paginación de paquetes no
+recorta los demás ejes. El smoke STDIO devolvió `INVALID_ARGUMENT: max_nodes
+must be between 1 and 25000` e `INDEX_NOT_READY` clasificados.
+
+**Limitaciones:** la herramienta no devuelve el listado de símbolos afectados,
+sólo los agregados; para enumerarlos está `find_references` sobre cada nodo. Un
+símbolo alcanzable por dos caminos se cuenta una sola vez, y su `by_kind` es el
+de la arista con la que el BFS llegó primero, no el de todas las relaciones que
+lo conectan con la raíz. El SLO de 20 ms p95 a profundidad 3 y 50 ms a
+profundidad 5 se medirá en LUQUE-1602.
+
+**Siguiente tarea:** LUQUE-1110.
 
 ---
 
