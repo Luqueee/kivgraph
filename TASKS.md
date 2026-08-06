@@ -9113,13 +9113,36 @@ tarea debe verificar regresiones de precisión con la suite semántica completa.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 Toda optimización debe ejecutar la suite semántica completa.
+
+**Estado:** `PASS`.
+
+**Suite ejecutada sobre el commit optimizado:** `go test ./... -count=1`,
+`go vet ./...`, `go test -race ./internal/goloader ./internal/facts -count=1`,
+`go run ./benchmarks/go-semantic`, `pnpm check` y `pnpm precision`.
+
+**Evidencia Go:** `GO_SEMANTIC_PASS`; 16/16 true positives, 0 false
+positives, 0 false negatives, precisión 1.0000, recall 1.0000, 0 false exact
+edges y 2/2 unresolved correctamente clasificadas.
+
+**Evidencia TypeScript:** `TYPESCRIPT_CROSS_REPO_PASS`; 11/11 true positives,
+0 false positives, 0 false negatives, precisión 1.0000, recall 1.0000, 0 false
+exact edges, 4/4 unresolved correctamente clasificadas y 10/10 posiciones
+exactas mapeadas.
+
+**Limitaciones:** la suite usa los fixtures semánticos versionados y no
+sustituye la validación sobre repositorios reales a escala. No se modificaron
+los artefactos semánticos generados. El análisis de rendimiento queda en
+LUQUE-1308; esta tarea sólo verifica que la optimización no cambió la
+precisión.
+
+**Siguiente tarea desbloqueada:** LUQUE-1401.
 
 **Gate:**
 
