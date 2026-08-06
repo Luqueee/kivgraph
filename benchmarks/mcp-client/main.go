@@ -546,6 +546,8 @@ func writeOutputs(outputDir string, result results) error {
 	}
 	fmt.Fprintf(&report, "\nOverall SLO result: `%t`.\n\n", result.SLOPassed)
 	fmt.Fprintln(&report, "Allocations/op and bytes/op are process-wide deltas over the measured mixed workload after warm-up. Repeat with the same command on target hardware before treating this one-client result as a release gate.")
+	fmt.Fprintln(&report, "The client uses the SDK in-memory transport; this result excludes stdio, socket and network overhead.")
+	fmt.Fprintln(&report, "RSS is the process peak and includes synthetic corpus and HotSnapshot construction before measurement.")
 	if err := os.WriteFile(filepath.Join(outputDir, "report.md"), []byte(report.String()), 0o644); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
