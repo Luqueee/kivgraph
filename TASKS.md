@@ -7807,11 +7807,11 @@ reportarlo en cuanto exista. `last_update_at` sólo puede distinguirse de
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Comprobar que no existen:**
 
@@ -7824,11 +7824,61 @@ run_command
 register_repository
 ```
 
+**Implementación:**
+
+Se añadió `internal/mcp/surface_test.go` con cuatro comprobaciones sobre el
+servidor real, no sobre la lista de registros:
+
+```text
+la superficie es exactamente las 9 tools de PLAN.md 17.1
+ningún nombre publicado contiene un nombre prohibido de PLAN.md 17.2
+toda tool está anotada read-only y ninguna es destructiva
+llamar a un nombre prohibido falla
+```
+
+La lista prohibida cubre las seis del checklist más las de PLAN.md 17.2
+(`execute_query`, `refresh`, `rebuild`, `remove_repository`, `edit_file`). La
+comprobación es **por subcadena**, no por igualdad: un futuro `rebuild_graph` o
+`graph_index` pasaría una comparación exacta y rompería la misma regla.
+
+La ausencia del listado no bastaba como prueba, así que se comprueba también que
+la llamada directa falla: el SDK responde `-32602 unknown tool`.
+
+**Estado:** `PASS`.
+
 **Gate:**
 
 ```text
 MCP_SURFACE_PASS
 ```
+
+**Verificación:**
+
+```text
+go test ./internal/mcp -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/mcp/... -count=1
+make build
+```
+
+El guardián se validó por mutación: registrando temporalmente una tool
+`execute_cypher` en `newServer`, los tres tests de superficie fallaron —conteo,
+subcadena y llamada aceptada— y volvieron a pasar al revertirla. Un guardián que
+no se ha visto fallar no es un guardián.
+
+Contra el binario real, `tools/list` devuelve exactamente esas nueve, y
+`execute_cypher` y `rebuild` responden `{"code":-32602,"message":"unknown tool"}`.
+
+**Limitaciones:** la prueba cubre la superficie de *tools*. El servidor no
+registra prompts ni resources hoy, así que no hay nada que auditar en esos
+canales; si algún día se registran, esta prueba no los cubriría y habría que
+ampliarla. La superficie se comprueba sobre `NewServer()`; las variantes con
+`SnapshotStore` comparten el mismo `newServer`, de modo que registran el mismo
+conjunto.
+
+**Siguiente tarea:** LUQUE-1201.
 
 ---
 
