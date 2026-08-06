@@ -209,6 +209,12 @@ func symbolToSymbolTables() map[string]bool {
 // graph already stored in LadybugDB is what gets snapshotted.
 func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSnapshotRows, int, error) {
 	var rows hotsnapshot.LadybugSnapshotRows
+	// Provenance of the definitive graph, carried so a status query can name
+	// the schema and resolver behind the published snapshot. A graph written
+	// by an older loader may not record a resolver version; that gap travels
+	// as an empty string rather than as an invented default.
+	rows.SchemaVersion = graph.SchemaVersion
+	rows.ResolverVersion = graph.Metadata["resolver_version"]
 
 	rows.Repositories = make([]hotsnapshot.RepositoryRow, len(graph.Repositories))
 	for index, repository := range graph.Repositories {

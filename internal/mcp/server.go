@@ -40,7 +40,7 @@ func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore
 		Name:    serverName,
 		Version: version.Value,
 	}, nil)
-	tools.RegisterGraphStatusWithObserver(server, observer)
+	tools.RegisterGraphStatusWithObserverAndSnapshotStore(server, observer, snapshotStore, nil)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore)
 	tools.RegisterGetSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore)

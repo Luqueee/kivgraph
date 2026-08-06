@@ -11,7 +11,11 @@ var ErrInvalidSnapshotRows = errors.New("invalid snapshot rows")
 
 // LadybugSnapshotRows is the ordered, canonical row set read from LadybugDB.
 // Keys are durable database keys; the builder alone assigns dense snapshot IDs.
+// SchemaVersion and ResolverVersion describe the graph the rows were read
+// from, and are carried through to the snapshot's metadata unchanged.
 type LadybugSnapshotRows struct {
+	SchemaVersion       int
+	ResolverVersion     string
 	Repositories        []RepositoryRow
 	Packages            []PackageRow
 	Files               []FileRow
@@ -424,6 +428,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 
 	return NewGraphSnapshot(GraphSnapshotInput{
 		ID: snapshotID, CreatedAt: createdAt, Version: version, Strings: interner.Freeze(),
+		SchemaVersion: rows.SchemaVersion, ResolverVersion: rows.ResolverVersion,
 		Repositories: repositoryRecords, Packages: packageRecords, Files: fileRecords, Symbols: symbolRecords, Evidence: evidenceRecords,
 		PackageDependencies: packageDependencyRecords, Unresolved: unresolvedRecords,
 		ForwardOffsets: forwardOffsets, ForwardEdges: forwardEdges, ReverseOffsets: reverseOffsets, ReverseEdges: reverseEdges,

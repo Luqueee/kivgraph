@@ -7716,11 +7716,11 @@ aparece como caliente en LUQUE-1602, ese índice es el primer candidato.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe mostrar:**
 
@@ -7736,6 +7736,68 @@ aparece como caliente en LUQUE-1602, ese índice es el primer candidato.
 * última actualización;
 * salud del worker;
 * salud de LadybugDB.
+
+**Implementación:**
+
+`graph_status` deja de ser un literal `empty` y pasa a leer el snapshot
+publicado. Los datos vienen de tres sitios distintos, y ninguno se inventa.
+
+Del snapshot: id, `snapshot_built_at`, edad, versión de formato de fila, y los
+contadores de repositorios, paquetes, archivos, símbolos, evidencia, aristas,
+aristas de paquete y unresolved. `edges_by_kind` recorre la CSR forward una vez
+—cada arista aparece exactamente una vez bajo su origen— y `unresolved_by_reason`
+agrupa la tabla de referencias no resueltas.
+
+De la procedencia del grafo definitivo: `schema_version` y `resolver_version`.
+Antes se perdían al construir el snapshot. Ahora `LadybugSnapshotRows` los
+transporta, `convertCanonicalGraph` los toma de `CanonicalGraph.SchemaVersion` y
+de `Metadata["resolver_version"]`, y `SnapshotMetadata` los conserva, de modo que
+la consulta los declara sin reabrir LadybugDB. Un grafo escrito sin resolver
+registrado viaja con cadena vacía; no adquiere un valor por defecto.
+
+Del host: `last_rebuild_at`, `last_update_at` y la salud del worker y de
+LadybugDB, mediante una `HostStatusProbe` opcional que se inyecta al registrar
+la tool. Cuando no hay sonda, ambos componentes se reportan como
+`not_configured`, que es una afirmación sobre este despliegue, no sobre el
+componente: un worker no sondeado no es un worker sano.
+
+`graph_status` es la única tool que **no** falla sin snapshot: responde
+`status: "empty"`. La herramienta que se consulta para averiguar por qué las
+demás devuelven `INDEX_NOT_READY` no puede negarse a contestar.
+
+**Estado:** `PASS`.
+
+**Gate:** no hay un gate adicional definido para LUQUE-1111.
+
+**Verificación:**
+
+```text
+go test ./internal/mcp/tools -run TestGraphStatus -count=1
+go test ./internal/rebuild -run TestBuildSnapshotCarriesGraphProvenance -count=1
+go test ./... -count=1
+go test -tags ladybug ./... -count=1
+go vet ./...
+go test -race ./internal/mcp/... ./internal/hotsnapshot ./internal/rebuild -count=1
+make build
+```
+
+El smoke STDIO devolvió el estado real del binario tal y como está hoy:
+
+```json
+{"status":"empty","repositories":0,"symbols":0,"edges_by_kind":[],
+ "unresolved_by_reason":[],"worker":{"state":"not_configured"},
+ "storage":{"state":"not_configured"}}
+```
+
+**Limitaciones:** `serve` todavía no cablea ni un `SnapshotStore` ni una
+`HostStatusProbe` —`mcpserver.Run` pasa `nil`—, así que el binario publicado
+responde `empty` y `not_configured` con exactitud. Cablear el ciclo
+rebuild/publicación al proceso servidor es trabajo de la fase de watcher e
+indexación incremental, no de esta tarea; `graph_status` ya está preparado para
+reportarlo en cuanto exista. `last_update_at` sólo puede distinguirse de
+`last_rebuild_at` cuando ese ciclo publique actualizaciones incrementales.
+
+**Siguiente tarea:** LUQUE-1112.
 
 ---
 

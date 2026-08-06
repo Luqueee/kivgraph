@@ -3,9 +3,14 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
 func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
@@ -71,4 +76,145 @@ func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
 	if response.Total != 1 || response.Returned != 1 || response.Truncated {
 		t.Fatalf("response metadata = %#v, want one untruncated status result", response)
 	}
+}
+
+// TestGraphStatusReportsPublishedSnapshotProvenanceAndCounts is the whole point
+// of the tool: what is being served, where it came from, and what it holds.
+func TestGraphStatusReportsPublishedSnapshotProvenanceAndCounts(t *testing.T) {
+	store := graphStatusStore(t, 61)
+
+	_, response, err := graphStatus(context.Background(), nil, struct{}{}, store, nil)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	status := response.Results
+	if status.Status != GraphStatusReady {
+		t.Fatalf("status = %q, want %q", status.Status, GraphStatusReady)
+	}
+	if response.SnapshotID == nil || *response.SnapshotID != 61 || response.SnapshotAgeMS == nil {
+		t.Fatalf("envelope snapshot metadata = %#v", response)
+	}
+	if status.SchemaVersion != 2 || status.ResolverVersion != "resolver-v7" || status.SnapshotRowFormat != 1 {
+		t.Fatalf("provenance = %#v, want the schema and resolver behind the graph", status)
+	}
+	if status.SnapshotBuiltAt != "2023-11-14T22:13:20Z" {
+		t.Fatalf("snapshot_built_at = %q", status.SnapshotBuiltAt)
+	}
+	if status.Repositories != 2 || status.Packages != 2 || status.Files != 2 || status.Symbols != 3 ||
+		status.Edges != 2 || status.Unresolved != 2 {
+		t.Fatalf("counts = %#v", status)
+	}
+	wantEdges := []GraphStatusCount{
+		{Key: string(facts.CallsDirect), Count: 1},
+		{Key: string(facts.References), Count: 1},
+	}
+	if len(status.EdgesByKind) != 2 || status.EdgesByKind[0] != wantEdges[0] || status.EdgesByKind[1] != wantEdges[1] {
+		t.Fatalf("edges_by_kind = %#v, want %#v", status.EdgesByKind, wantEdges)
+	}
+	wantReasons := []GraphStatusCount{
+		{Key: "PACKAGE_PROVIDER_NOT_FOUND", Count: 1},
+		{Key: "package_not_found", Count: 1},
+	}
+	if len(status.UnresolvedByReason) != 2 || status.UnresolvedByReason[0] != wantReasons[0] || status.UnresolvedByReason[1] != wantReasons[1] {
+		t.Fatalf("unresolved_by_reason = %#v, want %#v", status.UnresolvedByReason, wantReasons)
+	}
+	// No probe was wired, so health must say so rather than claim success.
+	if status.Worker.State != HealthNotConfigured || status.Storage.State != HealthNotConfigured {
+		t.Fatalf("health without a probe = %#v/%#v, want %q", status.Worker, status.Storage, HealthNotConfigured)
+	}
+	if status.LastRebuildAt != "" || status.LastUpdateAt != "" {
+		t.Fatalf("host timestamps without a probe = %q/%q, want empty", status.LastRebuildAt, status.LastUpdateAt)
+	}
+}
+
+func TestGraphStatusReportsHostProbeResults(t *testing.T) {
+	store := graphStatusStore(t, 62)
+	probe := func(context.Context) (HostStatus, error) {
+		return HostStatus{
+			LastRebuildAt: time.Unix(1_700_000_100, 0).UTC(),
+			LastUpdateAt:  time.Unix(1_700_000_200, 0).UTC(),
+			Worker:        ComponentHealth{State: "healthy", Detail: "typescript worker v1"},
+			Storage:       ComponentHealth{State: "degraded", Detail: "integrity sample pending"},
+		}, nil
+	}
+
+	_, response, err := graphStatus(context.Background(), nil, struct{}{}, store, probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := response.Results
+	if status.LastRebuildAt != "2023-11-14T22:15:00Z" || status.LastUpdateAt != "2023-11-14T22:16:40Z" {
+		t.Fatalf("host timestamps = %q/%q", status.LastRebuildAt, status.LastUpdateAt)
+	}
+	if status.Worker.State != "healthy" || status.Storage.State != "degraded" {
+		t.Fatalf("health = %#v/%#v", status.Worker, status.Storage)
+	}
+}
+
+// TestGraphStatusAnswersWithoutASnapshot keeps the tool usable for the one
+// question it exists to answer when everything else is refusing to serve.
+func TestGraphStatusAnswersWithoutASnapshot(t *testing.T) {
+	for name, store := range map[string]*hotsnapshot.SnapshotStore{
+		"missing store":        nil,
+		"unpublished snapshot": hotsnapshot.NewSnapshotStore(nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, response, err := graphStatus(context.Background(), nil, struct{}{}, store, nil)
+			if err != nil {
+				t.Fatalf("graphStatus() error = %v, want an empty status", err)
+			}
+			status := response.Results
+			if status.Status != GraphStatusEmpty || status.Symbols != 0 || len(status.EdgesByKind) != 0 {
+				t.Fatalf("status = %#v, want empty", status)
+			}
+			if response.SnapshotID != nil || response.SnapshotAgeMS != nil {
+				t.Fatalf("envelope = %#v, want no snapshot identity", response)
+			}
+		})
+	}
+}
+
+func TestGraphStatusClassifiesProbeFailure(t *testing.T) {
+	probe := func(context.Context) (HostStatus, error) { return HostStatus{}, errors.New("probe timed out") }
+	_, _, err := graphStatus(context.Background(), nil, struct{}{}, graphStatusStore(t, 63), probe)
+	if got := ErrorCode(err); got != CodeSnapshotUnavailable {
+		t.Fatalf("error code = %q, want %q (err=%v)", got, CodeSnapshotUnavailable, err)
+	}
+}
+
+func graphStatusStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		SchemaVersion:   2,
+		ResolverVersion: "resolver-v7",
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-go", Name: "go", Languages: "go"},
+			{Key: "repo-ts", Name: "ts", Languages: "ts"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "pkg-go", RepositoryKey: "repo-go", Language: "go", Name: "go", ModulePath: "example.com/go"},
+			{Key: "pkg-ts", RepositoryKey: "repo-ts", Language: "ts", Name: "ts", ModulePath: "@acme/ts"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-go", RepositoryKey: "repo-go", PackageKey: "pkg-go", Path: "main.go", Language: "go"},
+			{Key: "file-ts", RepositoryKey: "repo-ts", PackageKey: "pkg-ts", Path: "index.ts", Language: "ts"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-a", CanonicalIdentity: "go:a", FileKey: "file-go", Language: "go", Name: "A", QualifiedName: "go.A", Kind: "func"},
+			{StableKey: "sym-b", CanonicalIdentity: "go:b", FileKey: "file-go", Language: "go", Name: "B", QualifiedName: "go.B", Kind: "func"},
+			{StableKey: "sym-c", CanonicalIdentity: "ts:c", FileKey: "file-ts", Language: "ts", Name: "C", QualifiedName: "ts.C", Kind: "function"},
+		},
+		Edges: []hotsnapshot.EdgeRow{
+			{SourceKey: "sym-a", TargetKey: "sym-b", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-go", EvidenceTargetFileKey: "file-go"},
+			{SourceKey: "sym-c", TargetKey: "sym-a", Kind: facts.CodeReferences, Confidence: facts.CodeCandidate, Provenance: facts.CodeTreeSitterSyntax, EvidenceKind: "syntax", EvidenceSourceFileKey: "file-ts", EvidenceTargetFileKey: "file-go"},
+		},
+		Unresolved: []hotsnapshot.UnresolvedReferenceRow{
+			{Key: "unresolved-go", RepositoryKey: "repo-go", Language: "go", RequestedPackage: "example.com/missing", Reason: "package_not_found"},
+			{Key: "unresolved-ts", RepositoryKey: "repo-ts", Language: "ts", RequestedPackage: "@acme/other", Reason: "PACKAGE_PROVIDER_NOT_FOUND"},
+		},
+	}, id, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
 }

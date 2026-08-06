@@ -131,6 +131,36 @@ func TestBuildSnapshotProducesQueryableGraphFromCanonicalData(t *testing.T) {
 	}
 }
 
+// TestBuildSnapshotCarriesGraphProvenance covers what graph_status reports:
+// the schema and resolver behind the published snapshot must come from the
+// definitive graph, and a graph that records no resolver must not acquire one.
+func TestBuildSnapshotCarriesGraphProvenance(t *testing.T) {
+	graph := fakeCanonicalGraph()
+	graph.Metadata = map[string]string{"resolver_version": "resolver-v9"}
+	snapshot, _, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: "x", SnapshotID: 4, Scan: fixedScan(graph),
+	})
+	if err != nil {
+		t.Fatalf("BuildSnapshot() error = %v", err)
+	}
+	metadata := snapshot.Metadata()
+	if metadata.SchemaVersion != ladybug.CanonicalSchemaVersion || metadata.ResolverVersion != "resolver-v9" {
+		t.Fatalf("provenance = %d/%q, want %d/%q", metadata.SchemaVersion, metadata.ResolverVersion,
+			ladybug.CanonicalSchemaVersion, "resolver-v9")
+	}
+
+	withoutResolver := fakeCanonicalGraph()
+	bare, _, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: "x", SnapshotID: 5, Scan: fixedScan(withoutResolver),
+	})
+	if err != nil {
+		t.Fatalf("BuildSnapshot() error = %v", err)
+	}
+	if resolver := bare.Metadata().ResolverVersion; resolver != "" {
+		t.Fatalf("ResolverVersion = %q, want empty for a graph that records none", resolver)
+	}
+}
+
 // TestBuildSnapshotIsDeterministicAcrossBuildsAndSensitiveToContent is the
 // (b) contract: two builds of the same graph (under different SnapshotID
 // and DatabasePath, exactly as two different generations would be) agree

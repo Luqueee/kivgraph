@@ -111,6 +111,13 @@ type GraphSnapshotInput struct {
 	CreatedAt time.Time
 	Version   uint32
 
+	// SchemaVersion and ResolverVersion are provenance of the definitive
+	// graph this snapshot was derived from, not of the snapshot format:
+	// Version above covers that. They travel with the snapshot so a status
+	// query can state them without reopening LadybugDB.
+	SchemaVersion   int
+	ResolverVersion string
+
 	Strings      StringTable
 	Repositories []RepositoryRecord
 	Packages     []PackageRecord
@@ -134,10 +141,12 @@ type GraphSnapshotInput struct {
 
 // SnapshotMetadata contains versioned, immutable snapshot metadata.
 type SnapshotMetadata struct {
-	ID        uint64
-	CreatedAt time.Time
-	Version   uint32
-	Counts    IDCounts
+	ID              uint64
+	CreatedAt       time.Time
+	Version         uint32
+	SchemaVersion   int
+	ResolverVersion string
+	Counts          IDCounts
 }
 
 // GraphSnapshot is an immutable in-memory graph. Its fields remain private so
@@ -205,8 +214,11 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		Unresolved:   uint64(len(input.Unresolved)),
 	}
 	snapshot := &GraphSnapshot{
-		metadata: SnapshotMetadata{ID: input.ID, CreatedAt: input.CreatedAt, Version: input.Version, Counts: counts},
-		strings:  input.Strings,
+		metadata: SnapshotMetadata{
+			ID: input.ID, CreatedAt: input.CreatedAt, Version: input.Version,
+			SchemaVersion: input.SchemaVersion, ResolverVersion: input.ResolverVersion, Counts: counts,
+		},
+		strings: input.Strings,
 
 		repositories: append([]RepositoryRecord(nil), input.Repositories...),
 		packages:     append([]PackageRecord(nil), input.Packages...),
