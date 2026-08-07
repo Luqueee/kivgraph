@@ -26,6 +26,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 	"github.com/Luqueee/ladygraph/internal/synthetic"
+	"github.com/Luqueee/ladygraph/internal/upgrade"
 	"github.com/Luqueee/ladygraph/internal/version"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
@@ -200,6 +201,9 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if len(args) >= 3 && args[1] == "benchmark" && args[2] == "generate-graph" {
 		return runGenerateGraph(args[3:], stdout, stderr)
 	}
+	if len(args) >= 2 && args[1] == "upgrade" {
+		return runUpgrade(args[2:], stdout, stderr)
+	}
 	if len(args) >= 2 && args[1] == "rebuild" {
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
 	}
@@ -213,7 +217,7 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 		return runSnapshot(args[2:], stdout, stderr, build)
 	}
 
-	fmt.Fprintf(stderr, "usage: %s version [--json]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version [--json]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|upgrade [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]\n", args[0])
 	return 2
 }
 
@@ -431,6 +435,80 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "index --full: rebuild: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runUpgrade(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("upgrade", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configPath := ""
+	repositoriesPath := ""
+	resolverVersion := version.Value
+	flags.StringVar(&configPath, "config", "", "configuration file")
+	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file override")
+	flags.StringVar(&resolverVersion, "resolver-version", resolverVersion, "resolver version recorded in the graph")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "upgrade: unexpected arguments: %v\n", flags.Args())
+		return 2
+	}
+
+	ctx := context.Background()
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "upgrade: load configuration: %v\n", err)
+		return 1
+	}
+	if repositoriesPath != "" {
+		loaded.Repositories, err = config.LoadRepositories(repositoriesPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "upgrade: load repositories: %v\n", err)
+			return 1
+		}
+	}
+	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
+	if err != nil {
+		fmt.Fprintf(stderr, "upgrade: register repositories: %v\n", err)
+		return 1
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(stderr, "upgrade: resolve working directory: %v\n", err)
+		return 1
+	}
+	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	report, err := upgrade.Run(ctx, upgrade.Options{
+		Root:            root,
+		BackupRoot:      loaded.Config.Storage.BackupsPath,
+		ResolverVersion: resolverVersion,
+		Full: indexer.FullOptions{
+			Repositories:      registry.List(),
+			SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
+			IncludeTests:      loaded.Config.Go.IncludeTests,
+			TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
+			WorkingDirectory:  workingDirectory,
+		},
+	})
+	for _, stage := range report.Stages {
+		fmt.Fprintf(stdout, "upgrade.%s: %s", stage.Name, passFail(stage.Passed))
+		if stage.Detail != "" {
+			fmt.Fprintf(stdout, " (%s)", stage.Detail)
+		}
+		fmt.Fprintln(stdout)
+	}
+	if report.BackupPath != "" {
+		fmt.Fprintf(stdout, "upgrade.backup: %s\n", report.BackupPath)
+	}
+	if report.To.ID != "" {
+		fmt.Fprintf(stdout, "upgrade.generation: %s\n", report.To.ID)
+	}
+	fmt.Fprintf(stdout, "upgrade: %s\n", passFail(err == nil && report.Passed))
+	if err != nil {
+		fmt.Fprintf(stderr, "upgrade: %v\n", err)
 		return 1
 	}
 	return 0

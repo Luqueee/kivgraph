@@ -102,6 +102,34 @@ func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
 	}
 }
 
+func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	var initStdout, initStderr bytes.Buffer
+	if got := run([]string{
+		"ladygraph",
+		"init",
+		"--config", configPath,
+		"--repositories", repositoriesPath,
+	}, &initStdout, &initStderr); got != 0 {
+		t.Fatalf("init exit code = %d, stderr=%q", got, initStderr.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"ladygraph", "upgrade", "--config", configPath}, &stdout, &stderr); got != 1 {
+		t.Fatalf("upgrade exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "no published generation") {
+		t.Fatalf("upgrade stderr = %q, want no-generation failure", stderr.String())
+	}
+}
+
 func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")

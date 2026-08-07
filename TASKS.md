@@ -9680,11 +9680,11 @@ silenciosamente.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Debe incluir:**
 
@@ -9693,6 +9693,41 @@ silenciosamente.
 * migración;
 * validación;
 * rollback.
+
+**Estado:** `PASS`.
+
+**Implementación:**
+
+* `internal/upgrade` detecta la generación activa y la versión canónica,
+  crea backups deterministas con manifiesto y SHA-256, reindexa desde los
+  repositorios registrados y delega la publicación en el pipeline validado de
+  `rebuild.Run`.
+* Los fallos previos a la publicación conservan `CURRENT`; un fallo de
+  validación posterior restaura la generación anterior solo después de
+  verificarla contra el backup.
+* `ladygraph upgrade` expone las etapas y sus detalles, y rechaza schemas
+  sintéticos, versiones posteriores y generaciones no publicadas.
+
+**Verificación:** `gofmt -l`, `go vet ./...`, `go test ./... -count=1`,
+`make build`, `make test-ladybug`, `cd ts-worker && pnpm check` y
+`cd ts-worker && pnpm build` pasaron. Las pruebas cubren no-op de schema actual,
+backup idempotente, corrupción, rutas inseguras, migración, fallos de extracción,
+rollback validado y rechazo de schemas incompatibles.
+
+**Smoke real:** con un `HOME` temporal, `ladygraph index --full` creó una
+generación canónica con LadybugDB v0.13.1; se cambió `GraphMetadata.schema_version`
+a `1`, `ladygraph upgrade` publicó `000002` con backup `001-to-002` y todas las
+etapas en `PASS`; `ladygraph rollback --generation 000001` restauró `000001` con
+digest e invariantes en `PASS`.
+
+**Limitaciones:** solo se reconstruye un schema canónico anterior cuya forma
+puede diagnosticar esta versión; un schema sintético, posterior, corrupto o con
+forma desconocida se rechaza explícitamente. El upgrade requiere espacio
+simultáneo para el backup y una reconstrucción full.
+
+**ADR:** `docs/adr/0016-schema-upgrade.md`.
+
+**Siguiente tarea:** LUQUE-1506.
 
 ---
 

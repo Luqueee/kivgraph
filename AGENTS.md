@@ -79,6 +79,11 @@ integridad, compatibilidad o verificación descritos aquí.
   contrato exige el HotSnapshot publicado.
 - No mezclar el esquema experimental `001-synthetic` con el canónico `002`.
 
+- Un upgrade de schema incompatible debe detectar la versión, respaldar y
+  verificar la generación activa antes de reconstruir desde repositorios fuente.
+  Solo una generación candidata que pase integridad y validación puede cambiar
+  `CURRENT`; un rollback debe comprobar los digests del backup.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance:
