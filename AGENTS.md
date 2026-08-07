@@ -131,6 +131,8 @@ cuando sea aplicable.
   el bundle obtiene provenance del `manifest.json` y valida el digest de
   `grammars/manifest.json`; los valores no observables se representan como
   `null`.
+- `SHA256SUMS` lista hashes SHA-256 de `manifest.json` y del payload en orden
+  lexicográfico; se verifica con `sha256sum -c` y no se incluye a sí mismo.
 
 ## Entrega
 

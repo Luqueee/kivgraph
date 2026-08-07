@@ -9574,13 +9574,46 @@ versión embebida de TypeScript si no existe el bundle; esos campos quedan
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 Generar SHA-256 de todos los artefactos.
+
+**Estado:** `PASS`.
+
+**Implementación:** `make build-linux-amd64` genera `SHA256SUMS` en la raíz
+del bundle después de escribir `manifest.json`. Contiene una entrada
+lexicográficamente ordenada para `manifest.json` y cada archivo de `bin/`,
+`lib/`, `worker/`, `grammars/` y `licenses/`; el propio `SHA256SUMS` queda
+fuera del listado para evitar una dependencia circular. El script ejecuta
+`sha256sum -c SHA256SUMS` antes de publicar la ruta del bundle.
+
+**Entregables:**
+
+```text
+scripts/build-linux-amd64.sh
+docs/adr/0015-linux-amd64-distribution.md
+AGENTS.md
+TASKS.md
+dist/ladygraph-linux-amd64/SHA256SUMS
+```
+
+**Verificación:** `bash -n scripts/build-linux-amd64.sh`, `go vet ./...`,
+`go test ./... -count=1` y `make build` pasaron. `make build-linux-amd64`
+generó 589 entradas; `cd dist/ladygraph-linux-amd64 && sha256sum -c
+SHA256SUMS` devolvió `OK` para todas. Una segunda generación en
+`/tmp/ladygraph-linux-amd64-second` produjo un `SHA256SUMS` idéntico mediante
+`cmp`.
+
+**Limitaciones:** `dist/` y los bundles temporales son artefactos generados e
+ignorados por Git. `SHA256SUMS` no se hashea a sí mismo; la reproducibilidad
+entre checkouts limpios y la publicación de checksums queda cubierta por
+LUQUE-1508.
+
+**Siguiente tarea desbloqueada:** LUQUE-1504.
 
 ---
 

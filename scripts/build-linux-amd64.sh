@@ -180,5 +180,24 @@ $(write_artifacts)
 }
 EOF
 
+write_checksums() {
+  local relative
+  (
+    cd "$output_dir"
+    {
+      find bin lib worker grammars licenses -type f -print
+      printf '%s\n' manifest.json
+    } | LC_ALL=C sort | while IFS= read -r relative; do
+      sha256sum "$relative"
+    done
+  )
+}
+
+write_checksums > "$output_dir/SHA256SUMS"
+(
+  cd "$output_dir"
+  sha256sum -c SHA256SUMS >/dev/null
+)
+
 printf 'build-linux-amd64: bundle ready: %s\n' "$output_dir" >&2
 printf '%s\n' "$output_dir"

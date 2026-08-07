@@ -32,6 +32,7 @@ licenses/LICENSE
 licenses/THIRD_PARTY_NOTICES.md
 licenses/third-party/**
 manifest.json
+SHA256SUMS
 ```
 
 El ejecutable Go se compila con `-tags ladybug`, `-trimpath`, `CGO_ENABLED=1`
@@ -75,8 +76,14 @@ build desde un árbol modificado no falla, pero `manifest.json` marca
   amd64 y las bibliotecas estándar del sistema.
 - El `RUNPATH` permite ejecutar `bin/ladygraph` directamente desde el bundle,
   sin `LD_LIBRARY_PATH`.
+
 - Los hashes de payload permiten detectar alteraciones después de la
   generación.
+
+`SHA256SUMS` enumera, en orden lexicográfico y con rutas relativas al bundle,
+el SHA-256 de `manifest.json` y de cada payload. El archivo se verifica con
+`sha256sum -c`; se excluye a sí mismo porque incluirlo produciría una
+dependencia circular.
 - Las licencias de módulos Go con archivo `LICENSE` se incluyen bajo
   `licenses/third-party/`; la procedencia y los enlaces de la licencia del
   core nativo se mantienen en `THIRD_PARTY_NOTICES.md`.
