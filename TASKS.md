@@ -10400,16 +10400,62 @@ no exista, el bundle Linux se genera con el fallback y sin directorio `web/`.
 
 **Checklist:**
 
-- [ ] Verificar pines de pnpm, Node, Biome, Vitest y TypeScript.
-- [ ] Crear configuración Vite, React, TS strict y ESM.
-- [ ] Crear scripts `check`, `build`, `test` y `typecheck`.
-- [ ] Añadir lockfile y excluir `dist/` generado.
+- [x] Verificar pines de pnpm, Node, Biome, Vitest y TypeScript.
+- [x] Crear configuración Vite, React, TS strict y ESM.
+- [x] Crear scripts `check`, `build`, `test` y `typecheck`.
+- [x] Añadir lockfile y excluir `dist/` generado.
 
 **Criterios de aceptación:**
 
 - El paquete compila con el typecheck nativo fijado.
 - Biome y Vitest pasan sin depender de servicios externos.
 - El paquete no modifica ni importa internals privados de `ts-worker`.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `web/package.json`, `web/pnpm-lock.yaml` y `web/components.json`;
+* `web/index.html`, `web/vite.config.ts`, `web/vitest.config.ts`,
+  `web/tsconfig.json`, `web/tsconfig.node.json` y `web/biome.json`;
+* `web/src/main.tsx`, `web/src/App.tsx`, `web/src/App.test.tsx`,
+  `web/src/index.css`, `web/src/lib/utils.ts` y el `Button` generado por
+  shadcn CLI.
+
+**Archivos modificados:**
+
+* `.gitignore`;
+* `.github/workflows/ci.yml`;
+* `AGENTS.md`;
+* `docs/installation.md` y `docs/adr/0018-react-vite-threejs-viewer.md`.
+
+**Tests ejecutados:**
+
+* `pnpm dlx shadcn@latest init --template vite --base radix --preset nova
+  --no-monorepo --cwd web --force --yes`;
+* `pnpm --dir web install --frozen-lockfile`;
+* `pnpm --dir web check`;
+* `pnpm --dir web build`;
+* smoke visual con Vite en `127.0.0.1:4173` y navegador Chromium.
+
+**Resultados:**
+
+* El paquete usa React `19.2.8`, Vite `8.2.1`, Tailwind CSS `4.3.3`,
+  Biome `2.5.7`, Vitest `4.1.10` y TypeScript `7.0.2`.
+* `shadcn@latest` inicializó el preset Radix Nova, `components.json`, tokens
+  Tailwind, `tw-animate-css`, Geist y el componente `Button`.
+* `check` pasó con 2 tests; `build` generó `web/dist` con `index.html`, CSS,
+  JavaScript y fuentes Geist.
+* El smoke visual confirmó el shell, los tokens y la navegación de anclas sin
+  servicios externos.
+
+**Benchmarks:** no aplica.
+
+**Limitaciones:** esta tarea crea la aplicación y sus primitives; el renderer
+  Three.js de buffers y el chrome funcional del visor pertenecen a
+  LUQUE-1710 y LUQUE-1711.
+
+**Siguiente tarea desbloqueada:** LUQUE-1710.
 
 ---
 

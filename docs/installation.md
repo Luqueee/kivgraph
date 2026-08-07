@@ -39,7 +39,7 @@ Para compilar desde un checkout se necesitan:
 
 - Go `1.24` o posterior, con la versión de toolchain fijada por `go.mod`;
 - Node.js `22` o posterior;
-- pnpm `11.5.1` (la versión declarada en `ts-worker/package.json`);
+- pnpm `11.5.1`, fijado en `ts-worker/package.json` y `web/package.json`;
 - un compilador C y las herramientas de enlace de la plataforma;
 - `git`, `curl`, `make`, `sha256sum` y `tar`.
 

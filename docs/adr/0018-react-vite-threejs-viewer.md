@@ -19,10 +19,11 @@ de interacción rápida.
 1. La aplicación vivirá en `web/` como paquete TypeScript independiente. En
    la primera iteración conservará su lockfile y lifecycle separado de
    `ts-worker`; la CI tendrá pasos explícitos para ambos paquetes.
-2. El stack será React + Vite + Three.js. React gestionará búsqueda, filtros,
-   selección, paneles y estados pequeños; Three.js será imperativo dentro de
-   un componente de escena estable. No se adoptará React Three Fiber sin un
-   benchmark que justifique el coste de otra capa de reconciliación.
+2. El stack será React + Vite + Three.js + Tailwind CSS. Los primitives de UI
+   se inicializarán y añadirán mediante `pnpm dlx shadcn@latest init`, con el
+   preset Radix Nova y variables CSS; no se adoptará una segunda librería de
+   estilos ni React Three Fiber sin un benchmark que justifique el coste de
+   otra capa de reconciliación.
 3. El paquete mantendrá `strict: true`, ESM, Biome y Vitest, fijará pnpm
    11.5.1 y Node 22, y usará un `check` que cubra formato, lint, typecheck y
    tests. `dist/` será generado y nunca editado manualmente.

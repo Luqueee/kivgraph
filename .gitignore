@@ -7,6 +7,9 @@
 ts-worker/node_modules/
 ts-worker/dist/
 ts-worker/coverage/
+web/node_modules/
+web/dist/
+web/coverage/
 benchmarks/**/node_modules/
 
 testdata/generated/

@@ -74,6 +74,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
   Vitest; los buffers grandes de Three.js permanecen fuera del estado React y
   `web/dist` se regenera con el build de Vite.
+- `web/` se inicializa con `pnpm dlx shadcn@latest init`; los componentes UI
+  deben añadirse mediante esa CLI y usar Tailwind CSS, no una segunda librería
+  de estilos ni copias manuales del catálogo.
 - `ladygraph ui` es opt-in, sirve solo el `HotSnapshot` publicado por HTTP
   read-only y mantiene `127.0.0.1:7777` como bind por defecto; un bind no
   loopback debe emitir una advertencia de seguridad.

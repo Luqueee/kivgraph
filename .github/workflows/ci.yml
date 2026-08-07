@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   verify:
-    name: Verify Go and TypeScript
+    name: Verify Go and web packages
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -52,7 +52,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: ts-worker/pnpm-lock.yaml
+          cache-dependency-path: |
+            ts-worker/pnpm-lock.yaml
+            web/pnpm-lock.yaml
 
       - name: Install TypeScript worker
         working-directory: ts-worker
@@ -76,6 +78,18 @@ jobs:
 
       - name: Build TypeScript worker
         working-directory: ts-worker
+        run: pnpm build
+
+      - name: Install web package
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Check web package
+        working-directory: web
+        run: pnpm check
+
+      - name: Build web package
+        working-directory: web
         run: pnpm build
 
   ladybug:
