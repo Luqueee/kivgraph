@@ -5,13 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/layout"
 )
 
 const APIVersion = "v1"
@@ -21,6 +26,9 @@ const (
 	maxSearchLimit     = hotsnapshot.MaxExactResults
 	defaultDepth       = 3
 	defaultMaxNodes    = 1000
+
+	defaultTileMaxNodes = 10_000
+	maxRequestURIBytes  = 8 * 1024
 )
 
 var errSnapshotUnavailable = errors.New("snapshot is not published")
@@ -30,6 +38,10 @@ var errSnapshotUnavailable = errors.New("snapshot is not published")
 type Handler struct {
 	store  *hotsnapshot.SnapshotStore
 	logger *slog.Logger
+
+	layoutMu               sync.Mutex
+	cachedLayout           *layout.Layout
+	cachedLayoutSnapshotID uint64
 }
 
 // NewHandler creates an HTTP handler backed by store. A nil store is valid and
@@ -43,6 +55,10 @@ func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		handler.writeError(writer, request, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only GET and HEAD are supported")
 		return
 	}
+	if status, code, message := validateHTTPRequest(request); status != 0 {
+		handler.writeError(writer, request, status, code, message)
+		return
+	}
 
 	switch request.URL.Path {
 	case "/healthz":
@@ -53,6 +69,8 @@ func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		handler.search(writer, request)
 	case "/api/v1/symbol":
 		handler.symbol(writer, request)
+	case "/api/v1/tiles":
+		handler.tiles(writer, request)
 	case "/api/v1/neighborhood":
 		handler.neighborhood(writer, request)
 	default:
@@ -246,8 +264,179 @@ func (handler *Handler) search(writer http.ResponseWriter, request *http.Request
 		Results:    results,
 	})
 }
+func (handler *Handler) tiles(writer http.ResponseWriter, request *http.Request) {
+	if err := validateViewerBinaryVersion(request.URL.Query().Get("format_version")); err != nil {
+		handler.writeError(writer, request, http.StatusBadRequest, "UNSUPPORTED_VERSION", "viewer binary version is unsupported")
+		return
+	}
+	query, ok := tileArguments(request)
+	if !ok {
+		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "tile bounds, lod or max_nodes are invalid")
+		return
+	}
+	snapshot := handler.snapshot(writer, request)
+	if snapshot == nil {
+		return
+	}
+	viewerLayout, err := handler.viewerLayout(request.Context(), snapshot)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			handler.writeError(writer, request, http.StatusGatewayTimeout, "REQUEST_CANCELED", "layout construction was canceled")
+			return
+		}
+		handler.writeError(writer, request, http.StatusInternalServerError, "SNAPSHOT_UNAVAILABLE", "snapshot layout is unavailable")
+		return
+	}
+	result, err := viewerLayout.QueryViewport(query)
+	if err != nil {
+		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "tile viewport is invalid")
+		return
+	}
+	payload, err := encodeTilePayload(request.Context(), snapshot, result.Nodes, result.Truncated, query.MaxLevel)
+	if err != nil {
+		if errors.Is(err, errViewerPayloadTooLarge) {
+			handler.writeError(writer, request, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "tile payload exceeds the configured limit")
+			return
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			handler.writeError(writer, request, http.StatusGatewayTimeout, "REQUEST_CANCELED", "tile encoding was canceled")
+			return
+		}
+		handler.writeError(writer, request, http.StatusInternalServerError, "SNAPSHOT_UNAVAILABLE", "snapshot edge indexes are inconsistent")
+		return
+	}
+	handler.writeBinary(writer, request, http.StatusOK, payload)
+}
+
+func (handler *Handler) neighborhoodBinary(writer http.ResponseWriter, request *http.Request) {
+	if err := validateViewerBinaryVersion(request.URL.Query().Get("format_version")); err != nil {
+		handler.writeError(writer, request, http.StatusBadRequest, "UNSUPPORTED_VERSION", "viewer binary version is unsupported")
+		return
+	}
+	stableKey, ok := requiredQuery(request, "stable_key")
+	if !ok {
+		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "stable_key is required")
+		return
+	}
+	depth, maxNodes, direction, valid := neighborhoodArguments(request)
+	if !valid {
+		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "neighborhood bounds or direction are invalid")
+		return
+	}
+	snapshot := handler.snapshot(writer, request)
+	if snapshot == nil {
+		return
+	}
+	root, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(stableKey))
+	if !found {
+		handler.writeError(writer, request, http.StatusNotFound, "SYMBOL_NOT_FOUND", "symbol was not found")
+		return
+	}
+	visits, truncated, err := collectNeighborhood(request.Context(), snapshot, root, depth, maxNodes, direction)
+	if err != nil {
+		if errors.Is(err, hotsnapshot.ErrTraversalTimeout) {
+			handler.writeError(writer, request, http.StatusGatewayTimeout, "TRAVERSAL_LIMIT_REACHED", "neighborhood traversal timed out")
+			return
+		}
+		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "neighborhood bounds are invalid")
+		return
+	}
+	payload, err := encodeNeighborhoodPayload(request.Context(), snapshot, visits, truncated)
+	if err != nil {
+		if errors.Is(err, errViewerPayloadTooLarge) {
+			handler.writeError(writer, request, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "neighborhood payload exceeds the configured limit")
+			return
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			handler.writeError(writer, request, http.StatusGatewayTimeout, "REQUEST_CANCELED", "neighborhood encoding was canceled")
+			return
+		}
+		handler.writeError(writer, request, http.StatusInternalServerError, "SNAPSHOT_UNAVAILABLE", "snapshot edge indexes are inconsistent")
+		return
+	}
+	handler.writeBinary(writer, request, http.StatusOK, payload)
+}
+
+func viewerResponseIsBinary(request *http.Request) (bool, error) {
+	format := request.URL.Query().Get("format")
+	switch format {
+	case "", "json":
+	case "bin", "binary":
+		return true, nil
+	default:
+		return false, errors.New("unsupported viewer response format")
+	}
+	accept := strings.ToLower(request.Header.Get("Accept"))
+	return strings.Contains(accept, "application/octet-stream"), nil
+}
+
+func tileArguments(request *http.Request) (layout.ViewportQuery, bool) {
+	minX, ok := requiredCoord(request, "min_x")
+	if !ok {
+		return layout.ViewportQuery{}, false
+	}
+	minY, ok := requiredCoord(request, "min_y")
+	if !ok {
+		return layout.ViewportQuery{}, false
+	}
+	maxX, ok := requiredCoord(request, "max_x")
+	if !ok {
+		return layout.ViewportQuery{}, false
+	}
+	maxY, ok := requiredCoord(request, "max_y")
+	if !ok || minX >= maxX || minY >= maxY {
+		return layout.ViewportQuery{}, false
+	}
+	levelValue, ok := optionalInt(request, "lod", int(layout.LODSymbols))
+	if !ok || levelValue < int(layout.LODRepositories) || levelValue > int(layout.LODSymbols) {
+		return layout.ViewportQuery{}, false
+	}
+	maxNodes, ok := optionalInt(request, "max_nodes", defaultTileMaxNodes)
+	if !ok || maxNodes < 1 || maxNodes > defaultTileMaxNodes {
+		return layout.ViewportQuery{}, false
+	}
+	return layout.ViewportQuery{
+		Bounds:   layout.Rect{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY},
+		MaxLevel: layout.LOD(levelValue),
+		MaxNodes: maxNodes,
+	}, true
+}
+
+func requiredCoord(request *http.Request, key string) (layout.Coord, bool) {
+	value := request.URL.Query().Get(key)
+	if value == "" {
+		return 0, false
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	return layout.Coord(parsed), err == nil
+}
+
+func (handler *Handler) viewerLayout(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot) (*layout.Layout, error) {
+	metadata := snapshot.Metadata()
+	handler.layoutMu.Lock()
+	defer handler.layoutMu.Unlock()
+	if handler.cachedLayout != nil && handler.cachedLayoutSnapshotID == metadata.ID {
+		return handler.cachedLayout, nil
+	}
+	built, err := layout.Build(ctx, snapshot, layout.DefaultConfig())
+	if err != nil {
+		return nil, fmt.Errorf("build viewer layout: %w", err)
+	}
+	handler.cachedLayout = built
+	handler.cachedLayoutSnapshotID = metadata.ID
+	return built, nil
+}
 
 func (handler *Handler) neighborhood(writer http.ResponseWriter, request *http.Request) {
+	binaryResponse, err := viewerResponseIsBinary(request)
+	if err != nil {
+		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "format must be json or binary")
+		return
+	}
+	if binaryResponse {
+		handler.neighborhoodBinary(writer, request)
+		return
+	}
 	stableKey, ok := requiredQuery(request, "stable_key")
 	if !ok {
 		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "stable_key is required")
@@ -431,7 +620,50 @@ func (handler *Handler) snapshot(writer http.ResponseWriter, request *http.Reque
 		handler.writeError(writer, request, http.StatusServiceUnavailable, "INDEX_NOT_READY", errSnapshotUnavailable.Error())
 		return nil
 	}
+	if requestedID := request.URL.Query().Get("snapshot_id"); requestedID != "" {
+		id, err := strconv.ParseUint(requestedID, 10, 64)
+		if err != nil {
+			handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "snapshot_id is invalid")
+			return nil
+		}
+		if id != snapshot.Metadata().ID {
+			handler.writeError(writer, request, http.StatusConflict, "SNAPSHOT_MISMATCH", "requested snapshot is not published")
+			return nil
+		}
+	}
 	return snapshot
+}
+func validateHTTPRequest(request *http.Request) (int, string, string) {
+	if request == nil || request.URL == nil {
+		return http.StatusBadRequest, "INVALID_ARGUMENT", "request URL is missing"
+	}
+	if len(request.URL.RequestURI()) > maxRequestURIBytes {
+		return http.StatusRequestURITooLong, "REQUEST_TOO_LARGE", "request URI exceeds the configured limit"
+	}
+	if request.ContentLength > maxRequestURIBytes {
+		return http.StatusRequestEntityTooLarge, "REQUEST_TOO_LARGE", "request body exceeds the configured limit"
+	}
+	if request.ContentLength > 0 || (request.Body != nil && request.Body != http.NoBody) {
+		return http.StatusBadRequest, "REQUEST_BODY_NOT_ALLOWED", "GET and HEAD requests must not contain a body"
+	}
+	if origin := request.Header.Get("Origin"); origin != "" && !sameOrigin(request, origin) {
+		return http.StatusForbidden, "ORIGIN_NOT_ALLOWED", "request origin is not allowed"
+	}
+	return 0, "", ""
+}
+
+func sameOrigin(request *http.Request, origin string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host == "" || parsed.User != nil ||
+		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return false
+	}
+	host := request.Host
+	if host == "" {
+		host = request.URL.Host
+	}
+	return host != "" && strings.EqualFold(parsed.Host, host)
 }
 
 func requiredQuery(request *http.Request, key string) (string, bool) {
@@ -481,6 +713,22 @@ func optionalInt(request *http.Request, key string, defaultValue int) (int, bool
 
 func (handler *Handler) writeError(writer http.ResponseWriter, request *http.Request, status int, code, message string) {
 	handler.writeJSON(writer, request, status, apiError{Code: code, Message: message})
+}
+func (handler *Handler) writeBinary(writer http.ResponseWriter, request *http.Request, status int, payload []byte) {
+	if len(payload) > maxViewerPayloadBytes {
+		handler.writeError(writer, request, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "response payload exceeds the configured limit")
+		return
+	}
+	writer.Header().Set("Content-Type", "application/octet-stream")
+	writer.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+	writer.Header().Set("Cache-Control", "no-store")
+	writer.WriteHeader(status)
+	if request.Method == http.MethodHead {
+		return
+	}
+	if _, err := writer.Write(payload); err != nil {
+		handler.logger.Error("write binary response", "error", err)
+	}
 }
 
 func (handler *Handler) writeJSON(writer http.ResponseWriter, request *http.Request, status int, value any) {

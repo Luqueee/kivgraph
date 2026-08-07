@@ -95,6 +95,10 @@ integridad, compatibilidad o verificación descritos aquí.
   coordenadas enteras deterministas, contención repository/package/file/symbol
   y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta
   force simulation global.
+- El payload binario `LGVB` del visor es versionado, little-endian y limitado
+  a `32 MiB`; el servidor valida magic, versión, offsets, longitudes y
+  `snapshot_id` antes de servirlo, y los errores de incompatibilidad son
+  códigos estables.
 
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.

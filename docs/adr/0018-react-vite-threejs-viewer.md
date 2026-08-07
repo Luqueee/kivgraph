@@ -45,6 +45,26 @@ de interacción rápida.
    La forma exacta de embedding o copia deberá preservar `make build` sin
    dependencias web obligatorias y registrar hashes si entra en el bundle de
    distribución.
+## Contrato binario v1
+
+Los endpoints `/api/v1/tiles` y las respuestas binarias de
+`/api/v1/neighborhood` usan `application/octet-stream` con un blob único:
+
+- cabecera fija de 64 bytes, magic `LGVB`, versión little-endian `uint16` en
+  el offset `4` y `snapshot_id` `uint64` en el offset `8`;
+- conteos y offsets `uint32` para nodos y aristas en los offsets `16`–`40`;
+- el flag `1` en el offset `7` indica truncamiento por presupuesto;
+- cada nodo ocupa 48 bytes: IDs densos, tipos, nivel y cuatro coordenadas
+  `int64` half-open;
+- cada arista ocupa 16 bytes: source, target, evidence, kind, confidence,
+  provenance y flags;
+- el payload completo no puede superar `32 MiB`.
+
+Los IDs densos solo son válidos junto con el `snapshot_id` y el tipo de nodo.
+Un `format_version` desconocido, un `snapshot_id` divergente o un payload que
+supere el límite se rechazan con códigos HTTP estables; nunca se interpreta un
+buffer de otra versión.
+
 
 ## Alternativas descartadas
 

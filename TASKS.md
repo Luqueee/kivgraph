@@ -10292,10 +10292,10 @@ reproducibles.
 
 **Checklist:**
 
-- [ ] Verificar contrato de API y snapshot antes de codificar.
-- [ ] Implementar `/api/v1/meta`, búsqueda y detalle de símbolo.
-- [ ] Implementar `/api/v1/tiles` y `/api/v1/neighborhood`.
-- [ ] Validar método, origen, tamaño, snapshot, depth y node budget.
+- [x] Verificar contrato de API y snapshot antes de codificar.
+- [x] Implementar `/api/v1/meta`, búsqueda y detalle de símbolo.
+- [x] Implementar `/api/v1/tiles` y `/api/v1/neighborhood`.
+- [x] Validar método, origen, tamaño, snapshot, depth y node budget.
 
 **Criterios de aceptación:**
 
