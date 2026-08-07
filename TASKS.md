@@ -10107,17 +10107,19 @@ un archivo ni una posición para ocultar esa ausencia.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Entregable:**
 
 ```text
 docs/release/production-qualification.md
 ```
+
+**Estado:** `ACCEPT_LADYGRAPH_WITH_LIMITS`.
 
 **Decisiones válidas:**
 
@@ -10126,6 +10128,24 @@ ACCEPT_LADYGRAPH_FOR_PRODUCTION
 ACCEPT_LADYGRAPH_WITH_LIMITS
 REJECT_LADYGRAPH_FOR_PRODUCTION
 ```
+
+**Resultado:** los 16 gates globales están emitidos. La aceptación queda
+limitada a Linux `amd64`, el par LadybugDB core/binding `v0.13.1`, los
+toolchains fijados, el `HotSnapshot` en memoria, los transportes y corpus
+medidos, y las garantías de reproducibilidad lógica descritas en el informe.
+
+**Verificación:** `go test ./... -count=1`, `go test -race ./... -count=1`,
+`go vet ./...`, `make build`, `make test-ladybug`, `cd ts-worker && pnpm check`
+y `cd ts-worker && pnpm build` pasaron. También pasaron los benchmarks
+semánticos, incrementales, de recuperación, HotSnapshot, MCP, observabilidad y
+el build reproducible.
+
+**Limitaciones y siguiente acción:** el informe conserva las limitaciones de
+fixtures semánticas, transporte MCP en memoria, snapshot no serializado,
+recuperación sin pérdida eléctrica, fuzz smoke sin funciones `Fuzz*`, bytes
+nativos no reproducibles y mediciones históricas que deben repetirse sobre el
+par y hardware objetivo. La siguiente acción operativa es repetir esas
+mediciones antes de ampliar los SLO de producción.
 
 ---
 

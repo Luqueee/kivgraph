@@ -106,6 +106,10 @@ integridad, compatibilidad o verificación descritos aquí.
   colgantes: compara fixtures con ground truth para las primeras y ejecuta las
   invariantes canónicas de extremos, evidencia y procedencia para las segundas.
 
+- Un informe `ACCEPT_LADYGRAPH_WITH_LIMITS` debe enumerar plataforma,
+  toolchains, corpus, transporte, garantías, métricas y riesgos residuales;
+  no puede convertir una limitación conocida en un PASS implícito.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance:
