@@ -10581,13 +10581,66 @@ completo queda pendiente de `LUQUE-1713`. Las aristas se renderizan sólidas y
 sin flechas para mantener homogénea la geometría agregada; `confidence` se
 mantiene visible mediante el color.
 
+**Siguiente tarea desbloqueada:** LUQUE-1717.
+
+---
+
+## LUQUE-1717 — Reducir la web al previsualizador del grafo
+
+**Dependencias:** LUQUE-1716.
+
+**Objetivo:** dejar en `web/` únicamente el visor del grafo, en oscuro, sin
+contenido de landing ni dependencias que solo lo sostenían.
+
+**Checklist:**
+
+- [x] Sustituir el shell por el visor a pantalla completa.
+- [x] Aplicar tema oscuro en documento y `GraphCanvas`.
+- [x] Retirar `Button`, `cn` y las dependencias UI y Three.js sin uso.
+- [x] Actualizar tests, ADR y reglas.
+
+**Criterios de aceptación:**
+
+- El markup del shell no contiene cabecera ni secciones de presentación.
+- El visor ocupa la ventana y conserva pan, zoom y hover.
+- `package.json` no declara dependencias sin importador.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `docs/adr/0020-graph-only-dark-viewer.md`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md`;
+* `web/index.html`, `web/package.json`, `web/pnpm-lock.yaml`;
+* `web/src/App.tsx`, `web/src/App.test.tsx`,
+  `web/src/components/GraphPreview.tsx`.
+
+**Archivos retirados:**
+
+* `web/src/components/ui/button.tsx` y `web/src/lib/utils.ts`.
+
+**Verificación:**
+
+* `pnpm --dir web check`: 3 archivos de test y 10 tests pasando;
+* `pnpm --dir web build`: 863 módulos transformados, `1.555,01 kB` minificado
+  (`444,50 kB` gzip) y CSS de `13,54 kB`; el warning de chunk sigue visible;
+* smoke Chromium: canvas de `1440 × 1000`, fondo `oklch(0.145 0 0)`, cero
+  elementos `header`/`section`, hover `Node 0 · kind 1 · hover` y cero
+  `pageerror`.
+
+**Limitación:** el visor sigue mostrando el fixture determinista; el consumo
+del `HotSnapshot` publicado pertenece a `LUQUE-1711` y `LUQUE-1712`.
+
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 
 ---
 
 ## LUQUE-1711 — Implementar chrome React del visor
 
-**Dependencias:** LUQUE-1716.
+**Dependencias:** LUQUE-1717.
 
 **Objetivo:** proporcionar búsqueda, filtros, selección y detalle sin bloquear
 el renderer.

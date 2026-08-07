@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { GraphCanvas } from "reagraph";
+import { GraphCanvas, darkTheme } from "reagraph";
 import type { InternalGraphNode } from "reagraph";
 
 import { decodeGraphPayload } from "@/renderer/binary";
@@ -10,7 +10,7 @@ import {
   type ViewerReagraphGraph,
 } from "@/renderer/reagraph";
 
-const READY_STATUS = "Reagraph ready · drag to pan · wheel to zoom";
+const READY_STATUS = "drag to pan · wheel to zoom";
 
 export function GraphPreview() {
   const result = useMemo((): {
@@ -34,13 +34,13 @@ export function GraphPreview() {
   const updateStatus = (node: InternalGraphNode): void => {
     const data = node.data as ReagraphNodeData | undefined;
     setStatus(
-      `Node ${data?.index ?? node.id} · kind ${data?.kind ?? "unknown"} · Reagraph hover`,
+      `Node ${data?.index ?? node.id} · kind ${data?.kind ?? "unknown"} · hover`,
     );
   };
 
   return (
     <div
-      className="relative h-[28rem] overflow-hidden rounded-3xl border border-border bg-slate-50 shadow-inner dark:bg-slate-950"
+      className="relative h-full w-full bg-background"
       role="img"
       aria-label="Interactive Reagraph graph preview"
     >
@@ -48,6 +48,7 @@ export function GraphPreview() {
         <GraphCanvas
           nodes={result.graph.nodes}
           edges={result.graph.edges}
+          theme={darkTheme}
           layoutType="custom"
           layoutOverrides={result.graph.layoutOverrides}
           animated={false}
@@ -59,11 +60,11 @@ export function GraphPreview() {
       ) : null}
       <div className="pointer-events-none absolute inset-x-4 top-4 flex items-center justify-between gap-4 text-xs font-medium">
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          Reagraph preview · {result.graph?.nodes.length ?? 0} nodes ·{" "}
+          {result.graph?.nodes.length ?? 0} nodes ·{" "}
           {result.graph?.edges.length ?? 0} edges
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          {result.graph ? status : `Reagraph unavailable · ${result.error}`}
+          {result.graph ? status : `graph unavailable · ${result.error}`}
         </span>
       </div>
     </div>

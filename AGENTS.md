@@ -74,9 +74,12 @@ integridad, compatibilidad o verificación descritos aquí.
 - La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
   Vitest; los payloads binarios grandes permanecen fuera del estado React y
   `web/dist` se regenera con el build de Vite.
-- `web/` se inicializa con `pnpm dlx shadcn@latest init`; los componentes UI
-  deben añadirse mediante esa CLI y usar Tailwind CSS, no una segunda librería
-  de estilos ni copias manuales del catálogo.
+- `web/` es solo el previsualizador del grafo: `App` monta el visor a pantalla
+  completa y no contiene landing, cabecera ni secciones de presentación. El
+  visor es oscuro por construcción (`class="dark"` y `darkTheme` de Reagraph).
+- Los componentes UI que se necesiten deben añadirse con
+  `pnpm dlx shadcn@latest init`/`add` y Tailwind CSS, no a mano ni con una
+  segunda librería de estilos; el paquete no vendoriza primitives sin uso.
 - `web/src/renderer` recibe el payload `LGVB` versionado como `ArrayBuffer`,
   conserva sus vistas fuera de React y solo materializa el límite visible que
   consume `reagraph`; el adaptador rechaza payloads que excedan el límite en
