@@ -135,8 +135,9 @@ integridad, compatibilidad o verificación descritos aquí.
   tubo por guion, y con una arista por nodo eso domina el frame. La distinción
   se hace con color y grosor.
 - El visor pide las tiles desde un Web Worker con `AbortController` por
-  petición; el render permanece en el hilo principal. Cada nivel tiene un
-  presupuesto de nodos y una tile recortada se declara como tal en la vista.
+  petición; el render permanece en el hilo principal. El número de nodos por
+  vista es ajustable desde la interfaz, una tile recortada se declara como tal
+  y un contador de FPS expone el coste de la elección.
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
   Solo una generación candidata que pase integridad y validación puede cambiar

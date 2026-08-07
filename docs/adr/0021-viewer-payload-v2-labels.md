@@ -77,6 +77,10 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
     `AbortController` por petición para que cambiar de nivel cancele el
     anterior. El render se queda en el hilo principal: WebGL no es accesible
     desde el worker en esta integración.
+15. El presupuesto por nivel es un valor por defecto, no un techo fijo: un
+    deslizador de `100` a `2.000` nodos deja al lector elegir cuánto grafo
+    quiere ver, con `250` ms de espera para no pedir una tile por píxel
+    arrastrado. Un contador de FPS muestra el coste de esa elección.
 
 ## Alternativas descartadas
 

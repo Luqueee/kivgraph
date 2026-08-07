@@ -3,6 +3,12 @@ import { GraphCanvas, darkTheme } from "reagraph";
 import type { InternalGraphNode } from "reagraph";
 
 import { ApiError, fetchMeta, type SnapshotMeta } from "@/api/client";
+import { useFrameRate } from "@/hooks/useFrameRate";
+import {
+  MIN_TILE_BUDGET,
+  TILE_BUDGET_STEP,
+  tileBudget,
+} from "@/renderer/budget";
 import {
   CONTAINMENT_COLOR,
   createLayoutOverrides,
@@ -22,12 +28,11 @@ const ROTATE_STATUS = "drag to rotate · wheel to zoom";
 const LOD_LABELS = ["repositories", "packages", "files", "symbols"] as const;
 
 /**
- * Nodes requested per level. Reagraph builds an object per node — measured at
- * roughly four milliseconds each — so a whole level of files would take ten
- * seconds to appear. The coarse levels fit entirely; the deep ones are capped
- * and the view says so.
+ * Nodes requested until the reader moves the slider. Reagraph builds an object
+ * per node, so the whole of a deep level does not fit in a reasonable frame;
+ * this is the measured point where the view still appears in about a second.
  */
-const LOD_NODE_BUDGET = [2_000, 2_000, 1_200, 1_200];
+const DEFAULT_TILE_BUDGET = 1_200;
 
 /** Above this node count captions overlap; names move to hover only. */
 const LABEL_LIMIT = 200;
@@ -60,8 +65,11 @@ function describe(error: unknown): string {
 export function GraphPreview() {
   const [lod, setLod] = useState(1);
   const [rotate, setRotate] = useState(true);
+  const [requestedBudget, setRequestedBudget] = useState(DEFAULT_TILE_BUDGET);
+  const [appliedBudget, setAppliedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [state, setState] = useState<ViewerState>(INITIAL_STATE);
   const [status, setStatus] = useState(ROTATE_STATUS);
+  const fps = useFrameRate();
   const worker = useRef<TileWorkerClient | null>(null);
 
   if (worker.current === null) {
@@ -72,6 +80,13 @@ export function GraphPreview() {
     const client = worker.current;
     return () => client?.close();
   }, []);
+
+  // Dragging the slider must not fire a tile per pixel: only the value the
+  // user rests on is fetched.
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedBudget(requestedBudget), 250);
+    return () => clearTimeout(timer);
+  }, [requestedBudget]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -86,18 +101,11 @@ export function GraphPreview() {
         );
       }
       const level = Math.min(lod, meta.layout.maxLod);
-      // Reagraph builds an object per node, so a level is budgeted by what the
-      // renderer stays interactive with, not by what the server can send.
-      const maxNodes = Math.min(
-        meta.layout.maxNodes,
-        DEFAULT_REAGRAPH_NODE_LIMIT,
-        LOD_NODE_BUDGET[level] ?? DEFAULT_REAGRAPH_NODE_LIMIT,
-      );
       const view = await (worker.current as TileWorkerClient).load(
         {
           bounds: meta.layout,
           lod: level,
-          maxNodes,
+          maxNodes: tileBudget(appliedBudget, meta.layout.maxNodes),
         },
         controller.signal,
       );
@@ -124,7 +132,7 @@ export function GraphPreview() {
       });
     });
     return () => controller.abort();
-  }, [lod]);
+  }, [lod, appliedBudget]);
 
   const graph = state.graph;
   const summary = useMemo(() => {
@@ -185,7 +193,7 @@ export function GraphPreview() {
           {state.error ? `error · ${state.error}` : summary}
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          {status}
+          {fps} fps · {status}
         </span>
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
@@ -251,6 +259,24 @@ export function GraphPreview() {
         >
           {rotate ? "3D" : "2D"}
         </button>
+        <label className="ml-2 flex items-center gap-2 rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
+          <span>nodes</span>
+          <input
+            type="range"
+            min={MIN_TILE_BUDGET}
+            max={DEFAULT_REAGRAPH_NODE_LIMIT}
+            step={TILE_BUDGET_STEP}
+            value={requestedBudget}
+            onChange={(event) =>
+              setRequestedBudget(Number(event.currentTarget.value))
+            }
+            className="h-1 w-32 cursor-pointer accent-primary"
+            aria-label="nodes per view"
+          />
+          <span className="w-10 text-right tabular-nums text-foreground">
+            {requestedBudget}
+          </span>
+        </label>
       </div>
     </div>
   );

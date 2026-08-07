@@ -10800,6 +10800,13 @@ línea fina sólida, ese coste desaparece.
 principal; el presupuesto por nivel acota cuánto. Instanciar la escena
 pertenece a `LUQUE-1713`.
 
+**Añadido tras la primera medición:** un deslizador de `100` a `2.000` nodos
+por vista, con `250` ms de espera antes de pedir la tile, y un contador de FPS
+en la cabecera. El presupuesto por nivel pasa a ser el valor inicial, no un
+techo. Verificado en Chromium: mover el deslizador a `300` deja la vista en
+`300 of 4212 files · 561 edges` y `web/src/renderer/budget.ts` cubre techo del
+adaptador, techo del snapshot, suelo y redondeo al paso con cinco tests.
+
 ---
 
 ## LUQUE-1713 — Medir rendimiento end-to-end del visor
