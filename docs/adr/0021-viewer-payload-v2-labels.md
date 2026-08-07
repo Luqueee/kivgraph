@@ -51,6 +51,21 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
    segmentos de ruta (máximo `32` caracteres). El nombre completo viaja en el
    nodo y se muestra al pasar el cursor: nada se pierde, pero un módulo como
    `kena.bot/api-db-go/internal/domain/errors` deja de tapar a sus vecinos.
+10. El visor no dibuja las coordenadas absolutas del layout: proyecta cada eje
+    por rango. Las posiciones distintas se ordenan y se reparten a intervalos
+    iguales, conservando el orden y las columnas del layout. Con la proyección
+    lineal, la celda más densa del mundo de `~/kena` concentraba `11` de `128`
+    paquetes mientras tres cuartas partes del lienzo quedaban vacías; por
+    rango, ninguna celda pasa de `2`.
+11. El visor dibuja además la contención que cada nodo ya declara en el
+    payload (`parent_kind`, `parent_id`), en trazo discontinuo y sólo cuando el
+    contenedor viaja en la misma tile. Sin ella un repositorio aparece junto a
+    sus paquetes sin nada que los una, afirmando una desconexión que el grafo
+    no tiene.
+12. Una leyenda fija nombra cada color: repositorio, paquete, archivo, símbolo,
+    y los tres trazos — dependencia exacta, dependencia y contiene. La paleta
+    vive en un único sitio del adaptador para que leyenda y lienzo no puedan
+    divergir.
 
 ## Alternativas descartadas
 
@@ -66,6 +81,8 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
   reescalar; la relación de aspecto del mundo se decide en el layout.
 - **Force layout en el navegador para descongestionar:** ADR 0019 lo rechaza:
   no es determinista y las posiciones dejarían de ser las del snapshot.
+- **Escalar el zoom y ya:** el zoom amplía por igual el hueco vacío y el
+  amontonamiento; la densidad desigual no se corrige con la cámara.
 
 ## Consecuencias
 
@@ -79,6 +96,7 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
   pasar el cursor.
 - Cualquier cliente del binario debe migrar a v2; no hay compatibilidad con v1
   porque el servidor no la ofrece.
-- La profundidad separa contenedores de contenidos, pero un repositorio con
-  decenas de paquetes sigue siendo denso de frente; se lee rotando, con zoom o
-  pidiendo un nivel de detalle mayor sobre menos nodos.
+- La proyección por rango conserva el orden y las columnas del layout, pero no
+  sus distancias: dos nodos vecinos en pantalla no están necesariamente a la
+  misma distancia en el mundo publicado. El grafo se lee como topología, no
+  como mapa a escala.

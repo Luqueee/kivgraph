@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   decodeGraphPayload,
   type GraphBinaryError,
+  readNode,
   VIEWER_EDGE_FLAG_PACKAGE,
 } from "@/renderer/binary";
 import { createDemoPayload } from "@/renderer/fixture";
@@ -46,6 +47,28 @@ describe("Reagraph payload adapter", () => {
     expect(target?.data.kind).toBe(2);
   });
 
+  // A repository and its packages are related, and the payload says so through
+  // each node's parent reference. Without those links the picture claims a
+  // disconnection the graph does not have.
+  it("joins every node to the container the payload names", () => {
+    const payload = decodeGraphPayload(createDemoPayload());
+    const graph = createReagraphGraph(payload);
+
+    const containment = graph.edges.filter((edge) => edge.data.containment);
+    // The fixture nests repository 0 > package 0 > file 0 > four symbols, and
+    // package 1 under repository 0: seven children with a container present.
+    expect(containment).toHaveLength(7);
+    for (const edge of containment) {
+      const source = graph.nodes.find((node) => node.id === edge.source);
+      const target = graph.nodes.find((node) => node.id === edge.target);
+      expect(source).toBeDefined();
+      expect(target).toBeDefined();
+      expect(edge.dashed).toBe(true);
+      // A container is always coarser than what it holds.
+      expect(source?.data.kind).toBeLessThan(target?.data.kind ?? 0);
+    }
+  });
+
   // A dense ID says nothing to a reader: every node carries the name the server
   // resolved from the snapshot. The caption is shortened to the last two path
   // segments so long module paths do not bury their neighbours, and the full
@@ -87,13 +110,62 @@ describe("Reagraph payload adapter", () => {
     expect(graph.nodes[1].data.label).toBe(long);
   });
 
-  it("keeps the deterministic layout coordinates from the payload", () => {
-    const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+  // Positions are derived from the payload alone, so the same tile always
+  // renders the same picture.
+  it("derives the same positions from the same payload", () => {
+    const first = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+    const second = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
 
-    expect(graph.nodes[3].data).toMatchObject({
-      x: -248.88888888888889,
-      y: -266.6666666666667,
+    expect(first.nodes.map((node) => node.data)).toEqual(
+      second.nodes.map((node) => node.data),
+    );
+  });
+
+  // The layout packs a repository's children inside its own box, so projecting
+  // absolute coordinates leaves half the canvas empty and crushes the dense
+  // containers. Ranking keeps the layout's order and gives every distinct
+  // position the same room.
+  it("spreads positions by rank while keeping the layout order", () => {
+    const payload = decodeGraphPayload(createDemoPayload());
+    const graph = createReagraphGraph(payload);
+
+    const projected = graph.nodes.map((node, index) => {
+      const record = readNode(payload, index);
+      return {
+        x: node.data.x,
+        center: Number(record.minX + record.maxX) / 2,
+      };
     });
+    // Ranking is monotone: a node further right in the layout never renders
+    // left of one behind it. Exact ties spread in a spiral, so allow that.
+    const jitter = 40;
+    const sorted = [...projected].sort(
+      (left, right) => left.center - right.center,
+    );
+    for (let position = 1; position < sorted.length; position += 1) {
+      expect(sorted[position].x).toBeGreaterThanOrEqual(
+        sorted[position - 1].x - jitter,
+      );
+    }
+
+    // Distinct columns are evenly spaced: no cluster is denser than another.
+    const columns = [
+      ...new Set(
+        projected
+          .filter(
+            (node, _index, all) =>
+              all.filter((other) => other.center === node.center).length === 1,
+          )
+          .map((node) => Math.round(node.x)),
+      ),
+    ].sort((left, right) => left - right);
+    const gaps = columns
+      .slice(1)
+      .map((value, index) => Math.round(value - columns[index]));
+    const unit = Math.min(...gaps);
+    for (const gap of gaps) {
+      expect(gap % unit).toBe(0);
+    }
   });
 
   // The layout nests a repository around its packages around its files, so a

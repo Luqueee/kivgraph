@@ -8,6 +8,7 @@ import type {
 
 import {
   GraphBinaryError,
+  type GraphNodeRecord,
   type GraphPayload,
   NODE_KIND_FILE,
   NODE_KIND_PACKAGE,
@@ -22,6 +23,17 @@ import {
 export const DEFAULT_REAGRAPH_NODE_LIMIT = 2_000;
 export const DEFAULT_REAGRAPH_EDGE_LIMIT = 8_000;
 export const REAGRAPH_WORLD_SIZE = 800;
+
+/** Colours the viewer legend explains; kept beside the palette they describe. */
+export const CONTAINMENT_COLOR = "#475569";
+export const DEPENDENCY_COLOR = "#94a3b8";
+export const EXACT_DEPENDENCY_COLOR = "#16a34a";
+export const NODE_COLORS: ReadonlyArray<{ kind: number; color: string }> = [
+  { kind: NODE_KIND_REPOSITORY, color: "#2563eb" },
+  { kind: NODE_KIND_PACKAGE, color: "#7c3aed" },
+  { kind: NODE_KIND_FILE, color: "#059669" },
+  { kind: NODE_KIND_SYMBOL, color: "#ea580c" },
+];
 
 function endpointKey(kind: number, id: number): string {
   return `${kind}:${id}`;
@@ -58,6 +70,8 @@ export interface ReagraphEdgeData {
   readonly confidence: number;
   readonly provenance: number;
   readonly flags: number;
+  /** True for the container-to-child link the payload carries per node. */
+  readonly containment?: boolean;
 }
 
 export type ViewerReagraphNode = GraphNode & {
@@ -126,34 +140,29 @@ export function createReagraphGraph(
     REAGRAPH_WORLD_SIZE,
     Math.round(Math.sqrt(payload.header.nodeCount) * 60),
   );
-  // Both axes share one scale. Scaling each axis to the same extent would
-  // squash the layout — the published world is far taller than it is wide —
-  // and collapse whole repositories into a horizontal band.
-  const span = Math.max(spanX, spanY, 1);
+
+  const records = new Array<GraphNodeRecord>(payload.header.nodeCount);
+  const rawX = new Array<number>(payload.header.nodeCount);
+  const rawY = new Array<number>(payload.header.nodeCount);
+  for (let index = 0; index < payload.header.nodeCount; index += 1) {
+    const record = readNode(payload, index);
+    records[index] = record;
+    rawX[index] = centerOffset(record.minX, record.maxX, bounds.minX);
+    rawY[index] = centerOffset(record.minY, record.maxY, bounds.minY);
+  }
+  const columns = rankAxis(rawX, worldSize);
+  const rows = rankAxis(rawY, worldSize);
+
   // Dense IDs are only unique per node kind, and edges carry them, not payload
   // indices. Package relations are flagged; everything else connects symbols.
   const nodeIdsByKind = new Map<string, string>();
   const nodes: ViewerReagraphNode[] = [];
   const occupiedCenters = new Map<string, number>();
   for (let index = 0; index < payload.header.nodeCount; index += 1) {
-    const record = readNode(payload, index);
-    const rawX = centerCoordinate(
-      record.minX,
-      record.maxX,
-      bounds.minX,
-      span,
-      worldSize,
-    );
-    const rawY = centerCoordinate(
-      record.minY,
-      record.maxY,
-      bounds.minY,
-      span,
-      worldSize,
-    );
+    const record = records[index];
     const { x, y, z } = spreadCenter(
-      rawX,
-      rawY,
+      columns[index],
+      rows[index],
       kindPlane(record.kind, worldSize),
       occupiedCenters,
       worldSize,
@@ -217,6 +226,38 @@ export function createReagraphGraph(
     });
   }
 
+  // Every node carries the container it belongs to. Without those edges a
+  // repository floats next to its own packages with nothing joining them, and
+  // the picture claims a disconnection the graph does not have. Only drawn
+  // when the container is part of this tile.
+  for (let index = 0; index < nodes.length; index += 1) {
+    const record = records[index];
+    if (record.parentKind === 0) continue;
+    const parent = nodeIdsByKind.get(
+      endpointKey(record.parentKind, record.parentId),
+    );
+    if (parent === undefined) continue;
+    edges.push({
+      id: `contains-${index}`,
+      source: parent,
+      target: nodes[index].id,
+      fill: CONTAINMENT_COLOR,
+      dashed: true,
+      arrowPlacement: "none",
+      data: {
+        index,
+        sourceIndex: record.parentId,
+        targetIndex: record.id,
+        evidence: 0,
+        kind: 0,
+        confidence: 0,
+        provenance: 0,
+        flags: 0,
+        containment: true,
+      },
+    });
+  }
+
   return {
     nodes,
     edges,
@@ -253,15 +294,31 @@ function createLayoutOverrides(): LayoutOverrides {
   };
 }
 
-function centerCoordinate(
+function centerOffset(
   minimum: bigint,
   maximum: bigint,
   origin: bigint,
-  span: number,
-  worldSize: number,
 ): number {
-  const center = (Number(minimum - origin) + Number(maximum - origin)) / 2;
-  return (center / span - 0.5) * worldSize;
+  return (Number(minimum - origin) + Number(maximum - origin)) / 2;
+}
+
+/**
+ * Spreads one axis by rank instead of by absolute coordinate.
+ *
+ * The published layout packs a repository's packages inside its own box, so a
+ * linear projection of the whole world squeezes forty packages into a blob
+ * while half the canvas stays empty. Ranking keeps the layout's order and its
+ * columns — nodes that share a coordinate still share a slot — and gives every
+ * distinct position the same room.
+ */
+function rankAxis(values: readonly number[], worldSize: number): number[] {
+  const unique = [...new Set(values)].sort((left, right) => left - right);
+  const slots = new Map(unique.map((value, index) => [value, index]));
+  const divisor = Math.max(unique.length - 1, 1);
+  return values.map((value) => {
+    const slot = slots.get(value) ?? 0;
+    return (slot / divisor - 0.5) * worldSize;
+  });
 }
 
 // Each node kind gets its own plane: repositories at the front, symbols at the
@@ -336,20 +393,9 @@ function nodeSize(kind: number): number {
 }
 
 function nodeColor(kind: number): string {
-  switch (kind) {
-    case NODE_KIND_REPOSITORY:
-      return "#2563eb";
-    case NODE_KIND_PACKAGE:
-      return "#7c3aed";
-    case NODE_KIND_FILE:
-      return "#059669";
-    case NODE_KIND_SYMBOL:
-      return "#ea580c";
-    default:
-      return "#64748b";
-  }
+  return NODE_COLORS.find((entry) => entry.kind === kind)?.color ?? "#64748b";
 }
 
 function edgeColor(confidence: number): string {
-  return confidence >= 2 ? "#16a34a" : "#94a3b8";
+  return confidence >= 2 ? EXACT_DEPENDENCY_COLOR : DEPENDENCY_COLOR;
 }

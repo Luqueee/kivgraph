@@ -124,6 +124,13 @@ integridad, compatibilidad o verificación descritos aquí.
 - El visor renderiza en 3D con la cámara rotando por defecto y coloca cada tipo
   de nodo en su propio plano de profundidad; las posiciones siguen siendo las
   del layout publicado, sin force layout en el navegador.
+- El visor proyecta cada eje por rango, no por coordenada absoluta: conserva el
+  orden y las columnas del layout y reparte las posiciones distintas a
+  intervalos iguales. Es una decisión de presentación determinista; el layout
+  publicado no cambia.
+- El visor dibuja la contención declarada por `parent_kind`/`parent_id` cuando
+  el contenedor viaja en la misma tile, y una leyenda nombra cada color y cada
+  trazo. La paleta se declara una sola vez en el adaptador.
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
   Solo una generación candidata que pase integridad y validación puede cambiar

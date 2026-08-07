@@ -10655,6 +10655,8 @@ legibles y relaciones visibles en cada nivel de detalle.
 - [x] Equilibrar la rejilla del layout para que el mundo sea legible.
 - [x] Renderizar en 3D con cámara rotable y un plano por tipo de nodo.
 - [x] Acortar la etiqueta del lienzo y conservar el nombre completo.
+- [x] Proyectar cada eje por rango para repartir los nodos uniformemente.
+- [x] Dibujar la contención del payload y añadir una leyenda.
 
 **Criterios de aceptación:**
 
@@ -10665,6 +10667,8 @@ legibles y relaciones visibles en cada nivel de detalle.
 - El mundo publicado no degenera en una tira: relación de aspecto acotada.
 - La vista rota y cada tipo de nodo ocupa su propio plano de profundidad.
 - El nombre completo sigue disponible aunque la etiqueta se acorte.
+- Un repositorio aparece unido a sus paquetes, no suelto junto a ellos.
+- La leyenda nombra cada color de nodo y cada trazo de arista.
 
 **Estado:** `PASS`.
 
@@ -10685,18 +10689,22 @@ legibles y relaciones visibles en cada nivel de detalle.
 **Verificación:**
 
 * `go vet ./...` y `go test ./...` correctos;
-* `pnpm --dir web check`: 3 archivos de test y 14 tests pasando;
+* `pnpm --dir web check`: 3 archivos de test y 16 tests pasando;
 * `pnpm --dir web build`: bundle regenerado;
-* smoke Chromium contra `ladygraph ui` con el índice de `~/kena`: `138 nodos`
-  y `295 aristas` en el nivel de paquetes, nombres reales
-  (`libraries-library-shared`, `web-dash.kena.bot`, `domain/errors`), rotación
-  de cámara confirmada con arrastre, zoom confirmado con rueda, cero
-  `pageerror`, y los cuatro niveles de detalle responden.
+* medición sobre el tile de paquetes de `~/kena` (`128` nodos): con proyección
+  lineal la celda más densa del mundo reunía `11` nodos y sólo `51` de `400`
+  celdas tenían contenido; por rango, ninguna celda pasa de `2` y se ocupan
+  `100`;
+* smoke Chromium contra `ladygraph ui`: `138 nodos` y `399 aristas` en
+  paquetes — `295` dependencias más `104` de contención, una por paquete —,
+  nombres legibles con zoom (`domain/dbtrackerror`, `infrastructure/locker`),
+  leyenda con los siete rótulos, rotación y zoom confirmados, cero
+  `pageerror`.
 
 **Limitación:** por encima de `200` nodos las etiquetas se ocultan y el nombre
 queda accesible al pasar el cursor; los niveles `files` y `symbols` se acotan a
-`2.000` nodos por vista. Un repositorio con decenas de paquetes sigue siendo
-denso de frente: se lee rotando o con zoom.
+`2.000` nodos por vista. La proyección por rango conserva el orden del layout
+pero no sus distancias.
 
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 

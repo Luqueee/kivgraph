@@ -10,8 +10,12 @@ import {
 } from "@/api/client";
 import { decodeGraphPayload } from "@/renderer/binary";
 import {
+  CONTAINMENT_COLOR,
   createReagraphGraph,
   DEFAULT_REAGRAPH_NODE_LIMIT,
+  DEPENDENCY_COLOR,
+  EXACT_DEPENDENCY_COLOR,
+  NODE_COLORS,
   type ReagraphNodeData,
   type ViewerReagraphGraph,
 } from "@/renderer/reagraph";
@@ -24,6 +28,9 @@ const LOD_LABELS = ["repositories", "packages", "files", "symbols"] as const;
 
 /** Above this node count captions overlap; names move to hover only. */
 const LABEL_LIMIT = 200;
+
+/** Legend dots mirror the node sizes the canvas draws, scaled down. */
+const LEGEND_DOT_SIZES = [10, 8, 7, 6];
 
 interface ViewerState {
   readonly meta: SnapshotMeta | null;
@@ -138,6 +145,42 @@ export function GraphPreview() {
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
           {status}
+        </span>
+      </div>
+      <div className="pointer-events-none absolute left-4 bottom-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
+        {NODE_COLORS.map((entry, position) => (
+          <span key={entry.kind} className="flex items-center gap-2">
+            <span
+              className="inline-block rounded-full"
+              style={{
+                backgroundColor: entry.color,
+                width: LEGEND_DOT_SIZES[position],
+                height: LEGEND_DOT_SIZES[position],
+              }}
+            />
+            {LOD_LABELS[position]}
+          </span>
+        ))}
+        <span className="mt-1 flex items-center gap-2">
+          <span
+            className="inline-block h-px w-4"
+            style={{ backgroundColor: EXACT_DEPENDENCY_COLOR }}
+          />
+          exact dependency
+        </span>
+        <span className="flex items-center gap-2">
+          <span
+            className="inline-block h-px w-4"
+            style={{ backgroundColor: DEPENDENCY_COLOR }}
+          />
+          dependency
+        </span>
+        <span className="flex items-center gap-2">
+          <span
+            className="inline-block h-px w-4 border-t border-dashed"
+            style={{ borderColor: CONTAINMENT_COLOR }}
+          />
+          contains
         </span>
       </div>
       <div className="pointer-events-auto absolute inset-x-4 bottom-4 flex items-center justify-center gap-2 text-xs">
