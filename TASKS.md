@@ -9623,11 +9623,11 @@ LUQUE-1508.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Comandos esperados:**
 
@@ -9637,6 +9637,40 @@ ladygraph doctor
 ladygraph index --full
 ladygraph serve
 ```
+
+**Estado:** `PASS`.
+
+**Implementación:**
+
+* `internal/config.Initialize` crea configuración, registro vacío y directorios
+  de estado con escritura no destructiva por defecto; `RegisterRepositories`
+  añade registros validados con paths resueltos y rechazo de duplicados.
+* `ladygraph doctor` valida configuración, rutas y permisos de estado, registro
+  Git, toolchains, generación canónica, presencia del digest del snapshot,
+  HotSnapshot y referencias no resueltas.
+* `internal/indexer.Full` coordina extracción Go y TypeScript fuera de los
+  repositorios fuente, valida el `facts.Set` y conecta su resultado con
+  `rebuild.Run`.
+* `ladygraph serve` resuelve `CURRENT`, reconstruye el HotSnapshot desde la
+  base canónica activa y sirve MCP exclusivamente mediante el snapshot
+  publicado.
+
+**Verificación:** `gofmt -l`, `go vet ./...`, `go test ./... -count=1`,
+`make build`, `make test-ladybug`, `cd ts-worker && pnpm check` y
+`cd ts-worker && pnpm build` pasaron. Las pruebas nuevas cubren init, doctor,
+repositorios inaccesibles y facts Go full.
+
+**Smoke real:** con un `HOME` temporal, `ladygraph init --repository`,
+`ladygraph doctor`, `ladygraph index --full`, `ladygraph doctor` y
+`ladygraph serve` pasaron contra un repositorio Go temporal y LadybugDB
+v0.13.1; también pasó una indexación TypeScript full con el worker compilado.
+
+**Limitaciones:** el worker y el grafo canónico requieren las dependencias
+instaladas y el binario compilado con el tag `ladybug`; el comando `doctor`
+reporta rutas de estado ausentes como `FAIL` en lugar de crearlas
+silenciosamente.
+
+**Siguiente tarea:** LUQUE-1505.
 
 ---
 

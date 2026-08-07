@@ -104,6 +104,20 @@ pnpm check
 pnpm build
 ```
 
+Para cambios de instalación local, ejecutar el flujo con un `HOME` temporal y
+sin modificar repositorios indexados:
+
+```bash
+ladygraph init
+ladygraph doctor
+ladygraph index --full
+ladygraph serve
+```
+
+`ladygraph serve` debe cargar el `HotSnapshot` publicado antes de abrir el
+transporte MCP; sin una generación publicada debe fallar cada consulta que
+requiera snapshot de forma explícita.
+
 Los tests nuevos deben defender contratos observables y fallar ante una
 regresión plausible. Para cambios de almacenamiento o resolución, incluir
 pruebas negativas, invariantes y comparación contra una reconstrucción limpia

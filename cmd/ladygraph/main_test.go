@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/logging"
@@ -61,6 +62,72 @@ func TestRunVersionJSON(t *testing.T) {
 	}
 	if provenance.Grammars.Manifest != "grammars/manifest.json" || len(provenance.Grammars.Versions) != 4 {
 		t.Fatalf("grammars = %#v", provenance.Grammars)
+	}
+}
+
+func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+
+	var initStdout, initStderr bytes.Buffer
+	if got := run([]string{
+		"ladygraph",
+		"init",
+		"--config", configPath,
+		"--repositories", repositoriesPath,
+	}, &initStdout, &initStderr); got != 0 {
+		t.Fatalf("init exit code = %d, stderr=%q", got, initStderr.String())
+	}
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load() after init: %v", err)
+	}
+	if len(loaded.Repositories.Repositories) != 0 {
+		t.Fatalf("repositories after init = %#v, want empty", loaded.Repositories.Repositories)
+	}
+
+	var doctorStdout, doctorStderr bytes.Buffer
+	if got := run([]string{"ladygraph", "doctor", "--config", configPath}, &doctorStdout, &doctorStderr); got != 0 {
+		t.Fatalf("doctor exit code = %d, stdout=%q stderr=%q", got, doctorStdout.String(), doctorStderr.String())
+	}
+	if !strings.Contains(doctorStdout.String(), "graph.store: PASS (no published generation)") ||
+		!strings.Contains(doctorStdout.String(), "doctor: PASS") {
+		t.Fatalf("doctor output = %q", doctorStdout.String())
+	}
+}
+
+func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	var initStdout, initStderr bytes.Buffer
+	if got := run([]string{
+		"ladygraph",
+		"init",
+		"--config", configPath,
+		"--repositories", repositoriesPath,
+		"--repository", "missing=" + filepath.Join(root, "does-not-exist"),
+	}, &initStdout, &initStderr); got != 0 {
+		t.Fatalf("init exit code = %d, stderr=%q", got, initStderr.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"ladygraph", "doctor", "--config", configPath}, &stdout, &stderr); got != 1 {
+		t.Fatalf("doctor exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "repositories: FAIL") || !strings.Contains(stdout.String(), "doctor: FAIL") {
+		t.Fatalf("doctor output = %q", stdout.String())
 	}
 }
 

@@ -258,3 +258,69 @@ func writeConfigFixture(t *testing.T, path, contents string) {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
 }
+
+func TestInitializeCreatesSecureStateAndRegistersRepositories(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+
+	result, err := Initialize(InitOptions{
+		ConfigPath:       configPath,
+		RepositoriesPath: repositoriesPath,
+	})
+	if err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	if !result.ConfigCreated || !result.RepositoriesCreated {
+		t.Fatalf("Initialize() result = %#v, want both files created", result)
+	}
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() after Initialize: %v", err)
+	}
+	for _, path := range []string{
+		filepath.Dir(loaded.Config.Storage.DatabasePath),
+		loaded.Config.Storage.SnapshotsPath,
+		loaded.Config.Storage.BackupsPath,
+		filepath.Dir(loaded.Config.Go.SyntheticWorkFile),
+	} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("state path %q: %v", path, err)
+		}
+		if !info.IsDir() || info.Mode().Perm() != 0o700 {
+			t.Fatalf("state path %q = mode %04o dir=%v, want 0700 directory", path, info.Mode().Perm(), info.IsDir())
+		}
+	}
+
+	if err := RegisterRepositories(result.RepositoriesPath, []Repository{{
+		Name:      "service",
+		Path:      "sources/service",
+		Languages: []string{"go"},
+	}}); err != nil {
+		t.Fatalf("RegisterRepositories() error = %v", err)
+	}
+	loaded, err = Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() after RegisterRepositories: %v", err)
+	}
+	if len(loaded.Repositories.Repositories) != 1 {
+		t.Fatalf("repositories = %#v, want one entry", loaded.Repositories.Repositories)
+	}
+	wantPath := filepath.Join(root, "sources", "service")
+	if loaded.Repositories.Repositories[0].Path != wantPath {
+		t.Fatalf("repository path = %q, want %q", loaded.Repositories.Repositories[0].Path, wantPath)
+	}
+	if err := RegisterRepositories(result.RepositoriesPath, []Repository{{
+		Name:      "service",
+		Path:      "/other/service",
+		Languages: []string{"go"},
+	}}); err == nil || !strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("duplicate RegisterRepositories() error = %v, want duplicate error", err)
+	}
+}

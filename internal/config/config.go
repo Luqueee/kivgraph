@@ -155,6 +155,21 @@ type Loaded struct {
 	RepositoriesPath string
 }
 
+// InitOptions controls creation of the local configuration files.
+type InitOptions struct {
+	ConfigPath       string
+	RepositoriesPath string
+	Force            bool
+}
+
+// InitResult reports what Initialize created.
+type InitResult struct {
+	ConfigPath          string
+	RepositoriesPath    string
+	ConfigCreated       bool
+	RepositoriesCreated bool
+}
+
 // DefaultConfig returns the explicit defaults from the configuration contract.
 // Paths use the documented home-directory notation until Load expands them.
 func DefaultConfig() Config {
@@ -216,6 +231,181 @@ func DefaultConfigPath() (string, error) {
 // DefaultRepositoriesPath returns the expanded default repository registry path.
 func DefaultRepositoriesPath() (string, error) {
 	return expandPath(defaultRepositoriesFile, "")
+}
+
+// Initialize creates the default configuration and repository registry without
+// replacing existing files unless Force is set. It also creates every local
+// state directory named by the configuration.
+func Initialize(options InitOptions) (InitResult, error) {
+	configPath, err := resolveConfigPath(options.ConfigPath)
+	if err != nil {
+		return InitResult{}, fmt.Errorf("resolve config path: %w", err)
+	}
+	repositoriesPath, err := resolveRepositoriesPath(options.RepositoriesPath)
+	if err != nil {
+		return InitResult{}, fmt.Errorf("resolve repositories path: %w", err)
+	}
+
+	configuration := DefaultConfig()
+	configuration.Workspace.RepositoriesFile = repositoriesPath
+	if _, statErr := os.Stat(configPath); statErr == nil && !options.Force {
+		configuration, err = loadConfigFile(configPath)
+		if err != nil {
+			return InitResult{}, fmt.Errorf("load existing config %q: %w", configPath, err)
+		}
+		repositoriesPath, err = expandConfigPath(
+			configuration.Workspace.RepositoriesFile,
+			filepath.Dir(configPath),
+			"workspace.repositories_file",
+		)
+		if err != nil {
+			return InitResult{}, err
+		}
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return InitResult{}, fmt.Errorf("inspect config %q: %w", configPath, err)
+	}
+
+	configData, err := yaml.Marshal(configuration)
+	if err != nil {
+		return InitResult{}, fmt.Errorf("encode default config: %w", err)
+	}
+	repositoriesData, err := yaml.Marshal(RepositoriesFile{
+		Version:      CurrentSchemaVersion,
+		Repositories: []Repository{},
+	})
+	if err != nil {
+		return InitResult{}, fmt.Errorf("encode default repositories: %w", err)
+	}
+
+	expandedConfiguration := configuration
+	if err := expandConfigPaths(&expandedConfiguration, filepath.Dir(configPath)); err != nil {
+		return InitResult{}, fmt.Errorf("expand default config paths: %w", err)
+	}
+	for _, directory := range []string{
+		filepath.Dir(configPath),
+		filepath.Dir(repositoriesPath),
+		filepath.Dir(expandedConfiguration.Storage.DatabasePath),
+		expandedConfiguration.Storage.SnapshotsPath,
+		expandedConfiguration.Storage.BackupsPath,
+		filepath.Dir(expandedConfiguration.Go.SyntheticWorkFile),
+	} {
+		if err := ensureDirectory(directory); err != nil {
+			return InitResult{}, err
+		}
+	}
+
+	configCreated, err := writeInitialFile(configPath, configData, options.Force)
+	if err != nil {
+		return InitResult{}, fmt.Errorf("write config %q: %w", configPath, err)
+	}
+	repositoriesCreated, err := writeInitialFile(repositoriesPath, repositoriesData, options.Force)
+	if err != nil {
+		return InitResult{}, fmt.Errorf("write repositories %q: %w", repositoriesPath, err)
+	}
+	return InitResult{
+		ConfigPath:          configPath,
+		RepositoriesPath:    repositoriesPath,
+		ConfigCreated:       configCreated,
+		RepositoriesCreated: repositoriesCreated,
+	}, nil
+}
+
+func ensureDirectory(path string) error {
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return fmt.Errorf("create directory %q: %w", path, err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("inspect directory %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("path %q is not a directory", path)
+	}
+	return nil
+}
+
+func writeInitialFile(path string, data []byte, force bool) (bool, error) {
+	if !force {
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if _, err := file.Write(data); err != nil {
+			_ = file.Close()
+			return false, err
+		}
+		if err := file.Sync(); err != nil {
+			_ = file.Close()
+			return false, err
+		}
+		if err := file.Close(); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".ladygraph-init-*")
+	if err != nil {
+		return false, err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0o600); err != nil {
+		_ = temporary.Close()
+		return false, err
+	}
+	if _, err := temporary.Write(data); err != nil {
+		_ = temporary.Close()
+		return false, err
+	}
+	if err := temporary.Sync(); err != nil {
+		_ = temporary.Close()
+		return false, err
+	}
+	if err := temporary.Close(); err != nil {
+		return false, err
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// RegisterRepositories appends repositories to the validated registry. Paths
+// are resolved relative to the registry file and duplicate names or paths are
+// rejected before the file is replaced.
+func RegisterRepositories(path string, additions []Repository) error {
+	repositoriesPath, err := resolveRepositoriesPath(path)
+	if err != nil {
+		return fmt.Errorf("resolve repositories path: %w", err)
+	}
+	current, err := loadRepositoriesFile(repositoriesPath)
+	if err != nil {
+		return fmt.Errorf("load repositories %q: %w", repositoriesPath, err)
+	}
+	for index := range additions {
+		addition := additions[index]
+		expanded, err := expandPath(addition.Path, filepath.Dir(repositoriesPath))
+		if err != nil {
+			return fmt.Errorf("repositories addition %d path: %w", index, err)
+		}
+		addition.Path = expanded
+		current.Repositories = append(current.Repositories, addition)
+	}
+	if err := validateRepositories(current); err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(current)
+	if err != nil {
+		return fmt.Errorf("encode repositories: %w", err)
+	}
+	if _, err := writeInitialFile(repositoriesPath, data, true); err != nil {
+		return fmt.Errorf("write repositories %q: %w", repositoriesPath, err)
+	}
+	return nil
 }
 
 // Load reads, validates, and combines config.yaml with its repositories.yaml.

@@ -34,3 +34,17 @@ como parte de la resolución sintáctica de configuración.
 - Un cambio incompatible exige incrementar la versión del schema.
 - El registro puede estar explícitamente vacío (`repositories: []`), pero debe
   declarar la lista y la versión del schema.
+
+
+## Inicialización local
+
+`config.Initialize` materializa la configuración y el registro vacío con
+creación exclusiva por defecto (`Force` permite un reemplazo explícito). La
+operación crea los directorios de estado con permisos `0700` y los archivos
+con permisos `0600`. `RegisterRepositories` añade registros mediante una
+escritura atómica y valida nombres, paths y lenguajes antes de reemplazar el
+registro.
+
+La CLI expone este contrato mediante `ladygraph init`; el diagnóstico posterior
+pertenece a `ladygraph doctor`, que además valida la accesibilidad Git y el
+estado publicado sin modificar repositorios fuente.
