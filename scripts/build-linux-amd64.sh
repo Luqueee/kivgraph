@@ -67,6 +67,31 @@ printf 'build-linux-amd64: installing worker dependencies\n' >&2
 pnpm --dir "$root/ts-worker" install --frozen-lockfile
 pnpm --dir "$root/ts-worker" build
 
+if [[ -f "$root/web/package.json" ]]; then
+  [[ -f "$root/web/pnpm-lock.yaml" ]] ||
+    fail "web package is missing its frozen lockfile: $root/web/pnpm-lock.yaml"
+  printf 'build-linux-amd64: installing web dependencies\n' >&2
+  pnpm --dir "$root/web" install --frozen-lockfile
+  pnpm --dir "$root/web" build
+fi
+
+web_dist="$root/web/dist"
+web_assets=false
+if [[ -d "$web_dist" ]]; then
+  [[ -f "$web_dist/index.html" ]] ||
+    fail "web bundle is missing required entry point: $web_dist/index.html"
+  [[ -z "$(find -L "$web_dist" -type l -print -quit)" ]] ||
+    fail "web bundle must not contain symbolic links: $web_dist"
+  mkdir -p "$output_dir/web"
+  cp -aL "$web_dist/." "$output_dir/web/"
+  web_assets=true
+fi
+
+build_tags=ladybug
+if [[ "$web_assets" == true ]]; then
+  build_tags=ladybug,webassets
+fi
+
 build_id="ladygraph-${source_commit}-${source_dirty}"
 
 printf 'build-linux-amd64: compiling Go binary\n' >&2
@@ -76,12 +101,13 @@ CGO_LDFLAGS="-L$native_dir -llbug -Wl,-rpath,\$ORIGIN/../lib" \
 GOOS=linux \
 GOARCH=amd64 \
 go build \
-  -tags ladybug \
+  -tags "$build_tags" \
   -trimpath \
   -buildvcs=true \
   -ldflags "-buildid=$build_id" \
   -o "$output_dir/bin/ladygraph" \
   ./cmd/ladygraph
+
 
 install -m 0755 "$native_library" "$output_dir/lib/liblbug.so"
 install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
@@ -134,6 +160,11 @@ release_version=$(LD_LIBRARY_PATH="$output_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRAR
   "$output_dir/bin/ladygraph" version)
 grammar_sha256=$(sha256sum "$output_dir/grammars/manifest.json" | awk '{print $1}')
 ladybug_sha256=$(sha256sum "$output_dir/lib/liblbug.so" | awk '{print $1}')
+artifact_dirs=(bin lib worker grammars licenses)
+if [[ "$web_assets" == true ]]; then
+  artifact_dirs+=(web)
+fi
+
 
 write_artifacts() {
   local first=true file relative sha256 bytes
@@ -150,7 +181,7 @@ write_artifacts() {
       "$relative" "$sha256" "$bytes"
   done < <(
     cd "$output_dir"
-    find bin lib worker grammars licenses -type f -print | LC_ALL=C sort
+    find "${artifact_dirs[@]}" -type f -print | LC_ALL=C sort
   )
 }
 
@@ -199,7 +230,7 @@ write_checksums() {
   (
     cd "$output_dir"
     {
-      find bin lib worker grammars licenses -type f -print
+      find "${artifact_dirs[@]}" -type f -print
       printf '%s\n' manifest.json
     } | LC_ALL=C sort | while IFS= read -r relative; do
       sha256sum "$relative"

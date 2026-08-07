@@ -41,10 +41,13 @@ de interacción rápida.
    con cabecera, `snapshot_id`, conteos, offsets y buffers densos para IDs,
    posiciones, tipos y confianza. JSON quedará para metadata y detalles
    pequeños.
-8. El bundle de Vite se servirá desde el proceso Go mediante assets generados.
-   La forma exacta de embedding o copia deberá preservar `make build` sin
-   dependencias web obligatorias y registrar hashes si entra en el bundle de
-   distribución.
+8. El bundle de Vite se copiará reproduciblemente desde `web/dist` al
+   directorio `web/` del bundle Linux amd64. El binario de distribución se
+   compilará con el tag `webassets`; los builds normales no requieren Node y
+   devuelven un fallback HTTP `503` explícito cuando no hay bundle. Cada asset
+   copiado se registra con hash SHA-256 y tamaño en `manifest.json` y
+   `SHA256SUMS`.
+
 ## Contrato binario v1
 
 Los endpoints `/api/v1/tiles` y las respuestas binarias de

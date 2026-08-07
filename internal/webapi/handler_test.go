@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,26 @@ func TestHandlerMetaAndReadOnlyMethod(t *testing.T) {
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	assertAPIError(t, response, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
+}
+
+func TestHandlerWebBundleFallback(t *testing.T) {
+	handler := NewHandler(nil)
+
+	for _, path := range []string{"/", "/assets/app.js"} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s status = %d, want %d", path, response.Code, http.StatusServiceUnavailable)
+		}
+		if contentType := response.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/html") {
+			t.Fatalf("%s content type = %q, want text/html", path, contentType)
+		}
+		if !strings.Contains(response.Body.String(), "Web bundle unavailable") {
+			t.Fatalf("%s body does not explain missing web bundle: %q", path, response.Body.String())
+		}
+	}
 }
 
 func TestHandlerSearchSymbolAndNeighborhood(t *testing.T) {

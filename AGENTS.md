@@ -79,6 +79,9 @@ integridad, compatibilidad o verificación descritos aquí.
   loopback debe emitir una advertencia de seguridad.
 - `ladygraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
   listener y ejecuta un cierre graceful acotado al cancelar el contexto.
+- `internal/webassets` sirve solo la copia generada de `web/dist` cuando la
+  distribución se construye con el tag `webassets`; los binarios sin tag
+  devuelven un fallback visible `503` en vez de servir archivos no declarados.
 
 ## LadybugDB y snapshots
 

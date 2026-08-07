@@ -10335,16 +10335,60 @@ reproducibles.
 
 **Checklist:**
 
-- [ ] Verificar el layout existente de distribución.
-- [ ] Implementar embedding o copia reproducible bajo un build tag explícito.
-- [ ] Añadir fallback claro cuando el bundle web no está construido.
-- [ ] Integrar hashes y tamaños en `manifest.json`/`SHA256SUMS`.
+- [x] Verificar el layout existente de distribución.
+- [x] Implementar copia reproducible bajo el tag `webassets`.
+- [x] Añadir fallback claro cuando el bundle web no está construido.
+- [x] Integrar hashes y tamaños en `manifest.json`/`SHA256SUMS`.
 
 **Criterios de aceptación:**
 
 - `make build` continúa funcionando sin depender de Node.
 - El bundle de distribución declara todos sus assets web.
 - `dist/` no se edita manualmente y los assets son reproducibles.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `internal/webassets/fallback.go`;
+* `internal/webassets/assets_fallback.go`;
+* `internal/webassets/assets_bundle.go`;
+* pruebas de fallback y serving bajo cada variante de build tag.
+
+**Archivos modificados:**
+
+* `internal/webapi/handler.go` y `internal/webapi/handler_test.go`;
+* `scripts/build-linux-amd64.sh`;
+* `docs/installation.md` y `docs/adr/0018-react-vite-threejs-viewer.md`;
+* `AGENTS.md`.
+
+**Tests ejecutados:**
+
+* `gofmt -l` sobre todos los archivos Go modificados;
+* `go vet ./...`;
+* `go test ./... -count=1`;
+* `go test -tags webassets ./... -count=1`;
+* `go test -race ./internal/webapi ./internal/webassets -count=1`;
+* `make build`;
+* `make build-linux-amd64`;
+* smoke HTTP del bundle generado con un fixture web efímero.
+
+**Resultados:**
+
+* El build normal no requiere Node ni el tag `webassets`; `/` y `/assets/`
+  devuelven `503` con una explicación explícita si no existe el bundle.
+* El empaquetador ejecuta el build de `web/` solo cuando existe su
+  `package.json` y `pnpm-lock.yaml`, copia únicamente `web/dist`, compila con
+  `webassets` y añade cada archivo copiado a `manifest.json` y `SHA256SUMS`.
+* El smoke real sirvió `web/index.html` y `web/assets/app.js` con `200`; el
+  manifest y los checksums incluyeron ambos paths con digest y tamaño.
+
+**Benchmarks:** no aplica.
+
+**Limitaciones:** el paquete `web/` todavía pertenece a LUQUE-1709; mientras
+no exista, el bundle Linux se genera con el fallback y sin directorio `web/`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1709.
 
 ---
 

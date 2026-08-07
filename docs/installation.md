@@ -3,7 +3,8 @@
 Esta guía instala Ladygraph como un servidor MCP local y prepara su primer
 índice. El flujo recomendado usa el bundle `linux/amd64`; el bundle incluye el
 binario Go, la biblioteca nativa fijada de LadybugDB, el worker TypeScript, las
-grammars y los avisos de licencia.
+grammars, los avisos de licencia y, cuando existe el paquete web construido,
+el bundle Vite bajo `web/`.
 
 Ladygraph no copia ni modifica los repositorios registrados. El grafo canónico,
 los snapshots y los backups se escriben en el directorio de estado configurado.
@@ -22,8 +23,8 @@ El bundle publicado por `scripts/build-linux-amd64.sh` requiere:
 
 `pnpm`, Go y un compilador C no son necesarios para ejecutar un bundle ya
 construido. LadybugDB se carga desde `lib/liblbug.so` mediante el `RUNPATH`
-relativo del ejecutable; no se debe separar `bin/`, `lib/`, `worker/` ni
-`grammars/`.
+relativo del ejecutable; no se debe separar `bin/`, `lib/`, `worker/`,
+`grammars/` ni el directorio `web/` si está presente.
 
 El runtime del worker contiene `typescript` y su paquete nativo de plataforma
 `@typescript/typescript-linux-x64`; por eso no hace falta ejecutar una
@@ -102,13 +103,20 @@ make build-linux-amd64
 ```
 
 Ese comando recrea `dist/ladygraph-linux-amd64/`, descarga y verifica el asset
-nativo, instala las dependencias del worker con `pnpm install --frozen-lockfile`,
-compila el worker y valida `SHA256SUMS`. `dist/` es generado e ignorado por Git.
+nativo, instala las dependencias del worker con `pnpm install --frozen`,
+construye `web/` con su lockfile cuando el paquete existe, copia únicamente
+`web/dist` al bundle y valida `SHA256SUMS`. `dist/` es generado e ignorado por
+Git.
 
 En un checkout limpio, el `buildid` Go se deriva del commit y del estado
 `dirty`, no de la ruta temporal del checkout. Dos builds sobre el mismo commit,
 toolchain y plataforma producen el mismo payload; un árbol modificado se marca
 `source.dirty: true` en el manifest.
+
+El comando `ladygraph ui` sirve `web/index.html` y los demás archivos generados
+del bundle. Un build sin el tag `webassets` o sin `web/` no sirve archivos del
+checkout: responde `503` con un fallback que indica que el bundle web no está
+construido.
 
 ## Compilar desde el código fuente
 

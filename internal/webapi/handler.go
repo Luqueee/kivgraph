@@ -17,6 +17,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/layout"
+	"github.com/Luqueee/ladygraph/internal/webassets"
 )
 
 const APIVersion = "v1"
@@ -38,6 +39,7 @@ var errSnapshotUnavailable = errors.New("snapshot is not published")
 type Handler struct {
 	store  *hotsnapshot.SnapshotStore
 	logger *slog.Logger
+	assets http.Handler
 
 	layoutMu               sync.Mutex
 	cachedLayout           *layout.Layout
@@ -47,7 +49,7 @@ type Handler struct {
 // NewHandler creates an HTTP handler backed by store. A nil store is valid and
 // makes graph-dependent endpoints return INDEX_NOT_READY.
 func NewHandler(store *hotsnapshot.SnapshotStore) http.Handler {
-	return &Handler{store: store, logger: slog.Default()}
+	return &Handler{store: store, logger: slog.Default(), assets: webassets.New()}
 }
 
 func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
@@ -61,6 +63,10 @@ func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	switch request.URL.Path {
+	case "/":
+		handler.assets.ServeHTTP(writer, request)
+	case "/index.html":
+		handler.assets.ServeHTTP(writer, request)
 	case "/healthz":
 		handler.writeJSON(writer, request, http.StatusOK, map[string]string{"status": "ok"})
 	case "/api/v1/meta":
@@ -74,7 +80,11 @@ func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	case "/api/v1/neighborhood":
 		handler.neighborhood(writer, request)
 	default:
-		handler.writeError(writer, request, http.StatusNotFound, "NOT_FOUND", "endpoint not found")
+		if request.URL.Path == "/api" || strings.HasPrefix(request.URL.Path, "/api/") {
+			handler.writeError(writer, request, http.StatusNotFound, "NOT_FOUND", "endpoint not found")
+			return
+		}
+		handler.assets.ServeHTTP(writer, request)
 	}
 }
 
