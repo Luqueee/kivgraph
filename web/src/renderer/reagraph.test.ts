@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   decodeGraphPayload,
   type GraphBinaryError,
-  readNode,
+  NODE_KIND_REPOSITORY,
   VIEWER_EDGE_FLAG_PACKAGE,
 } from "@/renderer/binary";
 import { createDemoPayload } from "@/renderer/fixture";
-import { createReagraphGraph } from "@/renderer/reagraph";
+import { ALWAYS_LABELLED_SIZE, createReagraphGraph } from "@/renderer/reagraph";
 
 describe("Reagraph payload adapter", () => {
   it("maps dense records to unique nodes and linked edges", () => {
@@ -17,8 +17,7 @@ describe("Reagraph payload adapter", () => {
     expect(new Set(graph.nodes.map((node) => node.id)).size).toBe(8);
     expect(graph.nodes[3]).toMatchObject({
       id: "node-3",
-      label: "core.load",
-      data: { index: 3, sourceId: 0, kind: 4 },
+      data: { index: 3, sourceId: 0, kind: 4, label: "core.load" },
     });
     // Edge 2 links symbol 2 to symbol 3, which are payload nodes 5 and 6.
     expect(graph.edges[2]).toMatchObject({
@@ -88,16 +87,12 @@ describe("Reagraph payload adapter", () => {
       "core.dispose",
       "@acme/ui",
     ]);
-    expect(graph.nodes.map((node) => node.label)).toEqual([
-      "acme/widgets",
-      "@acme/core",
-      "src/index.ts",
-      "core.load",
-      "core.parse",
-      "core.render",
-      "core.dispose",
-      "@acme/ui",
-    ]);
+    // Only what the reader needs to orient themselves is drawn: the
+    // repository, plus whatever the tile's centrality picked out as a hub.
+    const captioned = graph.nodes.filter((node) => node.label !== undefined);
+    expect(captioned.length).toBeGreaterThan(0);
+    expect(captioned.length).toBeLessThan(graph.nodes.length);
+    expect(captioned[0].id).toBe("node-0");
   });
 
   it("shortens a long module path to its last two segments", () => {
@@ -105,11 +100,11 @@ describe("Reagraph payload adapter", () => {
     const payload = decodeGraphPayload(buffer);
     const long = "kena.bot/api-db-go/internal/domain/errors";
     const labels = [...payload.labels];
-    labels[1] = long;
+    labels[0] = long;
     const graph = createReagraphGraph({ ...payload, labels });
 
-    expect(graph.nodes[1].label).toBe("domain/errors");
-    expect(graph.nodes[1].data.label).toBe(long);
+    expect(graph.nodes[0].label).toBe("domain/errors");
+    expect(graph.nodes[0].data.label).toBe(long);
   });
 
   // Positions are derived from the payload alone, so the same tile always
@@ -123,76 +118,73 @@ describe("Reagraph payload adapter", () => {
     );
   });
 
-  // The layout packs a repository's children inside its own box, so projecting
-  // absolute coordinates leaves half the canvas empty and crushes the dense
-  // containers. Ranking keeps the layout's order and gives every distinct
-  // position the same room.
-  it("spreads positions by rank while keeping the layout order", () => {
-    const payload = decodeGraphPayload(createDemoPayload());
-    const graph = createReagraphGraph(payload);
-
-    const projected = graph.nodes.map((node, index) => {
-      const record = readNode(payload, index);
-      return {
-        x: node.data.x,
-        center: Number(record.minX + record.maxX) / 2,
-      };
-    });
-    // Ranking is monotone: a node further right in the layout never renders
-    // left of one behind it. Exact ties spread in a spiral, so allow that.
-    const jitter = 40;
-    const sorted = [...projected].sort(
-      (left, right) => left.center - right.center,
-    );
-    for (let position = 1; position < sorted.length; position += 1) {
-      expect(sorted[position].x).toBeGreaterThanOrEqual(
-        sorted[position - 1].x - jitter,
+  // A container and the children it holds are one thing on screen: the layout
+  // hangs a file on a shell around its own package, never around a package it
+  // has nothing to do with.
+  it("keeps a node beside the container that holds it", () => {
+    const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+    const between = (left: number, right: number): number =>
+      Math.hypot(
+        graph.nodes[left].data.x - graph.nodes[right].data.x,
+        graph.nodes[left].data.y - graph.nodes[right].data.y,
+        graph.nodes[left].data.z - graph.nodes[right].data.z,
       );
-    }
 
-    // Distinct columns are evenly spaced: no cluster is denser than another.
-    const columns = [
-      ...new Set(
-        projected
-          .filter(
-            (node, _index, all) =>
-              all.filter((other) => other.center === node.center).length === 1,
-          )
-          .map((node) => Math.round(node.x)),
-      ),
-    ].sort((left, right) => left - right);
-    const gaps = columns
-      .slice(1)
-      .map((value, index) => Math.round(value - columns[index]));
-    const unit = Math.min(...gaps);
-    for (const gap of gaps) {
-      expect(gap % unit).toBe(0);
+    // The fixture nests repository 0 > package 0 (index 1) > file 0 (index 2)
+    // > four symbols, and hangs package 1 (index 7) off the same repository.
+    expect(between(2, 1)).toBeLessThan(between(2, 7));
+    for (const symbol of [3, 4, 5, 6]) {
+      expect(between(symbol, 2)).toBeLessThan(between(symbol, 7));
     }
   });
 
-  // The layout nests a repository around its packages around its files, so a
-  // flat projection stacks a container on top of its own children. Each kind
-  // gets its own depth plane instead, which is what makes rotating readable.
-  it("places each node kind on its own depth plane", () => {
+  // A drawing that lives on one plane is a sheet inside a 3D scene: rotating
+  // it shows nothing. Every axis has to carry part of the structure.
+  it("spreads the tile across all three axes", () => {
     const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
 
-    const planes = new Map<number, number>();
-    for (const node of graph.nodes) {
-      const previous = planes.get(node.data.kind);
-      if (previous !== undefined) {
-        // Collisions step away in depth, so compare the nearest plane.
-        expect(Math.abs(node.data.z - previous)).toBeLessThan(200);
-        continue;
-      }
-      planes.set(node.data.kind, node.data.z);
+    const widest = Math.max(...graph.stats.spread);
+    expect(widest).toBeGreaterThan(0);
+    for (const axis of graph.stats.spread) {
+      expect(axis / widest).toBeGreaterThan(0.4);
     }
-    const repository = planes.get(1) ?? 0;
-    const pkg = planes.get(2) ?? 0;
-    const file = planes.get(3) ?? 0;
-    const symbol = planes.get(4) ?? 0;
-    expect(repository).toBeGreaterThan(pkg);
-    expect(pkg).toBeGreaterThan(file);
-    expect(file).toBeGreaterThan(symbol);
+  });
+
+  // Reagraph keeps a caption on screen at any distance once a node is drawn
+  // above `ALWAYS_LABELLED_SIZE`. That threshold is the level-of-detail rule:
+  // repositories and hubs are named, the rest wait for the camera.
+  it("reserves permanent captions for repositories and hubs", () => {
+    const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+
+    const repository = graph.nodes[0];
+    expect(repository.data.kind).toBe(NODE_KIND_REPOSITORY);
+    expect(repository.size ?? 0).toBeGreaterThan(ALWAYS_LABELLED_SIZE);
+
+    const named = graph.nodes.filter(
+      (node) => (node.size ?? 0) > ALWAYS_LABELLED_SIZE,
+    );
+    expect(named.length).toBeLessThan(graph.nodes.length);
+  });
+
+  // The level a reader asked for and the nodes a budgeted tile carries are
+  // different things; the viewer describes what it actually drew.
+  it("counts the nodes of the tile by kind", () => {
+    const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+
+    expect(graph.stats.nodesByKind).toEqual([1, 2, 1, 4]);
+    expect(graph.stats.clusterCount).toBe(1);
+  });
+
+  // One repository is one cluster: nothing in this tile crosses a boundary,
+  // and the viewer must not paint a crossing that does not exist.
+  it("marks no dependency as cross-cluster inside a single repository", () => {
+    const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+
+    const dependencies = graph.edges.filter((edge) => !edge.data.containment);
+    expect(dependencies.length).toBeGreaterThan(0);
+    for (const edge of dependencies) {
+      expect(edge.data.crossCluster).toBe(false);
+    }
   });
 
   it("rejects a payload edge whose endpoints are outside the node section", () => {

@@ -7,30 +7,48 @@ import type {
 
 import {
   GraphBinaryError,
+  type GraphEdgeRecord,
   type GraphNodeRecord,
   type GraphPayload,
   NODE_KIND_FILE,
   NODE_KIND_PACKAGE,
   NODE_KIND_REPOSITORY,
   NODE_KIND_SYMBOL,
-  readCoordinateBounds,
   readEdge,
   readNode,
   VIEWER_EDGE_FLAG_PACKAGE,
   VIEWER_FLAG_TRUNCATED,
 } from "./binary";
+import { computeStructuralLayout, type LayoutGraph } from "./layout";
 
 export const DEFAULT_REAGRAPH_NODE_LIMIT = 2_000;
 export const DEFAULT_REAGRAPH_EDGE_LIMIT = 8_000;
-export const REAGRAPH_WORLD_SIZE = 800;
 
 /** Colours the viewer legend explains; kept beside the palette they describe. */
 export const CONTAINMENT_COLOR = "#475569";
-export const DEPENDENCY_COLOR = "#94a3b8";
+export const LOCAL_DEPENDENCY_COLOR = "#4b5563";
+export const CROSS_DEPENDENCY_COLOR = "#94a3b8";
 export const EXACT_DEPENDENCY_COLOR = "#16a34a";
 
 /** Containment reads as a thin hairline; dashes cost a curve per dash. */
 export const CONTAINMENT_EDGE_SIZE = 0.4;
+/** A dependency inside one cluster is context, not news. */
+export const LOCAL_EDGE_SIZE = 0.5;
+/** A dependency that leaves its cluster is the structure of the codebase. */
+export const CROSS_EDGE_SIZE = 0.9;
+
+/**
+ * Above this drawn size Reagraph keeps a caption on screen at any distance
+ * (`labelType="auto"`). Repositories and hubs sit above it, everything else
+ * below, which is what turns node importance into label priority.
+ */
+export const ALWAYS_LABELLED_SIZE = 7;
+
+/** Most a tile will ever call a hub, however many nodes it holds. */
+const MAX_HUBS = 18;
+
+/** Share of a tile eligible to be a hub before the cap applies. */
+const HUB_SHARE = 0.06;
 
 export const NODE_COLORS: ReadonlyArray<{ kind: number; color: string }> = [
   { kind: NODE_KIND_REPOSITORY, color: "#2563eb" },
@@ -41,6 +59,18 @@ export const NODE_COLORS: ReadonlyArray<{ kind: number; color: string }> = [
 
 function endpointKey(kind: number, id: number): string {
   return `${kind}:${id}`;
+}
+
+/**
+ * Stable 32-bit identity of a node, from what it is and not from where it
+ * landed in this tile. The layout seeds its jitter with it, so the same
+ * package keeps the same corner of the world across levels and reloads.
+ */
+function identityOf(kind: number, id: number): number {
+  let value =
+    (Math.imul(id, 0x85ebca6b) ^ Math.imul(kind + 1, 0xc2b2ae35)) >>> 0;
+  value = Math.imul(value ^ (value >>> 15), 0x2545f491) >>> 0;
+  return (value ^ (value >>> 13)) >>> 0;
 }
 
 // A caption competes for pixels with every neighbour, and module paths are
@@ -58,8 +88,16 @@ export interface ReagraphNodeData {
   readonly sourceId: number;
   readonly kind: number;
   readonly depth: number;
-  /** Full name from the snapshot; the caption is shortened for the canvas. */
+  /** Full name from the snapshot; the caption on the canvas is shortened. */
   readonly label: string;
+  /** Cluster the node belongs to: its repository, or its orphan component. */
+  readonly cluster: number;
+  /** Community inside the cluster; siblings that depend on each other share one. */
+  readonly community: number;
+  /** Depth in the condensed dependency DAG. */
+  readonly layer: number;
+  /** Centrality in `[0, 1]` from PageRank over the tile's dependencies. */
+  readonly importance: number;
   readonly x: number;
   readonly y: number;
   readonly z: number;
@@ -76,6 +114,8 @@ export interface ReagraphEdgeData {
   readonly flags: number;
   /** True for the container-to-child link the payload carries per node. */
   readonly containment?: boolean;
+  /** True when the two endpoints live in different clusters. */
+  readonly crossCluster?: boolean;
 }
 
 export type ViewerReagraphNode = GraphNode & {
@@ -86,10 +126,26 @@ export type ViewerReagraphEdge = GraphEdge & {
   readonly data: ReagraphEdgeData;
 };
 
+/**
+ * What the layout found in the tile: enough for the viewer to describe the
+ * drawing and to frame it without measuring the scene again.
+ */
+export interface ViewerGraphStats {
+  /** Node count per kind, in repository, package, file, symbol order. */
+  readonly nodesByKind: readonly [number, number, number, number];
+  readonly clusterCount: number;
+  readonly layerCount: number;
+  readonly center: readonly [number, number, number];
+  readonly boundingRadius: number;
+  /** Standard deviation per axis; a near-zero entry means a flat drawing. */
+  readonly spread: readonly [number, number, number];
+}
+
 export interface ViewerReagraphGraph {
   readonly nodes: ViewerReagraphNode[];
   readonly edges: ViewerReagraphEdge[];
   readonly layoutOverrides: LayoutOverrides;
+  readonly stats: ViewerGraphStats;
 }
 
 /**
@@ -102,6 +158,7 @@ export interface ViewerReagraphView {
   readonly edges: ViewerReagraphEdge[];
   readonly truncated: boolean;
   readonly snapshotId: number;
+  readonly stats: ViewerGraphStats;
 }
 
 export interface ReagraphGraphLimits {
@@ -113,6 +170,12 @@ export interface ReagraphGraphLimits {
  * Converts only a bounded binary view into the object shape required by
  * Reagraph. The transferred LGVB buffer remains owned by the caller and is
  * never stored in React state or copied into this graph model.
+ *
+ * Positions come from the structural layout, not from the published
+ * coordinates: a tile is a sample of the world, and the grid the server packed
+ * says nothing about which packages belong together once most of them are
+ * missing. Clusters, dependency depth and communities are derived here from
+ * the containment forest and the dependency graph the tile does carry.
  *
  * The result is plain data so a worker can post it across the thread
  * boundary; `createLayoutOverrides` rebuilds the callback on the other side.
@@ -143,93 +206,134 @@ export function createReagraphView(
     );
   }
 
-  const bounds = readCoordinateBounds(payload);
-  const spanX = Number(bounds.maxX - bounds.minX);
-  const spanY = Number(bounds.maxY - bounds.minY);
-  if (!Number.isFinite(spanX) || !Number.isFinite(spanY)) {
-    throw new GraphBinaryError(
-      "INVALID_BOUNDS",
-      "Reagraph coordinates exceed the supported numeric range",
-    );
-  }
-
-  // The world grows with the node count: a fixed extent turns a 2.000 node
-  // tile into an unreadable clump.
-  const worldSize = Math.max(
-    REAGRAPH_WORLD_SIZE,
-    Math.round(Math.sqrt(payload.header.nodeCount) * 60),
-  );
-
-  const records = new Array<GraphNodeRecord>(payload.header.nodeCount);
-  const rawX = new Array<number>(payload.header.nodeCount);
-  const rawY = new Array<number>(payload.header.nodeCount);
-  for (let index = 0; index < payload.header.nodeCount; index += 1) {
+  const nodeCount = payload.header.nodeCount;
+  const records = new Array<GraphNodeRecord>(nodeCount);
+  const kind = new Uint8Array(nodeCount);
+  const identity = new Uint32Array(nodeCount);
+  const parent = new Int32Array(nodeCount).fill(-1);
+  const nodeIndexByKey = new Map<string, number>();
+  for (let index = 0; index < nodeCount; index += 1) {
     const record = readNode(payload, index);
     records[index] = record;
-    rawX[index] = centerOffset(record.minX, record.maxX, bounds.minX);
-    rawY[index] = centerOffset(record.minY, record.maxY, bounds.minY);
+    kind[index] = record.kind;
+    identity[index] = identityOf(record.kind, record.id);
+    nodeIndexByKey.set(endpointKey(record.kind, record.id), index);
   }
-  const columns = rankAxis(rawX, worldSize);
-  const rows = rankAxis(rawY, worldSize);
+  for (let index = 0; index < nodeCount; index += 1) {
+    const record = records[index];
+    if (record.parentKind === 0) continue;
+    const container = nodeIndexByKey.get(
+      endpointKey(record.parentKind, record.parentId),
+    );
+    if (container !== undefined) parent[index] = container;
+  }
 
   // Dense IDs are only unique per node kind, and edges carry them, not payload
   // indices. Package relations are flagged; everything else connects symbols.
-  const nodeIdsByKind = new Map<string, string>();
-  const nodes: ViewerReagraphNode[] = [];
-  const occupiedCenters = new Map<string, number>();
-  for (let index = 0; index < payload.header.nodeCount; index += 1) {
-    const record = records[index];
-    const { x, y, z } = spreadCenter(
-      columns[index],
-      rows[index],
-      kindPlane(record.kind, worldSize),
-      occupiedCenters,
-      worldSize,
-    );
-    const label =
-      payload.labels[index] ?? `${kindLabel(record.kind)} ${record.id}`;
-    const data: ReagraphNodeData = {
-      index,
-      sourceId: record.id,
-      kind: record.kind,
-      depth: record.depth,
-      label,
-      x,
-      y,
-      z,
-    };
-    const id = `node-${index}`;
-    nodeIdsByKind.set(endpointKey(record.kind, record.id), id);
-    nodes.push({
-      id,
-      label: shortLabel(label),
-      labelVisible: true,
-      size: nodeSize(record.kind),
-      fill: nodeColor(record.kind),
-      data,
-    });
-  }
-
-  const edges: ViewerReagraphEdge[] = [];
-  for (let index = 0; index < payload.header.edgeCount; index += 1) {
+  const edgeCount = payload.header.edgeCount;
+  const edgeRecords = new Array<GraphEdgeRecord>(edgeCount);
+  const edgeSource = new Int32Array(edgeCount);
+  const edgeTarget = new Int32Array(edgeCount);
+  const edgeWeight = new Float32Array(edgeCount);
+  for (let index = 0; index < edgeCount; index += 1) {
     const record = readEdge(payload, index);
+    edgeRecords[index] = record;
     const endpointKind =
       (record.flags & VIEWER_EDGE_FLAG_PACKAGE) !== 0
         ? NODE_KIND_PACKAGE
         : NODE_KIND_SYMBOL;
-    const source = nodeIdsByKind.get(endpointKey(endpointKind, record.source));
-    const target = nodeIdsByKind.get(endpointKey(endpointKind, record.target));
+    const source = nodeIndexByKey.get(endpointKey(endpointKind, record.source));
+    const target = nodeIndexByKey.get(endpointKey(endpointKind, record.target));
     if (source === undefined || target === undefined) {
       throw new GraphBinaryError(
         "INVALID_REFERENCES",
         `Reagraph edge ${index} references a node outside the payload`,
       );
     }
+    edgeSource[index] = source;
+    edgeTarget[index] = target;
+    // An exact dependency is evidence; an inferred one is a hint. The layout
+    // lets the first pull twice as hard.
+    edgeWeight[index] = record.confidence >= 2 ? 2 : 1;
+  }
+
+  const graph: LayoutGraph = {
+    nodeCount,
+    kind,
+    parent,
+    identity,
+    edgeSource,
+    edgeTarget,
+    edgeWeight,
+  };
+  // A share of the tile is drawn - and captioned - as a hub, with an absolute
+  // cap so a large tile does not fill with competing captions. The layout
+  // hands over each node's rank by importance, which is all the adapter needs
+  // to decide without seeing the whole distribution.
+  const hubs = Math.min(MAX_HUBS, Math.ceil(nodeCount * HUB_SHARE));
+  const sizeOf = (nodeKind: number, importance: number, rank: number): number =>
+    nodeSize(nodeKind, importance, rank < hubs);
+  const layout = computeStructuralLayout(graph, sizeOf);
+
+  const nodes: ViewerReagraphNode[] = [];
+  const nodesByKind: [number, number, number, number] = [0, 0, 0, 0];
+  for (let index = 0; index < nodeCount; index += 1) {
+    const record = records[index];
+    const label =
+      payload.labels[index] ?? `${kindLabel(record.kind)} ${record.id}`;
+    const importance = layout.importance[index];
+    const data: ReagraphNodeData = {
+      index,
+      sourceId: record.id,
+      kind: record.kind,
+      depth: record.depth,
+      label,
+      cluster: layout.cluster[index],
+      community: layout.community[index],
+      layer: layout.layer[index],
+      importance,
+      x: layout.x[index],
+      y: layout.y[index],
+      z: layout.z[index],
+    };
+    if (record.kind >= 1 && record.kind <= 4) {
+      nodesByKind[record.kind - 1] += 1;
+    }
+    const size = sizeOf(record.kind, importance, layout.rank[index]);
+    nodes.push({
+      id: `node-${index}`,
+      // Only the nodes that carry the structure are captioned. Reagraph draws
+      // every label it is given at a fixed size in world units, so on a tile
+      // of a thousand nodes the rest would be a grey blur; the full name of
+      // any node is one hover away.
+      label: size > ALWAYS_LABELLED_SIZE ? shortLabel(label) : undefined,
+      size,
+      fill: nodeColor(record.kind),
+      data,
+    });
+  }
+
+  const edges: ViewerReagraphEdge[] = [];
+  for (let index = 0; index < edgeCount; index += 1) {
+    const record = edgeRecords[index];
+    const source = edgeSource[index];
+    const target = edgeTarget[index];
+    const crossCluster = layout.cluster[source] !== layout.cluster[target];
+    const exact = record.confidence >= 2;
     edges.push({
       id: `edge-${index}`,
-      source,
-      target,
-      fill: edgeColor(record.confidence),
+      source: `node-${source}`,
+      target: `node-${target}`,
+      fill: exact
+        ? EXACT_DEPENDENCY_COLOR
+        : crossCluster
+          ? CROSS_DEPENDENCY_COLOR
+          : LOCAL_DEPENDENCY_COLOR,
+      size: crossCluster || exact ? CROSS_EDGE_SIZE : LOCAL_EDGE_SIZE,
+      // A straight line between two clusters cuts through everything in
+      // between. Bowing them makes the ones that share a direction read as one
+      // channel, which is as close to bundling as the renderer allows.
+      interpolation: crossCluster ? "curved" : "linear",
       dashed: false,
       arrowPlacement: "none",
       data: {
@@ -241,36 +345,32 @@ export function createReagraphView(
         confidence: record.confidence,
         provenance: record.provenance,
         flags: record.flags,
+        crossCluster,
       },
     });
   }
 
   // Every node carries the container it belongs to. Without those edges a
   // repository floats next to its own packages with nothing joining them, and
-  // the picture claims a disconnection the graph does not have. Only drawn
-  // when the container is part of this tile.
-  for (let index = 0; index < nodes.length; index += 1) {
-    const record = records[index];
-    if (record.parentKind === 0) continue;
-    const parent = nodeIdsByKind.get(
-      endpointKey(record.parentKind, record.parentId),
-    );
-    if (parent === undefined) continue;
+  // the picture claims a disconnection the graph does not have.
+  for (let index = 0; index < nodeCount; index += 1) {
+    const container = parent[index];
+    if (container < 0) continue;
     // Solid and thin, never dashed: Reagraph builds a Catmull-Rom curve and a
     // tube per dash, so one dashed containment edge per node costs more than
     // every dependency in the tile put together.
     edges.push({
       id: `contains-${index}`,
-      source: parent,
-      target: nodes[index].id,
+      source: `node-${container}`,
+      target: `node-${index}`,
       fill: CONTAINMENT_COLOR,
       size: CONTAINMENT_EDGE_SIZE,
       dashed: false,
       arrowPlacement: "none",
       data: {
         index,
-        sourceIndex: record.parentId,
-        targetIndex: record.id,
+        sourceIndex: records[container].id,
+        targetIndex: records[index].id,
         evidence: 0,
         kind: 0,
         confidence: 0,
@@ -286,6 +386,14 @@ export function createReagraphView(
     edges,
     truncated: (payload.header.flags & VIEWER_FLAG_TRUNCATED) !== 0,
     snapshotId: Number(payload.header.snapshotId),
+    stats: {
+      nodesByKind,
+      clusterCount: layout.clusterCount,
+      layerCount: layout.layerCount,
+      center: layout.center,
+      boundingRadius: layout.boundingRadius,
+      spread: layout.spread,
+    },
   };
 }
 
@@ -299,6 +407,7 @@ export function createReagraphGraph(
     nodes: view.nodes,
     edges: view.edges,
     layoutOverrides: createLayoutOverrides(view.nodes),
+    stats: view.stats,
   };
 }
 
@@ -339,76 +448,6 @@ export function createLayoutOverrides(
   };
 }
 
-function centerOffset(
-  minimum: bigint,
-  maximum: bigint,
-  origin: bigint,
-): number {
-  return (Number(minimum - origin) + Number(maximum - origin)) / 2;
-}
-
-/**
- * Spreads one axis by rank instead of by absolute coordinate.
- *
- * The published layout packs a repository's packages inside its own box, so a
- * linear projection of the whole world squeezes forty packages into a blob
- * while half the canvas stays empty. Ranking keeps the layout's order and its
- * columns — nodes that share a coordinate still share a slot — and gives every
- * distinct position the same room.
- */
-function rankAxis(values: readonly number[], worldSize: number): number[] {
-  const unique = [...new Set(values)].sort((left, right) => left - right);
-  const slots = new Map(unique.map((value, index) => [value, index]));
-  const divisor = Math.max(unique.length - 1, 1);
-  return values.map((value) => {
-    const slot = slots.get(value) ?? 0;
-    return (slot / divisor - 0.5) * worldSize;
-  });
-}
-
-// Each node kind gets its own plane: repositories at the front, symbols at the
-// back. The published layout nests them inside one another, so on a flat
-// projection a container and its children land on the same pixels.
-function kindPlane(kind: number, worldSize: number): number {
-  const step = worldSize / 6;
-  switch (kind) {
-    case NODE_KIND_REPOSITORY:
-      return step * 1.5;
-    case NODE_KIND_PACKAGE:
-      return step * 0.5;
-    case NODE_KIND_FILE:
-      return -step * 0.5;
-    case NODE_KIND_SYMBOL:
-      return -step * 1.5;
-    default:
-      return 0;
-  }
-}
-
-// Layout containers place children on a grid, so distinct nodes can share a
-// centre once coordinates are projected. Collisions spread along a fixed
-// spiral and step away in depth: deterministic, and no two nodes end up under
-// one label.
-function spreadCenter(
-  x: number,
-  y: number,
-  z: number,
-  occupiedCenters: Map<string, number>,
-  worldSize: number,
-): { x: number; y: number; z: number } {
-  const key = `${Math.round(x)}:${Math.round(y)}:${Math.round(z)}`;
-  const occurrence = occupiedCenters.get(key) ?? 0;
-  occupiedCenters.set(key, occurrence + 1);
-  if (occurrence === 0) return { x, y, z };
-  const angle = occurrence * 2.399963229728653;
-  const radius = (worldSize / 24) * Math.sqrt(occurrence);
-  return {
-    x: x + radius * Math.cos(angle),
-    y: y + radius * Math.sin(angle),
-    z: z + (worldSize / 48) * occurrence,
-  };
-}
-
 function kindLabel(kind: number): string {
   switch (kind) {
     case NODE_KIND_REPOSITORY:
@@ -424,23 +463,26 @@ function kindLabel(kind: number): string {
   }
 }
 
-function nodeSize(kind: number): number {
+/**
+ * Drawn radius, and with it label priority.
+ *
+ * Repositories anchor the picture and are always named. A hub is named because
+ * the reader is looking for it. Everything else stays under the threshold and
+ * gives up its caption until the camera comes close.
+ */
+function nodeSize(kind: number, importance: number, hub: boolean): number {
+  if (kind === NODE_KIND_REPOSITORY) return 15;
+  if (hub && importance > 0) return ALWAYS_LABELLED_SIZE + 3.5;
   switch (kind) {
-    case NODE_KIND_REPOSITORY:
-      return 15;
     case NODE_KIND_PACKAGE:
-      return 12;
+      return 6.5;
     case NODE_KIND_FILE:
-      return 10;
+      return 5;
     default:
-      return 7;
+      return 4;
   }
 }
 
 function nodeColor(kind: number): string {
   return NODE_COLORS.find((entry) => entry.kind === kind)?.color ?? "#64748b";
-}
-
-function edgeColor(confidence: number): string {
-  return confidence >= 2 ? EXACT_DEPENDENCY_COLOR : DEPENDENCY_COLOR;
 }

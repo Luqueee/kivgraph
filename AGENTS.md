@@ -121,19 +121,41 @@ integridad, compatibilidad o verificación descritos aquí.
   snapshot conoce, acortado en el lienzo y completo al pasar el cursor. Un ID
   denso solo es único dentro de su tipo de nodo, así que los extremos de una
   arista se resuelven por `(tipo, id)`.
-- El visor renderiza en 3D con la cámara rotando por defecto y coloca cada tipo
-  de nodo en su propio plano de profundidad; las posiciones siguen siendo las
-  del layout publicado, sin force layout en el navegador.
-- El visor proyecta cada eje por rango, no por coordenada absoluta: conserva el
-  orden y las columnas del layout y reparte las posiciones distintas a
-  intervalos iguales. Es una decisión de presentación determinista; el layout
-  publicado no cambia.
+- El visor no dibuja las coordenadas publicadas: deriva su propio layout 3D de
+  la estructura del tile - contención, dependencias, comunidades y profundidad
+  jerárquica - y lo calcula en el worker, una vez por tile. Una tile es una
+  muestra del mundo, y la rejilla que empaquetó el servidor no dice nada sobre
+  qué paquetes van juntos cuando falta la mayoría.
+- Primero estructura y después física: los clusters se colocan y se relajan
+  entre sí, cada nodo cuelga de su contenedor y sólo al final una relajación
+  local corrige lo que la estructura no decidió. No hay simulación por frame.
+- El layout es determinista: las direcciones salen del hash de la identidad
+  del nodo, no de su posición en el tile ni de un generador aleatorio. El mismo
+  tile dibuja siempre el mismo mundo.
+- Todas las distancias del layout son proporciones del radio con el que se
+  dibuja un nodo. Reservar espacio en unidades ajenas a lo que se pinta produce
+  o una maraña o un campo de puntos invisibles.
+- Ningún eje puede colapsar: si uno queda más estrecho que la mitad del más
+  ancho se reescala en torno al centroide. La profundidad que sólo existe en
+  los números no vale nada.
 - El visor dibuja la contención declarada por `parent_kind`/`parent_id` cuando
   el contenedor viaja en la misma tile, y una leyenda nombra cada color y cada
   trazo. La paleta se declara una sola vez en el adaptador.
 - Ninguna arista del visor es discontinua: Reagraph construye una curva y un
   tubo por guion, y con una arista por nodo eso domina el frame. La distinción
-  se hace con color y grosor.
+  se hace con color y grosor; las aristas entre clusters se curvan para no
+  atravesar el centro en línea recta.
+- Sólo los repositorios y los hubs llevan rótulo permanente; el resto sale al
+  pasar el cursor. Reagraph dibuja cada etiqueta a tamaño fijo en unidades de
+  mundo, así que rotularlo todo sólo produce una mancha gris.
+- Al posar el cursor sobre un nodo se ilumina su vecindario y se atenúa el
+  resto; al salir se apaga. Reagraph sólo atenúa cuando hay selección, así que
+  el nodo apuntado va en `selections` y lo que toca en `actives`. Encender y
+  apagar esperan a que el cursor se pose: cada cambio del conjunto activo
+  reconstruye las mallas de arista.
+- La cámara encuadra la extensión proyectada sobre sus propios ejes, no la
+  esfera envolvente, y abre fuera de eje. Un layout estructural nunca es una
+  bola, y encuadrar una deja el grafo en un tercio de la pantalla.
 - El visor pide las tiles desde un Web Worker con `AbortController` por
   petición; el render permanece en el hilo principal. El número de nodos por
   vista es ajustable desde la interfaz, una tile recortada se declara como tal

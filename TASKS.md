@@ -10809,6 +10809,92 @@ adaptador, techo del snapshot, suelo y redondeo al paso con cinco tests.
 
 ---
 
+## LUQUE-1719 — Derivar el layout 3D de la estructura del grafo
+
+**Dependencias:** LUQUE-1712.
+
+**Objetivo:** que la vista transmita la arquitectura: comunidades separadas,
+profundidad real en los tres ejes y menos cruces, en vez de un plano con las
+coordenadas publicadas proyectadas por rango.
+
+**Checklist:**
+
+- [x] Sustituir la proyección por rango y el plano por tipo de nodo.
+- [x] Derivar clusters del repositorio contenedor y componentes conexas.
+- [x] Detectar comunidades con Louvain dentro de cada repositorio.
+- [x] Calcular profundidad jerárquica sobre el DAG condensado (Tarjan).
+- [x] Calcular centralidad con PageRank y usarla para tamaño y rótulo.
+- [x] Dimensionar contenedores de abajo arriba para evitar solapamiento.
+- [x] Colocar y relajar las bolas de cluster; relajar dentro de cada una.
+- [x] Garantizar que ningún eje colapsa.
+- [x] Clasificar aristas y curvar las que cruzan de cluster.
+- [x] Encuadrar la cámara por extensión proyectada y abrir fuera de eje.
+- [x] Iluminar el vecindario del nodo al pasar el cursor y apagarlo al salir.
+- [x] Centralizar los parámetros del layout en proporciones.
+
+**Criterios de aceptación:**
+
+- Los clusters no se interpenetran: la distancia entre dos centros supera el
+  alcance de cada uno.
+- Los tres ejes tienen dispersión; ninguno queda por debajo de la mitad del
+  más ancho.
+- Ningún nodo cae dentro de otro.
+- Un hijo está más cerca de su contenedor que de cualquier otro.
+- Un ciclo comparte capa y un dependiente queda por encima de aquello de lo
+  que depende.
+- El mismo tile produce siempre las mismas posiciones.
+- El grafo ocupa la mayor parte del encuadre inicial.
+- El cursor sobre un nodo deja legible su vecindario y atenúa el resto; al
+  retirarlo la vista vuelve a su estado normal.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `docs/adr/0022-viewer-structural-layout.md`;
+* `web/src/renderer/layout/config.ts`, `structure.ts`, `place.ts`, `index.ts`
+  y `layout.test.ts`;
+* `web/src/renderer/camera.ts` y `camera.test.ts`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md`;
+* `web/src/renderer/reagraph.ts` y su test;
+* `web/src/components/GraphPreview.tsx`.
+
+**Medición:** sobre el índice de `~/kena`, con el adaptador completo:
+
+```text
+nivel         nodos  aristas  layout   radio   dispersión x/y/z
+repositories     34        0   11 ms     190   74 / 73 / 72
+packages        138      399   19 ms     950   549 / 274 / 319
+files         1.200    1.461   27 ms   1.054   500 / 387 / 441
+```
+
+**Verificación:**
+
+* `pnpm --dir web check`: 7 archivos de test y 42 tests pasando;
+* `go vet ./...` y `go test ./...` correctos;
+* smoke Chromium contra `ladygraph ui`, midiendo el encuadre sobre los píxeles
+  del lienzo: el grafo ocupa `82 %` del ancho y `85 %` del alto en paquetes, y
+  `70 %` y `94 %` en archivos; antes ocupaba `38 %` y `41 %`;
+* rotación con arrastre: clusters que se solapaban de frente se separan;
+* cursor sobre `web-kena.bot`: el nodo y su vecindario quedan iluminados y el
+  resto baja a `0,18` de opacidad; al retirar el cursor la vista recupera su
+  brillo y el rótulo de estado;
+* cambio de nivel: `295`, `336`, `557` y `2.304` ms; deslizador a `400` y
+  `2.000` correctos; modo 2D correcto; cero `pageerror`.
+
+**Limitación:** a la distancia de encuadre los rótulos de un tile de mil nodos
+miden pocos píxeles y hay que acercarse; es geometría, no un defecto. Resaltar
+un vecindario obliga a Reagraph a reconstruir sus mallas de arista - alrededor
+de un segundo con `1.461` aristas -, por eso el resaltado espera `120` ms a que
+el cursor se pose.
+
+**Siguiente tarea desbloqueada:** LUQUE-1711.
+
+---
+
 ## LUQUE-1713 — Medir rendimiento end-to-end del visor
 
 **Dependencias:** LUQUE-1712.
