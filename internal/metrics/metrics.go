@@ -2,8 +2,8 @@
 //
 // The registry deliberately has no exporter dependency. Query counters use
 // atomics for accumulation after a shared lookup; lifecycle and storage
-// observations update a small locked state. An exporter can consume Report
-// without changing callers.
+// observations update a small locked state. An optional OpenTelemetry bridge
+// forwards the same observations without changing the base registry contract.
 package metrics
 
 import (
@@ -13,24 +13,25 @@ import (
 )
 
 const (
-	QueryDuration         = "ladygraph_query_duration"
-	QueryTotal            = "ladygraph_query_total"
-	QueryErrors           = "ladygraph_query_errors"
-	QueryResults          = "ladygraph_query_results"
-	QueryTruncated        = "ladygraph_query_truncated"
-	SnapshotID            = "ladygraph_snapshot_id"
-	SnapshotAge           = "ladygraph_snapshot_age"
-	SnapshotBuildDuration = "ladygraph_snapshot_build_duration"
-	SnapshotBytes         = "ladygraph_snapshot_bytes"
-	IndexDuration         = "ladygraph_index_duration"
-	IndexFiles            = "ladygraph_index_files"
-	IndexSymbols          = "ladygraph_index_symbols"
-	IndexEdges            = "ladygraph_index_edges"
-	IndexUnresolved       = "ladygraph_index_unresolved"
-	LadybugTransaction    = "ladygraph_ladybug_transaction_duration"
-	LadybugDatabaseBytes  = "ladygraph_ladybug_database_bytes"
-	TSWorkerRestarts      = "ladygraph_ts_worker_restarts"
-	TSWorkerMemory        = "ladygraph_ts_worker_memory"
+	QueryDuration          = "ladygraph_query_duration"
+	QueryTotal             = "ladygraph_query_total"
+	QueryErrors            = "ladygraph_query_errors"
+	QueryResults           = "ladygraph_query_results"
+	QueryTruncated         = "ladygraph_query_truncated"
+	QueryUnresolvedRelated = "ladygraph_query_unresolved_related"
+	SnapshotID             = "ladygraph_snapshot_id"
+	SnapshotAge            = "ladygraph_snapshot_age"
+	SnapshotBuildDuration  = "ladygraph_snapshot_build_duration"
+	SnapshotBytes          = "ladygraph_snapshot_bytes"
+	IndexDuration          = "ladygraph_index_duration"
+	IndexFiles             = "ladygraph_index_files"
+	IndexSymbols           = "ladygraph_index_symbols"
+	IndexEdges             = "ladygraph_index_edges"
+	IndexUnresolved        = "ladygraph_index_unresolved"
+	LadybugTransaction     = "ladygraph_ladybug_transaction_duration"
+	LadybugDatabaseBytes   = "ladygraph_ladybug_database_bytes"
+	TSWorkerRestarts       = "ladygraph_ts_worker_restarts"
+	TSWorkerMemory         = "ladygraph_ts_worker_memory"
 )
 
 // Registry is a process-local metrics collector. It is safe for concurrent
@@ -40,6 +41,7 @@ type Registry struct {
 	mu      sync.RWMutex
 	queries map[string]*queryCounter
 	state   lifecycleState
+	otel    *OpenTelemetry
 }
 
 // NewRegistry creates an empty metrics registry.
@@ -197,6 +199,9 @@ func (r *Registry) ObserveQuery(observation QueryObservation) {
 		}
 		r.mu.Unlock()
 	}
+	if r.otel != nil {
+		r.otel.observeQuery(observation)
+	}
 }
 
 // ObserveSnapshot replaces the current snapshot gauges.
@@ -204,14 +209,23 @@ func (r *Registry) ObserveSnapshot(observation SnapshotObservation) {
 	if r == nil {
 		return
 	}
-	r.mu.Lock()
-	r.state.snapshot = SnapshotMetrics{
+	normalized := SnapshotObservation{
 		ID:            observation.ID,
 		CreatedAt:     observation.CreatedAt,
 		BuildDuration: nonNegativeDuration(observation.BuildDuration),
 		Bytes:         nonNegativeInt64(observation.Bytes),
 	}
+	r.mu.Lock()
+	r.state.snapshot = SnapshotMetrics{
+		ID:            normalized.ID,
+		CreatedAt:     normalized.CreatedAt,
+		BuildDuration: normalized.BuildDuration,
+		Bytes:         normalized.Bytes,
+	}
 	r.mu.Unlock()
+	if r.otel != nil {
+		r.otel.observeSnapshot(normalized)
+	}
 }
 
 // ObserveIndex replaces the latest index gauges.
@@ -219,15 +233,25 @@ func (r *Registry) ObserveIndex(observation IndexObservation) {
 	if r == nil {
 		return
 	}
-	r.mu.Lock()
-	r.state.index = IndexMetrics{
+	normalized := IndexObservation{
 		Duration:   nonNegativeDuration(observation.Duration),
 		Files:      observation.Files,
 		Symbols:    observation.Symbols,
 		Edges:      observation.Edges,
 		Unresolved: observation.Unresolved,
 	}
+	r.mu.Lock()
+	r.state.index = IndexMetrics{
+		Duration:   normalized.Duration,
+		Files:      normalized.Files,
+		Symbols:    normalized.Symbols,
+		Edges:      normalized.Edges,
+		Unresolved: normalized.Unresolved,
+	}
 	r.mu.Unlock()
+	if r.otel != nil {
+		r.otel.observeIndex(normalized)
+	}
 }
 
 // ObserveWorker replaces the current TypeScript worker gauges.
@@ -235,12 +259,19 @@ func (r *Registry) ObserveWorker(observation WorkerObservation) {
 	if r == nil {
 		return
 	}
-	r.mu.Lock()
-	r.state.worker = WorkerMetrics{
+	normalized := WorkerObservation{
 		Restarts:    observation.Restarts,
 		MemoryBytes: nonNegativeInt64(observation.MemoryBytes),
 	}
+	r.mu.Lock()
+	r.state.worker = WorkerMetrics{
+		Restarts:    normalized.Restarts,
+		MemoryBytes: normalized.MemoryBytes,
+	}
 	r.mu.Unlock()
+	if r.otel != nil {
+		r.otel.observeWorker(normalized)
+	}
 }
 
 // RecordWorkerRestart increments the TypeScript worker restart counter without
@@ -251,7 +282,14 @@ func (r *Registry) RecordWorkerRestart() {
 	}
 	r.mu.Lock()
 	r.state.worker.Restarts++
+	observation := WorkerObservation{
+		Restarts:    r.state.worker.Restarts,
+		MemoryBytes: r.state.worker.MemoryBytes,
+	}
 	r.mu.Unlock()
+	if r.otel != nil {
+		r.otel.observeWorker(observation)
+	}
 }
 
 // ObserveLadybug records one LadybugDB transaction and replaces the database
@@ -260,15 +298,21 @@ func (r *Registry) ObserveLadybug(observation LadybugObservation) {
 	if r == nil {
 		return
 	}
-	elapsed := nonNegativeDuration(observation.TransactionDuration)
+	normalized := LadybugObservation{
+		TransactionDuration: nonNegativeDuration(observation.TransactionDuration),
+		DatabaseBytes:       nonNegativeInt64(observation.DatabaseBytes),
+	}
 	r.mu.Lock()
 	r.state.ladybug.Transactions++
-	r.state.ladybug.TransactionTotal += elapsed
-	if elapsed > r.state.ladybug.TransactionMax {
-		r.state.ladybug.TransactionMax = elapsed
+	r.state.ladybug.TransactionTotal += normalized.TransactionDuration
+	if normalized.TransactionDuration > r.state.ladybug.TransactionMax {
+		r.state.ladybug.TransactionMax = normalized.TransactionDuration
 	}
-	r.state.ladybug.DatabaseBytes = nonNegativeInt64(observation.DatabaseBytes)
+	r.state.ladybug.DatabaseBytes = normalized.DatabaseBytes
 	r.mu.Unlock()
+	if r.otel != nil {
+		r.otel.observeLadybug(normalized)
+	}
 }
 
 // Report returns a copy of the current metrics and computes snapshot age from

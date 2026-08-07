@@ -1,0 +1,41 @@
+{
+  "benchmark": "otel-metrics",
+  "commit": "f3984c4 (working tree with LUQUE-1404 changes)",
+  "generated_at": "2026-08-07T08:17:21Z",
+  "command": "go test ./internal/metrics -run '^$' -bench 'BenchmarkObserveQuery' -benchmem -count=3",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "go": "go1.24.4"
+  },
+  "samples": 3,
+  "workload": {
+    "observation": {
+      "tool": "find_symbol",
+      "elapsed": "2us",
+      "returned": 5
+    },
+    "variants": [
+      "process-local registry",
+      "OpenTelemetry bridge with the official noop provider",
+      "OpenTelemetry bridge with SDK ManualReader"
+    ]
+  },
+  "results": {
+    "base_ns_per_op": [30.50, 30.46, 30.56],
+    "base_bytes_per_op": 0,
+    "base_allocs_per_op": 0,
+    "noop_ns_per_op": [33.16, 33.25, 33.14],
+    "noop_bytes_per_op": 0,
+    "noop_allocs_per_op": 0,
+    "sdk_manual_reader_ns_per_op": [125.7, 126.2, 126.4],
+    "sdk_manual_reader_bytes_per_op": 0,
+    "sdk_manual_reader_allocs_per_op": 0
+  },
+  "limitations": [
+    "The benchmark measures ObserveQuery and excludes MCP transport framing and exporter I/O.",
+    "The SDK variant uses a ManualReader and does not exercise a network exporter or collector.",
+    "The result is one Linux amd64 run on the recorded CPU; it is not a cross-host SLO claim."
+  ]
+}

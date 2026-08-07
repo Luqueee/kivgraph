@@ -118,6 +118,9 @@ cuando sea aplicable.
   `report.md`. Deben conservar comando, commit, entorno, dataset, semilla,
   métricas y limitaciones.
 - La documentación describe el comportamiento observado, no promesas futuras.
+- La integración OpenTelemetry de métricas es opcional; los exporters y
+  collectors permanecen desactivados por defecto y el proveedor configurado
+  pertenece al llamador.
 - Los comandos, códigos, campos JSON y gates se escriben entre backticks.
 
 ## Entrega

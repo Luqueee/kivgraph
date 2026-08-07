@@ -9330,17 +9330,56 @@ explícitamente para reflejar indexación y rebuild.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Condiciones:**
 
 * exportadores desactivados por defecto;
 * impacto de rendimiento medido;
 * ninguna dependencia de un collector.
+
+**Estado:** `PASS`.
+
+**Implementación:** `internal/metrics` conserva el registro local sin
+dependencias de exporters y añade `NewRegistryWithOpenTelemetry` y
+`NewOpenTelemetry`. El proveedor `nil` usa el `noop` oficial; el proveedor
+configurado pertenece al llamador y Ladygraph no crea collectors, exporters,
+readers periódicos, conexiones ni goroutines. Las observaciones de consultas,
+snapshot, indexación, worker y LadybugDB se proyectan a instrumentos
+OpenTelemetry; el atributo `tool.name` queda acotado y los nombres desconocidos
+se agrupan como `other`. Las trazas continúan desactivadas según el plan.
+
+**Entregables:**
+
+```text
+internal/metrics/metrics.go
+internal/metrics/otel.go
+internal/metrics/metrics_test.go
+go.mod
+go.sum
+docs/adr/0014-opentelemetry-metrics.md
+benchmarks/otel-metrics/results.json
+benchmarks/otel-metrics/report.md
+AGENTS.md
+```
+
+**Verificación:** `go test ./internal/metrics -count=1`,
+`go test -race ./internal/metrics -count=1`, `go vet ./...`,
+`go test ./... -count=1`, `make build` y `gofmt -l` sobre los archivos Go
+modificados pasan. El benchmark `BenchmarkObserveQuery` mide
+30.46–30.56 ns/op y 0 B/op para el registro local, 33.14–33.25 ns/op y
+0 B/op para el proveedor `noop`, y 125.7–126.4 ns/op y 0 B/op para
+`sdk/metric.ManualReader`, con cero asignaciones en las tres variantes.
+
+**Limitaciones:** esta tarea integra métricas, no trazas ni un exporter de red.
+El benchmark excluye framing MCP, I/O de exportación y collector. El proveedor
+SDK sólo se conecta cuando el proceso consumidor lo suministra explícitamente.
+
+**Siguiente tarea desbloqueada:** LUQUE-1405.
 
 ---
 
