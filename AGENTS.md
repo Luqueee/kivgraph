@@ -71,6 +71,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - Las promesas rechazadas se clasifican en el límite adecuado; no se ocultan
   con aserciones.
 - No editar `ts-worker/dist` manualmente: regenerarlo con `pnpm build`.
+- La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
+  Vitest; los buffers grandes de Three.js permanecen fuera del estado React y
+  `web/dist` se regenera con el build de Vite.
 
 ## LadybugDB y snapshots
 

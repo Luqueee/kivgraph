@@ -10159,7 +10159,344 @@ alimentación o almacenamiento se amplía sólo si el entorno lo exige.
 
 ---
 
-# 20. Gates globales
+# 20. Fase 17 — Visor web de grafos
+
+La fase introduce una interfaz web read-only para explorar el `HotSnapshot`
+mediante React, Vite y Three.js. No amplía la superficie MCP de nueve tools ni
+convierte el navegador en una fuente de hechos.
+
+## LUQUE-1701 — Aceptar ADR del transporte HTTP read-only
+
+**Dependencias:** LUQUE-1605.
+
+**Objetivo:** definir el contrato HTTP local que consumirá el visor sin alterar
+el transporte STDIO de MCP.
+
+**Entregable:**
+
+```text
+docs/adr/0017-read-only-web-transport.md
+```
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Documentar bind loopback, lifecycle, seguridad y límites.
+- [ ] Fijar API `/api/v1`, errores y versionado de snapshot.
+- [ ] Registrar alternativas descartadas y riesgos.
+
+**Criterios de aceptación:**
+
+- El ADR establece que la API es read-only y usa el mismo `SnapshotStore`.
+- `ladygraph serve` y sus nueve tools MCP no cambian por esta decisión.
+- Queda explícito que exponer una dirección no loopback requiere revisión.
+
+---
+
+## LUQUE-1702 — Aceptar ADR del paquete React/Vite/Three.js
+
+**Dependencias:** LUQUE-1701.
+
+**Objetivo:** fijar el diseño del paquete web, el render y el formato binario.
+
+**Entregable:**
+
+```text
+docs/adr/0018-react-vite-threejs-viewer.md
+```
+
+**Checklist:**
+
+- [ ] Verificar dependencias y compatibilidad TypeScript.
+- [ ] Fijar responsabilidades de React, Three.js y Web Worker.
+- [ ] Fijar niveles de detalle, picking y layout determinista.
+- [ ] Registrar alternativas descartadas y riesgos de escala.
+
+**Criterios de aceptación:**
+
+- El ADR prohíbe asumir que JSON completo escala al corpus de referencia.
+- El formato binario incluye versión, snapshot y validación de longitudes.
+- El paquete web permanece read-only y separado de `ts-worker`.
+
+---
+
+## LUQUE-1703 — Definir SLO y gate del visor web
+
+**Dependencias:** LUQUE-1702.
+
+**Objetivo:** convertir la velocidad esperada de la UI en mediciones
+reproducibles.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y corpus de referencia.
+- [ ] Definir límites de payload, TTFI, primer frame, FPS y memoria.
+- [ ] Definir medición de picking, decodificación y vecindad.
+- [ ] Registrar `WEB_VIEWER_PERFORMANCE_PASS` y sus excepciones.
+
+**Criterios de aceptación:**
+
+- El SLO usa el corpus de 100.000 símbolos y 1.000.000 de aristas.
+- Cada métrica tiene comando, entorno, dataset y criterio de PASS.
+- No se confunde una métrica de transporte HTTP con una métrica MCP STDIO.
+
+---
+
+## LUQUE-1704 — Añadir iteración eficiente al HotSnapshot
+
+**Dependencias:** LUQUE-1703.
+
+**Objetivo:** permitir exportar rangos densos y CSR sin copias por entidad.
+
+**Checklist:**
+
+- [ ] Verificar invariantes de inmutabilidad y ownership.
+- [ ] Diseñar accesores de iteración con cancelación.
+- [ ] Cubrir nodos, aristas y límites de rango con tests.
+- [ ] Medir allocations/op antes y después.
+
+**Criterios de aceptación:**
+
+- Los lectores existentes conservan sus contratos.
+- La iteración rechaza IDs y rangos inválidos sin panic.
+- El benchmark demuestra que el encoder no asigna una slice por símbolo.
+
+---
+
+## LUQUE-1705 — Implementar layout jerárquico y grid espacial
+
+**Dependencias:** LUQUE-1704.
+
+**Objetivo:** generar posiciones y consultas de viewport deterministas.
+
+**Checklist:**
+
+- [ ] Verificar relaciones de contención disponibles en el snapshot.
+- [ ] Implementar layout por repository, package, file y symbol.
+- [ ] Implementar LOD y consulta de bounding box.
+- [ ] Comparar bytes de dos ejecuciones sobre el mismo snapshot.
+
+**Criterios de aceptación:**
+
+- El mismo snapshot y configuración producen las mismas posiciones.
+- La consulta de viewport no devuelve nodos fuera del límite solicitado.
+- El layout no ejecuta force simulation global para el corpus completo.
+
+---
+
+## LUQUE-1706 — Implementar API binaria read-only del visor
+
+**Dependencias:** LUQUE-1705.
+
+**Objetivo:** servir metadata, búsqueda, detalles, tiles y subgrafos inducidos.
+
+**Checklist:**
+
+- [ ] Verificar contrato de API y snapshot antes de codificar.
+- [ ] Implementar `/api/v1/meta`, búsqueda y detalle de símbolo.
+- [ ] Implementar `/api/v1/tiles` y `/api/v1/neighborhood`.
+- [ ] Validar método, origen, tamaño, snapshot, depth y node budget.
+
+**Criterios de aceptación:**
+
+- Ningún endpoint puede mutar repositorios, hechos o generaciones.
+- `neighborhood` devuelve todas las aristas inducidas entre nodos visibles.
+- Buffers truncados, versiones desconocidas y snapshots incompatibles fallan
+  con códigos estables.
+
+---
+
+## LUQUE-1707 — Añadir comando y configuración `ladygraph ui`
+
+**Dependencias:** LUQUE-1706.
+
+**Objetivo:** ejecutar el servidor web con configuración explícita y segura.
+
+**Checklist:**
+
+- [ ] Verificar defaults y validación `KnownFields`.
+- [ ] Añadir sección UI/HTTP y flag `--addr`.
+- [ ] Registrar lifecycle, cancelación y cierre del listener.
+- [ ] Probar bind loopback, dirección inválida y puerto ocupado.
+
+**Criterios de aceptación:**
+
+- `ladygraph serve` sigue siendo STDIO y no abre HTTP por defecto.
+- El default es `127.0.0.1:7777`.
+- Toda goroutine y listener tiene propietario y cierre por contexto.
+
+---
+
+## LUQUE-1708 — Servir y empaquetar assets web versionados
+
+**Dependencias:** LUQUE-1707.
+
+**Objetivo:** servir el bundle Vite sin copiar assets no declarados.
+
+**Checklist:**
+
+- [ ] Verificar el layout existente de distribución.
+- [ ] Implementar embedding o copia reproducible bajo un build tag explícito.
+- [ ] Añadir fallback claro cuando el bundle web no está construido.
+- [ ] Integrar hashes y tamaños en `manifest.json`/`SHA256SUMS`.
+
+**Criterios de aceptación:**
+
+- `make build` continúa funcionando sin depender de Node.
+- El bundle de distribución declara todos sus assets web.
+- `dist/` no se edita manualmente y los assets son reproducibles.
+
+---
+
+## LUQUE-1709 — Crear paquete web React/Vite/Three.js
+
+**Dependencias:** LUQUE-1702.
+
+**Objetivo:** crear el paquete web estricto y verificable.
+
+**Checklist:**
+
+- [ ] Verificar pines de pnpm, Node, Biome, Vitest y TypeScript.
+- [ ] Crear configuración Vite, React, TS strict y ESM.
+- [ ] Crear scripts `check`, `build`, `test` y `typecheck`.
+- [ ] Añadir lockfile y excluir `dist/` generado.
+
+**Criterios de aceptación:**
+
+- El paquete compila con el typecheck nativo fijado.
+- Biome y Vitest pasan sin depender de servicios externos.
+- El paquete no modifica ni importa internals privados de `ts-worker`.
+
+---
+
+## LUQUE-1710 — Implementar renderer Three.js de buffers
+
+**Dependencias:** LUQUE-1709 y LUQUE-1706.
+
+**Objetivo:** renderizar nodos y aristas con un número constante de draw calls.
+
+**Checklist:**
+
+- [ ] Verificar formato binario y ownership de ArrayBuffers.
+- [ ] Implementar puntos, segmentos, shaders y cámara ortográfica.
+- [ ] Implementar LOD de aristas y etiquetas limitadas.
+- [ ] Implementar picking GPU por color-ID.
+
+**Criterios de aceptación:**
+
+- No se crea un objeto Three.js por entidad del grafo.
+- Los buffers grandes no entran en estado React.
+- Pan, zoom y hover no ejecutan layouts ni serializaciones completas.
+
+---
+
+## LUQUE-1711 — Implementar chrome React del visor
+
+**Dependencias:** LUQUE-1710.
+
+**Objetivo:** proporcionar búsqueda, filtros, selección y detalle sin bloquear
+el renderer.
+
+**Checklist:**
+
+- [ ] Verificar estados de loading, vacío, error y snapshot cambiado.
+- [ ] Implementar búsqueda con debounce y cancelación.
+- [ ] Implementar filtros por repository, kind y confidence.
+- [ ] Implementar panel de símbolo y expansión de vecindad.
+
+**Criterios de aceptación:**
+
+- Un resultado viejo no puede sobrescribir una selección nueva.
+- Los errores muestran código estable y no se silencian.
+- La UI conserva la interacción mientras llegan buffers nuevos.
+
+---
+
+## LUQUE-1712 — Implementar Web Worker de fetch y decode
+
+**Dependencias:** LUQUE-1711.
+
+**Objetivo:** aislar red, validación y decodificación del hilo de render.
+
+**Checklist:**
+
+- [ ] Verificar lifecycle de worker y AbortController.
+- [ ] Decodificar cabecera y secciones con límites comprobados.
+- [ ] Transferir ArrayBuffers sin copias evitables.
+- [ ] Probar cancelación, truncamiento y snapshot incompatible.
+
+**Criterios de aceptación:**
+
+- Un payload inválido no puede provocar acceso fuera de rango.
+- Cancelar una consulta libera o abandona sus buffers de forma explícita.
+- El hilo principal no bloquea con JSON o decodificación de topología grande.
+
+---
+
+## LUQUE-1713 — Medir rendimiento end-to-end del visor
+
+**Dependencias:** LUQUE-1712.
+
+**Objetivo:** verificar el gate con Chromium y el corpus versionado.
+
+**Checklist:**
+
+- [ ] Verificar dataset, semilla, commit y entorno.
+- [ ] Medir carga, transferencia, decode, primer frame y memoria.
+- [ ] Medir pan/zoom, picking, LOD y vecindad.
+- [ ] Guardar `results.json` y `report.md` versionados.
+
+**Criterios de aceptación:**
+
+- El harness falla ante una regresión de cada métrica.
+- El resultado informa limitaciones de GPU y distribución de grado.
+- `WEB_VIEWER_PERFORMANCE_PASS` solo se emite con todos los límites cumplidos.
+
+---
+
+## LUQUE-1714 — Integrar web en CI y distribución
+
+**Dependencias:** LUQUE-1713.
+
+**Objetivo:** automatizar verificación y empaquetado del visor.
+
+**Checklist:**
+
+- [ ] Verificar instalación reproducible en Node 22.
+- [ ] Añadir format, lint, typecheck, tests y build del paquete web.
+- [ ] Integrar assets en el build Linux cuando corresponda.
+- [ ] Verificar manifest y `SHA256SUMS` del bundle.
+
+**Criterios de aceptación:**
+
+- Un fallo web rompe CI.
+- CI conserva la suite existente de `ts-worker` y Go.
+- El bundle limpio contiene exactamente los assets declarados.
+
+---
+
+## LUQUE-1715 — Calificar y documentar el visor web
+
+**Dependencias:** LUQUE-1713 y LUQUE-1714.
+
+**Objetivo:** cerrar la fase con evidencia, limitaciones y operación explícitas.
+
+**Checklist:**
+
+- [ ] Verificar dependencias, gates y resultados publicados.
+- [ ] Actualizar `AGENTS.md` con la verificación del paquete web.
+- [ ] Actualizar calificación de producción y documentación de instalación.
+- [ ] Registrar riesgos de seguridad, GPU, hubs y snapshot estático.
+
+**Criterios de aceptación:**
+
+- La documentación describe el comportamiento observado, no promesas futuras.
+- El bind no loopback y la ausencia de autenticación quedan advertidos.
+- La fase solo puede emitir `WEB_VIEWER_PASS` con evidencia completa.
+
+---
+
+# 21. Gates globales
 
 ```text
 PROJECT_FOUNDATION_PASS
@@ -10178,13 +10515,14 @@ RESILIENCE_PASS
 PERFORMANCE_PASS
 OBSERVABILITY_PASS
 DISTRIBUTION_PASS
+WEB_VIEWER_PASS
 ```
 
 No se puede aprobar Ladygraph sin todos ellos.
 
 ---
 
-# 21. Orden recomendado para la IA
+# 22. Orden recomendado para la IA
 
 La IA deberá empezar exactamente en este orden:
 
@@ -10207,11 +10545,13 @@ LUQUE-0201
 ...
 ```
 
-No debe implementar TypeScript, Go ni Tree-sitter antes de que LadybugDB y el HotSnapshot hayan pasado sus benchmarks.
+No debe implementar TypeScript, Go ni Tree-sitter antes de que LadybugDB y el
+HotSnapshot hayan pasado sus benchmarks. La fase del visor se inicia después
+de `DISTRIBUTION_PASS` y respeta el orden `LUQUE-1701` a `LUQUE-1715`.
 
 ---
 
-# 22. Plantilla de prompt para cada tarea
+# 23. Plantilla de prompt para cada tarea
 
 ```text
 Trabaja en la tarea <TASK-ID> del backlog de Ladygraph.
@@ -10247,7 +10587,7 @@ Tarea:
 
 ---
 
-# 23. Plantilla para revisar una tarea completada
+# 24. Plantilla para revisar una tarea completada
 
 ```text
 Revisa la implementación de <TASK-ID> sin modificar inicialmente el código.
