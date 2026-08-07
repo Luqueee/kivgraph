@@ -10271,10 +10271,10 @@ reproducibles.
 
 **Checklist:**
 
-- [ ] Verificar relaciones de contención disponibles en el snapshot.
-- [ ] Implementar layout por repository, package, file y symbol.
-- [ ] Implementar LOD y consulta de bounding box.
-- [ ] Comparar bytes de dos ejecuciones sobre el mismo snapshot.
+- [x] Verificar relaciones de contención disponibles en el snapshot.
+- [x] Implementar layout por repository, package, file y symbol.
+- [x] Implementar LOD y consulta de bounding box.
+- [x] Comparar bytes de dos ejecuciones sobre el mismo snapshot.
 
 **Criterios de aceptación:**
 

@@ -91,6 +91,10 @@ integridad, compatibilidad o verificación descritos aquí.
 - Los iteradores `VisitRepositories`, `VisitPackages`, `VisitFiles`,
   `VisitSymbols`, `VisitEvidence` y `VisitEdges` entregan copias por valor y
   no exponen slices internas; sus rangos son half-open y cancelables.
+- El layout del visor es una proyección derivada del `HotSnapshot`: usa
+  coordenadas enteras deterministas, contención repository/package/file/symbol
+  y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta
+  force simulation global.
 
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
