@@ -46,11 +46,23 @@ describe("Reagraph payload adapter", () => {
     expect(target?.data.kind).toBe(2);
   });
 
-  // A dense ID says nothing to a reader: the node caption must be the name the
-  // server resolved from the snapshot, for every node kind.
+  // A dense ID says nothing to a reader: every node carries the name the server
+  // resolved from the snapshot. The caption is shortened to the last two path
+  // segments so long module paths do not bury their neighbours, and the full
+  // name stays on the node for the hover readout.
   it("labels nodes with the names carried by the payload", () => {
     const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
 
+    expect(graph.nodes.map((node) => node.data.label)).toEqual([
+      "acme/widgets",
+      "@acme/core",
+      "src/index.ts",
+      "core.load",
+      "core.parse",
+      "core.render",
+      "core.dispose",
+      "@acme/ui",
+    ]);
     expect(graph.nodes.map((node) => node.label)).toEqual([
       "acme/widgets",
       "@acme/core",
@@ -63,6 +75,18 @@ describe("Reagraph payload adapter", () => {
     ]);
   });
 
+  it("shortens a long module path to its last two segments", () => {
+    const buffer = createDemoPayload();
+    const payload = decodeGraphPayload(buffer);
+    const long = "kena.bot/api-db-go/internal/domain/errors";
+    const labels = [...payload.labels];
+    labels[1] = long;
+    const graph = createReagraphGraph({ ...payload, labels });
+
+    expect(graph.nodes[1].label).toBe("domain/errors");
+    expect(graph.nodes[1].data.label).toBe(long);
+  });
+
   it("keeps the deterministic layout coordinates from the payload", () => {
     const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
 
@@ -70,6 +94,31 @@ describe("Reagraph payload adapter", () => {
       x: -248.88888888888889,
       y: -266.6666666666667,
     });
+  });
+
+  // The layout nests a repository around its packages around its files, so a
+  // flat projection stacks a container on top of its own children. Each kind
+  // gets its own depth plane instead, which is what makes rotating readable.
+  it("places each node kind on its own depth plane", () => {
+    const graph = createReagraphGraph(decodeGraphPayload(createDemoPayload()));
+
+    const planes = new Map<number, number>();
+    for (const node of graph.nodes) {
+      const previous = planes.get(node.data.kind);
+      if (previous !== undefined) {
+        // Collisions step away in depth, so compare the nearest plane.
+        expect(Math.abs(node.data.z - previous)).toBeLessThan(200);
+        continue;
+      }
+      planes.set(node.data.kind, node.data.z);
+    }
+    const repository = planes.get(1) ?? 0;
+    const pkg = planes.get(2) ?? 0;
+    const file = planes.get(3) ?? 0;
+    const symbol = planes.get(4) ?? 0;
+    expect(repository).toBeGreaterThan(pkg);
+    expect(pkg).toBeGreaterThan(file);
+    expect(file).toBeGreaterThan(symbol);
   });
 
   it("rejects a payload edge whose endpoints are outside the node section", () => {

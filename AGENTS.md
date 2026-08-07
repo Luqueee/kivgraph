@@ -118,8 +118,12 @@ integridad, compatibilidad o verificación descritos aquí.
   nodo, el servidor valida magic, versión, offsets, longitudes y `snapshot_id`
   antes de servirlo, y los errores de incompatibilidad son códigos estables.
 - El visor no muestra IDs densos: cada nodo se rotula con el nombre que el
-  snapshot conoce. Un ID denso solo es único dentro de su tipo de nodo, así
-  que los extremos de una arista se resuelven por `(tipo, id)`.
+  snapshot conoce, acortado en el lienzo y completo al pasar el cursor. Un ID
+  denso solo es único dentro de su tipo de nodo, así que los extremos de una
+  arista se resuelven por `(tipo, id)`.
+- El visor renderiza en 3D con la cámara rotando por defecto y coloca cada tipo
+  de nodo en su propio plano de profundidad; las posiciones siguen siendo las
+  del layout publicado, sin force layout en el navegador.
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
   Solo una generación candidata que pase integridad y validación puede cambiar

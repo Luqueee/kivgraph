@@ -42,6 +42,15 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
    significa «equilibrado»: el ancho de cada rejilla se deriva del número de
    hijos y de su relación de aspecto, de forma que el mundo publicado queda
    aproximadamente cuadrado.
+8. El visor renderiza en tres dimensiones y la cámara rota por defecto. Cada
+   tipo de nodo ocupa su propio plano de profundidad — repositorios delante,
+   símbolos detrás — porque el layout anida un contenedor alrededor de sus
+   hijos y en una proyección plana caen sobre los mismos píxeles. Un botón
+   `3D`/`2D` conmuta entre rotar y desplazar.
+9. La etiqueta dibujada en el lienzo es el nombre acortado a sus dos últimos
+   segmentos de ruta (máximo `32` caracteres). El nombre completo viaja en el
+   nodo y se muestra al pasar el cursor: nada se pierde, pero un módulo como
+   `kena.bot/api-db-go/internal/domain/errors` deja de tapar a sus vecinos.
 
 ## Alternativas descartadas
 
@@ -55,6 +64,8 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
   que el grafo canónico no afirma; se usan las relaciones de paquete reales.
 - **Dejar las `4` columnas y arreglarlo en el cliente:** el visor sólo puede
   reescalar; la relación de aspecto del mundo se decide en el layout.
+- **Force layout en el navegador para descongestionar:** ADR 0019 lo rechaza:
+  no es determinista y las posiciones dejarían de ser las del snapshot.
 
 ## Consecuencias
 
@@ -68,3 +79,6 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
   pasar el cursor.
 - Cualquier cliente del binario debe migrar a v2; no hay compatibilidad con v1
   porque el servidor no la ofrece.
+- La profundidad separa contenedores de contenidos, pero un repositorio con
+  decenas de paquetes sigue siendo denso de frente; se lee rotando, con zoom o
+  pidiendo un nivel de detalle mayor sobre menos nodos.

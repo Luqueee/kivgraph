@@ -27,13 +27,26 @@ function endpointKey(kind: number, id: number): string {
   return `${kind}:${id}`;
 }
 
+// A caption competes for pixels with every neighbour, and module paths are
+// long: `kena.bot/api-db-go/internal/domain/errors` covers a dozen nodes. The
+// canvas shows the last two segments; the full name stays in the node data and
+// in the hover readout, so nothing is lost.
+function shortLabel(label: string): string {
+  const segments = label.split("/").filter((segment) => segment !== "");
+  const tail = segments.length > 2 ? segments.slice(-2).join("/") : label;
+  return tail.length > 32 ? `${tail.slice(0, 31)}…` : tail;
+}
+
 export interface ReagraphNodeData {
   readonly index: number;
   readonly sourceId: number;
   readonly kind: number;
   readonly depth: number;
+  /** Full name from the snapshot; the caption is shortened for the canvas. */
+  readonly label: string;
   readonly x: number;
   readonly y: number;
+  readonly z: number;
 }
 
 export interface ReagraphEdgeData {
@@ -138,20 +151,30 @@ export function createReagraphGraph(
       span,
       worldSize,
     );
-    const { x, y } = disambiguateCenter(rawX, rawY, occupiedCenters);
+    const { x, y, z } = spreadCenter(
+      rawX,
+      rawY,
+      kindPlane(record.kind, worldSize),
+      occupiedCenters,
+      worldSize,
+    );
+    const label =
+      payload.labels[index] ?? `${kindLabel(record.kind)} ${record.id}`;
     const data: ReagraphNodeData = {
       index,
       sourceId: record.id,
       kind: record.kind,
       depth: record.depth,
+      label,
       x,
       y,
+      z,
     };
     const id = `node-${index}`;
     nodeIdsByKind.set(endpointKey(record.kind, record.id), id);
     nodes.push({
       id,
-      label: payload.labels[index] ?? `${kindLabel(record.kind)} ${record.id}`,
+      label: shortLabel(label),
       labelVisible: true,
       size: nodeSize(record.kind),
       fill: nodeColor(record.kind),
@@ -224,7 +247,7 @@ function createLayoutOverrides(): LayoutOverrides {
         vy: 0,
         x: data.x,
         y: data.y,
-        z: 0,
+        z: data.z,
       };
     },
   };
@@ -241,23 +264,46 @@ function centerCoordinate(
   return (center / span - 0.5) * worldSize;
 }
 
+// Each node kind gets its own plane: repositories at the front, symbols at the
+// back. The published layout nests them inside one another, so on a flat
+// projection a container and its children land on the same pixels.
+function kindPlane(kind: number, worldSize: number): number {
+  const step = worldSize / 6;
+  switch (kind) {
+    case NODE_KIND_REPOSITORY:
+      return step * 1.5;
+    case NODE_KIND_PACKAGE:
+      return step * 0.5;
+    case NODE_KIND_FILE:
+      return -step * 0.5;
+    case NODE_KIND_SYMBOL:
+      return -step * 1.5;
+    default:
+      return 0;
+  }
+}
+
 // Layout containers place children on a grid, so distinct nodes can share a
-// centre once coordinates are projected. Spread the collisions in a fixed
-// spiral: deterministic, and no two nodes end up under one label.
-function disambiguateCenter(
+// centre once coordinates are projected. Collisions spread along a fixed
+// spiral and step away in depth: deterministic, and no two nodes end up under
+// one label.
+function spreadCenter(
   x: number,
   y: number,
+  z: number,
   occupiedCenters: Map<string, number>,
-): { x: number; y: number } {
-  const key = `${Math.round(x)}:${Math.round(y)}`;
+  worldSize: number,
+): { x: number; y: number; z: number } {
+  const key = `${Math.round(x)}:${Math.round(y)}:${Math.round(z)}`;
   const occurrence = occupiedCenters.get(key) ?? 0;
   occupiedCenters.set(key, occurrence + 1);
-  if (occurrence === 0) return { x, y };
+  if (occurrence === 0) return { x, y, z };
   const angle = occurrence * 2.399963229728653;
-  const radius = 24 * Math.sqrt(occurrence);
+  const radius = (worldSize / 24) * Math.sqrt(occurrence);
   return {
     x: x + radius * Math.cos(angle),
     y: y + radius * Math.sin(angle),
+    z: z + (worldSize / 48) * occurrence,
   };
 }
 

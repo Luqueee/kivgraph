@@ -17,6 +17,7 @@ import {
 } from "@/renderer/reagraph";
 
 const READY_STATUS = "drag to pan · wheel to zoom";
+const ROTATE_STATUS = "drag to rotate · wheel to zoom";
 
 /** Detail levels of the published layout, from repositories to symbols. */
 const LOD_LABELS = ["repositories", "packages", "files", "symbols"] as const;
@@ -46,8 +47,9 @@ function describe(error: unknown): string {
 
 export function GraphPreview() {
   const [lod, setLod] = useState(1);
+  const [rotate, setRotate] = useState(true);
   const [state, setState] = useState<ViewerState>(INITIAL_STATE);
-  const [status, setStatus] = useState(READY_STATUS);
+  const [status, setStatus] = useState(ROTATE_STATUS);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,9 +100,8 @@ export function GraphPreview() {
   const updateStatus = (node: InternalGraphNode): void => {
     const data = node.data as ReagraphNodeData | undefined;
     const kind = LOD_LABELS[(data?.kind ?? 1) - 1] ?? "node";
-    setStatus(
-      `${node.label ?? node.id} · ${kind} · id ${data?.sourceId ?? "?"}`,
-    );
+    // The caption on the canvas is shortened; the readout is the full name.
+    setStatus(`${data?.label ?? node.label ?? node.id} · ${kind}`);
   };
 
   return (
@@ -111,7 +112,7 @@ export function GraphPreview() {
     >
       {graph ? (
         <GraphCanvas
-          key={`${state.meta?.snapshotId ?? 0}-${lod}`}
+          key={`${state.meta?.snapshotId ?? 0}-${lod}-${rotate ? "3d" : "2d"}`}
           nodes={graph.nodes}
           edges={graph.edges}
           theme={darkTheme}
@@ -121,9 +122,14 @@ export function GraphPreview() {
           // Beyond a few hundred nodes every caption overlaps its neighbours;
           // the name stays reachable by hovering the node.
           labelType={graph.nodes.length <= LABEL_LIMIT ? "nodes" : "none"}
-          cameraMode="pan"
+          // Rotating reads the depth the layout already has: each node kind
+          // sits on its own plane, so a cluster that overlaps head-on
+          // separates as soon as the camera turns.
+          cameraMode={rotate ? "rotate" : "pan"}
           onNodePointerOver={updateStatus}
-          onNodePointerOut={() => setStatus(READY_STATUS)}
+          onNodePointerOut={() =>
+            setStatus(rotate ? ROTATE_STATUS : READY_STATUS)
+          }
         />
       ) : null}
       <div className="pointer-events-none absolute inset-x-4 top-4 flex items-center justify-between gap-4 text-xs font-medium">
@@ -149,6 +155,18 @@ export function GraphPreview() {
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            setRotate((previous) => {
+              setStatus(previous ? READY_STATUS : ROTATE_STATUS);
+              return !previous;
+            });
+          }}
+          className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
+        >
+          {rotate ? "3D" : "2D"}
+        </button>
       </div>
     </div>
   );
