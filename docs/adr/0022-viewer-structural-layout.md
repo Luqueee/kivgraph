@@ -118,9 +118,11 @@ sus vecinos. En cambio la tile sí trae la estructura: el árbol de contención 
   --full` no reproduce esta imagen, se reconstruye desde la estructura.
 - Un tile con presupuesto bajo no llega a los símbolos: la vista lo declara
   como muestra del nivel pedido en vez de mentir sobre lo que dibuja.
-- Resaltar un vecindario obliga a Reagraph a reconstruir sus mallas de arista;
-  con `1.461` aristas eso es alrededor de un segundo, así que el resaltado
-  espera a que el cursor se pose `120` ms.
+- Resaltar un vecindario obliga a Reagraph a reconstruir sus mallas de arista.
+  Medido en el nivel `files` con `1.461` aristas y WebGL por software, el
+  resaltado tardó `2,2` s en aparecer; por eso ambas transiciones esperan
+  `120` ms a que el cursor se pose, para no encadenar una reconstrucción por
+  cada nodo rozado.
 - Por encima de unos cientos de nodos los rótulos son ilegibles a la distancia
   de encuadre y hay que acercarse. Es geometría, no un defecto: mil nodos
   aireados en una pantalla dan puntos de pocos píxeles.

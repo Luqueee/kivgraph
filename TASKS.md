@@ -10887,9 +10887,16 @@ files         1.200    1.461   27 ms   1.054   500 / 387 / 441
 
 **Limitación:** a la distancia de encuadre los rótulos de un tile de mil nodos
 miden pocos píxeles y hay que acercarse; es geometría, no un defecto. Resaltar
-un vecindario obliga a Reagraph a reconstruir sus mallas de arista - alrededor
-de un segundo con `1.461` aristas -, por eso el resaltado espera `120` ms a que
-el cursor se pose.
+un vecindario obliga a Reagraph a reconstruir sus mallas de arista: medido en
+`files` con `1.461` aristas y WebGL por software, `2,2` s hasta que aparece,
+por eso ambas transiciones esperan `120` ms a que el cursor se pose.
+
+**Pendiente ajeno a esta tarea:** `go test ./...` falla desde antes en
+`cmd/ladygraph` (`TestRunConfiguredUI*`, que exigen LadybugDB nativo) y
+`make test-ladybug` falla en `internal/storage/ladybug`
+(`canonicalScanFixtureSet: unresolved reference "syntax_error"`) y en
+`TestRunConfiguredUILoadsPublishedStore` (`meta status = 200, want 503`). Esta
+tarea no modifica ningún archivo Go.
 
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 
