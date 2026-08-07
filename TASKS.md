@@ -9444,11 +9444,11 @@ y el CPU registrado.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Incluir:**
 
@@ -9458,6 +9458,48 @@ y el CPU registrado.
 * grammars;
 * licencias;
 * manifest.
+
+**Estado:** `PASS`.
+
+**Implementación:** `scripts/build-linux-amd64.sh` genera
+`dist/ladygraph-linux-amd64/` con el binario Go compilado con LadybugDB,
+`liblbug.so`, el worker TypeScript compilado y su runtime `typescript`, el
+inventario de grammars, licencias y `manifest.json`. El target
+`make build-linux-amd64` elimina y regenera el directorio de salida; `dist/`
+permanece ignorado por Git.
+
+**Entregables:**
+
+```text
+scripts/build-linux-amd64.sh
+Makefile
+.gitignore
+AGENTS.md
+THIRD_PARTY_NOTICES.md
+docs/adr/0015-linux-amd64-distribution.md
+dist/ladygraph-linux-amd64/
+```
+
+**Verificación:** `make build-linux-amd64` completó la descarga verificada de
+LadybugDB, `pnpm install --frozen-lockfile`, `pnpm build` y `go build -tags
+ladybug -trimpath`. El binario ejecutó `version` desde el bundle con su
+`RUNPATH` relativo, y el worker respondió `hello` desde `/tmp`. El manifest
+JSON validó `linux/amd64`, esquema canónico `2`, formato de filas `1`,
+`resolver_version: null`, el `archive_sha256` fijado y 588 hashes de payload;
+`sha256sum -c` confirmó todos los archivos. Dos ejecuciones consecutivas
+produjeron el mismo SHA-256 para `manifest.json`
+(`73d7219f444907122ef7f64268798fe27decdb693bd554845bc27a429494685c`) y
+`bin/ladygraph`
+(`e1dd29ed5468ac2aa51cdfd870bed2bae99a24b28ca08092d3e59f10149bacc3`).
+
+**Limitaciones:** el artefacto se construyó en Linux amd64 con Go
+`go1.24.4`, Node `v25.9.0`, pnpm `11.5.1` y TypeScript `7.0.2`. El build se
+ejecutó con cambios locales todavía no publicados y por eso el manifest marca
+`source.dirty: true`. La reproducibilidad entre checkouts limpios y checksums
+de distribución queda cubierta por LUQUE-1508; `REPRODUCIBLE_BUILD_PASS` no se
+declara aquí.
+
+**Siguiente tarea desbloqueada:** LUQUE-1502.
 
 ---
 

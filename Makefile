@@ -1,4 +1,4 @@
-.PHONY: build test version ladybug-lib test-ladybug
+.PHONY: build test version ladybug-lib test-ladybug build-linux-amd64
 
 build: test version
 	go build ./cmd/ladygraph
@@ -22,3 +22,7 @@ test-ladybug:
 	CGO_CFLAGS="-I$$LIB" \
 	CGO_LDFLAGS="-L$$LIB -llbug -Wl,-rpath,$$LIB" \
 	go test -tags ladybug ./...
+
+# build-linux-amd64 creates the generated Linux amd64 distribution bundle.
+build-linux-amd64:
+	@scripts/build-linux-amd64.sh

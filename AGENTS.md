@@ -125,6 +125,8 @@ cuando sea aplicable.
   `noop` y cualquier proveedor SDK configurado explícitamente; no se deben
   presentar como un único coste de producción.
 - Los comandos, códigos, campos JSON y gates se escriben entre backticks.
+- El bundle Linux amd64 se genera con `make build-linux-amd64`; el directorio
+  `dist/` es generado y no se usa como entrada indexada ni de benchmark.
 
 ## Entrega
 

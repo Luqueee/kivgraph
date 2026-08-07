@@ -18,3 +18,4 @@ testdata/generated/
 
 # Downloaded toolchain artifacts
 .tooling/
+/dist/
