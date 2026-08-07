@@ -10,6 +10,9 @@ export const VIEWER_PAYLOAD_NEIGHBORHOOD = 2;
 /** Set on edges whose endpoints are package dense IDs, not symbol ones. */
 export const VIEWER_EDGE_FLAG_PACKAGE = 1 << 0;
 
+/** Header flag: the server dropped nodes to stay inside the tile budget. */
+export const VIEWER_FLAG_TRUNCATED = 1 << 0;
+
 export const NODE_KIND_REPOSITORY = 1;
 export const NODE_KIND_PACKAGE = 2;
 export const NODE_KIND_FILE = 3;

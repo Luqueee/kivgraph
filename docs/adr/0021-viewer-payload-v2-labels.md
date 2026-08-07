@@ -66,6 +66,15 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
     y los tres trazos — dependencia exacta, dependencia y contiene. La paleta
     vive en un único sitio del adaptador para que leyenda y lienzo no puedan
     divergir.
+13. Cada nivel tiene un presupuesto de nodos: los niveles gruesos caben
+    enteros, `files` y `symbols` piden `600`. Reagraph construye un objeto por
+    nodo — medido en unos `4` ms cada uno — así que un nivel completo tardaría
+    diez segundos en aparecer. Cuando el servidor recorta la tile, la vista lo
+    dice (`600 of 4212 files`): es una muestra acotada, no el nivel entero.
+14. El fetch, la validación y la adaptación corren en un Web Worker, con un
+    `AbortController` por petición para que cambiar de nivel cancele el
+    anterior. El render se queda en el hilo principal: WebGL no es accesible
+    desde el worker en esta integración.
 
 ## Alternativas descartadas
 
@@ -75,6 +84,9 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
 - **Nombres en el nodo de tamaño fijo:** un registro de 48 bytes no admite una
   ruta de archivo, y reservar espacio fijo desperdicia la mayoría del payload.
 - **Etiquetar en el cliente desde `/api/v1/symbol`:** una llamada por nodo.
+- **Esperar que el worker arregle la lentitud:** medido, no lo hace: de los
+  `11,8` s de una tile de `2.000` nodos, `27` ms son red, decodificación y
+  adaptación juntas. El resto es construir la escena.
 - **Agregar aristas de símbolo a nivel de paquete:** sería una arista derivada
   que el grafo canónico no afirma; se usan las relaciones de paquete reales.
 - **Dejar las `4` columnas y arreglarlo en el cliente:** el visor sólo puede
@@ -91,6 +103,11 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
 - Cambiar el layout cambia las posiciones publicadas y el fingerprint del
   layout: es una proyección derivada, no un hecho canónico, y se reconstruye
   con `ladygraph index --full` o al reabrir el snapshot.
+- Resolver posiciones por mapa en vez de recorrer el array de nodos elimina un
+  coste cuadrático: con `2.000` nodos eran cuatro millones de comparaciones
+  antes del primer frame.
+- El render sigue bloqueando el hilo principal mientras construye la escena;
+  el presupuesto por nivel acota cuánto.
 - El visor muestra nombres reales en todos los niveles y oculta las etiquetas
   por encima de `200` nodos, donde se solaparían; el nombre sigue disponible al
   pasar el cursor.

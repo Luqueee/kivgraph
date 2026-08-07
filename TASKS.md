@@ -10734,22 +10734,64 @@ el renderer.
 
 ## LUQUE-1712 — Implementar Web Worker de fetch y decode
 
-**Dependencias:** LUQUE-1711.
+**Dependencias:** LUQUE-1718.
 
 **Objetivo:** aislar red, validación y decodificación del hilo de render.
 
 **Checklist:**
 
-- [ ] Verificar lifecycle de worker y AbortController.
-- [ ] Decodificar cabecera y secciones con límites comprobados.
-- [ ] Transferir ArrayBuffers sin copias evitables.
-- [ ] Probar cancelación, truncamiento y snapshot incompatible.
+- [x] Verificar lifecycle de worker y AbortController.
+- [x] Decodificar cabecera y secciones con límites comprobados.
+- [x] Transferir ArrayBuffers sin copias evitables.
+- [x] Probar cancelación, truncamiento y snapshot incompatible.
 
 **Criterios de aceptación:**
 
 - Un payload inválido no puede provocar acceso fuera de rango.
 - Cancelar una consulta libera o abandona sus buffers de forma explícita.
 - El hilo principal no bloquea con JSON o decodificación de topología grande.
+
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Archivos creados:**
+
+* `web/src/renderer/tile-loader.ts` y su test;
+* `web/src/worker/tile-worker.ts`;
+* `web/src/worker/client.ts`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md`, `docs/adr/0021-viewer-payload-v2-labels.md`;
+* `web/src/components/GraphPreview.tsx`, `web/src/renderer/binary.ts`,
+  `web/src/renderer/reagraph.ts`.
+
+**Medición:** el reparto real del coste de una tile de `2.000` nodos, medido
+contra el índice de `~/kena`:
+
+```text
+fetch    16,7 ms
+decode    1,1 ms
+adaptar   9,7 ms
+render  11.800 ms
+```
+
+El worker retira del hilo de render los tres primeros; el cuarto es Reagraph
+construyendo la escena y no es trasladable, porque WebGL no es accesible desde
+un worker en esta integración.
+
+**Verificación:**
+
+* `pnpm --dir web check`: 4 archivos de test y 19 tests pasando;
+* el navegador carga `assets/tile-worker-*.js` como worker real;
+* cambiar de nivel cuatro veces seguidas en `150 ms` deja la vista en el
+  último nivel pedido, sin errores y sin que un resultado viejo lo sobrescriba;
+* tiempos de nivel tras el cambio: `repositories` `340 ms`, `packages`
+  `303 ms`, `files` `2.833 ms`, `symbols` `2.857 ms`; antes `files` tardaba
+  `11.843 ms` y `symbols` no llegaba a dibujarse.
+
+**Limitación:** el render sigue bloqueando el hilo principal unos `2,5 s` por
+cada `600` nodos con WebGL por software; con GPU es menor. Reducirlo exige
+instanciar la escena, que pertenece a `LUQUE-1713`.
 
 ---
 

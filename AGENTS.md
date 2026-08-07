@@ -131,6 +131,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - El visor dibuja la contención declarada por `parent_kind`/`parent_id` cuando
   el contenedor viaja en la misma tile, y una leyenda nombra cada color y cada
   trazo. La paleta se declara una sola vez en el adaptador.
+- El visor pide las tiles desde un Web Worker con `AbortController` por
+  petición; el render permanece en el hilo principal. Cada nivel tiene un
+  presupuesto de nodos y una tile recortada se declara como tal en la vista.
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
   Solo una generación candidata que pase integridad y validación puede cambiar

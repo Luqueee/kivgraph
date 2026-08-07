@@ -3,7 +3,6 @@ import type {
   GraphNode,
   InternalGraphPosition,
   LayoutOverrides,
-  NodePositionArgs,
 } from "reagraph";
 
 import {
@@ -18,6 +17,7 @@ import {
   readEdge,
   readNode,
   VIEWER_EDGE_FLAG_PACKAGE,
+  VIEWER_FLAG_TRUNCATED,
 } from "./binary";
 
 export const DEFAULT_REAGRAPH_NODE_LIMIT = 2_000;
@@ -88,6 +88,18 @@ export interface ViewerReagraphGraph {
   readonly layoutOverrides: LayoutOverrides;
 }
 
+/**
+ * The part of a graph a worker can hand over: plain data, no closures. The
+ * layout overrides are rebuilt on the receiving side with
+ * `createLayoutOverrides`.
+ */
+export interface ViewerReagraphView {
+  readonly nodes: ViewerReagraphNode[];
+  readonly edges: ViewerReagraphEdge[];
+  readonly truncated: boolean;
+  readonly snapshotId: number;
+}
+
 export interface ReagraphGraphLimits {
   readonly maxNodes?: number;
   readonly maxEdges?: number;
@@ -97,11 +109,14 @@ export interface ReagraphGraphLimits {
  * Converts only a bounded binary view into the object shape required by
  * Reagraph. The transferred LGVB buffer remains owned by the caller and is
  * never stored in React state or copied into this graph model.
+ *
+ * The result is plain data so a worker can post it across the thread
+ * boundary; `createLayoutOverrides` rebuilds the callback on the other side.
  */
-export function createReagraphGraph(
+export function createReagraphView(
   payload: GraphPayload,
   limits: ReagraphGraphLimits = {},
-): ViewerReagraphGraph {
+): ViewerReagraphView {
   const maxNodes = limits.maxNodes ?? DEFAULT_REAGRAPH_NODE_LIMIT;
   const maxEdges = limits.maxEdges ?? DEFAULT_REAGRAPH_EDGE_LIMIT;
 
@@ -261,24 +276,46 @@ export function createReagraphGraph(
   return {
     nodes,
     edges,
-    layoutOverrides: createLayoutOverrides(),
+    truncated: (payload.header.flags & VIEWER_FLAG_TRUNCATED) !== 0,
+    snapshotId: Number(payload.header.snapshotId),
   };
 }
 
-function createLayoutOverrides(): LayoutOverrides {
+/** Convenience for callers that adapt and render on the same thread. */
+export function createReagraphGraph(
+  payload: GraphPayload,
+  limits: ReagraphGraphLimits = {},
+): ViewerReagraphGraph {
+  const view = createReagraphView(payload, limits);
   return {
-    getNodePosition: (
-      id: string,
-      args: NodePositionArgs,
-    ): InternalGraphPosition => {
-      const node = args.nodes.find((candidate) => candidate.id === id);
-      if (!node) {
+    nodes: view.nodes,
+    edges: view.edges,
+    layoutOverrides: createLayoutOverrides(view.nodes),
+  };
+}
+
+/**
+ * Reagraph asks for a node's position by id, once per node and again on every
+ * relayout. Scanning the node array per call is quadratic — with a 2.000 node
+ * tile that is four million comparisons before the first frame — so positions
+ * are resolved through a map built once.
+ */
+export function createLayoutOverrides(
+  nodes: readonly ViewerReagraphNode[],
+): LayoutOverrides {
+  const positions = new Map<string, ReagraphNodeData>();
+  for (const node of nodes) {
+    positions.set(node.id, node.data);
+  }
+  return {
+    getNodePosition: (id: string): InternalGraphPosition => {
+      const data = positions.get(id);
+      if (!data) {
         throw new GraphBinaryError(
           "LAYOUT_NODE_NOT_FOUND",
           `Reagraph layout cannot find node ${id}`,
         );
       }
-      const data = node.data as ReagraphNodeData;
       return {
         id,
         data,

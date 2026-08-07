@@ -1,17 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GraphCanvas, darkTheme } from "reagraph";
 import type { InternalGraphNode } from "reagraph";
 
-import {
-  ApiError,
-  fetchMeta,
-  fetchTile,
-  type SnapshotMeta,
-} from "@/api/client";
-import { decodeGraphPayload } from "@/renderer/binary";
+import { ApiError, fetchMeta, type SnapshotMeta } from "@/api/client";
 import {
   CONTAINMENT_COLOR,
-  createReagraphGraph,
+  createLayoutOverrides,
   DEFAULT_REAGRAPH_NODE_LIMIT,
   DEPENDENCY_COLOR,
   EXACT_DEPENDENCY_COLOR,
@@ -19,12 +13,21 @@ import {
   type ReagraphNodeData,
   type ViewerReagraphGraph,
 } from "@/renderer/reagraph";
+import { createTileWorkerClient, type TileWorkerClient } from "@/worker/client";
 
 const READY_STATUS = "drag to pan · wheel to zoom";
 const ROTATE_STATUS = "drag to rotate · wheel to zoom";
 
 /** Detail levels of the published layout, from repositories to symbols. */
 const LOD_LABELS = ["repositories", "packages", "files", "symbols"] as const;
+
+/**
+ * Nodes requested per level. Reagraph builds an object per node — measured at
+ * roughly four milliseconds each — so a whole level of files would take ten
+ * seconds to appear. The coarse levels fit entirely; the deep ones are capped
+ * and the view says so.
+ */
+const LOD_NODE_BUDGET = [2_000, 2_000, 600, 600];
 
 /** Above this node count captions overlap; names move to hover only. */
 const LABEL_LIMIT = 200;
@@ -35,6 +38,7 @@ const LEGEND_DOT_SIZES = [10, 8, 7, 6];
 interface ViewerState {
   readonly meta: SnapshotMeta | null;
   readonly graph: ViewerReagraphGraph | null;
+  readonly truncated: boolean;
   readonly error: string | null;
   readonly loading: boolean;
 }
@@ -42,6 +46,7 @@ interface ViewerState {
 const INITIAL_STATE: ViewerState = {
   meta: null,
   graph: null,
+  truncated: false,
   error: null,
   loading: true,
 };
@@ -57,6 +62,16 @@ export function GraphPreview() {
   const [rotate, setRotate] = useState(true);
   const [state, setState] = useState<ViewerState>(INITIAL_STATE);
   const [status, setStatus] = useState(ROTATE_STATUS);
+  const worker = useRef<TileWorkerClient | null>(null);
+
+  if (worker.current === null) {
+    worker.current = createTileWorkerClient();
+  }
+
+  useEffect(() => {
+    const client = worker.current;
+    return () => client?.close();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,23 +85,40 @@ export function GraphPreview() {
           "the published snapshot has no layout to render",
         );
       }
-      // Never ask for more nodes than the adapter will materialise: the
-      // server would happily send a tile this view then has to reject.
-      const buffer = await fetchTile(
+      const level = Math.min(lod, meta.layout.maxLod);
+      // Reagraph builds an object per node, so a level is budgeted by what the
+      // renderer stays interactive with, not by what the server can send.
+      const maxNodes = Math.min(
+        meta.layout.maxNodes,
+        DEFAULT_REAGRAPH_NODE_LIMIT,
+        LOD_NODE_BUDGET[level] ?? DEFAULT_REAGRAPH_NODE_LIMIT,
+      );
+      const view = await (worker.current as TileWorkerClient).load(
         {
           bounds: meta.layout,
-          lod: Math.min(lod, meta.layout.maxLod),
-          maxNodes: Math.min(meta.layout.maxNodes, DEFAULT_REAGRAPH_NODE_LIMIT),
+          lod: level,
+          maxNodes,
         },
         controller.signal,
       );
-      const graph = createReagraphGraph(decodeGraphPayload(buffer));
-      setState({ meta, graph, error: null, loading: false });
+      if (controller.signal.aborted) return;
+      setState({
+        meta,
+        graph: {
+          nodes: view.nodes,
+          edges: view.edges,
+          layoutOverrides: createLayoutOverrides(view.nodes),
+        },
+        truncated: view.truncated,
+        error: null,
+        loading: false,
+      });
     })().catch((error: unknown) => {
       if (controller.signal.aborted) return;
       setState({
         meta: null,
         graph: null,
+        truncated: false,
         error: describe(error),
         loading: false,
       });
@@ -99,10 +131,19 @@ export function GraphPreview() {
     if (state.loading) return "loading snapshot…";
     if (!graph) return "no graph";
     const counts = state.meta?.counts;
-    return `${graph.nodes.length} nodes · ${graph.edges.length} edges${
-      counts ? ` · snapshot ${counts.symbols} symbols` : ""
-    }`;
-  }, [graph, state.loading, state.meta]);
+    const available = counts
+      ? [counts.repositories, counts.packages, counts.files, counts.symbols][
+          lod
+        ]
+      : undefined;
+    // A truncated tile must say so: the view is a budgeted sample, not the
+    // whole level.
+    const scope =
+      state.truncated && available !== undefined
+        ? `${graph.nodes.length} of ${available} ${LOD_LABELS[lod]}`
+        : `${graph.nodes.length} ${LOD_LABELS[lod]}`;
+    return `${scope} · ${graph.edges.length} edges`;
+  }, [graph, lod, state.loading, state.meta, state.truncated]);
 
   const updateStatus = (node: InternalGraphNode): void => {
     const data = node.data as ReagraphNodeData | undefined;
