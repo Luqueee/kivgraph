@@ -153,6 +153,42 @@ El JSON mínimo sigue este esquema:
 }
 ```
 
+## SLO del visor web
+
+Estos límites aplican a la aplicación React/Vite/Three.js y a su API HTTP
+read-only. No modifican los SLO de las tools MCP ni convierten STDIO en un
+transporte web. El corpus de referencia es el fixture sintético versionado de
+100.000 símbolos y 1.000.000 de aristas; cada medición debe registrar también
+GPU, navegador, commit, seed y modo de nivel de detalle.
+
+| Métrica | Objetivo | Límite | Condiciones |
+| --- | ---: | ---: | --- |
+| `meta` HTTP p95 | ≤ 25 ms | 50 ms | snapshot caliente, localhost |
+| payload de topología p95 | ≤ 250 ms | 500 ms | viewport/LOD declarado |
+| primer frame p95 | ≤ 500 ms | 1 s | navegador frío, bundle local |
+| pan/zoom p95 | ≤ 16,6 ms | 33,3 ms | interacción sostenida |
+| picking p95 | ≤ 2 ms | 5 ms | una lectura de pixel GPU |
+| vecindad p95 | ≤ 2 ms | 5 ms | depth 3, presupuesto declarado |
+| payload máximo | ≤ 16 MiB | 32 MiB | una respuesta, sin descarga completa |
+| heap JavaScript | ≤ 384 MiB | 512 MiB | después de warm-up |
+| errores del workload | 0 | 0 | incluyendo cancelaciones mal clasificadas |
+
+El visor debe ocultar o agregar aristas de símbolo cuando el nivel de detalle
+lo requiera. Medir una topología completa no autoriza a ignorar el presupuesto
+de interacción: pan, zoom y picking se evalúan por separado.
+
+### Criterio `WEB_VIEWER_PERFORMANCE_PASS`
+
+El gate solo puede emitirse cuando:
+
+- todas las métricas requeridas están presentes y tienen unidades conocidas;
+- el workload completa sin errores y valida `snapshot_id` y versión de payload;
+- primer frame, interacción, picking y memoria respetan sus límites;
+- el informe conserva comando, commit, entorno, navegador, GPU, corpus, seed y
+  parámetros de LOD;
+- se ejecuta al menos una repetición con un corpus que contenga hubs o una
+  limitación explícita impide generalizar el resultado del fixture uniforme.
+
 ## Criterio de cumplimiento
 
 Un benchmark pasa este contrato cuando:

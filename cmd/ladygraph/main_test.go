@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -194,6 +196,41 @@ func TestRunServeStopsMCPOnContextCancellation(t *testing.T) {
 	case <-stopped:
 	default:
 		t.Fatal("runServe() returned before the MCP runner stopped")
+	}
+}
+func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	if _, err := config.Initialize(config.InitOptions{
+		ConfigPath:       configPath,
+		RepositoriesPath: repositoriesPath,
+	}); err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+
+	called := false
+	err := runConfiguredUI(context.Background(), []string{
+		"--config", configPath,
+		"--addr", "127.0.0.1:0",
+	}, func(_ context.Context, address string, handler http.Handler) error {
+		called = true
+		if address != "127.0.0.1:0" {
+			t.Fatalf("address = %q, want override", address)
+		}
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/meta", nil)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("meta status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("runConfiguredUI() error = %v", err)
+	}
+	if !called {
+		t.Fatal("web runner was not called")
 	}
 }
 

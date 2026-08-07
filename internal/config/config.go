@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,6 +61,7 @@ type Config struct {
 	Version    int              `yaml:"version"`
 	Workspace  WorkspaceConfig  `yaml:"workspace"`
 	Storage    StorageConfig    `yaml:"storage"`
+	Web        WebConfig        `yaml:"web"`
 	MCP        MCPConfig        `yaml:"mcp"`
 	Indexing   IndexingConfig   `yaml:"indexing"`
 	Watcher    WatcherConfig    `yaml:"watcher"`
@@ -79,6 +82,11 @@ type StorageConfig struct {
 	SnapshotsPath   string `yaml:"snapshots_path"`
 	BackupsPath     string `yaml:"backups_path"`
 	RetainSnapshots int    `yaml:"retain_snapshots"`
+}
+
+// WebConfig controls the explicit local HTTP viewer command.
+type WebConfig struct {
+	Address string `yaml:"address"`
 }
 
 // MCPConfig controls transport and query limits.
@@ -183,6 +191,9 @@ func DefaultConfig() Config {
 			SnapshotsPath:   defaultSnapshotsPath,
 			BackupsPath:     defaultBackupsPath,
 			RetainSnapshots: 3,
+		},
+		Web: WebConfig{
+			Address: "127.0.0.1:7777",
 		},
 		MCP: MCPConfig{
 			Transport:           "stdio",
@@ -600,8 +611,16 @@ func validateConfig(configuration Config) error {
 	if configuration.Storage.RetainSnapshots < 1 {
 		return fmt.Errorf("config.storage.retain_snapshots: must be positive, got %d", configuration.Storage.RetainSnapshots)
 	}
+	if configuration.Web.Address == "" {
+		return errors.New("config.web.address: must not be empty")
+	}
+	if _, port, err := net.SplitHostPort(configuration.Web.Address); err != nil {
+		return fmt.Errorf("config.web.address: invalid listen address %q: %w", configuration.Web.Address, err)
+	} else if number, err := strconv.Atoi(port); err != nil || number < 0 || number > 65535 {
+		return fmt.Errorf("config.web.address: invalid port %q", port)
+	}
 	if configuration.MCP.Transport != "stdio" {
-		return fmt.Errorf("config.mcp.transport: unsupported transport %q, want %q", configuration.MCP.Transport, "stdio")
+		return fmt.Errorf("config.mcp.transport: unsupported transport %q", configuration.MCP.Transport)
 	}
 	if configuration.MCP.DefaultLimit < 1 {
 		return fmt.Errorf("config.mcp.default_limit: must be positive, got %d", configuration.MCP.DefaultLimit)

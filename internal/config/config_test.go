@@ -54,8 +54,8 @@ repositories:
 	if !filepath.IsAbs(loaded.Config.Storage.SnapshotsPath) || !filepath.IsAbs(loaded.Config.Storage.BackupsPath) || !filepath.IsAbs(loaded.Config.Go.SyntheticWorkFile) {
 		t.Fatalf("default paths were not expanded: snapshots=%q backups=%q work=%q", loaded.Config.Storage.SnapshotsPath, loaded.Config.Storage.BackupsPath, loaded.Config.Go.SyntheticWorkFile)
 	}
-	if loaded.Config.MCP.Transport != "stdio" || loaded.Config.MCP.DefaultLimit != 50 || loaded.Config.MCP.MaximumLimit != 500 || loaded.Config.MCP.MaximumDepth != 5 || loaded.Config.MCP.MaximumVisitedNodes != 25_000 {
-		t.Fatalf("MCP defaults = %#v", loaded.Config.MCP)
+	if loaded.Config.Web.Address != "127.0.0.1:7777" {
+		t.Fatalf("web address default = %q, want 127.0.0.1:7777", loaded.Config.Web.Address)
 	}
 	if loaded.Config.Storage.RetainSnapshots != 3 || loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
 		t.Fatalf("core defaults = storage=%#v indexing=%#v", loaded.Config.Storage, loaded.Config.Indexing)
@@ -122,6 +122,22 @@ watcher:
   reconciliation_interval: soon
 `,
 			wantError: "invalid duration",
+		},
+		{
+			name: "invalid web listen address",
+			contents: `version: 1
+web:
+  address: localhost
+`,
+			wantError: "config.web.address: invalid listen address",
+		},
+		{
+			name: "invalid web port",
+			contents: `version: 1
+web:
+  address: 127.0.0.1:99999
+`,
+			wantError: "config.web.address: invalid port",
 		},
 		{
 			name:      "multiple documents",

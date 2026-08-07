@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -28,6 +30,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/synthetic"
 	"github.com/Luqueee/ladygraph/internal/upgrade"
 	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/ladygraph/internal/webapi"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -35,6 +38,22 @@ type mcpRunner func(context.Context) error
 
 func main() {
 	logger := logging.New(os.Stderr)
+	if len(os.Args) >= 2 && os.Args[1] == "ui" {
+		logger.Info("starting web viewer", "command", "ui")
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := runConfiguredUI(ctx, os.Args[2:], func(ctx context.Context, address string, handler http.Handler) error {
+			if !isLoopbackListenAddress(address) {
+				logger.Warn("web viewer is unauthenticated and exposes source metadata", "address", address)
+			}
+			return webapi.Run(ctx, address, handler)
+		}); err != nil {
+			logger.Error("web viewer stopped with error", "command", "ui", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("web viewer stopped", "command", "ui")
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "serve" {
 		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -80,8 +99,80 @@ func runServe(ctx context.Context, runMCP mcpRunner) error {
 type storageDiagnoser func(context.Context, string) (ladybug.StorageDiagnosis, error)
 
 type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, error)
-
 type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore) error
+type configuredWebRunner func(context.Context, string, http.Handler) error
+
+func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		return config.Loaded{}, nil, fmt.Errorf("load configuration: %w", err)
+	}
+	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+		Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
+		Store: generation.DefaultConfig(),
+	})
+	if err != nil {
+		return config.Loaded{}, nil, fmt.Errorf("resolve active generation: %w", err)
+	}
+	store := hotsnapshot.NewSnapshotStore(nil)
+	keepStore := false
+	defer func() {
+		if !keepStore {
+			store.Close()
+		}
+	}()
+	if layout.Active.ID != "" {
+		generationNumber, err := strconv.ParseUint(layout.Active.ID, 10, 64)
+		if err != nil {
+			return config.Loaded{}, nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
+		}
+		snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+			DatabasePath: layout.Active.DatabasePath,
+			SnapshotID:   generationNumber,
+		})
+		if err != nil {
+			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
+		}
+		if !report.Passed {
+			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
+		}
+		if err := store.Publish(snapshot); err != nil {
+			return config.Loaded{}, nil, fmt.Errorf("publish active snapshot %q: %w", layout.Active.ID, err)
+		}
+	}
+	keepStore = true
+	return loaded, store, nil
+}
+
+func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRunner) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if runWeb == nil {
+		return errors.New("ui: web runner is required")
+	}
+	flags := flag.NewFlagSet("ui", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	configPath := ""
+	address := ""
+	flags.StringVar(&configPath, "config", "", "configuration file")
+	flags.StringVar(&address, "addr", "", "HTTP listen address")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("ui: unexpected arguments: %v", flags.Args())
+	}
+	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if address == "" {
+		address = loaded.Config.Web.Address
+	}
+	return runWeb(ctx, address, webapi.NewHandler(store))
+}
 
 func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCPRunner) error {
 	if ctx == nil {
@@ -100,41 +191,22 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	if flags.NArg() != 0 {
 		return fmt.Errorf("serve: unexpected arguments: %v", flags.Args())
 	}
-	loaded, err := config.Load(configPath)
+	_, store, err := loadConfiguredSnapshot(ctx, configPath)
 	if err != nil {
-		return fmt.Errorf("load configuration: %w", err)
-	}
-	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
-		Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
-		Store: generation.DefaultConfig(),
-	})
-	if err != nil {
-		return fmt.Errorf("resolve active generation: %w", err)
-	}
-	store := hotsnapshot.NewSnapshotStore(nil)
-	if layout.Active.ID != "" {
-		generationNumber, err := strconv.ParseUint(layout.Active.ID, 10, 64)
-		if err != nil {
-			return fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
-		}
-		snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
-			DatabasePath: layout.Active.DatabasePath,
-			SnapshotID:   generationNumber,
-		})
-		if err != nil {
-			return fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
-		}
-		if !report.Passed {
-			return fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
-		}
-		if err := store.Publish(snapshot); err != nil {
-			return fmt.Errorf("publish active snapshot %q: %w", layout.Active.ID, err)
-		}
+		return err
 	}
 	defer store.Close()
 	return runServe(ctx, func(ctx context.Context) error {
 		return runMCP(ctx, store)
 	})
+}
+func isLoopbackListenAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 type graphVerifier func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
@@ -217,7 +289,7 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 		return runSnapshot(args[2:], stdout, stderr, build)
 	}
 
-	fmt.Fprintf(stderr, "usage: %s version [--json]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|upgrade [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version [--json]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|upgrade [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]|ui [--config PATH] [--addr HOST:PORT]\n", args[0])
 	return 2
 }
 

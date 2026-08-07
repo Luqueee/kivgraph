@@ -26,6 +26,10 @@ para entregar tiles, subgrafos inducidos o buffers binarios de renderizado.
 3. La dirección por defecto será `127.0.0.1:7777`. El bind a una dirección no
    loopback requerirá una opción explícita y una advertencia operacional: las
    respuestas contienen nombres, rutas y metadatos de código fuente.
+   La configuración valida `web.address` como `host:port` y usa
+   `127.0.0.1:7777` por defecto; `--addr` permite un override explícito. Un
+   bind que no sea una IP loopback emite una advertencia porque el endpoint no
+   incorpora autenticación.
 4. La primera versión servirá el bundle web y la API desde el mismo proceso.
    CORS permanecerá deshabilitado por defecto; el origen esperado es el propio
    servidor.
