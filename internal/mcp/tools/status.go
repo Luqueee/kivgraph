@@ -9,6 +9,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 )
 
 const (
@@ -26,9 +27,9 @@ const (
 	graphStatusToolName = "graph_status"
 )
 
-// GraphStatus reports what the server is currently serving from. Every field
-// is read from the published snapshot or from a host-supplied probe; nothing
-// here is inferred.
+// GraphStatus reports what the server is currently serving from. Snapshot and
+// host fields are never inferred; metrics are included only when the process
+// supplies the optional registry.
 type GraphStatus struct {
 	Status string `json:"status"`
 
@@ -55,6 +56,11 @@ type GraphStatus struct {
 	LastUpdateAt  string          `json:"last_update_at,omitempty"`
 	Worker        ComponentHealth `json:"worker"`
 	Storage       ComponentHealth `json:"storage"`
+
+	// Metrics is present only when the hosting process wires a metrics
+	// registry; an absent registry must not be reported as healthy or empty
+	// metrics.
+	Metrics *metrics.Report `json:"metrics,omitempty"`
 }
 
 type GraphStatusCount struct {
@@ -101,13 +107,33 @@ func RegisterGraphStatusWithSnapshotStore(server *sdkmcp.Server, snapshotStore *
 	RegisterGraphStatusWithObserverAndSnapshotStore(server, nil, snapshotStore, nil)
 }
 
-// RegisterGraphStatusWithObserverAndSnapshotStore registers graph_status over a
-// snapshot store, optionally observing latency and probing host state.
+// RegisterGraphStatusWithObserverAndSnapshotStore registers graph_status over
+// a snapshot store, optionally observing latency and probing host state.
 func RegisterGraphStatusWithObserverAndSnapshotStore(
 	server *sdkmcp.Server,
 	observer Observer,
 	snapshotStore *hotsnapshot.SnapshotStore,
 	probe HostStatusProbe,
+	callObservers ...CallObserver,
+) {
+	RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
+		server,
+		observer,
+		snapshotStore,
+		probe,
+		nil,
+		callObservers...,
+	)
+}
+
+// RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics registers
+// graph_status with the process-local metrics report when registry is set.
+func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
+	server *sdkmcp.Server,
+	observer Observer,
+	snapshotStore *hotsnapshot.SnapshotStore,
+	probe HostStatusProbe,
+	registry *metrics.Registry,
 	callObservers ...CallObserver,
 ) {
 	callObserver := firstCallObserver(callObservers)
@@ -116,7 +142,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments struct{},
 	) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
-		return graphStatus(ctx, request, arguments, snapshotStore, probe)
+		return graphStatus(ctx, request, arguments, snapshotStore, probe, registry)
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -133,7 +159,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStore(
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        graphStatusToolName,
-		Description: "Returns the published snapshot, its provenance, its counts, and dependency health.",
+		Description: "Returns the published snapshot, its provenance, its counts, dependency health, and internal metrics.",
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
@@ -147,7 +173,12 @@ func graphStatus(
 	_ struct{},
 	snapshotStore *hotsnapshot.SnapshotStore,
 	probe HostStatusProbe,
+	metricsRegistries ...*metrics.Registry,
 ) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
+	var registry *metrics.Registry
+	if len(metricsRegistries) > 0 {
+		registry = metricsRegistries[0]
+	}
 	status := GraphStatus{
 		Status:             GraphStatusEmpty,
 		EdgesByKind:        []GraphStatusCount{},
@@ -164,6 +195,7 @@ func graphStatus(
 		snapshot = snapshotStore.Load()
 	}
 	if snapshot == nil {
+		applyMetricsStatus(&status, registry)
 		return nil, Response[GraphStatus]{Total: 1, Returned: 1, Results: status}, nil
 	}
 	if err := applySnapshotStatus(&status, snapshot); err != nil {
@@ -177,10 +209,19 @@ func graphStatus(
 	metadata := snapshot.Metadata()
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
+	applyMetricsStatus(&status, registry)
 	return nil, Response[GraphStatus]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: 1, Returned: 1, Results: status,
 	}, nil
+}
+
+func applyMetricsStatus(status *GraphStatus, registry *metrics.Registry) {
+	if registry == nil {
+		return
+	}
+	report := registry.Report()
+	status.Metrics = &report
 }
 
 func applyHostStatus(ctx context.Context, status *GraphStatus, probe HostStatusProbe) error {

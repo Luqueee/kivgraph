@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/metrics"
 )
 
 func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
@@ -72,6 +74,9 @@ func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
 	}
 	if response.SnapshotID != nil || response.SnapshotAgeMS != nil || response.NextCursor != nil {
 		t.Fatalf("optional metadata = %#v, want nil for empty graph", response)
+	}
+	if status.Metrics != nil {
+		t.Fatalf("metrics = %#v, want omitted without a registry", status.Metrics)
 	}
 	if response.Total != 1 || response.Returned != 1 || response.Truncated {
 		t.Fatalf("response metadata = %#v, want one untruncated status result", response)
@@ -182,7 +187,96 @@ func TestGraphStatusClassifiesProbeFailure(t *testing.T) {
 	}
 }
 
-func graphStatusStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+func TestGraphStatusIncludesConfiguredMetrics(t *testing.T) {
+	registry := metrics.NewRegistry()
+	snapshotID := uint64(61)
+	ageMS := int64(4)
+	registry.ObserveQuery(metrics.QueryObservation{
+		ToolName:      "find_symbol",
+		Elapsed:       2 * time.Millisecond,
+		Returned:      3,
+		Truncated:     true,
+		SnapshotID:    &snapshotID,
+		SnapshotAgeMS: &ageMS,
+	})
+	registry.ObserveIndex(metrics.IndexObservation{
+		Duration:   7 * time.Millisecond,
+		Files:      2,
+		Symbols:    3,
+		Edges:      2,
+		Unresolved: 2,
+	})
+	registry.ObserveWorker(metrics.WorkerObservation{Restarts: 1, MemoryBytes: 2048})
+	registry.ObserveLadybug(metrics.LadybugObservation{
+		TransactionDuration: 3 * time.Millisecond,
+		DatabaseBytes:       4096,
+	})
+
+	_, response, err := graphStatus(context.Background(), nil, struct{}{}, graphStatusStore(t, 61), nil, registry)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	if response.Results.Metrics == nil {
+		t.Fatal("graph_status metrics = nil, want configured report")
+	}
+	report := response.Results.Metrics
+	query := report.Queries["find_symbol"]
+	if query.Calls != 1 || query.Results != 3 || query.Truncated != 1 || query.LatencyMax != 2*time.Millisecond {
+		t.Fatalf("query metrics = %+v", query)
+	}
+	if report.Snapshot.ID != snapshotID || report.Snapshot.Age != 4*time.Millisecond {
+		t.Fatalf("snapshot metrics = %+v", report.Snapshot)
+	}
+	if report.Index.Files != 2 || report.Index.Unresolved != 2 {
+		t.Fatalf("index metrics = %+v", report.Index)
+	}
+	if report.Worker.Restarts != 1 || report.Worker.MemoryBytes != 2048 {
+		t.Fatalf("worker metrics = %+v", report.Worker)
+	}
+	if report.Ladybug.Transactions != 1 || report.Ladybug.DatabaseBytes != 4096 {
+		t.Fatalf("Ladybug metrics = %+v", report.Ladybug)
+	}
+
+	encoded, err := json.Marshal(response.Results)
+	if err != nil {
+		t.Fatalf("marshal graph status = %v", err)
+	}
+	if !strings.Contains(string(encoded), `"metrics"`) {
+		t.Fatalf("graph status JSON = %s, want metrics field", encoded)
+	}
+}
+
+func BenchmarkGraphStatusWithMetrics(b *testing.B) {
+	registry := metrics.NewRegistry()
+	for _, name := range []string{
+		"graph_status",
+		"list_repositories",
+		"find_symbol",
+		"get_symbol",
+		"find_references",
+		"find_cross_repo_consumers",
+		"trace_dependencies",
+		"get_blast_radius",
+		"get_unresolved_references",
+	} {
+		registry.ObserveQuery(metrics.QueryObservation{
+			ToolName: name,
+			Elapsed:  500 * time.Microsecond,
+			Returned: 1,
+		})
+	}
+	store := graphStatusStore(b, 61)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_, response, err := graphStatus(context.Background(), nil, struct{}{}, store, nil, registry)
+		if err != nil || response.Results.Metrics == nil {
+			b.Fatalf("graphStatus() error = %v, metrics = %#v", err, response.Results.Metrics)
+		}
+	}
+}
+
+func graphStatusStore(t testing.TB, id uint64) *hotsnapshot.SnapshotStore {
 	t.Helper()
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
 		SchemaVersion:   2,

@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/mcp/tools"
 	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/version"
 )
@@ -70,8 +72,20 @@ func TestServerRecordsQueryMetrics(t *testing.T) {
 	}
 	defer clientSession.Close()
 
-	if _, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{Name: "graph_status"}); err != nil {
+	statusResult, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{Name: "graph_status"})
+	if err != nil {
 		t.Fatalf("graph_status call error = %v", err)
+	}
+	var statusResponse tools.Response[tools.GraphStatus]
+	encodedStatus, err := json.Marshal(statusResult.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal graph_status result = %v", err)
+	}
+	if err := json.Unmarshal(encodedStatus, &statusResponse); err != nil {
+		t.Fatalf("unmarshal graph_status result = %v", err)
+	}
+	if statusResponse.Results.Metrics == nil {
+		t.Fatal("graph_status metrics = nil, want configured report")
 	}
 	result, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
 		Name:      "find_symbol",

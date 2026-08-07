@@ -9279,13 +9279,48 @@ la métrica del último `Status()` observado.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-No requiere un endpoint de red adicional.
+**Estado:** `PASS`.
+
+**Implementación:** `graph_status` incluye el reporte consistente de
+`internal/metrics` cuando el proceso configura un registro. El campo
+`metrics` se omite sin registro; un snapshot ausente conserva
+`status: "empty"` y puede devolver las métricas observadas. `Run` y
+`RunWithSnapshotStore` crean un registro por proceso, y
+`RunWithMetricsAndSnapshotStore` permite compartirlo con indexación, rebuild y
+worker. Los registradores anteriores conservan sus firmas.
+
+**Entregables:**
+
+```text
+internal/mcp/tools/status.go
+internal/mcp/tools/status_test.go
+internal/mcp/server.go
+internal/mcp/server_test.go
+docs/adr/0013-graph-status-metrics.md
+benchmarks/graph-status-metrics/results.json
+```
+
+**Verificación:** smoke STDIO real con `initialize`,
+`notifications/initialized` y `tools/call graph_status` devolvió un envelope
+MCP válido; el resultado `status: "empty"` incluyó `metrics` con los cinco
+grupos (`queries`, `snapshot`, `index`, `worker`, `ladybug`). El benchmark
+`BenchmarkGraphStatusWithMetrics` mide 1.013–1.020 µs/op, 2.128 B/op y
+21 allocaciones/op. También pasan `go test ./... -count=1`, `go vet ./...`,
+`go test -race ./internal/mcp/... ./internal/metrics -count=1`, `make build` y
+`gofmt -l` no reporta archivos.
+
+**Limitaciones:** el reporte conserva las duraciones `time.Duration` como
+números JSON en nanosegundos; no hay exportador Prometheus u OpenTelemetry.
+Los registros siguen siendo locales al proceso y deben compartirse
+explícitamente para reflejar indexación y rebuild.
+
+**Siguiente tarea desbloqueada:** LUQUE-1404.
 
 ---
 

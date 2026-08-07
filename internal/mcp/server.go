@@ -93,7 +93,7 @@ func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore
 			})
 		}
 	}
-	tools.RegisterGraphStatusWithObserverAndSnapshotStore(server, observer, snapshotStore, nil, callObserver)
+	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
@@ -105,13 +105,32 @@ func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore
 	return server
 }
 
-// Run serves one MCP session over the process stdin/stdout transport.
+// Run serves one MCP session over the process stdin/stdout transport with a
+// process-local metrics registry available to graph_status.
 func Run(ctx context.Context) error {
-	return RunWithSnapshotStore(ctx, nil)
+	return RunWithMetricsAndSnapshotStore(ctx, metrics.NewRegistry(), nil)
 }
 
 // RunWithSnapshotStore serves one MCP session using snapshotStore as the
-// immutable graph source for query tools.
+// immutable graph source for query tools and a fresh metrics registry.
 func RunWithSnapshotStore(ctx context.Context, snapshotStore *hotsnapshot.SnapshotStore) error {
-	return NewServerWithSnapshotStore(snapshotStore).Run(ctx, &sdkmcp.StdioTransport{})
+	return RunWithMetricsAndSnapshotStore(ctx, metrics.NewRegistry(), snapshotStore)
+}
+
+// RunWithMetrics serves one MCP session with the caller-owned metrics registry.
+func RunWithMetrics(ctx context.Context, registry *metrics.Registry) error {
+	return RunWithMetricsAndSnapshotStore(ctx, registry, nil)
+}
+
+// RunWithMetricsAndSnapshotStore serves one MCP session with caller-owned
+// metrics and the immutable graph source.
+func RunWithMetricsAndSnapshotStore(
+	ctx context.Context,
+	registry *metrics.Registry,
+	snapshotStore *hotsnapshot.SnapshotStore,
+) error {
+	if registry == nil {
+		registry = metrics.NewRegistry()
+	}
+	return NewServerWithMetricsAndSnapshotStore(registry, snapshotStore).Run(ctx, &sdkmcp.StdioTransport{})
 }
