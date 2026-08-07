@@ -94,6 +94,10 @@ integridad, compatibilidad o verificación descritos aquí.
 - Un build de distribución limpio debe ser reproducible entre checkouts del
   mismo commit, toolchain y plataforma; compara el payload completo y no solo
   `manifest.json`.
+- Los corpus sintéticos de aceptación de gran escala se generan en una ruta
+  privada y nunca sustituyen ni modifican repositorios indexados. Para
+  LadybugDB, la reproducibilidad debe distinguir entre hechos lógicos
+  (conteos, schema e integridad) y bytes físicos del archivo nativo.
 
 ## Verificación obligatoria
 

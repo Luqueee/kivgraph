@@ -1,0 +1,75 @@
+{
+  "benchmark": "ladygraph-large-corpus",
+  "command": "go run -tags ladybug ./benchmarks/ladybug-bulk --corpus /tmp/ladygraph-large-corpus --database /tmp/ladygraph-large-bulk/graph.db --output /tmp/ladygraph-large-output --individual-results benchmarks/ladybug-individual/results.json --batch-results benchmarks/ladybug-batch/results.json",
+  "commit": "f968d16e4bf19b45b571e6571ce999ba45ed73cb",
+  "generated_at": "2026-08-07T11:36:32.011205299Z",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "memory_total_kib": 24543908,
+    "memory_available_kib_at_start": 8783788,
+    "go": "go1.24.4",
+    "ladybugdb": "0.13.1",
+    "binding": "v0.13.1"
+  },
+  "dataset": {
+    "seed": 42,
+    "repositories": 40,
+    "files": 100000,
+    "symbols": 1000000,
+    "edges": 10000000,
+    "nodes": 1100040
+  },
+  "generation": {
+    "elapsed_seconds": 7.756,
+    "byte_identical_second_generation": true,
+    "sha256": {
+      "manifest.json": "f266742f307a519412850338069b5785002ab162d7f42c08560da654ab94c037",
+      "repositories.jsonl": "04a663932474628db71a705c6c9cfe56df0e569fe8dca263222e6f8e3d8ff6ef",
+      "files.jsonl": "38d6efcdadecf66feb9a0fdc5ebc91dd03b6e6f21a4bbd1b12c86ea751f5f4f5",
+      "symbols.jsonl": "cf7cf26b01eeb60c173005bc939f885066ea66c5d760ff13e4edfad9cd167ef6",
+      "edges.jsonl": "29b4524836dd736cc22e478d649f07067505a014d06acc6f2329f972a284f9d4"
+    }
+  },
+  "load": {
+    "csv_export_ms": 11922.177886,
+    "node_copy_ms": 2424.56169,
+    "edge_copy_ms": 6716.745317,
+    "copy_ms": 9141.307007,
+    "end_to_end_ms": 21063.484893,
+    "records_per_second": 1214272.75022052,
+    "end_to_end_records_per_second": 526980.2246108317,
+    "peak_rss_bytes": 2079531008,
+    "database_bytes": 432570368
+  },
+  "counts": {
+    "Repository": 40,
+    "File": 100000,
+    "Symbol": 1000000,
+    "CONTAINS": 100000,
+    "DEFINES": 1000000,
+    "REFERENCES": 4450001,
+    "CALLS_DIRECT": 4449999,
+    "integrity_violations": 0
+  },
+  "reproducibility": {
+    "corpus_byte_identical": true,
+    "logical_load_summary_identical": true,
+    "database_byte_identical": false,
+    "database_sha256_first": "adc45220eae2d793821310acfe66fa170dbb7224de9fe54e5e957dfa09a1c6d",
+    "database_sha256_second": "e392dfc339d6865096a7113d6510f215911ea472b2f3e8f494cd8210343e5d66",
+    "database_bytes_second": 433037312
+  },
+  "gate": {
+    "full_initial_scale": true,
+    "counts_verified": true,
+    "rss_within_2_gib": true,
+    "passed": true
+  },
+  "limitations": [
+    "The generated corpus is private and was stored under /tmp.",
+    "The two native LadybugDB files were not byte-identical; reproducibility is asserted for corpus bytes and logical stored facts, not native database bytes.",
+    "The measurement covers Linux amd64, Go 1.24.4 and the pinned LadybugDB 0.13.1 core and binding."
+  ]
+}

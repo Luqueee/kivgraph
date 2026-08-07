@@ -9956,22 +9956,53 @@ fuzz smoke
 
 **Dependencias:** LUQUE-1601.
 
+**Objetivo:** ejecutar el corpus sintético de aceptación en la escala de
+1.000.000 de símbolos y 10.000.000 de aristas, validando carga, conteos,
+integridad, memoria y reproducibilidad lógica sin tocar repositorios
+indexados.
+
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-Escala:
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Escala ejecutada:**
 
 ```text
+40 repositorios
+100.000 archivos
 1.000.000 símbolos
 10.000.000 aristas
 ```
 
-Registrar si el hardware disponible lo permite.
+**Verificación:** `ladybug-bulk-copy` cargó 1.100.040 nodos y 10.000.000
+aristas. El gate de escala, conteos y RSS pasó. La exportación CSV tardó
+11.922,2 ms; la carga COPY tardó 9.141,3 ms; el end-to-end tardó 21.063,5 ms.
+El throughput fue 1.214.272,8 registros/s durante COPY y 526.980,2
+registros/s end-to-end. El RSS máximo fue 2.079.531.008 bytes, por debajo de
+2 GiB; la base ocupó 432.570.368 bytes.
+
+`doctor storage` pasó en dos cargas independientes con los mismos conteos:
+`Repository=40`, `File=100000`, `Symbol=1000000`, `CONTAINS=100000`,
+`DEFINES=1000000`, `REFERENCES=4450001`, `CALLS_DIRECT=4449999`, y cero
+violaciones de integridad. Dos generaciones del corpus produjeron los cinco
+archivos (`manifest.json` y los cuatro JSONL) byte a byte idénticos. Los
+resúmenes lógicos de ambas cargas también fueron idénticos.
+
+**Limitaciones:** los dos archivos físicos `graph.db` no fueron byte a byte
+idénticos (`432.570.368` frente a `433.037.312` bytes), aunque sus conteos,
+schema e integridad coincidieron. Este resultado demuestra reproducibilidad
+lógica del corpus y de la carga, no reproducibilidad binaria del archivo nativo
+LadybugDB. El corpus y las bases se mantuvieron en `/tmp`; no se modificaron
+artefactos versionados ni repositorios indexados. La máquina tenía 24.543.908
+KiB de RAM total y 8.783.788 KiB disponibles al inicio.
+
+**Siguiente tarea:** LUQUE-1603.
 
 ---
 
