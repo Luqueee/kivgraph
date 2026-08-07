@@ -10779,19 +10779,26 @@ El worker retira del hilo de render los tres primeros; el cuarto es Reagraph
 construyendo la escena y no es trasladable, porque WebGL no es accesible desde
 un worker en esta integración.
 
+**Perfil:** el perfil de CPU del nivel `files` atribuyó un `27 %` del tiempo a
+`getPoint`, `initNonuniformCatmullRom` y `getLengths`. Es la geometría de las
+aristas discontinuas: Reagraph crea una curva Catmull-Rom y un `TubeGeometry`
+por cada guion, y la contención añadía una arista discontinua por nodo. Con la
+línea fina sólida, ese coste desaparece.
+
 **Verificación:**
 
 * `pnpm --dir web check`: 4 archivos de test y 19 tests pasando;
 * el navegador carga `assets/tile-worker-*.js` como worker real;
 * cambiar de nivel cuatro veces seguidas en `150 ms` deja la vista en el
   último nivel pedido, sin errores y sin que un resultado viejo lo sobrescriba;
-* tiempos de nivel tras el cambio: `repositories` `340 ms`, `packages`
-  `303 ms`, `files` `2.833 ms`, `symbols` `2.857 ms`; antes `files` tardaba
-  `11.843 ms` y `symbols` no llegaba a dibujarse.
+* tiempos de nivel, con WebGL por software: `repositories` `386 ms`,
+  `packages` `253 ms`, `files` `1.231 ms` con `1.200` nodos, `symbols`
+  `1.326 ms`. Antes de esta tarea `files` tardaba `11.843 ms` con `2.000`
+  nodos y `symbols` no llegaba a dibujarse.
 
-**Limitación:** el render sigue bloqueando el hilo principal unos `2,5 s` por
-cada `600` nodos con WebGL por software; con GPU es menor. Reducirlo exige
-instanciar la escena, que pertenece a `LUQUE-1713`.
+**Limitación:** el render sigue construyendo un objeto por nodo en el hilo
+principal; el presupuesto por nivel acota cuánto. Instanciar la escena
+pertenece a `LUQUE-1713`.
 
 ---
 

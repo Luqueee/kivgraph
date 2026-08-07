@@ -63,7 +63,9 @@ describe("Reagraph payload adapter", () => {
       const target = graph.nodes.find((node) => node.id === edge.target);
       expect(source).toBeDefined();
       expect(target).toBeDefined();
-      expect(edge.dashed).toBe(true);
+      // Solid hairline: a dashed edge costs a curve per dash.
+      expect(edge.dashed).toBe(false);
+      expect(edge.size).toBeLessThan(1);
       // A container is always coarser than what it holds.
       expect(source?.data.kind).toBeLessThan(target?.data.kind ?? 0);
     }

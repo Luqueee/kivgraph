@@ -58,19 +58,21 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
     paquetes mientras tres cuartas partes del lienzo quedaban vacías; por
     rango, ninguna celda pasa de `2`.
 11. El visor dibuja además la contención que cada nodo ya declara en el
-    payload (`parent_kind`, `parent_id`), en trazo discontinuo y sólo cuando el
-    contenedor viaja en la misma tile. Sin ella un repositorio aparece junto a
-    sus paquetes sin nada que los una, afirmando una desconexión que el grafo
-    no tiene.
+    payload (`parent_kind`, `parent_id`), sólo cuando el contenedor viaja en
+    la misma tile. Sin ella un repositorio aparece junto a sus paquetes sin
+    nada que los una, afirmando una desconexión que el grafo no tiene.
+    Se dibuja como línea fina sólida, nunca discontinua: Reagraph construye
+    una curva Catmull-Rom y un tubo **por guion**, y una arista de contención
+    por nodo costaba más que todas las dependencias juntas.
 12. Una leyenda fija nombra cada color: repositorio, paquete, archivo, símbolo,
     y los tres trazos — dependencia exacta, dependencia y contiene. La paleta
     vive en un único sitio del adaptador para que leyenda y lienzo no puedan
     divergir.
 13. Cada nivel tiene un presupuesto de nodos: los niveles gruesos caben
-    enteros, `files` y `symbols` piden `600`. Reagraph construye un objeto por
-    nodo — medido en unos `4` ms cada uno — así que un nivel completo tardaría
-    diez segundos en aparecer. Cuando el servidor recorta la tile, la vista lo
-    dice (`600 of 4212 files`): es una muestra acotada, no el nivel entero.
+    enteros, `files` y `symbols` piden `1.200`. Reagraph construye un objeto
+    por nodo, así que el nivel completo no cabe en un frame razonable. Cuando
+    el servidor recorta la tile, la vista lo dice (`1200 of 4212 files`): es
+    una muestra acotada, no el nivel entero.
 14. El fetch, la validación y la adaptación corren en un Web Worker, con un
     `AbortController` por petición para que cambiar de nivel cancele el
     anterior. El render se queda en el hilo principal: WebGL no es accesible
@@ -106,6 +108,11 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
 - Resolver posiciones por mapa en vez de recorrer el array de nodos elimina un
   coste cuadrático: con `2.000` nodos eran cuatro millones de comparaciones
   antes del primer frame.
+- El perfil de CPU del nivel `files` mostró un `27 %` del tiempo en
+  `getPoint`, `initNonuniformCatmullRom` y `getLengths`: geometría de guiones.
+  Con la línea sólida, `files` pasó de `2.833 ms` a `809 ms` con `600` nodos,
+  lo que permitió doblar el presupuesto a `1.200` y aun así bajar a
+  `1.231 ms`.
 - El render sigue bloqueando el hilo principal mientras construye la escena;
   el presupuesto por nivel acota cuánto.
 - El visor muestra nombres reales en todos los niveles y oculta las etiquetas

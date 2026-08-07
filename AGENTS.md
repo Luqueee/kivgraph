@@ -131,6 +131,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - El visor dibuja la contención declarada por `parent_kind`/`parent_id` cuando
   el contenedor viaja en la misma tile, y una leyenda nombra cada color y cada
   trazo. La paleta se declara una sola vez en el adaptador.
+- Ninguna arista del visor es discontinua: Reagraph construye una curva y un
+  tubo por guion, y con una arista por nodo eso domina el frame. La distinción
+  se hace con color y grosor.
 - El visor pide las tiles desde un Web Worker con `AbortController` por
   petición; el render permanece en el hilo principal. Cada nivel tiene un
   presupuesto de nodos y una tile recortada se declara como tal en la vista.

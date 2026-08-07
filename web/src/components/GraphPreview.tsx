@@ -27,7 +27,7 @@ const LOD_LABELS = ["repositories", "packages", "files", "symbols"] as const;
  * seconds to appear. The coarse levels fit entirely; the deep ones are capped
  * and the view says so.
  */
-const LOD_NODE_BUDGET = [2_000, 2_000, 600, 600];
+const LOD_NODE_BUDGET = [2_000, 2_000, 1_200, 1_200];
 
 /** Above this node count captions overlap; names move to hover only. */
 const LABEL_LIMIT = 200;
@@ -188,7 +188,7 @@ export function GraphPreview() {
           {status}
         </span>
       </div>
-      <div className="pointer-events-none absolute left-4 bottom-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
+      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
         {NODE_COLORS.map((entry, position) => (
           <span key={entry.kind} className="flex items-center gap-2">
             <span
@@ -218,8 +218,8 @@ export function GraphPreview() {
         </span>
         <span className="flex items-center gap-2">
           <span
-            className="inline-block h-px w-4 border-t border-dashed"
-            style={{ borderColor: CONTAINMENT_COLOR }}
+            className="inline-block h-px w-4 opacity-60"
+            style={{ backgroundColor: CONTAINMENT_COLOR }}
           />
           contains
         </span>

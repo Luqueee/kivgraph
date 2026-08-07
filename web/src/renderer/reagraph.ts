@@ -28,6 +28,10 @@ export const REAGRAPH_WORLD_SIZE = 800;
 export const CONTAINMENT_COLOR = "#475569";
 export const DEPENDENCY_COLOR = "#94a3b8";
 export const EXACT_DEPENDENCY_COLOR = "#16a34a";
+
+/** Containment reads as a thin hairline; dashes cost a curve per dash. */
+export const CONTAINMENT_EDGE_SIZE = 0.4;
+
 export const NODE_COLORS: ReadonlyArray<{ kind: number; color: string }> = [
   { kind: NODE_KIND_REPOSITORY, color: "#2563eb" },
   { kind: NODE_KIND_PACKAGE, color: "#7c3aed" },
@@ -252,12 +256,16 @@ export function createReagraphView(
       endpointKey(record.parentKind, record.parentId),
     );
     if (parent === undefined) continue;
+    // Solid and thin, never dashed: Reagraph builds a Catmull-Rom curve and a
+    // tube per dash, so one dashed containment edge per node costs more than
+    // every dependency in the tile put together.
     edges.push({
       id: `contains-${index}`,
       source: parent,
       target: nodes[index].id,
       fill: CONTAINMENT_COLOR,
-      dashed: true,
+      size: CONTAINMENT_EDGE_SIZE,
+      dashed: false,
       arrowPlacement: "none",
       data: {
         index,
