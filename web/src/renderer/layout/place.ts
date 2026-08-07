@@ -155,32 +155,58 @@ function measureSubtrees(
       subtree[node] = radius[node];
       continue;
     }
-    let widest = 0;
-    for (const child of children) widest = Math.max(widest, subtree[child]);
-    subtree[node] =
-      childShell(radius[node], children.length, widest, padding) + widest;
+    const shell = childShell(
+      radius[node],
+      children,
+      (child) => subtree[child],
+      padding,
+    );
+    subtree[node] = shell.radius + shell.widest;
   }
   return subtree;
+}
+
+export interface ChildShell {
+  /** Distance from the container's centre to where its children sit. */
+  readonly radius: number;
+  /** Radius of the largest child, which the container has to make room for. */
+  readonly widest: number;
 }
 
 /**
  * Distance from a container's centre to the shell its children sit on.
  *
- * Two conditions, and the larger wins. The children must clear each other:
- * with `n` points on a sphere the angular spacing is about `2/sqrt(n)`, so the
- * chord between neighbours is `R * 2/sqrt(n)` and has to cover two child radii
- * plus padding. And they must clear the container itself, which is the case a
- * single child would otherwise fail - landing exactly on top of its parent.
+ * The shell is the quadratic sum of the children's radii. For children of the
+ * same size that is exactly the room they need: `n` points on a sphere sit
+ * about `R · 2/√n` apart, which has to cover two radii, so `R ≥ r√n = √(Σr²)`.
+ * The reason to write it as a sum of squares is the case where the children
+ * are *not* the same size: taking the largest and multiplying by `√n` would
+ * push thirty small packages out to the orbit of the one big one and leave the
+ * whole sphere between them empty - the single biggest source of dead space in
+ * a nested layout.
+ *
+ * A second condition applies: the children must also clear the container
+ * itself, which is what a single child would otherwise fail, landing exactly
+ * on top of its parent.
  */
-function childShell(
+function childShell<T>(
   parentRadius: number,
-  count: number,
-  widestChild: number,
+  children: readonly T[],
+  radiusOf: (child: T) => number,
   padding: number,
-): number {
-  if (count <= 0) return 0;
-  const spaced = (2 * widestChild + padding) * (Math.sqrt(count) / 2);
-  return Math.max(parentRadius + widestChild + padding, spaced);
+): ChildShell {
+  let squares = 0;
+  let widest = 0;
+  for (const child of children) {
+    const reach = radiusOf(child) + padding / 2;
+    squares += reach * reach;
+    widest = Math.max(widest, radiusOf(child));
+  }
+  if (children.length === 0) return { radius: 0, widest: 0 };
+  return {
+    radius: Math.max(parentRadius + widest + padding, Math.sqrt(squares)),
+    widest,
+  };
 }
 
 interface CommunityGroup {
@@ -239,19 +265,17 @@ function shapeClusters(
           structure.importance[right] - structure.importance[left] ||
           graph.identity[left] - graph.identity[right],
       );
-      let widest = 0;
       let layerSum = 0;
-      for (const member of ordered) {
-        widest = Math.max(widest, subtreeRadius[member]);
-        layerSum += structure.layer[member];
-      }
-      const memberShell =
-        ordered.length > 1 ? childShell(0, ordered.length, widest, padding) : 0;
+      for (const member of ordered) layerSum += structure.layer[member];
+      const shell =
+        ordered.length > 1
+          ? childShell(0, ordered, (member) => subtreeRadius[member], padding)
+          : { radius: 0, widest: subtreeRadius[ordered[0]] };
       groups.push({
         id,
         members: ordered,
-        memberShell,
-        radius: memberShell + widest,
+        memberShell: shell.radius,
+        radius: shell.radius + shell.widest,
         layer: layerSum / ordered.length,
       });
     }
@@ -260,12 +284,12 @@ function shapeClusters(
     if (groups.length === 0) {
       return { groups, lobeShell: 0, radius: Math.max(anchor, padding) };
     }
-    let widestGroup = 0;
-    for (const group of groups) {
-      widestGroup = Math.max(widestGroup, group.radius);
-    }
-    const lobeShell = childShell(anchor, groups.length, widestGroup, padding);
-    return { groups, lobeShell, radius: lobeShell + widestGroup };
+    const lobes = childShell(anchor, groups, (group) => group.radius, padding);
+    return {
+      groups,
+      lobeShell: lobes.radius,
+      radius: lobes.radius + lobes.widest,
+    };
   });
 }
 
@@ -478,16 +502,6 @@ function layNodes(
   }
 }
 
-function maxSubtree(
-  members: readonly number[],
-  subtreeRadius: Float32Array,
-): number {
-  let widest = 0;
-  for (const member of members)
-    widest = Math.max(widest, subtreeRadius[member]);
-  return widest;
-}
-
 function layDescendants(
   graph: LayoutGraph,
   structure: GraphStructure,
@@ -508,13 +522,12 @@ function layDescendants(
         structure.importance[right] - structure.importance[left] ||
         graph.identity[left] - graph.identity[right],
     );
-    const widest = maxSubtree(ordered, metrics.subtree);
     const shell = childShell(
       metrics.radius[node],
-      ordered.length,
-      widest,
+      ordered,
+      (child) => metrics.subtree[child],
       metrics.padding,
-    );
+    ).radius;
     ordered.forEach((child, rank) => {
       const direction = shellDirection(
         rank,

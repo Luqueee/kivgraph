@@ -132,6 +132,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - El layout es determinista: las direcciones salen del hash de la identidad
   del nodo, no de su posición en el tile ni de un generador aleatorio. El mismo
   tile dibuja siempre el mismo mundo.
+- El radio de una concha es la suma cuadrática de los radios de sus hijos,
+  nunca el mayor por la raíz del número: eso manda los hijos pequeños a la
+  órbita del grande y deja el volumen intermedio vacío.
 - Todas las distancias del layout son proporciones del radio con el que se
   dibuja un nodo. Reservar espacio en unidades ajenas a lo que se pinta produce
   o una maraña o un campo de puntos invisibles.

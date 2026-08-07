@@ -10831,6 +10831,8 @@ coordenadas publicadas proyectadas por rango.
 - [x] Encuadrar la cámara por extensión proyectada y abrir fuera de eje.
 - [x] Iluminar el vecindario del nodo al pasar el cursor y apagarlo al salir.
 - [x] Centralizar los parámetros del layout en proporciones.
+- [x] Dimensionar cada concha por suma cuadrática, no por el hijo mayor.
+- [x] Subir el presupuesto por vista al techo del endpoint (`10.000`).
 
 **Criterios de aceptación:**
 
@@ -10868,8 +10870,15 @@ coordenadas publicadas proyectadas por rango.
 nivel         nodos  aristas  layout   radio   dispersión x/y/z
 repositories     34        0   11 ms     190   74 / 73 / 72
 packages        138      399   19 ms     950   549 / 274 / 319
-files         1.200    1.461   27 ms   1.054   500 / 387 / 441
+files         1.200    1.461   27 ms   1.077   500 / 387 / 441
+symbols       5.000    5.282   40 ms   3.837   1.610 / 1.075 / 1.229
+symbols      10.000   11.158   58 ms   5.315   2.144 / 1.516 / 1.615
 ```
+
+Dimensionar la concha por suma cuadrática en vez de por el hijo mayor redujo
+el radio del mundo `3,2` veces con `5.000` y `10.000` nodos - el peor cluster
+pasó de `7.717` a `1.860` de radio con `380` miembros - y es lo que hace que
+esos niveles se dibujen en vez de quedar como puntos de una décima de píxel.
 
 **Verificación:**
 
@@ -10890,6 +10899,12 @@ miden pocos píxeles y hay que acercarse; es geometría, no un defecto. Resaltar
 un vecindario obliga a Reagraph a reconstruir sus mallas de arista: medido en
 `files` con `1.461` aristas y WebGL por software, `2,2` s hasta que aparece,
 por eso ambas transiciones esperan `120` ms a que el cursor se pose.
+
+**Techo de símbolos:** el endpoint sirve `10.000` nodos por tile y el viewport
+raíz gasta `4.350` en ancestros, así que la vista global muestra como mucho
+`5.650` de los `82.443` símbolos. Acotar el viewport a un repositorio deja
+`9.085` en el mayor y mete uno mediano entero con `902` nodos: el límite es el
+recorte espacial, no el presupuesto.
 
 **Pendiente ajeno a esta tarea:** `go test ./...` falla desde antes en
 `cmd/ladygraph` (`TestRunConfiguredUI*`, que exigen LadybugDB nativo) y

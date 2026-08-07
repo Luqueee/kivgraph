@@ -49,9 +49,14 @@ sus vecinos. En cambio la tile sí trae la estructura: el árbol de contención 
 6. La centralidad es PageRank sobre las dependencias de la tile. Decide el
    tamaño dibujado, el espacio reservado, el orden dentro del lóbulo -el hub
    ocupa la cabeza de la espiral- y qué nodos llevan rótulo.
-7. Los contenedores se dimensionan de abajo arriba antes de colocar nada: el
-   radio de una concha cubre a la vez la separación entre hermanos
-   -`R · 2/√n ≥ 2r + padding`- y el radio del propio contenedor. Con eso el
+7. Los contenedores se dimensionan de abajo arriba antes de colocar nada, y el
+   radio de una concha es la **suma cuadrática** de los radios de sus hijos,
+   `R = √(Σr²)`. Para hijos iguales es exactamente el sitio que necesitan
+   -`n` puntos en una esfera quedan a `R · 2/√n`, que debe cubrir dos radios-,
+   y para hijos desiguales evita el mayor desperdicio de un layout anidado:
+   tomar el más grande y multiplicarlo por `√n` manda treinta paquetes
+   pequeños a la órbita del único grande y deja vacía la esfera entre ellos.
+   Se añade el suelo de holgura contra el propio contenedor. Con eso el
    solapamiento es imposible por construcción y no algo que la relajación tenga
    que reparar.
 8. Las bolas de cluster se siembran con la espiral de Fibonacci indexada por
@@ -112,8 +117,14 @@ sus vecinos. En cambio la tile sí trae la estructura: el árbol de contención 
 
 ## Consecuencias
 
-- El layout cuesta `11` ms con `34` nodos, `19` ms con `138` y `27` ms con
-  `1.200`, dentro del worker y antes del primer frame.
+- El layout cuesta `11` ms con `34` nodos, `19` ms con `138`, `40` ms con
+  `5.000` y `58` ms con `10.000`, dentro del worker y antes del primer frame.
+- El presupuesto por vista llega hasta `10.000` nodos, el mismo techo que
+  impone el endpoint de tiles. Con el viewport raíz el presupuesto se gasta
+  primero en los ancestros -`34` repositorios, `104` paquetes y `4.212`
+  archivos-, así que el primer símbolo es el nodo `4.351` y como mucho caben
+  `5.650` de los `82.443`. Ver más símbolos exige acotar el viewport, no subir
+  el presupuesto.
 - El mundo ya no corresponde a las coordenadas publicadas: `ladygraph index
   --full` no reproduce esta imagen, se reconstruye desde la estructura.
 - Un tile con presupuesto bajo no llega a los símbolos: la vista lo declara

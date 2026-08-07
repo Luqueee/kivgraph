@@ -7,6 +7,13 @@ export const MIN_TILE_BUDGET = 100;
 export const TILE_BUDGET_STEP = 100;
 
 /**
+ * Most nodes a single tile may carry, matching the server's own per-tile
+ * ceiling. Reaching it is expensive - the renderer builds an object per node -
+ * but the deep levels are unreachable below it.
+ */
+export const MAX_TILE_BUDGET = DEFAULT_REAGRAPH_NODE_LIMIT;
+
+/**
  * Nodes to request for one level.
  *
  * Three ceilings apply and the smallest wins: what the user asked for, what

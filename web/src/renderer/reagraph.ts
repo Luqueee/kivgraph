@@ -21,7 +21,14 @@ import {
 } from "./binary";
 import { computeStructuralLayout, type LayoutGraph } from "./layout";
 
-export const DEFAULT_REAGRAPH_NODE_LIMIT = 2_000;
+/**
+ * Most nodes the adapter will materialise. It matches the ceiling the tiles
+ * endpoint enforces, so the limit that bites is the server's and not a second
+ * one hidden here. The deepest level of a large snapshot needs the whole range:
+ * the first symbol of `~/kena` is node 4.351, behind every repository, package
+ * and file the tile carries first.
+ */
+export const DEFAULT_REAGRAPH_NODE_LIMIT = 10_000;
 export const DEFAULT_REAGRAPH_EDGE_LIMIT = 8_000;
 
 /** Colours the viewer legend explains; kept beside the palette they describe. */

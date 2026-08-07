@@ -6,6 +6,7 @@ import { ApiError, fetchMeta, type SnapshotMeta } from "@/api/client";
 import { useFrameRate } from "@/hooks/useFrameRate";
 import { frameGraph } from "@/renderer/camera";
 import {
+  MAX_TILE_BUDGET,
   MIN_TILE_BUDGET,
   TILE_BUDGET_STEP,
   tileBudget,
@@ -14,7 +15,6 @@ import {
   CONTAINMENT_COLOR,
   createLayoutOverrides,
   CROSS_DEPENDENCY_COLOR,
-  DEFAULT_REAGRAPH_NODE_LIMIT,
   EXACT_DEPENDENCY_COLOR,
   LOCAL_DEPENDENCY_COLOR,
   NODE_COLORS,
@@ -443,16 +443,16 @@ export function GraphPreview() {
           <input
             type="range"
             min={MIN_TILE_BUDGET}
-            max={DEFAULT_REAGRAPH_NODE_LIMIT}
+            max={MAX_TILE_BUDGET}
             step={TILE_BUDGET_STEP}
             value={requestedBudget}
             onChange={(event) =>
               setRequestedBudget(Number(event.currentTarget.value))
             }
-            className="h-1 w-32 cursor-pointer accent-primary"
+            className="h-1 w-40 cursor-pointer accent-primary"
             aria-label="nodes per view"
           />
-          <span className="w-10 text-right tabular-nums text-foreground">
+          <span className="w-12 text-right tabular-nums text-foreground">
             {requestedBudget}
           </span>
         </label>
