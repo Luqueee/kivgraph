@@ -155,11 +155,11 @@ El JSON mínimo sigue este esquema:
 
 ## SLO del visor web
 
-Estos límites aplican a la aplicación React/Vite/Three.js y a su API HTTP
-read-only. No modifican los SLO de las tools MCP ni convierten STDIO en un
-transporte web. El corpus de referencia es el fixture sintético versionado de
-100.000 símbolos y 1.000.000 de aristas; cada medición debe registrar también
-GPU, navegador, commit, seed y modo de nivel de detalle.
+Estos límites aplican a la aplicación React/Vite/Reagraph/Three.js y a su API
+HTTP read-only. No modifican los SLO de las tools MCP ni convierten STDIO en
+un transporte web. El corpus de referencia es el fixture sintético versionado
+de 100.000 símbolos y 1.000.000 de aristas; cada medición debe registrar
+también GPU, navegador, commit, seed y modo de nivel de detalle.
 
 | Métrica | Objetivo | Límite | Condiciones |
 | --- | ---: | ---: | --- |
@@ -167,7 +167,7 @@ GPU, navegador, commit, seed y modo de nivel de detalle.
 | payload de topología p95 | ≤ 250 ms | 500 ms | viewport/LOD declarado |
 | primer frame p95 | ≤ 500 ms | 1 s | navegador frío, bundle local |
 | pan/zoom p95 | ≤ 16,6 ms | 33,3 ms | interacción sostenida |
-| picking p95 | ≤ 2 ms | 5 ms | una lectura de pixel GPU |
+| hover p95 | ≤ 2 ms | 5 ms | raycast de nodo Reagraph |
 | vecindad p95 | ≤ 2 ms | 5 ms | depth 3, presupuesto declarado |
 | payload máximo | ≤ 16 MiB | 32 MiB | una respuesta, sin descarga completa |
 | heap JavaScript | ≤ 384 MiB | 512 MiB | después de warm-up |
@@ -175,7 +175,7 @@ GPU, navegador, commit, seed y modo de nivel de detalle.
 
 El visor debe ocultar o agregar aristas de símbolo cuando el nivel de detalle
 lo requiera. Medir una topología completa no autoriza a ignorar el presupuesto
-de interacción: pan, zoom y picking se evalúan por separado.
+de interacción: pan, zoom y hover se evalúan por separado.
 
 ### Criterio `WEB_VIEWER_PERFORMANCE_PASS`
 

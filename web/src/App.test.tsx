@@ -11,7 +11,7 @@ describe("web foundation", () => {
     expect(markup).toContain("Ladygraph");
     expect(markup).toContain("Read-only graph viewer");
     expect(markup).toContain("shadcn/ui");
-    expect(markup).toContain("GPU buffers");
+    expect(markup).toContain("Reagraph");
   });
 
   it("renders the CLI-generated Button primitive with variants", () => {

@@ -10162,8 +10162,8 @@ alimentación o almacenamiento se amplía sólo si el entorno lo exige.
 # 20. Fase 17 — Visor web de grafos
 
 La fase introduce una interfaz web read-only para explorar el `HotSnapshot`
-mediante React, Vite y Three.js. No amplía la superficie MCP de nueve tools ni
-convierte el navegador en una fuente de hechos.
+mediante React, Vite y Reagraph sobre Three.js. No amplía la superficie MCP de
+nueve tools ni convierte el navegador en una fuente de hechos.
 
 ## LUQUE-1701 — Aceptar ADR del transporte HTTP read-only
 
@@ -10193,23 +10193,25 @@ docs/adr/0017-read-only-web-transport.md
 
 ---
 
-## LUQUE-1702 — Aceptar ADR del paquete React/Vite/Three.js
+## LUQUE-1702 — Aceptar ADR del paquete React/Vite/Reagraph
 
 **Dependencias:** LUQUE-1701.
 
-**Objetivo:** fijar el diseño del paquete web, el render y el formato binario.
+**Objetivo:** fijar el diseño del paquete web, el render Reagraph y el formato
+binario.
 
 **Entregable:**
 
 ```text
 docs/adr/0018-react-vite-threejs-viewer.md
+docs/adr/0019-reagraph-graph-viewer.md
 ```
 
 **Checklist:**
 
 - [ ] Verificar dependencias y compatibilidad TypeScript.
-- [ ] Fijar responsabilidades de React, Three.js y Web Worker.
-- [ ] Fijar niveles de detalle, picking y layout determinista.
+- [ ] Fijar responsabilidades de React, Reagraph y Web Worker.
+- [ ] Fijar límites de vista, picking y layout determinista.
 - [ ] Registrar alternativas descartadas y riesgos de escala.
 
 **Criterios de aceptación:**
@@ -10512,13 +10514,80 @@ no exista, el bundle Linux se genera con el fallback y sin directorio `web/`.
 `769.97 kB` minificado por Three.js. No se oculta ni se declara un gate de
 rendimiento; la medición end-to-end pertenece a LUQUE-1713.
 
+**Nota de evolución:** la implementación inicial de buffers quedó registrada
+como `PASS`; la superficie final del visor fue sustituida por Reagraph en
+LUQUE-1716, que conserva el contrato `LGVB` y explicita los límites de vista.
+
+**Siguiente tarea desbloqueada:** LUQUE-1716.
+
+## LUQUE-1716 — Migrar el visor a Reagraph
+
+**Dependencias:** LUQUE-1710 y LUQUE-1702.
+
+**Objetivo:** usar Reagraph como superficie de grafo sin romper el contrato
+binario ni materializar un snapshot completo en React.
+
+**Checklist:**
+
+- [x] Fijar `reagraph` `4.32.0` y revisar su API pública.
+- [x] Adaptar `LGVB` a nodos y aristas con IDs únicos y referencias validadas.
+- [x] Configurar `GraphCanvas` con layout determinista, pan, zoom y hover.
+- [x] Rechazar vistas que superen `2.000` nodos o `8.000` aristas.
+- [x] Añadir ADR, tests negativos y checklist de verificación.
+
+**Criterios de aceptación:**
+
+- `GraphPreview` renderiza con `GraphCanvas` y no importa el renderer propio.
+- El adaptador conserva el `ArrayBuffer` decodificado fuera del estado React.
+- Una referencia inválida o un payload sobredimensionado produce un código
+  estable y visible; no hay truncamiento silencioso.
+- Las coordenadas del payload llegan al layout custom sin force simulation
+  global.
+
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Archivos creados:**
+
+* `docs/adr/0019-reagraph-graph-viewer.md`;
+* `web/src/renderer/reagraph.ts`;
+* `web/src/renderer/reagraph.test.ts`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md` y `docs/adr/0018-react-vite-threejs-viewer.md`;
+* `docs/performance/slo.md`;
+* `web/package.json`, `web/pnpm-lock.yaml`, `web/src/App.tsx`,
+  `web/src/App.test.tsx` y `web/src/components/GraphPreview.tsx`.
+
+**Archivos retirados:**
+
+* `web/src/renderer/GraphRenderer.ts` y su test de picking/LOD.
+
+**Verificación:**
+
+* `pnpm --dir web check`: 3 archivos de test y 11 tests pasando;
+* `pnpm --dir web build`: 2.744 módulos transformados; Vite conserva visible
+  el warning del chunk principal de `1.596,12 kB` minificado (`457,44 kB`
+  gzip);
+* smoke Chromium con WebGL: canvas Reagraph presente, hover confirmado como
+  `Node 0 · kind 1 · Reagraph hover`, y pan/zoom ejercitados mediante eventos
+  de rueda y arrastre;
+* el adaptador conserva el payload en `ArrayBuffer`, materializa solo la vista
+  acotada y devuelve códigos visibles para payloads inválidos o demasiado
+  grandes.
+
+**Limitación:** Reagraph requiere una vista acotada; el rendimiento del corpus
+completo queda pendiente de `LUQUE-1713`. Las aristas se renderizan sólidas y
+sin flechas para mantener homogénea la geometría agregada; `confidence` se
+mantiene visible mediante el color.
+
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 
 ---
 
 ## LUQUE-1711 — Implementar chrome React del visor
 
-**Dependencias:** LUQUE-1710.
+**Dependencias:** LUQUE-1716.
 
 **Objetivo:** proporcionar búsqueda, filtros, selección y detalle sin bloquear
 el renderer.

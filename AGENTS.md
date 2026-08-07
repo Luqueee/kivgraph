@@ -72,14 +72,15 @@ integridad, compatibilidad o verificación descritos aquí.
   con aserciones.
 - No editar `ts-worker/dist` manualmente: regenerarlo con `pnpm build`.
 - La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
-  Vitest; los buffers grandes de Three.js permanecen fuera del estado React y
+  Vitest; los payloads binarios grandes permanecen fuera del estado React y
   `web/dist` se regenera con el build de Vite.
 - `web/` se inicializa con `pnpm dlx shadcn@latest init`; los componentes UI
   deben añadirse mediante esa CLI y usar Tailwind CSS, no una segunda librería
   de estilos ni copias manuales del catálogo.
-- `web/src/renderer` recibe el payload `LGVB` versionado como `ArrayBuffer`;
-  conserva los buffers fuera de React, usa geometrías agrupadas y no crea
-  objetos Three.js por nodo o arista.
+- `web/src/renderer` recibe el payload `LGVB` versionado como `ArrayBuffer`,
+  conserva sus vistas fuera de React y solo materializa el límite visible que
+  consume `reagraph`; el adaptador rechaza payloads que excedan el límite en
+  vez de truncar silenciosamente la topología.
 - `ladygraph ui` es opt-in, sirve solo el `HotSnapshot` publicado por HTTP
   read-only y mantiene `127.0.0.1:7777` como bind por defecto; un bind no
   loopback debe emitir una advertencia de seguridad.

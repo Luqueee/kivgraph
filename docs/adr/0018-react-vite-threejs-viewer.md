@@ -1,7 +1,8 @@
 # ADR 0018: Visor React, Vite y Three.js con payload binario
 
-**Estado:** aceptada
+**Estado:** aceptada, revisada por ADR 0019
 **Fecha:** 2026-08-07
+
 
 ## Contexto
 
@@ -19,25 +20,25 @@ de interacción rápida.
 1. La aplicación vivirá en `web/` como paquete TypeScript independiente. En
    la primera iteración conservará su lockfile y lifecycle separado de
    `ts-worker`; la CI tendrá pasos explícitos para ambos paquetes.
-2. El stack será React + Vite + Three.js + Tailwind CSS. Los primitives de UI
-   se inicializarán y añadirán mediante `pnpm dlx shadcn@latest init`, con el
-   preset Radix Nova y variables CSS; no se adoptará una segunda librería de
-   estilos ni React Three Fiber sin un benchmark que justifique el coste de
-   otra capa de reconciliación.
+2. El stack será React + Vite + Reagraph + Tailwind CSS. Reagraph encapsula
+   React Three Fiber, Three.js y los controles WebGL; los primitives de UI se
+   inicializarán y añadirán mediante `pnpm dlx shadcn@latest init`, con el
+   preset Radix Nova y variables CSS. La aplicación no mantiene una segunda
+   escena Three.js propia.
 3. El paquete mantendrá `strict: true`, ESM, Biome y Vitest, fijará pnpm
    11.5.1 y Node 22, y usará un `check` que cubra formato, lint, typecheck y
    tests. `dist/` será generado y nunca editado manualmente.
-4. La escena inicial usará una cámara ortográfica 2D, un buffer de puntos para
-   nodos y un buffer de segmentos para aristas. Los datos grandes vivirán en
-   `ArrayBuffer` fuera del estado React. Un Web Worker descargará y decodificará
-   payloads, y transferirá los buffers al hilo de render.
-5. El picking usará una pasada GPU con IDs de color. Las etiquetas serán un
-   overlay limitado por zoom y cantidad visible; no se crearán miles de nodos
-   DOM.
-6. El layout inicial será jerárquico y determinista (`repository`, `package`,
-   `file`, `symbol`) con niveles de detalle. El servidor devolverá solo el
-   nivel y viewport necesarios. Force layout queda limitado a subgrafos
-   pequeños y explícitamente seleccionado.
+4. El contrato `LGVB` seguirá viviendo en `ArrayBuffer` fuera del estado React.
+   El decoder valida el payload y el adaptador crea solo la vista acotada que
+   recibe Reagraph; la transferencia desde un Web Worker queda separada del
+   componente de presentación.
+5. `GraphCanvas` gestiona la cámara, el layout, las etiquetas y los eventos de
+   interacción. El picking de color-ID de la primera implementación queda
+   sustituido por el picking de eventos de Reagraph.
+6. El layout inicial seguirá siendo jerárquico y determinista
+   (`repository`, `package`, `file`, `symbol`) con niveles de detalle. El
+   adaptador entrega `layoutType="custom"` y el servidor debe devolver solo el
+   nivel y viewport necesarios; no se ejecuta force layout global.
 7. La topología grande se entregará mediante un formato binario versionado,
    con cabecera, `snapshot_id`, conteos, offsets y buffers densos para IDs,
    posiciones, tipos y confianza. JSON quedará para metadata y detalles
@@ -79,29 +80,33 @@ buffer de otra versión.
 - **Estado React para buffers:** fuerza reconciliaciones y copias innecesarias.
 - **Un paquete web dentro de `ts-worker`:** mezcla runtime de análisis con
   runtime de navegador y amplía el riesgo del bundle existente.
-- **Una instancia Three.js por entidad:** crea demasiados draw calls y objetos
-  gestionados por GC.
+- **Renderer Three.js propio como superficie final:** duplica controles y
+  eventos; la implementación quedó sustituida por Reagraph en ADR 0019.
+- **Pasar el snapshot completo a Reagraph:** materializa objetos por entidad y
+  no ofrece una ruta segura para hubs grandes; el adaptador usa límites.
 
 ## Riesgos
 
-- Un corpus real con hubs puede romper el supuesto de grado casi uniforme de
-  los fixtures sintéticos.
-- La memoria de GPU y el rendimiento de líneas varían mucho entre hardware;
-  el gate debe registrar el adaptador y no prometer rendimiento universal.
+- Un corpus real con hubs puede superar los límites de una vista Reagraph;
+  el servidor debe entregar tiles o neighborhoods acotados.
+- La memoria de GPU, el picking por raycast y el rendimiento de líneas varían
+  mucho entre hardware; el gate debe registrar el adaptador y no prometer
+  rendimiento universal.
 - Un decoder binario defectuoso podría provocar lecturas fuera de rango o
-  aceptar datos de otro snapshot; la validación debe ocurrir antes de transferir
+  aceptar datos de otro snapshot; la validación debe ocurrir antes de adaptar
   buffers al renderer.
 
 ## Consecuencias
 
 - Se necesitan benchmarks de payload, decodificación, primer frame, pan/zoom,
-  picking, memoria y subgrafos antes de declarar el gate del visor.
-- Los niveles de detalle son parte del contrato: ocultar aristas de símbolos a
-  bajo zoom no es un fallo, sino una decisión necesaria para conservar FPS.
+  hover, memoria y subgrafos antes de declarar el gate del visor.
+- Los niveles de detalle y los límites del adaptador son parte del contrato:
+  rechazar una vista demasiado grande es preferible a ocultar aristas sin una
+  semántica de viewport explícita.
 - El formato binario requiere versión, validación de longitudes y rechazo
   seguro de buffers truncados o de otro `snapshot_id`.
-- React/Vite/Three.js introducen dependencias nuevas y deben fijarse en el
-  lockfile del paquete. Su compatibilidad real con TypeScript 7 debe mantenerse
-  cubierta por el typecheck del paquete.
+- React/Vite/Reagraph/Three.js introducen dependencias nuevas y deben fijarse
+  en el lockfile del paquete. Su compatibilidad real con TypeScript 7 debe
+  mantenerse cubierta por el typecheck del paquete.
 - La aplicación seguirá siendo un cliente read-only. No incluirá edición,
   indexación ni publicación de snapshots.

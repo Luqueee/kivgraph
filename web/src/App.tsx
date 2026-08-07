@@ -125,11 +125,11 @@ function App() {
         <div className="mb-6 max-w-2xl space-y-3">
           <p className="text-sm font-medium text-primary">Renderer preview</p>
           <h2 className="font-heading text-3xl font-semibold tracking-tight">
-            GPU buffers, one scene, no per-node objects.
+            Reagraph canvas with deterministic positions.
           </h2>
           <p className="text-muted-foreground">
-            The preview decodes the versioned `LGVB` payload directly into typed
-            views. Drag, zoom and hover stay on the render path.
+            The preview decodes the versioned `LGVB` payload into a bounded
+            Reagraph graph. Drag, zoom and hover stay on the render path.
           </p>
         </div>
         <GraphPreview />
