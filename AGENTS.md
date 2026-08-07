@@ -87,6 +87,10 @@ integridad, compatibilidad o verificación descritos aquí.
 - Un rollback de versión debe cubrir restauración válida y rechazo fail-closed
   ante digest ausente o divergente; si falla la validación, `CURRENT` no cambia.
 
+- La documentación de instalación debe reflejar el layout generado, el
+  `RUNPATH`, el runtime Node requerido y la verificación `SHA256SUMS`; no
+  presentar un bundle como autocontenido si faltan dependencias del sistema.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance:

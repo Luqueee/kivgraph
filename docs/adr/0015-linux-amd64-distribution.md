@@ -25,6 +25,7 @@ bin/ladygraph-ts-worker
 lib/liblbug.so
 worker/dist/**
 worker/node_modules/typescript/**
+worker/node_modules/@typescript/**
 worker/package.json
 worker/pnpm-lock.yaml
 grammars/manifest.json
@@ -34,6 +35,13 @@ licenses/third-party/**
 manifest.json
 SHA256SUMS
 ```
+
+El launcher `bin/ladygraph-ts-worker` conserva también el protocolo
+interactivo: sin argumentos delega en `worker/dist/index.js` para responder
+`hello`. Cuando recibe el subcomando `facts`, lo retira y delega en
+`worker/dist/facts-cli.js`, que es la interfaz one-shot que usa el indexador.
+Así el mismo bundle sirve tanto para la sonda del worker como para la
+indexación TypeScript.
 
 El ejecutable Go se compila con `-tags ladybug`, `-trimpath`, `CGO_ENABLED=1`
 y un `RUNPATH` relativo (`$ORIGIN/../lib`). El bundle sigue dependiendo de las

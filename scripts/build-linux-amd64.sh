@@ -85,6 +85,13 @@ install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
 install -m 0644 "$root/THIRD_PARTY_NOTICES.md" "$output_dir/licenses/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$root/docs/dependencies/ladybugdb.md" "$output_dir/licenses/ladybugdb-provenance.md"
 install -m 0644 "$root/grammars/manifest.json" "$output_dir/grammars/manifest.json"
+typescript_package_dir=$(cd "$root/ts-worker/node_modules/typescript" && pwd -P)
+typescript_platform_dir="$(dirname "$typescript_package_dir")/@typescript"
+[[ -d "$typescript_platform_dir" ]] ||
+  fail "TypeScript platform package directory not found: $typescript_platform_dir"
+mkdir -p "$output_dir/worker/node_modules/@typescript"
+cp -aL "$typescript_platform_dir/." \
+  "$output_dir/worker/node_modules/@typescript/"
 cp -aL "$root/ts-worker/node_modules/typescript" \
   "$output_dir/worker/node_modules/typescript"
 install -m 0644 "$root/ts-worker/package.json" "$output_dir/worker/package.json"
@@ -96,6 +103,10 @@ cat > "$output_dir/bin/ladygraph-ts-worker" <<'EOF'
 set -euo pipefail
 
 bundle_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ "${1:-}" == "facts" ]]; then
+  shift
+  exec node "$bundle_root/worker/dist/facts-cli.js" "$@"
+fi
 exec node "$bundle_root/worker/dist/index.js" "$@"
 EOF
 chmod 0755 "$output_dir/bin/ladygraph-ts-worker"

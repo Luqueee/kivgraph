@@ -9777,13 +9777,54 @@ permanece sin cambiar.
 
 **Dependencias:** LUQUE-1504.
 
+**Objetivo:** documentar la instalación del bundle `linux/amd64`, el build
+desde fuente, la inicialización de configuración, el primer índice, el
+servidor MCP y el diagnóstico de fallos sin ocultar requisitos ni
+limitaciones.
+
+**Entregable:**
+
+```text
+docs/installation.md
+```
+
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Implementación:** `docs/installation.md` documenta los requisitos del
+bundle `linux/amd64`, la verificación `SHA256SUMS`, la instalación por usuario,
+el build fuente con `-tags ladybug`, `ladygraph init`, `doctor`, `index --full`,
+`serve`, las rutas de estado, upgrades y diagnóstico. `README.md` enlaza la
+guía. `scripts/build-linux-amd64.sh` conserva el worker interactivo y enruta
+`facts` a `facts-cli.js`, además de empaquetar el paquete nativo de TypeScript
+para `linux/amd64`; `docs/adr/0015-linux-amd64-distribution.md` registra ambos
+contratos.
+
+**Verificación:** `bash -n scripts/build-linux-amd64.sh`,
+`git diff --check`, `go vet ./...`, `go test ./... -count=1`, `make build`,
+`make test-ladybug`, `cd ts-worker && pnpm check && pnpm build` y
+`make build-linux-amd64` pasaron. El bundle pasó `sha256sum -c SHA256SUMS`,
+`version`, `version --json`, el worker `hello` y extracción TypeScript
+(`21 symbols`, `4 references`). En un `HOME` temporal, `init`, `doctor`,
+`index --full` (1 repositorio Go, generación `000001`) y el diagnóstico
+posterior pasaron; el servidor MCP respondió a `initialize` con
+`serverInfo.name=ladygraph` y `protocolVersion=2025-06-18`.
+
+**Limitaciones:** el artefacto documentado es `linux/amd64` y requiere Node.js
+`22` o posterior y bibliotecas estándar del sistema. El bundle de verificación
+se generó desde un árbol local con cambios y por tanto marcó
+`source.dirty: true`; la comparación entre checkouts limpios pertenece a
+LUQUE-1508. Un build fuente ejecutado fuera del checkout necesita el launcher
+TypeScript descrito en `docs/installation.md`.
+
+**Siguiente tarea:** LUQUE-1508.
 
 ---
 

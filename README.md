@@ -10,6 +10,13 @@ El repositorio contiene la base inicial del proyecto. La funcionalidad de indexa
 
 - Go 1.24 o posterior.
 
+
+## Instalación
+
+La instalación del bundle `linux/amd64`, la inicialización de configuración,
+el primer índice y el diagnóstico de fallos están documentados en
+[`docs/installation.md`](docs/installation.md).
+
 ## Desarrollo
 
 ```bash
