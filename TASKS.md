@@ -9888,11 +9888,13 @@ DISTRIBUTION_PASS
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS_WITH_LIMITS`.
 
 Ejecutar:
 
@@ -9908,6 +9910,45 @@ resilience
 performance
 fuzz smoke
 ```
+
+**Verificación:**
+
+- `go test ./... -count=1` y `go test -race ./... -count=1`: 25 paquetes
+  correctos y 3 sin tests en cada ejecución.
+- `cd ts-worker && pnpm check`: 17 archivos y 78 tests correctos;
+  `pnpm precision`: `TYPESCRIPT_CROSS_REPO_PASS`.
+- `go run ./benchmarks/go-semantic`: `GO_SEMANTIC_PASS`.
+- `GOFLAGS=-count=1 make test-ladybug`: 25 paquetes correctos y 3 sin tests.
+  `doctor graph` pasó con las seis invariantes a cero.
+- El benchmark incremental pasó `INCREMENTAL_INDEXING_PASS`: p95 de 575,3 ms
+  para archivo simple, 592,7 ms para imports/exports y 834,8 ms para
+  manifest; sin aristas fantasma.
+- El corpus privado completo pasó la carga `COPY`: 40 repositorios, 100.000
+  archivos, 100.000 símbolos, 200.040 nodos y 1.000.000 aristas; RSS máximo
+  638.312.448 bytes y gate de carga correcto.
+- El benchmark de recuperación pasó sus 8 casos, con
+  `source_unchanged: true` y `all_passed: true`.
+- Las consultas directas devolvieron cero errores en las 700 iteraciones
+  medidas. El benchmark MCP con 32 clientes, 100.000 símbolos y 1.000.000
+  aristas registró p50 0,639 ms, p95 3,494 ms, p99 7,064 ms, cero errores y
+  sin crecimiento continuo de memoria.
+- El smoke `go test ./internal/facts -run=^$ -fuzz=Fuzz -fuzztime=1s`
+  terminó correctamente.
+
+**Limitaciones:**
+
+- El repositorio no contiene funciones `Fuzz*`; el smoke de fuzz valida el
+  harness de un paquete, pero no ejecuta mutaciones reales. Go tampoco permite
+  combinar `-fuzz` con múltiples paquetes en una sola invocación.
+- La carga, recuperación y consultas usan un corpus sintético privado con
+  LadybugDB fijado en Linux `amd64`; no modifican artefactos versionados ni
+  repositorios indexados.
+- Una ejecución inicial de recuperación contra una base canónica de esquema
+  `002` fue rechazada por el benchmark, que exige el esquema sintético `001`.
+  Se descartó ese input incompatible y se repitió sobre la base sintética
+  correcta; los ocho casos pasaron.
+
+**Siguiente tarea:** LUQUE-1602.
 
 ---
 
