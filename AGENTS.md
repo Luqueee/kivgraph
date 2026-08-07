@@ -84,6 +84,9 @@ integridad, compatibilidad o verificación descritos aquí.
   Solo una generación candidata que pase integridad y validación puede cambiar
   `CURRENT`; un rollback debe comprobar los digests del backup.
 
+- Un rollback de versión debe cubrir restauración válida y rechazo fail-closed
+  ante digest ausente o divergente; si falla la validación, `CURRENT` no cambia.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance:

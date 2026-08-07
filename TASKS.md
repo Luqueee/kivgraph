@@ -9737,11 +9737,39 @@ simultáneo para el backup y una reconstrucción full.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Implementación:**
+
+* `internal/upgrade/rollback_test.go` prueba con un `generation.Store` real que
+  un fallo de validación posterior a la publicación restaura `CURRENT`, invierte
+  `graph.backup` y conserva byte por byte la generación anterior.
+* Otra prueba modifica la generación anterior después del backup y exige que el
+  rollback se rechace por digest, dejando `CURRENT` en la candidata publicada.
+* La cobertura existente de `internal/rebuild/rollback_test.go` conserva los
+  casos de digest, invariantes, digest ausente, ausencia de backup y roles.
+
+**Verificación:** `gofmt -l`, `go vet ./...`, `go test ./... -count=1`,
+`make build` y `make test-ladybug` pasaron. No se modificó `ts-worker/`; sus
+gates no aplican a esta tarea.
+
+**Smoke real:** contra la generación canónica temporal de LUQUE-1505,
+`ladygraph rollback --generation 000003` restauró la generación anterior con
+digest e invariantes en `PASS`. Tras eliminar `snapshot.sha256` del destino,
+`ladygraph rollback --generation 000001` devolvió código `1` y `CURRENT`
+permaneció en `000003`.
+
+**Limitaciones:** el rollback siempre falla cerrado si falta el digest, cambia
+la generación retenida o falla cualquier verificación; en esos casos `CURRENT`
+permanece sin cambiar.
+
+**Siguiente tarea:** LUQUE-1507.
 
 ---
 
