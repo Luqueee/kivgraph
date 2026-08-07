@@ -1,6 +1,7 @@
 import { ArrowUpRight, Layers3, Network } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { GraphPreview } from "@/components/GraphPreview";
 
 function App() {
   return (
@@ -115,6 +116,23 @@ function App() {
             </p>
           </div>
         </div>
+      </section>
+
+      <section
+        id="renderer-preview"
+        className="mx-auto max-w-7xl px-6 py-16 lg:px-8"
+      >
+        <div className="mb-6 max-w-2xl space-y-3">
+          <p className="text-sm font-medium text-primary">Renderer preview</p>
+          <h2 className="font-heading text-3xl font-semibold tracking-tight">
+            GPU buffers, one scene, no per-node objects.
+          </h2>
+          <p className="text-muted-foreground">
+            The preview decodes the versioned `LGVB` payload directly into typed
+            views. Drag, zoom and hover stay on the render path.
+          </p>
+        </div>
+        <GraphPreview />
       </section>
 
       <section id="contract" className="mx-auto max-w-7xl px-6 py-16 lg:px-8">

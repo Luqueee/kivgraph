@@ -77,6 +77,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - `web/` se inicializa con `pnpm dlx shadcn@latest init`; los componentes UI
   deben añadirse mediante esa CLI y usar Tailwind CSS, no una segunda librería
   de estilos ni copias manuales del catálogo.
+- `web/src/renderer` recibe el payload `LGVB` versionado como `ArrayBuffer`;
+  conserva los buffers fuera de React, usa geometrías agrupadas y no crea
+  objetos Three.js por nodo o arista.
 - `ladygraph ui` es opt-in, sirve solo el `HotSnapshot` publicado por HTTP
   read-only y mantiene `127.0.0.1:7777` como bind por defecto; un bind no
   loopback debe emitir una advertencia de seguridad.

@@ -10467,16 +10467,52 @@ no exista, el bundle Linux se genera con el fallback y sin directorio `web/`.
 
 **Checklist:**
 
-- [ ] Verificar formato binario y ownership de ArrayBuffers.
-- [ ] Implementar puntos, segmentos, shaders y cámara ortográfica.
-- [ ] Implementar LOD de aristas y etiquetas limitadas.
-- [ ] Implementar picking GPU por color-ID.
+- [x] Verificar formato binario y ownership de ArrayBuffers.
+- [x] Implementar puntos, segmentos, shaders y cámara ortográfica.
+- [x] Implementar LOD de aristas y etiquetas limitadas.
+- [x] Implementar picking GPU por color-ID.
 
 **Criterios de aceptación:**
 
 - No se crea un objeto Three.js por entidad del grafo.
 - Los buffers grandes no entran en estado React.
 - Pan, zoom y hover no ejecutan layouts ni serializaciones completas.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `web/src/renderer/binary.ts`: validación `LGVB` v1 mediante `DataView`,
+  secciones de nodos y aristas sin copiar el `ArrayBuffer`, límites de 32 MiB
+  y errores estables;
+* `web/src/renderer/GraphRenderer.ts`: `Points` y `LineSegments` agrupados,
+  shaders, cámara ortográfica, pan/zoom, LOD de aristas, overlay de 48
+  etiquetas y picking GPU por color-ID;
+* `web/src/renderer/fixture.ts` y tests del decoder, picking y LOD;
+* `web/src/components/GraphPreview.tsx`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`;
+* `web/package.json` y `web/pnpm-lock.yaml` con Three.js `0.185.1` y
+  `@types/three` `0.185.4`;
+* `web/vitest.config.ts` para incluir tests `.ts`;
+* `web/src/App.tsx` y `web/src/App.test.tsx`.
+
+**Verificación:**
+
+* `pnpm --dir web check`: 3 archivos de test, 10 tests pasando;
+* `pnpm --dir web build`: 1.903 módulos transformados;
+* smoke Chromium con WebGL disponible, picking GPU confirmado como
+  `Node 0 · kind 4 · GPU picked`, y pan/zoom verificando cambios de cámara;
+* los buffers grandes permanecen en `GraphRenderer`, fuera del estado React;
+  la escena crea un único `Points` y un único `LineSegments`.
+
+**Limitación visible:** Vite informa un warning de chunk principal de
+`769.97 kB` minificado por Three.js. No se oculta ni se declara un gate de
+rendimiento; la medición end-to-end pertenece a LUQUE-1713.
+
+**Siguiente tarea desbloqueada:** LUQUE-1711.
 
 ---
 
