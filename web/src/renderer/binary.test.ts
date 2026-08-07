@@ -15,10 +15,10 @@ describe("viewer binary payload", () => {
     const payload = decodeGraphPayload(buffer);
 
     expect(payload.buffer).toBe(buffer);
-    expect(payload.header.nodeCount).toBe(7);
-    expect(payload.header.edgeCount).toBe(4);
-    expect(payload.nodes.byteLength).toBe(7 * 48);
-    expect(payload.edges.byteLength).toBe(4 * 16);
+    expect(payload.header.nodeCount).toBe(8);
+    expect(payload.header.edgeCount).toBe(5);
+    expect(payload.nodes.byteLength).toBe(8 * 48);
+    expect(payload.edges.byteLength).toBe(5 * 16);
     expect(readNode(payload, 3)).toMatchObject({
       id: 0,
       kind: 4,
@@ -33,7 +33,7 @@ describe("viewer binary payload", () => {
     expect(readCoordinateBounds(payload)).toEqual({
       minX: 0n,
       minY: 0n,
-      maxX: 640n,
+      maxX: 900n,
       maxY: 400n,
     });
   });
@@ -48,7 +48,7 @@ describe("viewer binary payload", () => {
       "unsupported version",
       (buffer: ArrayBuffer) => {
         const copy = buffer.slice(0);
-        new DataView(copy).setUint16(4, 2, true);
+        new DataView(copy).setUint16(4, 3, true);
         return copy;
       },
       "UNSUPPORTED_VERSION",
@@ -75,7 +75,7 @@ describe("viewer binary payload", () => {
   it("rejects out-of-range record access", () => {
     const payload = decodeGraphPayload(createDemoPayload());
 
-    expect(() => readNode(payload, 7)).toThrow(RangeError);
+    expect(() => readNode(payload, 8)).toThrow(RangeError);
     expect(() => readEdge(payload, -1)).toThrow(RangeError);
   });
 });

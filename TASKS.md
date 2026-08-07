@@ -10631,8 +10631,66 @@ contenido de landing ni dependencias que solo lo sostenían.
   elementos `header`/`section`, hover `Node 0 · kind 1 · hover` y cero
   `pageerror`.
 
-**Limitación:** el visor sigue mostrando el fixture determinista; el consumo
-del `HotSnapshot` publicado pertenece a `LUQUE-1711` y `LUQUE-1712`.
+**Limitación:** el visor mostraba el fixture determinista; el consumo del
+`HotSnapshot` publicado se resuelve en `LUQUE-1718`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1718.
+
+---
+
+## LUQUE-1718 — Servir el grafo publicado en el visor
+
+**Dependencias:** LUQUE-1717 y LUQUE-1706.
+
+**Objetivo:** que la web muestre el `HotSnapshot` publicado, con nombres
+legibles y relaciones visibles en cada nivel de detalle.
+
+**Checklist:**
+
+- [x] Publicar el viewport raíz del layout en `/api/v1/meta`.
+- [x] Consumir `/api/v1/tiles` desde la web con selector de nivel.
+- [x] Añadir la sección de etiquetas al payload binario (`LGVB` v2).
+- [x] Emitir las relaciones de paquete en los tiles y resolver extremos por
+      `(tipo, id)`.
+- [x] Equilibrar la rejilla del layout para que el mundo sea legible.
+
+**Criterios de aceptación:**
+
+- El visor no muestra IDs densos: cada nodo lleva su nombre del snapshot.
+- Un tile de paquetes contiene sus dependencias de paquete.
+- Una versión de payload distinta de la publicada se rechaza con código
+  estable, sin interpretar el buffer.
+- El mundo publicado no degenera en una tira: relación de aspecto acotada.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `docs/adr/0021-viewer-payload-v2-labels.md`;
+* `web/src/api/client.ts`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md`, `docs/adr/0018-react-vite-threejs-viewer.md`;
+* `internal/webapi/binary.go`, `internal/webapi/handler.go`,
+  `internal/layout/layout.go` y sus tests;
+* `web/vite.config.ts`, `web/src/components/GraphPreview.tsx`,
+  `web/src/renderer/binary.ts`, `web/src/renderer/fixture.ts`,
+  `web/src/renderer/reagraph.ts` y sus tests.
+
+**Verificación:**
+
+* `go vet ./...` y `go test ./...` correctos;
+* `pnpm --dir web check`: 3 archivos de test y 12 tests pasando;
+* `pnpm --dir web build`: bundle regenerado;
+* smoke Chromium contra `ladygraph ui` con el índice de `~/kena`: `138 nodos`
+  y `295 aristas` en el nivel de paquetes, nombres reales
+  (`libraries-library-shared`, `web-dash.kena.bot`, `services-api-premium`),
+  cero `pageerror`, y los cuatro niveles de detalle responden.
+
+**Limitación:** por encima de `200` nodos las etiquetas se ocultan y el nombre
+queda accesible al pasar el cursor; los niveles `files` y `symbols` se acotan a
+`2.000` nodos por vista.
 
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 
@@ -10640,7 +10698,7 @@ del `HotSnapshot` publicado pertenece a `LUQUE-1711` y `LUQUE-1712`.
 
 ## LUQUE-1711 — Implementar chrome React del visor
 
-**Dependencias:** LUQUE-1717.
+**Dependencias:** LUQUE-1718.
 
 **Objetivo:** proporcionar búsqueda, filtros, selección y detalle sin bloquear
 el renderer.

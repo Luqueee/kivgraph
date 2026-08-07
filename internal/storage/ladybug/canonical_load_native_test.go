@@ -300,3 +300,84 @@ func TestLoadCanonicalAcceptsEmptySetAndBuildsACompleteSchemaOnlyGraph(t *testin
 		t.Fatalf("RunCanonicalProbes(empty graph) = %#v, want a single failing probe with 0 rows", results)
 	}
 }
+
+// Canonical text — Evidence.text, Symbol.signature — legitimately contains
+// commas, double quotes and newlines. Those bytes must survive the CSV bulk
+// load verbatim.
+//
+// The plain prefix is part of the contract, not padding: the engine sniffs the
+// CSV dialect from the first rows, so a quoted field that only appears after a
+// long unquoted run is exactly the case its defaults get wrong.
+func TestLoadCanonicalRoundTripsTextWithCommasQuotesAndNewlines(t *testing.T) {
+	ctx := context.Background()
+	set := canonicalFixtureSet(t)
+	const plainRows = 2048
+	const quoted = `export * from "./topgg.js";`
+	const snippet = "BitField<string, number>\nsecond \"line\", still one field"
+	const signature = "func Main(values map[string]int,\n\tlabel string) (string, error)"
+	repositoryKey := set.Evidence[0].RepositoryKey
+	fileMainKey := set.Evidence[0].FileKey
+	set.Evidence[0].Text = "plainAnchor"
+	for index := 1; index <= plainRows; index++ {
+		start := 1000 + index*10
+		set.Evidence = append(set.Evidence, facts.Evidence{
+			Key: facts.EvidenceKey(fileMainKey, start, start+4), RepositoryKey: repositoryKey, FileKey: fileMainKey,
+			Start: facts.Position{Line: index, Column: 0, Offset: start}, End: facts.Position{Line: index, Column: 4, Offset: start + 4},
+			Text: "plain",
+		})
+	}
+	for offset, text := range map[int]string{40000: quoted, 50000: snippet} {
+		set.Evidence = append(set.Evidence, facts.Evidence{
+			Key: facts.EvidenceKey(fileMainKey, offset, offset+27), RepositoryKey: repositoryKey, FileKey: fileMainKey,
+			Start: facts.Position{Line: 9000, Column: 0, Offset: offset}, End: facts.Position{Line: 9000, Column: 27, Offset: offset + 27},
+			Text: text,
+		})
+	}
+	for index := range set.Symbols {
+		if set.Symbols[index].Key == fixtureSymbolMainKey {
+			set.Symbols[index].Signature = signature
+		}
+	}
+	set.Sort()
+	if err := set.Validate(); err != nil {
+		t.Fatalf("fixture with multiline text is invalid: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "graph.db")
+	if _, err := LoadCanonical(ctx, path, set, CanonicalLoadOptions{SnapshotID: 3, ResolverVersion: "v1"}); err != nil {
+		t.Fatalf("LoadCanonical() error = %v", err)
+	}
+
+	graph, err := ScanCanonical(ctx, path)
+	if err != nil {
+		t.Fatalf("ScanCanonical() error = %v", err)
+	}
+	if len(graph.Evidence) != len(set.Evidence) {
+		t.Fatalf("scanned evidence = %d, want %d", len(graph.Evidence), len(set.Evidence))
+	}
+	scannedText := make(map[string]string, len(graph.Evidence))
+	for _, evidence := range graph.Evidence {
+		scannedText[evidence.StableKey] = evidence.Text
+	}
+	for _, want := range set.Evidence {
+		if got := scannedText[string(want.Key)]; got != want.Text {
+			t.Fatalf("evidence %s text = %q, want %q", want.Key, got, want.Text)
+		}
+	}
+	if len(graph.Symbols) != len(set.Symbols) {
+		t.Fatalf("scanned symbols = %d, want %d", len(graph.Symbols), len(set.Symbols))
+	}
+	var found bool
+	for _, symbol := range graph.Symbols {
+		if symbol.StableKey != fixtureSymbolMainKey {
+			continue
+		}
+		found = true
+		if symbol.Signature != signature {
+			t.Fatalf("symbol signature = %q, want %q", symbol.Signature, signature)
+		}
+	}
+	if !found {
+		t.Fatalf("symbol %s missing from the scanned graph", fixtureSymbolMainKey)
+	}
+}

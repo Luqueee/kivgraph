@@ -264,7 +264,68 @@ func ownerFor(kind DefinitionKind, object types.Object, stack []declarationConte
 			return stack[index].owner
 		}
 	}
+	if kind == KindField {
+		return localContainer(stack)
+	}
 	return ""
+}
+
+// localContainer names the container of a field declared in an anonymous
+// struct, which go/types cannot address from the package scope: the enclosing
+// function (receiver qualified) followed by the named holders that reach the
+// struct, for example `ParseTicketsCreate.raw`.
+//
+// Without it every `struct { GuildID string }` written inside any function of
+// a package shares one identity, and the canonical graph ends up claiming one
+// symbol is declared by several files. Names, not positions: inserting a
+// statement above the declaration must not change the identity.
+func localContainer(stack []declarationContext) string {
+	parts := make([]string, 0, 4)
+	for _, entry := range stack {
+		switch node := entry.node.(type) {
+		case *ast.FuncDecl:
+			name := node.Name.Name
+			if node.Recv != nil && len(node.Recv.List) != 0 {
+				if receiver := receiverTypeExpr(node.Recv.List[0].Type); receiver != "" {
+					name = receiver + "." + name
+				}
+			}
+			parts = append(parts, name)
+		case *ast.FuncLit:
+			parts = append(parts, "func")
+		case *ast.ValueSpec:
+			if len(node.Names) != 0 {
+				parts = append(parts, node.Names[0].Name)
+			}
+		case *ast.Field:
+			if len(node.Names) != 0 {
+				parts = append(parts, node.Names[0].Name)
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	// The field's own name is the last Field on the stack; it is added by
+	// qualifiedName, not by the container.
+	return strings.Join(parts[:len(parts)-1], ".")
+}
+
+// receiverTypeExpr names the receiver type of a method declaration, ignoring
+// pointers and type parameters.
+func receiverTypeExpr(expression ast.Expr) string {
+	switch typed := expression.(type) {
+	case *ast.StarExpr:
+		return receiverTypeExpr(typed.X)
+	case *ast.IndexExpr:
+		return receiverTypeExpr(typed.X)
+	case *ast.IndexListExpr:
+		return receiverTypeExpr(typed.X)
+	case *ast.Ident:
+		return typed.Name
+	default:
+		return ""
+	}
 }
 
 func receiverTypeName(typ types.Type) string {

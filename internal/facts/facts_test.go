@@ -86,3 +86,31 @@ func withRequestedSymbol(reference UnresolvedReference, requestedSymbol string) 
 	reference.RequestedSymbol = requestedSymbol
 	return reference
 }
+
+// The published snapshot indexes unresolved references by what was requested,
+// so a set that carries a reason with no subject must be rejected while it is
+// still a fact set, not five stages later when the snapshot is built.
+func TestValidateRejectsUnresolvedReferenceWithoutRequestedPackage(t *testing.T) {
+	repositoryKey := RepositoryKey("acme/widgets")
+	set := Set{
+		Repositories: []Repository{
+			{Key: repositoryKey, Name: "acme/widgets", RootPath: "/repos/widgets", Languages: []Language{LanguageTypeScript}},
+		},
+		Unresolved: []UnresolvedReference{{
+			RepositoryKey: repositoryKey,
+			Language:      LanguageTypeScript,
+			Reason:        "DECLARATION_NOT_RESOLVED",
+			Start:         Position{Line: 3, Column: 0, Offset: 30},
+		}},
+	}
+
+	if err := set.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want a rejected unresolved reference")
+	}
+
+	set.Unresolved[0].RequestedPackage = "@acme/widgets"
+	set.Unresolved[0].RequestedSymbol = "EventEmitter"
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want the named reference to pass", err)
+	}
+}

@@ -18,6 +18,30 @@ import (
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
+// ProgressPhase names the unit of work a progress event belongs to.
+type ProgressPhase string
+
+const (
+	// PhaseGo is one Go module of one repository.
+	PhaseGo ProgressPhase = "go"
+	// PhaseTypeScript is one TypeScript repository.
+	PhaseTypeScript ProgressPhase = "typescript"
+	// PhaseMerge is the final sort and validation of the merged fact set.
+	PhaseMerge ProgressPhase = "merge"
+)
+
+// ProgressEvent reports that one unit of indexing work started or finished.
+// Completed counts finished units of the phase and is 0 on a start event;
+// Total is 0 when the phase has no countable units.
+type ProgressEvent struct {
+	Phase      ProgressPhase
+	Repository string
+	Detail     string
+	Started    bool
+	Completed  int
+	Total      int
+}
+
 // FullOptions configures one clean semantic indexing pass. The pass never
 // writes inside a registered repository: Go's synthetic workspace and the
 // temporary TypeScript facts payloads live outside the sources.
@@ -27,6 +51,11 @@ type FullOptions struct {
 	IncludeTests      bool
 	TypeScriptWorker  string
 	WorkingDirectory  string
+
+	// Progress, when set, is called synchronously as each unit of work
+	// starts and finishes. It must not block: a slow callback slows the
+	// index down.
+	Progress func(ProgressEvent)
 }
 
 // FullReport records the work performed before the caller publishes the
@@ -99,11 +128,19 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		}
 		modulesByRepository := modulesByRepository(plan.Modules)
 		conflictingModules := conflictSubjects(plan.Conflicts)
+		goModules := 0
+		for _, repository := range goRepositories {
+			goModules += len(modulesByRepository[repository.Name])
+		}
 		for _, repository := range goRepositories {
 			for _, module := range modulesByRepository[repository.Name] {
 				if err := ctx.Err(); err != nil {
 					return facts.Set{}, report, err
 				}
+				emitProgress(options.Progress, ProgressEvent{
+					Phase: PhaseGo, Repository: repository.Name, Detail: module.ModulePath,
+					Started: true, Completed: report.GoModules, Total: goModules,
+				})
 				load, err := goloader.Load(ctx, goloader.Options{
 					Directory:    module.RootPath,
 					WorkFile:     options.SyntheticWorkFile,
@@ -172,11 +209,19 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 				report.GoDefinitions += len(keyed)
 				report.GoReferences += len(references)
 				report.GoUnresolved += len(unresolved)
+				emitProgress(options.Progress, ProgressEvent{
+					Phase: PhaseGo, Repository: repository.Name, Detail: module.ModulePath,
+					Completed: report.GoModules, Total: goModules,
+				})
 			}
 		}
 	}
 
-	for _, repository := range typeScriptRepositories {
+	for index, repository := range typeScriptRepositories {
+		emitProgress(options.Progress, ProgressEvent{
+			Phase: PhaseTypeScript, Repository: repository.Name,
+			Started: true, Completed: index, Total: len(typeScriptRepositories),
+		})
 		payload, err := collectTypeScriptFacts(ctx, options, repository, typeScriptRepositories)
 		if err != nil {
 			return facts.Set{}, report, err
@@ -189,13 +234,31 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		report.TypeScriptSymbols += len(payload.Symbols)
 		report.TypeScriptReferences += len(payload.References)
 		report.TypeScriptUnresolved += len(payload.Unresolved)
+		emitProgress(options.Progress, ProgressEvent{
+			Phase: PhaseTypeScript, Repository: repository.Name,
+			Detail:    fmt.Sprintf("symbols=%d references=%d", len(payload.Symbols), len(payload.References)),
+			Completed: index + 1, Total: len(typeScriptRepositories),
+		})
 	}
 
+	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
 	merged.Sort()
 	if err := merged.Validate(); err != nil {
 		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
 	}
+	emitProgress(options.Progress, ProgressEvent{
+		Phase:  PhaseMerge,
+		Detail: fmt.Sprintf("symbols=%d edges=%d unresolved=%d", len(merged.Symbols), len(merged.Edges), len(merged.Unresolved)),
+	})
 	return merged, report, nil
+}
+
+// emitProgress reports one event when the caller asked for progress.
+func emitProgress(report func(ProgressEvent), event ProgressEvent) {
+	if report == nil {
+		return
+	}
+	report(event)
 }
 
 func validateLanguages(repositories []workspace.Repository) error {

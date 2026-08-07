@@ -16,6 +16,17 @@ import (
 	"github.com/Luqueee/ladygraph/internal/facts"
 )
 
+// canonicalCopyOptions is the CSV dialect every canonical COPY must use.
+//
+// writeCanonicalCSV emits RFC 4180: fields are quoted with `"` and an embedded
+// quote is doubled. The pinned engine (v0.13.1) defaults to `ESCAPE='\'`, so a
+// doubled quote desynchronises its parser and a later row fails with
+// "expected N values per row, but got more"; and its parallel reader rejects
+// quoted newlines outright. Canonical text — Evidence.text, Symbol.signature —
+// legitimately contains commas, quotes and newlines, so the dialect is stated
+// explicitly instead of relying on defaults.
+const canonicalCopyOptions = `(HEADER=true, PARALLEL=false, QUOTE='"', ESCAPE='"')`
+
 // LoadReport records what a canonical load wrote.
 type LoadReport struct {
 	Tables    map[string]int64
@@ -108,10 +119,13 @@ func LoadCanonical(ctx context.Context, path string, set facts.Set, options Cano
 
 	// Nodes load before relationships, in schema declaration order, so no
 	// relationship COPY ever runs before the endpoints it references exist.
+	//
+	// canonicalCopyOptions is not tuning: writeCanonicalCSV emits RFC 4180,
+	// and the engine's defaults do not read it back. See its declaration.
 	copyStart := time.Now()
 	report.Tables = make(map[string]int64, len(staged))
 	for _, table := range staged {
-		query := fmt.Sprintf("COPY %s FROM %s (HEADER=true)", table.name, cypherString(table.csvPath))
+		query := fmt.Sprintf("COPY %s FROM %s %s", table.name, cypherString(table.csvPath), canonicalCopyOptions)
 		if err := queryWithDeadline(ctx, connection.native, query); err != nil {
 			return LoadReport{}, &Error{Op: "load canonical", Err: fmt.Errorf("copy %s: %w", table.name, err)}
 		}
@@ -267,9 +281,11 @@ func stageCanonicalCSVs(stagingDir string, tableRows map[string][][]string) ([]c
 	return staged, nil
 }
 
-// writeCanonicalCSV writes a table's rows behind a header row. The pinned
-// engine (v0.13.1) was verified directly, by executing both forms, to accept
-// `COPY ... (HEADER=true)` against a headered CSV; see the COPY call sites.
+// writeCanonicalCSV writes a table's rows behind a header row, quoting fields
+// per RFC 4180. The pinned engine (v0.13.1) was verified directly to accept
+// `COPY ... (HEADER=true)` against a headered CSV, and to require
+// `PARALLEL=false` whenever a quoted field contains a newline; see the COPY
+// call sites.
 func writeCanonicalCSV(path string, header []string, rows [][]string) error {
 	file, err := os.Create(path)
 	if err != nil {

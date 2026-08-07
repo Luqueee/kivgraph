@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
@@ -104,6 +105,9 @@ type Config struct {
 	RepositoryPadding Coord
 	RepositoryGap     Coord
 
+	// Columns fixes the width of every child grid. Zero balances each
+	// container instead: ceil(sqrt(children)), so a workspace does not become
+	// a column dozens of screens tall that no viewport can read.
 	Columns  int
 	CellSize Coord
 
@@ -128,7 +132,7 @@ func DefaultConfig() Config {
 		PackageGap:             48,
 		RepositoryPadding:      48,
 		RepositoryGap:          72,
-		Columns:                4,
+		Columns:                0,
 		CellSize:               256,
 		MaxIndexedCellsPerNode: 128,
 		MaxQueryCells:          1_000_000,
@@ -168,8 +172,8 @@ func (config Config) Validate() error {
 			return fmt.Errorf("%w: %s must not be negative", ErrInvalidConfig, item.name)
 		}
 	}
-	if config.Columns <= 0 || config.Columns > 1<<20 {
-		return fmt.Errorf("%w: columns must be between 1 and %d", ErrInvalidConfig, 1<<20)
+	if config.Columns < 0 || config.Columns > 1<<20 {
+		return fmt.Errorf("%w: columns must be 0 (balanced) or between 1 and %d", ErrInvalidConfig, 1<<20)
 	}
 	if config.MaxIndexedCellsPerNode <= 0 || config.MaxQueryCells <= 0 || config.MaxQueryNodes <= 0 {
 		return fmt.Errorf("%w: grid and query limits must be positive", ErrInvalidConfig)
@@ -381,7 +385,7 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 		if err := contextError(ctx); err != nil {
 			return nil, err
 		}
-		metrics, err := metricsForChildren(children, symbolSizes, config.Columns, config.SymbolGap, config.FilePadding, minimumFile)
+		metrics, err := metricsForChildren(children, symbolSizes, gridColumns(config, children, symbolSizes), config.SymbolGap, config.FilePadding, minimumFile)
 		if err != nil {
 			return nil, fmt.Errorf("file %d: %w", index, err)
 		}
@@ -397,7 +401,7 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 		if err := contextError(ctx); err != nil {
 			return nil, err
 		}
-		metrics, err := metricsForChildren(children, fileSizes, config.Columns, config.FileGap, config.PackagePadding, minimumPackage)
+		metrics, err := metricsForChildren(children, fileSizes, gridColumns(config, children, fileSizes), config.FileGap, config.PackagePadding, minimumPackage)
 		if err != nil {
 			return nil, fmt.Errorf("package %d: %w", index, err)
 		}
@@ -417,14 +421,14 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 		if err := contextError(ctx); err != nil {
 			return nil, err
 		}
-		metrics, err := metricsForChildren(children, packageSizes, config.Columns, config.PackageGap, config.RepositoryPadding, minimumRepository)
+		metrics, err := metricsForChildren(children, packageSizes, gridColumns(config, children, packageSizes), config.PackageGap, config.RepositoryPadding, minimumRepository)
 		if err != nil {
 			return nil, fmt.Errorf("repository %d: %w", index, err)
 		}
 		repositorySizes[index] = metrics.size
 	}
 
-	rootMetrics, err := metricsForChildren(repositoryIDs, repositorySizes, config.Columns, config.RepositoryGap, 0, nodeSize{})
+	rootMetrics, err := metricsForChildren(repositoryIDs, repositorySizes, gridColumns(config, repositoryIDs, repositorySizes), config.RepositoryGap, 0, nodeSize{})
 	if err != nil {
 		return nil, fmt.Errorf("root: %w", err)
 	}
@@ -433,7 +437,7 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 	fileBounds := make([]Rect, fileCount)
 	symbolBounds := make([]Rect, symbolCount)
 
-	if err := placeChildren(repositoryIDs, repositorySizes, config.Columns, config.RepositoryGap, 0, 0, 0, func(id hotsnapshot.RepositoryID, bounds Rect) error {
+	if err := placeChildren(repositoryIDs, repositorySizes, gridColumns(config, repositoryIDs, repositorySizes), config.RepositoryGap, 0, 0, 0, func(id hotsnapshot.RepositoryID, bounds Rect) error {
 		repositoryBounds[id] = bounds
 		return nil
 	}); err != nil {
@@ -451,7 +455,7 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 		if err != nil {
 			return nil, err
 		}
-		if err := placeChildren(children, packageSizes, config.Columns, config.PackageGap, config.RepositoryPadding, originX, originY, func(id hotsnapshot.PackageID, bounds Rect) error {
+		if err := placeChildren(children, packageSizes, gridColumns(config, children, packageSizes), config.PackageGap, config.RepositoryPadding, originX, originY, func(id hotsnapshot.PackageID, bounds Rect) error {
 			packageBounds[id] = bounds
 			return nil
 		}); err != nil {
@@ -470,7 +474,7 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 		if err != nil {
 			return nil, err
 		}
-		if err := placeChildren(children, fileSizes, config.Columns, config.FileGap, config.PackagePadding, originX, originY, func(id hotsnapshot.FileID, bounds Rect) error {
+		if err := placeChildren(children, fileSizes, gridColumns(config, children, fileSizes), config.FileGap, config.PackagePadding, originX, originY, func(id hotsnapshot.FileID, bounds Rect) error {
 			fileBounds[id] = bounds
 			return nil
 		}); err != nil {
@@ -489,7 +493,7 @@ func Build(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, config Conf
 		if err != nil {
 			return nil, err
 		}
-		if err := placeChildren(children, symbolSizes, config.Columns, config.SymbolGap, config.FilePadding, originX, originY, func(id hotsnapshot.SymbolID, bounds Rect) error {
+		if err := placeChildren(children, symbolSizes, gridColumns(config, children, symbolSizes), config.SymbolGap, config.FilePadding, originX, originY, func(id hotsnapshot.SymbolID, bounds Rect) error {
 			symbolBounds[id] = bounds
 			return nil
 		}); err != nil {
@@ -568,6 +572,44 @@ func minimumContainer(padding Coord, fallback nodeSize, width, height Coord) (no
 		return nodeSize{}, err
 	}
 	return nodeSize{width: maxCoordValue(minimumWidth, fallback.width), height: maxCoordValue(minimumHeight, fallback.height)}, nil
+}
+
+// gridColumns is the width of one container's child grid. A fixed Columns is
+// honoured as configured; zero balances the grid so the container comes out
+// roughly square.
+//
+// Balancing by child count alone is not enough: a symbol box is five times
+// wider than it is tall, so a square count grid produces a very wide strip.
+// The width is derived from the child aspect ratio instead.
+func gridColumns[ID ~uint32](config Config, ids []ID, sizes []nodeSize) int {
+	if config.Columns > 0 {
+		return config.Columns
+	}
+	if len(ids) <= 1 {
+		return 1
+	}
+	var width, height float64
+	for _, id := range ids {
+		if uint64(id) >= uint64(len(sizes)) {
+			continue
+		}
+		width += float64(sizes[id].width)
+		height += float64(sizes[id].height)
+	}
+	if width <= 0 || height <= 0 {
+		return int(math.Ceil(math.Sqrt(float64(len(ids)))))
+	}
+	count := float64(len(ids))
+	averageWidth := width / count
+	averageHeight := height / count
+	columns := int(math.Round(math.Sqrt(count * averageHeight / averageWidth)))
+	if columns < 1 {
+		return 1
+	}
+	if columns > len(ids) {
+		return len(ids)
+	}
+	return columns
 }
 
 func metricsForChildren[ID ~uint32](ids []ID, sizes []nodeSize, columns int, gap, padding Coord, minimum nodeSize) (gridMetrics, error) {

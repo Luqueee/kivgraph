@@ -323,7 +323,7 @@ func NormalizeTypeScript(
 			return Set{}, TypeScriptReport{}, fmt.Errorf("%w: symbol %q lives in unreported file %q",
 				ErrInvalidFacts, symbol.QualifiedName, symbol.File)
 		}
-		identity := typeScriptSymbolIdentity(name, payload.Package.Name, symbol.QualifiedName, symbol.Kind, symbol.Signature)
+		identity := typeScriptSymbolIdentity(name, payload.Package.Name, symbol.File, symbol.QualifiedName, symbol.Kind, symbol.Signature)
 		canonical, err := identity.Canonical()
 		if err != nil {
 			return Set{}, TypeScriptReport{}, fmt.Errorf("symbol %q identity: %w", symbol.QualifiedName, err)
@@ -407,11 +407,11 @@ func NormalizeTypeScript(
 		}
 		fileKey := FileKey(name, imp.File)
 		target := imp.Target
-		if target == nil || strings.TrimSpace(target.Kind) == "" || strings.TrimSpace(target.Signature) == "" {
+		if target == nil || strings.TrimSpace(target.Kind) == "" || strings.TrimSpace(target.Signature) == "" || strings.TrimSpace(target.File) == "" {
 			// No declaration map reached an exact provider declaration, or it
-			// reached one whose class or signature is unclassified. Either
-			// way the provider's stable key cannot be derived, so this is a
-			// dropped edge recorded as an unresolved reference, never a
+			// reached one whose module, class or signature is unclassified.
+			// Either way the provider's stable key cannot be derived, so this
+			// is a dropped edge recorded as an unresolved reference, never a
 			// guess: LUQUE-0907 forbids inferring kind or signature.
 			set.Unresolved = append(set.Unresolved, UnresolvedReference{
 				RepositoryKey:    repositoryKey,
@@ -434,7 +434,7 @@ func NormalizeTypeScript(
 		// declaration map position. Same code over the same bytes yields the
 		// same key by construction, so this consumer-derived key is byte
 		// identical to the key the provider assigns its own declaration.
-		targetIdentity := typeScriptSymbolIdentity(target.Repository, target.Package, target.QualifiedName, target.Kind, target.Signature)
+		targetIdentity := typeScriptSymbolIdentity(target.Repository, target.Package, target.File, target.QualifiedName, target.Kind, target.Signature)
 		targetKey, err := targetIdentity.Key()
 		if err != nil {
 			return Set{}, TypeScriptReport{}, fmt.Errorf("import %q target identity: %w", imp.QualifiedName, err)
@@ -494,11 +494,11 @@ func NormalizeTypeScript(
 				continue
 			}
 			targetKey = key
-		case exp.Target != nil && strings.TrimSpace(exp.Target.Kind) != "" && strings.TrimSpace(exp.Target.Signature) != "":
+		case exp.Target != nil && strings.TrimSpace(exp.Target.Kind) != "" && strings.TrimSpace(exp.Target.Signature) != "" && strings.TrimSpace(exp.Target.File) != "":
 			// A cross-repository target, proven the exact same way an
 			// IMPORTS_SYMBOL target is: the provider's own source, read at
 			// the position LUQUE-0703's declaration map bridge resolved.
-			targetIdentity := typeScriptSymbolIdentity(exp.Target.Repository, exp.Target.Package, exp.Target.QualifiedName, exp.Target.Kind, exp.Target.Signature)
+			targetIdentity := typeScriptSymbolIdentity(exp.Target.Repository, exp.Target.Package, exp.Target.File, exp.Target.QualifiedName, exp.Target.Kind, exp.Target.Signature)
 			key, err := targetIdentity.Key()
 			if err != nil {
 				return Set{}, TypeScriptReport{}, fmt.Errorf("export %q target identity: %w", exp.QualifiedName, err)
@@ -512,8 +512,8 @@ func NormalizeTypeScript(
 				FileKey:          fileKey,
 				Language:         LanguageTypeScript,
 				SourceSymbolKey:  sourceKey,
-				RequestedPackage: exp.RequestedPackage,
-				RequestedSymbol:  exp.RequestedSymbol,
+				RequestedPackage: requestedPackageOr(payload.Package.Name, exp.RequestedPackage),
+				RequestedSymbol:  requestedSymbolOr(exp.QualifiedName, exp.RequestedSymbol),
 				Reason:           exp.Reason,
 				Detail:           exp.Detail,
 				Start:            Position{Line: exp.StartLine, Offset: exp.Start},
@@ -571,11 +571,11 @@ func NormalizeTypeScript(
 				continue
 			}
 			targetKey = key
-		case ext.Target != nil && strings.TrimSpace(ext.Target.Kind) != "" && strings.TrimSpace(ext.Target.Signature) != "":
+		case ext.Target != nil && strings.TrimSpace(ext.Target.Kind) != "" && strings.TrimSpace(ext.Target.Signature) != "" && strings.TrimSpace(ext.Target.File) != "":
 			// A cross-repository base, proven the exact same way an
 			// IMPORTS_SYMBOL target is: the provider's own source, read at
 			// the position LUQUE-0703's declaration map bridge resolved.
-			targetIdentity := typeScriptSymbolIdentity(ext.Target.Repository, ext.Target.Package, ext.Target.QualifiedName, ext.Target.Kind, ext.Target.Signature)
+			targetIdentity := typeScriptSymbolIdentity(ext.Target.Repository, ext.Target.Package, ext.Target.File, ext.Target.QualifiedName, ext.Target.Kind, ext.Target.Signature)
 			key, err := targetIdentity.Key()
 			if err != nil {
 				return Set{}, TypeScriptReport{}, fmt.Errorf("extends %q target identity: %w", ext.QualifiedName, err)
@@ -589,8 +589,8 @@ func NormalizeTypeScript(
 				FileKey:          fileKey,
 				Language:         LanguageTypeScript,
 				SourceSymbolKey:  sourceKey,
-				RequestedPackage: ext.RequestedPackage,
-				RequestedSymbol:  ext.RequestedSymbol,
+				RequestedPackage: requestedPackageOr(payload.Package.Name, ext.RequestedPackage),
+				RequestedSymbol:  requestedSymbolOr(ext.Text, ext.RequestedSymbol),
 				Reason:           ext.Reason,
 				Detail:           ext.Detail,
 				Start:            Position{Line: ext.StartLine, Offset: ext.Start},
@@ -660,7 +660,7 @@ func NormalizeTypeScript(
 		unresolved := UnresolvedReference{
 			RepositoryKey:    repositoryKey,
 			Language:         LanguageTypeScript,
-			RequestedPackage: entry.RequestedPackage,
+			RequestedPackage: requestedPackageOr(payload.Package.Name, entry.RequestedPackage),
 			RequestedSymbol:  entry.RequestedSymbol,
 			Reason:           entry.Reason,
 			Detail:           entry.Detail,
@@ -686,18 +686,40 @@ func discriminatorOf(signature string) string {
 	return trimmed
 }
 
+// requestedPackageOr names the package an unresolved reference was requested
+// from. A base type or an export that resolved to nothing local and to no
+// package import was still looked up from the module's own package: that is
+// the fact, and an unresolved reference with no subject is not usable by any
+// consumer of the graph.
+func requestedPackageOr(localPackage, requested string) string {
+	if strings.TrimSpace(requested) != "" {
+		return requested
+	}
+	return localPackage
+}
+
+// requestedSymbolOr falls back to the name spelled at the reference site when
+// the worker could not attribute the request to an exported name.
+func requestedSymbolOr(spelled, requested string) string {
+	if strings.TrimSpace(requested) != "" {
+		return requested
+	}
+	return spelled
+}
+
 // typeScriptSymbolIdentity builds the stable key identity of a TypeScript
 // declaration from its identity components alone, regardless of who computes
 // it: a provider uses it over its own source when it normalises itself, and
 // NormalizeTypeScript's imports loop uses it again over the provider source
 // reached through a declaration map. The two call sites can never diverge
 // because they are the same code.
-func typeScriptSymbolIdentity(repository, packageName, qualifiedName, kind, signature string) hotsnapshot.StableKeyIdentity {
+func typeScriptSymbolIdentity(repository, packageName, module, qualifiedName, kind, signature string) hotsnapshot.StableKeyIdentity {
 	return hotsnapshot.StableKeyIdentity{
 		FormatVersion: hotsnapshot.StableKeyFormatVersion,
 		Language:      string(LanguageTypeScript),
 		Repository:    repository,
 		Package:       packageName,
+		Module:        module,
 		QualifiedName: qualifiedName,
 		Kind:          kind,
 		Discriminator: discriminatorOf(signature),

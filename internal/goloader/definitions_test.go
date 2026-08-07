@@ -5,6 +5,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
 const definitionsSource = `package sample
@@ -211,6 +213,77 @@ func TestExtractDefinitionsIsDeterministicAndCancellable(t *testing.T) {
 	cancel()
 	if _, err := ExtractDefinitions(ctx, result, DefinitionOptions{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("ExtractDefinitions() error = %v, want context.Canceled", err)
+	}
+}
+
+// Fields of anonymous structs declared inside functions are not addressable
+// from the package scope, so nothing but their syntactic container separates
+// them. Two functions of one package routinely declare the same request shape;
+// each field must keep its own identity and its own stable key.
+func TestExtractDefinitionsQualifiesFieldsOfLocalAnonymousStructs(t *testing.T) {
+	root := t.TempDir()
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod": "module example.com/module\n\ngo 1.24\n",
+		"sample/first.go": `package sample
+
+func ParseFirst() string {
+	var raw struct {
+		GuildID string
+	}
+	return raw.GuildID
+}
+`,
+		"sample/second.go": `package sample
+
+type Store struct{}
+
+func (store Store) ParseSecond() string {
+	var raw struct {
+		GuildID string
+	}
+	return raw.GuildID
+}
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), result, DefinitionOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+
+	fields := make(map[string]Definition)
+	for _, definition := range definitions {
+		if definition.Kind == KindField && definition.Name == "GuildID" {
+			fields[definition.QualifiedName] = definition
+		}
+	}
+	if len(fields) != 2 {
+		names := make([]string, 0, len(fields))
+		for name := range fields {
+			names = append(names, name)
+		}
+		t.Fatalf("GuildID fields = %v, want two distinct qualified names", names)
+	}
+	for _, want := range []string{"ParseFirst.raw.GuildID", "Store.ParseSecond.raw.GuildID"} {
+		if _, found := fields[want]; !found {
+			t.Fatalf("missing qualified name %q; got %#v", want, fields)
+		}
+	}
+
+	keyed, err := AssignStableKeys(context.Background(), definitions)
+	if err != nil {
+		t.Fatalf("AssignStableKeys() error = %v", err)
+	}
+	keys := make(map[hotsnapshot.StableKey]string)
+	for _, definition := range keyed {
+		if previous, clash := keys[definition.StableKey]; clash {
+			t.Fatalf("%q and %q share a stable key", previous, definition.QualifiedName)
+		}
+		keys[definition.StableKey] = definition.QualifiedName
 	}
 }
 

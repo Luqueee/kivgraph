@@ -6,23 +6,33 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"unicode/utf8"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/layout"
 )
 
 const (
-	viewerBinaryVersion    uint16 = 1
+	// Version 2 appends a label section: the display name of every node, in
+	// node order. Dense IDs alone are unreadable, and a second round trip per
+	// tile to resolve 2.000 names is worse than the bytes.
+	viewerBinaryVersion    uint16 = 2
 	viewerBinaryHeaderSize        = 64
 	viewerBinaryNodeSize          = 48
 	viewerBinaryEdgeSize          = 16
 	maxViewerPayloadBytes         = 32 << 20
+	maxViewerLabelBytes           = 512
 )
 
 const (
 	viewerPayloadTiles        byte = 1
 	viewerPayloadNeighborhood byte = 2
 )
+
+// viewerEdgeFlagPackage marks an edge whose endpoints are packages, not
+// symbols. The client resolves endpoints by node kind, so the flag is what
+// separates a package relation from a symbol relation in the same section.
+const viewerEdgeFlagPackage byte = 1 << 0
 
 var (
 	errViewerPayloadTooLarge = errors.New("viewer binary payload exceeds the configured limit")
@@ -38,6 +48,7 @@ type binaryNodeRecord struct {
 	ParentKind layout.NodeKind
 	Depth      uint32
 	Bounds     layout.Rect
+	Label      string
 }
 
 type binaryEdgeRecord struct {
@@ -53,6 +64,7 @@ type binaryEdgeRecord struct {
 func encodeTilePayload(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, nodes []layout.Node, truncated bool, level layout.LOD) ([]byte, error) {
 	records := make([]binaryNodeRecord, 0, len(nodes))
 	visible := make(map[hotsnapshot.SymbolID]struct{})
+	visiblePackages := make(map[hotsnapshot.PackageID]struct{})
 	for _, node := range nodes {
 		records = append(records, binaryNodeRecord{
 			ID:         uint32(node.ID),
@@ -61,16 +73,68 @@ func encodeTilePayload(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot,
 			Level:      node.Level,
 			ParentKind: node.Parent.Kind,
 			Bounds:     node.Bounds,
+			Label:      nodeLabel(snapshot, node.Kind, uint32(node.ID)),
 		})
-		if node.Kind == layout.NodeSymbol {
+		switch node.Kind {
+		case layout.NodeSymbol:
 			visible[hotsnapshot.SymbolID(node.ID)] = struct{}{}
+		case layout.NodePackage:
+			visiblePackages[hotsnapshot.PackageID(node.ID)] = struct{}{}
 		}
 	}
 	edges, err := collectVisibleEdges(ctx, snapshot, visible, len(records))
 	if err != nil {
 		return nil, err
 	}
+	// A tile whose nodes are packages carries the package relations between
+	// them. They live outside the symbol CSR, and without them every view
+	// coarser than symbols would render as disconnected dots.
+	packageEdges, err := collectPackageEdges(ctx, snapshot, visiblePackages, len(records), len(edges))
+	if err != nil {
+		return nil, err
+	}
+	edges = append(edges, packageEdges...)
 	return encodeViewerPayload(snapshot, viewerPayloadTiles, level, truncated, records, edges)
+}
+
+func collectPackageEdges(
+	ctx context.Context,
+	snapshot *hotsnapshot.GraphSnapshot,
+	visible map[hotsnapshot.PackageID]struct{},
+	nodeCount int,
+	usedEdges int,
+) ([]binaryEdgeRecord, error) {
+	if len(visible) == 0 {
+		return nil, nil
+	}
+	maxEdges, err := maxBinaryEdgeCount(nodeCount)
+	if err != nil {
+		return nil, err
+	}
+	edges := make([]binaryEdgeRecord, 0, minBinaryInt(maxEdges-usedEdges, 64))
+	for _, dependency := range snapshot.AllPackageDependencies() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if _, exists := visible[dependency.Source]; !exists {
+			continue
+		}
+		if _, exists := visible[dependency.Target]; !exists {
+			continue
+		}
+		if usedEdges+len(edges) >= maxEdges {
+			return nil, errViewerPayloadTooLarge
+		}
+		edges = append(edges, binaryEdgeRecord{
+			Source:     uint32(dependency.Source),
+			Target:     uint32(dependency.Target),
+			Kind:       dependency.Kind,
+			Confidence: dependency.Confidence,
+			Provenance: dependency.Provenance,
+			Flags:      viewerEdgeFlagPackage,
+		})
+	}
+	return edges, nil
 }
 
 func encodeNeighborhoodPayload(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, ids []hotsnapshot.SymbolID, truncated bool) ([]byte, error) {
@@ -82,6 +146,7 @@ func encodeNeighborhoodPayload(ctx context.Context, snapshot *hotsnapshot.GraphS
 			ID:    uint32(id),
 			Kind:  layout.NodeSymbol,
 			Level: layout.LODSymbols,
+			Label: nodeLabel(snapshot, layout.NodeSymbol, uint32(id)),
 		})
 	}
 	edges, err := collectInducedEdges(ctx, snapshot, ids, seen, len(records))
@@ -174,10 +239,15 @@ func encodeViewerPayload(snapshot *hotsnapshot.GraphSnapshot, kind byte, level l
 		return nil, errViewerPayloadTooLarge
 	}
 	edgeBytes := uint64(len(edges)) * uint64(viewerBinaryEdgeSize)
+	labels, labelBytes, err := encodeViewerLabels(nodes)
+	if err != nil {
+		return nil, err
+	}
 	nodeOffset := uint64(viewerBinaryHeaderSize)
 	edgeOffset := nodeOffset + nodeBytes
-	totalBytes := edgeOffset + edgeBytes
-	if totalBytes > uint64(^uint32(0)) {
+	labelOffset := edgeOffset + edgeBytes
+	totalBytes := labelOffset + labelBytes
+	if totalBytes > uint64(maxViewerPayloadBytes) || totalBytes > uint64(^uint32(0)) {
 		return nil, errViewerPayloadTooLarge
 	}
 	payload := make([]byte, int(totalBytes))
@@ -198,6 +268,8 @@ func encodeViewerPayload(snapshot *hotsnapshot.GraphSnapshot, kind byte, level l
 	binary.LittleEndian.PutUint32(payload[44:48], uint32(totalBytes))
 	binary.LittleEndian.PutUint32(payload[48:52], metadata.Version)
 	binary.LittleEndian.PutUint32(payload[52:56], uint32(metadata.SchemaVersion))
+	binary.LittleEndian.PutUint32(payload[56:60], uint32(labelOffset))
+	binary.LittleEndian.PutUint32(payload[60:64], uint32(labelBytes))
 
 	for index, node := range nodes {
 		offset := int(nodeOffset) + index*viewerBinaryNodeSize
@@ -222,7 +294,73 @@ func encodeViewerPayload(snapshot *hotsnapshot.GraphSnapshot, kind byte, level l
 		payload[offset+14] = edge.Provenance
 		payload[offset+15] = edge.Flags
 	}
+	copy(payload[labelOffset:], labels)
 	return payload, nil
+}
+
+// encodeViewerLabels serialises one display name per node, in node order, as a
+// uint16 length followed by its UTF-8 bytes. Names are truncated at
+// maxViewerLabelBytes so one pathological signature cannot inflate a tile.
+func encodeViewerLabels(nodes []binaryNodeRecord) ([]byte, uint64, error) {
+	total := 0
+	for index := range nodes {
+		total += 2 + len(truncateLabel(nodes[index].Label))
+	}
+	if uint64(total) > uint64(maxViewerPayloadBytes) {
+		return nil, 0, errViewerPayloadTooLarge
+	}
+	labels := make([]byte, 0, total)
+	for index := range nodes {
+		label := truncateLabel(nodes[index].Label)
+		labels = binary.LittleEndian.AppendUint16(labels, uint16(len(label)))
+		labels = append(labels, label...)
+	}
+	return labels, uint64(len(labels)), nil
+}
+
+// truncateLabel keeps a label within the wire limit without splitting a rune.
+func truncateLabel(label string) string {
+	if len(label) <= maxViewerLabelBytes {
+		return label
+	}
+	cut := maxViewerLabelBytes
+	for cut > 0 && !utf8.RuneStart(label[cut]) {
+		cut--
+	}
+	return label[:cut]
+}
+
+// nodeLabel resolves the display name of one layout node from the snapshot.
+// An ID the snapshot does not know is reported as such instead of guessed: a
+// blank label would hide an inconsistency between layout and snapshot.
+func nodeLabel(snapshot *hotsnapshot.GraphSnapshot, kind layout.NodeKind, id uint32) string {
+	table := snapshot.Strings()
+	resolve := func(interned hotsnapshot.InternedString) string {
+		value, _ := table.String(interned)
+		return value
+	}
+	switch kind {
+	case layout.NodeRepository:
+		if record, found := snapshot.Repository(hotsnapshot.RepositoryID(id)); found {
+			return resolve(record.Name)
+		}
+	case layout.NodePackage:
+		if record, found := snapshot.Package(hotsnapshot.PackageID(id)); found {
+			return resolve(record.Name)
+		}
+	case layout.NodeFile:
+		if record, found := snapshot.File(hotsnapshot.FileID(id)); found {
+			return resolve(record.Path)
+		}
+	case layout.NodeSymbol:
+		if record, found := snapshot.Symbol(hotsnapshot.SymbolID(id)); found {
+			if name := resolve(record.QualifiedName); name != "" {
+				return name
+			}
+			return resolve(record.Name)
+		}
+	}
+	return fmt.Sprintf("unknown %d", id)
 }
 
 func putCoord(destination []byte, value layout.Coord) {
@@ -236,8 +374,11 @@ func minBinaryInt(left, right int) int {
 	return right
 }
 
+// validateViewerBinaryVersion accepts only the version this server emits. A
+// client pinned to version 1 cannot parse the label section, so answering it
+// with a v2 payload would be a silent format break.
 func validateViewerBinaryVersion(requestVersion string) error {
-	if requestVersion == "" || requestVersion == "1" {
+	if requestVersion == "" || requestVersion == "2" {
 		return nil
 	}
 	return errViewerBinaryVersion

@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import App from "@/App";
 
 describe("viewer shell", () => {
-  it("renders only the graph preview surface", () => {
+  it("renders only the graph surface and its detail controls", () => {
     const markup = renderToStaticMarkup(<App />);
 
     expect(markup).toContain("Interactive Reagraph graph preview");
-    expect(markup).toContain("7 nodes");
-    expect(markup).toContain("4 edges");
+    expect(markup).toContain("loading snapshot");
+    expect(markup).toContain("repositories");
+    expect(markup).toContain("symbols");
     expect(markup).not.toContain("<header");
     expect(markup).not.toContain("<section");
   });

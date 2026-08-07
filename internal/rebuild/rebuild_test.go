@@ -770,3 +770,47 @@ func TestRunRecordsMetrics(t *testing.T) {
 		t.Fatalf("snapshot metrics = %+v", observed.Snapshot)
 	}
 }
+
+// A rebuild must announce each stage as it starts, in pipeline order, so a
+// caller can show which stage is running instead of a silent minute.
+func TestRunReportsEveryStageAsItStarts(t *testing.T) {
+	root := t.TempDir()
+	options := buildOptions(t, root, "000001", sampleFacts())
+	var announced []StageName
+	options.Progress = func(stage StageName) {
+		announced = append(announced, stage)
+	}
+
+	report, err := Run(context.Background(), options)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !report.Passed {
+		t.Fatalf("Run() report.Passed = false, stages = %#v", report.Stages)
+	}
+
+	want := []StageName{
+		StageFacts, StagePublish, StageGraphNext, StageStaging,
+		StageBulkLoad, StageSnapshot, StageIntegrity, StageProbes,
+	}
+	if len(announced) != len(want) {
+		t.Fatalf("announced stages = %v, want %v", announced, want)
+	}
+	for index, stage := range want {
+		if announced[index] != stage {
+			t.Fatalf("announced[%d] = %q, want %q (all = %v)", index, announced[index], stage, announced)
+		}
+	}
+}
+
+// Progress is optional: a nil callback must not change the outcome.
+func TestRunWithoutProgressCallbackStillPublishes(t *testing.T) {
+	root := t.TempDir()
+	options := buildOptions(t, root, "000001", sampleFacts())
+	options.Progress = nil
+
+	report, err := Run(context.Background(), options)
+	if err != nil || !report.Passed {
+		t.Fatalf("Run() = %v, passed = %v", err, report.Passed)
+	}
+}

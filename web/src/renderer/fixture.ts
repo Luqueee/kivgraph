@@ -1,13 +1,14 @@
 import {
-  VIEWER_BINARY_EDGE_SIZE,
-  VIEWER_BINARY_HEADER_SIZE,
-  VIEWER_BINARY_NODE_SIZE,
-  VIEWER_BINARY_VERSION,
-  VIEWER_PAYLOAD_TILES,
   NODE_KIND_FILE,
   NODE_KIND_PACKAGE,
   NODE_KIND_REPOSITORY,
   NODE_KIND_SYMBOL,
+  VIEWER_BINARY_EDGE_SIZE,
+  VIEWER_BINARY_HEADER_SIZE,
+  VIEWER_BINARY_NODE_SIZE,
+  VIEWER_BINARY_VERSION,
+  VIEWER_EDGE_FLAG_PACKAGE,
+  VIEWER_PAYLOAD_TILES,
 } from "./binary";
 
 interface FixtureNode {
@@ -118,6 +119,18 @@ const fixtureNodes: readonly FixtureNode[] = [
     maxX: 360n,
     maxY: 290n,
   },
+  {
+    id: 1,
+    parentId: 0,
+    kind: NODE_KIND_PACKAGE,
+    level: 1,
+    parentKind: NODE_KIND_REPOSITORY,
+    depth: 1,
+    minX: 620n,
+    minY: 40n,
+    maxX: 900n,
+    maxY: 360n,
+  },
 ];
 
 const fixtureEdges: readonly FixtureEdge[] = [
@@ -157,13 +170,41 @@ const fixtureEdges: readonly FixtureEdge[] = [
     provenance: 1,
     flags: 0,
   },
+  {
+    source: 0,
+    target: 1,
+    evidence: 0,
+    kind: 5,
+    confidence: 1,
+    provenance: 1,
+    flags: VIEWER_EDGE_FLAG_PACKAGE,
+  },
 ];
 
-/** Creates a small valid tile payload used only by the renderer preview. */
+/** Display names of the fixture nodes, in node order. */
+const fixtureLabels: readonly string[] = [
+  "acme/widgets",
+  "@acme/core",
+  "src/index.ts",
+  "core.load",
+  "core.parse",
+  "core.render",
+  "core.dispose",
+  "@acme/ui",
+];
+
+/** Creates a small valid tile payload used only by the renderer tests. */
 export function createDemoPayload(): ArrayBuffer {
+  const encoder = new TextEncoder();
+  const encodedLabels = fixtureLabels.map((label) => encoder.encode(label));
   const nodeBytes = fixtureNodes.length * VIEWER_BINARY_NODE_SIZE;
   const edgeBytes = fixtureEdges.length * VIEWER_BINARY_EDGE_SIZE;
-  const totalBytes = VIEWER_BINARY_HEADER_SIZE + nodeBytes + edgeBytes;
+  const labelBytes = encodedLabels.reduce(
+    (total, label) => total + 2 + label.byteLength,
+    0,
+  );
+  const labelOffset = VIEWER_BINARY_HEADER_SIZE + nodeBytes + edgeBytes;
+  const totalBytes = labelOffset + labelBytes;
   const buffer = new ArrayBuffer(totalBytes);
   const view = new DataView(buffer);
   view.setUint8(0, 0x4c);
@@ -184,7 +225,8 @@ export function createDemoPayload(): ArrayBuffer {
   view.setUint32(44, totalBytes, true);
   view.setUint32(48, 1, true);
   view.setUint32(52, 2, true);
-
+  view.setUint32(56, labelOffset, true);
+  view.setUint32(60, labelBytes, true);
   for (let index = 0; index < fixtureNodes.length; index += 1) {
     const node = fixtureNodes[index];
     const offset = VIEWER_BINARY_HEADER_SIZE + index * VIEWER_BINARY_NODE_SIZE;
@@ -211,6 +253,14 @@ export function createDemoPayload(): ArrayBuffer {
     view.setUint8(offset + 13, edge.confidence);
     view.setUint8(offset + 14, edge.provenance);
     view.setUint8(offset + 15, edge.flags);
+  }
+
+  let labelCursor = labelOffset;
+  for (const label of encodedLabels) {
+    view.setUint16(labelCursor, label.byteLength, true);
+    labelCursor += 2;
+    new Uint8Array(buffer, labelCursor, label.byteLength).set(label);
+    labelCursor += label.byteLength;
   }
 
   return buffer;

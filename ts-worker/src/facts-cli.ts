@@ -344,7 +344,12 @@ export async function collectFacts(
       root,
       dependencyResolution.dependencies,
     );
-    const extendsFacts = extendsFactSymbols(root, extendsResolution.extends);
+    const manifest = await readPackage(root);
+    const extendsFacts = extendsFactSymbols(
+      root,
+      extendsResolution.extends,
+      manifest?.name ?? repositoryName,
+    );
 
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)
@@ -393,7 +398,7 @@ export async function collectFacts(
     return {
       version: 4,
       repository: { name: repositoryName },
-      package: await readPackage(root),
+      package: manifest,
       files: files.map((file) => relative(root, file)),
       symbols: [
         ...symbols.symbols.map(
@@ -707,10 +712,16 @@ async function dependencyFactSymbols(
  * Turn every resolved `extends` base into its `FactExtends` edge, and every
  * one without a proven identity into a matching `FactUnresolved` entry too —
  * exactly like `exportFactSymbols` does for a cross-repository re-export.
+ *
+ * `localPackage` names the package the base was looked up from. A base that
+ * resolved to neither a local declaration nor a package import was still
+ * requested from somewhere, and an unresolved reference that names nothing is
+ * not a usable fact: the graph would carry a reason with no subject.
  */
 function extendsFactSymbols(
   root: string,
   edges: readonly ExtendsEdge[],
+  localPackage: string,
 ): {
   readonly extends: readonly FactExtends[];
   readonly unresolved: readonly FactUnresolved[];
@@ -751,8 +762,8 @@ function extendsFactSymbols(
       unresolved.push({
         file: relative(root, edge.base.fileName),
         reason: edge.unresolvedReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
-        requestedPackage: edge.packageName ?? "",
-        requestedSymbol: edge.exportedName ?? null,
+        requestedPackage: edge.packageName ?? localPackage,
+        requestedSymbol: edge.exportedName ?? edge.base.text,
         detail: edge.unresolvedDetail ?? null,
         start: edge.base.start,
       });

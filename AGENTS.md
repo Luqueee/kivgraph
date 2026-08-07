@@ -110,11 +110,16 @@ integridad, compatibilidad o verificación descritos aquí.
   coordenadas enteras deterministas, contención repository/package/file/symbol
   y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta
   force simulation global.
-- El payload binario `LGVB` del visor es versionado, little-endian y limitado
-  a `32 MiB`; el servidor valida magic, versión, offsets, longitudes y
-  `snapshot_id` antes de servirlo, y los errores de incompatibilidad son
-  códigos estables.
-
+- El layout equilibra cada rejilla por defecto (`Columns: 0`) para que el mundo
+  publicado quede aproximadamente cuadrado; una anchura fija lo convierte en
+  una tira ilegible cuando crece el número de repositorios.
+- El payload binario `LGVB` del visor es versionado (`v2`), little-endian y
+  limitado a `32 MiB`; lleva una sección de etiquetas con el nombre de cada
+  nodo, el servidor valida magic, versión, offsets, longitudes y `snapshot_id`
+  antes de servirlo, y los errores de incompatibilidad son códigos estables.
+- El visor no muestra IDs densos: cada nodo se rotula con el nombre que el
+  snapshot conoce. Un ID denso solo es único dentro de su tipo de nodo, así
+  que los extremos de una arista se resuelven por `(tipo, id)`.
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
   Solo una generación candidata que pase integridad y validación puede cambiar

@@ -16,11 +16,16 @@ import {
   readCoordinateBounds,
   readEdge,
   readNode,
+  VIEWER_EDGE_FLAG_PACKAGE,
 } from "./binary";
 
 export const DEFAULT_REAGRAPH_NODE_LIMIT = 2_000;
 export const DEFAULT_REAGRAPH_EDGE_LIMIT = 8_000;
 export const REAGRAPH_WORLD_SIZE = 800;
+
+function endpointKey(kind: number, id: number): string {
+  return `${kind}:${id}`;
+}
 
 export interface ReagraphNodeData {
   readonly index: number;
@@ -102,13 +107,37 @@ export function createReagraphGraph(
     );
   }
 
-  const nodeIds = new Array<string>(payload.header.nodeCount);
+  // The world grows with the node count: a fixed extent turns a 2.000 node
+  // tile into an unreadable clump.
+  const worldSize = Math.max(
+    REAGRAPH_WORLD_SIZE,
+    Math.round(Math.sqrt(payload.header.nodeCount) * 60),
+  );
+  // Both axes share one scale. Scaling each axis to the same extent would
+  // squash the layout — the published world is far taller than it is wide —
+  // and collapse whole repositories into a horizontal band.
+  const span = Math.max(spanX, spanY, 1);
+  // Dense IDs are only unique per node kind, and edges carry them, not payload
+  // indices. Package relations are flagged; everything else connects symbols.
+  const nodeIdsByKind = new Map<string, string>();
   const nodes: ViewerReagraphNode[] = [];
   const occupiedCenters = new Map<string, number>();
   for (let index = 0; index < payload.header.nodeCount; index += 1) {
     const record = readNode(payload, index);
-    const rawX = centerCoordinate(record.minX, record.maxX, bounds.minX, spanX);
-    const rawY = centerCoordinate(record.minY, record.maxY, bounds.minY, spanY);
+    const rawX = centerCoordinate(
+      record.minX,
+      record.maxX,
+      bounds.minX,
+      span,
+      worldSize,
+    );
+    const rawY = centerCoordinate(
+      record.minY,
+      record.maxY,
+      bounds.minY,
+      span,
+      worldSize,
+    );
     const { x, y } = disambiguateCenter(rawX, rawY, occupiedCenters);
     const data: ReagraphNodeData = {
       index,
@@ -119,10 +148,10 @@ export function createReagraphGraph(
       y,
     };
     const id = `node-${index}`;
-    nodeIds[index] = id;
+    nodeIdsByKind.set(endpointKey(record.kind, record.id), id);
     nodes.push({
       id,
-      label: `${kindLabel(record.kind)} ${record.id}`,
+      label: payload.labels[index] ?? `${kindLabel(record.kind)} ${record.id}`,
       labelVisible: true,
       size: nodeSize(record.kind),
       fill: nodeColor(record.kind),
@@ -133,7 +162,13 @@ export function createReagraphGraph(
   const edges: ViewerReagraphEdge[] = [];
   for (let index = 0; index < payload.header.edgeCount; index += 1) {
     const record = readEdge(payload, index);
-    if (record.source >= nodeIds.length || record.target >= nodeIds.length) {
+    const endpointKind =
+      (record.flags & VIEWER_EDGE_FLAG_PACKAGE) !== 0
+        ? NODE_KIND_PACKAGE
+        : NODE_KIND_SYMBOL;
+    const source = nodeIdsByKind.get(endpointKey(endpointKind, record.source));
+    const target = nodeIdsByKind.get(endpointKey(endpointKind, record.target));
+    if (source === undefined || target === undefined) {
       throw new GraphBinaryError(
         "INVALID_REFERENCES",
         `Reagraph edge ${index} references a node outside the payload`,
@@ -141,8 +176,8 @@ export function createReagraphGraph(
     }
     edges.push({
       id: `edge-${index}`,
-      source: nodeIds[record.source],
-      target: nodeIds[record.target],
+      source,
+      target,
       fill: edgeColor(record.confidence),
       dashed: false,
       arrowPlacement: "none",
@@ -200,23 +235,29 @@ function centerCoordinate(
   maximum: bigint,
   origin: bigint,
   span: number,
+  worldSize: number,
 ): number {
   const center = (Number(minimum - origin) + Number(maximum - origin)) / 2;
-  return (center / span - 0.5) * REAGRAPH_WORLD_SIZE;
+  return (center / span - 0.5) * worldSize;
 }
 
+// Layout containers place children on a grid, so distinct nodes can share a
+// centre once coordinates are projected. Spread the collisions in a fixed
+// spiral: deterministic, and no two nodes end up under one label.
 function disambiguateCenter(
   x: number,
   y: number,
   occupiedCenters: Map<string, number>,
 ): { x: number; y: number } {
-  const key = `${x}:${y}`;
+  const key = `${Math.round(x)}:${Math.round(y)}`;
   const occurrence = occupiedCenters.get(key) ?? 0;
   occupiedCenters.set(key, occurrence + 1);
   if (occurrence === 0) return { x, y };
+  const angle = occurrence * 2.399963229728653;
+  const radius = 24 * Math.sqrt(occurrence);
   return {
-    x: x + occurrence * 80,
-    y: y + (occurrence % 2 === 0 ? 40 : -40),
+    x: x + radius * Math.cos(angle),
+    y: y + radius * Math.sin(angle),
   };
 }
 

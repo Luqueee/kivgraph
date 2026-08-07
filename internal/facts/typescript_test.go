@@ -593,9 +593,9 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 }
 
 // TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved covers a
-// target that is present but missing its class or its signature: without
-// both, the provider's stable key cannot be derived, so it must be treated
-// exactly like a nil target, never guessed.
+// target that is present but missing its module, its class or its signature:
+// without all three, the provider's stable key cannot be derived, so it must
+// be treated exactly like a nil target, never guessed.
 func TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved(t *testing.T) {
 	base := TypeScriptImportTarget{
 		Repository:    "shared-library",
@@ -610,10 +610,13 @@ func TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved(t *testing.T)
 	withEmptyKind.Kind = ""
 	withEmptySignature := base
 	withEmptySignature.Signature = ""
+	withEmptyFile := base
+	withEmptyFile.File = ""
 
 	cases := map[string]TypeScriptImportTarget{
 		"empty kind":      withEmptyKind,
 		"empty signature": withEmptySignature,
+		"empty module":    withEmptyFile,
 	}
 
 	for name, target := range cases {
@@ -956,5 +959,59 @@ func TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved(t *testing.T) {
 	}
 	if entry.SourceSymbolKey == "" {
 		t.Fatalf("the extends unresolved entry should carry the declaring class as its source symbol")
+	}
+}
+
+// Two files of one package may each declare a local with the same name, kind
+// and signature. They are different symbols: their stable keys must differ,
+// and each must be defined by exactly one file. A shared key would make the
+// canonical DEFINES relationship claim one symbol is declared twice.
+func TestNormalizeTypeScriptSeparatesHomonymsDeclaredInDifferentModules(t *testing.T) {
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "consumer-x"},
+		Package: &TypeScriptPackage{
+			Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/first.ts", "src/second.ts"},
+		Symbols: []TypeScriptSymbol{
+			{
+				File: "src/first.ts", Name: "s", QualifiedName: "s", Kind: "variable",
+				Signature: "s", StartLine: 4, EndLine: 4, Start: 40, End: 41,
+			},
+			{
+				File: "src/second.ts", Name: "s", QualifiedName: "s", Kind: "variable",
+				Signature: "s", StartLine: 9, EndLine: 9, Start: 90, End: 91,
+			},
+		},
+	}
+
+	set, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if len(set.Symbols) != 2 {
+		t.Fatalf("symbols = %d, want 2", len(set.Symbols))
+	}
+	if set.Symbols[0].Key == set.Symbols[1].Key {
+		t.Fatalf("homonyms in different modules share the stable key %q", set.Symbols[0].Key)
+	}
+	definers := make(map[string][]string)
+	for _, edge := range set.Edges {
+		if edge.Kind == Defines {
+			definers[edge.TargetKey] = append(definers[edge.TargetKey], edge.SourceKey)
+		}
+	}
+	if len(definers) != 2 {
+		t.Fatalf("DEFINES targets = %d, want 2 (%#v)", len(definers), definers)
+	}
+	for target, files := range definers {
+		if len(files) != 1 {
+			t.Fatalf("symbol %s is defined by %d files, want exactly 1: %v", target, len(files), files)
+		}
 	}
 }

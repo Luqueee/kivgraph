@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Luqueee/ladygraph/internal/app"
 	"github.com/Luqueee/ladygraph/internal/config"
@@ -448,12 +449,16 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "index --full: resolve working directory: %v\n", err)
 		return 1
 	}
+	progressStart := time.Now()
 	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
 		Repositories:      registry.List(),
 		SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
 		IncludeTests:      loaded.Config.Go.IncludeTests,
 		TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
 		WorkingDirectory:  workingDirectory,
+		Progress: func(event indexer.ProgressEvent) {
+			writeIndexProgress(stderr, progressStart, event)
+		},
 	})
 	fmt.Fprintf(stdout, "index.full: %s\n", passFail(err == nil))
 	fmt.Fprintf(stdout, "index.go: repositories=%d modules=%d loads=%d definitions=%d references=%d unresolved=%d\n",
@@ -496,6 +501,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		ResolverVersion: resolverVersion,
 		SnapshotID:      snapshotID,
 		Store:           generation.DefaultConfig(),
+		Progress: func(stage rebuild.StageName) {
+			fmt.Fprintf(stderr, "[%6.1fs] rebuild %s\n", time.Since(progressStart).Seconds(), stage)
+		},
 	})
 	fmt.Fprintf(stdout, "rebuild: %s generation=%s\n", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
 	for _, stage := range rebuildReport.Stages {
@@ -510,6 +518,31 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// writeIndexProgress renders one indexing progress event as a single line on
+// stderr, where it cannot be confused with the report stdout carries.
+func writeIndexProgress(stderr io.Writer, start time.Time, event indexer.ProgressEvent) {
+	elapsed := time.Since(start).Seconds()
+	position := ""
+	if event.Total > 0 {
+		position = fmt.Sprintf(" %d/%d", event.Completed, event.Total)
+	}
+	subject := event.Repository
+	if subject == "" {
+		subject = string(event.Phase)
+	} else {
+		subject = fmt.Sprintf("%s %s", event.Phase, subject)
+	}
+	state := "done"
+	if event.Started {
+		state = "start"
+	}
+	if event.Detail == "" {
+		fmt.Fprintf(stderr, "[%6.1fs]%s %s %s\n", elapsed, position, subject, state)
+		return
+	}
+	fmt.Fprintf(stderr, "[%6.1fs]%s %s %s (%s)\n", elapsed, position, subject, state, event.Detail)
 }
 
 func runUpgrade(args []string, stdout, stderr io.Writer) int {

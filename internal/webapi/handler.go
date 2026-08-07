@@ -94,13 +94,26 @@ type apiError struct {
 }
 
 type metaResponse struct {
-	APIVersion    string     `json:"api_version"`
-	Status        string     `json:"status"`
-	SnapshotID    *uint64    `json:"snapshot_id,omitempty"`
-	SnapshotBuilt string     `json:"snapshot_built_at,omitempty"`
-	SchemaVersion int        `json:"schema_version,omitempty"`
-	Resolver      string     `json:"resolver_version,omitempty"`
-	Counts        metaCounts `json:"counts"`
+	APIVersion    string      `json:"api_version"`
+	Status        string      `json:"status"`
+	SnapshotID    *uint64     `json:"snapshot_id,omitempty"`
+	SnapshotBuilt string      `json:"snapshot_built_at,omitempty"`
+	SchemaVersion int         `json:"schema_version,omitempty"`
+	Resolver      string      `json:"resolver_version,omitempty"`
+	Counts        metaCounts  `json:"counts"`
+	Layout        *metaLayout `json:"layout,omitempty"`
+}
+
+// metaLayout is the root viewport of the published layout. Without it a client
+// cannot ask for a first tile: /api/v1/tiles requires explicit bounds, and
+// guessing them either misses the graph or exceeds the query limits.
+type metaLayout struct {
+	MinX     int64 `json:"min_x"`
+	MinY     int64 `json:"min_y"`
+	MaxX     int64 `json:"max_x"`
+	MaxY     int64 `json:"max_y"`
+	MaxLOD   int   `json:"max_lod"`
+	MaxNodes int   `json:"max_nodes"`
 }
 
 type metaCounts struct {
@@ -187,6 +200,17 @@ func (handler *Handler) meta(writer http.ResponseWriter, request *http.Request) 
 			PackageEdges: metadata.Counts.PackageEdges,
 			Unresolved:   metadata.Counts.Unresolved,
 		},
+	}
+	if viewerLayout, err := handler.viewerLayout(request.Context(), snapshot); err == nil {
+		bounds := viewerLayout.Bounds()
+		response.Layout = &metaLayout{
+			MinX:     int64(bounds.MinX),
+			MinY:     int64(bounds.MinY),
+			MaxX:     int64(bounds.MaxX),
+			MaxY:     int64(bounds.MaxY),
+			MaxLOD:   int(layout.LODSymbols),
+			MaxNodes: defaultTileMaxNodes,
+		}
 	}
 	handler.writeJSON(writer, request, http.StatusOK, response)
 }

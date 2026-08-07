@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -302,4 +303,71 @@ func containsNode(nodes []layout.Node, reference layout.NodeRef) bool {
 func contains(parent, child layout.Rect) bool {
 	return parent.MinX <= child.MinX && child.MaxX <= parent.MaxX &&
 		parent.MinY <= child.MinY && child.MaxY <= parent.MaxY
+}
+
+// A viewer renders the published world as one picture. With a fixed grid width
+// a workspace of many repositories becomes a strip dozens of screens tall and
+// a few wide, unreadable at any zoom, so the default balances every container.
+func TestDefaultLayoutKeepsTheWorldRoughlySquare(t *testing.T) {
+	snapshot := manyRepositoriesSnapshot(t, 36)
+	built, err := layout.Build(context.Background(), snapshot, layout.DefaultConfig())
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	bounds := built.Bounds()
+	width := float64(bounds.MaxX - bounds.MinX)
+	height := float64(bounds.MaxY - bounds.MinY)
+	if width <= 0 || height <= 0 {
+		t.Fatalf("bounds = %#v", bounds)
+	}
+	ratio := width / height
+	if ratio < 0.5 || ratio > 2 {
+		t.Fatalf("world aspect ratio = %.2f (%.0f x %.0f), want between 0.5 and 2", ratio, width, height)
+	}
+}
+
+// manyRepositoriesSnapshot builds a workspace shaped like a real one: several
+// repositories, each with a handful of packages, files and symbols. The shape
+// matters — a flat fixture hides how a grid width compounds down the levels.
+func manyRepositoriesSnapshot(t *testing.T, repositories int) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	const packagesPerRepository = 5
+	const filesPerPackage = 4
+	const symbolsPerFile = 6
+	rows := hotsnapshot.LadybugSnapshotRows{}
+	for repository := 0; repository < repositories; repository++ {
+		repositoryKey := fmt.Sprintf("repo-%02d", repository)
+		rows.Repositories = append(rows.Repositories, hotsnapshot.RepositoryRow{
+			Key: repositoryKey, Name: repositoryKey, Path: "/" + repositoryKey,
+		})
+		for pkg := 0; pkg < packagesPerRepository; pkg++ {
+			packageKey := fmt.Sprintf("%s-pkg-%02d", repositoryKey, pkg)
+			rows.Packages = append(rows.Packages, hotsnapshot.PackageRow{
+				Key: packageKey, RepositoryKey: repositoryKey, Name: packageKey,
+			})
+			for file := 0; file < filesPerPackage; file++ {
+				fileKey := fmt.Sprintf("%s-file-%02d", packageKey, file)
+				rows.Files = append(rows.Files, hotsnapshot.FileRow{
+					Key: fileKey, RepositoryKey: repositoryKey, PackageKey: packageKey,
+					Path: fileKey + ".go",
+				})
+				for symbol := 0; symbol < symbolsPerFile; symbol++ {
+					name := fmt.Sprintf("Run%02d", symbol)
+					rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{
+						StableKey:         hotsnapshot.StableKey(fmt.Sprintf("%s-%s", fileKey, name)),
+						CanonicalIdentity: fmt.Sprintf("go:%s.%s", fileKey, name),
+						FileKey:           fileKey,
+						Name:              name,
+						QualifiedName:     fmt.Sprintf("%s.%s", packageKey, name),
+						Kind:              "function",
+					})
+				}
+			}
+		}
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 1, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return snapshot
 }

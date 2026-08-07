@@ -409,6 +409,12 @@ func (set Set) Validate() error {
 		if entry.Reason == "" {
 			return fmt.Errorf("%w: unresolved reference without reason", ErrInvalidFacts)
 		}
+		// An unresolved reference names what was requested; the published
+		// snapshot indexes that name. A reason with no subject is not a fact
+		// a consumer can act on.
+		if strings.TrimSpace(entry.RequestedPackage) == "" {
+			return fmt.Errorf("%w: unresolved reference %q without requested package", ErrInvalidFacts, entry.Reason)
+		}
 		if _, exists := repositories[entry.RepositoryKey]; !exists {
 			return fmt.Errorf("%w: unresolved reference in unknown repository %q", ErrInvalidFacts, entry.RepositoryKey)
 		}

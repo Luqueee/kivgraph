@@ -50,7 +50,7 @@ de interacción rápida.
    copiado se registra con hash SHA-256 y tamaño en `manifest.json` y
    `SHA256SUMS`.
 
-## Contrato binario v1
+## Contrato binario v1 (superado por ADR 0021)
 
 Los endpoints `/api/v1/tiles` y las respuestas binarias de
 `/api/v1/neighborhood` usan `application/octet-stream` con un blob único:
@@ -69,6 +69,9 @@ Los IDs densos solo son válidos junto con el `snapshot_id` y el tipo de nodo.
 Un `format_version` desconocido, un `snapshot_id` divergente o un payload que
 supere el límite se rechazan con códigos HTTP estables; nunca se interpreta un
 buffer de otra versión.
+
+ADR 0021 sube este contrato a v2: añade una sección de etiquetas tras las
+aristas y declara su offset y tamaño en los bytes `56`–`64` de la cabecera.
 
 
 ## Alternativas descartadas

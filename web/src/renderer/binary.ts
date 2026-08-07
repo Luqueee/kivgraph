@@ -1,4 +1,4 @@
-export const VIEWER_BINARY_VERSION = 1;
+export const VIEWER_BINARY_VERSION = 2;
 export const VIEWER_BINARY_HEADER_SIZE = 64;
 export const VIEWER_BINARY_NODE_SIZE = 48;
 export const VIEWER_BINARY_EDGE_SIZE = 16;
@@ -6,6 +6,9 @@ export const MAX_VIEWER_PAYLOAD_BYTES = 32 * 1024 * 1024;
 
 export const VIEWER_PAYLOAD_TILES = 1;
 export const VIEWER_PAYLOAD_NEIGHBORHOOD = 2;
+
+/** Set on edges whose endpoints are package dense IDs, not symbol ones. */
+export const VIEWER_EDGE_FLAG_PACKAGE = 1 << 0;
 
 export const NODE_KIND_REPOSITORY = 1;
 export const NODE_KIND_PACKAGE = 2;
@@ -31,6 +34,8 @@ export interface GraphBinaryHeader {
   readonly totalBytes: number;
   readonly snapshotVersion: number;
   readonly schemaVersion: number;
+  readonly labelOffset: number;
+  readonly labelBytes: number;
 }
 
 export interface GraphPayload {
@@ -39,6 +44,8 @@ export interface GraphPayload {
   readonly header: GraphBinaryHeader;
   readonly nodes: DataView;
   readonly edges: DataView;
+  /** Display name of each node, in node order. */
+  readonly labels: readonly string[];
 }
 
 export interface GraphNodeRecord {
@@ -179,7 +186,15 @@ export function decodeGraphPayload(buffer: ArrayBuffer): GraphPayload {
       "viewer edge section length does not match its count",
     );
   }
-  if (edgeOffset + edgeBytes !== totalBytes) {
+  const labelOffset = view.getUint32(56, true);
+  const labelBytes = view.getUint32(60, true);
+  if (labelOffset !== edgeOffset + edgeBytes) {
+    throw new GraphBinaryError(
+      "INVALID_OFFSETS",
+      "viewer label section does not follow the edge section",
+    );
+  }
+  if (labelOffset + labelBytes !== totalBytes) {
     throw new GraphBinaryError(
       "INVALID_OFFSETS",
       "viewer sections do not cover the complete payload",
@@ -209,10 +224,56 @@ export function decodeGraphPayload(buffer: ArrayBuffer): GraphPayload {
       totalBytes,
       snapshotVersion,
       schemaVersion,
+      labelOffset,
+      labelBytes,
     },
     nodes: new DataView(buffer, nodeOffset, nodeBytes),
     edges: new DataView(buffer, edgeOffset, edgeBytes),
+    labels: readLabels(buffer, labelOffset, labelBytes, nodeCount),
   };
+}
+
+/**
+ * Reads one label per node: a uint16 byte length followed by UTF-8 bytes. The
+ * section must describe exactly the nodes the header declares, so a payload
+ * that names fewer nodes than it renders is rejected instead of rendered with
+ * blank captions.
+ */
+function readLabels(
+  buffer: ArrayBuffer,
+  offset: number,
+  length: number,
+  nodeCount: number,
+): readonly string[] {
+  const decoder = new TextDecoder();
+  const view = new DataView(buffer, offset, length);
+  const labels: string[] = [];
+  let cursor = 0;
+  for (let index = 0; index < nodeCount; index += 1) {
+    if (cursor + 2 > length) {
+      throw new GraphBinaryError(
+        "TRUNCATED_LABELS",
+        `viewer label ${index} is missing from the payload`,
+      );
+    }
+    const size = view.getUint16(cursor, true);
+    cursor += 2;
+    if (cursor + size > length) {
+      throw new GraphBinaryError(
+        "TRUNCATED_LABELS",
+        `viewer label ${index} claims ${size} bytes past the payload`,
+      );
+    }
+    labels.push(decoder.decode(new Uint8Array(buffer, offset + cursor, size)));
+    cursor += size;
+  }
+  if (cursor !== length) {
+    throw new GraphBinaryError(
+      "INVALID_LENGTHS",
+      "viewer label section has trailing bytes",
+    );
+  }
+  return labels;
 }
 
 export function readNode(

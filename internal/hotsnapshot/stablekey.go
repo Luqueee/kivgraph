@@ -25,14 +25,30 @@ type StableKey string
 // Package is a TypeScript package name or Go module/package path, as
 // appropriate for Language. Discriminator distinguishes otherwise equivalent
 // symbols, for example an overload signature or an anonymous declaration.
+//
+// Module is the declaring module of the symbol, repository relative, and is
+// only part of the identity for languages whose declarations are not globally
+// addressable by package and qualified name alone. TypeScript sets it: two
+// files of one package may each declare a local `s`, and both are distinct
+// symbols. Go leaves it empty; its object path already carries the container,
+// and an empty Module is omitted from the canonical identity so Go keys are
+// byte identical to the ones format version 1 has always produced.
 type StableKeyIdentity struct {
 	FormatVersion uint16
 	Language      string
 	Repository    string
 	Package       string
+	Module        string
 	QualifiedName string
 	Kind          string
 	Discriminator string
+}
+
+// stableKeyField is one length-prefixed component of a canonical identity.
+type stableKeyField struct {
+	name   string
+	value  string
+	length string
 }
 
 // Canonical returns the auditable identity passed to BLAKE3. Length-prefixing
@@ -43,18 +59,20 @@ func (identity StableKeyIdentity) Canonical() (string, error) {
 		return "", ErrUnsupportedStableKeyFormat
 	}
 
-	fields := [...]struct {
-		name   string
-		value  string
-		length string
-	}{
-		{name: "language", value: identity.Language},
-		{name: "repository", value: identity.Repository},
-		{name: "package", value: identity.Package},
-		{name: "qualified_name", value: identity.QualifiedName},
-		{name: "kind", value: identity.Kind},
-		{name: "discriminator", value: identity.Discriminator},
+	fields := make([]stableKeyField, 0, 7)
+	fields = append(fields,
+		stableKeyField{name: "language", value: identity.Language},
+		stableKeyField{name: "repository", value: identity.Repository},
+		stableKeyField{name: "package", value: identity.Package},
+	)
+	if identity.Module != "" {
+		fields = append(fields, stableKeyField{name: "module", value: identity.Module})
 	}
+	fields = append(fields,
+		stableKeyField{name: "qualified_name", value: identity.QualifiedName},
+		stableKeyField{name: "kind", value: identity.Kind},
+		stableKeyField{name: "discriminator", value: identity.Discriminator},
+	)
 
 	version := strconv.FormatUint(uint64(identity.FormatVersion), 10)
 	size := len(stableKeyNamespace+"\x00version=") + len(version)

@@ -100,6 +100,12 @@ type Options struct {
 	Store           generation.Config
 	Metrics         *metrics.Registry
 
+	// Progress, when set, is called with the name of each stage as it
+	// starts. A rebuild reports nothing else while it runs: the bulk load
+	// and the snapshot are the long stages, and this is how a caller can
+	// show which one is in flight.
+	Progress func(StageName)
+
 	// Load, Counts, Probes, Integrity and Scan default to the ladybug
 	// implementations; tests substitute them so the orchestration is
 	// exercised without cgo.
@@ -145,6 +151,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 
 	// facts: an invalid set aborts before the store is even opened, so a
 	// bad rebuild never leaves a stray directory behind.
+	notifyStage(options.Progress, StageFacts)
 	factsStart := time.Now()
 	if err := options.Facts.Validate(); err != nil {
 		report.Stages = append(report.Stages, Stage{
@@ -222,6 +229,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	build := func(buildCtx context.Context, candidatePath string) error {
 		// graph.next: the candidate directory already exists by the time
 		// Publish calls us, so this stage just records where it landed.
+		notifyStage(options.Progress, StageGraphNext)
 		graphNextStart := time.Now()
 		graphNextStage = Stage{
 			Name:       StageGraphNext,
@@ -230,6 +238,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			DurationMS: elapsedMS(graphNextStart),
 		}
 
+		notifyStage(options.Progress, StageStaging)
 		databasePath := filepath.Join(candidatePath, storeConfig.DatabaseFile)
 		loadStart := time.Now()
 		result, loadErr := load(buildCtx, databasePath, options.Facts, loadOptions)
@@ -259,6 +268,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			Detail:     fmt.Sprintf("staged %d canonical table(s) from the fact set", len(result.Tables)),
 			DurationMS: result.StagingMS,
 		}
+		notifyStage(options.Progress, StageBulkLoad)
 		bulkLoadStage = Stage{
 			Name:       StageBulkLoad,
 			Passed:     true,
@@ -269,6 +279,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		// snapshot: digest the graph the load just produced, from the same
 		// per-table counts the loader reported, and write it beside the
 		// candidate database before Publish ever renames the directory.
+		notifyStage(options.Progress, StageSnapshot)
 		snapshotStart := time.Now()
 		digest, digestErr := writeSnapshotDigest(candidatePath, result.Tables)
 		if digestErr != nil {
@@ -313,6 +324,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		// ownership) must hold over the graph that was just loaded. Both
 		// halves always run, so a failure on either always reports how the
 		// other half fared too.
+		notifyStage(options.Progress, StageIntegrity)
 		integrityStart := time.Now()
 		expected, expectedErr := ladybug.CanonicalTableRows(options.Facts, loadOptions)
 		if expectedErr != nil {
@@ -356,6 +368,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		// golden probes: a handful of reads against the candidate graph,
 		// derived from the fact set itself. Nothing to probe is a pass, not
 		// a skip: an empty graph has nothing to contradict.
+		notifyStage(options.Progress, StageProbes)
 		probesStart := time.Now()
 		if len(goldenProbes) == 0 {
 			probesStage = Stage{
@@ -395,6 +408,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		return nil
 	}
 
+	notifyStage(options.Progress, StagePublish)
 	publishStart := time.Now()
 	publication, publishErr := store.Publish(ctx, generation.PublishRequest{
 		ID:       options.GenerationID,
@@ -451,6 +465,15 @@ func Run(ctx context.Context, options Options) (Report, error) {
 
 func elapsedMS(start time.Time) float64 {
 	return float64(time.Since(start)) / float64(time.Millisecond)
+}
+
+// notifyStage reports that a stage is starting when the caller asked for
+// progress. Stage outcomes stay in the Report; this is only liveness.
+func notifyStage(report func(StageName), stage StageName) {
+	if report == nil {
+		return
+	}
+	report(stage)
 }
 
 func allStagesPassed(stages []Stage) bool {
