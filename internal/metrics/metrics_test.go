@@ -365,3 +365,72 @@ func BenchmarkObserveQueryWithSDKOpenTelemetry(b *testing.B) {
 		registry.ObserveQuery(observation)
 	}
 }
+
+func BenchmarkObserveAll(b *testing.B) {
+	benchmarkObserveAll(b, NewRegistry())
+}
+
+func BenchmarkObserveAllWithNoopOpenTelemetry(b *testing.B) {
+	registry, err := NewRegistryWithOpenTelemetry(OpenTelemetryOptions{})
+	if err != nil {
+		b.Fatalf("NewRegistryWithOpenTelemetry() error = %v", err)
+	}
+	benchmarkObserveAll(b, registry)
+}
+
+func BenchmarkObserveAllWithSDKOpenTelemetry(b *testing.B) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	b.Cleanup(func() {
+		if err := provider.Shutdown(context.Background()); err != nil {
+			b.Errorf("shutdown meter provider: %v", err)
+		}
+	})
+	registry, err := NewRegistryWithOpenTelemetry(OpenTelemetryOptions{MeterProvider: provider})
+	if err != nil {
+		b.Fatalf("NewRegistryWithOpenTelemetry() error = %v", err)
+	}
+	benchmarkObserveAll(b, registry)
+}
+
+func benchmarkObserveAll(b *testing.B, registry *Registry) {
+	b.Helper()
+	snapshotID := uint64(7)
+	snapshotAgeMS := int64(3)
+	query := QueryObservation{
+		ToolName:          "find_symbol",
+		Elapsed:           2 * time.Microsecond,
+		Returned:          5,
+		UnresolvedRelated: 1,
+		SnapshotID:        &snapshotID,
+		SnapshotAgeMS:     &snapshotAgeMS,
+	}
+	snapshot := SnapshotObservation{
+		ID:            snapshotID,
+		CreatedAt:     time.Unix(1_700_000_000, 0),
+		BuildDuration: 4 * time.Millisecond,
+		Bytes:         4096,
+	}
+	index := IndexObservation{
+		Duration:   5 * time.Millisecond,
+		Files:      6,
+		Symbols:    7,
+		Edges:      8,
+		Unresolved: 1,
+	}
+	worker := WorkerObservation{Restarts: 2, MemoryBytes: 1024}
+	ladybug := LadybugObservation{
+		TransactionDuration: 3 * time.Millisecond,
+		DatabaseBytes:       8192,
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		registry.ObserveQuery(query)
+		registry.ObserveSnapshot(snapshot)
+		registry.ObserveIndex(index)
+		registry.ObserveWorker(worker)
+		registry.RecordWorkerRestart()
+		registry.ObserveLadybug(ladybug)
+	}
+}

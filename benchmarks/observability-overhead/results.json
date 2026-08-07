@@ -1,0 +1,66 @@
+{
+  "benchmark": "observability-overhead",
+  "commit": "4d85d52 (working tree with LUQUE-1405 benchmark)",
+  "generated_at": "2026-08-07T08:28:00Z",
+  "command": "go test ./internal/metrics -run '^$' -bench 'BenchmarkObserve(All|Query)' -benchmem -count=5",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "go": "go1.24.4"
+  },
+  "samples": 5,
+  "workload": {
+    "all_observations_per_iteration": [
+      "ObserveQuery",
+      "ObserveSnapshot",
+      "ObserveIndex",
+      "ObserveWorker",
+      "RecordWorkerRestart",
+      "ObserveLadybug"
+    ],
+    "query": {
+      "tool": "find_symbol",
+      "elapsed": "2us",
+      "returned": 5,
+      "unresolved_related": 1
+    },
+    "variants": [
+      "process-local registry",
+      "OpenTelemetry bridge with the official noop provider",
+      "OpenTelemetry bridge with SDK ManualReader"
+    ]
+  },
+  "results": {
+    "observe_all_base_ns_per_op": [138.3, 138.9, 138.6, 138.6, 138.9],
+    "observe_all_base_mean_ns_per_op": 138.66,
+    "observe_all_base_bytes_per_op": 0,
+    "observe_all_base_allocs_per_op": 0,
+    "observe_all_noop_ns_per_op": [158.1, 157.6, 158.3, 157.8, 157.4],
+    "observe_all_noop_mean_ns_per_op": 157.84,
+    "observe_all_noop_overhead_ratio": 0.1383,
+    "observe_all_noop_bytes_per_op": 0,
+    "observe_all_noop_allocs_per_op": 0,
+    "observe_all_sdk_ns_per_op": [633.3, 641.7, 630.0, 640.1, 638.3],
+    "observe_all_sdk_mean_ns_per_op": 636.68,
+    "observe_all_sdk_overhead_ratio": 3.5922,
+    "observe_all_sdk_bytes_per_op": 0,
+    "observe_all_sdk_allocs_per_op": 0
+  },
+  "gate": {
+    "name": "OBSERVABILITY_PASS",
+    "passed": true,
+    "basis": [
+      "base, noop and SDK paths measured with five samples",
+      "zero allocations in every measured path",
+      "default path remains process-local and exporter-free",
+      "external SDK cost is reported separately from the default path"
+    ]
+  },
+  "limitations": [
+    "The benchmark measures metrics observation and excludes MCP transport, graph traversal, serialization and exporter I/O.",
+    "ManualReader is an SDK aggregation path, not a network exporter or collector.",
+    "No numeric overhead threshold is specified by TASKS.md or PLAN.md; the ratios are evidence for this gate, not a release SLO.",
+    "The result is one Linux amd64 run on the recorded CPU and must be repeated on target hardware for release decisions."
+  ]
+}

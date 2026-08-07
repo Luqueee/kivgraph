@@ -9389,17 +9389,50 @@ SDK sólo se conecta cuando el proceso consumidor lo suministra explícitamente.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Gate:**
 
 ```text
 OBSERVABILITY_PASS
 ```
+
+**Estado:** `PASS`.
+
+**Implementación:** se amplió el benchmark de `internal/metrics` para medir una
+iteración completa de `ObserveQuery`, `ObserveSnapshot`, `ObserveIndex`,
+`ObserveWorker`, `RecordWorkerRestart` y `ObserveLadybug` bajo tres variantes:
+registro local, proveedor OpenTelemetry `noop` y `sdk/metric.ManualReader`.
+
+**Entregables:**
+
+```text
+internal/metrics/metrics_test.go
+benchmarks/observability-overhead/results.json
+benchmarks/observability-overhead/report.md
+AGENTS.md
+```
+
+**Verificación:** cinco muestras con
+`go test ./internal/metrics -run '^$' -bench 'BenchmarkObserve(All|Query)' -benchmem -count=5`
+produjeron 138.66 ns/op para el registro local, 157.84 ns/op para `noop`
+(`13.83%` de overhead) y 636.68 ns/op para `ManualReader`
+(`359.22%` adicional), siempre con `0 B/op` y `0 allocs/op`. No existe un
+umbral numérico de overhead en `TASKS.md` ni `PLAN.md`; el gate separa el coste
+SDK explícito de la ruta por defecto.
+
+**Limitaciones:** la medición excluye framing MCP, recorrido y serialización
+del grafo, I/O del exporter y collector. `ManualReader` no representa un
+exporter de red concreto. El resultado es una medición puntual en Linux amd64
+y el CPU registrado.
+
+**Gate:** `OBSERVABILITY_PASS`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1501.
 
 ---
 

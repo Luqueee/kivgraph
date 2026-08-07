@@ -121,6 +121,9 @@ cuando sea aplicable.
 - La integración OpenTelemetry de métricas es opcional; los exporters y
   collectors permanecen desactivados por defecto y el proveedor configurado
   pertenece al llamador.
+- Los benchmarks de observabilidad deben separar la ruta local, el proveedor
+  `noop` y cualquier proveedor SDK configurado explícitamente; no se deben
+  presentar como un único coste de producción.
 - Los comandos, códigos, campos JSON y gates se escriben entre backticks.
 
 ## Entrega
