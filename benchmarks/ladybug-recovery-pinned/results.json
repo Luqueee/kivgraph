@@ -1,0 +1,134 @@
+{
+  "benchmark": "ladybug-recovery",
+  "command": "go run -tags ladybug ./benchmarks/ladybug-recovery --database /tmp/ladygraph-acceptance-bulk/graph.db --output benchmarks/ladybug-recovery-pinned --documentation benchmarks/ladybug-recovery-pinned/report.md",
+  "commit": "45220d30c17d4521568dde6e1f8ae2aa4e367356",
+  "generated_at": "2026-08-07T13:51:37.86722244Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "ladybugdb": "core and binding v0.13.1",
+  "base_database": "/tmp/ladygraph-acceptance-bulk/graph.db",
+  "base_database_bytes": 67059712,
+  "base_sha256_before": "9d4964e299688657369a89212d00a23903dadd1d432710d4e4da8c64162b526c",
+  "base_sha256_after": "9d4964e299688657369a89212d00a23903dadd1d432710d4e4da8c64162b526c",
+  "source_unchanged": true,
+  "cases": [
+    {
+      "case": "sigkill_during_insert",
+      "expected": "SIGKILL interrupts an active transaction; reopening rolls it back",
+      "observed": "all checks passed",
+      "duration_ms": 89.076272,
+      "passed": true,
+      "child": {"exit_code": -1, "signal": "SIGKILL"},
+      "checks": [
+        "worker completed 32 CREATE statements inside an open transaction",
+        "worker terminated with SIGKILL",
+        "database reopened and uncommitted symbols were absent"
+      ]
+    },
+    {
+      "case": "sigkill_before_commit",
+      "expected": "SIGKILL immediately before COMMIT preserves the previous committed state",
+      "observed": "all checks passed",
+      "duration_ms": 61.237096,
+      "passed": true,
+      "child": {"exit_code": -1, "signal": "SIGKILL"},
+      "checks": [
+        "CREATE completed and COMMIT was deliberately withheld",
+        "worker terminated with SIGKILL",
+        "database reopened without the uncommitted symbol"
+      ]
+    },
+    {
+      "case": "sigkill_during_bulk_load",
+      "expected": "SIGKILL during COPY leaves no partially visible bulk rows",
+      "observed": "all checks passed",
+      "duration_ms": 252.226706,
+      "passed": true,
+      "child": {"exit_code": -1, "signal": "SIGKILL"},
+      "checks": [
+        "COPY consumed at least 1 MiB before SIGKILL",
+        "COPY completion marker was absent",
+        "database reopened without sampled bulk symbols"
+      ]
+    },
+    {
+      "case": "reopen_after_crash",
+      "expected": "reopening recovers the database and accepts a new durable transaction",
+      "observed": "all checks passed",
+      "duration_ms": 110.976164,
+      "passed": true,
+      "child": {"exit_code": -1, "signal": "SIGKILL"},
+      "checks": [
+        "database reopened after SIGKILL",
+        "baseline symbol remained readable",
+        "a post-recovery transaction survived a second reopen"
+      ]
+    },
+    {
+      "case": "truncated_file",
+      "expected": "Open or Health rejects a database truncated to half its committed size",
+      "observed": "all checks passed",
+      "duration_ms": 63.547197,
+      "passed": true,
+      "child": {"exit_code": 1, "stderr": "ladybug open: failed to open database with status 1"},
+      "checks": [
+        "corruption probe ran in an isolated process",
+        "Open/Health returned a controlled error",
+        "no signal or timeout terminated the worker"
+      ]
+    },
+    {
+      "case": "permission_denied_directory",
+      "expected": "an unwritable directory is rejected without creating a database",
+      "observed": "all checks passed",
+      "duration_ms": 10.418877,
+      "passed": true,
+      "child": {"exit_code": 1, "stderr": "ladybug open: failed to open database with status 1"},
+      "checks": [
+        "worker ran as the invoking non-root user",
+        "database creation returned a controlled error",
+        "no database file was created"
+      ]
+    },
+    {
+      "case": "simulated_disk_full",
+      "expected": "ENOSPC damages only a private candidate while CURRENT remains recoverable",
+      "observed": "all checks passed",
+      "duration_ms": 2528.650278,
+      "passed": true,
+      "child": {"exit_code": 1, "stderr": "ENOSPC was not injected during Apply"},
+      "checks": [
+        "ENOSPC injector status: \"ENOSPC after_apply\"",
+        "worker exit code: 1",
+        "candidate publication returned an error",
+        "CURRENT and the active database checksum were preserved",
+        "failed candidate was removed and the emergency reserve was released",
+        "failure incident was recorded",
+        "a later generation was published and the previous generation restored"
+      ]
+    },
+    {
+      "case": "generation_publication_enospc",
+      "expected": "generation rename, CURRENT write/fsync/rename and state-directory fsync failures preserve the active generation",
+      "observed": "all checks passed",
+      "duration_ms": 6110.135163,
+      "passed": true,
+      "checks": [
+        "rename_generation: CURRENT preserved",
+        "write_current: CURRENT preserved",
+        "sync_file: CURRENT preserved",
+        "rename_current: CURRENT preserved",
+        "sync_directory: CURRENT preserved",
+        "successful publication and restoration passed after injected failures"
+      ]
+    }
+  ],
+  "all_passed": true,
+  "limitations": [
+    "The probes cover Linux process termination and filesystem-call faults, not machine power loss or storage-controller cache loss.",
+    "The full-disk case injects ENOSPC at the libc boundary only for the copied database file.",
+    "The permission case assumes the benchmark is not run as root.",
+    "The generation-publication cases inject directory and CURRENT failures through deterministic filesystem hooks."
+  ]
+}

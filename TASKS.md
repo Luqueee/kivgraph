@@ -10140,12 +10140,18 @@ y `cd ts-worker && pnpm build` pasaron. También pasaron los benchmarks
 semánticos, incrementales, de recuperación, HotSnapshot, MCP, observabilidad y
 el build reproducible.
 
+**Reruns posteriores:** el 2026-08-07, sobre el commit `45220d3` y el par
+LadybugDB `v0.13.1`, `benchmarks/ladybug-recovery-pinned/` pasó 8/8 casos con
+`source_unchanged: true`, y `benchmarks/mcp-client-32-pinned/` pasó las cinco
+comprobaciones SLO backend con 0 errores, p95 round-trip `3,351542 ms` y sin
+crecimiento continuo de memoria.
+
 **Limitaciones y siguiente acción:** el informe conserva las limitaciones de
 fixtures semánticas, transporte MCP en memoria, snapshot no serializado,
 recuperación sin pérdida eléctrica, fuzz smoke sin funciones `Fuzz*`, bytes
-nativos no reproducibles y mediciones históricas que deben repetirse sobre el
-par y hardware objetivo. La siguiente acción operativa es repetir esas
-mediciones antes de ampliar los SLO de producción.
+nativos no reproducibles y corpus sintético. La siguiente acción operativa es
+medir STDIO, sockets y red, y ampliar la recuperación a fallos de alimentación
+o almacenamiento si el entorno de despliegue lo exige.
 
 ---
 

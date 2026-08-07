@@ -111,6 +111,23 @@ Las consultas exactas y las travesías quedaron dentro de sus límites medidos.
   `157,84 ns/op` para OpenTelemetry `noop` y `636,68 ns/op` para `ManualReader`;
   las tres variantes produjeron `0 B/op` y `0 allocs/op`.
 
+## Repetición con el par fijado
+
+El 2026-08-07 se repitieron recuperación y rendimiento sobre el commit
+`45220d30c17d4521568dde6e1f8ae2aa4e367356`, Linux `amd64`, Go `1.24.4` y el
+par LadybugDB core/binding `v0.13.1`. Los resultados versionados están en
+`benchmarks/ladybug-recovery-pinned/` y `benchmarks/mcp-client-32-pinned/`.
+
+- Recuperación: 8/8 casos correctos, `source_unchanged: true` y
+  `all_passed: true`. El SHA-256 de la base privada fue idéntico antes y
+  después.
+- MCP con 32 clientes, 10.000 llamadas, 100 warm-ups por cliente, 100.000
+  símbolos y 1.000.000 de aristas: p50 `0,509040 ms`, p95 `3,351542 ms`, p99
+  `8,026664 ms`, throughput `26.267,3 calls/s`, cero errores y sin crecimiento
+  continuo de memoria.
+- Las cinco comprobaciones SLO de backend MCP pasaron. El resultado sigue
+  excluyendo STDIO, sockets y red; no se convierte en un SLO de transporte.
+
 ## Distribución y operación
 
 El bundle `linux/amd64` incluye el binario Go, el worker TypeScript, LadybugDB,
@@ -134,8 +151,8 @@ Requisitos obligatorios del despliegue:
 1. La exactitud semántica se midió contra fixtures versionadas. No demuestra
    precisión sobre cualquier repositorio externo no indexado.
 2. Los benchmarks MCP usan transporte en memoria y no cubren STDIO, sockets ni
-   red. El p95 round-trip aumenta a `3,780575 ms` con 32 clientes; la carga de
-   producción debe repetirse en el transporte y hardware objetivo.
+   red. El rerun fijado obtuvo p95 round-trip `3,351542 ms` con 32 clientes;
+   todavía debe medirse el transporte objetivo antes de ampliar su SLO.
 3. El `HotSnapshot` vive en memoria y se reconstruye en un arranque en frío; no
    existe snapshot serializado independiente.
 4. La recuperación cubre Linux, terminación de procesos y fallos de syscalls,
@@ -144,10 +161,9 @@ Requisitos obligatorios del despliegue:
    `Fuzz*`; no se ejecutaron mutaciones reales.
 6. La reproducibilidad binaria del archivo nativo LadybugDB no está garantizada.
 7. Algunos informes históricos registran árboles `-dirty` y mediciones previas
-   a la corrección del par core/binding. Los gates funcionales actuales se
-   repitieron con `v0.13.1`; el rendimiento y recuperación deben repetirse en
-   el hardware objetivo antes de convertir las cifras históricas en un SLO de
-   despliegue.
+   a la corrección del par core/binding. El rerun del 2026-08-07 sobre
+   `v0.13.1` pasó recuperación y MCP en el host calificado; no cubre pérdida
+   eléctrica ni permite convertir la medición en un SLO de red.
 8. El benchmark reducido `benchmarks/ladybug-bulk/report.md` registra
    `full_initial_scale=false` y gate `false`; no se usa como evidencia de
    producción. La evidencia válida de escala es
@@ -172,6 +188,6 @@ También pasaron los benchmarks semánticos, incrementales, de recuperación,
 HotSnapshot, MCP, observabilidad y el build reproducible. Las limitaciones
 anteriores forman parte de la decisión y no son warnings ocultos.
 
-**Siguiente acción:** repetir las mediciones de rendimiento y recuperación con
-el par LadybugDB fijado y sobre el hardware/transporte objetivo antes de
-ampliar el SLO de producción.
+**Siguiente acción:** medir STDIO, sockets y red, y ampliar la recuperación a
+fallos de alimentación o almacenamiento si el entorno de despliegue lo exige,
+antes de ampliar los SLO de producción.
