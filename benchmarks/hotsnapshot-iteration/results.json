@@ -1,0 +1,40 @@
+{
+  "benchmark": "hotsnapshot-iteration",
+  "command": "go test ./internal/hotsnapshot -run '^$' -bench 'BenchmarkHotSnapshot(OutgoingAllSymbols|VisitCSRBySymbol)$' -benchmem -count=1",
+  "commit": "7f74bdc7b5f39915f7e46cf3707e10a62d1cac20",
+  "generated_at": "2026-08-07T15:24:13Z",
+  "environment": {
+    "os": "Linux 6.12.94+deb13-amd64",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "memory": "23 GiB",
+    "go": "go1.24.4"
+  },
+  "dataset": {
+    "name": "hotBenchmarkRowsFixture",
+    "seed": null,
+    "parameters": {
+      "repositories": 10,
+      "packages": 100,
+      "files": 1000,
+      "symbols": 100000,
+      "edges": 1000000,
+      "generation": "deterministic index arithmetic; no PRNG seed"
+    }
+  },
+  "metrics": {
+    "old_outgoing_all_symbols": {
+      "ns_per_op": 2606721,
+      "bytes_per_op": 12800000,
+      "allocations_per_op": 100000,
+      "symbols_per_op": 100000
+    },
+    "visit_csr_by_symbol": {
+      "ns_per_op": 2329939,
+      "bytes_per_op": 0,
+      "allocations_per_op": 0,
+      "symbols_per_op": 100000
+    }
+  },
+  "passed": true
+}
