@@ -1,0 +1,32 @@
+{
+  "benchmark": "mcp-stdio",
+  "command": "go run ./benchmarks/mcp-stdio --server ./ladygraph --config benchmarks/mcp-stdio/testdata/config.yaml --calls 10000 --warmup 100 --output benchmarks/mcp-stdio",
+  "commit": "4580240a155940cadf9e230626d42e8879a3e337",
+  "generated_at": "2026-08-07T14:26:07.690989125Z",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "memory": "24543908 kB",
+    "go": "go1.24.4"
+  },
+  "transport": "stdio-subprocess",
+  "server_config": "benchmarks/mcp-stdio/testdata/config.yaml",
+  "protocol_version": "2025-06-18",
+  "tool_count": 9,
+  "warmup_calls": 100,
+  "calls": 10000,
+  "metrics": {
+    "p50_ms": 0.269231,
+    "p95_ms": 0.362711,
+    "p99_ms": 0.573922,
+    "min_ms": 0.214761,
+    "max_ms": 1.996267,
+    "throughput_per_s": 3520.6650662490783,
+    "rss_bytes": 19075072
+  },
+  "errors": 0,
+  "server_exit_code": 0,
+  "server_stderr": "{\"time\":\"2026-08-07T16:26:07.692978652+02:00\",\"level\":\"INFO\",\"msg\":\"starting MCP server\",\"command\":\"serve\"}\n{\"time\":\"2026-08-07T16:26:10.569223932+02:00\",\"level\":\"INFO\",\"msg\":\"MCP server stopped\",\"command\":\"serve\"}\n",
+  "transport_slo_note": "The SLO document defines backend limits, not a STDIO transport limit; this result is evidence, not a transport gate."
+}

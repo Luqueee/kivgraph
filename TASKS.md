@@ -10144,14 +10144,18 @@ el build reproducible.
 LadybugDB `v0.13.1`, `benchmarks/ladybug-recovery-pinned/` pasó 8/8 casos con
 `source_unchanged: true`, y `benchmarks/mcp-client-32-pinned/` pasó las cinco
 comprobaciones SLO backend con 0 errores, p95 round-trip `3,351542 ms` y sin
-crecimiento continuo de memoria.
+crecimiento continuo de memoria. `benchmarks/mcp-stdio/`, sobre el commit del
+benchmark `4580240`, completó protocolo `2025-06-18`, nueve tools, 100
+warm-ups y 10.000 llamadas con 0 errores, exit code `0`, p95 `0,362711 ms` y
+RSS muestreado de `19.075.072` bytes.
 
 **Limitaciones y siguiente acción:** el informe conserva las limitaciones de
 fixtures semánticas, transporte MCP en memoria, snapshot no serializado,
 recuperación sin pérdida eléctrica, fuzz smoke sin funciones `Fuzz*`, bytes
-nativos no reproducibles y corpus sintético. La siguiente acción operativa es
-medir STDIO, sockets y red, y ampliar la recuperación a fallos de alimentación
-o almacenamiento si el entorno de despliegue lo exige.
+nativos no reproducibles y corpus sintético. STDIO está medido; sockets y red
+no están configurados. Si el despliegue los requiere, primero debe definirse un
+transporte y un ADR; después habrá que medirlo. La recuperación ante fallos de
+alimentación o almacenamiento se amplía sólo si el entorno lo exige.
 
 ---
 

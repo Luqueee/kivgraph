@@ -125,8 +125,15 @@ par LadybugDB core/binding `v0.13.1`. Los resultados versionados están en
   símbolos y 1.000.000 de aristas: p50 `0,509040 ms`, p95 `3,351542 ms`, p99
   `8,026664 ms`, throughput `26.267,3 calls/s`, cero errores y sin crecimiento
   continuo de memoria.
-- Las cinco comprobaciones SLO de backend MCP pasaron. El resultado sigue
-  excluyendo STDIO, sockets y red; no se convierte en un SLO de transporte.
+- Las cinco comprobaciones SLO de backend MCP pasaron. El resultado de 32
+  clientes sigue excluyendo sockets y red; no se convierte en un SLO de
+  transporte.
+- STDIO real, ejecutado sobre el commit del benchmark `4580240`, con un proceso
+  `ladygraph serve`, protocolo `2025-06-18`, nueve tools, 100 warm-ups y 10.000
+  llamadas `graph_status`: p50 `0,269231 ms`, p95 `0,362711 ms`, p99
+  `0,573922 ms`, throughput `3.520,7 calls/s`, cero errores, exit code `0` y
+  RSS máximo muestreado de `19.075.072` bytes. El resultado está en
+  `benchmarks/mcp-stdio/`.
 
 ## Distribución y operación
 
@@ -150,9 +157,9 @@ Requisitos obligatorios del despliegue:
 
 1. La exactitud semántica se midió contra fixtures versionadas. No demuestra
    precisión sobre cualquier repositorio externo no indexado.
-2. Los benchmarks MCP usan transporte en memoria y no cubren STDIO, sockets ni
-   red. El rerun fijado obtuvo p95 round-trip `3,351542 ms` con 32 clientes;
-   todavía debe medirse el transporte objetivo antes de ampliar su SLO.
+2. El benchmark MCP de 32 clientes usa transporte en memoria y no cubre
+   sockets ni red. El rerun STDIO obtuvo p95 round-trip `0,362711 ms`; no
+   existe todavía un SLO de transporte para convertir esa cifra en PASS.
 3. El `HotSnapshot` vive en memoria y se reconstruye en un arranque en frío; no
    existe snapshot serializado independiente.
 4. La recuperación cubre Linux, terminación de procesos y fallos de syscalls,
@@ -161,9 +168,10 @@ Requisitos obligatorios del despliegue:
    `Fuzz*`; no se ejecutaron mutaciones reales.
 6. La reproducibilidad binaria del archivo nativo LadybugDB no está garantizada.
 7. Algunos informes históricos registran árboles `-dirty` y mediciones previas
-   a la corrección del par core/binding. El rerun del 2026-08-07 sobre
-   `v0.13.1` pasó recuperación y MCP en el host calificado; no cubre pérdida
-   eléctrica ni permite convertir la medición en un SLO de red.
+   a la corrección del par core/binding. Los reruns del 2026-08-07 sobre
+   `v0.13.1` pasaron recuperación, MCP en memoria y STDIO en el host calificado;
+   no cubren pérdida eléctrica ni permiten convertir esas mediciones en un SLO
+   de red.
 8. El benchmark reducido `benchmarks/ladybug-bulk/report.md` registra
    `full_initial_scale=false` y gate `false`; no se usa como evidencia de
    producción. La evidencia válida de escala es
@@ -185,9 +193,10 @@ cd ts-worker && pnpm build
 ```
 
 También pasaron los benchmarks semánticos, incrementales, de recuperación,
-HotSnapshot, MCP, observabilidad y el build reproducible. Las limitaciones
-anteriores forman parte de la decisión y no son warnings ocultos.
+HotSnapshot, MCP, STDIO, observabilidad y el build reproducible. Las
+limitaciones anteriores forman parte de la decisión y no son warnings ocultos.
 
-**Siguiente acción:** medir STDIO, sockets y red, y ampliar la recuperación a
-fallos de alimentación o almacenamiento si el entorno de despliegue lo exige,
-antes de ampliar los SLO de producción.
+**Siguiente acción:** sockets y red no están configurados por el servidor
+actual. Si el despliegue los requiere, primero debe definirse un transporte y
+un ADR; después habrá que medirlo. La recuperación ante fallos de alimentación
+o almacenamiento se amplía sólo si el entorno de despliegue lo exige.
