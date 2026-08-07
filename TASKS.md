@@ -10010,13 +10010,18 @@ KiB de RAM total y 8.783.788 KiB disponibles al inicio.
 
 **Dependencias:** LUQUE-1601.
 
+**Objetivo:** auditar las aristas que declaran confianza exacta contra las
+evidencias, procedencias y extremos declarados del grafo canónico.
+
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS_WITH_LIMITS`.
 
 **Requisito:**
 
@@ -10024,6 +10029,29 @@ KiB de RAM total y 8.783.788 KiB disponibles al inicio.
 0 false exact edges
 0 dangling exact edges
 ```
+
+**Verificación:**
+
+- `ladygraph doctor graph` sobre la generación canónica publicada
+  `000003` devolvió `PASS`: `exact_edge_without_source=0`,
+  `exact_edge_without_target=0`, `missing_evidence_file=0`,
+  `unknown_confidence=0`, `duplicate_stable_key=0` e
+  `invalid_repository_ownership=0`.
+- `go run ./benchmarks/go-semantic` devolvió `GO_SEMANTIC_PASS`: 16 true
+  positives, 0 false positives, 0 false negatives y 0 false exact edges.
+- `pnpm precision` devolvió `TYPESCRIPT_CROSS_REPO_PASS`: 11 true positives,
+  0 false positives, 0 false negatives y 0 false exact edges.
+- `go test -tags ladybug ./internal/storage/ladybug -run '^TestVerifyCanonicalIntegrity'`
+  pasó las pruebas positivas y negativas de extremos huérfanos, evidencia
+  ausente, confianza desconocida, claves duplicadas y ownership inválido.
+
+**Limitaciones:** la auditoría canónica usa la generación publicada de
+calificación y las fixtures semánticas Go/TypeScript versionadas; no afirma
+precisión sobre repositorios externos que todavía no hayan sido indexados.
+`PASS_WITH_LIMITS` separa esa cobertura de fixtures del requisito global de
+producción.
+
+**Siguiente tarea:** LUQUE-1604.
 
 ---
 

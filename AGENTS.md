@@ -98,6 +98,9 @@ integridad, compatibilidad o verificación descritos aquí.
   privada y nunca sustituyen ni modifican repositorios indexados. Para
   LadybugDB, la reproducibilidad debe distinguir entre hechos lógicos
   (conteos, schema e integridad) y bytes físicos del archivo nativo.
+- Una auditoría de exactitud debe separar `false exact edges` de aristas
+  colgantes: compara fixtures con ground truth para las primeras y ejecuta las
+  invariantes canónicas de extremos, evidencia y procedencia para las segundas.
 
 ## Verificación obligatoria
 
