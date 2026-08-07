@@ -10061,19 +10061,43 @@ producción.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
-Comprobar que cada unresolved tiene:
+**Estado:** `PASS_WITH_LIMITS`.
 
-* motivo;
-* evidencia;
-* repo;
-* archivo;
-* lenguaje.
+**Verificación:**
+
+- `go run ./benchmarks/go-semantic` devolvió `GO_SEMANTIC_PASS`: las 2
+  referencias no resueltas esperadas del caso negativo se clasificaron
+  correctamente (`2/2`), con `0` mal clasificadas, `0` false positives,
+  `0` false negatives y `0` false exact edges.
+- `cd ts-worker && pnpm precision` devolvió
+  `TYPESCRIPT_CROSS_REPO_PASS`: las 4 referencias no resueltas esperadas del
+  caso negativo se clasificaron correctamente (`4/4`), con `0` mal
+  clasificadas, `0` entradas faltantes o inesperadas y `0` false exact edges.
+- `go test ./internal/goloader -run 'TestClassifyUnresolved|TestGoNegativeFixture' -count=1`
+  verificó motivos, detalle, repositorio, archivo y posición cuando la
+  referencia tiene una ocurrencia concreta, además de rechazar providers
+  ambiguos y reemplazos no demostrados.
+- `go test ./internal/facts -run 'TestUnresolved' -count=1` y las pruebas de
+  normalización TypeScript verificaron `reason`, `language`, `repository_key`,
+  `file_key`, símbolos solicitados, detalle y `source_symbol_key` sin inventar
+  identidad.
+- `TestNormalizeTypeScriptImportWithoutTargetIsUnresolved` y
+  `TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved` confirmaron que
+  una identidad no demostrada produce `UNRESOLVED`, nunca una arista.
+
+**Limitaciones:** el grafo canónico publicado y los fixtures positivos no
+contienen referencias no resueltas. Un conflicto de módulo del workspace puede
+carecer de archivo concreto; en ese caso `file_key` queda vacío por diseño y
+el hecho cuelga del repositorio, conforme al esquema canónico. No se fabrica
+un archivo ni una posición para ocultar esa ausencia.
+
+**Siguiente tarea:** LUQUE-1605.
 
 ---
 

@@ -432,3 +432,39 @@ ambos extremos estén declarados. Una sola clave mal derivada, en cualquiera de
 los tres productores nuevos, lo habría roto.
 
 No queda ninguna clase del modelo sin productor ni sin ejercitar.
+
+## Auditoría de referencias no resueltas — LUQUE-1604
+
+**Fecha:** 2026-08-07
+**Estado:** `PASS_WITH_LIMITS`
+
+La auditoría usó los fixtures positivos y negativos versionados, sin modificar
+repositorios indexados:
+
+| Lenguaje | Referencias esperadas en fixture negativo | Correctamente clasificadas | Mal clasificadas | False exact edges |
+| --- | ---: | ---: | ---: | ---: |
+| Go | 2 | 2 | 0 | 0 |
+| TypeScript | 4 | 4 | 0 | 0 |
+
+`go run ./benchmarks/go-semantic` emitió `GO_SEMANTIC_PASS`. `cd ts-worker &&
+pnpm precision` emitió `TYPESCRIPT_CROSS_REPO_PASS`; ambos informes también
+dejaron vacías las listas de entradas faltantes o inesperadas.
+
+Los hechos normalizados conservan `reason`, `language` y `repository_key`;
+cuando existe una ocurrencia concreta conservan `file_key`, posición,
+`requested_package`, `requested_symbol`, `detail` y `source_symbol_key`. Las
+pruebas `TestClassifyUnresolvedReportsLoadAndWorkspaceFailures`,
+`TestNormalizeTypeScriptImportWithoutTargetIsUnresolved` y
+`TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved` cubren esas ramas.
+`Set.Validate` rechaza motivos ausentes y referencias a repositorios, archivos
+o símbolos desconocidos.
+
+Una referencia sin identidad probada no se convierte en arista: los casos Go
+de provider ambiguo o reemplazo conflictivo y los casos TypeScript sin
+declaration map o sin base demostrable quedan en `UNRESOLVED`. Los tests
+comprueban explícitamente que no se emite la arista correspondiente.
+
+El grafo canónico publicado auditado no contiene `UNRESOLVED`. Un conflicto de
+módulo del workspace puede no tener archivo concreto; `file_key` queda vacío
+en esa única clase de hecho porque el error pertenece al repositorio, no a un
+archivo. No se inventa evidencia para completar ese campo.

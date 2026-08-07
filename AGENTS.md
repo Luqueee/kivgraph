@@ -44,6 +44,10 @@ integridad, compatibilidad o verificación descritos aquí.
 - En un delta incremental, todo hecho afirmado por un archivo se retira y se
   vuelve a afirmar junto con ese archivo. Las aristas de paquete también se
   retiran por su evidencia aunque sobrevivan sus dos extremos.
+- Cada `UNRESOLVED` conserva motivo, repositorio y lenguaje; cuando existe una
+  ocurrencia concreta conserva su archivo, posición y detalle observados.
+  Los fallos de módulo a nivel de repositorio pueden no tener archivo y nunca
+  se les fabrica evidencia ni una arista `EXACT`.
 
 ## Go
 
