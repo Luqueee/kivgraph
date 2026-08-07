@@ -90,8 +90,8 @@ func TestBuildSnapshotProducesQueryableGraphFromCanonicalData(t *testing.T) {
 	if !report.Passed {
 		t.Fatalf("Report.Passed = false, want true: %+v", report)
 	}
-	if report.SnapshotID != 7 || report.Version != snapshotRowFormatVersion {
-		t.Fatalf("Report id/version = %d/%d, want 7/%d", report.SnapshotID, report.Version, snapshotRowFormatVersion)
+	if report.SnapshotID != 7 || report.Version != SnapshotRowFormatVersion {
+		t.Fatalf("Report id/version = %d/%d, want 7/%d", report.SnapshotID, report.Version, SnapshotRowFormatVersion)
 	}
 
 	newID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey("sym-stable-new"))

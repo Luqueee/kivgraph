@@ -36,6 +36,34 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
+func TestRunVersionJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	if got := run([]string{"ladygraph", "version", "--json"}, &stdout, &stderr); got != 0 {
+		t.Fatalf("run() exit code = %d, want 0", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	var provenance version.Provenance
+	if err := json.Unmarshal(stdout.Bytes(), &provenance); err != nil {
+		t.Fatalf("version JSON = %q: %v", stdout.String(), err)
+	}
+	if provenance.Ladygraph != version.Value {
+		t.Fatalf("Ladygraph = %q, want %q", provenance.Ladygraph, version.Value)
+	}
+	if provenance.Go == "" || provenance.Ladybug != ladybug.CoreVersion || provenance.GoLadybug != ladybug.GoBindingVersion {
+		t.Fatalf("provenance = %#v", provenance)
+	}
+	if provenance.Schema != ladybug.CanonicalSchemaVersion || provenance.SnapshotRowFormat != rebuild.SnapshotRowFormatVersion {
+		t.Fatalf("schema = %d/%d, want %d/%d", provenance.Schema, provenance.SnapshotRowFormat, ladybug.CanonicalSchemaVersion, rebuild.SnapshotRowFormatVersion)
+	}
+	if provenance.Grammars.Manifest != "grammars/manifest.json" || len(provenance.Grammars.Versions) != 4 {
+		t.Fatalf("grammars = %#v", provenance.Grammars)
+	}
+}
+
 func TestRunServeStopsMCPOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -83,7 +111,7 @@ func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "usage: ladygraph version|serve|doctor storage") {
+	if !strings.Contains(stderr.String(), "usage: ladygraph version [--json]|serve|doctor storage") {
 		t.Fatalf("stderr = %q, want usage", stderr.String())
 	}
 }
@@ -107,7 +135,7 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 		t.Fatalf("record = %#v, want structured command error", record)
 	}
 	message, ok := record["message"].(string)
-	if !ok || !strings.Contains(message, "usage: ladygraph version|serve|doctor storage") {
+	if !ok || !strings.Contains(message, "usage: ladygraph version [--json]|serve|doctor storage") {
 		t.Fatalf("record message = %#v, want usage", record["message"])
 	}
 }

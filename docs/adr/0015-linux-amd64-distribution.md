@@ -56,6 +56,14 @@ manifest no contiene la hora actual. Registra:
 grafo/snapshot generado, no al toolchain de distribución. El valor efectivo
 se publica con el snapshot que el servidor cargue.
 
+El binario expone `ladygraph version --json` como el contrato de provenance
+auditable del producto. En un bundle lee el `manifest.json` adyacente y
+comprueba el digest del inventario de grammars antes de emitirlo; en desarrollo
+usa la información de build/runtime disponible y deja `null` donde no puede
+afirmar un valor. El campo `resolver` describe el grafo/snapshot cargado, por
+lo que el bundle lo mantiene `null`; `serverInfo.version` conserva la misma
+versión de release que `ladygraph version`.
+
 `dist/` es un directorio generado e ignorado por Git. Un build limpio se
 obtiene ejecutando `make build-linux-amd64` desde un checkout sin cambios; un
 build desde un árbol modificado no falla, pero `manifest.json` marca

@@ -127,6 +127,10 @@ cuando sea aplicable.
 - Los comandos, códigos, campos JSON y gates se escriben entre backticks.
 - El bundle Linux amd64 se genera con `make build-linux-amd64`; el directorio
   `dist/` es generado y no se usa como entrada indexada ni de benchmark.
+- `ladygraph version --json` debe conservar salida JSON exclusiva en `stdout`;
+  el bundle obtiene provenance del `manifest.json` y valida el digest de
+  `grammars/manifest.json`; los valores no observables se representan como
+  `null`.
 
 ## Entrega
 

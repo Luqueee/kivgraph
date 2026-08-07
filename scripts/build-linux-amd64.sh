@@ -167,7 +167,7 @@ cat > "$output_dir/manifest.json" <<EOF
   },
   "schema": {
     "canonical": 2,
-    "snapshot_row_format": 1
+    "snapshot_row_format": 3
   },
   "resolver_version": null,
   "grammars": {

@@ -29,14 +29,14 @@ import (
 // graph fails loudly instead of silently producing a wrong snapshot.
 var ErrSnapshotBuildFailed = errors.New("snapshot build failed")
 
-// snapshotRowFormatVersion versions the mapping this file implements from
+// SnapshotRowFormatVersion versions the mapping this file implements from
 // ladybug.CanonicalGraph to hotsnapshot.LadybugSnapshotRows. It is distinct
 // from both ladybug.CanonicalSchemaVersion (the database layout) and
 // facts.CodeFormatVersion (the kind/confidence/provenance numbering): this
 // constant changes only when this adapter's own row shaping rules change in
 // a way that would produce a different snapshot for the same canonical
 // graph.
-const snapshotRowFormatVersion uint32 = 3
+const SnapshotRowFormatVersion uint32 = 3
 
 // SnapshotStats accounts for what a built snapshot contains.
 type SnapshotStats struct {
@@ -82,7 +82,7 @@ type BuildSnapshotOptions struct {
 // returned once hotsnapshot.BuildGraphSnapshot has itself validated it.
 func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnapshot.GraphSnapshot, SnapshotReport, error) {
 	buildStart := time.Now()
-	report := SnapshotReport{SnapshotID: options.SnapshotID, Version: snapshotRowFormatVersion}
+	report := SnapshotReport{SnapshotID: options.SnapshotID, Version: SnapshotRowFormatVersion}
 	if err := ctx.Err(); err != nil {
 		return nil, report, fmt.Errorf("%w: %w", ErrSnapshotBuildFailed, err)
 	}
@@ -108,7 +108,7 @@ func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnaps
 	// of the same underlying graph — published as different generations,
 	// built at different wall clock times — compare equal by construction,
 	// not by convention.
-	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, options.SnapshotID, time.Now().UTC(), snapshotRowFormatVersion)
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, options.SnapshotID, time.Now().UTC(), SnapshotRowFormatVersion)
 	if err != nil {
 		return nil, report, fmt.Errorf("%w: build graph snapshot: %w", ErrSnapshotBuildFailed, err)
 	}
@@ -168,7 +168,7 @@ type GenerationSnapshotOptions struct {
 // then builds its HotSnapshot exactly like BuildSnapshot does. It is the
 // entry point the snapshot CLI command uses.
 func SnapshotGeneration(ctx context.Context, options GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, SnapshotReport, error) {
-	report := SnapshotReport{SnapshotID: options.SnapshotID, Version: snapshotRowFormatVersion}
+	report := SnapshotReport{SnapshotID: options.SnapshotID, Version: SnapshotRowFormatVersion}
 	store, err := openGenerationStore(options.Root, options.Store)
 	if err != nil {
 		return nil, report, fmt.Errorf("%w: open generation store: %w", ErrSnapshotBuildFailed, err)
@@ -495,7 +495,7 @@ func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 	sort.Slice(edges, func(i, j int) bool { return edgeRowLess(edges[i], edges[j]) })
 
 	hash := sha256.New()
-	fmt.Fprintf(hash, "snapshot_row_format=%d\n", snapshotRowFormatVersion)
+	fmt.Fprintf(hash, "snapshot_row_format=%d\n", SnapshotRowFormatVersion)
 	for _, repository := range repositories {
 		fmt.Fprintf(hash, "repository:%s name=%s path=%s languages=%s commit=%s\n",
 			repository.Key, repository.Name, repository.Path, repository.Languages, repository.Commit)

@@ -9484,7 +9484,7 @@ dist/ladygraph-linux-amd64/
 LadybugDB, `pnpm install --frozen-lockfile`, `pnpm build` y `go build -tags
 ladybug -trimpath`. El binario ejecutó `version` desde el bundle con su
 `RUNPATH` relativo, y el worker respondió `hello` desde `/tmp`. El manifest
-JSON validó `linux/amd64`, esquema canónico `2`, formato de filas `1`,
+JSON validó `linux/amd64`, esquema canónico `2`, formato de filas `3`,
 `resolver_version: null`, el `archive_sha256` fijado y 588 hashes de payload;
 `sha256sum -c` confirmó todos los archivos. Dos ejecuciones consecutivas
 produjeron el mismo SHA-256 para `manifest.json`
@@ -9509,11 +9509,11 @@ declara aquí.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Mostrar:**
 
@@ -9527,6 +9527,44 @@ declara aquí.
 * schema;
 * resolver;
 * grammars.
+
+**Estado:** `PASS`.
+
+**Implementación:** `ladygraph version --json` emite un único documento JSON
+estable con la versión de Ladygraph, commit y estado del árbol, toolchain Go,
+Node y TypeScript, versiones core/binding de LadybugDB, schema, formato de
+filas del snapshot, resolver y grammars. En un bundle valida el `manifest.json`
+y el SHA-256 de `grammars/manifest.json`; fuera de un bundle usa metadatos de
+build/runtime y representa como `null` los valores no disponibles.
+
+**Entregables:**
+
+```text
+cmd/ladygraph/main.go
+cmd/ladygraph/version.go
+cmd/ladygraph/main_test.go
+internal/version/provenance.go
+internal/version/provenance_test.go
+internal/rebuild/snapshot.go
+internal/storage/ladybug/doctor.go
+scripts/build-linux-amd64.sh
+```
+
+**Verificación:** `go vet ./...`, `go test ./... -count=1`, `make build`,
+`make test-ladybug` y `make build-linux-amd64` pasaron. El binario del bundle
+respondió `version` y `version --json` sin `LD_LIBRARY_PATH`; el JSON validó
+`ladygraph`, `commit`, `dirty`, Go `go1.24.4`, Node `v25.9.0`, TypeScript
+`7.0.2`, LadybugDB `v0.13.1`, binding `v0.13.1`, schema `2`, formato de filas
+`3`, `resolver: null` y las cuatro grammars fijadas. Las pruebas cubren
+manifest válido, fallback sin bundle, digest de grammars incorrecto y JSON
+malformado.
+
+**Limitaciones:** un binario de desarrollo no puede afirmar Node ni una
+versión embebida de TypeScript si no existe el bundle; esos campos quedan
+`null`. El bundle de verificación se construyó con cambios locales y marca
+`source.dirty: true`.
+
+**Siguiente tarea desbloqueada:** LUQUE-1503.
 
 ---
 

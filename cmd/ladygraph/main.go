@@ -108,9 +108,14 @@ func runWithGraphRollback(args []string, stdout, stderr io.Writer, diagnose stor
 }
 
 func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier, roles graphRoleResolver, rollback graphRollbacker, build snapshotBuilder) int {
-	if len(args) == 2 && args[1] == "version" {
-		fmt.Fprintln(stdout, version.Value)
-		return 0
+	if len(args) >= 2 && args[1] == "version" {
+		if len(args) == 2 {
+			fmt.Fprintln(stdout, version.Value)
+			return 0
+		}
+		if len(args) == 3 && args[2] == "--json" {
+			return runVersionJSON(stdout, stderr)
+		}
 	}
 	if len(args) >= 3 && args[1] == "doctor" && args[2] == "storage" {
 		return runDoctorStorage(args[3:], stdout, stderr, diagnose)
@@ -134,7 +139,7 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 		return runSnapshot(args[2:], stdout, stderr, build)
 	}
 
-	fmt.Fprintf(stderr, "usage: %s version|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version [--json]|serve|doctor storage --database PATH|doctor graph --database PATH|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]\n", args[0])
 	return 2
 }
 

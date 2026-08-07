@@ -7,7 +7,12 @@ import (
 	"strings"
 )
 
-const GoBindingVersion = "v0.13.1"
+const (
+	// CoreVersion is the native LadybugDB release paired with the Go binding.
+	CoreVersion = "v0.13.1"
+	// GoBindingVersion is the version of the LadybugDB Go binding.
+	GoBindingVersion = "v0.13.1"
+)
 
 type DiagnosticStatus string
 
