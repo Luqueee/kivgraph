@@ -10314,10 +10314,10 @@ reproducibles.
 
 **Checklist:**
 
-- [ ] Verificar defaults y validación `KnownFields`.
-- [ ] Añadir sección UI/HTTP y flag `--addr`.
-- [ ] Registrar lifecycle, cancelación y cierre del listener.
-- [ ] Probar bind loopback, dirección inválida y puerto ocupado.
+- [x] Verificar defaults y validación `KnownFields`.
+- [x] Añadir sección UI/HTTP y flag `--addr`.
+- [x] Registrar lifecycle, cancelación y cierre del listener.
+- [x] Probar bind loopback, dirección inválida y puerto ocupado.
 
 **Criterios de aceptación:**
 

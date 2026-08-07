@@ -77,6 +77,8 @@ integridad, compatibilidad o verificación descritos aquí.
 - `ladygraph ui` es opt-in, sirve solo el `HotSnapshot` publicado por HTTP
   read-only y mantiene `127.0.0.1:7777` como bind por defecto; un bind no
   loopback debe emitir una advertencia de seguridad.
+- `ladygraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
+  listener y ejecuta un cierre graceful acotado al cancelar el contexto.
 
 ## LadybugDB y snapshots
 

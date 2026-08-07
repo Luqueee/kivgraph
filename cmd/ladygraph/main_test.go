@@ -233,6 +233,27 @@ func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 		t.Fatal("web runner was not called")
 	}
 }
+func TestRunConfiguredUIUsesLoopbackDefaultAddress(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	if _, err := config.Initialize(config.InitOptions{
+		ConfigPath:       configPath,
+		RepositoriesPath: repositoriesPath,
+	}); err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+
+	err := runConfiguredUI(context.Background(), []string{"--config", configPath}, func(_ context.Context, address string, _ http.Handler) error {
+		if address != "127.0.0.1:7777" {
+			t.Fatalf("address = %q, want 127.0.0.1:7777", address)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("runConfiguredUI() error = %v", err)
+	}
+}
 
 func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	var stdout, stderr bytes.Buffer
