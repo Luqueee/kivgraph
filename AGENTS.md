@@ -91,6 +91,10 @@ integridad, compatibilidad o verificación descritos aquí.
   `RUNPATH`, el runtime Node requerido y la verificación `SHA256SUMS`; no
   presentar un bundle como autocontenido si faltan dependencias del sistema.
 
+- Un build de distribución limpio debe ser reproducible entre checkouts del
+  mismo commit, toolchain y plataforma; compara el payload completo y no solo
+  `manifest.json`.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance:

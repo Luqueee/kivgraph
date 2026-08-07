@@ -67,6 +67,8 @@ printf 'build-linux-amd64: installing worker dependencies\n' >&2
 pnpm --dir "$root/ts-worker" install --frozen-lockfile
 pnpm --dir "$root/ts-worker" build
 
+build_id="ladygraph-${source_commit}-${source_dirty}"
+
 printf 'build-linux-amd64: compiling Go binary\n' >&2
 CGO_ENABLED=1 \
 CGO_CFLAGS="-I$native_dir" \
@@ -77,6 +79,7 @@ go build \
   -tags ladybug \
   -trimpath \
   -buildvcs=true \
+  -ldflags "-buildid=$build_id" \
   -o "$output_dir/bin/ladygraph" \
   ./cmd/ladygraph
 

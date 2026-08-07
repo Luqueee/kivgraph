@@ -105,6 +105,11 @@ Ese comando recrea `dist/ladygraph-linux-amd64/`, descarga y verifica el asset
 nativo, instala las dependencias del worker con `pnpm install --frozen-lockfile`,
 compila el worker y valida `SHA256SUMS`. `dist/` es generado e ignorado por Git.
 
+En un checkout limpio, el `buildid` Go se deriva del commit y del estado
+`dirty`, no de la ruta temporal del checkout. Dos builds sobre el mismo commit,
+toolchain y plataforma producen el mismo payload; un árbol modificado se marca
+`source.dirty: true` en el manifest.
+
 ## Compilar desde el código fuente
 
 Este flujo es útil para desarrollo o para una plataforma para la que no exista

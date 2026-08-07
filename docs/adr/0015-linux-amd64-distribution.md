@@ -48,6 +48,11 @@ y un `RUNPATH` relativo (`$ORIGIN/../lib`). El bundle sigue dependiendo de las
 bibliotecas estándar del sistema Linux amd64; no se copian glibc, libstdc++ ni
 otras bibliotecas del sistema.
 
+El build fija el `buildid` de Go a una cadena derivada del commit y del estado
+`dirty` del checkout. Esto evita que las rutas absolutas temporales usadas por
+CGO modifiquen el binario entre checkouts limpios equivalentes; el commit y
+`source.dirty` siguen registrados en `manifest.json`.
+
 El script siempre descarga y verifica el asset nativo mediante
 `scripts/fetch-ladybug.sh`, instala el worker con `pnpm install --frozen-lockfile`,
 ejecuta `pnpm build` y copia el paquete `typescript` requerido en runtime. El
