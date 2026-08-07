@@ -1,6 +1,7 @@
 package hotsnapshot
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"strings"
@@ -73,6 +74,95 @@ func BenchmarkHotSnapshotReferences(b *testing.B) {
 			b.Fatal("outgoing references unexpectedly empty")
 		}
 	}
+}
+func BenchmarkHotSnapshotVisitSymbols(b *testing.B) {
+	snapshot := hotBenchmarkSnapshotFixture(b)
+	ctx := context.Background()
+	end := SymbolID(len(snapshot.symbols))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := snapshot.VisitSymbols(ctx, 0, end, benchmarkConsumeSymbol); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(end), "symbols/op")
+	if hotBenchmarkVisitSink == 0 {
+		b.Fatal("symbol visitor was not called")
+	}
+}
+
+func BenchmarkHotSnapshotVisitCSR(b *testing.B) {
+	snapshot := hotBenchmarkSnapshotFixture(b)
+	ctx := context.Background()
+	end := EdgeID(len(snapshot.forwardEdges))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := snapshot.VisitEdges(ctx, TraversalOutgoing, 0, end, benchmarkConsumeEdge); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(end), "edges/op")
+	if hotBenchmarkVisitSink == 0 {
+		b.Fatal("edge visitor was not called")
+	}
+}
+func BenchmarkHotSnapshotOutgoingAllSymbols(b *testing.B) {
+	snapshot := hotBenchmarkSnapshotFixture(b)
+	symbolCount := SymbolID(len(snapshot.symbols))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		for symbol := SymbolID(0); symbol < symbolCount; symbol++ {
+			for _, edge := range snapshot.Outgoing(symbol) {
+				hotBenchmarkVisitSink += uint64(edge.Target)
+			}
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(symbolCount), "symbols/op")
+	if hotBenchmarkVisitSink == 0 {
+		b.Fatal("outgoing getter was not called")
+	}
+}
+
+func BenchmarkHotSnapshotVisitCSRBySymbol(b *testing.B) {
+	snapshot := hotBenchmarkSnapshotFixture(b)
+	ctx := context.Background()
+	symbolCount := SymbolID(len(snapshot.symbols))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		for symbol := SymbolID(0); symbol < symbolCount; symbol++ {
+			start, end, ok := snapshot.CSRRange(TraversalOutgoing, symbol)
+			if !ok {
+				b.Fatal("outgoing CSR range was not found")
+			}
+			if err := snapshot.VisitEdges(ctx, TraversalOutgoing, start, end, benchmarkConsumeEdge); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(symbolCount), "symbols/op")
+	if hotBenchmarkVisitSink == 0 {
+		b.Fatal("outgoing iterator was not called")
+	}
+}
+
+var hotBenchmarkVisitSink uint64
+
+func benchmarkConsumeSymbol(id SymbolID, symbol SymbolRecord) error {
+	hotBenchmarkVisitSink += uint64(id) + uint64(symbol.File)
+	return nil
+}
+
+func benchmarkConsumeEdge(id EdgeID, edge PackedEdge) error {
+	hotBenchmarkVisitSink += uint64(id) + uint64(edge.Target)
+	return nil
 }
 
 func BenchmarkHotSnapshotDepth3(b *testing.B) {

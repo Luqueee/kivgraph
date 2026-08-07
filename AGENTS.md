@@ -88,6 +88,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - No leer ni servir consultas MCP directamente desde LadybugDB cuando el
   contrato exige el HotSnapshot publicado.
 - No mezclar el esquema experimental `001-synthetic` con el canónico `002`.
+- Los iteradores `VisitRepositories`, `VisitPackages`, `VisitFiles`,
+  `VisitSymbols`, `VisitEvidence` y `VisitEdges` entregan copias por valor y
+  no exponen slices internas; sus rangos son half-open y cancelables.
 
 - Un upgrade de schema incompatible debe detectar la versión, respaldar y
   verificar la generación activa antes de reconstruir desde repositorios fuente.
