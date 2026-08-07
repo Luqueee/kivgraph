@@ -9832,13 +9832,43 @@ TypeScript descrito en `docs/installation.md`.
 
 **Dependencias:** LUQUE-1503.
 
+**Objetivo:** demostrar que el bundle `linux/amd64` es reproducible entre
+checkouts limpios del mismo commit, toolchain y plataforma, comparando el
+payload completo y sus manifiestos.
+
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Estado:** `PASS`.
+
+**Implementación:** el build fija `-buildid` de Go a partir del commit y del
+estado `dirty` del checkout. Esto elimina la diferencia introducida por las
+rutas absolutas de CGO entre checkouts temporales. La guía de instalación y el
+ADR de distribución describen el contrato.
+
+**Verificación:** dos checkouts limpios equivalentes pasaron
+`make build-linux-amd64`; `diff -qr` confirmó payload idéntico y `cmp` confirmó
+`SHA256SUMS` y `manifest.json` idénticos. Ambos manifests declararon
+`source.dirty: false`, `linux/amd64` y el mismo commit; ambos bundles pasaron
+`sha256sum -c SHA256SUMS`. `version --json`, el worker `hello` y extracción
+TypeScript (`21 symbols`, `4 references`) pasaron. También pasaron
+`bash -n scripts/build-linux-amd64.sh`, `git diff --check`, `go vet ./...`,
+`go test ./... -count=1`, `make build`, `make test-ladybug` y
+`cd ts-worker && pnpm check && pnpm build`.
+
+**Limitaciones:** la comparación cubre dos checkouts Linux `amd64` con el mismo
+toolchain, dependencias fijadas y plataforma. No prueba reproducibilidad entre
+distribuciones Linux, arquitecturas o versiones distintas de Go/Node/pnpm. El
+build de un árbol modificado conserva `source.dirty: true` y usa un `buildid`
+distinto del build limpio.
+
+**Siguiente tarea:** LUQUE-1601.
+
 
 **Comparar checksums en dos entornos equivalentes cuando sea viable.**
 
