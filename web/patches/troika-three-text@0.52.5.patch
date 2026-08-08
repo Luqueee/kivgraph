@@ -1,0 +1,42 @@
+diff --git a/dist/troika-three-text.esm.js b/dist/troika-three-text.esm.js
+index 72c7a8b9e8911a669fd40b9a7d897a74197226ea..49a7c2c166f7406c3e3cb1623f5364210b587685 100644
+--- a/dist/troika-three-text.esm.js
++++ b/dist/troika-three-text.esm.js
+@@ -2129,6 +2129,9 @@ class GlyphsGeometry extends InstancedBufferGeometry {
+ 
+     this.detail = 1;
+     this.curveRadius = 0;
++    // WebGPU rejects the Infinity default while glyph data is still loading.
++    // The worker sets the real count in updateGlyphs before the first glyph frame.
++    this.instanceCount = 0;
+ 
+     // Define groups for rendering text outline as a separate pass; these will only
+     // be used when the `material` getter returns an array, i.e. outlineWidth > 0.
+diff --git a/dist/troika-three-text.umd.js b/dist/troika-three-text.umd.js
+index 32c3dcbcd9b716fa61c62e783ed89a0d532e23f6..5253ed1af37ce993d490fd19d12175912fc86934 100644
+--- a/dist/troika-three-text.umd.js
++++ b/dist/troika-three-text.umd.js
+@@ -2134,6 +2134,9 @@
+ 
+       this.detail = 1;
+       this.curveRadius = 0;
++      // WebGPU rejects the Infinity default while glyph data is still loading.
++      // The worker sets the real count in updateGlyphs before the first glyph frame.
++      this.instanceCount = 0;
+ 
+       // Define groups for rendering text outline as a separate pass; these will only
+       // be used when the `material` getter returns an array, i.e. outlineWidth > 0.
+diff --git a/src/GlyphsGeometry.js b/src/GlyphsGeometry.js
+index 980a38c134002c821994f17d01297441e7c1df37..013ce3403e227e0b0fd1071685765af0fe22f34c 100644
+--- a/src/GlyphsGeometry.js
++++ b/src/GlyphsGeometry.js
+@@ -56,6 +56,9 @@ class GlyphsGeometry extends InstancedBufferGeometry {
+ 
+     this.detail = 1
+     this.curveRadius = 0
++    // WebGPU rejects the Infinity default while glyph data is still loading.
++    // The worker sets the real count in updateGlyphs before the first glyph frame.
++    this.instanceCount = 0
+ 
+     // Define groups for rendering text outline as a separate pass; these will only
+     // be used when the `material` getter returns an array, i.e. outlineWidth > 0.

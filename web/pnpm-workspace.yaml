@@ -2,3 +2,4 @@ minimumReleaseAgeExclude:
   - lucide-react@1.30.0
 patchedDependencies:
   reagraph@4.32.0: patches/reagraph@4.32.0.patch
+  troika-three-text@0.52.5: patches/troika-three-text@0.52.5.patch

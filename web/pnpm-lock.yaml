@@ -6,6 +6,7 @@ settings:
 
 patchedDependencies:
   reagraph@4.32.0: beb5e03e265639c26ab39199441c2b7ba5f187c0524abc8d8e271dc2f4c44b20
+  troika-three-text@0.52.5: 7ab3699736ec7a12b510065c705088114433c4e633342900600865357731bf95
 
 importers:
 
@@ -44,6 +45,9 @@ importers:
       three:
         specifier: 0.184.0
         version: 0.184.0
+      troika-three-text:
+        specifier: 0.52.5
+        version: 0.52.5(patch_hash=7ab3699736ec7a12b510065c705088114433c4e633342900600865357731bf95)(three@0.184.0)
       tw-animate-css:
         specifier: 1.4.0
         version: 1.4.0
@@ -4473,7 +4477,7 @@ snapshots:
       three: 0.184.0
       three-mesh-bvh: 0.8.3(three@0.184.0)
       three-stdlib: 2.36.1(three@0.184.0)
-      troika-three-text: 0.52.5(three@0.184.0)
+      troika-three-text: 0.52.5(patch_hash=7ab3699736ec7a12b510065c705088114433c4e633342900600865357731bf95)(three@0.184.0)
       tunnel-rat: 0.1.2(@types/react@19.2.18)(react@19.2.8)
       use-sync-external-store: 1.6.0(react@19.2.8)
       utility-types: 3.11.0
@@ -6258,7 +6262,7 @@ snapshots:
 
   toidentifier@1.0.1: {}
 
-  troika-three-text@0.52.5(three@0.184.0):
+  troika-three-text@0.52.5(patch_hash=7ab3699736ec7a12b510065c705088114433c4e633342900600865357731bf95)(three@0.184.0):
     dependencies:
       bidi-js: 1.0.3
       three: 0.184.0

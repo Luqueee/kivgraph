@@ -50,6 +50,12 @@ si el navegador no devuelve un adaptador utilizable.
    fuerza un frame inmediato, evitando exponer un frame negro durante el gesto
    o su restauración.
 
+7. El visor fija `troika-three-text@0.52.5` mediante un patch versionado. Su
+   `GlyphsGeometry` empieza con `instanceCount = 0` y sólo habilita los glifos
+   cuando el worker termina el atlas. El valor heredado `Infinity` es válido
+   para WebGL, pero `drawIndexed` de WebGPU exige un entero finito y fallaba
+   durante esa ventana asíncrona.
+
 ## Alternativas descartadas
 
 - **Cambiar sólo `glOptions` desde `GraphPreview`:** Reagraph lo extiende como
@@ -74,10 +80,11 @@ si el navegador no devuelve un adaptador utilizable.
   por lo que no es un SLO universal.
 - En navegadores sin soporte, el visor sigue funcionando y el usuario ve
   `WebGL fallback` con la causa concreta; no se emite un PASS de WebGPU.
-- El bundle incluye el módulo `three/webgpu` y el parche de Reagraph. El coste
-  de carga y la mejora de FPS en una GPU discreta todavía requieren una
-  medición independiente con Chromium no-headless o un navegador que exponga
-  un adaptador real.
-- Los tests cubren la decisión de capacidad y sus fallos. El smoke test de CI
-  cubre WebGL; la ruta WebGPU queda pendiente de un entorno con WebGPU real y
-  de una métrica comparativa contra WebGL.
+- El bundle incluye `three/webgpu`, los parches de Reagraph y
+  `troika-three-text`. El coste de carga y la mejora de FPS en una GPU
+  discreta todavía requieren una medición independiente con Chromium
+  no-headless o un navegador que exponga un adaptador real.
+- Los tests cubren la decisión de capacidad, sus fallos y el conteo finito de
+  instancias de Troika antes de que termine la carga asíncrona. El smoke test
+  de CI cubre WebGL; la ruta WebGPU queda pendiente de un entorno con WebGPU
+  real y de una métrica comparativa contra WebGL.

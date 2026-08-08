@@ -44,4 +44,17 @@ describe("renderer backend selection", () => {
       reason: "WebGPU probe failed: permission denied",
     });
   });
+
+  it("starts Troika glyph geometry with a finite WebGPU instance count", async () => {
+    const moduleName = "troika-three-text";
+    const troika = (await import(moduleName)) as {
+      Text: new () => {
+        geometry: { instanceCount: number };
+      };
+    };
+    const text = new troika.Text();
+
+    expect(Number.isFinite(text.geometry.instanceCount)).toBe(true);
+    expect(text.geometry.instanceCount).toBe(0);
+  });
 });
