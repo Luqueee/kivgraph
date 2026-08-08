@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { GraphCanvas, darkTheme } from "reagraph";
 import type { GraphCanvasRef, InternalGraphNode } from "reagraph";
 
 import { ApiError, fetchMeta, type SnapshotMeta } from "@/api/client";
 import { FrameRate } from "@/components/FrameRate";
+import { createStatusChannel, HoverStatus } from "@/components/HoverStatus";
 import { ViewerChrome } from "@/components/ViewerChrome";
 import { frameGraph } from "@/renderer/camera";
 import { ContainmentLines } from "@/renderer/containment-lines";
@@ -75,6 +83,20 @@ const CAMERA_QUANTILE = 0.97;
 const NOTHING_ACTIVE: readonly string[] = [];
 
 /**
+ * Selection and neighbourhood travel together: they are one visual state, and
+ * two `useState` calls would hand Reagraph two element trees to reconcile.
+ */
+interface Highlight {
+  readonly selected: readonly string[];
+  readonly actives: readonly string[];
+}
+
+const NOTHING_HIGHLIGHTED: Highlight = {
+  selected: NOTHING_ACTIVE,
+  actives: NOTHING_ACTIVE,
+};
+
+/**
  * How long the cursor has to rest on a node before the highlight is applied.
  * Reagraph rebuilds every edge mesh when the active set changes - a second of
  * work on a tile with a thousand edges - so a cursor crossing the graph must
@@ -142,9 +164,8 @@ export function GraphPreview() {
   const [requestedBudget, setRequestedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [appliedBudget, setAppliedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [state, setState] = useState<ViewerState>(INITIAL_STATE);
-  const [status, setStatus] = useState(ROTATE_STATUS);
-  const [actives, setActives] = useState<readonly string[]>(NOTHING_ACTIVE);
-  const [selected, setSelected] = useState<readonly string[]>(NOTHING_ACTIVE);
+  const statusChannel = useMemo(() => createStatusChannel(ROTATE_STATUS), []);
+  const [highlight, setHighlight] = useState<Highlight>(NOTHING_HIGHLIGHTED);
   const [visibleKind, setVisibleKind] = useState<ViewerLodKind>(4);
   const [snapshotChanged, setSnapshotChanged] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -159,7 +180,7 @@ export function GraphPreview() {
   }, []);
   const worker = useRef<TileWorkerClient | null>(null);
   const canvas = useRef<GraphCanvasRef | null>(null);
-  const highlight = useRef<number | null>(null);
+  const settleTimer = useRef<number | null>(null);
   const onRendererFallback = useCallback((reason: string): void => {
     setRendererSelection((current) =>
       current?.backend === "webgpu" ? { backend: "webgl", reason } : current,
@@ -175,6 +196,11 @@ export function GraphPreview() {
   const webglFactory = useMemo(() => createWebGLFactory(), []);
   const hovered = useRef<string | null>(null);
   const visibleKindRef = useRef<ViewerLodKind>(4);
+  // Read by the hover handlers, which must keep one identity: a new
+  // `onNodePointerOver` is a new prop on the canvas, and that is a fresh
+  // element tree for every node Reagraph draws.
+  const rotateRef = useRef(true);
+  const neighbourhoodRef = useRef<Map<string, string[]>>(new Map());
 
   if (worker.current === null) {
     worker.current = createTileWorkerClient();
@@ -189,7 +215,8 @@ export function GraphPreview() {
     const client = worker.current;
     return () => {
       client?.close();
-      if (highlight.current !== null) window.clearTimeout(highlight.current);
+      if (settleTimer.current !== null)
+        window.clearTimeout(settleTimer.current);
     };
   }, []);
   useEffect(() => {
@@ -212,7 +239,7 @@ export function GraphPreview() {
   useEffect(() => {
     const controller = new AbortController();
     if (reloadToken > 0) setSnapshotChanged(false);
-    setSelected(NOTHING_ACTIVE);
+    setHighlight(NOTHING_HIGHLIGHTED);
     setState((previous) => ({ ...previous, loading: true, error: null }));
     (async () => {
       const meta = await fetchMeta(controller.signal);
@@ -291,8 +318,7 @@ export function GraphPreview() {
     visibleKindRef.current = next;
     setVisibleKind(next);
     hovered.current = null;
-    setActives(NOTHING_ACTIVE);
-    setSelected(NOTHING_ACTIVE);
+    setHighlight(NOTHING_HIGHLIGHTED);
   }, []);
 
   // What the tile actually holds, projected to the detail the camera can
@@ -407,58 +433,79 @@ export function GraphPreview() {
     return map;
   }, [visibleGraph]);
 
+  useEffect(() => {
+    neighbourhoodRef.current = neighbourhood;
+  }, [neighbourhood]);
+  useEffect(() => {
+    rotateRef.current = rotate;
+  }, [rotate]);
+
   // Both edges of the hover go through the same timer. Entering and leaving
   // arrive interleaved when the cursor crosses from one node to the next, and
   // a highlight applied on every one of them would flash; waiting for the
   // cursor to settle also spares Reagraph a full edge-mesh rebuild per node
   // grazed on the way - about a second on a tile with a thousand edges.
-  const settle = (apply: () => void): void => {
-    if (highlight.current !== null) window.clearTimeout(highlight.current);
-    highlight.current = window.setTimeout(apply, HOVER_SETTLE_MS);
-  };
+  const settle = useCallback((apply: () => void): void => {
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(apply, HOVER_SETTLE_MS);
+  }, []);
 
   // The containment mesh dims by node, not by edge id, so it needs the set of
   // nodes that stay lit rather than Reagraph's mixed list.
   const litNodes = useMemo(
-    () => new Set(selected.concat(actives)),
-    [selected, actives],
+    () => new Set(highlight.selected.concat(highlight.actives)),
+    [highlight],
   );
 
-  const enterNode = (node: InternalGraphNode): void => {
-    const data = node.data as ReagraphNodeData | undefined;
-    const kind = LOD_LABELS[(data?.kind ?? 1) - 1] ?? "node";
-    hovered.current = node.id;
-    // The caption on the canvas is shortened; the readout is the full name.
-    setStatus(`${data?.label ?? node.label ?? node.id} · ${kind}`);
-    settle(() => {
-      // Reagraph only dims the rest of the graph when something is selected,
-      // so the node under the cursor is the selection and everything it
-      // touches is active. Without the selection the highlight would light one
-      // node and leave the other thousand as bright as before.
-      setSelected([node.id]);
-      setActives(neighbourhood.get(node.id) ?? NOTHING_ACTIVE);
-    });
-  };
-
-  const clearHighlight = (): void => {
+  const clearHighlight = useCallback((): void => {
     hovered.current = null;
-    setStatus(rotate ? ROTATE_STATUS : READY_STATUS);
-    setActives(NOTHING_ACTIVE);
-    setSelected(NOTHING_ACTIVE);
-  };
+    statusChannel.set(rotateRef.current ? ROTATE_STATUS : READY_STATUS);
+    startTransition(() => setHighlight(NOTHING_HIGHLIGHTED));
+  }, [statusChannel]);
+
+  const enterNode = useCallback(
+    (node: InternalGraphNode): void => {
+      const data = node.data as ReagraphNodeData | undefined;
+      const kind = LOD_LABELS[(data?.kind ?? 1) - 1] ?? "node";
+      hovered.current = node.id;
+      // The caption on the canvas is shortened; the readout is the full name.
+      // It goes through the channel because writing it into the viewer's state
+      // would rebuild the element tree of every node on the way to this one.
+      statusChannel.set(`${data?.label ?? node.label ?? node.id} · ${kind}`);
+      settle(() => {
+        // Reagraph only dims the rest of the graph when something is selected,
+        // so the node under the cursor is the selection and everything it
+        // touches is active. Without the selection the highlight would light
+        // one node and leave the other thousand as bright as before.
+        // Reagraph re-renders one component per node when the active set
+        // changes, so the commit is proportional to the tile. As a transition
+        // React can split it across frames and the pointer keeps its own.
+        startTransition(() =>
+          setHighlight({
+            selected: [node.id],
+            actives: neighbourhoodRef.current.get(node.id) ?? NOTHING_ACTIVE,
+          }),
+        );
+      });
+    },
+    [settle, statusChannel],
+  );
 
   // A pointer-out for a node the cursor already left behind is stale: moving
   // between neighbours delivers the two events in either order.
-  const leaveNode = (node: InternalGraphNode): void => {
-    if (hovered.current !== node.id) return;
-    settle(clearHighlight);
-  };
+  const leaveNode = useCallback(
+    (node: InternalGraphNode): void => {
+      if (hovered.current !== node.id) return;
+      settle(clearHighlight);
+    },
+    [clearHighlight, settle],
+  );
 
-  const leaveCanvas = (): void => {
-    if (highlight.current !== null) window.clearTimeout(highlight.current);
-    highlight.current = null;
+  const leaveCanvas = useCallback((): void => {
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = null;
     clearHighlight();
-  };
+  }, [clearHighlight]);
 
   return (
     <div
@@ -517,8 +564,8 @@ export function GraphPreview() {
           // Hovering a node lights it, its edges and its neighbours, and dims
           // everything else to the theme's inactive opacity. On a tile with a
           // thousand edges that is the only way to read where one of them goes.
-          actives={actives as string[]}
-          selections={selected as string[]}
+          actives={highlight.actives as string[]}
+          selections={highlight.selected as string[]}
           onNodePointerOver={enterNode}
           onNodePointerOut={leaveNode}
         >
@@ -548,7 +595,8 @@ export function GraphPreview() {
           )}
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          <FrameRate /> · {rendererLabel} · {status}
+          <FrameRate /> · {rendererLabel} ·{" "}
+          <HoverStatus channel={statusChannel} />
         </span>
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
@@ -613,7 +661,7 @@ export function GraphPreview() {
           type="button"
           onClick={() => {
             setRotate((previous) => {
-              setStatus(previous ? READY_STATUS : ROTATE_STATUS);
+              statusChannel.set(previous ? READY_STATUS : ROTATE_STATUS);
               return !previous;
             });
           }}

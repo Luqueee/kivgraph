@@ -41,17 +41,18 @@ si el navegador no devuelve un adaptador utilizable.
    optimización oportunista, no un requisito de instalación ni una garantía de
    rendimiento.
 
-6. La fábrica de fallback crea `WebGLRenderer` sin antialiasing. Durante una
-   interacción de cámara, `FrameGovernor` limita el DPR a `1`, pausa el
-   picking de objetos y oculta las etiquetas poniendo `visible = false` en
-   cada malla de Troika; al terminar el gesto restaura las tres cosas. Las
-   etiquetas no se desmontan: el conmutador `labelType` de Reagraph reconstruye
-   todas las mallas de glifos y costaba `152 ms` al empezar el gesto y `134 ms`
-   al soltarlo, justo el gasto que pretendía evitar. La reducción es
-   transitoria y no cambia el payload ni el layout publicado. Sólo se redibuja
-   cuando el DPR realmente cambia y cada reconstrucción del drawing buffer
-   fuerza un frame inmediato, evitando exponer un frame negro durante el gesto
-   o su restauración.
+6. La fábrica de fallback crea `WebGLRenderer` sin antialiasing. Mientras el
+   puntero se mueve sobre el lienzo - arrastrando o sólo pasando por encima -
+   `FrameGovernor` limita el DPR a `1`; un gesto sostenido añade la pausa del
+   picking y oculta las etiquetas poniendo `visible = false` en cada malla de
+   Troika. Al quedar inactivo restaura las tres cosas. Las etiquetas no se
+   desmontan: el conmutador `labelType` de Reagraph reconstruye todas las
+   mallas de glifos y costaba `152 ms` al empezar el gesto y `134 ms` al
+   soltarlo, justo el gasto que pretendía evitar. La reducción es transitoria
+   y no cambia el payload ni el layout publicado. Sólo se redibuja cuando el
+   DPR realmente cambia y cada reconstrucción del drawing buffer fuerza un
+   frame inmediato, evitando exponer un frame negro durante el gesto o su
+   restauración.
 
 7. El visor fija `troika-three-text@0.52.5` mediante un patch versionado con
    dos cambios. `GlyphsGeometry` empieza con `instanceCount = 0` y sólo
@@ -104,6 +105,13 @@ si el navegador no devuelve un adaptador utilizable.
   `p50=17 ms` y picos de `152 ms` y `134 ms`. Ocultando por visibilidad: `119`
   frames, `p50=18 ms`, `p95=25 ms` y pico máximo de `59 ms`. Bajo el backend
   WebGPU de SwiftShader: `p50=17 ms`, `p95=21 ms`, pico máximo `30 ms`.
+- Medición del hover con `deviceScaleFactor: 2` emulado y la misma tile:
+  recorriendo el grafo con el puntero, `p50=40 ms` y `p95=49 ms` cuando el DPR
+  sólo bajaba al arrastrar, frente a `p50=28 ms` y `p95=40 ms` limitándolo
+  también al pasar por encima. El buffer vuelve a `2x` al detenerse el cursor.
+  El commit de React que aplica el resaltado mide `2,3-2,9 ms`, de modo que el
+  coste del hover son píxeles, no reconciliación; con el puntero quieto el
+  lienzo no emite ninguna llamada de dibujo.
 - Verificación con WebGPU real sobre Chromium `headless=new` con adaptador
   SwiftShader: backend `WebGPU`, `40.601` llamadas `drawIndexed`, `0` enlaces
   de índice inválidos y `0` errores de página durante carga, cinco gestos de

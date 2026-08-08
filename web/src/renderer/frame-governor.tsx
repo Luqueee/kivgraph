@@ -61,8 +61,10 @@ export function wakeFrame(
  * of motion, and the camera only moves while the pointer is on the canvas.
  *
  * So: `demand` at rest, `always` while the pointer is working, and back to
- * `demand` once it has been still. During a held pointer it also caps the
- * renderer DPR at `1`, pauses scene picking and hides the text labels.
+ * `demand` once it has been still. While the pointer moves it also caps the
+ * renderer DPR at `1` - a hover on a HiDPI screen otherwise redraws four
+ * times the pixels of the frame the reader is waiting for - and a held
+ * pointer additionally pauses scene picking and hides the text labels.
  * Waking on the raw DOM events rather than on the controls' own events keeps
  * this independent of how Reagraph drives them.
  */
@@ -95,7 +97,7 @@ export function FrameGovernor(): null {
       resizeRenderer();
     };
     const lowerDpr = (): void => {
-      if (!dragging.current || interactionDpr.current !== null) return;
+      if (interactionDpr.current !== null) return;
       const previousDpr = savedInteractionDpr(
         gl.getPixelRatio(),
         INTERACTION_DPR,

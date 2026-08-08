@@ -95,14 +95,19 @@ integridad, compatibilidad o verificación descritos aquí.
 - El visor consulta `navigator.gpu` antes de montar WebGPU; sin un adaptador
   utilizable muestra el motivo y conserva WebGL. La ruta WebGPU usa materiales
   nodo y nunca se declara activa por una mera propiedad de configuración.
-- La fábrica WebGL del visor desactiva antialiasing; durante un gesto de cámara
-  `FrameGovernor` limita el DPR a `1`, pausa el picking y oculta las etiquetas
-  con `visible = false`, restaurando esos recursos al quedar inactivo. Cada
-  cambio del drawing buffer se repinta sincrónicamente antes de exponerse al
-  navegador, para no mostrar un frame negro.
+- La fábrica WebGL del visor desactiva antialiasing; `FrameGovernor` limita el
+  DPR a `1` mientras el puntero se mueve - también al pasar por encima, no sólo
+  al arrastrar - y durante un gesto sostenido pausa además el picking y oculta
+  las etiquetas con `visible = false`. Todo se restaura al quedar inactivo, y
+  cada cambio del drawing buffer se repinta sincrónicamente antes de exponerse
+  al navegador, para no mostrar un frame negro.
 - Las etiquetas no se desmontan durante un gesto: `labelType` permanece fijo
   porque conmutarlo reconstruye todas las mallas de glifos y detiene el
   arrastre más de `130 ms` en cada extremo del gesto.
+- El rótulo del nodo apuntado no vive en el estado del visor: viaja por un
+  canal propio (`createStatusChannel`) porque un `setState` por nodo rozado
+  reconstruye el árbol de elementos de todo el grafo. La selección y su
+  vecindario son un único estado y se aplican dentro de `startTransition`.
 - Las geometrías instanciadas de Troika parten con `instanceCount: 0` hasta
   que llega el atlas de glifos asíncrono y no llaman a `dispose()` al sustituir
   un atributo: `troika-three-text@0.52.5` permanece fijado y parcheado porque
