@@ -100,9 +100,11 @@ integridad, compatibilidad o verificación descritos aquí.
   costosas, restaurando esos recursos al quedar inactivo. Cada cambio del
   drawing buffer se repinta sincrónicamente antes de exponerse al navegador,
   para no mostrar un frame negro.
-- Las geometrías instanciadas de Troika parten con `instanceCount: 0` hasta que
-  llega el atlas de glifos asíncrono; `troika-three-text@0.52.5` permanece
+- Las geometrías instanciadas de Troika parten con `instanceCount: 0` hasta
+  que llega el atlas de glifos asíncrono; `troika-three-text@0.52.5` permanece
   fijado y parcheado porque WebGPU rechaza el valor por defecto `Infinity`.
+  `FrameGovernor` valida además los conteos no finitos antes del primer frame
+  WebGPU, los convierte en draws vacíos y deja un warning visible.
 
 ## LadybugDB y snapshots
 

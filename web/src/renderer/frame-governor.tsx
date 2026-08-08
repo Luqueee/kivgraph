@@ -1,5 +1,6 @@
-import { useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
+import { guardWebGPUInstancedGeometry } from "./webgpu-geometry";
 
 /** Interaction trades a little sharpness for a cheaper camera frame. */
 const INTERACTION_DPR = 1;
@@ -52,6 +53,7 @@ export function wakeFrame(
 
 interface FrameGovernorProps {
   readonly onInteractionChange?: (active: boolean) => void;
+  readonly webgpu?: boolean;
 }
 
 /**
@@ -72,8 +74,10 @@ interface FrameGovernorProps {
  */
 export function FrameGovernor({
   onInteractionChange,
+  webgpu = false,
 }: FrameGovernorProps = {}): null {
   const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
   const frameloop = useThree((state) => state.frameloop);
   const setFrameloop = useThree((state) => state.setFrameloop);
   const setEvents = useThree((state) => state.setEvents);
@@ -81,7 +85,18 @@ export function FrameGovernor({
   const interactionDpr = useRef<number | null>(null);
   const working = useRef(false);
   const dragging = useRef(false);
+  const webgpuGeometryChecked = useRef(false);
 
+  useFrame(() => {
+    if (!webgpu || webgpuGeometryChecked.current) return;
+    webgpuGeometryChecked.current = true;
+    const repaired = guardWebGPUInstancedGeometry(scene);
+    if (repaired > 0) {
+      console.warn(
+        `WebGPU skipped ${repaired} instanced geometries with invalid draw counts`,
+      );
+    }
+  });
   useEffect(() => {
     const canvas = gl.domElement;
     let idle = 0;

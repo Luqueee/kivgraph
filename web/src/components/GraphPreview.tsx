@@ -522,7 +522,10 @@ export function GraphPreview() {
           onNodePointerOver={enterNode}
           onNodePointerOut={leaveNode}
         >
-          <FrameGovernor onInteractionChange={setInteracting} />
+          <FrameGovernor
+            onInteractionChange={setInteracting}
+            webgpu={rendererSelection.backend === "webgpu"}
+          />
           <CameraLodObserver
             center={graph.stats.center}
             previous={visibleKind}

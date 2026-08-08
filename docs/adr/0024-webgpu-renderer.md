@@ -54,7 +54,10 @@ si el navegador no devuelve un adaptador utilizable.
    `GlyphsGeometry` empieza con `instanceCount = 0` y sólo habilita los glifos
    cuando el worker termina el atlas. El valor heredado `Infinity` es válido
    para WebGL, pero `drawIndexed` de WebGPU exige un entero finito y fallaba
-   durante esa ventana asíncrona.
+   durante esa ventana asíncrona. Además, `FrameGovernor` ejecuta una guardia
+   antes del primer frame WebGPU: cualquier geometría instanciada que aún
+   exponga un conteo no finito se convierte en un draw vacío y emite un
+   warning visible en la consola.
 
 ## Alternativas descartadas
 
@@ -84,7 +87,8 @@ si el navegador no devuelve un adaptador utilizable.
   `troika-three-text`. El coste de carga y la mejora de FPS en una GPU
   discreta todavía requieren una medición independiente con Chromium
   no-headless o un navegador que exponga un adaptador real.
-- Los tests cubren la decisión de capacidad, sus fallos y el conteo finito de
-  instancias de Troika antes de que termine la carga asíncrona. El smoke test
-  de CI cubre WebGL; la ruta WebGPU queda pendiente de un entorno con WebGPU
-  real y de una métrica comparativa contra WebGL.
+- Los tests cubren la decisión de capacidad, sus fallos, el conteo finito de
+  instancias de Troika y la guardia de conteos no finitos antes de que termine
+  la carga asíncrona. El smoke test de CI cubre WebGL; la ruta WebGPU queda
+  pendiente de un entorno con WebGPU real y de una métrica comparativa contra
+  WebGL.
