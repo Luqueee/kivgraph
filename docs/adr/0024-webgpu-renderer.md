@@ -41,6 +41,12 @@ si el navegador no devuelve un adaptador utilizable.
    optimización oportunista, no un requisito de instalación ni una garantía de
    rendimiento.
 
+6. La fábrica de fallback crea `WebGLRenderer` sin antialiasing. Durante una
+   interacción de cámara, `FrameGovernor` limita el DPR a `1`, oculta
+   temporalmente las etiquetas de Reagraph y pausa el picking de objetos; al
+   terminar el gesto restaura el DPR y las etiquetas. La reducción es
+   transitoria y no cambia el payload ni el layout publicado.
+
 ## Alternativas descartadas
 
 - **Cambiar sólo `glOptions` desde `GraphPreview`:** Reagraph lo extiende como
@@ -58,6 +64,11 @@ si el navegador no devuelve un adaptador utilizable.
 
 - En un navegador con adaptador WebGPU, la escena se inicializa con el backend
   WebGPU y materiales compatibles con nodos.
+
+- En el fallback WebGL, el smoke test de rotación mostró el indicador `58 fps`,
+  `p50=16,7 ms`, `p95=16,8 ms` y `1` intervalo superior a `25 ms` en
+  `1.500 ms`; la cifra depende del navegador, GPU, DPR y tamaño de la tile,
+  por lo que no es un SLO universal.
 - En navegadores sin soporte, el visor sigue funcionando y el usuario ve
   `WebGL fallback` con la causa concreta; no se emite un PASS de WebGPU.
 - El bundle incluye el módulo `three/webgpu` y el parche de Reagraph. El coste

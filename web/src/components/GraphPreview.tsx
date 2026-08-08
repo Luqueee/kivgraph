@@ -17,6 +17,7 @@ import {
 } from "@/renderer/node-renderer";
 import { configureViewerMaterials } from "@/renderer/materials";
 import {
+  createWebGLFactory,
   createWebGPUFactory,
   detectRendererBackend,
   type RendererSelection,
@@ -138,6 +139,7 @@ export function isEmptySnapshot(meta: SnapshotMeta): boolean {
 export function GraphPreview() {
   const [lod, setLod] = useState(1);
   const [rotate, setRotate] = useState(true);
+  const [interacting, setInteracting] = useState(false);
   const [requestedBudget, setRequestedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [appliedBudget, setAppliedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [state, setState] = useState<ViewerState>(INITIAL_STATE);
@@ -171,6 +173,7 @@ export function GraphPreview() {
         : undefined,
     [onRendererFallback, rendererSelection?.backend],
   );
+  const webglFactory = useMemo(() => createWebGLFactory(), []);
   const hovered = useRef<string | null>(null);
   const visibleKindRef = useRef<ViewerLodKind>(4);
 
@@ -479,7 +482,11 @@ export function GraphPreview() {
           edges={visibleGraph.edges}
           theme={VIEWER_THEME}
           layoutType="custom"
-          glOptions={webgpuFactory}
+          glOptions={
+            rendererSelection.backend === "webgpu"
+              ? webgpuFactory
+              : webglFactory
+          }
           layoutOverrides={visibleGraph.layoutOverrides}
           animated={false}
           // The adapter decides which nodes carry a caption at all - only
@@ -487,7 +494,9 @@ export function GraphPreview() {
           // given. Reagraph's own `auto` mode is evaluated once at mount and
           // never again, which on a camera that moves means captions that
           // never come back.
-          labelType="nodes"
+          // Troika labels are still renderable meshes. The governor removes
+          // them only while the camera is moving and restores them afterward.
+          labelType={interacting ? "none" : "nodes"}
           // A quarter of a million triangles per thousand nodes instead of a
           renderNode={
             rendererSelection.backend === "webgpu"
@@ -513,7 +522,7 @@ export function GraphPreview() {
           onNodePointerOver={enterNode}
           onNodePointerOut={leaveNode}
         >
-          <FrameGovernor />
+          <FrameGovernor onInteractionChange={setInteracting} />
           <CameraLodObserver
             center={graph.stats.center}
             previous={visibleKind}

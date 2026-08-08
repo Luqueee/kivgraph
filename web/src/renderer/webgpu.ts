@@ -1,4 +1,5 @@
 import type { GLProps } from "@react-three/fiber";
+import { WebGLRenderer } from "three";
 import { WebGPURenderer } from "three/webgpu";
 
 export type RendererBackend = "webgpu" | "webgl";
@@ -94,4 +95,26 @@ export function createWebGPUFactory(
     }
     return renderer;
   };
+}
+
+/**
+ * Creates the deliberate WebGL fallback with antialiasing disabled. The
+ * viewer already renders a dense 3D scene; avoiding a multisample buffer keeps
+ * camera interaction responsive on software WebGL while the renderer status
+ * remains visible to the user.
+ */
+export function createWebGLFactory(): GLProps {
+  return (defaultProps) =>
+    new WebGLRenderer({
+      canvas: defaultProps.canvas as
+        | HTMLCanvasElement
+        | globalThis.OffscreenCanvas,
+      alpha: defaultProps.alpha,
+      antialias: false,
+      powerPreference:
+        defaultProps.powerPreference === "low-power" ||
+        defaultProps.powerPreference === "high-performance"
+          ? defaultProps.powerPreference
+          : "high-performance",
+    });
 }

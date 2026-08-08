@@ -1,15 +1,30 @@
 import { useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 
-/** Interaction is over once the pointer has been still for this long. */
+/** Interaction trades a little sharpness for a cheaper camera frame. */
+const INTERACTION_DPR = 1;
 const IDLE_MS = 700;
 
-const WAKING_EVENTS = [
-  "pointerdown",
-  "pointermove",
-  "pointerup",
-  "wheel",
-] as const;
+const WAKING_EVENTS = ["pointermove", "wheel"] as const;
+const POINTER_RELEASE_EVENTS = ["pointerup", "pointercancel"] as const;
+
+/**
+ * Moves R3F into its interactive loop once per interaction. Calling
+ * `setFrameloop` repeatedly resets R3F's clock, which makes camera-controls'
+ * delta shrink to zero while pointermove events arrive.
+ */
+export function wakeFrame(
+  working: { current: boolean },
+  setFrameloop: (frameloop: "always") => void,
+): void {
+  if (working.current) return;
+  working.current = true;
+  setFrameloop("always");
+}
+
+interface FrameGovernorProps {
+  readonly onInteractionChange?: (active: boolean) => void;
+}
 
 /**
  * Renders the scene only when something changed.
@@ -21,40 +36,98 @@ const WAKING_EVENTS = [
  * of motion, and the camera only moves while the pointer is on the canvas.
  *
  * So: `demand` at rest, `always` while the pointer is working, and back to
- * `demand` once it has been still. Waking on the raw DOM events rather than on
- * the controls' own events keeps this independent of how Reagraph drives them.
+ * `demand` once it has been still. During a held pointer it also caps the
+ * renderer DPR at `1` and pauses scene picking; the parent uses the callback
+ * to remove expensive labels for the same interval. Waking on the raw DOM
+ * events rather than on the controls' own events keeps this independent of how
+ * Reagraph drives them.
  */
-export function FrameGovernor(): null {
+export function FrameGovernor({
+  onInteractionChange,
+}: FrameGovernorProps = {}): null {
   const gl = useThree((state) => state.gl);
   const frameloop = useThree((state) => state.frameloop);
   const setFrameloop = useThree((state) => state.setFrameloop);
+  const setEvents = useThree((state) => state.setEvents);
+  const interactionDpr = useRef<number | null>(null);
   const working = useRef(false);
+  const dragging = useRef(false);
 
   useEffect(() => {
     const canvas = gl.domElement;
     let idle = 0;
+    const resizeRenderer = (): void => {
+      gl.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    };
+    const restoreDpr = (): void => {
+      const previousDpr = interactionDpr.current;
+      if (previousDpr === null) return;
+      interactionDpr.current = null;
+      gl.setPixelRatio(previousDpr);
+      resizeRenderer();
+    };
+    const lowerDpr = (): void => {
+      if (!dragging.current || interactionDpr.current !== null) return;
+      const previousDpr = gl.getPixelRatio();
+      interactionDpr.current = previousDpr;
+      if (previousDpr > INTERACTION_DPR) {
+        gl.setPixelRatio(INTERACTION_DPR);
+        resizeRenderer();
+      }
+    };
     const rest = (): void => {
       working.current = false;
       setFrameloop("demand");
+      restoreDpr();
     };
     const wake = (): void => {
-      working.current = true;
-      setFrameloop("always");
+      lowerDpr();
+      wakeFrame(working, setFrameloop);
       window.clearTimeout(idle);
       idle = window.setTimeout(rest, IDLE_MS);
+    };
+    const press = (): void => {
+      if (!dragging.current) {
+        dragging.current = true;
+        lowerDpr();
+        onInteractionChange?.(true);
+        setEvents({ enabled: false });
+      }
+      wake();
+    };
+    const release = (): void => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      onInteractionChange?.(false);
+      setEvents({ enabled: true });
     };
     idle = window.setTimeout(rest, IDLE_MS);
     for (const event of WAKING_EVENTS) {
       canvas.addEventListener(event, wake, { passive: true });
     }
+    canvas.addEventListener("pointerdown", press, { passive: true });
+    for (const event of POINTER_RELEASE_EVENTS) {
+      window.addEventListener(event, release, { passive: true });
+    }
+    window.addEventListener("blur", release);
     return () => {
       window.clearTimeout(idle);
       for (const event of WAKING_EVENTS) {
         canvas.removeEventListener(event, wake);
       }
+      canvas.removeEventListener("pointerdown", press);
+      for (const event of POINTER_RELEASE_EVENTS) {
+        window.removeEventListener(event, release);
+      }
+      window.removeEventListener("blur", release);
+      const wasDragging = dragging.current;
+      dragging.current = false;
+      if (wasDragging) onInteractionChange?.(false);
+      setEvents({ enabled: true });
+      restoreDpr();
       setFrameloop("always");
     };
-  }, [gl, setFrameloop]);
+  }, [gl, onInteractionChange, setEvents, setFrameloop]);
 
   // Every commit of the canvas re-applies its own `frameloop` prop, which
   // Reagraph leaves unset - so any re-render of the viewer silently puts the

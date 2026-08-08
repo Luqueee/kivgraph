@@ -95,6 +95,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - El visor consulta `navigator.gpu` antes de montar WebGPU; sin un adaptador
   utilizable muestra el motivo y conserva WebGL. La ruta WebGPU usa materiales
   nodo y nunca se declara activa por una mera propiedad de configuración.
+- La fábrica WebGL del visor desactiva antialiasing; durante un gesto de cámara
+  `FrameGovernor` limita el DPR a `1`, pausa el picking y oculta etiquetas
+  costosas, restaurando esos recursos al quedar inactivo.
 
 ## LadybugDB y snapshots
 
