@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { BufferAttribute, BufferGeometry, Color, LineSegments } from "three";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  type LineSegments,
+} from "three";
 
 import {
   CONTAINMENT_COLOR,

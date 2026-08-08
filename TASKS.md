@@ -11001,6 +11001,7 @@ erizos: repositorios reconocibles al instante y contención como textura.
 - [x] Fijar la separación entre hermanos por el nodo típico, no por el mayor.
 - [x] Separar la cabecera en lo que se dibuja y el detalle técnico.
 
+- [x] Cambiar el nivel de detalle según la escala de la cámara con histéresis.
 **Criterios de aceptación:**
 
 - Los repositorios se localizan sin buscarlos.
@@ -11017,21 +11018,31 @@ erizos: repositorios reconocibles al instante y contención como textura.
   `web/src/renderer/layout/place.ts`,
   `web/src/components/GraphPreview.tsx`.
 
+* `docs/adr/0024-viewer-camera-lod.md`;
+* `web/src/renderer/lod.ts`, `web/src/renderer/lod-observer.tsx`,
+  `web/src/renderer/lod.test.ts`.
+
 **Verificación:**
 
-* `pnpm --dir web check`: 7 archivos de test y 42 tests pasando;
+* `pnpm --dir web check`: 8 archivos de test y 47 tests pasando;
 * smoke Chromium a `60` fps en `packages` y `files`, `33` fps rotando;
 * `symbols` con `10.000` nodos se dibuja como nebulosas con los repositorios
   visibles, no como erizos blancos;
 * hover, rotación, zoom, deslizador y modo 2D correctos; cero `pageerror`.
 
+* smoke Chromium con `10.000` nodos: al alejar hasta el límite la cabecera
+  declara `files LOD`, la escena conserva repositorios, paquetes y archivos,
+  y al acercar de nuevo vuelve a `full detail` con `5.6k symbols`; cero
+  `pageerror`.
+
 **Descartado tras medirlo:** niebla exponencial. Se calcula desde la cámara,
 que abre a dos radios y medio, así que velaba el grafo entero antes de dar
 sensación de profundidad. Revertida.
 
-**Limitación:** el nivel `symbols` completo sigue siendo una nube: diez mil
-nodos en un mundo de miles de unidades dan puntos de una fracción de píxel, y
-lo que se lee es la masa de cada cluster, no sus nodos.
+**Limitación:** el nivel `symbols` completo sigue siendo una nube cuando la
+cámara está cerca: diez mil nodos en un mundo de miles de unidades dan puntos
+de una fracción de píxel. Al alejarse, el LOD oculta esa textura y mantiene la
+jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 

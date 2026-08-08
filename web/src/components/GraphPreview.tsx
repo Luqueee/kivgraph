@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GraphCanvas, darkTheme } from "reagraph";
 import type { GraphCanvasRef, InternalGraphNode } from "reagraph";
 
@@ -7,6 +7,9 @@ import { FrameRate } from "@/components/FrameRate";
 import { frameGraph } from "@/renderer/camera";
 import { ContainmentLines } from "@/renderer/containment-lines";
 import { FrameGovernor } from "@/renderer/frame-governor";
+import { projectGraphAtKind } from "@/renderer/lod";
+import type { ViewerLodKind } from "@/renderer/lod";
+import { CameraLodObserver } from "@/renderer/lod-observer";
 import { renderGraphNode } from "@/renderer/node-renderer";
 import {
   MAX_TILE_BUDGET,
@@ -121,10 +124,12 @@ export function GraphPreview() {
   const [status, setStatus] = useState(ROTATE_STATUS);
   const [actives, setActives] = useState<readonly string[]>(NOTHING_ACTIVE);
   const [selected, setSelected] = useState<readonly string[]>(NOTHING_ACTIVE);
+  const [visibleKind, setVisibleKind] = useState<ViewerLodKind>(4);
   const worker = useRef<TileWorkerClient | null>(null);
   const canvas = useRef<GraphCanvasRef | null>(null);
   const highlight = useRef<number | null>(null);
   const hovered = useRef<string | null>(null);
+  const visibleKindRef = useRef<ViewerLodKind>(4);
 
   if (worker.current === null) {
     worker.current = createTileWorkerClient();
@@ -147,6 +152,11 @@ export function GraphPreview() {
 
   useEffect(() => {
     const controller = new AbortController();
+    visibleKindRef.current = 4;
+    setVisibleKind(4);
+    hovered.current = null;
+    setActives(NOTHING_ACTIVE);
+    setSelected(NOTHING_ACTIVE);
     setState((previous) => ({ ...previous, loading: true, error: null }));
     (async () => {
       const meta = await fetchMeta(controller.signal);
@@ -195,13 +205,37 @@ export function GraphPreview() {
 
   const graph = state.graph;
 
-  // What the tile actually holds, not what the level is called: a budgeted
-  // tile of `symbols` may be entirely repositories, packages and files, and
-  // saying "symbols" would be a lie the picture contradicts.
+  const visibleGraph = useMemo(() => {
+    if (!graph) return null;
+    const projection = projectGraphAtKind(graph, visibleKind);
+    return {
+      ...projection,
+      layoutOverrides: createLayoutOverrides(projection.nodes),
+    };
+  }, [graph, visibleKind]);
+
+  const onLodChange = useCallback((next: ViewerLodKind): void => {
+    if (next === visibleKindRef.current) return;
+    visibleKindRef.current = next;
+    setVisibleKind(next);
+    hovered.current = null;
+    setActives(NOTHING_ACTIVE);
+    setSelected(NOTHING_ACTIVE);
+  }, []);
+
+  // What the tile actually holds, projected to the detail the camera can
+  // resolve. The first line describes visible content; the second explains
+  // sampling and LOD without pretending hidden nodes are on screen.
   const summary = useMemo(() => {
     if (state.loading) return { drawn: "loading snapshot…", detail: "" };
-    if (!graph) return { drawn: "no graph", detail: "" };
-    const drawn = graph.stats.nodesByKind
+    if (!visibleGraph) return { drawn: "no graph", detail: "" };
+    const nodesByKind: [number, number, number, number] = [0, 0, 0, 0];
+    for (const node of visibleGraph.nodes) {
+      if (node.data.kind >= 1 && node.data.kind <= 4) {
+        nodesByKind[node.data.kind - 1] += 1;
+      }
+    }
+    const drawn = nodesByKind
       .map((count, position) => ({ count, label: LOD_LABELS[position] }))
       .filter((entry) => entry.count > 0)
       .map((entry) => `${compact(entry.count)} ${entry.label}`)
@@ -212,18 +246,26 @@ export function GraphPreview() {
           lod
         ]
       : undefined;
-    // What is drawn reads first; how it was cut is for whoever asks. The
-    // budget bites before the deepest level is reached, so a tile asked for
-    // `symbols` can hold none, and saying so is the honest part.
+    const clusterCount = new Set(
+      visibleGraph.nodes.map((node) => node.data.cluster),
+    ).size;
     const detail = [
-      `${graph.stats.clusterCount} clusters`,
-      `${compact(graph.edges.length)} edges`,
+      visibleGraph.maxKind < 4
+        ? `${LOD_LABELS[visibleGraph.maxKind - 1]} LOD`
+        : "full detail",
+      `${clusterCount} clusters`,
+      `${compact(visibleGraph.edges.length)} routes`,
+      visibleGraph.hiddenNodeCount > 0
+        ? `${compact(visibleGraph.hiddenNodeCount)} farther nodes hidden`
+        : null,
       state.truncated && available !== undefined
         ? `sample of ${compact(available)} ${LOD_LABELS[lod]}`
-        : "complete level",
-    ].join(" · ");
+        : null,
+    ]
+      .filter((entry): entry is string => entry !== null)
+      .join(" · ");
     return { drawn, detail };
-  }, [graph, lod, state.loading, state.meta, state.truncated]);
+  }, [lod, state.loading, state.meta, state.truncated, visibleGraph]);
 
   // The camera frames whatever the layout produced: thirty repositories and
   // two thousand symbols do not share a distance, and no constant fits both.
@@ -284,14 +326,14 @@ export function GraphPreview() {
       if (bucket === undefined) map.set(node, [related]);
       else bucket.push(related);
     };
-    for (const edge of graph?.edges ?? []) {
+    for (const edge of visibleGraph?.edges ?? []) {
       attach(edge.source, edge.id);
       attach(edge.source, edge.target);
       attach(edge.target, edge.id);
       attach(edge.target, edge.source);
     }
     return map;
-  }, [graph]);
+  }, [visibleGraph]);
 
   // Both edges of the hover go through the same timer. Entering and leaving
   // arrive interleaved when the cursor crosses from one node to the next, and
@@ -353,15 +395,15 @@ export function GraphPreview() {
       aria-label="Interactive Reagraph graph preview"
       onPointerLeave={leaveCanvas}
     >
-      {graph ? (
+      {graph && visibleGraph ? (
         <GraphCanvas
           ref={canvas}
           key={`${state.meta?.snapshotId ?? 0}-${lod}-${rotate ? "3d" : "2d"}`}
-          nodes={graph.nodes}
-          edges={graph.edges}
+          nodes={visibleGraph.nodes}
+          edges={visibleGraph.edges}
           theme={VIEWER_THEME}
           layoutType="custom"
-          layoutOverrides={graph.layoutOverrides}
+          layoutOverrides={visibleGraph.layoutOverrides}
           animated={false}
           // The adapter decides which nodes carry a caption at all - only
           // repositories and hubs do - so the canvas draws every label it is
@@ -392,9 +434,14 @@ export function GraphPreview() {
           onNodePointerOut={leaveNode}
         >
           <FrameGovernor />
+          <CameraLodObserver
+            center={graph.stats.center}
+            previous={visibleKind}
+            onChange={onLodChange}
+          />
           <ContainmentLines
-            nodes={graph.nodes}
-            links={graph.containment}
+            nodes={visibleGraph.nodes}
+            links={visibleGraph.containment}
             actives={litNodes}
             inactiveOpacity={VIEWER_THEME.node.inactiveOpacity}
           />

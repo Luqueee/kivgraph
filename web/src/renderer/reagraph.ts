@@ -154,6 +154,10 @@ export interface ReagraphEdgeData {
   readonly confidence: number;
   readonly provenance: number;
   readonly flags: number;
+  /** True when several hidden relations are represented by this route. */
+  readonly lodAggregate?: boolean;
+  /** Number of source relations folded into this visual route. */
+  readonly aggregateCount?: number;
   /** True for the container-to-child link the payload carries per node. */
   readonly containment?: boolean;
   /** True when the two endpoints live in different clusters. */
