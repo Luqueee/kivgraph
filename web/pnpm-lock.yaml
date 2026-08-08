@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  reagraph@4.32.0: beb5e03e265639c26ab39199441c2b7ba5f187c0524abc8d8e271dc2f4c44b20
+
 importers:
 
   .:
@@ -34,7 +37,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       reagraph:
         specifier: 4.32.0
-        version: 4.32.0(@types/react@19.2.18)(@types/three@0.184.0)(graphology-types@0.24.8)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
+        version: 4.32.0(patch_hash=beb5e03e265639c26ab39199441c2b7ba5f187c0524abc8d8e271dc2f4c44b20)(@types/react@19.2.18)(@types/three@0.184.0)(graphology-types@0.24.8)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -5954,7 +5957,7 @@ snapshots:
 
   react@19.2.8: {}
 
-  reagraph@4.32.0(@types/react@19.2.18)(@types/three@0.184.0)(graphology-types@0.24.8)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8)):
+  reagraph@4.32.0(patch_hash=beb5e03e265639c26ab39199441c2b7ba5f187c0524abc8d8e271dc2f4c44b20)(@types/react@19.2.18)(@types/three@0.184.0)(graphology-types@0.24.8)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8)):
     dependencies:
       '@react-spring/three': 10.0.4(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.184.0))(react@19.2.8)(three@0.184.0)
       '@react-three/drei': 10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.184.0))(@types/react@19.2.18)(@types/three@0.184.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.184.0)

@@ -11,7 +11,16 @@ import { FrameGovernor } from "@/renderer/frame-governor";
 import { projectGraphAtKind } from "@/renderer/lod";
 import type { ViewerLodKind } from "@/renderer/lod";
 import { CameraLodObserver } from "@/renderer/lod-observer";
-import { renderGraphNode } from "@/renderer/node-renderer";
+import {
+  renderGraphNode,
+  renderGraphNodeWebGPU,
+} from "@/renderer/node-renderer";
+import { configureViewerMaterials } from "@/renderer/materials";
+import {
+  createWebGPUFactory,
+  detectRendererBackend,
+  type RendererSelection,
+} from "@/renderer/webgpu";
 import {
   MAX_TILE_BUDGET,
   MIN_TILE_BUDGET,
@@ -138,6 +147,8 @@ export function GraphPreview() {
   const [visibleKind, setVisibleKind] = useState<ViewerLodKind>(4);
   const [snapshotChanged, setSnapshotChanged] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [rendererSelection, setRendererSelection] =
+    useState<RendererSelection | null>(null);
   const onReload = useCallback((): void => {
     setSnapshotChanged(false);
     setReloadToken((value) => value + 1);
@@ -148,11 +159,28 @@ export function GraphPreview() {
   const worker = useRef<TileWorkerClient | null>(null);
   const canvas = useRef<GraphCanvasRef | null>(null);
   const highlight = useRef<number | null>(null);
+  const onRendererFallback = useCallback((reason: string): void => {
+    setRendererSelection((current) =>
+      current?.backend === "webgpu" ? { backend: "webgl", reason } : current,
+    );
+  }, []);
+  const webgpuFactory = useMemo(
+    () =>
+      rendererSelection?.backend === "webgpu"
+        ? createWebGPUFactory(onRendererFallback)
+        : undefined,
+    [onRendererFallback, rendererSelection?.backend],
+  );
   const hovered = useRef<string | null>(null);
   const visibleKindRef = useRef<ViewerLodKind>(4);
 
   if (worker.current === null) {
     worker.current = createTileWorkerClient();
+  }
+  if (rendererSelection !== null) {
+    // Reagraph's material JSX is shared with the custom node and line
+    // renderers, so its catalogue must match the renderer before Canvas mounts.
+    configureViewerMaterials(rendererSelection.backend);
   }
 
   useEffect(() => {
@@ -160,6 +188,15 @@ export function GraphPreview() {
     return () => {
       client?.close();
       if (highlight.current !== null) window.clearTimeout(highlight.current);
+    };
+  }, []);
+  useEffect(() => {
+    let mounted = true;
+    void detectRendererBackend().then((selection) => {
+      if (mounted) setRendererSelection(selection);
+    });
+    return () => {
+      mounted = false;
     };
   }, []);
 
@@ -231,6 +268,12 @@ export function GraphPreview() {
   }, [lod, appliedBudget, reloadToken]);
 
   const graph = state.graph;
+  const rendererLabel =
+    rendererSelection === null
+      ? "graphics · checking"
+      : rendererSelection.backend === "webgpu"
+        ? "WebGPU"
+        : `WebGL fallback · ${rendererSelection.reason}`;
 
   const visibleGraph = useMemo(() => {
     if (!graph) return null;
@@ -428,14 +471,15 @@ export function GraphPreview() {
         onReload={onReload}
         onSnapshotChanged={onSnapshotChanged}
       />
-      {graph && visibleGraph ? (
+      {rendererSelection !== null && graph && visibleGraph ? (
         <GraphCanvas
           ref={canvas}
-          key={`${state.meta?.snapshotId ?? 0}-${lod}-${rotate ? "3d" : "2d"}`}
+          key={`${state.meta?.snapshotId ?? 0}-${lod}-${rotate ? "3d" : "2d"}-${rendererSelection.backend}`}
           nodes={visibleGraph.nodes}
           edges={visibleGraph.edges}
           theme={VIEWER_THEME}
           layoutType="custom"
+          glOptions={webgpuFactory}
           layoutOverrides={visibleGraph.layoutOverrides}
           animated={false}
           // The adapter decides which nodes carry a caption at all - only
@@ -445,8 +489,11 @@ export function GraphPreview() {
           // never come back.
           labelType="nodes"
           // A quarter of a million triangles per thousand nodes instead of a
-          // million and a half, with a handful of shared materials.
-          renderNode={renderGraphNode}
+          renderNode={
+            rendererSelection.backend === "webgpu"
+              ? renderGraphNodeWebGPU
+              : renderGraphNode
+          }
           // A tile of thirty repositories is a small world; the stock floor of
           // 1.000 units would keep the camera outside it.
           minDistance={40}
@@ -492,7 +539,7 @@ export function GraphPreview() {
           )}
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          <FrameRate /> · {status}
+          <FrameRate /> · {rendererLabel} · {status}
         </span>
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">

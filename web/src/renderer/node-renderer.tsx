@@ -5,6 +5,7 @@ import {
   MeshBasicMaterial,
   SphereGeometry,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 /**
  * One geometry for every node in the scene.
@@ -24,17 +25,26 @@ const NODE_GEOMETRY = new SphereGeometry(1, 10, 8);
  * node. Fewer materials mean fewer uniform uploads and fewer objects for the
  * garbage collector to walk when a tile is replaced.
  */
-const MATERIALS = new Map<string, MeshBasicMaterial>();
+const WEBGL_MATERIALS = new Map<string, MeshBasicMaterial>();
+const WEBGPU_MATERIALS = new Map<string, MeshBasicNodeMaterial>();
+
+function opacityLevel(opacity: number): number {
+  // Quantised so a hundred marginally different opacities cannot become a
+  // hundred materials.
+  return Math.min(1, Math.max(0, Math.round(opacity * 20) / 20));
+}
+
+function materialKey(color: ColorRepresentation, opacity: number): string {
+  return `${new Color(color).getHexString()}:${opacityLevel(opacity)}`;
+}
 
 function nodeMaterial(
   color: ColorRepresentation,
   opacity: number,
 ): MeshBasicMaterial {
-  // Quantised so a hundred marginally different opacities cannot become a
-  // hundred materials.
-  const level = Math.min(1, Math.max(0, Math.round(opacity * 20) / 20));
-  const key = `${new Color(color).getHexString()}:${level}`;
-  const known = MATERIALS.get(key);
+  const level = opacityLevel(opacity);
+  const key = materialKey(color, opacity);
+  const known = WEBGL_MATERIALS.get(key);
   if (known !== undefined) return known;
   const material = new MeshBasicMaterial({
     color,
@@ -44,29 +54,62 @@ function nodeMaterial(
     transparent: level < 1,
     depthWrite: level >= 1,
   });
-  MATERIALS.set(key, material);
+  WEBGL_MATERIALS.set(key, material);
   return material;
 }
 
+function nodeMaterialWebGPU(
+  color: ColorRepresentation,
+  opacity: number,
+): MeshBasicNodeMaterial {
+  const level = opacityLevel(opacity);
+  const key = materialKey(color, opacity);
+  const known = WEBGPU_MATERIALS.get(key);
+  if (known !== undefined) return known;
+  const material = new MeshBasicNodeMaterial({
+    color,
+    opacity: level,
+    transparent: level < 1,
+    depthWrite: level >= 1,
+  });
+  WEBGPU_MATERIALS.set(key, material);
+  return material;
+}
+
+function renderNode(
+  material: MeshBasicMaterial | MeshBasicNodeMaterial,
+  size: number,
+): React.ReactElement {
+  return (
+    <mesh
+      geometry={NODE_GEOMETRY}
+      material={material}
+      scale={size}
+      // The geometry and the material outlive every node that borrows them.
+      dispose={null}
+    />
+  );
+}
+
 /**
- * Draws a node as a flat-shaded sphere.
- *
- * The stock renderer uses a Phong material lit by a single ambient light and
- * a `0.7` emissive of the node's own colour, which at these sizes is a flat
- * disc of that colour. Computing it per fragment buys nothing.
+ * Draws a node as a flat-shaded sphere using the standard WebGL material.
  */
 export function renderGraphNode({
   color,
   size,
   opacity,
 }: NodeRendererProps): React.ReactElement {
-  return (
-    <mesh
-      geometry={NODE_GEOMETRY}
-      material={nodeMaterial(color, opacity)}
-      scale={size}
-      // The geometry and the material outlive every node that borrows them.
-      dispose={null}
-    />
-  );
+  return renderNode(nodeMaterial(color, opacity), size);
+}
+
+/**
+ * Draws the same node with a TSL node material. Three's WebGPU renderer does
+ * not accept classic MeshBasicMaterial instances.
+ */
+export function renderGraphNodeWebGPU({
+  color,
+  size,
+  opacity,
+}: NodeRendererProps): React.ReactElement {
+  return renderNode(nodeMaterialWebGPU(color, opacity), size);
 }

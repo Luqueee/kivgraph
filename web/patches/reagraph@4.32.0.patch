@@ -1,0 +1,46 @@
+diff --git a/dist/GraphCanvas/GraphCanvas.d.ts b/dist/GraphCanvas/GraphCanvas.d.ts
+index 871487eb20df7f523a1211e0b6d9f99c83f4c265..4125e96cab59d4e19fd58dfed9186a2e5ae2132c 100644
+--- a/dist/GraphCanvas/GraphCanvas.d.ts
++++ b/dist/GraphCanvas/GraphCanvas.d.ts
+@@ -1,4 +1,5 @@
+ import { default as ThreeCameraControls } from 'camera-controls';
++import { GLProps } from '@react-three/fiber';
+ import { default as Graph } from 'graphology';
+ import { ReactNode, default as React } from 'react';
+ import { CameraControlsRef, CameraMode } from '../CameraControls';
+@@ -57,7 +58,7 @@ export interface GraphCanvasProps extends Omit<GraphSceneProps, 'theme'> {
+      *
+      * @default {}
+      */
+-    glOptions?: object;
++    glOptions?: GLProps;
+     /**
+      * When the canvas had a lasso selection.
+      */
+diff --git a/dist/index.js b/dist/index.js
+index 0117259db955318a0f68428fbe89c33dcfe4f2f4..a2012b99a4a85b6f1458100d0d071e3fef4b8242 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -5296,10 +5296,18 @@ var GraphCanvas = forwardRef(({ cameraMode = "pan", layoutType = "forceDirected2
+ 	}));
+ 	const { selections, actives, collapsedNodeIds } = rest;
+ 	const finalAnimated = edges.length + nodes.length > 400 ? false : animated;
+-	const gl = useMemo(() => ({
+-		...glOptions,
+-		...GL_DEFAULTS
+-	}), [glOptions]);
++	const gl = useMemo(() => {
++		if (
++			typeof glOptions === "function" ||
++			(glOptions && typeof glOptions.render === "function")
++		) {
++			return glOptions;
++		}
++		return {
++			...glOptions,
++			...GL_DEFAULTS
++		};
++	}, [glOptions]);
+ 	const store = useRef(createStore({
+ 		selections,
+ 		actives,

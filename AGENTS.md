@@ -92,6 +92,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - `internal/webassets` sirve solo la copia generada de `web/dist` cuando la
   distribución se construye con el tag `webassets`; los binarios sin tag
   devuelven un fallback visible `503` en vez de servir archivos no declarados.
+- El visor consulta `navigator.gpu` antes de montar WebGPU; sin un adaptador
+  utilizable muestra el motivo y conserva WebGL. La ruta WebGPU usa materiales
+  nodo y nunca se declara activa por una mera propiedad de configuración.
 
 ## LadybugDB y snapshots
 
