@@ -101,10 +101,15 @@ integridad, compatibilidad o verificación descritos aquí.
   drawing buffer se repinta sincrónicamente antes de exponerse al navegador,
   para no mostrar un frame negro.
 - Las geometrías instanciadas de Troika parten con `instanceCount: 0` hasta
-  que llega el atlas de glifos asíncrono; `troika-three-text@0.52.5` permanece
-  fijado y parcheado porque WebGPU rechaza el valor por defecto `Infinity`.
-  `FrameGovernor` valida además los conteos no finitos antes del primer frame
-  WebGPU, los convierte en draws vacíos y deja un warning visible.
+  que llega el atlas de glifos asíncrono y no llaman a `dispose()` al sustituir
+  un atributo: `troika-three-text@0.52.5` permanece fijado y parcheado porque
+  WebGPU rechaza el valor por defecto `Infinity` y porque liberar los buffers
+  de una geometría viva deja al backend enlazando un índice inexistente.
+- Antes de construir el `WebGPURenderer`, el visor resuelve `instanceCount` en
+  `InstancedBufferGeometry` con la misma regla que WebGL - el mínimo de
+  `meshPerAttribute * count` entre los atributos instanciados, `0` sin
+  ninguno - para que ninguna librería pueda llevar un `Infinity` a
+  `drawIndexed`.
 
 ## LadybugDB y snapshots
 

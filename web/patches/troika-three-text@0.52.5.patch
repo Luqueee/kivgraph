@@ -1,5 +1,5 @@
 diff --git a/dist/troika-three-text.esm.js b/dist/troika-three-text.esm.js
-index 72c7a8b9e8911a669fd40b9a7d897a74197226ea..49a7c2c166f7406c3e3cb1623f5364210b587685 100644
+index 72c7a8b9e8911a669fd40b9a7d897a74197226ea..ab054e6b2ffd6e0ee0976bd8f3f9ee89fec83531 100644
 --- a/dist/troika-three-text.esm.js
 +++ b/dist/troika-three-text.esm.js
 @@ -2129,6 +2129,9 @@ class GlyphsGeometry extends InstancedBufferGeometry {
@@ -12,8 +12,20 @@ index 72c7a8b9e8911a669fd40b9a7d897a74197226ea..49a7c2c166f7406c3e3cb1623f536421
  
      // Define groups for rendering text outline as a separate pass; these will only
      // be used when the `material` getter returns an array, i.e. outlineWidth > 0.
+@@ -2275,7 +2278,10 @@ class GlyphsGeometry extends InstancedBufferGeometry {
+         // different size is supported, but https://github.com/mrdoob/three.js/pull/17418 strongly
+         // implies it should be supported. It's possible we need to
+         delete this._maxInstanceCount; //for r117+, could be fragile
+-        this.dispose(); //for r118+, more robust feeling, but more heavy-handed than I'd like
++        // Disposing here releases the geometry's live GPU buffers. The WebGPU
++        // backend keeps drawing the same render object and then binds an index
++        // buffer that no longer exists, so only the cached instance ceiling is
++        // cleared here.
+       }
+     } else if (attr) {
+       this.deleteAttribute(attrName);
 diff --git a/dist/troika-three-text.umd.js b/dist/troika-three-text.umd.js
-index 32c3dcbcd9b716fa61c62e783ed89a0d532e23f6..5253ed1af37ce993d490fd19d12175912fc86934 100644
+index 32c3dcbcd9b716fa61c62e783ed89a0d532e23f6..95c1771111232046abfbe9f60c9b345242741f94 100644
 --- a/dist/troika-three-text.umd.js
 +++ b/dist/troika-three-text.umd.js
 @@ -2134,6 +2134,9 @@
@@ -26,8 +38,33 @@ index 32c3dcbcd9b716fa61c62e783ed89a0d532e23f6..5253ed1af37ce993d490fd19d1217591
  
        // Define groups for rendering text outline as a separate pass; these will only
        // be used when the `material` getter returns an array, i.e. outlineWidth > 0.
+@@ -2280,7 +2283,10 @@
+           // different size is supported, but https://github.com/mrdoob/three.js/pull/17418 strongly
+           // implies it should be supported. It's possible we need to
+           delete this._maxInstanceCount; //for r117+, could be fragile
+-          this.dispose(); //for r118+, more robust feeling, but more heavy-handed than I'd like
++          // Disposing here releases the geometry's live GPU buffers. The WebGPU
++          // backend keeps drawing the same render object and then binds an index
++          // buffer that no longer exists, so only the cached instance ceiling is
++          // cleared here.
+         }
+       } else if (attr) {
+         this.deleteAttribute(attrName);
+diff --git a/dist/troika-three-text.umd.min.js b/dist/troika-three-text.umd.min.js
+index ef25c8eda613da5516d830fb97a188a015495bfb..c2723a13cd6be1a9733434ec2563167607f9e2cb 100644
+--- a/dist/troika-three-text.umd.min.js
++++ b/dist/troika-three-text.umd.min.js
+@@ -161,7 +161,7 @@ set(u){this.data[this.index*h.length+q]=u}});return l},{data:null,index:0});retu
+ mb={};class rb extends T.InstancedBufferGeometry{constructor(){super();this.detail=1;this.curveRadius=0;this.groups=[{start:0,count:Infinity,materialIndex:0},{start:0,count:Infinity,materialIndex:1}];this.boundingSphere=new T.Sphere;this.boundingBox=new T.Box3}computeBoundingSphere(){}computeBoundingBox(){}set detail(k){if(k!==this._detail){this._detail=k;if("number"!==typeof k||1>k)k=1;let e=Hb(k);["position","normal","uv"].forEach(n=>{this.attributes[n]=e.attributes[n].clone()});this.setIndex(e.getIndex().clone())}}get detail(){return this._detail}set curveRadius(k){k!==
+ this._curveRadius&&(this._curveRadius=k,this._updateBounds())}get curveRadius(){return this._curveRadius}updateGlyphs(k,e,n,r,b){this.updateAttributeData("aTroikaGlyphBounds",k,4);this.updateAttributeData("aTroikaGlyphIndex",e,1);this.updateAttributeData("aTroikaGlyphColor",b,3);this._blockBounds=n;this._chunkedBounds=r;this.instanceCount=e.length;this._updateBounds()}_updateBounds(){let k=this._blockBounds;if(k){let {curveRadius:r,boundingBox:b}=this;if(r){let {PI:a,floor:c,min:d,max:f,sin:g,cos:h}=
+ Math;var e=a/2,n=2*a;let l=Math.abs(r),m=k[0]/l,q=k[2]/l,z=c((m+e)/n)!==c((q+e)/n)?-l:d(g(m)*l,g(q)*l);e=c((m-e)/n)!==c((q-e)/n)?l:f(g(m)*l,g(q)*l);n=c((m+a)/n)!==c((q+a)/n)?2*l:f(l-h(m)*l,l-h(q)*l);b.min.set(z,k[1],0>r?-n:0);b.max.set(e,k[3],0>r?0:n)}else b.min.set(k[0],k[1],0),b.max.set(k[2],k[3],0);b.getBoundingSphere(this.boundingSphere)}}applyClipRect(k){let e=this.getAttribute("aTroikaGlyphIndex").count,n=this._chunkedBounds;if(n)for(let r=n.length;r--;){e=n[r].end;let b=n[r].rect;if(b[1]<k.w&&
+-b[3]>k.y&&b[0]<k.z&&b[2]>k.x)break}this.instanceCount=e}updateAttributeData(k,e,n){let r=this.getAttribute(k);e?r&&r.array.length===e.length?(r.array.set(e),r.needsUpdate=!0):(this.setAttribute(k,new T.InstancedBufferAttribute(e,n)),delete this._maxInstanceCount,this.dispose()):r&&this.deleteAttribute(k)}}let Za=new T.MeshBasicMaterial({color:16777215,side:T.DoubleSide,transparent:!0}),sb=new T.Matrix4,Ua=new T.Vector3,$a=new T.Vector3,La=[],Mb=new T.Vector3,tb=()=>{let k=new T.Mesh(new T.PlaneGeometry(1,
++b[3]>k.y&&b[0]<k.z&&b[2]>k.x)break}this.instanceCount=e}updateAttributeData(k,e,n){let r=this.getAttribute(k);e?r&&r.array.length===e.length?(r.array.set(e),r.needsUpdate=!0):(this.setAttribute(k,new T.InstancedBufferAttribute(e,n)),delete this._maxInstanceCount):r&&this.deleteAttribute(k)}}let Za=new T.MeshBasicMaterial({color:16777215,side:T.DoubleSide,transparent:!0}),sb=new T.Matrix4,Ua=new T.Vector3,$a=new T.Vector3,La=[],Mb=new T.Vector3,tb=()=>{let k=new T.Mesh(new T.PlaneGeometry(1,
+ 1),Za);tb=()=>k;return k},ub=()=>{let k=new T.Mesh(new T.PlaneGeometry(1,1,32,1),Za);ub=()=>k;return k},Nb={type:"syncstart"},Ob={type:"synccomplete"},vb="font fontSize fontStyle fontWeight lang letterSpacing lineHeight maxWidth overflowWrap text direction textAlign textIndent whiteSpace anchorX anchorY colorRanges sdfGlyphSize".split(" "),Pb=vb.concat("material","color","depthOffset","clipRect","curveRadius","orientation","glyphGeometryDetail");class Ma extends T.Mesh{constructor(){super(new rb,
+ null);this.text="";this.curveRadius=this.anchorY=this.anchorX=0;this.direction="auto";this.unicodeFontsURL=this.font=null;this.fontSize=.1;this.fontStyle=this.fontWeight="normal";this.lang=null;this.letterSpacing=0;this.lineHeight="normal";this.maxWidth=Infinity;this.overflowWrap="normal";this.textAlign="left";this.textIndent=0;this.whiteSpace="normal";this.colorRanges=this.color=this.material=null;this.outlineColor=this.outlineWidth=0;this.outlineOpacity=1;this.strokeWidth=this.outlineOffsetY=this.outlineOffsetX=
+ this.outlineBlur=0;this.strokeColor=8421504;this.fillOpacity=this.strokeOpacity=1;this.depthOffset=0;this.clipRect=null;this.orientation="+x+y";this.glyphGeometryDetail=1;this.sdfGlyphSize=null;this.gpuAccelerateSDF=!0;this.debugSDF=!1}sync(k){this._needsSync&&(this._needsSync=!1,this._isSyncing?(this._queuedSyncs||(this._queuedSyncs=[])).push(k):(this._isSyncing=!0,this.dispatchEvent(Nb),Wa({text:this.text,font:this.font,lang:this.lang,fontSize:this.fontSize||.1,fontWeight:this.fontWeight||"normal",
 diff --git a/src/GlyphsGeometry.js b/src/GlyphsGeometry.js
-index 980a38c134002c821994f17d01297441e7c1df37..013ce3403e227e0b0fd1071685765af0fe22f34c 100644
+index 980a38c134002c821994f17d01297441e7c1df37..311f1b790383573ef885b7df6ead0782c465d68b 100644
 --- a/src/GlyphsGeometry.js
 +++ b/src/GlyphsGeometry.js
 @@ -56,6 +56,9 @@ class GlyphsGeometry extends InstancedBufferGeometry {
@@ -40,3 +77,15 @@ index 980a38c134002c821994f17d01297441e7c1df37..013ce3403e227e0b0fd1071685765af0
  
      // Define groups for rendering text outline as a separate pass; these will only
      // be used when the `material` getter returns an array, i.e. outlineWidth > 0.
+@@ -202,7 +205,10 @@ class GlyphsGeometry extends InstancedBufferGeometry {
+         // different size is supported, but https://github.com/mrdoob/three.js/pull/17418 strongly
+         // implies it should be supported. It's possible we need to
+         delete this._maxInstanceCount //for r117+, could be fragile
+-        this.dispose() //for r118+, more robust feeling, but more heavy-handed than I'd like
++        // Disposing here releases the geometry's live GPU buffers. The WebGPU
++        // backend keeps drawing the same render object and then binds an index
++        // buffer that no longer exists, so only the cached instance ceiling is
++        // cleared here.
+       }
+     } else if (attr) {
+       this.deleteAttribute(attrName)

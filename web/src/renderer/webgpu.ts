@@ -1,6 +1,7 @@
 import type { GLProps } from "@react-three/fiber";
 import { WebGLRenderer } from "three";
 import { WebGPURenderer } from "three/webgpu";
+import { installWebGPUInstanceCountGuard } from "./webgpu-geometry";
 
 export type RendererBackend = "webgpu" | "webgl";
 
@@ -77,6 +78,7 @@ export function createWebGPUFactory(
   onFallback?: (reason: string) => void,
 ): GLProps {
   return async (defaultProps) => {
+    installWebGPUInstanceCountGuard();
     const renderer = new WebGPURenderer({
       canvas: defaultProps.canvas as
         | HTMLCanvasElement

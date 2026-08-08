@@ -1,39 +1,63 @@
+import { InstancedBufferGeometry } from "three";
+
+interface InstancedAttributeLike {
+  readonly isInstancedBufferAttribute?: boolean;
+  readonly meshPerAttribute?: number;
+  readonly count: number;
+}
+
 export interface InstancedGeometryLike {
-  readonly isInstancedBufferGeometry?: boolean;
-  instanceCount: number;
+  readonly attributes: Record<string, InstancedAttributeLike | undefined>;
 }
 
-interface GeometryOwnerLike {
-  readonly geometry?: InstancedGeometryLike;
-}
+/** Backing store for the raw value libraries assign, kept off the prototype. */
+const RAW_INSTANCE_COUNT = Symbol.for("ladygraph.rawInstanceCount");
 
-export interface SceneTraversalLike {
-  traverse(callback: (object: unknown) => void): void;
-}
-
-/** Converts an invalid WebGPU instance count into a safe empty draw. */
-export function finiteInstanceCount(value: number): number {
-  return Number.isFinite(value) && value >= 0 ? value : 0;
+/**
+ * Mirrors what WebGL derives from the instanced attributes, which is what
+ * Three's `Infinity` default means: draw every instance the buffers hold.
+ * A geometry whose attributes have not arrived yet draws nothing.
+ */
+export function resolvedInstanceCount(geometry: InstancedGeometryLike): number {
+  let resolved = Number.POSITIVE_INFINITY;
+  for (const attribute of Object.values(geometry.attributes)) {
+    if (attribute?.isInstancedBufferAttribute !== true) continue;
+    const perAttribute = attribute.meshPerAttribute ?? 1;
+    resolved = Math.min(resolved, perAttribute * attribute.count);
+  }
+  return Number.isFinite(resolved) ? resolved : 0;
 }
 
 /**
- * Prevents WebGPU's unsigned draw arguments from receiving Three's Infinity
- * default while an asynchronously prepared instanced geometry has no data.
- * Returns the number of geometries changed so the caller can report it once.
+ * WebGPU's `drawIndexed` takes an unsigned integer, so Three's `Infinity`
+ * default for `InstancedBufferGeometry.instanceCount` - which Troika and other
+ * libraries keep until their asynchronous data lands - aborts the frame with a
+ * `TypeError` instead of drawing. Resolving the count on read fixes every
+ * instanced geometry the scene will ever hold, including the ones React mounts
+ * mid-commit, and it keeps the WebGL meaning of the default.
+ *
+ * Returns `true` when this call installed the accessor.
  */
-export function guardWebGPUInstancedGeometry(
-  scene: SceneTraversalLike,
-): number {
-  let repaired = 0;
-  scene.traverse((object) => {
-    const geometry = (object as GeometryOwnerLike).geometry;
-    if (
-      geometry?.isInstancedBufferGeometry === true &&
-      !Number.isFinite(geometry.instanceCount)
-    ) {
-      geometry.instanceCount = finiteInstanceCount(geometry.instanceCount);
-      repaired += 1;
-    }
+export function installWebGPUInstanceCountGuard(): boolean {
+  const prototype = InstancedBufferGeometry.prototype as unknown as Record<
+    string,
+    unknown
+  >;
+  const existing = Object.getOwnPropertyDescriptor(prototype, "instanceCount");
+  if (existing?.get !== undefined) return false;
+
+  Object.defineProperty(prototype, "instanceCount", {
+    configurable: true,
+    get(this: InstancedGeometryLike & Record<symbol, unknown>): number {
+      const raw = this[RAW_INSTANCE_COUNT];
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        return Math.max(0, raw);
+      }
+      return resolvedInstanceCount(this);
+    },
+    set(this: Record<symbol, unknown>, value: number): void {
+      this[RAW_INSTANCE_COUNT] = value;
+    },
   });
-  return repaired;
+  return true;
 }

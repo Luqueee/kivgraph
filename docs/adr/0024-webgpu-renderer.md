@@ -50,14 +50,21 @@ si el navegador no devuelve un adaptador utilizable.
    fuerza un frame inmediato, evitando exponer un frame negro durante el gesto
    o su restauración.
 
-7. El visor fija `troika-three-text@0.52.5` mediante un patch versionado. Su
-   `GlyphsGeometry` empieza con `instanceCount = 0` y sólo habilita los glifos
-   cuando el worker termina el atlas. El valor heredado `Infinity` es válido
-   para WebGL, pero `drawIndexed` de WebGPU exige un entero finito y fallaba
-   durante esa ventana asíncrona. Además, `FrameGovernor` ejecuta una guardia
-   antes del primer frame WebGPU: cualquier geometría instanciada que aún
-   exponga un conteo no finito se convierte en un draw vacío y emite un
-   warning visible en la consola.
+7. El visor fija `troika-three-text@0.52.5` mediante un patch versionado con
+   dos cambios. `GlyphsGeometry` empieza con `instanceCount = 0` y sólo
+   habilita los glifos cuando el worker termina el atlas: el valor heredado
+   `Infinity` es válido para WebGL, pero `drawIndexed` de WebGPU exige un
+   entero finito. Y `updateAttributeData` ya no llama a `dispose()` al
+   sustituir un atributo de mayor tamaño: eso libera los buffers vivos de la
+   geometría, y el backend WebGPU sigue dibujando el mismo render object y
+   enlaza después un índice inexistente.
+
+8. Antes de construir el `WebGPURenderer`, el visor instala un accessor de
+   `instanceCount` en `InstancedBufferGeometry`. Un valor no finito se
+   resuelve con la misma regla que aplica WebGL - el mínimo de
+   `meshPerAttribute * count` entre los atributos instanciados, y `0` cuando
+   todavía no hay ninguno. La guardia cubre toda geometría instanciada, la
+   monte quien la monte, incluidas las que React añade durante un commit.
 
 ## Alternativas descartadas
 
@@ -85,10 +92,13 @@ si el navegador no devuelve un adaptador utilizable.
   `WebGL fallback` con la causa concreta; no se emite un PASS de WebGPU.
 - El bundle incluye `three/webgpu`, los parches de Reagraph y
   `troika-three-text`. El coste de carga y la mejora de FPS en una GPU
-  discreta todavía requieren una medición independiente con Chromium
-  no-headless o un navegador que exponga un adaptador real.
+  discreta todavía requieren una medición independiente en una GPU real.
 - Los tests cubren la decisión de capacidad, sus fallos, el conteo finito de
-  instancias de Troika y la guardia de conteos no finitos antes de que termine
-  la carga asíncrona. El smoke test de CI cubre WebGL; la ruta WebGPU queda
-  pendiente de un entorno con WebGPU real y de una métrica comparativa contra
-  WebGL.
+  instancias de Troika, la ausencia de `dispose()` al crecer los atributos y
+  la resolución de conteos no finitos.
+- Verificación con WebGPU real sobre Chromium `headless=new` con adaptador
+  SwiftShader: backend `WebGPU`, `40.601` llamadas `drawIndexed`, `0` enlaces
+  de índice inválidos y `0` errores de página durante carga, cinco gestos de
+  cámara y el hover posterior. SwiftShader no expone `featureLevel:
+  "compatibility"`, así que la prueba retira esa opción del `requestAdapter`;
+  el rendimiento de ese entorno no es una métrica de GPU discreta.

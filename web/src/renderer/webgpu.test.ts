@@ -57,4 +57,29 @@ describe("renderer backend selection", () => {
     expect(Number.isFinite(text.geometry.instanceCount)).toBe(true);
     expect(text.geometry.instanceCount).toBe(0);
   });
+
+  it("keeps a glyph geometry's GPU buffers alive when its attributes grow", async () => {
+    const moduleName = "troika-three-text";
+    const troika = (await import(moduleName)) as {
+      Text: new () => {
+        geometry: {
+          dispose: () => void;
+          updateAttributeData: (
+            name: string,
+            data: Float32Array,
+            itemSize: number,
+          ) => void;
+        };
+      };
+    };
+    const geometry = new troika.Text().geometry;
+    let disposed = 0;
+    geometry.dispose = () => {
+      disposed += 1;
+    };
+
+    geometry.updateAttributeData("aTroikaGlyphBounds", new Float32Array(8), 4);
+
+    expect(disposed).toBe(0);
+  });
 });
