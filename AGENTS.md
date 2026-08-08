@@ -159,6 +159,18 @@ integridad, compatibilidad o verificación descritos aquí.
 - La cámara encuadra la extensión proyectada sobre sus propios ejes, no la
   esfera envolvente, y abre fuera de eje. Un layout estructural nunca es una
   bola, y encuadrar una deja el grafo en un tercio de la pantalla.
+- El visor dibuja bajo demanda: el bucle de render se detiene con el grafo
+  quieto y despierta con los eventos de puntero del lienzo. Un grafo publicado
+  no se mueve, y redibujarlo sesenta veces por segundo cuesta un núcleo a
+  cambio de nada. Cualquier componente que refresque por su cuenta -el
+  contador de FPS- vive fuera del lienzo: cada commit reaplica su `frameloop`.
+- Los nodos se dibujan con una geometría de esfera compartida y materiales
+  compartidos por color y opacidad. Una esfera de `25 × 25` por nodo son mil
+  quinientos triángulos para un punto de cinco píxeles.
+- La contención no es una arista: viaja como pares de índices y se dibuja como
+  una única malla de segmentos con color por vértice. Hay una por nodo, nada
+  la selecciona, y como arista obligaría a reconstruir toda la geometría del
+  grafo cada vez que se mueve el resaltado.
 - El visor pide las tiles desde un Web Worker con `AbortController` por
   petición; el render permanece en el hilo principal. El número de nodos por
   vista es ajustable desde la interfaz, una tile recortada se declara como tal

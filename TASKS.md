@@ -10917,6 +10917,76 @@ tarea no modifica ningún archivo Go.
 
 ---
 
+## LUQUE-1720 — Reducir el coste de render del visor
+
+**Dependencias:** LUQUE-1719.
+
+**Objetivo:** que el visor no cueste nada con el grafo quieto y que
+interactuar con mil nodos sea fluido.
+
+**Checklist:**
+
+- [x] Dibujar el nodo con geometría y materiales compartidos.
+- [x] Renderizar bajo demanda y despertar con el puntero.
+- [x] Aislar el contador de FPS para que no re-renderice el lienzo.
+- [x] Sacar la contención de la lista de aristas a una malla de segmentos.
+- [x] Fijar `three` y `@react-three/fiber` como dependencias directas.
+
+**Criterios de aceptación:**
+
+- Con el grafo quieto no se emite ninguna draw call.
+- Resaltar un nodo responde en menos de medio segundo con mil nodos.
+- La contención sigue dibujándose y atenuándose con el resaltado.
+- Rotación, zoom, niveles, deslizador y modo 2D siguen correctos.
+
+**Estado:** `PASS`.
+
+**Archivos creados:**
+
+* `docs/adr/0023-viewer-render-cost.md`;
+* `web/src/renderer/node-renderer.tsx`, `web/src/renderer/frame-governor.tsx`,
+  `web/src/renderer/containment-lines.tsx`;
+* `web/src/components/FrameRate.tsx`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md`;
+* `web/package.json`, `web/src/renderer/reagraph.ts` y su test,
+  `web/src/components/GraphPreview.tsx`.
+
+**Medición:** nivel `files`, `1.200` nodos, índice de `~/kena`, WebGL por
+software:
+
+```text
+                              antes    después
+draw calls en reposo (5 s)   34.164          0
+fps interactuando                 1      26-42
+cargar el nivel              402-879 ms   263 ms
+resaltar un nodo              2.254 ms    354 ms
+triángulos por nodo           1.250         160
+aristas que reconstruye       1.460         295
+```
+
+**Verificación:**
+
+* `pnpm --dir web check`: 7 archivos de test y 42 tests pasando;
+* draw calls contadas interceptando `drawElements`/`drawArrays` en el
+  contexto WebGL: `0` en cinco segundos de reposo, `34.164` mientras se
+  arrastra la cámara;
+* smoke Chromium: niveles `repositories` `292` ms, `files` `394` ms, `symbols`
+  `799` ms, `packages` `671` ms; rotación con arrastre, zoom con rueda y modo
+  2D correctos; rótulos legibles al acercarse a `34` fps; cero `pageerror`;
+* resaltado sobre `web-captcha.kena.bot`: vecindario iluminado, resto atenuado
+  incluida la malla de contención, y apagado al salir del nodo.
+
+**Limitación:** siguen emitiéndose unas `1.200` draw calls por fotograma
+mientras se interactúa, una por nodo. Bajarlas exige instanciar la escena, que
+implica sustituir el render de nodos de Reagraph.
+
+**Siguiente tarea desbloqueada:** LUQUE-1711.
+
+---
+
 ## LUQUE-1713 — Medir rendimiento end-to-end del visor
 
 **Dependencias:** LUQUE-1712.

@@ -3,8 +3,11 @@ import { GraphCanvas, darkTheme } from "reagraph";
 import type { GraphCanvasRef, InternalGraphNode } from "reagraph";
 
 import { ApiError, fetchMeta, type SnapshotMeta } from "@/api/client";
-import { useFrameRate } from "@/hooks/useFrameRate";
+import { FrameRate } from "@/components/FrameRate";
 import { frameGraph } from "@/renderer/camera";
+import { ContainmentLines } from "@/renderer/containment-lines";
+import { FrameGovernor } from "@/renderer/frame-governor";
+import { renderGraphNode } from "@/renderer/node-renderer";
 import {
   MAX_TILE_BUDGET,
   MIN_TILE_BUDGET,
@@ -109,7 +112,6 @@ export function GraphPreview() {
   const [status, setStatus] = useState(ROTATE_STATUS);
   const [actives, setActives] = useState<readonly string[]>(NOTHING_ACTIVE);
   const [selected, setSelected] = useState<readonly string[]>(NOTHING_ACTIVE);
-  const fps = useFrameRate();
   const worker = useRef<TileWorkerClient | null>(null);
   const canvas = useRef<GraphCanvasRef | null>(null);
   const highlight = useRef<number | null>(null);
@@ -161,6 +163,7 @@ export function GraphPreview() {
         graph: {
           nodes: view.nodes,
           edges: view.edges,
+          containment: view.containment,
           layoutOverrides: createLayoutOverrides(view.nodes),
           stats: view.stats,
         },
@@ -286,6 +289,13 @@ export function GraphPreview() {
     highlight.current = window.setTimeout(apply, HOVER_SETTLE_MS);
   };
 
+  // The containment mesh dims by node, not by edge id, so it needs the set of
+  // nodes that stay lit rather than Reagraph's mixed list.
+  const litNodes = useMemo(
+    () => new Set(selected.concat(actives)),
+    [selected, actives],
+  );
+
   const enterNode = (node: InternalGraphNode): void => {
     const data = node.data as ReagraphNodeData | undefined;
     const kind = LOD_LABELS[(data?.kind ?? 1) - 1] ?? "node";
@@ -345,6 +355,9 @@ export function GraphPreview() {
           // never again, which on a camera that moves means captions that
           // never come back.
           labelType="nodes"
+          // A quarter of a million triangles per thousand nodes instead of a
+          // million and a half, with a handful of shared materials.
+          renderNode={renderGraphNode}
           // A tile of thirty repositories is a small world; the stock floor of
           // 1.000 units would keep the camera outside it.
           minDistance={40}
@@ -358,14 +371,22 @@ export function GraphPreview() {
           selections={selected as string[]}
           onNodePointerOver={enterNode}
           onNodePointerOut={leaveNode}
-        />
+        >
+          <FrameGovernor />
+          <ContainmentLines
+            nodes={graph.nodes}
+            links={graph.containment}
+            actives={litNodes}
+            inactiveOpacity={VIEWER_THEME.node.inactiveOpacity}
+          />
+        </GraphCanvas>
       ) : null}
       <div className="pointer-events-none absolute inset-x-4 top-4 flex items-center justify-between gap-4 text-xs font-medium">
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
           {state.error ? `error · ${state.error}` : summary}
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          {fps} fps · {status}
+          <FrameRate /> · {status}
         </span>
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">

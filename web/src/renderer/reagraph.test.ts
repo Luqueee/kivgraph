@@ -48,26 +48,28 @@ describe("Reagraph payload adapter", () => {
 
   // A repository and its packages are related, and the payload says so through
   // each node's parent reference. Without those links the picture claims a
-  // disconnection the graph does not have.
+  // disconnection the graph does not have. They are index pairs, not edges:
+  // nothing picks them and there is one per node.
   it("joins every node to the container the payload names", () => {
     const payload = decodeGraphPayload(createDemoPayload());
     const graph = createReagraphGraph(payload);
 
-    const containment = graph.edges.filter((edge) => edge.data.containment);
     // The fixture nests repository 0 > package 0 > file 0 > four symbols, and
     // package 1 under repository 0: seven children with a container present.
-    expect(containment).toHaveLength(7);
-    for (const edge of containment) {
-      const source = graph.nodes.find((node) => node.id === edge.source);
-      const target = graph.nodes.find((node) => node.id === edge.target);
+    expect(graph.containment.source).toHaveLength(7);
+    expect(graph.containment.target).toHaveLength(7);
+    for (let index = 0; index < graph.containment.source.length; index += 1) {
+      const source = graph.nodes[graph.containment.source[index]];
+      const target = graph.nodes[graph.containment.target[index]];
       expect(source).toBeDefined();
       expect(target).toBeDefined();
-      // Solid hairline: a dashed edge costs a curve per dash.
-      expect(edge.dashed).toBe(false);
-      expect(edge.size).toBeLessThan(1);
       // A container is always coarser than what it holds.
-      expect(source?.data.kind).toBeLessThan(target?.data.kind ?? 0);
+      expect(source.data.kind).toBeLessThan(target.data.kind);
     }
+    // And they are no longer part of what the renderer treats as edges.
+    expect(graph.edges.every((edge) => edge.data.containment !== true)).toBe(
+      true,
+    );
   });
 
   // A dense ID says nothing to a reader: every node carries the name the server

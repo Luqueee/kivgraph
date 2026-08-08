@@ -148,9 +148,21 @@ export interface ViewerGraphStats {
   readonly spread: readonly [number, number, number];
 }
 
+/**
+ * Container-to-child links, as node indices into the tile.
+ *
+ * One per node, so they are kept out of the edge list: nothing picks them and
+ * the renderer draws them as a single mesh of line segments.
+ */
+export interface ContainmentLinks {
+  readonly source: Uint32Array;
+  readonly target: Uint32Array;
+}
+
 export interface ViewerReagraphGraph {
   readonly nodes: ViewerReagraphNode[];
   readonly edges: ViewerReagraphEdge[];
+  readonly containment: ContainmentLinks;
   readonly layoutOverrides: LayoutOverrides;
   readonly stats: ViewerGraphStats;
 }
@@ -163,6 +175,7 @@ export interface ViewerReagraphGraph {
 export interface ViewerReagraphView {
   readonly nodes: ViewerReagraphNode[];
   readonly edges: ViewerReagraphEdge[];
+  readonly containment: ContainmentLinks;
   readonly truncated: boolean;
   readonly snapshotId: number;
   readonly stats: ViewerGraphStats;
@@ -357,40 +370,33 @@ export function createReagraphView(
     });
   }
 
-  // Every node carries the container it belongs to. Without those edges a
+  // Every node carries the container it belongs to. Without those links a
   // repository floats next to its own packages with nothing joining them, and
-  // the picture claims a disconnection the graph does not have.
+  // the picture claims a disconnection the graph does not have. They travel as
+  // plain index pairs rather than as edges: there is one per node, nothing
+  // ever picks them, and as edges they would quadruple the geometry the
+  // renderer rebuilds every time the highlight moves.
+  let containmentCount = 0;
+  for (let index = 0; index < nodeCount; index += 1) {
+    if (parent[index] >= 0) containmentCount += 1;
+  }
+  const containment: ContainmentLinks = {
+    source: new Uint32Array(containmentCount),
+    target: new Uint32Array(containmentCount),
+  };
+  let written = 0;
   for (let index = 0; index < nodeCount; index += 1) {
     const container = parent[index];
     if (container < 0) continue;
-    // Solid and thin, never dashed: Reagraph builds a Catmull-Rom curve and a
-    // tube per dash, so one dashed containment edge per node costs more than
-    // every dependency in the tile put together.
-    edges.push({
-      id: `contains-${index}`,
-      source: `node-${container}`,
-      target: `node-${index}`,
-      fill: CONTAINMENT_COLOR,
-      size: CONTAINMENT_EDGE_SIZE,
-      dashed: false,
-      arrowPlacement: "none",
-      data: {
-        index,
-        sourceIndex: records[container].id,
-        targetIndex: records[index].id,
-        evidence: 0,
-        kind: 0,
-        confidence: 0,
-        provenance: 0,
-        flags: 0,
-        containment: true,
-      },
-    });
+    containment.source[written] = container;
+    containment.target[written] = index;
+    written += 1;
   }
 
   return {
     nodes,
     edges,
+    containment,
     truncated: (payload.header.flags & VIEWER_FLAG_TRUNCATED) !== 0,
     snapshotId: Number(payload.header.snapshotId),
     stats: {
@@ -413,6 +419,7 @@ export function createReagraphGraph(
   return {
     nodes: view.nodes,
     edges: view.edges,
+    containment: view.containment,
     layoutOverrides: createLayoutOverrides(view.nodes),
     stats: view.stats,
   };
