@@ -86,7 +86,17 @@ sus vecinos. En cambio la tile sí trae la estructura: el árbol de contención 
     sólo produce una mancha; el nombre completo sigue a un cursor de distancia.
 15. La cámara encuadra la extensión proyectada sobre sus propios ejes -no la
     esfera envolvente- y abre fuera de eje en azimut y elevación.
-16. Al posar el cursor sobre un nodo se iluminan sus aristas y sus vecinos y se
+16. La jerarquía se lee por tamaño y por presencia, no sólo por color. El
+    rango dibujado va de `4` a `22` unidades -Reagraph reescala lo que recibe
+    sobre `[minNodeSize, maxNodeSize]`, así que se le declaran esos mismos
+    límites y el mapeo queda identidad-, y la contención se atenúa según lo
+    que sostiene: un repositorio con su paquete es estructura, un archivo con
+    su símbolo es textura y va cerca del fondo. Sin eso, en un tile profundo
+    cada contenedor es un erizo más brillante que sus propios nodos.
+17. La separación entre hermanos la fija el nodo **típico** del tile, no el
+    mayor. Espaciar miles de símbolos con la medida de un repositorio infla el
+    mundo hasta que cada símbolo es una fracción de píxel.
+18. Al posar el cursor sobre un nodo se iluminan sus aristas y sus vecinos y se
     atenúa el resto; al salir se apaga. Reagraph sólo atenúa cuando hay
     selección, de modo que el nodo apuntado viaja en `selections` y su
     vecindario en `actives`. Ambas transiciones esperan `120` ms a que el
@@ -110,6 +120,11 @@ sus vecinos. En cambio la tile sí trae la estructura: el árbol de contención 
   visibilidad se evalúa una vez al montar y depende de `camera.position.z`, que
   cambia fuera de React. Con una cámara que se mueve, las etiquetas nunca
   vuelven.
+- **Niebla exponencial para dar profundidad:** medida y descartada. La niebla
+  se calcula desde la cámara, que abre a dos radios y medio del centro, así que
+  la cara cercana del grafo ya entra velada; con una densidad suficiente para
+  notarse, el grafo entero pierde contraste sobre un fondo casi negro. La
+  profundidad la dan la rotación y el propio layout.
 - **Apagar el resaltado sólo al salir del lienzo:** deja encendido un nodo que
   el cursor ya abandonó. Las dos transiciones pasan por el mismo temporizador
   de reposo y un `pointer-out` de un nodo que ya no es el apuntado se descarta,

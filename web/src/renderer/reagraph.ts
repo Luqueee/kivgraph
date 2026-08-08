@@ -37,19 +37,54 @@ export const LOCAL_DEPENDENCY_COLOR = "#4b5563";
 export const CROSS_DEPENDENCY_COLOR = "#94a3b8";
 export const EXACT_DEPENDENCY_COLOR = "#16a34a";
 
-/** Containment reads as a thin hairline; dashes cost a curve per dash. */
-export const CONTAINMENT_EDGE_SIZE = 0.4;
+/**
+ * How much of the containment colour a link keeps, by what it holds.
+ *
+ * There is one containment link per node, so at the deep levels they outnumber
+ * everything else and every container turns into a starburst brighter than the
+ * nodes it holds. A repository holding a package is structure worth drawing; a
+ * file holding a symbol is texture, and texture belongs near the background.
+ */
+export function containmentPresence(childKind: number): number {
+  switch (childKind) {
+    case NODE_KIND_PACKAGE:
+      return 0.78;
+    case NODE_KIND_FILE:
+      return 0.46;
+    default:
+      return 0.3;
+  }
+}
 /** A dependency inside one cluster is context, not news. */
 export const LOCAL_EDGE_SIZE = 0.5;
 /** A dependency that leaves its cluster is the structure of the codebase. */
 export const CROSS_EDGE_SIZE = 0.9;
 
 /**
- * Above this drawn size Reagraph keeps a caption on screen at any distance
- * (`labelType="auto"`). Repositories and hubs sit above it, everything else
- * below, which is what turns node importance into label priority.
+ * Drawn radius per rank in the hierarchy.
+ *
+ * The stock range is `5` to `15`, which makes a symbol two thirds of a
+ * repository and leaves the picture flat: everything competes. Opening the
+ * range is what lets a repository read as a landmark and a symbol as a speck.
+ * Reagraph rescales the sizes it is given onto `[minNodeSize, maxNodeSize]`,
+ * so the canvas is told these exact bounds and the mapping stays the identity
+ * - the layout reserves space in the same units the renderer draws in.
+ *
+ * The small end does not shrink below four units. A deep tile puts thousands
+ * of symbols in a world thousands of units wide, and anything smaller stops
+ * being a dot and becomes nothing at all.
  */
-export const ALWAYS_LABELLED_SIZE = 7;
+export const NODE_SIZE_REPOSITORY = 22;
+export const NODE_SIZE_HUB = 12;
+export const NODE_SIZE_PACKAGE = 7;
+export const NODE_SIZE_FILE = 5;
+export const NODE_SIZE_SYMBOL = 4;
+
+/**
+ * Above this drawn size a node carries a permanent caption: repositories and
+ * hubs, and nothing else.
+ */
+export const ALWAYS_LABELLED_SIZE = NODE_SIZE_PACKAGE;
 
 /** Most a tile will ever call a hub, however many nodes it holds. */
 const MAX_HUBS = 18;
@@ -485,15 +520,15 @@ function kindLabel(kind: number): string {
  * gives up its caption until the camera comes close.
  */
 function nodeSize(kind: number, importance: number, hub: boolean): number {
-  if (kind === NODE_KIND_REPOSITORY) return 15;
-  if (hub && importance > 0) return ALWAYS_LABELLED_SIZE + 3.5;
+  if (kind === NODE_KIND_REPOSITORY) return NODE_SIZE_REPOSITORY;
+  if (hub && importance > 0) return NODE_SIZE_HUB;
   switch (kind) {
     case NODE_KIND_PACKAGE:
-      return 6.5;
+      return NODE_SIZE_PACKAGE;
     case NODE_KIND_FILE:
-      return 5;
+      return NODE_SIZE_FILE;
     default:
-      return 4;
+      return NODE_SIZE_SYMBOL;
   }
 }
 

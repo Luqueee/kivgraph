@@ -164,6 +164,14 @@ integridad, compatibilidad o verificación descritos aquí.
   no se mueve, y redibujarlo sesenta veces por segundo cuesta un núcleo a
   cambio de nada. Cualquier componente que refresque por su cuenta -el
   contador de FPS- vive fuera del lienzo: cada commit reaplica su `frameloop`.
+- La jerarquía se lee por tamaño: el rango dibujado va de `4` a `22` unidades y
+  el lienzo recibe esos mismos límites como `minNodeSize`/`maxNodeSize`, porque
+  Reagraph reescala los tamaños que recibe. El extremo pequeño no baja de `4`:
+  por debajo un símbolo deja de ser un punto y no es nada.
+- La contención se atenúa según lo que sostiene y la separación entre hermanos
+  la fija el nodo típico del tile, no el mayor. Un contenedor con todos sus
+  trazos al mismo brillo es un erizo, y espaciar símbolos con la medida de un
+  repositorio infla el mundo hasta hacerlos invisibles.
 - Los nodos se dibujan con una geometría de esfera compartida y materiales
   compartidos por color y opacidad. Una esfera de `25 × 25` por nodo son mil
   quinientos triángulos para un punto de cinco píxeles.

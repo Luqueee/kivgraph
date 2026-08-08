@@ -66,16 +66,20 @@ export function placeStructure(
       rank[node] = position;
     });
 
-  let unit = 0;
+  const drawn = new Float32Array(count);
   for (let index = 0; index < count; index += 1) {
     const importance = structure.importance[index];
-    const drawn = drawnRadius(graph.kind[index], importance, rank[index]);
-    radius[index] = drawn * (config.leafAir + config.hubAir * importance);
-    unit = Math.max(unit, drawn);
+    drawn[index] = drawnRadius(graph.kind[index], importance, rank[index]);
+    radius[index] =
+      drawn[index] * (config.leafAir + config.hubAir * importance);
   }
-  // Padding is one figure for the whole tile: derived per pair it would make
-  // the gap between two small nodes and two large ones incomparable.
-  const padding = unit * config.nodePadding;
+  // Padding is one figure for the whole tile - derived per pair, the gap
+  // between two small nodes and two large ones would not be comparable - and
+  // it comes from the typical node, not the biggest. A tile of symbols holds a
+  // handful of repositories, and spacing thousands of specks by the size of a
+  // landmark inflates the world until every speck is a fraction of a pixel.
+  const typical = Float32Array.from(drawn).sort()[Math.floor(count / 2)] ?? 0;
+  const padding = typical * config.nodePadding;
 
   const order = containmentOrder(graph, structure);
   const subtree = measureSubtrees(graph, structure, padding, radius, order);

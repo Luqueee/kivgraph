@@ -10987,6 +10987,56 @@ implica sustituir el render de nodos de Reagraph.
 
 ---
 
+## LUQUE-1721 — Ajustar la jerarquía visual del visor
+
+**Dependencias:** LUQUE-1720.
+
+**Objetivo:** que la vista se lea como una arquitectura y no como un campo de
+erizos: repositorios reconocibles al instante y contención como textura.
+
+**Checklist:**
+
+- [x] Abrir el rango de tamaños y declarárselo al lienzo.
+- [x] Atenuar la contención según el tipo de nodo que sostiene.
+- [x] Fijar la separación entre hermanos por el nodo típico, no por el mayor.
+- [x] Separar la cabecera en lo que se dibuja y el detalle técnico.
+
+**Criterios de aceptación:**
+
+- Los repositorios se localizan sin buscarlos.
+- Los trazos de contención no son lo más brillante de la imagen.
+- El nivel `symbols` con `10.000` nodos sigue dibujándose.
+- La cabecera no parece un panel de depuración.
+
+**Estado:** `PASS`.
+
+**Archivos modificados:**
+
+* `AGENTS.md`, `TASKS.md`, `docs/adr/0022-viewer-structural-layout.md`;
+* `web/src/renderer/reagraph.ts`, `web/src/renderer/containment-lines.tsx`,
+  `web/src/renderer/layout/place.ts`,
+  `web/src/components/GraphPreview.tsx`.
+
+**Verificación:**
+
+* `pnpm --dir web check`: 7 archivos de test y 42 tests pasando;
+* smoke Chromium a `60` fps en `packages` y `files`, `33` fps rotando;
+* `symbols` con `10.000` nodos se dibuja como nebulosas con los repositorios
+  visibles, no como erizos blancos;
+* hover, rotación, zoom, deslizador y modo 2D correctos; cero `pageerror`.
+
+**Descartado tras medirlo:** niebla exponencial. Se calcula desde la cámara,
+que abre a dos radios y medio, así que velaba el grafo entero antes de dar
+sensación de profundidad. Revertida.
+
+**Limitación:** el nivel `symbols` completo sigue siendo una nube: diez mil
+nodos en un mundo de miles de unidades dan puntos de una fracción de píxel, y
+lo que se lee es la masa de cada cluster, no sus nodos.
+
+**Siguiente tarea desbloqueada:** LUQUE-1711.
+
+---
+
 ## LUQUE-1713 — Medir rendimiento end-to-end del visor
 
 **Dependencias:** LUQUE-1712.

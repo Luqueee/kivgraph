@@ -17,6 +17,8 @@ import {
 import {
   CONTAINMENT_COLOR,
   createLayoutOverrides,
+  NODE_SIZE_REPOSITORY,
+  NODE_SIZE_SYMBOL,
   CROSS_DEPENDENCY_COLOR,
   EXACT_DEPENDENCY_COLOR,
   LOCAL_DEPENDENCY_COLOR,
@@ -96,6 +98,13 @@ const INITIAL_STATE: ViewerState = {
   error: null,
   loading: true,
 };
+
+/** `4261` reads as noise beside `35`; `4.2k` reads as a size. */
+function compact(value: number): string {
+  if (value < 1_000) return String(value);
+  const thousands = value / 1_000;
+  return `${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`;
+}
 
 function describe(error: unknown): string {
   if (error instanceof ApiError) return `${error.code}: ${error.message}`;
@@ -190,25 +199,30 @@ export function GraphPreview() {
   // tile of `symbols` may be entirely repositories, packages and files, and
   // saying "symbols" would be a lie the picture contradicts.
   const summary = useMemo(() => {
-    if (state.loading) return "loading snapshot…";
-    if (!graph) return "no graph";
-    const present = graph.stats.nodesByKind
+    if (state.loading) return { drawn: "loading snapshot…", detail: "" };
+    if (!graph) return { drawn: "no graph", detail: "" };
+    const drawn = graph.stats.nodesByKind
       .map((count, position) => ({ count, label: LOD_LABELS[position] }))
       .filter((entry) => entry.count > 0)
-      .map((entry) => `${entry.count} ${entry.label}`);
+      .map((entry) => `${compact(entry.count)} ${entry.label}`)
+      .join(" · ");
     const counts = state.meta?.counts;
     const available = counts
       ? [counts.repositories, counts.packages, counts.files, counts.symbols][
           lod
         ]
       : undefined;
-    const drawn = `${present.join(" · ")} · ${graph.stats.clusterCount} clusters · ${graph.edges.length} edges`;
-    // The budget bites before the deepest level is reached, so a tile asked
-    // for `symbols` can hold none. Naming what is drawn and what it is a
-    // sample of keeps the readout from claiming either.
-    return state.truncated && available !== undefined
-      ? `${drawn} · sample of ${available} ${LOD_LABELS[lod]}`
-      : drawn;
+    // What is drawn reads first; how it was cut is for whoever asks. The
+    // budget bites before the deepest level is reached, so a tile asked for
+    // `symbols` can hold none, and saying so is the honest part.
+    const detail = [
+      `${graph.stats.clusterCount} clusters`,
+      `${compact(graph.edges.length)} edges`,
+      state.truncated && available !== undefined
+        ? `sample of ${compact(available)} ${LOD_LABELS[lod]}`
+        : "complete level",
+    ].join(" · ");
+    return { drawn, detail };
   }, [graph, lod, state.loading, state.meta, state.truncated]);
 
   // The camera frames whatever the layout produced: thirty repositories and
@@ -361,6 +375,11 @@ export function GraphPreview() {
           // A tile of thirty repositories is a small world; the stock floor of
           // 1.000 units would keep the camera outside it.
           minDistance={40}
+          // Reagraph rescales the sizes it is given onto this range. Handing
+          // it the adapter's own bounds keeps the mapping an identity, so the
+          // space the layout reserved is the space the renderer draws in.
+          minNodeSize={NODE_SIZE_SYMBOL}
+          maxNodeSize={NODE_SIZE_REPOSITORY}
           // The layout is a volume, not a sheet: rotating separates clusters
           // that overlap head-on and shows which ones sit in front.
           cameraMode={rotate ? "rotate" : "pan"}
@@ -381,9 +400,16 @@ export function GraphPreview() {
           />
         </GraphCanvas>
       ) : null}
-      <div className="pointer-events-none absolute inset-x-4 top-4 flex items-center justify-between gap-4 text-xs font-medium">
-        <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          {state.error ? `error · ${state.error}` : summary}
+      <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between gap-4 text-xs font-medium">
+        <span className="flex flex-col items-start gap-1">
+          <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-foreground backdrop-blur">
+            {state.error ? `error · ${state.error}` : summary.drawn}
+          </span>
+          {state.error || summary.detail === "" ? null : (
+            <span className="rounded-full px-3 text-[11px] text-muted-foreground/70">
+              {summary.detail}
+            </span>
+          )}
         </span>
         <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
           <FrameRate /> · {status}

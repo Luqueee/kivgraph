@@ -3,12 +3,13 @@ import { BufferAttribute, BufferGeometry, Color, LineSegments } from "three";
 
 import {
   CONTAINMENT_COLOR,
+  containmentPresence,
   type ContainmentLinks,
   type ViewerReagraphNode,
 } from "./reagraph";
 
-/** Colour an inactive line fades towards; the canvas background. */
-const BACKGROUND = new Color("#1a1c22");
+/** Colour an inactive line fades towards: the canvas background. */
+const BACKGROUND = new Color("#1e2026");
 
 export interface ContainmentLinesProps {
   readonly nodes: readonly ViewerReagraphNode[];
@@ -61,22 +62,25 @@ export function ContainmentLines({
   useEffect(() => {
     const attribute = geometry.getAttribute("color") as BufferAttribute;
     const colors = attribute.array as Float32Array;
-    const base = new Color(CONTAINMENT_COLOR);
-    const faded = base.clone().lerp(BACKGROUND, 1 - inactiveOpacity);
+    const full = new Color(CONTAINMENT_COLOR);
     const dimming = actives.size > 0;
+    const tone = new Color();
     for (let index = 0; index < links.source.length; index += 1) {
+      const child = nodes[links.target[index]];
+      if (child === undefined) continue;
       const lit =
         !dimming ||
         actives.has(nodes[links.source[index]]?.id ?? "") ||
-        actives.has(nodes[links.target[index]]?.id ?? "");
-      const color = lit ? base : faded;
+        actives.has(child.id);
+      const presence =
+        containmentPresence(child.data.kind) * (lit ? 1 : inactiveOpacity);
+      tone.copy(BACKGROUND).lerp(full, presence);
       for (let vertex = 0; vertex < 2; vertex += 1) {
-        colors.set([color.r, color.g, color.b], index * 6 + vertex * 3);
+        colors.set([tone.r, tone.g, tone.b], index * 6 + vertex * 3);
       }
     }
     attribute.needsUpdate = true;
   }, [geometry, links, nodes, actives, inactiveOpacity]);
-
   if (links.source.length === 0) return null;
   return (
     <lineSegments ref={mesh} geometry={geometry} frustumCulled={false}>
