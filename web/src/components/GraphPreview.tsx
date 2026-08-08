@@ -139,7 +139,6 @@ export function isEmptySnapshot(meta: SnapshotMeta): boolean {
 export function GraphPreview() {
   const [lod, setLod] = useState(1);
   const [rotate, setRotate] = useState(true);
-  const [interacting, setInteracting] = useState(false);
   const [requestedBudget, setRequestedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [appliedBudget, setAppliedBudget] = useState(DEFAULT_TILE_BUDGET);
   const [state, setState] = useState<ViewerState>(INITIAL_STATE);
@@ -494,9 +493,10 @@ export function GraphPreview() {
           // given. Reagraph's own `auto` mode is evaluated once at mount and
           // never again, which on a camera that moves means captions that
           // never come back.
-          // Troika labels are still renderable meshes. The governor removes
-          // them only while the camera is moving and restores them afterward.
-          labelType={interacting ? "none" : "nodes"}
+          // Troika labels stay mounted: the governor only flips their
+          // visibility while the camera moves, because unmounting them
+          // rebuilds every glyph mesh and stalls the gesture it should cheapen.
+          labelType="nodes"
           // A quarter of a million triangles per thousand nodes instead of a
           renderNode={
             rendererSelection.backend === "webgpu"
@@ -522,7 +522,7 @@ export function GraphPreview() {
           onNodePointerOver={enterNode}
           onNodePointerOut={leaveNode}
         >
-          <FrameGovernor onInteractionChange={setInteracting} />
+          <FrameGovernor />
           <CameraLodObserver
             center={graph.stats.center}
             previous={visibleKind}

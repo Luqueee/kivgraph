@@ -42,9 +42,12 @@ si el navegador no devuelve un adaptador utilizable.
    rendimiento.
 
 6. La fábrica de fallback crea `WebGLRenderer` sin antialiasing. Durante una
-   interacción de cámara, `FrameGovernor` limita el DPR a `1`, oculta
-   temporalmente las etiquetas de Reagraph y pausa el picking de objetos; al
-   terminar el gesto restaura el DPR y las etiquetas. La reducción es
+   interacción de cámara, `FrameGovernor` limita el DPR a `1`, pausa el
+   picking de objetos y oculta las etiquetas poniendo `visible = false` en
+   cada malla de Troika; al terminar el gesto restaura las tres cosas. Las
+   etiquetas no se desmontan: el conmutador `labelType` de Reagraph reconstruye
+   todas las mallas de glifos y costaba `152 ms` al empezar el gesto y `134 ms`
+   al soltarlo, justo el gasto que pretendía evitar. La reducción es
    transitoria y no cambia el payload ni el layout publicado. Sólo se redibuja
    cuando el DPR realmente cambia y cada reconstrucción del drawing buffer
    fuerza un frame inmediato, evitando exponer un frame negro durante el gesto
@@ -94,8 +97,13 @@ si el navegador no devuelve un adaptador utilizable.
   `troika-three-text`. El coste de carga y la mejora de FPS en una GPU
   discreta todavía requieren una medición independiente en una GPU real.
 - Los tests cubren la decisión de capacidad, sus fallos, el conteo finito de
-  instancias de Troika, la ausencia de `dispose()` al crecer los atributos y
-  la resolución de conteos no finitos.
+  instancias de Troika, la ausencia de `dispose()` al crecer los atributos, la
+  resolución de conteos no finitos y el ocultado de etiquetas por visibilidad.
+- Medición del gesto en el mismo Chromium y la misma tile de `1.200` nodos,
+  arrastre continuo de `2 s`. Con el conmutador `labelType`: `62` frames,
+  `p50=17 ms` y picos de `152 ms` y `134 ms`. Ocultando por visibilidad: `119`
+  frames, `p50=18 ms`, `p95=25 ms` y pico máximo de `59 ms`. Bajo el backend
+  WebGPU de SwiftShader: `p50=17 ms`, `p95=21 ms`, pico máximo `30 ms`.
 - Verificación con WebGPU real sobre Chromium `headless=new` con adaptador
   SwiftShader: backend `WebGPU`, `40.601` llamadas `drawIndexed`, `0` enlaces
   de índice inválidos y `0` errores de página durante carga, cinco gestos de

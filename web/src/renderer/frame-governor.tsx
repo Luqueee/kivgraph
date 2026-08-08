@@ -1,5 +1,6 @@
 import { useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
+import { setTextLabelsHidden } from "./text-labels";
 
 /** Interaction trades a little sharpness for a cheaper camera frame. */
 const INTERACTION_DPR = 1;
@@ -50,10 +51,6 @@ export function wakeFrame(
   setFrameloop("always");
 }
 
-interface FrameGovernorProps {
-  readonly onInteractionChange?: (active: boolean) => void;
-}
-
 /**
  * Renders the scene only when something changed.
  *
@@ -65,15 +62,13 @@ interface FrameGovernorProps {
  *
  * So: `demand` at rest, `always` while the pointer is working, and back to
  * `demand` once it has been still. During a held pointer it also caps the
- * renderer DPR at `1` and pauses scene picking; the parent uses the callback
- * to remove expensive labels for the same interval. Waking on the raw DOM
- * events rather than on the controls' own events keeps this independent of how
- * Reagraph drives them.
+ * renderer DPR at `1`, pauses scene picking and hides the text labels.
+ * Waking on the raw DOM events rather than on the controls' own events keeps
+ * this independent of how Reagraph drives them.
  */
-export function FrameGovernor({
-  onInteractionChange,
-}: FrameGovernorProps = {}): null {
+export function FrameGovernor(): null {
   const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
   const frameloop = useThree((state) => state.frameloop);
   const setFrameloop = useThree((state) => state.setFrameloop);
   const setEvents = useThree((state) => state.setEvents);
@@ -87,6 +82,10 @@ export function FrameGovernor({
     let idle = 0;
     const resizeRenderer = (): void => {
       resizeAndPaint(gl, canvas, advance);
+    };
+    const hideLabels = (hidden: boolean): void => {
+      if (setTextLabelsHidden(scene, hidden) > 0)
+        advance(performance.now(), true);
     };
     const restoreDpr = (): void => {
       const previousDpr = interactionDpr.current;
@@ -121,7 +120,7 @@ export function FrameGovernor({
       if (!dragging.current) {
         dragging.current = true;
         lowerDpr();
-        onInteractionChange?.(true);
+        hideLabels(true);
         setEvents({ enabled: false });
       }
       wake();
@@ -129,7 +128,7 @@ export function FrameGovernor({
     const release = (): void => {
       if (!dragging.current) return;
       dragging.current = false;
-      onInteractionChange?.(false);
+      hideLabels(false);
       setEvents({ enabled: true });
     };
     idle = window.setTimeout(rest, IDLE_MS);
@@ -153,12 +152,12 @@ export function FrameGovernor({
       window.removeEventListener("blur", release);
       const wasDragging = dragging.current;
       dragging.current = false;
-      if (wasDragging) onInteractionChange?.(false);
+      if (wasDragging) hideLabels(false);
       setEvents({ enabled: true });
       restoreDpr();
       setFrameloop("always");
     };
-  }, [advance, gl, onInteractionChange, setEvents, setFrameloop]);
+  }, [advance, gl, scene, setEvents, setFrameloop]);
 
   // Every commit of the canvas re-applies its own `frameloop` prop, which
   // Reagraph leaves unset - so any re-render of the viewer silently puts the
