@@ -1,0 +1,85 @@
+{
+  "benchmark": "web-viewer",
+  "command": "Chromium headless smoke against ladygraph ui; node benchmarks/web-viewer/harness.mjs --results benchmarks/web-viewer/results.json --allow-limitations",
+  "commit": "fc2a808671cff0f86fc66b1af157cdccce55204c-dirty",
+  "generated_at": "2026-08-08T12:12:00Z",
+  "environment": {
+    "os": "Linux 6.12.94+deb13-amd64",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "logical_cpus": 16,
+    "memory_total_kib": 24543908,
+    "go": "go1.24.4",
+    "node": "v25.9.0",
+    "pnpm": "11.5.1",
+    "browser": "Chrome/150.0.7871.24",
+    "gpu": "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "gpu_mode": "software/headless browser adapter"
+  },
+  "dataset": {
+    "name": "published HotSnapshot from ~/kena",
+    "snapshot_id": 2,
+    "seed": null,
+    "repositories": 35,
+    "packages": 105,
+    "files": 4261,
+    "symbols": 83293,
+    "edges": 204630,
+    "reference_symbols": 100000,
+    "reference_edges": 1000000,
+    "reference_match": false,
+    "contains_hubs": true
+  },
+  "parameters": {
+    "viewport": "1440x1000",
+    "device_pixel_ratio": 1,
+    "lods": [1, 2, 3],
+    "max_nodes": 10000,
+    "neighborhood_depth": 3,
+    "neighborhood_max_nodes": 200,
+    "first_frame_repetitions": 8,
+    "http_repetitions": 30,
+    "tile_repetitions_per_lod": 10,
+    "interaction_samples": {
+      "pan": 61,
+      "zoom": 20,
+      "hover": 21,
+      "neighborhood": 20
+    }
+  },
+  "metrics": {
+    "meta_http_p95_ms": 1.255,
+    "payload_topology_p95_ms": 18.31,
+    "payload_max_bytes": 788786,
+    "first_frame_p95_ms": 84.53,
+    "pan_zoom_p95_ms": 11.3,
+    "hover_p95_ms": 4.9,
+    "neighborhood_p95_ms": 1.51,
+    "heap_bytes": 41534874,
+    "errors": 0
+  },
+  "evidence": {
+    "snapshot_and_payload_validated": true,
+    "http_statuses": [200],
+    "payload_format_version": 2,
+    "payload_snapshot_id": 2,
+    "ui_search_and_selection": true,
+    "ui_neighborhood_expansion": true,
+    "ui_confidence_filter": true,
+    "ui_2d_3d_controls": true,
+    "page_errors": 0
+  },
+  "gate": {
+    "snapshot_and_payload_validated": true,
+    "metrics_within_limits": true,
+    "reference_corpus": false,
+    "passed": false,
+    "code": "WEB_VIEWER_PERFORMANCE_PASS_NOT_EMITTED",
+    "reason": "The measured published snapshot has 83,293 symbols and 204,630 edges; the SLO reference corpus requires 100,000 symbols and 1,000,000 edges."
+  },
+  "limitations": [
+    "This run uses the published ~/kena snapshot instead of the required 100,000-symbol / 1,000,000-edge synthetic reference corpus.",
+    "The browser exposes an ANGLE Intel software/headless renderer; GPU-bound frame cost is not representative of a discrete GPU.",
+    "The harness validates recorded metrics and fails closed; collection remains a Chromium smoke capture until a reproducible CDP launcher is supplied."
+  ]
+}

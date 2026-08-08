@@ -7,9 +7,9 @@ grammars, los avisos de licencia y, cuando existe el paquete web construido,
 el bundle Vite bajo `web/`.
 
 El visor web empaquetado usa Reagraph `4.32.0` sobre el payload binario `LGVB`.
-Cada vista materializada está limitada a `2.000` nodos y `8.000` aristas; una
-vista mayor debe solicitar tiles o una neighborhood acotada en vez de
-truncarse en el navegador.
+Cada vista materializada está limitada a `10.000` nodos por tile y `32 MiB`
+por respuesta; el LOD oculta detalle lejano y una vista mayor debe solicitar
+tiles o una neighborhood acotada en vez de truncarse en el navegador.
 
 Ladygraph no copia ni modifica los repositorios registrados. El grafo canónico,
 los snapshots y los backups se escriben en el directorio de estado configurado.

@@ -27,10 +27,11 @@ eventos de nodos/aristas sobre WebGL. Su contrato público recibe arrays de
    `ArrayBuffer`, valida cabecera, secciones y snapshot, y
    `web/src/renderer/reagraph.ts` adapta únicamente un payload acotado al
    formato público de Reagraph.
-3. El adaptador admite como máximo `2.000` nodos y `8.000` aristas por vista.
-   Si el payload excede esos límites devuelve `REAGRAPH_NODE_LIMIT` o
-   `REAGRAPH_EDGE_LIMIT`; nunca trunca nodos o aristas en silencio. Un endpoint
-   de tiles o neighborhood debe entregar la vista acotada antes de invocar al
+3. El adaptador admite como máximo `10.000` nodos y `8.000` aristas por vista;
+   el endpoint de tiles limita además cada respuesta a `32 MiB`. Si el payload
+   excede esos límites devuelve `REAGRAPH_NODE_LIMIT`, `REAGRAPH_EDGE_LIMIT` o
+   `PAYLOAD_TOO_LARGE`; nunca trunca nodos o aristas en silencio. Un endpoint de
+   tiles o neighborhood debe entregar la vista acotada antes de invocar al
    adaptador.
 4. `GraphCanvas` usa `layoutType="custom"` y posiciones calculadas desde las
    coordenadas enteras del payload. Se desactiva la animación global, se

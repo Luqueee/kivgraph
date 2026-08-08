@@ -183,6 +183,10 @@ integridad, compatibilidad o verificación descritos aquí.
   petición; el render permanece en el hilo principal. El número de nodos por
   vista es ajustable desde la interfaz, una tile recortada se declara como tal
   y un contador de FPS expone el coste de la elección.
+- El benchmark end-to-end del visor se versiona en
+  `benchmarks/web-viewer/`; el harness falla cerrado ante una métrica fuera de
+  límite y no emite `WEB_VIEWER_PERFORMANCE_PASS` si el corpus o GPU no
+  coinciden con la referencia declarada.
 - El visor elige el nivel de detalle según los píxeles proyectados de la
   cámara, conserva histéresis entre `1.1` y `1` píxeles y eleva dependencias
   hacia contenedores visibles; cambiar de nivel sólo reproyecta durante un

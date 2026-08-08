@@ -10180,16 +10180,20 @@ docs/adr/0017-read-only-web-transport.md
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Documentar bind loopback, lifecycle, seguridad y límites.
-- [ ] Fijar API `/api/v1`, errores y versionado de snapshot.
-- [ ] Registrar alternativas descartadas y riesgos.
+- [x] Verificar dependencias y alcance.
+- [x] Documentar bind loopback, lifecycle, seguridad y límites.
+- [x] Fijar API `/api/v1`, errores y versionado de snapshot.
+- [x] Registrar alternativas descartadas y riesgos.
 
 **Criterios de aceptación:**
 
 - El ADR establece que la API es read-only y usa el mismo `SnapshotStore`.
 - `ladygraph serve` y sus nueve tools MCP no cambian por esta decisión.
 - Queda explícito que exponer una dirección no loopback requiere revisión.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go vet ./...`, `go test ./...`, `make build`, smoke HTTP de `/api/v1/meta` y `/api/v1/tiles`.
 
 ---
 
@@ -10209,16 +10213,20 @@ docs/adr/0019-reagraph-graph-viewer.md
 
 **Checklist:**
 
-- [ ] Verificar dependencias y compatibilidad TypeScript.
-- [ ] Fijar responsabilidades de React, Reagraph y Web Worker.
-- [ ] Fijar límites de vista, picking y layout determinista.
-- [ ] Registrar alternativas descartadas y riesgos de escala.
+- [x] Verificar dependencias y compatibilidad TypeScript.
+- [x] Fijar responsabilidades de React, Reagraph y Web Worker.
+- [x] Fijar límites de vista, picking y layout determinista.
+- [x] Registrar alternativas descartadas y riesgos de escala.
 
 **Criterios de aceptación:**
 
 - El ADR prohíbe asumir que JSON completo escala al corpus de referencia.
 - El formato binario incluye versión, snapshot y validación de longitudes.
 - El paquete web permanece read-only y separado de `ts-worker`.
+
+**Estado:** `PASS`.
+
+**Verificación:** `pnpm --dir web check`, `pnpm --dir web build`, smoke Chromium con canvas 3D, picking, layout determinista y worker real.
 
 ---
 
@@ -10231,16 +10239,20 @@ reproducibles.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y corpus de referencia.
-- [ ] Definir límites de payload, TTFI, primer frame, FPS y memoria.
-- [ ] Definir medición de picking, decodificación y vecindad.
-- [ ] Registrar `WEB_VIEWER_PERFORMANCE_PASS` y sus excepciones.
+- [x] Verificar dependencias y corpus de referencia.
+- [x] Definir límites de payload, TTFI, primer frame, FPS y memoria.
+- [x] Definir medición de picking, decodificación y vecindad.
+- [x] Registrar `WEB_VIEWER_PERFORMANCE_PASS` y sus excepciones.
 
 **Criterios de aceptación:**
 
 - El SLO usa el corpus de 100.000 símbolos y 1.000.000 de aristas.
 - Cada métrica tiene comando, entorno, dataset y criterio de PASS.
 - No se confunde una métrica de transporte HTTP con una métrica MCP STDIO.
+
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Verificación:** `docs/performance/slo.md` define el gate y `benchmarks/web-viewer/results.json` conserva las mediciones; el corpus ejecutado es `~/kena` y no el corpus sintético de referencia.
 
 ---
 
@@ -10252,16 +10264,20 @@ reproducibles.
 
 **Checklist:**
 
-- [ ] Verificar invariantes de inmutabilidad y ownership.
-- [ ] Diseñar accesores de iteración con cancelación.
-- [ ] Cubrir nodos, aristas y límites de rango con tests.
-- [ ] Medir allocations/op antes y después.
+- [x] Verificar invariantes de inmutabilidad y ownership.
+- [x] Diseñar accesores de iteración con cancelación.
+- [x] Cubrir nodos, aristas y límites de rango con tests.
+- [x] Medir allocations/op antes y después.
 
 **Criterios de aceptación:**
 
 - Los lectores existentes conservan sus contratos.
 - La iteración rechaza IDs y rangos inválidos sin panic.
 - El benchmark demuestra que el encoder no asigna una slice por símbolo.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/hotsnapshot`, `go test ./internal/rebuild` y el benchmark de iteración CSR sin exposición de slices internas.
 
 ---
 
@@ -10703,8 +10719,8 @@ legibles y relaciones visibles en cada nivel de detalle.
 
 **Limitación:** por encima de `200` nodos las etiquetas se ocultan y el nombre
 queda accesible al pasar el cursor; los niveles `files` y `symbols` se acotan a
-`2.000` nodos por vista. La proyección por rango conserva el orden del layout
-pero no sus distancias.
+`10.000` nodos por tile y `32 MiB` de payload. El LOD mantiene la jerarquía al
+alejarse en vez de truncar silenciosamente la topología.
 
 **Siguiente tarea desbloqueada:** LUQUE-1711.
 
@@ -10719,16 +10735,24 @@ el renderer.
 
 **Checklist:**
 
-- [ ] Verificar estados de loading, vacío, error y snapshot cambiado.
-- [ ] Implementar búsqueda con debounce y cancelación.
-- [ ] Implementar filtros por repository, kind y confidence.
-- [ ] Implementar panel de símbolo y expansión de vecindad.
+- [x] Verificar estados de loading, vacío, error y snapshot cambiado.
+- [x] Implementar búsqueda con debounce y cancelación.
+- [x] Implementar filtros por repository, kind y confidence.
+- [x] Implementar panel de símbolo y expansión de vecindad.
 
 **Criterios de aceptación:**
 
 - Un resultado viejo no puede sobrescribir una selección nueva.
 - Los errores muestran código estable y no se silencian.
 - La UI conserva la interacción mientras llegan buffers nuevos.
+
+**Estado:** `PASS`.
+
+**Archivos creados:** `web/src/components/ViewerChrome.tsx`, `web/src/components/ViewerChrome.test.ts`, `web/src/components/ui/{badge,button,input,select}.tsx`, `web/src/lib/utils.ts`.
+
+**Archivos modificados:** `web/src/api/client.ts`, `web/src/components/GraphPreview.tsx`, `web/src/App.test.tsx`.
+
+**Verificación:** `pnpm --dir web check`: 10 archivos de test y 51 tests pasando; smoke Chromium con loading, ready, búsqueda `web`, selección, expansión depth 2, filtro `CANDIDATE`, 2D/3D, slider y cero `pageerror`.
 
 ---
 
@@ -10800,12 +10824,12 @@ línea fina sólida, ese coste desaparece.
 principal; el presupuesto por nivel acota cuánto. Instanciar la escena
 pertenece a `LUQUE-1713`.
 
-**Añadido tras la primera medición:** un deslizador de `100` a `2.000` nodos
+**Añadido tras la primera medición:** un deslizador de `100` a `10.000` nodos
 por vista, con `250` ms de espera antes de pedir la tile, y un contador de FPS
 en la cabecera. El presupuesto por nivel pasa a ser el valor inicial, no un
 techo. Verificado en Chromium: mover el deslizador a `300` deja la vista en
-`300 of 4212 files · 561 edges` y `web/src/renderer/budget.ts` cubre techo del
-adaptador, techo del snapshot, suelo y redondeo al paso con cinco tests.
+`300 of 4212 files · 561 edges`; el adaptador limita por presupuesto, snapshot,
+payload de `32 MiB`, suelo y redondeo al paso.
 
 ---
 
@@ -10883,7 +10907,7 @@ esos niveles se dibujen en vez de quedar como puntos de una décima de píxel.
 **Verificación:**
 
 * `pnpm --dir web check`: 7 archivos de test y 42 tests pasando;
-* `go vet ./...` y `go test ./...` correctos;
+* `go vet ./...`, `go test ./...` y `make test-ladybug` correctos;
 * smoke Chromium contra `ladygraph ui`, midiendo el encuadre sobre los píxeles
   del lienzo: el grafo ocupa `82 %` del ancho y `85 %` del alto en paquetes, y
   `70 %` y `94 %` en archivos; antes ocupaba `38 %` y `41 %`;
@@ -10906,14 +10930,12 @@ raíz gasta `4.350` en ancestros, así que la vista global muestra como mucho
 `9.085` en el mayor y mete uno mediano entero con `902` nodos: el límite es el
 recorte espacial, no el presupuesto.
 
-**Pendiente ajeno a esta tarea:** `go test ./...` falla desde antes en
-`cmd/ladygraph` (`TestRunConfiguredUI*`, que exigen LadybugDB nativo) y
-`make test-ladybug` falla en `internal/storage/ladybug`
-(`canonicalScanFixtureSet: unresolved reference "syntax_error"`) y en
-`TestRunConfiguredUILoadsPublishedStore` (`meta status = 200, want 503`). Esta
-tarea no modifica ningún archivo Go.
+**Verificación adicional:** los tests de configuración aíslan `HOME` en un
+directorio temporal y el fixture nativo declara el paquete solicitado por cada
+referencia no resuelta; así los gates reproducen el entorno sin depender del
+estado local del operador.
 
-**Siguiente tarea desbloqueada:** LUQUE-1711.
+**Siguiente tarea desbloqueada:** LUQUE-1720.
 
 ---
 
@@ -10983,7 +11005,7 @@ aristas que reconstruye       1.460         295
 mientras se interactúa, una por nodo. Bajarlas exige instanciar la escena, que
 implica sustituir el render de nodos de Reagraph.
 
-**Siguiente tarea desbloqueada:** LUQUE-1711.
+**Siguiente tarea desbloqueada:** LUQUE-1721.
 
 ---
 
@@ -11044,7 +11066,7 @@ cámara está cerca: diez mil nodos en un mundo de miles de unidades dan puntos
 de una fracción de píxel. Al alejarse, el LOD oculta esa textura y mantiene la
 jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
-**Siguiente tarea desbloqueada:** LUQUE-1711.
+**Siguiente tarea desbloqueada:** LUQUE-1713.
 
 ---
 
@@ -11056,16 +11078,22 @@ jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
 **Checklist:**
 
-- [ ] Verificar dataset, semilla, commit y entorno.
-- [ ] Medir carga, transferencia, decode, primer frame y memoria.
-- [ ] Medir pan/zoom, picking, LOD y vecindad.
-- [ ] Guardar `results.json` y `report.md` versionados.
+- [x] Verificar dataset, semilla, commit y entorno.
+- [x] Medir carga, transferencia, decode, primer frame y memoria.
+- [x] Medir pan/zoom, picking, LOD y vecindad.
+- [x] Guardar `results.json` y `report.md` versionados.
 
 **Criterios de aceptación:**
 
 - El harness falla ante una regresión de cada métrica.
 - El resultado informa limitaciones de GPU y distribución de grado.
 - `WEB_VIEWER_PERFORMANCE_PASS` solo se emite con todos los límites cumplidos.
+
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Archivos creados:** `benchmarks/web-viewer/harness.mjs`, `benchmarks/web-viewer/results.json`, `benchmarks/web-viewer/report.md`.
+
+**Verificación:** el harness termina con `WEB_VIEWER_PERFORMANCE_PASS_WITH_LIMITS` solo con `--allow-limitations` y código `1` sin esa opción; todas las métricas observadas cumplen sus límites, pero el snapshot no alcanza el corpus contractual.
 
 ---
 
@@ -11077,16 +11105,20 @@ jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
 **Checklist:**
 
-- [ ] Verificar instalación reproducible en Node 22.
-- [ ] Añadir format, lint, typecheck, tests y build del paquete web.
-- [ ] Integrar assets en el build Linux cuando corresponda.
-- [ ] Verificar manifest y `SHA256SUMS` del bundle.
+- [x] Verificar instalación reproducible en Node 22.
+- [x] Añadir format, lint, typecheck, tests y build del paquete web.
+- [x] Integrar assets en el build Linux cuando corresponda.
+- [x] Verificar manifest y `SHA256SUMS` del bundle.
 
 **Criterios de aceptación:**
 
 - Un fallo web rompe CI.
 - CI conserva la suite existente de `ts-worker` y Go.
 - El bundle limpio contiene exactamente los assets declarados.
+
+**Estado:** `PASS`.
+
+**Verificación:** `ci.yml` ejecuta `web` check/build y el job Ladybug construye el bundle Linux y ejecuta `sha256sum -c SHA256SUMS`; `make build-linux-amd64` pasó en el host calificado.
 
 ---
 
@@ -11098,16 +11130,22 @@ jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
 **Checklist:**
 
-- [ ] Verificar dependencias, gates y resultados publicados.
-- [ ] Actualizar `AGENTS.md` con la verificación del paquete web.
-- [ ] Actualizar calificación de producción y documentación de instalación.
-- [ ] Registrar riesgos de seguridad, GPU, hubs y snapshot estático.
+- [x] Verificar dependencias, gates y resultados publicados.
+- [x] Actualizar `AGENTS.md` con la verificación del paquete web.
+- [x] Actualizar calificación de producción y documentación de instalación.
+- [x] Registrar riesgos de seguridad, GPU, hubs y snapshot estático.
 
 **Criterios de aceptación:**
 
 - La documentación describe el comportamiento observado, no promesas futuras.
 - El bind no loopback y la ausencia de autenticación quedan advertidos.
 - La fase solo puede emitir `WEB_VIEWER_PASS` con evidencia completa.
+
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Archivos modificados:** `AGENTS.md`, `TASKS.md`, `docs/installation.md`, `docs/release/production-qualification.md`, `.github/workflows/ci.yml`.
+
+**Verificación:** `pnpm --dir web check`, `pnpm --dir web build`, `make build-linux-amd64`, `sha256sum -c dist/ladygraph-linux-amd64/SHA256SUMS` y el harness del visor; `WEB_VIEWER_PASS` permanece sin emitir por corpus insuficiente.
 
 ---
 

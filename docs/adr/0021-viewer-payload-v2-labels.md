@@ -68,17 +68,17 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
     y los tres trazos — dependencia exacta, dependencia y contiene. La paleta
     vive en un único sitio del adaptador para que leyenda y lienzo no puedan
     divergir.
-13. Cada nivel tiene un presupuesto de nodos: los niveles gruesos caben
-    enteros, `files` y `symbols` piden `1.200`. Reagraph construye un objeto
-    por nodo, así que el nivel completo no cabe en un frame razonable. Cuando
-    el servidor recorta la tile, la vista lo dice (`1200 of 4212 files`): es
+13. Cada nivel tiene un presupuesto de nodos configurable entre `100` y
+    `10.000`, con `10.000` como techo del endpoint. Reagraph construye un
+    objeto por nodo, así que el nivel completo no cabe necesariamente en un
+    frame razonable. Cuando el servidor recorta la tile, la vista lo dice: es
     una muestra acotada, no el nivel entero.
 14. El fetch, la validación y la adaptación corren en un Web Worker, con un
     `AbortController` por petición para que cambiar de nivel cancele el
     anterior. El render se queda en el hilo principal: WebGL no es accesible
     desde el worker en esta integración.
 15. El presupuesto por nivel es un valor por defecto, no un techo fijo: un
-    deslizador de `100` a `2.000` nodos deja al lector elegir cuánto grafo
+    deslizador de `100` a `10.000` nodos deja al lector elegir cuánto grafo
     quiere ver, con `250` ms de espera para no pedir una tile por píxel
     arrastrado. Un contador de FPS muestra el coste de esa elección.
 

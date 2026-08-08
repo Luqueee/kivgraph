@@ -106,6 +106,27 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+      - name: Set up pnpm for distribution
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js for distribution
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            ts-worker/pnpm-lock.yaml
+            web/pnpm-lock.yaml
+
+      - name: Build Linux distribution bundle
+        run: make build-linux-amd64
+
+      - name: Verify Linux distribution checksums
+        run: |
+          cd dist/ladygraph-linux-amd64
+          sha256sum -c SHA256SUMS
 
       # The pinned core and the pinned Go binding must share a version: a
       # mismatched pair segfaults on the first C call instead of failing a

@@ -4,6 +4,7 @@ import type { GraphCanvasRef, InternalGraphNode } from "reagraph";
 
 import { ApiError, fetchMeta, type SnapshotMeta } from "@/api/client";
 import { FrameRate } from "@/components/FrameRate";
+import { ViewerChrome } from "@/components/ViewerChrome";
 import { frameGraph } from "@/renderer/camera";
 import { ContainmentLines } from "@/renderer/containment-lines";
 import { FrameGovernor } from "@/renderer/frame-governor";
@@ -115,6 +116,16 @@ function describe(error: unknown): string {
   return "unknown error";
 }
 
+export function isEmptySnapshot(meta: SnapshotMeta): boolean {
+  return (
+    meta.layout === null &&
+    meta.counts.repositories === 0 &&
+    meta.counts.packages === 0 &&
+    meta.counts.files === 0 &&
+    meta.counts.symbols === 0
+  );
+}
+
 export function GraphPreview() {
   const [lod, setLod] = useState(1);
   const [rotate, setRotate] = useState(true);
@@ -125,6 +136,15 @@ export function GraphPreview() {
   const [actives, setActives] = useState<readonly string[]>(NOTHING_ACTIVE);
   const [selected, setSelected] = useState<readonly string[]>(NOTHING_ACTIVE);
   const [visibleKind, setVisibleKind] = useState<ViewerLodKind>(4);
+  const [snapshotChanged, setSnapshotChanged] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const onReload = useCallback((): void => {
+    setSnapshotChanged(false);
+    setReloadToken((value) => value + 1);
+  }, []);
+  const onSnapshotChanged = useCallback((): void => {
+    setSnapshotChanged(true);
+  }, []);
   const worker = useRef<TileWorkerClient | null>(null);
   const canvas = useRef<GraphCanvasRef | null>(null);
   const highlight = useRef<number | null>(null);
@@ -152,15 +172,22 @@ export function GraphPreview() {
 
   useEffect(() => {
     const controller = new AbortController();
-    visibleKindRef.current = 4;
-    setVisibleKind(4);
-    hovered.current = null;
-    setActives(NOTHING_ACTIVE);
+    if (reloadToken > 0) setSnapshotChanged(false);
     setSelected(NOTHING_ACTIVE);
     setState((previous) => ({ ...previous, loading: true, error: null }));
     (async () => {
       const meta = await fetchMeta(controller.signal);
       if (!meta.layout) {
+        if (isEmptySnapshot(meta)) {
+          setState({
+            meta,
+            graph: null,
+            truncated: false,
+            error: null,
+            loading: false,
+          });
+          return;
+        }
         throw new ApiError(
           "NO_LAYOUT",
           200,
@@ -201,7 +228,7 @@ export function GraphPreview() {
       });
     });
     return () => controller.abort();
-  }, [lod, appliedBudget]);
+  }, [lod, appliedBudget, reloadToken]);
 
   const graph = state.graph;
 
@@ -391,10 +418,16 @@ export function GraphPreview() {
   return (
     <div
       className="relative h-full w-full bg-background"
-      role="img"
-      aria-label="Interactive Reagraph graph preview"
       onPointerLeave={leaveCanvas}
     >
+      <ViewerChrome
+        meta={state.meta}
+        loading={state.loading}
+        error={state.error}
+        snapshotChanged={snapshotChanged}
+        onReload={onReload}
+        onSnapshotChanged={onSnapshotChanged}
+      />
       {graph && visibleGraph ? (
         <GraphCanvas
           ref={canvas}

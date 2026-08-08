@@ -200,6 +200,7 @@ func TestRunServeStopsMCPOnContextCancellation(t *testing.T) {
 }
 func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("HOME", filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{
@@ -235,6 +236,7 @@ func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 }
 func TestRunConfiguredUIUsesLoopbackDefaultAddress(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("HOME", filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{

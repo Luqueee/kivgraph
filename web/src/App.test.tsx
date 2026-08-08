@@ -7,8 +7,9 @@ describe("viewer shell", () => {
   it("renders only the graph surface and its detail controls", () => {
     const markup = renderToStaticMarkup(<App />);
 
-    expect(markup).toContain("Interactive Reagraph graph preview");
+    expect(markup).toContain("Graph explorer");
     expect(markup).toContain("loading snapshot");
+    expect(markup).toContain("Search symbols");
     expect(markup).toContain("repositories");
     expect(markup).toContain("symbols");
     expect(markup).not.toContain("<header");

@@ -142,7 +142,8 @@ func canonicalScanFixtureSet(t *testing.T) facts.Set {
 			},
 			{
 				RepositoryKey: repoAKey, FileKey: fileMainKey, Language: facts.LanguageGo, SourceSymbolKey: scanFixtureSymbolMainKey,
-				Reason: "syntax_error", Start: facts.Position{Line: 25, Column: 0, Offset: 400},
+				RequestedPackage: "syntax",
+				Reason:           "syntax_error", Start: facts.Position{Line: 25, Column: 0, Offset: 400},
 			},
 		},
 		Edges: []facts.Edge{

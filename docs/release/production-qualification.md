@@ -1,14 +1,16 @@
 # Calificación de producción de Ladygraph
 
-**Fecha de verificación:** 2026-08-07
+**Fecha de verificación:** 2026-08-08
 **Decisión:** `ACCEPT_LADYGRAPH_WITH_LIMITS`
 
 ## Decisión
 
 Ladygraph queda aceptada para producción dentro del entorno calificado y con
-los límites operativos de este documento. Los 16 gates globales definidos en
-`TASKS.md` están emitidos; no se aprueba una ampliación silenciosa de plataforma,
-corpus, transporte o durabilidad.
+los límites operativos de este documento. Los 16 gates globales previos al
+visor permanecen emitidos; `WEB_VIEWER_PASS` no se emite porque el benchmark
+del visor usa un snapshot publicado menor que el corpus de referencia.
+No se aprueba una ampliación silenciosa de plataforma, corpus, transporte o
+durabilidad.
 
 La calificación cubre el pipeline real: extracción, normalización de hechos,
 almacenamiento canónico en LadybugDB, validación, publicación de generación,
@@ -36,6 +38,7 @@ LadybugDB directamente.
 | `PERFORMANCE_PASS` | `PASS` | Benchmark MCP de 32 clientes y regresión semántica posterior a la optimización. |
 | `OBSERVABILITY_PASS` | `PASS` | `benchmarks/observability-overhead/report.md`: 0 B/op y 0 allocs/op en las tres variantes. |
 | `DISTRIBUTION_PASS` | `PASS` | Dos checkouts limpios: payload, `SHA256SUMS` y `manifest.json` idénticos. |
+| `WEB_VIEWER_PASS` | `NOT_EMITTED` | `benchmarks/web-viewer/report.md`: métricas dentro de límites, pero el snapshot medido no alcanza el corpus contractual. |
 
 ## Evidencia de exactitud y seguridad semántica
 
@@ -135,6 +138,20 @@ par LadybugDB core/binding `v0.13.1`. Los resultados versionados están en
   RSS máximo muestreado de `19.075.072` bytes. El resultado está en
   `benchmarks/mcp-stdio/`.
 
+## Evidencia del visor web
+
+`benchmarks/web-viewer/results.json` midió el visor contra el `HotSnapshot`
+publicado de `~/kena`: `meta` p95 `1,255 ms`, payload p95 `18,31 ms`, primer
+frame p95 `84,53 ms`, pan/zoom p95 `11,30 ms`, hover p95 `4,90 ms`, vecindad
+depth 3 p95 `1,51 ms`, heap `41.534.874` bytes y cero errores. Chromium cargó
+el worker real, decodificó `LGVB` v2, seleccionó símbolos, expandió vecindad y
+aplicó el filtro de confianza.
+
+El harness devuelve `WEB_VIEWER_PERFORMANCE_PASS_WITH_LIMITS` con
+`--allow-limitations`; sin esa opción termina con código `1`. No se emite
+`WEB_VIEWER_PERFORMANCE_PASS`: el snapshot observado tiene `83.293` símbolos y
+`204.630` aristas, frente al corpus contractual de `100.000` y `1.000.000`.
+
 ## Distribución y operación
 
 El bundle `linux/amd64` incluye el binario Go, el worker TypeScript, LadybugDB,
@@ -177,6 +194,9 @@ Requisitos obligatorios del despliegue:
    producción. La evidencia válida de escala es
    `benchmarks/ladybug-bulk/full-scale/report.md` y
    `benchmarks/ladybug-large/report.md`.
+9. El benchmark del visor cumple sus límites sobre `~/kena`, pero no certifica
+   todavía el corpus de referencia de `100.000` símbolos y `1.000.000` aristas;
+   tampoco representa una GPU discreta.
 
 ## Verificación final de esta calificación
 
@@ -188,6 +208,9 @@ go test -race ./... -count=1
 go vet ./...
 make build
 make test-ladybug
+cd web && pnpm check
+cd web && pnpm build
+node benchmarks/web-viewer/harness.mjs --results benchmarks/web-viewer/results.json --allow-limitations
 cd ts-worker && pnpm check
 cd ts-worker && pnpm build
 ```

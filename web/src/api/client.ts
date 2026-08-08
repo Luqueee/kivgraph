@@ -27,6 +27,50 @@ export interface SnapshotMeta {
   readonly layout: LayoutBounds | null;
 }
 
+export interface SymbolView {
+  readonly stableKey: string;
+  readonly canonicalIdentity: string;
+  readonly repository: string;
+  readonly repositoryPath: string;
+  readonly package: string;
+  readonly modulePath: string;
+  readonly file: string;
+  readonly language: string;
+  readonly name: string;
+  readonly qualifiedName: string;
+  readonly kind: string;
+  readonly signature: string;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+export interface SearchResponse {
+  readonly snapshotId: number;
+  readonly total: number;
+  readonly returned: number;
+  readonly truncated: boolean;
+  readonly results: readonly SymbolView[];
+}
+
+export interface NeighborhoodEdge {
+  readonly source: string;
+  readonly target: string;
+  readonly kind: string;
+  readonly confidence: string;
+  readonly provenance: string;
+  readonly evidence?: string;
+}
+
+export interface NeighborhoodResponse {
+  readonly snapshotId: number;
+  readonly root: string;
+  readonly direction: string;
+  readonly depth: number;
+  readonly truncated: boolean;
+  readonly nodes: readonly SymbolView[];
+  readonly edges: readonly NeighborhoodEdge[];
+}
+
 /** An API response the viewer refuses to interpret, with the server's code. */
 export class ApiError extends Error {
   readonly code: string;
@@ -51,6 +95,60 @@ interface MetaPayload {
     readonly max_y: number;
     readonly max_lod: number;
     readonly max_nodes: number;
+  };
+}
+
+interface SymbolPayload {
+  readonly stable_key: string;
+  readonly canonical_identity: string;
+  readonly repository: string;
+  readonly repository_path: string;
+  readonly package: string;
+  readonly module_path: string;
+  readonly file: string;
+  readonly language: string;
+  readonly name: string;
+  readonly qualified_name: string;
+  readonly kind: string;
+  readonly signature: string;
+  readonly start_line: number;
+  readonly end_line: number;
+}
+
+interface SearchPayload {
+  readonly snapshot_id: number;
+  readonly total: number;
+  readonly returned: number;
+  readonly truncated: boolean;
+  readonly results: readonly SymbolPayload[];
+}
+
+interface NeighborhoodPayload {
+  readonly snapshot_id: number;
+  readonly root: string;
+  readonly direction: string;
+  readonly depth: number;
+  readonly truncated: boolean;
+  readonly nodes: readonly SymbolPayload[];
+  readonly edges: readonly NeighborhoodEdge[];
+}
+
+function decodeSymbol(payload: SymbolPayload): SymbolView {
+  return {
+    stableKey: payload.stable_key,
+    canonicalIdentity: payload.canonical_identity,
+    repository: payload.repository,
+    repositoryPath: payload.repository_path,
+    package: payload.package,
+    modulePath: payload.module_path,
+    file: payload.file,
+    language: payload.language,
+    name: payload.name,
+    qualifiedName: payload.qualified_name,
+    kind: payload.kind,
+    signature: payload.signature,
+    startLine: payload.start_line,
+    endLine: payload.end_line,
   };
 }
 
@@ -98,6 +196,96 @@ export async function fetchMeta(signal?: AbortSignal): Promise<SnapshotMeta> {
           maxNodes: payload.layout.max_nodes,
         }
       : null,
+  };
+}
+
+export type SearchMode = "exact" | "qualified_exact" | "prefix";
+export type NeighborhoodDirection = "incoming" | "outgoing" | "both";
+
+function addSnapshotQuery(
+  query: URLSearchParams,
+  snapshotId: number | null,
+): void {
+  if (snapshotId !== null) query.set("snapshot_id", String(snapshotId));
+}
+
+export async function searchSymbols(
+  name: string,
+  mode: SearchMode,
+  snapshotId: number | null,
+  signal?: AbortSignal,
+): Promise<SearchResponse> {
+  const query = new URLSearchParams({
+    name,
+    mode,
+    limit: "50",
+  });
+  addSnapshotQuery(query, snapshotId);
+  const response = await fetch(`/api/v1/search?${query.toString()}`, {
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw await apiError(response);
+  const payload = (await response.json()) as SearchPayload;
+  return {
+    snapshotId: payload.snapshot_id,
+    total: payload.total,
+    returned: payload.returned,
+    truncated: payload.truncated,
+    results: (payload.results ?? []).map(decodeSymbol),
+  };
+}
+
+export async function fetchSymbol(
+  stableKey: string,
+  snapshotId: number | null,
+  signal?: AbortSignal,
+): Promise<{ readonly snapshotId: number; readonly symbol: SymbolView }> {
+  const query = new URLSearchParams({ stable_key: stableKey });
+  addSnapshotQuery(query, snapshotId);
+  const response = await fetch(`/api/v1/symbol?${query.toString()}`, {
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw await apiError(response);
+  const payload = (await response.json()) as {
+    readonly snapshot_id: number;
+    readonly symbol: SymbolPayload;
+  };
+  return {
+    snapshotId: payload.snapshot_id,
+    symbol: decodeSymbol(payload.symbol),
+  };
+}
+
+export async function fetchNeighborhood(
+  stableKey: string,
+  depth: number,
+  direction: NeighborhoodDirection,
+  snapshotId: number | null,
+  signal?: AbortSignal,
+): Promise<NeighborhoodResponse> {
+  const query = new URLSearchParams({
+    stable_key: stableKey,
+    depth: String(depth),
+    direction,
+    max_nodes: "200",
+  });
+  addSnapshotQuery(query, snapshotId);
+  const response = await fetch(`/api/v1/neighborhood?${query.toString()}`, {
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw await apiError(response);
+  const payload = (await response.json()) as NeighborhoodPayload;
+  return {
+    snapshotId: payload.snapshot_id,
+    root: payload.root,
+    direction: payload.direction,
+    depth: payload.depth,
+    truncated: payload.truncated,
+    nodes: (payload.nodes ?? []).map(decodeSymbol),
+    edges: payload.edges ?? [],
   };
 }
 
