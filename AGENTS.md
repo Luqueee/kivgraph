@@ -97,7 +97,9 @@ integridad, compatibilidad o verificación descritos aquí.
   nodo y nunca se declara activa por una mera propiedad de configuración.
 - La fábrica WebGL del visor desactiva antialiasing; durante un gesto de cámara
   `FrameGovernor` limita el DPR a `1`, pausa el picking y oculta etiquetas
-  costosas, restaurando esos recursos al quedar inactivo.
+  costosas, restaurando esos recursos al quedar inactivo. Cada cambio del
+  drawing buffer se repinta sincrónicamente antes de exponerse al navegador,
+  para no mostrar un frame negro.
 
 ## LadybugDB y snapshots
 

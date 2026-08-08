@@ -7,6 +7,34 @@ const IDLE_MS = 700;
 
 const WAKING_EVENTS = ["pointermove", "wheel"] as const;
 const POINTER_RELEASE_EVENTS = ["pointerup", "pointercancel"] as const;
+interface ResizableRenderer {
+  setSize(width: number, height: number, updateStyle?: boolean): void;
+}
+
+interface CanvasSize {
+  readonly clientWidth: number;
+  readonly clientHeight: number;
+}
+
+type AdvanceFrame = (timestamp: number, runGlobalEffects: boolean) => void;
+
+/** Returns the DPR to restore, or null when resizing would be redundant. */
+export function savedInteractionDpr(
+  currentDpr: number,
+  targetDpr: number,
+): number | null {
+  return currentDpr > targetDpr ? currentDpr : null;
+}
+
+/** Rebuilds the drawing buffer and paints it before the browser can show it. */
+export function resizeAndPaint(
+  renderer: ResizableRenderer,
+  canvas: CanvasSize,
+  advance: AdvanceFrame,
+): void {
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  advance(performance.now(), true);
+}
 
 /**
  * Moves R3F into its interactive loop once per interaction. Calling
@@ -49,6 +77,7 @@ export function FrameGovernor({
   const frameloop = useThree((state) => state.frameloop);
   const setFrameloop = useThree((state) => state.setFrameloop);
   const setEvents = useThree((state) => state.setEvents);
+  const advance = useThree((state) => state.advance);
   const interactionDpr = useRef<number | null>(null);
   const working = useRef(false);
   const dragging = useRef(false);
@@ -57,7 +86,7 @@ export function FrameGovernor({
     const canvas = gl.domElement;
     let idle = 0;
     const resizeRenderer = (): void => {
-      gl.setSize(canvas.clientWidth, canvas.clientHeight, false);
+      resizeAndPaint(gl, canvas, advance);
     };
     const restoreDpr = (): void => {
       const previousDpr = interactionDpr.current;
@@ -68,12 +97,14 @@ export function FrameGovernor({
     };
     const lowerDpr = (): void => {
       if (!dragging.current || interactionDpr.current !== null) return;
-      const previousDpr = gl.getPixelRatio();
+      const previousDpr = savedInteractionDpr(
+        gl.getPixelRatio(),
+        INTERACTION_DPR,
+      );
+      if (previousDpr === null) return;
       interactionDpr.current = previousDpr;
-      if (previousDpr > INTERACTION_DPR) {
-        gl.setPixelRatio(INTERACTION_DPR);
-        resizeRenderer();
-      }
+      gl.setPixelRatio(INTERACTION_DPR);
+      resizeRenderer();
     };
     const rest = (): void => {
       working.current = false;
@@ -127,7 +158,7 @@ export function FrameGovernor({
       restoreDpr();
       setFrameloop("always");
     };
-  }, [gl, onInteractionChange, setEvents, setFrameloop]);
+  }, [advance, gl, onInteractionChange, setEvents, setFrameloop]);
 
   // Every commit of the canvas re-applies its own `frameloop` prop, which
   // Reagraph leaves unset - so any re-render of the viewer silently puts the

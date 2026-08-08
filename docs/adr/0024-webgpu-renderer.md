@@ -45,7 +45,10 @@ si el navegador no devuelve un adaptador utilizable.
    interacción de cámara, `FrameGovernor` limita el DPR a `1`, oculta
    temporalmente las etiquetas de Reagraph y pausa el picking de objetos; al
    terminar el gesto restaura el DPR y las etiquetas. La reducción es
-   transitoria y no cambia el payload ni el layout publicado.
+   transitoria y no cambia el payload ni el layout publicado. Sólo se redibuja
+   cuando el DPR realmente cambia y cada reconstrucción del drawing buffer
+   fuerza un frame inmediato, evitando exponer un frame negro durante el gesto
+   o su restauración.
 
 ## Alternativas descartadas
 
