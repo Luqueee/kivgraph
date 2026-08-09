@@ -1,0 +1,171 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  ARCHIVE_NAME: ladygraph-linux-amd64.tar.gz
+
+jobs:
+  verify:
+    name: Verify tagged commit
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  build:
+    name: Build Linux amd64 release
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Checkout exact tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ts-worker/pnpm-lock.yaml
+
+      - name: Cache pinned LadybugDB
+        uses: actions/cache@v4
+        with:
+          path: .tooling/ladybug
+          key: ladybug-linux-amd64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
+
+      - name: Resolve and validate release version
+        id: release
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build MCP-only bundle
+        env:
+          LADYGRAPH_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          scripts/build-linux-amd64.sh \
+            --mcp-only \
+            --version "$LADYGRAPH_VERSION" \
+            "$RUNNER_TEMP/ladygraph-linux-amd64"
+
+      - name: Verify bundle provenance and checksums
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          bundle="$RUNNER_TEMP/ladygraph-linux-amd64"
+          test -f "$bundle/manifest.json"
+          test -f "$bundle/SHA256SUMS"
+          (
+            cd "$bundle"
+            sha256sum -c SHA256SUMS
+          )
+          test "$(jq -r .release "$bundle/manifest.json")" = "$EXPECTED_VERSION"
+          test "$(jq -r .source.commit "$bundle/manifest.json")" = "$GITHUB_SHA"
+          test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
+          test "$(jq -r .target.os "$bundle/manifest.json")" = linux
+          test "$(jq -r .target.arch "$bundle/manifest.json")" = amd64
+          test "$("$bundle/bin/ladygraph" version)" = "$EXPECTED_VERSION"
+          version_json=$("$bundle/bin/ladygraph" version --json)
+          test "$(jq -r .ladygraph <<<"$version_json")" = "$EXPECTED_VERSION"
+
+      - name: Create reproducible release archive
+        shell: bash
+        run: |
+          assets="$RUNNER_TEMP/release-assets"
+          mkdir -p "$assets"
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --hard-dereference \
+            -C "$RUNNER_TEMP" \
+            -cf - ladygraph-linux-amd64 \
+            | gzip -n > "$assets/$ARCHIVE_NAME"
+          sha256sum "$assets/$ARCHIVE_NAME" > "$assets/SHA256SUMS"
+          install -m 0755 scripts/install.sh "$assets/install.sh"
+          test "$(awk '{print $2}' "$assets/SHA256SUMS")" = "$ARCHIVE_NAME"
+          test -s "$assets/$ARCHIVE_NAME"
+          test -s "$assets/SHA256SUMS"
+          test -s "$assets/install.sh"
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ steps.release.outputs.version }}
+          path: ${{ runner.temp }}/release-assets
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-${{ needs.build.outputs.version }}
+          path: release-assets
+
+      - name: Attest release archive
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/${{ env.ARCHIVE_NAME }}
+
+      - name: Publish assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          assets=(
+            "release-assets/$ARCHIVE_NAME"
+            "release-assets/SHA256SUMS"
+            "release-assets/install.sh"
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$TAG" "${assets[@]}" \
+              --verify-tag \
+              --title "Ladygraph $TAG" \
+              --generate-notes \
+              --latest
+          fi

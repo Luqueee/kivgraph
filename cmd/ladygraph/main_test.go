@@ -23,6 +23,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 	"github.com/Luqueee/ladygraph/internal/synthetic"
+	"github.com/Luqueee/ladygraph/internal/update"
 	"github.com/Luqueee/ladygraph/internal/version"
 )
 
@@ -65,6 +66,65 @@ func TestRunVersionJSON(t *testing.T) {
 	}
 	if provenance.Grammars.Manifest != "grammars/manifest.json" || len(provenance.Grammars.Versions) != 4 {
 		t.Fatalf("grammars = %#v", provenance.Grammars)
+	}
+}
+func TestRunUpdateCheckUsesReleaseRunner(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	runner := func(ctx context.Context, options update.Options) (update.Result, error) {
+		called = true
+		if ctx == nil {
+			t.Fatal("update runner received nil context")
+		}
+		if options.CurrentVersion != version.Value {
+			t.Fatalf("current version = %q, want %q", options.CurrentVersion, version.Value)
+		}
+		if !options.CheckOnly {
+			t.Fatal("update runner CheckOnly = false, want true")
+		}
+		return update.Result{
+			CurrentVersion:  version.Value,
+			LatestVersion:   "0.1.1",
+			UpdateAvailable: true,
+		}, nil
+	}
+
+	if got := runUpdateWithRunner([]string{"--check"}, &stdout, &stderr, runner); got != 0 {
+		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
+	}
+	if !called {
+		t.Fatal("update runner was not called")
+	}
+	if got, want := stdout.String(), "ladygraph update available: "+version.Value+" -> 0.1.1\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunUpdateReportsInstalledRelease(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	runner := func(_ context.Context, options update.Options) (update.Result, error) {
+		if options.CheckOnly {
+			t.Fatal("update runner CheckOnly = true, want false")
+		}
+		return update.Result{
+			CurrentVersion:  version.Value,
+			LatestVersion:   "0.1.1",
+			UpdateAvailable: true,
+			Updated:         true,
+		}, nil
+	}
+
+	if got := runUpdateWithRunner(nil, &stdout, &stderr, runner); got != 0 {
+		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
+	}
+	if got, want := stdout.String(), "ladygraph updated: "+version.Value+" -> 0.1.1\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 }
 
@@ -302,7 +362,7 @@ func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "usage: ladygraph version [--json]|serve|doctor storage") {
+	if !strings.Contains(stderr.String(), "usage: ladygraph version [--json]|update [--check]|serve|doctor storage") {
 		t.Fatalf("stderr = %q, want usage", stderr.String())
 	}
 }
@@ -326,7 +386,7 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 		t.Fatalf("record = %#v, want structured command error", record)
 	}
 	message, ok := record["message"].(string)
-	if !ok || !strings.Contains(message, "usage: ladygraph version [--json]|serve|doctor storage") {
+	if !ok || !strings.Contains(message, "usage: ladygraph version [--json]|update [--check]|serve|doctor storage") {
 		t.Fatalf("record message = %#v, want usage", record["message"])
 	}
 }

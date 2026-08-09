@@ -7,15 +7,42 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$root"
 mcp_only=false
-if [[ "${1:-}" == "--mcp-only" ]]; then
-  mcp_only=true
-  shift
-fi
-if [[ "${1:-}" == --* || "$#" -gt 1 ]]; then
-  printf 'build-linux-amd64: usage: %s [--mcp-only] [OUTPUT_DIR]\n' "$0" >&2
+requested_version=${LADYGRAPH_VERSION:-}
+output_argument=""
+usage() {
+  printf 'usage: %s [--mcp-only] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
+}
+while (( $# > 0 )); do
+  case "$1" in
+    --mcp-only)
+      mcp_only=true
+      shift
+      ;;
+    --version)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      requested_version=$2
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    --*)
+      usage
+      exit 2
+      ;;
+    *)
+      [[ -z "$output_argument" ]] || { usage; exit 2; }
+      output_argument=$1
+      shift
+      ;;
+  esac
+done
+if [[ -n "$requested_version" && ! "$requested_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  printf 'build-linux-amd64: invalid release version: %s\n' "$requested_version" >&2
   exit 2
 fi
-output_dir=${1:-"$root/dist/ladygraph-linux-amd64"}
+output_dir=${output_argument:-"$root/dist/ladygraph-linux-amd64"}
 if [[ "$output_dir" != /* ]]; then
   output_dir="$root/$output_dir"
 fi
@@ -102,6 +129,10 @@ if [[ "$web_assets" == true ]]; then
 fi
 
 build_id="ladygraph-${source_commit}-${source_dirty}"
+ldflags="-buildid=$build_id"
+if [[ -n "$requested_version" ]]; then
+  ldflags+=" -X github.com/Luqueee/ladygraph/internal/version.Value=$requested_version"
+fi
 
 printf 'build-linux-amd64: compiling Go binary\n' >&2
 CGO_ENABLED=1 \
@@ -113,7 +144,7 @@ go build \
   -tags "$build_tags" \
   -trimpath \
   -buildvcs=true \
-  -ldflags "-buildid=$build_id" \
+  -ldflags "$ldflags" \
   -o "$output_dir/bin/ladygraph" \
   ./cmd/ladygraph
 
@@ -167,6 +198,9 @@ copy_module_licenses
 
 release_version=$(LD_LIBRARY_PATH="$output_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   "$output_dir/bin/ladygraph" version)
+if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; then
+  fail "built release version $release_version does not match requested $requested_version"
+fi
 grammar_sha256=$(sha256sum "$output_dir/grammars/manifest.json" | awk '{print $1}')
 ladybug_sha256=$(sha256sum "$output_dir/lib/liblbug.so" | awk '{print $1}')
 artifact_dirs=(bin lib worker grammars licenses)

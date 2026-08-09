@@ -18,18 +18,20 @@ los snapshots y los backups se escriben en el directorio de estado configurado.
 
 ### Bundle `linux/amd64`
 
-El bundle publicado por `scripts/build-linux-amd64.sh` requiere:
+El bundle publicado por el workflow de releases contiene el MCP para:
 
 - Linux `x86_64`/`amd64`;
-- `bash` para el launcher `ladygraph-ts-worker`;
 - Node.js `22` o posterior para ejecutar el worker TypeScript;
 - las bibliotecas estándar del sistema Linux, incluida `glibc` compatible con el
   entorno donde se compiló el bundle.
 
-`pnpm`, Go y un compilador C no son necesarios para ejecutar un bundle ya
-construido. LadybugDB se carga desde `lib/liblbug.so` mediante el `RUNPATH`
-relativo del ejecutable; no se debe separar `bin/`, `lib/`, `worker/`,
-`grammars/` ni el directorio `web/` si está presente.
+El instalador de releases requiere además Bash, `curl`, `tar` y `sha256sum`.
+Go, pnpm y un compilador C no son necesarios para instalar o ejecutar un bundle
+publicado.
+
+LadybugDB se carga desde `lib/liblbug.so` mediante el `RUNPATH` relativo del
+ejecutable; no se debe separar `bin/`, `lib/`, `worker/`, `grammars/` ni el
+directorio `web/` si está presente.
 
 El runtime del worker contiene `typescript` y su paquete nativo de plataforma
 `@typescript/typescript-linux-x64`; por eso no hace falta ejecutar una
@@ -51,6 +53,36 @@ Para compilar desde un checkout se necesitan:
 El build nativo debe usar el tag Go `ladybug` y el par LadybugDB core/binding
 fijado por `scripts/fetch-ladybug.sh`. No se debe sustituir la biblioteca por
 una versión `latest` ni mezclar core y binding de versiones distintas.
+## Instalar la última release
+
+El instalador descarga la release publicada más reciente para Linux `amd64`,
+verifica el checksum del archivo y después los checksums internos del bundle:
+
+```bash
+curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash
+```
+
+El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
+
+```bash
+LADYGRAPH_VERSION=v0.1.0 ./scripts/install.sh
+```
+
+Si el repositorio de releases es privado, proporciona
+`LADYGRAPH_GITHUB_TOKEN` al instalador.
+
+Comprueba y aplica actualizaciones desde el bundle instalado:
+
+```bash
+ladygraph update --check
+ladygraph update
+```
+
+`ladygraph update` descarga la última release, rechaza tags que no sean SemVer,
+verifica el checksum externo, el `manifest.json`, todos los checksums internos y
+la versión del ejecutable. Solo después reemplaza atómicamente el bundle
+instalado; la configuración y el estado del grafo permanecen fuera del bundle.
+Reinicia el cliente MCP después de actualizar.
 
 ## Instalar un bundle
 

@@ -247,6 +247,10 @@ integridad, compatibilidad o verificación descritos aquí.
 - `scripts/install.sh` instala únicamente el bundle MCP por defecto; no
   inicializa la configuración, indexa repositorios ni instala el visor. El
   visor solo entra en un bundle generado sin `--mcp-only`.
+- Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` descarga la
+  última release `linux/amd64`, verifica el checksum externo e interno, y
+  `ladygraph update` solo sustituye el bundle después de validar manifest,
+  versión y checksums.
 
 - Un build de distribución limpio debe ser reproducible entre checkouts del
   mismo commit, toolchain y plataforma; compara el payload completo y no solo

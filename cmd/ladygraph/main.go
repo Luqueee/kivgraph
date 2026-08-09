@@ -30,6 +30,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 	"github.com/Luqueee/ladygraph/internal/synthetic"
+	"github.com/Luqueee/ladygraph/internal/update"
 	"github.com/Luqueee/ladygraph/internal/upgrade"
 	"github.com/Luqueee/ladygraph/internal/version"
 	"github.com/Luqueee/ladygraph/internal/webapi"
@@ -256,6 +257,9 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 			return runVersionJSON(stdout, stderr)
 		}
 	}
+	if len(args) >= 2 && args[1] == "update" {
+		return runUpdate(args[2:], stdout, stderr)
+	}
 	if len(args) >= 2 && args[1] == "init" {
 		return runInit(args[2:], stdout, stderr)
 	}
@@ -294,8 +298,52 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 		return runSnapshot(args[2:], stdout, stderr, build)
 	}
 
-	fmt.Fprintf(stderr, "usage: %s version [--json]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|upgrade [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]|ui [--config PATH] [--addr HOST:PORT]\n", args[0])
+	fmt.Fprintf(stderr, "usage: %s version [--json]|update [--check]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|upgrade [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]|ui [--config PATH] [--addr HOST:PORT]\n", args[0])
 	return 2
+}
+
+type updateRunner func(context.Context, update.Options) (update.Result, error)
+
+func runUpdate(args []string, stdout, stderr io.Writer) int {
+	return runUpdateWithRunner(args, stdout, stderr, update.Run)
+}
+
+func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateRunner) int {
+	flags := flag.NewFlagSet("update", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	checkOnly := false
+	flags.BoolVar(&checkOnly, "check", false, "check for a newer release without installing it")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "update: unexpected arguments")
+		return 2
+	}
+	result, err := runner(context.Background(), update.Options{
+		APIBaseURL:     os.Getenv("LADYGRAPH_UPDATE_API_URL"),
+		CurrentVersion: version.Value,
+		Token:          os.Getenv("LADYGRAPH_GITHUB_TOKEN"),
+		CheckOnly:      checkOnly,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "update: %v\n", err)
+		return 1
+	}
+	if !result.UpdateAvailable {
+		fmt.Fprintf(stdout, "ladygraph is up to date (%s)\n", result.CurrentVersion)
+		return 0
+	}
+	if checkOnly {
+		fmt.Fprintf(stdout, "ladygraph update available: %s -> %s\n", result.CurrentVersion, result.LatestVersion)
+		return 0
+	}
+	if !result.Updated {
+		fmt.Fprintf(stderr, "update: release %s was not installed\n", result.LatestVersion)
+		return 1
+	}
+	fmt.Fprintf(stdout, "ladygraph updated: %s -> %s\n", result.CurrentVersion, result.LatestVersion)
+	return 0
 }
 
 type stringList []string

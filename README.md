@@ -14,26 +14,31 @@ The repository contains the initial project foundation. Indexing, storage, and M
 
 ### Install the MCP with one script
 
-The installer builds and installs the MCP-only distribution from a Ladygraph
-checkout. It includes the Go server, the pinned LadybugDB library, the
-TypeScript worker, and the grammar manifest; it intentionally does not install
-the web viewer.
+The installer downloads the latest published Linux `amd64` MCP release,
+verifies both the release archive and the bundle checksums, and installs it
+without requiring Go, Node.js, or pnpm. The release contains the Go server, the
+pinned LadybugDB library, the TypeScript worker, and the grammar manifest; the
+web viewer is intentionally omitted.
 
-Requirements: Linux `amd64`, Bash, Git, Go `1.24` or later, Node.js `22` or
-later, pnpm `11.5.1`, `curl`, `tar`, and `sha256sum`.
+Runtime requirements: Linux `amd64`, Bash, Node.js `22` or later, `curl`, `tar`,
+and `sha256sum`.
 
-From a checkout:
+Install the latest release in one command:
+
+```bash
+curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash
+```
+
+From a checkout, the same installer can be run directly:
 
 ```bash
 ./scripts/install.sh
 ```
 
-Or clone and install in one command (using your configured GitHub
-credentials):
+To install a specific release instead of the latest one:
 
 ```bash
-git clone git@github.com:Luqueee/ladygraph.git "$HOME/ladygraph" &&
-"$HOME/ladygraph/scripts/install.sh"
+LADYGRAPH_VERSION=v0.1.0 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
@@ -50,6 +55,16 @@ ladygraph-ts-worker <<'EOF'
 hello
 EOF
 ```
+Check for a newer release or update the installed bundle:
+
+```bash
+ladygraph update --check
+ladygraph update
+```
+
+The update is atomic, preserves the configuration and graph state, verifies
+the release and bundle checksums, and replaces only the installed bundle.
+Restart the MCP client after updating so it launches the new binary.
 
 Initialize and publish a graph before starting the MCP server:
 
