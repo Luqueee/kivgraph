@@ -6,6 +6,15 @@ set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$root"
+mcp_only=false
+if [[ "${1:-}" == "--mcp-only" ]]; then
+  mcp_only=true
+  shift
+fi
+if [[ "${1:-}" == --* || "$#" -gt 1 ]]; then
+  printf 'build-linux-amd64: usage: %s [--mcp-only] [OUTPUT_DIR]\n' "$0" >&2
+  exit 2
+fi
 output_dir=${1:-"$root/dist/ladygraph-linux-amd64"}
 if [[ "$output_dir" != /* ]]; then
   output_dir="$root/$output_dir"
@@ -67,7 +76,7 @@ printf 'build-linux-amd64: installing worker dependencies\n' >&2
 pnpm --dir "$root/ts-worker" install --frozen-lockfile
 pnpm --dir "$root/ts-worker" build
 
-if [[ -f "$root/web/package.json" ]]; then
+if [[ "$mcp_only" != true && -f "$root/web/package.json" ]]; then
   [[ -f "$root/web/pnpm-lock.yaml" ]] ||
     fail "web package is missing its frozen lockfile: $root/web/pnpm-lock.yaml"
   printf 'build-linux-amd64: installing web dependencies\n' >&2
@@ -77,7 +86,7 @@ fi
 
 web_dist="$root/web/dist"
 web_assets=false
-if [[ -d "$web_dist" ]]; then
+if [[ "$mcp_only" != true && -d "$web_dist" ]]; then
   [[ -f "$web_dist/index.html" ]] ||
     fail "web bundle is missing required entry point: $web_dist/index.html"
   [[ -z "$(find -L "$web_dist" -type l -print -quit)" ]] ||

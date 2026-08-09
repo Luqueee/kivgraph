@@ -244,6 +244,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - La documentación de instalación debe reflejar el layout generado, el
   `RUNPATH`, el runtime Node requerido y la verificación `SHA256SUMS`; no
   presentar un bundle como autocontenido si faltan dependencias del sistema.
+- `scripts/install.sh` instala únicamente el bundle MCP por defecto; no
+  inicializa la configuración, indexa repositorios ni instala el visor. El
+  visor solo entra en un bundle generado sin `--mcp-only`.
 
 - Un build de distribución limpio debe ser reproducible entre checkouts del
   mismo commit, toolchain y plataforma; compara el payload completo y no solo

@@ -12,7 +12,73 @@ The repository contains the initial project foundation. Indexing, storage, and M
 
 ## Installation
 
-Installation of the `linux/amd64` bundle, configuration initialization, the first index, and troubleshooting are documented in [`docs/installation.md`](docs/installation.md).
+### Install the MCP with one script
+
+The installer builds and installs the MCP-only distribution from a Ladygraph
+checkout. It includes the Go server, the pinned LadybugDB library, the
+TypeScript worker, and the grammar manifest; it intentionally does not install
+the web viewer.
+
+Requirements: Linux `amd64`, Bash, Git, Go `1.24` or later, Node.js `22` or
+later, pnpm `11.5.1`, `curl`, `tar`, and `sha256sum`.
+
+From a checkout:
+
+```bash
+./scripts/install.sh
+```
+
+Or clone and install in one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Luqueee/ladygraph/main/scripts/install.sh | bash
+```
+
+The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
+in `~/.local/bin`. It never modifies a registered repository, creates an index,
+or replaces configuration files. To use a different location, set
+`LADYGRAPH_INSTALL_ROOT` and `LADYGRAPH_BIN_DIR`.
+
+Add the launcher directory to the current shell and verify both runtimes:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+ladygraph version
+ladygraph-ts-worker <<'EOF'
+hello
+EOF
+```
+
+Initialize and publish a graph before starting the MCP server:
+
+```bash
+ladygraph init \
+  --repository project=/absolute/path/to/project \
+  --languages go,typescript
+ladygraph doctor
+ladygraph index --full
+```
+
+Configure any MCP client to start the server over STDIO:
+
+```json
+{
+  "mcpServers": {
+    "ladygraph": {
+      "command": "/home/user/.local/bin/ladygraph",
+      "args": [
+        "serve",
+        "--config",
+        "/home/user/.config/ladygraph/config.yaml"
+      ]
+    }
+  }
+}
+```
+
+`ladygraph serve` must start only after a validated generation has been
+published. The process writes MCP framing exclusively to `stdout` and logs to
+`stderr`.
 
 ## Development
 
