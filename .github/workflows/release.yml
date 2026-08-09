@@ -114,7 +114,10 @@ jobs:
             -C "$RUNNER_TEMP" \
             -cf - ladygraph-linux-amd64 \
             | gzip -n > "$assets/$ARCHIVE_NAME"
-          sha256sum "$assets/$ARCHIVE_NAME" > "$assets/SHA256SUMS"
+          (
+            cd "$assets"
+            sha256sum "$ARCHIVE_NAME" > SHA256SUMS
+          )
           install -m 0755 scripts/install.sh "$assets/install.sh"
           test "$(awk '{print $2}' "$assets/SHA256SUMS")" = "$ARCHIVE_NAME"
           test -s "$assets/$ARCHIVE_NAME"
