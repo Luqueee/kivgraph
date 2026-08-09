@@ -34,8 +34,17 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      # A failing Go test is reported as an annotation so the reason is visible
+      # on the run without opening the log.
       - name: Go tests
-        run: go test ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee "$RUNNER_TEMP/go-test.log" && exit 0
+          grep -E '^(--- )?FAIL|\.go:[0-9]+:' "$RUNNER_TEMP/go-test.log" |
+            head -20 |
+            while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+          exit 1
 
       - name: Selected Go race tests
         run: go test -race ./cmd/ladygraph/...
@@ -176,10 +185,17 @@ jobs:
         run: go vet ./...
 
       - name: Go tests
-        run: go test ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee "$RUNNER_TEMP/go-test.log" && exit 0
+          grep -E '^(--- )?FAIL|\.go:[0-9]+:' "$RUNNER_TEMP/go-test.log" |
+            head -20 |
+            while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+          exit 1
 
-      # The worker suite is platform sensitive: a case-folding filesystem, the
-      # macOS default, skips the cases that compare engine-reported paths.
+      # The worker suite is platform sensitive: the engine reports paths with
+      # the casing of the volume, and this one folds case.
       - name: Install TypeScript worker
         working-directory: ts-worker
         run: pnpm install --frozen-lockfile
