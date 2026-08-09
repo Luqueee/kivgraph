@@ -171,8 +171,8 @@ func run(ctx context.Context, cfg config) (results, error) {
 		return results{}, fmt.Errorf("list MCP tools: %w", err)
 	}
 	result.ToolCount = len(tools.Tools)
-	if result.ToolCount != 9 {
-		return results{}, fmt.Errorf("list MCP tools: got %d, want 9", result.ToolCount)
+	if err := assertQueryTools(tools.Tools); err != nil {
+		return results{}, err
 	}
 
 	sampler := startRSSSampler(serverCommand.Process.Pid)
@@ -206,6 +206,41 @@ func run(ctx context.Context, cfg config) (results, error) {
 		result.ServerExitCode = serverCommand.ProcessState.ExitCode()
 	}
 	return result, nil
+}
+
+// queryTools is the read-only surface this benchmark measures. The count is
+// not asserted: the `serve` path also registers the mutating `index_project`,
+// and a new tool is not a benchmark failure. A missing one is, because the
+// numbers would then describe a different server.
+var queryTools = []string{
+	"graph_status",
+	"list_repositories",
+	"find_symbol",
+	"get_symbol",
+	"find_references",
+	"find_cross_repo_consumers",
+	"trace_dependencies",
+	"get_blast_radius",
+	"get_unresolved_references",
+}
+
+func assertQueryTools(listed []*sdkmcp.Tool) error {
+	present := make(map[string]struct{}, len(listed))
+	for _, tool := range listed {
+		if tool != nil {
+			present[tool.Name] = struct{}{}
+		}
+	}
+	missing := make([]string, 0, len(queryTools))
+	for _, name := range queryTools {
+		if _, found := present[name]; !found {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("MCP server does not expose %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func callGraphStatus(ctx context.Context, session *sdkmcp.ClientSession, timeout time.Duration) error {
