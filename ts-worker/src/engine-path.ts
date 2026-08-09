@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, parse, sep } from "node:path";
 
 /**
@@ -23,6 +23,7 @@ import { isAbsolute, join, parse, sep } from "node:path";
  */
 const resolved = new Map<string, string>();
 const listings = new Map<string, DirectoryIndex | undefined>();
+const folding = new Map<string, boolean>();
 
 interface DirectoryIndex {
   /** Entry names exactly as the filesystem spells them. */
@@ -65,10 +66,14 @@ export function enginePath(candidate: string): string {
     }
     current = join(current, actual);
   }
-  const remainder = components.slice(index);
-  const answer = remainder.length === 0 ? current : join(current, ...remainder);
-  resolved.set(candidate, answer);
-  return answer;
+  if (index === components.length) {
+    resolved.set(candidate, current);
+    return current;
+  }
+  // The walk stopped on a component that is not there yet. Nothing is
+  // memoised: an indexing run writes files while it reads the tree, and a
+  // cached negative would outlive the reason for it.
+  return join(current, ...components.slice(index));
 }
 
 /** lookup answers with the spelling on disk of one component, if it is there. */
@@ -87,7 +92,47 @@ function lookup(
   if (entries.names.has(component)) {
     return component;
   }
-  return entries.folded.get(component.toLowerCase());
+  const folded = entries.folded.get(component.toLowerCase());
+  if (folded === undefined || !foldsCase(directory, folded)) {
+    return undefined;
+  }
+  return folded;
+}
+
+/**
+ * foldsCase reports whether this directory's filesystem treats two spellings
+ * of a name as the same entry.
+ *
+ * Without this check the walk is destructive on a case-sensitive filesystem,
+ * where `dist` and `Dist` are two different directories and answering with the
+ * one that happens to exist rewrites the path to another file. The question is
+ * asked of an entry that is really there: flip its case and see whether the
+ * filesystem hands back the same inode.
+ */
+function foldsCase(directory: string, entry: string): boolean {
+  const known = folding.get(directory);
+  if (known !== undefined) {
+    return known;
+  }
+  let answer = false;
+  const flipped = entry
+    .split("")
+    .map((character) => {
+      const upper = character.toUpperCase();
+      return character === upper ? character.toLowerCase() : upper;
+    })
+    .join("");
+  if (flipped !== entry) {
+    try {
+      const original = statSync(join(directory, entry));
+      const other = statSync(join(directory, flipped));
+      answer = original.ino === other.ino && original.dev === other.dev;
+    } catch {
+      answer = false;
+    }
+  }
+  folding.set(directory, answer);
+  return answer;
 }
 
 /**
@@ -122,4 +167,5 @@ function listing(directory: string): DirectoryIndex | undefined {
 export function forgetEnginePaths(): void {
   resolved.clear();
   listings.clear();
+  folding.clear();
 }

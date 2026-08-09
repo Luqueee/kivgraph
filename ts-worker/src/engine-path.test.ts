@@ -54,15 +54,17 @@ describe("engine paths", () => {
   // is only trusted after the directory is read again.
   it("sees an entry created after the directory was first read", async () => {
     const root = await temporaryRoot("ladygraph-engine-path-");
+    const later = path.join(root, "Later.ts");
+    const asked = path.join(root, "later.ts");
     forgetEnginePaths();
-    expect(enginePath(path.join(root, "Later.ts"))).toBe(
-      path.join(root, "Later.ts"),
-    );
+    // Reading the empty directory memoises a listing without the file.
+    expect(enginePath(asked)).toBe(asked);
 
-    await writeFile(path.join(root, "Later.ts"), "export {};\n");
+    await writeFile(later, "export {};\n");
 
-    expect(enginePath(path.join(root, "later.ts"))).toBe(
-      path.join(root, "Later.ts"),
-    );
+    // Only a folding filesystem can answer the lower-cased spelling, and only
+    // if the stale listing is read again. On a case-sensitive one that
+    // spelling names nothing and must stay untouched.
+    expect(enginePath(asked)).toBe(existsSync(asked) ? later : asked);
   });
 });
