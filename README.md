@@ -28,10 +28,12 @@ From a checkout:
 ./scripts/install.sh
 ```
 
-Or clone and install in one command:
+Or clone and install in one command (using your configured GitHub
+credentials):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Luqueee/ladygraph/main/scripts/install.sh | bash
+git clone git@github.com:Luqueee/ladygraph.git "$HOME/ladygraph" &&
+"$HOME/ladygraph/scripts/install.sh"
 ```
 
 The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
