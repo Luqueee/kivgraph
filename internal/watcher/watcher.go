@@ -2,6 +2,20 @@
 // repository-qualified filesystem events. It intentionally does not debounce,
 // hash, classify, or invalidate events; those responsibilities belong to later
 // incremental stages.
+//
+// Event granularity follows the platform backend. inotify reports the write
+// that fills a file created moments earlier; kqueue sees only the directory
+// change, because the new file is not watched until it already exists, so the
+// same sequence arrives as a lone Create. A consumer therefore treats Create
+// as a content change, and Reconciler stays the recovery path for whatever a
+// backend does not report. Modifying a file that existed when the watch was
+// installed is a Write on every backend.
+//
+// On kqueue platforms - macOS and the BSDs - the backend holds one descriptor
+// per watched file and directory: 787 for the Ladygraph checkout itself, which
+// has 659 files in 152 watched directories, against a per-process ceiling of
+// kern.maxfilesperproc, 92160 on macOS 26. A tree past that ceiling fails in
+// New with an explicit descriptor error rather than watching a subset of it.
 package watcher
 
 import (
@@ -11,9 +25,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/Luqueee/ladygraph/internal/workspace"
 	"github.com/fsnotify/fsnotify"
@@ -339,10 +355,24 @@ func (watcher *Watcher) addDirectory(path string) error {
 		return nil
 	}
 	if err := watcher.backend.Add(path); err != nil {
-		return err
+		return descriptorLimit(err)
 	}
 	watcher.watched[path] = struct{}{}
 	return nil
+}
+
+// descriptorLimit names the one failure an operator can act on. A kqueue
+// backend needs a descriptor for every watched file, so a large repository
+// exhausts the per-process limit long before anything else goes wrong, and
+// the bare "too many open files" does not say which limit to raise.
+func descriptorLimit(err error) error {
+	if !errors.Is(err, syscall.EMFILE) && !errors.Is(err, syscall.ENFILE) {
+		return err
+	}
+	if runtime.GOOS == "darwin" {
+		return fmt.Errorf("%w: the kqueue backend needs one descriptor per watched file; raise the open file limit (ulimit -n) or kern.maxfilesperproc, or exclude more of the tree", err)
+	}
+	return fmt.Errorf("%w: raise the open file limit (ulimit -n) or exclude more of the tree", err)
 }
 
 func (watcher *Watcher) processEvent(ctx context.Context, raw fsnotify.Event) error {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 const definitionsSource = `package sample
@@ -53,7 +54,7 @@ func unexported() { fmt.Println(Answer) }
 `
 
 func TestExtractDefinitionsCollectsAddressableSymbolsOnly(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":           "module example.com/module\n\ngo 1.24\n",
@@ -156,7 +157,7 @@ func TestExtractDefinitionsCollectsAddressableSymbolsOnly(t *testing.T) {
 }
 
 func TestExtractDefinitionsCanExcludeUnexported(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":           "module example.com/module\n\ngo 1.24\n",
@@ -181,7 +182,7 @@ func TestExtractDefinitionsCanExcludeUnexported(t *testing.T) {
 }
 
 func TestExtractDefinitionsIsDeterministicAndCancellable(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":           "module example.com/module\n\ngo 1.24\n",
@@ -221,7 +222,7 @@ func TestExtractDefinitionsIsDeterministicAndCancellable(t *testing.T) {
 // them. Two functions of one package routinely declare the same request shape;
 // each field must keep its own identity and its own stable key.
 func TestExtractDefinitionsQualifiesFieldsOfLocalAnonymousStructs(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod": "module example.com/module\n\ngo 1.24\n",

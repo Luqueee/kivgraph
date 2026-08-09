@@ -8,11 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 func TestBuildPlanComposesEveryModuleAndAgreedReplacements(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	first := writeModule(t, filepath.Join(root, "first"), `module example.com/first
 
 go 1.23
@@ -80,7 +81,7 @@ go 1.22
 }
 
 func TestBuildPlanExcludesUndecidableFacts(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	left := writeModule(t, filepath.Join(root, "left"), `module example.com/shared
 
 go 1.24
@@ -132,7 +133,7 @@ replace example.com/pinned => example.com/pinned v2.0.0
 }
 
 func TestBuildPlanSkipsReplacementOfAWorkspaceModule(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	provider := writeModule(t, filepath.Join(root, "provider"), `module example.com/provider
 
 go 1.24
@@ -161,7 +162,7 @@ replace example.com/provider => example.com/provider/v2 v2.0.0
 }
 
 func TestBuildPlanRejectsAWorkspaceWithoutModules(t *testing.T) {
-	empty := t.TempDir()
+	empty := testsupport.TempDir(t)
 	_, err := BuildPlan(context.Background(), []workspace.Repository{
 		{Name: "empty", Path: empty, RealPath: empty},
 	}, Options{})
@@ -171,7 +172,7 @@ func TestBuildPlanRejectsAWorkspaceWithoutModules(t *testing.T) {
 }
 
 func TestWriteInstallsOutsideRepositoriesAndIsIdempotent(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := writeModule(t, filepath.Join(root, "module"), `module example.com/module
 
 go 1.24
@@ -217,7 +218,7 @@ go 1.24
 }
 
 func TestWriteRefusesAPathInsideARepository(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := writeModule(t, filepath.Join(root, "module"), `module example.com/module
 
 go 1.24
@@ -238,7 +239,7 @@ go 1.24
 }
 
 func TestBuildPlanHonoursCancellation(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := writeModule(t, filepath.Join(root, "module"), `module example.com/module
 
 go 1.24

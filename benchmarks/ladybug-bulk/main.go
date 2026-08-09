@@ -19,6 +19,7 @@ import (
 	"time"
 
 	lbug "github.com/LadybugDB/go-ladybug"
+	"github.com/Luqueee/ladygraph/internal/procstat"
 )
 
 const (
@@ -602,21 +603,11 @@ func pathSize(path string) (int64, error) {
 	return total, err
 }
 
+// readRSSBytes samples the resident set size of this process. The scenario
+// takes the maximum over the samples, so the metric stays "peak observed RSS"
+// and remains comparable with the published results.
 func readRSSBytes() int64 {
-	data, err := os.ReadFile("/proc/self/status")
-	if err != nil {
-		return 0
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 3 && fields[0] == "VmRSS:" {
-			kilobytes, err := strconv.ParseInt(fields[1], 10, 64)
-			if err == nil {
-				return kilobytes * 1024
-			}
-		}
-	}
-	return 0
+	return procstat.ResidentBytes(os.Getpid())
 }
 
 func gitState() string {

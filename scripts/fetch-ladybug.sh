@@ -60,6 +60,22 @@ locate_library() {
     dirname "${object}"
 }
 
+# sha256_of prints the SHA-256 of a file. macOS ships shasum, not the coreutils
+# sha256sum this repository uses elsewhere, and a missing checksum tool must
+# stop the download rather than let an unverified library through.
+sha256_of() {
+    local file
+    file="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "${file}" | cut -d' ' -f1
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "${file}" | cut -d' ' -f1
+    else
+        echo "no SHA-256 tool found: install coreutils or shasum" >&2
+        return 1
+    fi
+}
+
 main() {
     local root destination asset digest archive library
     root="$(repository_root)"
@@ -80,7 +96,7 @@ main() {
     curl --fail --location --silent --show-error --output "${archive}" "${BASE_URL}/${asset}"
 
     local observed
-    observed="$(sha256sum "${archive}" | cut -d' ' -f1)"
+    observed="$(sha256_of "${archive}")"
     if [[ "${observed}" != "${digest}" ]]; then
         rm -f "${archive}"
         echo "digest mismatch for ${asset}" >&2

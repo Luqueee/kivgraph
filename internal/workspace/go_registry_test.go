@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestNewGoModuleRegistryBuildsProvidersPackagesAndReplaces(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	nested := filepath.Join(root, "nested")
 	internal := filepath.Join(root, "internal", "util")
 	for _, directory := range []string{nested, internal} {
@@ -93,7 +95,7 @@ replace example.com/work => ./nested
 }
 
 func TestNewGoModuleRegistryRejectsDuplicateModulePaths(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeGoDiscoveryFile(t, filepath.Join(root, "a", "go.mod"), "module example.com/duplicate\n\ngo 1.24\n")
 	writeGoDiscoveryFile(t, filepath.Join(root, "b", "go.mod"), "module example.com/duplicate\n\ngo 1.24\n")
 	_, err := NewGoModuleRegistry(context.Background(), Repository{RealPath: root})
@@ -103,7 +105,7 @@ func TestNewGoModuleRegistryRejectsDuplicateModulePaths(t *testing.T) {
 }
 
 func TestNewGoModuleRegistrySkipsPackagesOutsideModulesAndHonorsCancellation(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeGoDiscoveryFile(t, filepath.Join(root, "standalone.go"), "package standalone\n")
 	registry, err := NewGoModuleRegistry(context.Background(), Repository{RealPath: root})
 	if err != nil {

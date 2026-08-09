@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -38,7 +39,7 @@ func goFixtureWorkspace(t *testing.T, repositories []workspace.Repository) strin
 	if len(plan.Conflicts) != 0 {
 		t.Fatalf("fixture workspace has conflicts: %#v", plan.Conflicts)
 	}
-	target := filepath.Join(t.TempDir(), "state", "go.work")
+	target := filepath.Join(testsupport.TempDir(t), "state", "go.work")
 	if _, err := goworkspace.Write(context.Background(), target, plan, repositories); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}

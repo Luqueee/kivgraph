@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -21,7 +22,7 @@ func TestWrittenWorkspaceIsAcceptedByTheGoToolchain(t *testing.T) {
 		t.Skipf("go toolchain unavailable: %v", err)
 	}
 
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	provider := filepath.Join(root, "provider")
 	consumer := filepath.Join(root, "consumer")
 	writeFiles(t, provider, map[string]string{

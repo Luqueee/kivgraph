@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // TestUpdateDeletionsLeaveNoGhosts exercises symbol and file withdrawal on a
@@ -41,7 +42,7 @@ func runNativeDeletion(t *testing.T, previous, next facts.Set, removedFile bool)
 	t.Helper()
 	ctx := context.Background()
 	loadOptions := ladybug.CanonicalLoadOptions{SnapshotID: 31, ResolverVersion: "deletion-native"}
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, previous, loadOptions); err != nil {
 		t.Fatalf("load previous state: %v", err)
@@ -52,7 +53,7 @@ func runNativeDeletion(t *testing.T, previous, next facts.Set, removedFile bool)
 	}
 	hotStore := hotsnapshot.NewSnapshotStore(nil)
 	result, err := Update(ctx, UpdateOptions{
-		Root: t.TempDir(),
+		Root: testsupport.TempDir(t),
 		Plans: []InvalidationPlan{{Class: ChangeFileDeleted, Actions: []InvalidationAction{
 			ActionRemoveFile, ActionInvalidateConsumers, ActionResolveReferences,
 		}}},
@@ -83,7 +84,7 @@ func runNativeDeletion(t *testing.T, previous, next facts.Set, removedFile bool)
 		t.Fatal("surviving source symbol disappeared from the published HotSnapshot")
 	}
 
-	referenceDatabase := filepath.Join(t.TempDir(), "graph.db")
+	referenceDatabase := filepath.Join(testsupport.TempDir(t), "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, referenceDatabase, next, loadOptions); err != nil {
 		t.Fatalf("load next state from scratch: %v", err)
 	}

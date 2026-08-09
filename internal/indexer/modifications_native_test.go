@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // TestUpdateModificationsMatchAFullLoad covers the five LUQUE-1010 change
@@ -44,7 +45,7 @@ func runNativeModification(t *testing.T, previous, next facts.Set, plan Invalida
 	t.Helper()
 	ctx := context.Background()
 	loadOptions := ladybug.CanonicalLoadOptions{SnapshotID: 21, ResolverVersion: "modification-native"}
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, previous, loadOptions); err != nil {
 		t.Fatalf("load previous state: %v", err)
@@ -55,7 +56,7 @@ func runNativeModification(t *testing.T, previous, next facts.Set, plan Invalida
 	}
 	hotStore := hotsnapshot.NewSnapshotStore(nil)
 	result, err := Update(ctx, UpdateOptions{
-		Root: t.TempDir(), Plans: []InvalidationPlan{plan}, Previous: previous, Next: next,
+		Root: testsupport.TempDir(t), Plans: []InvalidationPlan{plan}, Previous: previous, Next: next,
 		SnapshotID: loadOptions.SnapshotID, ResolverVersion: loadOptions.ResolverVersion, SnapshotStore: hotStore,
 		Layout: func(context.Context, rebuild.LayoutOptions) (rebuild.Layout, error) { return layout, nil },
 		Republish: func(context.Context, rebuild.Options) (rebuild.Report, error) {
@@ -73,7 +74,7 @@ func runNativeModification(t *testing.T, previous, next facts.Set, plan Invalida
 		t.Fatalf("published HotSnapshot = %#v, want generation %d", snapshot, loadOptions.SnapshotID)
 	}
 
-	referenceDatabase := filepath.Join(t.TempDir(), "graph.db")
+	referenceDatabase := filepath.Join(testsupport.TempDir(t), "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, referenceDatabase, next, loadOptions); err != nil {
 		t.Fatalf("load next state from scratch: %v", err)
 	}

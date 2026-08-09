@@ -5,6 +5,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 const methodsProviderSource = `package provider
@@ -65,7 +67,7 @@ func Run(wrapper provider.Wrapper, file *provider.File) int {
 
 func resolvedMethods(t *testing.T) map[string][]MethodResolution {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":               "module example.com/module\n\ngo 1.24\n",
@@ -187,7 +189,7 @@ func TestResolveMethodsSeparatesPointerEmbeddingAndInterfaces(t *testing.T) {
 }
 
 func TestResolveMethodsIsDeterministicAndCancellable(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":               "module example.com/module\n\ngo 1.24\n",

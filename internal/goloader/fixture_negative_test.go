@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -49,7 +50,7 @@ func loadNegativeFixture(t *testing.T) negativeFacts {
 	if err != nil {
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
-	workFile := filepath.Join(t.TempDir(), "state", "go.work")
+	workFile := filepath.Join(testsupport.TempDir(t), "state", "go.work")
 	if _, err := goworkspace.Write(context.Background(), workFile, plan, workspaceRepositories); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}

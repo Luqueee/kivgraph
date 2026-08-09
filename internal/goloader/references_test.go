@@ -5,6 +5,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 const callsProviderSource = `package provider
@@ -68,7 +70,7 @@ var rebind = (*provider.Shape).Area
 
 func classifiedReferences(t *testing.T) []Reference {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":               "module example.com/module\n\ngo 1.24\n",
@@ -226,7 +228,7 @@ func TestClassifyReferencesKeepsIndirectAndNonCallableUsesApart(t *testing.T) {
 }
 
 func TestClassifyReferencesIsDeterministicAndCancellable(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":               "module example.com/module\n\ngo 1.24\n",

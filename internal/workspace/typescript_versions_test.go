@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func testEngine() TypeScriptEngine {
@@ -31,7 +33,7 @@ func writeInstalledTypeScript(t *testing.T, directory, version string) string {
 }
 
 func TestResolveTypeScriptVersionPrefersTheLocalInstall(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	core := filepath.Join(root, "packages", "core")
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root", "private": true, "devDependencies": {"typescript": "7.0.2"}}`)
 	writeInstalledTypeScript(t, root, "7.0.2")
@@ -63,7 +65,7 @@ func TestResolveTypeScriptVersionPrefersTheLocalInstall(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionFallsBackToTheWorkspaceInstall(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	core := filepath.Join(root, "packages", "core")
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root", "private": true, "workspaces": ["packages/*"]}`)
 	hoisted := writeInstalledTypeScript(t, root, "6.4.1")
@@ -87,7 +89,7 @@ func TestResolveTypeScriptVersionFallsBackToTheWorkspaceInstall(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionFallsBackToThePinnedCompiler(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	core := filepath.Join(root, "packages", "core")
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root", "private": true}`)
 	writeDiscoveryFile(t, filepath.Join(core, "package.json"), `{"name": "core", "devDependencies": {"typescript": "^4.9.0"}}`)
@@ -118,7 +120,7 @@ func TestResolveTypeScriptVersionFallsBackToThePinnedCompiler(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionStopsAtTheRepositoryRoot(t *testing.T) {
-	outer := t.TempDir()
+	outer := testsupport.TempDir(t)
 	root := filepath.Join(outer, "repo")
 	core := filepath.Join(root, "packages", "core")
 	// A compiler installed above the registered repository must not decide the
@@ -139,7 +141,7 @@ func TestResolveTypeScriptVersionStopsAtTheRepositoryRoot(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionFollowsAPnpmSymlink(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	store := filepath.Join(root, "node_modules", ".pnpm", "typescript@5.9.3", "node_modules", "typescript")
 	writeDiscoveryFile(t, filepath.Join(store, "package.json"), `{"name": "typescript", "version": "5.9.3"}`)
 	link := filepath.Join(root, "node_modules", "typescript")
@@ -180,7 +182,7 @@ func TestResolveTypeScriptVersionMarksVersionsOutsideTheWindow(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root", "private": true}`)
 			writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"compilerOptions": {}}`)
 			writeInstalledTypeScript(t, root, testCase.version)
@@ -208,7 +210,7 @@ func TestResolveTypeScriptVersionMarksVersionsOutsideTheWindow(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionRejectsAnUnparseableInstall(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root"}`)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"compilerOptions": {}}`)
 	writeDiscoveryFile(t, filepath.Join(root, "node_modules", "typescript", "package.json"), `{"name": "typescript"`)
@@ -220,7 +222,7 @@ func TestResolveTypeScriptVersionRejectsAnUnparseableInstall(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionRejectsAForeignPackageAtTheCompilerPath(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root"}`)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"compilerOptions": {}}`)
 	writeDiscoveryFile(t, filepath.Join(root, "node_modules", "typescript", "package.json"), `{"name": "typescript-fork", "version": "9.9.9"}`)
@@ -236,8 +238,8 @@ func TestResolveTypeScriptVersionRejectsAForeignPackageAtTheCompilerPath(t *test
 }
 
 func TestResolveTypeScriptVersionRejectsPathsOutsideTheRepository(t *testing.T) {
-	root := t.TempDir()
-	other := t.TempDir()
+	root := testsupport.TempDir(t)
+	other := testsupport.TempDir(t)
 	resolver := newTestResolver(t, root, testEngine())
 
 	if _, err := resolver.Resolve(filepath.Join(other, "tsconfig.json")); err == nil {
@@ -249,7 +251,7 @@ func TestResolveTypeScriptVersionRejectsPathsOutsideTheRepository(t *testing.T) 
 }
 
 func TestNewTypeScriptVersionResolverValidatesTheEngine(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	cases := []struct {
 		name   string
 		engine TypeScriptEngine
@@ -272,7 +274,7 @@ func TestNewTypeScriptVersionResolverValidatesTheEngine(t *testing.T) {
 }
 
 func TestResolveProjectsCoversEveryDiscoveredProject(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	core := filepath.Join(root, "packages", "core")
 	legacy := filepath.Join(root, "packages", "legacy")
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root", "private": true, "workspaces": ["packages/*"]}`)
@@ -325,7 +327,7 @@ func TestResolveProjectsCoversEveryDiscoveredProject(t *testing.T) {
 }
 
 func TestResolveTypeScriptVersionOpenWindowAcceptsEverything(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root"}`)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"compilerOptions": {}}`)
 	writeInstalledTypeScript(t, root, "3.1.6")

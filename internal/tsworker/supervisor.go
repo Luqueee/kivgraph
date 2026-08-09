@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/ladygraph/internal/metrics"
+	"github.com/Luqueee/ladygraph/internal/procstat"
 )
 
 // State is the observable lifecycle state of a supervisor.
@@ -405,7 +406,7 @@ func (supervisor *Supervisor) Status() Status {
 	if supervisor.options.Metrics != nil {
 		supervisor.options.Metrics.ObserveWorker(metrics.WorkerObservation{
 			Restarts:    uint64(status.Restarts),
-			MemoryBytes: processMemoryBytes(status.PID),
+			MemoryBytes: procstat.ResidentBytes(status.PID),
 		})
 	}
 	return status

@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/config"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestValidatePathsAcceptsScopedMetadata(t *testing.T) {
-	first := t.TempDir()
-	second := t.TempDir()
+	first := testsupport.TempDir(t)
+	second := testsupport.TempDir(t)
 	source := config.RepositoriesFile{
 		Repositories: []config.Repository{
 			{
@@ -43,7 +44,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "duplicate realpath",
 			build: func(t *testing.T) config.RepositoriesFile {
-				root := t.TempDir()
+				root := testsupport.TempDir(t)
 				return config.RepositoriesFile{Repositories: []config.Repository{
 					{Name: "service-a", Path: root},
 					{Name: "service-b", Path: root},
@@ -54,7 +55,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "nested repositories",
 			build: func(t *testing.T) config.RepositoriesFile {
-				parent := t.TempDir()
+				parent := testsupport.TempDir(t)
 				child := filepath.Join(parent, "child")
 				if err := os.Mkdir(child, 0o700); err != nil {
 					t.Fatalf("Mkdir() error = %v", err)
@@ -69,8 +70,8 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "symlink",
 			build: func(t *testing.T) config.RepositoriesFile {
-				target := t.TempDir()
-				link := filepath.Join(t.TempDir(), "link")
+				target := testsupport.TempDir(t)
+				link := filepath.Join(testsupport.TempDir(t), "link")
 				if err := os.Symlink(target, link); err != nil {
 					t.Skipf("symlinks unavailable: %v", err)
 				}
@@ -81,7 +82,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "root escape",
 			build: func(t *testing.T) config.RepositoriesFile {
-				root := t.TempDir()
+				root := testsupport.TempDir(t)
 				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "escape", Path: root, Roots: []string{"../outside"}}}}
 			},
 			wantError: "escapes repository realpath",
@@ -89,7 +90,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "manifest escape",
 			build: func(t *testing.T) config.RepositoriesFile {
-				root := t.TempDir()
+				root := testsupport.TempDir(t)
 				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "escape", Path: root, Manifests: []string{"/outside/manifest.json"}}}}
 			},
 			wantError: "escapes repository realpath",
@@ -97,7 +98,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "exclusion escape",
 			build: func(t *testing.T) config.RepositoriesFile {
-				root := t.TempDir()
+				root := testsupport.TempDir(t)
 				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "escape", Path: root, Exclusions: []string{"../outside"}}}}
 			},
 			wantError: "escapes repository realpath",
@@ -106,8 +107,8 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 			name: "name collision",
 			build: func(t *testing.T) config.RepositoriesFile {
 				return config.RepositoriesFile{Repositories: []config.Repository{
-					{Name: "Service", Path: t.TempDir()},
-					{Name: "service", Path: t.TempDir()},
+					{Name: "Service", Path: testsupport.TempDir(t)},
+					{Name: "service", Path: testsupport.TempDir(t)},
 				}}
 			},
 			wantError: "name collision",
@@ -115,21 +116,21 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "invalid name",
 			build: func(t *testing.T) config.RepositoriesFile {
-				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "nested/name", Path: t.TempDir()}}}
+				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "nested/name", Path: testsupport.TempDir(t)}}}
 			},
 			wantError: "not a valid repository identifier",
 		},
 		{
 			name: "missing path",
 			build: func(t *testing.T) config.RepositoriesFile {
-				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "missing", Path: filepath.Join(t.TempDir(), "missing")}}}
+				return config.RepositoriesFile{Repositories: []config.Repository{{Name: "missing", Path: filepath.Join(testsupport.TempDir(t), "missing")}}}
 			},
 			wantError: "does not exist or is inaccessible",
 		},
 		{
 			name: "file instead of directory",
 			build: func(t *testing.T) config.RepositoriesFile {
-				path := filepath.Join(t.TempDir(), "file")
+				path := filepath.Join(testsupport.TempDir(t), "file")
 				if err := os.WriteFile(path, []byte("file"), 0o600); err != nil {
 					t.Fatalf("WriteFile() error = %v", err)
 				}
@@ -140,7 +141,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "permissions",
 			build: func(t *testing.T) config.RepositoriesFile {
-				path := t.TempDir()
+				path := testsupport.TempDir(t)
 				if err := os.Chmod(path, 0o000); err != nil {
 					t.Skipf("chmod unavailable: %v", err)
 				}
@@ -164,7 +165,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 func TestValidatePathsHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := validatePaths(ctx, config.RepositoriesFile{Repositories: []config.Repository{{Name: "service", Path: t.TempDir()}}})
+	_, err := validatePaths(ctx, config.RepositoriesFile{Repositories: []config.Repository{{Name: "service", Path: testsupport.TempDir(t)}}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("validatePaths(canceled) error = %v, want context.Canceled", err)
 	}

@@ -7,17 +7,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 func TestFullBuildsGoFactsOutsideTheRepository(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/fullfixture\n\ngo 1.24\n")
 	writeFullFixture(t, filepath.Join(root, "fixture.go"), `package fixture
 
 func Greeting() string { return "hello" }
 `)
-	workFile := filepath.Join(t.TempDir(), "go.work")
+	workFile := filepath.Join(testsupport.TempDir(t), "go.work")
 
 	set, report, err := Full(context.Background(), FullOptions{
 		Repositories: []workspace.Repository{{
@@ -46,7 +47,7 @@ func Greeting() string { return "hello" }
 }
 
 func TestFullRejectsGoIndexWithoutSyntheticWorkFile(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	set, report, err := Full(context.Background(), FullOptions{
 		Repositories: []workspace.Repository{{
 			Name:      "fixture",

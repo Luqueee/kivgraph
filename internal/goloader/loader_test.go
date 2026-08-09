@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 func TestLoadResolvesSymbolsAcrossModulesOfTheSyntheticWorkspace(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	provider := filepath.Join(root, "provider")
 	consumer := filepath.Join(root, "consumer")
 	writeFiles(t, provider, map[string]string{
@@ -93,7 +94,7 @@ func main() { fmt.Println(provider.Compute(1)) }
 }
 
 func TestLoadFollowsALocalReplaceDirective(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	consumer := filepath.Join(root, "consumer")
 	writeFiles(t, consumer, map[string]string{
 		"go.mod": `module example.com/consumer
@@ -146,7 +147,7 @@ func main() { fmt.Println(legacy.Answer) }
 }
 
 func TestLoadReportsPartialErrorsWithoutDiscardingValidPackages(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":        "module example.com/module\n\ngo 1.24\n",
@@ -185,7 +186,7 @@ func TestLoadReportsPartialErrorsWithoutDiscardingValidPackages(t *testing.T) {
 }
 
 func TestLoadHonoursCancellation(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":   "module example.com/module\n\ngo 1.24\n",
@@ -203,7 +204,7 @@ func TestLoadRejectsAnInvalidRequest(t *testing.T) {
 	if _, err := Load(context.Background(), Options{Directory: ""}); err == nil {
 		t.Fatalf("Load() with no directory must fail")
 	}
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	if _, err := Load(context.Background(), Options{
 		Directory: root,
 		Patterns:  []string{"  "},

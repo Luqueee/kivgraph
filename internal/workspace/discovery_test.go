@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestDiscoverTypeScriptFindsManifestsWorkspacesAndReferences(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	packageA := filepath.Join(root, "packages", "a")
 	packageB := filepath.Join(root, "packages", "b")
 	ignored := filepath.Join(root, "ignored")
@@ -87,8 +89,8 @@ func TestDiscoverTypeScriptFindsManifestsWorkspacesAndReferences(t *testing.T) {
 }
 
 func TestDiscoverTypeScriptSkipsSymlinks(t *testing.T) {
-	root := t.TempDir()
-	external := t.TempDir()
+	root := testsupport.TempDir(t)
+	external := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(external, "package.json"), `{"name":"external"}`)
 	link := filepath.Join(root, "linked")
 	if err := os.Symlink(external, link); err != nil {
@@ -149,7 +151,7 @@ func TestDiscoverTypeScriptRejectsInvalidManifests(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			writeDiscoveryFile(t, filepath.Join(root, test.filename), test.contents)
 			_, err := DiscoverTypeScript(context.Background(), Repository{RealPath: root})
 			if err == nil || !strings.Contains(err.Error(), test.wantError) {
@@ -162,7 +164,7 @@ func TestDiscoverTypeScriptRejectsInvalidManifests(t *testing.T) {
 func TestDiscoverTypeScriptHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := DiscoverTypeScript(ctx, Repository{RealPath: t.TempDir()})
+	_, err := DiscoverTypeScript(ctx, Repository{RealPath: testsupport.TempDir(t)})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("DiscoverTypeScript(canceled) error = %v, want context.Canceled", err)
 	}

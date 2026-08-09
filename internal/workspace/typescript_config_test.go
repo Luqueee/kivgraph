@@ -5,10 +5,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestResolveTypeScriptConfigResolvesSimpleInheritance(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.base.json"), `{
 		"compilerOptions": {"strict": true, "target": "ES2022"}
 	}`)
@@ -45,7 +47,7 @@ func TestResolveTypeScriptConfigResolvesSimpleInheritance(t *testing.T) {
 }
 
 func TestResolveTypeScriptConfigArrayExtendsAppliesLastEntryWins(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.a.json"), `{
 		"compilerOptions": {"target": "ES2018", "strict": false}
 	}`)
@@ -74,7 +76,7 @@ func TestResolveTypeScriptConfigArrayExtendsAppliesLastEntryWins(t *testing.T) {
 }
 
 func TestResolveTypeScriptConfigAllowsDiamondSharedAncestor(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.base.json"), `{"compilerOptions": {"strict": true}}`)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.a.json"), `{
 		"extends": "./tsconfig.base.json",
@@ -101,7 +103,7 @@ func TestResolveTypeScriptConfigAllowsDiamondSharedAncestor(t *testing.T) {
 }
 
 func TestResolveTypeScriptConfigChildOverridesParentCompilerOptions(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.base.json"), `{
 		"compilerOptions": {"strict": false, "target": "ES2018"}
 	}`)
@@ -123,7 +125,7 @@ func TestResolveTypeScriptConfigChildOverridesParentCompilerOptions(t *testing.T
 }
 
 func TestResolveTypeScriptConfigChildIncludeReplacesParentInclude(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.base.json"), `{
 		"include": ["src/**/*.ts"],
 		"exclude": ["src/**/*.spec.ts"]
@@ -157,7 +159,7 @@ func TestResolveTypeScriptConfigChildIncludeReplacesParentInclude(t *testing.T) 
 }
 
 func TestResolveTypeScriptConfigRebasesInheritedOutDirAgainstParentDirectory(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	baseDirectory := filepath.Join(root, "base")
 	packageDirectory := filepath.Join(root, "packages", "app")
 	writeDiscoveryFile(t, filepath.Join(baseDirectory, "tsconfig.json"), `{
@@ -183,7 +185,7 @@ func TestResolveTypeScriptConfigRebasesInheritedOutDirAgainstParentDirectory(t *
 }
 
 func TestResolveTypeScriptConfigExtendsThroughNodeModules(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	packageDirectory := filepath.Join(root, "packages", "app")
 	writeDiscoveryFile(t, filepath.Join(root, "node_modules", "@acme", "tsconfig-base", "tsconfig.json"), `{
 		"compilerOptions": {"strict": true, "target": "ES2022"}
@@ -205,7 +207,7 @@ func TestResolveTypeScriptConfigExtendsThroughNodeModules(t *testing.T) {
 }
 
 func TestResolveTypeScriptConfigExtendsWithoutJSONExtension(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.base.json"), `{"compilerOptions": {"strict": true}}`)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"extends": "./tsconfig.base"}`)
 
@@ -224,7 +226,7 @@ func TestResolveTypeScriptConfigExtendsWithoutJSONExtension(t *testing.T) {
 }
 
 func TestResolveTypeScriptConfigDetectsExtendsCycle(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.a.json"), `{"extends": "./tsconfig.b.json"}`)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.b.json"), `{"extends": "./tsconfig.a.json"}`)
 
@@ -241,7 +243,7 @@ func TestResolveTypeScriptConfigDetectsExtendsCycle(t *testing.T) {
 }
 
 func TestResolveTypeScriptConfigLeavesPathsMappingRelativeToBaseURL(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{
 		"compilerOptions": {
 			"baseUrl": ".",
@@ -289,7 +291,7 @@ func TestResolveTypeScriptConfigRejectsInvalidRequests(t *testing.T) {
 		{
 			name: "config path escapes repository root",
 			setup: func(t *testing.T, root string) string {
-				outside := t.TempDir()
+				outside := testsupport.TempDir(t)
 				writeDiscoveryFile(t, filepath.Join(outside, "tsconfig.json"), `{}`)
 				return filepath.Join(outside, "tsconfig.json")
 			},
@@ -316,7 +318,7 @@ func TestResolveTypeScriptConfigRejectsInvalidRequests(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			configPath := test.setup(t, root)
 			_, err := resolveTypeScriptConfig(configPath, root)
 			if err == nil {

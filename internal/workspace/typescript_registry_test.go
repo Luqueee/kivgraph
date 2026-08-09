@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestNewTypeScriptPackageRegistryBuildsProvidersAndRoots(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	core := filepath.Join(root, "packages", "core")
 	if err := os.MkdirAll(filepath.Join(core, "src"), 0o700); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -136,7 +138,7 @@ func TestNewTypeScriptPackageRegistryRejectsDuplicateAndEscapingProviders(t *tes
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			test.setup(root)
 			_, err := NewTypeScriptPackageRegistry(context.Background(), Repository{RealPath: root})
 			if err == nil || !strings.Contains(err.Error(), test.wantError) {
@@ -147,7 +149,7 @@ func TestNewTypeScriptPackageRegistryRejectsDuplicateAndEscapingProviders(t *tes
 }
 
 func TestNewTypeScriptPackageRegistrySkipsUnnamedRootAndHonorsCancellation(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"private":true}`)
 	writeDiscoveryFile(t, filepath.Join(root, "named", "package.json"), `{"name":"named"}`)
 	registry, err := NewTypeScriptPackageRegistry(context.Background(), Repository{RealPath: root})

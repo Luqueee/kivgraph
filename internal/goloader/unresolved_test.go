@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -54,7 +55,7 @@ func TestClassifyUnresolvedReportsProviderFailures(t *testing.T) {
 }
 
 func TestClassifyUnresolvedReportsMissingProvider(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	provider := filepath.Join(root, "provider")
 	consumer := filepath.Join(root, "consumer")
 	writeFiles(t, provider, map[string]string{
@@ -174,7 +175,7 @@ func TestClassifyUnresolvedMapsObjectPathFailures(t *testing.T) {
 }
 
 func TestClassifyUnresolvedReportsLoadAndWorkspaceFailures(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod": "module example.com/module\n\ngo 1.24\n\nrequire example.com/absent v1.0.0\n",

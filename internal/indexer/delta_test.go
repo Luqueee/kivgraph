@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // updateFixture is a small Validate-passing fact set: one repository, one
@@ -98,7 +99,7 @@ func touchFileA(t *testing.T, set facts.Set) facts.Set {
 
 func publishedLayout(t *testing.T) rebuild.Layout {
 	t.Helper()
-	directory := t.TempDir()
+	directory := testsupport.TempDir(t)
 	databasePath := filepath.Join(directory, "graph.db")
 	if err := os.WriteFile(databasePath, []byte("db"), 0o600); err != nil {
 		t.Fatalf("seed database: %v", err)
@@ -207,7 +208,7 @@ func TestUpdateAppliesDeltaAndRefreshesDigest(t *testing.T) {
 	if got, want := string(recorded), result.SnapshotDigest+"\n"; got != want {
 		t.Fatalf("recorded digest = %q, want %q", got, want)
 	}
-	expected, err := rebuild.RefreshSnapshotDigest(t.TempDir(), map[string]int64{"Symbol": 2, "File": 2})
+	expected, err := rebuild.RefreshSnapshotDigest(testsupport.TempDir(t), map[string]int64{"Symbol": 2, "File": 2})
 	if err != nil {
 		t.Fatalf("recompute digest: %v", err)
 	}

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestResolveTypeScriptSources(t *testing.T) {
@@ -194,7 +196,7 @@ func TestResolveTypeScriptSources(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			configuration := test.setup(t, root)
 			got, err := resolveTypeScriptSources(configuration, root)
 			if err != nil {
@@ -235,7 +237,7 @@ func TestResolveTypeScriptSourcesRejectsInvalidFiles(t *testing.T) {
 		{
 			name: "files entry escapes the repository root",
 			setup: func(t *testing.T, root string) string {
-				outside := t.TempDir()
+				outside := testsupport.TempDir(t)
 				escaped := filepath.Join(outside, "escaped.ts")
 				writeDiscoveryFile(t, escaped, "export {}")
 				return escaped
@@ -245,7 +247,7 @@ func TestResolveTypeScriptSourcesRejectsInvalidFiles(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			declaredFile := test.setup(t, root)
 			configuration := parsedTypeScriptConfig{
 				ConfigPath: filepath.Join(root, "tsconfig.json"),
@@ -265,8 +267,8 @@ func TestResolveTypeScriptSourcesRejectsInvalidFiles(t *testing.T) {
 }
 
 func TestResolveTypeScriptSourcesSkipsSymlinkedDirectories(t *testing.T) {
-	root := t.TempDir()
-	external := t.TempDir()
+	root := testsupport.TempDir(t)
+	external := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(external, "leaked.ts"), "export {}")
 	writeDiscoveryFile(t, filepath.Join(root, "kept.ts"), "export {}")
 	link := filepath.Join(root, "linked")
@@ -289,7 +291,7 @@ func TestResolveTypeScriptSourcesSkipsSymlinkedDirectories(t *testing.T) {
 }
 
 func TestResolveTypeScriptSourcesNodeModulesStaysExcludedEvenViaExplicitInclude(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "node_modules", "pkg", "index.ts"), "export {}")
 	writeDiscoveryFile(t, filepath.Join(root, "src", "index.ts"), "export {}")
 

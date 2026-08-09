@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestDiscoverGoFindsModulesWorkspacesPackagesAndReplaces(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	nested := filepath.Join(root, "nested")
 	internal := filepath.Join(root, "internal", "util")
 	vendor := filepath.Join(root, "vendor", "dependency")
@@ -146,7 +148,7 @@ func TestDiscoverGoRejectsInvalidManifestsAndPackages(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := testsupport.TempDir(t)
 			writeGoDiscoveryFile(t, filepath.Join(root, test.filename), test.contents)
 			_, err := DiscoverGo(context.Background(), Repository{RealPath: root})
 			if err == nil || !strings.Contains(err.Error(), test.wantError) {
@@ -156,7 +158,7 @@ func TestDiscoverGoRejectsInvalidManifestsAndPackages(t *testing.T) {
 	}
 
 	t.Run("multiple packages", func(t *testing.T) {
-		root := t.TempDir()
+		root := testsupport.TempDir(t)
 		writeGoDiscoveryFile(t, filepath.Join(root, "one.go"), "package one\n")
 		writeGoDiscoveryFile(t, filepath.Join(root, "two.go"), "package two\n")
 		_, err := DiscoverGo(context.Background(), Repository{RealPath: root})
@@ -167,8 +169,8 @@ func TestDiscoverGoRejectsInvalidManifestsAndPackages(t *testing.T) {
 }
 
 func TestDiscoverGoSkipsSymlinkTrees(t *testing.T) {
-	root := t.TempDir()
-	external := t.TempDir()
+	root := testsupport.TempDir(t)
+	external := testsupport.TempDir(t)
 	writeGoDiscoveryFile(t, filepath.Join(external, "go.mod"), "module example.com/external\n\ngo 1.24\n")
 	writeGoDiscoveryFile(t, filepath.Join(external, "external.go"), "package external\n")
 	link := filepath.Join(root, "linked")
@@ -187,7 +189,7 @@ func TestDiscoverGoSkipsSymlinkTrees(t *testing.T) {
 func TestDiscoverGoHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := DiscoverGo(ctx, Repository{RealPath: t.TempDir()})
+	_, err := DiscoverGo(ctx, Repository{RealPath: testsupport.TempDir(t)})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("DiscoverGo(canceled) error = %v, want context.Canceled", err)
 	}

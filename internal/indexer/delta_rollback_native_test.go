@@ -15,6 +15,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // TestUpdateDeltaRouteRollsBackOnRealStorage is the LUQUE-1203 contract against
@@ -37,7 +38,7 @@ func TestUpdateDeltaRouteRollsBackOnRealStorage(t *testing.T) {
 	next := touchFileACallingB(t, previous)
 	options := ladybug.CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "native-test"}
 
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, withoutFileB(t, previous), options); err != nil {
 		t.Fatalf("load drifted state: %v", err)
@@ -53,7 +54,7 @@ func TestUpdateDeltaRouteRollsBackOnRealStorage(t *testing.T) {
 	}
 	hotStore := hotsnapshot.NewSnapshotStore(nil)
 	result, err := Update(ctx, UpdateOptions{
-		Root:            t.TempDir(),
+		Root:            testsupport.TempDir(t),
 		Plans:           []InvalidationPlan{{Class: ChangeBodyOnly, Actions: []InvalidationAction{ActionReindexFile}}},
 		Previous:        previous,
 		Next:            next,
@@ -110,7 +111,7 @@ func TestUpdateDeltaRouteSucceedsAfterARollback(t *testing.T) {
 	drifted := withoutFileB(t, full)
 	options := ladybug.CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "native-test"}
 
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, drifted, options); err != nil {
 		t.Fatalf("load drifted state: %v", err)
@@ -124,7 +125,7 @@ func TestUpdateDeltaRouteSucceedsAfterARollback(t *testing.T) {
 	plans := []InvalidationPlan{{Class: ChangeBodyOnly, Actions: []InvalidationAction{ActionReindexFile}}}
 
 	if _, err := Update(ctx, UpdateOptions{
-		Root: t.TempDir(), Plans: plans, Previous: full, Next: touchFileACallingB(t, full),
+		Root: testsupport.TempDir(t), Plans: plans, Previous: full, Next: touchFileACallingB(t, full),
 		SnapshotID: options.SnapshotID, ResolverVersion: options.ResolverVersion, Layout: layoutFunc,
 	}); !errors.Is(err, ErrUpdateFailed) {
 		t.Fatalf("drifted Update() error = %v, want ErrUpdateFailed", err)
@@ -136,7 +137,7 @@ func TestUpdateDeltaRouteSucceedsAfterARollback(t *testing.T) {
 	// routing, so the ratio is widened to keep the delta route.
 	good := touchFileA(t, drifted)
 	result, err := Update(ctx, UpdateOptions{
-		Root: t.TempDir(), Plans: plans, Previous: drifted, Next: good, RepublishRatio: 1,
+		Root: testsupport.TempDir(t), Plans: plans, Previous: drifted, Next: good, RepublishRatio: 1,
 		SnapshotID: options.SnapshotID, ResolverVersion: options.ResolverVersion, Layout: layoutFunc,
 	})
 	if err != nil {
@@ -146,7 +147,7 @@ func TestUpdateDeltaRouteSucceedsAfterARollback(t *testing.T) {
 		t.Fatalf("result = %#v, want a passing DELTA route", result)
 	}
 
-	reference := filepath.Join(t.TempDir(), "graph.db")
+	reference := filepath.Join(testsupport.TempDir(t), "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, reference, good, options); err != nil {
 		t.Fatalf("load reference: %v", err)
 	}

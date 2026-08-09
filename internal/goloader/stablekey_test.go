@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func keyedFixture(t *testing.T, repository string, files map[string]string) []KeyedDefinition {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, files)
 	result, err := Load(context.Background(), Options{Directory: module})
@@ -226,7 +228,7 @@ func TestStableKeysSeparateHomonymsAcrossPackagesModulesAndRepositories(t *testi
 }
 
 func TestAssignStableKeysRejectsIncompleteIdentity(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":           "module example.com/module\n\ngo 1.24\n",

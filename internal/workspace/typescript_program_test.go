@@ -5,13 +5,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // buildMonorepoFixture writes a repository with three referenced projects, two
 // compiler installs and a shared base config.
 func buildMonorepoFixture(t *testing.T) string {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root", "private": true, "workspaces": ["packages/*"]}`)
 	writeInstalledTypeScript(t, root, "7.0.2")
@@ -230,7 +232,7 @@ func TestNewTypeScriptProjectGraphRequiresAResolver(t *testing.T) {
 }
 
 func TestNewTypeScriptProjectGraphRejectsAReferenceCycle(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	left := filepath.Join(root, "left")
 	right := filepath.Join(root, "right")
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name": "root"}`)

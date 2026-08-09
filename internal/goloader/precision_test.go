@@ -4,6 +4,8 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestMeasurePrecisionEmitsTheGoSemanticGate(t *testing.T) {
@@ -63,7 +65,7 @@ func TestMeasurePrecisionIsDeterministic(t *testing.T) {
 }
 
 func TestMeasurePrecisionRejectsAMissingFixture(t *testing.T) {
-	if _, err := MeasurePrecision(context.Background(), t.TempDir()); err == nil {
+	if _, err := MeasurePrecision(context.Background(), testsupport.TempDir(t)); err == nil {
 		t.Fatalf("MeasurePrecision() must fail without the fixtures")
 	}
 }

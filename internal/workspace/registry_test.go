@@ -10,10 +10,11 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/config"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestNewRegistryRecordsMetadataAndCopiesResults(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	source := config.RepositoriesFile{
 		Version: 1,
 		Repositories: []config.Repository{{
@@ -65,7 +66,7 @@ func TestNewRegistryReadsRealGitMetadata(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Fatalf("git is required for repository registration: %v", err)
 	}
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	gitTestCommand(t, "-C", root, "init", "-q")
 	gitTestCommand(t, "-C", root, "symbolic-ref", "HEAD", "refs/heads/main")
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("initial\n"), 0o600); err != nil {
@@ -108,7 +109,7 @@ func TestNewRegistryReadsRealGitMetadata(t *testing.T) {
 }
 
 func TestNewRegistryRejectsInvalidEntriesAndContext(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	git := fakeGit(map[string]string{
 		"rev-parse HEAD":                              "commit",
 		"symbolic-ref --quiet --short HEAD":           "main",

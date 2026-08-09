@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -49,7 +50,7 @@ type crossFixture struct {
 
 func newCrossFixture(t *testing.T, extraRepositories ...string) crossFixture {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	provider := filepath.Join(root, "provider")
 	consumer := filepath.Join(root, "consumer")
 	writeFiles(t, provider, map[string]string{
@@ -261,7 +262,7 @@ func TestResolveCrossRepositoryExcludesIntraModuleUses(t *testing.T) {
 // instantiated generic keeps the identity of the declared member: the encoder
 // indexes declarations, so the instance must fall back to its origin.
 func TestResolveCrossRepositoryFollowsGenericOrigins(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	provider := filepath.Join(root, "provider")
 	consumer := filepath.Join(root, "consumer")
 	writeFiles(t, provider, map[string]string{

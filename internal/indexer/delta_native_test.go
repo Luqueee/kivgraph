@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState drives the delta route
@@ -22,7 +23,7 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 	next := touchFileA(t, previous)
 	options := ladybug.CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "native-test"}
 
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, previous, options); err != nil {
 		t.Fatalf("load previous state: %v", err)
@@ -34,7 +35,7 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 	}
 	hotStore := hotsnapshot.NewSnapshotStore(nil)
 	result, err := Update(ctx, UpdateOptions{
-		Root:            t.TempDir(),
+		Root:            testsupport.TempDir(t),
 		Plans:           []InvalidationPlan{{Class: ChangeBodyOnly, Actions: []InvalidationAction{ActionReindexFile}}},
 		Previous:        previous,
 		Next:            next,
@@ -59,7 +60,7 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 		t.Fatalf("result = %#v, want a passing DELTA route", result)
 	}
 
-	referenceDatabase := filepath.Join(t.TempDir(), "graph.db")
+	referenceDatabase := filepath.Join(testsupport.TempDir(t), "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, referenceDatabase, next, options); err != nil {
 		t.Fatalf("load next state from scratch: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestUpdateDeltaRouteMatchesAFullLoadOfTheNextState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read mutated counts: %v", err)
 	}
-	expected, err := rebuild.RefreshSnapshotDigest(t.TempDir(), counts)
+	expected, err := rebuild.RefreshSnapshotDigest(testsupport.TempDir(t), counts)
 	if err != nil {
 		t.Fatalf("recompute digest: %v", err)
 	}
@@ -108,14 +109,14 @@ func TestUpdateDeltaRouteRemovesAFileWithoutGhosts(t *testing.T) {
 	next := withoutFileB(t, previous)
 	options := ladybug.CanonicalLoadOptions{SnapshotID: 2, ResolverVersion: "native-test"}
 
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, previous, options); err != nil {
 		t.Fatalf("load previous state: %v", err)
 	}
 
 	result, err := Update(ctx, UpdateOptions{
-		Root:            t.TempDir(),
+		Root:            testsupport.TempDir(t),
 		Plans:           []InvalidationPlan{{Class: ChangeFileDeleted, Actions: []InvalidationAction{ActionRemoveFile, ActionInvalidateConsumers}}},
 		Previous:        previous,
 		Next:            next,
@@ -138,7 +139,7 @@ func TestUpdateDeltaRouteRemovesAFileWithoutGhosts(t *testing.T) {
 		t.Fatalf("mutation = %#v, want one file and one symbol withdrawn", result.Mutation)
 	}
 
-	referenceDatabase := filepath.Join(t.TempDir(), "graph.db")
+	referenceDatabase := filepath.Join(testsupport.TempDir(t), "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, referenceDatabase, next, options); err != nil {
 		t.Fatalf("load next state from scratch: %v", err)
 	}

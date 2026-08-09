@@ -1,6 +1,6 @@
 //go:build linux
 
-package tsworker
+package procstat
 
 import (
 	"os"
@@ -8,10 +8,7 @@ import (
 	"strings"
 )
 
-func processMemoryBytes(pid int) int64 {
-	if pid <= 0 {
-		return 0
-	}
+func residentBytes(pid int) int64 {
 	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/statm")
 	if err != nil {
 		return 0
@@ -30,3 +27,6 @@ func processMemoryBytes(pid int) int64 {
 	}
 	return residentPages * pageSize
 }
+
+// supported reports whether this build can answer ResidentBytes.
+func supported() bool { return true }

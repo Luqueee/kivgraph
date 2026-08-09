@@ -5,6 +5,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 const usesProviderSource = `package provider
@@ -43,7 +45,7 @@ func Total(shape *provider.Shape) int {
 
 func loadUses(t *testing.T) ([]Use, string) {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":               "module example.com/module\n\ngo 1.24\n",
@@ -160,7 +162,7 @@ func TestExtractUsesOmitsLocalsAndPackageNames(t *testing.T) {
 }
 
 func TestExtractUsesIsDeterministicAndCancellable(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	module := filepath.Join(root, "module")
 	writeFiles(t, module, map[string]string{
 		"go.mod":               "module example.com/module\n\ngo 1.24\n",

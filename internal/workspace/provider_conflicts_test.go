@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestDetectProviderConflictsClassifiesPackageAndModuleConflicts(t *testing.T) {
@@ -94,7 +96,7 @@ func TestDetectProviderConflictsFindsReplacementConflictsAcrossDistinctModules(t
 
 func TestDetectProviderConflictsReportsNoConflictForUniqueProviders(t *testing.T) {
 	repositoryA := makeProviderRepository(t, "repo-a", "1.0.0", "")
-	rootB := t.TempDir()
+	rootB := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(rootB, "package.json"), `{"name":"@example/other","version":"1.0.0"}`)
 	writeGoDiscoveryFile(t, filepath.Join(rootB, "go.mod"), "module example.com/other\n\ngo 1.24\n")
 
@@ -108,7 +110,7 @@ func TestDetectProviderConflictsReportsNoConflictForUniqueProviders(t *testing.T
 }
 
 func TestDetectProviderConflictsValidatesRepositoriesAndCancellation(t *testing.T) {
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	repository := Repository{Name: "repo", RealPath: root}
 	if _, err := DetectProviderConflicts(context.Background(), []Repository{{RealPath: root}}); err == nil {
 		t.Fatal("missing repository name was accepted")
@@ -127,7 +129,7 @@ func TestDetectProviderConflictsValidatesRepositoriesAndCancellation(t *testing.
 
 func makeProviderRepository(t *testing.T, name, version, replacementDirectory string) Repository {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name":"@example/shared","version":"`+version+`"}`)
 	module := "module example.com/shared\n\ngo 1.24\n"
 	if replacementDirectory != "" {
@@ -141,7 +143,7 @@ func makeProviderRepository(t *testing.T, name, version, replacementDirectory st
 }
 func makeModuleReplacementRepository(t *testing.T, name, packageName, modulePath, replacementDirectory string) Repository {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	if err := os.MkdirAll(filepath.Join(root, replacementDirectory), 0o700); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}

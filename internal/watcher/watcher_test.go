@@ -3,8 +3,12 @@ package watcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -67,11 +71,21 @@ func TestNewRecursivelyWatchesRepositoriesAndExclusions(t *testing.T) {
 	}
 }
 
+// TestWatcherReportsEventsAndWatchesCreatedDirectories pins the contract that
+// holds on every backend: a new path is announced, a directory created after
+// the watch is watched too, and a file that already existed reports its
+// modification. The write that fills a brand-new file is deliberately not
+// required, because kqueue cannot see it: the file is only watched once it
+// exists, by which time the write is over.
 func TestWatcherReportsEventsAndWatchesCreatedDirectories(t *testing.T) {
 	root := t.TempDir()
 	source := filepath.Join(root, "src")
 	if err := os.MkdirAll(source, 0o700); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", source, err)
+	}
+	existingFile := filepath.Join(source, "existing.go")
+	if err := os.WriteFile(existingFile, []byte("package main\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q): %v", existingFile, err)
 	}
 	watcher, err := New([]workspace.Repository{{Name: "repo", RealPath: root}})
 	if err != nil {
@@ -93,11 +107,18 @@ func TestWatcherReportsEventsAndWatchesCreatedDirectories(t *testing.T) {
 		t.Fatalf("WriteFile(%q): %v", firstFile, err)
 	}
 	firstEvent := waitForEvent(t, watcher, func(event Event) bool {
-		return event.Path == firstFile && event.Operations.Has(OperationWrite)
+		return event.Path == firstFile && event.Operations.Has(OperationCreate|OperationWrite)
 	})
 	if firstEvent.Repository != "repo" {
 		t.Fatalf("first event repository = %q, want repo", firstEvent.Repository)
 	}
+
+	if err := os.WriteFile(existingFile, []byte("package main // touched\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q): %v", existingFile, err)
+	}
+	waitForEvent(t, watcher, func(event Event) bool {
+		return event.Path == existingFile && event.Operations.Has(OperationWrite)
+	})
 
 	newDirectory := filepath.Join(root, "new")
 	if err := os.Mkdir(newDirectory, 0o700); err != nil {
@@ -112,8 +133,25 @@ func TestWatcherReportsEventsAndWatchesCreatedDirectories(t *testing.T) {
 		t.Fatalf("WriteFile(%q): %v", createdFile, err)
 	}
 	waitForEvent(t, watcher, func(event Event) bool {
-		return event.Path == createdFile && event.Operations.Has(OperationWrite)
+		return event.Path == createdFile && event.Operations.Has(OperationCreate|OperationWrite)
 	})
+}
+
+func TestDescriptorLimitExplainsWhichLimitToRaise(t *testing.T) {
+	wrapped := descriptorLimit(fmt.Errorf("add watch: %w", syscall.EMFILE))
+	if !errors.Is(wrapped, syscall.EMFILE) {
+		t.Fatalf("descriptorLimit() = %v, want it to keep EMFILE", wrapped)
+	}
+	if !strings.Contains(wrapped.Error(), "ulimit -n") {
+		t.Fatalf("descriptorLimit() = %v, want it to name the limit to raise", wrapped)
+	}
+	if runtime.GOOS == "darwin" && !strings.Contains(wrapped.Error(), "kern.maxfilesperproc") {
+		t.Fatalf("descriptorLimit() = %v, want the darwin ceiling named", wrapped)
+	}
+	other := errors.New("permission denied")
+	if got := descriptorLimit(other); got != other {
+		t.Fatalf("descriptorLimit(other) = %v, want it untouched", got)
+	}
 }
 
 func TestWatcherReturnsCancellationAndClosesChannels(t *testing.T) {

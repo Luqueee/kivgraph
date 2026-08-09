@@ -1,4 +1,4 @@
-//go:build ladybug && cgo && !linux
+//go:build ladybug && cgo && !linux && !darwin
 
 package ladybug
 

@@ -12,6 +12,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // TestUpdateAdditionsMatchAFullLoad exercises every LUQUE-1009 addition
@@ -49,7 +50,7 @@ func runNativeAddition(t *testing.T, previous, next facts.Set) {
 	ctx := context.Background()
 	loadOptions := ladybug.CanonicalLoadOptions{SnapshotID: 11, ResolverVersion: "addition-native"}
 
-	activePath := t.TempDir()
+	activePath := testsupport.TempDir(t)
 	activeDatabase := filepath.Join(activePath, "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, activeDatabase, previous, loadOptions); err != nil {
 		t.Fatalf("load previous state: %v", err)
@@ -59,7 +60,7 @@ func runNativeAddition(t *testing.T, previous, next facts.Set) {
 		NextID: "000012",
 	}
 	result, err := Update(ctx, UpdateOptions{
-		Root:       t.TempDir(),
+		Root:       testsupport.TempDir(t),
 		Plans:      []InvalidationPlan{{Class: ChangeDeclarationAdded, Actions: []InvalidationAction{ActionReindexProvider, ActionResolveReferences}}},
 		Previous:   previous,
 		Next:       next,
@@ -82,7 +83,7 @@ func runNativeAddition(t *testing.T, previous, next facts.Set) {
 		t.Fatalf("mutation = %#v, want at least one upsert", result.Mutation)
 	}
 
-	referenceDatabase := filepath.Join(t.TempDir(), "graph.db")
+	referenceDatabase := filepath.Join(testsupport.TempDir(t), "graph.db")
 	if _, err := ladybug.LoadCanonical(ctx, referenceDatabase, next, loadOptions); err != nil {
 		t.Fatalf("load next state from scratch: %v", err)
 	}
