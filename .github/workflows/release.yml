@@ -164,11 +164,12 @@ jobs:
             "release-assets/install.sh"
           )
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${assets[@]}" --clobber
+            :
           else
-            gh release create "$TAG" "${assets[@]}" \
+            gh release create "$TAG" \
               --verify-tag \
               --title "Ladygraph $TAG" \
               --generate-notes \
               --latest
           fi
+          gh release upload "$TAG" "${assets[@]}" --clobber
