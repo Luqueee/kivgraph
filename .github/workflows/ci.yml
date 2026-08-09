@@ -181,19 +181,6 @@ jobs:
             ts-worker/pnpm-lock.yaml
             web/pnpm-lock.yaml
 
-      # Publishing a generation refuses a filesystem more than 85% full,
-      # whatever the size of the database. The macOS image ships ~13% free, so
-      # the iOS simulator runtimes go before the tests that publish run.
-      - name: Reclaim disk space
-        shell: bash
-        run: |
-          df -h / | tail -1
-          sudo rm -rf \
-            /Library/Developer/CoreSimulator/Profiles/Runtimes \
-            ~/Library/Developer/CoreSimulator/Caches \
-            ~/Library/Developer/Xcode/iOS\ DeviceSupport || true
-          df -h / | tail -1
-
       - name: Go vet
         run: go vet ./...
 

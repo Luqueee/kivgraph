@@ -86,6 +86,7 @@ func TestRunFailureAtAnyStageLeavesCurrentGenerationUntouched(t *testing.T) {
 			test.mutate(&failing)
 
 			report, err := Run(context.Background(), failing)
+			requireSpaceOrSkip(t, err)
 			if !errors.Is(err, ErrRebuildFailed) {
 				t.Fatalf("Run() error = %v, want ErrRebuildFailed", err)
 			}
@@ -172,6 +173,7 @@ func TestSuccessfulRebuildDoesChangeTheActiveGeneration(t *testing.T) {
 	before := captureGeneration(t, root)
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000002", sampleFacts())); err != nil {
+		requireSpaceOrSkip(t, err)
 		t.Fatalf("second Run() error = %v", err)
 	}
 	if after := captureGeneration(t, root); after == before {

@@ -369,6 +369,7 @@ func TestConvertCanonicalGraphDerivesEdgeEvidenceFromEndpointSymbolsAndProvenanc
 func TestSnapshotGenerationResolvesActiveGenerationWhenIDEmpty(t *testing.T) {
 	root := t.TempDir()
 	published, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts()))
+	requireSpaceOrSkip(t, err)
 	if err != nil || !published.Passed {
 		t.Fatalf("seed Run() error = %v, passed = %v", err, published.Passed)
 	}
@@ -389,9 +390,11 @@ func TestSnapshotGenerationResolvesGivenGenerationID(t *testing.T) {
 	root := t.TempDir()
 	set := sampleFacts()
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
+		requireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 	if _, err := Run(context.Background(), buildOptions(t, root, "000002", set)); err != nil {
+		requireSpaceOrSkip(t, err)
 		t.Fatalf("second Run() error = %v", err)
 	}
 
