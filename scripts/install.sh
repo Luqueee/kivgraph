@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install the latest published Linux amd64 MCP bundle. The release archive is
+# Install the latest published MCP bundle for this host. The release archive is
 # verified before it replaces an existing installation.
 
 usage() {
   cat <<'EOF'
 Usage: scripts/install.sh
 
-Download and install the latest published Ladygraph MCP release. The script
-requires a Linux amd64 host and installs without Go, Node.js, or pnpm.
+Download and install the latest published Ladygraph MCP release. Supported
+hosts are Linux/x86_64 and Darwin/arm64; no Go, Node.js, or pnpm is required.
 
 Environment:
   LADYGRAPH_INSTALL_ROOT  Bundle directory (default: ~/.local/opt/ladygraph)
@@ -31,13 +31,24 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 [[ "$#" -eq 0 ]] || fail "unknown argument: $1 (use --help for usage)"
 
-for command in curl tar sha256sum find install mktemp grep readlink; do
+for command in curl tar find install mktemp grep readlink; do
   command -v "$command" >/dev/null 2>&1 ||
     fail "required command not found: $command"
 done
+command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 ||
+  fail 'required command not found: sha256sum or shasum'
 
-[[ "$(uname -s)" == "Linux" ]] || fail "host must be Linux"
-[[ "$(uname -m)" == "x86_64" ]] || fail "host must be x86_64"
+host_system=$(uname -s)
+host_machine=$(uname -m)
+case "$host_system/$host_machine" in
+  Linux/x86_64) platform=linux-amd64 ;;
+  Darwin/arm64) platform=darwin-arm64 ;;
+  *)
+    fail "unsupported host $host_system/$host_machine (supported: Linux/x86_64, Darwin/arm64 for Apple Silicon; Intel Macs are not published)"
+    ;;
+esac
+bundle_name="ladygraph-$platform"
+
 [[ -n "${HOME:-}" ]] || fail 'HOME is not set'
 
 install_root=${LADYGRAPH_INSTALL_ROOT:-"$HOME/.local/opt/ladygraph"}
@@ -53,7 +64,7 @@ if [[ -n "$requested_version" && ! "$requested_version" =~ ^v[0-9]+\.[0-9]+\.[0-
   fail "invalid LADYGRAPH_VERSION: $requested_version"
 fi
 
-archive_name=ladygraph-linux-amd64.tar.gz
+archive_name="$bundle_name.tar.gz"
 if [[ -n "$requested_version" ]]; then
   download_base="$release_base/download/$requested_version"
 else
@@ -68,7 +79,9 @@ created_launchers=()
 cleanup() {
   local status=$?
   if (( status != 0 )); then
-    for launcher in "${created_launchers[@]}"; do
+    # Bash 3.2, the stock macOS shell, treats an empty array expansion as an
+    # unbound variable under `set -u`, which would abort the rollback.
+    for launcher in ${created_launchers[@]+"${created_launchers[@]}"}; do
       rm -f -- "$launcher"
     done
     if [[ "$new_root_installed" == true ]]; then
@@ -113,15 +126,49 @@ printf 'ladygraph install: downloading %s\n' "${requested_version:-latest}" >&2
 curl_download "$download_base/$archive_name" "$archive_path"
 curl_download "$download_base/SHA256SUMS" "$checksums_path"
 
+# sha256_check verifies a checksum manifest relative to the current directory.
+# macOS ships shasum rather than the coreutils sha256sum used elsewhere in this
+# repository, and a host with neither must stop the install rather than let an
+# unverified archive through.
+sha256_check() {
+  local manifest=$1
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$manifest"
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -c "$manifest"
+  else
+    printf 'no SHA-256 tool found: install coreutils or shasum\n' >&2
+    return 1
+  fi
+}
+
 verify_checksums() {
-  local directory=$1 output
-  if ! output=$(cd -- "$directory" && sha256sum -c SHA256SUMS 2>&1); then
+  local directory=$1 manifest=$2 output
+  if ! output=$(cd -- "$directory" && sha256_check "$manifest" 2>&1); then
     printf '%s\n' "$output" >&2
     return 1
   fi
 }
 
-verify_checksums "$download_parent" ||
+# extract_release_checksum copies the single SHA256SUMS line covering one asset
+# into a manifest of its own. A release lists every published platform, so
+# verifying the whole file would fail on the assets this host never downloads.
+extract_release_checksum() {
+  local manifest=$1 name=$2 destination=$3 line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([0-9a-fA-F]{64})\ \ (.+)$ ]] || continue
+    [[ "${BASH_REMATCH[2]}" == "$name" ]] || continue
+    printf '%s  %s\n' "${BASH_REMATCH[1]}" "$name" >"$destination"
+    return 0
+  done <"$manifest"
+  return 1
+}
+
+archive_checksum_name="$archive_name.sha256"
+extract_release_checksum "$checksums_path" "$archive_name" \
+  "$download_parent/$archive_checksum_name" ||
+  fail "release publishes no $archive_name for $host_system/$host_machine"
+verify_checksums "$download_parent" "$archive_checksum_name" ||
   fail 'release archive checksum verification failed'
 
 extract_root="$staging_parent/extracted"
@@ -134,7 +181,7 @@ tar --list --verbose --file "$archive_path" >"$archive_types" ||
   fail 'release archive entry metadata cannot be listed'
 while IFS= read -r name; do
   case "$name" in
-    ladygraph-linux-amd64|ladygraph-linux-amd64/*) ;;
+    "$bundle_name"|"$bundle_name"/*) ;;
     *) fail "release archive contains unsafe path: $name" ;;
   esac
   case "$name" in
@@ -148,12 +195,12 @@ while IFS= read -r entry; do
   esac
 done <"$archive_types"
 tar --extract --file "$archive_path" --directory "$extract_root" \
-  --no-same-owner --no-same-permissions --no-overwrite-dir
-bundle="$extract_root/ladygraph-linux-amd64"
-[[ -d "$bundle" ]] || fail 'release archive is missing ladygraph-linux-amd64/'
+  --no-same-owner --no-same-permissions
+bundle="$extract_root/$bundle_name"
+[[ -d "$bundle" ]] || fail "release archive is missing $bundle_name/"
 [[ -z "$(find -L "$bundle" -type l -print -quit)" ]] ||
   fail 'release bundle contains symbolic links'
-verify_checksums "$bundle" || fail 'bundle checksum verification failed'
+verify_checksums "$bundle" SHA256SUMS || fail 'bundle checksum verification failed'
 [[ -x "$bundle/bin/ladygraph" ]] || fail 'bundle is missing bin/ladygraph'
 [[ -x "$bundle/bin/ladygraph-ts-worker" ]] || fail 'bundle is missing bin/ladygraph-ts-worker'
 installed_version=$("$bundle/bin/ladygraph" version)

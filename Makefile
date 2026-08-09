@@ -1,4 +1,4 @@
-.PHONY: build test version ladybug-lib test-ladybug build-linux-amd64
+.PHONY: build test version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64
 
 build: test version
 	go build ./cmd/ladygraph
@@ -23,6 +23,11 @@ test-ladybug:
 	CGO_LDFLAGS="-L$$LIB -llbug -Wl,-rpath,$$LIB" \
 	go test -tags ladybug ./...
 
-# build-linux-amd64 creates the generated Linux amd64 distribution bundle.
+# build-linux-amd64 and build-darwin-arm64 create the generated distribution
+# bundle for each supported target. cgo links the pinned LadybugDB library, so
+# a bundle is always built by a host of its own platform.
 build-linux-amd64:
-	@scripts/build-linux-amd64.sh
+	@scripts/build-bundle.sh --target linux/amd64
+
+build-darwin-arm64:
+	@scripts/build-bundle.sh --target darwin/arm64

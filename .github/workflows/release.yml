@@ -11,9 +11,6 @@ concurrency:
 
 permissions: {}
 
-env:
-  ARCHIVE_NAME: ladygraph-linux-amd64.tar.gz
-
 jobs:
   verify:
     name: Verify tagged commit
@@ -22,14 +19,32 @@ jobs:
       contents: read
 
   build:
-    name: Build Linux amd64 release
+    name: Build ${{ matrix.os }}/${{ matrix.arch }} release
     needs: verify
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
-    outputs:
-      version: ${{ steps.release.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # cgo links the pinned LadybugDB library, so there is no
+          # cross-compilation: every target is built on its own platform.
+          - os: linux
+            arch: amd64
+            runner: ubuntu-24.04
+            native_library: lib/liblbug.so
+          - os: darwin
+            arch: arm64
+            runner: macos-15
+            native_library: lib/liblbug.dylib
+    env:
+      TARGET_OS: ${{ matrix.os }}
+      TARGET_ARCH: ${{ matrix.arch }}
+      BUNDLE_NAME: ladygraph-${{ matrix.os }}-${{ matrix.arch }}
+      ARCHIVE_NAME: ladygraph-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+      NATIVE_LIBRARY: ${{ matrix.native_library }}
     steps:
       - name: Checkout exact tag
         uses: actions/checkout@v4
@@ -59,7 +74,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .tooling/ladybug
-          key: ladybug-linux-amd64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
+          key: ladybug-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
+
+      # The bundle rewrites the executable's RUNPATH to the relative entry,
+      # dropping the one the Go binding points at its own module directory.
+      - name: Install patchelf
+        if: matrix.os == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf
 
       - name: Resolve and validate release version
         id: release
@@ -70,31 +91,36 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build MCP-only bundle
+        shell: bash
         env:
           LADYGRAPH_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          scripts/build-linux-amd64.sh \
+          scripts/build-bundle.sh \
+            --target "$TARGET_OS/$TARGET_ARCH" \
             --mcp-only \
             --version "$LADYGRAPH_VERSION" \
-            "$RUNNER_TEMP/ladygraph-linux-amd64"
+            "$RUNNER_TEMP/$BUNDLE_NAME"
 
       - name: Verify bundle provenance and checksums
         shell: bash
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          bundle="$RUNNER_TEMP/ladygraph-linux-amd64"
+          # macOS runners ship shasum instead of the coreutils sha256sum.
+          sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+          bundle="$RUNNER_TEMP/$BUNDLE_NAME"
           test -f "$bundle/manifest.json"
           test -f "$bundle/SHA256SUMS"
+          test -f "$bundle/$NATIVE_LIBRARY"
           (
             cd "$bundle"
-            sha256sum -c SHA256SUMS
+            sha256 -c SHA256SUMS
           )
           test "$(jq -r .release "$bundle/manifest.json")" = "$EXPECTED_VERSION"
           test "$(jq -r .source.commit "$bundle/manifest.json")" = "$GITHUB_SHA"
           test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
-          test "$(jq -r .target.os "$bundle/manifest.json")" = linux
-          test "$(jq -r .target.arch "$bundle/manifest.json")" = amd64
+          test "$(jq -r .target.os "$bundle/manifest.json")" = "$TARGET_OS"
+          test "$(jq -r .target.arch "$bundle/manifest.json")" = "$TARGET_ARCH"
           test "$("$bundle/bin/ladygraph" version)" = "$EXPECTED_VERSION"
           version_json=$("$bundle/bin/ladygraph" version --json)
           test "$(jq -r .ladygraph <<<"$version_json")" = "$EXPECTED_VERSION"
@@ -102,9 +128,13 @@ jobs:
       - name: Create reproducible release archive
         shell: bash
         run: |
+          sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+          # The reproducibility flags below are GNU tar's; macOS runners expose
+          # GNU tar as gtar and keep bsdtar under the plain tar name.
+          tar_bin=$(command -v gtar || command -v tar)
           assets="$RUNNER_TEMP/release-assets"
           mkdir -p "$assets"
-          tar \
+          "$tar_bin" \
             --sort=name \
             --mtime='UTC 1970-01-01' \
             --owner=0 \
@@ -112,22 +142,20 @@ jobs:
             --numeric-owner \
             --hard-dereference \
             -C "$RUNNER_TEMP" \
-            -cf - ladygraph-linux-amd64 \
+            -cf - "$BUNDLE_NAME" \
             | gzip -n > "$assets/$ARCHIVE_NAME"
           (
             cd "$assets"
-            sha256sum "$ARCHIVE_NAME" > SHA256SUMS
+            sha256 "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
           )
-          install -m 0755 scripts/install.sh "$assets/install.sh"
-          test "$(awk '{print $2}' "$assets/SHA256SUMS")" = "$ARCHIVE_NAME"
+          test "$(awk '{print $2}' "$assets/$ARCHIVE_NAME.sha256")" = "$ARCHIVE_NAME"
           test -s "$assets/$ARCHIVE_NAME"
-          test -s "$assets/SHA256SUMS"
-          test -s "$assets/install.sh"
+          test -s "$assets/$ARCHIVE_NAME.sha256"
 
-      - name: Upload release assets
+      - name: Upload release archive
         uses: actions/upload-artifact@v4
         with:
-          name: release-assets-${{ steps.release.outputs.version }}
+          name: release-assets-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/release-assets
           if-no-files-found: error
           retention-days: 1
@@ -148,16 +176,38 @@ jobs:
           ref: ${{ github.ref }}
           fetch-depth: 0
 
-      - name: Download release assets
+      - name: Download platform release archives
         uses: actions/download-artifact@v4
         with:
-          name: release-assets-${{ needs.build.outputs.version }}
-          path: release-assets
+          pattern: release-assets-*
+          path: ${{ runner.temp }}/platform-assets
+          merge-multiple: true
 
-      - name: Attest release archive
+      - name: Assemble release assets
+        shell: bash
+        run: |
+          platform_assets="$RUNNER_TEMP/platform-assets"
+          assets="$GITHUB_WORKSPACE/release-assets"
+          mkdir -p "$assets"
+          cp "$platform_assets"/*.tar.gz "$assets/"
+          install -m 0755 scripts/install.sh "$assets/install.sh"
+          cat "$platform_assets"/*.tar.gz.sha256 > "$RUNNER_TEMP/platform-checksums"
+          (
+            cd "$assets"
+            # Each archive must still hash to what its own build job recorded.
+            sha256sum -c "$RUNNER_TEMP/platform-checksums"
+            # SHA256SUMS covers every published file, lexicographic, no paths.
+            sha256sum -- install.sh *.tar.gz | LC_ALL=C sort -k 2 > SHA256SUMS
+            published=$(find . -maxdepth 1 -type f ! -name SHA256SUMS | wc -l)
+            test "$(wc -l < SHA256SUMS)" -eq "$published"
+          )
+          test -s "$assets/SHA256SUMS"
+          test -s "$assets/install.sh"
+
+      - name: Attest release archives
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: release-assets/${{ env.ARCHIVE_NAME }}
+          subject-path: release-assets/*.tar.gz
 
       - name: Publish assets
         env:
@@ -165,13 +215,11 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           assets=(
-            "release-assets/$ARCHIVE_NAME"
+            release-assets/*.tar.gz
             "release-assets/SHA256SUMS"
             "release-assets/install.sh"
           )
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            :
-          else
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --verify-tag \
               --title "Ladygraph $TAG" \

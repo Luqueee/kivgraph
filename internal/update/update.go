@@ -24,15 +24,35 @@ import (
 )
 
 const (
-	Repository       = "Luqueee/ladygraph"
-	DefaultAPIBase   = "https://api.github.com"
-	archiveName      = "ladygraph-linux-amd64.tar.gz"
-	checksumsName    = "SHA256SUMS"
-	bundleDirName    = "ladygraph-linux-amd64"
+	Repository     = "Luqueee/ladygraph"
+	DefaultAPIBase = "https://api.github.com"
+	checksumsName  = "SHA256SUMS"
+	// bundleDirName is both the installed bundle directory and the single root
+	// entry of the release archive. runtime.GOOS and runtime.GOARCH are
+	// compile-time constants, so these names resolve to the platform this
+	// binary was built for.
+	bundleDirName    = "ladygraph-" + runtime.GOOS + "-" + runtime.GOARCH
+	archiveName      = bundleDirName + ".tar.gz"
 	maxDownloadBytes = 512 << 20
 	maxBundleBytes   = 512 << 20
 	maxArchiveFiles  = 10000
 )
+
+// releaseTargets lists the platforms with a published distribution bundle. A
+// platform outside this set has no asset to download, so Run refuses it before
+// touching the network.
+var releaseTargets = []string{"linux/amd64", "darwin/arm64"}
+
+// checkReleaseTarget reports whether goos/goarch has a published bundle.
+func checkReleaseTarget(goos, goarch string) error {
+	target := goos + "/" + goarch
+	for _, supported := range releaseTargets {
+		if supported == target {
+			return nil
+		}
+	}
+	return fmt.Errorf("updates are only available for %s, got %s", strings.Join(releaseTargets, " and "), target)
+}
 
 // Options controls a release lookup and, unless CheckOnly is true, an atomic
 // replacement of the currently installed bundle.
@@ -82,8 +102,8 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	if ctx == nil {
 		return Result{}, errors.New("update context must not be nil")
 	}
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		return Result{}, fmt.Errorf("updates are only available for linux/amd64, got %s/%s", runtime.GOOS, runtime.GOARCH)
+	if err := checkReleaseTarget(runtime.GOOS, runtime.GOARCH); err != nil {
+		return Result{}, err
 	}
 
 	current := strings.TrimSpace(options.CurrentVersion)
@@ -416,8 +436,8 @@ func validateBundle(root, expectedVersion string) error {
 	if manifest.Product != "ladygraph" || manifest.Release != expectedVersion {
 		return fmt.Errorf("manifest release is %q, want %q", manifest.Release, expectedVersion)
 	}
-	if manifest.Target.OS != "linux" || manifest.Target.Arch != "amd64" {
-		return fmt.Errorf("manifest target is %s/%s, want linux/amd64", manifest.Target.OS, manifest.Target.Arch)
+	if manifest.Target.OS != runtime.GOOS || manifest.Target.Arch != runtime.GOARCH {
+		return fmt.Errorf("manifest target is %s/%s, want %s/%s", manifest.Target.OS, manifest.Target.Arch, runtime.GOOS, runtime.GOARCH)
 	}
 	if manifest.Source.Dirty {
 		return errors.New("manifest was built from a dirty source tree")

@@ -131,6 +131,61 @@ func TestCollectRejectsMalformedBundleManifest(t *testing.T) {
 	}
 }
 
+func TestCollectRejectsBundleManifestBuiltForAnotherPlatform(t *testing.T) {
+	root := t.TempDir()
+	executable := writeBundleFixture(t, root)
+	manifestPath := filepath.Join(root, "manifest.json")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read fixture manifest: %v", err)
+	}
+	foreign := strings.Replace(
+		string(data),
+		fmt.Sprintf(`"target": {"os": "%s", "arch": "%s"}`, runtime.GOOS, runtime.GOARCH),
+		`"target": {"os": "plan9", "arch": "mips"}`,
+		1,
+	)
+	if foreign == string(data) {
+		t.Fatal("fixture manifest does not carry the running platform target")
+	}
+	if err := os.WriteFile(manifestPath, []byte(foreign), 0o600); err != nil {
+		t.Fatalf("write fixture manifest: %v", err)
+	}
+
+	_, err = Collect(executable, t.TempDir())
+	if err == nil {
+		t.Fatal("Collect() = nil error, want a target mismatch")
+	}
+	if !strings.Contains(err.Error(), "plan9/mips") || !strings.Contains(err.Error(), runtime.GOOS+"/"+runtime.GOARCH) {
+		t.Fatalf("Collect() error = %v, want it to name plan9/mips and %s/%s", err, runtime.GOOS, runtime.GOARCH)
+	}
+}
+
+func TestCollectReadsDistBundleForTheRunningPlatform(t *testing.T) {
+	workingDir := t.TempDir()
+	bundleRoot := filepath.Join(workingDir, "dist", "ladygraph-"+runtime.GOOS+"-"+runtime.GOARCH)
+	if err := os.MkdirAll(bundleRoot, 0o755); err != nil {
+		t.Fatalf("mkdir dist bundle: %v", err)
+	}
+	writeBundleFixture(t, bundleRoot)
+	// A bundle for another platform sitting next to it must be ignored.
+	otherRoot := filepath.Join(workingDir, "dist", "ladygraph-plan9-mips")
+	if err := os.MkdirAll(otherRoot, 0o755); err != nil {
+		t.Fatalf("mkdir foreign dist bundle: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(otherRoot, "manifest.json"), []byte("{"), 0o600); err != nil {
+		t.Fatalf("write foreign manifest: %v", err)
+	}
+
+	provenance, err := Collect("", workingDir)
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if provenance.Ladygraph != "0.1.0" || provenance.Resolver == nil || *provenance.Resolver != "resolver-v9" {
+		t.Fatalf("provenance = %#v, want the dist bundle manifest", provenance)
+	}
+}
+
 func writeBundleFixture(t *testing.T, root string) string {
 	t.Helper()
 	grammarPath := filepath.Join(root, "grammars", "manifest.json")
@@ -150,7 +205,7 @@ func writeBundleFixture(t *testing.T, root string) string {
   "manifest_version": 1,
   "product": "ladygraph",
   "release": "0.1.0",
-  "target": {"os": "linux", "arch": "amd64"},
+  "target": {"os": "%s", "arch": "%s"},
   "source": {"commit": "%s", "dirty": false},
   "toolchain": {"go": "go1.24.4", "node": "v25.9.0", "pnpm": "11.5.1", "typescript": "7.0.2"},
   "ladybugdb": {"core": "v0.13.1", "binding": "v0.13.1", "archive_sha256": "%s", "library_sha256": "%s"},
@@ -159,7 +214,7 @@ func writeBundleFixture(t *testing.T, root string) string {
   "grammars": {"manifest": "grammars/manifest.json", "sha256": "grammar-sha-placeholder"},
   "artifacts": []
 }`,
-		strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64))
+		runtime.GOOS, runtime.GOARCH, strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64))
 	manifest = strings.Replace(manifest, "grammar-sha-placeholder", grammarSHA, 1)
 	manifestPath := filepath.Join(root, "manifest.json")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {

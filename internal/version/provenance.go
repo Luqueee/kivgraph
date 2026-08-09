@@ -224,9 +224,10 @@ func findBundleManifest(executablePath, workingDir string) (path, root string, f
 			path: filepath.Join(bundleRoot, "manifest.json"), root: bundleRoot,
 		})
 	}
+	distBundle := filepath.Join(workingDir, "dist", "ladygraph-"+runtime.GOOS+"-"+runtime.GOARCH)
 	candidates = append(candidates, struct{ path, root string }{
-		path: filepath.Join(workingDir, "dist", "ladygraph-linux-amd64", "manifest.json"),
-		root: filepath.Join(workingDir, "dist", "ladygraph-linux-amd64"),
+		path: filepath.Join(distBundle, "manifest.json"),
+		root: distBundle,
 	})
 
 	for _, candidate := range candidates {
@@ -297,8 +298,8 @@ func validateBundleManifest(manifest bundleManifest) error {
 	if manifest.Release == "" || manifest.Source.Commit == "" {
 		return errors.New("release and source.commit are required")
 	}
-	if manifest.Target.OS != "linux" || manifest.Target.Arch != "amd64" {
-		return fmt.Errorf("target: want linux/amd64, got %s/%s", manifest.Target.OS, manifest.Target.Arch)
+	if manifest.Target.OS != runtime.GOOS || manifest.Target.Arch != runtime.GOARCH {
+		return fmt.Errorf("target: want %s/%s, got %s/%s", runtime.GOOS, runtime.GOARCH, manifest.Target.OS, manifest.Target.Arch)
 	}
 	if manifest.Toolchain.Go == "" || manifest.LadybugDB.Core == "" || manifest.LadybugDB.Binding == "" {
 		return errors.New("toolchain.go, ladybugdb.core and ladybugdb.binding are required")

@@ -121,6 +121,11 @@ jobs:
             ts-worker/pnpm-lock.yaml
             web/pnpm-lock.yaml
 
+      # The bundle rewrites the executable's RUNPATH to the relative entry,
+      # dropping the one the Go binding points at its own module directory.
+      - name: Install patchelf
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
       - name: Build Linux distribution bundle
         run: make build-linux-amd64
 
@@ -132,6 +137,61 @@ jobs:
       # The pinned core and the pinned Go binding must share a version: a
       # mismatched pair segfaults on the first C call instead of failing a
       # test, which is why this job exists at all.
+      - name: Fetch the pinned LadybugDB library
+        run: scripts/fetch-ladybug.sh
+
+      - name: Go tests with LadybugDB
+        run: make test-ladybug
+
+  macos:
+    name: Verify Go on macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            ts-worker/pnpm-lock.yaml
+            web/pnpm-lock.yaml
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go tests
+        run: go test ./...
+
+      # The worker suite is platform sensitive: a case-folding filesystem, the
+      # macOS default, skips the cases that compare engine-reported paths.
+      - name: Install TypeScript worker
+        working-directory: ts-worker
+        run: pnpm install --frozen-lockfile
+
+      - name: Test TypeScript worker
+        working-directory: ts-worker
+        run: pnpm test
+
+      # darwin/arm64 links its own pinned LadybugDB build, so the pairing of
+      # the pinned core and the pinned Go binding is verified per platform: a
+      # mismatched pair segfaults on the first C call instead of failing a
+      # test.
       - name: Fetch the pinned LadybugDB library
         run: scripts/fetch-ladybug.sh
 

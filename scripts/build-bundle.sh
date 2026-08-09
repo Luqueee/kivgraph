@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build an installable Linux amd64 bundle without mutating indexed repositories
-# or benchmark inputs. The output directory is generated and may be removed.
+# Build an installable bundle for a supported distribution target without
+# mutating indexed repositories or benchmark inputs. The output directory is
+# generated and may be removed.
+#
+# The bundle links LadybugDB natively, so the host must be the target: there is
+# no cross-compilation path for cgo here.
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$root"
 mcp_only=false
 requested_version=${LADYGRAPH_VERSION:-}
+requested_target=${LADYGRAPH_TARGET:-}
 output_argument=""
 usage() {
-  printf 'usage: %s [--mcp-only] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
+  printf 'usage: %s [--target OS/ARCH] [--mcp-only] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
+  printf 'supported targets: linux/amd64, darwin/arm64\n' >&2
 }
 while (( $# > 0 )); do
   case "$1" in
     --mcp-only)
       mcp_only=true
       shift
+      ;;
+    --target)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      requested_target=$2
+      shift 2
       ;;
     --version)
       [[ $# -ge 2 ]] || { usage; exit 2; }
@@ -39,16 +50,12 @@ while (( $# > 0 )); do
   esac
 done
 if [[ -n "$requested_version" && ! "$requested_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-  printf 'build-linux-amd64: invalid release version: %s\n' "$requested_version" >&2
+  printf 'build-bundle: invalid release version: %s\n' "$requested_version" >&2
   exit 2
-fi
-output_dir=${output_argument:-"$root/dist/ladygraph-linux-amd64"}
-if [[ "$output_dir" != /* ]]; then
-  output_dir="$root/$output_dir"
 fi
 
 fail() {
-  printf 'build-linux-amd64: %s\n' "$*" >&2
+  printf 'build-bundle: %s\n' "$*" >&2
   exit 1
 }
 
@@ -56,12 +63,83 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
 }
 
-for command in go node pnpm git install find sort sha256sum stat tr awk; do
+# host_target names the only bundle this machine can produce. cgo links the
+# pinned LadybugDB library, so a bundle is always built by its own platform.
+host_target() {
+  local system machine
+  system="$(uname -s)"
+  machine="$(uname -m)"
+  case "${system}/${machine}" in
+    Linux/x86_64) printf 'linux/amd64' ;;
+    Darwin/arm64) printf 'darwin/arm64' ;;
+    *) fail "unsupported host ${system}/${machine}: supported targets are linux/amd64 and darwin/arm64" ;;
+  esac
+}
+
+target=$(host_target)
+if [[ -n "$requested_target" && "$requested_target" != "$target" ]]; then
+  fail "requested target $requested_target cannot be built on a $target host"
+fi
+target_os=${target%/*}
+target_arch=${target#*/}
+bundle_name="ladygraph-${target_os}-${target_arch}"
+
+case "$target" in
+  linux/amd64)
+    native_library_name=liblbug.so
+    # $ORIGIN is expanded by the dynamic loader, not by the shell.
+    rpath='$ORIGIN/../lib'
+    ;;
+  darwin/arm64)
+    native_library_name=liblbug.dylib
+    # The pinned dylib declares @rpath/liblbug.dylib as its install name and
+    # carries a linker ad-hoc signature that copying preserves. Rewriting the
+    # install name would invalidate it, so the executable carries the rpath.
+    rpath='@loader_path/../lib'
+    ;;
+esac
+
+output_dir=${output_argument:-"$root/dist/$bundle_name"}
+if [[ "$output_dir" != /* ]]; then
+  output_dir="$root/$output_dir"
+fi
+
+for command in go node pnpm git install find sort stat tr awk; do
   require_command "$command"
 done
 
-[[ "$(uname -s)" == "Linux" ]] || fail "host must be Linux"
-[[ "$(uname -m)" == "x86_64" ]] || fail "host must be x86_64"
+# The executable's RUNPATH is rewritten after linking, with the tool each
+# object format has for it.
+case "$target" in
+  darwin/*)
+    for command in otool install_name_tool codesign; do
+      require_command "$command"
+    done
+    ;;
+  linux/*)
+    require_command patchelf
+    ;;
+esac
+
+# sha256_of and sha256_check keep one checksum contract across hosts: macOS
+# ships shasum instead of the coreutils sha256sum used on Linux.
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256_of() { sha256sum "$1" | awk '{print $1}'; }
+  sha256_check() { sha256sum -c "$1"; }
+elif command -v shasum >/dev/null 2>&1; then
+  sha256_of() { shasum -a 256 "$1" | awk '{print $1}'; }
+  sha256_check() { shasum -a 256 -c "$1"; }
+else
+  fail "no SHA-256 tool found: install coreutils or shasum"
+fi
+
+# file_bytes reads a file size with the flag its stat understands.
+if stat -c '%s' "$root/go.mod" >/dev/null 2>&1; then
+  file_bytes() { stat -c '%s' "$1"; }
+else
+  file_bytes() { stat -f '%z' "$1"; }
+fi
+
 [[ -x "$root/scripts/fetch-ladybug.sh" ]] || fail "scripts/fetch-ladybug.sh is not executable"
 
 source_commit=$(git -C "$root" rev-parse HEAD)
@@ -77,7 +155,7 @@ typescript_version=$(pnpm --dir "$root/ts-worker" exec tsc --version | awk '/Ver
 [[ -n "$typescript_version" ]] || fail "could not determine TypeScript version"
 
 native_dir=$(cd "$root" && scripts/fetch-ladybug.sh)
-native_library="$native_dir/liblbug.so"
+native_library="$native_dir/$native_library_name"
 [[ -f "$native_library" ]] || fail "LadybugDB library not found: $native_library"
 native_verified="$native_dir/.verified"
 if [[ ! -f "$native_verified" ]]; then
@@ -99,14 +177,14 @@ mkdir -p \
   "$output_dir/licenses/third-party" \
   "$output_dir/worker/node_modules"
 
-printf 'build-linux-amd64: installing worker dependencies\n' >&2
+printf 'build-bundle: installing worker dependencies\n' >&2
 pnpm --dir "$root/ts-worker" install --frozen-lockfile
 pnpm --dir "$root/ts-worker" build
 
 if [[ "$mcp_only" != true && -f "$root/web/package.json" ]]; then
   [[ -f "$root/web/pnpm-lock.yaml" ]] ||
     fail "web package is missing its frozen lockfile: $root/web/pnpm-lock.yaml"
-  printf 'build-linux-amd64: installing web dependencies\n' >&2
+  printf 'build-bundle: installing web dependencies\n' >&2
   pnpm --dir "$root/web" install --frozen-lockfile
   pnpm --dir "$root/web" build
 fi
@@ -134,12 +212,12 @@ if [[ -n "$requested_version" ]]; then
   ldflags+=" -X github.com/Luqueee/ladygraph/internal/version.Value=$requested_version"
 fi
 
-printf 'build-linux-amd64: compiling Go binary\n' >&2
+printf 'build-bundle: compiling Go binary for %s\n' "$target" >&2
 CGO_ENABLED=1 \
 CGO_CFLAGS="-I$native_dir" \
-CGO_LDFLAGS="-L$native_dir -llbug -Wl,-rpath,\$ORIGIN/../lib" \
-GOOS=linux \
-GOARCH=amd64 \
+CGO_LDFLAGS="-L$native_dir -llbug -Wl,-rpath,$rpath" \
+GOOS="$target_os" \
+GOARCH="$target_arch" \
 go build \
   -tags "$build_tags" \
   -trimpath \
@@ -148,8 +226,46 @@ go build \
   -o "$output_dir/bin/ladygraph" \
   ./cmd/ladygraph
 
+# The pinned Go binding declares its own RUNPATH towards its module directory,
+# which holds no library and names the machine that built the bundle. The
+# executable is rewritten to carry exactly the relative entry, so a bundle does
+# not depend on where its builder kept its module cache.
+normalise_runpath() {
+  local binary="$output_dir/bin/ladygraph" observed
+  case "$target" in
+    darwin/*)
+      while read -r observed; do
+        [[ -n "$observed" && "$observed" != "$rpath" ]] || continue
+        install_name_tool -delete_rpath "$observed" "$binary"
+      done < <(otool -l "$binary" | awk '/LC_RPATH/{found=1} found && $1=="path"{print $2; found=0}')
+      # Editing the load commands invalidates the linker signature.
+      codesign --force --sign - "$binary"
+      ;;
+    linux/*)
+      patchelf --set-rpath "$rpath" "$binary"
+      ;;
+  esac
+}
 
-install -m 0755 "$native_library" "$output_dir/lib/liblbug.so"
+normalise_runpath
+
+assert_single_runpath() {
+  local binary="$output_dir/bin/ladygraph" observed
+  case "$target" in
+    darwin/*)
+      observed=$(otool -l "$binary" | awk '/LC_RPATH/{found=1} found && $1=="path"{print $2; found=0}')
+      ;;
+    linux/*)
+      observed=$(patchelf --print-rpath "$binary")
+      ;;
+  esac
+  [[ "$observed" == "$rpath" ]] ||
+    fail "executable declares RUNPATH '$observed', want exactly '$rpath'"
+}
+
+assert_single_runpath
+
+install -m 0755 "$native_library" "$output_dir/lib/$native_library_name"
 install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
 install -m 0644 "$root/THIRD_PARTY_NOTICES.md" "$output_dir/licenses/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$root/docs/dependencies/ladybugdb.md" "$output_dir/licenses/ladybugdb-provenance.md"
@@ -171,7 +287,9 @@ cat > "$output_dir/bin/ladygraph-ts-worker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-bundle_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# pwd -P: the worker entry point compares its own realpath, and an install
+# root reached through a symlink would otherwise disagree with it.
+bundle_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 if [[ "${1:-}" == "facts" ]]; then
   shift
   exec node "$bundle_root/worker/dist/facts-cli.js" "$@"
@@ -196,25 +314,25 @@ copy_module_licenses() {
 
 copy_module_licenses
 
-release_version=$(LD_LIBRARY_PATH="$output_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  "$output_dir/bin/ladygraph" version)
+# The relative RUNPATH must be enough to start the executable. Running it
+# without any library search variable is the check that proves it.
+release_version=$("$output_dir/bin/ladygraph" version)
 if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; then
   fail "built release version $release_version does not match requested $requested_version"
 fi
-grammar_sha256=$(sha256sum "$output_dir/grammars/manifest.json" | awk '{print $1}')
-ladybug_sha256=$(sha256sum "$output_dir/lib/liblbug.so" | awk '{print $1}')
+grammar_sha256=$(sha256_of "$output_dir/grammars/manifest.json")
+ladybug_sha256=$(sha256_of "$output_dir/lib/$native_library_name")
 artifact_dirs=(bin lib worker grammars licenses)
 if [[ "$web_assets" == true ]]; then
   artifact_dirs+=(web)
 fi
 
-
 write_artifacts() {
   local first=true file relative sha256 bytes
   while IFS= read -r relative; do
     file="$output_dir/$relative"
-    sha256=$(sha256sum "$file" | awk '{print $1}')
-    bytes=$(stat -c '%s' "$file")
+    sha256=$(sha256_of "$file")
+    bytes=$(file_bytes "$file")
     if [[ "$first" == true ]]; then
       first=false
     else
@@ -234,8 +352,8 @@ cat > "$output_dir/manifest.json" <<EOF
   "product": "ladygraph",
   "release": "$release_version",
   "target": {
-    "os": "linux",
-    "arch": "amd64"
+    "os": "$target_os",
+    "arch": "$target_arch"
   },
   "source": {
     "commit": "$source_commit",
@@ -276,7 +394,7 @@ write_checksums() {
       find "${artifact_dirs[@]}" -type f -print
       printf '%s\n' manifest.json
     } | LC_ALL=C sort | while IFS= read -r relative; do
-      sha256sum "$relative"
+      printf '%s  %s\n' "$(sha256_of "$relative")" "$relative"
     done
   )
 }
@@ -284,8 +402,8 @@ write_checksums() {
 write_checksums > "$output_dir/SHA256SUMS"
 (
   cd "$output_dir"
-  sha256sum -c SHA256SUMS >/dev/null
+  sha256_check SHA256SUMS >/dev/null
 )
 
-printf 'build-linux-amd64: bundle ready: %s\n' "$output_dir" >&2
+printf 'build-bundle: bundle ready: %s\n' "$output_dir" >&2
 printf '%s\n' "$output_dir"
