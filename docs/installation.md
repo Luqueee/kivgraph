@@ -233,6 +233,12 @@ Un binario compilado sin `-tags ladybug` puede servir para comandos que no abren
 LadybugDB, pero no es una instalación funcional para indexar, diagnosticar o
 publicar el grafo canónico.
 
+`ladygraph --help` lista los comandos agrupados y `ladygraph <comando> --help`
+describe sus banderas; ambos escriben en `stdout` y terminan con código `0`.
+Los errores de un comando puntual se escriben en texto plano cuando `stderr` es
+una terminal, y como registro JSON cuando es una tubería o un archivo, que es
+lo que consume otra herramienta. `serve` y `ui` registran siempre en JSON.
+
 ## Inicializar la configuración
 
 Genera los dos documentos de configuración y los directorios de estado:

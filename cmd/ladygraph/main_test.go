@@ -353,7 +353,7 @@ func TestRunConfiguredUIUsesLoopbackDefaultAddress(t *testing.T) {
 	}
 }
 
-func TestRunWithoutVersionPrintsUsage(t *testing.T) {
+func TestRunWithoutCommandPointsAtTheHelp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
 	if got := run([]string{"ladygraph"}, &stdout, &stderr); got != 2 {
@@ -362,8 +362,73 @@ func TestRunWithoutVersionPrintsUsage(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "usage: ladygraph version [--json]|update [--check]|serve|doctor storage") {
-		t.Fatalf("stderr = %q, want usage", stderr.String())
+	for _, want := range []string{"ladygraph: no command given", `Run "ladygraph --help"`} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("stderr = %q, want it to contain %q", stderr.String(), want)
+		}
+	}
+}
+
+func TestRunNamesAnUnknownCommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	if got := run([]string{"ladygraph", "inedx"}, &stdout, &stderr); got != 2 {
+		t.Fatalf("run() exit code = %d, want 2", got)
+	}
+	if !strings.Contains(stderr.String(), `unknown command "inedx"`) {
+		t.Fatalf("stderr = %q, want the unknown command named", stderr.String())
+	}
+}
+
+// TestRunHelpIsNotAnError keeps --help on stdout with exit 0: a request
+// answered, not a mistake reported.
+func TestRunHelpIsNotAnError(t *testing.T) {
+	for _, argument := range []string{"--help", "-h", "help"} {
+		var stdout, stderr bytes.Buffer
+		if got := run([]string{"ladygraph", argument}, &stdout, &stderr); got != 0 {
+			t.Fatalf("run(%s) exit code = %d, want 0", argument, got)
+		}
+		if stderr.Len() != 0 {
+			t.Fatalf("run(%s) stderr = %q, want empty", argument, stderr.String())
+		}
+		for _, want := range []string{"Usage", "Getting started", "index --full", "doctor storage --database PATH"} {
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("run(%s) stdout = %q, want it to contain %q", argument, stdout.String(), want)
+			}
+		}
+	}
+}
+
+// TestCommandHelpListsFlagsOnStdout covers the promise the help footer makes.
+func TestCommandHelpListsFlagsOnStdout(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	if got := run([]string{"ladygraph", "rollback", "--help"}, &stdout, &stderr); got != 0 {
+		t.Fatalf("run() exit code = %d, want 0", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	for _, want := range []string{"ladygraph rollback", "Flags", "--root", "--generation"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout = %q, want it to contain %q", stdout.String(), want)
+		}
+	}
+}
+
+// TestUnknownFlagNamesItselfAndExitsTwo keeps a real mistake distinguishable
+// from a help request.
+func TestUnknownFlagNamesItselfAndExitsTwo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	if got := run([]string{"ladygraph", "doctor", "--nope"}, &stdout, &stderr); got != 2 {
+		t.Fatalf("run() exit code = %d, want 2", got)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "doctor: flag provided but not defined: -nope") {
+		t.Fatalf("stderr = %q, want the rejected flag named", stderr.String())
 	}
 }
 
@@ -379,15 +444,15 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 	}
 
 	var record map[string]any
-	if err := json.Unmarshal(stderr.Bytes(), &record); err != nil {
-		t.Fatalf("stderr = %q, want one JSON record: %v", stderr.String(), err)
+	if err := json.Unmarshal([]byte(strings.SplitN(stderr.String(), "\n", 2)[0]), &record); err != nil {
+		t.Fatalf("stderr = %q, want JSON records: %v", stderr.String(), err)
 	}
 	if record["level"] != "ERROR" || record["msg"] != "command stderr" {
 		t.Fatalf("record = %#v, want structured command error", record)
 	}
 	message, ok := record["message"].(string)
-	if !ok || !strings.Contains(message, "usage: ladygraph version [--json]|update [--check]|serve|doctor storage") {
-		t.Fatalf("record message = %#v, want usage", record["message"])
+	if !ok || !strings.Contains(message, "no command given") {
+		t.Fatalf("record message = %#v, want the usage error", record["message"])
 	}
 }
 

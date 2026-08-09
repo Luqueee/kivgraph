@@ -298,6 +298,12 @@ integridad, compatibilidad o verificación descritos aquí.
   ejecutar, y el script la rehace después de editar sus load commands.
   Gatekeeper sólo bloquea un archivo con `com.apple.quarantine`, que no
   escriben `curl` ni `tar`.
+- La ayuda no es un error: `--help`, `-h` y `help` escriben en `stdout` y
+  terminan con código `0`; una invocación sin comando o con uno desconocido
+  escribe una línea en `stderr` y apunta a la ayuda, nunca vuelca la superficie
+  entera. Un comando puntual informa en texto plano cuando `stderr` es una
+  terminal y como registro JSON cuando no lo es; `serve` y `ui` registran
+  siempre en JSON, porque un cliente lee su `stderr`.
 - El código específico de plataforma vive en archivos con build tag, no en
   ramas `runtime.GOOS` dentro de la lógica. Un fallback `!linux` que devuelve
   error o cero es una limitación declarada, nunca un silencio.

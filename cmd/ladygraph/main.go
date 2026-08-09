@@ -39,8 +39,35 @@ import (
 
 type mcpRunner func(context.Context) error
 
+// helpRequested reports an explicit --help before any other parsing, so the
+// two long-running commands answer it like every other command instead of
+// starting a server or logging a parse error.
+func helpRequested(args []string) bool {
+	for _, argument := range args {
+		switch argument {
+		case "--help", "-h":
+			return true
+		case "--":
+			return false
+		}
+	}
+	return false
+}
+
 func main() {
 	logger := logging.New(os.Stderr)
+	if len(os.Args) >= 2 && helpRequested(os.Args[2:]) {
+		switch os.Args[1] {
+		case "ui":
+			configPath, address := "", ""
+			writeCommandHelp(os.Stdout, "ui", uiFlagSet(&configPath, &address))
+			return
+		case "serve":
+			configPath := ""
+			writeCommandHelp(os.Stdout, "serve", serveFlagSet(&configPath))
+			return
+		}
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "ui" {
 		logger.Info("starting web viewer", "command", "ui")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -71,6 +98,13 @@ func main() {
 		return
 	}
 
+	// A one-shot command reports to whoever is listening: plain text for the
+	// operator at a terminal, the structured record other tooling parses when
+	// stderr is a pipe or a file. serve and ui above always log structurally,
+	// because a client reads their stderr for the life of the process.
+	if isTerminal(os.Stderr) {
+		os.Exit(run(os.Args, os.Stdout, os.Stderr))
+	}
 	exitCode := run(os.Args, os.Stdout, logging.NewErrorWriter(logger))
 	if exitCode != 0 {
 		logger.Error("command failed", "command", "cli", "exit_code", exitCode)
@@ -156,12 +190,9 @@ func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRun
 	if runWeb == nil {
 		return errors.New("ui: web runner is required")
 	}
-	flags := flag.NewFlagSet("ui", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
 	configPath := ""
 	address := ""
-	flags.StringVar(&configPath, "config", "", "configuration file")
-	flags.StringVar(&address, "addr", "", "HTTP listen address")
+	flags := uiFlagSet(&configPath, &address)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -179,6 +210,24 @@ func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRun
 	return runWeb(ctx, address, webapi.NewHandler(store))
 }
 
+// uiFlagSet and serveFlagSet exist so the two long-running commands describe
+// their flags in one place: the parser that runs them and the help that
+// answers --help read the same definitions.
+func uiFlagSet(configPath, address *string) *flag.FlagSet {
+	flags := flag.NewFlagSet("ui", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(configPath, "config", "", "configuration file")
+	flags.StringVar(address, "addr", "", "HTTP listen address")
+	return flags
+}
+
+func serveFlagSet(configPath *string) *flag.FlagSet {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(configPath, "config", "", "configuration file")
+	return flags
+}
+
 func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCPRunner) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -186,10 +235,8 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	if runMCP == nil {
 		return errors.New("serve: MCP runner is required")
 	}
-	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
 	configPath := ""
-	flags.StringVar(&configPath, "config", "", "configuration file")
+	flags := serveFlagSet(&configPath)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -298,7 +345,17 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 		return runSnapshot(args[2:], stdout, stderr, build)
 	}
 
-	fmt.Fprintf(stderr, "usage: %s version [--json]|update [--check]|serve|doctor storage --database PATH|doctor graph --database PATH|init [--config PATH] [--repositories PATH] [--force] [--repository NAME=PATH] [--languages go,typescript]|doctor [--config PATH]|index --full [--config PATH] [--repositories PATH] [--resolver-version STRING]|upgrade [--config PATH] [--repositories PATH] [--resolver-version STRING]|benchmark generate-graph [flags]|rebuild --facts PATH --root PATH --generation ID --resolver-version STRING [flags]|graph status --root PATH|rollback --root PATH [--generation ID]|snapshot --root PATH [--generation ID] [--snapshot-id N]|ui [--config PATH] [--addr HOST:PORT]\n", args[0])
+	program := filepath.Base(args[0])
+	if len(args) >= 2 {
+		switch args[1] {
+		case "--help", "-h", "help":
+			writeHelp(stdout, program)
+			return 0
+		}
+		writeUsageError(stderr, program, fmt.Sprintf("unknown command %q", args[1]))
+		return 2
+	}
+	writeUsageError(stderr, program, "no command given")
 	return 2
 }
 
@@ -310,11 +367,10 @@ func runUpdate(args []string, stdout, stderr io.Writer) int {
 
 func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateRunner) int {
 	flags := flag.NewFlagSet("update", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	checkOnly := false
 	flags.BoolVar(&checkOnly, "check", false, "check for a newer release without installing it")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("update", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "update: unexpected arguments")
@@ -363,7 +419,6 @@ func (values *stringList) Set(value string) error {
 
 func runInit(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	configPath := ""
 	repositoriesPath := ""
 	force := false
@@ -374,8 +429,8 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	flags.BoolVar(&force, "force", false, "replace existing configuration files")
 	flags.StringVar(&languages, "languages", languages, "comma-separated repository languages")
 	flags.Var(&repositorySpecs, "repository", "register NAME=PATH (repeatable)")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("init", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "init: unexpected arguments: %v\n", flags.Args())
@@ -463,15 +518,14 @@ func parseRepositorySpec(specification string, languages []string) (config.Repos
 
 func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("index --full", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	configPath := ""
 	repositoriesPath := ""
 	resolverVersion := version.Value
 	flags.StringVar(&configPath, "config", "", "configuration file")
 	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file override")
 	flags.StringVar(&resolverVersion, "resolver-version", resolverVersion, "resolver version recorded in the graph")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("index --full", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "index --full: unexpected arguments: %v\n", flags.Args())
@@ -578,15 +632,14 @@ func writeIndexProgress(stderr io.Writer, start time.Time, event indexer.Progres
 
 func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("upgrade", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	configPath := ""
 	repositoriesPath := ""
 	resolverVersion := version.Value
 	flags.StringVar(&configPath, "config", "", "configuration file")
 	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file override")
 	flags.StringVar(&resolverVersion, "resolver-version", resolverVersion, "resolver version recorded in the graph")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("upgrade", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "upgrade: unexpected arguments: %v\n", flags.Args())
@@ -659,11 +712,10 @@ func passFail(passed bool) string {
 
 func runDoctor(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	configPath := ""
 	flags.StringVar(&configPath, "config", "", "configuration file")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("doctor", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "doctor: unexpected arguments: %v\n", flags.Args())
@@ -830,11 +882,10 @@ func snapshotReportID(id string) (uint64, error) {
 
 func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser) int {
 	flags := flag.NewFlagSet("doctor storage", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	var databasePath string
 	flags.StringVar(&databasePath, "database", "", "existing LadybugDB database path")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("doctor storage", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "doctor storage: unexpected arguments: %v\n", flags.Args())
@@ -874,11 +925,10 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 
 func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifier) int {
 	flags := flag.NewFlagSet("doctor graph", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	var databasePath string
 	flags.StringVar(&databasePath, "database", "", "published canonical LadybugDB database path")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("doctor graph", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "doctor graph: unexpected arguments: %v\n", flags.Args())
@@ -938,15 +988,14 @@ func writeIntegrityFindings(stdout io.Writer, findings []ladybug.IntegrityFindin
 func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 	config := synthetic.DefaultConfig()
 	flags := flag.NewFlagSet("generate-graph", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	flags.IntVar(&config.Repositories, "repositories", config.Repositories, "number of repositories")
 	flags.IntVar(&config.Files, "files", config.Files, "number of files")
 	flags.IntVar(&config.Symbols, "symbols", config.Symbols, "number of symbols")
 	flags.IntVar(&config.Edges, "edges", config.Edges, "number of total edges")
 	flags.Int64Var(&config.Seed, "seed", config.Seed, "deterministic corpus seed")
 	flags.StringVar(&config.OutputDir, "output", config.OutputDir, "output directory")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("generate-graph", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "generate-graph: unexpected arguments: %v\n", flags.Args())
@@ -971,7 +1020,6 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 
 func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilder) int {
 	flags := flag.NewFlagSet("rebuild", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	var (
 		factsPath       string
 		root            string
@@ -984,8 +1032,8 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 	flags.StringVar(&generationID, "generation", "", "six digit generation id to publish")
 	flags.StringVar(&resolverVersion, "resolver-version", "", "resolver version stamped on every semantic edge")
 	flags.Int64Var(&snapshotID, "snapshot-id", 0, "snapshot id stamped on every semantic edge")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("rebuild", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "rebuild: unexpected arguments: %v\n", flags.Args())
@@ -1121,11 +1169,10 @@ func rebuildState(passed bool) string {
 
 func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleResolver) int {
 	flags := flag.NewFlagSet("graph status", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	var root string
 	flags.StringVar(&root, "root", "", "generation store root directory")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("graph status", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "graph status: unexpected arguments: %v\n", flags.Args())
@@ -1184,12 +1231,11 @@ func writeGraphStatus(stdout io.Writer, root string, layout rebuild.Layout) {
 
 func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollbacker) int {
 	flags := flag.NewFlagSet("rollback", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	var root, generationID string
 	flags.StringVar(&root, "root", "", "generation store root directory")
 	flags.StringVar(&generationID, "generation", "", "six digit generation id to roll back to; defaults to the registered graph.backup")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("rollback", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "rollback: unexpected arguments: %v\n", flags.Args())
@@ -1248,14 +1294,13 @@ func orNone(value string) string {
 
 func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder) int {
 	flags := flag.NewFlagSet("snapshot", flag.ContinueOnError)
-	flags.SetOutput(stderr)
 	var root, generationID string
 	var snapshotID int64
 	flags.StringVar(&root, "root", "", "generation store root directory")
 	flags.StringVar(&generationID, "generation", "", "six digit generation id to snapshot; defaults to the registered graph.active")
 	flags.Int64Var(&snapshotID, "snapshot-id", 0, "snapshot id stamped on the built HotSnapshot")
-	if err := flags.Parse(args); err != nil {
-		return 2
+	if parsed, code := parseCommandFlags("snapshot", flags, args, stdout, stderr); !parsed {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintf(stderr, "snapshot: unexpected arguments: %v\n", flags.Args())
