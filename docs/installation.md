@@ -1,10 +1,10 @@
 # Instalación y primera ejecución
 
 Esta guía instala Ladygraph como un servidor MCP local y prepara su primer
-índice. El flujo recomendado usa el bundle `linux/amd64`; el bundle incluye el
-binario Go, la biblioteca nativa fijada de LadybugDB, el worker TypeScript, las
-grammars, los avisos de licencia y, cuando existe el paquete web construido,
-el bundle Vite bajo `web/`.
+índice. El flujo recomendado usa el bundle publicado para la plataforma, que
+incluye el binario Go, la biblioteca nativa fijada de LadybugDB, el worker
+TypeScript, las grammars, los avisos de licencia y, cuando existe el paquete
+web construido, el bundle Vite bajo `web/`.
 
 El visor web empaquetado usa Reagraph `4.32.0` sobre el payload binario `LGVB`.
 Cada vista materializada está limitada a `10.000` nodos por tile y `32 MiB`
@@ -16,29 +16,41 @@ los snapshots y los backups se escriben en el directorio de estado configurado.
 
 ## Compatibilidad y requisitos
 
-### Bundle `linux/amd64`
+### Bundles publicados
 
-El bundle publicado por el workflow de releases contiene el MCP para:
+La release publica un bundle por plataforma soportada:
 
-- Linux `x86_64`/`amd64`;
+| Plataforma | Archivo | Biblioteca nativa |
+| --- | --- | --- |
+| Linux `x86_64`/`amd64` | `ladygraph-linux-amd64.tar.gz` | `lib/liblbug.so` |
+| macOS `arm64` (Apple Silicon) | `ladygraph-darwin-arm64.tar.gz` | `lib/liblbug.dylib` |
+
+Cada bundle necesita:
+
 - Node.js `22` o posterior para ejecutar el worker TypeScript;
-- las bibliotecas estándar del sistema Linux, incluida `glibc` compatible con el
-  entorno donde se compiló el bundle.
+- las bibliotecas estándar del sistema. En Linux eso incluye una `glibc`
+  compatible con el entorno donde se compiló el bundle.
 
-El instalador de releases requiere además Bash, `curl`, `tar` y `sha256sum`.
-Go, pnpm y un compilador C no son necesarios para instalar o ejecutar un bundle
-publicado.
+El instalador de releases requiere además Bash, `curl`, `tar` y una herramienta
+SHA-256: usa `sha256sum` si existe y `shasum -a 256` en su lugar, que es lo que
+trae macOS. Go, pnpm y un compilador C no son necesarios para instalar o
+ejecutar un bundle publicado.
 
-LadybugDB se carga desde `lib/liblbug.so` mediante el `RUNPATH` relativo del
-ejecutable; no se debe separar `bin/`, `lib/`, `worker/`, `grammars/` ni el
-directorio `web/` si está presente.
+LadybugDB se carga desde `lib/` mediante el `RUNPATH` relativo del ejecutable
+-`$ORIGIN/../lib` en Linux, `@loader_path/../lib` en macOS-; no se debe separar
+`bin/`, `lib/`, `worker/`, `grammars/` ni el directorio `web/` si está
+presente.
 
-El runtime del worker contiene `typescript` y su paquete nativo de plataforma
-`@typescript/typescript-linux-x64`; por eso no hace falta ejecutar una
-instalación de pnpm en la máquina destino.
+El runtime del worker contiene `typescript` y su paquete nativo de plataforma;
+por eso no hace falta ejecutar una instalación de pnpm en la máquina destino.
 
-El bundle no incluye Node.js ni las bibliotecas estándar del sistema. No es un
-artefacto portable a Windows, macOS o `arm64`.
+El bundle no incluye Node.js ni las bibliotecas estándar del sistema, y no es
+portable entre plataformas.
+
+En macOS, el archivo descargado con `curl` no recibe `com.apple.quarantine` y
+el ejecutable arranca con normalidad; los binarios no están notarizados, así
+que una copia descargada con un navegador sí queda en cuarentena y hay que
+retirarla con `xattr -dr com.apple.quarantine <ruta>`.
 
 ### Build desde el código fuente
 
@@ -48,15 +60,20 @@ Para compilar desde un checkout se necesitan:
 - Node.js `22` o posterior;
 - pnpm `11.5.1`, fijado en `ts-worker/package.json` y `web/package.json`;
 - un compilador C y las herramientas de enlace de la plataforma;
-- `git`, `curl`, `make`, `sha256sum` y `tar`.
+- `git`, `curl`, `make`, `tar` y `sha256sum` o `shasum`.
 
 El build nativo debe usar el tag Go `ladybug` y el par LadybugDB core/binding
 fijado por `scripts/fetch-ladybug.sh`. No se debe sustituir la biblioteca por
 una versión `latest` ni mezclar core y binding de versiones distintas.
+
+Las plataformas verificadas para compilar desde fuente son `linux/amd64` y
+`darwin/arm64`. En macOS, ver [Desarrollo en macOS](development/macos.md).
+
 ## Instalar la última release
 
-El instalador descarga la release publicada más reciente para Linux `amd64`,
-verifica el checksum del archivo y después los checksums internos del bundle:
+El instalador detecta la plataforma, descarga la release publicada más
+reciente para ella, verifica el checksum del archivo y después los checksums
+internos del bundle:
 
 ```bash
 curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash
@@ -86,15 +103,16 @@ Reinicia el cliente MCP después de actualizar.
 
 ## Instalar un bundle
 
-El artefacto es el directorio `ladygraph-linux-amd64/` generado por el build de
+El artefacto es el directorio `ladygraph-<os>-<arch>/` generado por el build de
 distribución. Antes de instalarlo, comprueba sus hashes desde la raíz del
-bundle:
+bundle, con `sha256sum -c SHA256SUMS` o, en macOS, `shasum -a 256 -c
+SHA256SUMS`:
 
 ```bash
-bundle=/ruta/al/ladygraph-linux-amd64
+bundle=/ruta/al/ladygraph-darwin-arm64
 (
   cd "$bundle"
-  sha256sum -c SHA256SUMS
+  shasum -a 256 -c SHA256SUMS
 )
 ```
 
@@ -128,22 +146,25 @@ hello
 EOF
 ```
 
-`ladygraph version --json` debe mostrar `target.os` `linux`, `target.arch`
-`amd64`, la versión de LadybugDB y el digest de la biblioteca. El launcher del
-worker debe imprimir `hello`; también enruta el subcomando `facts` que usa el
-indexador TypeScript.
+`ladygraph version --json` debe mostrar el `target.os` y `target.arch` de la
+plataforma, la versión de LadybugDB y el digest de la biblioteca. El launcher
+del worker debe imprimir `hello`; también enruta el subcomando `facts` que usa
+el indexador TypeScript.
 
-El bundle se genera desde el repositorio con:
+El bundle se genera desde el repositorio con el objetivo de su plataforma:
 
 ```bash
 make build-linux-amd64
+make build-darwin-arm64
 ```
 
-Ese comando recrea `dist/ladygraph-linux-amd64/`, descarga y verifica el asset
-nativo, instala las dependencias del worker con `pnpm install --frozen`,
-construye `web/` con su lockfile cuando el paquete existe, copia únicamente
-`web/dist` al bundle y valida `SHA256SUMS`. `dist/` es generado e ignorado por
-Git.
+Ambos delegan en `scripts/build-bundle.sh --target <os>/<arch>`, que sólo
+acepta el objetivo del propio host: cgo enlaza la biblioteca nativa, así que no
+hay cross-compilation. El comando recrea `dist/ladygraph-<os>-<arch>/`,
+descarga y verifica el asset nativo, instala las dependencias del worker con
+`pnpm install --frozen`, construye `web/` con su lockfile cuando el paquete
+existe, copia únicamente `web/dist` al bundle y valida `SHA256SUMS`. `dist/` es
+generado e ignorado por Git.
 
 En un checkout limpio, el `buildid` Go se deriva del commit y del estado
 `dirty`, no de la ruta temporal del checkout. Dos builds sobre el mismo commit,
@@ -385,15 +406,17 @@ upgrade fallido.
 
 ## Diagnóstico de fallos
 
-### `sha256sum -c` falla
+### La verificación de `SHA256SUMS` falla
 
 El bundle está incompleto o fue alterado. No continúes; consigue de nuevo el
 artefacto y conserva el `manifest.json`, `SHA256SUMS` y el mensaje de error para
-la auditoría.
+la auditoría. En macOS la orden es `shasum -a 256 -c SHA256SUMS`.
 
-### `error while loading shared libraries: liblbug.so`
+### `liblbug` no se carga
 
-Se ejecutó el binario fuera de la estructura del bundle o se copió solo
+En Linux el mensaje es `error while loading shared libraries: liblbug.so`; en
+macOS, `dyld: Library not loaded: @rpath/liblbug.dylib`. En ambos casos se
+ejecutó el binario fuera de la estructura del bundle o se copió solo
 `bin/ladygraph`. Reinstala el directorio completo y añade `bundle/bin` al
 `PATH`; el ejecutable ya contiene el `RUNPATH` relativo a `../lib`.
 
@@ -408,6 +431,11 @@ Comprueba `node --version` (debe ser `22` o posterior) y que
 `ladygraph`. En un bundle, el launcher debe permanecer junto a `ladygraph` y
 `worker/`. En un checkout fuente, ejecuta `pnpm --dir ts-worker build` o usa el
 fallback documentado en la sección de compilación.
+
+### El proceso muere al arrancar en macOS
+
+El archivo se descargó con un navegador y quedó en cuarentena. Retírala con
+`xattr -dr com.apple.quarantine <ruta>`; los binarios no están notarizados.
 
 ### `config: FAIL` o `unsupported schema version`
 
@@ -438,7 +466,10 @@ no cero; corrige el repositorio o su registro y repite la operación.
 ## Limitaciones observadas
 
 - El artefacto distribuible documentado es únicamente `linux/amd64` y depende
-  de las bibliotecas estándar del sistema y de Node.js.
+  de las bibliotecas estándar del sistema y de Node.js. `darwin/arm64` se
+  compila y se verifica desde un checkout, pero no tiene bundle publicado ni
+  instalador; `ladygraph update` lo rechaza nombrando la plataforma. Ver
+  [Desarrollo en macOS](development/macos.md).
 - La configuración se valida sintácticamente y por permisos durante `doctor`;
   comprobaciones adicionales de políticas de repositorio pertenecen a la
   indexación.
@@ -453,6 +484,7 @@ no cero; corrige el repositorio o su registro y repite la operación.
 
 - [Configuración](adr/0008-configuration.md)
 - [Distribución Linux amd64](adr/0015-linux-amd64-distribution.md)
+- [Desarrollo en macOS](adr/0025-macos-development-support.md)
 - [Schema canónico](storage/canonical-schema.md)
 - [SLO de rendimiento](performance/slo.md)
 - [Backlog de implementación](../TASKS.md)

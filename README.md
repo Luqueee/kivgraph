@@ -14,14 +14,21 @@ The repository contains the initial project foundation. Indexing, storage, and M
 
 ### Install the MCP with one script
 
-The installer downloads the latest published Linux `amd64` MCP release,
-verifies both the release archive and the bundle checksums, and installs it
-without requiring Go, Node.js, or pnpm. The release contains the Go server, the
-pinned LadybugDB library, the TypeScript worker, and the grammar manifest; the
-web viewer is intentionally omitted.
+The installer detects the platform, downloads the latest published MCP release
+for it, verifies both the release archive and the bundle checksums, and
+installs it without requiring Go, Node.js, or pnpm. The release contains the Go
+server, the pinned LadybugDB library, the TypeScript worker, and the grammar
+manifest; the web viewer is intentionally omitted.
 
-Runtime requirements: Linux `amd64`, Bash, Node.js `22` or later, `curl`, `tar`,
-and `sha256sum`.
+Published bundles: Linux `amd64` and macOS `arm64`.
+
+Runtime requirements: Bash, Node.js `22` or later, `curl`, `tar`, and
+`sha256sum` or `shasum`.
+
+On macOS the binaries are not notarized. A release downloaded with `curl` is
+not quarantined and runs; a copy downloaded with a browser needs `xattr -dr
+com.apple.quarantine`. See
+[docs/development/macos.md](docs/development/macos.md).
 
 Install the latest release in one command:
 

@@ -247,10 +247,12 @@ integridad, compatibilidad o verificación descritos aquí.
 - `scripts/install.sh` instala únicamente el bundle MCP por defecto; no
   inicializa la configuración, indexa repositorios ni instala el visor. El
   visor solo entra en un bundle generado sin `--mcp-only`.
-- Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` descarga la
-  última release `linux/amd64`, verifica el checksum externo e interno, y
-  `ladygraph update` solo sustituye el bundle después de validar manifest,
-  versión y checksums.
+- Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` detecta la
+  plataforma, descarga la última release publicada para ella, verifica el
+  checksum externo e interno, y `ladygraph update` solo sustituye el bundle
+  después de validar manifest, versión y checksums. El `SHA256SUMS` de la
+  release lista todos los archivos publicados, así que se verifica la línea
+  del propio archivo, no el fichero entero.
 
 - Un build de distribución limpio debe ser reproducible entre checkouts del
   mismo commit, toolchain y plataforma; compara el payload completo y no solo
@@ -266,6 +268,52 @@ integridad, compatibilidad o verificación descritos aquí.
 - Un informe `ACCEPT_LADYGRAPH_WITH_LIMITS` debe enumerar plataforma,
   toolchains, corpus, transporte, garantías, métricas y riesgos residuales;
   no puede convertir una limitación conocida en un PASS implícito.
+
+## Plataformas
+
+- Los objetivos de distribución son `linux/amd64` y `darwin/arm64`, y sólo
+  esos. En macOS se publica únicamente Apple Silicon; `darwin/amd64` está
+  fuera de alcance por decisión, no por coste, y el instalador lo dice al
+  rechazarlo. La nomenclatura es `ladygraph-<os>-<arch>` para el directorio,
+  la raíz del tar y el archivo publicado. Un bundle se construye siempre en un
+  host de su propia plataforma: cgo enlaza la biblioteca nativa y no hay
+  cross-compilation.
+- `scripts/build-bundle.sh` es el único generador de bundles; los objetivos
+  `make build-linux-amd64` y `make build-darwin-arm64` delegan en él. El
+  manifest, `ladygraph version --json` y `ladygraph update` validan contra la
+  plataforma en ejecución, nunca contra literales.
+- Los scripts eligen la herramienta de digest por disponibilidad -`sha256sum`,
+  si no `shasum -a 256`- y fallan cerrado sin ninguna. `--no-overwrite-dir` no
+  existe en el `tar` de macOS.
+- Una ruta que el motor TypeScript resuelve llega con su grafía canónica, en
+  minúsculas cuando el filesystem pliega mayúsculas. Se corrige en la frontera
+  con `enginePath` antes de indexarla, compararla o emitirla; nunca con
+  `realpath`, que resolvería los enlaces de `node_modules` y cambiaría los
+  hechos.
+- El ejecutable del bundle declara exactamente un `RUNPATH`, el relativo. El
+  que añade el binding hacia su directorio de módulo se retira después de
+  enlazar y el build falla si sobrevive alguno más.
+- Los artefactos macOS no se notarizan y el proyecto no usa un Developer ID.
+  El binario lleva firma ad-hoc, que es lo que exige Apple Silicon para
+  ejecutar, y el script la rehace después de editar sus load commands.
+  Gatekeeper sólo bloquea un archivo con `com.apple.quarantine`, que no
+  escriben `curl` ni `tar`.
+- El código específico de plataforma vive en archivos con build tag, no en
+  ramas `runtime.GOOS` dentro de la lógica. Un fallback `!linux` que devuelve
+  error o cero es una limitación declarada, nunca un silencio.
+- En macOS, la inspección de locks de LadybugDB nunca abre la base: POSIX
+  libera todos los locks de registro de un proceso al cerrar cualquier
+  descriptor sobre el archivo, así que un `fcntl(F_GETLK)` desbloquearía el
+  motor. Se enumeran descriptores con `libproc`.
+- El watcher declara su contrato por backend. Bajo `kqueue` un archivo creado
+  y escrito de una vez llega como un único `Create`, y el backend consume un
+  descriptor por archivo vigilado: un árbol que excede el límite falla en
+  `New` nombrando el límite, nunca vigila un subconjunto en silencio.
+- La política que rechaza rutas con componentes symlink no se relaja para
+  acomodar `/var` ni `/tmp` de macOS. Los tests que alimentan la capa de
+  workspace usan `internal/testsupport.TempDir`.
+- `internal/procstat` es el único lugar que lee estadísticas de proceso del
+  sistema operativo; `0` significa desconocido.
 
 ## Verificación obligatoria
 
@@ -327,14 +375,16 @@ cuando sea aplicable.
   `noop` y cualquier proveedor SDK configurado explícitamente; no se deben
   presentar como un único coste de producción.
 - Los comandos, códigos, campos JSON y gates se escriben entre backticks.
-- El bundle Linux amd64 se genera con `make build-linux-amd64`; el directorio
-  `dist/` es generado y no se usa como entrada indexada ni de benchmark.
+- Los bundles se generan con `make build-linux-amd64` y
+  `make build-darwin-arm64`; el directorio `dist/` es generado y no se usa como
+  entrada indexada ni de benchmark.
 - `ladygraph version --json` debe conservar salida JSON exclusiva en `stdout`;
   el bundle obtiene provenance del `manifest.json` y valida el digest de
   `grammars/manifest.json`; los valores no observables se representan como
   `null`.
 - `SHA256SUMS` lista hashes SHA-256 de `manifest.json` y del payload en orden
-  lexicográfico; se verifica con `sha256sum -c` y no se incluye a sí mismo.
+  lexicográfico; se verifica con `sha256sum -c` o `shasum -a 256 -c` y no se
+  incluye a sí mismo.
 
 ## Entrega
 
