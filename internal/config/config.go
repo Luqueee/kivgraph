@@ -406,10 +406,22 @@ func RegisterRepositories(path string, additions []Repository) error {
 		addition.Path = expanded
 		current.Repositories = append(current.Repositories, addition)
 	}
-	if err := validateRepositories(current); err != nil {
+	return SaveRepositories(repositoriesPath, current)
+}
+
+// SaveRepositories validates and atomically replaces a repository registry.
+// Callers use this when a candidate registry has already been validated in
+// memory and must become durable without exposing a partially written YAML
+// document.
+func SaveRepositories(path string, repositories RepositoriesFile) error {
+	repositoriesPath, err := resolveRepositoriesPath(path)
+	if err != nil {
+		return fmt.Errorf("resolve repositories path: %w", err)
+	}
+	if err := validateRepositories(repositories); err != nil {
 		return err
 	}
-	data, err := yaml.Marshal(current)
+	data, err := yaml.Marshal(repositories)
 	if err != nil {
 		return fmt.Errorf("encode repositories: %w", err)
 	}

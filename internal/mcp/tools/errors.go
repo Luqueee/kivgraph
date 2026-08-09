@@ -17,6 +17,9 @@ const (
 	CodeTraversalLimitReached = "TRAVERSAL_LIMIT_REACHED"
 	CodeSnapshotUnavailable   = "SNAPSHOT_UNAVAILABLE"
 	CodeIndexNotReady         = "INDEX_NOT_READY"
+	CodePermissionRequired    = "PERMISSION_REQUIRED"
+	CodePermissionDenied      = "PERMISSION_DENIED"
+	CodeIndexingFailed        = "INDEXING_FAILED"
 )
 
 // ToolError is both an error for Go callers and the JSON-serializable error

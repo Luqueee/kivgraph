@@ -23,6 +23,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/indexer"
+	"github.com/Luqueee/ladygraph/internal/indexing"
 	"github.com/Luqueee/ladygraph/internal/logging"
 	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
@@ -59,7 +60,9 @@ func main() {
 		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		if err := runConfiguredServe(ctx, os.Args[2:], mcpserver.RunWithSnapshotStore); err != nil {
+		if err := runConfiguredServe(ctx, os.Args[2:], func(ctx context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer) error {
+			return mcpserver.RunWithSnapshotStoreAndIndexer(ctx, store, indexer)
+		}); err != nil {
 			logger.Error("MCP server stopped with error", "command", "serve", "error", err)
 			os.Exit(1)
 		}
@@ -100,7 +103,7 @@ func runServe(ctx context.Context, runMCP mcpRunner) error {
 type storageDiagnoser func(context.Context, string) (ladybug.StorageDiagnosis, error)
 
 type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, error)
-type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore) error
+type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer) error
 type configuredWebRunner func(context.Context, string, http.Handler) error
 
 func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
@@ -192,13 +195,14 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	if flags.NArg() != 0 {
 		return fmt.Errorf("serve: unexpected arguments: %v", flags.Args())
 	}
-	_, store, err := loadConfiguredSnapshot(ctx, configPath)
+	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
 	return runServe(ctx, func(ctx context.Context) error {
-		return runMCP(ctx, store)
+		return runMCP(ctx, store, projectIndexer)
 	})
 }
 func isLoopbackListenAddress(address string) bool {
@@ -450,16 +454,24 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	progressStart := time.Now()
-	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
+	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	fullResult, err := indexing.RunFull(ctx, indexing.FullOptions{
 		Repositories:      registry.List(),
 		SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
 		IncludeTests:      loaded.Config.Go.IncludeTests,
 		TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
 		WorkingDirectory:  workingDirectory,
+		Root:              root,
+		ResolverVersion:   resolverVersion,
+		Store:             generation.DefaultConfig(),
 		Progress: func(event indexer.ProgressEvent) {
 			writeIndexProgress(stderr, progressStart, event)
 		},
+		RebuildProgress: func(stage rebuild.StageName) {
+			fmt.Fprintf(stderr, "[%6.1fs] rebuild %s\n", time.Since(progressStart).Seconds(), stage)
+		},
 	})
+	indexReport := fullResult.IndexReport
 	fmt.Fprintf(stdout, "index.full: %s\n", passFail(err == nil))
 	fmt.Fprintf(stdout, "index.go: repositories=%d modules=%d loads=%d definitions=%d references=%d unresolved=%d\n",
 		indexReport.GoRepositories,
@@ -475,36 +487,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
-	if err != nil {
-		fmt.Fprintf(stderr, "index --full: %v\n", err)
-		return 1
-	}
-
-	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
-	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
-		Root:  root,
-		Store: generation.DefaultConfig(),
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "index --full: resolve next generation: %v\n", err)
-		return 1
-	}
-	snapshotID, err := strconv.ParseInt(layout.NextID, 10, 64)
-	if err != nil {
-		fmt.Fprintf(stderr, "index --full: parse next generation %q: %v\n", layout.NextID, err)
-		return 1
-	}
-	rebuildReport, err := rebuild.Run(ctx, rebuild.Options{
-		Root:            root,
-		GenerationID:    layout.NextID,
-		Facts:           factSet,
-		ResolverVersion: resolverVersion,
-		SnapshotID:      snapshotID,
-		Store:           generation.DefaultConfig(),
-		Progress: func(stage rebuild.StageName) {
-			fmt.Fprintf(stderr, "[%6.1fs] rebuild %s\n", time.Since(progressStart).Seconds(), stage)
-		},
-	})
+	rebuildReport := fullResult.RebuildReport
 	fmt.Fprintf(stdout, "rebuild: %s generation=%s\n", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
 	for _, stage := range rebuildReport.Stages {
 		fmt.Fprintf(stdout, "stage.%s: %s", stage.Name, passFail(stage.Passed))
@@ -514,7 +497,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "index --full: rebuild: %v\n", err)
+		fmt.Fprintf(stderr, "index --full: %v\n", err)
 		return 1
 	}
 	return 0

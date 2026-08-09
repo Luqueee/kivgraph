@@ -17,6 +17,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/indexing"
 	"github.com/Luqueee/ladygraph/internal/logging"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
@@ -198,6 +199,41 @@ func TestRunServeStopsMCPOnContextCancellation(t *testing.T) {
 		t.Fatal("runServe() returned before the MCP runner stopped")
 	}
 }
+func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	if _, err := config.Initialize(config.InitOptions{
+		ConfigPath:       configPath,
+		RepositoriesPath: repositoriesPath,
+	}); err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+
+	var gotStore *hotsnapshot.SnapshotStore
+	var gotIndexer indexing.ProjectIndexer
+	err := runConfiguredServe(context.Background(), []string{"--config", configPath},
+		func(_ context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer) error {
+			gotStore = store
+			gotIndexer = indexer
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("runConfiguredServe() error = %v", err)
+	}
+	if gotStore == nil {
+		t.Fatal("serve runner received nil snapshot store")
+	}
+	if gotIndexer == nil {
+		t.Fatal("serve runner received nil project indexer")
+	}
+}
+
 func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", filepath.Join(root, "home"))

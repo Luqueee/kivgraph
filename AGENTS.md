@@ -14,6 +14,22 @@ integridad, compatibilidad o verificación descritos aquí.
   derivada y no una fuente alternativa de hechos.
 - Los identificadores históricos `LUQUE-####` del backlog no se renombran.
 
+## Herramientas MCP en Oh My Pi
+
+- Las rutas `xd://` se descubren consultando `xd://`; nunca se construyen
+  concatenando prefijos a partir del nombre visible de una herramienta.
+- Las herramientas directas de Ladygraph usan
+  `xd://mcp__ladygraph_<operación>`; a través de 1MCP el nombre agregado es
+  `ladygraph_1mcp_<operación>`.
+- No se debe inventar una forma `xd://mcp__mcp_ladygraph_<operación>`.
+- Una respuesta MCP `tools/list` puede estar paginada: seguir `nextCursor`
+  hasta `null` antes de concluir que una herramienta no está montada.
+
+- `ladygraph_1mcp_index_project` es la única herramienta MCP mutante de
+  Ladygraph; solo se registra en la ruta `serve` configurada y exige
+  consentimiento explícito del cliente antes de cambiar el registro de
+  repositorios o publicar una generación.
+
 ## Antes de editar
 
 1. Leer `TASKS.md`, sus dependencias, el gate aplicable y la documentación del

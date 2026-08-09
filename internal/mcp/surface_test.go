@@ -24,13 +24,14 @@ var allowedTools = []string{
 	"trace_dependencies",
 }
 
-// forbiddenTools is PLAN.md 17.2: the surface Ladygraph must never expose,
+// forbiddenTools is the mutation surface excluded from the default server,
 // because it is read-only over repositories it does not own. Query execution
-// and indexing control are included: both would let a client reach past the
-// published snapshot.
+// and indexing control are included: configured serve adds only the explicit
+// consent-gated index_project tool.
 var forbiddenTools = []string{
 	"execute_cypher",
 	"execute_query",
+	"index_project",
 	"index",
 	"update",
 	"refresh",
