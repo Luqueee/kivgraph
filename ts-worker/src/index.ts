@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createInterface } from "node:readline";
 
@@ -126,9 +127,30 @@ export async function run(
   }
 }
 
-if (
-  process.argv[1] &&
-  pathToFileURL(process.argv[1]).href === import.meta.url
-) {
+// isEntryPoint decides whether this module was started as a program or
+// imported as a library. Comparing pathToFileURL(process.argv[1]) alone is not
+// enough: Node resolves the main module through realpath, so any invocation
+// path with a symlinked component - every path under /tmp or /var on macOS,
+// and any symlinked install root - produced a silent exit instead of the
+// protocol. Both forms are accepted because --preserve-symlinks-main keeps the
+// logical path in import.meta.url.
+export function isEntryPoint(
+  entry: string | undefined,
+  moduleURL: string,
+): boolean {
+  if (!entry) {
+    return false;
+  }
+  if (pathToFileURL(entry).href === moduleURL) {
+    return true;
+  }
+  try {
+    return pathToFileURL(realpathSync(entry)).href === moduleURL;
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint(process.argv[1], import.meta.url)) {
   process.exitCode = await run(process.stdin, process.stdout);
 }
