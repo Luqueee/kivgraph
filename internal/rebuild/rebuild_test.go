@@ -82,6 +82,24 @@ func buildOptions(t *testing.T, root, generationID string, set facts.Set) Option
 	}
 }
 
+// seedGeneration publishes the generation the rollback and failure tests
+// compare against.
+//
+// The default space policy refuses to touch a filesystem that is more than
+// 85% full, whatever the size of the database, so on such a host these tests
+// cannot reach the behaviour they are about. They say so instead of failing:
+// the policy itself is covered by the generation package, which builds its
+// store with an explicit one.
+func seedGeneration(t *testing.T, root string) {
+	t.Helper()
+	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
+		if errors.Is(err, generation.ErrInsufficientSpace) {
+			t.Skipf("host filesystem cannot satisfy the default space policy: %v", err)
+		}
+		t.Fatalf("seed Run() error = %v", err)
+	}
+}
+
 // fakeScan stands in for ladybug.ScanCanonical: a small, valid, hand
 // written definitive graph (fakeCanonicalGraph, in snapshot_test.go) so
 // Run's snapshot stage has real content to convert, decoupled from

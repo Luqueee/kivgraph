@@ -79,9 +79,7 @@ func TestRunFailureAtAnyStageLeavesCurrentGenerationUntouched(t *testing.T) {
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-				t.Fatalf("seed Run() error = %v", err)
-			}
+			seedGeneration(t, root)
 			before := captureGeneration(t, root)
 
 			failing := buildOptions(t, root, "000002", sampleFacts())
@@ -118,9 +116,7 @@ func TestRunFailureAtAnyStageLeavesCurrentGenerationUntouched(t *testing.T) {
 // rebuild is running.
 func TestRunCancellationLeavesCurrentGenerationUntouched(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		t.Fatalf("seed Run() error = %v", err)
-	}
+	seedGeneration(t, root)
 	before := captureGeneration(t, root)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -149,9 +145,7 @@ func TestRunCancellationLeavesCurrentGenerationUntouched(t *testing.T) {
 // generation must be as intact after the fifth failure as after the first.
 func TestRepeatedFailuresDoNotErodeTheActiveGeneration(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		t.Fatalf("seed Run() error = %v", err)
-	}
+	seedGeneration(t, root)
 	before := captureGeneration(t, root)
 
 	for attempt := 2; attempt <= 6; attempt++ {
@@ -174,9 +168,7 @@ func TestRepeatedFailuresDoNotErodeTheActiveGeneration(t *testing.T) {
 // Without it, "unchanged" could be true because nothing is ever observed.
 func TestSuccessfulRebuildDoesChangeTheActiveGeneration(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		t.Fatalf("seed Run() error = %v", err)
-	}
+	seedGeneration(t, root)
 	before := captureGeneration(t, root)
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000002", sampleFacts())); err != nil {

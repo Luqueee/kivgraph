@@ -140,7 +140,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	report := Report{GenerationID: options.GenerationID}
 
 	if err := ctx.Err(); err != nil {
-		return report, fmt.Errorf("%w: %v", ErrRebuildFailed, err)
+		return report, fmt.Errorf("%w: %w", ErrRebuildFailed, err)
 	}
 	if options.GenerationID == "" {
 		return report, fmt.Errorf("%w: generation id is required", ErrRebuildFailed)
@@ -159,7 +159,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			Detail:     err.Error(),
 			DurationMS: elapsedMS(factsStart),
 		})
-		return report, fmt.Errorf("%w: facts stage: %v", ErrRebuildFailed, err)
+		return report, fmt.Errorf("%w: facts stage: %w", ErrRebuildFailed, err)
 	}
 	report.Stages = append(report.Stages, Stage{
 		Name:       StageFacts,
@@ -195,7 +195,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 
 	store, err := generation.New(options.Root, storeConfig)
 	if err != nil {
-		return report, fmt.Errorf("%w: open generation store: %v", ErrRebuildFailed, err)
+		return report, fmt.Errorf("%w: open generation store: %w", ErrRebuildFailed, err)
 	}
 
 	loadOptions := ladybug.CanonicalLoadOptions{
@@ -427,7 +427,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 
 	if publishErr != nil {
 		report.Stages = append(report.Stages, Stage{Name: StagePublish, Detail: publishErr.Error(), DurationMS: publishDuration})
-		return report, fmt.Errorf("%w: publish stage: %v", ErrRebuildFailed, publishErr)
+		return report, fmt.Errorf("%w: publish stage: %w", ErrRebuildFailed, publishErr)
 	}
 
 	report.Publication = publication

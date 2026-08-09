@@ -406,9 +406,7 @@ func TestSnapshotGenerationResolvesGivenGenerationID(t *testing.T) {
 
 func TestSnapshotGenerationFailsForUnknownGenerationID(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		t.Fatalf("seed Run() error = %v", err)
-	}
+	seedGeneration(t, root)
 
 	_, _, err := SnapshotGeneration(context.Background(), GenerationSnapshotOptions{Root: root, GenerationID: "000099"})
 	if !errors.Is(err, ErrSnapshotBuildFailed) {

@@ -23,9 +23,7 @@ import (
 // digest file cannot make a healthy graph unqueryable.
 func TestSnapshotGenerationRebuildsDespiteACorruptDigest(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		t.Fatalf("seed Run() error = %v", err)
-	}
+	seedGeneration(t, root)
 	corruptDigest(t, root, "000001", "not-a-digest\n")
 
 	snapshot, report, err := SnapshotGeneration(context.Background(), GenerationSnapshotOptions{
@@ -85,9 +83,7 @@ func TestCorruptDigestBlocksRollbackUntilItIsRestored(t *testing.T) {
 // a snapshot is not. It must fail instead of publishing a partial graph.
 func TestSnapshotGenerationFailsLoudlyOnAnUnconvertibleGraph(t *testing.T) {
 	root := t.TempDir()
-	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		t.Fatalf("seed Run() error = %v", err)
-	}
+	seedGeneration(t, root)
 
 	snapshot, report, err := SnapshotGeneration(context.Background(), GenerationSnapshotOptions{
 		Root: root, SnapshotID: 12,
