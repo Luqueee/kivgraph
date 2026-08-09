@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/mcp/tools"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // TestCorruptSnapshotDigestDoesNotDisturbReaders is the LUQUE-1204 requirement
@@ -24,6 +25,7 @@ func TestCorruptSnapshotDigestDoesNotDisturbReaders(t *testing.T) {
 	before := querySymbol(t, session)
 
 	if _, err := rebuild.Run(context.Background(), rebuildOptions(root, "000001")); err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("seed rebuild error = %v", err)
 	}
 	digestPath := filepath.Join(root, "generations", "000001", "snapshot.sha256")
@@ -49,6 +51,7 @@ func TestServiceRecoversByRebuildingAfterCorruption(t *testing.T) {
 	}
 
 	if _, err := rebuild.Run(context.Background(), rebuildOptions(root, "000001")); err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("seed rebuild error = %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "generations", "000001", "snapshot.sha256"), []byte("corrupted\n"), 0o600); err != nil {
@@ -90,6 +93,7 @@ func TestUnbuildableGraphLeavesTheServiceHonest(t *testing.T) {
 	session := connectServer(t, store)
 
 	if _, err := rebuild.Run(context.Background(), rebuildOptions(root, "000001")); err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("seed rebuild error = %v", err)
 	}
 	_, _, err := rebuild.SnapshotGeneration(context.Background(), rebuild.GenerationSnapshotOptions{

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 var errInjected = errors.New("injected failure")
@@ -86,7 +87,7 @@ func TestRunFailureAtAnyStageLeavesCurrentGenerationUntouched(t *testing.T) {
 			test.mutate(&failing)
 
 			report, err := Run(context.Background(), failing)
-			requireSpaceOrSkip(t, err)
+			testsupport.RequireSpaceOrSkip(t, err)
 			if !errors.Is(err, ErrRebuildFailed) {
 				t.Fatalf("Run() error = %v, want ErrRebuildFailed", err)
 			}
@@ -173,7 +174,7 @@ func TestSuccessfulRebuildDoesChangeTheActiveGeneration(t *testing.T) {
 	before := captureGeneration(t, root)
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000002", sampleFacts())); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("second Run() error = %v", err)
 	}
 	if after := captureGeneration(t, root); after == before {

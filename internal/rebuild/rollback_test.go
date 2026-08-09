@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // publishTwoGenerations runs Run twice against the same root with the same
@@ -19,11 +20,11 @@ func publishTwoGenerations(t *testing.T, root string) (firstID, secondID string)
 	t.Helper()
 	set := sampleFacts()
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 	if _, err := Run(context.Background(), buildOptions(t, root, "000002", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("second Run() error = %v", err)
 	}
 	return "000001", "000002"
@@ -212,7 +213,7 @@ func TestRollbackWithoutBackupOrExplicitIDFails(t *testing.T) {
 	root := t.TempDir()
 	set := sampleFacts()
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("Run() error = %v", err)
 	}
 
@@ -268,7 +269,7 @@ func TestRunPrunesGenerationsNeitherActiveNorBackup(t *testing.T) {
 	firstID, secondID := publishTwoGenerations(t, root)
 
 	third, err := Run(context.Background(), buildOptions(t, root, "000003", set))
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
 		t.Fatalf("third Run() error = %v", err)
 	}

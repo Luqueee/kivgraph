@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 var errRebuildInjected = errors.New("injected rebuild failure")
@@ -30,6 +31,7 @@ func TestFailedFullRebuildDoesNotChangeTheServedGraph(t *testing.T) {
 	before := querySymbol(t, session)
 
 	if _, err := rebuild.Run(context.Background(), rebuildOptions(root, "000001")); err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("seed rebuild error = %v", err)
 	}
 

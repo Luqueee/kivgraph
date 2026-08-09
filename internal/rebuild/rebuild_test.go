@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/metrics"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 // sampleFacts is a small but complete, Validate-passing fact set: one
@@ -82,26 +83,12 @@ func buildOptions(t *testing.T, root, generationID string, set facts.Set) Option
 	}
 }
 
-// requireSpaceOrSkip turns the one failure that belongs to the host rather
-// than to the code under test into a skip.
-//
-// Publishing refuses a filesystem more than 85% full whatever the size of the
-// database, so on such a host these tests never reach the behaviour they are
-// about. The policy itself is covered by the generation package, which builds
-// its store with an explicit one.
-func requireSpaceOrSkip(t *testing.T, err error) {
-	t.Helper()
-	if errors.Is(err, generation.ErrInsufficientSpace) {
-		t.Skipf("host filesystem cannot satisfy the default space policy: %v", err)
-	}
-}
-
 // seedGeneration publishes the generation the rollback and failure tests
 // compare against.
 func seedGeneration(t *testing.T, root string) {
 	t.Helper()
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", sampleFacts())); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("seed Run() error = %v", err)
 	}
 }
@@ -289,9 +276,9 @@ func TestRunPublishesHappyPathWithAllStages(t *testing.T) {
 	options := buildOptions(t, root, "000001", sampleFacts())
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !report.Passed {
@@ -361,7 +348,7 @@ func TestRunInvalidFactsAbortsWithoutTouchingDisk(t *testing.T) {
 	})
 
 	report, err := Run(context.Background(), buildOptions(t, root, "000001", invalid))
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want an invalid facts error")
 	}
@@ -392,7 +379,7 @@ func TestRunIntegrityMismatchPreservesCurrentGeneration(t *testing.T) {
 	set := sampleFacts()
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 
@@ -400,7 +387,7 @@ func TestRunIntegrityMismatchPreservesCurrentGeneration(t *testing.T) {
 	second.Counts = fakeCountsWithMismatch("Symbol", 1)
 
 	report, err := Run(context.Background(), second)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want an integrity mismatch error")
 	}
@@ -432,7 +419,7 @@ func TestRunInvariantViolationBlocksPublishDespiteMatchingCounts(t *testing.T) {
 	set := sampleFacts()
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 
@@ -445,7 +432,7 @@ func TestRunInvariantViolationBlocksPublishDespiteMatchingCounts(t *testing.T) {
 	})
 
 	report, err := Run(context.Background(), second)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want an invariant violation error")
 	}
@@ -494,7 +481,7 @@ func TestIntegrityStageDetailNamesFailedInvariantRules(t *testing.T) {
 	})
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want an invariant violation error")
 	}
@@ -525,7 +512,7 @@ func TestRunDefaultsIntegrityToLadybugVerifyCanonicalIntegrity(t *testing.T) {
 	options.Integrity = nil
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want the default ladybug.VerifyCanonicalIntegrity to reject a database the fake loader never wrote")
 	}
@@ -548,7 +535,7 @@ func TestRunFailingProbePreventsPublish(t *testing.T) {
 	set := sampleFacts()
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 
@@ -556,7 +543,7 @@ func TestRunFailingProbePreventsPublish(t *testing.T) {
 	second.Probes = fakeFailingProbes
 
 	report, err := Run(context.Background(), second)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want a golden probe failure")
 	}
@@ -607,15 +594,15 @@ func TestRunProducesDeterministicSnapshotDigestAcrossRuns(t *testing.T) {
 	set := sampleFacts()
 
 	first, err := Run(context.Background(), buildOptions(t, root, "000001", set))
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 	second, err := Run(context.Background(), buildOptions(t, root, "000002", set))
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("second Run() error = %v", err)
 	}
 	if first.SnapshotDigest != second.SnapshotDigest {
@@ -662,9 +649,9 @@ func TestRunProbesStagePassesWhenFactSetHasNothingToProbe(t *testing.T) {
 	}
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !report.Passed {
@@ -723,7 +710,7 @@ func TestRunSnapshotStageFailsAndPreservesCurrentGenerationWhenGraphCannotConver
 	set := sampleFacts()
 
 	if _, err := Run(context.Background(), buildOptions(t, root, "000001", set)); err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("first Run() error = %v", err)
 	}
 
@@ -733,7 +720,7 @@ func TestRunSnapshotStageFailsAndPreservesCurrentGenerationWhenGraphCannotConver
 	second.Scan = fixedScan(broken)
 
 	report, err := Run(context.Background(), second)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want a hot snapshot build failure")
 	}
@@ -769,7 +756,7 @@ func TestRunDefaultsScanToLadybugScanCanonical(t *testing.T) {
 	options.Scan = nil
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil {
 		t.Fatal("Run() error = nil, want the default ladybug.ScanCanonical to reject a database the fake loader never wrote")
 	}
@@ -790,9 +777,9 @@ func TestRunRecordsMetrics(t *testing.T) {
 	options.Metrics = registry
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !report.Passed {
@@ -828,9 +815,9 @@ func TestRunReportsEveryStageAsItStarts(t *testing.T) {
 	}
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil {
-		requireSpaceOrSkip(t, err)
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !report.Passed {
@@ -858,7 +845,7 @@ func TestRunWithoutProgressCallbackStillPublishes(t *testing.T) {
 	options.Progress = nil
 
 	report, err := Run(context.Background(), options)
-	requireSpaceOrSkip(t, err)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err != nil || !report.Passed {
 		t.Fatalf("Run() = %v, passed = %v", err, report.Passed)
 	}

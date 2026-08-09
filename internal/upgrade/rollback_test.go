@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/ladygraph/internal/testsupport"
 )
 
 func TestRunValidationFailureRestoresPreviousGenerationThroughStore(t *testing.T) {
@@ -161,6 +162,7 @@ func publishUpgradeTestGeneration(t *testing.T, root, id, contents string) gener
 		},
 	})
 	if err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
 		t.Fatalf("publish test generation %s: %v", id, err)
 	}
 	return publication.Generation
