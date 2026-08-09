@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,6 +8,7 @@ import { extractLocalReferences } from "./reference-extractor.js";
 import { extractLocalSymbols } from "./symbol-extractor.js";
 import type { LocalReference } from "./reference-extractor.js";
 import type { LocalSymbol } from "./symbol-extractor.js";
+import { temporaryRoot } from "./temporary-root.js";
 
 const services: LanguageService[] = [];
 const workspaces: string[] = [];
@@ -22,7 +22,7 @@ interface Workspace {
 async function createWorkspace(
   files: Record<string, string>,
 ): Promise<Workspace> {
-  const root = await mkdtemp(path.join(tmpdir(), "ladygraph-local-suite-"));
+  const root = await temporaryRoot("ladygraph-local-suite-");
   workspaces.push(root);
   const workspace: Workspace = {
     root,

@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,6 +10,7 @@ import {
   type PackageProviderRegistry,
 } from "./package-import-resolver.js";
 import { resolveProviderExports } from "./provider-export-resolver.js";
+import { temporaryRoot } from "./temporary-root.js";
 
 const services: LanguageService[] = [];
 const workspaces: string[] = [];
@@ -24,7 +24,7 @@ interface Workspace {
 async function createWorkspace(
   files: Record<string, string>,
 ): Promise<Workspace> {
-  const root = await mkdtemp(path.join(tmpdir(), "ladygraph-package-imports-"));
+  const root = await temporaryRoot("ladygraph-package-imports-");
   workspaces.push(root);
   const workspace: Workspace = {
     root,

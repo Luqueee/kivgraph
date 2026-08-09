@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LanguageService, LanguageServiceError } from "./language-service.js";
+import { temporaryRoot } from "./temporary-root.js";
 
 // These tests drive the real native TypeScript server. It is the engine ADR
 // 0010 selected, and a mock of it would prove nothing about the persistence
@@ -33,7 +33,7 @@ interface Workspace {
 async function createWorkspace(
   files: Record<string, string> = {},
 ): Promise<Workspace> {
-  const root = await mkdtemp(path.join(tmpdir(), "ladygraph-ls-"));
+  const root = await temporaryRoot("ladygraph-ls-");
   workspaces.push(root);
 
   const workspace: Workspace = {

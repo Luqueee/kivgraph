@@ -28,6 +28,7 @@ import type {
 } from "typescript/unstable/async";
 
 import type { LanguageService, ProjectView } from "./language-service.js";
+import { enginePath } from "./engine-path.js";
 
 /** Metadata supplied by the Go package registry for one provider package. */
 export interface PackageProvider {
@@ -184,7 +185,13 @@ function moduleDeclarationFiles(
     return [];
   }
   return [
-    ...new Set(symbol.declarations.map((declaration) => declaration.path)),
+    ...new Set(
+      // A declaration the engine resolved carries its canonical casing, which
+      // folds to lower case on macOS. Every later comparison - provider roots,
+      // declaration-map indexes, emitted evidence - is against paths as they
+      // are spelled on disk, so the correction belongs here, at the boundary.
+      symbol.declarations.map((declaration) => enginePath(declaration.path)),
+    ),
   ].sort();
 }
 

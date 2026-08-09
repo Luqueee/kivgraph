@@ -11,6 +11,7 @@ import {
   type PackageImportResolutionOptions,
   type PackageProviderRegistry,
 } from "./package-import-resolver.js";
+import { enginePath } from "./engine-path.js";
 
 export type ProviderExportStatus =
   | "RESOLVED"
@@ -189,7 +190,13 @@ async function resolveAlias(
 
 function declarationFiles(symbol: TypeScriptSymbol): string[] {
   return [
-    ...new Set(symbol.declarations.map((declaration) => declaration.path)),
+    ...new Set(
+      // A declaration the engine resolved carries its canonical casing, which
+      // folds to lower case on macOS. Every later comparison - provider roots,
+      // declaration-map indexes, emitted evidence - is against paths as they
+      // are spelled on disk, so the correction belongs here, at the boundary.
+      symbol.declarations.map((declaration) => enginePath(declaration.path)),
+    ),
   ].sort();
 }
 

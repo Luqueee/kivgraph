@@ -11,6 +11,7 @@
  */
 
 import { loadDeclarationSourceMap } from "./declaration-source-resolver.js";
+import { enginePath } from "./engine-path.js";
 
 /** A position in a real source file. */
 export interface SourcePosition {
@@ -81,7 +82,9 @@ export class DeclarationPositionMapper {
       return undefined;
     }
     return {
-      fileName,
+      // The map resolves its sources against the declaration file, which the
+      // engine may have canonicalised to lower case.
+      fileName: enginePath(fileName),
       line: match.sourceLine + 1,
       character: match.sourceCharacter,
     };

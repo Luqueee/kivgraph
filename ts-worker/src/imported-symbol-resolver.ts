@@ -66,6 +66,7 @@ import {
   type LocalSymbolKind,
 } from "./declaration-classifier.js";
 import { declarationName } from "./declaration-name.js";
+import { enginePath } from "./engine-path.js";
 import {
   DeclarationPositionMapper,
   type SourcePosition,
@@ -282,9 +283,12 @@ export async function resolveImportedSymbols(
     view,
     providerExports,
   );
+  // Both sides of this index are normalised to the casing on disk: the
+  // mappings come from provider metadata the worker resolved itself, the
+  // lookups from paths the engine canonicalised. Only a common form matches.
   const mappingsByFile = new Map(
     declarationSources.mappings.map((mapping) => [
-      mapping.declarationFile,
+      enginePath(mapping.declarationFile),
       mapping,
     ]),
   );
@@ -719,9 +723,12 @@ async function resolveDeclarations(
         if (sourceFile === undefined || node === undefined) {
           return undefined;
         }
+        // The engine reports a module it resolved itself with its canonical
+        // casing, which is lower case on a folding filesystem.
+        const filePath = enginePath(handle.path);
         const start = node.getStart(sourceFile);
         const end = node.getEnd();
-        const mapping = mappingsByFile.get(handle.path);
+        const mapping = mappingsByFile.get(filePath);
         const startPosition = sourceFile.getLineAndCharacterOfPosition(start);
         // The declaration map is queried at the declared name, not at the
         // statement start, so the source position points at the symbol.
@@ -733,18 +740,18 @@ async function resolveDeclarations(
                 nameNode.getStart(sourceFile),
               );
         return {
-          fileName: handle.path,
+          fileName: filePath,
           start,
           end,
           startLine: startPosition.line + 1,
           endLine:
             sourceFile.getLineAndCharacterOfPosition(Math.max(start, end - 1))
               .line + 1,
-          sourceFiles: mapping?.sourceFiles ?? [],
+          sourceFiles: (mapping?.sourceFiles ?? []).map(enginePath),
           sourceStatus: mapping?.status ?? "UNRESOLVED",
           sourcePosition: await lookupSourcePosition(
             mappers,
-            handle.path,
+            filePath,
             namePosition,
           ),
         };

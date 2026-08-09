@@ -18,6 +18,7 @@ import type {
 } from "typescript/unstable/async";
 
 import { declarationName } from "./declaration-name.js";
+import { enginePath } from "./engine-path.js";
 import type { SourcePosition } from "./declaration-position-mapper.js";
 import type { ImportedSymbolResolution } from "./imported-symbol-resolver.js";
 import { LanguageService, type ProjectView } from "./language-service.js";
@@ -186,7 +187,9 @@ async function locate(
         nameNode.getStart(declarationFile),
       );
       return {
-        fileName: handle.path,
+        // handle.path is the engine's canonical spelling of a file it
+        // resolved; the position is reported against the path on disk.
+        fileName: enginePath(handle.path),
         line: position.line + 1,
         character: position.character,
       };
