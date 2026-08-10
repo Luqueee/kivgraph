@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -291,6 +292,71 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 	}
 	if gotIndexer == nil {
 		t.Fatal("serve runner received nil project indexer")
+	}
+}
+
+// A long-running command owns its follower. When the command returns, nothing
+// may still be reading the generation store or writing the state directory:
+// the caller usually owns those paths and is about to delete them, and a
+// goroutine that outlives its starter turns that into a failure nobody can
+// place.
+func TestFollowPublishedGenerationStopsWithItsCaller(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	configPath := filepath.Join(root, "config.yaml")
+	if _, err := config.Initialize(config.InitOptions{
+		ConfigPath:       configPath,
+		RepositoriesPath: filepath.Join(root, "repositories.yaml"),
+	}); err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	store := hotsnapshot.NewSnapshotStore(nil)
+	defer store.Close()
+
+	// A published generation whose database is not a graph makes the
+	// follower fail on every tick. That failure is the signal: a follower
+	// still running after stop keeps producing it.
+	generations, err := generation.New(filepath.Dir(loaded.Config.Storage.DatabasePath), generation.DefaultConfig())
+	if err != nil {
+		t.Fatalf("generation.New() error = %v", err)
+	}
+	nextID, err := generations.NextID(context.Background())
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	if _, err := generations.Publish(context.Background(), generation.PublishRequest{
+		ID: nextID,
+		Build: func(_ context.Context, directory string) error {
+			return os.WriteFile(filepath.Join(directory, "graph.db"), []byte("not a graph"), 0o600)
+		},
+		Validate: func(context.Context, generation.Generation) error { return nil },
+	}); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	var ticks atomic.Int64
+	stop := followPublishedGeneration(context.Background(), loaded, store, "test", indexing.FollowOptions{
+		Interval:  time.Millisecond,
+		OnPublish: func(uint64) { ticks.Add(1) },
+		OnError:   func(error) { ticks.Add(1) },
+	})
+	deadline := time.Now().Add(5 * time.Second)
+	for ticks.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	if ticks.Load() == 0 {
+		t.Fatal("the follower never reported: the test cannot observe whether it stopped")
+	}
+	stop()
+
+	settled := ticks.Load()
+	time.Sleep(50 * time.Millisecond)
+	if moved := ticks.Load(); moved != settled {
+		t.Fatalf("follower reported %d more times after it was stopped", moved-settled)
 	}
 }
 

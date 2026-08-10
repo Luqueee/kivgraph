@@ -227,7 +227,8 @@ func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRun
 		return err
 	}
 	defer store.Close()
-	followPublishedGeneration(ctx, loaded, store, "ui")
+	stopFollower := followPublishedGeneration(ctx, loaded, store, "ui", indexing.FollowOptions{})
+	defer stopFollower()
 	if address == "" {
 		address = loaded.Config.Web.Address
 	}
@@ -273,7 +274,8 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	}
 	defer store.Close()
 	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
-	followPublishedGeneration(ctx, loaded, store, "serve")
+	stopFollower := followPublishedGeneration(ctx, loaded, store, "serve", indexing.FollowOptions{})
+	defer stopFollower()
 	return runServe(ctx, func(ctx context.Context) error {
 		return runMCP(ctx, store, projectIndexer)
 	})
@@ -284,32 +286,45 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 // an `index --full` run in another terminal leaves it answering from a graph
 // that no longer exists, with nothing in its output to say so.
 //
-// The follower owns its goroutine for the lifetime of ctx and never fails the
-// command: a generation it cannot build is logged, and the one already
-// published keeps answering.
+// The follower never fails the command: a generation it cannot build is
+// logged, and the one already published keeps answering.
+//
+// It also never outlives the call that started it. The returned function stops
+// the goroutine and waits for it, so nothing touches the store or the state
+// directory after the command has returned -- a caller that owns temporary
+// directories would otherwise be deleting them underneath a live follower.
 func followPublishedGeneration(
 	ctx context.Context,
 	loaded config.Loaded,
 	store *hotsnapshot.SnapshotStore,
 	command string,
-) {
+	options indexing.FollowOptions,
+) func() {
 	logger := logging.New(os.Stderr)
-	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	options.Root = filepath.Dir(loaded.Config.Storage.DatabasePath)
+	options.Store = generation.DefaultConfig()
+	if options.OnPublish == nil {
+		options.OnPublish = func(id uint64) {
+			logger.Info("serving published generation", "command", command, "generation", id)
+		}
+	}
+	if options.OnError == nil {
+		options.OnError = func(err error) {
+			logger.Error("could not follow the published generation", "command", command, "error", err)
+		}
+	}
+	followCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
 	go func() {
-		err := indexing.Follow(ctx, store, indexing.FollowOptions{
-			Root:  root,
-			Store: generation.DefaultConfig(),
-			OnPublish: func(id uint64) {
-				logger.Info("serving published generation", "command", command, "generation", id)
-			},
-			OnError: func(err error) {
-				logger.Error("could not follow the published generation", "command", command, "error", err)
-			},
-		})
-		if err != nil {
+		defer close(done)
+		if err := indexing.Follow(followCtx, store, options); err != nil {
 			logger.Error("generation follower stopped", "command", command, "error", err)
 		}
 	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 func isLoopbackListenAddress(address string) bool {
