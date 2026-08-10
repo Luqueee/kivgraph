@@ -111,7 +111,7 @@ func followOnce(
 	if err != nil {
 		return 0, err
 	}
-	if served := store.Load(); served != nil && served.Metadata().ID >= activeID {
+	if !needsPublication(store.Load(), activeID) {
 		return 0, nil
 	}
 	snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
@@ -133,6 +133,20 @@ func followOnce(
 		return 0, fmt.Errorf("publish snapshot %q: %w", active.ID, err)
 	}
 	return activeID, nil
+}
+
+// needsPublication reports whether the active generation is newer than the one
+// being served.
+//
+// The comparison is against the store, never against a counter the follower
+// keeps: another publisher -- an in-process index_project -- installs
+// generations through the same store, and a follower that remembered its own
+// last answer would rebuild what is already being served.
+func needsPublication(served *hotsnapshot.GraphSnapshot, activeID uint64) bool {
+	if served == nil {
+		return true
+	}
+	return served.Metadata().ID < activeID
 }
 
 func storeConfigOrDefault(config generation.Config) generation.Config {

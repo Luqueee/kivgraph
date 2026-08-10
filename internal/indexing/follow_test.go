@@ -2,8 +2,6 @@ package indexing
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,54 +42,34 @@ func TestFollowOnceAcceptsAStoreWithNoPublication(t *testing.T) {
 	}
 }
 
-// The follower compares against the snapshot being served, not against its own
-// memory, so a generation another publisher already installed costs no rebuild.
-// Reaching the builder here would need a database that does not exist, so a
-// rebuild would fail the test rather than pass it silently.
-func TestFollowOnceLeavesAnAlreadyServedGenerationAlone(t *testing.T) {
-	root := testsupport.TempDir(t)
-	generations, err := generation.New(root, generation.DefaultConfig())
-	if err != nil {
-		t.Fatalf("generation.New() error = %v", err)
+// The follower asks the store what it is serving, never a counter of its own:
+// another publisher installs generations through the same store, and a
+// remembered answer would rebuild what is already published.
+func TestNeedsPublicationComparesAgainstTheServedSnapshot(t *testing.T) {
+	served := func(t *testing.T, id uint64) *hotsnapshot.GraphSnapshot {
+		t.Helper()
+		snapshot, err := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
+			ID: id, Version: 1, CreatedAt: time.Now().UTC(),
+		})
+		if err != nil {
+			t.Fatalf("NewGraphSnapshot() error = %v", err)
+		}
+		return snapshot
 	}
-	nextID, err := generations.NextID(context.Background())
-	if err != nil {
-		t.Fatalf("NextID() error = %v", err)
-	}
-	published, err := generations.Publish(context.Background(), generation.PublishRequest{
-		ID: nextID,
-		Build: func(_ context.Context, directory string) error {
-			// The follower never opens this file; it only has to exist
-			// for the store to accept the candidate as complete.
-			return os.WriteFile(filepath.Join(directory, "graph.db"), []byte("fixture"), 0o600)
-		},
-		Validate: func(context.Context, generation.Generation) error { return nil },
-	})
-	if err != nil {
-		t.Fatalf("Publish() error = %v", err)
-	}
-	activeID, err := parseSnapshotID(published.Generation.ID)
-	if err != nil {
-		t.Fatalf("parseSnapshotID() error = %v", err)
-	}
-
-	snapshot, err := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
-		ID: activeID, Version: 1, CreatedAt: time.Now().UTC(),
-	})
-	if err != nil {
-		t.Fatalf("NewGraphSnapshot() error = %v", err)
-	}
-	store := hotsnapshot.NewSnapshotStore(snapshot)
-	defer store.Close()
-
-	installed, err := followOnce(context.Background(), store, generations)
-	if err != nil {
-		t.Fatalf("followOnce() error = %v", err)
-	}
-	if installed != 0 {
-		t.Fatalf("followOnce() = %d, want no publication", installed)
-	}
-	if store.Load() != snapshot {
-		t.Fatal("followOnce() replaced the snapshot it was already serving")
+	for name, test := range map[string]struct {
+		served   *hotsnapshot.GraphSnapshot
+		activeID uint64
+		want     bool
+	}{
+		"nothing served yet":      {served: nil, activeID: 1, want: true},
+		"active is newer":         {served: served(t, 4), activeID: 5, want: true},
+		"active is what we serve": {served: served(t, 5), activeID: 5, want: false},
+		"another publisher won":   {served: served(t, 6), activeID: 5, want: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := needsPublication(test.served, test.activeID); got != test.want {
+				t.Fatalf("needsPublication() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }

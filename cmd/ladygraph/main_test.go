@@ -317,25 +317,14 @@ func TestFollowPublishedGenerationStopsWithItsCaller(t *testing.T) {
 	store := hotsnapshot.NewSnapshotStore(nil)
 	defer store.Close()
 
-	// A published generation whose database is not a graph makes the
-	// follower fail on every tick. That failure is the signal: a follower
-	// still running after stop keeps producing it.
-	generations, err := generation.New(filepath.Dir(loaded.Config.Storage.DatabasePath), generation.DefaultConfig())
-	if err != nil {
-		t.Fatalf("generation.New() error = %v", err)
-	}
-	nextID, err := generations.NextID(context.Background())
-	if err != nil {
-		t.Fatalf("NextID() error = %v", err)
-	}
-	if _, err := generations.Publish(context.Background(), generation.PublishRequest{
-		ID: nextID,
-		Build: func(_ context.Context, directory string) error {
-			return os.WriteFile(filepath.Join(directory, "graph.db"), []byte("not a graph"), 0o600)
-		},
-		Validate: func(context.Context, generation.Generation) error { return nil },
-	}); err != nil {
-		t.Fatalf("Publish() error = %v", err)
+	// A CURRENT pointer that cannot be read makes the follower report on
+	// every tick without publishing anything. That report is the signal: a
+	// follower still running after stop keeps producing it, and the test
+	// stays clear of the production space policy, which depends on how full
+	// the machine happens to be.
+	stateRoot := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	if err := os.MkdirAll(filepath.Join(stateRoot, "CURRENT"), 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
 	}
 
 	var ticks atomic.Int64
