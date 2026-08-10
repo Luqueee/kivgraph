@@ -333,6 +333,10 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if len(args) >= 2 && args[1] == "skill" {
 		return runSkillCommand(args[2:], stdout, stderr)
 	}
+	if len(args) >= 2 && args[1] == "config" {
+		return runConfig(args[2:], stdout, stderr)
+	}
+
 	if len(args) >= 2 && args[1] == "init" {
 		return runInit(args[2:], stdout, stderr)
 	}
@@ -444,7 +448,15 @@ func (values *stringList) Set(value string) error {
 }
 
 func runInit(args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("init", flag.ContinueOnError)
+	return runConfigure("init", args, stdout, stderr)
+}
+
+func runConfig(args []string, stdout, stderr io.Writer) int {
+	return runConfigure("config", args, stdout, stderr)
+}
+
+func runConfigure(commandName string, args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet(commandName, flag.ContinueOnError)
 	configPath := ""
 	repositoriesPath := ""
 	force := false
@@ -455,11 +467,11 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	flags.BoolVar(&force, "force", false, "replace existing configuration files")
 	flags.StringVar(&languages, "languages", languages, "comma-separated repository languages")
 	flags.Var(&repositorySpecs, "repository", "register NAME=PATH (repeatable)")
-	if parsed, code := parseCommandFlags("init", flags, args, stdout, stderr); !parsed {
+	if parsed, code := parseCommandFlags(commandName, flags, args, stdout, stderr); !parsed {
 		return code
 	}
 	if flags.NArg() != 0 {
-		writeCommandError(stderr, "init: unexpected arguments: %v", flags.Args())
+		writeCommandError(stderr, "%s: unexpected arguments: %v", commandName, flags.Args())
 		return 2
 	}
 
@@ -469,7 +481,7 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 		Force:            force,
 	})
 	if err != nil {
-		writeCommandError(stderr, "init: %v", err)
+		writeCommandError(stderr, "%s: %v", commandName, err)
 		return 1
 	}
 	writeInfo(stdout, "config: %s (%s)", initFileState(result.ConfigCreated), result.ConfigPath)
@@ -480,20 +492,20 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	}
 	parsedLanguages, err := parseLanguages(languages)
 	if err != nil {
-		writeCommandError(stderr, "init: %v", err)
+		writeCommandError(stderr, "%s: %v", commandName, err)
 		return 2
 	}
 	additions := make([]config.Repository, 0, len(repositorySpecs))
 	for _, specification := range repositorySpecs {
 		repository, err := parseRepositorySpec(specification, parsedLanguages)
 		if err != nil {
-			writeCommandError(stderr, "init: %v", err)
+			writeCommandError(stderr, "%s: %v", commandName, err)
 			return 2
 		}
 		additions = append(additions, repository)
 	}
 	if err := config.RegisterRepositories(result.RepositoriesPath, additions); err != nil {
-		writeCommandError(stderr, "init: register repositories: %v", err)
+		writeCommandError(stderr, "%s: register repositories: %v", commandName, err)
 		return 1
 	}
 	writeSuccess(stdout, "repositories registered: %d", len(additions))

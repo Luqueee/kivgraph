@@ -304,6 +304,9 @@ integridad, compatibilidad o verificación descritos aquí.
   entera. Un comando puntual informa en texto plano cuando `stderr` es una
   terminal y como registro JSON cuando no lo es; `serve` y `ui` registran
   siempre en JSON, porque un cliente lee su `stderr`.
+- `ladygraph config` is the scriptable configuration entrypoint: it creates the
+  local documents and state non-destructively and can register repositories;
+  `ladygraph init` remains its compatibility alias.
 - El código específico de plataforma vive en archivos con build tag, no en
   ramas `runtime.GOOS` dentro de la lógica. Un fallback `!linux` que devuelve
   error o cero es una limitación declarada, nunca un silencio.

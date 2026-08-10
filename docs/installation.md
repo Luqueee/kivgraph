@@ -239,12 +239,12 @@ Los errores de un comando puntual se escriben en texto plano cuando `stderr` es
 una terminal, y como registro JSON cuando es una tubería o un archivo, que es
 lo que consume otra herramienta. `serve` y `ui` registran siempre en JSON.
 
-## Inicializar la configuración
+## Configurar Ladygraph
 
 Genera los dos documentos de configuración y los directorios de estado:
 
 ```bash
-ladygraph init
+ladygraph config
 ```
 
 Por defecto se crean, con permisos restrictivos:
@@ -255,11 +255,12 @@ Por defecto se crean, con permisos restrictivos:
 ~/.local/state/ladygraph/
 ```
 
-`init` es no destructivo: si los archivos existen, los conserva y devuelve
-`existing`. Para usar otras ubicaciones, pasa ambas rutas explícitamente:
+`config` no es destructivo: si los archivos existen, los conserva y devuelve
+`existing`. `init` sigue disponible como alias compatible. Para usar otras
+ubicaciones, pasa ambas rutas explícitamente:
 
 ```bash
-ladygraph init \
+ladygraph config \
   --config "$HOME/.config/ladygraph/config.yaml" \
   --repositories "$HOME/.config/ladygraph/repositories.yaml"
 ```
@@ -274,11 +275,11 @@ Registra un repositorio Go y uno TypeScript en invocaciones separadas para que
 cada entrada conserve sus lenguajes correctos:
 
 ```bash
-ladygraph init \
+ladygraph config \
   --repository backend=/ruta/absoluta/al/backend \
   --languages go
 
-ladygraph init \
+ladygraph config \
   --repository frontend=/ruta/absoluta/al/frontend \
   --languages typescript
 ```
@@ -292,7 +293,7 @@ que se ejecutan como servicio.
 Para registrar más repositorios con la misma combinación de lenguajes:
 
 ```bash
-ladygraph init \
+ladygraph config \
   --repository shared=/ruta/absoluta/al/shared \
   --repository tools=/ruta/absoluta/al/tools \
   --languages go,typescript

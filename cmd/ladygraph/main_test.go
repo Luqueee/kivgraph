@@ -164,6 +164,67 @@ func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
 		t.Fatalf("doctor output = %q", doctorStdout.String())
 	}
 }
+func TestRunConfigRegistersRepository(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	repositoryPath := filepath.Join(root, "project")
+	if err := os.Mkdir(repositoryPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{
+		"ladygraph",
+		"config",
+		"--config", configPath,
+		"--repositories", repositoriesPath,
+		"--repository", "project=" + repositoryPath,
+		"--languages", "go,typescript",
+	}, &stdout, &stderr); got != 0 {
+		t.Fatalf("config exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
+	}
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load() after config: %v", err)
+	}
+	if len(loaded.Repositories.Repositories) != 1 {
+		t.Fatalf("repositories = %#v, want one repository", loaded.Repositories.Repositories)
+	}
+	repository := loaded.Repositories.Repositories[0]
+	if repository.Name != "project" || repository.Path != repositoryPath {
+		t.Fatalf("repository = %#v, want project at %q", repository, repositoryPath)
+	}
+	if got, want := strings.Join(repository.Languages, ","), "go,typescript"; got != want {
+		t.Fatalf("repository languages = %q, want %q", got, want)
+	}
+	if !strings.Contains(stdout.String(), "repositories registered: 1") {
+		t.Fatalf("config stdout = %q, want registration result", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("config stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunConfigHelpListsConfigurationFlags(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"ladygraph", "config", "--help"}, &stdout, &stderr); got != 0 {
+		t.Fatalf("config help exit code = %d, stderr=%q", got, stderr.String())
+	}
+	for _, want := range []string{"ladygraph config", "--config", "--repositories", "--repository", "--languages", "--force"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("config help = %q, want %q", stdout.String(), want)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("config help stderr = %q, want empty", stderr.String())
+	}
+}
 
 func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
 	root := t.TempDir()
@@ -391,7 +452,7 @@ func TestRunHelpIsNotAnError(t *testing.T) {
 		if stderr.Len() != 0 {
 			t.Fatalf("run(%s) stderr = %q, want empty", argument, stderr.String())
 		}
-		for _, want := range []string{"Usage", "Getting started", "index --full", "doctor storage --database PATH"} {
+		for _, want := range []string{"Usage", "Getting started", "config [--repository", "index --full", "doctor storage --database PATH"} {
 			if !strings.Contains(stdout.String(), want) {
 				t.Fatalf("run(%s) stdout = %q, want it to contain %q", argument, stdout.String(), want)
 			}
