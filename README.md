@@ -113,15 +113,12 @@ ladygraph skill remove --target claude-code --scope user
 Initialize and publish a graph before starting the MCP server:
 
 ```bash
-ladygraph config \
+ladygraph init \
   --repository project=/absolute/path/to/project \
   --languages go,typescript
 ladygraph doctor
 ladygraph index --full
 ```
-
-`ladygraph init` remains available as a compatibility alias for
-`ladygraph config`.
 
 Configure any MCP client to start the server over STDIO:
 
