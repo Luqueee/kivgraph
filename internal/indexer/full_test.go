@@ -294,6 +294,63 @@ func TestFullIsolatesRepositoriesThatDoNotReachEachOther(t *testing.T) {
 	}
 }
 
+// A package name two manifests declare is an ambiguity, not a broken index:
+// the pass completes, the name provides nothing, and the graph says so. The
+// alternative -- what this used to do -- is that a fixture or a vendored copy
+// anywhere in a repository makes every other repository unindexable.
+func TestFullDeclaresAmbiguousTypeScriptPackages(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for _, unit := range []struct{ directory, name string }{
+		{"a", "@fixture/same"}, {"b", "@fixture/same"}, {"c", "@fixture/unique"},
+	} {
+		packageRoot := filepath.Join(root, unit.directory)
+		writeFullFixture(t, filepath.Join(packageRoot, "package.json"), fmt.Sprintf(`{"name":"%s","version":"1.0.0"}`, unit.name))
+		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
+		writeFullFixture(t, filepath.Join(packageRoot, "src", "index.ts"), "export const value = 1;\n")
+	}
+
+	packages, conflicts, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
+		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
+	}})
+	if err != nil {
+		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
+	}
+	if len(conflicts) != 1 || conflicts[0].conflict.Name != "@fixture/same" {
+		t.Fatalf("conflicts = %#v, want the duplicated name", conflicts)
+	}
+	names := make([]string, 0, len(packages))
+	for _, unit := range packages {
+		names = append(names, unit.packageValue.Name)
+	}
+	if !equalStringSlices(names, []string{"@fixture/unique"}) {
+		t.Fatalf("packages = %v, want only the unambiguous package", names)
+	}
+
+	set := ambiguousPackageFacts(conflicts[0])
+	if err := set.Validate(); err != nil {
+		t.Fatalf("ambiguity facts validation error = %v", err)
+	}
+	entry := set.Unresolved[0]
+	if entry.Reason != "AMBIGUOUS_PACKAGE_PROVIDER" || entry.RequestedPackage != "@fixture/same" {
+		t.Fatalf("unresolved = %#v, want the ambiguous name declared", entry)
+	}
+	if !strings.Contains(entry.Detail, "package.json") {
+		t.Fatalf("detail = %q, want the observed manifests", entry.Detail)
+	}
+}
+
+func equalStringSlices(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestDiscoverTypeScriptPackagesUsesEachProjectAndSkipsUnconfiguredPackages(t *testing.T) {
 	root := testsupport.TempDir(t)
 	writeFullFixture(t, filepath.Join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
@@ -311,11 +368,14 @@ func TestDiscoverTypeScriptPackagesUsesEachProjectAndSkipsUnconfiguredPackages(t
 		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
 	}
 
-	packages, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
+	packages, conflicts, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
 		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
 	}})
 	if err != nil {
 		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
+	}
+	if len(conflicts) != 0 {
+		t.Fatalf("conflicts = %#v, want none", conflicts)
 	}
 	if len(packages) != 2 {
 		t.Fatalf("packages = %#v, want only configured package projects", packages)

@@ -149,6 +149,31 @@ cargas a la vez.
   reporta, no se descarga. `go.allow_network: true` levanta esa restricción
   para el comando `go`.
 
+### La generación publicada y quien la sirve
+
+Un servidor carga el HotSnapshot al arrancar. Sin nada más, un `index --full`
+ejecutado en otra terminal lo deja respondiendo desde un grafo que ya no existe
+en disco, y nada en su salida lo dice.
+
+- `serve` y `ui` siguen el puntero `CURRENT` y republican cuando avanza.
+- El seguidor no se coordina con nadie: `SnapshotStore.Publish` solo acepta una
+  generación estrictamente más nueva, así que perder la carrera contra
+  `index_project` no tiene consecuencia; se observa el identificador mayor en
+  el siguiente ciclo.
+- Una generación que no se puede construir se registra y la publicada sigue
+  respondiendo. El seguidor nunca tumba el servidor.
+
+### Ambigüedad de paquetes TypeScript
+
+Un nombre de paquete que declaran varios `package.json` de un repositorio no
+tiene un proveedor único.
+
+- Los candidatos salen del registro y el nombre se declara como referencia no
+  resuelta con razón `AMBIGUOUS_PACKAGE_PROVIDER` y los manifests observados.
+- El resto del repositorio, y todos los demás, se indexan con normalidad. Antes
+  un fixture duplicado en cualquier sitio hacía inindexable el conjunto entero.
+- Es el mismo trato que recibe un módulo Go declarado por varios repositorios.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

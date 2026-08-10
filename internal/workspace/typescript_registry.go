@@ -27,8 +27,21 @@ type TypeScriptPackage struct {
 // TypeScriptPackageRegistry is an immutable package-name index for one
 // repository. Cross-repository ambiguity is handled by LUQUE-0408.
 type TypeScriptPackageRegistry struct {
-	packages []TypeScriptPackage
-	byName   map[string]int
+	packages  []TypeScriptPackage
+	byName    map[string]int
+	conflicts []TypeScriptPackageConflict
+}
+
+// TypeScriptPackageConflict is one package name several manifests declare.
+//
+// Neither manifest can be chosen: a reference to that name has no single
+// provider. The ambiguity is reported the same way an ambiguous Go module
+// provider is -- the candidates leave the registry and the conflict is
+// declared -- because a repository that vendors or fixtures a second copy of
+// a package must not make the rest of the graph unbuildable.
+type TypeScriptPackageConflict struct {
+	Name      string
+	Manifests []string
 }
 
 // NewTypeScriptPackageRegistry discovers and indexes named package.json
@@ -46,9 +59,12 @@ func NewTypeScriptPackageRegistry(ctx context.Context, repository Repository) (*
 
 func newTypeScriptPackageRegistry(ctx context.Context, repository Repository, discovery TypeScriptDiscovery) (*TypeScriptPackageRegistry, error) {
 	registry := &TypeScriptPackageRegistry{
-		packages: make([]TypeScriptPackage, 0, len(discovery.PackageManifests)),
-		byName:   make(map[string]int, len(discovery.PackageManifests)),
+		packages:  make([]TypeScriptPackage, 0, len(discovery.PackageManifests)),
+		byName:    make(map[string]int, len(discovery.PackageManifests)),
+		conflicts: make([]TypeScriptPackageConflict, 0),
 	}
+	byName := make(map[string][]TypeScriptPackage, len(discovery.PackageManifests))
+	order := make([]string, 0, len(discovery.PackageManifests))
 	for _, manifestPath := range discovery.PackageManifests {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -60,11 +76,26 @@ func newTypeScriptPackageRegistry(ctx context.Context, repository Repository, di
 		if !named {
 			continue
 		}
-		if previous, exists := registry.byName[packageValue.Name]; exists {
-			return nil, fmt.Errorf("duplicate TypeScript package name %q in %q and %q", packageValue.Name, registry.packages[previous].ManifestPath, packageValue.ManifestPath)
+		if _, seen := byName[packageValue.Name]; !seen {
+			order = append(order, packageValue.Name)
 		}
-		registry.byName[packageValue.Name] = len(registry.packages)
-		registry.packages = append(registry.packages, packageValue)
+		byName[packageValue.Name] = append(byName[packageValue.Name], packageValue)
+	}
+	for _, name := range order {
+		candidates := byName[name]
+		if len(candidates) == 1 {
+			registry.packages = append(registry.packages, candidates[0])
+			continue
+		}
+		manifests := make([]string, 0, len(candidates))
+		for _, candidate := range candidates {
+			manifests = append(manifests, candidate.ManifestPath)
+		}
+		sort.Strings(manifests)
+		registry.conflicts = append(registry.conflicts, TypeScriptPackageConflict{
+			Name:      name,
+			Manifests: manifests,
+		})
 	}
 	sort.Slice(registry.packages, func(left, right int) bool {
 		if registry.packages[left].Name != registry.packages[right].Name {
@@ -72,11 +103,29 @@ func newTypeScriptPackageRegistry(ctx context.Context, repository Repository, di
 		}
 		return registry.packages[left].ManifestPath < registry.packages[right].ManifestPath
 	})
+	sort.Slice(registry.conflicts, func(left, right int) bool {
+		return registry.conflicts[left].Name < registry.conflicts[right].Name
+	})
 	registry.byName = make(map[string]int, len(registry.packages))
 	for index, packageValue := range registry.packages {
 		registry.byName[packageValue.Name] = index
 	}
 	return registry, nil
+}
+
+// Conflicts returns the package names this registry refused to resolve.
+func (registry *TypeScriptPackageRegistry) Conflicts() []TypeScriptPackageConflict {
+	if registry == nil {
+		return nil
+	}
+	conflicts := make([]TypeScriptPackageConflict, len(registry.conflicts))
+	for index, conflict := range registry.conflicts {
+		conflicts[index] = TypeScriptPackageConflict{
+			Name:      conflict.Name,
+			Manifests: append([]string(nil), conflict.Manifests...),
+		}
+	}
+	return conflicts
 }
 
 // List returns deep copies sorted by package name.

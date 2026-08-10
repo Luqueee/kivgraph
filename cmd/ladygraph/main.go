@@ -18,9 +18,12 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/mod/semver"
+
 	"github.com/Luqueee/ladygraph/internal/app"
 	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/goworkspace"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/indexer"
 	"github.com/Luqueee/ladygraph/internal/indexing"
@@ -224,6 +227,7 @@ func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRun
 		return err
 	}
 	defer store.Close()
+	followPublishedGeneration(ctx, loaded, store, "ui")
 	if address == "" {
 		address = loaded.Config.Web.Address
 	}
@@ -269,10 +273,45 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	}
 	defer store.Close()
 	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
+	followPublishedGeneration(ctx, loaded, store, "serve")
 	return runServe(ctx, func(ctx context.Context) error {
 		return runMCP(ctx, store, projectIndexer)
 	})
 }
+
+// followPublishedGeneration keeps a long-running command on the generation the
+// store root publishes. A server loads the HotSnapshot once, so without this
+// an `index --full` run in another terminal leaves it answering from a graph
+// that no longer exists, with nothing in its output to say so.
+//
+// The follower owns its goroutine for the lifetime of ctx and never fails the
+// command: a generation it cannot build is logged, and the one already
+// published keeps answering.
+func followPublishedGeneration(
+	ctx context.Context,
+	loaded config.Loaded,
+	store *hotsnapshot.SnapshotStore,
+	command string,
+) {
+	logger := logging.New(os.Stderr)
+	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	go func() {
+		err := indexing.Follow(ctx, store, indexing.FollowOptions{
+			Root:  root,
+			Store: generation.DefaultConfig(),
+			OnPublish: func(id uint64) {
+				logger.Info("serving published generation", "command", command, "generation", id)
+			},
+			OnError: func(err error) {
+				logger.Error("could not follow the published generation", "command", command, "error", err)
+			},
+		})
+		if err != nil {
+			logger.Error("generation follower stopped", "command", command, "error", err)
+		}
+	}()
+}
+
 func isLoopbackListenAddress(address string) bool {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
@@ -861,6 +900,7 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	if needsGo {
 		output, err := exec.CommandContext(context.Background(), "go", "version").CombinedOutput()
 		report("toolchain.go", err == nil, strings.TrimSpace(string(output)))
+		reportGoLanguageCeiling(report, repositories)
 	} else {
 		report("toolchain.go", true, "not configured")
 	}
@@ -888,6 +928,40 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 		}
 	}
 	report("toolchain.typescript", false, fmt.Sprintf("command %q is unavailable", command[0]))
+}
+
+// reportGoLanguageCeiling states the language version this build can type
+// check and names every registered module above it.
+//
+// The `go` on PATH is not the number that decides whether a repository can be
+// indexed: go/types travels linked inside this binary, so a module written for
+// a newer language version is unreadable however new the go command is.
+// Reporting only the PATH toolchain invites the opposite conclusion.
+func reportGoLanguageCeiling(report func(string, bool, string), repositories []workspace.Repository) {
+	ceiling := goworkspace.LanguageVersion()
+	if ceiling == "" {
+		report("toolchain.typecheck", true, "unknown")
+		return
+	}
+	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+	if err != nil {
+		if errors.Is(err, goworkspace.ErrGoVersionUnsupported) {
+			report("toolchain.typecheck", false, err.Error())
+			return
+		}
+		// Everything else -- an ambiguous module, an unreadable
+		// manifest -- belongs to the index, which reports it with its
+		// own context. This check answers one question only.
+		report("toolchain.typecheck", true, "go "+ceiling)
+		return
+	}
+	highest := ceiling
+	for _, module := range plan.Modules {
+		if version := strings.TrimSpace(module.GoVersion); version != "" && semver.Compare("v"+version, "v"+highest) > 0 {
+			highest = version
+		}
+	}
+	report("toolchain.typecheck", true, fmt.Sprintf("go %s (highest registered module: go %s)", ceiling, highest))
 }
 
 func inspectDoctorDirectory(path string) (bool, string) {

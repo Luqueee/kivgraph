@@ -98,6 +98,18 @@ integridad, compatibilidad o verificación descritos aquí.
   sintéticos que sobran se retiran con su `.sum`. La indexación sigue siendo
   hermética y `go.allow_network` es la única salida declarada cuando la MVS de
   un grupo selecciona un módulo ausente del caché local.
+- `ladygraph serve` y `ladygraph ui` siguen la generación publicada: cargan el
+  HotSnapshot al arrancar y republican cuando el puntero `CURRENT` avanza, sin
+  coordinarse con nadie -- `SnapshotStore.Publish` solo acepta una generación
+  estrictamente más nueva. Un `index --full` en otra terminal no puede dejar a
+  un servidor sirviendo un grafo que ya no existe en disco.
+- `doctor` informa del techo de versión con el que este binario comprueba
+  tipos, no solo del `go` del PATH: son números distintos y el que decide si un
+  repositorio se puede indexar es el primero.
+- Un nombre de paquete TypeScript declarado por varios manifests es una
+  ambigüedad, no un repositorio roto: ningún manifest lo provee, ambos salen
+  del registro y se declara `AMBIGUOUS_PACKAGE_PROVIDER`. Es el mismo trato que
+  recibe un módulo Go con varios proveedores.
 
 ## TypeScript
 

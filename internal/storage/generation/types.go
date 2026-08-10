@@ -46,6 +46,17 @@ type Config struct {
 	FaultInjector FaultInjector
 }
 
+// IsZero reports whether the caller left the configuration untouched, so a
+// component can fall back to DefaultConfig. Config carries a func field, so
+// it cannot be compared with ==.
+func (config Config) IsZero() bool {
+	return config.ReserveBytes == 0 &&
+		config.MarginBytes == 0 &&
+		config.FreePermille == 0 &&
+		config.DatabaseFile == "" &&
+		config.FaultInjector == nil
+}
+
 func DefaultConfig() Config {
 	return Config{
 		ReserveBytes: MinimumReserveBytes,

@@ -486,14 +486,9 @@ func allStagesPassed(stages []Stage) bool {
 }
 
 // storeConfigIsZero reports whether the caller left Options.Store at its
-// zero value, so Run knows to fall back to generation.DefaultConfig. Config
-// carries a func field, so it cannot be compared with ==.
+// zero value, so Run knows to fall back to generation.DefaultConfig.
 func storeConfigIsZero(config generation.Config) bool {
-	return config.ReserveBytes == 0 &&
-		config.MarginBytes == 0 &&
-		config.FreePermille == 0 &&
-		config.DatabaseFile == "" &&
-		config.FaultInjector == nil
+	return config.IsZero()
 }
 
 // openGenerationStore opens the generation store rooted at root, defaulting

@@ -88,7 +88,10 @@ type FullReport struct {
 	TypeScriptSymbols      int
 	TypeScriptReferences   int
 	TypeScriptUnresolved   int
-	SyntheticWorkFile      string
+	// TypeScriptAmbiguous counts the package names several manifests of one
+	// repository declare. No manifest provides them.
+	TypeScriptAmbiguous int
+	SyntheticWorkFile   string
 }
 
 // Full loads every configured repository and normalises the authoritative Go
@@ -123,11 +126,15 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),
 	}
-	typeScriptPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
+	typeScriptPackages, typeScriptConflicts, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
 	if err != nil {
 		return facts.Set{}, report, err
 	}
 	merged := facts.Set{}
+	for _, entry := range typeScriptConflicts {
+		mergeSets(&merged, ambiguousPackageFacts(entry))
+		report.TypeScriptAmbiguous++
+	}
 
 	if len(goRepositories) != 0 {
 		if strings.TrimSpace(options.SyntheticWorkFile) == "" {
@@ -343,12 +350,13 @@ type typeScriptPackageUnit struct {
 func discoverTypeScriptPackages(
 	ctx context.Context,
 	repositories []workspace.Repository,
-) ([]typeScriptPackageUnit, error) {
+) ([]typeScriptPackageUnit, []typeScriptConflict, error) {
 	packages := make([]typeScriptPackageUnit, 0)
+	conflicts := make([]typeScriptConflict, 0)
 	for _, repository := range repositories {
 		registry, err := workspace.NewTypeScriptPackageRegistry(ctx, repository)
 		if err != nil {
-			return nil, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
+			return nil, nil, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
 		}
 		for _, packageValue := range registry.List() {
 			if strings.TrimSpace(packageValue.ProjectPath) == "" {
@@ -359,9 +367,15 @@ func discoverTypeScriptPackages(
 				packageValue: packageValue,
 			})
 		}
+		for _, conflict := range registry.Conflicts() {
+			conflicts = append(conflicts, typeScriptConflict{
+				repository: repository,
+				conflict:   conflict,
+			})
+		}
 	}
-	if len(packages) == 0 && len(repositories) != 0 {
-		return nil, fmt.Errorf("TypeScript repositories have no named package with a project")
+	if len(packages) == 0 && len(conflicts) == 0 && len(repositories) != 0 {
+		return nil, nil, fmt.Errorf("TypeScript repositories have no named package with a project")
 	}
 	sort.Slice(packages, func(left, right int) bool {
 		if packages[left].repository.Name != packages[right].repository.Name {
@@ -372,7 +386,44 @@ func discoverTypeScriptPackages(
 		}
 		return packages[left].packageValue.ManifestPath < packages[right].packageValue.ManifestPath
 	})
-	return packages, nil
+	sort.Slice(conflicts, func(left, right int) bool {
+		if conflicts[left].repository.Name != conflicts[right].repository.Name {
+			return conflicts[left].repository.Name < conflicts[right].repository.Name
+		}
+		return conflicts[left].conflict.Name < conflicts[right].conflict.Name
+	})
+	return packages, conflicts, nil
+}
+
+// typeScriptConflict is one ambiguous package name and the repository that
+// declares it more than once.
+type typeScriptConflict struct {
+	repository workspace.Repository
+	conflict   workspace.TypeScriptPackageConflict
+}
+
+// ambiguousPackageFacts declares a package name no manifest can claim.
+//
+// The repository record travels with the entry: a repository whose only
+// packages are ambiguous contributes nothing else, and an unresolved
+// reference in a repository the set does not know is not a valid fact.
+func ambiguousPackageFacts(entry typeScriptConflict) facts.Set {
+	repositoryKey := facts.RepositoryKey(entry.repository.Name)
+	return facts.Set{
+		Repositories: []facts.Repository{{
+			Key:       repositoryKey,
+			Name:      entry.repository.Name,
+			RootPath:  entry.repository.RealPath,
+			Languages: []facts.Language{facts.LanguageTypeScript},
+		}},
+		Unresolved: []facts.UnresolvedReference{{
+			RepositoryKey:    repositoryKey,
+			Language:         facts.LanguageTypeScript,
+			RequestedPackage: entry.conflict.Name,
+			Reason:           "AMBIGUOUS_PACKAGE_PROVIDER",
+			Detail:           "declared by " + strings.Join(entry.conflict.Manifests, " and "),
+		}},
+	}
 }
 
 func modulesByRepository(modules []goworkspace.Module) map[string][]goworkspace.Module {

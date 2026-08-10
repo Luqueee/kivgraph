@@ -107,20 +107,42 @@ func TestNewTypeScriptPackageRegistryBuildsProvidersAndRoots(t *testing.T) {
 	}
 }
 
-func TestNewTypeScriptPackageRegistryRejectsDuplicateAndEscapingProviders(t *testing.T) {
+// A package name declared twice is an ambiguity, not a broken repository: no
+// manifest can be chosen, both leave the registry, and the conflict is
+// declared. A path that escapes its package is still a hard failure.
+func TestNewTypeScriptPackageRegistryDeclaresDuplicateNames(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "a", "package.json"), `{"name":"same","version":"1.0.0"}`)
+	writeDiscoveryFile(t, filepath.Join(root, "b", "package.json"), `{"name":"same","version":"2.0.0"}`)
+	writeDiscoveryFile(t, filepath.Join(root, "c", "package.json"), `{"name":"unique","version":"1.0.0"}`)
+
+	registry, err := NewTypeScriptPackageRegistry(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("NewTypeScriptPackageRegistry() error = %v", err)
+	}
+	if _, found := registry.Get("same"); found {
+		t.Fatal("an ambiguous package name must have no provider")
+	}
+	if _, found := registry.Get("unique"); !found {
+		t.Fatal("an unambiguous package must survive its ambiguous neighbour")
+	}
+	conflicts := registry.Conflicts()
+	if len(conflicts) != 1 || conflicts[0].Name != "same" || len(conflicts[0].Manifests) != 2 {
+		t.Fatalf("conflicts = %#v, want one conflict naming both manifests", conflicts)
+	}
+	for _, manifest := range conflicts[0].Manifests {
+		if !strings.Contains(manifest, "package.json") {
+			t.Fatalf("conflict manifest = %q, want the observed manifest path", manifest)
+		}
+	}
+}
+
+func TestNewTypeScriptPackageRegistryRejectsEscapingProviders(t *testing.T) {
 	tests := []struct {
 		name      string
 		setup     func(string)
 		wantError string
 	}{
-		{
-			name: "duplicate names",
-			setup: func(root string) {
-				writeDiscoveryFile(t, filepath.Join(root, "a", "package.json"), `{"name":"same","version":"1.0.0"}`)
-				writeDiscoveryFile(t, filepath.Join(root, "b", "package.json"), `{"name":"same","version":"2.0.0"}`)
-			},
-			wantError: "duplicate TypeScript package name",
-		},
 		{
 			name: "types escape",
 			setup: func(root string) {
