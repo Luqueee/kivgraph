@@ -47,7 +47,7 @@ From a checkout, the same installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-LADYGRAPH_VERSION=v0.8.0 ./scripts/install.sh
+LADYGRAPH_VERSION=v0.9.0 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
