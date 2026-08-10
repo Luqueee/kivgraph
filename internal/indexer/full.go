@@ -108,6 +108,10 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),
 	}
+	typeScriptPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
+	if err != nil {
+		return facts.Set{}, report, err
+	}
 	merged := facts.Set{}
 
 	if len(goRepositories) != 0 {
@@ -144,6 +148,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 				load, err := goloader.Load(ctx, goloader.Options{
 					Directory:    module.RootPath,
 					WorkFile:     options.SyntheticWorkFile,
+					Patterns:     append([]string(nil), module.PackagePatterns...),
 					IncludeTests: options.IncludeTests,
 				})
 				report.GoLoads++
@@ -217,18 +222,22 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		}
 	}
 
-	for index, repository := range typeScriptRepositories {
+	for index, packageUnit := range typeScriptPackages {
+		repository := packageUnit.repository
+		packageValue := packageUnit.packageValue
 		emitProgress(options.Progress, ProgressEvent{
 			Phase: PhaseTypeScript, Repository: repository.Name,
-			Started: true, Completed: index, Total: len(typeScriptRepositories),
+			Detail: packageValue.Name, Started: true, Completed: index,
+			Total: len(typeScriptPackages),
 		})
-		payload, err := collectTypeScriptFacts(ctx, options, repository, typeScriptRepositories)
+		payload, err := collectTypeScriptFacts(ctx, options, packageUnit, typeScriptPackages)
 		if err != nil {
 			return facts.Set{}, report, err
 		}
 		set, _, err := facts.NormalizeTypeScript(ctx, payload, repository.RealPath)
 		if err != nil {
-			return facts.Set{}, report, fmt.Errorf("normalise TypeScript facts for %q: %w", repository.Name, err)
+			return facts.Set{}, report, fmt.Errorf("normalise TypeScript facts for %q package %q: %w",
+				repository.Name, packageValue.Name, err)
 		}
 		mergeSets(&merged, set)
 		report.TypeScriptSymbols += len(payload.Symbols)
@@ -236,8 +245,9 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		report.TypeScriptUnresolved += len(payload.Unresolved)
 		emitProgress(options.Progress, ProgressEvent{
 			Phase: PhaseTypeScript, Repository: repository.Name,
-			Detail:    fmt.Sprintf("symbols=%d references=%d", len(payload.Symbols), len(payload.References)),
-			Completed: index + 1, Total: len(typeScriptRepositories),
+			Detail: fmt.Sprintf("package=%s symbols=%d references=%d",
+				packageValue.Name, len(payload.Symbols), len(payload.References)),
+			Completed: index + 1, Total: len(typeScriptPackages),
 		})
 	}
 
@@ -302,6 +312,46 @@ func repositoriesForTypeScript(repositories []workspace.Repository) []workspace.
 	return result
 }
 
+type typeScriptPackageUnit struct {
+	repository   workspace.Repository
+	packageValue workspace.TypeScriptPackage
+}
+
+func discoverTypeScriptPackages(
+	ctx context.Context,
+	repositories []workspace.Repository,
+) ([]typeScriptPackageUnit, error) {
+	packages := make([]typeScriptPackageUnit, 0)
+	for _, repository := range repositories {
+		registry, err := workspace.NewTypeScriptPackageRegistry(ctx, repository)
+		if err != nil {
+			return nil, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
+		}
+		for _, packageValue := range registry.List() {
+			if strings.TrimSpace(packageValue.ProjectPath) == "" {
+				continue
+			}
+			packages = append(packages, typeScriptPackageUnit{
+				repository:   repository,
+				packageValue: packageValue,
+			})
+		}
+	}
+	if len(packages) == 0 && len(repositories) != 0 {
+		return nil, fmt.Errorf("TypeScript repositories have no named package with a project")
+	}
+	sort.Slice(packages, func(left, right int) bool {
+		if packages[left].repository.Name != packages[right].repository.Name {
+			return packages[left].repository.Name < packages[right].repository.Name
+		}
+		if packages[left].packageValue.Name != packages[right].packageValue.Name {
+			return packages[left].packageValue.Name < packages[right].packageValue.Name
+		}
+		return packages[left].packageValue.ManifestPath < packages[right].packageValue.ManifestPath
+	})
+	return packages, nil
+}
+
 func modulesByRepository(modules []goworkspace.Module) map[string][]goworkspace.Module {
 	result := make(map[string][]goworkspace.Module)
 	for _, module := range modules {
@@ -364,30 +414,41 @@ func mergeSets(destination *facts.Set, source facts.Set) {
 func collectTypeScriptFacts(
 	ctx context.Context,
 	options FullOptions,
-	repository workspace.Repository,
-	providers []workspace.Repository,
+	consumer typeScriptPackageUnit,
+	providers []typeScriptPackageUnit,
 ) (facts.TypeScriptPayload, error) {
+	repository := consumer.repository
+	packageValue := consumer.packageValue
 	output, err := os.CreateTemp("", "ladygraph-ts-facts-*.json")
 	if err != nil {
-		return facts.TypeScriptPayload{}, fmt.Errorf("create TypeScript facts output for %q: %w", repository.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("create TypeScript facts output for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
 	}
 	outputPath := output.Name()
 	if err := output.Close(); err != nil {
 		_ = os.Remove(outputPath)
-		return facts.TypeScriptPayload{}, fmt.Errorf("close TypeScript facts output for %q: %w", repository.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("close TypeScript facts output for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
 	}
 	defer os.Remove(outputPath)
 
-	arguments := []string{"facts", repository.Name, repository.RealPath, outputPath}
+	arguments := []string{
+		"facts", repository.Name, repository.RealPath, outputPath,
+		"--project", packageValue.ProjectPath,
+	}
 	for _, provider := range providers {
-		if provider.Name == repository.Name {
+		if provider.repository.Name == repository.Name {
 			continue
 		}
-		arguments = append(arguments, "--provider", provider.Name+"="+provider.RealPath)
+		arguments = append(arguments,
+			"--provider", provider.repository.Name+"="+provider.repository.RealPath,
+			"--provider-project", provider.repository.Name+"="+provider.packageValue.ProjectPath,
+		)
 	}
 	command, commandArguments, err := factsCommand(options, arguments)
 	if err != nil {
-		return facts.TypeScriptPayload{}, fmt.Errorf("prepare TypeScript facts command for %q: %w", repository.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("prepare TypeScript facts command for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
 	}
 	commandContext := exec.CommandContext(ctx, command, commandArguments...)
 	commandContext.Dir = options.WorkingDirectory
@@ -400,17 +461,21 @@ func collectTypeScriptFacts(
 			detail = strings.TrimSpace(stdout.String())
 		}
 		if detail != "" {
-			return facts.TypeScriptPayload{}, fmt.Errorf("run TypeScript facts for %q: %w: %s", repository.Name, err, detail)
+			return facts.TypeScriptPayload{}, fmt.Errorf("run TypeScript facts for %q package %q: %w: %s",
+				repository.Name, packageValue.Name, err, detail)
 		}
-		return facts.TypeScriptPayload{}, fmt.Errorf("run TypeScript facts for %q: %w", repository.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("run TypeScript facts for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
 	}
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
-		return facts.TypeScriptPayload{}, fmt.Errorf("read TypeScript facts for %q: %w", repository.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("read TypeScript facts for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
 	}
 	payload, err := facts.DecodeTypeScriptPayload(data)
 	if err != nil {
-		return facts.TypeScriptPayload{}, fmt.Errorf("decode TypeScript facts for %q: %w", repository.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("decode TypeScript facts for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
 	}
 	return payload, nil
 }

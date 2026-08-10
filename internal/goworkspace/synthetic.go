@@ -43,6 +43,8 @@ type Module struct {
 	RootPath     string
 	ManifestPath string
 	GoVersion    string
+	// PackagePatterns are the discovered package paths passed to go/packages.
+	PackagePatterns []string
 }
 
 // Replacement is a replace directive promoted to the synthetic workspace.
@@ -99,17 +101,33 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 		if name == "" {
 			return Plan{}, fmt.Errorf("repository %q: name must not be empty", repository.Path)
 		}
-		registry, err := workspace.NewGoModuleRegistry(ctx, repository)
+		discovery, err := workspace.DiscoverGo(ctx, repository)
 		if err != nil {
 			return Plan{}, fmt.Errorf("repository %q Go modules: %w", name, err)
 		}
-		for _, provider := range registry.List() {
-			byModulePath[provider.ModulePath] = append(byModulePath[provider.ModulePath], Module{
-				Repository:   name,
-				ModulePath:   provider.ModulePath,
-				RootPath:     provider.RootPath,
-				ManifestPath: provider.ManifestPath,
-				GoVersion:    provider.GoVersion,
+		workspaceReplaces := workspaceReplacementsByManifest(discovery.Workspaces)
+		for _, module := range discovery.Modules {
+			modulePath := strings.TrimSpace(module.ModulePath)
+			if modulePath == "" {
+				return Plan{}, fmt.Errorf("repository %q module manifest %q has an empty module path", name, module.ManifestPath)
+			}
+			packagePatterns := packagePatternsForModule(discovery.Packages, module)
+			provider := workspace.GoModuleProvider{
+				ModulePath:        modulePath,
+				Repository:        name,
+				ManifestPath:      module.ManifestPath,
+				RootPath:          module.RootPath,
+				GoVersion:         module.GoVersion,
+				Replaces:          append([]workspace.GoReplacement(nil), module.Replaces...),
+				WorkspaceReplaces: append([]workspace.GoReplacement(nil), workspaceReplaces[module.ManifestPath]...),
+			}
+			byModulePath[modulePath] = append(byModulePath[modulePath], Module{
+				Repository:      name,
+				ModulePath:      modulePath,
+				RootPath:        module.RootPath,
+				ManifestPath:    module.ManifestPath,
+				GoVersion:       module.GoVersion,
+				PackagePatterns: packagePatterns,
 			})
 			collectReplacements(replacements, name, provider)
 		}
@@ -148,10 +166,64 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 	sort.Slice(plan.Conflicts, func(left, right int) bool {
 		if plan.Conflicts[left].Kind != plan.Conflicts[right].Kind {
 			return plan.Conflicts[left].Kind < plan.Conflicts[right].Kind
+
 		}
 		return plan.Conflicts[left].Subject < plan.Conflicts[right].Subject
 	})
+
 	return plan, nil
+}
+
+func packagePatternsForModule(packages []workspace.GoPackage, module workspace.GoModule) []string {
+	patterns := make([]string, 0)
+	for _, packageValue := range packages {
+		if packageValue.ModulePath != module.ModulePath || !pathWithinModule(module.RootPath, packageValue.Directory) {
+			continue
+		}
+		if strings.TrimSpace(packageValue.ImportPath) == "" {
+			continue
+		}
+		patterns = append(patterns, packageValue.ImportPath)
+	}
+	sort.Strings(patterns)
+	deduplicated := patterns[:0]
+	for _, pattern := range patterns {
+		if len(deduplicated) == 0 || deduplicated[len(deduplicated)-1] != pattern {
+			deduplicated = append(deduplicated, pattern)
+		}
+	}
+	return deduplicated
+}
+
+func pathWithinModule(root, candidate string) bool {
+	relative, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
+}
+func workspaceReplacementsByManifest(workspaces []workspace.GoWorkspace) map[string][]workspace.GoReplacement {
+	result := make(map[string][]workspace.GoReplacement)
+	for _, workspaceValue := range workspaces {
+		for _, manifestPath := range workspaceValue.Modules {
+			for _, replacement := range workspaceValue.Replaces {
+				if containsWorkspaceReplacement(result[manifestPath], replacement) {
+					continue
+				}
+				result[manifestPath] = append(result[manifestPath], replacement)
+			}
+		}
+	}
+	return result
+}
+
+func containsWorkspaceReplacement(replacements []workspace.GoReplacement, candidate workspace.GoReplacement) bool {
+	for _, replacement := range replacements {
+		if replacement == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 type replacementKey struct {

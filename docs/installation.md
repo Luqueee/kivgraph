@@ -298,6 +298,35 @@ ladygraph init \
   --languages go,typescript
 ```
 
+
+### Monorepos y exclusiones
+
+El registro acepta `exclusions` por repositorio en `repositories.yaml`. Los
+patrones se aplican tanto durante el descubrimiento como durante la carga
+semántica; por ejemplo, para no indexar fixtures o benchmarks:
+
+```yaml
+repositories:
+  - name: backend
+    path: /ruta/absoluta/al/backend
+    languages: [go, typescript]
+    exclusions:
+      - '**/testdata'
+      - '**/benchmarks'
+      - dist
+```
+
+En un monorepo TypeScript, Ladygraph procesa cada `package.json` nombrado que
+tenga un `tsconfig` aplicable de forma independiente. El `ProjectPath` elegido
+es el `tsconfig` más profundo que contiene ese paquete; no se reutiliza
+silenciosamente el `tsconfig` de la raíz para otro paquete. Un manifest sin
+nombre o sin proyecto se conserva como configuración del workspace, pero no
+genera hechos semánticos por sí solo.
+
+Si un repositorio registrado como TypeScript no tiene ningún provider nombrado
+con proyecto aplicable, `index --full` termina con error explícito; no publica
+una generación vacía.
+
 ## Validar e indexar
 
 Ejecuta el diagnóstico antes de abrir el servidor:

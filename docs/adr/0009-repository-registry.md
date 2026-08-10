@@ -64,8 +64,10 @@ permanecer dentro del repositorio. Las sustituciones locales de `go.mod` y
 atravesar symlinks. Las sustituciones remotas se conservan sin resolverlas.
 
 El descubrimiento omite `.git`, `vendor`, dependencias instaladas, symlinks y
-exclusiones configuradas. No carga tipos ni dependencias: esa responsabilidad
-pertenece a la fase de carga con `go/packages` y al registro de módulos.
+exclusiones configuradas. La carga semántica recibe los patrones de paquete
+descubiertos de cada módulo, no un `./...` global, para que esas exclusiones
+también rijan durante `go/packages`. El registro no carga tipos ni
+dependencias: esa responsabilidad pertenece a la fase de carga.
 
 ## Registro de módulos Go
 
@@ -125,7 +127,10 @@ manifest y `exports` JSON sin perder su forma original. `types` tiene
 precedencia sobre `typings`; las rutas de declaraciones y exports relativos se
 validan para que permanezcan dentro de la raíz del paquete, pero no se exige
 que los artefactos generados existan todavía. El proyecto TypeScript más
-profundo que contiene el paquete se registra como `ProjectPath`.
+profundo que contiene el paquete se registra como `ProjectPath`; la indexación
+semántica invoca el worker una vez por provider nombrado con proyecto y pasa
+ese path explícitamente. Los manifests sin proyecto no se fuerzan contra el
+`tsconfig` de la raíz.
 
 Las raíces fuente se derivan de `rootDirs`, `rootDir`, `include` y `files` del
 proyecto; si no hay una raíz aplicable se usa la raíz del paquete. Las raíces

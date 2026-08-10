@@ -88,6 +88,22 @@ func TestDiscoverTypeScriptFindsManifestsWorkspacesAndReferences(t *testing.T) {
 	}
 }
 
+func TestDiscoverTypeScriptAcceptsPnpmConfigurationWithoutPackagePatterns(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "pnpm-workspace.yaml"), `
+minimumReleaseAgeExclude:
+  - typescript@7.0.0
+`)
+
+	discovery, err := DiscoverTypeScript(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("DiscoverTypeScript() error = %v", err)
+	}
+	if len(discovery.Workspaces) != 1 || len(discovery.Workspaces[0].Patterns) != 0 {
+		t.Fatalf("workspaces = %#v, want one declaration without patterns", discovery.Workspaces)
+	}
+}
+
 func TestDiscoverTypeScriptSkipsSymlinks(t *testing.T) {
 	root := testsupport.TempDir(t)
 	external := testsupport.TempDir(t)

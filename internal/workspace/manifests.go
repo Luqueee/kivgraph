@@ -123,13 +123,24 @@ func parsePNPMWorkspace(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var document struct {
-		Packages []string `yaml:"packages"`
-	}
+	var document map[string]yaml.Node
 	if err := yaml.Unmarshal(data, &document); err != nil {
 		return nil, fmt.Errorf("parse YAML: %w", err)
 	}
-	return document.Packages, nil
+	node, exists := document["packages"]
+	if !exists {
+		// pnpm permits a workspace file to contain only configuration such as
+		// minimumReleaseAgeExclude; package patterns then use pnpm's defaults.
+		return []string{}, nil
+	}
+	if node.Tag == "!!null" {
+		return nil, nil
+	}
+	var patterns []string
+	if err := node.Decode(&patterns); err != nil {
+		return nil, fmt.Errorf("parse YAML packages: %w", err)
+	}
+	return patterns, nil
 }
 
 func normalizeWorkspacePatterns(root string, patterns []string) ([]string, error) {

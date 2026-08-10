@@ -114,6 +114,23 @@ replace example.com/dep => ./nested
 	}
 }
 
+func TestDiscoverGoHonorsConfiguredExclusions(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "main.go"), "package main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "benchmarks", "invalid.go"), "package invalid\n\nvar _ = missing.Symbol\n")
+
+	discovery, err := DiscoverGo(context.Background(), Repository{
+		RealPath: root, Exclusions: []string{"**/benchmarks"},
+	})
+	if err != nil {
+		t.Fatalf("DiscoverGo() error = %v", err)
+	}
+	if len(discovery.Packages) != 1 || discovery.Packages[0].Directory != root {
+		t.Fatalf("Packages = %#v, want only the repository package", discovery.Packages)
+	}
+}
+
 func TestDiscoverGoRejectsInvalidManifestsAndPackages(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -42,15 +42,17 @@
  * Usage:
  *
  *   pnpm facts <repository-name> <repository-root> <output.json> \
- *     [--provider <name>=<path>]...
+ *     [--project <path>] [--provider <name>=<path>]...
+ *
+ * `--project <path>` selects the project relative to the repository root.
+ * Without it the CLI uses `<repository-root>/tsconfig.json`.
  *
  * `--provider <name>=<path>` declares one provider repository this indexing
  * run may import from: `<name>` is the repository name (as Ladygraph names it,
- * not the npm package name) and `<path>` is its root directory. The CLI
- * derives the provider's package name, version and source/declaration roots
- * by reading `<path>/package.json` and `<path>/tsconfig.json` — the same
- * shape `cross-repository-positive.test.ts` builds by hand for its registry.
- * Repeat the flag once per provider repository.
+ * not the npm package name) and `<path>` is its root directory. The optional
+ * `--provider-project <name>=<path>` selects the provider's project relative to
+ * that provider root. The CLI derives package identity and source/declaration
+ * roots from the selected `package.json` and `tsconfig`.
  *
  * Regenerate the `ts-facts-v4` goldens, from `ts-worker/`:
  *
@@ -273,9 +275,10 @@ export async function collectFacts(
   repositoryName: string,
   repositoryRoot: string,
   registry: PackageProviderRegistry,
+  projectPath?: string,
 ): Promise<FactsPayload> {
   const root = path.resolve(repositoryRoot);
-  const configFileName = path.join(root, "tsconfig.json");
+  const configFileName = resolveProjectPath(root, projectPath);
   const service = LanguageService.create({ cwd: root });
   try {
     await service.openProject(configFileName);
@@ -295,7 +298,11 @@ export async function collectFacts(
     // used for every `--provider` flag, applied to the repository being
     // indexed. Package identity stays authoritative on both ends of a
     // PACKAGE_DEPENDS_ON edge, exactly as decision 1 requires.
-    const consumerProvider = await loadProvider(repositoryName, root);
+    const consumerProvider = await loadProvider(
+      repositoryName,
+      root,
+      configFileName,
+    );
     const dependencyResolution = await resolvePackageDependencies(
       service,
       view,
@@ -344,7 +351,7 @@ export async function collectFacts(
       root,
       dependencyResolution.dependencies,
     );
-    const manifest = await readPackage(root);
+    const manifest = await readPackage(root, configFileName);
     const extendsFacts = extendsFactSymbols(
       root,
       extendsResolution.extends,
@@ -785,8 +792,14 @@ function compareUnresolved(
   );
 }
 
-async function readPackage(root: string): Promise<FactsPayload["package"]> {
-  const manifest = await readManifest(path.join(root, "package.json"));
+async function readPackage(
+  repositoryRoot: string,
+  projectPath: string,
+): Promise<FactsPayload["package"]> {
+  const root = path.resolve(repositoryRoot);
+  const packageRoot = await findPackageRoot(root, projectPath);
+  const manifestPath = path.join(packageRoot, "package.json");
+  const manifest = await readManifest(manifestPath);
   if (manifest === undefined) {
     return null;
   }
@@ -794,9 +807,62 @@ async function readPackage(root: string): Promise<FactsPayload["package"]> {
     name: manifest.name,
     version: manifest.version,
     // Repository relative, so a recorded payload stays portable.
-    rootPath: ".",
-    manifestPath: "package.json",
+    rootPath: relativeOrDot(root, packageRoot),
+    manifestPath: relativeOrDot(root, manifestPath),
   };
+}
+
+function resolveProjectPath(
+  root: string,
+  projectPath: string | undefined,
+): string {
+  const resolved = path.resolve(root, projectPath ?? "tsconfig.json");
+  if (!isWithin(root, resolved)) {
+    throw new Error(
+      `project path ${projectPath ?? "tsconfig.json"} escapes repository root ${root}`,
+    );
+  }
+  return resolved;
+}
+
+async function findPackageRoot(
+  repositoryRoot: string,
+  projectPath: string,
+): Promise<string> {
+  const root = path.resolve(repositoryRoot);
+  let current = path.dirname(path.resolve(projectPath));
+  while (isWithin(root, current)) {
+    if (
+      (await readManifest(path.join(current, "package.json"))) !== undefined
+    ) {
+      return current;
+    }
+    if (current === root) {
+      break;
+    }
+    current = path.dirname(current);
+  }
+  throw new Error(
+    `project ${projectPath} has no valid package.json inside repository root ${root}`,
+  );
+}
+
+function relativeOrDot(root: string, candidate: string): string {
+  const relativePath = path.relative(root, candidate);
+  return relativePath === "" ? "." : relativePath.split(path.sep).join("/");
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  const relativePath = path.relative(
+    path.resolve(root),
+    path.resolve(candidate),
+  );
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith(`..${path.sep}`) &&
+      relativePath !== ".." &&
+      !path.isAbsolute(relativePath))
+  );
 }
 
 /** The subset of a `package.json` the worker ever reads. */
@@ -885,17 +951,20 @@ function stringOption(value: unknown): string | undefined {
 async function loadProvider(
   repository: string,
   rootPath: string,
+  projectPathOverride?: string,
 ): Promise<PackageProvider> {
   const root = path.resolve(rootPath);
-  const manifestPath = path.join(root, "package.json");
+  const projectPath = resolveProjectPath(root, projectPathOverride);
+  const packageRoot = await findPackageRoot(root, projectPath);
+  const manifestPath = path.join(packageRoot, "package.json");
   const manifest = await readManifest(manifestPath);
   if (manifest === undefined) {
     throw new Error(
       `repository ${repository} (${rootPath}): no valid package.json at ${manifestPath}`,
     );
   }
-  const projectPath = path.join(root, "tsconfig.json");
   const compilerOptions = await readCompilerOptions(projectPath);
+  const projectDirectory = path.dirname(projectPath);
   const rootDir = compilerOptions?.rootDir;
   const outDir = compilerOptions?.outDir;
   const declarationDir = compilerOptions?.declarationDir;
@@ -911,13 +980,15 @@ async function loadProvider(
     typesPath:
       manifest.types === undefined
         ? undefined
-        : path.resolve(root, manifest.types),
+        : path.resolve(packageRoot, manifest.types),
     sourceRoots:
-      rootDir === undefined ? undefined : [path.resolve(root, rootDir)],
+      rootDir === undefined
+        ? undefined
+        : [path.resolve(projectDirectory, rootDir)],
     declarationRoots:
       declarationRootDir === undefined
         ? undefined
-        : [path.resolve(root, declarationRootDir)],
+        : [path.resolve(projectDirectory, declarationRootDir)],
     rootDir,
     outDir,
     declarationDir,
@@ -932,6 +1003,7 @@ async function buildRegistry(
     const provider = await loadProvider(
       providerArg.repository,
       providerArg.rootPath,
+      providerArg.projectPath,
     );
     byName.set(provider.name, provider);
   }
@@ -945,26 +1017,29 @@ function relative(root: string, file: string): string {
 interface ProviderArg {
   readonly repository: string;
   readonly rootPath: string;
+  readonly projectPath: string | undefined;
 }
 
 interface CliArgs {
   readonly repositoryName: string;
   readonly repositoryRoot: string;
   readonly output: string;
+  readonly projectPath: string | undefined;
   readonly providers: readonly ProviderArg[];
 }
 
-const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--provider <name>=<path>]...
+const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]...
 
 Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
 
-  --provider <name>=<path>   A provider repository this run may import from.
-                              <name> is the repository name (as Ladygraph names
-                              it, not the npm package name); <path> is its
-                              root directory. package.json and tsconfig.json
-                              under <path> are read to derive the provider's
-                              package name, version and source/declaration
-                              roots. Repeatable.
+  --project <path>            TypeScript project to load, relative to the
+                              repository root. Defaults to <root>/tsconfig.json.
+  --provider <name>=<path>    A provider repository this indexing run may import
+                              from. Repeatable.
+  --provider-project <name>=<path>
+                              TypeScript project for the matching provider
+                              occurrence, relative to that provider repository.
+                              Repeatable; useful for nested workspaces.
 
 Example — regenerate the ts-facts-v4 goldens, from ts-worker/:
 
@@ -972,9 +1047,6 @@ Example — regenerate the ts-facts-v4 goldens, from ts-worker/:
     ../testdata/protocol/ts-facts-v4/shared-library.json
   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \\
     ../testdata/protocol/ts-facts-v4/consumer-a.json \\
-    --provider shared-library=../testdata/typescript/cross-repository/shared-library
-  pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \\
-    ../testdata/protocol/ts-facts-v4/consumer-b.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
 `;
 
@@ -987,23 +1059,75 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
   ) {
     return undefined;
   }
+  let projectPath: string | undefined;
   const providers: ProviderArg[] = [];
+  const providerProjectPaths = new Map<string, string[]>();
   for (let index = 0; index < rest.length; index += 1) {
-    if (rest[index] !== "--provider") {
-      return undefined;
-    }
+    const option = rest[index];
     const value = rest[index + 1];
-    const separator = value === undefined ? -1 : value.indexOf("=");
-    if (value === undefined || separator <= 0) {
+    if (option === "--project") {
+      if (projectPath !== undefined || value === undefined || value === "") {
+        return undefined;
+      }
+      projectPath = value;
+      index += 1;
+      continue;
+    }
+    if (option === "--provider") {
+      const separator = value === undefined ? -1 : value.indexOf("=");
+      if (
+        value === undefined ||
+        separator <= 0 ||
+        separator === value.length - 1
+      ) {
+        return undefined;
+      }
+      providers.push({
+        repository: value.slice(0, separator),
+        rootPath: value.slice(separator + 1),
+        projectPath: undefined,
+      });
+      index += 1;
+      continue;
+    }
+    if (option === "--provider-project") {
+      const separator = value === undefined ? -1 : value.indexOf("=");
+      if (
+        value === undefined ||
+        separator <= 0 ||
+        separator === value.length - 1
+      ) {
+        return undefined;
+      }
+      const repository = value.slice(0, separator);
+      const paths = providerProjectPaths.get(repository) ?? [];
+      paths.push(value.slice(separator + 1));
+      providerProjectPaths.set(repository, paths);
+      index += 1;
+      continue;
+    }
+    return undefined;
+  }
+
+  const assignedProviders = providers.map((provider) => {
+    const paths = providerProjectPaths.get(provider.repository);
+    return {
+      ...provider,
+      projectPath: paths?.shift(),
+    };
+  });
+  for (const paths of providerProjectPaths.values()) {
+    if (paths.length !== 0) {
       return undefined;
     }
-    providers.push({
-      repository: value.slice(0, separator),
-      rootPath: value.slice(separator + 1),
-    });
-    index += 1;
   }
-  return { repositoryName, repositoryRoot, output, providers };
+  return {
+    repositoryName,
+    repositoryRoot,
+    output,
+    projectPath,
+    providers: assignedProviders,
+  };
 }
 
 const cliArgv = process.argv.slice(2);
@@ -1021,6 +1145,7 @@ if (cliArgv.includes("--help") || cliArgv.includes("-h")) {
         args.repositoryName,
         args.repositoryRoot,
         registry,
+        args.projectPath,
       );
       await mkdir(path.dirname(path.resolve(args.output)), {
         recursive: true,

@@ -80,6 +80,31 @@ go 1.22
 	}
 }
 
+func TestBuildPlanUsesDiscoveredPackagePatterns(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := writeModule(t, root, `module example.com/root
+
+go 1.24
+`)
+	benchmarkDirectory := filepath.Join(module, "benchmarks")
+	if err := os.MkdirAll(benchmarkDirectory, 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(benchmarkDirectory, "invalid.go"), []byte("package invalid\n\nvar _ = missing.Symbol\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	plan, err := BuildPlan(context.Background(), []workspace.Repository{{
+		Name: "root", Path: root, RealPath: root, Exclusions: []string{"**/benchmarks"},
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	if len(plan.Modules) != 1 || !equalStrings(plan.Modules[0].PackagePatterns, []string{"example.com/root"}) {
+		t.Fatalf("package patterns = %#v, want only the included package", plan.Modules)
+	}
+}
+
 func TestBuildPlanExcludesUndecidableFacts(t *testing.T) {
 	root := testsupport.TempDir(t)
 	left := writeModule(t, filepath.Join(root, "left"), `module example.com/shared
@@ -129,6 +154,39 @@ replace example.com/pinned => example.com/pinned v2.0.0
 	}
 	if plan.Conflicts[1].Kind != ReplaceConflict || plan.Conflicts[1].Subject != "example.com/pinned" {
 		t.Fatalf("conflicts[1] = %#v", plan.Conflicts[1])
+	}
+}
+
+func TestBuildPlanPreservesDuplicateModulesWithinRepositoryAsConflict(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeModule(t, filepath.Join(root, "unique"), `module example.com/unique
+
+go 1.24
+`)
+	writeModule(t, filepath.Join(root, "duplicate-a"), `module example.com/duplicate
+
+go 1.24
+`)
+	writeModule(t, filepath.Join(root, "duplicate-b"), `module example.com/duplicate
+
+go 1.24
+`)
+
+	plan, err := BuildPlan(context.Background(), []workspace.Repository{{
+		Name: "repo", Path: root, RealPath: root,
+	}}, Options{})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	if got := modulePaths(plan); !equalStrings(got, []string{"example.com/unique"}) {
+		t.Fatalf("modules = %v, want only the unambiguous module", got)
+	}
+	if len(plan.Conflicts) != 1 || plan.Conflicts[0].Kind != AmbiguousModule ||
+		plan.Conflicts[0].Subject != "example.com/duplicate" {
+		t.Fatalf("conflicts = %#v, want one duplicate-module conflict", plan.Conflicts)
+	}
+	if !equalStrings(plan.Conflicts[0].Repositories, []string{"repo"}) {
+		t.Fatalf("conflict repositories = %v, want the declaring repository", plan.Conflicts[0].Repositories)
 	}
 }
 

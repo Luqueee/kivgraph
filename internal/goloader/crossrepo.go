@@ -63,14 +63,18 @@ func NewModuleRegistry(ctx context.Context, repositories []workspace.Repository)
 		if name == "" {
 			return nil, fmt.Errorf("repository %q: name must not be empty", repository.Path)
 		}
-		modules, err := workspace.NewGoModuleRegistry(ctx, repository)
+		discovery, err := workspace.DiscoverGo(ctx, repository)
 		if err != nil {
 			return nil, fmt.Errorf("repository %q Go modules: %w", name, err)
 		}
-		for _, module := range modules.List() {
-			registry.providers[module.ModulePath] = append(registry.providers[module.ModulePath], ModuleProvider{
+		for _, module := range discovery.Modules {
+			modulePath := strings.TrimSpace(module.ModulePath)
+			if modulePath == "" {
+				return nil, fmt.Errorf("repository %q module manifest %q has an empty module path", name, module.ManifestPath)
+			}
+			registry.providers[modulePath] = append(registry.providers[modulePath], ModuleProvider{
 				Repository:   name,
-				ModulePath:   module.ModulePath,
+				ModulePath:   modulePath,
 				RootPath:     module.RootPath,
 				ManifestPath: module.ManifestPath,
 			})
@@ -78,8 +82,12 @@ func NewModuleRegistry(ctx context.Context, repositories []workspace.Repository)
 	}
 	for modulePath := range registry.providers {
 		sort.Slice(registry.providers[modulePath], func(left, right int) bool {
-			return registry.providers[modulePath][left].Repository <
-				registry.providers[modulePath][right].Repository
+			if registry.providers[modulePath][left].Repository != registry.providers[modulePath][right].Repository {
+				return registry.providers[modulePath][left].Repository <
+					registry.providers[modulePath][right].Repository
+			}
+			return registry.providers[modulePath][left].ManifestPath <
+				registry.providers[modulePath][right].ManifestPath
 		})
 	}
 	return registry, nil

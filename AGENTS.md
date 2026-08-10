@@ -76,6 +76,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - Los identificadores que mezclan dominios usan tipos definidos.
 - Los paquetes bajo `internal/` no son API externa estable.
 - Cambiar un símbolo exportado exige revisar todos sus consumidores y tests.
+- `internal/indexer.Full` carga Go mediante los patrones de paquetes producidos
+  por `DiscoverGo`; no sustituirlos por `./...`, porque las `exclusions`
+  configuradas deben seguir siendo efectivas durante `go/packages`.
 
 ## TypeScript
 
@@ -87,6 +90,9 @@ integridad, compatibilidad o verificación descritos aquí.
 - Las promesas rechazadas se clasifican en el límite adecuado; no se ocultan
   con aserciones.
 - No editar `ts-worker/dist` manualmente: regenerarlo con `pnpm build`.
+- La indexación TypeScript procesa providers `package.json` nombrados con
+  `ProjectPath` resuelto; pasa ese path al worker en cada invocación y omite
+  manifests sin proyecto en vez de adivinar el `tsconfig` de la raíz.
 - La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
   Vitest; los payloads binarios grandes permanecen fuera del estado React y
   `web/dist` se regenera con el build de Vite.
