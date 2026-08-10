@@ -45,7 +45,7 @@ From a checkout, the same installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-LADYGRAPH_VERSION=v0.1.0 ./scripts/install.sh
+LADYGRAPH_VERSION=v0.4.0 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
@@ -72,6 +72,43 @@ ladygraph update
 The update is atomic, preserves the configuration and graph state, verifies
 the release and bundle checksums, and replaces only the installed bundle.
 Restart the MCP client after updating so it launches the new binary.
+
+When `ladygraph` is invoked without a command from an interactive terminal, it
+checks for a newer release with an 800 ms timeout and a 24-hour cache in the
+platform cache directory (`$XDG_CACHE_HOME` on Linux and
+`$HOME/Library/Caches` on macOS), under `ladygraph/update-check.json`.
+The optional check never blocks the command when the network is unavailable.
+
+Interactive command output uses semantic ANSI colors when the destination is a
+terminal. Set `NO_COLOR` or redirect output to keep it plain.
+
+### Configure an MCP client and install the skill
+
+The installer does not edit client configuration automatically. Register the
+server explicitly for one target and scope:
+
+```bash
+ladygraph mcp install --target claude-code --scope user
+ladygraph skill install --target claude-code --scope user
+```
+
+Supported MCP targets are `claude-code`, `claude-desktop`, `codex`, `opencode`,
+and `oh-my-pi`. Supported skill targets are `claude-code`, `codex`, `opencode`,
+and `oh-my-pi`; Claude Desktop has no local skill target. The default scope is
+`user`; use `--scope project` for the project-local path. Use `--dry-run` to
+inspect a plan without writing. Existing incompatible entries stop with an
+error; `--force` is required to replace or remove one. Existing files are
+written atomically with mode `0600` and receive a
+`*.ladygraph.bak` backup before replacement or removal.
+
+Inspect or remove a registration explicitly:
+
+```bash
+ladygraph mcp status --target claude-code --scope user
+ladygraph mcp remove --target claude-code --scope user
+ladygraph skill status --target claude-code --scope user
+ladygraph skill remove --target claude-code --scope user
+```
 
 Initialize and publish a graph before starting the MCP server:
 

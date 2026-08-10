@@ -175,6 +175,7 @@ mkdir -p \
   "$output_dir/lib" \
   "$output_dir/grammars" \
   "$output_dir/licenses/third-party" \
+  "$output_dir/skills/ladygraph" \
   "$output_dir/worker/node_modules"
 
 printf 'build-bundle: installing worker dependencies\n' >&2
@@ -270,6 +271,7 @@ install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
 install -m 0644 "$root/THIRD_PARTY_NOTICES.md" "$output_dir/licenses/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$root/docs/dependencies/ladybugdb.md" "$output_dir/licenses/ladybugdb-provenance.md"
 install -m 0644 "$root/grammars/manifest.json" "$output_dir/grammars/manifest.json"
+install -m 0644 "$root/internal/integrations/assets/ladygraph/SKILL.md" "$output_dir/skills/ladygraph/SKILL.md"
 typescript_package_dir=$(cd "$root/ts-worker/node_modules/typescript" && pwd -P)
 typescript_platform_dir="$(dirname "$typescript_package_dir")/@typescript"
 [[ -d "$typescript_platform_dir" ]] ||
@@ -322,7 +324,7 @@ if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; 
 fi
 grammar_sha256=$(sha256_of "$output_dir/grammars/manifest.json")
 ladybug_sha256=$(sha256_of "$output_dir/lib/$native_library_name")
-artifact_dirs=(bin lib worker grammars licenses)
+artifact_dirs=(bin lib worker grammars licenses skills)
 if [[ "$web_assets" == true ]]; then
   artifact_dirs+=(web)
 fi

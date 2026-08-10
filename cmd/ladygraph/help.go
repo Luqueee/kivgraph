@@ -62,6 +62,17 @@ var commandGroups = []commandGroup{
 		},
 	},
 	{
+		title: "Integrations",
+		commands: []commandEntry{
+			{"mcp install --target TARGET [--scope user|project]", "Register the local MCP server in a client"},
+			{"mcp status --target TARGET [--scope user|project]", "Inspect a client MCP registration"},
+			{"mcp remove --target TARGET [--scope user|project]", "Remove only Ladygraph's MCP registration"},
+			{"skill install --target TARGET [--scope user|project]", "Install the Ladygraph Agent Skill"},
+			{"skill status --target TARGET [--scope user|project]", "Inspect the installed Agent Skill"},
+			{"skill remove --target TARGET [--scope user|project]", "Remove only Ladygraph's Agent Skill"},
+		},
+	},
+	{
 		title: "Pipeline",
 		commands: []commandEntry{
 			{"rebuild --facts PATH --root PATH ...", "Publish a generation from a fact set"},
@@ -73,9 +84,13 @@ var commandGroups = []commandGroup{
 // style carries the escape sequences to use, empty when the destination is not
 // a terminal, so a redirected or piped help stays plain text.
 type style struct {
-	bold  string
-	dim   string
-	reset string
+	bold    string
+	dim     string
+	accent  string
+	success string
+	warning string
+	error   string
+	reset   string
 }
 
 func styleFor(writer io.Writer) style {
@@ -86,7 +101,15 @@ func styleFor(writer io.Writer) style {
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
 		return style{}
 	}
-	return style{bold: "\x1b[1m", dim: "\x1b[2m", reset: "\x1b[0m"}
+	return style{
+		bold:    "\x1b[1m",
+		dim:     "\x1b[2m",
+		accent:  "\x1b[36m",
+		success: "\x1b[32m",
+		warning: "\x1b[33m",
+		error:   "\x1b[31m",
+		reset:   "\x1b[0m",
+	}
 }
 
 // isTerminal reports whether a person is reading this stream.
@@ -122,8 +145,38 @@ func writeHelp(writer io.Writer, program string) {
 // writeUsageError states the mistake in one line and points at the help,
 // instead of repeating the whole surface at someone who mistyped.
 func writeUsageError(writer io.Writer, program, problem string) {
-	fmt.Fprintf(writer, "%s: %s\n", program, problem)
-	fmt.Fprintf(writer, "Run \"%s --help\" to see the available commands.\n", program)
+	paint := styleFor(writer)
+	fmt.Fprintf(writer, "%s%s%s: %s%s\n", paint.error, program, paint.reset, problem, paint.reset)
+	fmt.Fprintf(writer, "%sRun \"%s --help\" to see the available commands.%s\n",
+		paint.dim, program, paint.reset)
+}
+
+func writeInfo(writer io.Writer, format string, arguments ...any) {
+	paint := styleFor(writer)
+	fmt.Fprintf(writer, "%s%s%s\n", paint.accent, fmt.Sprintf(format, arguments...), paint.reset)
+}
+
+func writeSuccess(writer io.Writer, format string, arguments ...any) {
+	paint := styleFor(writer)
+	fmt.Fprintf(writer, "%s%s%s\n", paint.success, fmt.Sprintf(format, arguments...), paint.reset)
+}
+
+func writeWarning(writer io.Writer, format string, arguments ...any) {
+	paint := styleFor(writer)
+	fmt.Fprintf(writer, "%s%s%s\n", paint.warning, fmt.Sprintf(format, arguments...), paint.reset)
+}
+
+func writeCommandError(writer io.Writer, format string, arguments ...any) {
+	paint := styleFor(writer)
+	fmt.Fprintf(writer, "%s%s%s\n", paint.error, fmt.Sprintf(format, arguments...), paint.reset)
+}
+
+func writeResult(writer io.Writer, passed bool, format string, arguments ...any) {
+	if passed {
+		writeSuccess(writer, format, arguments...)
+		return
+	}
+	writeCommandError(writer, format, arguments...)
 }
 
 // parseCommandFlags parses one subcommand's flags.
@@ -141,7 +194,7 @@ func parseCommandFlags(name string, flags *flag.FlagSet, args []string, stdout, 
 		writeCommandHelp(stdout, name, flags)
 		return false, 0
 	default:
-		fmt.Fprintf(stderr, "%s: %v\n", name, err)
+		writeCommandError(stderr, "%s: %v", name, err)
 		writeCommandHelp(stderr, name, flags)
 		return false, 2
 	}

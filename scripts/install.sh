@@ -15,7 +15,7 @@ Environment:
   LADYGRAPH_INSTALL_ROOT  Bundle directory (default: ~/.local/opt/ladygraph)
   LADYGRAPH_BIN_DIR        Launcher directory (default: ~/.local/bin)
   LADYGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Luqueee/ladygraph)
-  LADYGRAPH_VERSION        Pin a release tag such as v0.1.0 instead of latest
+  LADYGRAPH_VERSION        Pin a release tag such as vX.Y.Z instead of latest
   LADYGRAPH_GITHUB_TOKEN   Optional token for a private GitHub repository
 EOF
 }

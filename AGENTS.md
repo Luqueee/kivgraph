@@ -321,6 +321,18 @@ integridad, compatibilidad o verificación descritos aquí.
 - `internal/procstat` es el único lugar que lee estadísticas de proceso del
   sistema operativo; `0` significa desconocido.
 
+## Integraciones de clientes
+
+- `ladygraph mcp install` y `ladygraph skill install` solo escriben el target y
+  el ámbito explícitos; no inicializan Ladygraph ni indexan repositorios.
+- Los adaptadores externos validan JSON/TOML antes de modificarlo, rechazan
+  destinos symlink, escriben atómicamente con `0600` y exigen `--force` para
+  sustituir o retirar una entrada incompatible. Las entradas idempotentes no
+  reescriben el archivo.
+- La skill canónica vive en
+  `internal/integrations/assets/ladygraph/SKILL.md`; los bundles deben
+  incluirla bajo `skills/ladygraph/SKILL.md` y en `SHA256SUMS`.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance:

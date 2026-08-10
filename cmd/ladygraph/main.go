@@ -98,6 +98,13 @@ func main() {
 		return
 	}
 
+	// A release notice is deliberately limited to the bare interactive
+	// invocation. It is cached and time-bounded so commands and scripts never
+	// acquire a network dependency.
+	if len(os.Args) == 1 && isTerminal(os.Stderr) {
+		writeUpdateNotice(os.Stderr)
+	}
+
 	// A one-shot command reports to whoever is listening: plain text for the
 	// operator at a terminal, the structured record other tooling parses when
 	// stderr is a pipe or a file. serve and ui above always log structurally,
@@ -110,6 +117,19 @@ func main() {
 		logger.Error("command failed", "command", "cli", "exit_code", exitCode)
 	}
 	os.Exit(exitCode)
+}
+
+func writeUpdateNotice(stderr io.Writer) {
+	result, err := update.CheckNotice(context.Background(), update.NoticeOptions{
+		APIBaseURL:     os.Getenv("LADYGRAPH_UPDATE_API_URL"),
+		CurrentVersion: version.Value,
+		Token:          os.Getenv("LADYGRAPH_GITHUB_TOKEN"),
+	})
+	if err != nil || !result.UpdateAvailable {
+		return
+	}
+	writeWarning(stderr, "ladygraph update available: %s -> %s; run \"ladygraph update\" to install it",
+		result.CurrentVersion, result.LatestVersion)
 }
 
 // runServe owns the MCP loop through the application lifecycle. MCP's stdio
@@ -307,6 +327,12 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if len(args) >= 2 && args[1] == "update" {
 		return runUpdate(args[2:], stdout, stderr)
 	}
+	if len(args) >= 2 && args[1] == "mcp" {
+		return runMCPCommand(args[2:], stdout, stderr)
+	}
+	if len(args) >= 2 && args[1] == "skill" {
+		return runSkillCommand(args[2:], stdout, stderr)
+	}
 	if len(args) >= 2 && args[1] == "init" {
 		return runInit(args[2:], stdout, stderr)
 	}
@@ -317,7 +343,7 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 		return runIndexFull(args[3:], stdout, stderr)
 	}
 	if len(args) >= 2 && args[1] == "index" {
-		fmt.Fprintln(stderr, "index: only --full is supported")
+		writeCommandError(stderr, "index: only --full is supported")
 		return 2
 	}
 	if len(args) >= 3 && args[1] == "doctor" && args[2] == "storage" {
@@ -373,7 +399,7 @@ func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateR
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "update: unexpected arguments")
+		writeCommandError(stderr, "update: unexpected arguments")
 		return 2
 	}
 	result, err := runner(context.Background(), update.Options{
@@ -383,22 +409,22 @@ func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateR
 		CheckOnly:      checkOnly,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "update: %v\n", err)
+		writeCommandError(stderr, "update: %v", err)
 		return 1
 	}
 	if !result.UpdateAvailable {
-		fmt.Fprintf(stdout, "ladygraph is up to date (%s)\n", result.CurrentVersion)
+		writeSuccess(stdout, "ladygraph is up to date (%s)", result.CurrentVersion)
 		return 0
 	}
 	if checkOnly {
-		fmt.Fprintf(stdout, "ladygraph update available: %s -> %s\n", result.CurrentVersion, result.LatestVersion)
+		writeInfo(stdout, "ladygraph update available: %s -> %s", result.CurrentVersion, result.LatestVersion)
 		return 0
 	}
 	if !result.Updated {
-		fmt.Fprintf(stderr, "update: release %s was not installed\n", result.LatestVersion)
+		writeCommandError(stderr, "update: release %s was not installed", result.LatestVersion)
 		return 1
 	}
-	fmt.Fprintf(stdout, "ladygraph updated: %s -> %s\n", result.CurrentVersion, result.LatestVersion)
+	writeSuccess(stdout, "ladygraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
 	return 0
 }
 
@@ -433,7 +459,7 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "init: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "init: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
@@ -443,34 +469,34 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 		Force:            force,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "init: %v\n", err)
+		writeCommandError(stderr, "init: %v", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "config: %s (%s)\n", initFileState(result.ConfigCreated), result.ConfigPath)
-	fmt.Fprintf(stdout, "repositories: %s (%s)\n", initFileState(result.RepositoriesCreated), result.RepositoriesPath)
+	writeInfo(stdout, "config: %s (%s)", initFileState(result.ConfigCreated), result.ConfigPath)
+	writeInfo(stdout, "repositories: %s (%s)", initFileState(result.RepositoriesCreated), result.RepositoriesPath)
 
 	if len(repositorySpecs) == 0 {
 		return 0
 	}
 	parsedLanguages, err := parseLanguages(languages)
 	if err != nil {
-		fmt.Fprintf(stderr, "init: %v\n", err)
+		writeCommandError(stderr, "init: %v", err)
 		return 2
 	}
 	additions := make([]config.Repository, 0, len(repositorySpecs))
 	for _, specification := range repositorySpecs {
 		repository, err := parseRepositorySpec(specification, parsedLanguages)
 		if err != nil {
-			fmt.Fprintf(stderr, "init: %v\n", err)
+			writeCommandError(stderr, "init: %v", err)
 			return 2
 		}
 		additions = append(additions, repository)
 	}
 	if err := config.RegisterRepositories(result.RepositoriesPath, additions); err != nil {
-		fmt.Fprintf(stderr, "init: register repositories: %v\n", err)
+		writeCommandError(stderr, "init: register repositories: %v", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "repositories registered: %d\n", len(additions))
+	writeSuccess(stdout, "repositories registered: %d", len(additions))
 	return 0
 }
 
@@ -528,31 +554,31 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "index --full: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "index --full: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
 	ctx := context.Background()
 	loaded, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "index --full: load configuration: %v\n", err)
+		writeCommandError(stderr, "index --full: load configuration: %v", err)
 		return 1
 	}
 	if repositoriesPath != "" {
 		loaded.Repositories, err = config.LoadRepositories(repositoriesPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "index --full: load repositories: %v\n", err)
+			writeCommandError(stderr, "index --full: load repositories: %v", err)
 			return 1
 		}
 	}
 	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
 	if err != nil {
-		fmt.Fprintf(stderr, "index --full: register repositories: %v\n", err)
+		writeCommandError(stderr, "index --full: register repositories: %v", err)
 		return 1
 	}
 	workingDirectory, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(stderr, "index --full: resolve working directory: %v\n", err)
+		writeCommandError(stderr, "index --full: resolve working directory: %v", err)
 		return 1
 	}
 	progressStart := time.Now()
@@ -570,12 +596,12 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 			writeIndexProgress(stderr, progressStart, event)
 		},
 		RebuildProgress: func(stage rebuild.StageName) {
-			fmt.Fprintf(stderr, "[%6.1fs] rebuild %s\n", time.Since(progressStart).Seconds(), stage)
+			writeInfo(stderr, "[%6.1fs] rebuild %s", time.Since(progressStart).Seconds(), stage)
 		},
 	})
 	indexReport := fullResult.IndexReport
-	fmt.Fprintf(stdout, "index.full: %s\n", passFail(err == nil))
-	fmt.Fprintf(stdout, "index.go: repositories=%d modules=%d loads=%d definitions=%d references=%d unresolved=%d\n",
+	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
+	writeInfo(stdout, "index.go: repositories=%d modules=%d loads=%d definitions=%d references=%d unresolved=%d",
 		indexReport.GoRepositories,
 		indexReport.GoModules,
 		indexReport.GoLoads,
@@ -583,23 +609,23 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		indexReport.GoReferences,
 		indexReport.GoUnresolved,
 	)
-	fmt.Fprintf(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d\n",
+	writeInfo(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
 		indexReport.TypeScriptRepositories,
 		indexReport.TypeScriptSymbols,
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
 	rebuildReport := fullResult.RebuildReport
-	fmt.Fprintf(stdout, "rebuild: %s generation=%s\n", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
+	writeResult(stdout, err == nil && rebuildReport.Passed, "rebuild: %s generation=%s", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
 	for _, stage := range rebuildReport.Stages {
-		fmt.Fprintf(stdout, "stage.%s: %s", stage.Name, passFail(stage.Passed))
-		if stage.Detail != "" {
-			fmt.Fprintf(stdout, " (%s)", stage.Detail)
+		if stage.Detail == "" {
+			writeResult(stdout, stage.Passed, "stage.%s: %s", stage.Name, passFail(stage.Passed))
+			continue
 		}
-		fmt.Fprintln(stdout)
+		writeResult(stdout, stage.Passed, "stage.%s: %s (%s)", stage.Name, passFail(stage.Passed), stage.Detail)
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "index --full: %v\n", err)
+		writeCommandError(stderr, "index --full: %v", err)
 		return 1
 	}
 	return 0
@@ -624,10 +650,10 @@ func writeIndexProgress(stderr io.Writer, start time.Time, event indexer.Progres
 		state = "start"
 	}
 	if event.Detail == "" {
-		fmt.Fprintf(stderr, "[%6.1fs]%s %s %s\n", elapsed, position, subject, state)
+		writeInfo(stderr, "[%6.1fs]%s %s %s", elapsed, position, subject, state)
 		return
 	}
-	fmt.Fprintf(stderr, "[%6.1fs]%s %s %s (%s)\n", elapsed, position, subject, state, event.Detail)
+	writeInfo(stderr, "[%6.1fs]%s %s %s (%s)", elapsed, position, subject, state, event.Detail)
 }
 
 func runUpgrade(args []string, stdout, stderr io.Writer) int {
@@ -642,31 +668,31 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "upgrade: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "upgrade: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
 	ctx := context.Background()
 	loaded, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "upgrade: load configuration: %v\n", err)
+		writeCommandError(stderr, "upgrade: load configuration: %v", err)
 		return 1
 	}
 	if repositoriesPath != "" {
 		loaded.Repositories, err = config.LoadRepositories(repositoriesPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "upgrade: load repositories: %v\n", err)
+			writeCommandError(stderr, "upgrade: load repositories: %v", err)
 			return 1
 		}
 	}
 	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
 	if err != nil {
-		fmt.Fprintf(stderr, "upgrade: register repositories: %v\n", err)
+		writeCommandError(stderr, "upgrade: register repositories: %v", err)
 		return 1
 	}
 	workingDirectory, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(stderr, "upgrade: resolve working directory: %v\n", err)
+		writeCommandError(stderr, "upgrade: resolve working directory: %v", err)
 		return 1
 	}
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
@@ -683,21 +709,21 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		},
 	})
 	for _, stage := range report.Stages {
-		fmt.Fprintf(stdout, "upgrade.%s: %s", stage.Name, passFail(stage.Passed))
-		if stage.Detail != "" {
-			fmt.Fprintf(stdout, " (%s)", stage.Detail)
+		if stage.Detail == "" {
+			writeResult(stdout, stage.Passed, "upgrade.%s: %s", stage.Name, passFail(stage.Passed))
+			continue
 		}
-		fmt.Fprintln(stdout)
+		writeResult(stdout, stage.Passed, "upgrade.%s: %s (%s)", stage.Name, passFail(stage.Passed), stage.Detail)
 	}
 	if report.BackupPath != "" {
-		fmt.Fprintf(stdout, "upgrade.backup: %s\n", report.BackupPath)
+		writeInfo(stdout, "upgrade.backup: %s", report.BackupPath)
 	}
 	if report.To.ID != "" {
-		fmt.Fprintf(stdout, "upgrade.generation: %s\n", report.To.ID)
+		writeInfo(stdout, "upgrade.generation: %s", report.To.ID)
 	}
-	fmt.Fprintf(stdout, "upgrade: %s\n", passFail(err == nil && report.Passed))
+	writeResult(stdout, err == nil && report.Passed, "upgrade: %s", passFail(err == nil && report.Passed))
 	if err != nil {
-		fmt.Fprintf(stderr, "upgrade: %v\n", err)
+		writeCommandError(stderr, "upgrade: %v", err)
 		return 1
 	}
 	return 0
@@ -718,23 +744,23 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "doctor: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "doctor: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
 	loaded, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(stdout, "config: FAIL (%v)\n", err)
-		fmt.Fprintln(stdout, "doctor: FAIL")
+		writeResult(stdout, false, "config: FAIL (%v)", err)
+		writeResult(stdout, false, "doctor: FAIL")
 		return 1
 	}
 	failed := false
 	doctorResult := func(name string, passed bool, detail string) {
-		fmt.Fprintf(stdout, "%s: %s", name, passFail(passed))
-		if detail != "" {
-			fmt.Fprintf(stdout, " (%s)", detail)
+		if detail == "" {
+			writeResult(stdout, passed, "%s: %s", name, passFail(passed))
+		} else {
+			writeResult(stdout, passed, "%s: %s (%s)", name, passFail(passed), detail)
 		}
-		fmt.Fprintln(stdout)
 		if !passed {
 			failed = true
 		}
@@ -806,10 +832,10 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if failed {
-		fmt.Fprintln(stdout, "doctor: FAIL")
+		writeResult(stdout, false, "doctor: FAIL")
 		return 1
 	}
-	fmt.Fprintln(stdout, "doctor: PASS")
+	writeResult(stdout, true, "doctor: PASS")
 	return 0
 }
 
