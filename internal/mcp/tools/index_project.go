@@ -53,9 +53,17 @@ func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer
 			Languages: arguments.Languages,
 		})
 		if err != nil {
+			// This tool fails on the caller's own configuration: a
+			// module that needs a newer toolchain, a path that is not
+			// a repository, a dependency the module cache does not
+			// hold. The stable code still leads the message, but the
+			// observed cause travels with it: the transport renders
+			// the error as text, so anything left in a side channel
+			// forces an operator to reproduce the whole run on the
+			// CLI to read one line.
 			return nil, indexing.ProjectResult{}, WrapToolError(
 				CodeIndexingFailed,
-				"project indexing failed",
+				"project indexing failed: "+err.Error(),
 				err,
 			)
 		}

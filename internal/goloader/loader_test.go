@@ -317,6 +317,29 @@ func TestToolchainSkewAdvisoryDoesNotBlock(t *testing.T) {
 	}
 }
 
+// Indexing is hermetic by default: a module the local cache does not hold is
+// reported, not fetched. A multi-repository workspace resolves one shared
+// build list, so the caller must be able to lift that.
+func TestLoadEnvironmentIsHermeticUnlessNetworkIsAllowed(t *testing.T) {
+	hermetic, err := loadEnvironment(Options{})
+	if err != nil {
+		t.Fatalf("loadEnvironment() error = %v", err)
+	}
+	if !containsAll(hermetic, []string{"GOPROXY=off", "GOFLAGS=-mod=readonly"}) {
+		t.Fatalf("hermetic environment lost its proxy and mod guards")
+	}
+
+	networked, err := loadEnvironment(Options{AllowNetwork: true})
+	if err != nil {
+		t.Fatalf("loadEnvironment(AllowNetwork) error = %v", err)
+	}
+	for _, entry := range networked {
+		if entry == "GOPROXY=off" {
+			t.Fatalf("AllowNetwork must not disable the module proxy")
+		}
+	}
+}
+
 func buildWorkspace(t *testing.T, root string, directories ...string) string {
 	t.Helper()
 	repositories := make([]workspace.Repository, 0, len(directories))

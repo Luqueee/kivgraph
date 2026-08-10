@@ -105,6 +105,41 @@ configuración y por tanto ningún símbolo al grafo.
 - Indexar este repositorio requiere `go.build_tags: [ladybug]`; sin él la capa
   de almacenamiento nativo queda fuera del grafo y así se declara.
 
+### Techo de versión del lenguaje Go
+
+`go/types` viaja enlazado dentro del binario, así que Ladygraph solo puede
+comprobar tipos hasta la versión del lenguaje del toolchain que lo compiló.
+
+- El `go.work` sintético declara la versión más alta de sus miembros y el
+  comando `go` selecciona un toolchain acorde. Un módulo registrado por encima
+  del techo haría fallar la carga de **todos** los repositorios dentro de la
+  biblioteca estándar de ese toolchain, señalando un archivo que nadie
+  registró.
+- Por eso `goworkspace.BuildPlan` rechaza el plan antes de escribirlo, con
+  `ErrGoVersionUnsupported`, nombrando repositorio, módulo y versión exigida.
+  La pasada se rechaza entera: publicar una generación a la que le falta en
+  silencio un repositorio registrado es peor que no publicarla.
+- El techo es `major.minor`: una release de parche no añade features del
+  lenguaje.
+- La salida es rebuild de Ladygraph con ese toolchain, o retirar `go` de los
+  lenguajes de ese repositorio.
+- Un diagnóstico `file requires newer Go version` proveniente de una
+  dependencia se acompaña de la versión con la que este binario comprueba
+  tipos, porque no hay nada que el repositorio pueda cambiar.
+
+### Resolución de módulos en un workspace multi-repositorio
+
+El `go.work` sintético resuelve una única lista de build para todos los
+repositorios, así que la MVS puede seleccionar versiones que ningún miembro
+descargó por su cuenta. Con `GOPROXY=off` esa selección falla y rompe el
+índice de todos a la vez.
+
+- La indexación es hermética por defecto: un módulo ausente del caché local se
+  reporta, no se descarga.
+- `go.allow_network: true` levanta esa restricción para el comando `go`. Es la
+  salida cuando el conjunto de repositorios registrados cambia de
+  dependencias.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

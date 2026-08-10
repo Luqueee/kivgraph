@@ -22,7 +22,9 @@ type FullOptions struct {
 	SyntheticWorkFile string
 	IncludeTests      bool
 	// GoBuildTags are the build constraints every Go load satisfies.
-	GoBuildTags      []string
+	GoBuildTags []string
+	// GoAllowNetwork lets the Go loads reach a module proxy.
+	GoAllowNetwork   bool
 	TypeScriptWorker string
 	WorkingDirectory string
 	Root             string
@@ -72,6 +74,7 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		SyntheticWorkFile: options.SyntheticWorkFile,
 		IncludeTests:      options.IncludeTests,
 		GoBuildTags:       options.GoBuildTags,
+		GoAllowNetwork:    options.GoAllowNetwork,
 		TypeScriptWorker:  options.TypeScriptWorker,
 		WorkingDirectory:  options.WorkingDirectory,
 		Progress:          options.Progress,

@@ -84,6 +84,16 @@ integridad, compatibilidad o verificación descritos aquí.
   índice: se declara como `UNRESOLVED` con razón `PACKAGE_NOT_BUILDABLE` y la
   pasada continúa. Cualquier otro diagnóstico del cargador sigue abortándola.
   Indexar este repositorio exige el tag `ladybug`.
+- `go/types` viaja enlazado en el binario: Ladygraph solo comprueba tipos hasta
+  la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
+  por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
+  repositorio, módulo y versión; nunca se deja que el `go.work` sintético
+  escale el toolchain y reviente la carga de todos los repositorios dentro de
+  la biblioteca estándar. El techo es `major.minor`.
+- El `go.work` sintético resuelve una sola lista de build para todos los
+  repositorios. La indexación es hermética por defecto y `go.allow_network` es
+  la única salida declarada cuando la MVS del conjunto selecciona un módulo
+  ausente del caché local.
 
 ## TypeScript
 

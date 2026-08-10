@@ -129,6 +129,12 @@ type GoConfig struct {
 	// package guarded by a tag that is absent here contributes no symbol to
 	// the graph and is reported as unresolved.
 	BuildTags []string `yaml:"build_tags"`
+	// AllowNetwork lets the go command reach a module proxy while loading.
+	// Indexing is hermetic by default: a module the local cache does not
+	// hold is reported, not fetched. A multi-repository workspace resolves
+	// one shared build list, so its selection can need a version no member
+	// downloaded on its own.
+	AllowNetwork bool `yaml:"allow_network"`
 }
 
 // TelemetryConfig controls metrics and tracing.

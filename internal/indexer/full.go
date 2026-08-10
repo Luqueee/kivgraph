@@ -52,7 +52,10 @@ type FullOptions struct {
 	// GoBuildTags are the build constraints the Go loads satisfy. A package
 	// guarded by a tag that is absent here declares no file to read and is
 	// reported as unresolved instead of indexed.
-	GoBuildTags      []string
+	GoBuildTags []string
+	// GoAllowNetwork lets the Go loads reach a module proxy. Indexing is
+	// hermetic by default.
+	GoAllowNetwork   bool
 	TypeScriptWorker string
 	WorkingDirectory string
 
@@ -159,6 +162,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 					Patterns:     append([]string(nil), module.PackagePatterns...),
 					IncludeTests: options.IncludeTests,
 					BuildTags:    append([]string(nil), options.GoBuildTags...),
+					AllowNetwork: options.GoAllowNetwork,
 				})
 				report.GoLoads++
 				if err != nil {
@@ -168,7 +172,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 				report.GoLoadDiagnostics += len(load.Errors) - len(blocking)
 				if len(blocking) != 0 {
 					report.GoLoadErrors += len(blocking)
-					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q reported diagnostics: %s", module.ModulePath, repository.Name, formatPackageErrors(blocking))
+					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q reported diagnostics: %s%s",
+						module.ModulePath, repository.Name, formatPackageErrors(blocking), toolchainHint(blocking))
 				}
 				definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
 				if err != nil {
@@ -398,6 +403,21 @@ func formatPackageErrors(errors []goloader.PackageError) string {
 	return strings.Join(parts, "; ")
 }
 
+// toolchainHint explains a diagnostic that no repository can act on: go/types
+// is linked into this binary, so a dependency written for a newer language
+// version is unreadable no matter what the repository declares.
+func toolchainHint(errors []goloader.PackageError) string {
+	for _, failure := range errors {
+		if !strings.Contains(failure.Message, "file requires newer Go version") {
+			continue
+		}
+		return fmt.Sprintf(
+			" (this build type-checks with go %s; rebuild Ladygraph with a toolchain at least as new as the sources it must read)",
+			goworkspace.LanguageVersion())
+	}
+	return ""
+}
+
 func mergeSets(destination *facts.Set, source facts.Set) {
 	languages := make(map[string][]facts.Language)
 	for _, repository := range destination.Repositories {
@@ -408,17 +428,20 @@ func mergeSets(destination *facts.Set, source facts.Set) {
 	}
 	destination.Merge(source)
 	for index := range destination.Repositories {
+		// Merge already carried the languages of both sides into the
+		// record, so the deduplicated union replaces them. Appending it
+		// would keep every language once per merged fact set.
 		seen := make(map[facts.Language]struct{})
+		union := make([]facts.Language, 0, len(languages[destination.Repositories[index].Key]))
 		for _, language := range languages[destination.Repositories[index].Key] {
 			if _, exists := seen[language]; exists {
 				continue
 			}
 			seen[language] = struct{}{}
-			destination.Repositories[index].Languages = append(destination.Repositories[index].Languages, language)
+			union = append(union, language)
 		}
-		sort.Slice(destination.Repositories[index].Languages, func(left, right int) bool {
-			return destination.Repositories[index].Languages[left] < destination.Repositories[index].Languages[right]
-		})
+		sort.Slice(union, func(left, right int) bool { return union[left] < union[right] })
+		destination.Repositories[index].Languages = union
 	}
 }
 

@@ -2,12 +2,15 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/goworkspace"
 	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
@@ -161,6 +164,68 @@ func Tagged() string { return "tagged" }
 	}
 	if !indexed {
 		t.Fatalf("symbols = %d, want the tagged package indexed", len(set.Symbols))
+	}
+}
+
+// A repository written for a newer Go than this build can type-check must fail
+// the pass by name. Publishing a generation that silently lacks a registered
+// repository is worse than refusing to publish one.
+func TestFullRejectsARepositoryAboveTheSupportedLanguageVersion(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/future\n\ngo 1.99.0\n")
+	writeFullFixture(t, filepath.Join(root, "fixture.go"), "package fixture\n\nfunc Greeting() string { return \"hello\" }\n")
+
+	_, _, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{{
+			Name: "future", Path: root, RealPath: root, Languages: []string{"go"},
+		}},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err == nil {
+		t.Fatal("Full() error = nil, want the unsupported language version reported")
+	}
+	if !errors.Is(err, goworkspace.ErrGoVersionUnsupported) {
+		t.Fatalf("Full() error = %v, want ErrGoVersionUnsupported", err)
+	}
+	for _, want := range []string{"future", "1.99.0"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Full() error = %q, want it to name %q", err, want)
+		}
+	}
+}
+
+// A repository indexed by several passes -- one per Go module, plus
+// TypeScript -- must still declare each language once. The merge carries the
+// languages of both sides, so a union appended on top of them multiplies every
+// entry by the number of merged fact sets, and the count reaches the published
+// snapshot.
+func TestFullReportsEachRepositoryLanguageOnce(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/multi\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(root, "fixture.go"), "package fixture\n\nfunc Greeting() string { return \"hello\" }\n")
+	writeFullFixture(t, filepath.Join(root, "tools", "go.mod"), "module example.com/multi/tools\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(root, "tools", "tool.go"), "package tools\n\nfunc Name() string { return \"tool\" }\n")
+
+	set, _, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{{
+			Name: "multi", Path: root, RealPath: root, Languages: []string{"go"},
+		}},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if len(set.Repositories) != 1 {
+		t.Fatalf("repositories = %#v, want one", set.Repositories)
+	}
+	seen := make(map[facts.Language]int)
+	for _, language := range set.Repositories[0].Languages {
+		seen[language]++
+	}
+	for language, count := range seen {
+		if count != 1 {
+			t.Fatalf("language %q declared %d times: %#v", language, count, set.Repositories[0].Languages)
+		}
 	}
 }
 

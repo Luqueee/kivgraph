@@ -80,6 +80,68 @@ go 1.22
 	}
 }
 
+// A module written for a newer Go than this build can type-check must be named
+// here. The workspace claims the highest version of its members, so the go
+// command would select a toolchain whose standard library go/types cannot
+// read, and every repository would fail on a file nobody registered.
+func TestBuildPlanRejectsAModuleAboveTheSupportedLanguageVersion(t *testing.T) {
+	root := testsupport.TempDir(t)
+	current := writeModule(t, filepath.Join(root, "current"), `module example.com/current
+
+go 1.24
+`)
+	future := writeModule(t, filepath.Join(root, "future"), `module example.com/future
+
+go 1.99.0
+`)
+
+	_, err := BuildPlan(context.Background(), []workspace.Repository{
+		{Name: "current", Path: current, RealPath: current},
+		{Name: "future", Path: future, RealPath: future},
+	}, Options{})
+	if !errors.Is(err, ErrGoVersionUnsupported) {
+		t.Fatalf("BuildPlan() error = %v, want ErrGoVersionUnsupported", err)
+	}
+	for _, want := range []string{"future", "example.com/future", "1.99.0"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want it to name %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "example.com/current") {
+		t.Fatalf("error = %q, must not blame the supported module", err)
+	}
+}
+
+// The cap is the language version, so a patch release never rejects a module:
+// go1.25.9 adds no language feature that go1.25.7 cannot parse.
+func TestBuildPlanAcceptsANewerPatchOfTheSupportedLanguageVersion(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := writeModule(t, filepath.Join(root, "patch"), `module example.com/patch
+
+go 1.30.9
+`)
+
+	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+		{Name: "patch", Path: module, RealPath: module},
+	}, Options{MaximumGoVersion: "1.30.1"})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	if plan.GoVersion != "1.30.9" {
+		t.Fatalf("GoVersion = %q, want the version declared by the member", plan.GoVersion)
+	}
+}
+
+func TestLanguageVersionReportsMajorMinorOfThisBuild(t *testing.T) {
+	version := LanguageVersion()
+	if version == "" || strings.Count(version, ".") != 1 {
+		t.Fatalf("LanguageVersion() = %q, want a major.minor version", version)
+	}
+	if strings.HasPrefix(version, "go") {
+		t.Fatalf("LanguageVersion() = %q, want no go prefix", version)
+	}
+}
+
 func TestBuildPlanUsesDiscoveredPackagePatterns(t *testing.T) {
 	root := testsupport.TempDir(t)
 	module := writeModule(t, root, `module example.com/root

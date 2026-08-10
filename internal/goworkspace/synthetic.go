@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -25,6 +26,10 @@ var ErrRepositoryTarget = errors.New("synthetic go.work path is inside a registe
 
 // ErrNoModules reports that no registered repository declares a Go module.
 var ErrNoModules = errors.New("no registered repository declares a Go module")
+
+// ErrGoVersionUnsupported reports a registered module whose language version
+// is newer than the one this build can type-check.
+var ErrGoVersionUnsupported = errors.New("registered Go module requires a newer Go language version than this build supports")
 
 // ConflictKind classifies a fact excluded from the synthetic workspace.
 type ConflictKind string
@@ -75,6 +80,26 @@ type Plan struct {
 type Options struct {
 	// GoVersion overrides the version derived from the module manifests.
 	GoVersion string
+	// MaximumGoVersion is the highest language version the caller can type
+	// check. Empty means the version of the toolchain that built this
+	// binary, which is the only honest default: go/types is linked in, so
+	// the workspace must never select a toolchain whose sources it cannot
+	// read. Loading a newer module would fail deep inside the standard
+	// library instead of naming the repository that requires it.
+	MaximumGoVersion string
+}
+
+// LanguageVersion is the `major.minor` language version this build can type
+// check, derived from the toolchain that compiled it.
+func LanguageVersion() string {
+	version := strings.TrimPrefix(runtime.Version(), "go")
+	if index := strings.IndexAny(version, "-+ "); index >= 0 {
+		version = version[:index]
+	}
+	if trimmed := semver.MajorMinor("v" + version); trimmed != "" {
+		return strings.TrimPrefix(trimmed, "v")
+	}
+	return ""
 }
 
 // BuildPlan discovers every Go module of the registered repositories and
@@ -131,6 +156,10 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 			})
 			collectReplacements(replacements, name, provider)
 		}
+	}
+
+	if err := rejectUnsupportedGoVersions(byModulePath, options.MaximumGoVersion); err != nil {
+		return Plan{}, err
 	}
 
 	plan := Plan{}
@@ -356,6 +385,51 @@ func replaceConflict(key replacementKey, candidates []replacementSource) Conflic
 		Repositories: repositories,
 		Details:      details,
 	}
+}
+
+// rejectUnsupportedGoVersions fails the plan when a registered module needs a
+// newer language version than the caller can type-check.
+//
+// The workspace claims the highest version of its members, and the go command
+// then selects a toolchain to match. A member above the cap would make every
+// load of every repository fail inside the standard library of that toolchain,
+// naming a file nobody registered. Failing here names the repository instead,
+// and the whole index is refused rather than published without it.
+func rejectUnsupportedGoVersions(byModulePath map[string][]Module, maximum string) error {
+	supported := strings.TrimSpace(maximum)
+	if supported == "" {
+		supported = LanguageVersion()
+	}
+	if supported == "" {
+		return nil
+	}
+	if !semver.IsValid("v" + supported) {
+		return fmt.Errorf("invalid maximum go version %q", maximum)
+	}
+	ceiling := semver.MajorMinor("v" + supported)
+	rejected := make([]string, 0)
+	for _, candidates := range byModulePath {
+		for _, module := range candidates {
+			version := strings.TrimSpace(module.GoVersion)
+			if version == "" || !semver.IsValid("v"+version) {
+				continue
+			}
+			// The language version is major.minor: a patch release
+			// never adds a language feature, so only the minor may
+			// exceed what go/types understands.
+			if semver.Compare(semver.MajorMinor("v"+version), ceiling) <= 0 {
+				continue
+			}
+			rejected = append(rejected, fmt.Sprintf(
+				"repository %q module %q requires go %s", module.Repository, module.ModulePath, version))
+		}
+	}
+	if len(rejected) == 0 {
+		return nil
+	}
+	sort.Strings(rejected)
+	return fmt.Errorf("%w (this build type-checks with go %s): %s; rebuild Ladygraph with that toolchain or drop \"go\" from the languages of that repository",
+		ErrGoVersionUnsupported, supported, strings.Join(rejected, "; "))
 }
 
 // workspaceGoVersion returns the highest language version declared by the
