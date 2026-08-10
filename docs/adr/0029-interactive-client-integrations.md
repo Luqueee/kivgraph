@@ -27,11 +27,18 @@ Sin `--target`, Ladygraph:
 
 1. inspecciona las raíces de configuración o instalación conocidas para el
    ámbito solicitado;
-2. muestra los clientes detectados y el listado completo compatible en un orden
-   determinista;
-3. selecciona todos los detectados al pulsar Enter;
-4. acepta una lista de números separada por comas para seleccionar un subconjunto;
-5. si no detecta ninguno, ofrece igualmente todos los clientes compatibles.
+2. abre un selector TUI con todos los clientes compatibles en orden
+   determinista y marca los clientes detectados como seleccionados;
+3. permite mover el cursor con `↑`/`↓` o `j`/`k`, alternar con `space`,
+   seleccionar todos con `a`, ninguno con `n`, confirmar con `Enter` y cancelar
+   con `q` o `Esc`;
+4. si no detecta ninguno, empieza con todos sin seleccionar y exige elegir al
+   menos uno antes de confirmar.
+
+El selector usa Bubble Tea y Lip Gloss. En un terminal se muestra en pantalla
+alternativa con colores semánticos; `NO_COLOR` los desactiva. Una salida
+redirigida permanece sin ANSI y una invocación real sin terminal debe usar
+`--target`.
 
 `--target TARGET` se conserva para automatización no interactiva y selecciona
 un único cliente. `status` y `remove` siguen exigiendo `--target`, porque una
@@ -58,8 +65,9 @@ intentan y el proceso termina con código distinto de cero.
 - **Detectar ejecutables con `PATH`:** no todos los clientes tienen CLI y el
   resultado dependería del shell desde el que se invoque; las rutas nativas son
   la señal estable que ya usa el adaptador.
-- **Añadir una librería TUI:** el selector de líneas cubre la elección múltiple
-  sin añadir dependencias ni alterar el protocolo de `stdout` de `serve`.
+- **Mantener un selector de líneas con números:** no ofrece una interacción
+  segura para alternar varios destinos y obliga a documentar un formato de
+  entrada frágil.
 
 ## Consecuencias
 

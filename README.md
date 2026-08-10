@@ -93,11 +93,11 @@ ladygraph mcp install --scope user
 ladygraph skill install --scope user
 ```
 
-Ladygraph checks each client's known local configuration or installation roots,
-marks detected agents, and selects all detected agents when you press Enter.
-Type comma-separated numbers to choose a subset. If none is detected, the
-complete supported list is offered. Use `--target` only for scripted,
-non-interactive installation.
+Ladygraph checks each client's known local configuration or installation roots
+and marks detected agents. Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle
+an agent, `a` to select all, `n` to select none, `Enter` to confirm, and `q` or
+`Esc` to cancel. If none is detected, the selector starts with no agents
+selected. Use `--target` only for scripted, non-interactive installation.
 
 Supported MCP targets are `claude-code`, `claude-desktop`, `codex`, `opencode`,
 and `oh-my-pi`. Supported skill targets are `claude-code`, `codex`, `opencode`,

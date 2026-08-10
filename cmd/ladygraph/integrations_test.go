@@ -73,7 +73,7 @@ func TestRunMCPInstallInteractiveSelectsDetectedAgents(t *testing.T) {
 	if code := runMCPChangeWithInput(
 		integrations.ActionInstall,
 		nil,
-		strings.NewReader("1,3\n"),
+		strings.NewReader("n \x1b[B\x1b[B \r"),
 		&stdout,
 		&stderr,
 	); code != 0 {
@@ -87,8 +87,8 @@ func TestRunMCPInstallInteractiveSelectsDetectedAgents(t *testing.T) {
 			t.Fatalf("interactive MCP install did not write %s: %v", path, err)
 		}
 	}
-	if strings.Contains(stdout.String(), "No coding agents detected") {
-		t.Fatalf("interactive MCP install failed to detect agents: %q", stdout.String())
+	if !strings.Contains(stdout.String(), "installed") {
+		t.Fatalf("interactive MCP install output = %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("interactive MCP install stderr = %q, want empty", stderr.String())
@@ -103,7 +103,7 @@ func TestRunSkillInstallInteractiveFallsBackToSupportedAgents(t *testing.T) {
 	if code := runSkillChangeWithInput(
 		integrations.ActionInstall,
 		nil,
-		strings.NewReader("2\n"),
+		strings.NewReader("\x1b[B \r"),
 		&stdout,
 		&stderr,
 	); code != 0 {
@@ -113,8 +113,8 @@ func TestRunSkillInstallInteractiveFallsBackToSupportedAgents(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("interactive skill install did not write %s: %v", path, err)
 	}
-	if !strings.Contains(stdout.String(), "No coding agents detected") {
-		t.Fatalf("interactive skill install output = %q, want fallback notice", stdout.String())
+	if !strings.Contains(stdout.String(), "installed") {
+		t.Fatalf("interactive skill install output = %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("interactive skill install stderr = %q, want empty", stderr.String())
@@ -128,7 +128,7 @@ func TestRunMCPInstallInteractiveCanCancel(t *testing.T) {
 	if code := runMCPChangeWithInput(
 		integrations.ActionInstall,
 		nil,
-		strings.NewReader("q\n1,3\n"),
+		strings.NewReader("q"),
 		&stdout,
 		&stderr,
 	); code != 2 {

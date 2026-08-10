@@ -327,6 +327,10 @@ integridad, compatibilidad o verificación descritos aquí.
   conocidas cuando falta `--target`, muestran una selección interactiva de uno o
   varios clientes y conservan `--target` para automatización; nunca inicializan
   Ladygraph ni indexan repositorios.
+- La selección interactiva usa Bubble Tea y Lip Gloss: `↑`/`↓` o `j`/`k`
+  mueven, `space` alterna, `a`/`n` seleccionan todos/ninguno, `Enter`
+  confirma y `q`/`Esc` cancela; respeta `NO_COLOR` y no emite ANSI al
+  redirigir la salida.
 - Los adaptadores externos validan JSON/TOML antes de modificarlo, rechazan
   destinos symlink, escriben atómicamente con `0600` y exigen `--force` para
   sustituir o retirar una entrada incompatible. Las entradas idempotentes no

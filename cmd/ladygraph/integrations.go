@@ -1,14 +1,10 @@
 package main
 
 import (
-	"bufio"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
-	"strings"
 
 	"github.com/Luqueee/ladygraph/internal/integrations"
 )
@@ -234,12 +230,7 @@ func parseIntegrationFlags(name string, args []string, stdout, stderr io.Writer,
 	return target, scope, dryRun, force, true
 }
 
-var errIntegrationSelectionCancelled = errors.New("selection cancelled")
-
 func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integrations.Manager, kind string, scope integrations.Scope) ([]integrations.Target, error) {
-	if input == nil {
-		return nil, fmt.Errorf("interactive selection requires standard input")
-	}
 	var (
 		detections []integrations.TargetDetection
 		err        error
@@ -257,101 +248,20 @@ func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integra
 	}
 
 	defaultSelection := make([]int, 0, len(detections))
-
-	detectedCount := 0
 	for index, detection := range detections {
 		if detection.Detected {
 			defaultSelection = append(defaultSelection, index)
-			detectedCount++
 		}
 	}
-	fmt.Fprintf(stdout, "\nCoding agents for %s scope:\n", scope)
-	if detectedCount == 0 {
-		fmt.Fprintln(stdout, "  No coding agents detected; choose from the supported targets.")
-	} else {
-		fmt.Fprintf(stdout, "  Detected %d coding agent(s); press Enter to select them all.\n", detectedCount)
+	selected, err := runIntegrationSelection(input, stdout, detections, defaultSelection, scope)
+	if err != nil {
+		return nil, err
 	}
-	for index, detection := range detections {
-		status := ""
-		if detection.Detected {
-			status = " [detected]"
-		}
-		fmt.Fprintf(stdout, "  %d) %s%s\n", index+1, integrationTargetLabel(detection.Target), status)
+	targets := make([]integrations.Target, 0, len(selected))
+	for _, index := range selected {
+		targets = append(targets, detections[index].Target)
 	}
-
-	scanner := bufio.NewScanner(input)
-	for {
-		if len(defaultSelection) > 0 {
-			fmt.Fprint(stdout, "Select agents by number (comma-separated, Enter=detected, q=cancel): ")
-		} else {
-			fmt.Fprint(stdout, "Select agents by number (comma-separated, q=cancel): ")
-		}
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				return nil, fmt.Errorf("read agent selection: %w", err)
-			}
-			return nil, errIntegrationSelectionCancelled
-		}
-		fmt.Fprintln(stdout)
-		selected, err := parseIntegrationSelection(scanner.Text(), len(detections), defaultSelection)
-		if err != nil {
-			if errors.Is(err, errIntegrationSelectionCancelled) {
-				return nil, err
-			}
-			writeWarning(stdout, "%v", err)
-			continue
-		}
-		if len(selected) == 0 {
-			writeWarning(stdout, "select at least one coding agent")
-			continue
-		}
-		targets := make([]integrations.Target, 0, len(selected))
-		for _, index := range selected {
-			targets = append(targets, detections[index].Target)
-		}
-		return targets, nil
-	}
-}
-
-func parseIntegrationSelection(value string, count int, defaults []int) ([]int, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return append([]int(nil), defaults...), nil
-	}
-	tokens := strings.Fields(strings.ReplaceAll(value, ",", " "))
-	if len(tokens) == 0 {
-		return nil, nil
-	}
-	if len(tokens) == 1 {
-		switch strings.ToLower(tokens[0]) {
-		case "q", "quit", "cancel":
-			return nil, errIntegrationSelectionCancelled
-		case "all":
-			selected := make([]int, count)
-			for index := range selected {
-				selected[index] = index
-			}
-			return selected, nil
-		case "none":
-			return nil, nil
-		}
-	}
-
-	selected := make([]bool, count)
-	for _, token := range tokens {
-		index, err := strconv.Atoi(token)
-		if err != nil || index < 1 || index > count {
-			return nil, fmt.Errorf("invalid agent selection %q (choose numbers from 1 to %d)", token, count)
-		}
-		selected[index-1] = true
-	}
-	result := make([]int, 0, count)
-	for index, chosen := range selected {
-		if chosen {
-			result = append(result, index)
-		}
-	}
-	return result, nil
+	return targets, nil
 }
 
 func integrationTargetLabel(target integrations.Target) string {
@@ -392,5 +302,5 @@ func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []
 		fmt.Fprintf(stdout, "  %s\n", usage)
 	}
 	fmt.Fprintf(stdout, "\n%sTargets%s: claude-code, claude-desktop, codex, opencode, oh-my-pi\n", paint.bold, paint.reset)
-	fmt.Fprintln(stdout, "For install operations, omit --target to detect local coding agents and select one or more. Pass --target for scripted, non-interactive use.")
+	fmt.Fprintln(stdout, "For install operations, omit --target to open the selector. Use arrows or j/k to move, space to toggle, a/n for all or none, Enter to confirm, and q or Esc to cancel. Pass --target for scripted, non-interactive use.")
 }
