@@ -16,7 +16,7 @@ build.
 | Binding Go oficial | `v0.13.1` | [release v0.13.1](https://github.com/LadybugDB/go-ladybug/releases/tag/v0.13.1), publicada el 2025-12-18 |
 
 El binding `v0.13.1` declara `go 1.20` y es compatible con el toolchain Go
-1.24 del proyecto.
+1.25 del proyecto.
 
 ### Corrección del 2026-08-05: el core y el binding comparten versión
 

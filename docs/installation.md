@@ -56,7 +56,10 @@ retirarla con `xattr -dr com.apple.quarantine <ruta>`.
 
 Para compilar desde un checkout se necesitan:
 
-- Go `1.24` o posterior, con la versión de toolchain fijada por `go.mod`;
+- Go `1.25` o posterior, con la versión de toolchain fijada por `go.mod`. El
+  indexador comprueba tipos con el `go/types` con el que fue compilado, así
+  que un binario construido por un toolchain anterior rechaza los archivos que
+  exigen una versión del lenguaje más nueva;
 - Node.js `22` o posterior;
 - pnpm `11.5.1`, fijado en `ts-worker/package.json` y `web/package.json`;
 - un compilador C y las herramientas de enlace de la plataforma;

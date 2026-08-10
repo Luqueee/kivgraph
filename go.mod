@@ -1,8 +1,8 @@
 module github.com/Luqueee/ladygraph
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.24.4
+toolchain go1.25.7
 
 tool honnef.co/go/tools/cmd/staticcheck
 

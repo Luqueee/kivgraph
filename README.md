@@ -8,7 +8,9 @@ The repository contains the initial project foundation. Indexing, storage, and M
 
 ## Requirements
 
-- Go 1.24 or later.
+- Go 1.25 or later. The indexer type-checks dependency sources with the
+  `go/types` it was built with, so a binary built by an older toolchain
+  rejects files that require a newer language version.
 
 ## Installation
 
