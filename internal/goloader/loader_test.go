@@ -219,6 +219,104 @@ func TestLoadRejectsAnInvalidRequest(t *testing.T) {
 	}
 }
 
+// A package whose files are all excluded by a build constraint declares
+// nothing in this configuration. The load must say so without claiming the
+// facts of the module are untrustworthy, and the same package must appear in
+// full once the tag is requested.
+func TestLoadSelectsPackagesWithTheRequestedBuildTags(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod":           "module example.com/module\n\ngo 1.24\n",
+		"plain/value.go":   "package plain\n\n// Value is always selected.\nconst Value = 1\n",
+		"tagged/tagged.go": "//go:build fixturetag\n\npackage tagged\n\n// Tagged is selected only with the tag.\nconst Tagged = 2\n",
+	})
+	patterns := []string{"example.com/module/plain", "example.com/module/tagged"}
+
+	untagged, err := Load(context.Background(), Options{Directory: module, Patterns: patterns})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(untagged.BlockingErrors()) != 0 {
+		t.Fatalf("blocking errors = %#v, want none", untagged.BlockingErrors())
+	}
+	excluded := false
+	for _, failure := range untagged.Errors {
+		if failure.PackagePath == "example.com/module/tagged" && failure.NoPackage() {
+			excluded = true
+		}
+	}
+	if !excluded {
+		t.Fatalf("errors = %#v, want the excluded package reported", untagged.Errors)
+	}
+
+	tagged, err := Load(context.Background(), Options{
+		Directory: module,
+		Patterns:  patterns,
+		BuildTags: []string{"fixturetag"},
+	})
+	if err != nil {
+		t.Fatalf("Load() with build tags error = %v", err)
+	}
+	if len(tagged.Errors) != 0 {
+		t.Fatalf("errors = %#v, want none once the tag is requested", tagged.Errors)
+	}
+	found := false
+	for _, loaded := range tagged.Packages {
+		if loaded.PkgPath != "example.com/module/tagged" {
+			continue
+		}
+		found = true
+		if loaded.Types.Scope().Lookup("Tagged") == nil {
+			t.Fatalf("tagged package loaded without its declaration")
+		}
+	}
+	if !found {
+		t.Fatalf("packages = %#v, want the tagged package", tagged.Packages)
+	}
+}
+
+func TestLoadRejectsABuildTagTheGoCommandCannotCarry(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod":   "module example.com/module\n\ngo 1.24\n",
+		"value.go": "package module\n\n// Value is a fact.\nconst Value = 1\n",
+	})
+	for name, tags := range map[string][]string{
+		"empty": {" "},
+		"comma": {"one,two"},
+		"space": {"one two"},
+	} {
+		if _, err := Load(context.Background(), Options{Directory: module, BuildTags: tags}); err == nil {
+			t.Fatalf("Load() with the %s tag must fail", name)
+		}
+	}
+}
+
+// The advisory go/packages attaches when the go command is newer than the
+// toolchain of this binary qualifies another diagnostic; on its own it says
+// nothing about the code and must never abort an index.
+func TestToolchainSkewAdvisoryDoesNotBlock(t *testing.T) {
+	advisory := PackageError{
+		Kind:     UnknownError,
+		Position: "-",
+		Message: "This application uses version go1.24 of the source-processing packages " +
+			"but runs version go1.25 of 'go list'. It may fail to process source files.",
+	}
+	if advisory.Blocking() {
+		t.Fatalf("advisory must not block")
+	}
+	unknown := PackageError{Kind: UnknownError, Position: "-", Message: "the driver failed"}
+	if !unknown.Blocking() {
+		t.Fatalf("an unclassified diagnostic must block")
+	}
+	missing := PackageError{Kind: ListError, Message: "no required module provides package example.com/missing"}
+	if !missing.Blocking() {
+		t.Fatalf("a resolution failure must block")
+	}
+}
+
 func buildWorkspace(t *testing.T, root string, directories ...string) string {
 	t.Helper()
 	repositories := make([]workspace.Repository, 0, len(directories))

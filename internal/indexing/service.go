@@ -139,6 +139,7 @@ func (service *Service) IndexProject(ctx context.Context, project Project) (Proj
 		Repositories:      registry.List(),
 		SyntheticWorkFile: service.loaded.Config.Go.SyntheticWorkFile,
 		IncludeTests:      service.loaded.Config.Go.IncludeTests,
+		GoBuildTags:       service.loaded.Config.Go.BuildTags,
 		TypeScriptWorker:  service.loaded.Config.TypeScript.WorkerCommand,
 		WorkingDirectory:  service.workingDirectory,
 		Root:              filepath.Dir(service.loaded.Config.Storage.DatabasePath),

@@ -88,6 +88,23 @@ UNRESOLVED
 exactos. Nunca se crea una relación `EXACT` por coincidencia nominal, textual,
 de path o de proximidad sintáctica.
 
+### Configuración de build del índice Go
+
+El índice Go carga cada paquete con los tags declarados en `go.build_tags`. Un
+tag ausente no es un error: el directorio no aporta ningún archivo a esta
+configuración y por tanto ningún símbolo al grafo.
+
+- Un directorio sin archivos seleccionables se declara como referencia no
+  resuelta con razón `PACKAGE_NOT_BUILDABLE` y el detalle observado del
+  comando `go`. No aborta la pasada ni se descarta en silencio.
+- El aviso que `go/packages` adjunta cuando el comando `go` es más nuevo que
+  el toolchain que compiló el binario califica a otro diagnóstico y nunca
+  bloquea por sí solo.
+- Cualquier otro diagnóstico del cargador sigue abortando la pasada: un
+  paquete que no compila no publica hechos.
+- Indexar este repositorio requiere `go.build_tags: [ladybug]`; sin él la capa
+  de almacenamiento nativo queda fuera del grafo y así se declara.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

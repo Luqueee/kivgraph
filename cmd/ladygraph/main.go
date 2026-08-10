@@ -587,6 +587,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		Repositories:      registry.List(),
 		SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
 		IncludeTests:      loaded.Config.Go.IncludeTests,
+		GoBuildTags:       loaded.Config.Go.BuildTags,
 		TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
 		WorkingDirectory:  workingDirectory,
 		Root:              root,
@@ -601,13 +602,14 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	})
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
-	writeInfo(stdout, "index.go: repositories=%d modules=%d loads=%d definitions=%d references=%d unresolved=%d",
+	writeInfo(stdout, "index.go: repositories=%d modules=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
 		indexReport.GoRepositories,
 		indexReport.GoModules,
 		indexReport.GoLoads,
 		indexReport.GoDefinitions,
 		indexReport.GoReferences,
 		indexReport.GoUnresolved,
+		indexReport.GoLoadDiagnostics,
 	)
 	writeInfo(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
 		indexReport.TypeScriptRepositories,
@@ -704,6 +706,7 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 			Repositories:      registry.List(),
 			SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
 			IncludeTests:      loaded.Config.Go.IncludeTests,
+			GoBuildTags:       loaded.Config.Go.BuildTags,
 			TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
 			WorkingDirectory:  workingDirectory,
 		},

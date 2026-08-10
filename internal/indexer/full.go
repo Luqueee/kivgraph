@@ -49,8 +49,12 @@ type FullOptions struct {
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
-	TypeScriptWorker  string
-	WorkingDirectory  string
+	// GoBuildTags are the build constraints the Go loads satisfy. A package
+	// guarded by a tag that is absent here declares no file to read and is
+	// reported as unresolved instead of indexed.
+	GoBuildTags      []string
+	TypeScriptWorker string
+	WorkingDirectory string
 
 	// Progress, when set, is called synchronously as each unit of work
 	// starts and finishes. It must not block: a slow callback slows the
@@ -62,10 +66,14 @@ type FullOptions struct {
 // resulting facts. Counts are informational; an error is never hidden in a
 // successful report.
 type FullReport struct {
-	GoRepositories         int
-	GoModules              int
-	GoLoads                int
-	GoLoadErrors           int
+	GoRepositories int
+	GoModules      int
+	GoLoads        int
+	GoLoadErrors   int
+	// GoLoadDiagnostics counts the diagnostics that did not block the pass:
+	// a directory with no file to select, and the advisory the loader
+	// attaches to it.
+	GoLoadDiagnostics      int
 	GoDefinitions          int
 	GoReferences           int
 	GoUnresolved           int
@@ -150,14 +158,17 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 					WorkFile:     options.SyntheticWorkFile,
 					Patterns:     append([]string(nil), module.PackagePatterns...),
 					IncludeTests: options.IncludeTests,
+					BuildTags:    append([]string(nil), options.GoBuildTags...),
 				})
 				report.GoLoads++
 				if err != nil {
 					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q: %w", module.ModulePath, repository.Name, err)
 				}
-				if len(load.Errors) != 0 {
-					report.GoLoadErrors += len(load.Errors)
-					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q reported diagnostics: %s", module.ModulePath, repository.Name, formatPackageErrors(load.Errors))
+				blocking := load.BlockingErrors()
+				report.GoLoadDiagnostics += len(load.Errors) - len(blocking)
+				if len(blocking) != 0 {
+					report.GoLoadErrors += len(blocking)
+					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q reported diagnostics: %s", module.ModulePath, repository.Name, formatPackageErrors(blocking))
 				}
 				definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
 				if err != nil {

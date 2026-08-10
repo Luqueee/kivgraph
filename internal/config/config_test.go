@@ -140,6 +140,24 @@ web:
 			wantError: "config.web.address: invalid port",
 		},
 		{
+			name: "empty build tag",
+			contents: `version: 1
+go:
+  build_tags:
+    - " "
+`,
+			wantError: "config.go.build_tags[0]: must not be empty",
+		},
+		{
+			name: "build tag list in one entry",
+			contents: `version: 1
+go:
+  build_tags:
+    - ladybug,cgo
+`,
+			wantError: "config.go.build_tags[0]: must not contain a comma or whitespace",
+		},
+		{
 			name:      "multiple documents",
 			contents:  "version: 1\n---\nversion: 1\n",
 			wantError: "multiple YAML documents",

@@ -21,12 +21,14 @@ type FullOptions struct {
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
-	TypeScriptWorker  string
-	WorkingDirectory  string
-	Root              string
-	ResolverVersion   string
-	Store             generation.Config
-	Metrics           *metrics.Registry
+	// GoBuildTags are the build constraints every Go load satisfies.
+	GoBuildTags      []string
+	TypeScriptWorker string
+	WorkingDirectory string
+	Root             string
+	ResolverVersion  string
+	Store            generation.Config
+	Metrics          *metrics.Registry
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
@@ -69,6 +71,7 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		Repositories:      options.Repositories,
 		SyntheticWorkFile: options.SyntheticWorkFile,
 		IncludeTests:      options.IncludeTests,
+		GoBuildTags:       options.GoBuildTags,
 		TypeScriptWorker:  options.TypeScriptWorker,
 		WorkingDirectory:  options.WorkingDirectory,
 		Progress:          options.Progress,

@@ -61,6 +61,48 @@ type PackageError struct {
 	Message     string
 }
 
+// noPackageDiagnostics are the go command messages that report a directory
+// declaring no package under the current build configuration. Selecting no
+// file is a configuration outcome, not a failure of the load: the directory
+// contributes nothing to this build, exactly as if it held no Go source.
+var noPackageDiagnostics = []string{
+	"build constraints exclude all Go files in ",
+	"no Go files in ",
+	"no non-test Go files in ",
+}
+
+// NoPackage reports whether the diagnostic states that the directory declares
+// no package the current build configuration selects.
+func (failure PackageError) NoPackage() bool {
+	if failure.Kind != ListError {
+		return false
+	}
+	for _, prefix := range noPackageDiagnostics {
+		if strings.HasPrefix(failure.Message, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// toolchainSkew reports whether the diagnostic is the advisory go/packages
+// attaches to a package that already reports one when the go command is newer
+// than the toolchain that built this binary. It qualifies other diagnostics
+// and never reports a failure of its own, so on its own it says nothing about
+// the code.
+func (failure PackageError) toolchainSkew() bool {
+	return failure.Kind == UnknownError &&
+		failure.Position == "-" &&
+		strings.HasPrefix(failure.Message, "This application uses version go1.") &&
+		strings.Contains(failure.Message, "of 'go list'")
+}
+
+// Blocking reports whether the diagnostic makes the facts of its package
+// untrustworthy. Only a blocking diagnostic may abort an index.
+func (failure PackageError) Blocking() bool {
+	return !failure.NoPackage() && !failure.toolchainSkew()
+}
+
 // Module is the module metadata observed for a loaded package.
 type Module struct {
 	Path         string
@@ -86,6 +128,18 @@ type Result struct {
 	Errors []PackageError
 }
 
+// BlockingErrors returns the diagnostics that make the facts of this load
+// untrustworthy, in the order of Errors.
+func (result Result) BlockingErrors() []PackageError {
+	blocking := make([]PackageError, 0, len(result.Errors))
+	for _, failure := range result.Errors {
+		if failure.Blocking() {
+			blocking = append(blocking, failure)
+		}
+	}
+	return blocking
+}
+
 // Options configures one load.
 type Options struct {
 	// Directory is the working directory of the go command.
@@ -97,6 +151,10 @@ type Options struct {
 	Patterns []string
 	// IncludeTests loads test packages as well.
 	IncludeTests bool
+	// BuildTags are the build constraints the load satisfies, passed to the
+	// go command as -tags. A package guarded by a tag that is absent here
+	// declares no file to select and contributes nothing to the graph.
+	BuildTags []string
 	// AllowNetwork permits the go command to reach a module proxy. Indexing
 	// is hermetic by default: a missing dependency is reported, not fetched.
 	AllowNetwork bool
@@ -128,6 +186,10 @@ func Load(ctx context.Context, options Options) (Result, error) {
 			return Result{}, ErrNoPatterns
 		}
 	}
+	tagFlags, err := buildTagFlags(options.BuildTags)
+	if err != nil {
+		return Result{}, err
+	}
 
 	environment, err := loadEnvironment(options)
 	if err != nil {
@@ -135,12 +197,13 @@ func Load(ctx context.Context, options Options) (Result, error) {
 	}
 	fset := token.NewFileSet()
 	configuration := &packages.Config{
-		Mode:    LoadMode,
-		Context: ctx,
-		Dir:     directory,
-		Env:     environment,
-		Fset:    fset,
-		Tests:   options.IncludeTests,
+		Mode:       LoadMode,
+		Context:    ctx,
+		Dir:        directory,
+		Env:        environment,
+		Fset:       fset,
+		Tests:      options.IncludeTests,
+		BuildFlags: tagFlags,
 	}
 
 	roots, err := packages.Load(configuration, patterns...)
@@ -210,6 +273,27 @@ func loadEnvironment(options Options) ([]string, error) {
 	}
 	environment = append(environment, options.Environment...)
 	return environment, nil
+}
+
+// buildTagFlags turns the requested build tags into the go command flag that
+// carries them. A tag the go command cannot express is rejected here rather
+// than silently reshaping the build configuration of the load.
+func buildTagFlags(tags []string) ([]string, error) {
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	selected := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			return nil, errors.New("build tag must not be empty")
+		}
+		if strings.ContainsAny(trimmed, ", \t\n") {
+			return nil, fmt.Errorf("build tag %q: must not contain a comma or whitespace", tag)
+		}
+		selected = append(selected, trimmed)
+	}
+	return []string{"-tags=" + strings.Join(selected, ",")}, nil
 }
 
 func collectModules(roots []*packages.Package) []Module {

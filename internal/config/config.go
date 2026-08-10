@@ -125,6 +125,10 @@ type TypeScriptConfig struct {
 type GoConfig struct {
 	SyntheticWorkFile string `yaml:"synthetic_work_file"`
 	IncludeTests      bool   `yaml:"include_tests"`
+	// BuildTags are the build constraints every Go load satisfies. A
+	// package guarded by a tag that is absent here contributes no symbol to
+	// the graph and is reported as unresolved.
+	BuildTags []string `yaml:"build_tags"`
 }
 
 // TelemetryConfig controls metrics and tracing.
@@ -669,6 +673,14 @@ func validateConfig(configuration Config) error {
 	}
 	if configuration.TypeScript.ProjectIdleTimeout <= 0 {
 		return fmt.Errorf("config.typescript.project_idle_timeout: must be positive, got %s", configuration.TypeScript.ProjectIdleTimeout)
+	}
+	for index, tag := range configuration.Go.BuildTags {
+		if strings.TrimSpace(tag) == "" {
+			return fmt.Errorf("config.go.build_tags[%d]: must not be empty", index)
+		}
+		if strings.ContainsAny(tag, ", \t") {
+			return fmt.Errorf("config.go.build_tags[%d]: must not contain a comma or whitespace, got %q", index, tag)
+		}
 	}
 	if configuration.Logging.Format != "json" && configuration.Logging.Format != "text" {
 		return fmt.Errorf("config.logging.format: unsupported format %q, want json or text", configuration.Logging.Format)

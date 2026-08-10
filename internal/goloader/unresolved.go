@@ -34,6 +34,11 @@ const (
 	// UnresolvedTypecheckFailed means the package does not typecheck, so its
 	// facts are not trustworthy.
 	UnresolvedTypecheckFailed UnresolvedReason = "TYPECHECK_FAILED"
+	// UnresolvedPackageNotBuildable means the directory declares no file the
+	// build configuration of this index selects, so the package contributes
+	// no fact at all. Its symbols are absent from the graph by construction,
+	// not by failure.
+	UnresolvedPackageNotBuildable UnresolvedReason = "PACKAGE_NOT_BUILDABLE"
 )
 
 // UnresolvedReference is one classified failure with its evidence.
@@ -229,12 +234,24 @@ func importDetail(loaded *packages.Package, importPath string) string {
 	return "package loaded without complete type information"
 }
 
-// fromDiagnostics reports packages whose own diagnostics make their facts
-// untrustworthy.
+// fromDiagnostics reports packages whose own diagnostics keep their symbols
+// out of the graph, either because the facts are untrustworthy or because the
+// build configuration selected no file to read them from.
 func fromDiagnostics(result Result, repository string) []UnresolvedReference {
 	unresolved := make([]UnresolvedReference, 0)
 	for _, failure := range result.Errors {
-		if failure.Kind != TypeError && failure.Kind != ParseError {
+		reason := UnresolvedTypecheckFailed
+		switch {
+		case failure.Kind == TypeError || failure.Kind == ParseError:
+		case failure.NoPackage():
+			// The go command names the directory, never a file inside
+			// it: no file was selected, so there is no position to
+			// report.
+			if strings.TrimSpace(failure.PackagePath) == "" {
+				continue
+			}
+			reason = UnresolvedPackageNotBuildable
+		default:
 			continue
 		}
 		fileName, line, column := splitPosition(failure.Position)
@@ -243,7 +260,7 @@ func fromDiagnostics(result Result, repository string) []UnresolvedReference {
 			PackagePath:          failure.PackagePath,
 			FileName:             fileName,
 			RequestedPackagePath: failure.PackagePath,
-			Reason:               UnresolvedTypecheckFailed,
+			Reason:               reason,
 			Detail:               string(failure.Kind) + ": " + failure.Message,
 			StartLine:            line,
 			StartColumn:          column,

@@ -79,6 +79,11 @@ integridad, compatibilidad o verificación descritos aquí.
 - `internal/indexer.Full` carga Go mediante los patrones de paquetes producidos
   por `DiscoverGo`; no sustituirlos por `./...`, porque las `exclusions`
   configuradas deben seguir siendo efectivas durante `go/packages`.
+- Los tags de build con los que se carga Go vienen de `go.build_tags`. Un
+  directorio cuyos archivos excluye esa configuración no es un fallo del
+  índice: se declara como `UNRESOLVED` con razón `PACKAGE_NOT_BUILDABLE` y la
+  pasada continúa. Cualquier otro diagnóstico del cargador sigue abortándola.
+  Indexar este repositorio exige el tag `ladybug`.
 
 ## TypeScript
 

@@ -84,6 +84,86 @@ var _ = missing.Symbol
 	}
 }
 
+// A directory that the build configuration excludes is not a broken index: it
+// contributes no symbol, the pass completes, and the gap is declared as an
+// unresolved reference instead of being dropped. Requesting the tag brings
+// the same package into the graph.
+func TestFullIndexesPackagesGuardedByBuildTags(t *testing.T) {
+	fixture := func(t *testing.T) string {
+		t.Helper()
+		root := testsupport.TempDir(t)
+		writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/fullfixture\n\ngo 1.24\n")
+		writeFullFixture(t, filepath.Join(root, "fixture.go"), `package fixture
+
+func Greeting() string { return "hello" }
+`)
+		writeFullFixture(t, filepath.Join(root, "tagged", "tagged.go"), `//go:build fixturetag
+
+package tagged
+
+func Tagged() string { return "tagged" }
+`)
+		return root
+	}
+	repository := func(root string) workspace.Repository {
+		return workspace.Repository{Name: "fixture", Path: root, RealPath: root, Languages: []string{"go"}}
+	}
+
+	root := fixture(t)
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories:      []workspace.Repository{repository(root)},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.GoLoadErrors != 0 || report.GoLoadDiagnostics == 0 {
+		t.Fatalf("full report = %+v, want no blocking error and a declared diagnostic", report)
+	}
+	declared := false
+	for _, entry := range set.Unresolved {
+		if entry.Reason == "PACKAGE_NOT_BUILDABLE" && entry.RequestedPackage == "example.com/fullfixture/tagged" {
+			declared = true
+		}
+	}
+	if !declared {
+		t.Fatalf("unresolved = %#v, want the excluded package declared", set.Unresolved)
+	}
+	for _, symbol := range set.Symbols {
+		if symbol.Name == "Tagged" {
+			t.Fatalf("excluded package contributed symbol %q", symbol.Name)
+		}
+	}
+
+	tagged := fixture(t)
+	set, report, err = Full(context.Background(), FullOptions{
+		Repositories:      []workspace.Repository{repository(tagged)},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+		GoBuildTags:       []string{"fixturetag"},
+	})
+	if err != nil {
+		t.Fatalf("Full() with build tags error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.GoLoadErrors != 0 || report.GoLoadDiagnostics != 0 {
+		t.Fatalf("full report = %+v, want a clean load once the tag is requested", report)
+	}
+	indexed := false
+	for _, symbol := range set.Symbols {
+		if symbol.Name == "Tagged" {
+			indexed = true
+		}
+	}
+	if !indexed {
+		t.Fatalf("symbols = %d, want the tagged package indexed", len(set.Symbols))
+	}
+}
+
 func TestDiscoverTypeScriptPackagesUsesEachProjectAndSkipsUnconfiguredPackages(t *testing.T) {
 	root := testsupport.TempDir(t)
 	writeFullFixture(t, filepath.Join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
