@@ -42,8 +42,13 @@ func Greeting() string { return "hello" }
 	if report.GoRepositories != 1 || report.GoModules != 1 || report.GoDefinitions == 0 {
 		t.Fatalf("full report = %+v, want one repository/module and definitions", report)
 	}
-	if _, err := os.Stat(workFile); err != nil {
-		t.Fatalf("synthetic work file %q: %v", workFile, err)
+	// A lone module resolves from its own manifest. A workspace could only
+	// widen its build list, so none is installed.
+	if report.GoWorkspaces != 0 {
+		t.Fatalf("workspaces = %d, want none for a single module", report.GoWorkspaces)
+	}
+	if _, err := os.Stat(workFile); !os.IsNotExist(err) {
+		t.Fatalf("synthetic work file %q error = %v, want absent", workFile, err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "go.work")); !os.IsNotExist(err) {
 		t.Fatalf("repository go.work error = %v, want absent", err)
@@ -226,6 +231,66 @@ func TestFullReportsEachRepositoryLanguageOnce(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("language %q declared %d times: %#v", language, count, set.Repositories[0].Languages)
 		}
+	}
+}
+
+// Two repositories that never name each other must not share a build list.
+// One workspace resolves a single minimum version selection for everything it
+// uses, so a dependency bumped in one repository changes the versions selected
+// for the other, and a version neither downloaded breaks both loads at once.
+// A repository that does require the other still resolves through one
+// workspace, because that is what makes the cross-repository edge exact.
+func TestFullIsolatesRepositoriesThatDoNotReachEachOther(t *testing.T) {
+	independent := func(t *testing.T) []workspace.Repository {
+		t.Helper()
+		root := testsupport.TempDir(t)
+		alone := filepath.Join(root, "alone")
+		other := filepath.Join(root, "other")
+		writeFullFixture(t, filepath.Join(alone, "go.mod"), "module example.com/alone\n\ngo 1.24\n")
+		writeFullFixture(t, filepath.Join(alone, "alone.go"), "package alone\n\nfunc Alone() string { return \"alone\" }\n")
+		writeFullFixture(t, filepath.Join(other, "go.mod"), "module example.com/other\n\ngo 1.24\n")
+		writeFullFixture(t, filepath.Join(other, "other.go"), "package other\n\nfunc Other() string { return \"other\" }\n")
+		return []workspace.Repository{
+			{Name: "alone", Path: alone, RealPath: alone, Languages: []string{"go"}},
+			{Name: "other", Path: other, RealPath: other, Languages: []string{"go"}},
+		}
+	}
+
+	workFile := filepath.Join(testsupport.TempDir(t), "go.work")
+	_, report, err := Full(context.Background(), FullOptions{
+		Repositories: independent(t), SyntheticWorkFile: workFile,
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if report.GoModules != 2 || report.GoWorkspaces != 0 {
+		t.Fatalf("report = %+v, want two modules and no shared workspace", report)
+	}
+
+	root := testsupport.TempDir(t)
+	provider := filepath.Join(root, "provider")
+	consumer := filepath.Join(root, "consumer")
+	writeFullFixture(t, filepath.Join(provider, "go.mod"), "module example.com/provider\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(provider, "value.go"), "package provider\n\n// Value is the shared fact.\nconst Value = 41\n")
+	writeFullFixture(t, filepath.Join(consumer, "go.mod"), "module example.com/consumer\n\ngo 1.24\n\nrequire example.com/provider v0.0.0\n")
+	writeFullFixture(t, filepath.Join(consumer, "main.go"), "package consumer\n\nimport \"example.com/provider\"\n\n// Total reads the provider.\nfunc Total() int { return provider.Value }\n")
+
+	shared := filepath.Join(testsupport.TempDir(t), "go.work")
+	_, report, err = Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "provider", Path: provider, RealPath: provider, Languages: []string{"go"}},
+			{Name: "consumer", Path: consumer, RealPath: consumer, Languages: []string{"go"}},
+		},
+		SyntheticWorkFile: shared,
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if report.GoWorkspaces != 1 {
+		t.Fatalf("workspaces = %d, want one shared workspace", report.GoWorkspaces)
+	}
+	if _, err := os.Stat(shared); err != nil {
+		t.Fatalf("shared workspace %q: %v", shared, err)
 	}
 }
 

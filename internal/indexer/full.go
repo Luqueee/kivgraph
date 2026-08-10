@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
@@ -76,7 +77,10 @@ type FullReport struct {
 	// GoLoadDiagnostics counts the diagnostics that did not block the pass:
 	// a directory with no file to select, and the advisory the loader
 	// attaches to it.
-	GoLoadDiagnostics      int
+	GoLoadDiagnostics int
+	// GoWorkspaces counts the synthetic go.work files this pass installed.
+	// A module that reaches no other registered module loads without one.
+	GoWorkspaces           int
 	GoDefinitions          int
 	GoReferences           int
 	GoUnresolved           int
@@ -133,10 +137,13 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
 		}
-		if _, err := goworkspace.Write(ctx, options.SyntheticWorkFile, plan, goRepositories); err != nil {
-			return facts.Set{}, report, fmt.Errorf("write synthetic Go workspace: %w", err)
+		workFiles, workspaces, err := writeWorkspaces(ctx, options.SyntheticWorkFile, plan, goRepositories)
+		if err != nil {
+			return facts.Set{}, report, err
 		}
 		report.SyntheticWorkFile = options.SyntheticWorkFile
+		report.GoWorkspaces = workspaces
+
 		moduleRegistry, err := goloader.NewModuleRegistry(ctx, goRepositories)
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build Go module registry: %w", err)
@@ -158,7 +165,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 				})
 				load, err := goloader.Load(ctx, goloader.Options{
 					Directory:    module.RootPath,
-					WorkFile:     options.SyntheticWorkFile,
+					WorkFile:     workFiles[module.ModulePath],
 					Patterns:     append([]string(nil), module.PackagePatterns...),
 					IncludeTests: options.IncludeTests,
 					BuildTags:    append([]string(nil), options.GoBuildTags...),
@@ -401,6 +408,75 @@ func formatPackageErrors(errors []goloader.PackageError) string {
 		parts = append(parts, fmt.Sprintf("%s %s: %s", failure.PackagePath, failure.Position, failure.Message))
 	}
 	return strings.Join(parts, "; ")
+}
+
+// writeWorkspaces installs one synthetic go.work per independent group of
+// modules and answers the file each module must load with.
+//
+// A module that reaches no other registered module needs no workspace: its own
+// manifest already resolves it, exactly as its own toolchain would. One shared
+// workspace would resolve a single build list for every repository at once, so
+// a dependency bumped in one of them changes the versions selected for all the
+// others -- and a version no repository downloaded on its own breaks every
+// load together.
+func writeWorkspaces(
+	ctx context.Context,
+	base string,
+	plan goworkspace.Plan,
+	repositories []workspace.Repository,
+) (map[string]string, int, error) {
+	files := make(map[string]string, len(plan.Modules))
+	used := make(map[string]struct{})
+	written := 0
+	for _, group := range plan.Partition() {
+		if len(group.Modules) == 1 && len(group.Modules[0].WorkspaceMembers) == 0 {
+			continue
+		}
+		target := base
+		if written > 0 {
+			target = siblingWorkFile(base, written)
+		}
+		if _, err := goworkspace.Write(ctx, target, group, repositories); err != nil {
+			return nil, 0, fmt.Errorf("write synthetic Go workspace %q: %w", target, err)
+		}
+		for _, module := range group.Modules {
+			files[module.ModulePath] = target
+		}
+		used[target] = struct{}{}
+		written++
+	}
+	if err := removeUnusedWorkFiles(base, used); err != nil {
+		return nil, 0, err
+	}
+	return files, written, nil
+}
+
+func siblingWorkFile(base string, index int) string {
+	extension := filepath.Ext(base)
+	return strings.TrimSuffix(base, extension) + "." + strconv.Itoa(index) + extension
+}
+
+// removeUnusedWorkFiles drops the synthetic files this run did not need, so a
+// workspace left by another set of repositories cannot be mistaken for the one
+// in force. The go command keeps its hashes in a sibling `.sum`, which is
+// meaningless once its workspace is gone.
+func removeUnusedWorkFiles(base string, used map[string]struct{}) error {
+	extension := filepath.Ext(base)
+	candidates, err := filepath.Glob(strings.TrimSuffix(base, extension) + ".*" + extension)
+	if err != nil {
+		return fmt.Errorf("scan synthetic Go workspaces: %w", err)
+	}
+	for _, candidate := range append(candidates, base) {
+		if _, keep := used[candidate]; keep {
+			continue
+		}
+		for _, target := range []string{candidate, candidate + ".sum"} {
+			if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("remove unused synthetic Go workspace %q: %w", target, err)
+			}
+		}
+	}
+	return nil
 }
 
 // toolchainHint explains a diagnostic that no repository can act on: go/types

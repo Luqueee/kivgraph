@@ -90,10 +90,14 @@ integridad, compatibilidad o verificación descritos aquí.
   repositorio, módulo y versión; nunca se deja que el `go.work` sintético
   escale el toolchain y reviente la carga de todos los repositorios dentro de
   la biblioteca estándar. El techo es `major.minor`.
-- El `go.work` sintético resuelve una sola lista de build para todos los
-  repositorios. La indexación es hermética por defecto y `go.allow_network` es
-  la única salida declarada cuando la MVS del conjunto selecciona un módulo
-  ausente del caché local.
+- El `go.work` sintético resuelve una sola lista de build para los módulos que
+  usa, así que el plan se parte en grupos independientes: dos módulos solo
+  comparten workspace cuando uno alcanza al otro por `require`, por `replace`
+  o por un `go.work` del repositorio indexado. Un módulo que no alcanza a
+  ningún otro se carga en modo módulo, sin workspace, y los ficheros
+  sintéticos que sobran se retiran con su `.sum`. La indexación sigue siendo
+  hermética y `go.allow_network` es la única salida declarada cuando la MVS de
+  un grupo selecciona un módulo ausente del caché local.
 
 ## TypeScript
 

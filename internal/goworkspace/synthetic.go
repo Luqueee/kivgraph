@@ -50,6 +50,15 @@ type Module struct {
 	GoVersion    string
 	// PackagePatterns are the discovered package paths passed to go/packages.
 	PackagePatterns []string
+	// Reaches are the module paths this module requires or replaces. Only
+	// the ones a registered repository provides matter, and they decide
+	// which modules must share a workspace.
+	Reaches []string
+	// WorkspaceMembers are the module paths bound together by a go.work of
+	// the indexed repository that lists this module, this one included.
+	// That file is a fact of the repository, so its grouping is preserved
+	// and its members always load through a workspace.
+	WorkspaceMembers []string
 }
 
 // Replacement is a replace directive promoted to the synthetic workspace.
@@ -131,6 +140,10 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 			return Plan{}, fmt.Errorf("repository %q Go modules: %w", name, err)
 		}
 		workspaceReplaces := workspaceReplacementsByManifest(discovery.Workspaces)
+		moduleByManifest := make(map[string]string, len(discovery.Modules))
+		for _, module := range discovery.Modules {
+			moduleByManifest[module.ManifestPath] = strings.TrimSpace(module.ModulePath)
+		}
 		for _, module := range discovery.Modules {
 			modulePath := strings.TrimSpace(module.ModulePath)
 			if modulePath == "" {
@@ -147,12 +160,14 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 				WorkspaceReplaces: append([]workspace.GoReplacement(nil), workspaceReplaces[module.ManifestPath]...),
 			}
 			byModulePath[modulePath] = append(byModulePath[modulePath], Module{
-				Repository:      name,
-				ModulePath:      modulePath,
-				RootPath:        module.RootPath,
-				ManifestPath:    module.ManifestPath,
-				GoVersion:       module.GoVersion,
-				PackagePatterns: packagePatterns,
+				Repository:       name,
+				ModulePath:       modulePath,
+				RootPath:         module.RootPath,
+				ManifestPath:     module.ManifestPath,
+				GoVersion:        module.GoVersion,
+				PackagePatterns:  packagePatterns,
+				Reaches:          moduleReaches(module),
+				WorkspaceMembers: workspaceMembers(discovery.Workspaces, module.ManifestPath, moduleByManifest),
 			})
 			collectReplacements(replacements, name, provider)
 		}
@@ -230,6 +245,55 @@ func pathWithinModule(root, candidate string) bool {
 		return false
 	}
 	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
+}
+
+// moduleReaches lists every module path this manifest names. A requirement or
+// a replacement pointing at a module another repository provides is the only
+// reason two modules must resolve one shared build list.
+func moduleReaches(module workspace.GoModule) []string {
+	reaches := make([]string, 0, len(module.Requires)+len(module.Replaces))
+	for _, requirement := range module.Requires {
+		reaches = appendUnique(reaches, requirement)
+	}
+	for _, replacement := range module.Replaces {
+		reaches = appendUnique(reaches, replacement.OldPath)
+		if strings.TrimSpace(replacement.NewPath) != "" {
+			reaches = appendUnique(reaches, replacement.NewPath)
+		}
+	}
+	return reaches
+}
+
+// workspaceMembers maps the members of every repository go.work that lists
+// this manifest onto their module paths, this manifest included. A go.work of
+// the indexed repository is a fact about that repository, so the modules it
+// binds keep resolving together and never fall back to module mode.
+func workspaceMembers(
+	workspaces []workspace.GoWorkspace,
+	manifestPath string,
+	moduleByManifest map[string]string,
+) []string {
+	members := make([]string, 0)
+	for _, candidate := range workspaces {
+		if !containsString(candidate.Modules, manifestPath) {
+			continue
+		}
+		for _, member := range candidate.Modules {
+			if modulePath, known := moduleByManifest[member]; known {
+				members = appendUnique(members, modulePath)
+			}
+		}
+	}
+	return members
+}
+
+func containsString(values []string, value string) bool {
+	for _, existing := range values {
+		if existing == value {
+			return true
+		}
+	}
+	return false
 }
 func workspaceReplacementsByManifest(workspaces []workspace.GoWorkspace) map[string][]workspace.GoReplacement {
 	result := make(map[string][]workspace.GoReplacement)
@@ -479,6 +543,114 @@ func (plan Plan) Render() ([]byte, error) {
 	file.SortBlocks()
 	file.Cleanup()
 	return modfile.Format(file.Syntax), nil
+}
+
+// Partition splits the plan into the independent workspaces it really needs.
+//
+// A go.work resolves one build list for every module it uses, so unrelated
+// repositories end up sharing a minimum version selection: a dependency bumped
+// in one of them changes the versions selected for all the others, and a
+// version no repository downloaded on its own breaks every load at once. Two
+// modules only need the same workspace when one can reach the other: a
+// requirement or a replacement naming a registered module, or a go.work of the
+// indexed repository that already binds them together. Everything else is
+// loaded exactly as its own toolchain would load it.
+//
+// The returned plans are ordered by their first module path, and a plan with a
+// single module that reaches nothing keeps its own manifest as the only truth:
+// callers load it in module mode, with no workspace at all.
+func (plan Plan) Partition() []Plan {
+	if len(plan.Modules) < 2 {
+		return []Plan{plan}
+	}
+	provider := make(map[string]int, len(plan.Modules))
+	for index, module := range plan.Modules {
+		provider[module.ModulePath] = index
+	}
+	groups := newDisjointSet(len(plan.Modules))
+	for index, module := range plan.Modules {
+		for _, reachable := range module.Reaches {
+			if other, provided := provider[reachable]; provided {
+				groups.union(index, other)
+			}
+		}
+		for _, member := range module.WorkspaceMembers {
+			if other, provided := provider[member]; provided {
+				groups.union(index, other)
+			}
+		}
+	}
+
+	byRoot := make(map[int][]Module)
+	for index, module := range plan.Modules {
+		root := groups.find(index)
+		byRoot[root] = append(byRoot[root], module)
+	}
+	partitioned := make([]Plan, 0, len(byRoot))
+	for _, modules := range byRoot {
+		partitioned = append(partitioned, plan.subPlan(modules))
+	}
+	sort.Slice(partitioned, func(left, right int) bool {
+		return partitioned[left].Modules[0].ModulePath < partitioned[right].Modules[0].ModulePath
+	})
+	return partitioned
+}
+
+// subPlan keeps the replacements that name a module of this group or a module
+// none of the groups provides. A replacement aimed at another group would
+// shadow a module this workspace never loads.
+func (plan Plan) subPlan(modules []Module) Plan {
+	provided := make(map[string]struct{}, len(modules))
+	for _, module := range modules {
+		provided[module.ModulePath] = struct{}{}
+	}
+	replaces := make([]Replacement, 0, len(plan.Replaces))
+	for _, replacement := range plan.Replaces {
+		if _, mine := provided[replacement.OldPath]; mine {
+			continue
+		}
+		replaces = append(replaces, replacement)
+	}
+	version, err := workspaceGoVersion(modules, "")
+	if err != nil {
+		// Every module of the plan already passed this check when the
+		// plan was built, so a group of them cannot fail it.
+		version = plan.GoVersion
+	}
+	return Plan{GoVersion: version, Modules: modules, Replaces: replaces}
+}
+
+// disjointSet groups module indexes without allocating a graph.
+type disjointSet struct {
+	parent []int
+}
+
+func newDisjointSet(size int) *disjointSet {
+	parent := make([]int, size)
+	for index := range parent {
+		parent[index] = index
+	}
+	return &disjointSet{parent: parent}
+}
+
+func (set *disjointSet) find(index int) int {
+	for set.parent[index] != index {
+		set.parent[index] = set.parent[set.parent[index]]
+		index = set.parent[index]
+	}
+	return index
+}
+
+func (set *disjointSet) union(left, right int) {
+	leftRoot, rightRoot := set.find(left), set.find(right)
+	if leftRoot == rightRoot {
+		return
+	}
+	if leftRoot < rightRoot {
+		set.parent[rightRoot] = leftRoot
+		return
+	}
+	set.parent[leftRoot] = rightRoot
 }
 
 func appendUnique(values []string, value string) []string {

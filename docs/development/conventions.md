@@ -129,16 +129,25 @@ comprobar tipos hasta la versión del lenguaje del toolchain que lo compiló.
 
 ### Resolución de módulos en un workspace multi-repositorio
 
-El `go.work` sintético resuelve una única lista de build para todos los
-repositorios, así que la MVS puede seleccionar versiones que ningún miembro
-descargó por su cuenta. Con `GOPROXY=off` esa selección falla y rompe el
-índice de todos a la vez.
+Un `go.work` resuelve **una sola** lista de build para todos los módulos que
+usa. Con todos los repositorios registrados dentro de un único workspace, una
+dependencia subida en uno cambia las versiones seleccionadas para los demás, y
+una versión que ningún repositorio descargó por su cuenta rompe todas las
+cargas a la vez.
 
-- La indexación es hermética por defecto: un módulo ausente del caché local se
-  reporta, no se descarga.
-- `go.allow_network: true` levanta esa restricción para el comando `go`. Es la
-  salida cuando el conjunto de repositorios registrados cambia de
-  dependencias.
+- El plan se parte en grupos independientes. Dos módulos comparten workspace
+  solo cuando uno puede alcanzar al otro: un `require` o un `replace` que
+  nombra un módulo registrado, o un `go.work` del repositorio indexado que ya
+  los une.
+- Un módulo que no alcanza a ningún otro se carga en modo módulo, sin
+  workspace: su propio `go.mod` y su `go.sum` son la verdad, exactamente como
+  lo cargaría su propio toolchain.
+- Los ficheros sintéticos que una pasada no necesita se retiran, junto con su
+  `.sum`, para que un workspace de otro conjunto de repositorios no se
+  confunda con el vigente.
+- La indexación sigue siendo hermética: un módulo ausente del caché local se
+  reporta, no se descarga. `go.allow_network: true` levanta esa restricción
+  para el comando `go`.
 
 ## Stable keys
 

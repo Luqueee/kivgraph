@@ -21,14 +21,16 @@ type GoDiscovery struct {
 	Packages   []GoPackage
 }
 
-// GoModule describes one go.mod and its replace directives.
+// GoModule describes one go.mod, its requirements and its replace directives.
 type GoModule struct {
 	ManifestPath string
 	SumPath      string
 	RootPath     string
 	ModulePath   string
 	GoVersion    string
-	Replaces     []GoReplacement
+	// Requires are the module paths of the require block, in file order.
+	Requires []string
+	Replaces []GoReplacement
 }
 
 // GoWorkspace describes one go.work and its resolved module manifests.
@@ -110,6 +112,14 @@ func parseGoModule(manifestPath, repositoryRoot string) (parsedGoModule, error) 
 		module.SumPath = filepath.Clean(sumPath)
 	} else if err != nil && !os.IsNotExist(err) {
 		return parsedGoModule{}, fmt.Errorf("inspect go.sum %q: %w", sumPath, err)
+	}
+	module.Requires = make([]string, 0, len(file.Require))
+	for _, requirement := range file.Require {
+		path := strings.TrimSpace(requirement.Mod.Path)
+		if path == "" {
+			continue
+		}
+		module.Requires = append(module.Requires, path)
 	}
 	module.Replaces = make([]GoReplacement, 0, len(file.Replace))
 	for index, replacement := range file.Replace {
