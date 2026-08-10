@@ -70,6 +70,13 @@ type Plan struct {
 	Detail  string
 }
 
+// TargetDetection reports whether a supported client appears to be installed
+// in the requested scope.
+type TargetDetection struct {
+	Target   Target
+	Detected bool
+}
+
 // New validates and resolves the local roots used by an integration manager.
 func New(options Options) (Manager, error) {
 	var err error
@@ -171,6 +178,116 @@ func (manager Manager) StatusMCP(target Target, scope Scope) (Plan, error) {
 		return manager.statusTOML(document)
 	}
 	return manager.statusJSON(document)
+}
+
+// DetectMCPTargets returns every MCP target supported by the requested scope,
+// marking the targets whose local configuration or installation markers exist.
+func (manager Manager) DetectMCPTargets(scope Scope) ([]TargetDetection, error) {
+	return manager.detectTargets(scope, false)
+}
+
+// DetectSkillTargets returns every local skill target supported by the
+// requested scope, marking the targets whose local installation markers exist.
+func (manager Manager) DetectSkillTargets(scope Scope) ([]TargetDetection, error) {
+	return manager.detectTargets(scope, true)
+}
+
+func (manager Manager) detectTargets(scope Scope, skill bool) ([]TargetDetection, error) {
+	if err := validateScope(scope); err != nil {
+		return nil, err
+	}
+	targets := []Target{
+		TargetClaudeCode,
+		TargetClaudeDesktop,
+		TargetCodex,
+		TargetOpenCode,
+		TargetOhMyPi,
+	}
+	detections := make([]TargetDetection, 0, len(targets))
+	for _, target := range targets {
+		if target == TargetClaudeDesktop && (skill || scope == ScopeProject) {
+			continue
+		}
+		paths, err := manager.targetDetectionPaths(target, scope, skill)
+		if err != nil {
+			return nil, err
+		}
+		detected := false
+		for _, path := range paths {
+			exists, err := pathExists(path)
+			if err != nil {
+				return nil, err
+			}
+			if exists {
+				detected = true
+				break
+			}
+		}
+		detections = append(detections, TargetDetection{Target: target, Detected: detected})
+	}
+	return detections, nil
+}
+
+func (manager Manager) targetDetectionPaths(target Target, scope Scope, skill bool) ([]string, error) {
+	paths := make([]string, 0, 4)
+	if skill {
+		path, err := manager.skillPath(target, scope)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	} else {
+		path, _, _, err := manager.mcpPath(target, scope)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+
+	base := manager.homeDir
+	if scope == ScopeProject {
+		base = manager.projectDir
+	}
+	switch target {
+	case TargetClaudeCode:
+		paths = append(paths, filepath.Join(base, ".claude"))
+	case TargetClaudeDesktop:
+		if manager.goos == "darwin" {
+			paths = append(paths,
+				filepath.Join(manager.homeDir, "Applications", "Claude.app"),
+				"/Applications/Claude.app",
+			)
+		} else {
+			paths = append(paths,
+				filepath.Join(manager.homeDir, ".local", "share", "applications", "claude.desktop"),
+				"/usr/share/applications/claude.desktop",
+			)
+		}
+	case TargetCodex:
+		paths = append(paths, filepath.Join(base, ".codex"))
+		if skill {
+			paths = append(paths, filepath.Join(base, ".agents"))
+		}
+	case TargetOpenCode:
+		if scope == ScopeUser {
+			paths = append(paths, filepath.Join(base, ".config", "opencode"))
+		}
+		paths = append(paths, filepath.Join(base, ".opencode"))
+	case TargetOhMyPi:
+		paths = append(paths, filepath.Join(base, ".omp"))
+	}
+	return paths, nil
+}
+
+func pathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, fmt.Errorf("inspect detection path %q: %w", path, err)
 }
 
 // InstallSkill copies the canonical embedded skill to a client-native path.

@@ -42,6 +42,10 @@ atendiendo la invocación y los argumentos `serve`; el launcher estable de la
 instalación hace que una actualización posterior no requiera reescribir los
 clientes.
 
+La selección interactiva y la instalación en varios clientes sin
+`--target` se añadieron posteriormente en el ADR 0029. Las operaciones
+`status` y `remove` conservan el target explícito.
+
 Los adaptadores de cliente viven detrás de un módulo interno común. Ese módulo
 calcula un plan, valida el estado existente y aplica una escritura atómica. No
 se expone a la CLI el esquema específico de ningún cliente.

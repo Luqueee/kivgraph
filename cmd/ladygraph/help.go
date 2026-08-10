@@ -64,10 +64,10 @@ var commandGroups = []commandGroup{
 	{
 		title: "Integrations",
 		commands: []commandEntry{
-			{"mcp install --target TARGET [--scope user|project]", "Register the local MCP server in a client"},
+			{"mcp install [--scope user|project]", "Detect and register one or more MCP clients"},
 			{"mcp status --target TARGET [--scope user|project]", "Inspect a client MCP registration"},
 			{"mcp remove --target TARGET [--scope user|project]", "Remove only Ladygraph's MCP registration"},
-			{"skill install --target TARGET [--scope user|project]", "Install the Ladygraph Agent Skill"},
+			{"skill install [--scope user|project]", "Detect and install the Agent Skill in one or more clients"},
 			{"skill status --target TARGET [--scope user|project]", "Inspect the installed Agent Skill"},
 			{"skill remove --target TARGET [--scope user|project]", "Remove only Ladygraph's Agent Skill"},
 		},

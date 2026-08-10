@@ -84,19 +84,26 @@ terminal. Set `NO_COLOR` or redirect output to keep it plain.
 
 ### Configure an MCP client and install the skill
 
-The installer does not edit client configuration automatically. Register the
-server explicitly for one target and scope:
+The release installer does not edit client configuration automatically. After
+installing Ladygraph, run the integration commands without `--target` to detect
+the coding agents present on this machine and select one or more of them:
 
 ```bash
-ladygraph mcp install --target claude-code --scope user
-ladygraph skill install --target claude-code --scope user
+ladygraph mcp install --scope user
+ladygraph skill install --scope user
 ```
+
+Ladygraph checks each client's known local configuration or installation roots,
+marks detected agents, and selects all detected agents when you press Enter.
+Type comma-separated numbers to choose a subset. If none is detected, the
+complete supported list is offered. Use `--target` only for scripted,
+non-interactive installation.
 
 Supported MCP targets are `claude-code`, `claude-desktop`, `codex`, `opencode`,
 and `oh-my-pi`. Supported skill targets are `claude-code`, `codex`, `opencode`,
 and `oh-my-pi`; Claude Desktop has no local skill target. The default scope is
-`user`; use `--scope project` for the project-local path. Use `--dry-run` to
-inspect a plan without writing. Existing incompatible entries stop with an
+`user`; use `--scope project` for project-local configuration. Use `--dry-run`
+to inspect a plan without writing. Existing incompatible entries stop with an
 error; `--force` is required to replace or remove one. Existing files are
 written atomically with mode `0600` and receive a
 `*.ladygraph.bak` backup before replacement or removal.

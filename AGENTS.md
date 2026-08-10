@@ -323,8 +323,10 @@ integridad, compatibilidad o verificación descritos aquí.
 
 ## Integraciones de clientes
 
-- `ladygraph mcp install` y `ladygraph skill install` solo escriben el target y
-  el ámbito explícitos; no inicializan Ladygraph ni indexan repositorios.
+- `ladygraph mcp install` y `ladygraph skill install` detectan raíces locales
+  conocidas cuando falta `--target`, muestran una selección interactiva de uno o
+  varios clientes y conservan `--target` para automatización; nunca inicializan
+  Ladygraph ni indexan repositorios.
 - Los adaptadores externos validan JSON/TOML antes de modificarlo, rechazan
   destinos symlink, escriben atómicamente con `0600` y exigen `--force` para
   sustituir o retirar una entrada incompatible. Las entradas idempotentes no
