@@ -68,7 +68,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: ts-worker/pnpm-lock.yaml
+          cache-dependency-path: |
+            ts-worker/pnpm-lock.yaml
+            web/pnpm-lock.yaml
 
       - name: Cache pinned LadybugDB
         uses: actions/cache@v4
@@ -90,14 +92,17 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build MCP-only bundle
+      # The bundle carries the viewer. `ui` is advertised in the help of every
+      # build, and a published binary that answers it with "this build carries
+      # no web bundle" offers a command nobody can run: the web assets are
+      # 2.3 MB of a 90 MB bundle.
+      - name: Build bundle
         shell: bash
         env:
           LADYGRAPH_VERSION: ${{ steps.release.outputs.version }}
         run: |
           scripts/build-bundle.sh \
             --target "$TARGET_OS/$TARGET_ARCH" \
-            --mcp-only \
             --version "$LADYGRAPH_VERSION" \
             "$RUNNER_TEMP/$BUNDLE_NAME"
 
@@ -124,6 +129,17 @@ jobs:
           test "$("$bundle/bin/ladygraph" version)" = "$EXPECTED_VERSION"
           version_json=$("$bundle/bin/ladygraph" version --json)
           test "$(jq -r .ladygraph <<<"$version_json")" = "$EXPECTED_VERSION"
+          # The viewer has to be in the payload and the binary has to know
+          # it: a bundle that carries web/ but was linked without the
+          # webassets tag serves the "no web bundle" page on every route,
+          # and the help is where that shows.
+          test -f "$bundle/web/index.html"
+          help_output=$("$bundle/bin/ladygraph" --help)
+          grep -q '^  ui \[' <<<"$help_output"
+          if grep -q 'unavailable: this build carries no web bundle' <<<"$help_output"; then
+            echo "bundle carries web assets the binary cannot serve: built without the webassets tag" >&2
+            exit 1
+          fi
 
       - name: Create reproducible release archive
         shell: bash

@@ -393,9 +393,16 @@ integridad, compatibilidad o verificación descritos aquí.
 - La documentación de instalación debe reflejar el layout generado, el
   `RUNPATH`, el runtime Node requerido y la verificación `SHA256SUMS`; no
   presentar un bundle como autocontenido si faltan dependencias del sistema.
-- `scripts/install.sh` instala únicamente el bundle MCP por defecto; no
-  inicializa la configuración, indexa repositorios ni instala el visor. El
-  visor solo entra en un bundle generado sin `--mcp-only`.
+- La release publicada lleva el visor. `ladygraph ui` se anuncia en la ayuda de
+  toda build, así que un binario publicado que responda «this build carries no
+  web bundle» ofrece un comando que nadie puede ejecutar; los assets web son
+  `2.3 MB` de un bundle de `90 MB`. El workflow de release construye sin
+  `--mcp-only` y verifica las dos mitades: que `web/index.html` está en el
+  payload y que la ayuda del binario no marca `ui` como no disponible -- un
+  bundle con assets enlazado sin el tag `webassets` serviría la página de
+  «bundle no disponible» en todas las rutas.
+- `--mcp-only` sigue existiendo para quien quiera un bundle sin visor.
+  `scripts/install.sh` no inicializa la configuración ni indexa repositorios.
 - Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` detecta la
   plataforma, descarga la última release publicada para ella, verifica el
   checksum externo e interno, y `ladygraph update` solo sustituye el bundle

@@ -3,8 +3,12 @@
 Esta guía instala Ladygraph como un servidor MCP local y prepara su primer
 índice. El flujo recomendado usa el bundle publicado para la plataforma, que
 incluye el binario Go, la biblioteca nativa fijada de LadybugDB, el worker
-TypeScript, las grammars, los avisos de licencia y, cuando existe el paquete
-web construido, el bundle Vite bajo `web/`.
+TypeScript, las grammars, los avisos de licencia y el visor web bajo `web/`.
+
+El visor viene en la release: tras instalar, `ladygraph ui` sirve el grafo
+publicado en `127.0.0.1:7777` sin construir nada. Un bundle generado con
+`--mcp-only` no lo lleva, y en ese caso la ayuda marca `ui` como no
+disponible en lugar de ofrecer un comando que termina en error.
 
 El visor web empaquetado usa Reagraph `4.32.0` sobre el payload binario `LGVB`.
 Cada vista materializada está limitada a `10.000` nodos por tile y `32 MiB`
