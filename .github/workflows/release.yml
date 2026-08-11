@@ -78,6 +78,14 @@ jobs:
           path: .tooling/ladybug
           key: ladybug-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
 
+      # The Rust engine is a 40 MB download the bundle carries; the digest in
+      # the manifest is what makes the cache safe to reuse.
+      - name: Cache pinned rust-analyzer
+        uses: actions/cache@v4
+        with:
+          path: .tooling/rust-analyzer
+          key: rust-analyzer-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
+
       # The bundle rewrites the executable's RUNPATH to the relative entry,
       # dropping the one the Go binding points at its own module directory.
       - name: Install patchelf
@@ -129,6 +137,17 @@ jobs:
           test "$("$bundle/bin/ladygraph" version)" = "$EXPECTED_VERSION"
           version_json=$("$bundle/bin/ladygraph" version --json)
           test "$(jq -r .ladygraph <<<"$version_json")" = "$EXPECTED_VERSION"
+          # The Rust engine has to be in the payload, has to run on this
+          # platform, and has to be the pinned one: an installation that falls
+          # back to whatever the PATH holds indexes a different graph.
+          test -x "$bundle/bin/rust-analyzer"
+          test -f "$bundle/tools/manifest.json"
+          test -f "$bundle/licenses/third-party/rust-analyzer/LICENSE-MIT"
+          test -f "$bundle/licenses/third-party/rust-analyzer/LICENSE-APACHE"
+          pinned_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
+          test "$(jq -r .tools.rust_analyzer.release "$bundle/manifest.json")" = "$pinned_release"
+          test "$(jq -r .rust_analyzer <<<"$version_json")" = "$pinned_release"
+          grep -q "$("$bundle/bin/rust-analyzer" --version | awk '{print $2}')" <<<"$pinned_release"
           # The viewer has to be in the payload and the binary has to know
           # it: a bundle that carries web/ but was linked without the
           # webassets tag serves the "no web bundle" page on every route,

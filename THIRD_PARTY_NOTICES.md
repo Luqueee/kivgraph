@@ -52,11 +52,22 @@ dependencias que se distribuyan junto con Ladygraph.
 - `github.com/tree-sitter/go-tree-sitter` `v0.25.0`.
 - `github.com/tree-sitter/tree-sitter-go` `v0.25.0`.
 - `github.com/tree-sitter/tree-sitter-javascript` `v0.25.0`.
+- `github.com/tree-sitter/tree-sitter-rust` `v0.23.2`.
 - `github.com/tree-sitter/tree-sitter-typescript` `v0.23.2`.
 - Licencia: MIT License.
 - El inventario de commits, URLs, SHA-256 y licencias de las grammars está
   en [`grammars/manifest.json`](grammars/manifest.json). Los textos de los
   módulos se incluyen en el bundle bajo `licenses/third-party/`.
+
+### rust-analyzer
+
+- `rust-analyzer` `2026-08-10.1` (`0.3.3008-standalone`), commit
+  `f938641be53c2e4bacd7dc46bddb74825a3e9d28`, distribuido como
+  `bin/rust-analyzer` porque es el motor que lee Rust.
+- Licencia: MIT o Apache License 2.0, a elección.
+- La versión, las URLs y los SHA-256 del binario y de sus licencias están en
+  [`tools/manifest.json`](tools/manifest.json); los textos se distribuyen en
+  `licenses/third-party/rust-analyzer/`.
 
 ### OpenTelemetry
 

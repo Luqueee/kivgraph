@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "tools": [
+    {
+      "name": "rust-analyzer",
+      "version": "2026-08-10.1",
+      "release": "0.3.3008-standalone",
+      "repository": "https://github.com/rust-lang/rust-analyzer.git",
+      "commit": "f938641be53c2e4bacd7dc46bddb74825a3e9d28",
+      "archive_format": "gz",
+      "license": "MIT OR Apache-2.0",
+      "license_files": [
+        {
+          "name": "LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/rust-lang/rust-analyzer/f938641be53c2e4bacd7dc46bddb74825a3e9d28/LICENSE-APACHE",
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "name": "LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/rust-lang/rust-analyzer/f938641be53c2e4bacd7dc46bddb74825a3e9d28/LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ],
+      "platforms": [
+        {
+          "target": "linux/amd64",
+          "asset": "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-08-10.1/rust-analyzer-x86_64-unknown-linux-gnu.gz",
+          "sha256": "d42908a7dc7b89250ae881a0919e477296843665c98574ecc8fe16ba60cecefb"
+        },
+        {
+          "target": "darwin/arm64",
+          "asset": "rust-analyzer-aarch64-apple-darwin.gz",
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-08-10.1/rust-analyzer-aarch64-apple-darwin.gz",
+          "sha256": "954c1dce00ab43d5a35caac07aff12a787b006b50dd3f4471bae4b13512343ef"
+        }
+      ]
+    }
+  ]
+}

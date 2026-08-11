@@ -135,6 +135,14 @@ jobs:
       - name: Install patchelf
         run: sudo apt-get update && sudo apt-get install -y patchelf
 
+      # The Rust engine is a 40 MB download the bundle carries; the digest in
+      # the manifest is what makes the cache safe to reuse.
+      - name: Cache pinned rust-analyzer
+        uses: actions/cache@v4
+        with:
+          path: .tooling/rust-analyzer
+          key: rust-analyzer-linux-amd64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
+
       - name: Build Linux distribution bundle
         run: make build-linux-amd64
 
@@ -142,6 +150,18 @@ jobs:
         run: |
           cd dist/ladygraph-linux-amd64
           sha256sum -c SHA256SUMS
+
+      # A Linux bundle is the one nobody can build on a macOS workstation, so
+      # this job is where the Rust engine of that platform is proven to be
+      # present, executable and the pinned one.
+      - name: Verify the bundled Rust engine
+        run: |
+          bundle=dist/ladygraph-linux-amd64
+          pinned=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
+          test -x "$bundle/bin/rust-analyzer"
+          test "$(jq -r .tools.rust_analyzer.release "$bundle/manifest.json")" = "$pinned"
+          test "$("$bundle/bin/ladygraph" version --json | jq -r .rust_analyzer)" = "$pinned"
+          "$bundle/bin/rust-analyzer" --version
 
       # The pinned core and the pinned Go binding must share a version: a
       # mismatched pair segfaults on the first C call instead of failing a

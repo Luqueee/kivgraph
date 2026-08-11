@@ -104,7 +104,7 @@ if [[ "$output_dir" != /* ]]; then
   output_dir="$root/$output_dir"
 fi
 
-for command in go node pnpm git install find sort stat tr awk; do
+for command in go node pnpm git install find sort stat tr awk jq; do
   require_command "$command"
 done
 
@@ -176,6 +176,7 @@ mkdir -p \
   "$output_dir/grammars" \
   "$output_dir/licenses/third-party" \
   "$output_dir/skills/ladygraph" \
+  "$output_dir/tools" \
   "$output_dir/worker/node_modules"
 
 printf 'build-bundle: installing worker dependencies\n' >&2
@@ -267,6 +268,19 @@ assert_single_runpath() {
 assert_single_runpath
 
 install -m 0755 "$native_library" "$output_dir/lib/$native_library_name"
+
+# rust-analyzer is the engine that reads Rust. It is pinned in
+# tools/manifest.json and travels inside the bundle so an installation does not
+# have to add it by hand; `cargo` is still the caller's, because a workspace
+# cannot be loaded without it.
+rust_analyzer_dir=$("$root/scripts/fetch-rust-analyzer.sh")
+install -m 0755 "$rust_analyzer_dir/rust-analyzer" "$output_dir/bin/rust-analyzer"
+mkdir -p "$output_dir/licenses/third-party/rust-analyzer"
+install -m 0644 "$rust_analyzer_dir/LICENSE-APACHE" \
+  "$output_dir/licenses/third-party/rust-analyzer/LICENSE-APACHE"
+install -m 0644 "$rust_analyzer_dir/LICENSE-MIT" \
+  "$output_dir/licenses/third-party/rust-analyzer/LICENSE-MIT"
+install -m 0644 "$root/tools/manifest.json" "$output_dir/tools/manifest.json"
 install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
 install -m 0644 "$root/THIRD_PARTY_NOTICES.md" "$output_dir/licenses/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$root/docs/dependencies/ladybugdb.md" "$output_dir/licenses/ladybugdb-provenance.md"
@@ -323,8 +337,12 @@ if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; 
   fail "built release version $release_version does not match requested $requested_version"
 fi
 grammar_sha256=$(sha256_of "$output_dir/grammars/manifest.json")
+rust_analyzer_version=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .version' "$root/tools/manifest.json")
+rust_analyzer_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' "$root/tools/manifest.json")
+rust_analyzer_sha256=$(sha256_of "$output_dir/bin/rust-analyzer")
+tools_sha256=$(sha256_of "$output_dir/tools/manifest.json")
 ladybug_sha256=$(sha256_of "$output_dir/lib/$native_library_name")
-artifact_dirs=(bin lib worker grammars licenses skills)
+artifact_dirs=(bin lib worker grammars licenses skills tools)
 if [[ "$web_assets" == true ]]; then
   artifact_dirs+=(web)
 fi
@@ -381,6 +399,16 @@ cat > "$output_dir/manifest.json" <<EOF
   "grammars": {
     "manifest": "grammars/manifest.json",
     "sha256": "$grammar_sha256"
+  },
+  "tools": {
+    "manifest": "tools/manifest.json",
+    "sha256": "$tools_sha256",
+    "rust_analyzer": {
+      "version": "$rust_analyzer_version",
+      "release": "$rust_analyzer_release",
+      "binary": "bin/rust-analyzer",
+      "sha256": "$rust_analyzer_sha256"
+    }
   },
   "artifacts": [
 $(write_artifacts)

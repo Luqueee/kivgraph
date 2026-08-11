@@ -1,6 +1,6 @@
 # Ladygraph
 
-Ladygraph will be a standalone, local MCP server for cross-repository code intelligence in TypeScript and Go.
+Ladygraph will be a standalone, local MCP server for cross-repository code intelligence in TypeScript, Go and Rust.
 
 ## Status
 
@@ -19,13 +19,16 @@ The repository contains the initial project foundation. Indexing, storage, and M
 The installer detects the platform, downloads the latest published MCP release
 for it, verifies both the release archive and the bundle checksums, and
 installs it without requiring Go, Node.js, or pnpm. The release contains the Go
-server, the pinned LadybugDB library, the TypeScript worker, and the grammar
-manifest; the web viewer is intentionally omitted.
+server, the pinned LadybugDB library, the TypeScript worker, the pinned
+`rust-analyzer`, and the grammar manifest; the web viewer is intentionally
+omitted.
 
 Published bundles: Linux `amd64` and macOS `arm64`.
 
 Runtime requirements: Bash, Node.js `22` or later, `curl`, `tar`, and
-`sha256sum` or `shasum`.
+`sha256sum` or `shasum`. The bundle carries its own `rust-analyzer`; indexing
+Rust repositories additionally needs `cargo` on the `PATH`, because the
+analyzer cannot load a Cargo workspace without it.
 
 On macOS the binaries are not notarized. A release downloaded with `curl` is
 not quarantined and runs; a copy downloaded with a browser needs `xattr -dr
@@ -124,7 +127,7 @@ Initialize and publish a graph before starting the MCP server:
 ```bash
 ladygraph init \
   --repository project=/absolute/path/to/project \
-  --languages go,typescript
+  --languages go,typescript,rust
 ladygraph doctor
 ladygraph index --full
 ```

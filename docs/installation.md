@@ -37,9 +37,20 @@ La release publica un bundle por plataforma soportada:
 | Linux `x86_64`/`amd64` | `ladygraph-linux-amd64.tar.gz` | `lib/liblbug.so` |
 | macOS `arm64` (Apple Silicon) | `ladygraph-darwin-arm64.tar.gz` | `lib/liblbug.dylib` |
 
+Cada bundle lleva dentro los tres motores que Ladygraph ejecuta: la biblioteca
+nativa de LadybugDB en `lib/`, el worker TypeScript en `worker/` y
+`bin/rust-analyzer`. Todos entran en `SHA256SUMS` y en `manifest.json`, y
+`ladygraph version --json` publica sus versiones.
+
 Cada bundle necesita:
 
 - Node.js `22` o posterior para ejecutar el worker TypeScript;
+- `cargo` en el `PATH` **solo** si se indexan repositorios Rust. El bundle
+  lleva su propio `bin/rust-analyzer`, fijado y verificado por digest, y el
+  ejecutable lo prefiere al del `PATH`; lo que no lleva es un toolchain de
+  Rust, y sin `cargo` el analizador no puede cargar un workspace. Sin él, el
+  repositorio Rust se declara `WORKSPACE_NOT_LOADED` y el resto del grafo se
+  publica igual;
 - las bibliotecas estándar del sistema. En Linux eso incluye una `glibc`
   compatible con el entorno donde se compiló el bundle.
 
