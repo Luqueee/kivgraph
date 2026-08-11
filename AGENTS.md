@@ -119,6 +119,12 @@ integridad, compatibilidad o verificación descritos aquí.
   `SnapshotStore.Publish` solo acepta una generación estrictamente más nueva:
   un servidor vivo conserva el grafo que ya no existe y no instalará ninguno
   más. El seguidor lo declara una vez y el comando avisa de reiniciar.
+- `index_project` es idempotente: un proyecto ya registrado con el mismo
+  directorio se reindexa sin tocar el registro, y un cambio de lenguajes
+  conserva las `exclusions` que la petición no puede expresar. Solo un nombre
+  ocupado por otro directorio es conflicto, y el error nombra el registrado.
+  `clean` nunca retira repositorios: reconstruir lo registrado es
+  `index --full`.
 
 ## TypeScript
 

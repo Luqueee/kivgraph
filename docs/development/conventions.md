@@ -193,6 +193,22 @@ enumera lo que haría y no toca nada hasta `--yes`.
   siguientes, porque `Publish` solo acepta identificadores mayores. El
   seguidor lo declara una vez y el comando avisa de reiniciar.
 
+### Registrar un proyecto dos veces
+
+`clean` retira el grafo y deja el registro de repositorios intacto: lo que se
+indexa es una decisión del operador, no un producto de la pasada. Reconstruir
+lo registrado es `ladygraph index --full`.
+
+Por eso `index_project` es idempotente:
+
+- Un proyecto ya registrado con el mismo directorio se reindexa y el archivo
+  no se reescribe.
+- Registrarlo con otros lenguajes sustituye la entrada y conserva sus
+  `exclusions`, que la petición no puede expresar y el operador sí decidió.
+- Un nombre ocupado por **otro** directorio sigue siendo un conflicto: nada
+  puede decidir cuál de los dos repositorios nombra. El error nombra el
+  directorio ya registrado.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

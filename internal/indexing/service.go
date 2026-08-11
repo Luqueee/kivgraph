@@ -120,20 +120,27 @@ func (service *Service) IndexProject(ctx context.Context, project Project) (Proj
 	}
 	original := cloneRepositories(service.loaded.Repositories)
 	candidate := cloneRepositories(service.loaded.Repositories)
-	candidate.Repositories = append(candidate.Repositories, config.Repository{
+	registered, err := upsertRepository(&candidate, config.Repository{
 		Name:      normalized.Name,
 		Path:      normalized.Path,
 		Languages: append([]string(nil), normalized.Languages...),
 	})
+	if err != nil {
+		return ProjectResult{}, err
+	}
 
 	registry, err := workspace.NewRegistry(ctx, candidate)
 	if err != nil {
 		return ProjectResult{}, fmt.Errorf("validate project registry: %w", err)
 	}
-	if err := config.SaveRepositories(service.loaded.RepositoriesPath, candidate); err != nil {
-		return ProjectResult{}, fmt.Errorf("persist project registry: %w", err)
+	// A registration that changes nothing leaves the file alone, so nothing
+	// has to be restored if the index that follows fails.
+	if registered {
+		if err := config.SaveRepositories(service.loaded.RepositoriesPath, candidate); err != nil {
+			return ProjectResult{}, fmt.Errorf("persist project registry: %w", err)
+		}
+		service.loaded.Repositories = candidate
 	}
-	service.loaded.Repositories = candidate
 
 	fullResult, err := RunFull(ctx, FullOptions{
 		Repositories:      registry.List(),
@@ -148,6 +155,9 @@ func (service *Service) IndexProject(ctx context.Context, project Project) (Proj
 		Store:             generation.DefaultConfig(),
 	})
 	if err != nil {
+		if !registered {
+			return ProjectResult{}, err
+		}
 		if restoreErr := config.SaveRepositories(service.loaded.RepositoriesPath, original); restoreErr != nil {
 			return ProjectResult{}, errors.Join(
 				err,
@@ -219,6 +229,55 @@ func parseSnapshotID(value string) (uint64, error) {
 		return 0, fmt.Errorf("parse snapshot generation %q: %w", value, err)
 	}
 	return parsed, nil
+}
+
+// upsertRepository places entry in the registry and reports whether the
+// registry changed.
+//
+// Indexing a project that is already registered is not a conflict: the caller
+// asked for that repository to be in the graph, and it is. Re-registering it
+// with the same directory replaces the entry -- the languages of the request
+// are the ones asked for -- and an identical request changes nothing at all.
+// Only a name already held by a different directory is a real conflict,
+// because then nothing can decide which of the two the name means.
+func upsertRepository(registry *config.RepositoriesFile, entry config.Repository) (bool, error) {
+	key := strings.ToLower(strings.TrimSpace(entry.Name))
+	for index, existing := range registry.Repositories {
+		if strings.ToLower(strings.TrimSpace(existing.Name)) != key {
+			continue
+		}
+		if filepath.Clean(existing.Path) != filepath.Clean(entry.Path) {
+			return false, fmt.Errorf(
+				"project %q is already registered at %q: choose another name or remove that entry",
+				entry.Name, existing.Path)
+		}
+		if sameRepositoryEntry(existing, entry) {
+			return false, nil
+		}
+		// The request cannot express exclusions, so the ones already on
+		// file survive it. Dropping them would silently widen the index
+		// to directories the operator excluded on purpose.
+		entry.Exclusions = append([]string(nil), existing.Exclusions...)
+		registry.Repositories[index] = entry
+		return true, nil
+	}
+	registry.Repositories = append(registry.Repositories, entry)
+	return true, nil
+}
+
+// sameRepositoryEntry compares what a registration decides. Exclusions belong
+// to the entry already on file: the project request cannot express them, so
+// re-registering must not drop them.
+func sameRepositoryEntry(existing, entry config.Repository) bool {
+	if len(existing.Languages) != len(entry.Languages) {
+		return false
+	}
+	for index := range existing.Languages {
+		if existing.Languages[index] != entry.Languages[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeProject(project Project, workingDirectory string) (Project, error) {
