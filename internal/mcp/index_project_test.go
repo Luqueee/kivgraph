@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -15,27 +16,35 @@ type fakeProjectIndexer struct {
 	mu       sync.Mutex
 	calls    int
 	project  indexing.Project
+	batch    []indexing.Project
 	progress int
 }
 
-func (fake *fakeProjectIndexer) IndexProject(
+func (fake *fakeProjectIndexer) IndexProjects(
 	_ context.Context,
-	project indexing.Project,
+	projects []indexing.Project,
 	progress func(indexing.ProjectProgress),
 ) (indexing.ProjectResult, error) {
 	if progress != nil {
-		progress(indexing.ProjectProgress{Phase: "go", Repository: project.Name, Completed: 1, Total: 2})
-		progress(indexing.ProjectProgress{Phase: "go", Repository: project.Name, Completed: 2, Total: 2})
+		for index, project := range projects {
+			progress(indexing.ProjectProgress{
+				Phase: "go", Repository: project.Name, Completed: index + 1, Total: len(projects),
+			})
+		}
 	}
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.calls++
-	fake.project = project
+	fake.batch = projects
+	if len(projects) != 0 {
+		fake.project = projects[0]
+	}
 	if progress != nil {
-		fake.progress += 2
+		fake.progress += len(projects)
 	}
 	return indexing.ProjectResult{
-		Project:      project,
+		Project:      fake.project,
+		Projects:     projects,
 		GenerationID: "7",
 		SnapshotID:   7,
 	}, nil
@@ -123,7 +132,11 @@ func TestIndexProjectReportsProgressToAClientThatAsksForIt(t *testing.T) {
 		Name: "index_project",
 		Meta: sdkmcp.Meta{"progressToken": "index-1"},
 		Arguments: map[string]any{
-			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+			"projects": []any{
+				map[string]any{"name": "one", "path": "/tmp/one", "languages": []any{"go"}},
+				map[string]any{"name": "two", "path": "/tmp/two", "languages": []any{"go"}},
+			},
+			"confirmed": true,
 		},
 	}
 	if _, err := clientSession.CallTool(context.Background(), params); err != nil {
@@ -168,6 +181,80 @@ func TestIndexProjectSkipsProgressWithoutAToken(t *testing.T) {
 	defer fake.mu.Unlock()
 	if fake.progress != 0 {
 		t.Fatalf("progress callbacks = %d, want none without a token", fake.progress)
+	}
+}
+
+// A rebuild resolves cross-repository edges over the complete fact set, so it
+// costs the whole corpus whatever was added. Registering eleven projects one
+// call at a time pays that cost eleven times and keeps only the last graph;
+// the batch pays it once. This is the difference between minutes and an
+// afternoon, so it is a contract, not an optimisation.
+func TestIndexProjectRebuildsOnceForAWholeBatch(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	session := connectToServer(t, NewServerWithIndexer(fake))
+
+	projects := make([]any, 0, 11)
+	for index := range 11 {
+		projects = append(projects, map[string]any{
+			"name":      fmt.Sprintf("repo-%02d", index),
+			"path":      fmt.Sprintf("/tmp/repo-%02d", index),
+			"languages": []any{"go"},
+		})
+	}
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "index_project",
+		Arguments: map[string]any{"projects": projects, "confirmed": true},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("CallTool() result = %#v", result)
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.calls != 1 {
+		t.Fatalf("rebuilds = %d, want exactly one for the batch", fake.calls)
+	}
+	if len(fake.batch) != 11 {
+		t.Fatalf("indexed projects = %d, want every project of the batch", len(fake.batch))
+	}
+	if fake.batch[0].Name != "repo-00" || fake.batch[10].Name != "repo-10" {
+		t.Fatalf("batch = %#v, want the requested order preserved", fake.batch)
+	}
+}
+
+// The two forms cannot be mixed: they could only disagree, and guessing which
+// one the caller meant is how a repository ends up registered twice.
+func TestIndexProjectRejectsAnUnusableRequest(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	session := connectToServer(t, NewServerWithIndexer(fake))
+
+	for name, arguments := range map[string]map[string]any{
+		"both forms": {
+			"name": "one", "path": "/tmp/one", "languages": []any{"go"},
+			"projects":  []any{map[string]any{"name": "two", "path": "/tmp/two", "languages": []any{"go"}}},
+			"confirmed": true,
+		},
+		"neither form": {"confirmed": true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+				Name: "index_project", Arguments: arguments,
+			})
+			if err != nil {
+				t.Fatalf("CallTool() transport error = %v", err)
+			}
+			if result == nil || !result.IsError {
+				t.Fatalf("CallTool() result = %#v, want an invalid argument error", result)
+			}
+		})
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.calls != 0 {
+		t.Fatalf("indexer calls = %d, want none", fake.calls)
 	}
 }
 

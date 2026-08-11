@@ -134,6 +134,12 @@ integridad, compatibilidad o verificación descritos aquí.
 - `index_project` emite `notifications/progress` cuando la petición trae
   `progressToken`: un rebuild completo dura minutos y un cliente MCP aplica su
   propio timeout a la llamada. Sin token no se instala callback alguno.
+- `index_project` acepta un lote (`projects`) y reconstruye **una sola vez**.
+  Un rebuild resuelve las aristas cross-repository sobre el conjunto completo
+  de hechos, así que cuesta el corpus entero se añada lo que se añada: llamar
+  una vez por proyecto paga ese coste una vez por proyecto y tira todos los
+  grafos menos el último. La forma de un solo proyecto se conserva; mezclar
+  ambas en una petición se rechaza.
 - `ladygraph ui` registra la dirección que ha enlazado, incluida la que
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría

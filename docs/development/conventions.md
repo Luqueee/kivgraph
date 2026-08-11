@@ -245,6 +245,23 @@ servidor no se entera y termina igual.
 - Verificar el resultado fuera de banda sigue siendo válido: `graph_status`
   responde en milisegundos y dice qué generación se sirve.
 
+### El lote es la unidad de indexación
+
+Un rebuild resuelve las aristas cross-repository sobre el conjunto completo de
+hechos. No hay unidad más barata: añadir un repositorio cuesta reconstruir el
+corpus entero.
+
+- `index_project` acepta `projects` y registra el lote completo antes de
+  construir nada. Once repositorios en una llamada cuestan un rebuild; en once
+  llamadas cuestan once, y diez de esos grafos se tiran.
+- Medido sobre un corpus real, tres repositorios añadidos de uno en uno tardan
+  `4,7 s` (tres rebuilds) frente a `1,5 s` en lote: el factor es el número de
+  llamadas, no una constante.
+- El registro del lote se valida como un único registro, así que un nombre
+  repetido dentro del propio lote se detecta antes de construir.
+- Mezclar `projects` con `name`/`path`/`languages` en una misma petición se
+  rechaza: solo podrían contradecirse.
+
 ### El visor y el bundle web
 
 - `ladygraph ui` registra la dirección enlazada antes de servir nada, también

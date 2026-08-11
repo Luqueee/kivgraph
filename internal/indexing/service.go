@@ -27,9 +27,12 @@ type Project struct {
 	Languages []string `json:"languages"`
 }
 
-// ProjectResult reports the generation published after a project was indexed.
+// ProjectResult reports the generation published after a batch was indexed.
 type ProjectResult struct {
+	// Project is the first project of the batch, kept so a single-project
+	// caller reads its own request back.
 	Project      Project      `json:"project"`
+	Projects     []Project    `json:"projects"`
 	GenerationID string       `json:"generation_id"`
 	SnapshotID   uint64       `json:"snapshot_id"`
 	Counts       Counts       `json:"counts"`
@@ -51,8 +54,15 @@ type IndexSummary struct {
 
 // ProjectIndexer is the mutation boundary used by the MCP tool. The caller
 // must obtain explicit consent before invoking this method.
+//
+// The whole batch is registered before anything is built. Every project costs
+// one full rebuild of the canonical graph -- cross-repository edges are
+// resolved over the complete fact set, so there is no cheaper unit -- and
+// rebuilding once per project throws away all but the last result. Eleven
+// projects registered one call at a time cost eleven rebuilds for one useful
+// graph; registered together they cost one.
 type ProjectIndexer interface {
-	IndexProject(context.Context, Project, func(ProjectProgress)) (ProjectResult, error)
+	IndexProjects(context.Context, []Project, func(ProjectProgress)) (ProjectResult, error)
 }
 
 // ProjectProgress is one step of a project index.
@@ -119,15 +129,20 @@ func NewService(
 	}
 }
 
-// IndexProject adds one repository to a candidate registry, persists that
-// candidate, rebuilds the complete canonical graph, and publishes the
+// IndexProjects adds every project to a candidate registry, persists that
+// candidate, rebuilds the complete canonical graph once, and publishes the
 // resulting HotSnapshot. A failed index or rebuild restores the prior
 // registry and leaves the prior generation active. If publication of the
 // already-validated active graph fails, the candidate registry is retained and
-// the error is returned so the caller can retry publication without reindexing.
-func (service *Service) IndexProject(
+// the error is returned so the caller can retry publication without
+// reindexing.
+//
+// The batch is the unit on purpose. A rebuild resolves cross-repository edges
+// over the complete fact set, so it costs the whole corpus whatever was added;
+// doing it once per project throws away every result but the last.
+func (service *Service) IndexProjects(
 	ctx context.Context,
-	project Project,
+	projects []Project,
 	progress func(ProjectProgress),
 ) (ProjectResult, error) {
 	if ctx == nil {
@@ -142,6 +157,9 @@ func (service *Service) IndexProject(
 	if service.snapshotStore == nil {
 		return ProjectResult{}, errors.New("project indexer has no snapshot store")
 	}
+	if len(projects) == 0 {
+		return ProjectResult{}, errors.New("no project was requested")
+	}
 	select {
 	case service.gate <- struct{}{}:
 		defer func() { <-service.gate }()
@@ -149,20 +167,27 @@ func (service *Service) IndexProject(
 		return ProjectResult{}, ctx.Err()
 	}
 
-	normalized, err := normalizeProject(project, service.workingDirectory)
-	if err != nil {
-		return ProjectResult{}, err
-	}
 	original := cloneRepositories(service.loaded.Repositories)
 	candidate := cloneRepositories(service.loaded.Repositories)
-	registered, err := upsertRepository(&candidate, config.Repository{
-		Name:      normalized.Name,
-		Path:      normalized.Path,
-		Languages: append([]string(nil), normalized.Languages...),
-	})
-	if err != nil {
-		return ProjectResult{}, err
+	normalizedProjects := make([]Project, 0, len(projects))
+	registered := false
+	for index, project := range projects {
+		normalized, err := normalizeProject(project, service.workingDirectory)
+		if err != nil {
+			return ProjectResult{}, fmt.Errorf("project %d: %w", index+1, err)
+		}
+		changed, err := upsertRepository(&candidate, config.Repository{
+			Name:      normalized.Name,
+			Path:      normalized.Path,
+			Languages: append([]string(nil), normalized.Languages...),
+		})
+		if err != nil {
+			return ProjectResult{}, err
+		}
+		registered = registered || changed
+		normalizedProjects = append(normalizedProjects, normalized)
 	}
+	normalized := normalizedProjects[0]
 
 	registry, err := workspace.NewRegistry(ctx, candidate)
 	if err != nil {
@@ -211,6 +236,7 @@ func (service *Service) IndexProject(
 
 	return ProjectResult{
 		Project:      normalized,
+		Projects:     normalizedProjects,
 		GenerationID: fullResult.RebuildReport.GenerationID,
 		SnapshotID:   snapshotID,
 		Counts:       fullResult.Counts,

@@ -1,6 +1,7 @@
 package indexing
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -95,5 +96,38 @@ func TestUpsertRepositoryAppendsAProjectThatIsNew(t *testing.T) {
 	}
 	if !changed || len(registry.Repositories) != 2 {
 		t.Fatalf("repositories = %#v, want the new project appended", registry.Repositories)
+	}
+}
+
+// The batch is registered in full before anything is built. The rebuild that
+// follows is the expensive part and it is paid once, so a caller adding
+// eleven repositories must be able to hand them over together.
+func TestUpsertRepositoryAccumulatesAWholeBatch(t *testing.T) {
+	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
+		{Name: "ladygraph", Path: "/repos/ladygraph", Languages: []string{"go"}},
+	}}
+
+	for index := range 11 {
+		changed, err := upsertRepository(&registry, config.Repository{
+			Name:      fmt.Sprintf("repo-%02d", index),
+			Path:      fmt.Sprintf("/repos/repo-%02d", index),
+			Languages: []string{"go"},
+		})
+		if err != nil {
+			t.Fatalf("upsertRepository(%d) error = %v", index, err)
+		}
+		if !changed {
+			t.Fatalf("project %d did not reach the registry", index)
+		}
+	}
+	if len(registry.Repositories) != 12 {
+		t.Fatalf("repositories = %d, want the original plus the batch", len(registry.Repositories))
+	}
+	// The batch is validated as one registry, so a name repeated inside it
+	// is caught before a single rebuild runs.
+	if _, err := upsertRepository(&registry, config.Repository{
+		Name: "repo-03", Path: "/elsewhere/repo-03", Languages: []string{"go"},
+	}); err == nil {
+		t.Fatal("a name already held inside the batch was accepted")
 	}
 }
