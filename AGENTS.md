@@ -301,6 +301,99 @@ integridad, compatibilidad o verificación descritos aquí.
   ninguno - para que ninguna librería pueda llevar un `Infinity` a
   `drawIndexed`.
 
+## Rust
+
+- Rust no se analiza en proceso: la autoridad es `rust-analyzer scip`,
+  invocado como proceso externo una vez por workspace Cargo. Tree-sitter no
+  produce identidad ni resolución; aporta la clase sintáctica del uso y la
+  visibilidad declarada, igual que el AST de Go aporta `GO_AST_CALL` sobre una
+  resolución de `go/types`.
+- El bundle lleva `bin/rust-analyzer`, fijado en `tools/manifest.json` por
+  versión, URL y digest, y descargado por `scripts/fetch-rust-analyzer.sh`. En
+  ejecución gana el binario que viaja junto al ejecutable, después una ruta
+  explícita de la configuración y por último el `PATH`; `doctor` dice cuál
+  respondió y `ladygraph version --json` publica su release. Lo que el bundle
+  no lleva es un toolchain de Rust: sin `cargo` el analizador no carga el
+  workspace, así que `doctor` lo comprueba aparte y falla nombrándolo.
+- El catálogo de `canonical_integrity.go` es la lista que la capa nativa usa
+  para validar una arista. Una procedencia nueva que no entre ahí pasa todos
+  los tests sin el tag `ladybug` y revienta la integridad al publicar; el
+  guardia que lo impide vive en `canonical_catalog_test.go`, sin tag.
+- El subcomando `scip` ejecuta build scripts siempre, así que la hermeticidad
+  se impone desde fuera: `CARGO_TARGET_DIR` a un directorio de estado externo
+  -`cargo.targetDir` no sirve, su valor es relativo al workspace-,
+  `--offline --locked`, y una comprobación posterior de que el repositorio no
+  ganó `target/` ni un `Cargo.lock` nuevo. `rust.allow_network` es la única
+  salida declarada.
+- La unidad de análisis es el workspace Cargo, no el crate: el analizador
+  carga el workspace entero en cada invocación. El techo de concurrencia es
+  bajo por memoria.
+- La identidad estable de un símbolo Rust es su cadena SCIP -crate, camino de
+  descriptores y sufijo-, nunca su firma: rust-analyzer no emite
+  `SymbolInformation` para una declaración fuera de la raíz del workspace, así
+  que un consumidor que dependiera de la firma no podría nombrar la clave que
+  su proveedor publica. El `Discriminator` sale del disambiguador del
+  descriptor.
+- Los símbolos locales (`local N`) son un contador por documento: no son
+  direccionables y nunca entran al grafo.
+- Una referencia solo se convierte en arista si alguien publica su destino: el
+  propio pase, o el repositorio proveedor registrado. Un símbolo del propio
+  repositorio que el índice no define -el bloque `impl` al que apunta
+  `-> Self`, que SCIP menciona y nunca define- se declara
+  `DEFINITION_NOT_INDEXED`. Componer su clave y confiar en que otro la publique
+  aborta la pasada entera con una arista colgante.
+- El símbolo que contiene una referencia se obtiene del `enclosing_range` de
+  las ocurrencias de definición del mismo documento, la más interna que la
+  contiene. SCIP dice a qué símbolo resuelve un uso, nunca qué declaración lo
+  contiene.
+- `IMPLEMENTS`, `EXTENDS` y `OVERRIDES` de Rust no salen de
+  `SymbolInformation.relationships`, que viaja siempre vacío: salen de la forma
+  del `impl` y del bound, con los dos extremos resueltos por el analizador. El
+  destino de un `OVERRIDES` se compone desde el símbolo del trait y solo se
+  emite si el índice lo observó; una implementación que la gramática no ve
+  -generada por una macro- queda ausente y no se adivina.
+- Nombrar una función no es llamarla, y las tres formas en que Rust la mueve
+  son tres relaciones distintas: argumento de una llamada
+  (`PASSES_AS_CALLBACK`, con procedencia propia `RUST_SYNTAX_CALLBACK`, el
+  espejo de `GO_AST_CALLBACK`), valor de un `let`, `const`, `static` o campo
+  de un literal (`ASSIGNS_FUNCTION`), y resultado de un cuerpo, con `return` o
+  como expresión final (`RETURNS_FUNCTION`). La gramática decide la clase y el
+  analizador el destino, como en una llamada.
+- Una clase de posición de valor exige además que el destino sea invocable y
+  que esta pasada lo haya indexado: `takes(LIMIT)` es un argumento que no es
+  un callback, y un destino de otro repositorio llega sin `Kind`. En ambos
+  casos la arista degrada a `REFERENCES` en vez de afirmar lo que nadie leyó.
+  El ascenso por la expresión atraviesa lo que no cambia lo nombrado -un
+  camino, un préstamo, un literal de array o tupla- y nunca un acceso a
+  campo: devolver `objeto.campo` no devuelve el objeto.
+- `core`, `std` y `alloc` no están en el grafo, y esa sola ausencia explica
+  cuatro silencios medidos: `#[derive(...)]` no produce ninguna relación, la
+  sobrecarga de operadores no alcanza su `impl` local -`a + b` se atribuye a
+  `core::ops::Add::add`-, el operador `?` cae en `Try::branch`, y toda llamada
+  a la biblioteca estándar desaparece. Es una carencia declarada, no un bug
+  que arreglar sobre la marcha: indexar el sysroot cambia el tamaño y el
+  versionado del grafo y tiene su propia tarea, `LUQUE-1826`. Fabricar esas
+  aristas contra un destino que nadie publica está prohibido por el contrato,
+  y llenar el grafo de `UNRESOLVED` por cada `derive` sería peor que el
+  silencio actual.
+- La visibilidad de Rust no es solo `pub`: un miembro de un `trait` es tan
+  visible como el trait, y un método de una implementación de trait es
+  alcanzable a través de él. Leer únicamente el modificador publicaría una API
+  pública falsa.
+- El `Kind` publicado de un símbolo Rust es el fino de SCIP -`struct`,
+  `trait`, `field`, `trait_method`-, no el sufijo del descriptor que decide la
+  clave: con el sufijo, un struct, un enum y un alias son todos `type`.
+- Los no resueltos de Rust se derivan de tres fuentes observadas -el registro
+  de crates, el diff entre el inventario Tree-sitter y las definiciones SCIP
+  del mismo archivo, y el fallo de carga del workspace-, porque el índice
+  descarta en silencio los tokens sin moniker.
+- Un nombre de crate declarado por varios repositorios es una ambigüedad:
+  ninguno lo provee y se declara `AMBIGUOUS_CRATE_PROVIDER`. Una versión que
+  el analizador no conoce (`.`) no identifica código y nunca resuelve.
+- El descubrimiento Cargo no ejecuta `cargo`: lee los manifests con
+  `BurntSushi/toml` y resuelve la pertenencia por directorio, como hace Cargo.
+  Un crate sin workspace por encima es un workspace de uno.
+
 ## LadybugDB y snapshots
 
 - El código que usa la biblioteca nativa se compila con el tag `ladybug`.
@@ -514,7 +607,9 @@ integridad, compatibilidad o verificación descritos aquí.
 
 ## Verificación obligatoria
 
-Antes de cerrar una tarea, ejecutar según el alcance:
+Antes de cerrar una tarea, ejecutar según el alcance. El procedimiento -qué
+cubre cada suite, qué se salta, cómo acotar un fallo y cómo hacer el smoke test
+del binario- está en la skill `.claude/skills/running-tests/SKILL.md`.
 
 ```bash
 gofmt -l <archivos-go-modificados>
@@ -527,6 +622,19 @@ Si el cambio afecta LadybugDB nativo:
 
 ```bash
 make test-ladybug
+```
+
+`make test-ladybug` es el único modo soportado de ejecutar ese tag: exporta las
+variables `CGO_*` que apuntan a la biblioteca fijada. `go test -tags ladybug`
+por su cuenta no enlaza. `PKGS` acota la pasada a un paquete.
+
+Si afecta el camino Rust, los tests que ejecutan el analizador se saltan
+cuando `rust-analyzer` no está instalado, así que la verificación exige
+tenerlo:
+
+```bash
+rustup component add rust-analyzer
+go test ./internal/rustloader/... ./internal/indexer/ -run Rust
 ```
 
 Si afecta `ts-worker/`:

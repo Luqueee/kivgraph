@@ -7882,6 +7882,134 @@ conjunto.
 
 ---
 
+## LUQUE-1113 — Devolver lo que el agente puede usar y entrar por el fichero
+
+**Dependencias:** LUQUE-1112.
+
+**Objetivo:** que una respuesta de la superficie MCP baste para actuar -abrir el
+fichero, nombrar el llamante- sin una llamada de seguimiento, y que un agente
+que sólo tiene una ruta o un diff pueda entrar al grafo.
+
+**Medición previa** (`snapshot_id` 14 de este repositorio: 2 repositorios, 51
+paquetes, 268 ficheros, 9.341 símbolos, 33.823 aristas):
+
+```text
+find_symbol        811 B; 385 B (47 %) son canonical_identity; sin file_path ni start_line
+find_references    599 B/fila; 242 B (40 %) son el bloque target_* repetido; sin nombre ni línea del llamante
+get_blast_radius   457 B/fila; 169 B (37 %) derivables de otro campo o constantes por respuesta; sin start_line
+```
+
+«¿Quién llama a `MergeAll` y dónde?» cuesta hoy cuatro llamadas y unos
+`4.100 B`: `find_symbol` no da la ubicación, así que hace falta `get_symbol`, y
+`find_references` devuelve llamantes que sólo se nombran con una clave opaca de
+52 caracteres, así que hace falta un `get_symbol` más por fila.
+
+Siete de las nueve tools exigen `stable_key` y el único generador de
+`stable_key` es `find_symbol`, que sólo acepta nombre exacto, cualificado exacto
+o prefijo. `FileByRepoPath` existe en el snapshot
+(`internal/hotsnapshot/snapshot.go:355`) y ninguna tool lo usa.
+
+**Entregables:**
+
+* `internal/mcp/tools/find_symbol.go`, `get_symbol.go`, `find_references.go`,
+  `blast_radius.go`, `trace_dependencies.go` y
+  `find_cross_repo_consumers.go`;
+* `internal/mcp/tools/file_outline.go`, con la tool `get_file_outline`;
+* `internal/mcp/server.go` y `internal/mcp/surface_test.go`;
+* el índice fichero -> símbolos en `internal/hotsnapshot/` si el recorrido
+  lineal no basta;
+* `PLAN.md` 17.1 y la documentación de protocolo en `docs/protocol/`;
+* tests por tool, incluidos los negativos.
+
+**Decisiones:**
+
+* `canonical_identity` sale de la salida por defecto. No es una identidad que el
+  agente pueda usar para nada: es la concatenación con `\0` de language,
+  repository, package, qualified_name, kind y discriminator, y todos ellos son
+  ya un campo aparte o la propia `signature`. Sigue disponible bajo
+  `response_format: "detailed"`, que es también donde vuelven los `*_key`
+  derivables de su `*_path`.
+* Una fila lleva lo que la distingue; lo constante sube al envelope. El bloque
+  `target_*` de `find_references` es el argumento de la consulta, no un
+  resultado, y repetirlo por fila es el 40 % de la respuesta.
+* Un resultado sin `file_path` ni `start_line` obliga a un `get_symbol` por
+  fila. `SymbolRecord` ya guarda `StartLine` y `EndLine` y no se emiten: no hay
+  ningún dato nuevo que calcular ni que indexar.
+* `find_references` nombra el símbolo que **contiene** la referencia, no la
+  posición del token. El snapshot no guarda la línea de la ocurrencia -ni
+  `PackedEdge` ni `EvidenceRecord` la llevan-, así que se publica la declaración
+  que la contiene y se dice que es eso. Fabricar una línea de referencia sería
+  inventar evidencia.
+* `get_file_outline` acepta un fichero o un prefijo de directorio: es la misma
+  pregunta a dos granularidades, no dos tools. Es además la única forma de
+  obtener un `stable_key` sin acertar el nombre del símbolo.
+* Los modos nuevos de `find_symbol` -`substring` y los filtros `kind`, `repo` y
+  `path_prefix`- no cambian la clase de coste: `SearchSymbolsByNamePrefix` ya
+  recorre linealmente todos los símbolos (`internal/hotsnapshot/search.go:44`).
+* La superficie pasa de nueve a diez tools. `surface_test.go` es un contrato y
+  no un reflejo del código: `allowedTools` se actualiza en el mismo commit o el
+  guardia falla, que es exactamente para lo que está.
+* Ninguna tool nueva lee el disco. El grafo publica rutas y rangos de líneas;
+  abrir el fichero es del harness.
+
+**Criterios de aceptación:**
+
+- `find_symbol` devuelve `file_path` y `start_line`, y una sesión que busca un
+  símbolo y lo abre no necesita llamar a `get_symbol`.
+- Ninguna respuesta por defecto contiene `canonical_identity`;
+  `response_format: "detailed"` lo devuelve.
+- `find_references` devuelve `source_name`, `source_qualified_name`,
+  `source_kind` y `source_start_line`, y el target aparece una sola vez en la
+  respuesta.
+- `get_file_outline` sobre `internal/facts/facts.go` devuelve sus 32
+  declaraciones con kind, signature y rango de líneas por menos de la décima
+  parte de los `20.681 B` que cuesta leer el fichero.
+- `get_file_outline` sobre una ruta que el snapshot no conoce devuelve un error
+  que nombra la ruta y el repositorio, nunca un resultado vacío.
+- `get_blast_radius` y `trace_dependencies` aceptan `paths` o `qualified_name`
+  como raíz, además de `stable_key`.
+- La suite de superficie sigue prohibiendo toda mutación y exige la anotación
+  read-only también en la tool nueva.
+- `graph_status` contabiliza las llamadas de `get_file_outline` como las demás.
+
+**Fuera de alcance:** `get_repository_overview` -el mapa de paquetes con fan-in
+y fan-out sobre `AllPackageDependencies`, 103 aristas de paquete en este
+corpus- y `get_call_path` -el camino más corto entre dos símbolos, reconstruible
+con `TraversalVisit.Source` (`internal/hotsnapshot/traversal.go:44`), que ya es
+el puntero al padre del BFS-. Las dos están justificadas y ninguna depende de
+esta tarea: se abren cuando `graph_status` haya medido qué tools llama de verdad
+un agente, porque `metrics.queries` publica ya `calls`, `errors` y `results` por
+tool (`internal/metrics/metrics.go:66`) y hoy está vacío.
+
+Tampoco entran `read_file`, `search_for_pattern` ni `list_dir`: el harness ya
+los trae, y Serena -que los tiene- los desactiva por defecto dentro de Claude
+Code y Codex por esa misma razón. Ni edición simbólica ni diagnósticos: lo
+primero rompe el contrato read-only y sobre una generación publicada sería un
+rename decidido con datos viejos; lo segundo exige un LSP vivo y aquí sólo hay
+un snapshot.
+
+**Estado:** `TODO`.
+
+**Gate:** ninguno adicional. `MCP_SURFACE_PASS` se vuelve a exigir tras el
+cambio, porque la tarea amplía la superficie que ese gate fija.
+
+**Verificación:**
+
+```text
+gofmt -l <archivos-go-modificados>
+go vet ./...
+go test ./internal/mcp/... -count=1
+go test ./... -count=1
+go test -race ./internal/mcp/... -count=1
+make build
+```
+
+Y contra el binario real: `ladygraph index --full` sobre este repositorio,
+`ladygraph serve`, y la comparación en bytes de la respuesta de cada tool tocada
+antes y después del cambio. Una reducción que no se ha medido no se declara.
+
+---
+
 # 15. Fase 12 — Resiliencia
 
 ## LUQUE-1201 — Recuperar worker TypeScript
@@ -11149,7 +11277,1322 @@ jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
 ---
 
-# 21. Gates globales
+# 21. Fase 18 — Rust
+
+Esta fase añade Rust como tercer lenguaje con las mismas garantías que Go y
+TypeScript: una arista `EXACT` exige resolución con tipos, todo fallo se
+declara como `UNRESOLVED` con motivo, y la indexación no escribe dentro de un
+repositorio registrado.
+
+El motor es `rust-analyzer scip`, ejecutado como proceso externo una vez por
+workspace Cargo. Tree-sitter no produce identidad ni resolución: aporta la
+clase sintáctica del uso y la visibilidad declarada, igual que el AST de Go
+aporta hoy `GO_AST_CALL` sobre una resolución de `go/types`.
+
+**Dependencias de fase:** `DISTRIBUTION_PASS`.
+
+`WEB_VIEWER_PASS` sigue sin emitir por corpus insuficiente del visor
+(`LUQUE-1715`) y no bloquea esta fase: la limitación pendiente es del harness
+del visor y no toca la indexación ni la resolución semántica.
+
+**Alcance ampliado:** `LUQUE-1818` a `LUQUE-1824` añaden el kind fino, la
+visibilidad real y las relaciones estructurales `IMPLEMENTS`, `EXTENDS` y
+`OVERRIDES`, que la primera entrega había declarado ausentes. `LUQUE-1825`
+añade las tres relaciones de función como valor -`PASSES_AS_CALLBACK`,
+`ASSIGNS_FUNCTION` y `RETURNS_FUNCTION`-, que Go ya emitía.
+
+**Abierta:** `LUQUE-1826` indexar el sysroot. Es la única causa común de las
+carencias que quedan -`#[derive]`, la sobrecarga de operadores, el operador
+`?` y toda la biblioteca estándar-, y por tamaño y versionado no entra en esta
+fase.
+
+**Gates emitidos:** `RUST_SEMANTIC_PASS_WITH_LIMITS` y
+`RUST_CROSS_REPO_PASS_WITH_LIMITS`. Los dos gates sin límites siguen sin
+emitir: la auditoría no encontró ninguna arista exacta falsa, pero el corpus
+son cuatro fixtures de crates y eso prueba los contratos, no la escala.
+
+---
+
+## LUQUE-1801 — Fijar la gramática Rust
+
+**Dependencias:** ninguna dentro de la fase.
+
+**Objetivo:** registrar Tree-sitter Rust con la misma procedencia verificable
+que las gramáticas existentes.
+
+**Entregables:**
+
+* entrada `rust` en `grammars/manifest.json`;
+* `github.com/tree-sitter/tree-sitter-rust v0.23.2` promovido a dependencia
+  directa en `go.mod` —su checksum ya está fijado en `go.sum`—;
+* `syntax.LanguageRust` en `internal/syntax/parser_manager.go`;
+* candidatos de inventario Rust en `internal/syntax/inventory.go`;
+* `THIRD_PARTY_NOTICES.md`.
+
+**Checklist:**
+
+- [x] Verificar dependencias y alcance.
+- [x] Añadir la entrada del manifiesto con `commit`, `archive_url`, `sha256`
+      y licencia observados, nunca copiados de otra entrada.
+- [x] Registrar la gramática en el `ParserManager` y su inventario.
+- [x] Cubrir declaraciones: `function_item`, `struct_item`, `enum_item`,
+      `trait_item`, `impl_item`, `mod_item`, `macro_definition`, `const_item`,
+      `static_item`, `type_item`, `union_item`, `use_declaration`.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
+
+**Criterios de aceptación:**
+
+- `manager.Parse(ctx, syntax.LanguageRust, …)` deja de devolver
+  `ParserErrorUnsupportedLanguage`; el test que lo exige hoy en
+  `internal/syntax/parser_manager_test.go` se actualiza a un lenguaje que
+  sigue sin gramática.
+- El inventario distingue un cambio de firma de un cambio de cuerpo sobre un
+  archivo `.rs`.
+- La verificación del manifiesto falla si el digest no coincide.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/syntax/...`, `go vet ./...`.
+
+**Resultado:** `grammars/manifest.json` fija `tree-sitter-rust v0.23.2` en el commit `cad8a206` con su digest verificado; `syntax.LanguageRust` parsea Rust y el inventario clasifica `use_declaration` y `extern_crate_declaration` como importaciones, que ninguna regla de subcadena alcanzaba. El test de lenguaje sin gramática pasó a `python`.
+
+**Siguiente tarea:** LUQUE-1802.
+
+---
+
+## LUQUE-1802 — Descubrir workspaces y crates Cargo
+
+**Dependencias:** LUQUE-1801.
+
+**Objetivo:** obtener, sin ejecutar `cargo`, los manifests y crates que un
+repositorio declara.
+
+**Entregables:**
+
+* `internal/workspace/cargo_manifests.go`;
+* `internal/workspace/cargo_discovery.go`;
+* tests equivalentes a `go_discovery_test.go` y `typescript_registry_test.go`.
+
+**Contrato:**
+
+```text
+DiscoverCargo(ctx, repository) -> CargoDiscovery
+CargoDiscovery.Workspaces []CargoWorkspace   // raíz, manifest, miembros
+CargoDiscovery.Crates     []CargoCrate       // nombre, versión, edición, workspace
+```
+
+**Decisiones:**
+
+* Los manifests se leen con `github.com/BurntSushi/toml`, ya dependencia
+  directa. Nada de `cargo metadata` aquí: el descubrimiento es hermético,
+  barato y no escribe.
+* Un `Cargo.toml` con `[workspace]` y sin `[package]` es un manifest virtual:
+  aporta workspace, no crate.
+* Los miembros se expanden con los globs de `members` menos `exclude`, y
+  siempre dentro del repositorio; una ruta que escapa se rechaza como ya lo
+  hace el descubrimiento Go.
+* Se respetan `exclusions` del registro y la política de symlinks de
+  `internal/workspace/paths.go`.
+* Un crate sin `[package] name` es un error de manifest, no un crate anónimo.
+
+**Criterios de aceptación:**
+
+- Un workspace virtual con tres miembros produce un `CargoWorkspace` y tres
+  `CargoCrate`.
+- Un crate suelto sin workspace produce un workspace de un solo miembro.
+- Las rutas son absolutas y canónicas; los tests usan
+  `internal/testsupport.TempDir`.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/workspace/...`.
+
+**Resultado:** `DiscoverCargo` lee los manifests con TOML, resuelve la pertenencia por directorio -como Cargo-, hereda `version` y `edition` de `[workspace.package]`, y convierte cada crate suelto en un workspace de uno. No se implementaron los `targets` de Cargo: ningún consumidor del grafo los necesita y su descubrimiento replicaría el layout por defecto de Cargo entero.
+
+**Siguiente tarea:** LUQUE-1803.
+
+---
+
+## LUQUE-1803 — Registro de crates entre repositorios
+
+**Dependencias:** LUQUE-1802.
+
+**Objetivo:** saber qué repositorio registrado provee cada crate, conservando
+la ambigüedad en vez de resolverla por preferencia.
+
+**Entregables:**
+
+* `internal/rustloader/crossrepo.go` con `CrateRegistry` y `CrateProvider`;
+* tests que fijan orden determinista y ambigüedad.
+
+**Decisiones:**
+
+* Calco de `internal/goloader/crossrepo.go`: `providers map[string][]CrateProvider`,
+  ordenados por repositorio y manifest.
+* Dos repositorios que declaran el mismo nombre de crate producen
+  `AMBIGUOUS_CRATE_PROVIDER`; ninguno lo provee. Es el mismo trato que reciben
+  un módulo Go y un paquete TypeScript ambiguos.
+* La identidad de un proveedor es `nombre + versión`. Una versión ausente o
+  desconocida no identifica a nadie.
+
+**Criterios de aceptación:**
+
+- El registro es determinista frente al orden de entrada.
+- Un crate declarado dos veces no resuelve; se declara.
+- El registro no ejecuta procesos externos.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...`.
+
+**Resultado:** `rustloader.CrateRegistry` resuelve por nombre **y versión**: dos proveedores a la misma versión son `AMBIGUOUS_CRATE_PROVIDER`, otra versión es `CRATE_VERSION_MISMATCH` y una versión `.` es `CRATE_VERSION_UNKNOWN`. Ninguno de los tres resuelve.
+
+**Siguiente tarea:** LUQUE-1804.
+
+---
+
+## LUQUE-1804 — Vocabulario, configuración y diagnóstico
+
+**Dependencias:** LUQUE-1802.
+
+**Objetivo:** que `init`, el registro, la pasada y `doctor` acepten y
+comprueben lo mismo.
+
+**Entregables:**
+
+* `config.SupportedLanguages` con `rust` y `rs`;
+* `config.RustConfig` (`yaml:"rust"`);
+* `internal/indexing/service.go`: `normalizeProjectLanguages` deja de tener su
+  propia lista y usa `config.SupportedLanguage`;
+* `cmd/ladygraph/main.go`: comprobación `toolchain.rust`.
+
+**Contrato de configuración:**
+
+```yaml
+rust:
+  analyzer_command: rust-analyzer
+  maximum_workspaces: 0        # 0 = techo por núcleos, acotado
+  features: []
+  all_features: false
+  no_default_features: false
+  cfgs: []
+  build_scripts: true
+  proc_macros: true
+  allow_network: false
+  target_dir: ""               # vacío = <state>/rust/target
+  sysroot: discover
+```
+
+**Decisiones:**
+
+* La segunda lista de lenguajes en `internal/indexing/service.go` desaparece:
+  el vocabulario vive donde se escribe el valor, como dice
+  `docs/development/conventions.md`.
+* `doctor` informa la versión de `rust-analyzer`, la de `cargo` y la presencia
+  del servidor de proc-macros del sysroot. Una versión por debajo del suelo es
+  `FAIL` con el número observado y el exigido.
+* El suelo de versión se **determina** en esta tarea: el primer release donde
+  una ocurrencia SCIP transporta `enclosing_range`, verificado ejecutando el
+  binario sobre un fixture. No se copia de la documentación.
+
+**Criterios de aceptación:**
+
+- `ladygraph init` acepta un repositorio `rust` y la pasada no lo rechaza.
+- `doctor` sin `rust-analyzer` en el `PATH` reporta `toolchain.rust: FAIL` y
+  no aborta el resto del diagnóstico.
+- Un repositorio registrado con un lenguaje inexistente sigue fallando en
+  ambos lados con el mismo mensaje.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/config/... ./internal/indexing/... ./cmd/ladygraph/...`.
+
+**Resultado:** `config.SupportedLanguages` incluye `rust` y `rs`, la sección `rust:` existe con su validación, `internal/indexing` perdió su segunda lista y `doctor` informa `toolchain.rust` y `toolchain.cargo`. El suelo de versión no se expresa como número: el binario de rustup y el standalone usan esquemas de versión distintos, así que la capacidad se comprueba sobre el índice (`validateIndex` rechaza un índice sin `enclosing_range`) y `doctor` publica la cadena de versión observada.
+
+**Siguiente tarea:** LUQUE-1805.
+
+---
+
+## LUQUE-1805 — Ejecutar `rust-analyzer scip` de forma hermética
+
+**Dependencias:** LUQUE-1803 y LUQUE-1804.
+
+**Objetivo:** producir un índice SCIP por workspace sin escribir dentro del
+repositorio indexado y sin depender de la red.
+
+**Entregables:**
+
+* `internal/rustloader/scip_run.go`;
+* tests de construcción de configuración, cancelación y clasificación de
+  fallos.
+
+**Contrato:**
+
+```text
+RunSCIP(ctx, options) -> { IndexPath, ToolVersion, Diagnostics, Duration }
+```
+
+**Decisiones:**
+
+* Invocación: `rust-analyzer scip <workspace> --output <fuera-del-repo>
+  --exclude-vendored-libraries --num-threads N --config-path <generado>`.
+  Sin `--exclude-vendored-libraries`, el código vendorizado bajo la raíz
+  entraría al grafo como archivos del repositorio.
+* `scip.rs` fija `load_out_dirs_from_check: true`, así que **los build scripts
+  se ejecutan siempre** y `cargo check` escribiría en `target/`. La
+  hermeticidad se impone desde fuera y no se negocia:
+  `cargo.extraEnv.CARGO_TARGET_DIR` a un directorio de estado externo
+  —`cargo.targetDir` no sirve: su valor es relativo al workspace—,
+  `cargo.extraArgs: ["--offline","--locked"]` y `CARGO_NET_OFFLINE=true`.
+  `rust.allow_network` es la única salida declarada.
+* `--locked` falla cerrado si haría falta reescribir `Cargo.lock`.
+* Tras la ejecución se comprueba que el árbol del repositorio no cambió; si
+  cambió, la unidad falla y no publica hechos.
+* El proceso hereda el contexto: cancelar la pasada mata el proceso y borra el
+  índice temporal.
+* `stderr` se clasifica: el aviso de símbolos duplicados de rust-analyzer es
+  un diagnóstico no bloqueante que viaja al informe; un fallo de carga del
+  workspace es bloqueante para esa unidad y solo para ella.
+
+**Criterios de aceptación:**
+
+- Tras indexar un fixture, el repositorio no contiene `target/` nuevo ni un
+  `Cargo.lock` modificado.
+- Sin `rust-analyzer` en el `PATH`, la unidad declara `ANALYZER_UNAVAILABLE` y
+  la pasada continúa con los demás repositorios.
+- Un workspace que no carga produce `WORKSPACE_NOT_LOADED` con el diagnóstico
+  observado, no una pasada abortada.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...` y una prueba de humo con
+la toolchain real sobre `testdata/rust/`.
+
+**Resultado:** `rustloader.Run` genera la configuración del analizador, redirige `CARGO_TARGET_DIR` fuera del repositorio, pasa `--offline --locked` y comprueba después que el workspace no ganó `target/` ni `Cargo.lock`. Un analizador ausente, un workspace que no carga y una cancelación son errores clasificados distintos.
+
+**Siguiente tarea:** LUQUE-1806.
+
+---
+
+## LUQUE-1806 — Decodificar SCIP
+
+**Dependencias:** LUQUE-1805.
+
+**Objetivo:** leer el índice sin inventar posiciones ni identidades.
+
+**Entregables:**
+
+* `internal/rustloader/scipwire/` (decodificación y tipos);
+* tests con índices de referencia versionados en `testdata/rust/scip/`.
+
+**Decisiones:**
+
+* Por defecto se importa `github.com/scip-code/scip/bindings/go/scip@v0.9.0`
+  (Apache-2.0, requiere `google.golang.org/protobuf`). Si el árbol de
+  dependencias resulta desproporcionado, se generan bindings mínimos del
+  `.proto` fijado con digest, como se hace con las gramáticas; la decisión se
+  registra en el ADR con el peso medido, no por gusto.
+* Los rangos SCIP son de tres enteros cuando empiezan y acaban en la misma
+  línea y de cuatro cuando no; líneas y columnas son base cero en UTF-8. Las
+  posiciones canónicas de Ladygraph son línea base uno y columna base cero
+  (`facts.Position`), así que la conversión es explícita y está probada en los
+  dos casos.
+* `Metadata.tool_info.version` se conserva: identifica al analizador en la
+  caché de hechos.
+
+**Criterios de aceptación:**
+
+- Un índice con rangos de tres y de cuatro enteros produce las mismas
+  posiciones que el archivo fuente.
+- Un índice truncado o de versión desconocida se rechaza con un error
+  clasificado, nunca con una lectura parcial.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...`.
+
+**Resultado:** `internal/rustloader/scipwire` decodifica el subconjunto de SCIP que Ladygraph lee, con el esquema fijado por digest. Se descartaron los bindings publicados: traen formateador, validador y cuatro módulos más para leer seis mensajes. Los tests decodifican un índice real grabado del analizador y rechazan índices malformados.
+
+**Siguiente tarea:** LUQUE-1807.
+
+---
+
+## LUQUE-1807 — Símbolos Rust y claves estables
+
+**Dependencias:** LUQUE-1806.
+
+**Objetivo:** convertir definiciones SCIP en símbolos con identidad durable.
+
+**Entregables:**
+
+* `internal/rustloader/symbols.go`;
+* `internal/rustloader/stablekey.go` y sus tests.
+
+**Decisiones:**
+
+* Un símbolo del grafo es una definición con moniker. Los locales de SCIP
+  (`local N`) son un contador por documento: no son direccionables y nunca
+  entran al grafo.
+* La identidad estable usa `hotsnapshot.StableKeyIdentity` con
+  `Language: "rust"`, `Package:` nombre del crate, `Module:` vacío,
+  `QualifiedName:` el camino de descriptores canónico, `Kind:` el **sufijo del
+  descriptor** y `Discriminator:` derivado de la firma, igual que Go y
+  TypeScript. El sufijo viaja dentro de la propia cadena del símbolo, así que
+  consumidor y proveedor no pueden divergir; `SymbolInformation.kind` se
+  guarda en `Symbol.Kind` pero no decide la clave.
+* `Signature` sale de `signature_documentation.text`; `Name` de
+  `display_name`; el span del símbolo, de `enclosing_range` cuando existe y
+  del rango de la ocurrencia cuando no.
+* `Exported` lo decide Tree-sitter sobre el modificador de visibilidad:
+  `pub(crate)` no es exportado fuera del crate. SCIP no transporta
+  visibilidad.
+
+**Criterios de aceptación:**
+
+- Insertar una función delante de otra no cambia la clave de la segunda.
+- Dos checkouts del mismo commit en rutas distintas producen claves idénticas.
+- Un `impl` inherente duplicado por el bug conocido de rust-analyzer se
+  declara en el informe; no se fusionan dos definiciones distintas.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...`.
+
+**Resultado:** Las definiciones llevan identidad, visibilidad leída de la gramática y el span del cuerpo. La clave estable **no** incluye la firma: rust-analyzer no emite `SymbolInformation` para una declaración fuera de la raíz del workspace, así que un consumidor que dependiera de ella nunca podría nombrar la clave de su proveedor. El discriminante sale del disambiguador del descriptor.
+
+**Siguiente tarea:** LUQUE-1808.
+
+---
+
+## LUQUE-1808 — Atribuir la referencia y clasificar la arista
+
+**Dependencias:** LUQUE-1807.
+
+**Objetivo:** que cada uso resuelto tenga origen, destino y clase, sin que la
+sintaxis decida identidad.
+
+**Entregables:**
+
+* `internal/rustloader/references.go`;
+* tests de atribución y clasificación.
+
+**Decisiones:**
+
+* El símbolo que contiene una referencia se obtiene con un árbol de intervalos
+  construido sobre las ocurrencias con rol `Definition` y `enclosing_range` no
+  vacío del mismo documento: gana la definición más interna que contiene el
+  rango. Para un token local, `SymbolInformation.enclosing_symbol` nombra al
+  ancestro no local.
+* Un uso sin contenedor —a nivel de módulo— se cuenta en el informe como
+  `EdgesWithoutSource`, igual que en TypeScript. No se inventa un contenedor.
+* `symbol_roles` solo distingue definición, y `syntax_kind` viaja sin valor.
+  La clase de la arista la decide Tree-sitter sobre el nodo que contiene la
+  ocurrencia: `CALLS_DIRECT` con `RUST_SYNTAX_CALL`, `TYPE_USES` con
+  `RUST_SYNTAX_TYPE`, y `REFERENCES` con `RUST_ANALYZER_USE` en el resto. La
+  confianza es `EXACT_TYPECHECKED` porque la identidad es del analizador; es
+  exactamente el trato que recibe hoy `GO_AST_CALL`.
+* `IMPLEMENTS` y `EXTENDS` **no** se emiten como exactas: rust-analyzer envía
+  `relationships` vacío. Se omiten en esta fase y la limitación se declara.
+
+**Criterios de aceptación:**
+
+- Una llamada dentro de un método atribuye el método como origen.
+- Un uso en posición de tipo produce `TYPE_USES`, no `CALLS_DIRECT`.
+- Ninguna arista lleva procedencia `TREE_SITTER_SYNTAX` y confianza exacta.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...`.
+
+**Resultado:** La atribución usa el `enclosing_range` de las definiciones del documento, la más interna que contiene el uso. La clase la decide Tree-sitter: `CALLS_DIRECT` con `RUST_SYNTAX_CALL`, `TYPE_USES` con `RUST_SYNTAX_TYPE`, `IMPORTS_SYMBOL`/`REEXPORTS` según la visibilidad del `use`.
+
+**Siguiente tarea:** LUQUE-1809.
+
+---
+
+## LUQUE-1809 — Contención y dependencias de crate
+
+**Dependencias:** LUQUE-1807.
+
+**Objetivo:** dar al grafo la estructura del repositorio Rust.
+
+**Entregables:**
+
+* `internal/rustloader/structure.go` y tests.
+
+**Decisiones:**
+
+* `CONTAINS_PACKAGE`, `CONTAINS_FILE` y `DEFINES` son `STRUCTURAL_CERTAIN` con
+  procedencia `PACKAGE_MANIFEST`, como en los otros dos lenguajes.
+* Un `Package` canónico es un crate; `Container` es la raíz del workspace
+  Cargo cuando el crate pertenece a uno.
+* `PACKAGE_DEPENDS_ON` se emite por un import observado y resuelto, nunca por
+  una entrada nominal de `Cargo.toml`: un `[dependencies]` que nadie usa no es
+  una dependencia del grafo. La evidencia es una ocurrencia concreta.
+* `MODULE_DEPENDS_ON` se reserva al cruce entre workspaces Cargo distintos.
+
+**Criterios de aceptación:**
+
+- Un crate con una dependencia declarada y sin usar no produce
+  `PACKAGE_DEPENDS_ON`.
+- Cada arista de dependencia tiene `evidence_key` y su evidencia está en un
+  `File` del conjunto.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...`.
+
+**Resultado:** Contención y dependencias se emiten desde ocurrencias observadas; una entrada de `[dependencies]` que nadie usa no produce arista. `MODULE_DEPENDS_ON` acompaña a la dependencia que sale del workspace.
+
+**Siguiente tarea:** LUQUE-1810.
+
+---
+
+## LUQUE-1810 — Vocabulario `UNRESOLVED` de Rust
+
+**Dependencias:** LUQUE-1808 y LUQUE-1809.
+
+**Objetivo:** que lo que no se pudo resolver quede dicho, con motivo y
+evidencia.
+
+**Entregables:**
+
+* `internal/rustloader/unresolved.go` y tests negativos.
+
+**Contrato:**
+
+```text
+WORKSPACE_NOT_LOADED        CRATE_PROVIDER_NOT_FOUND
+AMBIGUOUS_CRATE_PROVIDER    CRATE_VERSION_UNKNOWN
+CRATE_SYMBOL_NOT_MATCHED    DEFINITION_NOT_INDEXED
+MACRO_EXPANSION_DISABLED    TARGET_NOT_BUILDABLE
+ANALYZER_UNAVAILABLE
+```
+
+**Decisiones:**
+
+* rust-analyzer descarta los tokens sin moniker, así que el índice no trae una
+  lista de fallos. Los no resueltos se derivan de tres fuentes observadas: el
+  registro de crates, el diff entre el inventario Tree-sitter del archivo y
+  las definiciones SCIP del mismo archivo (`DEFINITION_NOT_INDEXED`), y el
+  fallo de carga del workspace.
+* Un `#[cfg]` que la configuración no selecciona no es un fallo del índice:
+  es `TARGET_NOT_BUILDABLE`, el equivalente de `PACKAGE_NOT_BUILDABLE` en Go.
+* Con `build_scripts` o `proc_macros` desactivados, lo que dependía de la
+  expansión se declara `MACRO_EXPANSION_DISABLED`.
+* Un fallo a nivel de workspace puede no tener archivo; nunca se le fabrica
+  evidencia ni una arista.
+
+**Criterios de aceptación:**
+
+- Cada entrada conserva motivo, repositorio y lenguaje; con ocurrencia
+  concreta, además archivo y posición.
+- Un crate no provisto por ningún repositorio registrado nunca produce una
+  arista; produce `CRATE_PROVIDER_NOT_FOUND`.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/...`.
+
+**Resultado:** El vocabulario implementado añade `CRATE_VERSION_MISMATCH` al listado original. Cada entrada conserva motivo, repositorio y lenguaje, y las que tienen ocurrencia conservan archivo y posición.
+
+**Siguiente tarea:** LUQUE-1811.
+
+---
+
+## LUQUE-1811 — Payload `rust-facts-v1` y normalización
+
+**Dependencias:** LUQUE-1810.
+
+**Objetivo:** convertir la salida del motor en el modelo canónico.
+
+**Entregables:**
+
+* `internal/facts/rust.go` con `RustPayload`, `RustWireVersion = 1`,
+  `DecodeRustPayload`, `NormalizeRust` y `RustReport`;
+* `facts.LanguageRust` y las procedencias `RUST_ANALYZER_DEF`,
+  `RUST_ANALYZER_USE`, `RUST_ANALYZER_MONIKER`, `RUST_SYNTAX_CALL`,
+  `RUST_SYNTAX_TYPE`;
+* `internal/facts/rust_test.go`.
+
+**Decisiones:**
+
+* El payload transporta componentes de identidad y posiciones; la clave la
+  calcula un solo lado, como en TypeScript. Rutas relativas al repositorio: un
+  payload no incrusta la máquina que lo produjo.
+* `EdgeKind` no crece: el vocabulario actual cubre Rust.
+* Si la clave calculada de un destino no existe en el conjunto tras el merge,
+  se emite `UNRESOLVED` y **no** una arista. Una arista colgante no es un
+  hecho parcial, es un hecho falso.
+
+**Criterios de aceptación:**
+
+- `NormalizeRust` produce un conjunto que pasa `facts.Set.Validate`.
+- Dos normalizaciones del mismo payload en rutas distintas producen claves
+  idénticas.
+- Una versión de payload distinta de 1 se rechaza.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/facts/...`.
+
+**Resultado:** No hay formato de cable: el motor vive en el mismo proceso, así que `facts.NormalizeRust` consume `rustloader.Analysis` directamente, como `NormalizeGo` consume `goloader`. El límite versionado es el esquema SCIP, fijado por digest. Un destino cuya clave no existe en el conjunto se declara y no se emite.
+
+**Siguiente tarea:** LUQUE-1812.
+
+---
+
+## LUQUE-1812 — Integrar Rust en la pasada completa
+
+**Dependencias:** LUQUE-1811.
+
+**Objetivo:** que `index --full` analice repositorios Rust junto a los demás.
+
+**Entregables:**
+
+* `internal/indexer/full.go`: `PhaseRust`, opciones y contadores Rust,
+  `repositoriesForRust`, unidad de análisis por workspace Cargo,
+  `workspaceNotLoadedFacts`, `ambiguousCrateFacts`;
+* `internal/indexer/factcache.go`: entradas de la unidad Rust;
+* tests en `internal/indexer/`.
+
+**Decisiones:**
+
+* La unidad de análisis es el workspace Cargo, no el crate: `rust-analyzer`
+  carga el workspace entero en cada invocación, así que una unidad por crate
+  pagaría la misma carga N veces.
+* El peso de la unidad es el número de archivos `.rs` que declara, como el
+  resto de unidades.
+* El techo de concurrencia Rust es bajo por memoria: cada invocación mantiene
+  el workspace y el sysroot en RAM. Cero significa techo por núcleos, acotado,
+  igual que `GoMaximumLoads`.
+* La huella de caché de una unidad Rust incluye el árbol del workspace, sus
+  manifests y lockfile, el registro de crates, la versión de `rust-analyzer`
+  observada, la de `cargo`/`rustc`, y las features, cfgs y conmutadores de
+  expansión. Un `WORKSPACE_NOT_LOADED` nunca se guarda en caché, por la misma
+  razón que no se guarda un `MODULE_NOT_LOADED`.
+* Un workspace que falla aísla su fallo: los demás repositorios se publican.
+
+**Criterios de aceptación:**
+
+- Un registro mixto Go + TypeScript + Rust produce un único conjunto validado.
+- El informe distingue repositorios, workspaces, símbolos, referencias y no
+  resueltos de Rust.
+- El modo `verify` de la caché no reporta divergencias sobre un corpus Rust.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/indexer/...`, `make build`.
+
+**Resultado:** `indexer.Full` reparte tres colas; la de Rust tiene su propio techo porque cada proceso mantiene un workspace y su sysroot en memoria. La caché de hechos huella el árbol del workspace, sus manifests, el lockfile, el registro de crates y la identidad del analizador.
+
+**Siguiente tarea:** LUQUE-1813.
+
+---
+
+## LUQUE-1813 — Exactitud entre repositorios
+
+**Dependencias:** LUQUE-1812.
+
+**Objetivo:** unir consumidor y proveedor Rust sin coincidencias nominales.
+
+**Entregables:**
+
+* resolución cross-repo en `internal/rustloader/crossrepo.go`;
+* fixtures de dos repositorios en `testdata/rust/`;
+* tests sobre `find_cross_repo_consumers`.
+
+**Decisiones:**
+
+* El puente es el registro de crates más la cadena del símbolo, que incluye
+  gestor, nombre de crate, versión y descriptores. Consumidor y proveedor
+  emiten la misma cadena porque la produce el mismo analizador sobre el mismo
+  código: no es una coincidencia de nombre.
+* Confianza `EXACT_PACKAGE_MAPPED`, procedencia `RUST_ANALYZER_MONIKER`.
+* Una versión `"."` —desconocida para el analizador— nunca resuelve:
+  `CRATE_VERSION_UNKNOWN`.
+* Si el consumidor compila contra una copia del registro y no contra el
+  checkout local, la firma puede diferir y la clave calculada no existir:
+  `CRATE_SYMBOL_NOT_MATCHED`, nunca una arista.
+
+**Criterios de aceptación:**
+
+- Un consumidor que usa un crate provisto por otro repositorio registrado
+  produce una arista exacta con evidencia en el archivo del consumidor.
+- Desregistrar el proveedor convierte esa arista en
+  `CRATE_PROVIDER_NOT_FOUND`.
+- Dos proveedores del mismo crate no producen ninguna arista.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/... ./internal/mcp/...`.
+
+**Resultado:** Consumidor y proveedor indexados por separado producen una arista exacta porque ambos derivan la misma clave del mismo símbolo del analizador. Sin el proveedor registrado, la misma llamada es `CRATE_PROVIDER_NOT_FOUND` y no hay `PACKAGE_DEPENDS_ON`.
+
+**Siguiente tarea:** LUQUE-1814.
+
+---
+
+## LUQUE-1814 — Incrementalidad
+
+**Dependencias:** LUQUE-1812.
+
+**Objetivo:** reaccionar a un cambio en un repositorio Rust sin reindexar el
+mundo.
+
+**Entregables:**
+
+* `internal/indexer/rust.go` con `ClassifyRustChange`;
+* extensiones del watcher en `internal/watcher/reconcile.go`;
+* tests de invalidación.
+
+**Decisiones:**
+
+* Extensiones y archivos vigilados: `.rs`, `Cargo.toml`, `Cargo.lock` y
+  `build.rs`.
+* Un cambio de cuerpo, detectado por el inventario Tree-sitter, reindexa el
+  archivo; un cambio de firma, de manifest o de lockfile reindexa el
+  workspace.
+* La granularidad mínima real de reanálisis es el workspace: `rust-analyzer
+  scip` no tiene modo por archivo. El coste se declara, no se disimula.
+* Todo hecho afirmado por un archivo se retira y se vuelve a afirmar con ese
+  archivo, y las aristas de paquete se retiran por su evidencia.
+
+**Criterios de aceptación:**
+
+- Un delta sobre un corpus Rust produce el mismo grafo que una reconstrucción
+  limpia del mismo estado.
+- Tocar un `Cargo.toml` invalida el workspace, no solo el archivo.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/indexer/... ./internal/watcher/...`.
+
+**Resultado:** `ClassifyRustChange` reduce a `REINDEX_FILE` un cambio de cuerpo y eleva a `REINDEX_PROJECT` manifest, lockfile y `build.rs`. El watcher vigila `.rs`. La granularidad real de reanálisis es el workspace y queda declarada.
+
+**Siguiente tarea:** LUQUE-1815.
+
+---
+
+## LUQUE-1815 — Superficie visible y documentación
+
+**Dependencias:** LUQUE-1813 y LUQUE-1814.
+
+**Objetivo:** que lo que el usuario lee coincida con lo que el binario hace.
+
+**Entregables:**
+
+* `internal/integrations/assets/ladygraph/SKILL.md`;
+* `README.md`, `docs/installation.md`, `docs/development/conventions.md`;
+* documentación de `index_project` con `rust` entre los lenguajes.
+
+**Decisiones:**
+
+* Las tools MCP no cambian de esquema: `language` ya es un filtro de cadena en
+  todas ellas y el vocabulario de motivos ya es por lenguaje.
+* `rust-analyzer` es un prerrequisito externo, documentado como el runtime
+  Node: no se empaqueta en el bundle.
+* La documentación describe el comportamiento observado, incluidas las
+  limitaciones de `IMPLEMENTS`, de la expansión de macros y de la granularidad
+  incremental.
+
+**Criterios de aceptación:**
+
+- Ningún documento afirma una capacidad que el binario no tiene.
+- La skill instalada enumera Rust y sus prerrequisitos.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/integrations/...`, revisión del diff.
+
+**Resultado:** `SKILL.md`, `README.md`, `docs/installation.md` y `AGENTS.md` describen el prerrequisito externo, el vocabulario de no resueltos de Rust y la ausencia declarada de `IMPLEMENTS`/`EXTENDS`.
+
+**Siguiente tarea:** LUQUE-1816.
+
+---
+
+## LUQUE-1816 — Benchmarks y auditoría de exactitud
+
+**Dependencias:** LUQUE-1815.
+
+**Objetivo:** emitir los gates con evidencia reproducible.
+
+**Entregables:**
+
+* `benchmarks/rust-engine/{results.json,report.md}`;
+* `benchmarks/rust-cross-repo/{results.json,report.md}`;
+* ground truth en `testdata/rust/`.
+
+**Decisiones:**
+
+* Cada benchmark conserva comando, commit, entorno, dataset, semilla, métricas
+  y limitaciones, y el harness falla cerrado ante una métrica fuera de límite.
+* La auditoría separa `false exact edges` —comparación contra ground truth—
+  de aristas colgantes —invariantes canónicas de extremos, evidencia y
+  procedencia—.
+* El coste del motor se reporta en frío y en caliente, y separado del resto de
+  la pasada: `rust-analyzer` es el término dominante.
+
+**Criterios de aceptación:**
+
+- `false exact edges = 0` sobre el corpus de ground truth.
+- Las invariantes canónicas pasan sobre el grafo publicado.
+- `RUST_SEMANTIC_PASS` y `RUST_CROSS_REPO_PASS` solo se emiten con todos los
+  límites cumplidos; si el corpus no alcanza lo contratado, el resultado es
+  `PASS_WITH_LIMITS` y lo dice.
+
+**Estado:** `PASS_WITH_LIMITS`.
+
+**Verificación:** los harness de ambos benchmarks, `go test ./...`,
+`make test-ladybug`.
+
+**Resultado:** `benchmarks/rust-semantic`: 13 aristas esperadas, 13 encontradas, `false exact edges = 0`, 3/3 fallos declarados, invariantes canónicas sin violación. `benchmarks/rust-engine`: índice frío `1331.7 ms`, caliente `52.6 ms` con dos aciertos de caché y grafo idéntico; el analizador solo son `1010.4 ms` de ese frío. El corpus son tres crates, así que el token emitido es `RUST_SEMANTIC_PASS_WITH_LIMITS`.
+
+**Siguiente tarea:** LUQUE-1817.
+
+---
+
+## LUQUE-1817 — ADR y cierre de fase
+
+**Dependencias:** LUQUE-1816.
+
+**Objetivo:** dejar registrada la arquitectura y sus límites.
+
+**Entregables:**
+
+* `docs/adr/0033-rust-scip-engine.md`;
+* `docs/adr/0034-rust-hermetic-cargo.md`;
+* `docs/adr/0035-rust-unresolved-vocabulary.md`;
+* `AGENTS.md` con las reglas de Rust observadas;
+* `docs/release/production-qualification.md`.
+
+**Checklist:**
+
+- [x] Pasar los tres ADR de `propuesta` a `aceptada` con la evidencia medida.
+- [x] Registrar el suelo de versión de `rust-analyzer` verificado.
+- [x] Enumerar limitaciones residuales sin convertir ninguna en un PASS
+      implícito.
+- [x] Confirmar que tests, documentación y consumidores están migrados.
+
+**Criterios de aceptación:**
+
+- Los ADR contienen contexto, decisión, alternativas, consecuencias, riesgos y
+  estado.
+- `AGENTS.md` describe comportamiento observado.
+
+**Estado:** `PASS`.
+
+**Verificación:** `gofmt -l`, `go vet ./...`, `go test ./...`, `make build`,
+`make test-ladybug`, `git diff --check`.
+
+**Resultado:** Los tres ADR pasan a `aceptada` con la evidencia medida; `AGENTS.md` recoge los contratos observados del camino Rust.
+
+**Siguiente tarea:** LUQUE-1818.
+
+---
+
+## LUQUE-1818 — Publicar el kind fino y la visibilidad real
+
+**Dependencias:** LUQUE-1817.
+
+**Objetivo:** que una consulta pueda distinguir un struct de un trait, y que la
+API pública que el grafo declara sea la que Rust considera pública.
+
+**Entregables:**
+
+* `internal/rustloader/kinds.go`;
+* visibilidad heredada en `internal/rustloader/source.go`;
+* tests de kind y de visibilidad.
+
+**Decisiones:**
+
+* El `Kind` publicado es el fino de SCIP (`struct`, `trait`, `field`,
+  `trait_method`, `static_method`, `macro`, `module`…). El sufijo del
+  descriptor sigue decidiendo la **clave**, porque viaja dentro del símbolo y
+  no puede divergir entre consumidor y proveedor.
+* Un bloque `impl` no se publica con el nombre del tipo al que aplica: se
+  reconoce por su descriptor y se rotula `impl Trait for Type`.
+* La visibilidad no es solo `pub`: un miembro de un `trait` es tan visible como
+  el trait, y un método de una implementación de trait es alcanzable a través
+  de él.
+
+**Criterios de aceptación:**
+
+- `Value` es `struct`, `Named::name` es `trait_method` y `crate` es `module`.
+- Un método de trait sin `pub` se publica como exportado.
+- La clave estable de un símbolo no cambia por publicar otro kind.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/ -run 'FineGrained|Durable'`.
+
+**Resultado:** el mapa cubre los 22 kinds que `symbol_kind()` puede emitir y cae
+al sufijo del descriptor para un símbolo externo sin `SymbolInformation`.
+
+**Siguiente tarea:** LUQUE-1819.
+
+---
+
+## LUQUE-1819 — Derivar implementaciones, supertraits y overrides
+
+**Dependencias:** LUQUE-1818.
+
+**Objetivo:** dar al grafo las relaciones estructurales de Rust sin inventarlas.
+
+**Entregables:**
+
+* `internal/rustloader/relations.go`;
+* `Source.Implementations` y `Source.TraitBounds`;
+* `facts.RustSyntaxImplementation` y su código canónico;
+* fixture `testdata/rust/workspace/crates/support/src/shapes.rs`.
+
+**Contrato:**
+
+```text
+IMPLEMENTS  tipo  -> trait        (cabecera del impl)
+EXTENDS     trait -> supertrait   (bound de la declaración)
+OVERRIDES   método de impl -> método del trait
+```
+
+**Decisiones:**
+
+* `SymbolInformation.relationships` viaja vacío, así que la forma la decide la
+  gramática y los dos extremos los resuelve el analizador: es el mismo reparto
+  que `GO_AST_CALL`.
+* El destino de un `OVERRIDES` se **compone** desde el símbolo del trait más el
+  descriptor del miembro -así es como se forma una identidad SCIP- y solo se
+  emite si el índice observó ese símbolo. Una composición que nadie vio se
+  descarta.
+* Una implementación inherente no relaciona el tipo con ningún trait.
+* La ocurrencia que se convierte en relación no se publica además como
+  referencia de tipo: una observación, una arista.
+
+**Criterios de aceptación:**
+
+- `Circle` implementa `Named` y `Drawable`; `Drawable` extiende `Named`.
+- Los dos métodos del `impl` sobrescriben los del trait; `new` no sobrescribe
+  nada.
+- Cada relación lleva la ocurrencia que la prueba.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/ -run Relations`,
+`go test ./internal/facts/ -run Rust`, `go run ./benchmarks/rust-semantic`.
+
+**Resultado:** la auditoría pasó de 13 a 23 aristas esperadas y sigue con
+`false exact edges = 0`. Las diez nuevas -dos `IMPLEMENTS`, un `EXTENDS`, dos
+`OVERRIDES` y cinco usos del módulo de traits- se añadieron al ground truth a
+mano, que es justo lo que la auditoría existe para forzar.
+
+**Siguiente tarea:** LUQUE-1820.
+
+---
+
+## LUQUE-1820 — Hacer configurable el código de test
+
+**Dependencias:** LUQUE-1819.
+
+**Objetivo:** decidir si `cfg(test)` forma parte del grafo.
+
+**Entregables:**
+
+* `config.RustConfig.IncludeTests`;
+* `cfg.setTest` en la configuración generada del analizador;
+* la opción atravesando `indexing`, `indexer` y la CLI, y entrando en la huella
+  de la caché de hechos.
+
+**Decisiones:**
+
+* Por defecto está activo, que es el valor propio del analizador. Apagarlo
+  retira del grafo todo ítem de test y la gramática los reporta entonces como
+  `DEFINITION_NOT_INDEXED`: la limitación es visible, no silenciosa.
+* El valor entra en la identidad de la caché: un índice con tests y otro sin
+  ellos no son el mismo grafo.
+
+**Criterios de aceptación:**
+
+- La configuración generada lleva `cfg.setTest`.
+- Cambiar la opción invalida las entradas de caché de las unidades Rust.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/config/ ./internal/rustloader/ ./internal/indexer/`.
+
+**Resultado:** `rust.include_tests` viaja hasta `cfg.setTest` y hasta
+`rustAnalysisFingerprint`.
+
+**Siguiente tarea:** LUQUE-1821.
+
+---
+
+## LUQUE-1821 — Nunca nombrar una clave que nadie publica
+
+**Dependencias:** LUQUE-1820.
+
+**Objetivo:** que una referencia a una declaración que el índice no define se
+declare, en vez de convertirse en una arista colgante que aborta la pasada.
+
+**Entregables:**
+
+* la regla en `internal/rustloader/analyze_references.go`;
+* `-> Self` en el fixture `shapes.rs`;
+* `TestAnalyzeDeclaresTheImplementationBlockItCannotDefine`.
+
+**Contrato:**
+
+```text
+símbolo definido en esta pasada        -> arista
+símbolo de otro repositorio registrado -> arista (el proveedor la publica)
+símbolo del propio repositorio ausente -> DEFINITION_NOT_INDEXED
+```
+
+**Decisiones:**
+
+* SCIP menciona el bloque `impl` en las ocurrencias -`-> Self` apunta a él- y
+  nunca lo define. La resolución anterior componía su clave y confiaba en que
+  otro workspace del mismo repositorio la publicase; para un bloque `impl` no
+  la publica nadie, y `facts.Set.Validate` abortaba la pasada entera con
+  `edge TYPE_USES has unknown target`. Es el patrón más común de Rust: bastaba
+  un `-> Self` para dejar un repositorio sin grafo.
+* Un `mod nombre;` sin cuerpo no es una declaración que el índice haya perdido:
+  el analizador la indexa donde vive su fuente. Deja de contarse como
+  `DEFINITION_NOT_INDEXED`.
+
+**Criterios de aceptación:**
+
+- Ninguna referencia ni relación local nombra una clave que la pasada no
+  publica.
+- El bloque `impl` aparece declarado como `DEFINITION_NOT_INDEXED`.
+- El fixture contiene `-> Self`, que es lo que reproducía el fallo.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/rustloader/ ./internal/indexer/`,
+`go run ./benchmarks/rust-semantic`.
+
+**Resultado:** encontrado sondeando `Self`, genéricos y `derive` sobre un crate
+de prueba; la sonda abortaba con una arista colgante. Con la regla, la misma
+sonda publica diez aristas y declara dos fallos. La auditoría quedó en 22
+aristas esperadas, `false exact edges = 0` y 4/4 fallos declarados.
+
+**Siguiente tarea:** LUQUE-1822.
+
+---
+
+## LUQUE-1822 — Que ningún aviso del camino Rust se pierda
+
+**Dependencias:** LUQUE-1821.
+
+**Objetivo:** cerrar los silencios que quedaban entre el analizador, la
+identidad y el vigilante de archivos.
+
+**Entregables:**
+
+* `isManifestPath` reconoce `Cargo.toml`, `Cargo.lock` y `build.rs`;
+* `classifyDiagnostics` conserva el bloque de símbolos duplicados;
+* `collidingKeys` en `internal/rustloader/analyze.go`;
+* `TestReconcilerSeesRustSourcesAndManifests` y
+  `TestClassifyDiagnosticsKeepsDuplicateSymbolReports`.
+
+**Decisiones:**
+
+* `ClassifyRustChange` tenía una rama para manifest y otra para `build.rs` que
+  el reconciliador no podía alimentar: su lista de manifests no conocía Cargo,
+  así que un `Cargo.toml` modificado no llegaba a clasificarse nunca.
+* rust-analyzer informa de sus símbolos duplicados en un bloque **sin prefijo
+  de nivel**; el filtro por `WARN`/`ERROR` lo descartaba entero.
+* Dos símbolos distintos que compongan la misma clave estable publican un solo
+  nodo, porque el merge conserva el primero. Eso ya no ocurre en silencio: se
+  informa nombrando ambos símbolos.
+
+**Criterios de aceptación:**
+
+- Un `Cargo.toml`, un `Cargo.lock` y un `build.rs` aparecen como cambios de
+  manifest en el reconciliador; un `notes.md` no se escanea.
+- El aviso de duplicados sobrevive a la clasificación de diagnósticos.
+- Una colisión de claves produce un diagnóstico que nombra los dos símbolos.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/watcher/ ./internal/rustloader/`,
+`go test ./...`.
+
+**Resultado:** los tres silencios cerrados. La colisión de claves no se
+observó en los fixtures; el diagnóstico existe para el día que un bug del
+analizador la provoque.
+
+**Siguiente tarea:** LUQUE-1823.
+
+---
+
+## LUQUE-1823 — Empaquetar el motor de Rust en el bundle
+
+**Dependencias:** LUQUE-1822.
+
+**Objetivo:** que una instalación traiga dentro todo lo que Ladygraph ejecuta,
+y que lo que no puede traer quede dicho.
+
+**Entregables:**
+
+* `tools/manifest.json` y `scripts/fetch-rust-analyzer.sh`;
+* `bin/rust-analyzer`, sus licencias y el bloque `tools` del `manifest.json`
+  del bundle en `scripts/build-bundle.sh`;
+* `rustloader.ResolveAnalyzer` y la resolución equivalente del worker
+  TypeScript en `indexer.factsCommand`;
+* `Provenance.RustAnalyzer` en `ladygraph version --json`;
+* `internal/storage/ladybug/canonical_catalog_test.go`;
+* `docs/adr/0036-bundled-rust-analyzer.md`.
+
+**Decisiones:**
+
+* El binario se fija por versión, URL y digest, como una gramática. Sin fijarlo
+  dos instalaciones del mismo release indexarían con analizadores distintos.
+* En ejecución gana el binario que viaja junto al ejecutable; después una ruta
+  explícita de la configuración; por último el `PATH`.
+* `cargo` **no** se empaqueta y sigue siendo requisito: sin él el analizador
+  aborta con `Failed to load the project`, verificado con un entorno sin
+  toolchain. Empaquetar rustc, cargo y la biblioteca estándar es otra decisión,
+  no un efecto lateral de esta.
+
+**Criterios de aceptación:**
+
+- `SHA256SUMS` cubre el analizador y `sha256sum -c` pasa sobre el bundle.
+- `ladygraph version --json` publica la release del analizador empaquetado.
+- `doctor` distingue `bundled` de `path`.
+- Un `index --full` de Rust funciona ejecutando el binario del bundle por ruta
+  absoluta, sin su `bin/` en el `PATH`.
+
+**Estado:** `PASS`.
+
+**Verificación:** `make build-darwin-arm64`, `shasum -a 256 -c SHA256SUMS`,
+`ladygraph doctor`, `ladygraph index --full` desde el bundle, `go test ./...`.
+
+**Resultado:** bundle `darwin/arm64` de `127 MB` (`bin/rust-analyzer` 36 MB),
+747 archivos con checksum correcto. El flujo completo publica: `index.full:
+PASS`, `stage.integrity: PASS (0 violaciones)`, `stage.golden probes: PASS`,
+`generation=000001` con 18 símbolos y 2 no resueltas.
+
+Empaquetar destapó dos fallos que ninguna prueba anterior podía ver. El
+primero: ejecutar el `ladygraph` del bundle sin su `bin/` en el `PATH`
+provocaba un `panic` en `factsCommand` -`arguments[1:]` sobre una lista
+vacía-, y el worker TypeScript sólo se resolvía por `PATH` pese a viajar
+dentro. El segundo: las seis procedencias Rust no estaban en el catálogo de
+`canonical_integrity.go`, así que la integridad canónica rechazaba 36 aristas
+como `unknown_confidence` -su test vive bajo el tag `ladybug`, que un checkout
+sin la biblioteca nativa nunca compila-. El guardia nuevo no lleva tag.
+
+**Siguiente tarea:** LUQUE-1824.
+
+---
+
+## LUQUE-1824 — Probar el bundle de la plataforma que no se puede construir aquí
+
+**Dependencias:** LUQUE-1823.
+
+**Objetivo:** que el motor Rust del bundle `linux/amd64` quede verificado por
+alguien, ya que ninguna estación macOS puede construirlo.
+
+**Entregables:**
+
+* `internal/version/tools_manifest_test.go`;
+* caché y verificación del analizador en `.github/workflows/ci.yml` y
+  `.github/workflows/release.yml`.
+
+**Decisiones:**
+
+* Un test sin red comprueba lo que un `go test ./...` puede comprobar en
+  cualquier host: que el manifiesto fija exactamente los dos objetivos de
+  distribución, con digest, licencia y una URL que nombra la versión fijada.
+  Un `linux/amd64` ausente ya no espera a un job de release para verse.
+* Lo que sólo un host Linux puede probar -que el binario existe, se ejecuta y
+  es el fijado- lo prueba el job Linux de CI, que ya construía el bundle y no
+  lo miraba.
+* El analizador se cachea por digest del manifiesto: son 40 MB por job.
+
+**Criterios de aceptación:**
+
+- El guardia falla si se retira un objetivo del manifiesto.
+- El job Linux ejecuta `bin/rust-analyzer --version` del bundle y compara la
+  release contra `tools/manifest.json` y contra `version --json`.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./internal/version/ -run ToolManifest`,
+`go test ./internal/rustloader/scipwire/ -run EveryPlatform`, ejecución del
+artefacto `linux/amd64` en un contenedor, y en un host Linux nativo
+`make build-linux-amd64`, `sha256sum -c SHA256SUMS`, `ladygraph index --full`,
+`go test ./...` (34 paquetes) y `make test-ladybug` (40 paquetes con la capa
+nativa, entre ellos `internal/storage/ladybug`, `internal/rebuild` e
+`internal/indexer`). La misma suite nativa pasa en `darwin/arm64` con 39
+paquetes.
+
+**Resultado:** el artefacto Linux fijado se descargó, verificó y **ejecutó** en
+un contenedor `linux/amd64`: `ELF 64-bit LSB pie executable, x86-64`,
+`rust-analyzer 0.3.3008-standalone`. Con `cargo 1.97.1` -otra versión que la de
+la estación- indexó el fixture en `4.1 s` y dejó el workspace intacto: sin
+`target/` y sin `Cargo.lock`.
+
+El índice que produjo se conserva como
+`testdata/protocol/scip-v0.9/engine-linux-amd64.scip` y
+`TestTheSameSourcesProduceTheSameIdentitiesOnEveryPlatform` lo compara contra
+el grabado en `darwin/arm64`: mismos documentos, mismos símbolos, mismos kinds,
+mismas firmas y mismos rangos de ocurrencia. Sólo difiere la raíz del proyecto.
+Una clave estable no depende, por tanto, de dónde se indexó.
+
+**Bundle `linux/amd64` construido y verificado en un host Linux nativo**
+(Debian 13, x86_64, Go 1.26.4 descargado por toolchain, patchelf 0.18.0):
+
+- `123 MB`, 741 archivos, `sha256sum -c SHA256SUMS` correcto;
+- `RUNPATH` exactamente `$ORIGIN/../lib`, y el ejecutable arranca sin ninguna
+  variable de búsqueda de bibliotecas;
+- `bin/rust-analyzer` presente y ejecutable, `version --json` publica
+  `"rust_analyzer": "0.3.3008-standalone"`;
+- `index --full` del fixture Rust: `symbols=18 references=12 unresolved=2`,
+  `stage.integrity: PASS (0 violaciones)`, `stage.golden probes: PASS`,
+  generación `000001` publicada, y el fixture intacto.
+
+El digest del HotSnapshot es
+`ad42e8d682f9ef5d23fe98acebaeea79f32345fb67b00dbbd5a4327017590a4f` en Linux y
+**el mismo** en macOS: el grafo publicado no depende de la plataforma que lo
+indexó.
+
+Sin `cargo` en el `PATH`, el mismo bundle declara `toolchain.rust: PASS
+(bundled)` y `toolchain.cargo: FAIL`, e indexa aislando el workspace
+(`not_loaded=1`) en vez de abortar: el reparto entre lo que el bundle trae y lo
+que exige de la máquina se comporta como está documentado.
+
+---
+
+## LUQUE-1825 — Nombrar una función no es llamarla
+
+**Dependencias:** LUQUE-1807, LUQUE-1809.
+
+**Objetivo:** que las tres formas en que Rust mueve una función sin llamarla
+dejen de llegar al grafo como la misma relación genérica.
+
+**Entregables:**
+
+* `internal/rustloader/source.go`: `ReferenceCallback`, `ReferenceAssign` y
+  `ReferenceReturn`, con `valuePosition` e `isTailExpression`;
+* `internal/rustloader/analyze_references.go`: `valueClass` y el `Kind` del
+  destino en la resolución;
+* `internal/facts/facts.go` y `codes.go`: procedencia `RUST_SYNTAX_CALLBACK`,
+  código `19`;
+* `internal/storage/ladybug/canonical_integrity.go`: la procedencia en el
+  catálogo;
+* `testdata/rust/function-values/`, cuarto fixture de la auditoría;
+* `internal/rustloader/source_test.go`, `analyze_test.go`,
+  `internal/facts/rust_test.go`, `benchmarks/rust-semantic/`;
+* `docs/adr/0037-rust-function-values.md`.
+
+**Decisiones:**
+
+* La gramática decide la clase y el analizador el destino, igual que en
+  `CALLS_DIRECT`: es el reparto que ADR 0033 ya había fijado.
+* Una clase de posición de valor exige un destino **invocable** e indexado en
+  la misma pasada. `takes_limit(LIMIT)` es un argumento que no es un callback,
+  y un destino de otro repositorio llega sin `Kind`: ambos degradan a
+  `REFERENCES` en vez de afirmar lo que la pasada no leyó.
+* Sólo el callback estrena procedencia, espejo de `GO_AST_CALLBACK`. Atar y
+  devolver llevan la clase en el `EdgeKind`, como en Go.
+* El ascenso por la expresión atraviesa lo que no cambia lo nombrado y se
+  detiene en el primer padre que decide. Un acceso a campo no es transparente:
+  devolver `objeto.campo` no devuelve el objeto -lo descubrió el test, que
+  clasificaba `target.field` como `RETURNS_FUNCTION`-.
+
+**Criterios de aceptación:**
+
+- Las once formas se distinguen sin analizador instalado.
+- El fixture publica `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION` y
+  `RETURNS_FUNCTION` con sus dos negativos en `REFERENCES`.
+- La generación publicada pasa integridad canónica con la procedencia nueva.
+
+**Estado:** `PASS`.
+
+**Verificación:** `go test ./...`, `make test-ladybug` (39 paquetes),
+`go run ./benchmarks/rust-semantic`, e `index --full` con el binario nativo
+sobre el fixture.
+
+**Resultado:** el corpus de la auditoría pasa de 22 a 30 aristas esperadas y
+las 30 se observan; el caso nuevo mide 8 de 8, `false exact edges = 0`. La
+generación publicada supera `stage.integrity` con 0 violaciones y
+`stage.golden probes`. `internal/rustloader/source_test.go` es el primer test
+del camino Rust que no necesita `rust-analyzer`: fija la clasificación
+sintáctica en cualquier máquina.
+
+**Siguiente tarea:** —.
+
+---
+
+## LUQUE-1826 — Indexar el sysroot de Rust como proveedor sintético
+
+**Dependencias:** LUQUE-1825.
+
+**Estado:** `pendiente`; frente abierto por decisión, no por olvido. Cambia el
+tamaño y el versionado del grafo, así que no entra como añadido silencioso a
+otra tarea.
+
+**Objetivo:** que `core`, `std` y `alloc` tengan identidad en el grafo, que es
+la única causa común de tres carencias medidas.
+
+**Lo que hoy se pierde, y por qué es el mismo agujero:**
+
+* `#[derive(Clone, Debug, Default)]` no deja **ninguna** relación: los traits
+  derivados viven en `core` y el analizador no emite ni ocurrencia del
+  atributo. En Rust idiomático casi todo tipo deriva algo.
+* La sobrecarga de operadores no conecta con su implementación: `a + b` sobre
+  un `impl Add for Money` local se atribuye a `core::ops::Add::add` y sale como
+  `UNRESOLVED CRATE_PROVIDER_NOT_FOUND`.
+* El operador `?` cae igual, en `ops::try_trait::Try::branch`.
+* Cualquier llamada a la biblioteca estándar -`String::from`, `Vec::len`-
+  desaparece del grafo.
+
+**Medido el 2026-08-12** con una sonda de 17 construcciones sobre
+`rust-analyzer 1.96.1`: ninguna de las cuatro deja arista, y las tres últimas
+producen `UNRESOLVED` con destino en `core`.
+
+**Preguntas que la tarea debe responder antes de escribir código:**
+
+1. **Alcance.** indexar el sysroot entero, o sólo los símbolos alcanzados
+   por los repositorios registrados. Lo primero son del orden de `10^5`
+   símbolos por toolchain; lo segundo exige una segunda pasada y deja el
+   conjunto dependiendo de quién lo consulta.
+2. **Identidad y versionado.** un símbolo de `core` pertenece a una versión de
+   Rust, no a un repositorio. Hay que decidir su `RepositoryKey` sintética, su
+   clave estable y qué ocurre cuando dos repositorios registrados se compilan
+   con toolchains distintos.
+3. **Ciclo de vida.** cuándo se reindexa -nunca, al cambiar el toolchain, o
+   por generación-. Un sysroot en el fact cache invalida su entrada al cambiar
+   `rustc --version`.
+4. **Coste.** medir el índice SCIP del sysroot y su tiempo antes de decidir.
+   `rust-analyzer scip` sin `--exclude-vendored-libraries` es el punto de
+   partida y hoy no se ha medido.
+5. **Efecto en las consultas.** un `find_references` sobre `Clone` devolvería
+   media base de código. Hay que decidir si el proveedor sintético se filtra
+   por defecto en la superficie MCP.
+
+**Criterios de aceptación:**
+
+- Un fixture con `#[derive]`, un operador sobrecargado y un `?` publica
+  `IMPLEMENTS` y `CALLS_DIRECT` hacia el proveedor sintético, con procedencia y
+  evidencia, y sin una sola arista exacta falsa en la auditoría.
+- El coste queda medido en `benchmarks/rust-engine/`: índice frío, índice
+  caliente y tamaño del grafo, con y sin sysroot.
+- Un repositorio indexado sin sysroot disponible sigue publicando, declarando
+  la carencia como hoy: la funcionalidad es opt-in y su ausencia no es un
+  fallo.
+- ADR con el alcance, la identidad sintética y la política de invalidación.
+
+**Riesgos:** el grafo crece un orden de magnitud; la identidad deja de ser
+puramente repositorio-relativa; y un `UNRESOLVED` por cada `derive` seria peor
+que el silencio actual si se implementa a medias.
+
+**Desbloquea además:** el `IMPLEMENTS` de un `impl<T> Trait for Vec<T>` sobre
+un tipo foráneo, hoy silencioso porque el receptor no es un símbolo del grafo.
+
+---
+
+# 22. Gates globales
 
 ```text
 PROJECT_FOUNDATION_PASS
@@ -11169,13 +12612,15 @@ PERFORMANCE_PASS
 OBSERVABILITY_PASS
 DISTRIBUTION_PASS
 WEB_VIEWER_PASS
+RUST_SEMANTIC_PASS
+RUST_CROSS_REPO_PASS
 ```
 
 No se puede aprobar Ladygraph sin todos ellos.
 
 ---
 
-# 22. Orden recomendado para la IA
+# 23. Orden recomendado para la IA
 
 La IA deberá empezar exactamente en este orden:
 
@@ -11200,11 +12645,13 @@ LUQUE-0201
 
 No debe implementar TypeScript, Go ni Tree-sitter antes de que LadybugDB y el
 HotSnapshot hayan pasado sus benchmarks. La fase del visor se inicia después
-de `DISTRIBUTION_PASS` y respeta el orden `LUQUE-1701` a `LUQUE-1715`.
+de `DISTRIBUTION_PASS` y respeta el orden `LUQUE-1701` a `LUQUE-1715`. La fase
+de Rust también depende de `DISTRIBUTION_PASS` y respeta el orden `LUQUE-1801`
+a `LUQUE-1824`.
 
 ---
 
-# 23. Plantilla de prompt para cada tarea
+# 24. Plantilla de prompt para cada tarea
 
 ```text
 Trabaja en la tarea <TASK-ID> del backlog de Ladygraph.
@@ -11240,7 +12687,7 @@ Tarea:
 
 ---
 
-# 24. Plantilla para revisar una tarea completada
+# 25. Plantilla para revisar una tarea completada
 
 ```text
 Revisa la implementación de <TASK-ID> sin modificar inicialmente el código.

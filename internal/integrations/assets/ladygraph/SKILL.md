@@ -8,7 +8,7 @@ compatibility: Requires the Ladygraph MCP server registered as `ladygraph`.
 # Ladygraph
 
 Use the `ladygraph` MCP server when the task needs evidence from the indexed
-Go or TypeScript repositories rather than a text-only search.
+Go, TypeScript or Rust repositories rather than a text-only search.
 
 ## Workflow
 
@@ -76,6 +76,33 @@ Report the reason rather than concluding that coverage is broken:
 
 A repository registered as TypeScript that declares no package contributes
 nothing to the graph; the index reports it by name.
+
+Rust reasons name the crate registry or the analyzer that produced the index:
+
+- `CRATE_PROVIDER_NOT_FOUND`, `CRATE_VERSION_MISMATCH`,
+  `AMBIGUOUS_CRATE_PROVIDER`: no registered repository provides that crate at
+  that version, or several do. The standard library is the common case and is
+  never an edge.
+- `WORKSPACE_NOT_LOADED`, `ANALYZER_UNAVAILABLE`: `rust-analyzer` could not
+  read the Cargo workspace, or is not installed. Rust facts are absent on
+  purpose and the rest of the graph is published.
+- `DEFINITION_NOT_INDEXED`: the grammar sees a declaration the analyzer did
+  not index, which is how a hole in Rust coverage becomes visible.
+- `TARGET_NOT_BUILDABLE`, `MACRO_EXPANSION_DISABLED`: the build configuration
+  selected no file of that crate, or macros were not expanded. Both are
+  configuration answers, not missing symbols.
+
+Rust `IMPLEMENTS`, `EXTENDS` and `OVERRIDES` come from the shape of the code,
+not from the analyzer's relationship data, which is always empty: the ends are
+the symbols the analyzer resolved in an `impl` header or a trait bound. An
+implementation the grammar cannot see -- one a macro generated -- is therefore
+absent rather than guessed.
+
+Naming a Rust function is not calling it, and the graph keeps the three shapes
+apart: `PASSES_AS_CALLBACK` for an argument, `ASSIGNS_FUNCTION` for a binding
+or a literal field, `RETURNS_FUNCTION` for the result of a body. A target that
+is not callable, or that another repository publishes, stays `REFERENCES`: ask
+for `REFERENCES` too when a search for callers of a Rust function looks empty.
 
 ## Indexing
 

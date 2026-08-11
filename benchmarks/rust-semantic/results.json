@@ -1,0 +1,94 @@
+{
+  "command": "go run ./benchmarks/rust-semantic",
+  "fixtures": [
+    "testdata/rust/workspace",
+    "testdata/rust/cross-repository"
+  ],
+  "cases": [
+    {
+      "name": "workspace",
+      "metrics": {
+        "expected_edges": 16,
+        "true_positives": 16,
+        "false_negatives": 0,
+        "false_exact_edges": 0,
+        "exact_edges": 17,
+        "symbols": 18,
+        "expected_unresolved": 2,
+        "unresolved_matched": 2
+      },
+      "missing_edges": null,
+      "unexpected_exact_edges": null,
+      "missing_unresolved": null,
+      "invariant_failures": null
+    },
+    {
+      "name": "cross-repository",
+      "metrics": {
+        "expected_edges": 6,
+        "true_positives": 6,
+        "false_negatives": 0,
+        "false_exact_edges": 0,
+        "exact_edges": 7,
+        "symbols": 6,
+        "expected_unresolved": 1,
+        "unresolved_matched": 1
+      },
+      "missing_edges": null,
+      "unexpected_exact_edges": null,
+      "missing_unresolved": null,
+      "invariant_failures": null
+    },
+    {
+      "name": "cross-repository-negative",
+      "metrics": {
+        "expected_edges": 0,
+        "true_positives": 0,
+        "false_negatives": 0,
+        "false_exact_edges": 0,
+        "exact_edges": 0,
+        "symbols": 2,
+        "expected_unresolved": 1,
+        "unresolved_matched": 1
+      },
+      "missing_edges": null,
+      "unexpected_exact_edges": null,
+      "missing_unresolved": null,
+      "invariant_failures": null
+    },
+    {
+      "name": "function-values",
+      "metrics": {
+        "expected_edges": 8,
+        "true_positives": 8,
+        "false_negatives": 0,
+        "false_exact_edges": 0,
+        "exact_edges": 8,
+        "symbols": 11,
+        "expected_unresolved": 1,
+        "unresolved_matched": 1
+      },
+      "missing_edges": null,
+      "unexpected_exact_edges": null,
+      "missing_unresolved": null,
+      "invariant_failures": null
+    }
+  ],
+  "totals": {
+    "expected_edges": 30,
+    "true_positives": 30,
+    "false_negatives": 0,
+    "false_exact_edges": 0,
+    "exact_edges": 32,
+    "symbols": 37,
+    "expected_unresolved": 5,
+    "unresolved_matched": 5
+  },
+  "gate": "RUST_SEMANTIC_PASS_WITH_LIMITS",
+  "limitations": [
+    "El corpus son cuatro fixtures de crates: prueba los contratos, no la escala.",
+    "PASSES_AS_CALLBACK, ASSIGNS_FUNCTION y RETURNS_FUNCTION exigen un destino invocable indexado en la misma pasada; hacia otro repositorio la clase degrada a REFERENCES.",
+    "IMPLEMENTS, EXTENDS y OVERRIDES se derivan de la forma del impl y del bound: relationships viaja vacío.",
+    "La medición depende de la versión de rust-analyzer instalada y de su sysroot."
+  ]
+}

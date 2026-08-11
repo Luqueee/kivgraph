@@ -1,0 +1,38 @@
+{
+  "command": "go run ./benchmarks/rust-engine",
+  "corpus": "testdata/rust/cross-repository",
+  "repositories": 2,
+  "crates": 2,
+  "symbols": 6,
+  "edges": 19,
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpus": 10,
+    "go": "go1.26.4",
+    "rust_analyzer_version": "rust-analyzer 1.96.1 (31fca3ad 2026-06-26)",
+    "cargo_version": "cargo 1.96.1 (356927216 2026-06-26)"
+  },
+  "measurements": [
+    {
+      "name": "analyzer.provider",
+      "milliseconds": 998.016,
+      "detail": "documents=1"
+    },
+    {
+      "name": "index.cold",
+      "milliseconds": 1140.475,
+      "detail": "workspaces=2"
+    },
+    {
+      "name": "index.warm",
+      "milliseconds": 40.415,
+      "detail": "cache_hits=2 misses=0"
+    }
+  ],
+  "limitations": [
+    "El corpus son tres crates: mide el reparto del coste, no la escala.",
+    "El caché del toolchain y del sysroot están calientes; una máquina fría paga más.",
+    "Las cifras dependen de la versión de rust-analyzer instalada."
+  ]
+}
