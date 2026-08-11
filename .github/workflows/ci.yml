@@ -26,6 +26,13 @@ jobs:
           go-version-file: go.mod
           check-latest: true
 
+      # The Rust tests skip without a runnable analyzer, and a skipped suite
+      # would hide the whole Rust path from CI. rustup ships a proxy named
+      # rust-analyzer whether or not the component exists, so it has to be
+      # added explicitly.
+      - name: Install rust-analyzer
+        run: rustup component add rust-analyzer
+
       - name: Check Go formatting
         shell: bash
         run: |
@@ -116,6 +123,10 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+
+      - name: Install rust-analyzer
+        run: rustup component add rust-analyzer
+
       - name: Set up pnpm for distribution
         uses: pnpm/action-setup@v4
         with:
@@ -186,6 +197,9 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+
+      - name: Install rust-analyzer
+        run: rustup component add rust-analyzer
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

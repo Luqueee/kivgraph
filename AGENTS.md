@@ -660,6 +660,15 @@ rustup component add rust-analyzer
 go test ./internal/rustloader/... ./internal/indexer/ -run Rust
 ```
 
+Estar en el `PATH` no es estar instalado: rustup deja un proxy llamado
+`rust-analyzer` para cada toolchain, exista o no el componente, y ese proxy
+falla con `Unknown binary 'rust-analyzer' in official toolchain`. El guardia
+de los tests (`testsupport.RequireRustAnalyzer`) ejecuta `--version` y se
+salta la prueba si no responde; un guardia que sólo busque el nombre da por
+instalado el analizador en cualquier máquina con rustup y convierte un
+`SKIP` en un `FAIL`. CI instala el componente: saltarse la suite entera
+escondería el camino Rust en vez de verificarlo.
+
 Si afecta `ts-worker/`:
 
 ```bash

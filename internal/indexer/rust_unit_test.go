@@ -3,7 +3,6 @@ package indexer
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -38,9 +37,7 @@ func rustFullOptions(t *testing.T, repositories ...workspace.Repository) FullOpt
 
 func requireRustAnalyzer(t *testing.T) {
 	t.Helper()
-	if _, err := exec.LookPath("rust-analyzer"); err != nil {
-		t.Skipf("rust-analyzer is not installed: %v", err)
-	}
+	testsupport.RequireRustAnalyzer(t)
 }
 
 // TestFullIndexesARustRepository is the end to end contract of the Rust path:

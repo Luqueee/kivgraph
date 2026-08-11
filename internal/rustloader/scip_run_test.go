@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,9 +44,7 @@ func defaultRunOptions(workspace, output string) RunOptions {
 
 func requireAnalyzer(t *testing.T) {
 	t.Helper()
-	if _, err := exec.LookPath("rust-analyzer"); err != nil {
-		t.Skipf("rust-analyzer is not installed: %v", err)
-	}
+	testsupport.RequireRustAnalyzer(t)
 }
 
 // TestRunIndexesAWorkspaceWithoutWritingToIt is the contract the whole Rust
