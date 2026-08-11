@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -96,6 +97,9 @@ type FullReport struct {
 	// a directory with no file to select, and the advisory the loader
 	// attaches to it.
 	GoLoadDiagnostics int
+	// GoModulesNotLoaded counts the modules the loader could not read. Their
+	// facts are absent and declared; the pass still publishes the rest.
+	GoModulesNotLoaded int
 	// GoWorkspaces counts the synthetic go.work files this pass installed.
 	// A module that reaches no other registered module loads without one.
 	GoWorkspaces           int
@@ -213,6 +217,9 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		if unit.isGo {
 			report.GoLoads++
 			report.GoModules++
+			if result.notLoaded {
+				report.GoModulesNotLoaded++
+			}
 			report.GoLoadDiagnostics += result.loadDiagnostics
 			report.GoDefinitions += result.definitions
 			report.GoReferences += result.references
@@ -288,6 +295,36 @@ func repositoriesForTypeScript(repositories []workspace.Repository) []workspace.
 type typeScriptPackageUnit struct {
 	repository   workspace.Repository
 	packageValue workspace.TypeScriptPackage
+	// files is how many source files the worker will read. It orders the
+	// queue; it is never a fact about the graph.
+	files int
+}
+
+// countSourceFiles walks the roots a package declares. The walk stats files
+// and reads none, and it skips the directories no analysis reads, so it costs
+// a fraction of the analysis it schedules.
+func countSourceFiles(roots []string) int {
+	total := 0
+	for _, root := range roots {
+		_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if entry.IsDir() {
+				switch entry.Name() {
+				case "node_modules", ".git", "dist", "build":
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs":
+				total++
+			}
+			return nil
+		})
+	}
+	return total
 }
 
 func discoverTypeScriptPackages(
@@ -308,6 +345,7 @@ func discoverTypeScriptPackages(
 			packages = append(packages, typeScriptPackageUnit{
 				repository:   repository,
 				packageValue: packageValue,
+				files:        countSourceFiles(packageValue.SourceRoots),
 			})
 		}
 		for _, conflict := range registry.Conflicts() {
@@ -595,6 +633,21 @@ type analysisUnit struct {
 	isGo       bool
 }
 
+// weight estimates how long a unit will take, so the long poles start first.
+//
+// The estimate is the number of source files the unit will read. It is a
+// proxy, not a measurement -- a thousand trivial files are cheaper than a
+// hundred generic ones -- but the scheduling question is only which unit must
+// not be left for last, and for that a proxy is enough: a pass ends when its
+// slowest unit ends, and starting that one late adds its whole duration to
+// the tail.
+func (unit analysisUnit) weight() int {
+	if unit.isGo {
+		return len(unit.module.PackagePatterns)
+	}
+	return len(unit.pkg.packageValue.SourceRoots) + unit.pkg.files
+}
+
 func (unit analysisUnit) detail() string {
 	if unit.isGo {
 		return unit.module.ModulePath
@@ -604,13 +657,56 @@ func (unit analysisUnit) detail() string {
 
 // analysisResult is what one unit contributes to the pass.
 type analysisResult struct {
-	set             facts.Set
+	set facts.Set
+	// notLoaded marks a module whose facts are absent because the loader
+	// could not read it. The pass continues and the graph declares it.
+	notLoaded       bool
 	loadDiagnostics int
 	definitions     int
 	references      int
 	unresolved      int
 	symbols         int
 	detail          string
+}
+
+// moduleNotLoadedFacts declares a Go module the loader could not read.
+//
+// The repository record travels with the entry for the same reason the
+// ambiguous-package one does: a repository whose only module failed
+// contributes nothing else, and an unresolved reference in a repository the
+// set does not know is not a valid fact. The detail keeps the diagnostics the
+// go command produced, so the answer to "why is this repository empty" is in
+// the graph rather than in a log nobody kept.
+func moduleNotLoadedFacts(unit analysisUnit, blocking []goloader.PackageError) analysisResult {
+	repositoryKey := facts.RepositoryKey(unit.repository.Name)
+	detail := formatPackageErrors(blocking) + toolchainHint(blocking)
+	return analysisResult{
+		set: facts.Set{
+			Repositories: []facts.Repository{{
+				Key:       repositoryKey,
+				Name:      unit.repository.Name,
+				RootPath:  unit.repository.RealPath,
+				Languages: []facts.Language{facts.LanguageGo},
+			}},
+			Unresolved: []facts.UnresolvedReference{{
+				RepositoryKey:    repositoryKey,
+				Language:         facts.LanguageGo,
+				RequestedPackage: unit.module.ModulePath,
+				Reason:           "MODULE_NOT_LOADED",
+				Detail:           detail,
+			}},
+		},
+		unresolved: 1,
+		notLoaded:  true,
+		detail:     "not loaded: " + firstLine(detail),
+	}
+}
+
+func firstLine(value string) string {
+	if index := strings.IndexAny(value, ";\n"); index >= 0 {
+		return strings.TrimSpace(value[:index])
+	}
+	return strings.TrimSpace(value)
 }
 
 // indexGoModule turns one Go module into facts. Every step already takes its
@@ -638,8 +734,13 @@ func indexGoModule(
 	}
 	blocking := load.BlockingErrors()
 	if len(blocking) != 0 {
-		return analysisResult{}, fmt.Errorf("load Go module %q for %q reported diagnostics: %s%s",
-			module.ModulePath, repository.Name, formatPackageErrors(blocking), toolchainHint(blocking))
+		// One module that does not load is not 32 repositories that
+		// cannot be indexed. Its facts are untrustworthy, so none are
+		// published for it, and the graph says which module and why
+		// instead of leaving a hole nobody can see. A repository whose
+		// dependencies were never downloaded is the common case, and it
+		// must not decide whether everything else gets a graph.
+		return moduleNotLoadedFacts(unit, blocking), nil
 	}
 	definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
 	if err != nil {
@@ -793,11 +894,12 @@ func typeScriptUnits(packages []typeScriptPackageUnit) []analysisUnit {
 // output file. Running them one after another left a machine with many cores
 // idle for most of an index, and the analysis is the larger half of the pass.
 //
-// The two kinds have separate budgets. A Go load holds a whole type universe
-// in memory, so its budget trades memory for speed; the TypeScript budget is
-// the one the configuration already declares for its workers. The first
-// failure cancels the rest: a pass that cannot publish should stop paying for
-// work nobody will use.
+// Each kind drains its own queue, longest unit first, with as many workers as
+// its budget allows and never more than it has units. Dispatch order matters
+// because a pass ends when its slowest unit ends: starting the slowest one
+// last adds its whole duration to the tail. The first failure cancels the
+// rest -- a pass that cannot publish should stop paying for work nobody will
+// use.
 func analyse(
 	ctx context.Context,
 	options FullOptions,
@@ -808,54 +910,67 @@ func analyse(
 	if len(units) == 0 {
 		return results, nil
 	}
-	goTotal, typeScriptTotal := 0, 0
-	for _, unit := range units {
+	var goQueue, typeScriptQueue []int
+	for index, unit := range units {
 		if unit.isGo {
-			goTotal++
+			goQueue = append(goQueue, index)
 			continue
 		}
-		typeScriptTotal++
+		typeScriptQueue = append(typeScriptQueue, index)
 	}
-
-	group, groupCtx := errgroup.WithContext(ctx)
-	goBudget := make(chan struct{}, goLoadLimit(options))
-	typeScriptBudget := make(chan struct{}, typeScriptWorkerLimit(options))
-	report := serializedProgress(options.Progress)
-	var goDone, typeScriptDone atomic.Int64
-
-	for index, unit := range units {
-		budget, phase, total := typeScriptBudget, PhaseTypeScript, typeScriptTotal
-		done := &typeScriptDone
-		if unit.isGo {
-			budget, phase, total, done = goBudget, PhaseGo, goTotal, &goDone
-		}
-		group.Go(func() error {
-			select {
-			case budget <- struct{}{}:
-				defer func() { <-budget }()
-			case <-groupCtx.Done():
-				return groupCtx.Err()
-			}
-			report(ProgressEvent{
-				Phase: phase, Repository: unit.repository.Name, Detail: unit.detail(),
-				Started: true, Completed: int(done.Load()), Total: total,
-			})
-			result, err := analyseUnit(groupCtx, options, unit, inputs)
-			if err != nil {
-				return err
-			}
-			results[index] = result
-			detail := result.detail
-			if detail == "" {
-				detail = unit.detail()
-			}
-			report(ProgressEvent{
-				Phase: phase, Repository: unit.repository.Name, Detail: detail,
-				Completed: int(done.Add(1)), Total: total,
-			})
-			return nil
+	byWeight := func(queue []int) {
+		sort.SliceStable(queue, func(left, right int) bool {
+			return units[queue[left]].weight() > units[queue[right]].weight()
 		})
 	}
+	byWeight(goQueue)
+	byWeight(typeScriptQueue)
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	report := serializedProgress(options.Progress)
+	run := func(queue []int, limit int, phase ProgressPhase) {
+		if len(queue) == 0 {
+			return
+		}
+		pending := make(chan int, len(queue))
+		for _, index := range queue {
+			pending <- index
+		}
+		close(pending)
+		var done atomic.Int64
+		total := len(queue)
+		for range min(limit, len(queue)) {
+			group.Go(func() error {
+				for index := range pending {
+					if err := groupCtx.Err(); err != nil {
+						return err
+					}
+					unit := units[index]
+					report(ProgressEvent{
+						Phase: phase, Repository: unit.repository.Name, Detail: unit.detail(),
+						Started: true, Completed: int(done.Load()), Total: total,
+					})
+					result, err := analyseUnit(groupCtx, options, unit, inputs)
+					if err != nil {
+						return err
+					}
+					results[index] = result
+					detail := result.detail
+					if detail == "" {
+						detail = unit.detail()
+					}
+					report(ProgressEvent{
+						Phase: phase, Repository: unit.repository.Name, Detail: detail,
+						Completed: int(done.Add(1)), Total: total,
+					})
+				}
+				return nil
+			})
+		}
+	}
+	run(goQueue, goLoadLimit(options), PhaseGo)
+	run(typeScriptQueue, typeScriptWorkerLimit(options), PhaseTypeScript)
+
 	if err := group.Wait(); err != nil {
 		return nil, err
 	}

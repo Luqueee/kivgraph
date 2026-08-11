@@ -718,9 +718,10 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	})
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
-	writeInfo(stdout, "index.go: repositories=%d modules=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
+	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
 		indexReport.GoRepositories,
 		indexReport.GoModules,
+		indexReport.GoModulesNotLoaded,
 		indexReport.GoWorkspaces,
 		indexReport.GoLoads,
 		indexReport.GoDefinitions,

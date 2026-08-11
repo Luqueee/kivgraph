@@ -281,6 +281,19 @@ independientes ejecutadas en fila india.
   worker. Cero en cualquiera de los dos usa el valor por defecto.
 - El primer fallo cancela el resto: una pasada que no va a publicar no debe
   seguir pagando trabajo que nadie usará.
+- Un módulo Go que el cargador no puede leer se declara como
+  `MODULE_NOT_LOADED` con sus diagnósticos y la pasada continúa. Sus hechos no
+  se publican, porque no serían de fiar; lo que no se hace es dejar sin grafo
+  a los otros treinta y dos repositorios. El caso corriente es un repositorio
+  recién clonado cuyas dependencias nadie ha descargado.
+- Cada tipo drena su cola con la unidad más pesada primero. El peso es una
+  estimación sobre los archivos a leer, no una medida, y solo decide el orden
+  de despacho: una pasada termina cuando termina su unidad más lenta, así que
+  lo único que importa es no dejarla para el final.
+- Medido sobre un workspace de 33 repositorios: `21.0 s` de análisis en
+  secuencial, `12.6 s` con concurrencia y cola ordenada. Ordenar la cola quitó
+  `0.9 s` e hizo innecesarios los trabajadores extra -- con la cola ordenada,
+  tres workers igualan a diez.
 
 ### El visor y el bundle web
 

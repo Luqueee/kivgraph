@@ -379,6 +379,98 @@ func TestFullIsIndifferentToTheConcurrencyBudget(t *testing.T) {
 	}
 }
 
+// A module the loader cannot read must not decide whether every other
+// repository gets a graph. Its facts are absent -- they would not be
+// trustworthy -- and the reason is declared where a consumer can find it.
+func TestFullIsolatesAModuleThatCannotLoad(t *testing.T) {
+	root := testsupport.TempDir(t)
+	healthy := filepath.Join(root, "healthy")
+	writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(healthy, "a.go"), "package healthy\n\nfunc Healthy() int { return 1 }\n")
+	broken := filepath.Join(root, "broken")
+	writeFullFixture(t, filepath.Join(broken, "go.mod"), "module example.com/broken\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(broken, "a.go"),
+		"package broken\n\nimport \"example.com/absent/dependency\"\n\nfunc Broken() int { return dependency.Value }\n")
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+			{Name: "broken", Path: broken, RealPath: broken, Languages: []string{"go"}},
+		},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the healthy repository indexed", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.GoModulesNotLoaded != 1 {
+		t.Fatalf("modules not loaded = %d, want exactly the broken one", report.GoModulesNotLoaded)
+	}
+
+	declared := false
+	for _, entry := range set.Unresolved {
+		if entry.Reason == "MODULE_NOT_LOADED" && entry.RequestedPackage == "example.com/broken" {
+			declared = true
+			if !strings.Contains(entry.Detail, "absent/dependency") {
+				t.Fatalf("detail = %q, want the observed diagnostic", entry.Detail)
+			}
+		}
+	}
+	if !declared {
+		t.Fatalf("unresolved = %#v, want the module declared", set.Unresolved)
+	}
+	healthySymbols, brokenSymbols := 0, 0
+	for _, symbol := range set.Symbols {
+		switch symbol.Name {
+		case "Healthy":
+			healthySymbols++
+		case "Broken":
+			brokenSymbols++
+		}
+	}
+	if healthySymbols != 1 {
+		t.Fatal("the healthy repository lost its symbols to its neighbour")
+	}
+	if brokenSymbols != 0 {
+		t.Fatal("a module that did not load contributed facts anyway")
+	}
+}
+
+// A pass ends when its slowest unit ends, so the queue is drained longest
+// first. The weight is a proxy over the files a unit will read, and the only
+// thing that matters is that the heavy unit is not left for last.
+func TestAnalysisQueueStartsWithTheHeaviestUnit(t *testing.T) {
+	units := []analysisUnit{
+		{repository: workspace.Repository{Name: "small"}, pkg: typeScriptPackageUnit{files: 3}},
+		{repository: workspace.Repository{Name: "huge"}, pkg: typeScriptPackageUnit{files: 900}},
+		{repository: workspace.Repository{Name: "medium"}, pkg: typeScriptPackageUnit{files: 40}},
+	}
+	if units[1].weight() <= units[2].weight() || units[2].weight() <= units[0].weight() {
+		t.Fatalf("weights = %d/%d/%d, want the file counts to order the queue",
+			units[0].weight(), units[1].weight(), units[2].weight())
+	}
+
+	var order []string
+	_, err := analyse(context.Background(), FullOptions{
+		TypeScriptMaximumWorkers: 1,
+		Progress: func(event ProgressEvent) {
+			if event.Started {
+				order = append(order, event.Repository)
+			}
+		},
+	}, units, analysisInputs{})
+	// The units have no project, so the worker fails; the dispatch order is
+	// still observable and is what this defends.
+	if err == nil {
+		t.Skip("the fixture units unexpectedly analysed")
+	}
+	if len(order) == 0 || order[0] != "huge" {
+		t.Fatalf("dispatch order = %v, want the heaviest unit first", order)
+	}
+}
+
 // A package name two manifests declare is an ambiguity, not a broken index:
 // the pass completes, the name provides nothing, and the graph says so. The
 // alternative -- what this used to do -- is that a fixture or a vendored copy

@@ -149,6 +149,14 @@ integridad, compatibilidad o verificación descritos aquí.
   Go porque cada una sostiene un universo de tipos completo, y
   `typescript.maximum_workers` acota los procesos del worker. El primer fallo
   cancela el resto.
+- Un módulo Go que el cargador no puede leer no tumba la pasada: no publica
+  hechos -- no serían de fiar -- y se declara como `MODULE_NOT_LOADED` con los
+  diagnósticos observados. Un repositorio cuyas dependencias nadie descargó no
+  decide si los demás tienen grafo.
+- Cada tipo de unidad drena su propia cola, la más pesada primero, con tantos
+  trabajadores como permita su presupuesto y nunca más que unidades tenga. El
+  peso es una estimación sobre los archivos que la unidad leerá, nunca un
+  hecho del grafo: una pasada termina cuando termina su unidad más lenta.
 - `ladygraph ui` registra la dirección que ha enlazado, incluida la que
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría
