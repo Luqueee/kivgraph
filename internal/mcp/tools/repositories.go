@@ -111,7 +111,7 @@ func listRepositories(
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]RepositorySummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]RepositorySummary]{}, ErrIndexNotReady()
 	}
 	metadata := snapshot.Metadata()
 

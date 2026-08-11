@@ -123,11 +123,11 @@ func findSymbol(
 		return nil, Response[[]SymbolSummary]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]SymbolSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]SymbolSummary]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]SymbolSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]SymbolSummary]{}, ErrIndexNotReady()
 	}
 	metadata := snapshot.Metadata()
 

@@ -175,11 +175,11 @@ func findCrossRepoConsumers(
 		return nil, Response[[]CrossRepoConsumerSummary]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]CrossRepoConsumerSummary]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]CrossRepoConsumerSummary]{}, ErrIndexNotReady()
 	}
 	targetID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
 	if !found {

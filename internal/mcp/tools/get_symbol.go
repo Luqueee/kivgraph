@@ -101,11 +101,11 @@ func getSymbol(
 		return nil, Response[SymbolDetails]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[SymbolDetails]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[SymbolDetails]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[SymbolDetails]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[SymbolDetails]{}, ErrIndexNotReady()
 	}
 
 	symbolID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(stableKey))

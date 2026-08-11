@@ -171,11 +171,11 @@ func traceDependencies(
 		return nil, Response[DependencyTrace]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[DependencyTrace]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[DependencyTrace]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[DependencyTrace]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[DependencyTrace]{}, ErrIndexNotReady()
 	}
 	rootID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
 	if !found {

@@ -209,6 +209,24 @@ Por eso `index_project` es idempotente:
   puede decidir cuál de los dos repositorios nombra. El error nombra el
   directorio ya registrado.
 
+### Primer arranque de un cliente MCP
+
+El cliente lanza `ladygraph serve` él mismo y habla el protocolo por la
+tubería. Un servidor que sale porque falta la configuración deja al cliente
+informando de que «el servidor falló», y obliga a abrir una terminal para algo
+que la instalación debería haber resuelto.
+
+- `serve` y `ui` crean la configuración por defecto cuando no existe, y
+  continúan. Son dos archivos y un directorio de estado.
+- No registran ningún repositorio ni indexan nada: el grafo sigue igual de
+  vacío, y la primera consulta responde `INDEX_NOT_READY` hasta que alguien
+  pide un índice. Indexar sigue siendo explícito.
+- Una configuración que existe y no se puede leer aborta el arranque. Solo se
+  crea la ausente.
+- `INDEX_NOT_READY` nombra las dos salidas —`index_project` o
+  `ladygraph index --full`— porque es la primera respuesta que recibe una
+  instalación recién hecha.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

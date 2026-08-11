@@ -164,7 +164,46 @@ type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, erro
 type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer) error
 type configuredWebRunner func(context.Context, string, http.Handler) error
 
+// ensureConfiguration writes the default configuration when there is none.
+//
+// An MCP client starts its servers itself: it spawns `ladygraph serve` and
+// speaks the protocol over the pipe. A server that exits because nobody ran
+// `init` first turns installing the integration into a terminal session, and
+// the client only reports that the server failed. Creating the defaults costs
+// two files and leaves the graph exactly as empty as it was: this registers no
+// repository and indexes nothing, so the first query still answers
+// INDEX_NOT_READY until someone asks for an index.
+//
+// Only an absent configuration is created. One that exists and cannot be read
+// is a failure, never something to overwrite.
+func ensureConfiguration(configPath string) error {
+	resolved := strings.TrimSpace(configPath)
+	if resolved == "" {
+		defaultPath, err := config.DefaultConfigPath()
+		if err != nil {
+			return fmt.Errorf("resolve configuration path: %w", err)
+		}
+		resolved = defaultPath
+	}
+	if _, err := os.Stat(resolved); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect configuration %q: %w", resolved, err)
+	}
+	result, err := config.Initialize(config.InitOptions{ConfigPath: configPath})
+	if err != nil {
+		return fmt.Errorf("initialize configuration: %w", err)
+	}
+	logger := logging.New(os.Stderr)
+	logger.Info("created the default configuration",
+		"config", result.ConfigPath, "repositories", result.RepositoriesPath)
+	return nil
+}
+
 func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
+	if err := ensureConfiguration(configPath); err != nil {
+		return config.Loaded{}, nil, err
+	}
 	loaded, err := config.Load(configPath)
 	if err != nil {
 		return config.Loaded{}, nil, fmt.Errorf("load configuration: %w", err)

@@ -125,6 +125,12 @@ integridad, compatibilidad o verificación descritos aquí.
   ocupado por otro directorio es conflicto, y el error nombra el registrado.
   `clean` nunca retira repositorios: reconstruir lo registrado es
   `index --full`.
+- Un cliente MCP lanza el servidor él mismo, así que `serve` y `ui` escriben la
+  configuración por defecto cuando no existe y siguen adelante: salir porque
+  nadie ejecutó `init` convierte instalar la integración en una sesión de
+  terminal y el cliente solo informa de que el servidor falló. No registran
+  ningún repositorio ni indexan nada. Una configuración existente que no se
+  puede leer es un fallo, nunca algo que sobrescribir.
 
 ## TypeScript
 

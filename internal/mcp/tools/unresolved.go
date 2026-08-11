@@ -153,11 +153,11 @@ func getUnresolvedReferences(
 		return nil, Response[[]UnresolvedReferenceSummary]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]UnresolvedReferenceSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]UnresolvedReferenceSummary]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]UnresolvedReferenceSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]UnresolvedReferenceSummary]{}, ErrIndexNotReady()
 	}
 
 	metadata := snapshot.Metadata()

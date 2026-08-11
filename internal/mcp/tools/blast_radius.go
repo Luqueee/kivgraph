@@ -167,11 +167,11 @@ func getBlastRadius(
 		return nil, Response[BlastRadius]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[BlastRadius]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[BlastRadius]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[BlastRadius]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[BlastRadius]{}, ErrIndexNotReady()
 	}
 	rootID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
 	if !found {

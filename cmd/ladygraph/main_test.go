@@ -239,6 +239,74 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 	}
 }
 
+// An MCP client spawns the server itself, so a server that exits because
+// nobody ran init first turns installing the integration into a terminal
+// session -- and the client only reports that the server failed. serve writes
+// the defaults and keeps going. It registers no repository and indexes
+// nothing: the graph stays as empty as it was.
+func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, ".config", "ladygraph", "config.yaml")
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Fatalf("config error = %v, want a home with no configuration", err)
+	}
+
+	var gotStore *hotsnapshot.SnapshotStore
+	if err := runConfiguredServe(context.Background(), nil,
+		func(_ context.Context, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer) error {
+			gotStore = store
+			return nil
+		}); err != nil {
+		t.Fatalf("runConfiguredServe() error = %v", err)
+	}
+	if gotStore == nil {
+		t.Fatal("serve runner received nil snapshot store")
+	}
+	if gotStore.Load() != nil {
+		t.Fatal("serve published a graph nobody indexed")
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("configuration was not created: %v", err)
+	}
+	registry, err := config.LoadRepositories(filepath.Join(home, ".config", "ladygraph", "repositories.yaml"))
+	if err != nil {
+		t.Fatalf("LoadRepositories() error = %v", err)
+	}
+	if len(registry.Repositories) != 0 {
+		t.Fatalf("repositories = %#v, want none registered", registry.Repositories)
+	}
+}
+
+// A configuration that exists and cannot be read is a failure, never something
+// to overwrite: the alternative silently replaces whatever the operator wrote.
+func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("version: 1\nnot: valid\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := runConfiguredServe(context.Background(), []string{"--config", configPath},
+		func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer) error {
+			t.Fatal("serve ran with a configuration it could not read")
+			return nil
+		})
+	if err == nil {
+		t.Fatal("runConfiguredServe() accepted an invalid configuration")
+	}
+	data, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !strings.Contains(string(data), "not: valid") {
+		t.Fatalf("configuration was rewritten: %q", data)
+	}
+}
+
 func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")

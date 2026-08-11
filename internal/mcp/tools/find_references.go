@@ -152,11 +152,11 @@ func findReferences(
 		return nil, Response[[]ReferenceSummary]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]ReferenceSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]ReferenceSummary]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]ReferenceSummary]{}, NewToolError(CodeIndexNotReady, "no HotSnapshot is published")
+		return nil, Response[[]ReferenceSummary]{}, ErrIndexNotReady()
 	}
 
 	startID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))

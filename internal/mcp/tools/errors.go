@@ -64,6 +64,16 @@ func WrapToolError(code, message string, cause error) *ToolError {
 	return &ToolError{Code: code, Message: message, cause: cause}
 }
 
+// ErrIndexNotReady reports that no graph is published yet.
+//
+// It is the first answer a freshly installed client gets, so it names the two
+// ways out instead of only the state. The code stays stable; only the message
+// carries the guidance.
+func ErrIndexNotReady() *ToolError {
+	return NewToolError(CodeIndexNotReady,
+		"no graph is published yet: index a project with index_project, or run \"ladygraph index --full\"")
+}
+
 // ErrorCode returns the stable public code carried by err, or an empty string
 // when err is not a classified MCP tool error.
 func ErrorCode(err error) string {
