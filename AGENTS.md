@@ -140,6 +140,15 @@ integridad, compatibilidad o verificación descritos aquí.
   una vez por proyecto paga ese coste una vez por proyecto y tira todos los
   grafos menos el último. La forma de un solo proyecto se conserva; mezclar
   ambas en una petición se rechaza.
+- El análisis de la pasada es concurrente: cada módulo Go y cada paquete
+  TypeScript es una unidad independiente. El merge sigue el orden de las
+  unidades, nunca el de finalización, así que el grafo publicado no depende de
+  cómo se planificó el trabajo -- dos pasadas del mismo corpus producen hechos
+  idénticos byte a byte, y eso es lo que hay que verificar al tocar esta zona.
+  Los presupuestos son distintos por tipo: `go.maximum_loads` acota las cargas
+  Go porque cada una sostiene un universo de tipos completo, y
+  `typescript.maximum_workers` acota los procesos del worker. El primer fallo
+  cancela el resto.
 - `ladygraph ui` registra la dirección que ha enlazado, incluida la que
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría

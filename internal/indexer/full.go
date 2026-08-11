@@ -9,14 +9,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/goloader"
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
 	"github.com/Luqueee/ladygraph/internal/workspace"
+)
+
+// defaultGoLoadLimit and defaultTypeScriptWorkerLimit bound concurrent
+// analysis when the caller states no budget of its own.
+const (
+	defaultGoLoadLimit           = 8
+	defaultTypeScriptWorkerLimit = 3
 )
 
 // ProgressPhase names the unit of work a progress event belongs to.
@@ -56,9 +68,15 @@ type FullOptions struct {
 	GoBuildTags []string
 	// GoAllowNetwork lets the Go loads reach a module proxy. Indexing is
 	// hermetic by default.
-	GoAllowNetwork   bool
-	TypeScriptWorker string
-	WorkingDirectory string
+	GoAllowNetwork bool
+	// GoMaximumLoads bounds concurrent Go loads. Zero uses the processor
+	// count, capped, because every load holds a complete type universe.
+	GoMaximumLoads int
+	// TypeScriptMaximumWorkers bounds concurrent TypeScript workers. Zero
+	// uses the documented default.
+	TypeScriptMaximumWorkers int
+	TypeScriptWorker         string
+	WorkingDirectory         string
 
 	// Progress, when set, is called synchronously as each unit of work
 	// starts and finishes. It must not block: a slow callback slows the
@@ -136,6 +154,12 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		report.TypeScriptAmbiguous++
 	}
 
+	var (
+		goUnits            []analysisUnit
+		moduleRegistry     *goloader.ModuleRegistry
+		conflictingModules []string
+		planConflicts      []goworkspace.Conflict
+	)
 	if len(goRepositories) != 0 {
 		if strings.TrimSpace(options.SyntheticWorkFile) == "" {
 			return facts.Set{}, report, errors.New("full index: synthetic Go work file is required")
@@ -151,134 +175,53 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		report.SyntheticWorkFile = options.SyntheticWorkFile
 		report.GoWorkspaces = workspaces
 
-		moduleRegistry, err := goloader.NewModuleRegistry(ctx, goRepositories)
+		moduleRegistry, err = goloader.NewModuleRegistry(ctx, goRepositories)
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build Go module registry: %w", err)
 		}
 		modulesByRepository := modulesByRepository(plan.Modules)
-		conflictingModules := conflictSubjects(plan.Conflicts)
-		goModules := 0
-		for _, repository := range goRepositories {
-			goModules += len(modulesByRepository[repository.Name])
-		}
+		conflictingModules = conflictSubjects(plan.Conflicts)
+		planConflicts = plan.Conflicts
+		goUnits = make([]analysisUnit, 0, len(plan.Modules))
 		for _, repository := range goRepositories {
 			for _, module := range modulesByRepository[repository.Name] {
-				if err := ctx.Err(); err != nil {
-					return facts.Set{}, report, err
-				}
-				emitProgress(options.Progress, ProgressEvent{
-					Phase: PhaseGo, Repository: repository.Name, Detail: module.ModulePath,
-					Started: true, Completed: report.GoModules, Total: goModules,
-				})
-				load, err := goloader.Load(ctx, goloader.Options{
-					Directory:    module.RootPath,
-					WorkFile:     workFiles[module.ModulePath],
-					Patterns:     append([]string(nil), module.PackagePatterns...),
-					IncludeTests: options.IncludeTests,
-					BuildTags:    append([]string(nil), options.GoBuildTags...),
-					AllowNetwork: options.GoAllowNetwork,
-				})
-				report.GoLoads++
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q: %w", module.ModulePath, repository.Name, err)
-				}
-				blocking := load.BlockingErrors()
-				report.GoLoadDiagnostics += len(load.Errors) - len(blocking)
-				if len(blocking) != 0 {
-					report.GoLoadErrors += len(blocking)
-					return facts.Set{}, report, fmt.Errorf("load Go module %q for %q reported diagnostics: %s%s",
-						module.ModulePath, repository.Name, formatPackageErrors(blocking), toolchainHint(blocking))
-				}
-				definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("extract Go definitions for %q: %w", repository.Name, err)
-				}
-				keyed, err := goloader.AssignStableKeys(ctx, definitions)
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("assign Go stable keys for %q: %w", repository.Name, err)
-				}
-				uses, err := goloader.ExtractUses(ctx, load, goloader.UseOptions{Repository: repository.Name})
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("extract Go uses for %q: %w", repository.Name, err)
-				}
-				packageDependencies, err := goloader.ResolvePackageDependencies(ctx, uses)
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("resolve Go package dependencies for %q: %w", repository.Name, err)
-				}
-				references, err := goloader.ClassifyReferences(ctx, load, uses)
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("classify Go references for %q: %w", repository.Name, err)
-				}
-				cross, err := goloader.ResolveCrossRepository(ctx, uses, moduleRegistry, goloader.CrossRepositoryOptions{
-					ConsumerRepository: repository.Name,
-					ConflictingModules: conflictingModules,
-				})
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("resolve Go cross-repository references for %q: %w", repository.Name, err)
-				}
-				typeRelations, err := goloader.ResolveTypeRelations(ctx, load, goloader.TypeRelationOptions{Repository: repository.Name})
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("resolve Go type relations for %q: %w", repository.Name, err)
-				}
-				unresolved, err := goloader.ClassifyUnresolved(ctx, load, cross, goloader.UnresolvedOptions{
-					Repository:         repository.Name,
-					WorkspaceConflicts: plan.Conflicts,
-				})
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("classify Go unresolved references for %q: %w", repository.Name, err)
-				}
-				set, _, err := facts.NormalizeGo(ctx, facts.GoInput{
-					Repository:          repository,
-					Definitions:         keyed,
-					References:          references,
-					CrossRepository:     cross,
-					PackageDependencies: packageDependencies,
-					TypeRelations:       typeRelations,
-					Unresolved:          unresolved,
-				})
-				if err != nil {
-					return facts.Set{}, report, fmt.Errorf("normalise Go facts for %q: %w", repository.Name, err)
-				}
-				mergeSets(&merged, set)
-				report.GoModules++
-				report.GoDefinitions += len(keyed)
-				report.GoReferences += len(references)
-				report.GoUnresolved += len(unresolved)
-				emitProgress(options.Progress, ProgressEvent{
-					Phase: PhaseGo, Repository: repository.Name, Detail: module.ModulePath,
-					Completed: report.GoModules, Total: goModules,
+				goUnits = append(goUnits, analysisUnit{
+					repository: repository, module: module,
+					workFile: workFiles[module.ModulePath], isGo: true,
 				})
 			}
 		}
 	}
 
-	for index, packageUnit := range typeScriptPackages {
-		repository := packageUnit.repository
-		packageValue := packageUnit.packageValue
-		emitProgress(options.Progress, ProgressEvent{
-			Phase: PhaseTypeScript, Repository: repository.Name,
-			Detail: packageValue.Name, Started: true, Completed: index,
-			Total: len(typeScriptPackages),
-		})
-		payload, err := collectTypeScriptFacts(ctx, options, packageUnit, typeScriptPackages)
-		if err != nil {
-			return facts.Set{}, report, err
+	units := append(goUnits, typeScriptUnits(typeScriptPackages)...)
+	results, err := analyse(ctx, options, units, analysisInputs{
+		moduleRegistry:     moduleRegistry,
+		conflictingModules: conflictingModules,
+		planConflicts:      planConflicts,
+		typeScriptPackages: typeScriptPackages,
+	})
+	if err != nil {
+		return facts.Set{}, report, err
+	}
+
+	// Merging follows the order of the units, never the order they
+	// finished, so the published graph does not depend on how the work was
+	// scheduled.
+	for index, unit := range units {
+		result := results[index]
+		mergeSets(&merged, result.set)
+		if unit.isGo {
+			report.GoLoads++
+			report.GoModules++
+			report.GoLoadDiagnostics += result.loadDiagnostics
+			report.GoDefinitions += result.definitions
+			report.GoReferences += result.references
+			report.GoUnresolved += result.unresolved
+			continue
 		}
-		set, _, err := facts.NormalizeTypeScript(ctx, payload, repository.RealPath)
-		if err != nil {
-			return facts.Set{}, report, fmt.Errorf("normalise TypeScript facts for %q package %q: %w",
-				repository.Name, packageValue.Name, err)
-		}
-		mergeSets(&merged, set)
-		report.TypeScriptSymbols += len(payload.Symbols)
-		report.TypeScriptReferences += len(payload.References)
-		report.TypeScriptUnresolved += len(payload.Unresolved)
-		emitProgress(options.Progress, ProgressEvent{
-			Phase: PhaseTypeScript, Repository: repository.Name,
-			Detail: fmt.Sprintf("package=%s symbols=%d references=%d",
-				packageValue.Name, len(payload.Symbols), len(payload.References)),
-			Completed: index + 1, Total: len(typeScriptPackages),
-		})
+		report.TypeScriptSymbols += result.symbols
+		report.TypeScriptReferences += result.references
+		report.TypeScriptUnresolved += result.unresolved
 	}
 
 	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
@@ -641,6 +584,150 @@ func collectTypeScriptFacts(
 	return payload, nil
 }
 
+// analysisUnit is one independent piece of work: a Go module or a TypeScript
+// package. Nothing in a unit reads another unit's state, which is what lets
+// them run at the same time.
+type analysisUnit struct {
+	repository workspace.Repository
+	module     goworkspace.Module
+	pkg        typeScriptPackageUnit
+	workFile   string
+	isGo       bool
+}
+
+func (unit analysisUnit) detail() string {
+	if unit.isGo {
+		return unit.module.ModulePath
+	}
+	return unit.pkg.packageValue.Name
+}
+
+// analysisResult is what one unit contributes to the pass.
+type analysisResult struct {
+	set             facts.Set
+	loadDiagnostics int
+	definitions     int
+	references      int
+	unresolved      int
+	symbols         int
+	detail          string
+}
+
+// indexGoModule turns one Go module into facts. Every step already takes its
+// own inputs; the module registry and the workspace conflicts are read-only
+// for the whole pass.
+func indexGoModule(
+	ctx context.Context,
+	options FullOptions,
+	unit analysisUnit,
+	moduleRegistry *goloader.ModuleRegistry,
+	conflictingModules []string,
+	planConflicts []goworkspace.Conflict,
+) (analysisResult, error) {
+	repository, module := unit.repository, unit.module
+	load, err := goloader.Load(ctx, goloader.Options{
+		Directory:    module.RootPath,
+		WorkFile:     unit.workFile,
+		Patterns:     append([]string(nil), module.PackagePatterns...),
+		IncludeTests: options.IncludeTests,
+		BuildTags:    append([]string(nil), options.GoBuildTags...),
+		AllowNetwork: options.GoAllowNetwork,
+	})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("load Go module %q for %q: %w", module.ModulePath, repository.Name, err)
+	}
+	blocking := load.BlockingErrors()
+	if len(blocking) != 0 {
+		return analysisResult{}, fmt.Errorf("load Go module %q for %q reported diagnostics: %s%s",
+			module.ModulePath, repository.Name, formatPackageErrors(blocking), toolchainHint(blocking))
+	}
+	definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("extract Go definitions for %q: %w", repository.Name, err)
+	}
+	keyed, err := goloader.AssignStableKeys(ctx, definitions)
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("assign Go stable keys for %q: %w", repository.Name, err)
+	}
+	uses, err := goloader.ExtractUses(ctx, load, goloader.UseOptions{Repository: repository.Name})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("extract Go uses for %q: %w", repository.Name, err)
+	}
+	packageDependencies, err := goloader.ResolvePackageDependencies(ctx, uses)
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("resolve Go package dependencies for %q: %w", repository.Name, err)
+	}
+	references, err := goloader.ClassifyReferences(ctx, load, uses)
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("classify Go references for %q: %w", repository.Name, err)
+	}
+	cross, err := goloader.ResolveCrossRepository(ctx, uses, moduleRegistry, goloader.CrossRepositoryOptions{
+		ConsumerRepository: repository.Name,
+		ConflictingModules: conflictingModules,
+	})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("resolve Go cross-repository references for %q: %w", repository.Name, err)
+	}
+	typeRelations, err := goloader.ResolveTypeRelations(ctx, load, goloader.TypeRelationOptions{Repository: repository.Name})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("resolve Go type relations for %q: %w", repository.Name, err)
+	}
+	unresolved, err := goloader.ClassifyUnresolved(ctx, load, cross, goloader.UnresolvedOptions{
+		Repository:         repository.Name,
+		WorkspaceConflicts: planConflicts,
+	})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("classify Go unresolved references for %q: %w", repository.Name, err)
+	}
+	set, _, err := facts.NormalizeGo(ctx, facts.GoInput{
+		Repository:          repository,
+		Definitions:         keyed,
+		References:          references,
+		CrossRepository:     cross,
+		PackageDependencies: packageDependencies,
+		TypeRelations:       typeRelations,
+		Unresolved:          unresolved,
+	})
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("normalise Go facts for %q: %w", repository.Name, err)
+	}
+	return analysisResult{
+		set:             set,
+		loadDiagnostics: len(load.Errors) - len(blocking),
+		definitions:     len(keyed),
+		references:      len(references),
+		unresolved:      len(unresolved),
+	}, nil
+}
+
+// indexTypeScriptPackage turns one TypeScript package into facts. The worker
+// runs as its own process with its own output file, so packages never share
+// anything but the providers they are told about.
+func indexTypeScriptPackage(
+	ctx context.Context,
+	options FullOptions,
+	unit analysisUnit,
+	providers []typeScriptPackageUnit,
+) (analysisResult, error) {
+	repository, packageValue := unit.repository, unit.pkg.packageValue
+	payload, err := collectTypeScriptFacts(ctx, options, unit.pkg, providers)
+	if err != nil {
+		return analysisResult{}, err
+	}
+	set, _, err := facts.NormalizeTypeScript(ctx, payload, repository.RealPath)
+	if err != nil {
+		return analysisResult{}, fmt.Errorf("normalise TypeScript facts for %q package %q: %w",
+			repository.Name, packageValue.Name, err)
+	}
+	return analysisResult{
+		set:        set,
+		symbols:    len(payload.Symbols),
+		references: len(payload.References),
+		unresolved: len(payload.Unresolved),
+		detail: fmt.Sprintf("package=%s symbols=%d references=%d",
+			packageValue.Name, len(payload.Symbols), len(payload.References)),
+	}, nil
+}
 func factsCommand(options FullOptions, arguments []string) (string, []string, error) {
 	commandLine := strings.TrimSpace(options.TypeScriptWorker)
 	if commandLine == "" {
@@ -680,4 +767,149 @@ func DecodeFactsJSON(data []byte) (facts.Set, error) {
 		return facts.Set{}, err
 	}
 	return set, nil
+}
+
+// analysisInputs are the read-only facts every unit shares.
+type analysisInputs struct {
+	moduleRegistry     *goloader.ModuleRegistry
+	conflictingModules []string
+	planConflicts      []goworkspace.Conflict
+	typeScriptPackages []typeScriptPackageUnit
+}
+
+func typeScriptUnits(packages []typeScriptPackageUnit) []analysisUnit {
+	units := make([]analysisUnit, 0, len(packages))
+	for _, packageUnit := range packages {
+		units = append(units, analysisUnit{repository: packageUnit.repository, pkg: packageUnit})
+	}
+	return units
+}
+
+// analyse runs every unit concurrently and answers their results in the order
+// of the units.
+//
+// The units are independent by construction: a Go load builds its own type
+// universe and a TypeScript package is a separate worker process with its own
+// output file. Running them one after another left a machine with many cores
+// idle for most of an index, and the analysis is the larger half of the pass.
+//
+// The two kinds have separate budgets. A Go load holds a whole type universe
+// in memory, so its budget trades memory for speed; the TypeScript budget is
+// the one the configuration already declares for its workers. The first
+// failure cancels the rest: a pass that cannot publish should stop paying for
+// work nobody will use.
+func analyse(
+	ctx context.Context,
+	options FullOptions,
+	units []analysisUnit,
+	inputs analysisInputs,
+) ([]analysisResult, error) {
+	results := make([]analysisResult, len(units))
+	if len(units) == 0 {
+		return results, nil
+	}
+	goTotal, typeScriptTotal := 0, 0
+	for _, unit := range units {
+		if unit.isGo {
+			goTotal++
+			continue
+		}
+		typeScriptTotal++
+	}
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	goBudget := make(chan struct{}, goLoadLimit(options))
+	typeScriptBudget := make(chan struct{}, typeScriptWorkerLimit(options))
+	report := serializedProgress(options.Progress)
+	var goDone, typeScriptDone atomic.Int64
+
+	for index, unit := range units {
+		budget, phase, total := typeScriptBudget, PhaseTypeScript, typeScriptTotal
+		done := &typeScriptDone
+		if unit.isGo {
+			budget, phase, total, done = goBudget, PhaseGo, goTotal, &goDone
+		}
+		group.Go(func() error {
+			select {
+			case budget <- struct{}{}:
+				defer func() { <-budget }()
+			case <-groupCtx.Done():
+				return groupCtx.Err()
+			}
+			report(ProgressEvent{
+				Phase: phase, Repository: unit.repository.Name, Detail: unit.detail(),
+				Started: true, Completed: int(done.Load()), Total: total,
+			})
+			result, err := analyseUnit(groupCtx, options, unit, inputs)
+			if err != nil {
+				return err
+			}
+			results[index] = result
+			detail := result.detail
+			if detail == "" {
+				detail = unit.detail()
+			}
+			report(ProgressEvent{
+				Phase: phase, Repository: unit.repository.Name, Detail: detail,
+				Completed: int(done.Add(1)), Total: total,
+			})
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func analyseUnit(
+	ctx context.Context,
+	options FullOptions,
+	unit analysisUnit,
+	inputs analysisInputs,
+) (analysisResult, error) {
+	if unit.isGo {
+		return indexGoModule(ctx, options, unit,
+			inputs.moduleRegistry, inputs.conflictingModules, inputs.planConflicts)
+	}
+	return indexTypeScriptPackage(ctx, options, unit, inputs.typeScriptPackages)
+}
+
+// serializedProgress makes one callback safe to call from every unit. The
+// contract says a progress callback must not block; it never said it would be
+// called from one goroutine.
+func serializedProgress(report func(ProgressEvent)) func(ProgressEvent) {
+	if report == nil {
+		return func(ProgressEvent) {}
+	}
+	var mutex sync.Mutex
+	return func(event ProgressEvent) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		report(event)
+	}
+}
+
+// goLoadLimit bounds concurrent Go loads. Each one holds a complete type
+// universe, so the ceiling exists to keep a large registry from trading the
+// whole machine's memory for the last few seconds of an index.
+func goLoadLimit(options FullOptions) int {
+	if options.GoMaximumLoads > 0 {
+		return options.GoMaximumLoads
+	}
+	limit := runtime.GOMAXPROCS(0)
+	if limit > defaultGoLoadLimit {
+		return defaultGoLoadLimit
+	}
+	if limit < 1 {
+		return 1
+	}
+	return limit
+}
+
+func typeScriptWorkerLimit(options FullOptions) int {
+	if options.TypeScriptMaximumWorkers > 0 {
+		return options.TypeScriptMaximumWorkers
+	}
+	return defaultTypeScriptWorkerLimit
 }

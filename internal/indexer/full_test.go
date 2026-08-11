@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -291,6 +292,90 @@ func TestFullIsolatesRepositoriesThatDoNotReachEachOther(t *testing.T) {
 	}
 	if _, err := os.Stat(shared); err != nil {
 		t.Fatalf("shared workspace %q: %v", shared, err)
+	}
+}
+
+// The units run concurrently, so the published graph must not depend on the
+// order they finished. Merging follows the order of the units, and the same
+// corpus indexed twice has to produce byte-identical facts -- that equality is
+// what makes the concurrency safe to ship.
+func TestFullProducesTheSameFactsOnEveryRun(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for index := range 6 {
+		module := filepath.Join(root, fmt.Sprintf("svc-%d", index))
+		writeFullFixture(t, filepath.Join(module, "go.mod"),
+			fmt.Sprintf("module example.com/svc%d\n\ngo 1.24\n", index))
+		writeFullFixture(t, filepath.Join(module, "a.go"),
+			fmt.Sprintf("package svc%d\n\n// Value is a fact.\nfunc Value() int { return %d }\n", index, index))
+	}
+	repositories := make([]workspace.Repository, 0, 6)
+	for index := range 6 {
+		module := filepath.Join(root, fmt.Sprintf("svc-%d", index))
+		repositories = append(repositories, workspace.Repository{
+			Name: fmt.Sprintf("svc-%d", index), Path: module, RealPath: module, Languages: []string{"go"},
+		})
+	}
+
+	encode := func(t *testing.T) string {
+		t.Helper()
+		set, _, err := Full(context.Background(), FullOptions{
+			Repositories:      repositories,
+			SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+		})
+		if err != nil {
+			t.Fatalf("Full() error = %v", err)
+		}
+		encoded, err := json.Marshal(set)
+		if err != nil {
+			t.Fatalf("Marshal() error = %v", err)
+		}
+		return string(encoded)
+	}
+	first := encode(t)
+	for range 3 {
+		if again := encode(t); again != first {
+			t.Fatal("two runs of the same corpus produced different facts")
+		}
+	}
+}
+
+// A budget of one is the sequential pass. It has to produce exactly what the
+// concurrent one does, or the concurrency changed the graph.
+func TestFullIsIndifferentToTheConcurrencyBudget(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for index := range 4 {
+		module := filepath.Join(root, fmt.Sprintf("svc-%d", index))
+		writeFullFixture(t, filepath.Join(module, "go.mod"),
+			fmt.Sprintf("module example.com/svc%d\n\ngo 1.24\n", index))
+		writeFullFixture(t, filepath.Join(module, "a.go"),
+			fmt.Sprintf("package svc%d\n\nfunc Value() int { return %d }\n", index, index))
+	}
+	repositories := make([]workspace.Repository, 0, 4)
+	for index := range 4 {
+		module := filepath.Join(root, fmt.Sprintf("svc-%d", index))
+		repositories = append(repositories, workspace.Repository{
+			Name: fmt.Sprintf("svc-%d", index), Path: module, RealPath: module, Languages: []string{"go"},
+		})
+	}
+
+	encode := func(t *testing.T, loads int) string {
+		t.Helper()
+		set, _, err := Full(context.Background(), FullOptions{
+			Repositories:      repositories,
+			SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+			GoMaximumLoads:    loads,
+		})
+		if err != nil {
+			t.Fatalf("Full(loads=%d) error = %v", loads, err)
+		}
+		encoded, err := json.Marshal(set)
+		if err != nil {
+			t.Fatalf("Marshal() error = %v", err)
+		}
+		return string(encoded)
+	}
+	if encode(t, 1) != encode(t, 8) {
+		t.Fatal("the concurrency budget changed the facts")
 	}
 }
 

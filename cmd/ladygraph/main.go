@@ -697,16 +697,18 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	progressStart := time.Now()
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
 	fullResult, err := indexing.RunFull(ctx, indexing.FullOptions{
-		Repositories:      registry.List(),
-		SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
-		IncludeTests:      loaded.Config.Go.IncludeTests,
-		GoBuildTags:       loaded.Config.Go.BuildTags,
-		GoAllowNetwork:    loaded.Config.Go.AllowNetwork,
-		TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
-		WorkingDirectory:  workingDirectory,
-		Root:              root,
-		ResolverVersion:   resolverVersion,
-		Store:             generation.DefaultConfig(),
+		Repositories:             registry.List(),
+		SyntheticWorkFile:        loaded.Config.Go.SyntheticWorkFile,
+		IncludeTests:             loaded.Config.Go.IncludeTests,
+		GoBuildTags:              loaded.Config.Go.BuildTags,
+		GoAllowNetwork:           loaded.Config.Go.AllowNetwork,
+		GoMaximumLoads:           loaded.Config.Go.MaximumLoads,
+		TypeScriptMaximumWorkers: loaded.Config.TypeScript.MaximumWorkers,
+		TypeScriptWorker:         loaded.Config.TypeScript.WorkerCommand,
+		WorkingDirectory:         workingDirectory,
+		Root:                     root,
+		ResolverVersion:          resolverVersion,
+		Store:                    generation.DefaultConfig(),
 		Progress: func(event indexer.ProgressEvent) {
 			writeIndexProgress(stderr, progressStart, event)
 		},
@@ -818,13 +820,15 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		BackupRoot:      loaded.Config.Storage.BackupsPath,
 		ResolverVersion: resolverVersion,
 		Full: indexer.FullOptions{
-			Repositories:      registry.List(),
-			SyntheticWorkFile: loaded.Config.Go.SyntheticWorkFile,
-			IncludeTests:      loaded.Config.Go.IncludeTests,
-			GoBuildTags:       loaded.Config.Go.BuildTags,
-			GoAllowNetwork:    loaded.Config.Go.AllowNetwork,
-			TypeScriptWorker:  loaded.Config.TypeScript.WorkerCommand,
-			WorkingDirectory:  workingDirectory,
+			Repositories:             registry.List(),
+			SyntheticWorkFile:        loaded.Config.Go.SyntheticWorkFile,
+			IncludeTests:             loaded.Config.Go.IncludeTests,
+			GoBuildTags:              loaded.Config.Go.BuildTags,
+			GoAllowNetwork:           loaded.Config.Go.AllowNetwork,
+			GoMaximumLoads:           loaded.Config.Go.MaximumLoads,
+			TypeScriptMaximumWorkers: loaded.Config.TypeScript.MaximumWorkers,
+			TypeScriptWorker:         loaded.Config.TypeScript.WorkerCommand,
+			WorkingDirectory:         workingDirectory,
 		},
 	})
 	for _, stage := range report.Stages {

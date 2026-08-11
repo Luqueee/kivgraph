@@ -24,13 +24,17 @@ type FullOptions struct {
 	// GoBuildTags are the build constraints every Go load satisfies.
 	GoBuildTags []string
 	// GoAllowNetwork lets the Go loads reach a module proxy.
-	GoAllowNetwork   bool
-	TypeScriptWorker string
-	WorkingDirectory string
-	Root             string
-	ResolverVersion  string
-	Store            generation.Config
-	Metrics          *metrics.Registry
+	GoAllowNetwork bool
+	// GoMaximumLoads bounds concurrent Go loads.
+	GoMaximumLoads int
+	// TypeScriptMaximumWorkers bounds concurrent TypeScript workers.
+	TypeScriptMaximumWorkers int
+	TypeScriptWorker         string
+	WorkingDirectory         string
+	Root                     string
+	ResolverVersion          string
+	Store                    generation.Config
+	Metrics                  *metrics.Registry
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
@@ -70,14 +74,16 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 	}
 
 	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
-		Repositories:      options.Repositories,
-		SyntheticWorkFile: options.SyntheticWorkFile,
-		IncludeTests:      options.IncludeTests,
-		GoBuildTags:       options.GoBuildTags,
-		GoAllowNetwork:    options.GoAllowNetwork,
-		TypeScriptWorker:  options.TypeScriptWorker,
-		WorkingDirectory:  options.WorkingDirectory,
-		Progress:          options.Progress,
+		Repositories:             options.Repositories,
+		SyntheticWorkFile:        options.SyntheticWorkFile,
+		IncludeTests:             options.IncludeTests,
+		GoBuildTags:              options.GoBuildTags,
+		GoAllowNetwork:           options.GoAllowNetwork,
+		GoMaximumLoads:           options.GoMaximumLoads,
+		TypeScriptMaximumWorkers: options.TypeScriptMaximumWorkers,
+		TypeScriptWorker:         options.TypeScriptWorker,
+		WorkingDirectory:         options.WorkingDirectory,
+		Progress:                 options.Progress,
 	})
 	result := FullResult{IndexReport: indexReport}
 	if err != nil {

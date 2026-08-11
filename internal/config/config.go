@@ -135,6 +135,10 @@ type GoConfig struct {
 	// one shared build list, so its selection can need a version no member
 	// downloaded on its own.
 	AllowNetwork bool `yaml:"allow_network"`
+	// MaximumLoads bounds concurrent Go loads. Each load holds a complete
+	// type universe, so this trades memory for speed. Zero uses the
+	// processor count, capped.
+	MaximumLoads int `yaml:"maximum_loads"`
 }
 
 // TelemetryConfig controls metrics and tracing.
@@ -673,6 +677,9 @@ func validateConfig(configuration Config) error {
 	}
 	if strings.TrimSpace(configuration.TypeScript.WorkerCommand) == "" {
 		return errors.New("config.typescript.worker_command: must not be empty")
+	}
+	if configuration.Go.MaximumLoads < 0 {
+		return fmt.Errorf("config.go.maximum_loads: must not be negative, got %d", configuration.Go.MaximumLoads)
 	}
 	if configuration.TypeScript.MaximumWorkers < 1 {
 		return fmt.Errorf("config.typescript.maximum_workers: must be positive, got %d", configuration.TypeScript.MaximumWorkers)

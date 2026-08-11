@@ -23,6 +23,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.40.0
 	go.opentelemetry.io/otel/sdk/metric v1.40.0
 	golang.org/x/mod v0.31.0
+	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0
 	golang.org/x/tools v0.40.1-0.20260108161641-ca281cf95054
 	gopkg.in/yaml.v3 v3.0.1
@@ -56,7 +57,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/text v0.3.8 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	honnef.co/go/tools v0.6.1 // indirect

@@ -262,6 +262,26 @@ corpus entero.
 - Mezclar `projects` con `name`/`path`/`languages` en una misma petición se
   rechaza: solo podrían contradecirse.
 
+### El análisis es concurrente
+
+Medido sobre el corpus real de este repositorio, la pasada se reparte en
+`65 %` de análisis y `35 %` de rebuild. El análisis eran unidades
+independientes ejecutadas en fila india.
+
+- Cada módulo Go y cada paquete TypeScript es una unidad: la carga Go
+  construye su propio universo de tipos y el paquete TypeScript es un proceso
+  aparte con su propio fichero de salida. No comparten estado.
+- El merge sigue el orden de las unidades, nunca el de finalización. Dos
+  pasadas del mismo corpus producen hechos idénticos byte a byte; al tocar
+  esta zona se verifica comparando el digest del snapshot, no leyendo el
+  diff.
+- Los presupuestos son distintos por tipo. `go.maximum_loads` acota las cargas
+  Go, porque cada una sostiene un universo de tipos completo y el techo cambia
+  memoria por velocidad; `typescript.maximum_workers` acota los procesos del
+  worker. Cero en cualquiera de los dos usa el valor por defecto.
+- El primer fallo cancela el resto: una pasada que no va a publicar no debe
+  seguir pagando trabajo que nadie usará.
+
 ### El visor y el bundle web
 
 - `ladygraph ui` registra la dirección enlazada antes de servir nada, también
