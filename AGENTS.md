@@ -131,6 +131,13 @@ integridad, compatibilidad o verificación descritos aquí.
   terminal y el cliente solo informa de que el servidor falló. No registran
   ningún repositorio ni indexan nada. Una configuración existente que no se
   puede leer es un fallo, nunca algo que sobrescribir.
+- `index_project` emite `notifications/progress` cuando la petición trae
+  `progressToken`: un rebuild completo dura minutos y un cliente MCP aplica su
+  propio timeout a la llamada. Sin token no se instala callback alguno.
+- `ladygraph ui` registra la dirección que ha enlazado, incluida la que
+  resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
+  tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría
+  servir la página de «bundle no disponible».
 
 ## TypeScript
 

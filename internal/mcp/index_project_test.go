@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -11,23 +12,35 @@ import (
 )
 
 type fakeProjectIndexer struct {
-	mu      sync.Mutex
-	calls   int
-	project indexing.Project
+	mu       sync.Mutex
+	calls    int
+	project  indexing.Project
+	progress int
 }
 
-func (fake *fakeProjectIndexer) IndexProject(_ context.Context, project indexing.Project) (indexing.ProjectResult, error) {
+func (fake *fakeProjectIndexer) IndexProject(
+	_ context.Context,
+	project indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	if progress != nil {
+		progress(indexing.ProjectProgress{Phase: "go", Repository: project.Name, Completed: 1, Total: 2})
+		progress(indexing.ProjectProgress{Phase: "go", Repository: project.Name, Completed: 2, Total: 2})
+	}
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.calls++
 	fake.project = project
+	if progress != nil {
+		fake.progress += 2
+	}
 	return indexing.ProjectResult{
-
 		Project:      project,
 		GenerationID: "7",
 		SnapshotID:   7,
 	}, nil
 }
+
 func TestIndexProjectIsAnnotatedAsMutating(t *testing.T) {
 	session := connectToServer(t, NewServerWithIndexer(&fakeProjectIndexer{}))
 	listed, err := session.ListTools(context.Background(), nil)
@@ -75,6 +88,86 @@ func TestIndexProjectRequiresExplicitConsentWithoutElicitation(t *testing.T) {
 	}
 	if calls := fake.callCount(); calls != 0 {
 		t.Fatalf("indexer calls = %d, want 0", calls)
+	}
+}
+
+// A full rebuild outlives the timeout an MCP client applies to a call, so the
+// tool reports progress and the client that asked for it waits. Without this
+// the client cancels work that is progressing, and the index finishes anyway
+// with nobody listening.
+func TestIndexProjectReportsProgressToAClientThatAsksForIt(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	serverSession, err := NewServerWithIndexer(fake).Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	var mu sync.Mutex
+	seen := make([]float64, 0, 4)
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "progress-test", Version: "0.0.1"}, &sdkmcp.ClientOptions{
+		ProgressNotificationHandler: func(_ context.Context, request *sdkmcp.ProgressNotificationClientRequest) {
+			mu.Lock()
+			defer mu.Unlock()
+			seen = append(seen, request.Params.Progress)
+		},
+	})
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	params := &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Meta: sdkmcp.Meta{"progressToken": "index-1"},
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		},
+	}
+	if _, err := clientSession.CallTool(context.Background(), params); err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		enough := len(seen) >= 2
+		mu.Unlock()
+		if enough {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 2 {
+		t.Fatalf("progress notifications = %v, want one per unit of work", seen)
+	}
+	// The protocol requires a value that always increases.
+	if seen[0] >= seen[1] {
+		t.Fatalf("progress = %v, want strictly increasing values", seen)
+	}
+}
+
+// A client that sends no progress token gets no notifications, and the index
+// pays for no callback at all.
+func TestIndexProjectSkipsProgressWithoutAToken(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	session := connectToServer(t, NewServerWithIndexer(fake))
+	if _, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		},
+	}); err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.progress != 0 {
+		t.Fatalf("progress callbacks = %d, want none without a token", fake.progress)
 	}
 }
 

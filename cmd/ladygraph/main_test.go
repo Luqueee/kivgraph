@@ -307,6 +307,27 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 	}
 }
 
+// The published MCP bundle carries no web assets, so ui could only open a
+// server whose every page says the bundle is missing. It says so up front
+// instead, and never binds a port to serve nothing.
+func TestRunConfiguredUIRefusesWithoutTheWebBundle(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	err := runConfiguredUI(context.Background(), []string{"--config", filepath.Join(root, "config.yaml")},
+		func(context.Context, string, http.Handler) error {
+			t.Fatal("ui opened a server with no viewer to serve")
+			return nil
+		}, false)
+	if err == nil {
+		t.Fatal("runConfiguredUI() served a viewer this binary does not carry")
+	}
+	for _, want := range []string{"no web bundle", "--mcp-only"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want it to mention %q", err, want)
+		}
+	}
+}
+
 func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
@@ -490,7 +511,7 @@ func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 			t.Fatalf("meta status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 		}
 		return nil
-	})
+	}, true)
 	if err != nil {
 		t.Fatalf("runConfiguredUI() error = %v", err)
 	}
@@ -515,7 +536,7 @@ func TestRunConfiguredUIUsesLoopbackDefaultAddress(t *testing.T) {
 			t.Fatalf("address = %q, want 127.0.0.1:7777", address)
 		}
 		return nil
-	})
+	}, true)
 	if err != nil {
 		t.Fatalf("runConfiguredUI() error = %v", err)
 	}

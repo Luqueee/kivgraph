@@ -37,6 +37,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/upgrade"
 	"github.com/Luqueee/ladygraph/internal/version"
 	"github.com/Luqueee/ladygraph/internal/webapi"
+	"github.com/Luqueee/ladygraph/internal/webassets"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -79,8 +80,11 @@ func main() {
 			if !isLoopbackListenAddress(address) {
 				logger.Warn("web viewer is unauthenticated and exposes source metadata", "address", address)
 			}
-			return webapi.Run(ctx, address, handler)
-		}); err != nil {
+			return webapi.Run(ctx, address, handler, webapi.OnListen(func(bound net.Addr) {
+				logger.Info("web viewer listening",
+					"command", "ui", "address", bound.String(), "url", "http://"+bound.String())
+			}))
+		}, webassets.Available()); err != nil {
 			logger.Error("web viewer stopped with error", "command", "ui", "error", err)
 			os.Exit(1)
 		}
@@ -245,7 +249,12 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 	return loaded, store, nil
 }
 
-func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRunner) error {
+func runConfiguredUI(
+	ctx context.Context,
+	args []string,
+	runWeb configuredWebRunner,
+	assetsAvailable bool,
+) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -260,6 +269,14 @@ func runConfiguredUI(ctx context.Context, args []string, runWeb configuredWebRun
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("ui: unexpected arguments: %v", flags.Args())
+	}
+	// The published MCP bundle carries no web assets, so this command could
+	// only open a server whose every page says the bundle is missing.
+	// Saying it here costs one line instead of a browser tab.
+	if !assetsAvailable {
+		return errors.New(
+			"ui: this binary carries no web bundle; build one with scripts/build-bundle.sh " +
+				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag")
 	}
 	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
 	if err != nil {

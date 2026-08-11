@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync/atomic"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -51,7 +53,7 @@ func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer
 			Name:      arguments.Name,
 			Path:      arguments.Path,
 			Languages: arguments.Languages,
-		})
+		}, progressReporter(ctx, request))
 		if err != nil {
 			// This tool fails on the caller's own configuration: a
 			// module that needs a newer toolchain, a path that is not
@@ -69,6 +71,37 @@ func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer
 		}
 		return nil, result, nil
 	})
+}
+
+// progressReporter forwards index progress to the client that asked for it.
+//
+// A full rebuild takes minutes on a large registry while a client applies its
+// own timeout to the call -- thirty seconds in some -- and cancels work that
+// is progressing fine. The protocol answers exactly this: a request that
+// carries a progress token gets notifications, and a client that honours them
+// waits for as long as the work reports.
+//
+// A client that sent no token gets no notifications and no callback at all, so
+// the index does not pay for a channel nobody reads. Progress counts up and
+// never repeats a value, which the protocol requires; a notification that
+// cannot be delivered is dropped rather than failing the index.
+func progressReporter(ctx context.Context, request *sdkmcp.CallToolRequest) func(indexing.ProjectProgress) {
+	if request == nil || request.Session == nil || request.Params == nil {
+		return nil
+	}
+	token := request.Params.GetProgressToken()
+	if token == nil {
+		return nil
+	}
+	var steps atomic.Int64
+	return func(update indexing.ProjectProgress) {
+		message := strings.TrimSpace(strings.Join([]string{update.Phase, update.Repository, update.Detail}, " "))
+		_ = request.Session.NotifyProgress(ctx, &sdkmcp.ProgressNotificationParams{
+			ProgressToken: token,
+			Progress:      float64(steps.Add(1)),
+			Message:       message,
+		})
+	}
 }
 
 func requireIndexConsent(

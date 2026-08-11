@@ -227,6 +227,33 @@ que la instalación debería haber resuelto.
   `ladygraph index --full`— porque es la primera respuesta que recibe una
   instalación recién hecha.
 
+### Operaciones largas sobre MCP
+
+Un rebuild completo dura minutos en un registro grande, y un cliente MCP
+aplica su propio timeout a cada llamada — treinta segundos en algunos. Sin
+señales, cancela un trabajo que va bien; y como el corte es del cliente, el
+servidor no se entera y termina igual.
+
+- `index_project` reenvía cada unidad de trabajo del indexador como
+  `notifications/progress` cuando la petición trae `progressToken`. Un cliente
+  que las respeta espera lo que dure el trabajo.
+- Sin token no hay notificaciones ni callback: el índice no paga por un canal
+  que nadie lee.
+- El valor de progreso siempre crece, como exige el protocolo, y una
+  notificación que no se puede entregar se descarta en vez de tumbar el
+  índice.
+- Verificar el resultado fuera de banda sigue siendo válido: `graph_status`
+  responde en milisegundos y dice qué generación se sirve.
+
+### El visor y el bundle web
+
+- `ladygraph ui` registra la dirección enlazada antes de servir nada, también
+  cuando el puerto configurado es `0`.
+- Un binario sin el tag `webassets` no puede mostrar el visor. `ui` lo dice y
+  no abre puerto, en lugar de servir la página de «bundle no disponible» en
+  todas las rutas. El bundle MCP publicado se construye con `--mcp-only`, así
+  que es el caso normal de una instalación desde release.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

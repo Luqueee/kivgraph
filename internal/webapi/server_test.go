@@ -72,3 +72,34 @@ func TestRunRejectsOccupiedPort(t *testing.T) {
 		t.Fatal("Run() accepted an occupied port")
 	}
 }
+
+// A viewer whose log never says where it listens is a viewer you cannot open,
+// and with a port of zero nobody outside Run can resolve it.
+func TestRunReportsTheAddressItBound(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	bound := make(chan net.Addr, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, "127.0.0.1:0", NewHandler(nil), OnListen(func(address net.Addr) {
+			bound <- address
+		}))
+	}()
+
+	select {
+	case address := <-bound:
+		host, port, err := net.SplitHostPort(address.String())
+		if err != nil {
+			t.Fatalf("SplitHostPort(%q) error = %v", address, err)
+		}
+		if host != "127.0.0.1" || port == "0" || port == "" {
+			t.Fatalf("reported address = %q, want the resolved port", address)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run() never reported the address it bound")
+	}
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+}

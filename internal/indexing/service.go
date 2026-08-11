@@ -11,6 +11,7 @@ import (
 
 	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/indexer"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/version"
@@ -51,7 +52,37 @@ type IndexSummary struct {
 // ProjectIndexer is the mutation boundary used by the MCP tool. The caller
 // must obtain explicit consent before invoking this method.
 type ProjectIndexer interface {
-	IndexProject(context.Context, Project) (ProjectResult, error)
+	IndexProject(context.Context, Project, func(ProjectProgress)) (ProjectResult, error)
+}
+
+// ProjectProgress is one step of a project index.
+//
+// A full rebuild takes minutes on a large registry, and an MCP client applies
+// its own timeout to a request. Without a sign of life it cancels a call that
+// is working, so every unit of work reports one.
+type ProjectProgress struct {
+	Phase      string
+	Repository string
+	Detail     string
+	Completed  int
+	Total      int
+}
+
+// projectProgressSink adapts index events to the project-level report. A nil
+// sink costs nothing: the indexer skips the callback entirely.
+func projectProgressSink(progress func(ProjectProgress)) func(indexer.ProgressEvent) {
+	if progress == nil {
+		return nil
+	}
+	return func(event indexer.ProgressEvent) {
+		progress(ProjectProgress{
+			Phase:      string(event.Phase),
+			Repository: event.Repository,
+			Detail:     event.Detail,
+			Completed:  event.Completed,
+			Total:      event.Total,
+		})
+	}
 }
 
 // Service serializes registry mutations and full rebuilds while preserving the
@@ -94,7 +125,11 @@ func NewService(
 // registry and leaves the prior generation active. If publication of the
 // already-validated active graph fails, the candidate registry is retained and
 // the error is returned so the caller can retry publication without reindexing.
-func (service *Service) IndexProject(ctx context.Context, project Project) (ProjectResult, error) {
+func (service *Service) IndexProject(
+	ctx context.Context,
+	project Project,
+	progress func(ProjectProgress),
+) (ProjectResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -153,6 +188,7 @@ func (service *Service) IndexProject(ctx context.Context, project Project) (Proj
 		Root:              filepath.Dir(service.loaded.Config.Storage.DatabasePath),
 		ResolverVersion:   service.resolverVersion,
 		Store:             generation.DefaultConfig(),
+		Progress:          projectProgressSink(progress),
 	})
 	if err != nil {
 		if !registered {
