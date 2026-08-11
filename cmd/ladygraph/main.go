@@ -80,8 +80,16 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := runConfiguredUI(ctx, os.Args[2:], func(ctx context.Context, address string, handler http.Handler) error {
+			// The default bind is every interface, so this warning is
+			// the only thing standing between an unauthenticated
+			// viewer and the network it is on. It names what travels
+			// in a response and how to close it, because a warning
+			// that only says "unauthenticated" is one nobody acts on.
 			if !isLoopbackListenAddress(address) {
-				logger.Warn("web viewer is unauthenticated and exposes source metadata", "address", address)
+				logger.Warn("web viewer is unauthenticated and reachable from the network",
+					"command", "ui", "address", address,
+					"exposes", "repository paths, file paths, symbol names and signatures",
+					"restrict_with", "--addr 127.0.0.1:7777 or web.address in the configuration")
 			}
 			return webapi.Run(ctx, address, handler, webapi.OnListen(func(bound net.Addr) {
 				logger.Info("web viewer listening",

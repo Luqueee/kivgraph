@@ -6,9 +6,17 @@ incluye el binario Go, la biblioteca nativa fijada de LadybugDB, el worker
 TypeScript, las grammars, los avisos de licencia y el visor web bajo `web/`.
 
 El visor viene en la release: tras instalar, `ladygraph ui` sirve el grafo
-publicado en `127.0.0.1:7777` sin construir nada. Un bundle generado con
-`--mcp-only` no lo lleva, y en ese caso la ayuda marca `ui` como no
-disponible en lugar de ofrecer un comando que termina en error.
+publicado en `0.0.0.0:7777` sin construir nada, porque lo normal es indexar
+donde están los repositorios y mirar el grafo desde otra máquina. Un bundle
+generado con `--mcp-only` no lo lleva, y en ese caso la ayuda marca `ui` como
+no disponible en lugar de ofrecer un comando que termina en error.
+
+**El visor no lleva autenticación** y sus respuestas contienen rutas de
+repositorio y de fichero, nombres de símbolo y firmas. Con el bind por defecto
+lo ve cualquiera que alcance el puerto: `ui` lo advierte en cada arranque. Para
+restringirlo, `ladygraph ui --addr 127.0.0.1:7777` o `web.address` en la
+configuración. Una configuración ya escrita conserva su valor: cambiarlo es
+editar `web.address`.
 
 El visor web empaquetado usa Reagraph `4.32.0` sobre el payload binario `LGVB`.
 Cada vista materializada está limitada a `10.000` nodos por tile y `32 MiB`

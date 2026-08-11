@@ -217,7 +217,12 @@ func DefaultConfig() Config {
 			RetainSnapshots: 3,
 		},
 		Web: WebConfig{
-			Address: "127.0.0.1:7777",
+			// The viewer listens on every interface. It is unauthenticated
+			// and its responses carry source paths, symbol names and
+			// signatures, so `ladygraph ui` warns on every bind that is not
+			// loopback -- which, with this default, is every bind. Restrict
+			// it with `web.address` or `--addr`.
+			Address: "0.0.0.0:7777",
 		},
 		MCP: MCPConfig{
 			Transport:           "stdio",

@@ -249,9 +249,14 @@ integridad, compatibilidad o verificación descritos aquí.
   conserva sus vistas fuera de React y solo materializa el límite visible que
   consume `reagraph`; el adaptador rechaza payloads que excedan el límite en
   vez de truncar silenciosamente la topología.
-- `ladygraph ui` es opt-in, sirve solo el `HotSnapshot` publicado por HTTP
-  read-only y mantiene `127.0.0.1:7777` como bind por defecto; un bind no
-  loopback debe emitir una advertencia de seguridad.
+- `ladygraph ui` es opt-in y sirve solo el `HotSnapshot` publicado por HTTP
+  read-only. Su bind por defecto es `0.0.0.0:7777`: el grafo se indexa donde
+  están los repositorios y el visor se mira desde otra máquina, así que un
+  default loopback obligaba a editar la configuración en el caso normal. La
+  guarda es entonces la advertencia, y por eso no es decorativa: todo bind que
+  no sea loopback registra qué se expone -rutas de repositorio y de fichero,
+  nombres y firmas de símbolos- y con qué se cierra. El endpoint no lleva
+  autenticación; restringirlo es `--addr` o `web.address`.
 - `ladygraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
   listener y ejecuta un cierre graceful acotado al cancelar el contexto.
 - `internal/webassets` sirve solo la copia generada de `web/dist` cuando la

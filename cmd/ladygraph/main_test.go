@@ -520,7 +520,13 @@ func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 		t.Fatal("web runner was not called")
 	}
 }
-func TestRunConfiguredUIUsesLoopbackDefaultAddress(t *testing.T) {
+
+// TestRunConfiguredUIListensOnEveryInterfaceByDefault pins the bind a fresh
+// configuration gets. The viewer is usually wanted from another machine -- the
+// graph is indexed where the repositories are -- and a loopback default made
+// every remote use start with an edit. What guards it is the warning, which
+// TestUIWarnsWhenTheBindIsReachable keeps.
+func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
@@ -533,8 +539,8 @@ func TestRunConfiguredUIUsesLoopbackDefaultAddress(t *testing.T) {
 	}
 
 	err := runConfiguredUI(context.Background(), []string{"--config", configPath}, func(_ context.Context, address string, _ http.Handler) error {
-		if address != "127.0.0.1:7777" {
-			t.Fatalf("address = %q, want 127.0.0.1:7777", address)
+		if address != "0.0.0.0:7777" {
+			t.Fatalf("address = %q, want 0.0.0.0:7777", address)
 		}
 		return nil
 	}, true)
@@ -1501,6 +1507,24 @@ func TestUnavailableCommandsNameRealCommands(t *testing.T) {
 	for invocation := range unavailableCommands {
 		if !invocations[invocation] {
 			t.Fatalf("unavailableCommands names %q, which no command group declares", invocation)
+		}
+	}
+}
+
+// TestUIWarnsWhenTheBindIsReachable keeps the only guard the viewer has. It
+// listens on every interface by default, carries no authentication, and its
+// responses contain repository paths, file paths, symbol names and
+// signatures: the warning is what tells an operator that, and it must name
+// what is exposed and how to close it rather than say "unauthenticated".
+func TestUIWarnsWhenTheBindIsReachable(t *testing.T) {
+	for address, wantWarning := range map[string]bool{
+		"0.0.0.0:7777":   true,
+		"192.168.1.4:80": true,
+		"127.0.0.1:7777": false,
+		"[::1]:7777":     false,
+	} {
+		if got := !isLoopbackListenAddress(address); got != wantWarning {
+			t.Fatalf("%q warns = %t, want %t", address, got, wantWarning)
 		}
 	}
 }
