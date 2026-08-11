@@ -612,3 +612,40 @@ func writeFullFixture(t *testing.T, path, contents string) {
 		t.Fatalf("write fixture %q: %v", path, err)
 	}
 }
+
+// TestMergeSetsUnionsTheLanguagesOfEveryUnit keeps a repository that holds
+// both languages from losing one of them. Each unit declares only the
+// language it analysed, and the merge keeps the first record of a key: a
+// repository whose Go module happened to be merged before its TypeScript
+// package would otherwise be published as a Go-only repository.
+func TestMergeSetsUnionsTheLanguagesOfEveryUnit(t *testing.T) {
+	repository := func(key string, languages ...facts.Language) facts.Set {
+		return facts.Set{Repositories: []facts.Repository{{
+			Key: key, Name: key, RootPath: "/repos/" + key, Languages: languages,
+		}}}
+	}
+
+	merged := mergeSets([]facts.Set{
+		repository("mixed", facts.LanguageGo),
+		repository("go-only", facts.LanguageGo),
+		repository("mixed", facts.LanguageTypeScript),
+		repository("mixed", facts.LanguageGo),
+	})
+
+	if len(merged.Repositories) != 2 {
+		t.Fatalf("repositories = %d, want the duplicate keys merged", len(merged.Repositories))
+	}
+	byKey := make(map[string][]facts.Language, len(merged.Repositories))
+	for _, entry := range merged.Repositories {
+		byKey[entry.Key] = entry.Languages
+	}
+	want := map[string][]facts.Language{
+		"go-only": {facts.LanguageGo},
+		"mixed":   {facts.LanguageGo, facts.LanguageTypeScript},
+	}
+	for key, languages := range want {
+		if fmt.Sprint(byKey[key]) != fmt.Sprint(languages) {
+			t.Fatalf("%s languages = %v, want %v", key, byKey[key], languages)
+		}
+	}
+}

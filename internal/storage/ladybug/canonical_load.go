@@ -235,19 +235,33 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 
 	// Every semantic and containment relation is keyed by its own EdgeKind,
 	// so the table name always comes straight from the edge.
+	//
+	// The columns of a kind are resolved once, and the snapshot rendered
+	// once: CanonicalColumns rebuilds the entire schema on every call, and
+	// the graph holds one edge per reference in the corpus.
+	snapshot := strconv.FormatInt(options.SnapshotID, 10)
+	edgesByKind := make(map[facts.EdgeKind]int)
+	for _, edge := range clone.Edges {
+		edgesByKind[edge.Kind]++
+	}
+	columnsByKind := make(map[facts.EdgeKind][]string, len(edgesByKind))
+	for kind := range edgesByKind {
+		columns, exists := CanonicalColumns(string(kind))
+		if !exists {
+			return nil, fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, kind)
+		}
+		columnsByKind[kind] = columns
+		tables[string(kind)] = make([][]string, 0, edgesByKind[kind])
+	}
 	for _, edge := range clone.Edges {
 		table := string(edge.Kind)
-		columns, exists := CanonicalColumns(table)
-		if !exists {
-			return nil, fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, edge.Kind)
-		}
-		tables[table] = append(tables[table], rowFromColumns(columns, map[string]string{
+		tables[table] = append(tables[table], rowFromColumns(columnsByKind[edge.Kind], map[string]string{
 			"from":             edge.SourceKey,
 			"to":               edge.TargetKey,
 			"confidence":       string(edge.Confidence),
 			"provenance":       string(edge.Provenance),
 			"evidence_key":     edge.EvidenceKey,
-			"source_snapshot":  strconv.FormatInt(options.SnapshotID, 10),
+			"source_snapshot":  snapshot,
 			"resolver_version": options.ResolverVersion,
 		}))
 	}

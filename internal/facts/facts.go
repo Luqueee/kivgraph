@@ -446,28 +446,78 @@ func known(key string, indexes ...map[string]struct{}) bool {
 // Two repositories indexed in the same pass share provider symbols; merging by
 // key is what keeps one symbol from becoming two nodes.
 func (set *Set) Merge(other Set) {
-	set.Repositories = mergeBy(set.Repositories, other.Repositories, func(value Repository) string { return value.Key })
-	set.Packages = mergeBy(set.Packages, other.Packages, func(value Package) string { return value.Key })
-	set.Files = mergeBy(set.Files, other.Files, func(value File) string { return value.Key })
-	set.Symbols = mergeBy(set.Symbols, other.Symbols, func(value Symbol) string { return value.Key })
-	set.Evidence = mergeBy(set.Evidence, other.Evidence, func(value Evidence) string { return value.Key })
-	set.Edges = mergeBy(set.Edges, other.Edges, func(value Edge) string {
-		return strings.Join([]string{string(value.Kind), value.SourceKey, value.TargetKey, value.EvidenceKey}, "\x00")
-	})
-	set.Unresolved = mergeBy(set.Unresolved, other.Unresolved, func(value UnresolvedReference) string {
-		return strings.Join([]string{
-			value.FileKey, value.Reason, value.RequestedPackage, value.RequestedSymbol,
-			fmt.Sprint(value.Start.Offset),
-		}, "\x00")
-	})
-	set.Sort()
+	*set = MergeAll([]Set{*set, other})
 }
 
-func mergeBy[T any](left, right []T, key func(T) string) []T {
-	seen := make(map[string]struct{}, len(left)+len(right))
-	merged := make([]T, 0, len(left)+len(right))
-	for _, collection := range [][]T{left, right} {
-		for _, value := range collection {
+// MergeAll merges every set at once, deduplicated by durable key and sorted
+// a single time.
+//
+// Merging pairwise costs the whole accumulated set on every step: a
+// thirty-three unit pass rebuilt and re-sorted two hundred thousand edges
+// thirty-three times, which is quadratic in the size of the graph and was
+// the largest single source of garbage in a full index.
+func MergeAll(sets []Set) Set {
+	merged := Set{
+		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
+			func(value Repository) string { return value.Key }),
+		Packages: mergeAllBy(sets, func(set Set) []Package { return set.Packages },
+			func(value Package) string { return value.Key }),
+		Files: mergeAllBy(sets, func(set Set) []File { return set.Files },
+			func(value File) string { return value.Key }),
+		Symbols: mergeAllBy(sets, func(set Set) []Symbol { return set.Symbols },
+			func(value Symbol) string { return value.Key }),
+		Evidence: mergeAllBy(sets, func(set Set) []Evidence { return set.Evidence },
+			func(value Evidence) string { return value.Key }),
+		Edges: mergeAllBy(sets, func(set Set) []Edge { return set.Edges }, edgeIdentityOf),
+		Unresolved: mergeAllBy(sets, func(set Set) []UnresolvedReference { return set.Unresolved },
+			func(value UnresolvedReference) unresolvedIdentity {
+				return unresolvedIdentity{
+					file: value.FileKey, reason: value.Reason,
+					requestedPackage: value.RequestedPackage,
+					requestedSymbol:  value.RequestedSymbol,
+					offset:           value.Start.Offset,
+				}
+			}),
+	}
+	merged.Sort()
+	return merged
+}
+
+// edgeIdentity and unresolvedIdentity are what makes two facts the same fact:
+// the tuple Merge deduplicates on, and the one Delta checks for duplicates
+// against. They are comparable structs rather than joined strings because a
+// separator has to be allocated and hashed for every edge in the graph.
+func edgeIdentityOf(edge Edge) edgeIdentity {
+	return edgeIdentity{
+		kind: edge.Kind, source: edge.SourceKey,
+		target: edge.TargetKey, evidence: edge.EvidenceKey,
+	}
+}
+
+type edgeIdentity struct {
+	kind     EdgeKind
+	source   string
+	target   string
+	evidence string
+}
+
+type unresolvedIdentity struct {
+	file             string
+	reason           string
+	requestedPackage string
+	requestedSymbol  string
+	offset           int
+}
+
+func mergeAllBy[T any, K comparable](sets []Set, pick func(Set) []T, key func(T) K) []T {
+	total := 0
+	for index := range sets {
+		total += len(pick(sets[index]))
+	}
+	seen := make(map[K]struct{}, total)
+	merged := make([]T, 0, total)
+	for index := range sets {
+		for _, value := range pick(sets[index]) {
 			identifier := key(value)
 			if _, exists := seen[identifier]; exists {
 				continue

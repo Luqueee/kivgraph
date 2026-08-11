@@ -157,6 +157,15 @@ integridad, compatibilidad o verificación descritos aquí.
   trabajadores como permita su presupuesto y nunca más que unidades tenga. El
   peso es una estimación sobre los archivos que la unidad leerá, nunca un
   hecho del grafo: una pasada termina cuando termina su unidad más lenta.
+- Los hechos de todas las unidades se fusionan en una sola pasada
+  (`facts.MergeAll`), no una unidad contra el acumulado: una fusión par a par
+  vuelve a deduplicar, copiar y reordenar el grafo entero en cada paso, que es
+  cuadrático en su tamaño. La identidad con la que se deduplica es una tupla
+  comparable, no una cadena unida por separadores, y es la misma que usa
+  `Diff` para detectar un duplicado.
+- `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
+  así que las columnas de una tabla se resuelven una vez por tabla y nunca por
+  fila. El grafo tiene una arista por referencia del corpus.
 - `ladygraph ui` registra la dirección que ha enlazado, incluida la que
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría

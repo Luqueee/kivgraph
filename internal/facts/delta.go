@@ -3,7 +3,6 @@ package facts
 import (
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // ErrInvalidDelta reports a delta that cannot be applied coherently.
@@ -174,7 +173,7 @@ func validateFragment(set Set) error {
 		evidence[entry.Key] = struct{}{}
 	}
 
-	edges := make(map[string]struct{}, len(set.Edges))
+	edges := make(map[edgeIdentity]struct{}, len(set.Edges))
 	for _, edge := range set.Edges {
 		if !edge.Kind.Valid() {
 			return fmt.Errorf("%w: unknown edge kind %q", ErrInvalidDelta, edge.Kind)
@@ -191,7 +190,7 @@ func validateFragment(set Set) error {
 		if edge.EvidenceKey != "" && !known(edge.EvidenceKey, evidence) {
 			return fmt.Errorf("%w: edge %s needs evidence %q, which the fragment does not carry", ErrInvalidDelta, edge.Kind, edge.EvidenceKey)
 		}
-		identity := edgeIdentity(edge)
+		identity := edgeIdentityOf(edge)
 		if _, duplicate := edges[identity]; duplicate {
 			return fmt.Errorf("%w: duplicate edge %s from %s to %s", ErrInvalidDelta, edge.Kind, edge.SourceKey, edge.TargetKey)
 		}
@@ -220,11 +219,6 @@ func validateFragment(set Set) error {
 	}
 
 	return nil
-}
-
-// edgeIdentity mirrors the tuple Set.Merge deduplicates edges on.
-func edgeIdentity(edge Edge) string {
-	return strings.Join([]string{string(edge.Kind), edge.SourceKey, edge.TargetKey, edge.EvidenceKey}, "\x00")
 }
 
 // Diff computes the delta that turns previous into next.

@@ -295,6 +295,30 @@ independientes ejecutadas en fila india.
   `0.9 s` e hizo innecesarios los trabajadores extra -- con la cola ordenada,
   tres workers igualan a diez.
 
+### La pasada estaba limitada por el recolector, no por el algoritmo
+
+El perfil de CPU de una pasada sobre 33 repositorios repartía el `40 %` entre
+`madvise`, marcado y barrido. No había un algoritmo lento que arreglar: había
+`14.6 GB` asignados para publicar un grafo de `85 165` símbolos.
+
+- La fusión par a par era cuadrática. Cada unidad reconstruía el mapa de
+  deduplicación y reordenaba las `222 154` aristas acumuladas, treinta y tres
+  veces. Se fusiona una sola vez, al final, con `facts.MergeAll`.
+- La identidad de una arista era una cadena unida con `\x00`, una asignación
+  por arista y por fusión. Ahora es una tupla comparable, la misma que usa
+  `Diff`.
+- `CanonicalColumns` reconstruye el esquema entero -- todas las tablas de nodo
+  y de relación con sus propiedades -- en cada llamada, y el staging la
+  llamaba una vez por arista: `3.7 GB` de los `14.6`. Se resuelve una vez por
+  tipo de arista.
+- `csv.Writer` bufferiza a `4 KiB` y el staging escribe decenas de megabytes.
+
+Medido sobre el mismo workspace, con el digest del snapshot idéntico antes y
+después: `14.6 GB -> 5.9 GB` de asignaciones, `20.0 s -> 15.8 s` de pasada
+completa, staging `2.9 s -> 2.7 s`. Lo que queda del rebuild es trabajo real:
+`ScanCanonical` lee el grafo publicado valor a valor a través de cgo, y
+bajarlo exige la lectura columnar por chunks de Arrow.
+
 ### El visor y el bundle web
 
 - `ladygraph ui` registra la dirección enlazada antes de servir nada, también

@@ -152,9 +152,12 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	if err != nil {
 		return facts.Set{}, report, err
 	}
-	merged := facts.Set{}
+	// Every unit's facts are merged in one pass at the end of the pass, not
+	// one at a time: a pairwise merge pays for the whole accumulated graph
+	// on every step.
+	sets := make([]facts.Set, 0, len(typeScriptConflicts))
 	for _, entry := range typeScriptConflicts {
-		mergeSets(&merged, ambiguousPackageFacts(entry))
+		sets = append(sets, ambiguousPackageFacts(entry))
 		report.TypeScriptAmbiguous++
 	}
 
@@ -208,12 +211,12 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		return facts.Set{}, report, err
 	}
 
-	// Merging follows the order of the units, never the order they
+	// The merge follows the order of the units, never the order they
 	// finished, so the published graph does not depend on how the work was
 	// scheduled.
 	for index, unit := range units {
 		result := results[index]
-		mergeSets(&merged, result.set)
+		sets = append(sets, result.set)
 		if unit.isGo {
 			report.GoLoads++
 			report.GoModules++
@@ -232,7 +235,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	}
 
 	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
-	merged.Sort()
+	merged := mergeSets(sets)
 	if err := merged.Validate(); err != nil {
 		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
 	}
@@ -526,22 +529,23 @@ func toolchainHint(errors []goloader.PackageError) string {
 	return ""
 }
 
-func mergeSets(destination *facts.Set, source facts.Set) {
+// mergeSets merges every unit's facts into one set. A repository appears in
+// as many sets as it has units, and MergeAll keeps the first record of each
+// key, so the languages of the later ones are collected here and replace it:
+// a Go repository that also holds TypeScript must not lose either language
+// because one of its two units happened to be merged first.
+func mergeSets(sets []facts.Set) facts.Set {
 	languages := make(map[string][]facts.Language)
-	for _, repository := range destination.Repositories {
-		languages[repository.Key] = append([]facts.Language(nil), repository.Languages...)
+	for _, set := range sets {
+		for _, repository := range set.Repositories {
+			languages[repository.Key] = append(languages[repository.Key], repository.Languages...)
+		}
 	}
-	for _, repository := range source.Repositories {
-		languages[repository.Key] = append(languages[repository.Key], repository.Languages...)
-	}
-	destination.Merge(source)
-	for index := range destination.Repositories {
-		// Merge already carried the languages of both sides into the
-		// record, so the deduplicated union replaces them. Appending it
-		// would keep every language once per merged fact set.
+	merged := facts.MergeAll(sets)
+	for index := range merged.Repositories {
 		seen := make(map[facts.Language]struct{})
-		union := make([]facts.Language, 0, len(languages[destination.Repositories[index].Key]))
-		for _, language := range languages[destination.Repositories[index].Key] {
+		union := make([]facts.Language, 0, len(languages[merged.Repositories[index].Key]))
+		for _, language := range languages[merged.Repositories[index].Key] {
 			if _, exists := seen[language]; exists {
 				continue
 			}
@@ -549,8 +553,9 @@ func mergeSets(destination *facts.Set, source facts.Set) {
 			union = append(union, language)
 		}
 		sort.Slice(union, func(left, right int) bool { return union[left] < union[right] })
-		destination.Repositories[index].Languages = union
+		merged.Repositories[index].Languages = union
 	}
+	return merged
 }
 
 func collectTypeScriptFacts(

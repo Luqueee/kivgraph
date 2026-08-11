@@ -3,6 +3,7 @@
 package ladybug
 
 import (
+	"bufio"
 	"context"
 	"encoding/csv"
 	"errors"
@@ -291,7 +292,10 @@ func writeCanonicalCSV(path string, header []string, rows [][]string) error {
 	if err != nil {
 		return err
 	}
-	writer := csv.NewWriter(file)
+	// csv.Writer buffers at 4 KiB, which is one write syscall every few
+	// dozen rows: a canonical load stages tens of megabytes.
+	buffered := bufio.NewWriterSize(file, 1<<20)
+	writer := csv.NewWriter(buffered)
 	if err := writer.Write(header); err != nil {
 		_ = file.Close()
 		return err
@@ -303,7 +307,11 @@ func writeCanonicalCSV(path string, header []string, rows [][]string) error {
 		}
 	}
 	writer.Flush()
-	return errors.Join(writer.Error(), file.Close())
+	if err := errors.Join(writer.Error(), buffered.Flush()); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func millisecondsSince(start time.Time) float64 {
