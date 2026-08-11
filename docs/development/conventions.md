@@ -369,6 +369,39 @@ chunks de Arrow son `1.2 s`.
 - Una tabla sin filas es una colección vacía, no nula, igual que en el lector
   de tuplas.
 
+### La superficie no informa de lo que no usó ni midió
+
+Siete fricciones de un reporte de indexación de un monorepo de cuarenta
+repositorios. Ninguna era una respuesta equivocada sobre el grafo; todas eran
+el producto describiéndose mal. El detalle y el cambio de forma de la
+respuesta MCP están en el ADR 0031.
+
+- El nivel de un registro viaja con la escritura, no lo decide el adaptador.
+  El progreso es `INFO`, sólo un fallo es `ERROR`, y la línea es el `msg` del
+  registro. Antes una pasada que publicaba limpiamente registraba cada unidad
+  terminada como `ERROR`, y el texto de un error real era un atributo dentro
+  de un mensaje fijo.
+- `serve` declara `not_applicable`, no `not_configured`, lo que este proceso
+  no usa: no abre la base ni ejecuta el worker. Y una sección de métricas que
+  nadie observó se omite en lugar de valer cero, que se lee igual que un grafo
+  vacío.
+- La ayuda marca el comando que esta build no puede ejecutar. El mapa de
+  indisponibilidad se comprueba contra la tabla de comandos en un test, para
+  que renombrar una invocación no deje la marca huérfana.
+- El vocabulario de lenguajes vive donde se escribe el valor
+  (`config.SupportedLanguages`) y no sólo donde se usa. Una segunda lista en
+  el indexador dejaba que `init` aceptase lo que la pasada rechaza.
+- Una configuración escrita fuera de la ubicación por defecto es
+  autocontenida: estado, caché y registro cuelgan de su propio directorio.
+- Los nombres de repositorio se comparan exactos, en el validador y en el
+  upsert del MCP, que no coincidían. El nombre nunca es un componente de ruta
+  y las stable keys distinguen mayúsculas, así que la regla insensible al caso
+  no protegía nada y obligaba a inventar un alias que no existe en disco.
+- Un contador sin detalle es una forma de callar: los diagnósticos del
+  cargador que no tumban la pasada se imprimen, y viajan en la entrada de la
+  caché para que una pasada caliente los repita. Un repositorio TypeScript
+  que no declara paquete se nombra en lugar de aportar silencio.
+
 ### El visor y el bundle web
 
 - `ladygraph ui` registra la dirección enlazada antes de servir nada, también
