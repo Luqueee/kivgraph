@@ -31,10 +31,15 @@ type FullOptions struct {
 	TypeScriptMaximumWorkers int
 	TypeScriptWorker         string
 	WorkingDirectory         string
-	Root                     string
-	ResolverVersion          string
-	Store                    generation.Config
-	Metrics                  *metrics.Registry
+	// CacheMode and CacheDirectory configure the fact cache: whether a
+	// unit may be served from the facts a previous pass stored, and where
+	// those entries live.
+	CacheMode       indexer.CacheMode
+	CacheDirectory  string
+	Root            string
+	ResolverVersion string
+	Store           generation.Config
+	Metrics         *metrics.Registry
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
@@ -83,6 +88,8 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		TypeScriptMaximumWorkers: options.TypeScriptMaximumWorkers,
 		TypeScriptWorker:         options.TypeScriptWorker,
 		WorkingDirectory:         options.WorkingDirectory,
+		CacheMode:                options.CacheMode,
+		CacheDirectory:           options.CacheDirectory,
 		Progress:                 options.Progress,
 	})
 	result := FullResult{IndexReport: indexReport}

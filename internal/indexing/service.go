@@ -211,6 +211,8 @@ func (service *Service) IndexProjects(
 		GoMaximumLoads:           service.loaded.Config.Go.MaximumLoads,
 		TypeScriptMaximumWorkers: service.loaded.Config.TypeScript.MaximumWorkers,
 		TypeScriptWorker:         service.loaded.Config.TypeScript.WorkerCommand,
+		CacheMode:                indexer.CacheMode(service.loaded.Config.Indexing.FactCache),
+		CacheDirectory:           service.loaded.Config.Indexing.FactCachePath,
 		WorkingDirectory:         service.workingDirectory,
 		Root:                     filepath.Dir(service.loaded.Config.Storage.DatabasePath),
 		ResolverVersion:          service.resolverVersion,

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -78,6 +79,12 @@ type FullOptions struct {
 	TypeScriptMaximumWorkers int
 	TypeScriptWorker         string
 	WorkingDirectory         string
+	// CacheMode selects whether a unit may be served from its stored
+	// facts. Empty is CacheOff.
+	CacheMode CacheMode
+	// CacheDirectory holds one entry per analysis unit. It lives outside
+	// every indexed repository, like the rest of the state.
+	CacheDirectory string
 
 	// Progress, when set, is called synchronously as each unit of work
 	// starts and finishes. It must not block: a slow callback slows the
@@ -89,6 +96,10 @@ type FullOptions struct {
 // resulting facts. Counts are informational; an error is never hidden in a
 // successful report.
 type FullReport struct {
+	// Cache reports what the fact cache did, so a pass says how much of
+	// itself it skipped and on whose authority.
+	Cache CacheReport
+
 	GoRepositories int
 	GoModules      int
 	GoLoads        int
@@ -163,6 +174,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 
 	var (
 		goUnits            []analysisUnit
+		goModules          []goworkspace.Module
+		workFiles          map[string]string
 		moduleRegistry     *goloader.ModuleRegistry
 		conflictingModules []string
 		planConflicts      []goworkspace.Conflict
@@ -175,10 +188,12 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
 		}
-		workFiles, workspaces, err := writeWorkspaces(ctx, options.SyntheticWorkFile, plan, goRepositories)
+		files, workspaces, err := writeWorkspaces(ctx, options.SyntheticWorkFile, plan, goRepositories)
 		if err != nil {
 			return facts.Set{}, report, err
 		}
+		workFiles = files
+		goModules = plan.Modules
 		report.SyntheticWorkFile = options.SyntheticWorkFile
 		report.GoWorkspaces = workspaces
 
@@ -201,15 +216,18 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	}
 
 	units := append(goUnits, typeScriptUnits(typeScriptPackages)...)
-	results, err := analyse(ctx, options, units, analysisInputs{
+	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
 		moduleRegistry:     moduleRegistry,
 		conflictingModules: conflictingModules,
 		planConflicts:      planConflicts,
 		typeScriptPackages: typeScriptPackages,
+		goModules:          goModules,
+		workFiles:          workFiles,
 	})
 	if err != nil {
 		return facts.Set{}, report, err
 	}
+	report.Cache = cacheReport
 
 	// The merge follows the order of the units, never the order they
 	// finished, so the published graph does not depend on how the work was
@@ -672,6 +690,9 @@ type analysisResult struct {
 	unresolved      int
 	symbols         int
 	detail          string
+	// requested names every package the unit asked about, resolved or
+	// not. It is what the fact cache depends on besides the sources.
+	requested []string
 }
 
 // moduleNotLoadedFacts declares a Go module the loader could not read.
@@ -830,9 +851,28 @@ func indexTypeScriptPackage(
 		symbols:    len(payload.Symbols),
 		references: len(payload.References),
 		unresolved: len(payload.Unresolved),
+		requested:  requestedTypeScriptPackages(payload),
 		detail: fmt.Sprintf("package=%s symbols=%d references=%d",
 			packageValue.Name, len(payload.Symbols), len(payload.References)),
 	}, nil
+}
+
+// requestedTypeScriptPackages names every package the worker asked about.
+// A resolved import and a failed one are the same kind of dependency: both
+// answers change when the package that would provide the name appears,
+// disappears or changes what it exports.
+func requestedTypeScriptPackages(payload facts.TypeScriptPayload) []string {
+	names := make([]string, 0, len(payload.Imports)+len(payload.Unresolved)+len(payload.Dependencies))
+	for _, entry := range payload.Imports {
+		names = append(names, entry.RequestedPackage)
+	}
+	for _, entry := range payload.Unresolved {
+		names = append(names, entry.RequestedPackage)
+	}
+	for _, entry := range payload.Dependencies {
+		names = append(names, entry.Package)
+	}
+	return names
 }
 func factsCommand(options FullOptions, arguments []string) (string, []string, error) {
 	commandLine := strings.TrimSpace(options.TypeScriptWorker)
@@ -881,6 +921,10 @@ type analysisInputs struct {
 	conflictingModules []string
 	planConflicts      []goworkspace.Conflict
 	typeScriptPackages []typeScriptPackageUnit
+	// goModules and workFiles say which modules share a synthetic
+	// workspace: a module's type information includes its group's source.
+	goModules []goworkspace.Module
+	workFiles map[string]string
 }
 
 func typeScriptUnits(packages []typeScriptPackageUnit) []analysisUnit {
@@ -910,11 +954,17 @@ func analyse(
 	options FullOptions,
 	units []analysisUnit,
 	inputs analysisInputs,
-) ([]analysisResult, error) {
+) ([]analysisResult, CacheReport, error) {
 	results := make([]analysisResult, len(units))
 	if len(units) == 0 {
-		return results, nil
+		return results, CacheReport{Mode: CacheOff}, nil
 	}
+	cache, err := newFactCache(options)
+	if err != nil {
+		return nil, CacheReport{Mode: CacheOff}, err
+	}
+	cache.trees.withProviders(inputs.typeScriptPackages)
+	cache.withRegistry(inputs)
 	var goQueue, typeScriptQueue []int
 	for index, unit := range units {
 		if unit.isGo {
@@ -955,7 +1005,7 @@ func analyse(
 						Phase: phase, Repository: unit.repository.Name, Detail: unit.detail(),
 						Started: true, Completed: int(done.Load()), Total: total,
 					})
-					result, err := analyseUnit(groupCtx, options, unit, inputs)
+					result, err := cache.analyse(groupCtx, options, unit, inputs)
 					if err != nil {
 						return err
 					}
@@ -977,9 +1027,12 @@ func analyse(
 	run(typeScriptQueue, typeScriptWorkerLimit(options), PhaseTypeScript)
 
 	if err := group.Wait(); err != nil {
-		return nil, err
+		return nil, cache.report(), err
 	}
-	return results, nil
+	// Entries are only useful while something still asks for them, and two
+	// workspaces indexed from the same home share this directory.
+	cache.prune(30 * 24 * time.Hour)
+	return results, cache.report(), nil
 }
 
 func analyseUnit(

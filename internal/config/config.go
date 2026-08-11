@@ -25,6 +25,7 @@ const (
 	defaultDatabasePath  = "~/.local/state/ladygraph/graph.lbdb"
 	defaultSnapshotsPath = "~/.local/state/ladygraph/snapshots"
 	defaultBackupsPath   = "~/.local/state/ladygraph/backups"
+	defaultFactCachePath = "~/.local/state/ladygraph/factcache"
 	defaultSyntheticWork = "~/.local/state/ladygraph/go.work"
 
 	maximumConfiguredDepth = 5
@@ -104,6 +105,15 @@ type IndexingConfig struct {
 	UnresolvedReferences      string `yaml:"unresolved_references"`
 	SyntaxAcceleration        bool   `yaml:"syntax_acceleration"`
 	FullRebuildOnSchemaChange bool   `yaml:"full_rebuild_on_schema_change"`
+	// FactCache decides whether an analysis unit may be served from the
+	// facts a previous pass stored for it. `off` analyses everything,
+	// `on` serves an entry whose recorded inputs all still match, and
+	// `verify` analyses everything and fails the pass when a servable
+	// entry disagrees with what the analysis produced.
+	FactCache string `yaml:"fact_cache"`
+	// FactCachePath holds one entry per analysis unit, outside every
+	// indexed repository.
+	FactCachePath string `yaml:"fact_cache_path"`
 }
 
 // WatcherConfig controls incremental file watching.
@@ -221,6 +231,8 @@ func DefaultConfig() Config {
 			UnresolvedReferences:      "retain",
 			SyntaxAcceleration:        true,
 			FullRebuildOnSchemaChange: true,
+			FactCache:                 "on",
+			FactCachePath:             defaultFactCachePath,
 		},
 		Watcher: WatcherConfig{
 			Enabled:                  true,
@@ -600,6 +612,7 @@ func expandConfigPaths(configuration *Config, base string) error {
 		{"storage.snapshots_path", &configuration.Storage.SnapshotsPath},
 		{"storage.backups_path", &configuration.Storage.BackupsPath},
 		{"go.synthetic_work_file", &configuration.Go.SyntheticWorkFile},
+		{"indexing.fact_cache_path", &configuration.Indexing.FactCachePath},
 	}
 	for _, path := range paths {
 		expanded, err := expandPath(*path.value, base)
@@ -665,6 +678,14 @@ func validateConfig(configuration Config) error {
 	}
 	if configuration.Indexing.UnresolvedReferences == "" {
 		return errors.New("config.indexing.unresolved_references: must not be empty")
+	}
+	switch configuration.Indexing.FactCache {
+	case "off", "on", "verify":
+	default:
+		return fmt.Errorf("config.indexing.fact_cache: must be off, on or verify, got %q", configuration.Indexing.FactCache)
+	}
+	if configuration.Indexing.FactCache != "off" && strings.TrimSpace(configuration.Indexing.FactCachePath) == "" {
+		return errors.New("config.indexing.fact_cache_path: must not be empty when the fact cache is enabled")
 	}
 	if configuration.Watcher.DebounceMilliseconds < 1 {
 		return fmt.Errorf("config.watcher.debounce_ms: must be positive, got %d", configuration.Watcher.DebounceMilliseconds)

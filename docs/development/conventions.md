@@ -319,6 +319,33 @@ completa, staging `2.9 s -> 2.7 s`. Lo que queda del rebuild es trabajo real:
 `ScanCanonical` lee el grafo publicado valor a valor a través de cgo, y
 bajarlo exige la lectura columnar por chunks de Arrow.
 
+### La caché de hechos registra lo que leyó, no una clave
+
+Una entrada guarda los hechos de una unidad **y la lista de todo lo que la
+unidad leyó, con su huella**. Servirla exige revalidar esa lista entera contra
+el mundo actual. El detalle completo está en el ADR 0030; lo que hay que saber
+para tocarla:
+
+- El árbol se recorre en cada validación. Leer la lista de ficheros que la
+  última pasada abrió no vería un fichero **añadido**, que es un input que esa
+  pasada nunca conoció.
+- Un paquete que la unidad pidió y nadie provee es una dependencia con huella
+  `absent`. Es el caso que motiva el diseño: cuando aparece el repositorio que
+  lo provee, el `UNRESOLVED` tiene que convertirse en arista.
+- Una entrada registra **qué** volver a medir, nunca el valor medido. Un input
+  cuyo nombre lleva su propio valor se compara consigo mismo; ese bug existió,
+  y lo cazó el test que renombra el repositorio proveedor.
+- Un módulo que no cargó no se guarda: su fallo depende del caché de módulos,
+  que ninguna huella del código describe.
+- La identidad del analizador es el contenido del binario, `go env` y el worker
+  TypeScript, no un número de versión. Cada release arranca en frío a cambio de
+  no depender de que alguien se acuerde de subirlo.
+
+Al tocarla se verifica con `fact_cache: verify`: analiza todo y aborta si una
+entrada discrepa del análisis. Comparar dos pasadas con caché no demuestra
+nada. Medido sobre 33 repositorios, `17.7 s` en frío y `8.3 s` en caliente con
+el digest idéntico, y `33/33` verificadas sin divergencias.
+
 ### El visor y el bundle web
 
 - `ladygraph ui` registra la dirección enlazada antes de servir nada, también

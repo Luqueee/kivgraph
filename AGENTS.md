@@ -166,6 +166,23 @@ integridad, compatibilidad o verificación descritos aquí.
 - `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
   así que las columnas de una tabla se resuelven una vez por tabla y nunca por
   fila. El grafo tiene una arista por referencia del corpus.
+- La caché de hechos (`indexing.fact_cache`) guarda una entrada por unidad de
+  análisis con **la lista de todo lo que la unidad leyó y su huella**; servirla
+  exige revalidar esa lista entera. Una entrada nunca se sirve a otro
+  analizador: su identidad es el contenido del ejecutable, la respuesta de
+  `go env`, el contenido del worker TypeScript, los build tags,
+  `include_tests` y `go.allow_network`. Un módulo que el cargador no pudo leer
+  no se guarda jamás, porque su fallo depende del caché de módulos y ninguna
+  huella del código lo describe. Ver ADR 0030.
+- Una entrada registra el nombre de lo que hay que volver a medir, nunca el
+  valor medido: una entrada cuyo nombre lleva su propio valor se compara
+  consigo misma y no puede invalidar nada.
+- Un nombre de paquete que hoy no provee nadie es una dependencia con huella
+  `absent`, no la ausencia de una dependencia. Sin eso un `UNRESOLVED` se
+  serviría para siempre y nunca se convertiría en la arista que le toca.
+- Al tocar la caché se verifica con `fact_cache: verify`, que analiza todo y
+  aborta la pasada si una entrada discrepa del análisis. Comparar dos pasadas
+  con caché no demuestra nada.
 - `ladygraph ui` registra la dirección que ha enlazado, incluida la que
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría

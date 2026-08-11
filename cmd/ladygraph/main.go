@@ -705,6 +705,8 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		GoMaximumLoads:           loaded.Config.Go.MaximumLoads,
 		TypeScriptMaximumWorkers: loaded.Config.TypeScript.MaximumWorkers,
 		TypeScriptWorker:         loaded.Config.TypeScript.WorkerCommand,
+		CacheMode:                indexer.CacheMode(loaded.Config.Indexing.FactCache),
+		CacheDirectory:           loaded.Config.Indexing.FactCachePath,
 		WorkingDirectory:         workingDirectory,
 		Root:                     root,
 		ResolverVersion:          resolverVersion,
@@ -735,6 +737,10 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
+	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
+		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d",
+			cache.Mode, cache.Hits, cache.Misses, cache.Verified)
+	}
 	rebuildReport := fullResult.RebuildReport
 	writeResult(stdout, err == nil && rebuildReport.Passed, "rebuild: %s generation=%s", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
 	for _, stage := range rebuildReport.Stages {
@@ -829,6 +835,8 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 			GoMaximumLoads:           loaded.Config.Go.MaximumLoads,
 			TypeScriptMaximumWorkers: loaded.Config.TypeScript.MaximumWorkers,
 			TypeScriptWorker:         loaded.Config.TypeScript.WorkerCommand,
+			CacheMode:                indexer.CacheMode(loaded.Config.Indexing.FactCache),
+			CacheDirectory:           loaded.Config.Indexing.FactCachePath,
 			WorkingDirectory:         workingDirectory,
 		},
 	})
@@ -1004,6 +1012,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		{name: "state.snapshots", path: loaded.Config.Storage.SnapshotsPath},
 		{name: "state.backups", path: loaded.Config.Storage.BackupsPath},
 		{name: "state.synthetic_parent", path: filepath.Dir(loaded.Config.Go.SyntheticWorkFile)},
+		{name: "state.fact_cache_parent", path: factCacheStateParent(loaded.Config)},
 	} {
 		passed, detail := inspectDoctorDirectory(stateDirectory.path)
 		doctorResult(stateDirectory.name, passed, detail)
@@ -1146,6 +1155,16 @@ func reportGoLanguageCeiling(report func(string, bool, string), repositories []w
 		}
 	}
 	report("toolchain.typecheck", true, fmt.Sprintf("go %s (highest registered module: go %s)", ceiling, highest))
+}
+
+// factCacheStateParent answers where the fact cache will live. The directory
+// itself is created by the first pass that uses it, so what doctor can check
+// beforehand is the parent it will be created in.
+func factCacheStateParent(configuration config.Config) string {
+	if configuration.Indexing.FactCache == string(indexer.CacheOff) {
+		return filepath.Dir(configuration.Storage.DatabasePath)
+	}
+	return filepath.Dir(configuration.Indexing.FactCachePath)
 }
 
 func inspectDoctorDirectory(path string) (bool, string) {
