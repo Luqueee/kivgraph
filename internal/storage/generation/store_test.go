@@ -203,6 +203,107 @@ func TestBackupTracksPreviousActive(t *testing.T) {
 	}
 }
 
+// Discard leaves a store that reads as empty and rebuilds cleanly. The
+// pointers go first, so an interruption can leave a directory nobody points
+// at -- recoverable -- and never a pointer naming a directory that is gone.
+func TestDiscardRemovesEveryGenerationAndBothPointers(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	publishTestGeneration(t, store, "000002", "second")
+	publishTestGeneration(t, store, "000003", "third")
+
+	removed, err := store.Discard(context.Background())
+	if err != nil {
+		t.Fatalf("Discard() error = %v", err)
+	}
+	if strings.Join(removed, ",") != "000001,000002,000003" {
+		t.Fatalf("Discard() = %v, want every generation in order", removed)
+	}
+	if _, err := store.Current(context.Background()); !errors.Is(err, ErrNoCurrent) {
+		t.Fatalf("Current() error = %v, want ErrNoCurrent", err)
+	}
+	if _, err := store.Backup(context.Background()); !errors.Is(err, ErrNoBackup) {
+		t.Fatalf("Backup() error = %v, want ErrNoBackup", err)
+	}
+	remaining, err := store.List(context.Background())
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("List() = %#v, want no generation", remaining)
+	}
+	if _, err := os.Stat(store.reserve); !os.IsNotExist(err) {
+		t.Fatalf("space reserve error = %v, want it released", err)
+	}
+
+	// The store must be usable immediately: an empty store publishes the
+	// first id again.
+	nextID, err := store.NextID(context.Background())
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	if nextID != "000001" {
+		t.Fatalf("NextID() = %q, want 000001", nextID)
+	}
+	publishTestGeneration(t, store, nextID, "again")
+	assertCurrentGeneration(t, store, "000001", "again")
+}
+
+func TestDiscardAcceptsAStoreThatNeverPublished(t *testing.T) {
+	store := newTestStore(t)
+	removed, err := store.Discard(context.Background())
+	if err != nil {
+		t.Fatalf("Discard() error = %v", err)
+	}
+	if len(removed) != 0 {
+		t.Fatalf("Discard() = %v, want nothing removed", removed)
+	}
+}
+
+// Keeping the published generation means keeping exactly one: the BACKUP
+// pointer names a generation that is being removed, and a pointer that
+// survives its generation is the one state this store refuses to keep.
+func TestDiscardExceptKeepsOnlyTheNamedGeneration(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	publishTestGeneration(t, store, "000002", "second")
+	publishTestGeneration(t, store, "000003", "third")
+	if _, err := store.Backup(context.Background()); err != nil {
+		t.Fatalf("Backup() error = %v, want a backup before discarding", err)
+	}
+
+	removed, err := store.DiscardExcept(context.Background(), "000003")
+	if err != nil {
+		t.Fatalf("DiscardExcept() error = %v", err)
+	}
+	if strings.Join(removed, ",") != "000001,000002" {
+		t.Fatalf("DiscardExcept() = %v, want every other generation", removed)
+	}
+	assertCurrentGeneration(t, store, "000003", "third")
+	if _, err := store.Backup(context.Background()); !errors.Is(err, ErrNoBackup) {
+		t.Fatalf("Backup() error = %v, want ErrNoBackup", err)
+	}
+	remaining, err := store.List(context.Background())
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].ID != "000003" {
+		t.Fatalf("List() = %#v, want only the kept generation", remaining)
+	}
+}
+
+func TestDiscardExceptRefusesAGenerationItCannotKeep(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+	if _, err := store.DiscardExcept(context.Background(), "000002"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("DiscardExcept() error = %v, want os.ErrNotExist", err)
+	}
+	assertCurrentGeneration(t, store, "000001", "first")
+	if _, err := store.DiscardExcept(context.Background(), "nope"); err == nil {
+		t.Fatal("DiscardExcept() accepted an invalid generation id")
+	}
+}
+
 func TestRestoreInvertsActiveAndBackupRoles(t *testing.T) {
 	store := newTestStore(t)
 	publishTestGeneration(t, store, "000001", "first")

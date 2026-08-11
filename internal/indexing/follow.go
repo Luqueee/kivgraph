@@ -68,12 +68,13 @@ func Follow(ctx context.Context, store *hotsnapshot.SnapshotStore, options Follo
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	reportedRewind := uint64(0)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			published, err := followOnce(ctx, store, generations)
+			result, err := followOnce(ctx, store, generations)
 			if err != nil {
 				if ctx.Err() != nil {
 					return nil
@@ -81,58 +82,80 @@ func Follow(ctx context.Context, store *hotsnapshot.SnapshotStore, options Follo
 				report(options.OnError, err)
 				continue
 			}
-			if published != 0 {
-				reportPublished(options.OnPublish, published)
+			if result.Published != 0 {
+				reportPublished(options.OnPublish, result.Published)
+			}
+			// A store that publishes an older generation than the one
+			// being served has been rewound -- discarded and rebuilt.
+			// Publish only accepts a newer identifier, so this server
+			// will never install anything again; saying so once is the
+			// difference between a restart and an afternoon.
+			if result.Rewound != 0 && result.Rewound != reportedRewind {
+				reportedRewind = result.Rewound
+				report(options.OnError, fmt.Errorf(
+					"generation store was rewound to %d while serving %d: restart to follow it again",
+					result.Rewound, store.Load().Metadata().ID))
 			}
 		}
 	}
 }
 
+// followResult is what one poll of the generation store concluded.
+type followResult struct {
+	// Published is the generation this poll installed, or zero.
+	Published uint64
+	// Rewound is the active generation when it is older than the one being
+	// served, or zero. It cannot be installed and never will be.
+	Rewound uint64
+}
+
 // followOnce publishes the active generation when it is newer than the one
-// being served, and answers the identifier it installed. Zero means the served
-// generation is already the published one: the common answer, and the reason
-// the caller can log every non-zero result without flooding anyone.
+// being served, and reports what it concluded.
 func followOnce(
 	ctx context.Context,
 	store *hotsnapshot.SnapshotStore,
 	generations *generation.Store,
-) (uint64, error) {
+) (followResult, error) {
 	active, err := generations.Current(ctx)
 	if err != nil {
 		if errors.Is(err, generation.ErrNoCurrent) {
-			// Nothing has ever been published. A server started before
-			// the first index keeps answering INDEX_NOT_READY until it
-			// has something to serve.
-			return 0, nil
+			// Nothing has ever been published, or everything was
+			// discarded. A server keeps whatever it holds: the store
+			// publishes generations, it never retracts one.
+			return followResult{}, nil
 		}
-		return 0, fmt.Errorf("read active generation: %w", err)
+		return followResult{}, fmt.Errorf("read active generation: %w", err)
 	}
 	activeID, err := parseSnapshotID(active.ID)
 	if err != nil {
-		return 0, err
+		return followResult{}, err
 	}
-	if !needsPublication(store.Load(), activeID) {
-		return 0, nil
+	served := store.Load()
+	if !needsPublication(served, activeID) {
+		if served != nil && served.Metadata().ID > activeID {
+			return followResult{Rewound: activeID}, nil
+		}
+		return followResult{}, nil
 	}
 	snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
 		DatabasePath: active.DatabasePath,
 		SnapshotID:   activeID,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("build published snapshot %q: %w", active.ID, err)
+		return followResult{}, fmt.Errorf("build published snapshot %q: %w", active.ID, err)
 	}
 	if !report.Passed {
-		return 0, fmt.Errorf("build published snapshot %q did not pass", active.ID)
+		return followResult{}, fmt.Errorf("build published snapshot %q did not pass", active.ID)
 	}
 	if err := store.Publish(snapshot); err != nil {
 		if errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
 			// Another publisher installed this generation, or a newer
 			// one, while this snapshot was being built. Its work stands.
-			return 0, nil
+			return followResult{}, nil
 		}
-		return 0, fmt.Errorf("publish snapshot %q: %w", active.ID, err)
+		return followResult{}, fmt.Errorf("publish snapshot %q: %w", active.ID, err)
 	}
-	return activeID, nil
+	return followResult{Published: activeID}, nil
 }
 
 // needsPublication reports whether the active generation is newer than the one

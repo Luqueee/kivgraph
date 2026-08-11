@@ -174,6 +174,25 @@ tiene un proveedor único.
   un fixture duplicado en cualquier sitio hacía inindexable el conjunto entero.
 - Es el mismo trato que recibe un módulo Go declarado por varios repositorios.
 
+### Retirar generaciones
+
+`ladygraph clean` es el único comando destructivo sobre el grafo, así que
+enumera lo que haría y no toca nada hasta `--yes`.
+
+- Sin flags retira todas las generaciones, ambos punteros y la reserva de
+  espacio: el store queda vacío y vuelve a construirse desde cero. Nunca toca
+  la configuración ni el registro de repositorios.
+- `--keep-active` conserva exactamente la generación publicada. El puntero
+  `BACKUP` se va con lo demás, porque nombraría una generación retirada, y
+  `rollback` se queda sin nada que restaurar.
+- Los punteros se retiran antes que los directorios. Una interrupción deja
+  como mucho un directorio al que nadie apunta -- recuperable -- y nunca un
+  puntero que nombra algo que ya no está.
+- Después de un `clean` completo la numeración vuelve a `000001`. Un servidor
+  vivo sigue sirviendo el grafo que tenía en memoria y no podrá instalar los
+  siguientes, porque `Publish` solo acepta identificadores mayores. El
+  seguidor lo declara una vez y el comando avisa de reiniciar.
+
 ## Stable keys
 
 La stable key es una identidad persistente y auditable, independiente de los

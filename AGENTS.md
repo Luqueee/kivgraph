@@ -110,6 +110,15 @@ integridad, compatibilidad o verificación descritos aquí.
   ambigüedad, no un repositorio roto: ningún manifest lo provee, ambos salen
   del registro y se declara `AMBIGUOUS_PACKAGE_PROVIDER`. Es el mismo trato que
   recibe un módulo Go con varios proveedores.
+- `ladygraph clean` retira generaciones publicadas: enumera y no toca nada sin
+  `--yes`, porque no hay deshacer -- también se lleva el backup del que vive
+  `rollback`. Sin flags deja el store vacío y libera la reserva de espacio;
+  con `--keep-active` conserva exactamente la generación publicada. Nunca toca
+  la configuración ni el registro de repositorios.
+- Tras un `clean` completo la numeración vuelve a `000001`, y
+  `SnapshotStore.Publish` solo acepta una generación estrictamente más nueva:
+  un servidor vivo conserva el grafo que ya no existe y no instalará ninguno
+  más. El seguidor lo declara una vez y el comando avisa de reiniciar.
 
 ## TypeScript
 

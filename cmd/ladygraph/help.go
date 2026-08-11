@@ -56,6 +56,7 @@ var commandGroups = []commandGroup{
 		title: "Maintenance",
 		commands: []commandEntry{
 			{"upgrade", "Rebuild the graph after a schema change"},
+			{"clean [--keep-active] [--yes]", "Remove published graph generations"},
 			{"rollback --root PATH [--generation ID]", "Return to the previous generation"},
 			{"snapshot --root PATH [--generation ID]", "Rebuild the hot snapshot of a generation"},
 			{"update [--check]", "Install the latest published release"},

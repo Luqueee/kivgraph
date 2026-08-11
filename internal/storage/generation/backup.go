@@ -82,6 +82,116 @@ func (store *Store) Prune(ctx context.Context) ([]string, error) {
 	return removed, nil
 }
 
+// Discard removes every published generation and both pointers, and returns
+// the ids it removed, ordered.
+//
+// The pointers go first. A crash between the two halves must leave a store
+// that reads as empty and rebuilds cleanly, never one whose CURRENT names a
+// directory that is gone: NextID skips the ids still on disk, and a later
+// Discard removes what this one did not reach. The space reserve is released
+// too, because it exists to complete a publication and there is none left to
+// complete.
+func (store *Store) Discard(ctx context.Context) ([]string, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	generations, err := store.listGenerations()
+	if err != nil {
+		return nil, err
+	}
+	for _, pointer := range []string{store.current, store.backup} {
+		if err := os.Remove(pointer); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("remove %s: %w", filepath.Base(pointer), err)
+		}
+	}
+	removed := make([]string, 0, len(generations))
+	for _, candidate := range generations {
+		if err := store.before(OperationRemoveGeneration, candidate.Path); err != nil {
+			return removed, err
+		}
+		if err := os.RemoveAll(candidate.Path); err != nil {
+			return removed, fmt.Errorf("remove generation %s: %w", candidate.ID, err)
+		}
+		removed = append(removed, candidate.ID)
+	}
+	if err := store.releaseReserve(); err != nil {
+		return removed, err
+	}
+	if err := store.clearFailure(); err != nil {
+		return removed, fmt.Errorf("clear last failure: %w", err)
+	}
+	// The pointers live in the root and the generations in their own
+	// directory, so both removals have to reach the disk. A store that never
+	// published has no generations directory to sync.
+	for _, directory := range []string{store.root, store.generations} {
+		if err := store.syncDirectory(ctx, directory); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return removed, fmt.Errorf("sync discarded generations: %w", err)
+		}
+	}
+	return removed, nil
+}
+
+// DiscardExcept removes every generation but id, and returns the ids it
+// removed, ordered.
+//
+// The BACKUP pointer goes with them: what it named is being removed, and a
+// pointer that survives its generation is the one state this store refuses to
+// keep. A rollback has nothing to restore afterwards, which is the whole point
+// of asking for one generation.
+func (store *Store) DiscardExcept(ctx context.Context, id string) ([]string, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateGenerationID(id); err != nil {
+		return nil, err
+	}
+	generations, err := store.listGenerations()
+	if err != nil {
+		return nil, err
+	}
+	kept := false
+	for _, candidate := range generations {
+		if candidate.ID == id {
+			kept = true
+		}
+	}
+	if !kept {
+		return nil, fmt.Errorf("generation %s: %w", id, os.ErrNotExist)
+	}
+	if err := os.Remove(store.backup); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("remove BACKUP: %w", err)
+	}
+	removed := make([]string, 0, len(generations))
+	for _, candidate := range generations {
+		if candidate.ID == id {
+			continue
+		}
+		if err := store.before(OperationRemoveGeneration, candidate.Path); err != nil {
+			return removed, err
+		}
+		if err := os.RemoveAll(candidate.Path); err != nil {
+			return removed, fmt.Errorf("remove generation %s: %w", candidate.ID, err)
+		}
+		removed = append(removed, candidate.ID)
+	}
+	for _, directory := range []string{store.root, store.generations} {
+		if err := store.syncDirectory(ctx, directory); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return removed, fmt.Errorf("sync discarded generations: %w", err)
+		}
+	}
+	return removed, nil
+}
+
 // NextID returns the id a publication would use after the active one: the
 // active id plus one, zero-padded to six digits, skipping the reserved
 // "000000". Without a current generation it returns the first valid id. Any

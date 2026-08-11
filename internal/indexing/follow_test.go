@@ -30,12 +30,12 @@ func TestFollowOnceAcceptsAStoreWithNoPublication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generation.New() error = %v", err)
 	}
-	published, err := followOnce(context.Background(), store, generations)
+	result, err := followOnce(context.Background(), store, generations)
 	if err != nil {
 		t.Fatalf("followOnce() error = %v", err)
 	}
-	if published != 0 {
-		t.Fatalf("followOnce() = %d, want no publication", published)
+	if result != (followResult{}) {
+		t.Fatalf("followOnce() = %+v, want nothing to do", result)
 	}
 	if store.Load() != nil {
 		t.Fatal("followOnce() published a snapshot that does not exist")

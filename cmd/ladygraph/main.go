@@ -412,6 +412,9 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if len(args) >= 2 && args[1] == "upgrade" {
 		return runUpgrade(args[2:], stdout, stderr)
 	}
+	if len(args) >= 2 && args[1] == "clean" {
+		return runClean(args[2:], stdout, stderr)
+	}
 	if len(args) >= 2 && args[1] == "rebuild" {
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
 	}
@@ -787,6 +790,111 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// runClean removes published graph generations.
+//
+// It reports what it would remove and changes nothing until --yes, because a
+// typo here costs a full reindex and there is no undo: rollback restores a
+// backup generation, and this command is what removes those too.
+func runClean(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("clean", flag.ContinueOnError)
+	configPath := ""
+	keepActive := false
+	confirmed := false
+	flags.StringVar(&configPath, "config", "", "configuration file")
+	flags.BoolVar(&keepActive, "keep-active", false, "keep the generation currently published")
+	flags.BoolVar(&confirmed, "yes", false, "remove the generations instead of listing them")
+	if parsed, code := parseCommandFlags("clean", flags, args, stdout, stderr); !parsed {
+		return code
+	}
+	if flags.NArg() != 0 {
+		writeCommandError(stderr, "clean: unexpected arguments: %v", flags.Args())
+		return 2
+	}
+
+	ctx := context.Background()
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		writeCommandError(stderr, "clean: load configuration: %v", err)
+		return 1
+	}
+	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	store, err := generation.New(root, generation.DefaultConfig())
+	if err != nil {
+		writeCommandError(stderr, "clean: open generation store: %v", err)
+		return 1
+	}
+	generations, err := store.List(ctx)
+	if err != nil {
+		writeCommandError(stderr, "clean: list generations: %v", err)
+		return 1
+	}
+	active, err := store.Current(ctx)
+	if err != nil && !errors.Is(err, generation.ErrNoCurrent) {
+		writeCommandError(stderr, "clean: read active generation: %v", err)
+		return 1
+	}
+
+	if keepActive && active.ID == "" {
+		writeCommandError(stderr, "clean: --keep-active: no generation is published; run clean without it to remove everything")
+		return 1
+	}
+	doomed := make([]string, 0, len(generations))
+	for _, candidate := range generations {
+		if keepActive && candidate.ID == active.ID {
+			continue
+		}
+		doomed = append(doomed, candidate.ID)
+	}
+	if len(doomed) == 0 {
+		writeInfo(stdout, "clean: nothing to remove (%d generation(s) kept)", len(generations))
+		return 0
+	}
+	if !confirmed {
+		writeInfo(stdout, "clean: would remove generation(s) %s from %s", strings.Join(doomed, ", "), root)
+		if !keepActive {
+			writeInfo(stdout, "clean: the graph would be unpublished; every query fails until the next index --full")
+		}
+		writeInfo(stdout, "clean: nothing was removed; pass --yes to proceed")
+		return 0
+	}
+
+	removed, err := cleanGenerations(ctx, store, keepActive, active.ID)
+	if err != nil {
+		writeCommandError(stderr, "clean: %v", err)
+		return 1
+	}
+	writeResult(stdout, true, "clean: removed generation(s) %s", strings.Join(removed, ", "))
+	if keepActive {
+		writeInfo(stdout, "clean: generation %s is still published; rollback has nothing to restore", active.ID)
+		return 0
+	}
+	// Publish only accepts a newer identifier, and the next index starts
+	// again at 000001, so a server holding the graph that was just removed
+	// can never install another one.
+	writeInfo(stdout, "clean: restart any running serve or ui before the next index --full")
+	return 0
+}
+
+func cleanGenerations(
+	ctx context.Context,
+	store *generation.Store,
+	keepActive bool,
+	activeID string,
+) ([]string, error) {
+	if keepActive {
+		removed, err := store.DiscardExcept(ctx, activeID)
+		if err != nil {
+			return nil, fmt.Errorf("discard generations: %w", err)
+		}
+		return removed, nil
+	}
+	removed, err := store.Discard(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("discard generations: %w", err)
+	}
+	return removed, nil
 }
 
 func passFail(passed bool) string {

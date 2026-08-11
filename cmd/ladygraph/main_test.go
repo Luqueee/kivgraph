@@ -194,6 +194,51 @@ func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
 	}
 }
 
+// clean is the one command with no undo, so it must say what it would do and
+// change nothing until it is told to. On a store with nothing published there
+// is nothing to say, and asking to keep the published generation when none
+// exists is a mistake worth naming rather than a licence to remove everything.
+func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(root, "config.yaml")
+	var initStdout, initStderr bytes.Buffer
+	if got := run([]string{
+		"ladygraph", "init",
+		"--config", configPath,
+		"--repositories", filepath.Join(root, "repositories.yaml"),
+	}, &initStdout, &initStderr); got != 0 {
+		t.Fatalf("init exit code = %d, stderr=%q", got, initStderr.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"ladygraph", "clean", "--config", configPath}, &stdout, &stderr); got != 0 {
+		t.Fatalf("clean exit code = %d, stderr=%q", got, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "nothing to remove") {
+		t.Fatalf("clean stdout = %q, want nothing to remove", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if got := run([]string{"ladygraph", "clean", "--config", configPath, "--keep-active", "--yes"}, &stdout, &stderr); got != 1 {
+		t.Fatalf("clean --keep-active exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "no generation is published") {
+		t.Fatalf("clean stderr = %q, want the missing generation named", stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if got := run([]string{"ladygraph", "clean", "--config", configPath, "everything"}, &stdout, &stderr); got != 2 {
+		t.Fatalf("clean with an argument exit code = %d, want 2", got)
+	}
+}
+
 func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
