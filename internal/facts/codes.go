@@ -69,6 +69,16 @@ const (
 	CodeGoObjectPath
 	CodeTreeSitterSyntax
 	CodePackageManifest
+	// Appended for Rust. Never inserted above: a snapshot stores these
+	// numbers, and renumbering one rewrites the meaning of every edge that
+	// carries it.
+	CodeRustAnalyzerDefinition
+	CodeRustAnalyzerUse
+	CodeRustAnalyzerMoniker
+	CodeRustSyntaxCall
+	CodeRustSyntaxType
+	CodeRustSyntaxImplementation
+	CodeRustSyntaxCallback
 )
 
 var edgeKindCodes = map[EdgeKind]uint8{
@@ -114,6 +124,13 @@ var provenanceCodes = map[Provenance]uint8{
 	GoObjectPath:               CodeGoObjectPath,
 	TreeSitterSyntax:           CodeTreeSitterSyntax,
 	PackageManifest:            CodePackageManifest,
+	RustAnalyzerDefinition:     CodeRustAnalyzerDefinition,
+	RustAnalyzerUse:            CodeRustAnalyzerUse,
+	RustAnalyzerMoniker:        CodeRustAnalyzerMoniker,
+	RustSyntaxCall:             CodeRustSyntaxCall,
+	RustSyntaxType:             CodeRustSyntaxType,
+	RustSyntaxImplementation:   CodeRustSyntaxImplementation,
+	RustSyntaxCallback:         CodeRustSyntaxCallback,
 }
 
 // reverse builds the decoding table of a coding table. The tables are

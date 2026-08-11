@@ -9,6 +9,7 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
+	tree_sitter_rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
 	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
 
@@ -20,6 +21,7 @@ const (
 	LanguageTSX        Language = "tsx"
 	LanguageJavaScript Language = "javascript"
 	LanguageGo         Language = "go"
+	LanguageRust       Language = "rust"
 )
 
 // ParserErrorKind classifies manager and parser failures. Syntax errors remain
@@ -250,6 +252,7 @@ func NewParserManager(maxConcurrent int) (*ParserManager, error) {
 			LanguageTSX:        tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTSX()),
 			LanguageJavaScript: tree_sitter.NewLanguage(tree_sitter_javascript.Language()),
 			LanguageGo:         tree_sitter.NewLanguage(tree_sitter_go.Language()),
+			LanguageRust:       tree_sitter.NewLanguage(tree_sitter_rust.Language()),
 		},
 		maxConcurrent: maxConcurrent,
 		slots:         make(chan struct{}, maxConcurrent),

@@ -406,10 +406,9 @@ func normalizeProjectLanguages(values []string) ([]string, error) {
 		if language == "" {
 			return nil, fmt.Errorf("project languages[%d] must not be empty", index)
 		}
-		switch language {
-		case "go", "typescript", "javascript", "ts", "js":
-		default:
-			return nil, fmt.Errorf("project languages[%d] unsupported language %q", index, value)
+		if !config.SupportedLanguage(language) {
+			return nil, fmt.Errorf("project languages[%d] unsupported language %q, want one of %s",
+				index, value, strings.Join(config.SupportedLanguages(), ", "))
 		}
 		if _, exists := seen[language]; exists {
 			return nil, fmt.Errorf("project languages[%d] duplicate language %q", index, value)

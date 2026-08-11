@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -46,11 +47,21 @@ func TestCollectReadsBundleManifest(t *testing.T) {
 	if provenance.Resolver == nil || *provenance.Resolver != "resolver-v9" {
 		t.Fatalf("resolver = %v", provenance.Resolver)
 	}
-	if len(provenance.Grammars.Versions) != 4 {
-		t.Fatalf("grammar versions = %d, want 4", len(provenance.Grammars.Versions))
+	if len(provenance.Grammars.Versions) != 5 {
+		t.Fatalf("grammar versions = %d, want 5", len(provenance.Grammars.Versions))
+	}
+	if !slices.ContainsFunc(provenance.Grammars.Versions, func(grammar GrammarVersion) bool {
+		return grammar.Name == "rust"
+	}) {
+		t.Fatalf("grammar versions = %#v, want the Rust grammar", provenance.Grammars.Versions)
 	}
 	if provenance.Grammars.SHA256 == nil || *provenance.Grammars.SHA256 == "" {
 		t.Fatalf("grammar sha256 = %v", provenance.Grammars.SHA256)
+	}
+	// The bundle carries the Rust engine, so the provenance names it: two
+	// installations of the same release must index Rust with the same one.
+	if provenance.RustAnalyzer == nil || *provenance.RustAnalyzer != "0.3.3008-standalone" {
+		t.Fatalf("rust analyzer = %v", provenance.RustAnalyzer)
 	}
 
 	encoded, err := json.Marshal(provenance)
@@ -211,10 +222,21 @@ func writeBundleFixture(t *testing.T, root string) string {
   "ladybugdb": {"core": "v0.13.1", "binding": "v0.13.1", "archive_sha256": "%s", "library_sha256": "%s"},
   "schema": {"canonical": 2, "snapshot_row_format": 3},
   "resolver_version": "resolver-v9",
+  "tools": {
+    "manifest": "tools/manifest.json",
+    "sha256": "%s",
+    "rust_analyzer": {
+      "version": "2026-08-10.1",
+      "release": "0.3.3008-standalone",
+      "binary": "bin/rust-analyzer",
+      "sha256": "%s"
+    }
+  },
   "grammars": {"manifest": "grammars/manifest.json", "sha256": "grammar-sha-placeholder"},
   "artifacts": []
 }`,
-		runtime.GOOS, runtime.GOARCH, strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64))
+		runtime.GOOS, runtime.GOARCH, strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64),
+		strings.Repeat("d", 64), strings.Repeat("e", 64))
 	manifest = strings.Replace(manifest, "grammar-sha-placeholder", grammarSHA, 1)
 	manifestPath := filepath.Join(root, "manifest.json")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {

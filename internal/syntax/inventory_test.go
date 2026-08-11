@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,66 @@ func TestBuildInventorySupportsGoAndJavaScript(t *testing.T) {
 		if inventory.Language != language || len(inventory.Candidates) == 0 || inventory.HasErrors {
 			t.Fatalf("inventory(%s) = %#v", language, inventory)
 		}
+	}
+}
+
+// TestBuildInventoryClassifiesRustDeclarationsAndUses defends what the
+// incremental classifier reads from a Rust file: a declaration whose
+// signature stops at its body -- so editing the body is not a signature
+// change -- and a `use`, which is Rust's import and matches none of the
+// substring rules the other grammars rely on.
+func TestBuildInventoryClassifiesRustDeclarationsAndUses(t *testing.T) {
+	manager, err := NewParserManager(1)
+	if err != nil {
+		t.Fatalf("NewParserManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	source := []byte(`use crate::helper::Helper;
+
+pub struct Config {
+    value: i32,
+}
+
+pub fn run(config: Config) -> i32 {
+    Helper::compute(config.value)
+}
+`)
+	tree, err := manager.Parse(context.Background(), LanguageRust, source)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	defer tree.Close()
+
+	inventory, err := BuildInventory(tree, source)
+	if err != nil {
+		t.Fatalf("BuildInventory() error = %v", err)
+	}
+	if inventory.Language != LanguageRust || inventory.HasErrors {
+		t.Fatalf("inventory = %#v", inventory)
+	}
+
+	var declaration SyntaxCandidate
+	seen := make(map[CandidateKind]bool)
+	for _, candidate := range inventory.List() {
+		seen[candidate.Kind] = true
+		if candidate.Kind == CandidateDeclaration && candidate.NodeKind == "function_item" {
+			declaration = candidate
+		}
+	}
+	for _, kind := range []CandidateKind{CandidateDeclaration, CandidateImport, CandidateCall} {
+		if !seen[kind] {
+			t.Fatalf("Rust inventory is missing %s: %#v", kind, inventory.List())
+		}
+	}
+	if declaration.Name != "run" {
+		t.Fatalf("function candidate = %#v", declaration)
+	}
+	if !strings.Contains(declaration.Signature, "-> i32") {
+		t.Fatalf("function signature = %q, want the declared return type", declaration.Signature)
+	}
+	if strings.Contains(declaration.Signature, "Helper::compute") {
+		t.Fatalf("function signature = %q, want the body excluded", declaration.Signature)
 	}
 }
 

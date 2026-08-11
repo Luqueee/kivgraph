@@ -27,6 +27,7 @@ const (
 	defaultBackupsPath   = "~/.local/state/ladygraph/backups"
 	defaultFactCachePath = "~/.local/state/ladygraph/factcache"
 	defaultSyntheticWork = "~/.local/state/ladygraph/go.work"
+	defaultRustTargetDir = "~/.local/state/ladygraph/rust-target"
 
 	maximumConfiguredDepth = 5
 )
@@ -68,6 +69,7 @@ type Config struct {
 	Watcher    WatcherConfig    `yaml:"watcher"`
 	TypeScript TypeScriptConfig `yaml:"typescript"`
 	Go         GoConfig         `yaml:"go"`
+	Rust       RustConfig       `yaml:"rust"`
 	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 	Logging    LoggingConfig    `yaml:"logging"`
 }
@@ -149,6 +151,47 @@ type GoConfig struct {
 	// type universe, so this trades memory for speed. Zero uses the
 	// processor count, capped.
 	MaximumLoads int `yaml:"maximum_loads"`
+}
+
+// RustConfig controls the external rust-analyzer batch indexer.
+//
+// Rust is analysed by a process Ladygraph does not ship, so the command, the
+// build configuration it is given and the directory its build artifacts land
+// in all belong to the configuration rather than to the code.
+type RustConfig struct {
+	AnalyzerCommand string `yaml:"analyzer_command"`
+	// MaximumWorkspaces bounds concurrent rust-analyzer invocations. Each
+	// one holds a whole Cargo workspace and its sysroot in memory, so this
+	// trades memory for speed. Zero uses the processor count, capped.
+	MaximumWorkspaces int `yaml:"maximum_workspaces"`
+	// Features, AllFeatures and NoDefaultFeatures decide which code exists
+	// at all: a symbol behind an inactive feature is absent from the graph
+	// and reported as unresolved.
+	Features          []string `yaml:"features"`
+	AllFeatures       bool     `yaml:"all_features"`
+	NoDefaultFeatures bool     `yaml:"no_default_features"`
+	// Cfgs are the additional `--cfg` values the analysis assumes.
+	Cfgs []string `yaml:"cfgs"`
+	// BuildScripts and ProcMacros keep generated code and derive expansions
+	// in the graph. Disabling them is faster and declares what it lost.
+	BuildScripts bool `yaml:"build_scripts"`
+	ProcMacros   bool `yaml:"proc_macros"`
+	// IncludeTests sets `cfg(test)` for the crates of the workspace, which
+	// is the analyzer's own default. Turning it off removes every test item
+	// from the graph, and the grammar then reports each one as a
+	// declaration the index does not carry.
+	IncludeTests bool `yaml:"include_tests"`
+	// AllowNetwork lets cargo reach a registry while the analyzer loads a
+	// workspace. Indexing is hermetic by default: a crate the local cache
+	// does not hold is reported, not fetched.
+	AllowNetwork bool `yaml:"allow_network"`
+	// TargetDirectory holds the build artifacts of the analysis. It lives
+	// outside every indexed repository: rust-analyzer runs build scripts,
+	// and a pass never writes inside the code it indexes.
+	TargetDirectory string `yaml:"target_directory"`
+	// Sysroot is `discover`, `none`, or a path. Without a sysroot the
+	// standard library is absent and the proc-macro server cannot start.
+	Sysroot string `yaml:"sysroot"`
 }
 
 // TelemetryConfig controls metrics and tracing.
@@ -254,6 +297,14 @@ func DefaultConfig() Config {
 			SyntheticWorkFile: defaultSyntheticWork,
 			IncludeTests:      false,
 		},
+		Rust: RustConfig{
+			AnalyzerCommand: "rust-analyzer",
+			BuildScripts:    true,
+			ProcMacros:      true,
+			IncludeTests:    true,
+			TargetDirectory: defaultRustTargetDir,
+			Sysroot:         "discover",
+		},
 		Telemetry: TelemetryConfig{
 			Metrics: true,
 			Traces:  false,
@@ -287,6 +338,7 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	configuration.Storage.BackupsPath = filepath.Join(state, "backups")
 	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
 	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
+	configuration.Rust.TargetDirectory = filepath.Join(state, "rust-target")
 	if ownRegistry {
 		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
 	}
@@ -662,6 +714,7 @@ func expandConfigPaths(configuration *Config, base string) error {
 		{"storage.snapshots_path", &configuration.Storage.SnapshotsPath},
 		{"storage.backups_path", &configuration.Storage.BackupsPath},
 		{"go.synthetic_work_file", &configuration.Go.SyntheticWorkFile},
+		{"rust.target_directory", &configuration.Rust.TargetDirectory},
 		{"indexing.fact_cache_path", &configuration.Indexing.FactCachePath},
 	}
 	for _, path := range paths {
@@ -692,6 +745,7 @@ func validateConfig(configuration Config) error {
 		"storage.snapshots_path":      configuration.Storage.SnapshotsPath,
 		"storage.backups_path":        configuration.Storage.BackupsPath,
 		"go.synthetic_work_file":      configuration.Go.SyntheticWorkFile,
+		"rust.target_directory":       configuration.Rust.TargetDirectory,
 	} {
 		if !filepath.IsAbs(value) {
 			return fmt.Errorf("config.%s: path must be absolute after expansion, got %q", field, value)
@@ -766,6 +820,34 @@ func validateConfig(configuration Config) error {
 			return fmt.Errorf("config.go.build_tags[%d]: must not contain a comma or whitespace, got %q", index, tag)
 		}
 	}
+	if strings.TrimSpace(configuration.Rust.AnalyzerCommand) == "" {
+		return errors.New("config.rust.analyzer_command: must not be empty")
+	}
+	if configuration.Rust.MaximumWorkspaces < 0 {
+		return fmt.Errorf("config.rust.maximum_workspaces: must not be negative, got %d", configuration.Rust.MaximumWorkspaces)
+	}
+	if configuration.Rust.AllFeatures && len(configuration.Rust.Features) != 0 {
+		return errors.New("config.rust.all_features: must not be set together with rust.features")
+	}
+	for index, feature := range configuration.Rust.Features {
+		if strings.TrimSpace(feature) == "" {
+			return fmt.Errorf("config.rust.features[%d]: must not be empty", index)
+		}
+		if strings.ContainsAny(feature, ", \t") {
+			return fmt.Errorf("config.rust.features[%d]: must not contain a comma or whitespace, got %q", index, feature)
+		}
+	}
+	for index, cfg := range configuration.Rust.Cfgs {
+		if strings.TrimSpace(cfg) == "" {
+			return fmt.Errorf("config.rust.cfgs[%d]: must not be empty", index)
+		}
+		if strings.ContainsAny(cfg, ", \t") {
+			return fmt.Errorf("config.rust.cfgs[%d]: must not contain a comma or whitespace, got %q", index, cfg)
+		}
+	}
+	if strings.TrimSpace(configuration.Rust.Sysroot) == "" {
+		return errors.New("config.rust.sysroot: must not be empty, want discover, none, or a path")
+	}
 	if configuration.Logging.Format != "json" && configuration.Logging.Format != "text" {
 		return fmt.Errorf("config.logging.format: unsupported format %q, want json or text", configuration.Logging.Format)
 	}
@@ -831,7 +913,7 @@ func validateRepositories(repositories RepositoriesFile) error {
 // used to be accepted by `init` and only rejected by the rebuild, hours later
 // and in another process.
 func SupportedLanguages() []string {
-	return []string{"go", "typescript", "javascript", "ts", "js"}
+	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs"}
 }
 
 // SupportedLanguage reports whether the indexer can analyse a repository that

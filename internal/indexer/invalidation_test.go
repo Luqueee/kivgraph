@@ -208,3 +208,71 @@ func TestClassifyGoSourceChangeReportsParseErrors(t *testing.T) {
 		t.Fatalf("parse-error plan = %#v, want REINDEX_PROJECT", plan)
 	}
 }
+
+// TestClassifyRustChangeMatchesWhatTheEngineCanRecompute pins the Rust scopes:
+// a body edit reindexes the file, and anything that decides which crates exist
+// reindexes the project, because the analyzer's smallest unit is the workspace.
+func TestClassifyRustChangeMatchesWhatTheEngineCanRecompute(t *testing.T) {
+	body := ClassifyRustChange(RustChange{
+		RepositoryKey: "repo", PackageKey: "crate", FileKey: "file", Path: "src/lib.rs",
+		Previous: syntax.SyntaxInventory{
+			Language: syntax.LanguageRust,
+			Candidates: []syntax.SyntaxCandidate{{
+				Kind: syntax.CandidateDeclaration, NodeKind: "function_item",
+				Name: "run", Signature: "pub fn run()",
+			}},
+		},
+		Current: syntax.SyntaxInventory{
+			Language: syntax.LanguageRust,
+			Candidates: []syntax.SyntaxCandidate{{
+				Kind: syntax.CandidateDeclaration, NodeKind: "function_item",
+				Name: "run", Signature: "pub fn run()",
+			}},
+		},
+		ChangedRanges: []syntax.SyntaxRange{{StartByte: 40, EndByte: 52}},
+	})
+	if body.Language != facts.LanguageRust || body.Class != ChangeBodyOnly {
+		t.Fatalf("body plan = %#v", body)
+	}
+	if !body.Has(ActionReindexFile) || len(body.Actions) != 1 {
+		t.Fatalf("body actions = %#v", body.Actions)
+	}
+
+	signature := ClassifyRustChange(RustChange{
+		RepositoryKey: "repo", Path: "src/lib.rs",
+		Previous: syntax.SyntaxInventory{
+			Language: syntax.LanguageRust,
+			Candidates: []syntax.SyntaxCandidate{{
+				Kind: syntax.CandidateDeclaration, NodeKind: "function_item",
+				Name: "run", Signature: "pub fn run()",
+			}},
+		},
+		Current: syntax.SyntaxInventory{
+			Language: syntax.LanguageRust,
+			Candidates: []syntax.SyntaxCandidate{{
+				Kind: syntax.CandidateDeclaration, NodeKind: "function_item",
+				Name: "run", Signature: "pub fn run(seed: i32)",
+			}},
+		},
+		ChangedRanges: []syntax.SyntaxRange{{StartByte: 10, EndByte: 30}},
+	})
+	if !signature.Has(ActionInvalidateConsumers) || !signature.Has(ActionResolveReferences) {
+		t.Fatalf("signature plan = %#v", signature)
+	}
+
+	for name, change := range map[string]RustChange{
+		"manifest":     {Path: "crates/engine/Cargo.toml"},
+		"lockfile":     {Path: "Cargo.lock"},
+		"build script": {Path: "crates/engine/build.rs"},
+	} {
+		plan := ClassifyRustChange(change)
+		if !plan.Has(ActionReindexProject) {
+			t.Fatalf("%s plan = %#v, want the whole project reindexed", name, plan)
+		}
+	}
+
+	deleted := ClassifyRustChange(RustChange{Path: "src/lib.rs", Deleted: true})
+	if deleted.Class != ChangeFileDeleted || !deleted.Has(ActionRemoveFile) {
+		t.Fatalf("deleted plan = %#v", deleted)
+	}
+}

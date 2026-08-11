@@ -231,6 +231,30 @@ func pathWithin(parent, child string) bool {
 	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
 }
 
+// validateContainedPath answers the realpath of a target that must stay inside
+// a repository. A symlink component is rejected rather than resolved: the
+// resolution would change which file the facts describe.
+func validateContainedPath(repositoryRoot, target string) (string, error) {
+	if symlink, err := firstSymlink(target); err != nil {
+		return "", fmt.Errorf("inspect symlinks for %q: %w", target, err)
+	} else if symlink != "" {
+		return "", fmt.Errorf("path %q contains symlink component %q", target, symlink)
+	}
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return "", fmt.Errorf("resolve realpath %q: %w", target, err)
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return "", fmt.Errorf("make realpath absolute: %w", err)
+	}
+	resolved = filepath.Clean(resolved)
+	if !pathWithin(repositoryRoot, resolved) {
+		return "", fmt.Errorf("path %q resolves outside repository realpath %q", target, repositoryRoot)
+	}
+	return resolved, nil
+}
+
 func pathContains(parent, child string) bool {
 	relative, err := filepath.Rel(parent, child)
 	if err != nil {

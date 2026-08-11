@@ -80,8 +80,10 @@ const (
 	// anything.
 	inputRegistry inputKind = "registry"
 
-	// goRegistryInput is the only registry there is today.
-	goRegistryInput = "go"
+	// goRegistryInput and rustRegistryInput name the two provider maps a
+	// unit can depend on.
+	goRegistryInput   = "go"
+	rustRegistryInput = "rust"
 )
 
 // cacheInput is one thing a unit read, and what it looked like.
@@ -148,8 +150,10 @@ type factCache struct {
 	analyzer  string
 
 	trees *fingerprintMemo
-	// goRegistry is this pass's answer to "who provides which module".
-	goRegistry string
+	// goRegistry and rustRegistry are this pass's answer to "who provides
+	// which module" and "who provides which crate".
+	goRegistry   string
+	rustRegistry string
 
 	hits     atomic.Int64
 	misses   atomic.Int64
@@ -388,6 +392,23 @@ func (cache *factCache) describeInputs(
 		add(inputRegistry, goRegistryInput)
 		return described
 	}
+	if unit.isRust {
+		// The whole workspace is the unit: the analyzer loads it as one, and
+		// a sibling crate's source is this crate's type information.
+		add(inputTree, unit.rust.workspace.RootPath)
+		add(inputFile, unit.rust.workspace.ManifestPath)
+		if unit.rust.workspace.LockPath != "" {
+			add(inputFile, unit.rust.workspace.LockPath)
+		}
+		for _, crate := range unit.rust.crates {
+			add(inputFile, crate.ManifestPath)
+		}
+		// The crate registry is what decides whether a use leaves this
+		// repository, so a repository registered later turns an unresolved
+		// reference into an edge and this entry has to be recomputed.
+		add(inputRegistry, rustRegistryInput)
+		return described
+	}
 
 	packageValue := unit.pkg.packageValue
 	for _, root := range packageValue.SourceRoots {
@@ -419,10 +440,14 @@ func (cache *factCache) fingerprint(kind inputKind, name string) string {
 	case inputProvider:
 		return cache.trees.provider(name)
 	case inputRegistry:
-		if name != goRegistryInput {
+		switch name {
+		case goRegistryInput:
+			return cache.goRegistry
+		case rustRegistryInput:
+			return cache.rustRegistry
+		default:
 			return "absent"
 		}
-		return cache.goRegistry
 	default:
 		return ""
 	}
@@ -448,14 +473,32 @@ func goWorkspaceGroup(unit analysisUnit, inputs analysisInputs) []goworkspace.Mo
 	return group
 }
 
-// withRegistry records this pass's module registry, so an entry taken while
-// one repository provided a module is not served once another one does.
+// withRegistry records this pass's provider maps, so an entry taken while one
+// repository provided a module or a crate is not served once another one does.
 func (cache *factCache) withRegistry(inputs analysisInputs) {
 	if cache == nil {
 		return
 	}
 	sum := sha256.Sum256([]byte(goRegistryName(inputs)))
 	cache.goRegistry = hex.EncodeToString(sum[:])
+	crateSum := sha256.Sum256([]byte(crateRegistryName(inputs)))
+	cache.rustRegistry = hex.EncodeToString(crateSum[:])
+}
+
+// crateRegistryName renders which repository provides which crate, at which
+// version. A version is part of the answer: a consumer compiled against one
+// version is not attributed to a repository that declares another.
+func crateRegistryName(inputs analysisInputs) string {
+	if inputs.crateRegistry == nil {
+		return ""
+	}
+	names := make([]string, 0, 16)
+	for _, crate := range inputs.crateRegistry.CrateNames() {
+		for _, provider := range inputs.crateRegistry.Providers(crate) {
+			names = append(names, crate+"@"+provider.Version+"="+provider.Repository+"@"+provider.ManifestPath)
+		}
+	}
+	return strings.Join(names, "\x00")
 }
 
 // goRegistryName renders which repository provides which module path. It is
@@ -531,6 +574,7 @@ func analyzerFingerprint(options FullOptions) string {
 		fmt.Fprintf(hash, "binary=unknown-%d\x00", time.Now().UnixNano())
 	}
 	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironmentFingerprint())
+	fmt.Fprintf(hash, "rust=%s\x00", rustAnalysisFingerprint(options))
 	fmt.Fprintf(hash, "tsworker=%s\x00", typeScriptWorkerFingerprint(options))
 	return hex.EncodeToString(hash.Sum(nil))
 }

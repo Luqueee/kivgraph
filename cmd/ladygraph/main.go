@@ -31,6 +31,7 @@ import (
 	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
 	"github.com/Luqueee/ladygraph/internal/procstat"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
+	"github.com/Luqueee/ladygraph/internal/rustloader"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
 	"github.com/Luqueee/ladygraph/internal/synthetic"
@@ -720,6 +721,18 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		GoMaximumLoads:           loaded.Config.Go.MaximumLoads,
 		TypeScriptMaximumWorkers: loaded.Config.TypeScript.MaximumWorkers,
 		TypeScriptWorker:         loaded.Config.TypeScript.WorkerCommand,
+		RustAnalyzer:             loaded.Config.Rust.AnalyzerCommand,
+		RustTargetDirectory:      loaded.Config.Rust.TargetDirectory,
+		RustMaximumWorkspaces:    loaded.Config.Rust.MaximumWorkspaces,
+		RustFeatures:             loaded.Config.Rust.Features,
+		RustAllFeatures:          loaded.Config.Rust.AllFeatures,
+		RustNoDefaultFeatures:    loaded.Config.Rust.NoDefaultFeatures,
+		RustCfgs:                 loaded.Config.Rust.Cfgs,
+		RustBuildScripts:         loaded.Config.Rust.BuildScripts,
+		RustProcMacros:           loaded.Config.Rust.ProcMacros,
+		RustIncludeTests:         loaded.Config.Rust.IncludeTests,
+		RustAllowNetwork:         loaded.Config.Rust.AllowNetwork,
+		RustSysroot:              loaded.Config.Rust.Sysroot,
 		CacheMode:                indexer.CacheMode(loaded.Config.Indexing.FactCache),
 		CacheDirectory:           loaded.Config.Indexing.FactCachePath,
 		WorkingDirectory:         workingDirectory,
@@ -752,6 +765,15 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
+	writeInfo(stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+		indexReport.RustRepositories,
+		indexReport.RustWorkspaces,
+		indexReport.RustCrates,
+		indexReport.RustWorkspacesNotLoaded,
+		indexReport.RustSymbols,
+		indexReport.RustReferences,
+		indexReport.RustUnresolved,
+	)
 	// A count says something happened; the lines say what. Both are on
 	// stdout with the rest of the report, because a warning in a log the
 	// caller is not reading is a warning nobody has.
@@ -760,6 +782,12 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
 		writeWarning(stdout, "index.typescript.no_package: %s declares no package, so it contributes nothing", repository)
+	}
+	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
+		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
+	}
+	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
+		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
 	}
 	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
 		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d",
@@ -1104,6 +1132,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), configuration config.Config, repositories []workspace.Repository) {
 	needsGo := false
 	needsTypeScript := false
+	needsRust := false
 	for _, repository := range repositories {
 		for _, language := range repository.Languages {
 			switch strings.ToLower(strings.TrimSpace(language)) {
@@ -1111,6 +1140,8 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 				needsGo = true
 			case "typescript", "javascript", "ts", "js":
 				needsTypeScript = true
+			case "rust", "rs":
+				needsRust = true
 			}
 		}
 	}
@@ -1121,6 +1152,11 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	} else {
 		report("toolchain.go", true, "not configured")
 	}
+	reportTypeScriptToolchain(report, configuration, needsTypeScript)
+	reportRustToolchain(report, configuration, needsRust)
+}
+
+func reportTypeScriptToolchain(report func(string, bool, string), configuration config.Config, needsTypeScript bool) {
 	if !needsTypeScript {
 		report("toolchain.typescript", true, "not configured")
 		return
@@ -1145,6 +1181,48 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 		}
 	}
 	report("toolchain.typescript", false, fmt.Sprintf("command %q is unavailable", command[0]))
+}
+
+// reportRustToolchain states whether the external analyzer this build depends
+// on for Rust is present, and which one.
+//
+// Rust is the one language Ladygraph does not analyse itself: `rust-analyzer`
+// is a prerequisite, like the Node runtime of the TypeScript worker, and a
+// missing one is a repository that will contribute nothing.
+func reportRustToolchain(report func(string, bool, string), configuration config.Config, needsRust bool) {
+	if !needsRust {
+		report("toolchain.rust", true, "not configured")
+		return
+	}
+	command := strings.Fields(strings.TrimSpace(configuration.Rust.AnalyzerCommand))
+	if len(command) == 0 {
+		report("toolchain.rust", false, "analyzer command is empty")
+		return
+	}
+	resolved, source, err := rustloader.ResolveAnalyzer(command[0])
+	if err != nil {
+		report("toolchain.rust", false, fmt.Sprintf("command %q is unavailable", command[0]))
+		return
+	}
+	arguments := append(append([]string(nil), command[1:]...), "--version")
+	output, err := exec.CommandContext(context.Background(), resolved, arguments...).CombinedOutput()
+	if err != nil {
+		report("toolchain.rust", false, fmt.Sprintf("%s --version failed: %v", resolved, err))
+		return
+	}
+	// Which binary answers matters as much as its version: a bundle ships its
+	// own, and a PATH may hold another.
+	report("toolchain.rust", true, fmt.Sprintf("%s (%s)", strings.TrimSpace(string(output)), source))
+
+	// The analyzer cannot load a Cargo workspace without cargo, and the bundle
+	// does not ship a Rust toolchain: a missing cargo is a failure even when
+	// the analyzer travels inside the installation.
+	cargoOutput, cargoErr := exec.CommandContext(context.Background(), "cargo", "--version").CombinedOutput()
+	if cargoErr != nil {
+		report("toolchain.cargo", false, "cargo is unavailable, so no workspace can be loaded")
+		return
+	}
+	report("toolchain.cargo", true, strings.TrimSpace(string(cargoOutput)))
 }
 
 // reportGoLanguageCeiling states the language version this build can type

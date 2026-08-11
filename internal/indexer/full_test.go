@@ -593,13 +593,13 @@ func TestFullRejectsUnsupportedLanguageBeforeIndexing(t *testing.T) {
 			Name:      "fixture",
 			Path:      "/does/not/matter",
 			RealPath:  "/does/not/matter",
-			Languages: []string{"rust"},
+			Languages: []string{"python"},
 		}},
 	})
-	if err == nil || !strings.Contains(err.Error(), `unsupported language "rust"`) {
+	if err == nil || !strings.Contains(err.Error(), `unsupported language "python"`) {
 		t.Fatalf("Full() error = %v, want unsupported language", err)
 	}
-	if report.GoRepositories != 0 || report.TypeScriptRepositories != 0 {
+	if report.GoRepositories != 0 || report.TypeScriptRepositories != 0 || report.RustRepositories != 0 {
 		t.Fatalf("report after unsupported language = %+v, want no work", report)
 	}
 }

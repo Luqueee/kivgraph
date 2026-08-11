@@ -21,6 +21,9 @@ const (
 	LanguageTypeScript Language = "typescript"
 	// LanguageGo marks facts produced by the Go loader.
 	LanguageGo Language = "go"
+	// LanguageRust marks facts produced by the Rust loader over the index
+	// rust-analyzer emits.
+	LanguageRust Language = "rust"
 )
 
 // Confidence is the trust level of an edge, as defined by the plan.
@@ -66,6 +69,28 @@ const (
 	GoASTCall         Provenance = "GO_AST_CALL"
 	GoASTCallback     Provenance = "GO_AST_CALLBACK"
 	GoObjectPath      Provenance = "GO_OBJECT_PATH"
+
+	// RustAnalyzerDefinition marks a declaration the analyzer indexed.
+	RustAnalyzerDefinition Provenance = "RUST_ANALYZER_DEF"
+	// RustAnalyzerUse marks a use the analyzer resolved to a symbol.
+	RustAnalyzerUse Provenance = "RUST_ANALYZER_USE"
+	// RustAnalyzerMoniker marks a target reached through the crate registry,
+	// where consumer and provider carry the same analyzer symbol.
+	RustAnalyzerMoniker Provenance = "RUST_ANALYZER_MONIKER"
+	// RustSyntaxCall and RustSyntaxType mark relations whose ends the
+	// analyzer resolved and whose class the grammar decided, exactly as
+	// GoASTCall does over a go/types resolution.
+	RustSyntaxCall Provenance = "RUST_SYNTAX_CALL"
+	RustSyntaxType Provenance = "RUST_SYNTAX_TYPE"
+	// RustSyntaxImplementation marks an implementation, a supertrait or an
+	// override: the grammar says which token of the header is the trait and
+	// which is the type, and the analyzer resolved both.
+	RustSyntaxImplementation Provenance = "RUST_SYNTAX_IMPL"
+	// RustSyntaxCallback marks a function named as the argument of a call,
+	// the Rust half of GoASTCallback. Binding a function to a name or
+	// returning it carries no provenance of its own: the class is in the
+	// edge kind and the target came from the analyzer, as Go does.
+	RustSyntaxCallback Provenance = "RUST_SYNTAX_CALLBACK"
 
 	TreeSitterSyntax Provenance = "TREE_SITTER_SYNTAX"
 	PackageManifest  Provenance = "PACKAGE_MANIFEST"

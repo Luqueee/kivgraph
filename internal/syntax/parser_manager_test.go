@@ -87,7 +87,7 @@ func TestParserManagerClassifiesCancellationAndUnsupportedLanguage(t *testing.T)
 		t.Fatalf("canceled parse error = %v, want classified context cancellation", err)
 	}
 
-	_, err = manager.Parse(context.Background(), Language("rust"), []byte("fn main() {}"))
+	_, err = manager.Parse(context.Background(), Language("python"), []byte("def main(): pass"))
 	if !errors.As(err, &parserErr) || parserErr.Kind != ParserErrorUnsupportedLanguage || !errors.Is(err, ErrUnsupportedLanguage) {
 		t.Fatalf("unsupported language error = %v", err)
 	}

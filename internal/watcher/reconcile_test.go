@@ -226,3 +226,52 @@ func assertStatePaths(t *testing.T, label string, states []FileState, want ...st
 		}
 	}
 }
+
+// TestReconcilerSeesRustSourcesAndManifests is what makes the Rust
+// invalidation plan reachable: the classifier has a branch for a manifest and
+// for a build script, and neither ever fires if the scan does not report them.
+func TestReconcilerSeesRustSourcesAndManifests(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "Cargo.toml"), "[package]\nname = \"probe\"\nversion = \"0.1.0\"\n")
+	writeTestFile(t, filepath.Join(root, "Cargo.lock"), "version = 4\n")
+	writeTestFile(t, filepath.Join(root, "build.rs"), "fn main() {}\n")
+	writeTestFile(t, filepath.Join(root, "src", "lib.rs"), "pub fn run() {}\n")
+	writeTestFile(t, filepath.Join(root, "notes.md"), "not a source\n")
+
+	hasher, err := NewContentHasher(nil)
+	if err != nil {
+		t.Fatalf("NewContentHasher() error = %v", err)
+	}
+	reconciler, err := NewReconciler([]workspace.Repository{{
+		Name: "probe", Path: root, RealPath: root, Languages: []string{"rust"},
+	}}, hasher)
+	if err != nil {
+		t.Fatalf("NewReconciler() error = %v", err)
+	}
+	result, err := reconciler.Reconcile(context.Background())
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+
+	seen := make(map[string]bool, len(result.Added))
+	for _, state := range result.Added {
+		seen[filepath.Base(state.Path)] = true
+	}
+	for _, want := range []string{"Cargo.toml", "Cargo.lock", "build.rs", "lib.rs"} {
+		if !seen[want] {
+			t.Fatalf("%q was not scanned: %#v", want, result.Added)
+		}
+	}
+	if seen["notes.md"] {
+		t.Fatal("a file no language declares must not be scanned")
+	}
+	manifests := make(map[string]bool, len(result.ManifestChanges))
+	for _, state := range result.ManifestChanges {
+		manifests[filepath.Base(state.Path)] = true
+	}
+	for _, want := range []string{"Cargo.toml", "Cargo.lock", "build.rs"} {
+		if !manifests[want] {
+			t.Fatalf("%q is not reported as a manifest change: %#v", want, result.ManifestChanges)
+		}
+	}
+}

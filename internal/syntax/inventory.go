@@ -98,7 +98,7 @@ func classifyNode(nodeKind string) []CandidateKind {
 	if isDeclarationNode(kind) {
 		appendKind(CandidateDeclaration)
 	}
-	if strings.Contains(kind, "import") || kind == "require_call" {
+	if strings.Contains(kind, "import") || kind == "require_call" || isRustImportNode(kind) {
 		appendKind(CandidateImport)
 	}
 	if strings.Contains(kind, "export") {
@@ -128,6 +128,18 @@ func isDeclarationNode(kind string) bool {
 	}
 	switch kind {
 	case "declaration", "declarations", "lexical_declaration", "variable_declaration", "type_declaration", "const_declaration", "var_declaration", "short_var_declaration", "function_declaration", "function_definition", "method_declaration", "method_definition":
+		return true
+	default:
+		return false
+	}
+}
+
+// isRustImportNode names the Rust forms that bring a path into scope. Rust
+// spells an import `use`, so the substring rule the other grammars rely on
+// never matches one.
+func isRustImportNode(kind string) bool {
+	switch kind {
+	case "use_declaration", "extern_crate_declaration":
 		return true
 	default:
 		return false

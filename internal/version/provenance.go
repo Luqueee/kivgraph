@@ -36,6 +36,10 @@ type Provenance struct {
 	SnapshotRowFormat  uint32            `json:"snapshot_row_format"`
 	Resolver           *string           `json:"resolver"`
 	Grammars           GrammarProvenance `json:"grammars"`
+	// RustAnalyzer is the engine the bundle carries for Rust. A development
+	// binary ships none and reports null: the analyzer it would run comes
+	// from the PATH and is not part of this build's provenance.
+	RustAnalyzer *string `json:"rust_analyzer"`
 }
 
 // GrammarProvenance identifies the pinned grammar manifest and its entries.
@@ -85,6 +89,16 @@ type bundleManifest struct {
 		Manifest string `json:"manifest"`
 		SHA256   string `json:"sha256"`
 	} `json:"grammars"`
+	Tools struct {
+		Manifest     string `json:"manifest"`
+		SHA256       string `json:"sha256"`
+		RustAnalyzer struct {
+			Version string `json:"version"`
+			Release string `json:"release"`
+			Binary  string `json:"binary"`
+			SHA256  string `json:"sha256"`
+		} `json:"rust_analyzer"`
+	} `json:"tools"`
 	Artifacts []json.RawMessage `json:"artifacts"`
 }
 
@@ -285,6 +299,7 @@ func loadBundleProvenance(manifestPath, bundleRoot string) (Provenance, error) {
 		SnapshotRowFormat:  manifest.Schema.SnapshotRowFormat,
 		Resolver:           manifest.ResolverVersion,
 		Grammars:           grammars,
+		RustAnalyzer:       optionalStringPointer(manifest.Tools.RustAnalyzer.Release),
 	}, nil
 }
 

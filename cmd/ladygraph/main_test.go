@@ -68,7 +68,7 @@ func TestRunVersionJSON(t *testing.T) {
 	if provenance.Schema != ladybug.CanonicalSchemaVersion || provenance.SnapshotRowFormat != rebuild.SnapshotRowFormatVersion {
 		t.Fatalf("schema = %d/%d, want %d/%d", provenance.Schema, provenance.SnapshotRowFormat, ladybug.CanonicalSchemaVersion, rebuild.SnapshotRowFormatVersion)
 	}
-	if provenance.Grammars.Manifest != "grammars/manifest.json" || len(provenance.Grammars.Versions) != 4 {
+	if provenance.Grammars.Manifest != "grammars/manifest.json" || len(provenance.Grammars.Versions) != 5 {
 		t.Fatalf("grammars = %#v", provenance.Grammars)
 	}
 }
@@ -1699,5 +1699,48 @@ func TestStopSaysWhenNothingIsRunning(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "no ladygraph serve or ui process is running") {
 		t.Fatalf("stdout = %q, want it said plainly", stdout.String())
+	}
+}
+
+// TestReportRustToolchainNamesTheMissingPrerequisite covers the one language
+// this build does not analyse itself: an absent `rust-analyzer` must be a
+// named failure rather than a repository that silently contributes nothing.
+func TestReportRustToolchainNamesTheMissingPrerequisite(t *testing.T) {
+	tests := map[string]struct {
+		command   string
+		needsRust bool
+		wantPass  bool
+		wantValue string
+	}{
+		"no rust repository": {command: "rust-analyzer", needsRust: false, wantPass: true, wantValue: "not configured"},
+		"command is absent": {
+			command: "ladygraph-rust-analyzer-that-is-not-installed", needsRust: true,
+			wantPass: false, wantValue: "is unavailable",
+		},
+		"command is empty": {command: "   ", needsRust: true, wantPass: false, wantValue: "analyzer command is empty"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			reported := make(map[string]string)
+			passed := make(map[string]bool)
+			report := func(check string, ok bool, detail string) {
+				reported[check] = detail
+				passed[check] = ok
+			}
+			configuration := config.DefaultConfig()
+			configuration.Rust.AnalyzerCommand = test.command
+			reportRustToolchain(report, configuration, test.needsRust)
+
+			detail, exists := reported["toolchain.rust"]
+			if !exists {
+				t.Fatalf("reported = %#v, want a toolchain.rust entry", reported)
+			}
+			if passed["toolchain.rust"] != test.wantPass {
+				t.Fatalf("toolchain.rust passed = %t, want %t (%q)", passed["toolchain.rust"], test.wantPass, detail)
+			}
+			if !strings.Contains(detail, test.wantValue) {
+				t.Fatalf("toolchain.rust detail = %q, want %q", detail, test.wantValue)
+			}
+		})
 	}
 }

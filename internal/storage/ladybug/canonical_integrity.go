@@ -129,6 +129,13 @@ var canonicalProvenanceValues = []facts.Provenance{
 	facts.GoObjectPath,
 	facts.TreeSitterSyntax,
 	facts.PackageManifest,
+	facts.RustAnalyzerDefinition,
+	facts.RustAnalyzerUse,
+	facts.RustAnalyzerMoniker,
+	facts.RustSyntaxCall,
+	facts.RustSyntaxType,
+	facts.RustSyntaxImplementation,
+	facts.RustSyntaxCallback,
 }
 
 // exactConfidenceValues is the subset of canonicalConfidenceValues that

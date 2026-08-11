@@ -131,3 +131,21 @@ func TestUpsertRepositoryAccumulatesAWholeBatch(t *testing.T) {
 		t.Fatal("a name already held inside the batch was accepted")
 	}
 }
+
+// TestNormalizeProjectLanguagesFollowsTheOneVocabulary keeps this entry point
+// from growing a second list: what `init` writes and what the pass analyses
+// must be the same set, or a caller registers a repository nothing indexes.
+func TestNormalizeProjectLanguagesFollowsTheOneVocabulary(t *testing.T) {
+	languages, err := normalizeProjectLanguages([]string{"Rust", " go "})
+	if err != nil {
+		t.Fatalf("normalizeProjectLanguages() error = %v", err)
+	}
+	if len(languages) != 2 || languages[0] != "rust" || languages[1] != "go" {
+		t.Fatalf("languages = %#v", languages)
+	}
+	for _, invalid := range [][]string{{"python"}, {"rust", "rust"}, {""}, nil} {
+		if _, err := normalizeProjectLanguages(invalid); err == nil {
+			t.Fatalf("normalizeProjectLanguages(%#v) accepted the input", invalid)
+		}
+	}
+}

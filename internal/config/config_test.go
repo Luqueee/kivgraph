@@ -27,6 +27,7 @@ repositories:
     languages:
       - go
       - typescript
+      - rust
     manifests:
       - package.json
     roots:
@@ -72,6 +73,52 @@ repositories:
 	}
 	if !reflect.DeepEqual(repository.Manifests, []string{"package.json"}) || !reflect.DeepEqual(repository.Roots, []string{"src"}) || !reflect.DeepEqual(repository.Exclusions, []string{"node_modules"}) {
 		t.Fatalf("repository configuration = %#v", repository)
+	}
+}
+
+// TestRustDefaultsKeepBuildArtifactsOutsideEveryRepository is the reason the
+// target directory is configuration rather than a constant: rust-analyzer runs
+// build scripts, and cargo writes wherever CARGO_TARGET_DIR points.
+func TestRustDefaultsKeepBuildArtifactsOutsideEveryRepository(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("LADYGRAPH_CONFIG_ROOT", root)
+	configPath := filepath.Join(root, "config.yaml")
+	writeConfigFixture(t, configPath, "version: 1\n")
+
+	configuration, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if configuration.Rust.AnalyzerCommand != "rust-analyzer" {
+		t.Fatalf("analyzer command = %q", configuration.Rust.AnalyzerCommand)
+	}
+	if !configuration.Rust.BuildScripts || !configuration.Rust.ProcMacros {
+		t.Fatalf("expansion defaults = %#v", configuration.Rust)
+	}
+	if configuration.Rust.AllowNetwork {
+		t.Fatal("Rust indexing must be hermetic by default")
+	}
+	if !filepath.IsAbs(configuration.Rust.TargetDirectory) {
+		t.Fatalf("target directory = %q, want an absolute path", configuration.Rust.TargetDirectory)
+	}
+	if configuration.Rust.Sysroot != "discover" {
+		t.Fatalf("sysroot = %q", configuration.Rust.Sysroot)
+	}
+}
+
+// TestSupportedLanguagesCoversEveryAnalysedLanguage keeps the vocabulary and
+// its aliases in one place: a second list is what let `init` accept a language
+// the pass refuses.
+func TestSupportedLanguagesCoversEveryAnalysedLanguage(t *testing.T) {
+	for _, language := range []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "  RUST  "} {
+		if !SupportedLanguage(language) {
+			t.Fatalf("SupportedLanguage(%q) = false", language)
+		}
+	}
+	for _, language := range []string{"", "python", "rustlang"} {
+		if SupportedLanguage(language) {
+			t.Fatalf("SupportedLanguage(%q) = true", language)
+		}
 	}
 }
 
@@ -156,6 +203,32 @@ go:
     - ladybug,cgo
 `,
 			wantError: "config.go.build_tags[0]: must not contain a comma or whitespace",
+		},
+		{
+			name: "empty analyzer command",
+			contents: `version: 1
+rust:
+  analyzer_command: "  "
+`,
+			wantError: "config.rust.analyzer_command: must not be empty",
+		},
+		{
+			name: "features and all_features together",
+			contents: `version: 1
+rust:
+  all_features: true
+  features:
+    - serde
+`,
+			wantError: "config.rust.all_features: must not be set together with rust.features",
+		},
+		{
+			name: "negative rust workspace limit",
+			contents: `version: 1
+rust:
+  maximum_workspaces: -1
+`,
+			wantError: "config.rust.maximum_workspaces: must not be negative",
 		},
 		{
 			name:      "multiple documents",

@@ -37,6 +37,12 @@ var goldenCodes = struct {
 		"GO_TYPES_DEF": 5, "GO_TYPES_USE": 6, "GO_TYPES_SELECTION": 7,
 		"GO_AST_CALL": 8, "GO_AST_CALLBACK": 9, "GO_OBJECT_PATH": 10,
 		"TREE_SITTER_SYNTAX": 11, "PACKAGE_MANIFEST": 12,
+		// Appended when Rust landed. The numbers above never move.
+		"RUST_ANALYZER_DEF": 13, "RUST_ANALYZER_USE": 14,
+		"RUST_ANALYZER_MONIKER": 15, "RUST_SYNTAX_CALL": 16,
+		"RUST_SYNTAX_TYPE": 17, "RUST_SYNTAX_IMPL": 18,
+		// Appended when function values landed. Never inserted above.
+		"RUST_SYNTAX_CALLBACK": 19,
 	},
 }
 

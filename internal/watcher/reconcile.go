@@ -382,6 +382,10 @@ func (repository reconciliationRepository) isSource(path string) bool {
 			if extension == ".ts" || extension == ".tsx" || extension == ".mts" || extension == ".cts" || extension == ".js" || extension == ".jsx" || extension == ".mjs" || extension == ".cjs" {
 				return true
 			}
+		case "rust", "rs":
+			if extension == ".rs" {
+				return true
+			}
 		}
 	}
 	return false
@@ -399,7 +403,7 @@ func (reconciler *Reconciler) owns(key FileKey) bool {
 func isManifestPath(path string) bool {
 	name := strings.ToLower(filepath.Base(path))
 	switch name {
-	case "package.json", "package-lock.json", "pnpm-workspace.yaml", "pnpm-workspace.yml", "pnpm-lock.yaml", "yarn.lock", "go.mod", "go.sum", "go.work":
+	case "package.json", "package-lock.json", "pnpm-workspace.yaml", "pnpm-workspace.yml", "pnpm-lock.yaml", "yarn.lock", "go.mod", "go.sum", "go.work", "cargo.toml", "cargo.lock", "build.rs":
 		return true
 	}
 	return name == "tsconfig.json" || (strings.HasPrefix(name, "tsconfig.") && strings.HasSuffix(name, ".json"))

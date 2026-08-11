@@ -17,6 +17,7 @@ require (
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-go v0.25.0
 	github.com/tree-sitter/tree-sitter-javascript v0.25.0
+	github.com/tree-sitter/tree-sitter-rust v0.23.2
 	github.com/tree-sitter/tree-sitter-typescript v0.23.2
 	github.com/zeebo/blake3 v0.2.4
 	go.opentelemetry.io/otel v1.40.0

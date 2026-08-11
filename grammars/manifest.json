@@ -45,6 +45,17 @@
       "sha256": "a71543d63f82b917457f47a3f6dbecd8087592fabc49a757da82c3e00c0e93de",
       "license": "MIT",
       "license_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter-go/1547678a9da59885853f5f5cc8a99cc203fa2e2c/LICENSE"
+    },
+    {
+      "name": "rust",
+      "repository": "https://github.com/tree-sitter/tree-sitter-rust.git",
+      "version": "v0.23.2",
+      "commit": "cad8a206f2e4194676b9699f26f6560d07130d3f",
+      "source_path": ".",
+      "archive_url": "https://codeload.github.com/tree-sitter/tree-sitter-rust/tar.gz/cad8a206f2e4194676b9699f26f6560d07130d3f",
+      "sha256": "f23a0605ffc33d901d8fd0a54860fcfa845a10c049886686814697abeba452a3",
+      "license": "MIT",
+      "license_url": "https://raw.githubusercontent.com/tree-sitter/tree-sitter-rust/cad8a206f2e4194676b9699f26f6560d07130d3f/LICENSE"
     }
   ]
 }

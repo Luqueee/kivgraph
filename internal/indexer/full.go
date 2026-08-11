@@ -24,6 +24,8 @@ import (
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/goloader"
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/ladygraph/internal/rustloader"
+	"github.com/Luqueee/ladygraph/internal/syntax"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
@@ -42,6 +44,8 @@ const (
 	PhaseGo ProgressPhase = "go"
 	// PhaseTypeScript is one TypeScript repository.
 	PhaseTypeScript ProgressPhase = "typescript"
+	// PhaseRust is one Cargo workspace.
+	PhaseRust ProgressPhase = "rust"
 	// PhaseMerge is the final sort and validation of the merged fact set.
 	PhaseMerge ProgressPhase = "merge"
 )
@@ -79,7 +83,27 @@ type FullOptions struct {
 	// uses the documented default.
 	TypeScriptMaximumWorkers int
 	TypeScriptWorker         string
-	WorkingDirectory         string
+	// RustAnalyzer is the command line of the external Rust indexer.
+	RustAnalyzer string
+	// RustTargetDirectory is where cargo writes the artifacts of the Rust
+	// analysis. It lives outside every indexed repository, because
+	// rust-analyzer always runs build scripts.
+	RustTargetDirectory string
+	// RustMaximumWorkspaces bounds concurrent analyzer processes. Zero uses
+	// the documented default: each one holds a whole workspace in memory.
+	RustMaximumWorkspaces int
+	RustFeatures          []string
+	RustAllFeatures       bool
+	RustNoDefaultFeatures bool
+	RustCfgs              []string
+	RustBuildScripts      bool
+	RustProcMacros        bool
+	// RustIncludeTests sets `cfg(test)` for the crates of a workspace.
+	RustIncludeTests bool
+	// RustAllowNetwork lets cargo reach a registry while a workspace loads.
+	RustAllowNetwork bool
+	RustSysroot      string
+	WorkingDirectory string
 	// CacheMode selects whether a unit may be served from its stored
 	// facts. Empty is CacheOff.
 	CacheMode CacheMode
@@ -133,7 +157,23 @@ type FullReport struct {
 	// TypeScriptAmbiguous counts the package names several manifests of one
 	// repository declare. No manifest provides them.
 	TypeScriptAmbiguous int
-	SyntheticWorkFile   string
+	RustRepositories    int
+	RustWorkspaces      int
+	RustCrates          int
+	RustSymbols         int
+	RustReferences      int
+	RustUnresolved      int
+	// RustWorkspacesNotLoaded counts the workspaces the analyzer could not
+	// read. Their facts are absent and declared; the pass publishes the rest.
+	RustWorkspacesNotLoaded int
+	// RustDiagnostics carries what the analyzer reported without blocking
+	// the pass, which is where a degraded load says so.
+	RustDiagnostics []string
+	// RustWithoutWorkspaces names the repositories registered as Rust that
+	// declare no Cargo manifest. They contribute nothing, and a registry
+	// entry that contributes nothing looks like coverage.
+	RustWithoutWorkspaces []string
+	SyntheticWorkFile     string
 }
 
 // Full loads every configured repository and normalises the authoritative Go
@@ -164,9 +204,11 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 
 	goRepositories := repositoriesForLanguage(repositories, "go")
 	typeScriptRepositories := repositoriesForTypeScript(repositories)
+	rustRepositories := repositoriesForRust(repositories)
 	report := FullReport{
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),
+		RustRepositories:       len(rustRepositories),
 	}
 	typeScriptPackages, typeScriptConflicts, withoutPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
 	if err != nil {
@@ -180,6 +222,14 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	for _, entry := range typeScriptConflicts {
 		sets = append(sets, ambiguousPackageFacts(entry))
 		report.TypeScriptAmbiguous++
+	}
+
+	rustUnits, rustCrateRegistry, rustParsers, err := prepareRust(ctx, options, rustRepositories, &report)
+	if err != nil {
+		return facts.Set{}, report, err
+	}
+	if rustParsers != nil {
+		defer rustParsers.Close()
 	}
 
 	var (
@@ -226,6 +276,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	}
 
 	units := append(goUnits, typeScriptUnits(typeScriptPackages)...)
+	units = append(units, rustAnalysisUnits(rustUnits)...)
 	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
 		moduleRegistry:     moduleRegistry,
 		conflictingModules: conflictingModules,
@@ -233,6 +284,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		typeScriptPackages: typeScriptPackages,
 		goModules:          goModules,
 		workFiles:          workFiles,
+		crateRegistry:      rustCrateRegistry,
+		parsers:            rustParsers,
 	})
 	if err != nil {
 		return facts.Set{}, report, err
@@ -245,7 +298,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	for index, unit := range units {
 		result := results[index]
 		sets = append(sets, result.set)
-		if unit.isGo {
+		switch {
+		case unit.isGo:
 			report.GoLoads++
 			report.GoModules++
 			if result.notLoaded {
@@ -256,11 +310,21 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.GoDefinitions += result.definitions
 			report.GoReferences += result.references
 			report.GoUnresolved += result.unresolved
-			continue
+		case unit.isRust:
+			report.RustWorkspaces++
+			report.RustCrates += len(unit.rust.crates)
+			if result.notLoaded {
+				report.RustWorkspacesNotLoaded++
+			}
+			report.RustDiagnostics = append(report.RustDiagnostics, result.diagnostics...)
+			report.RustSymbols += result.symbols
+			report.RustReferences += result.references
+			report.RustUnresolved += result.unresolved
+		default:
+			report.TypeScriptSymbols += result.symbols
+			report.TypeScriptReferences += result.references
+			report.TypeScriptUnresolved += result.unresolved
 		}
-		report.TypeScriptSymbols += result.symbols
-		report.TypeScriptReferences += result.references
-		report.TypeScriptUnresolved += result.unresolved
 	}
 
 	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
@@ -672,15 +736,17 @@ func collectTypeScriptFacts(
 	return payload, nil
 }
 
-// analysisUnit is one independent piece of work: a Go module or a TypeScript
-// package. Nothing in a unit reads another unit's state, which is what lets
-// them run at the same time.
+// analysisUnit is one independent piece of work: a Go module, a TypeScript
+// package or a Cargo workspace. Nothing in a unit reads another unit's state,
+// which is what lets them run at the same time.
 type analysisUnit struct {
 	repository workspace.Repository
 	module     goworkspace.Module
 	pkg        typeScriptPackageUnit
+	rust       rustWorkspaceUnit
 	workFile   string
 	isGo       bool
+	isRust     bool
 }
 
 // weight estimates how long a unit will take, so the long poles start first.
@@ -692,17 +758,25 @@ type analysisUnit struct {
 // slowest unit ends, and starting that one late adds its whole duration to
 // the tail.
 func (unit analysisUnit) weight() int {
-	if unit.isGo {
+	switch {
+	case unit.isGo:
 		return len(unit.module.PackagePatterns)
+	case unit.isRust:
+		return unit.rust.files
+	default:
+		return len(unit.pkg.packageValue.SourceRoots) + unit.pkg.files
 	}
-	return len(unit.pkg.packageValue.SourceRoots) + unit.pkg.files
 }
 
 func (unit analysisUnit) detail() string {
-	if unit.isGo {
+	switch {
+	case unit.isGo:
 		return unit.module.ModulePath
+	case unit.isRust:
+		return rustUnitDetail(unit.rust)
+	default:
+		return unit.pkg.packageValue.Name
 	}
-	return unit.pkg.packageValue.Name
 }
 
 // analysisResult is what one unit contributes to the pass.
@@ -951,19 +1025,51 @@ func factsCommand(options FullOptions, arguments []string) (string, []string, er
 	commandArguments := append([]string(nil), parts[1:]...)
 	if _, lookupErr := exec.LookPath(command); lookupErr == nil {
 		return command, append(commandArguments, arguments...), nil
-	} else if command != "ladygraph-ts-worker" {
+	} else if command != defaultTypeScriptWorkerCommand {
 		return "", nil, fmt.Errorf("worker command %q is not executable: %w", command, lookupErr)
+	}
+
+	// A bundle carries the worker beside the executable. Resolving it there
+	// keeps an installation working when its `bin` is not on the PATH, which
+	// is how anyone runs it by absolute path the first time.
+	if sibling, found := siblingExecutable(defaultTypeScriptWorkerCommand); found {
+		return sibling, append(commandArguments, arguments...), nil
 	}
 
 	workerRoot := filepath.Join(options.WorkingDirectory, "ts-worker")
 	factsEntry := filepath.Join(workerRoot, "dist", "facts-cli.js")
 	if info, statErr := os.Stat(factsEntry); statErr == nil && info.Mode().IsRegular() {
+		// The checkout entry point takes the arguments of the `facts`
+		// subcommand, which the shim would have consumed itself. A caller
+		// that passes none is asking for the command, not for a run.
+		if len(arguments) == 0 {
+			return "node", []string{factsEntry}, nil
+		}
 		return "node", append([]string{factsEntry}, arguments[1:]...), nil
 	}
 	if _, err := exec.LookPath("pnpm"); err != nil {
 		return "", nil, fmt.Errorf("default worker is unavailable and pnpm is not executable: %w", err)
 	}
 	return "pnpm", append([]string{"--dir", workerRoot}, arguments...), nil
+}
+
+// defaultTypeScriptWorkerCommand is the name a bundle installs and the
+// configuration defaults to.
+const defaultTypeScriptWorkerCommand = "ladygraph-ts-worker"
+
+// siblingExecutable answers an executable installed next to the running
+// binary, which is what a bundle is.
+func siblingExecutable(name string) (string, bool) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", false
+	}
+	candidate := filepath.Join(filepath.Dir(executable), name)
+	info, statErr := os.Stat(candidate)
+	if statErr != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return "", false
+	}
+	return candidate, true
 }
 
 // DecodeFactsJSON is kept small and explicit for callers that persist a facts
@@ -989,6 +1095,11 @@ type analysisInputs struct {
 	// workspace: a module's type information includes its group's source.
 	goModules []goworkspace.Module
 	workFiles map[string]string
+	// crateRegistry attributes a Rust crate to the repository that provides
+	// it, and parsers is the shared Tree-sitter pool the Rust analysis reads
+	// visibility and call shapes with.
+	crateRegistry *rustloader.CrateRegistry
+	parsers       *syntax.ParserManager
 }
 
 func typeScriptUnits(packages []typeScriptPackageUnit) []analysisUnit {
@@ -1029,13 +1140,16 @@ func analyse(
 	}
 	cache.trees.withProviders(inputs.typeScriptPackages)
 	cache.withRegistry(inputs)
-	var goQueue, typeScriptQueue []int
+	var goQueue, typeScriptQueue, rustQueue []int
 	for index, unit := range units {
-		if unit.isGo {
+		switch {
+		case unit.isGo:
 			goQueue = append(goQueue, index)
-			continue
+		case unit.isRust:
+			rustQueue = append(rustQueue, index)
+		default:
+			typeScriptQueue = append(typeScriptQueue, index)
 		}
-		typeScriptQueue = append(typeScriptQueue, index)
 	}
 	byWeight := func(queue []int) {
 		sort.SliceStable(queue, func(left, right int) bool {
@@ -1043,6 +1157,7 @@ func analyse(
 		})
 	}
 	byWeight(goQueue)
+	byWeight(rustQueue)
 	byWeight(typeScriptQueue)
 
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -1088,6 +1203,7 @@ func analyse(
 		}
 	}
 	run(goQueue, goLoadLimit(options), PhaseGo)
+	run(rustQueue, rustWorkspaceLimit(options), PhaseRust)
 	run(typeScriptQueue, typeScriptWorkerLimit(options), PhaseTypeScript)
 
 	if err := group.Wait(); err != nil {
@@ -1105,11 +1221,15 @@ func analyseUnit(
 	unit analysisUnit,
 	inputs analysisInputs,
 ) (analysisResult, error) {
-	if unit.isGo {
+	switch {
+	case unit.isGo:
 		return indexGoModule(ctx, options, unit,
 			inputs.moduleRegistry, inputs.conflictingModules, inputs.planConflicts)
+	case unit.isRust:
+		return indexRustWorkspace(ctx, options, unit, inputs.crateRegistry, inputs.parsers)
+	default:
+		return indexTypeScriptPackage(ctx, options, unit, inputs.typeScriptPackages)
 	}
-	return indexTypeScriptPackage(ctx, options, unit, inputs.typeScriptPackages)
 }
 
 // serializedProgress makes one callback safe to call from every unit. The

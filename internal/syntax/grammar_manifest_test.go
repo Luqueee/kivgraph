@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestLoadManifestLoadsPinnedInitialGrammars(t *testing.T) {
+func TestLoadManifestLoadsPinnedGrammars(t *testing.T) {
 	manifestPath := filepath.Join("..", "..", DefaultManifestPath)
 	manifest, err := LoadManifest(manifestPath)
 	if err != nil {
@@ -15,15 +15,15 @@ func TestLoadManifestLoadsPinnedInitialGrammars(t *testing.T) {
 	if manifest.SchemaVersion != 1 || manifest.ArchiveFormat != "tar.gz" {
 		t.Fatalf("manifest header = %#v", manifest)
 	}
-	if len(manifest.Grammars) != 4 {
-		t.Fatalf("grammar count = %d, want 4", len(manifest.Grammars))
+	if len(manifest.Grammars) != 5 {
+		t.Fatalf("grammar count = %d, want 5", len(manifest.Grammars))
 	}
 
 	byName := make(map[string]GrammarSource, len(manifest.Grammars))
 	for _, grammar := range manifest.Grammars {
 		byName[grammar.Name] = grammar
 	}
-	for _, name := range []string{"typescript", "tsx", "javascript", "go"} {
+	for _, name := range []string{"typescript", "tsx", "javascript", "go", "rust"} {
 		grammar, ok := byName[name]
 		if !ok {
 			t.Fatalf("manifest is missing %q", name)

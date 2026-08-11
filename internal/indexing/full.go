@@ -30,7 +30,21 @@ type FullOptions struct {
 	// TypeScriptMaximumWorkers bounds concurrent TypeScript workers.
 	TypeScriptMaximumWorkers int
 	TypeScriptWorker         string
-	WorkingDirectory         string
+	// Rust* configure the external analyzer: the command, where its build
+	// artifacts land, and the build configuration it is given.
+	RustAnalyzer          string
+	RustTargetDirectory   string
+	RustMaximumWorkspaces int
+	RustFeatures          []string
+	RustAllFeatures       bool
+	RustNoDefaultFeatures bool
+	RustCfgs              []string
+	RustBuildScripts      bool
+	RustProcMacros        bool
+	RustIncludeTests      bool
+	RustAllowNetwork      bool
+	RustSysroot           string
+	WorkingDirectory      string
 	// CacheMode and CacheDirectory configure the fact cache: whether a
 	// unit may be served from the facts a previous pass stored, and where
 	// those entries live.
@@ -87,6 +101,18 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		GoMaximumLoads:           options.GoMaximumLoads,
 		TypeScriptMaximumWorkers: options.TypeScriptMaximumWorkers,
 		TypeScriptWorker:         options.TypeScriptWorker,
+		RustAnalyzer:             options.RustAnalyzer,
+		RustTargetDirectory:      options.RustTargetDirectory,
+		RustMaximumWorkspaces:    options.RustMaximumWorkspaces,
+		RustFeatures:             options.RustFeatures,
+		RustAllFeatures:          options.RustAllFeatures,
+		RustNoDefaultFeatures:    options.RustNoDefaultFeatures,
+		RustCfgs:                 options.RustCfgs,
+		RustBuildScripts:         options.RustBuildScripts,
+		RustProcMacros:           options.RustProcMacros,
+		RustIncludeTests:         options.RustIncludeTests,
+		RustAllowNetwork:         options.RustAllowNetwork,
+		RustSysroot:              options.RustSysroot,
 		WorkingDirectory:         options.WorkingDirectory,
 		CacheMode:                options.CacheMode,
 		CacheDirectory:           options.CacheDirectory,

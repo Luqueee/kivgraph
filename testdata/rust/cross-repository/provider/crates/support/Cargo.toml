@@ -1,0 +1,4 @@
+[package]
+name = "support"
+version.workspace = true
+edition.workspace = true
