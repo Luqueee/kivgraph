@@ -29,6 +29,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/indexing"
 	"github.com/Luqueee/ladygraph/internal/logging"
 	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
+	"github.com/Luqueee/ladygraph/internal/procstat"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
@@ -481,6 +482,9 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	}
 	if len(args) >= 2 && args[1] == "clean" {
 		return runClean(args[2:], stdout, stderr)
+	}
+	if len(args) >= 2 && args[1] == "stop" {
+		return runStop(args[2:], stdout, stderr, procstat.List, signalProcess)
 	}
 	if len(args) >= 2 && args[1] == "rebuild" {
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
@@ -1675,4 +1679,158 @@ func writeSnapshotReport(stdout io.Writer, report rebuild.SnapshotReport) {
 	fmt.Fprintf(stdout, "evidence: %d\n", report.Stats.Evidence)
 	fmt.Fprintf(stdout, "edges: %d\n", report.Stats.Edges)
 	fmt.Fprintf(stdout, "edges not represented in the CSR: %d\n", report.Stats.SkippedEdges)
+}
+
+// stopGracePeriod is how long a viewer or a server gets to shut down after
+// SIGTERM before it is killed. Both close a snapshot store and a listener,
+// which is bounded work; a process still alive after this is stuck.
+var stopGracePeriod = 5 * time.Second
+
+// processLister and processSignaller are the two things `stop` needs from the
+// operating system, injected so the command can be tested without spawning
+// servers and without the test being able to signal anything.
+type processLister func() ([]procstat.Process, error)
+
+type processSignaller func(pid int, signal syscall.Signal) error
+
+func signalProcess(pid int, signal syscall.Signal) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return process.Signal(signal)
+}
+
+// runStop ends every `ladygraph serve` and `ladygraph ui` of this user.
+//
+// It matches on the invocation, not on the executable: an index in flight is
+// left alone, because killing one throws away minutes of analysis, and the
+// stop command does not stop itself. Nothing else running on the machine can
+// match, since the first argument has to be a ladygraph binary.
+func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller) int {
+	flags := flag.NewFlagSet("stop", flag.ContinueOnError)
+	dryRun := false
+	flags.BoolVar(&dryRun, "dry-run", false, "report what would be stopped and stop nothing")
+	if parsed, code := parseCommandFlags("stop", flags, args, stdout, stderr); !parsed {
+		return code
+	}
+	if flags.NArg() != 0 {
+		writeCommandError(stderr, "stop: unexpected arguments: %v", flags.Args())
+		return 2
+	}
+
+	processes, err := list()
+	if err != nil {
+		writeCommandError(stderr, "stop: list processes: %v", err)
+		return 1
+	}
+	targets := stoppableProcesses(processes, os.Getpid())
+	if len(targets) == 0 {
+		writeInfo(stdout, "stop: no ladygraph serve or ui process is running")
+		return 0
+	}
+	if dryRun {
+		for _, target := range targets {
+			writeInfo(stdout, "stop.would: pid=%d %s", target.PID, target.Command())
+		}
+		writeSuccess(stdout, "stop: %d process(es) would be stopped", len(targets))
+		return 0
+	}
+
+	failed := 0
+	killed := 0
+	for _, target := range targets {
+		if err := signal(target.PID, syscall.SIGTERM); err != nil {
+			writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
+			failed++
+			continue
+		}
+		if waitForExit(target.PID, list, stopGracePeriod) {
+			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
+			continue
+		}
+		// The identity is checked again before escalating: a pid freed
+		// during the grace period can already belong to something else.
+		if !stillRunning(target, list) {
+			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
+			continue
+		}
+		if err := signal(target.PID, syscall.SIGKILL); err != nil {
+			writeCommandError(stderr, "stop: pid=%d did not exit and could not be killed: %v", target.PID, err)
+			failed++
+			continue
+		}
+		writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
+		killed++
+	}
+	if failed != 0 {
+		writeResult(stdout, false, "stop: FAIL (%d of %d)", failed, len(targets))
+		return 1
+	}
+	writeSuccess(stdout, "stop: %d process(es) stopped, %d killed", len(targets)-killed, killed)
+	return 0
+}
+
+// stoppableProcesses selects the long-running commands: a server and a
+// viewer, of this user, that are not this process.
+func stoppableProcesses(processes []procstat.Process, self int) []procstat.Process {
+	targets := make([]procstat.Process, 0)
+	for _, process := range processes {
+		if process.PID == self {
+			continue
+		}
+		program, command := process.Invocation()
+		if program != "ladygraph" {
+			continue
+		}
+		if command != "serve" && command != "ui" {
+			continue
+		}
+		targets = append(targets, process)
+	}
+	return targets
+}
+
+// waitForExit polls until the process is gone or the grace period ends. The
+// process is not a child of this one, so there is nothing to wait on.
+func waitForExit(pid int, list processLister, within time.Duration) bool {
+	deadline := time.Now().Add(within)
+	for {
+		if !processRunning(pid, list) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func processRunning(pid int, list processLister) bool {
+	processes, err := list()
+	if err != nil {
+		return true
+	}
+	for _, process := range processes {
+		if process.PID == pid {
+			return true
+		}
+	}
+	return false
+}
+
+// stillRunning reports whether the pid is alive and is still the same
+// invocation, so a reused pid is never killed.
+func stillRunning(target procstat.Process, list processLister) bool {
+	processes, err := list()
+	if err != nil {
+		return false
+	}
+	for _, process := range processes {
+		if process.PID != target.PID {
+			continue
+		}
+		return process.Command() == target.Command()
+	}
+	return false
 }

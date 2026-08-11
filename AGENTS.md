@@ -259,6 +259,18 @@ integridad, compatibilidad o verificación descritos aquí.
   autenticación; restringirlo es `--addr` o `web.address`.
 - `ladygraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
   listener y ejecuta un cierre graceful acotado al cancelar el contexto.
+- `ladygraph stop` termina los procesos largos de este usuario -- `serve` y
+  `ui` -- y nada más. Selecciona por invocación, no por ejecutable: una
+  indexación en curso son minutos de análisis y no se tira, y el propio `stop`
+  no se mata a sí mismo. Manda `SIGTERM`, espera el cierre graceful acotado y
+  sólo entonces `SIGKILL`, y antes de escalar vuelve a comprobar que el pid
+  sigue siendo la misma invocación: un pid liberado durante la espera puede ya
+  pertenecer a otro proceso. `--dry-run` enumera sin señalar.
+- La enumeración de procesos vive en `internal/procstat`, con un fichero por
+  plataforma: `/proc` en Linux y `kern.proc.all` más `kern.procargs2` en
+  macOS. Sólo se ven los procesos de este usuario, que son exactamente los que
+  se podrían señalar, y una plataforma que no sabe enumerar devuelve error, no
+  una lista vacía.
 - `internal/webassets` sirve solo la copia generada de `web/dist` cuando la
   distribución se construye con el tag `webassets`; los binarios sin tag
   devuelven un fallback visible `503` en vez de servir archivos no declarados.

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/indexing"
 	"github.com/Luqueee/ladygraph/internal/logging"
+	"github.com/Luqueee/ladygraph/internal/procstat"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
@@ -1526,5 +1528,176 @@ func TestUIWarnsWhenTheBindIsReachable(t *testing.T) {
 		if got := !isLoopbackListenAddress(address); got != wantWarning {
 			t.Fatalf("%q warns = %t, want %t", address, got, wantWarning)
 		}
+	}
+}
+
+// stopFixture drives runStop over a process table the test owns, so the
+// escalation path can be exercised without signalling anything real.
+type stopFixture struct {
+	processes []procstat.Process
+	signals   []string
+	// diesOn is the signal after which a pid disappears from the table.
+	diesOn map[int]syscall.Signal
+	// replaceOnTerm swaps a pid for a different command, which is what a
+	// reused pid looks like from the outside.
+	replaceOnTerm map[int]string
+	failOn        map[int]error
+}
+
+func (fixture *stopFixture) list() ([]procstat.Process, error) {
+	return append([]procstat.Process(nil), fixture.processes...), nil
+}
+
+func (fixture *stopFixture) signal(pid int, signal syscall.Signal) error {
+	fixture.signals = append(fixture.signals, fmt.Sprintf("%d:%v", pid, signal))
+	if err, exists := fixture.failOn[pid]; exists {
+		return err
+	}
+	if replacement, exists := fixture.replaceOnTerm[pid]; exists && signal == syscall.SIGTERM {
+		for index := range fixture.processes {
+			if fixture.processes[index].PID == pid {
+				fixture.processes[index].Args = strings.Fields(replacement)
+			}
+		}
+		return nil
+	}
+	if dies, exists := fixture.diesOn[pid]; exists && dies == signal {
+		remaining := fixture.processes[:0]
+		for _, process := range fixture.processes {
+			if process.PID != pid {
+				remaining = append(remaining, process)
+			}
+		}
+		fixture.processes = remaining
+	}
+	return nil
+}
+
+// shortenStopGrace keeps the escalation tests exercising the real wait
+// without paying five seconds of it each.
+func shortenStopGrace(t *testing.T) {
+	t.Helper()
+	previous := stopGracePeriod
+	stopGracePeriod = 50 * time.Millisecond
+	t.Cleanup(func() { stopGracePeriod = previous })
+}
+
+func ladygraphProcess(pid int, command string) procstat.Process {
+	return procstat.Process{PID: pid, Args: []string{"/opt/ladygraph/bin/ladygraph", command}}
+}
+
+// TestStopEndsServersAndViewersOnly is the whole risk of this command: what it
+// does not kill. An index in flight is minutes of analysis, the process
+// running stop is a ladygraph process too, and anything else on the machine
+// must not match however it is named.
+func TestStopEndsServersAndViewersOnly(t *testing.T) {
+	fixture := &stopFixture{
+		processes: []procstat.Process{
+			ladygraphProcess(11, "serve"),
+			ladygraphProcess(12, "ui"),
+			ladygraphProcess(13, "index"),
+			ladygraphProcess(14, "stop"),
+			{PID: 15, Args: []string{"/usr/bin/vim", "ladygraph", "serve"}},
+			{PID: 16, Args: []string{"/opt/other/ladygraph-ts-worker", "serve"}},
+		},
+		diesOn: map[int]syscall.Signal{11: syscall.SIGTERM, 12: syscall.SIGTERM},
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
+	}
+	if got := strings.Join(fixture.signals, ","); got != "11:terminated,12:terminated" {
+		t.Fatalf("signals = %q, want the server and the viewer terminated and nothing else", got)
+	}
+	if !strings.Contains(stdout.String(), "2 process(es) stopped, 0 killed") {
+		t.Fatalf("stdout = %q, want the summary", stdout.String())
+	}
+}
+
+// TestStopKillsWhatDoesNotExit covers the stuck process: SIGTERM first, and
+// SIGKILL only after the grace period, so a shutdown that is doing bounded
+// work is never cut short.
+func TestStopKillsWhatDoesNotExit(t *testing.T) {
+	shortenStopGrace(t)
+	fixture := &stopFixture{
+		processes: []procstat.Process{ladygraphProcess(21, "serve")},
+		diesOn:    map[int]syscall.Signal{21: syscall.SIGKILL},
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
+	}
+	if got := strings.Join(fixture.signals, ","); got != "21:terminated,21:killed" {
+		t.Fatalf("signals = %q, want SIGTERM then SIGKILL", got)
+	}
+	if !strings.Contains(stdout.String(), "stop.killed: pid=21") {
+		t.Fatalf("stdout = %q, want the kill reported rather than hidden", stdout.String())
+	}
+}
+
+// TestStopNeverKillsAReusedPid keeps the escalation honest. A pid freed during
+// the grace period can already belong to something else, and SIGKILL on the
+// strength of a number alone would end an unrelated process.
+func TestStopNeverKillsAReusedPid(t *testing.T) {
+	shortenStopGrace(t)
+	fixture := &stopFixture{
+		processes:     []procstat.Process{ladygraphProcess(31, "serve")},
+		replaceOnTerm: map[int]string{31: "/usr/bin/postgres -D /var/lib/postgres"},
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
+	}
+	if got := strings.Join(fixture.signals, ","); got != "31:terminated" {
+		t.Fatalf("signals = %q, want no SIGKILL once the pid names something else", got)
+	}
+}
+
+// TestStopDryRunSignalsNothing keeps the look-before-you-kill option honest.
+func TestStopDryRunSignalsNothing(t *testing.T) {
+	fixture := &stopFixture{processes: []procstat.Process{ladygraphProcess(41, "serve")}}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop([]string{"--dry-run"}, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
+	}
+	if len(fixture.signals) != 0 {
+		t.Fatalf("signals = %v, want none", fixture.signals)
+	}
+	if !strings.Contains(stdout.String(), "stop.would: pid=41") {
+		t.Fatalf("stdout = %q, want the process named", stdout.String())
+	}
+}
+
+// TestStopReportsWhatItCouldNotStop keeps a failure out of the success line.
+func TestStopReportsWhatItCouldNotStop(t *testing.T) {
+	fixture := &stopFixture{
+		processes: []procstat.Process{ladygraphProcess(51, "serve")},
+		failOn:    map[int]error{51: errors.New("operation not permitted")},
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 1 {
+		t.Fatalf("runStop() = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "operation not permitted") {
+		t.Fatalf("stderr = %q, want the reason", stderr.String())
+	}
+}
+
+// TestStopSaysWhenNothingIsRunning keeps an idempotent command from looking
+// like a failure.
+func TestStopSaysWhenNothingIsRunning(t *testing.T) {
+	fixture := &stopFixture{processes: []procstat.Process{ladygraphProcess(61, "index")}}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+		t.Fatalf("runStop() = %d, want 0", code)
+	}
+	if !strings.Contains(stdout.String(), "no ladygraph serve or ui process is running") {
+		t.Fatalf("stdout = %q, want it said plainly", stdout.String())
 	}
 }

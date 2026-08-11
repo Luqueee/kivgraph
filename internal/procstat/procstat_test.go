@@ -57,3 +57,35 @@ func TestResidentBytesReportsZeroForAnUnknownProcess(t *testing.T) {
 		t.Fatalf("ResidentBytes(unknown) = %d, want 0", got)
 	}
 }
+
+// TestListSeesThisProcess is the floor the stop command stands on: a platform
+// that cannot see the process running the test cannot be trusted to find a
+// server either, and an empty list would read as "nothing is running".
+func TestListSeesThisProcess(t *testing.T) {
+	processes, err := List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	for _, process := range processes {
+		if process.PID != os.Getpid() {
+			continue
+		}
+		program, _ := process.Invocation()
+		if program == "" {
+			t.Fatalf("self has no invocation: %#v", process)
+		}
+		return
+	}
+	t.Fatalf("List() returned %d processes and none was this one (%d)", len(processes), os.Getpid())
+}
+
+// TestInvocationSplitsProgramAndCommand pins what the stop command matches on.
+func TestInvocationSplitsProgramAndCommand(t *testing.T) {
+	program, command := Process{Args: []string{"/opt/ladygraph/bin/ladygraph", "serve"}}.Invocation()
+	if program != "ladygraph" || command != "serve" {
+		t.Fatalf("invocation = %q/%q, want ladygraph/serve", program, command)
+	}
+	if program, command := (Process{}).Invocation(); program != "" || command != "" {
+		t.Fatalf("empty invocation = %q/%q, want both empty", program, command)
+	}
+}
