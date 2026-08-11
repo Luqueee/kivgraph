@@ -73,7 +73,10 @@ func main() {
 		}
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "ui" {
-		logger.Info("starting web viewer", "command", "ui")
+		// Nothing is announced before the viewer is known to exist: a
+		// binary without web assets used to log that it was starting
+		// one and then fail, which reads like a crash rather than a
+		// build that never carried a viewer.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := runConfiguredUI(ctx, os.Args[2:], func(ctx context.Context, address string, handler http.Handler) error {
@@ -119,7 +122,7 @@ func main() {
 	if isTerminal(os.Stderr) {
 		os.Exit(run(os.Args, os.Stdout, os.Stderr))
 	}
-	exitCode := run(os.Args, os.Stdout, logging.NewErrorWriter(logger))
+	exitCode := run(os.Args, os.Stdout, logging.NewCommandWriter(logger))
 	if exitCode != 0 {
 		logger.Error("command failed", "command", "cli", "exit_code", exitCode)
 	}
@@ -737,6 +740,15 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
+	// A count says something happened; the lines say what. Both are on
+	// stdout with the rest of the report, because a warning in a log the
+	// caller is not reading is a warning nobody has.
+	for _, diagnostic := range boundedReportLines(indexReport.GoDiagnostics, 20) {
+		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
+	}
+	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
+		writeWarning(stdout, "index.typescript.no_package: %s declares no package, so it contributes nothing", repository)
+	}
 	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
 		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d",
 			cache.Mode, cache.Hits, cache.Misses, cache.Verified)

@@ -19,10 +19,18 @@ const (
 	// GraphStatusReady means a snapshot is published and queryable.
 	GraphStatusReady = "ready"
 
-	// HealthNotConfigured is reported for a component this deployment never
-	// wired a probe for. It is a statement about the server, not about the
-	// component: an unprobed worker is not the same as a healthy one.
+	// HealthNotConfigured is reported for a component this deployment
+	// wired a probe for that answered nothing. It is a statement about the
+	// server, not about the component: an unprobed worker is not the same
+	// as a healthy one.
 	HealthNotConfigured = "not_configured"
+	// HealthNotApplicable is reported for a component this process does
+	// not use. `serve` answers queries from the published HotSnapshot: it
+	// never opens the database and never runs the TypeScript worker, so
+	// reporting those two as unconfigured suggested a misconfiguration
+	// where there is none. What is or is not being served is `status`,
+	// `snapshot_id` and `snapshot_age_ms`.
+	HealthNotApplicable = "not_applicable"
 
 	graphStatusToolName = "graph_status"
 )
@@ -183,8 +191,14 @@ func graphStatus(
 		Status:             GraphStatusEmpty,
 		EdgesByKind:        []GraphStatusCount{},
 		UnresolvedByReason: []GraphStatusCount{},
-		Worker:             ComponentHealth{State: HealthNotConfigured},
-		Storage:            ComponentHealth{State: HealthNotConfigured},
+		Worker: ComponentHealth{
+			State:  HealthNotApplicable,
+			Detail: "the TypeScript worker runs during indexing, not in this server",
+		},
+		Storage: ComponentHealth{
+			State:  HealthNotApplicable,
+			Detail: "this server answers from the published snapshot and never opens the database",
+		},
 	}
 	if err := applyHostStatus(ctx, &status, probe); err != nil {
 		return nil, Response[GraphStatus]{}, err

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -28,10 +29,13 @@ func TestNewWritesJSONRecord(t *testing.T) {
 	}
 }
 
-func TestNewErrorWriterConvertsLegacyTextToJSON(t *testing.T) {
+// TestNewCommandWriterRecordsProgressAsInformation keeps the level meaning
+// something. Everything a command writes to stderr used to be recorded as an
+// error, including every line of progress of a pass that published cleanly.
+func TestNewCommandWriterRecordsProgressAsInformation(t *testing.T) {
 	var output bytes.Buffer
-	writer := NewErrorWriter(New(&output))
-	message := "doctor storage: invalid database"
+	writer := NewCommandWriter(New(&output))
+	message := "[  1.2s] rebuild publish"
 	if _, err := writer.Write([]byte(message + "\n")); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -40,13 +44,31 @@ func TestNewErrorWriterConvertsLegacyTextToJSON(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
 		t.Fatalf("JSON log = %q: %v", output.String(), err)
 	}
-	if record["level"] != "ERROR" || record["msg"] != "command stderr" || record["message"] != message {
-		t.Fatalf("record = %#v, want structured legacy message", record)
+	if record["level"] != "INFO" || record["msg"] != message {
+		t.Fatalf("record = %#v, want the progress line at INFO", record)
 	}
 }
 
-func TestNewErrorWriterRejectsNilLogger(t *testing.T) {
-	_, err := NewErrorWriter(nil).Write([]byte("error"))
+// TestNewCommandWriterRecordsAStatedFailure covers the other half: a caller
+// that knows the line is a failure says so, and the line itself is the
+// message a reader greps for.
+func TestNewCommandWriterRecordsAStatedFailure(t *testing.T) {
+	var output bytes.Buffer
+	writer := NewCommandWriter(New(&output))
+	message := "doctor storage: invalid database"
+	writer.WriteLevel(slog.LevelError, message)
+
+	var record map[string]any
+	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+		t.Fatalf("JSON log = %q: %v", output.String(), err)
+	}
+	if record["level"] != "ERROR" || record["msg"] != message {
+		t.Fatalf("record = %#v, want the failure at ERROR with its own text", record)
+	}
+}
+
+func TestNewCommandWriterRejectsNilLogger(t *testing.T) {
+	_, err := NewCommandWriter(nil).Write([]byte("error"))
 	if err == nil || !strings.Contains(err.Error(), "nil logger") {
 		t.Fatalf("Write() error = %v, want nil logger error", err)
 	}

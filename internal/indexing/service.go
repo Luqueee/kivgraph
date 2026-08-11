@@ -307,9 +307,12 @@ func parseSnapshotID(value string) (uint64, error) {
 // Only a name already held by a different directory is a real conflict,
 // because then nothing can decide which of the two the name means.
 func upsertRepository(registry *config.RepositoriesFile, entry config.Repository) (bool, error) {
-	key := strings.ToLower(strings.TrimSpace(entry.Name))
+	// The name is matched exactly, the same way workspace.ValidatePaths
+	// compares it: two repositories whose names differ only in case are
+	// two repositories, and a monorepo can hold both.
+	key := strings.TrimSpace(entry.Name)
 	for index, existing := range registry.Repositories {
-		if strings.ToLower(strings.TrimSpace(existing.Name)) != key {
+		if strings.TrimSpace(existing.Name) != key {
 			continue
 		}
 		if filepath.Clean(existing.Path) != filepath.Clean(entry.Path) {

@@ -196,6 +196,32 @@ integridad, compatibilidad o verificación descritos aquí.
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría
   servir la página de «bundle no disponible».
+- Un comando puntual clasifica lo que escribe en `stderr`: el progreso es
+  `INFO` y sólo un fallo es `ERROR`, y el texto de la línea es el `msg` del
+  registro, nunca un campo dentro de un mensaje fijo. Un registro que un
+  lector no puede filtrar por nivel ni encontrar por texto no informa de nada.
+- La ayuda marca el comando que esta build no puede ejecutar. El bundle MCP
+  publicado no lleva `webassets`, así que anunciar `ui` sin decirlo describe
+  una capacidad que no existe.
+- El vocabulario de lenguajes es `config.SupportedLanguages` y se valida al
+  escribir el registro, no sólo al indexar: `init` no acepta lo que la pasada
+  rechaza.
+- Una configuración escrita fuera de la ubicación por defecto es autocontenida:
+  su estado, su caché y su registro cuelgan de su propio directorio. Un
+  `--config` en `/tmp` que apuntase al estado real publicaría generaciones
+  sobre el grafo que venía a dejar en paz.
+- Los nombres de repositorio se comparan exactos. El nombre es un
+  identificador, nunca un componente de ruta, y las stable keys que lo llevan
+  distinguen mayúsculas: dos repositorios que sólo difieren en el caso son dos
+  repositorios y tienen que poder registrarse con su nombre real.
+- `graph_status` no informa de lo que este proceso no usa ni midió. `serve`
+  responde desde el HotSnapshot publicado: no abre la base ni ejecuta el
+  worker, así que los declara `not_applicable` diciendo por qué, y las
+  secciones de métricas que nadie observó se omiten en vez de valer cero.
+- Un diagnóstico del cargador que no tumba la pasada se imprime, no sólo se
+  cuenta; un repositorio TypeScript que no declara ningún paquete se nombra.
+  Un contador sin detalle y una entrada de registro que no aporta nada son
+  dos formas de callar.
 
 ## TypeScript
 

@@ -107,7 +107,7 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 			name: "name collision",
 			build: func(t *testing.T) config.RepositoriesFile {
 				return config.RepositoriesFile{Repositories: []config.Repository{
-					{Name: "Service", Path: testsupport.TempDir(t)},
+					{Name: "service", Path: testsupport.TempDir(t)},
 					{Name: "service", Path: testsupport.TempDir(t)},
 				}}
 			},
@@ -168,5 +168,22 @@ func TestValidatePathsHonorsCancellation(t *testing.T) {
 	_, err := validatePaths(ctx, config.RepositoriesFile{Repositories: []config.Repository{{Name: "service", Path: testsupport.TempDir(t)}}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("validatePaths(canceled) error = %v, want context.Canceled", err)
+	}
+}
+
+// TestValidatePathsAcceptsNamesThatDifferOnlyInCase keeps a real monorepo
+// nameable. `modules/tempvoice-module` and `modules/tempVoice-module` are two
+// git repositories, and the validator used to compare names case
+// insensitively, so one of them could only enter the graph under an invented
+// alias that names nothing on disk. A repository name is an identifier: it
+// never becomes a path component, and the stable keys carrying it are case
+// sensitive.
+func TestValidatePathsAcceptsNamesThatDifferOnlyInCase(t *testing.T) {
+	source := config.RepositoriesFile{Repositories: []config.Repository{
+		{Name: "tempvoice-module", Path: testsupport.TempDir(t)},
+		{Name: "tempVoice-module", Path: testsupport.TempDir(t)},
+	}}
+	if err := ValidatePaths(context.Background(), source); err != nil {
+		t.Fatalf("ValidatePaths() error = %v, want two distinct repositories accepted", err)
 	}
 }

@@ -41,11 +41,18 @@ func validatePaths(ctx context.Context, source config.RepositoriesFile) ([]valid
 		if err := validateRepositoryName(name); err != nil {
 			return nil, fmt.Errorf("validate repositories[%d]: %w", index, err)
 		}
-		nameKey := strings.ToLower(name)
-		if previous, exists := seenNames[nameKey]; exists {
+		// Names are compared exactly. A repository name is an
+		// identifier, never a path component -- nothing derives a
+		// directory, a temporary file or a state entry from it -- and
+		// the stable keys that carry it are case sensitive. A monorepo
+		// that really holds `tempvoice-module` and `tempVoice-module`
+		// as two git repositories has to be nameable, and an alias
+		// invented to get past this check makes the graph name
+		// something that does not exist on disk.
+		if previous, exists := seenNames[name]; exists {
 			return nil, fmt.Errorf("validate repositories[%d] %q: name collision with repositories[%d]", index, name, previous)
 		}
-		seenNames[nameKey] = index
+		seenNames[name] = index
 
 		path, realPath, err := inspectRepositoryPath(repository.Path)
 		if err != nil {

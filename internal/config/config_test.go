@@ -358,3 +358,62 @@ func TestInitializeCreatesSecureStateAndRegistersRepositories(t *testing.T) {
 		t.Fatalf("duplicate RegisterRepositories() error = %v, want duplicate error", err)
 	}
 }
+
+// TestInitializeKeepsACustomLocationSelfContained stops a probe from
+// publishing over the real graph. A configuration written outside the default
+// location used to carry the default storage paths, so running it wrote
+// generations into the state of the installation it was meant to leave alone.
+func TestInitializeKeepsACustomLocationSelfContained(t *testing.T) {
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "config.yaml")
+
+	result, err := Initialize(InitOptions{ConfigPath: configPath})
+	if err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	loaded, err := Load(result.ConfigPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	state := filepath.Join(directory, "state")
+	for name, path := range map[string]string{
+		"storage.database_path":       loaded.Config.Storage.DatabasePath,
+		"storage.snapshots_path":      loaded.Config.Storage.SnapshotsPath,
+		"storage.backups_path":        loaded.Config.Storage.BackupsPath,
+		"indexing.fact_cache_path":    loaded.Config.Indexing.FactCachePath,
+		"go.synthetic_work_file":      loaded.Config.Go.SyntheticWorkFile,
+		"workspace.repositories_file": loaded.Config.Workspace.RepositoriesFile,
+	} {
+		if !strings.HasPrefix(path, directory) {
+			t.Fatalf("%s = %q, want it under the configuration's own directory %q", name, path, directory)
+		}
+		if strings.Contains(path, "state") && !strings.HasPrefix(path, state) {
+			t.Fatalf("%s = %q, want it under %q", name, path, state)
+		}
+	}
+}
+
+// TestInitializeAtTheDefaultLocationKeepsTheDefaultState is the other half:
+// isolating a custom location must not move the state of a normal install.
+func TestInitializeAtTheDefaultLocationKeepsTheDefaultState(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	defaultPath, err := DefaultConfigPath()
+	if err != nil {
+		t.Fatalf("DefaultConfigPath() error = %v", err)
+	}
+
+	result, err := Initialize(InitOptions{ConfigPath: defaultPath})
+	if err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	loaded, err := Load(result.ConfigPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	want := filepath.Join(home, ".local", "state", "ladygraph", "graph.lbdb")
+	if loaded.Config.Storage.DatabasePath != want {
+		t.Fatalf("database_path = %q, want the default %q", loaded.Config.Storage.DatabasePath, want)
+	}
+}

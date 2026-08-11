@@ -68,7 +68,7 @@ func TestUpsertRepositoryRefusesANameHeldByAnotherPath(t *testing.T) {
 	}}
 
 	_, err := upsertRepository(&registry, config.Repository{
-		Name: "Mole", Path: "/elsewhere/mole", Languages: []string{"go"},
+		Name: "mole", Path: "/elsewhere/mole", Languages: []string{"go"},
 	})
 	if err == nil {
 		t.Fatal("upsertRepository() accepted a name already held by another directory")

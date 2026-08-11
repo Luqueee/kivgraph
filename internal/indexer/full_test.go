@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/ladygraph/internal/goloader"
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
 	"github.com/Luqueee/ladygraph/internal/testsupport"
 	"github.com/Luqueee/ladygraph/internal/workspace"
@@ -486,7 +487,7 @@ func TestFullDeclaresAmbiguousTypeScriptPackages(t *testing.T) {
 		writeFullFixture(t, filepath.Join(packageRoot, "src", "index.ts"), "export const value = 1;\n")
 	}
 
-	packages, conflicts, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
+	packages, conflicts, _, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
 		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
 	}})
 	if err != nil {
@@ -545,7 +546,7 @@ func TestDiscoverTypeScriptPackagesUsesEachProjectAndSkipsUnconfiguredPackages(t
 		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
 	}
 
-	packages, conflicts, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
+	packages, conflicts, _, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
 		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
 	}})
 	if err != nil {
@@ -647,5 +648,58 @@ func TestMergeSetsUnionsTheLanguagesOfEveryUnit(t *testing.T) {
 		if fmt.Sprint(byKey[key]) != fmt.Sprint(languages) {
 			t.Fatalf("%s languages = %v, want %v", key, byKey[key], languages)
 		}
+	}
+}
+
+// TestDiscoverTypeScriptPackagesNamesARepositoryWithoutPackages keeps a
+// registry entry from suggesting coverage the graph never had. A repository of
+// loose .mjs files declares no package, the pipeline discovers packages, and
+// the pass used to report nothing at all about it.
+func TestDiscoverTypeScriptPackagesNamesARepositoryWithoutPackages(t *testing.T) {
+	loose := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(loose, "tool.mjs"), "export const tool = 1\n")
+
+	named := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(named, "package.json"),
+		`{"name":"@probe/named","version":"1.0.0","main":"src/index.ts","types":"src/index.ts"}`)
+	writeFullFixture(t, filepath.Join(named, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
+	writeFullFixture(t, filepath.Join(named, "src", "index.ts"), "export const named = 1\n")
+
+	packages, _, withoutPackages, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{
+		{Name: "loose", Path: loose, RealPath: loose, Languages: []string{"javascript"}},
+		{Name: "named", Path: named, RealPath: named, Languages: []string{"typescript"}},
+	})
+	if err != nil {
+		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
+	}
+	if len(packages) != 1 {
+		t.Fatalf("packages = %d, want only the repository that declares one", len(packages))
+	}
+	if len(withoutPackages) != 1 || withoutPackages[0] != "loose" {
+		t.Fatalf("withoutPackages = %v, want the repository that declares none named", withoutPackages)
+	}
+}
+
+// TestNonBlockingDiagnosticsRendersWhatTheLoaderSaid keeps "diagnostics=3"
+// from being the whole story. The count used to be the only trace of a
+// diagnostic the loader reported without blocking the pass.
+func TestNonBlockingDiagnosticsRendersWhatTheLoaderSaid(t *testing.T) {
+	errors := []goloader.PackageError{
+		{PackageID: "a", PackagePath: "example.com/a", Position: "a.go:3:2", Message: "module lookup disabled", Kind: goloader.ListError},
+		{PackageID: "b", PackagePath: "example.com/b", Message: "broken", Kind: goloader.TypeError},
+	}
+	blocking := []goloader.PackageError{errors[1]}
+
+	rendered := nonBlockingDiagnostics(errors, blocking, "example.com/module")
+	if len(rendered) != 1 {
+		t.Fatalf("diagnostics = %v, want only the one that did not block", rendered)
+	}
+	for _, want := range []string{"example.com/a", "a.go:3:2", "LIST", "module lookup disabled"} {
+		if !strings.Contains(rendered[0], want) {
+			t.Fatalf("diagnostic = %q, want it to name %q", rendered[0], want)
+		}
+	}
+	if nonBlockingDiagnostics(blocking, blocking, "example.com/module") != nil {
+		t.Fatalf("a pass whose every diagnostic blocked must report none")
 	}
 }

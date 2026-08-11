@@ -108,6 +108,11 @@ type cacheEntry struct {
 	Unresolved      int       `json:"unresolved"`
 	Symbols         int       `json:"symbols"`
 	Detail          string    `json:"detail"`
+	// Diagnostics travel with the entry: a warm pass reports what the
+	// loader said about this module just like the pass that read it, or
+	// the warning disappears the second time a graph is built.
+	Diagnostics []string `json:"diagnostics,omitempty"`
+	Requested   []string `json:"requested,omitempty"`
 }
 
 func (entry cacheEntry) result() analysisResult {
@@ -120,6 +125,8 @@ func (entry cacheEntry) result() analysisResult {
 		unresolved:      entry.Unresolved,
 		symbols:         entry.Symbols,
 		detail:          entry.Detail,
+		diagnostics:     entry.Diagnostics,
+		requested:       entry.Requested,
 	}
 }
 
@@ -290,6 +297,8 @@ func (cache *factCache) store(
 		Unresolved:      result.unresolved,
 		Symbols:         result.symbols,
 		Detail:          result.detail,
+		Diagnostics:     result.diagnostics,
+		Requested:       requestedPackages(result),
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {

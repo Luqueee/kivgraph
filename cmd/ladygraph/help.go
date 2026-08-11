@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/ladygraph/internal/webassets"
 )
 
 // The command line is the first thing an operator sees, so it is written for a
@@ -19,7 +21,6 @@ import (
 const helpTagline = "A canonical code graph for Go and TypeScript, served over MCP."
 
 type commandEntry struct {
-	// invocation is what the operator types, flags included.
 	invocation string
 	summary    string
 }
@@ -27,6 +28,33 @@ type commandEntry struct {
 type commandGroup struct {
 	title    string
 	commands []commandEntry
+}
+
+// unavailableCommands answers why a build cannot run a command, keyed by the
+// invocation the table above declares. TestHelpMarksEveryUnavailableCommand
+// keeps the keys naming commands that exist.
+var unavailableCommands = map[string]func() string{
+	"ui [--addr HOST:PORT]": webBundleAbsence,
+}
+
+// commandAbsence answers why this build cannot run the command, and the empty
+// string when nothing stands in the way.
+func commandAbsence(invocation string) string {
+	produce, exists := unavailableCommands[invocation]
+	if !exists {
+		return ""
+	}
+	return produce()
+}
+
+// webBundleAbsence is why `ui` cannot run: the published MCP bundle is built
+// without web assets on purpose, so a binary that advertises a viewer it
+// cannot serve is lying to the only person who reads the help.
+func webBundleAbsence() string {
+	if webassets.Available() {
+		return ""
+	}
+	return "this build carries no web bundle"
 }
 
 // commandGroups is the whole surface of the command line, in the order an
@@ -136,7 +164,11 @@ func writeHelp(writer io.Writer, program string) {
 	for _, group := range commandGroups {
 		fmt.Fprintf(writer, "\n%s%s%s\n", paint.bold, group.title, paint.reset)
 		for _, command := range group.commands {
-			fmt.Fprintf(writer, "  %-*s  %s\n", width, command.invocation, command.summary)
+			fmt.Fprintf(writer, "  %-*s  %s", width, command.invocation, command.summary)
+			if reason := commandAbsence(command.invocation); reason != "" {
+				fmt.Fprintf(writer, " %s(unavailable: %s)%s", paint.dim, reason, paint.reset)
+			}
+			fmt.Fprintln(writer)
 		}
 	}
 	fmt.Fprintf(writer, "\n%sRun \"%s <command> --help\" for the flags of one command.%s\n",
@@ -146,10 +178,20 @@ func writeHelp(writer io.Writer, program string) {
 // writeUsageError states the mistake in one line and points at the help,
 // instead of repeating the whole surface at someone who mistyped.
 func writeUsageError(writer io.Writer, program, problem string) {
+	if levelled, ok := writer.(levelledWriter); ok {
+		levelled.WriteLevel(slog.LevelError, fmt.Sprintf("%s: %s", program, problem))
+		return
+	}
 	paint := styleFor(writer)
 	fmt.Fprintf(writer, "%s%s%s: %s%s\n", paint.error, program, paint.reset, problem, paint.reset)
 	fmt.Fprintf(writer, "%sRun \"%s --help\" to see the available commands.%s\n",
 		paint.dim, program, paint.reset)
+}
+
+// levelledWriter is a stderr that records the severity a caller states,
+// rather than deciding one for every line it receives.
+type levelledWriter interface {
+	WriteLevel(level slog.Level, message string)
 }
 
 func writeInfo(writer io.Writer, format string, arguments ...any) {
@@ -167,9 +209,20 @@ func writeWarning(writer io.Writer, format string, arguments ...any) {
 	fmt.Fprintf(writer, "%s%s%s\n", paint.warning, fmt.Sprintf(format, arguments...), paint.reset)
 }
 
+// writeCommandError states a failure on the command's stderr.
+//
+// When that stderr is the structured writer -- stderr is a pipe or a file,
+// so a program is reading it -- the line is recorded at ERROR. Everything
+// else a command writes there is progress, and progress logged as an error
+// tells a reader nothing about whether anything went wrong.
 func writeCommandError(writer io.Writer, format string, arguments ...any) {
+	message := fmt.Sprintf(format, arguments...)
+	if levelled, ok := writer.(levelledWriter); ok {
+		levelled.WriteLevel(slog.LevelError, message)
+		return
+	}
 	paint := styleFor(writer)
-	fmt.Fprintf(writer, "%s%s%s\n", paint.error, fmt.Sprintf(format, arguments...), paint.reset)
+	fmt.Fprintf(writer, "%s%s%s\n", paint.error, message, paint.reset)
 }
 
 func writeResult(writer io.Writer, passed bool, format string, arguments ...any) {
@@ -250,4 +303,16 @@ func summaryFor(name string) string {
 		}
 	}
 	return ""
+}
+
+// boundedReportLines caps how many detail lines a report prints, and says how
+// many it withheld. A pass over a broken workspace can produce hundreds, and
+// a report nobody reads to the end hides the first one.
+func boundedReportLines(lines []string, limit int) []string {
+	if len(lines) <= limit {
+		return lines
+	}
+	bounded := make([]string, 0, limit+1)
+	bounded = append(bounded, lines[:limit]...)
+	return append(bounded, fmt.Sprintf("and %d more", len(lines)-limit))
 }

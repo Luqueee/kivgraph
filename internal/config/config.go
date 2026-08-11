@@ -260,6 +260,34 @@ func DefaultConfig() Config {
 	}
 }
 
+// stateBesideConfig answers a configuration whose state lives next to
+// configPath, or nil when configPath is the default location and the default
+// state is already the right answer.
+//
+// Only the paths move. Everything else a caller may have asked for -- the
+// registry it named, the languages, the budgets -- is untouched.
+func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
+	defaultPath, err := DefaultConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	if filepath.Clean(configPath) == filepath.Clean(defaultPath) {
+		return nil, nil
+	}
+	directory := filepath.Dir(configPath)
+	state := filepath.Join(directory, "state")
+	configuration := DefaultConfig()
+	configuration.Storage.DatabasePath = filepath.Join(state, "graph.lbdb")
+	configuration.Storage.SnapshotsPath = filepath.Join(state, "snapshots")
+	configuration.Storage.BackupsPath = filepath.Join(state, "backups")
+	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
+	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
+	if ownRegistry {
+		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
+	}
+	return &configuration, nil
+}
+
 // DefaultConfigPath returns the expanded default config path.
 func DefaultConfigPath() (string, error) {
 	return expandPath(defaultConfigFile, "")
@@ -284,6 +312,23 @@ func Initialize(options InitOptions) (InitResult, error) {
 	}
 
 	configuration := DefaultConfig()
+	if strings.TrimSpace(options.ConfigPath) != "" {
+		// A configuration written somewhere other than the default
+		// location is an isolated one: a probe under /tmp used to be
+		// created with storage still pointing at the state of the real
+		// installation, so running it published generations over the
+		// graph it was meant to leave alone.
+		beside, err := stateBesideConfig(configPath, strings.TrimSpace(options.RepositoriesPath) == "")
+		if err != nil {
+			return InitResult{}, err
+		}
+		if beside != nil {
+			configuration = *beside
+			if strings.TrimSpace(options.RepositoriesPath) == "" {
+				repositoriesPath = configuration.Workspace.RepositoriesFile
+			}
+		}
+	}
 	configuration.Workspace.RepositoriesFile = repositoriesPath
 	if _, statErr := os.Stat(configPath); statErr == nil && !options.Force {
 		configuration, err = loadConfigFile(configPath)
@@ -763,10 +808,38 @@ func validateRepositories(repositories RepositoriesFile) error {
 			if _, exists := seenLanguages[language]; exists {
 				return fmt.Errorf("%s.languages[%d]: duplicate language %q", field, languageIndex, language)
 			}
+			if !SupportedLanguage(language) {
+				return fmt.Errorf("%s.languages[%d]: unsupported language %q, want one of %s",
+					field, languageIndex, language, strings.Join(SupportedLanguages(), ", "))
+			}
 			seenLanguages[language] = struct{}{}
 		}
 	}
 	return nil
+}
+
+// SupportedLanguages is the vocabulary an indexed repository may declare, in
+// the order an error lists them.
+//
+// It lives here, next to the registry that stores the value, because the
+// registry is where a language is written: a name the indexer cannot analyse
+// used to be accepted by `init` and only rejected by the rebuild, hours later
+// and in another process.
+func SupportedLanguages() []string {
+	return []string{"go", "typescript", "javascript", "ts", "js"}
+}
+
+// SupportedLanguage reports whether the indexer can analyse a repository that
+// declares this language. The comparison ignores case and surrounding space,
+// which is what every consumer of the field already does.
+func SupportedLanguage(language string) bool {
+	normalised := strings.ToLower(strings.TrimSpace(language))
+	for _, supported := range SupportedLanguages() {
+		if normalised == supported {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveConfigPath(path string) (string, error) {

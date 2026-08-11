@@ -138,12 +138,17 @@ type LadybugMetrics struct {
 }
 
 // Report is a consistent copy of all metrics available from the registry.
+// Report is what one process measured. A section is absent when this process
+// never observed it: `ladygraph serve` records queries and the snapshot it
+// loaded, and never indexes anything, so reporting an index that took zero
+// seconds over zero files would describe work that happened somewhere else --
+// and read exactly like a graph that is empty.
 type Report struct {
 	Queries  map[string]QueryMetrics `json:"queries"`
-	Snapshot SnapshotMetrics         `json:"snapshot"`
-	Index    IndexMetrics            `json:"index"`
-	Worker   WorkerMetrics           `json:"worker"`
-	Ladybug  LadybugMetrics          `json:"ladybug"`
+	Snapshot *SnapshotMetrics        `json:"snapshot,omitempty"`
+	Index    *IndexMetrics           `json:"index,omitempty"`
+	Worker   *WorkerMetrics          `json:"worker,omitempty"`
+	Ladybug  *LadybugMetrics         `json:"ladybug,omitempty"`
 }
 
 type queryCounter struct {
@@ -162,6 +167,14 @@ type lifecycleState struct {
 	index    IndexMetrics
 	worker   WorkerMetrics
 	ladybug  LadybugMetrics
+
+	// Observed marks the sections this process actually recorded, so a
+	// report can leave out what it never measured instead of reporting it
+	// as zero.
+	observedSnapshot bool
+	observedIndex    bool
+	observedWorker   bool
+	observedLadybug  bool
 }
 
 // ObserveQuery records one completed query. Negative values are clamped so a
@@ -191,6 +204,7 @@ func (r *Registry) ObserveQuery(observation QueryObservation) {
 
 	if observation.SnapshotID != nil || observation.SnapshotAgeMS != nil {
 		r.mu.Lock()
+		r.state.observedSnapshot = true
 		if observation.SnapshotID != nil {
 			r.state.snapshot.ID = *observation.SnapshotID
 		}
@@ -216,6 +230,7 @@ func (r *Registry) ObserveSnapshot(observation SnapshotObservation) {
 		Bytes:         nonNegativeInt64(observation.Bytes),
 	}
 	r.mu.Lock()
+	r.state.observedSnapshot = true
 	r.state.snapshot = SnapshotMetrics{
 		ID:            normalized.ID,
 		CreatedAt:     normalized.CreatedAt,
@@ -241,6 +256,7 @@ func (r *Registry) ObserveIndex(observation IndexObservation) {
 		Unresolved: observation.Unresolved,
 	}
 	r.mu.Lock()
+	r.state.observedIndex = true
 	r.state.index = IndexMetrics{
 		Duration:   normalized.Duration,
 		Files:      normalized.Files,
@@ -264,6 +280,7 @@ func (r *Registry) ObserveWorker(observation WorkerObservation) {
 		MemoryBytes: nonNegativeInt64(observation.MemoryBytes),
 	}
 	r.mu.Lock()
+	r.state.observedWorker = true
 	r.state.worker = WorkerMetrics{
 		Restarts:    normalized.Restarts,
 		MemoryBytes: normalized.MemoryBytes,
@@ -281,6 +298,7 @@ func (r *Registry) RecordWorkerRestart() {
 		return
 	}
 	r.mu.Lock()
+	r.state.observedWorker = true
 	r.state.worker.Restarts++
 	observation := WorkerObservation{
 		Restarts:    r.state.worker.Restarts,
@@ -303,6 +321,7 @@ func (r *Registry) ObserveLadybug(observation LadybugObservation) {
 		DatabaseBytes:       nonNegativeInt64(observation.DatabaseBytes),
 	}
 	r.mu.Lock()
+	r.state.observedLadybug = true
 	r.state.ladybug.Transactions++
 	r.state.ladybug.TransactionTotal += normalized.TransactionDuration
 	if normalized.TransactionDuration > r.state.ladybug.TransactionMax {
@@ -347,7 +366,24 @@ func (r *Registry) ReportAt(now time.Time) Report {
 	if !state.snapshot.CreatedAt.IsZero() {
 		state.snapshot.Age = nonNegativeDuration(now.Sub(state.snapshot.CreatedAt))
 	}
-	return Report{Queries: queries, Snapshot: state.snapshot, Index: state.index, Worker: state.worker, Ladybug: state.ladybug}
+	report := Report{Queries: queries}
+	if state.observedSnapshot {
+		snapshot := state.snapshot
+		report.Snapshot = &snapshot
+	}
+	if state.observedIndex {
+		index := state.index
+		report.Index = &index
+	}
+	if state.observedWorker {
+		worker := state.worker
+		report.Worker = &worker
+	}
+	if state.observedLadybug {
+		ladybug := state.ladybug
+		report.Ladybug = &ladybug
+	}
+	return report
 }
 
 func (r *Registry) queryCounter(name string) *queryCounter {

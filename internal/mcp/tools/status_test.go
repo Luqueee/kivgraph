@@ -123,9 +123,14 @@ func TestGraphStatusReportsPublishedSnapshotProvenanceAndCounts(t *testing.T) {
 	if len(status.UnresolvedByReason) != 2 || status.UnresolvedByReason[0] != wantReasons[0] || status.UnresolvedByReason[1] != wantReasons[1] {
 		t.Fatalf("unresolved_by_reason = %#v, want %#v", status.UnresolvedByReason, wantReasons)
 	}
-	// No probe was wired, so health must say so rather than claim success.
-	if status.Worker.State != HealthNotConfigured || status.Storage.State != HealthNotConfigured {
-		t.Fatalf("health without a probe = %#v/%#v, want %q", status.Worker, status.Storage, HealthNotConfigured)
+	// The server neither opens the database nor runs the worker, so health
+	// says that rather than claiming success -- or suggesting, with
+	// "not_configured", that something was left unwired.
+	if status.Worker.State != HealthNotApplicable || status.Storage.State != HealthNotApplicable {
+		t.Fatalf("health without a probe = %#v/%#v, want %q", status.Worker, status.Storage, HealthNotApplicable)
+	}
+	if status.Worker.Detail == "" || status.Storage.Detail == "" {
+		t.Fatalf("health = %#v/%#v, want each state to say why", status.Worker, status.Storage)
 	}
 	if status.LastRebuildAt != "" || status.LastUpdateAt != "" {
 		t.Fatalf("host timestamps without a probe = %q/%q, want empty", status.LastRebuildAt, status.LastUpdateAt)

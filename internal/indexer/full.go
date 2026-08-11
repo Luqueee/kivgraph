@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/goloader"
 	"github.com/Luqueee/ladygraph/internal/goworkspace"
@@ -99,6 +100,14 @@ type FullReport struct {
 	// Cache reports what the fact cache did, so a pass says how much of
 	// itself it skipped and on whose authority.
 	Cache CacheReport
+	// TypeScriptWithoutPackages names the repositories registered as
+	// TypeScript that declare no package. They contribute nothing, and a
+	// registry entry that contributes nothing looks like coverage.
+	TypeScriptWithoutPackages []string
+	// GoDiagnostics carries what the Go loader reported without blocking
+	// the pass. The count alone said something happened and nothing said
+	// what, and a diagnostic nobody can read is a diagnostic nobody has.
+	GoDiagnostics []string
 
 	GoRepositories int
 	GoModules      int
@@ -159,10 +168,11 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),
 	}
-	typeScriptPackages, typeScriptConflicts, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
+	typeScriptPackages, typeScriptConflicts, withoutPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
 	if err != nil {
 		return facts.Set{}, report, err
 	}
+	report.TypeScriptWithoutPackages = withoutPackages
 	// Every unit's facts are merged in one pass at the end of the pass, not
 	// one at a time: a pairwise merge pays for the whole accumulated graph
 	// on every step.
@@ -242,6 +252,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 				report.GoModulesNotLoaded++
 			}
 			report.GoLoadDiagnostics += result.loadDiagnostics
+			report.GoDiagnostics = append(report.GoDiagnostics, result.diagnostics...)
 			report.GoDefinitions += result.definitions
 			report.GoReferences += result.references
 			report.GoUnresolved += result.unresolved
@@ -272,12 +283,14 @@ func emitProgress(report func(ProgressEvent), event ProgressEvent) {
 	report(event)
 }
 
+// validateLanguages rejects a repository declaring a language this indexer
+// cannot analyse. The vocabulary is config.SupportedLanguages, the same one
+// the registry validates against when the value is written: a second list
+// here would let `init` accept what the pass refuses.
 func validateLanguages(repositories []workspace.Repository) error {
 	for _, repository := range repositories {
 		for _, language := range repository.Languages {
-			switch strings.ToLower(strings.TrimSpace(language)) {
-			case "go", "typescript", "javascript", "ts", "js":
-			default:
+			if !config.SupportedLanguage(language) {
 				return fmt.Errorf("repository %q: unsupported language %q", repository.Name, language)
 			}
 		}
@@ -348,16 +361,25 @@ func countSourceFiles(roots []string) int {
 	return total
 }
 
+// discoverTypeScriptPackages finds the packages of every TypeScript
+// repository, and names the ones that declare none.
+//
+// A repository registered as TypeScript whose tree holds no named package
+// with a project contributes nothing: the pipeline discovers packages, and a
+// directory of loose .mjs files is not one. That used to be silent, so a
+// registry entry suggested coverage the graph never had.
 func discoverTypeScriptPackages(
 	ctx context.Context,
 	repositories []workspace.Repository,
-) ([]typeScriptPackageUnit, []typeScriptConflict, error) {
+) ([]typeScriptPackageUnit, []typeScriptConflict, []string, error) {
 	packages := make([]typeScriptPackageUnit, 0)
 	conflicts := make([]typeScriptConflict, 0)
+	withoutPackages := make([]string, 0)
 	for _, repository := range repositories {
+		discovered := 0
 		registry, err := workspace.NewTypeScriptPackageRegistry(ctx, repository)
 		if err != nil {
-			return nil, nil, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
+			return nil, nil, nil, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
 		}
 		for _, packageValue := range registry.List() {
 			if strings.TrimSpace(packageValue.ProjectPath) == "" {
@@ -368,16 +390,21 @@ func discoverTypeScriptPackages(
 				packageValue: packageValue,
 				files:        countSourceFiles(packageValue.SourceRoots),
 			})
+			discovered++
 		}
 		for _, conflict := range registry.Conflicts() {
 			conflicts = append(conflicts, typeScriptConflict{
 				repository: repository,
 				conflict:   conflict,
 			})
+			discovered++
+		}
+		if discovered == 0 {
+			withoutPackages = append(withoutPackages, repository.Name)
 		}
 	}
 	if len(packages) == 0 && len(conflicts) == 0 && len(repositories) != 0 {
-		return nil, nil, fmt.Errorf("TypeScript repositories have no named package with a project")
+		return nil, nil, nil, fmt.Errorf("TypeScript repositories have no named package with a project")
 	}
 	sort.Slice(packages, func(left, right int) bool {
 		if packages[left].repository.Name != packages[right].repository.Name {
@@ -394,7 +421,7 @@ func discoverTypeScriptPackages(
 		}
 		return conflicts[left].conflict.Name < conflicts[right].conflict.Name
 	})
-	return packages, conflicts, nil
+	return packages, conflicts, withoutPackages, nil
 }
 
 // typeScriptConflict is one ambiguous package name and the repository that
@@ -693,6 +720,8 @@ type analysisResult struct {
 	// requested names every package the unit asked about, resolved or
 	// not. It is what the fact cache depends on besides the sources.
 	requested []string
+	// diagnostics are what the loader said without blocking the pass.
+	diagnostics []string
 }
 
 // moduleNotLoadedFacts declares a Go module the loader could not read.
@@ -821,10 +850,45 @@ func indexGoModule(
 	return analysisResult{
 		set:             set,
 		loadDiagnostics: len(load.Errors) - len(blocking),
+		diagnostics:     nonBlockingDiagnostics(load.Errors, blocking, module.ModulePath),
 		definitions:     len(keyed),
 		references:      len(references),
 		unresolved:      len(unresolved),
 	}, nil
+}
+
+// nonBlockingDiagnostics renders what the loader said about a module it
+// nevertheless read.
+//
+// Some of these become UNRESOLVED entries in the graph -- a package that
+// failed to type check, one whose build constraints selected no file -- and
+// the rest, the go command's own resolution and configuration complaints, are
+// facts about the pass rather than about a symbol. Those used to be counted
+// and dropped, which left "diagnostics=3" and no way to learn what the three
+// were.
+func nonBlockingDiagnostics(errors, blocking []goloader.PackageError, modulePath string) []string {
+	if len(errors) == len(blocking) {
+		return nil
+	}
+	excluded := make(map[string]struct{}, len(blocking))
+	for _, failure := range blocking {
+		excluded[failure.PackagePath+"\x00"+failure.Position+"\x00"+failure.Message] = struct{}{}
+	}
+	diagnostics := make([]string, 0, len(errors)-len(blocking))
+	for _, failure := range errors {
+		if _, isBlocking := excluded[failure.PackagePath+"\x00"+failure.Position+"\x00"+failure.Message]; isBlocking {
+			continue
+		}
+		where := failure.PackagePath
+		if where == "" {
+			where = modulePath
+		}
+		if failure.Position != "" {
+			where += " " + failure.Position
+		}
+		diagnostics = append(diagnostics, fmt.Sprintf("%s [%s] %s", where, failure.Kind, failure.Message))
+	}
+	return diagnostics
 }
 
 // indexTypeScriptPackage turns one TypeScript package into facts. The worker

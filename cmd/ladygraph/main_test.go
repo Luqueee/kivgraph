@@ -26,6 +26,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/synthetic"
 	"github.com/Luqueee/ladygraph/internal/update"
 	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/ladygraph/internal/webassets"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -621,11 +622,14 @@ func TestUnknownFlagNamesItselfAndExitsTwo(t *testing.T) {
 	}
 }
 
+// TestCLIErrorWriterEmitsJSONToStderr keeps a failure recorded at ERROR with
+// its own text as the message: a reader greps the message, and a record whose
+// message is always "command stderr" hides the one line that matters.
 func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	logger := logging.New(&stderr)
 
-	if got := run([]string{"ladygraph"}, &stdout, logging.NewErrorWriter(logger)); got != 2 {
+	if got := run([]string{"ladygraph"}, &stdout, logging.NewCommandWriter(logger)); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if stdout.Len() != 0 {
@@ -636,12 +640,33 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 	if err := json.Unmarshal([]byte(strings.SplitN(stderr.String(), "\n", 2)[0]), &record); err != nil {
 		t.Fatalf("stderr = %q, want JSON records: %v", stderr.String(), err)
 	}
-	if record["level"] != "ERROR" || record["msg"] != "command stderr" {
-		t.Fatalf("record = %#v, want structured command error", record)
+	if record["level"] != "ERROR" {
+		t.Fatalf("record = %#v, want the failure at ERROR", record)
 	}
-	message, ok := record["message"].(string)
+	message, ok := record["msg"].(string)
 	if !ok || !strings.Contains(message, "no command given") {
-		t.Fatalf("record message = %#v, want the usage error", record["message"])
+		t.Fatalf("record msg = %#v, want the usage error itself", record["msg"])
+	}
+}
+
+// TestCLIProgressIsNotAnError keeps a pass that succeeds from reporting every
+// unit of work it finished at ERROR. The level is the only thing a program
+// reading stderr can filter on, and it used to say ERROR for a graph that
+// published cleanly.
+func TestCLIProgressIsNotAnError(t *testing.T) {
+	var stderr bytes.Buffer
+	writer := logging.NewCommandWriter(logging.New(&stderr))
+	writeInfo(writer, "[  1.2s] rebuild publish")
+
+	var record map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(stderr.String())), &record); err != nil {
+		t.Fatalf("stderr = %q, want a JSON record: %v", stderr.String(), err)
+	}
+	if record["level"] != "INFO" {
+		t.Fatalf("record = %#v, want progress at INFO", record)
+	}
+	if message, _ := record["msg"].(string); !strings.Contains(message, "rebuild publish") {
+		t.Fatalf("record msg = %#v, want the progress line itself", record["msg"])
 	}
 }
 
@@ -1436,5 +1461,46 @@ func TestRunSnapshotPassesSnapshotIDFlagThrough(t *testing.T) {
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
+// TestHelpMarksACommandThisBuildCannotRun keeps the help from advertising a
+// viewer this binary cannot serve. The published MCP bundle carries no web
+// assets on purpose, and `ui` used to appear in "Getting started" like any
+// other command, log that it was starting and then exit 1.
+func TestHelpMarksACommandThisBuildCannotRun(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ladygraph", "--help"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("--help exit code = %d, want 0", code)
+	}
+	line := ""
+	for _, candidate := range strings.Split(stdout.String(), "\n") {
+		if strings.Contains(candidate, "ui [--addr") {
+			line = candidate
+		}
+	}
+	if line == "" {
+		t.Fatalf("help does not mention ui:\n%s", stdout.String())
+	}
+	marked := strings.Contains(line, "unavailable: this build carries no web bundle")
+	if marked == webassets.Available() {
+		t.Fatalf("ui line = %q, but webassets.Available() = %t", line, webassets.Available())
+	}
+}
+
+// TestUnavailableCommandsNameRealCommands keeps the table of what a build
+// cannot do from drifting away from the table of what it offers: a key that
+// no longer matches an invocation would silently stop marking anything.
+func TestUnavailableCommandsNameRealCommands(t *testing.T) {
+	invocations := make(map[string]bool)
+	for _, group := range commandGroups {
+		for _, command := range group.commands {
+			invocations[command.invocation] = true
+		}
+	}
+	for invocation := range unavailableCommands {
+		if !invocations[invocation] {
+			t.Fatalf("unavailableCommands names %q, which no command group declares", invocation)
+		}
 	}
 }
