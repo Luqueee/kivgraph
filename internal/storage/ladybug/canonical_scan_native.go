@@ -15,46 +15,30 @@ import (
 
 // ScanCanonical reads the definitive graph out of the database at path.
 //
-// It runs one query per table (metadata, six node tables, eighteen edge
-// tables) and decodes rows tuple by tuple through nextTuple/GetValue -- the
-// same shape every other read in this package already uses: queryCount,
-// runIntegritySampleQuery, reader.references. It deliberately does not use
-// the bulk Arrow C-API path arrow_scan_native.go uses for the old schema's
-// four fixed queries.
+// It reads in Arrow chunks (canonical_scan_arrow_native.go). This file used
+// to argue the opposite -- that a tuple reader was fast enough and that one
+// hand written columnar decoder per table was not worth its memory-safety
+// surface -- and the measurement moved: on a workspace of 33 repositories the
+// snapshot stage spent `2.8 s` of a `8.3 s` pass asking the engine for one
+// value at a time, sixteen cgo crossings for every Symbol row. With the
+// columnar reader that stage is `1.2 s`.
 //
-// Arrow earns its keep there by amortising the per-row cgo crossing across
-// large columnar chunks (arrowScanChunkSize = 2,000,000 rows), at the cost of
-// a hand written, pointer-arithmetic decoder per column shape -- offsets
-// buffer, validity bitmap, and all -- that has to be extended whenever a
-// column is added. The canonical schema already has twenty seven canonical
-// tables (six node tables and twenty one edge tables), plus GraphMetadata,
-// and grows with every future edge kind; committing to one hand rolled Arrow
-// decoder per table multiplies arrow_scan_native.go's maintenance and
-// memory-safety surface by the schema's whole width, for a saving that only
-// matters if the per-row cgo crossing actually dominates. Go-side memory is
-// O(rows scanned)
-// either way, because CanonicalGraph itself holds every row as a slice --
-// tuple-by-tuple decoding never buffers a second full copy on the engine
-// side of the boundary the way materialising an intermediate Arrow batch
-// would, so Arrow's only lever here is CPU time, not peak memory.
-//
-// Measured, single connection, no concurrency, on development hardware (AMD
-// Ryzen 7 9700X): BenchmarkScanCanonicalAtScale in
-// canonical_scan_native_test.go (run with LADYGRAPH_LADYBUG_SCAN_BENCH=1) scans
-// a synthetic graph of 100,000 symbols, 2,000 files, 20 packages and 602,020
-// edge rows -- 704,041 rows total, the same order of magnitude as a
-// million-symbol repository once containment and reference edges are
-// counted -- in 3.08s (3,075,365,563 ns/op, ~229k rows/s, benchmarked
-// 2026-08-05). Linearly extrapolated, a graph an order of magnitude larger
-// -- closer to a real million-symbol repository once its own edges are
-// counted -- would still land around thirty seconds, not minutes. That is
-// fast enough for a rebuild stage that already pays for a full bulk load of
-// the same graph immediately before it. If a real repository ever makes
-// this the bottleneck, the fix is the same chunked pattern
-// arrow_scan_native.go already proves out for the old schema, generalised
-// over CanonicalNodeTables/CanonicalRelationshipTables instead of four
-// fixed queries -- not a reason to pay Arrow's complexity budget today.
+// What the old argument got right is that a pointer-arithmetic decoder can be
+// wrong in ways that still produce a graph, so the tuple reader stays as the
+// oracle: scanCanonicalTuples is the reference implementation, and
+// TestScanCanonicalArrowMatchesTheTupleReader compares the two field by
+// field over a fixture with every column type, a NULL in a nullable column,
+// an empty table and a read that crosses chunk boundaries.
 func ScanCanonical(ctx context.Context, path string) (CanonicalGraph, error) {
+	return scanCanonicalArrow(ctx, path)
+}
+
+// scanCanonicalTuples reads the graph one value at a time through the Go
+// binding. It is the reference implementation ScanCanonical's Arrow reader is
+// tested against: a decoder that misreads a buffer produces a graph that
+// looks plausible, and the only cheap way to disbelieve it is a second reader
+// that cannot share the mistake.
+func scanCanonicalTuples(ctx context.Context, path string) (CanonicalGraph, error) {
 	if err := validatePath(path); err != nil {
 		return CanonicalGraph{}, err
 	}

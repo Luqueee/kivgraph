@@ -630,3 +630,128 @@ func largeSyntheticCanonicalScanFixture(symbolCount, referencesPerSymbol int) fa
 	set.Sort()
 	return set
 }
+
+// TestScanCanonicalArrowMatchesTheTupleReader is the whole argument for the
+// columnar reader. A decoder that misreads a buffer -- an offset, a validity
+// bit, a bool packed one per bit rather than one per byte -- produces a graph
+// that looks plausible and is wrong. The only cheap way to disbelieve it is a
+// second reader that cannot share the mistake, so the tuple reader stays and
+// the two must agree field by field.
+func TestScanCanonicalArrowMatchesTheTupleReader(t *testing.T) {
+	path, _, _ := loadCanonicalScanFixture(t)
+	ctx := context.Background()
+
+	columnar, err := scanCanonicalArrow(ctx, path)
+	if err != nil {
+		t.Fatalf("scanCanonicalArrow() error = %v", err)
+	}
+	tuples, err := scanCanonicalTuples(ctx, path)
+	if err != nil {
+		t.Fatalf("scanCanonicalTuples() error = %v", err)
+	}
+	if !reflect.DeepEqual(columnar, tuples) {
+		t.Fatalf("the two readers disagree:\narrow  = %#v\ntuples = %#v", columnar, tuples)
+	}
+	if len(columnar.Symbols) == 0 || len(columnar.Edges) == 0 || len(columnar.Evidence) == 0 {
+		t.Fatalf("the fixture proves nothing: %d symbols, %d edges, %d evidence",
+			len(columnar.Symbols), len(columnar.Edges), len(columnar.Evidence))
+	}
+}
+
+// TestScanCanonicalArrowMatchesTheTupleReaderAcrossChunks pushes the row
+// count past the engine's own vector size, so the readers are compared over a
+// query answered in several Arrow chunks rather than one. A chunk boundary is
+// where a reader that assumes one buffer per column, or that keeps offsets
+// from the previous chunk, stops agreeing.
+func TestScanCanonicalArrowMatchesTheTupleReaderAcrossChunks(t *testing.T) {
+	const symbols = 5000
+	set := chunkedCanonicalFixtureSet(symbols)
+	path := filepath.Join(t.TempDir(), "graph.db")
+	ctx := context.Background()
+	options := CanonicalLoadOptions{SnapshotID: 9, ResolverVersion: "chunked-resolver"}
+	if _, err := LoadCanonical(ctx, path, set, options); err != nil {
+		t.Fatalf("LoadCanonical() error = %v", err)
+	}
+
+	columnar, err := scanCanonicalArrow(ctx, path)
+	if err != nil {
+		t.Fatalf("scanCanonicalArrow() error = %v", err)
+	}
+	tuples, err := scanCanonicalTuples(ctx, path)
+	if err != nil {
+		t.Fatalf("scanCanonicalTuples() error = %v", err)
+	}
+	if len(columnar.Symbols) != symbols {
+		t.Fatalf("symbols = %d, want %d", len(columnar.Symbols), symbols)
+	}
+	if !reflect.DeepEqual(columnar, tuples) {
+		for index := range columnar.Symbols {
+			if columnar.Symbols[index] != tuples.Symbols[index] {
+				t.Fatalf("symbol %d differs:\narrow  = %#v\ntuples = %#v",
+					index, columnar.Symbols[index], tuples.Symbols[index])
+			}
+		}
+		for index := range columnar.Edges {
+			if columnar.Edges[index] != tuples.Edges[index] {
+				t.Fatalf("edge %d differs:\narrow  = %#v\ntuples = %#v",
+					index, columnar.Edges[index], tuples.Edges[index])
+			}
+		}
+		t.Fatalf("readers disagree: arrow %d/%d/%d/%d vs tuples %d/%d/%d/%d (repo/pkg/file/evidence), metadata %v vs %v",
+			len(columnar.Repositories), len(columnar.Packages), len(columnar.Files), len(columnar.Evidence),
+			len(tuples.Repositories), len(tuples.Packages), len(tuples.Files), len(tuples.Evidence),
+			columnar.Metadata, tuples.Metadata)
+	}
+}
+
+// chunkedCanonicalFixtureSet builds a graph big enough to cross a chunk
+// boundary, with an empty string in every nullable column of every other row:
+// the CSV loader stores those as NULL, and a NULL is what separates "the
+// value was empty" from "the reader lost the row".
+func chunkedCanonicalFixtureSet(symbols int) facts.Set {
+	repositoryKey := facts.RepositoryKey("chunked")
+	packageKey := facts.PackageKey(facts.LanguageGo, repositoryKey, "chunked")
+	fileKey := facts.FileKey(repositoryKey, "chunked.go")
+	set := facts.Set{
+		Repositories: []facts.Repository{{
+			Key: repositoryKey, Name: "chunked", RootPath: "/repos/chunked",
+			Commit: "commit", Branch: "main", Dirty: true,
+			Languages: []facts.Language{facts.LanguageGo},
+		}},
+		Packages: []facts.Package{{
+			Key: packageKey, RepositoryKey: repositoryKey, Language: facts.LanguageGo,
+			Name: "chunked", RootPath: "/repos/chunked", ManifestPath: "/repos/chunked/go.mod",
+			Container: "example.com/chunked",
+		}},
+		Files: []facts.File{{
+			Key: fileKey, RepositoryKey: repositoryKey, PackageKey: packageKey,
+			Path: "chunked.go", Language: facts.LanguageGo, ContentHash: "hash",
+		}},
+	}
+	for index := range symbols {
+		name := fmt.Sprintf("Symbol%05d", index)
+		symbol := facts.Symbol{
+			Key:               fmt.Sprintf("symbol:chunked:%05d", index),
+			CanonicalIdentity: "example.com/chunked." + name,
+			RepositoryKey:     repositoryKey, PackageKey: packageKey, FileKey: fileKey,
+			Language: facts.LanguageGo, Name: name, QualifiedName: "example.com/chunked." + name,
+			Kind: "function", Exported: index%2 == 0, Signature: "func()",
+			Start: facts.Position{Line: index + 1, Column: 1, Offset: index * 10},
+			End:   facts.Position{Line: index + 1, Offset: index*10 + 9},
+		}
+		// Every other symbol carries an empty signature, which the loader
+		// stores as NULL.
+		if index%2 == 1 {
+			symbol.Signature = ""
+		}
+		set.Symbols = append(set.Symbols, symbol)
+	}
+	for index := 1; index < symbols; index++ {
+		set.Edges = append(set.Edges, facts.Edge{
+			Kind: facts.References, SourceKey: set.Symbols[index].Key, TargetKey: set.Symbols[0].Key,
+			Confidence: facts.ExactTypechecked, Provenance: facts.GoTypesUse,
+		})
+	}
+	set.Sort()
+	return set
+}

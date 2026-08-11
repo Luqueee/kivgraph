@@ -346,6 +346,29 @@ entrada discrepa del análisis. Comparar dos pasadas con caché no demuestra
 nada. Medido sobre 33 repositorios, `17.7 s` en frío y `8.3 s` en caliente con
 el digest idéntico, y `33/33` verificadas sin divergencias.
 
+### El scan del snapshot es columnar
+
+El `HotSnapshot` se construye leyendo de vuelta el grafo publicado, y el
+lector pedía un valor por llamada: dieciséis cruces de cgo por cada fila de
+`Symbol`. Sobre 33 repositorios eso eran `2.8 s` de la etapa `snapshot`; en
+chunks de Arrow son `1.2 s`.
+
+- El lector de tuplas no se borró. Es el oráculo: `scanCanonicalTuples` sigue
+  en el paquete y un test compara los dos lectores campo a campo sobre un
+  fixture con todos los tipos de columna, un `NULL`, una tabla vacía y una
+  lectura que cruza chunks. Un decoder de punteros equivocado no falla: da un
+  grafo verosímil.
+- El motor escribe un `NULL` de cadena con offsets `0..0`. No son monótonos,
+  así que el rango de datos de una columna se calcula como el más ancho sobre
+  sus filas; tomarlo de la primera y la última fila deja fuera todos los
+  valores cuando la última es `NULL`. Ese bug existió durante media hora y lo
+  cazó el test de chunks.
+- Los handles de LadybugDB viven en variables locales, nunca en una struct de
+  Go que además tenga punteros Go: cgo rechaza un puntero a una asignación que
+  los contenga.
+- Una tabla sin filas es una colección vacía, no nula, igual que en el lector
+  de tuplas.
+
 ### El visor y el bundle web
 
 - `ladygraph ui` registra la dirección enlazada antes de servir nada, también

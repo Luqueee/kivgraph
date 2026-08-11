@@ -166,6 +166,15 @@ integridad, compatibilidad o verificación descritos aquí.
 - `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
   así que las columnas de una tabla se resuelven una vez por tabla y nunca por
   fila. El grafo tiene una arista por referencia del corpus.
+- El scan canónico lee en chunks de Arrow, no valor a valor: un `Symbol` son
+  dieciséis cruces de cgo por fila y el grafo tiene una fila por declaración
+  del corpus. `scanCanonicalTuples` permanece como implementación de
+  referencia y el test compara los dos lectores campo a campo -- un decoder
+  de punteros equivocado produce un grafo que parece correcto, así que no se
+  toca la ruta columnar sin ese oráculo.
+- El motor escribe un `NULL` de cadena con los offsets `0..0`, que no son
+  monótonos: el rango de datos de una columna es el más ancho sobre sus
+  filas, nunca el que va del inicio de la primera al final de la última.
 - La caché de hechos (`indexing.fact_cache`) guarda una entrada por unidad de
   análisis con **la lista de todo lo que la unidad leyó y su huella**; servirla
   exige revalidar esa lista entera. Una entrada nunca se sirve a otro

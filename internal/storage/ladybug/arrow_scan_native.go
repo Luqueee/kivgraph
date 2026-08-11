@@ -286,16 +286,32 @@ func newArrowArenaColumn(column arrowColumn) (arrowArenaColumn, error) {
 	return arrowArenaColumn{column: column, offsets: offsets, data: data, validity: validity}, nil
 }
 
+// offsetsAt answers the byte range of a row and rejects a NULL: every column
+// of the old schema's four queries is written unconditionally.
 func (column *arrowArenaColumn) offsetsAt(row int64) (int64, int64, error) {
+	start, end, null, err := column.offsetsOrNullAt(row)
+	if err != nil {
+		return 0, 0, err
+	}
+	if null {
+		return 0, 0, fmt.Errorf("Arrow column contains null at row %d", row)
+	}
+	return start, end, nil
+}
+
+// offsetsOrNullAt answers the byte range of a row and whether it is NULL.
+// The canonical schema round trips an empty string as a NULL, so its reader
+// needs the distinction rather than an error.
+func (column *arrowArenaColumn) offsetsOrNullAt(row int64) (int64, int64, bool, error) {
 	array := column.column.array
 	if row < 0 || row >= int64(array.length) {
-		return 0, 0, fmt.Errorf("Arrow row %d outside length %d", row, array.length)
+		return 0, 0, false, fmt.Errorf("Arrow row %d outside length %d", row, array.length)
 	}
 	index := int64(array.offset) + row
 	if column.validity != nil {
 		bit := *(*byte)(unsafe.Add(column.validity, index/8))
 		if bit&(byte(1)<<uint(index%8)) == 0 {
-			return 0, 0, fmt.Errorf("Arrow column contains null at row %d", row)
+			return 0, 0, true, nil
 		}
 	}
 	var start, end int64
@@ -309,10 +325,42 @@ func (column *arrowArenaColumn) offsetsAt(row int64) (int64, int64, error) {
 		start = int64(*(*C.int64_t)(unsafe.Add(column.offsets, index*size)))
 		end = int64(*(*C.int64_t)(unsafe.Add(column.offsets, (index+1)*size)))
 	default:
-		return 0, 0, fmt.Errorf("unsupported Arrow string format %q", column.column.format)
+		return 0, 0, false, fmt.Errorf("unsupported Arrow string format %q", column.column.format)
 	}
 	if start < 0 || end < start {
-		return 0, 0, fmt.Errorf("invalid Arrow string offsets %d..%d", start, end)
+		return 0, 0, false, fmt.Errorf("invalid Arrow string offsets %d..%d", start, end)
+	}
+	return start, end, false, nil
+}
+
+// dataRange answers the byte range this chunk occupies in the column's data
+// buffer.
+//
+// It is the widest range over the rows, not the span from the first row's
+// start to the last row's end: the engine writes a NULL as the offsets
+// `0..0`, so a column whose last row is NULL would otherwise report a range
+// that excludes every value in it.
+func (column *arrowArenaColumn) dataRange(rowCount int64) (int64, int64, error) {
+	var start, end int64
+	found := false
+	for row := int64(0); row < rowCount; row++ {
+		rowStart, rowEnd, null, err := column.offsetsOrNullAt(row)
+		if err != nil {
+			return 0, 0, err
+		}
+		if null || rowEnd == rowStart {
+			continue
+		}
+		if !found {
+			start, end, found = rowStart, rowEnd, true
+			continue
+		}
+		if rowStart < start {
+			start = rowStart
+		}
+		if rowEnd > end {
+			end = rowEnd
+		}
 	}
 	return start, end, nil
 }
@@ -585,4 +633,88 @@ func arrowInterruptGuard(ctx context.Context, connection *C.lbug_connection) fun
 			<-stopped
 		})
 	}
+}
+
+// canonicalArrowScan opens the graph and runs every canonical query on one
+// connection.
+//
+// The database and connection handles are locals, never fields of a Go struct
+// that also holds Go pointers: cgo refuses a pointer into an allocation that
+// contains unpinned Go pointers, and a session object would smuggle the
+// cancel function into the same block.
+func canonicalArrowScan(ctx context.Context, path string, run func(query arrowQueryFunc) error) error {
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+	config := C.lbug_default_system_config()
+	config.enable_compression = C.bool(true)
+	config.read_only = C.bool(true)
+
+	var database C.lbug_database
+	if status := C.lbug_database_init(cpath, config, &database); status != 0 {
+		return fmt.Errorf("open Arrow scan database: status %d", status)
+	}
+	defer C.lbug_database_destroy(&database)
+
+	var connection C.lbug_connection
+	if status := C.lbug_connection_init(&database, &connection); status != 0 {
+		return fmt.Errorf("open Arrow scan connection: status %d", status)
+	}
+	defer C.lbug_connection_destroy(&connection)
+
+	scanCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := arrowInterruptGuard(scanCtx, &connection)
+	defer stop()
+
+	return run(func(query string, formats []string, consume func([]arrowColumn, int64) error) error {
+		return scanArrowQuery(scanCtx, &connection, query, formats, consume)
+	})
+}
+
+// arrowBoolColumn reads a BOOL column, which Arrow packs one bit per row
+// rather than one byte.
+type arrowBoolColumn struct {
+	column   arrowColumn
+	values   unsafe.Pointer
+	validity unsafe.Pointer
+}
+
+func newArrowBoolColumn(column arrowColumn) (arrowBoolColumn, error) {
+	array := column.array
+	if array == nil {
+		return arrowBoolColumn{}, fmt.Errorf("Arrow bool column is nil")
+	}
+	if column.format != arrowBool {
+		return arrowBoolColumn{}, fmt.Errorf("unsupported Arrow bool format %q", column.format)
+	}
+	if array.n_buffers < 2 {
+		return arrowBoolColumn{}, fmt.Errorf("Arrow bool column has %d buffers, want at least 2", array.n_buffers)
+	}
+	values := C.ladygraph_array_buffer(array, 1)
+	if values == nil {
+		return arrowBoolColumn{}, fmt.Errorf("Arrow bool column has nil values buffer")
+	}
+	var validity unsafe.Pointer
+	if array.null_count != 0 {
+		validity = C.ladygraph_array_buffer(array, 0)
+		if validity == nil {
+			return arrowBoolColumn{}, fmt.Errorf("Arrow bool column has null count %d but no validity buffer", array.null_count)
+		}
+	}
+	return arrowBoolColumn{column: column, values: values, validity: validity}, nil
+}
+
+// valueAt answers one row. A NULL is false, which is what the value round
+// trips from: canonical_load.go renders every BOOL unconditionally, so a
+// stored NULL can only come from a row nothing wrote.
+func (column *arrowBoolColumn) valueAt(row int64) (bool, error) {
+	array := column.column.array
+	if row < 0 || row >= int64(array.length) {
+		return false, fmt.Errorf("Arrow row %d outside length %d", row, array.length)
+	}
+	index := int64(array.offset) + row
+	if column.validity != nil && !arrowBitSet(column.validity, index) {
+		return false, nil
+	}
+	return arrowBitSet(column.values, index), nil
 }
