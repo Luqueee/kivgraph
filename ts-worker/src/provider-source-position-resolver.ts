@@ -89,7 +89,11 @@ export async function resolveProviderSourcePositions(
       await service.openProject(projectPath);
       const view = service.project(projectPath);
       for (const request of projectRequests) {
-        const position = await locate(view, request);
+        const position = await locateProviderExport(
+          view,
+          request.sourceFiles,
+          request.exportedName,
+        );
         if (position === undefined) {
           unresolved.push(requestKey(request));
           continue;
@@ -149,11 +153,21 @@ function collectRequests(resolution: ImportedSymbolResolution): Request[] {
   return [...requests.values()];
 }
 
-async function locate(
+/**
+ * Ask a provider's own project which declaration it exports under `name`,
+ * searching only the source files its declaration artifact was mapped to.
+ *
+ * The answer comes from the checker of the repository that owns the code, so
+ * it is the same declaration that repository indexes for itself. A name that
+ * the module does not export resolves to nothing: no position is invented,
+ * and no file is searched that the mapping did not already name.
+ */
+export async function locateProviderExport(
   view: ProjectView,
-  request: Request,
+  sourceFiles: readonly string[],
+  name: string,
 ): Promise<SourcePosition | undefined> {
-  for (const fileName of request.sourceFiles) {
+  for (const fileName of sourceFiles) {
     const sourceFile = await view.program.getSourceFile(fileName);
     if (sourceFile === undefined) {
       continue;
@@ -164,7 +178,7 @@ async function locate(
     }
     const exported = await view.checker.getMemberInModuleExports(
       moduleSymbol,
-      request.exportedName,
+      name,
     );
     if (
       exported === undefined ||

@@ -318,7 +318,9 @@ func collectCrossRepoConsumers(
 		if source.RepositoryKey == target.RepositoryKey || !consumerLocationMatches(source, options) {
 			continue
 		}
-		addReferenceCoverage(&coverage, confidence)
+		// A PACKAGE_DEPENDS_ON edge is evidence about the package, not about
+		// the symbol this query names: it never counts as an exact consumer.
+		coverage.PackageLevel++
 		results = append(results, CrossRepoConsumerSummary{
 			Category:              CrossRepoConsumerPackage,
 			ConsumerRepositoryKey: source.RepositoryKey, ConsumerPackageKey: source.PackageKey, ConsumerPackageName: source.PackageName,
@@ -542,8 +544,12 @@ func crossRepoUnresolvedMatchesTarget(snapshot *hotsnapshot.GraphSnapshot, refer
 	if requestedPackage != target.PackageKey && requestedPackage != target.PackageName && requestedPackage != target.ModulePath {
 		return false
 	}
+	// A failure that named no symbol is a fact about the import of a whole
+	// package -- an unreadable module, an absent provider. Attributing it to
+	// every symbol that package exports would answer a question nobody
+	// asked; `get_unresolved_references` serves it by requested_package.
 	if requestedSymbol == "" {
-		return true
+		return false
 	}
 	return requestedSymbol == target.SymbolKey || requestedSymbol == target.SymbolName || requestedSymbol == target.QualifiedName ||
 		strings.HasSuffix(requestedSymbol, "."+target.SymbolName) || strings.HasSuffix(requestedSymbol, "::"+target.SymbolName)

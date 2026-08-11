@@ -75,9 +75,9 @@ type TypeScriptReference struct {
 
 // TypeScriptImportTarget is the provider declaration an import binding
 // reaches, described exactly as the provider indexes it when it normalises
-// itself: computed from the provider's own source, at the position
-// LUQUE-0703's declaration map bridge resolved. Never derived from the
-// consumer's `.d.ts` text, which is not guaranteed to restate the source.
+// itself: computed from the provider's own source, at the position the
+// provider-source bridge resolved. Never derived from the consumer's `.d.ts`
+// text, which is not guaranteed to restate the source.
 //
 // A `TypeScriptExport` that crosses into another repository reuses this
 // exact shape: a re-exported symbol needs the same provider-source proof an
@@ -90,6 +90,33 @@ type TypeScriptImportTarget struct {
 	Signature     string `json:"signature"`
 	File          string `json:"file"`
 	StartLine     int    `json:"startLine"`
+	// Source names how the provider source position was reached. An empty
+	// value means a declaration map, which is what every payload recorded
+	// before the provider-export path existed carries.
+	Source string `json:"source,omitempty"`
+}
+
+const (
+	// TypeScriptIdentityDeclarationMap marks a target the artifact's own
+	// `.d.ts.map` placed inside the provider's source.
+	TypeScriptIdentityDeclarationMap = "DECLARATION_MAP"
+	// TypeScriptIdentityProviderExport marks a target the provider's own
+	// checker named, as the export of a source file the provider's project
+	// roots mapped its declaration artifact to. The position is exact and
+	// comes from the compiler that owns the code, but the artifact-to-source
+	// step rests on the provider's build configuration rather than on a map
+	// it emitted, so the edge is graded ExactPackageMapped. See ADR 0038.
+	TypeScriptIdentityProviderExport = "PROVIDER_EXPORT"
+)
+
+// crossRepositoryGrade grades a cross-repository target by the evidence that
+// placed it in the provider's source. Both grades are exact; they differ in
+// what a consumer of the graph has to trust, and the graph says which.
+func crossRepositoryGrade(target *TypeScriptImportTarget) (Confidence, Provenance) {
+	if target.Source == TypeScriptIdentityProviderExport {
+		return ExactPackageMapped, TypeScriptProjectReference
+	}
+	return ExactTypechecked, TypeScriptChecker
 }
 
 // TypeScriptImport is one import binding of the consumer. The worker already
@@ -454,12 +481,13 @@ func NormalizeTypeScript(
 		// Validate() with a dangling edge, by design. The edge only becomes
 		// valid once the caller merges the provider's Set in with
 		// Set.Merge, exactly like Go's cross-package edges already do.
+		confidence, provenance := crossRepositoryGrade(target)
 		set.Edges = append(set.Edges, Edge{
 			Kind:        ImportsSymbol,
 			SourceKey:   sourceKey,
 			TargetKey:   string(targetKey),
-			Confidence:  ExactTypechecked,
-			Provenance:  TypeScriptChecker,
+			Confidence:  confidence,
+			Provenance:  provenance,
 			EvidenceKey: evidence.Key,
 		})
 	}
@@ -484,6 +512,10 @@ func NormalizeTypeScript(
 		fileKey := FileKey(name, exp.File)
 
 		var targetKey string
+		// A local target is the checker's own resolution inside this
+		// payload; only a cross-repository one is graded by how the
+		// provider's source was reached.
+		confidence, provenance := ExactTypechecked, TypeScriptChecker
 		switch {
 		case exp.TargetQualifiedName != "" && exp.TargetFile != "":
 			// A local target: the declaration already lives in this same
@@ -497,7 +529,8 @@ func NormalizeTypeScript(
 		case exp.Target != nil && strings.TrimSpace(exp.Target.Kind) != "" && strings.TrimSpace(exp.Target.Signature) != "" && strings.TrimSpace(exp.Target.File) != "":
 			// A cross-repository target, proven the exact same way an
 			// IMPORTS_SYMBOL target is: the provider's own source, read at
-			// the position LUQUE-0703's declaration map bridge resolved.
+			// the position the provider-source bridge resolved.
+			confidence, provenance = crossRepositoryGrade(exp.Target)
 			targetIdentity := typeScriptSymbolIdentity(exp.Target.Repository, exp.Target.Package, exp.Target.File, exp.Target.QualifiedName, exp.Target.Kind, exp.Target.Signature)
 			key, err := targetIdentity.Key()
 			if err != nil {
@@ -539,8 +572,8 @@ func NormalizeTypeScript(
 			Kind:        kind,
 			SourceKey:   sourceKey,
 			TargetKey:   targetKey,
-			Confidence:  ExactTypechecked,
-			Provenance:  TypeScriptChecker,
+			Confidence:  confidence,
+			Provenance:  provenance,
 			EvidenceKey: evidence.Key,
 		})
 	}
@@ -561,6 +594,10 @@ func NormalizeTypeScript(
 		fileKey := FileKey(name, ext.File)
 
 		var targetKey string
+		// A local base is the checker's own resolution inside this payload;
+		// only a cross-repository one is graded by how the provider's
+		// source was reached.
+		confidence, provenance := ExactTypechecked, TypeScriptChecker
 		switch {
 		case ext.TargetQualifiedName != "" && ext.TargetFile != "":
 			// A local base: the declaration already lives in this same
@@ -574,7 +611,8 @@ func NormalizeTypeScript(
 		case ext.Target != nil && strings.TrimSpace(ext.Target.Kind) != "" && strings.TrimSpace(ext.Target.Signature) != "" && strings.TrimSpace(ext.Target.File) != "":
 			// A cross-repository base, proven the exact same way an
 			// IMPORTS_SYMBOL target is: the provider's own source, read at
-			// the position LUQUE-0703's declaration map bridge resolved.
+			// the position the provider-source bridge resolved.
+			confidence, provenance = crossRepositoryGrade(ext.Target)
 			targetIdentity := typeScriptSymbolIdentity(ext.Target.Repository, ext.Target.Package, ext.Target.File, ext.Target.QualifiedName, ext.Target.Kind, ext.Target.Signature)
 			key, err := targetIdentity.Key()
 			if err != nil {
@@ -616,8 +654,8 @@ func NormalizeTypeScript(
 			Kind:        Extends,
 			SourceKey:   sourceKey,
 			TargetKey:   targetKey,
-			Confidence:  ExactTypechecked,
-			Provenance:  TypeScriptChecker,
+			Confidence:  confidence,
+			Provenance:  provenance,
 			EvidenceKey: evidence.Key,
 		})
 	}

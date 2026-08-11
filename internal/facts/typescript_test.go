@@ -668,6 +668,84 @@ func TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved(t *testing.T)
 	}
 }
 
+// TestNormalizeTypeScriptGradesCrossRepositoryTargetsByEvidence pins the two
+// exact grades apart. Both are exact edges to the same provider declaration;
+// they differ in what placed that declaration in the provider's source, and
+// a consumer of the graph has to be able to tell which.
+func TestNormalizeTypeScriptGradesCrossRepositoryTargetsByEvidence(t *testing.T) {
+	cases := map[string]struct {
+		source     string
+		confidence Confidence
+		provenance Provenance
+	}{
+		"declaration map": {TypeScriptIdentityDeclarationMap, ExactTypechecked, TypeScriptChecker},
+		// A payload recorded before the provider-export path existed carries
+		// no source at all, and means the same as a declaration map.
+		"unset":           {"", ExactTypechecked, TypeScriptChecker},
+		"provider export": {TypeScriptIdentityProviderExport, ExactPackageMapped, TypeScriptProjectReference},
+	}
+
+	for name, expected := range cases {
+		t.Run(name, func(t *testing.T) {
+			target := TypeScriptImportTarget{
+				Repository:    "shared-library",
+				Package:       "@ladygraph-fixture/shared",
+				QualifiedName: "helper",
+				Kind:          "function",
+				Signature:     "export function helper(shape: Shape): number",
+				File:          "src/helper.ts",
+				StartLine:     3,
+				Source:        expected.source,
+			}
+			payload := TypeScriptPayload{
+				Version:    TypeScriptWireVersion,
+				Repository: TypeScriptRepository{Name: "consumer-x"},
+				Package: &TypeScriptPackage{
+					Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+					RootPath: ".", ManifestPath: "package.json",
+				},
+				Files: []string{"src/index.ts"},
+				Symbols: []TypeScriptSymbol{{
+					File: "src/index.ts", Name: "helper", QualifiedName: "helper", Kind: "import",
+					Signature: `import { helper } from "@ladygraph-fixture/shared"`,
+					StartLine: 1, EndLine: 1, Start: 0, End: 47,
+				}},
+				Imports: []TypeScriptImport{{
+					File: "src/index.ts", QualifiedName: "helper",
+					Start: 0, End: 47, StartLine: 1,
+					Text:             `import { helper } from "@ladygraph-fixture/shared"`,
+					RequestedPackage: "@ladygraph-fixture/shared",
+					RequestedSymbol:  "helper",
+					Target:           &target,
+				}},
+			}
+
+			set, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+			if err != nil {
+				t.Fatalf("NormalizeTypeScript() error = %v", err)
+			}
+			var edges []Edge
+			for _, edge := range set.Edges {
+				if edge.Kind == ImportsSymbol {
+					edges = append(edges, edge)
+				}
+			}
+			if len(edges) != 1 {
+				t.Fatalf("IMPORTS_SYMBOL edges = %#v, want exactly one", edges)
+			}
+			if edges[0].Confidence != expected.confidence || edges[0].Provenance != expected.provenance {
+				t.Fatalf("edge graded %s/%s, want %s/%s",
+					edges[0].Confidence, edges[0].Provenance, expected.confidence, expected.provenance)
+			}
+			// Both grades are exact: the target key is the provider's own,
+			// so the edge resolves once the provider's Set is merged in.
+			if !edges[0].Confidence.Exact() {
+				t.Fatalf("edge confidence %s is not exact", edges[0].Confidence)
+			}
+		})
+	}
+}
+
 func TestNormalizeTypeScriptIsDeterministicAndPortable(t *testing.T) {
 	payload := loadPayload(t, "shared-library.json")
 	first, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/shared-library")

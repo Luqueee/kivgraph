@@ -24,8 +24,10 @@ func TestFindCrossRepoConsumersReturnsAllConfidenceCategories(t *testing.T) {
 	if response.Total != 4 || response.Returned != 4 || response.Truncated {
 		t.Fatalf("response pagination = %#v, want four untruncated results", response)
 	}
-	if response.Coverage != (Coverage{Exact: 2, Candidate: 1, UnresolvedRelated: 1}) {
-		t.Fatalf("response coverage = %#v, want exact=2 candidate=1 unresolved=1", response.Coverage)
+	// The package dependency is evidence about the package, never a use of
+	// the symbol: it is counted apart from the one exact consumer.
+	if response.Coverage != (Coverage{Exact: 1, Candidate: 1, UnresolvedRelated: 1, PackageLevel: 1}) {
+		t.Fatalf("response coverage = %#v, want exact=1 candidate=1 unresolved=1 package=1", response.Coverage)
 	}
 	categories := []string{
 		response.Results[0].Category,
@@ -51,6 +53,29 @@ func TestFindCrossRepoConsumersReturnsAllConfidenceCategories(t *testing.T) {
 	unresolved := response.Results[3]
 	if unresolved.UnresolvedKey != "unresolved-consumer" || unresolved.Reason != "package_not_indexed" || unresolved.TargetSymbolKey != "sym-target" {
 		t.Fatalf("unresolved result = %#v", unresolved)
+	}
+}
+
+func TestFindCrossRepoConsumersIgnoresFailuresThatNamedNoSymbol(t *testing.T) {
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(crossRepoConsumerRows(), 19, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	store := hotsnapshot.NewSnapshotStore(snapshot)
+	_, response, err := findCrossRepoConsumers(context.Background(), nil, FindCrossRepoConsumersInput{StableKey: "sym-target"}, store)
+	if err != nil {
+		t.Fatalf("findCrossRepoConsumers() error = %v", err)
+	}
+	// The fixture holds a failure for the whole `example.com/target` import
+	// with no requested symbol. It belongs to the package, not to every
+	// symbol the package exports, so a query about one symbol never sees it.
+	for _, result := range response.Results {
+		if result.UnresolvedKey == "unresolved-module" {
+			t.Fatalf("symbol query returned a package-level failure: %#v", result)
+		}
+	}
+	if response.Coverage.UnresolvedRelated != 1 {
+		t.Fatalf("unresolved_related = %d, want only the failure that named this symbol", response.Coverage.UnresolvedRelated)
 	}
 }
 
@@ -144,6 +169,9 @@ func crossRepoConsumerRows() hotsnapshot.LadybugSnapshotRows {
 		},
 		Unresolved: []hotsnapshot.UnresolvedReferenceRow{
 			{Key: "unresolved-consumer", RepositoryKey: "repo-consumer", FileKey: "file-consumer", SourceKey: "sym-unresolved", Language: "go", RequestedPackage: "example.com/target", RequestedSymbol: "Target", Reason: "package_not_indexed", Detail: "target package was not available during resolution", StartLine: 12, StartColumn: 4, StartOffset: 180},
+			// A failure that names the package and no symbol: the whole
+			// import broke, so no symbol was ever requested.
+			{Key: "unresolved-module", RepositoryKey: "repo-consumer", FileKey: "file-consumer", Language: "go", RequestedPackage: "example.com/target", Reason: "module_not_resolved", Detail: "example.com/target is not installed", StartLine: 3, StartColumn: 1, StartOffset: 20},
 		},
 	}
 }

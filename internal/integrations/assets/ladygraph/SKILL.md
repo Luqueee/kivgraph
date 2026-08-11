@@ -22,7 +22,12 @@ Go, TypeScript or Rust repositories rather than a text-only search.
 4. Use `find_references` for direct incoming or outgoing references and
    `trace_dependencies` for bounded dependency paths.
 5. Use `find_cross_repo_consumers` for consumers in another repository and
-   `get_blast_radius` for bounded impact analysis.
+   `get_blast_radius` for bounded impact analysis. Read its `coverage`
+   carefully: `exact` and `candidate` count consumers of the symbol asked
+   for, while `package_level` counts dependencies on the provider package,
+   which prove nothing about that symbol. A failure that named no symbol
+   belongs to the package: ask `get_unresolved_references` with
+   `requested_package`.
 6. Use `get_unresolved_references` when a missing provider, candidate, or
    unresolved import is relevant to the answer.
 
@@ -66,8 +71,11 @@ Report the reason rather than concluding that coverage is broken:
   the registry, or the consumer reads it from a build output that does not
   exist yet.
 - `PROVIDER_SOURCE_UNAVAILABLE`, `DECLARATION_SOURCE_NOT_MAPPED`: the provider
-  is known but its sources or declaration maps are not, which is what a
-  package consumed from `dist` without source maps looks like.
+  is known but nothing names the source behind its declaration artifact —
+  neither a declaration map nor its own project roots. A package that ships
+  `dist` without sources and without a map looks like this. A provider that
+  merely lacks the map does not: its own checker places the export, and the
+  edge is graded `EXACT_PACKAGE_MAPPED` rather than `EXACT_TYPECHECKED`.
 - `MODULE_NOT_LOADED`: the Go loader could not read that module, usually
   because its dependencies were never downloaded. The repository's facts are
   absent on purpose. `go mod download` in it and reindexing is the fix.

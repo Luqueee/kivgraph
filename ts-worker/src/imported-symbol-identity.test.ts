@@ -8,6 +8,7 @@
  * fixture could not prove that.
  */
 
+import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -92,6 +93,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
       signature: "export function compute(input: number): number",
       file: "src/value.ts",
       startLine: 7,
+      source: "DECLARATION_MAP",
     });
   });
 
@@ -113,10 +115,11 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
       signature: "export function helper(shape: Shape): number",
       file: "src/helper.ts",
       startLine: 3,
+      source: "DECLARATION_MAP",
     });
   });
 
-  it("reports no identity, only a reason, for a provider with no declaration map", async () => {
+  it("places a symbol of a provider that ships no declaration map", async () => {
     const nomapProvider: PackageProvider = {
       name: "@ladygraph-fixture/nomap",
       version: "1.0.0",
@@ -139,16 +142,103 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
       (entry) => entry.consumer.name === "plain",
     );
     expect(plain).toBeDefined();
-    // `nomap` ships no `.d.ts.map`: the checker still resolves the exact
-    // declaration, but nothing places it inside the provider's source.
+    // `nomap` ships no `.d.ts.map`, so nothing places the symbol inside the
+    // source its project roots name. The provider's own checker still says
+    // which declaration that source exports under the requested name, and
+    // the identity is graded by how it was reached.
     expect(
       plain?.target.declarations.some(
         (declaration) => declaration.sourceStatus === "DECLARATION_MAP",
       ),
     ).toBe(false);
-    expect(plain?.target.identity).toBeUndefined();
-    expect(plain?.target.identityReason).toBe("PROVIDER_SOURCE_UNAVAILABLE");
-    expect(plain?.target.identityDetail).toBeTruthy();
+    expect(plain?.target.identityReason).toBeUndefined();
+    expect(plain?.target.identity).toEqual({
+      repository: "nomap",
+      package: "@ladygraph-fixture/nomap",
+      qualifiedName: "plain",
+      kind: "variable",
+      signature: "plain",
+      file: "src/index.ts",
+      startLine: 1,
+      source: "PROVIDER_EXPORT",
+    });
+  });
+
+  it("reports no identity when nothing names the provider's source", async () => {
+    // `unmapped` publishes a `.d.ts` and no source at all: no map, and no
+    // project root that could name one. There is nothing to ask a checker.
+    const unmappedRoot = path.join(NEGATIVE, "unmapped");
+    const unmappedProvider: PackageProvider = {
+      name: "@ladygraph-fixture/unmapped",
+      version: "1.0.0",
+      repository: "unmapped",
+      rootPath: unmappedRoot,
+      manifestPath: path.join(unmappedRoot, "package.json"),
+      typesPath: path.join(unmappedRoot, "dist/index.d.ts"),
+    };
+    const service = LanguageService.create({ cwd: NEGATIVE_CONSUMER });
+    services.push(service);
+    const configFileName = path.join(NEGATIVE_CONSUMER, "tsconfig.json");
+    await service.openProject(configFileName);
+    const view = service.project(configFileName);
+    const resolution = await resolveImportedSymbols(service, view, {
+      get: (name) =>
+        name === unmappedProvider.name ? unmappedProvider : undefined,
+    });
+
+    const unmapped = resolution.symbols.find(
+      (entry) => entry.consumer.name === "unmapped",
+    );
+    expect(unmapped).toBeDefined();
+    expect(unmapped?.target.declarations[0]?.sourceFiles).toEqual([]);
+    expect(unmapped?.target.identity).toBeUndefined();
+    expect(unmapped?.target.identityReason).toBe("PROVIDER_SOURCE_UNAVAILABLE");
+    expect(unmapped?.target.identityDetail).toBeTruthy();
+  });
+
+  it("places a provider reached through a node_modules symlink", async () => {
+    // The shape a package manager actually installs: the consumer resolves
+    // the provider through `node_modules`, and the engine reports the link
+    // target. Every fixture that resolves by `paths` misses this, which is
+    // how a provider consumed from a real workspace went unplaced.
+    const linkedConsumer = path.join(NEGATIVE, "consumer-linked");
+    // Go hands the worker `repository.RealPath`; the engine resolves the
+    // link the same way, so both ends agree on one spelling.
+    const nomapRoot = realpathSync(NOMAP_ROOT);
+    const nomapProvider: PackageProvider = {
+      name: "@ladygraph-fixture/nomap",
+      version: "1.0.0",
+      repository: "nomap",
+      rootPath: nomapRoot,
+      manifestPath: path.join(nomapRoot, "package.json"),
+      typesPath: path.join(nomapRoot, "dist/index.d.ts"),
+      projectPath: path.join(nomapRoot, "tsconfig.json"),
+      sourceRoots: [path.join(nomapRoot, "src")],
+      declarationRoots: [path.join(nomapRoot, "dist")],
+    };
+    const service = LanguageService.create({ cwd: linkedConsumer });
+    services.push(service);
+    const configFileName = path.join(linkedConsumer, "tsconfig.json");
+    await service.openProject(configFileName);
+    const view = service.project(configFileName);
+    const resolution = await resolveImportedSymbols(service, view, {
+      get: (name) => (name === nomapProvider.name ? nomapProvider : undefined),
+    });
+
+    const plain = resolution.symbols.find(
+      (entry) => entry.consumer.name === "plain",
+    );
+    expect(plain?.target.identityReason).toBeUndefined();
+    expect(plain?.target.identity).toEqual({
+      repository: "nomap",
+      package: "@ladygraph-fixture/nomap",
+      qualifiedName: "plain",
+      kind: "variable",
+      signature: "plain",
+      file: "src/index.ts",
+      startLine: 1,
+      source: "PROVIDER_EXPORT",
+    });
   });
 
   it("computes the identical payload across repeated, independent resolutions", async () => {

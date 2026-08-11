@@ -85,6 +85,7 @@ import type {
 } from "./package-import-resolver.js";
 import { resolveProviderExports } from "./provider-export-resolver.js";
 import type { ProviderExport } from "./provider-export-resolver.js";
+import { locateProviderExport } from "./provider-source-position-resolver.js";
 
 /** The import binding that consumes a provider symbol. */
 export interface ImportedSymbolConsumer {
@@ -156,6 +157,8 @@ export interface ImportedSymbolIdentity {
   /** Provider source file, relative to the provider repository root. */
   readonly file: string;
   readonly startLine: number;
+  /** How the provider source position behind this identity was reached. */
+  readonly source: ImportedSymbolIdentitySource;
 }
 
 /** The provider symbol a binding or a re-export resolves to. */
@@ -812,20 +815,40 @@ function identityUnresolved(
   };
 }
 
+/**
+ * How the provider source position behind an identity was established.
+ *
+ * `DECLARATION_MAP` is the artifact's own `.d.ts.map` placing the symbol.
+ * `PROVIDER_EXPORT` is the provider's checker naming the export inside a
+ * source file its project roots already mapped the artifact to: the position
+ * is exact, but the artifact-to-source step rests on the provider's build
+ * configuration rather than on a map it emitted. Ladygraph grades the two
+ * apart, so a consumer can tell which edges rest on which proof.
+ */
+export type ImportedSymbolIdentitySource =
+  | "DECLARATION_MAP"
+  | "PROVIDER_EXPORT";
+
 /** One target whose provider identity still needs to be classified. */
 interface IdentityRequest {
   readonly index: number;
   readonly provider: PackageProvider;
   readonly declaration: ImportedSymbolDeclaration;
+  /** Public name requested from the provider module. */
+  readonly exportedName: string;
+  readonly source: ImportedSymbolIdentitySource;
 }
 
 /**
- * Compute the provider identity of every pending target that has an exact
- * source position, grouped by provider project so each project opens once.
+ * Compute the provider identity of every pending target the provider's own
+ * project can place, grouped by project so each project opens once.
  *
- * Opening the provider's own project has real cost, so it only happens for a
- * target a declaration map actually places: everything else keeps the
- * default "not attempted" outcome without spawning anything.
+ * A declaration map is the cheaper answer and wins when it exists. Without
+ * one the provider still names its source through its project roots, and its
+ * checker can say which declaration that source exports under the requested
+ * name — the same answer, reached by asking the compiler that owns the code
+ * instead of reading a map the build never emitted. Everything else keeps
+ * the default "not attempted" outcome without spawning anything.
  */
 async function resolveTargetIdentities(
   pending: readonly PendingSymbol[],
@@ -836,11 +859,14 @@ async function resolveTargetIdentities(
   const byProject = new Map<string, IdentityRequest[]>();
 
   for (const [index, entry] of pending.entries()) {
-    const declaration = entry.declarations.find(
+    const mapped = entry.declarations.find(
       (candidate) =>
         candidate.sourceStatus === "DECLARATION_MAP" &&
         candidate.sourcePosition !== undefined,
     );
+    const declaration =
+      mapped ??
+      entry.declarations.find((candidate) => candidate.sourceFiles.length > 0);
     if (declaration === undefined) {
       continue;
     }
@@ -856,6 +882,8 @@ async function resolveTargetIdentities(
       index,
       provider: entry.provider,
       declaration,
+      exportedName: entry.exportedName,
+      source: mapped === undefined ? "PROVIDER_EXPORT" : "DECLARATION_MAP",
     };
     const group = byProject.get(projectPath);
     if (group === undefined) {
@@ -905,13 +933,20 @@ async function classifyTarget(
   providerView: ProjectView,
   request: IdentityRequest,
 ): Promise<TargetIdentityOutcome> {
-  // The request was only queued for a declaration with a source position;
-  // this guards the type, not a real branch.
-  const position = request.declaration.sourcePosition;
+  const position =
+    request.source === "DECLARATION_MAP"
+      ? request.declaration.sourcePosition
+      : await locateProviderExport(
+          providerView,
+          request.declaration.sourceFiles,
+          request.exportedName,
+        );
   if (position === undefined) {
     return identityUnresolved(
       "PROVIDER_SOURCE_UNAVAILABLE",
-      "declaration map segment has no source position",
+      request.source === "DECLARATION_MAP"
+        ? "declaration map segment has no source position"
+        : `provider project exports no ${request.exportedName} in ${request.declaration.sourceFiles.join(", ")}`,
     );
   }
   const sourceFile = await providerView.program.getSourceFile(
@@ -948,6 +983,7 @@ async function classifyTarget(
         .join("/"),
       startLine:
         sourceFile.getLineAndCharacterOfPosition(declarationStart).line + 1,
+      source: request.source,
     },
     identityReason: undefined,
     identityDetail: undefined,

@@ -206,6 +206,7 @@ export class LabeledWidget extends Widget {
           signature: "export declare class Widget",
           file: "index.ts",
           startLine: 1,
+          source: "DECLARATION_MAP",
         },
         identityReason: undefined,
         identityDetail: undefined,

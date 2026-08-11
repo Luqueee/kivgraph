@@ -20,8 +20,14 @@ type Response[T any] struct {
 // Coverage counts how confidently the response can account for related graph
 // facts. Exact and candidate facts are disjoint; unresolved_related records
 // related references that could not be classified.
+//
+// PackageLevel is disjoint from all three: it counts facts about a package
+// rather than about the symbol asked for. A package dependency proves the
+// consumer depends on the provider package, never that it uses the queried
+// symbol, so counting one as exact would report a use nobody observed.
 type Coverage struct {
 	Exact             int `json:"exact"`
 	Candidate         int `json:"candidate"`
 	UnresolvedRelated int `json:"unresolved_related"`
+	PackageLevel      int `json:"package_level"`
 }

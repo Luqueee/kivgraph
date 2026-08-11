@@ -173,6 +173,13 @@ interface FactImportTarget {
   /** Provider source file, relative to the provider repository root. */
   readonly file: string;
   readonly startLine: number;
+  /**
+   * How the provider source position was reached: `DECLARATION_MAP` when the
+   * artifact's own map placed the symbol, `PROVIDER_EXPORT` when the
+   * provider's checker named the export inside a source file its project
+   * roots mapped the artifact to. Ladygraph grades the two apart.
+   */
+  readonly source: string;
 }
 
 /**
@@ -461,6 +468,7 @@ export async function collectFacts(
                   signature: identity.signature,
                   file: identity.file,
                   startLine: identity.startLine,
+                  source: identity.source,
                 },
           reason: entry.target.identityReason ?? null,
           detail: entry.target.identityDetail ?? null,
@@ -656,6 +664,7 @@ function exportFactSymbols(
               signature: identity.signature,
               file: identity.file,
               startLine: identity.startLine,
+              source: identity.source,
             },
       requestedPackage: entry.packageName,
       requestedSymbol: entry.exportedName,
@@ -759,6 +768,7 @@ function extendsFactSymbols(
               signature: identity.signature,
               file: identity.file,
               startLine: identity.startLine,
+              source: identity.source,
             },
       requestedPackage: edge.packageName ?? null,
       requestedSymbol: edge.exportedName ?? null,

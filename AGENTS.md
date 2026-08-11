@@ -218,6 +218,14 @@ integridad, compatibilidad o verificación descritos aquí.
   responde desde el HotSnapshot publicado: no abre la base ni ejecuta el
   worker, así que los declara `not_applicable` diciendo por qué, y las
   secciones de métricas que nadie observó se omiten en vez de valer cero.
+- Una consulta por símbolo solo cuenta como consumidor lo que se observó sobre
+  ese símbolo. `find_cross_repo_consumers` devuelve las dependencias de
+  paquete, que prueban que el consumidor depende del proveedor y nunca que use
+  el símbolo, en su propio contador `coverage.package_level`; sumarlas a
+  `exact` informa de un uso que nadie vio. Por lo mismo, un fallo de
+  resolución que no nombró símbolo -un módulo ilegible, un proveedor ausente-
+  pertenece al paquete y se sirve por `get_unresolved_references` con
+  `requested_package`, nunca atribuido a cada símbolo que ese paquete exporta.
 - Un diagnóstico del cargador que no tumba la pasada se imprime, no sólo se
   cuenta; un repositorio TypeScript que no declara ningún paquete se nombra.
   Un contador sin detalle y una entrada de registro que no aporta nada son
@@ -236,6 +244,21 @@ integridad, compatibilidad o verificación descritos aquí.
 - La indexación TypeScript procesa providers `package.json` nombrados con
   `ProjectPath` resuelto; pasa ese path al worker en cada invocación y omite
   manifests sin proyecto en vez de adivinar el `tsconfig` de la raíz.
+- La identidad de un símbolo de otro repositorio sale siempre del proyecto del
+  proveedor. Si su `.d.ts.map` coloca el símbolo, esa es la posición; si no lo
+  hay pero el puente nombró la fuente, se le pregunta a su checker qué
+  declaración exporta ese módulo bajo el nombre pedido. Las dos aristas son
+  exactas y **no valen lo mismo**: la primera es
+  `EXACT_TYPECHECKED`/`TYPESCRIPT_CHECKER` y la segunda
+  `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, porque el paso de
+  artefacto a fuente lo afirma la configuración de compilación del proveedor y
+  no un mapa que emitiera. Sin fuente nombrada no se pregunta nada: la
+  referencia queda `UNRESOLVED`. Ver ADR 0038.
+- Un fixture cross-repository que resuelve al proveedor con `paths` no prueba
+  nada sobre la forma que instala un gestor de paquetes. El consumidor llega
+  al proveedor por un symlink de `node_modules` y el motor devuelve la ruta
+  del destino del enlace, así que `consumer-linked` es el fixture que defiende
+  el caso real; exigir `declarationMap` en el proveedor no lo arregla.
 - La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
   Vitest; los payloads binarios grandes permanecen fuera del estado React y
   `web/dist` se regenera con el build de Vite.
