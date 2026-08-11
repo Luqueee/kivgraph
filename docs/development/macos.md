@@ -56,7 +56,13 @@ make build-darwin-arm64
 (cd dist/ladygraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)
 ```
 
-`make test-ladybug` exporta las mismas variables `CGO_*` del ejemplo anterior.
+`make test-ladybug` exporta las mismas variables `CGO_*` del ejemplo anterior;
+sin ellas, `go test -tags ladybug` no enlaza y aborta con
+`ld: library 'lbug' not found`. Para trabajar sobre un solo paquete:
+
+```bash
+make test-ladybug PKGS=./internal/storage/ladybug
+```
 
 ## Diferencias observables frente a Linux
 
