@@ -97,7 +97,7 @@ curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-LADYGRAPH_VERSION=v0.3.3 ./scripts/install.sh
+LADYGRAPH_VERSION=v0.3.4 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
