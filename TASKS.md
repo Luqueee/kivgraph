@@ -6984,6 +6984,172 @@ determinista documentado, no todos los tamaños o topologías de repositorio.
 
 ---
 
+## LUQUE-1013 — El grafo se mantiene al día solo y dice cuándo no lo está
+
+**Dependencias:** LUQUE-1012.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
+**Objetivo:** que un cambio de rama en un repositorio registrado deje el grafo
+al día sin que nadie ejecute nada, y que mientras no lo esté el agente lo sepa.
+Hoy no ocurre ninguna de las dos cosas.
+
+**El fallo, medido.** Esta fase construyó el motor incremental completo
+-`fsnotify`, debounce, hashes de contenido, reconciliación, invalidación Go y
+TypeScript, delta LadybugDB y reconstrucción del snapshot- y
+`INCREMENTAL_INDEXING_PASS` lo aprobó con un benchmark que llama a
+`indexer.Update` directamente. **Nada más lo llama:**
+
+```text
+grep "watcher\.|indexer\.Update"  en cmd/ + internal/indexing/ + internal/rebuild/
+  -> sin coincidencias
+```
+
+No hay comando `watch`; `cmd/ladygraph/main.go:468-471` responde
+`index: only --full is supported`. `config.watcher.enabled` vale `true` por
+defecto y no enciende nada. Toda sincronización pasa por `RunFull`.
+
+Medido sobre el workspace Kena -33 repositorios, 4.488 ficheros, 89.606
+símbolos, 323.049 aristas, `darwin/arm64`, caché de build de Go caliente-:
+
+```text
+en frío                          27,5 s    caché  0/33
+sin ningún cambio (suelo)         7,0 s    caché 33/33   (6,98 / 7,02 / 6,91)
+cambia un repositorio pequeño     7,2 s    caché 32/33
+cambia un repositorio grande     13,0 s    caché 32/33
+```
+
+Con las 33 unidades servidas desde caché el análisis termina en `0,7 s`; los
+otros `6,3 s` son republicación. El log dice por qué: `copied 336911 node(s) and
+565720 edge(s)` a una generación nueva, **en cada pasada**. Para un repositorio
+pequeño el 97 % del tiempo es suelo fijo, y el suelo crece con el grafo entero:
+`1,7 s` con 10.058 símbolos, `7,0 s` con 89.606.
+
+Y el estado git no llega al MCP. Se captura de verdad
+(`internal/workspace/registry.go:87-127`), se persiste
+(`canonical_load.go:111-113`) y se cae en `internal/rebuild/snapshot.go:240-243`,
+que construye la fila sin `Branch` ni `Dirty`. `list_repositories` no devuelve
+ni el commit.
+
+**Entregables:**
+
+- [ ] el ciclo watcher -> `indexer.Update`, con su lock de escritor único;
+- [ ] la vigilancia dirigida de `<repo>/.git/HEAD` y su ref, en
+  `internal/watcher/`;
+- [ ] `Branch` y `Dirty` en `hotsnapshot.RepositoryRow` y `RepositoryRecord`,
+  con su propagación en `internal/rebuild/snapshot.go`;
+- [ ] `ContentHash` en `hotsnapshot.FileRecord`;
+- [ ] los metadatos git que faltan en `internal/facts/typescript.go`, y la
+  política de fusión cuando dos lenguajes describen el mismo repositorio -hoy
+  `mergeAllBy` deduplica por `Key` y se queda con la primera aparición
+  (`facts.go:544-552`), así que el commit registrado depende de qué lenguaje se
+  fusionó antes;
+- [ ] el bloque de frescura por repositorio en `graph_status` y
+  `list_repositories`;
+- [ ] un test que alimente `Update` con un delta del tamaño de un checkout y
+  fije la ruta que elige.
+
+**Decisiones:**
+
+* **El disparador es que `HEAD` se mueva, y sólo eso.** Cubre checkout, pull,
+  merge, rebase, reset y commit. `push` no entra: no toca el árbol de trabajo,
+  no mueve `refs/heads` y el código que el grafo describe es idéntico antes y
+  después. Un commit tampoco cambia contenido, así que la verificación por hash
+  concluye sola que no hay nada que reanalizar y sólo se actualiza la etiqueta.
+* **Debounce por workspace, no por repositorio.** Un `git pull` sobre 33
+  repositorios debe producir **una** pasada. Pagar el suelo 33 veces son casi
+  cuatro minutos.
+* **Se vigila el directorio, no el fichero.** Git actualiza refs con rename
+  atómico: el inodo cambia y un descriptor sobre el fichero queda apuntando a lo
+  viejo. Hay que vigilar `.git/` y `.git/refs/heads/` y rearmar. `HEAD` se
+  resuelve mirando la ref suelta y, si no está, `packed-refs`, porque tras un
+  `gc` la suelta no existe. Y `.git` puede ser un fichero con `gitdir:` en un
+  worktree enlazado o un submódulo.
+* **No se publica mientras git trabaja.** Un checkout produce ráfagas de eventos
+  y no es atómico visto desde fuera. Se espera a que el árbol se estabilice, se
+  comprueba que `HEAD` no volvió a moverse, y `.git/index.lock` es la señal
+  barata de que git sigue dentro.
+* **Un solo escritor, sin daemon de elección de líder.** Basta un lock de
+  escritura: el que lo coge sincroniza y los demás se enteran solos, porque
+  `serve` y `ui` ya siguen `CURRENT` y republican cuando avanza. El reparto
+  publicador/seguidor ya existe y ya funciona.
+* **La ruta la decide `indexer.Update`, no el llamante.** Un checkout puede
+  tocar `go.mod`, `package.json` o `Cargo.toml`, y eso es `REPUBLISH`, no
+  `DELTA`. La máquina de decisión existe; se le deja decidir.
+* **`index --full` no sirve como sincronización a esta escala.** Con dos
+  repositorios son 3 s e invisible; con Kena son 7 a 13 s, que es exactamente la
+  ventana en la que el agente pregunta. Ésa es la razón de esta tarea: sin el
+  delta, ningún disparador llega a tiempo.
+* **La caducidad es por fichero, no por repositorio.** Un checkout deja la
+  mayoría de los ficheros byte a byte idénticos. Con el hash de contenido en el
+  snapshot, una fila cuyo fichero no cambió sigue siendo exacta aunque la rama
+  sea otra, y sólo se degrada lo que de verdad se movió. `facts.File.ContentHash`
+  ya existe (`facts.go:185`) y no llega a `hotsnapshot.FileRecord`.
+
+**Criterios de aceptación:**
+
+- [ ] Un `git checkout` en un repositorio registrado deja el grafo al día sin
+  que nadie ejecute un comando.
+- [ ] Un `git pull` que mueve `HEAD` en varios repositorios produce una sola
+  pasada.
+- [ ] Un `git push` no dispara ninguna pasada.
+- [ ] Un commit que no cambia contenido no publica generación: actualiza el
+  commit y `dirty`, y nada más.
+- [ ] `graph_status` y `list_repositories` devuelven, por repositorio, la rama y
+  el commit indexados y si el árbol se movió desde entonces.
+- [ ] Dos procesos que arranquen a la vez no reindexan a la vez: el que no
+  obtiene el lock recoge la generación del otro.
+- [ ] Un repositorio cuya ref vive en `packed-refs` se detecta igual que uno con
+  ref suelta.
+- [ ] Con el corpus Kena, el tiempo entre el `checkout` y la generación
+  publicada queda registrado en la tarea y comparado contra los `7-13 s` que
+  cuesta hoy `index --full`.
+- [ ] El test de ruta falla si un delta del tamaño de un checkout degrada a
+  `REPUBLISH` sin que ningún manifest haya cambiado.
+
+**Fuera de alcance:** grafos distintos por rama. El grafo describe el árbol de
+trabajo de cada repositorio, esté en la rama que esté. Fijar un repositorio a
+una rama declarada haría que `file_path` y `start_line` apuntasen a un fichero
+cuyo contenido en disco es otro, que es peor que el problema que se viene a
+resolver.
+
+**Prioridad:** por delante de `LUQUE-1113` y `LUQUE-1114`. Aquéllas hacen la
+respuesta más barata y más honesta; ésta la hace **correcta**. Un
+`file_path:line` con el formato perfecto, sobre código que ya no existe porque
+se cambió de rama, es un error silencioso, y eso pesa más que un resultado caro.
+
+**Estado:** `TODO`.
+
+**Gate:** `INCREMENTAL_INDEXING_PASS` se vuelve a exigir. El gate original se
+emitió sobre un benchmark que llama a `indexer.Update` directamente, así que
+nunca cubrió que alguien lo llamara.
+
+**Verificación:**
+
+```text
+gofmt -l <archivos-go-modificados>
+go vet ./...
+go test ./internal/watcher/... ./internal/indexer/... ./internal/rebuild/... -count=1
+go test ./... -count=1
+go test -race ./internal/watcher/... ./internal/indexer/... -count=1
+make test-ladybug
+make build
+```
+
+`make test-ladybug` entra porque el delta cruza la capa nativa. Y contra el
+binario real, con una configuración aislada y copias privadas de los
+repositorios -nunca los indexados-: un `checkout`, un `pull` multi-repo, un
+`commit` y un `push`, comprobando en cada uno qué pasada se dispara, cuál no, y
+cuánto tarda la generación en publicarse.
+
+---
+
 # 14. Fase 11 — Tools MCP
 
 ## LUQUE-1101 — Implementar respuesta estándar
@@ -7886,6 +8052,14 @@ conjunto.
 
 **Dependencias:** LUQUE-1112.
 
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
 **Objetivo:** que una respuesta de la superficie MCP baste para actuar -abrir el
 fichero, nombrar el llamante- sin una llamada de seguimiento, y que un agente
 que sólo tiene una ruta o un diff pueda entrar al grafo.
@@ -7911,15 +8085,15 @@ o prefijo. `FileByRepoPath` existe en el snapshot
 
 **Entregables:**
 
-* `internal/mcp/tools/find_symbol.go`, `get_symbol.go`, `find_references.go`,
-  `blast_radius.go`, `trace_dependencies.go` y
+- [ ] `internal/mcp/tools/find_symbol.go`, `get_symbol.go`,
+  `find_references.go`, `blast_radius.go`, `trace_dependencies.go` y
   `find_cross_repo_consumers.go`;
-* `internal/mcp/tools/file_outline.go`, con la tool `get_file_outline`;
-* `internal/mcp/server.go` y `internal/mcp/surface_test.go`;
-* el índice fichero -> símbolos en `internal/hotsnapshot/` si el recorrido
+- [ ] `internal/mcp/tools/file_outline.go`, con la tool `get_file_outline`;
+- [ ] `internal/mcp/server.go` y `internal/mcp/surface_test.go`;
+- [ ] el índice fichero -> símbolos en `internal/hotsnapshot/` si el recorrido
   lineal no basta;
-* `PLAN.md` 17.1 y la documentación de protocolo en `docs/protocol/`;
-* tests por tool, incluidos los negativos.
+- [ ] `PLAN.md` 17.1 y la documentación de protocolo en `docs/protocol/`;
+- [ ] tests por tool, incluidos los negativos.
 
 **Decisiones:**
 
@@ -7946,31 +8120,49 @@ o prefijo. `FileByRepoPath` existe en el snapshot
 * Los modos nuevos de `find_symbol` -`substring` y los filtros `kind`, `repo` y
   `path_prefix`- no cambian la clase de coste: `SearchSymbolsByNamePrefix` ya
   recorre linealmente todos los símbolos (`internal/hotsnapshot/search.go:44`).
-* La superficie pasa de nueve a diez tools. `surface_test.go` es un contrato y
-  no un reflejo del código: `allowedTools` se actualiza en el mismo commit o el
-  guardia falla, que es exactamente para lo que está.
+* La superficie pasa de nueve a diez tools **y ahí se queda**: diez es el techo
+  de esta fase. Repowise midió en Claude Code cuántas veces un agente llega a
+  llamar a cada servidor MCP, y sale un acantilado por tamaño de superficie:
+  CodeGraph con 1 tool y `1.567` caracteres de esquema fue llamado 13 de 15
+  veces; Repowise con 10 tools y `17.561` caracteres, 15 de 15; Serena con 29 y
+  `29.050`, 4 de 15; y code-review-graph con 30 y `28.118`, **ninguna**. Claude
+  Code carga los esquemas bajo demanda, así que una superficie grande es una
+  superficie que el agente no llega a mirar. Diez queda por debajo del
+  acantilado observado; la tool once exige retirar una.
+* Serena, con la superficie más parecida a la nuestra, escribe menos que un
+  agente sin herramientas pero llama a tools un 42 % más de veces. Una cadena
+  `find_symbol` -> `get_symbol` -> `find_references` no es una respuesta: es
+  trabajo movido al agente. Por eso la fila lleva ubicación y nombre.
+* `surface_test.go` es un contrato y no un reflejo del código: `allowedTools`
+  se actualiza en el mismo commit o el guardia falla, que es exactamente para
+  lo que está.
 * Ninguna tool nueva lee el disco. El grafo publica rutas y rangos de líneas;
   abrir el fichero es del harness.
 
 **Criterios de aceptación:**
 
-- `find_symbol` devuelve `file_path` y `start_line`, y una sesión que busca un
-  símbolo y lo abre no necesita llamar a `get_symbol`.
-- Ninguna respuesta por defecto contiene `canonical_identity`;
+- [ ] `find_symbol` devuelve `file_path` y `start_line`, y una sesión que busca
+  un símbolo y lo abre no necesita llamar a `get_symbol`.
+- [ ] Ninguna respuesta por defecto contiene `canonical_identity`;
   `response_format: "detailed"` lo devuelve.
-- `find_references` devuelve `source_name`, `source_qualified_name`,
+- [ ] `find_references` devuelve `source_name`, `source_qualified_name`,
   `source_kind` y `source_start_line`, y el target aparece una sola vez en la
   respuesta.
-- `get_file_outline` sobre `internal/facts/facts.go` devuelve sus 32
+- [ ] `get_file_outline` sobre `internal/facts/facts.go` devuelve sus 32
   declaraciones con kind, signature y rango de líneas por menos de la décima
   parte de los `20.681 B` que cuesta leer el fichero.
-- `get_file_outline` sobre una ruta que el snapshot no conoce devuelve un error
-  que nombra la ruta y el repositorio, nunca un resultado vacío.
-- `get_blast_radius` y `trace_dependencies` aceptan `paths` o `qualified_name`
-  como raíz, además de `stable_key`.
-- La suite de superficie sigue prohibiendo toda mutación y exige la anotación
-  read-only también en la tool nueva.
-- `graph_status` contabiliza las llamadas de `get_file_outline` como las demás.
+- [ ] `get_file_outline` sobre una ruta que el snapshot no conoce devuelve un
+  error que nombra la ruta y el repositorio, nunca un resultado vacío.
+- [ ] `get_blast_radius` y `trace_dependencies` aceptan `paths` o
+  `qualified_name` como raíz, además de `stable_key`.
+- [ ] La suite de superficie sigue prohibiendo toda mutación y exige la
+  anotación read-only también en la tool nueva.
+- [ ] `graph_status` contabiliza las llamadas de `get_file_outline` como las
+  demás.
+- [ ] El coste total del esquema de la superficie queda registrado en la tarea,
+  en caracteres, medido sobre el `tools/list` del binario real. Es lo que el
+  cliente carga antes de poder llamar a nada, y sin ese número el techo de diez
+  es una opinión.
 
 **Fuera de alcance:** `get_repository_overview` -el mapa de paquetes con fan-in
 y fan-out sobre `AllPackageDependencies`, 103 aristas de paquete en este
@@ -8007,6 +8199,147 @@ make build
 Y contra el binario real: `ladygraph index --full` sobre este repositorio,
 `ladygraph serve`, y la comparación en bytes de la respuesta de cada tool tocada
 antes y después del cambio. Una reducción que no se ha medido no se declara.
+
+---
+
+## LUQUE-1114 — Ninguna respuesta afirma un conocimiento que no tiene
+
+**Dependencias:** LUQUE-1113.
+
+**Checklist:**
+
+- [ ] Verificar dependencias y alcance.
+- [ ] Completar acciones y entregables.
+- [ ] Ejecutar pruebas y benchmarks aplicables.
+- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [ ] Registrar resultados, limitaciones y siguiente tarea.
+
+**Objetivo:** que toda respuesta diga hasta dónde llega, para que un agente
+sepa cuándo puede automatizar un cambio y cuándo tiene que ir a mirar el código
+él mismo.
+
+**El fallo, medido.** `Coverage.UnresolvedRelated` sólo se incrementa en dos
+sitios: `internal/mcp/tools/find_references.go:539`, para aristas cuya
+*confianza* es `Unresolved`, y `unresolved.go:191`, una por fila devuelta.
+**Nunca se une a la tabla de referencias no resueltas.** `find_symbol`,
+`get_symbol`, `get_blast_radius` y `trace_dependencies` devuelven
+`unresolved_related: 0` incondicionalmente, mientras el comentario del campo
+promete «how confidently the response can account for related graph facts»
+(`response.go:20-27`).
+
+Contra el snapshot 14 de este repositorio:
+
+```text
+find_symbol{name:"Connection", mode:"prefix"}
+  -> results: [], total: 0, unresolved_related: 0
+```
+
+En ese mismo snapshot, 18 ficheros Go del repositorio importan
+`github.com/LadybugDB/go-ladybug`, y hay `1.288` filas
+`MODULE_PROVIDER_NOT_FOUND` pidiendo símbolos de ese módulo con fichero, línea
+y columna -entre ellas `benchmarks/ladybug-batch/main.go:328` pidiendo
+`Connection.Close`-.
+
+Que la resolución falle está bien: ese módulo no es un repositorio registrado y
+no hay fuente que indexar. Lo que no está bien es responder «no hay nada, y sin
+ninguna duda». Igual, `get_blast_radius` sobre `MergeAll` devuelve
+`exact: 7, unresolved_related: 0` -impacto completo- desde un snapshot con
+`1.420` fallos de resolución y dos paquetes propios que no puede ver.
+
+**Entregables:**
+
+- [ ] `internal/mcp/tools/response.go`, con el bloque de completitud del
+  envelope;
+- [ ] `find_symbol.go`, `get_symbol.go`, `find_references.go`,
+  `blast_radius.go`, `trace_dependencies.go` y `find_cross_repo_consumers.go`;
+- [ ] el índice de no resueltos por nombre solicitado, paquete y repositorio, en
+  `internal/hotsnapshot/`;
+- [ ] `Exported` en `hotsnapshot.SymbolRecord` y su lectura en el builder;
+- [ ] tests por tool, incluido el negativo de que `COMPLETE` no se emite cuando
+  un punto ciego intersecta la consulta.
+
+**Decisiones:**
+
+* **Cero tools nuevas.** La superficie se queda en las diez de LUQUE-1113. La
+  completitud es un bloque del envelope y un modo de `get_blast_radius`, no una
+  tool aparte: el agente ya está en `get_blast_radius` cuando se hace esta
+  pregunta, y la medida de adopción de LUQUE-1113 dice que crecer la superficie
+  es justo lo que impide que se llame a nada.
+* Una respuesta es `COMPLETE` sólo cuando ningún fallo registrado intersecta la
+  consulta por las tres vías observables: el nombre solicitado, el paquete y el
+  repositorio. En cualquier otro caso es `LOWER_BOUND` y viaja con las
+  coordenadas de cada punto ciego.
+* Un punto ciego se publica como lo que es -una petición que falló, con su
+  fichero, su línea y su motivo-, nunca como una arista candidata. El contrato
+  de `EXACT` no se toca y no se inventa ninguna relación.
+* La respuesta incluye el `grep` que cierra el hueco, acotado a las rutas
+  afectadas. Un aviso sin acción de recuperación obliga al agente a un barrido
+  completo, que cuesta más que no avisar.
+* `Exported` viaja al HotSnapshot. Ya se calcula en los tres lenguajes
+  (`facts.go:202`, `golang.go:125`, `typescript.go:345`, `rust.go:140`), se
+  persiste (`canonical_load.go:178`) y se lee de vuelta
+  (`canonical_scan.go:61`), pero `hotsnapshot.SymbolRecord` no lo tiene y la
+  superficie MCP no distingue una API pública de un helper privado. Sin ese
+  campo el veredicto no se puede acotar: romper un símbolo no exportado se
+  queda en su paquete, romper uno exportado cruza el repositorio.
+* **Esto no es la etiqueta de Sourcegraph.** Sourcegraph distingue `precise` de
+  `search-based` y, cuando no tiene índice SCIP, rellena el hueco con una
+  búsqueda de texto por límite de palabra: el resultado nunca se presenta como
+  incompleto, sino como menos preciso, y los sitios donde no tiene nada no se
+  enumeran jamás. Su etiqueta es binaria y para un humano en una interfaz.
+  Aquí son coordenadas, con motivo, para un agente, y el veredicto es una
+  palabra sobre la que puede ramificar.
+* Se puede hacer porque Ladygraph se negó a adivinar. Un índice que resuelve por
+  coincidencia de nombre siempre devuelve algo y por eso no sabe dónde falló:
+  su recall es alto y desconocido. El de aquí es más bajo y **medido**, y eso es
+  lo único que se puede reportar.
+
+**Criterios de aceptación:**
+
+- [ ] Ninguna tool devuelve `unresolved_related: 0` sin haberlo comprobado
+  contra la tabla de no resueltos.
+- [ ] `find_symbol{name:"Connection", mode:"prefix"}` sobre este repositorio
+  deja de devolver un cero limpio y nombra el módulo que no se pudo resolver.
+- [ ] `get_blast_radius` sobre un símbolo con puntos ciegos devuelve
+  `LOWER_BOUND`, sus coordenadas y el `grep` acotado; sobre uno sin ellos
+  devuelve `COMPLETE`.
+- [ ] Un símbolo no exportado cuyo paquete está entero en el índice puede
+  alcanzar `COMPLETE`.
+- [ ] Los puntos ciegos nunca aparecen como resultados ni como aristas: viajan
+  en su propio bloque.
+- [ ] La superficie sigue siendo de diez tools.
+- [ ] Añadir una fila de no resueltos a un fixture cambia el veredicto. Un
+  guardia que no se ha visto fallar no es un guardia.
+
+**Fuera de alcance:** el diff semántico entre dos generaciones publicadas -qué
+cambió en la superficie pública desde la indexación anterior y a quién rompe-.
+`facts.Diff` existe (`internal/facts/delta.go:240`) y las generaciones están
+numeradas, pero antes hay que comprobar si los datos de una generación anterior
+siguen siendo legibles tras publicar la siguiente. Si no lo son, hace falta
+persistir un resumen de superficie pública por generación, y eso cambia el
+formato de almacenamiento y pide un ADR. Sourcegraph tiene `compare_revisions` y
+`diff_search`, pero son diffs de git: nadie compara dos estados del grafo.
+
+**Estado:** `TODO`.
+
+**Gate:** ninguno adicional. `MCP_SURFACE_PASS` se vuelve a exigir, porque la
+tarea cambia el contrato de la respuesta que ese gate fija.
+
+**Verificación:**
+
+```text
+gofmt -l <archivos-go-modificados>
+go vet ./...
+go test ./internal/mcp/... ./internal/hotsnapshot/... -count=1
+go test ./... -count=1
+make test-ladybug PKGS=./internal/storage/ladybug
+make build
+```
+
+`make test-ladybug` entra porque `Exported` cruza la frontera nativa. Contra el
+binario real: `ladygraph index --full` sobre este repositorio y las tres
+consultas de arriba -`Connection`, `MergeAll` y un símbolo privado de un paquete
+íntegro- comparadas con su respuesta actual.
 
 ---
 
