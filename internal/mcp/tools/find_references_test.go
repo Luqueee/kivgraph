@@ -24,14 +24,37 @@ func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 	if first.Coverage != (Coverage{Exact: 1, Candidate: 1}) {
 		t.Fatalf("incoming coverage = %#v", first.Coverage)
 	}
-	if first.Results[0].SourceKey != "symbol-caller-a" || first.Results[0].TargetKey != "symbol-target" {
-		t.Fatalf("first incoming result = %#v", first.Results[0])
+	// The subject is stated once, not on every row, and each row names the
+	// other end so the agent can open it without a second call.
+	if first.Results.Subject.StableKey != "symbol-target" || first.Results.Subject.Name != "target" {
+		t.Fatalf("subject = %#v", first.Results.Subject)
 	}
-	if first.Results[0].Kind != string(facts.References) || first.Results[0].Confidence != string(facts.ExactTypechecked) || first.Results[0].EvidenceKind != "checker" {
-		t.Fatalf("first incoming relation = %#v", first.Results[0])
+	if first.Results.Direction != FindReferencesDirectionIncoming {
+		t.Fatalf("direction = %q", first.Results.Direction)
 	}
-	if first.Results[0].SourceRepositoryKey != "repo-a" || first.Results[0].SourceLanguage != "go" || first.Results[0].SourceFileKey != "file-a" || first.Results[0].SourceFilePath != "src/caller.go" {
-		t.Fatalf("first incoming location = %#v", first.Results[0])
+	caller := first.Results.References[0]
+	if caller.StableKey != "symbol-caller-a" || caller.Name != "callerA" || caller.QualifiedName != "pkg.CallerA" {
+		t.Fatalf("first incoming result = %#v", caller)
+	}
+	if caller.EdgeKind != string(facts.References) || caller.Confidence != string(facts.ExactTypechecked) {
+		t.Fatalf("first incoming relation = %#v", caller)
+	}
+	// The concise row omits the evidence kind and the derived keys.
+	if caller.EvidenceKind != "" || caller.FileKey != "" || caller.RepositoryKey != "" {
+		t.Fatalf("concise row carries derived fields = %#v", caller)
+	}
+	if caller.Language != "go" || caller.FilePath != "src/caller.go" || caller.Repository != "repo-a" {
+		t.Fatalf("first incoming location = %#v", caller)
+	}
+
+	detailed := callFindReferences(t, client, map[string]any{
+		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming, "limit": 1,
+		"response_format": ResponseFormatDetailed,
+	})
+	if detailed.Results.References[0].EvidenceKind != "checker" ||
+		detailed.Results.References[0].FileKey != "file-a" ||
+		detailed.Results.References[0].RepositoryKey != "repo-a" {
+		t.Fatalf("detailed row = %#v", detailed.Results.References[0])
 	}
 
 	second := callFindReferences(t, client, map[string]any{
@@ -41,15 +64,18 @@ func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 	if second.Total != 2 || second.Returned != 1 || second.Truncated || second.NextCursor != nil {
 		t.Fatalf("second incoming page = %#v", second)
 	}
-	if second.Results[0].SourceKey != "symbol-caller-b" || second.Results[0].Kind != string(facts.CallsDirect) {
-		t.Fatalf("second incoming result = %#v", second.Results[0])
+	if second.Results.References[0].StableKey != "symbol-caller-b" || second.Results.References[0].EdgeKind != string(facts.CallsDirect) {
+		t.Fatalf("second incoming result = %#v", second.Results.References[0])
 	}
 
 	outgoing := callFindReferences(t, client, map[string]any{
 		"stable_key": "symbol-target", "direction": FindReferencesDirectionOutgoing,
 	})
-	if outgoing.Total != 1 || outgoing.Returned != 1 || outgoing.Results[0].TargetKey != "symbol-result" {
+	if outgoing.Total != 1 || outgoing.Returned != 1 || outgoing.Results.References[0].StableKey != "symbol-result" {
 		t.Fatalf("outgoing result = %#v", outgoing)
+	}
+	if outgoing.Results.Subject.StableKey != "symbol-target" {
+		t.Fatalf("outgoing subject = %#v", outgoing.Results.Subject)
 	}
 
 	filtered := callFindReferences(t, client, map[string]any{
@@ -57,7 +83,7 @@ func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 		"repo": "repo-b", "language": "typescript", "edge_kinds": []string{string(facts.CallsDirect)},
 		"confidence": string(facts.Candidate),
 	})
-	if filtered.Total != 1 || filtered.Returned != 1 || filtered.Results[0].SourceKey != "symbol-caller-b" {
+	if filtered.Total != 1 || filtered.Returned != 1 || filtered.Results.References[0].StableKey != "symbol-caller-b" {
 		t.Fatalf("filtered result = %#v", filtered)
 	}
 }
@@ -121,7 +147,7 @@ func TestFindReferencesIsRegisteredReadOnly(t *testing.T) {
 	t.Fatal("find_references is not registered")
 }
 
-func callFindReferences(t *testing.T, client *sdkmcp.ClientSession, arguments map[string]any) Response[[]ReferenceSummary] {
+func callFindReferences(t *testing.T, client *sdkmcp.ClientSession, arguments map[string]any) Response[ReferenceResult] {
 	t.Helper()
 	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{Name: findReferencesToolName, Arguments: arguments})
 	if err != nil {
@@ -134,7 +160,7 @@ func callFindReferences(t *testing.T, client *sdkmcp.ClientSession, arguments ma
 	if err != nil {
 		t.Fatalf("Marshal structured content: %v", err)
 	}
-	var response Response[[]ReferenceSummary]
+	var response Response[ReferenceResult]
 	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatalf("Unmarshal structured content: %v", err)
 	}

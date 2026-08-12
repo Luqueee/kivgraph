@@ -152,9 +152,10 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        findCrossRepoConsumersToolName,
-		Description: "Finds exact, package-level, candidate, and unresolved consumers of a symbol in other repositories.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         findCrossRepoConsumersToolName,
+		Description:  "Finds exact, package-level, candidate, and unresolved consumers of a symbol in other repositories.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 

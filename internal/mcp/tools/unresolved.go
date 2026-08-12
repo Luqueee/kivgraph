@@ -128,9 +128,10 @@ func RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        unresolvedReferencesToolName,
-		Description: "Lists references that could not be resolved to an exact symbol.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         unresolvedReferencesToolName,
+		Description:  "Lists references that could not be resolved to an exact symbol.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 

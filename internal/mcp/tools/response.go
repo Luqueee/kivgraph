@@ -14,7 +14,11 @@ type Response[T any] struct {
 	Truncated     bool     `json:"truncated"`
 	NextCursor    *string  `json:"next_cursor"`
 	Coverage      Coverage `json:"coverage"`
-	Results       T        `json:"results"`
+	// Completeness is present when the tool checked how far its answer
+	// reaches. Absent means it did not check, which is not the same as
+	// checking and finding nothing.
+	Completeness *Completeness `json:"completeness,omitempty"`
+	Results      T             `json:"results"`
 }
 
 // Coverage counts how confidently the response can account for related graph

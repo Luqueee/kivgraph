@@ -15,35 +15,59 @@ const (
 	FindSymbolModeExact          = "exact"
 	FindSymbolModeQualifiedExact = "qualified_exact"
 	FindSymbolModePrefix         = "prefix"
+	FindSymbolModeSubstring      = "substring"
 
 	DefaultSymbolLimit = 50
 	MaximumSymbolLimit = hotsnapshot.MaxExactResults
 	findSymbolToolName = "find_symbol"
 )
 
-// FindSymbolInput contains the search mode and optional page controls for
-// find_symbol. An empty mode is the exact unqualified-name search.
+// FindSymbolInput contains the search mode, the filters and the page controls
+// for find_symbol. An empty mode is the exact unqualified-name search.
+//
+// Kind, Repo and PathPrefix narrow the page without changing its cost class:
+// prefix and substring already walk every symbol name in the snapshot, so
+// filtering while walking is free.
 type FindSymbolInput struct {
-	Name   string `json:"name"`
-	Mode   string `json:"mode,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
-	Cursor string `json:"cursor,omitempty"`
+	Name           string `json:"name"`
+	Mode           string `json:"mode,omitempty"`
+	Kind           string `json:"kind,omitempty"`
+	Repo           string `json:"repo,omitempty"`
+	PathPrefix     string `json:"path_prefix,omitempty"`
+	ResponseFormat string `json:"response_format,omitempty"`
+	Limit          int    `json:"limit,omitempty"`
+	Cursor         string `json:"cursor,omitempty"`
 }
 
-// SymbolSummary is the stable public result shape for symbol discovery.
+// SymbolSummary is the stable public result shape for symbol discovery. It
+// carries where the symbol is, because a search result the agent cannot open
+// costs a second call to become useful.
+//
+// CanonicalIdentity is omitted unless the caller asks for the detailed
+// format: it is the concatenation of language, repository, package, qualified
+// name, kind and discriminator, every one of which is already a field here or
+// is the signature itself.
 type SymbolSummary struct {
 	StableKey         string `json:"stable_key"`
-	CanonicalIdentity string `json:"canonical_identity"`
 	Name              string `json:"name"`
 	QualifiedName     string `json:"qualified_name"`
 	Kind              string `json:"kind"`
 	Signature         string `json:"signature"`
+	Exported          bool   `json:"exported"`
+	RepositoryName    string `json:"repository_name"`
+	FilePath          string `json:"file_path"`
+	StartLine         uint32 `json:"start_line"`
+	EndLine           uint32 `json:"end_line"`
+	CanonicalIdentity string `json:"canonical_identity,omitempty"`
 }
 
 type findSymbolQuery struct {
-	Tool string `json:"tool"`
-	Name string `json:"name"`
-	Mode string `json:"mode"`
+	Tool       string `json:"tool"`
+	Name       string `json:"name"`
+	Mode       string `json:"mode"`
+	Kind       string `json:"kind,omitempty"`
+	Repo       string `json:"repo,omitempty"`
+	PathPrefix string `json:"path_prefix,omitempty"`
 }
 
 // RegisterFindSymbol adds the read-only symbol search tool without a graph
@@ -94,9 +118,10 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        findSymbolToolName,
-		Description: "Finds symbols by exact name, qualified name, or name prefix.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         findSymbolToolName,
+		Description:  "Finds symbols by exact name, qualified name, prefix or substring, and returns where each one is. Narrow with kind, repo and path_prefix.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -118,7 +143,21 @@ func findSymbol(
 	if err != nil {
 		return nil, Response[[]SymbolSummary]{}, err
 	}
-	queryHash, err := HashQuery(findSymbolQuery{Tool: findSymbolToolName, Name: name, Mode: mode})
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return nil, Response[[]SymbolSummary]{}, err
+	}
+	filter := hotsnapshot.SymbolFilter{
+		Kind:           arguments.Kind,
+		RepositoryName: arguments.Repo,
+		PathPrefix:     arguments.PathPrefix,
+	}
+	// The cursor is bound to the whole query, filters included: a page taken
+	// with one filter is not a page of another.
+	queryHash, err := HashQuery(findSymbolQuery{
+		Tool: findSymbolToolName, Name: name, Mode: mode,
+		Kind: filter.Kind, Repo: filter.RepositoryName, PathPrefix: filter.PathPrefix,
+	})
 	if err != nil {
 		return nil, Response[[]SymbolSummary]{}, err
 	}
@@ -143,7 +182,7 @@ func findSymbol(
 		offset = cursor.Offset
 	}
 
-	page, err := searchSymbolPage(snapshot, name, mode, offset, limit)
+	page, err := searchSymbolPage(snapshot, name, mode, filter, offset, limit)
 	if err != nil {
 		return nil, Response[[]SymbolSummary]{}, WrapToolError(CodeInvalidArgument, "symbol search pagination is invalid", err)
 	}
@@ -157,7 +196,7 @@ func findSymbol(
 				fmt.Errorf("symbol index %d is missing", id),
 			)
 		}
-		summary, err := symbolSummary(snapshot, symbol)
+		summary, err := symbolSummary(snapshot, symbol, format)
 		if err != nil {
 			return nil, Response[[]SymbolSummary]{}, WrapToolError(
 				CodeSnapshotUnavailable,
@@ -182,6 +221,11 @@ func findSymbol(
 		nextCursor = &encoded
 	}
 
+	// A search that found nothing and reports no uncertainty is claiming the
+	// name does not exist. It may only mean its provider was never indexed,
+	// and the index recorded exactly that, with a file and a line.
+	_, unresolvedRelated := snapshot.UnresolvedNamingSymbol(name, 0)
+
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[[]SymbolSummary]{
@@ -191,7 +235,7 @@ func findSymbol(
 		Returned:      len(results),
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
-		Coverage:      Coverage{},
+		Coverage:      Coverage{Exact: len(results), UnresolvedRelated: unresolvedRelated},
 		Results:       results,
 	}, nil
 }
@@ -208,7 +252,7 @@ func normalizeFindSymbolMode(value string) (string, error) {
 		return FindSymbolModeExact, nil
 	}
 	switch value {
-	case FindSymbolModeExact, FindSymbolModeQualifiedExact, FindSymbolModePrefix:
+	case FindSymbolModeExact, FindSymbolModeQualifiedExact, FindSymbolModePrefix, FindSymbolModeSubstring:
 		return value, nil
 	default:
 		return "", NewToolError(CodeInvalidArgument, fmt.Sprintf("mode %q is unsupported", value))
@@ -225,27 +269,40 @@ func normalizeSymbolLimit(value int) (int, error) {
 	return value, nil
 }
 
-func searchSymbolPage(snapshot *hotsnapshot.GraphSnapshot, name, mode string, offset, limit int) (hotsnapshot.SymbolPage, error) {
+func searchSymbolPage(
+	snapshot *hotsnapshot.GraphSnapshot,
+	name, mode string,
+	filter hotsnapshot.SymbolFilter,
+	offset, limit int,
+) (hotsnapshot.SymbolPage, error) {
 	nameID, found := snapshot.Strings().Lookup(name)
 	switch mode {
 	case FindSymbolModeExact:
 		if !found {
 			nameID = hotsnapshot.InvalidInternedString
 		}
-		return snapshot.SearchSymbolsByName(nameID, offset, limit)
+		return snapshot.SearchSymbolsByName(nameID, filter, offset, limit)
 	case FindSymbolModeQualifiedExact:
 		if !found {
 			nameID = hotsnapshot.InvalidInternedString
 		}
-		return snapshot.SearchSymbolsByQName(nameID, offset, limit)
+		return snapshot.SearchSymbolsByQName(nameID, filter, offset, limit)
 	case FindSymbolModePrefix:
-		return snapshot.SearchSymbolsByNamePrefix(name, offset, limit)
+		return snapshot.SearchSymbolsByNamePrefix(name, filter, offset, limit)
+	case FindSymbolModeSubstring:
+		return snapshot.SearchSymbolsByNameSubstring(name, filter, offset, limit)
 	default:
 		return hotsnapshot.SymbolPage{}, fmt.Errorf("unsupported mode %q", mode)
 	}
 }
 
-func symbolSummary(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolRecord) (SymbolSummary, error) {
+// symbolSummary builds one result row. The location is not optional: a search
+// result the agent cannot open is a result it has to ask about again.
+func symbolSummary(
+	snapshot *hotsnapshot.GraphSnapshot,
+	symbol hotsnapshot.SymbolRecord,
+	format string,
+) (SymbolSummary, error) {
 	table := snapshot.Strings()
 	canonical, canonicalOK := table.String(symbol.CanonicalIdentity)
 	name, nameOK := table.String(symbol.Name)
@@ -258,12 +315,24 @@ func symbolSummary(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.Symbo
 			canonicalOK, nameOK, qualifiedNameOK, kindOK, signatureOK,
 		)
 	}
-	return SymbolSummary{
-		StableKey:         string(symbol.StableKey),
-		CanonicalIdentity: canonical,
-		Name:              name,
-		QualifiedName:     qualifiedName,
-		Kind:              kind,
-		Signature:         signature,
-	}, nil
+	location, err := resolveSymbolLocation(snapshot, symbol)
+	if err != nil {
+		return SymbolSummary{}, err
+	}
+	summary := SymbolSummary{
+		StableKey:      string(symbol.StableKey),
+		Name:           name,
+		QualifiedName:  qualifiedName,
+		Kind:           kind,
+		Signature:      signature,
+		Exported:       symbol.Exported,
+		RepositoryName: location.RepositoryName,
+		FilePath:       location.FilePath,
+		StartLine:      symbol.StartLine,
+		EndLine:        symbol.EndLine,
+	}
+	if format == ResponseFormatDetailed {
+		summary.CanonicalIdentity = canonical
+	}
+	return summary, nil
 }

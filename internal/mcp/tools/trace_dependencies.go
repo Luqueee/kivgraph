@@ -27,15 +27,16 @@ const (
 // confidence gate which edges the traversal may follow, so they change what is
 // reachable; repo and language only select which reached symbols are returned.
 type TraceDependenciesInput struct {
-	StableKey  string   `json:"stable_key"`
-	Depth      int      `json:"depth,omitempty"`
-	MaxNodes   int      `json:"max_nodes,omitempty"`
-	Repo       string   `json:"repo,omitempty"`
-	Language   string   `json:"language,omitempty"`
-	EdgeKinds  []string `json:"edge_kinds,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
-	Cursor     string   `json:"cursor,omitempty"`
+	StableKey     string   `json:"stable_key,omitempty"`
+	QualifiedName string   `json:"qualified_name,omitempty"`
+	Depth         int      `json:"depth,omitempty"`
+	MaxNodes      int      `json:"max_nodes,omitempty"`
+	Repo          string   `json:"repo,omitempty"`
+	Language      string   `json:"language,omitempty"`
+	EdgeKinds     []string `json:"edge_kinds,omitempty"`
+	Confidence    string   `json:"confidence,omitempty"`
+	Limit         int      `json:"limit,omitempty"`
+	Cursor        string   `json:"cursor,omitempty"`
 }
 
 // DependencyTrace is the traversal itself: the root, what the bounds did to
@@ -77,25 +78,27 @@ type ReachedSymbol struct {
 }
 
 type traceDependenciesOptions struct {
-	StableKey  string
-	Depth      int
-	MaxNodes   int
-	Repo       string
-	Language   string
-	EdgeKinds  []string
-	Confidence string
-	Limit      int
+	StableKey     string
+	QualifiedName string
+	Depth         int
+	MaxNodes      int
+	Repo          string
+	Language      string
+	EdgeKinds     []string
+	Confidence    string
+	Limit         int
 }
 
 type traceDependenciesQuery struct {
-	Tool       string   `json:"tool"`
-	StableKey  string   `json:"stable_key"`
-	Depth      int      `json:"depth"`
-	MaxNodes   int      `json:"max_nodes"`
-	Repo       string   `json:"repo,omitempty"`
-	Language   string   `json:"language,omitempty"`
-	EdgeKinds  []string `json:"edge_kinds,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
+	Tool          string   `json:"tool"`
+	StableKey     string   `json:"stable_key,omitempty"`
+	QualifiedName string   `json:"qualified_name,omitempty"`
+	Depth         int      `json:"depth"`
+	MaxNodes      int      `json:"max_nodes"`
+	Repo          string   `json:"repo,omitempty"`
+	Language      string   `json:"language,omitempty"`
+	EdgeKinds     []string `json:"edge_kinds,omitempty"`
+	Confidence    string   `json:"confidence,omitempty"`
 }
 
 // RegisterTraceDependencies adds the read-only dependency traversal without a
@@ -146,9 +149,10 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        traceDependenciesToolName,
-		Description: "Traces the bounded outgoing dependency graph of a symbol.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         traceDependenciesToolName,
+		Description:  "Traces the bounded outgoing dependency graph of a symbol.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -163,7 +167,7 @@ func traceDependencies(
 		return nil, Response[DependencyTrace]{}, err
 	}
 	queryHash, err := HashQuery(traceDependenciesQuery{
-		Tool: traceDependenciesToolName, StableKey: options.StableKey, Depth: options.Depth,
+		Tool: traceDependenciesToolName, StableKey: options.StableKey, QualifiedName: options.QualifiedName, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language,
 		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
 	})
@@ -177,9 +181,9 @@ func traceDependencies(
 	if snapshot == nil {
 		return nil, Response[DependencyTrace]{}, ErrIndexNotReady()
 	}
-	rootID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
-	if !found {
-		return nil, Response[DependencyTrace]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", options.StableKey))
+	rootID, err := resolveRootSymbol(snapshot, options.StableKey, options.QualifiedName)
+	if err != nil {
+		return nil, Response[DependencyTrace]{}, err
 	}
 	root, _, rootRepository, _, err := symbolReferenceLocation(snapshot, rootID)
 	if err != nil {
@@ -251,7 +255,7 @@ func traceDependencies(
 }
 
 func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDependenciesOptions, error) {
-	stableKey, err := normalizeSymbolStableKey(arguments.StableKey)
+	stableKey, qualifiedName, err := normalizeRootSelector(arguments.StableKey, arguments.QualifiedName)
 	if err != nil {
 		return traceDependenciesOptions{}, err
 	}
@@ -293,7 +297,7 @@ func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDep
 		return traceDependenciesOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("limit must be between 1 and %d", MaximumDependencyLimit))
 	}
 	return traceDependenciesOptions{
-		StableKey: stableKey, Depth: depth, MaxNodes: maxNodes, Repo: repo,
+		StableKey: stableKey, QualifiedName: qualifiedName, Depth: depth, MaxNodes: maxNodes, Repo: repo,
 		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
 	}, nil
 }

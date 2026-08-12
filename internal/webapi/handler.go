@@ -264,15 +264,15 @@ func (handler *Handler) search(writer http.ResponseWriter, request *http.Request
 		interned, found := snapshot.Strings().Lookup(name)
 		if found {
 			if mode == "exact" {
-				page, err = snapshot.SearchSymbolsByName(interned, offset, limit)
+				page, err = snapshot.SearchSymbolsByName(interned, hotsnapshot.SymbolFilter{}, offset, limit)
 			} else {
-				page, err = snapshot.SearchSymbolsByQName(interned, offset, limit)
+				page, err = snapshot.SearchSymbolsByQName(interned, hotsnapshot.SymbolFilter{}, offset, limit)
 			}
 		} else {
 			page = hotsnapshot.SymbolPage{Offset: offset, Limit: limit}
 		}
 	case "prefix":
-		page, err = snapshot.SearchSymbolsByNamePrefix(name, offset, limit)
+		page, err = snapshot.SearchSymbolsByNamePrefix(name, hotsnapshot.SymbolFilter{}, offset, limit)
 	default:
 		handler.writeError(writer, request, http.StatusBadRequest, "INVALID_ARGUMENT", "mode must be exact, qualified_exact or prefix")
 		return

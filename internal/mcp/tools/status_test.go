@@ -251,6 +251,66 @@ func TestGraphStatusIncludesConfiguredMetrics(t *testing.T) {
 	}
 }
 
+// TestGraphStatusReportsRepositoryFreshness defends the reason graph_status is
+// the first call of a session: it has to answer whether the graph still
+// describes the code on disk, without a second call per repository.
+func TestGraphStatusReportsRepositoryFreshness(t *testing.T) {
+	current := writeGitCheckout(t, indexedFixtureCommit, "main")
+	drifted := writeGitCheckout(t, movedFixtureCommit, "feature/x")
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-1", Name: "current", Path: current, Languages: "go", Commit: indexedFixtureCommit, Branch: "main"},
+			{Key: "repo-2", Name: "drifted", Path: drifted, Languages: "go", Commit: indexedFixtureCommit, Branch: "main"},
+		},
+	}, 71, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+
+	_, response, err := graphStatus(
+		context.Background(), nil, struct{}{}, hotsnapshot.NewSnapshotStore(snapshot), nil,
+	)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	status := response.Results
+	if status.RepositoriesMoved != 1 {
+		t.Fatalf("repositories_moved = %d, want 1", status.RepositoriesMoved)
+	}
+	// The count of repositories in the snapshot keeps its own field: the
+	// freshness array is additional information, not a replacement.
+	if status.Repositories != 2 {
+		t.Fatalf("repositories = %d, want the snapshot count", status.Repositories)
+	}
+	summaries := repositorySummariesByName(t, status.RepositoryFreshness, 2)
+	if summaries["current"].Moved || summaries["current"].CurrentCommit != indexedFixtureCommit {
+		t.Fatalf("current repository = %#v", summaries["current"])
+	}
+	moved := summaries["drifted"]
+	if !moved.Moved || moved.CurrentCommit != movedFixtureCommit {
+		t.Fatalf("moved repository = %#v", moved)
+	}
+	if !strings.Contains(moved.MovedDetail, indexedFixtureCommit[:7]) ||
+		!strings.Contains(moved.MovedDetail, movedFixtureCommit[:7]) {
+		t.Fatalf("moved_detail = %q, want both commits named", moved.MovedDetail)
+	}
+}
+
+// TestGraphStatusReportsNoRepositoryFreshnessWithoutASnapshot keeps the empty
+// answer an empty array rather than a null the client has to special-case.
+func TestGraphStatusReportsNoRepositoryFreshnessWithoutASnapshot(t *testing.T) {
+	_, response, err := graphStatus(context.Background(), nil, struct{}{}, nil, nil)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	if response.Results.RepositoryFreshness == nil || len(response.Results.RepositoryFreshness) != 0 {
+		t.Fatalf("repository_freshness = %#v, want an empty array", response.Results.RepositoryFreshness)
+	}
+	if response.Results.RepositoriesMoved != 0 {
+		t.Fatalf("repositories_moved = %d, want 0", response.Results.RepositoriesMoved)
+	}
+}
+
 func BenchmarkGraphStatusWithMetrics(b *testing.B) {
 	registry := metrics.NewRegistry()
 	for _, name := range []string{

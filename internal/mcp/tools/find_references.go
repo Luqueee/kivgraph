@@ -25,32 +25,62 @@ const (
 // FindReferencesInput identifies one symbol and the direct relationship page
 // to inspect around it.
 type FindReferencesInput struct {
-	StableKey  string   `json:"stable_key"`
-	Direction  string   `json:"direction,omitempty"`
-	Repo       string   `json:"repo,omitempty"`
-	Language   string   `json:"language,omitempty"`
-	EdgeKinds  []string `json:"edge_kinds,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
-	Cursor     string   `json:"cursor,omitempty"`
+	StableKey      string   `json:"stable_key"`
+	Direction      string   `json:"direction,omitempty"`
+	Repo           string   `json:"repo,omitempty"`
+	Language       string   `json:"language,omitempty"`
+	EdgeKinds      []string `json:"edge_kinds,omitempty"`
+	Confidence     string   `json:"confidence,omitempty"`
+	ResponseFormat string   `json:"response_format,omitempty"`
+	Limit          int      `json:"limit,omitempty"`
+	Cursor         string   `json:"cursor,omitempty"`
 }
 
-// ReferenceSummary is one exact adjacent symbol relationship.
+// ReferenceSubject is the symbol the query asked about. It is stated once per
+// response instead of on every row: it is the argument, not a result, and
+// repeating it on each row was most of the payload.
+type ReferenceSubject struct {
+	StableKey     string `json:"stable_key"`
+	Name          string `json:"name"`
+	QualifiedName string `json:"qualified_name"`
+	Kind          string `json:"kind"`
+	Repository    string `json:"repository"`
+	FilePath      string `json:"file_path"`
+	StartLine     uint32 `json:"start_line"`
+}
+
+// ReferenceSummary is the other end of one exact relationship: the symbol
+// holding the reference for an incoming query, the one being reached for an
+// outgoing one. It is named and located, because a caller identified only by
+// an opaque key costs one more call per row before it means anything.
+//
+// StartLine is the declaration line of that symbol, not the position of the
+// token. The snapshot records which symbol contains a reference and never
+// where inside it: publishing a line nobody observed would be inventing
+// evidence.
 type ReferenceSummary struct {
-	SourceKey           string `json:"source_key"`
-	TargetKey           string `json:"target_key"`
-	Kind                string `json:"kind"`
-	Confidence          string `json:"confidence"`
-	Provenance          string `json:"provenance"`
-	EvidenceKind        string `json:"evidence_kind"`
-	SourceRepositoryKey string `json:"source_repository_key"`
-	TargetRepositoryKey string `json:"target_repository_key"`
-	SourceLanguage      string `json:"source_language"`
-	TargetLanguage      string `json:"target_language"`
-	SourceFileKey       string `json:"source_file_key"`
-	TargetFileKey       string `json:"target_file_key"`
-	SourceFilePath      string `json:"source_file_path"`
-	TargetFilePath      string `json:"target_file_path"`
+	StableKey     string `json:"stable_key"`
+	Name          string `json:"name"`
+	QualifiedName string `json:"qualified_name"`
+	Kind          string `json:"kind"`
+	Repository    string `json:"repository"`
+	FilePath      string `json:"file_path"`
+	StartLine     uint32 `json:"start_line"`
+	Language      string `json:"language"`
+	EdgeKind      string `json:"edge_kind"`
+	Confidence    string `json:"confidence"`
+	Provenance    string `json:"provenance"`
+
+	EvidenceKind  string `json:"evidence_kind,omitempty"`
+	FileKey       string `json:"file_key,omitempty"`
+	RepositoryKey string `json:"repository_key,omitempty"`
+}
+
+// ReferenceResult is one page of relationships around a subject.
+type ReferenceResult struct {
+	Subject    ReferenceSubject   `json:"subject"`
+	Direction  string             `json:"direction"`
+	References []ReferenceSummary `json:"references"`
 }
 
 type findReferencesOptions struct {
@@ -110,7 +140,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
 		arguments FindReferencesInput,
-	) (*sdkmcp.CallToolResult, Response[[]ReferenceSummary], error) {
+	) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
 		return findReferences(ctx, request, arguments, snapshotStore)
 	}
 	if observer != nil || callObserver != nil {
@@ -119,7 +149,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 			ctx context.Context,
 			request *sdkmcp.CallToolRequest,
 			arguments FindReferencesInput,
-		) (*sdkmcp.CallToolResult, Response[[]ReferenceSummary], error) {
+		) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
 			start := time.Now()
 			result, references, err := underlying(ctx, request, arguments)
 			observe(observer, callObserver, findReferencesToolName, start, references, err)
@@ -127,9 +157,10 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        findReferencesToolName,
-		Description: "Finds direct symbol references in the incoming or outgoing direction.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         findReferencesToolName,
+		Description:  "Finds the symbols that reference one symbol, or the ones it reaches. Each row names the other end and where it is declared.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -138,10 +169,14 @@ func findReferences(
 	_ *sdkmcp.CallToolRequest,
 	arguments FindReferencesInput,
 	snapshotStore *hotsnapshot.SnapshotStore,
-) (*sdkmcp.CallToolResult, Response[[]ReferenceSummary], error) {
+) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
 	options, err := normalizeFindReferencesInput(arguments)
 	if err != nil {
-		return nil, Response[[]ReferenceSummary]{}, err
+		return nil, Response[ReferenceResult]{}, err
+	}
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
 	}
 	queryHash, err := HashQuery(findReferencesQuery{
 		Tool: findReferencesToolName, StableKey: options.StableKey, Direction: options.Direction,
@@ -149,25 +184,28 @@ func findReferences(
 		Confidence: options.Confidence,
 	})
 	if err != nil {
-		return nil, Response[[]ReferenceSummary]{}, err
+		return nil, Response[ReferenceResult]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]ReferenceSummary]{}, ErrIndexNotReady()
+		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]ReferenceSummary]{}, ErrIndexNotReady()
+		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
 	}
 
 	startID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
 	if !found {
-		return nil, Response[[]ReferenceSummary]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", options.StableKey))
+		return nil, Response[ReferenceResult]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", options.StableKey))
 	}
-	if _, found := snapshot.Symbol(startID); !found {
-		return nil, Response[[]ReferenceSummary]{}, WrapToolError(
+	// referenceSubject resolves the start symbol and everything it needs to
+	// be named, so a missing index shows up here rather than twice.
+	subject, err := referenceSubject(snapshot, startID)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, WrapToolError(
 			CodeSnapshotUnavailable,
 			"active snapshot symbol index is inconsistent",
-			fmt.Errorf("symbol index %d is missing", startID),
+			err,
 		)
 	}
 
@@ -176,10 +214,10 @@ func findReferences(
 	if arguments.Cursor != "" {
 		cursor, err := DecodeCursor(arguments.Cursor)
 		if err != nil {
-			return nil, Response[[]ReferenceSummary]{}, err
+			return nil, Response[ReferenceResult]{}, err
 		}
 		if err := cursor.ValidateAgainst(metadata.ID, queryHash, SortingVersionReferencesV1); err != nil {
-			return nil, Response[[]ReferenceSummary]{}, err
+			return nil, Response[ReferenceResult]{}, err
 		}
 		offset = cursor.Offset
 	}
@@ -194,7 +232,7 @@ func findReferences(
 	for _, edge := range edges {
 		decoded, relevant, err := decodeReferenceEdge(edge)
 		if err != nil {
-			return nil, Response[[]ReferenceSummary]{}, WrapToolError(
+			return nil, Response[ReferenceResult]{}, WrapToolError(
 				CodeSnapshotUnavailable,
 				"active snapshot contains an invalid reference edge",
 				err,
@@ -209,7 +247,7 @@ func findReferences(
 		}
 		matches, err := referenceMatches(snapshot, sourceID, targetID, decoded, options)
 		if err != nil {
-			return nil, Response[[]ReferenceSummary]{}, WrapToolError(
+			return nil, Response[ReferenceResult]{}, WrapToolError(
 				CodeSnapshotUnavailable,
 				"active snapshot contains invalid reference metadata",
 				err,
@@ -220,9 +258,9 @@ func findReferences(
 		}
 		addReferenceCoverage(&coverage, decoded.Confidence)
 		if total >= offset && len(results) < options.Limit {
-			reference, err := referenceSummary(snapshot, sourceID, targetID, edge, decoded)
+			reference, err := referenceSummary(snapshot, edge.Target, edge, decoded, format)
 			if err != nil {
-				return nil, Response[[]ReferenceSummary]{}, WrapToolError(
+				return nil, Response[ReferenceResult]{}, WrapToolError(
 					CodeSnapshotUnavailable,
 					"active snapshot contains invalid reference evidence",
 					err,
@@ -238,18 +276,18 @@ func findReferences(
 	if hasMore {
 		cursor, err := NewCursor(metadata.ID, queryHash, offset+len(results), SortingVersionReferencesV1)
 		if err != nil {
-			return nil, Response[[]ReferenceSummary]{}, err
+			return nil, Response[ReferenceResult]{}, err
 		}
 		encoded, err := cursor.Encode()
 		if err != nil {
-			return nil, Response[[]ReferenceSummary]{}, err
+			return nil, Response[ReferenceResult]{}, err
 		}
 		nextCursor = &encoded
 	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
-	return nil, Response[[]ReferenceSummary]{
+	return nil, Response[ReferenceResult]{
 		SnapshotID:    &snapshotID,
 		SnapshotAgeMS: &snapshotAgeMS,
 		Total:         total,
@@ -257,7 +295,7 @@ func findReferences(
 		Truncated:     hasMore,
 		NextCursor:    nextCursor,
 		Coverage:      coverage,
-		Results:       results,
+		Results:       ReferenceResult{Subject: subject, Direction: options.Direction, References: results},
 	}, nil
 }
 
@@ -415,43 +453,92 @@ func referenceMatches(
 	return true, nil
 }
 
+// referenceSummary describes the other end of an edge. Which end that is
+// depends on the direction the caller asked for, and both CSR directions put
+// it in the same place: the subject is the traversal start, never a row.
 func referenceSummary(
 	snapshot *hotsnapshot.GraphSnapshot,
-	sourceID, targetID hotsnapshot.SymbolID,
+	otherID hotsnapshot.SymbolID,
 	edge hotsnapshot.PackedEdge,
 	decoded decodedReferenceEdge,
+	format string,
 ) (ReferenceSummary, error) {
-	source, sourceFile, sourceRepository, sourceLanguages, err := symbolReferenceLocation(snapshot, sourceID)
+	other, file, repositoryKey, languages, err := symbolReferenceLocation(snapshot, otherID)
 	if err != nil {
 		return ReferenceSummary{}, err
 	}
-	target, targetFile, targetRepository, targetLanguages, err := symbolReferenceLocation(snapshot, targetID)
+	table := snapshot.Strings()
+	name, nameOK := table.String(other.Name)
+	qualifiedName, qualifiedNameOK := table.String(other.QualifiedName)
+	kind, kindOK := table.String(other.Kind)
+	if !nameOK || !qualifiedNameOK || !kindOK {
+		return ReferenceSummary{}, fmt.Errorf(
+			"symbol %q has invalid metadata (name_ok=%t qualified_name_ok=%t kind_ok=%t)",
+			other.StableKey, nameOK, qualifiedNameOK, kindOK,
+		)
+	}
+	location, err := resolveSymbolLocation(snapshot, other)
 	if err != nil {
 		return ReferenceSummary{}, err
+	}
+	summary := ReferenceSummary{
+		StableKey:     string(other.StableKey),
+		Name:          name,
+		QualifiedName: qualifiedName,
+		Kind:          kind,
+		Repository:    location.RepositoryName,
+		FilePath:      file.path,
+		StartLine:     other.StartLine,
+		Language:      firstString(languages),
+		EdgeKind:      string(decoded.Kind),
+		Confidence:    string(decoded.Confidence),
+		Provenance:    string(decoded.Provenance),
+	}
+	if format != ResponseFormatDetailed {
+		return summary, nil
 	}
 	evidence, found := snapshot.Evidence(edge.Evidence)
 	if !found {
 		return ReferenceSummary{}, fmt.Errorf("edge evidence index %d is missing", edge.Evidence)
 	}
-	evidenceKind, ok := snapshot.Strings().String(evidence.Kind)
+	evidenceKind, ok := table.String(evidence.Kind)
 	if !ok {
 		return ReferenceSummary{}, fmt.Errorf("edge evidence %d has an invalid kind", edge.Evidence)
 	}
-	return ReferenceSummary{
-		SourceKey:           string(source.StableKey),
-		TargetKey:           string(target.StableKey),
-		Kind:                string(decoded.Kind),
-		Confidence:          string(decoded.Confidence),
-		Provenance:          string(decoded.Provenance),
-		EvidenceKind:        evidenceKind,
-		SourceRepositoryKey: sourceRepository,
-		TargetRepositoryKey: targetRepository,
-		SourceLanguage:      firstString(sourceLanguages),
-		TargetLanguage:      firstString(targetLanguages),
-		SourceFileKey:       sourceFile.key,
-		TargetFileKey:       targetFile.key,
-		SourceFilePath:      sourceFile.path,
-		TargetFilePath:      targetFile.path,
+	summary.EvidenceKind = evidenceKind
+	summary.FileKey = file.key
+	summary.RepositoryKey = repositoryKey
+	return summary, nil
+}
+
+// referenceSubject describes the symbol the query is about, once.
+func referenceSubject(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID) (ReferenceSubject, error) {
+	symbol, file, _, _, err := symbolReferenceLocation(snapshot, id)
+	if err != nil {
+		return ReferenceSubject{}, err
+	}
+	table := snapshot.Strings()
+	name, nameOK := table.String(symbol.Name)
+	qualifiedName, qualifiedNameOK := table.String(symbol.QualifiedName)
+	kind, kindOK := table.String(symbol.Kind)
+	if !nameOK || !qualifiedNameOK || !kindOK {
+		return ReferenceSubject{}, fmt.Errorf(
+			"symbol %q has invalid metadata (name_ok=%t qualified_name_ok=%t kind_ok=%t)",
+			symbol.StableKey, nameOK, qualifiedNameOK, kindOK,
+		)
+	}
+	location, err := resolveSymbolLocation(snapshot, symbol)
+	if err != nil {
+		return ReferenceSubject{}, err
+	}
+	return ReferenceSubject{
+		StableKey:     string(symbol.StableKey),
+		Name:          name,
+		QualifiedName: qualifiedName,
+		Kind:          kind,
+		Repository:    location.RepositoryName,
+		FilePath:      file.path,
+		StartLine:     symbol.StartLine,
 	}, nil
 }
 

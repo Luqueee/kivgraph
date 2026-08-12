@@ -26,13 +26,14 @@ const (
 // gate which incoming edges may be followed, so they change what counts as
 // affected; the tool reports aggregates, never a symbol listing.
 type GetBlastRadiusInput struct {
-	StableKey  string   `json:"stable_key"`
-	Depth      int      `json:"depth,omitempty"`
-	MaxNodes   int      `json:"max_nodes,omitempty"`
-	EdgeKinds  []string `json:"edge_kinds,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
-	Cursor     string   `json:"cursor,omitempty"`
+	StableKey     string   `json:"stable_key,omitempty"`
+	QualifiedName string   `json:"qualified_name,omitempty"`
+	Depth         int      `json:"depth,omitempty"`
+	MaxNodes      int      `json:"max_nodes,omitempty"`
+	EdgeKinds     []string `json:"edge_kinds,omitempty"`
+	Confidence    string   `json:"confidence,omitempty"`
+	Limit         int      `json:"limit,omitempty"`
+	Cursor        string   `json:"cursor,omitempty"`
 }
 
 // BlastRadius is the impact of changing one symbol: the affected symbols
@@ -78,21 +79,23 @@ type BlastRadiusPackageGroup struct {
 }
 
 type blastRadiusOptions struct {
-	StableKey  string
-	Depth      int
-	MaxNodes   int
-	EdgeKinds  []string
-	Confidence string
-	Limit      int
+	StableKey     string
+	QualifiedName string
+	Depth         int
+	MaxNodes      int
+	EdgeKinds     []string
+	Confidence    string
+	Limit         int
 }
 
 type blastRadiusQuery struct {
-	Tool       string   `json:"tool"`
-	StableKey  string   `json:"stable_key"`
-	Depth      int      `json:"depth"`
-	MaxNodes   int      `json:"max_nodes"`
-	EdgeKinds  []string `json:"edge_kinds,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
+	Tool          string   `json:"tool"`
+	StableKey     string   `json:"stable_key,omitempty"`
+	QualifiedName string   `json:"qualified_name,omitempty"`
+	Depth         int      `json:"depth"`
+	MaxNodes      int      `json:"max_nodes"`
+	EdgeKinds     []string `json:"edge_kinds,omitempty"`
+	Confidence    string   `json:"confidence,omitempty"`
 }
 
 // RegisterGetBlastRadius adds the read-only impact query without a graph
@@ -143,9 +146,10 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        blastRadiusToolName,
-		Description: "Groups the bounded incoming impact of a symbol by repository, package, depth, and relation kind.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         blastRadiusToolName,
+		Description:  "Groups the bounded incoming impact of a symbol by repository, package, depth, and relation kind.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -160,7 +164,7 @@ func getBlastRadius(
 		return nil, Response[BlastRadius]{}, err
 	}
 	queryHash, err := HashQuery(blastRadiusQuery{
-		Tool: blastRadiusToolName, StableKey: options.StableKey, Depth: options.Depth,
+		Tool: blastRadiusToolName, StableKey: options.StableKey, QualifiedName: options.QualifiedName, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
 	})
 	if err != nil {
@@ -173,9 +177,9 @@ func getBlastRadius(
 	if snapshot == nil {
 		return nil, Response[BlastRadius]{}, ErrIndexNotReady()
 	}
-	rootID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
-	if !found {
-		return nil, Response[BlastRadius]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", options.StableKey))
+	rootID, err := resolveRootSymbol(snapshot, options.StableKey, options.QualifiedName)
+	if err != nil {
+		return nil, Response[BlastRadius]{}, err
 	}
 	root, _, rootRepository, _, err := symbolReferenceLocation(snapshot, rootID)
 	if err != nil {
@@ -237,17 +241,43 @@ func getBlastRadius(
 		nextCursor = &encoded
 	}
 
+	// An impact answer is the one that most needs its own bound: an agent
+	// reads it to decide whether a change is safe, and a silent gap here is
+	// a refactor that compiles and breaks something nobody looked at.
+	rootName, rootNameOK := snapshot.Strings().String(root.Name)
+	if !rootNameOK {
+		return nil, Response[BlastRadius]{}, WrapToolError(
+			CodeSnapshotUnavailable,
+			"active snapshot contains invalid impact metadata",
+			fmt.Errorf("symbol %q has an invalid name", root.StableKey),
+		)
+	}
+	rootFile, rootFileFound := snapshot.File(root.File)
+	rootRepositoryID := hotsnapshot.InvalidRepositoryID
+	if rootFileFound {
+		rootRepositoryID = rootFile.Repository
+	}
+	completeness, unresolvedRelated, err := completenessFor(snapshot, rootName, rootRepositoryID)
+	if err != nil {
+		return nil, Response[BlastRadius]{}, WrapToolError(
+			CodeSnapshotUnavailable,
+			"active snapshot contains invalid unresolved metadata",
+			err,
+		)
+	}
+	coverage.UnresolvedRelated += unresolvedRelated
+
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[BlastRadius]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(radius.Symbols), Truncated: hasMore, NextCursor: nextCursor,
-		Coverage: coverage, Results: radius,
+		Coverage: coverage, Completeness: &completeness, Results: radius,
 	}, nil
 }
 
 func normalizeBlastRadiusInput(arguments GetBlastRadiusInput) (blastRadiusOptions, error) {
-	stableKey, err := normalizeSymbolStableKey(arguments.StableKey)
+	stableKey, qualifiedName, err := normalizeRootSelector(arguments.StableKey, arguments.QualifiedName)
 	if err != nil {
 		return blastRadiusOptions{}, err
 	}
@@ -281,7 +311,7 @@ func normalizeBlastRadiusInput(arguments GetBlastRadiusInput) (blastRadiusOption
 		return blastRadiusOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("limit must be between 1 and %d", MaximumBlastRadiusLimit))
 	}
 	return blastRadiusOptions{
-		StableKey: stableKey, Depth: depth, MaxNodes: maxNodes,
+		StableKey: stableKey, QualifiedName: qualifiedName, Depth: depth, MaxNodes: maxNodes,
 		EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
 	}, nil
 }

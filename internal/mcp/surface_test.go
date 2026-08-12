@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ var allowedTools = []string{
 	"find_references",
 	"find_symbol",
 	"get_blast_radius",
+	"get_file_outline",
 	"get_symbol",
 	"get_unresolved_references",
 	"graph_status",
@@ -51,6 +53,49 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 	for index := range names {
 		if names[index] != allowedTools[index] {
 			t.Fatalf("tools = %v, want %v", names, allowedTools)
+		}
+	}
+}
+
+// MaximumSurfaceSchemaBytes bounds what a client loads before it can use this
+// server at all. A harness loads tool schemas on demand and frequently never
+// looks: the surface has to stay cheap enough to be worth looking at.
+//
+// The number is the measured cost with room to move, not an aspiration. It was
+// `34.932` characters while every tool published the JSON Schema the SDK
+// derives from its result type, and `4.768` once they published the object
+// schema instead -- the input schemas, which are the half that tells a caller
+// how to call, were only `2.530` of the original total.
+const MaximumSurfaceSchemaBytes = 8000
+
+func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
+	session := connectToServer(t, NewServer())
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	encoded, err := json.Marshal(listed.Tools)
+	if err != nil {
+		t.Fatalf("Marshal tools: %v", err)
+	}
+	if len(encoded) > MaximumSurfaceSchemaBytes {
+		t.Fatalf("published surface = %d bytes over %d tools, above the %d ceiling",
+			len(encoded), len(listed.Tools), MaximumSurfaceSchemaBytes)
+	}
+
+	// The output schema is the part that was cut, and the cut is what the
+	// ceiling depends on: a tool that publishes a derived one again puts
+	// thousands of characters back without changing the tool count.
+	for _, tool := range listed.Tools {
+		if tool.OutputSchema == nil {
+			continue
+		}
+		schema, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("Marshal output schema of %q: %v", tool.Name, err)
+		}
+		if len(schema) > 64 {
+			t.Fatalf("%s publishes a %d-byte output schema; use ConciseOutputSchema", tool.Name, len(schema))
 		}
 	}
 }

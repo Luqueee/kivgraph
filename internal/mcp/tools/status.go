@@ -60,6 +60,20 @@ type GraphStatus struct {
 	EdgesByKind        []GraphStatusCount `json:"edges_by_kind"`
 	UnresolvedByReason []GraphStatusCount `json:"unresolved_by_reason"`
 
+	// RepositoryFreshness carries, per repository, the commit the graph was
+	// built from and the commit its working tree holds now. It answers, in
+	// the one call an agent makes before trusting anything else, whether
+	// what it is about to be told is stale.
+	//
+	// The array is not named "repositories": that key is the repository
+	// count of the snapshot and belongs to the block of counts above.
+	RepositoryFreshness []RepositorySummary `json:"repository_freshness"`
+	// RepositoriesMoved counts the entries of RepositoryFreshness whose
+	// working tree left the indexed commit. A repository whose HEAD could
+	// not be read is not one of them and is not silently counted as fresh
+	// either; its entry says why.
+	RepositoriesMoved int `json:"repositories_moved"`
+
 	LastRebuildAt string          `json:"last_rebuild_at,omitempty"`
 	LastUpdateAt  string          `json:"last_update_at,omitempty"`
 	Worker        ComponentHealth `json:"worker"`
@@ -166,9 +180,10 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        graphStatusToolName,
-		Description: "Returns the published snapshot, its provenance, its counts, dependency health, and internal metrics.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         graphStatusToolName,
+		Description:  "Returns the published snapshot, its provenance, its counts, dependency health, and internal metrics.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -188,9 +203,10 @@ func graphStatus(
 		registry = metricsRegistries[0]
 	}
 	status := GraphStatus{
-		Status:             GraphStatusEmpty,
-		EdgesByKind:        []GraphStatusCount{},
-		UnresolvedByReason: []GraphStatusCount{},
+		Status:              GraphStatusEmpty,
+		EdgesByKind:         []GraphStatusCount{},
+		UnresolvedByReason:  []GraphStatusCount{},
+		RepositoryFreshness: []RepositorySummary{},
 		Worker: ComponentHealth{
 			State:  HealthNotApplicable,
 			Detail: "the TypeScript worker runs during indexing, not in this server",
@@ -292,7 +308,39 @@ func applySnapshotStatus(status *GraphStatus, snapshot *hotsnapshot.GraphSnapsho
 		return err
 	}
 	status.UnresolvedByReason = reasons
+	freshness, moved, err := snapshotRepositoryFreshness(snapshot, int(counts.Repositories))
+	if err != nil {
+		return err
+	}
+	status.RepositoryFreshness = freshness
+	status.RepositoriesMoved = moved
 	return nil
+}
+
+// snapshotRepositoryFreshness describes every repository of the snapshot and
+// counts the ones whose working tree left the commit the graph was built from.
+//
+// It reads the HEAD of each repository, which is what makes the answer worth
+// anything: a status that only repeats what the snapshot remembers cannot
+// tell a caller that the snapshot is no longer true.
+func snapshotRepositoryFreshness(snapshot *hotsnapshot.GraphSnapshot, repositories int) ([]RepositorySummary, int, error) {
+	summaries := make([]RepositorySummary, 0, repositories)
+	moved := 0
+	for index := range repositories {
+		record, found := snapshot.Repository(hotsnapshot.RepositoryID(index))
+		if !found {
+			return nil, 0, fmt.Errorf("repository index %d is missing", index)
+		}
+		summary, err := repositorySummary(snapshot, record)
+		if err != nil {
+			return nil, 0, err
+		}
+		if summary.Moved {
+			moved++
+		}
+		summaries = append(summaries, summary)
+	}
+	return summaries, moved, nil
 }
 
 // snapshotEdgeKindCounts walks the forward CSR once. Every symbol edge is

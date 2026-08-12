@@ -9,13 +9,27 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/watcher"
 )
 
 // RepositorySummary is the stable public shape for a registered repository.
+//
+// The Indexed* fields describe the working tree the graph was built from and
+// the Current* fields the tree on disk right now. Moved reports that the two
+// disagree, which is the only warning a caller gets that a path or a line
+// this server returns may no longer exist.
 type RepositorySummary struct {
 	Name      string   `json:"name"`
 	Path      string   `json:"path"`
 	Languages []string `json:"languages"`
+
+	IndexedCommit string `json:"indexed_commit,omitempty"`
+	IndexedBranch string `json:"indexed_branch,omitempty"`
+	IndexedDirty  bool   `json:"indexed_dirty,omitempty"`
+	CurrentCommit string `json:"current_commit,omitempty"`
+	CurrentBranch string `json:"current_branch,omitempty"`
+	Moved         bool   `json:"moved"`
+	MovedDetail   string `json:"moved_detail,omitempty"`
 }
 
 // ListRepositoriesInput contains the optional page controls for
@@ -82,9 +96,10 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        repositoryQueryToolName,
-		Description: "Lists repositories registered with Ladygraph.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         repositoryQueryToolName,
+		Description:  "Lists repositories registered with Ladygraph.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -187,23 +202,91 @@ func normalizeRepositoryLimit(value int) (int, error) {
 	return value, nil
 }
 
+// repositorySummary describes one repository of the snapshot, including
+// whether its working tree still holds the commit the graph was built from.
+//
+// Answering that costs two small file reads per repository and is done
+// inline: a caller that has to make a second call to learn the first one is
+// stale will not make it, and an answer about code that is no longer there
+// costs far more than the reads.
 func repositorySummary(snapshot *hotsnapshot.GraphSnapshot, record hotsnapshot.RepositoryRecord) (RepositorySummary, error) {
 	table := snapshot.Strings()
 	key, keyOK := table.String(record.Key)
 	name, nameOK := table.String(record.Name)
 	path, pathOK := table.String(record.Path)
 	languages, languagesOK := table.String(record.Languages)
-	if !keyOK || !nameOK || !pathOK || !languagesOK {
+	commit, commitOK := table.String(record.Commit)
+	branch, branchOK := table.String(record.Branch)
+	if !keyOK || !nameOK || !pathOK || !languagesOK || !commitOK || !branchOK {
 		return RepositorySummary{}, fmt.Errorf(
-			"repository metadata references invalid strings (key=%q key_ok=%t name_ok=%t path_ok=%t languages_ok=%t)",
-			key, keyOK, nameOK, pathOK, languagesOK,
+			"repository metadata references invalid strings (key=%q key_ok=%t name_ok=%t path_ok=%t languages_ok=%t commit_ok=%t branch_ok=%t)",
+			key, keyOK, nameOK, pathOK, languagesOK, commitOK, branchOK,
 		)
 	}
-	return RepositorySummary{
-		Name:      name,
-		Path:      path,
-		Languages: splitRepositoryLanguages(languages),
-	}, nil
+	summary := RepositorySummary{
+		Name:          name,
+		Path:          path,
+		Languages:     splitRepositoryLanguages(languages),
+		IndexedCommit: commit,
+		IndexedBranch: branch,
+		IndexedDirty:  record.Dirty,
+	}
+	describeRepositoryMovement(&summary)
+	return summary, nil
+}
+
+// describeRepositoryMovement compares the commit the graph was built from with
+// the one the working tree holds now and fills the freshness fields of
+// summary.
+//
+// A HEAD that cannot be read is never reported as agreement: the current
+// fields stay empty, Moved stays false and MovedDetail carries the reason. An
+// unknown answer must not read as a good one.
+//
+// Movement is decided by the commit alone. A branch renamed or recreated over
+// the same commit leaves every path and every line exactly where the graph
+// says they are, and reporting that as a move would train a caller to ignore
+// the field.
+func describeRepositoryMovement(summary *RepositorySummary) {
+	if summary.IndexedCommit == "" {
+		summary.MovedDetail = "the graph does not record the commit this repository was indexed at, so it cannot be compared with the working tree"
+		return
+	}
+	head, err := watcher.ReadGitHead(summary.Path)
+	if err != nil {
+		summary.MovedDetail = fmt.Sprintf("the working tree could not be compared with the graph: %v", err)
+		return
+	}
+	summary.CurrentCommit = head.Commit
+	summary.CurrentBranch = head.Branch
+	if head.Commit == summary.IndexedCommit {
+		return
+	}
+	summary.Moved = true
+	summary.MovedDetail = fmt.Sprintf(
+		"indexed at commit %s on %s, the tree is now at %s on %s",
+		shortCommit(summary.IndexedCommit), repositoryBranchName(summary.IndexedBranch),
+		shortCommit(head.Commit), repositoryBranchName(head.Branch),
+	)
+}
+
+// shortCommit abbreviates an object id for prose. The fields keep the full id;
+// a sentence naming two of them in full is unreadable.
+func shortCommit(commit string) string {
+	const shortCommitLength = 7
+	if len(commit) <= shortCommitLength {
+		return commit
+	}
+	return commit[:shortCommitLength]
+}
+
+// repositoryBranchName names the position for prose. An empty branch is a
+// detached HEAD, both when it was indexed and when it is read now.
+func repositoryBranchName(branch string) string {
+	if branch == "" {
+		return "a detached HEAD"
+	}
+	return branch
 }
 
 func splitRepositoryLanguages(value string) []string {

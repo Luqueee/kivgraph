@@ -15,25 +15,31 @@ const getSymbolToolName = "get_symbol"
 
 // GetSymbolInput identifies one symbol by its durable stable key.
 type GetSymbolInput struct {
-	StableKey string `json:"stable_key"`
+	StableKey      string `json:"stable_key"`
+	ResponseFormat string `json:"response_format,omitempty"`
 }
 
-// SymbolDetails is the public detail shape returned for one symbol.
+// SymbolDetails is the public detail shape returned for one symbol. The
+// derived identifiers -- the canonical identity and the repository key, whose
+// value is already spelled out by the name and the path beside it -- are
+// returned only for the detailed format.
 type SymbolDetails struct {
-	StableKey         string `json:"stable_key"`
-	CanonicalIdentity string `json:"canonical_identity"`
-	RepositoryKey     string `json:"repository_key"`
-	RepositoryName    string `json:"repository_name"`
-	RepositoryPath    string `json:"repository_path"`
-	PackageName       string `json:"package_name"`
-	ModulePath        string `json:"module_path"`
-	FilePath          string `json:"file_path"`
-	Name              string `json:"name"`
-	QualifiedName     string `json:"qualified_name"`
-	Kind              string `json:"kind"`
-	Signature         string `json:"signature"`
-	StartLine         uint32 `json:"start_line"`
-	EndLine           uint32 `json:"end_line"`
+	StableKey      string `json:"stable_key"`
+	RepositoryName string `json:"repository_name"`
+	RepositoryPath string `json:"repository_path"`
+	PackageName    string `json:"package_name"`
+	ModulePath     string `json:"module_path"`
+	FilePath       string `json:"file_path"`
+	Name           string `json:"name"`
+	QualifiedName  string `json:"qualified_name"`
+	Kind           string `json:"kind"`
+	Signature      string `json:"signature"`
+	Exported       bool   `json:"exported"`
+	StartLine      uint32 `json:"start_line"`
+	EndLine        uint32 `json:"end_line"`
+
+	CanonicalIdentity string `json:"canonical_identity,omitempty"`
+	RepositoryKey     string `json:"repository_key,omitempty"`
 }
 
 // RegisterGetSymbol adds the read-only symbol lookup tool without a graph
@@ -84,9 +90,10 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 		}
 	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:        getSymbolToolName,
-		Description: "Returns one symbol by its stable key.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Name:         getSymbolToolName,
+		Description:  "Returns one symbol by its stable key.",
+		OutputSchema: ConciseOutputSchema(),
+		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -97,6 +104,10 @@ func getSymbol(
 	snapshotStore *hotsnapshot.SnapshotStore,
 ) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
 	stableKey, err := normalizeSymbolStableKey(arguments.StableKey)
+	if err != nil {
+		return nil, Response[SymbolDetails]{}, err
+	}
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
 	if err != nil {
 		return nil, Response[SymbolDetails]{}, err
 	}
@@ -120,7 +131,7 @@ func getSymbol(
 			fmt.Errorf("symbol index %d is missing", symbolID),
 		)
 	}
-	details, err := symbolDetails(snapshot, symbol)
+	details, err := symbolDetails(snapshot, symbol, format)
 	if err != nil {
 		return nil, Response[SymbolDetails]{}, WrapToolError(
 			CodeSnapshotUnavailable,
@@ -148,58 +159,37 @@ func normalizeSymbolStableKey(value string) (string, error) {
 	return value, nil
 }
 
-func symbolDetails(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolRecord) (SymbolDetails, error) {
-	summary, err := symbolSummary(snapshot, symbol)
+func symbolDetails(
+	snapshot *hotsnapshot.GraphSnapshot,
+	symbol hotsnapshot.SymbolRecord,
+	format string,
+) (SymbolDetails, error) {
+	summary, err := symbolSummary(snapshot, symbol, format)
 	if err != nil {
 		return SymbolDetails{}, err
 	}
-	file, fileOK := snapshot.File(symbol.File)
-	if !fileOK {
-		return SymbolDetails{}, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+	location, err := resolveSymbolLocation(snapshot, symbol)
+	if err != nil {
+		return SymbolDetails{}, err
 	}
-	pkg, packageOK := snapshot.Package(file.Package)
-	if !packageOK {
-		return SymbolDetails{}, fmt.Errorf("symbol %q references missing package %d", symbol.StableKey, file.Package)
+	details := SymbolDetails{
+		StableKey:      summary.StableKey,
+		RepositoryName: location.RepositoryName,
+		RepositoryPath: location.RepositoryPath,
+		PackageName:    location.PackageName,
+		ModulePath:     location.ModulePath,
+		FilePath:       location.FilePath,
+		Name:           summary.Name,
+		QualifiedName:  summary.QualifiedName,
+		Kind:           summary.Kind,
+		Signature:      summary.Signature,
+		Exported:       summary.Exported,
+		StartLine:      symbol.StartLine,
+		EndLine:        symbol.EndLine,
 	}
-	repository, repositoryOK := snapshot.Repository(file.Repository)
-	if !repositoryOK {
-		return SymbolDetails{}, fmt.Errorf("symbol %q references missing repository %d", symbol.StableKey, file.Repository)
+	if format == ResponseFormatDetailed {
+		details.CanonicalIdentity = summary.CanonicalIdentity
+		details.RepositoryKey = location.RepositoryKey
 	}
-
-	table := snapshot.Strings()
-	repositoryKey, repositoryKeyOK := table.String(repository.Key)
-	repositoryName, repositoryNameOK := table.String(repository.Name)
-	repositoryPath, repositoryPathOK := table.String(repository.Path)
-	packageName, packageNameOK := table.String(pkg.Name)
-	modulePath, modulePathOK := table.String(pkg.ModulePath)
-	filePath, filePathOK := table.String(file.Path)
-	if !repositoryKeyOK || !repositoryNameOK || !repositoryPathOK || !packageNameOK || !modulePathOK || !filePathOK {
-		return SymbolDetails{}, fmt.Errorf(
-			"symbol %q references invalid location strings (repository_key_ok=%t repository_name_ok=%t repository_path_ok=%t package_name_ok=%t module_path_ok=%t file_path_ok=%t)",
-			symbol.StableKey,
-			repositoryKeyOK,
-			repositoryNameOK,
-			repositoryPathOK,
-			packageNameOK,
-			modulePathOK,
-			filePathOK,
-		)
-	}
-
-	return SymbolDetails{
-		StableKey:         summary.StableKey,
-		CanonicalIdentity: summary.CanonicalIdentity,
-		RepositoryKey:     repositoryKey,
-		RepositoryName:    repositoryName,
-		RepositoryPath:    repositoryPath,
-		PackageName:       packageName,
-		ModulePath:        modulePath,
-		FilePath:          filePath,
-		Name:              summary.Name,
-		QualifiedName:     summary.QualifiedName,
-		Kind:              summary.Kind,
-		Signature:         summary.Signature,
-		StartLine:         symbol.StartLine,
-		EndLine:           symbol.EndLine,
-	}, nil
+	return details, nil
 }

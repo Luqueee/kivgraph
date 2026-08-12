@@ -41,10 +41,17 @@ func TestGetSymbolReturnsDetailByStableKey(t *testing.T) {
 	if response.Total != 1 || response.Returned != 1 || response.Truncated || response.NextCursor != nil {
 		t.Fatalf("response metadata = %#v", response)
 	}
-	if response.Results.StableKey != "symbol-alpha" || response.Results.CanonicalIdentity != "go:alpha" {
+	// The concise default drops the derived identifiers. canonical_identity
+	// is the concatenation of language, repository, package, qualified name,
+	// kind and discriminator, every one of which is already a field here, and
+	// repository_key restates the name standing next to it.
+	if response.Results.StableKey != "symbol-alpha" {
 		t.Fatalf("identity = %#v", response.Results)
 	}
-	if response.Results.RepositoryKey != "repo-a" || response.Results.RepositoryName != "alpha-repo" || response.Results.RepositoryPath != "/repo-a" {
+	if response.Results.CanonicalIdentity != "" || response.Results.RepositoryKey != "" {
+		t.Fatalf("concise response carries derived identifiers = %#v", response.Results)
+	}
+	if response.Results.RepositoryName != "alpha-repo" || response.Results.RepositoryPath != "/repo-a" {
 		t.Fatalf("repository detail = %#v", response.Results)
 	}
 	if response.Results.PackageName != "pkg" || response.Results.ModulePath != "example.com/pkg" || response.Results.FilePath != "src/alpha.go" {
@@ -55,6 +62,46 @@ func TestGetSymbolReturnsDetailByStableKey(t *testing.T) {
 	}
 	if response.Results.StartLine != 3 || response.Results.EndLine != 9 {
 		t.Fatalf("source range = %#v", response.Results)
+	}
+}
+
+// TestGetSymbolDetailedFormatRestoresDerivedIdentifiers is the other half of
+// the contract: the identifiers are omitted by default, not removed, because
+// a caller that has to hand one to another system still needs a way to get it.
+func TestGetSymbolDetailedFormatRestoresDerivedIdentifiers(t *testing.T) {
+	client := newGetSymbolToolClient(t, getSymbolSnapshot(t, 23))
+	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      getSymbolToolName,
+		Arguments: map[string]any{"stable_key": "symbol-alpha", "response_format": ResponseFormatDetailed},
+	})
+	if err != nil {
+		t.Fatalf("get_symbol CallTool() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("get_symbol CallTool() returned an error: %#v", result.Content)
+	}
+	data, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("Marshal structured content: %v", err)
+	}
+	var response Response[SymbolDetails]
+	if err := json.Unmarshal(data, &response); err != nil {
+		t.Fatalf("Unmarshal structured content: %v", err)
+	}
+	if response.Results.CanonicalIdentity != "go:alpha" || response.Results.RepositoryKey != "repo-a" {
+		t.Fatalf("detailed response = %#v, want the derived identifiers back", response.Results)
+	}
+
+	if _, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      getSymbolToolName,
+		Arguments: map[string]any{"stable_key": "symbol-alpha", "response_format": "verbose"},
+	}); err != nil {
+		t.Fatalf("unsupported format CallTool() error = %v", err)
+	}
+	if _, _, err := getSymbol(context.Background(), nil, GetSymbolInput{
+		StableKey: "symbol-alpha", ResponseFormat: "verbose",
+	}, getSymbolSnapshot(t, 23)); ErrorCode(err) != CodeInvalidArgument {
+		t.Fatalf("unsupported format error code = %q, want %q", ErrorCode(err), CodeInvalidArgument)
 	}
 }
 
