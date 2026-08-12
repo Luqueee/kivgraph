@@ -31,6 +31,8 @@ type RepositoryRow struct {
 	Path      string
 	Languages string
 	Commit    string
+	Branch    string
+	Dirty     bool
 }
 
 type PackageRow struct {
@@ -58,6 +60,7 @@ type SymbolRow struct {
 	QualifiedName     string
 	Kind              string
 	Signature         string
+	Exported          bool
 	StartLine         uint32
 	EndLine           uint32
 }
@@ -163,7 +166,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 			return nil, err
 		}
 		repositoryIDs[row.Key] = id
-		repositoryRecords[index] = RepositoryRecord{Name: name, Commit: commit}
+		repositoryRecords[index] = RepositoryRecord{Name: name, Commit: commit, Dirty: row.Dirty}
 	}
 
 	packageRecords := make([]PackageRecord, len(packages))
@@ -253,7 +256,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		symbolByStableKey[row.StableKey] = id
 		symbolsByName[name] = append(symbolsByName[name], id)
 		symbolsByQName[qualifiedName] = append(symbolsByQName[qualifiedName], id)
-		symbolRecords[index] = SymbolRecord{StableKey: row.StableKey, CanonicalIdentity: canonical, File: fileID, Name: name, QualifiedName: qualifiedName, Kind: kind, Signature: signature, StartLine: row.StartLine, EndLine: row.EndLine}
+		symbolRecords[index] = SymbolRecord{StableKey: row.StableKey, CanonicalIdentity: canonical, File: fileID, Name: name, QualifiedName: qualifiedName, Kind: kind, Signature: signature, Exported: row.Exported, StartLine: row.StartLine, EndLine: row.EndLine}
 	}
 
 	sourcedEdges := make([]SourcedEdge, len(edges))
@@ -303,9 +306,14 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		if err != nil {
 			return nil, err
 		}
+		branch, err := interner.Intern(row.Branch)
+		if err != nil {
+			return nil, err
+		}
 		repositoryRecords[index].Key = key
 		repositoryRecords[index].Path = path
 		repositoryRecords[index].Languages = languages
+		repositoryRecords[index].Branch = branch
 	}
 	for index, row := range packages {
 		key, err := interner.Intern(row.Key)

@@ -979,7 +979,7 @@ func indexTypeScriptPackage(
 	if err != nil {
 		return analysisResult{}, err
 	}
-	set, _, err := facts.NormalizeTypeScript(ctx, payload, repository.RealPath)
+	set, _, err := facts.NormalizeTypeScript(ctx, payload, repository)
 	if err != nil {
 		return analysisResult{}, fmt.Errorf("normalise TypeScript facts for %q package %q: %w",
 			repository.Name, packageValue.Name, err)

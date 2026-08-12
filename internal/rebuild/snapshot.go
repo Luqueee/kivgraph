@@ -240,6 +240,7 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 		rows.Repositories[index] = hotsnapshot.RepositoryRow{
 			Key: repository.StableKey, Name: repository.Name, Path: repository.RootPath,
 			Languages: repository.Languages, Commit: repository.Commit,
+			Branch: repository.Branch, Dirty: repository.Dirty,
 		}
 	}
 
@@ -282,7 +283,8 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 		rows.Symbols[index] = hotsnapshot.SymbolRow{
 			StableKey: hotsnapshot.StableKey(symbol.StableKey), CanonicalIdentity: symbol.CanonicalIdentity,
 			FileKey: symbol.FileKey, Language: symbol.Language, Name: symbol.Name, QualifiedName: symbol.QualifiedName,
-			Kind: symbol.Kind, Signature: symbol.Signature, StartLine: startLine, EndLine: endLine,
+			Kind: symbol.Kind, Signature: symbol.Signature, Exported: symbol.Exported,
+			StartLine: startLine, EndLine: endLine,
 		}
 		symbolFileKeys[symbol.StableKey] = symbol.FileKey
 	}

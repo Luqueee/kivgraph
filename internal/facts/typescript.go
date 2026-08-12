@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 // TypeScriptWireVersion is the version of the `ts-facts-v4` payload.
@@ -266,12 +267,14 @@ func DecodeTypeScriptPayload(data []byte) (TypeScriptPayload, error) {
 
 // NormalizeTypeScript converts a worker payload into the canonical model.
 //
-// rootPath is the absolute repository root, which the caller already knows:
-// the payload carries only repository relative paths.
+// repository is the registered repository the payload was produced from. The
+// payload carries only repository-relative paths, and the worker cannot
+// observe the git state of the tree it read: both come from the caller, the
+// same way NormalizeGo and NormalizeRust take them.
 func NormalizeTypeScript(
 	ctx context.Context,
 	payload TypeScriptPayload,
-	rootPath string,
+	repository workspace.Repository,
 ) (Set, TypeScriptReport, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -283,6 +286,7 @@ func NormalizeTypeScript(
 	if name == "" {
 		return Set{}, TypeScriptReport{}, fmt.Errorf("%w: payload has no repository name", ErrInvalidFacts)
 	}
+	rootPath := repository.RealPath
 	if strings.TrimSpace(rootPath) == "" {
 		return Set{}, TypeScriptReport{}, fmt.Errorf("%w: repository %q has no root path", ErrInvalidFacts, name)
 	}
@@ -297,6 +301,9 @@ func NormalizeTypeScript(
 			Key:       repositoryKey,
 			Name:      name,
 			RootPath:  rootPath,
+			Commit:    repository.Commit,
+			Branch:    repository.Branch,
+			Dirty:     repository.Dirty,
 			Languages: []Language{LanguageTypeScript},
 		}},
 		Packages: []Package{{

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 var typeScriptGolden = filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v4")
@@ -30,7 +32,7 @@ func TestNormalizeTypeScriptConsumesRealWorkerOutput(t *testing.T) {
 	payload := loadPayload(t, "shared-library.json")
 	root := filepath.Join("/repositories", "shared-library")
 
-	set, report, err := NormalizeTypeScript(context.Background(), payload, root)
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: root})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -125,13 +127,13 @@ func TestNormalizeTypeScriptImportsSymbolTargetKeyMatchesProvider(t *testing.T) 
 	ctx := context.Background()
 
 	providerPayload := loadPayload(t, "shared-library.json")
-	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, "/repositories/shared-library")
+	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
 	}
 
 	consumerPayload := loadPayload(t, "consumer-a.json")
-	consumerSet, consumerReport, err := NormalizeTypeScript(ctx, consumerPayload, "/repositories/consumer-a")
+	consumerSet, consumerReport, err := NormalizeTypeScript(ctx, consumerPayload, workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
@@ -199,13 +201,13 @@ func TestNormalizeTypeScriptImportsSymbolTargetKeyMatchesProviderThroughAlias(t 
 	ctx := context.Background()
 
 	providerPayload := loadPayload(t, "shared-library.json")
-	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, "/repositories/shared-library")
+	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
 	}
 
 	consumerPayload := loadPayload(t, "consumer-b.json")
-	consumerSet, consumerReport, err := NormalizeTypeScript(ctx, consumerPayload, "/repositories/consumer-b")
+	consumerSet, consumerReport, err := NormalizeTypeScript(ctx, consumerPayload, workspace.Repository{RealPath: "/repositories/consumer-b"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-b) error = %v", err)
 	}
@@ -288,13 +290,13 @@ func TestNormalizeTypeScriptReexportsTargetKeyMatchesProvider(t *testing.T) {
 	ctx := context.Background()
 
 	providerPayload := loadPayload(t, "shared-library.json")
-	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, "/repositories/shared-library")
+	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
 	}
 
 	consumerPayload := loadPayload(t, "consumer-b.json")
-	consumerSet, _, err := NormalizeTypeScript(ctx, consumerPayload, "/repositories/consumer-b")
+	consumerSet, _, err := NormalizeTypeScript(ctx, consumerPayload, workspace.Repository{RealPath: "/repositories/consumer-b"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-b) error = %v", err)
 	}
@@ -340,7 +342,7 @@ func TestNormalizeTypeScriptReexportsTargetKeyMatchesProvider(t *testing.T) {
 // no merge is needed, because the target was never a foreign package.
 func TestNormalizeTypeScriptLocalReexportsResolveWithinOneRepository(t *testing.T) {
 	payload := loadPayload(t, "shared-library.json")
-	set, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/shared-library")
+	set, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -384,7 +386,7 @@ func TestNormalizeTypeScriptLocalReexportsResolveWithinOneRepository(t *testing.
 // from its own public name to itself.
 func TestNormalizeTypeScriptDirectExportProducesExportsEdge(t *testing.T) {
 	payload := loadPayload(t, "consumer-a.json")
-	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-a")
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -428,7 +430,7 @@ func TestNormalizeTypeScriptDirectExportProducesExportsEdge(t *testing.T) {
 // repository — must still produce a REFERENCES edge to that binding.
 func TestNormalizeTypeScriptReferenceTargetsImportBinding(t *testing.T) {
 	payload := loadPayload(t, "consumer-b.json")
-	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-b")
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-b"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -465,15 +467,15 @@ func TestNormalizeTypeScriptReferenceTargetsImportBinding(t *testing.T) {
 func TestNormalizeTypeScriptMergedRepositoriesValidate(t *testing.T) {
 	ctx := context.Background()
 
-	sharedSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "shared-library.json"), "/repositories/shared-library")
+	sharedSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "shared-library.json"), workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
 	}
-	consumerASet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-a.json"), "/repositories/consumer-a")
+	consumerASet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-a.json"), workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
-	consumerBSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-b.json"), "/repositories/consumer-b")
+	consumerBSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-b.json"), workspace.Repository{RealPath: "/repositories/consumer-b"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-b) error = %v", err)
 	}
@@ -540,7 +542,7 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 		}},
 	}
 
-	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-x"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -646,7 +648,7 @@ func TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved(t *testing.T)
 				}},
 			}
 
-			set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+			set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-x"})
 			if err != nil {
 				t.Fatalf("NormalizeTypeScript() error = %v", err)
 			}
@@ -720,7 +722,7 @@ func TestNormalizeTypeScriptGradesCrossRepositoryTargetsByEvidence(t *testing.T)
 				}},
 			}
 
-			set, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+			set, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-x"})
 			if err != nil {
 				t.Fatalf("NormalizeTypeScript() error = %v", err)
 			}
@@ -748,11 +750,11 @@ func TestNormalizeTypeScriptGradesCrossRepositoryTargetsByEvidence(t *testing.T)
 
 func TestNormalizeTypeScriptIsDeterministicAndPortable(t *testing.T) {
 	payload := loadPayload(t, "shared-library.json")
-	first, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/shared-library")
+	first, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
-	second, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/shared-library")
+	second, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -763,7 +765,7 @@ func TestNormalizeTypeScriptIsDeterministicAndPortable(t *testing.T) {
 	}
 
 	// Keys must not depend on where the repository is checked out.
-	moved, _, err := NormalizeTypeScript(context.Background(), payload, "/elsewhere/shared-library")
+	moved, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/elsewhere/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -788,7 +790,7 @@ func TestDecodeTypeScriptPayloadRejectsForeignVersions(t *testing.T) {
 	}
 	if _, _, err := NormalizeTypeScript(context.Background(), TypeScriptPayload{
 		Version: TypeScriptWireVersion,
-	}, "/repositories/x"); !errors.Is(err, ErrInvalidFacts) {
+	}, workspace.Repository{RealPath: "/repositories/x"}); !errors.Is(err, ErrInvalidFacts) {
 		t.Fatalf("NormalizeTypeScript() must reject a payload without repository")
 	}
 }
@@ -800,7 +802,7 @@ func TestDecodeTypeScriptPayloadRejectsForeignVersions(t *testing.T) {
 // within shared-library's own Set, no merge required.
 func TestNormalizeTypeScriptLocalExtendsResolveWithinOneRepository(t *testing.T) {
 	payload := loadPayload(t, "shared-library.json")
-	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/shared-library")
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -850,13 +852,13 @@ func TestNormalizeTypeScriptExtendsTargetKeyMatchesProvider(t *testing.T) {
 	ctx := context.Background()
 
 	providerPayload := loadPayload(t, "shared-library.json")
-	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, "/repositories/shared-library")
+	providerSet, _, err := NormalizeTypeScript(ctx, providerPayload, workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
 	}
 
 	consumerPayload := loadPayload(t, "consumer-a.json")
-	consumerSet, report, err := NormalizeTypeScript(ctx, consumerPayload, "/repositories/consumer-a")
+	consumerSet, report, err := NormalizeTypeScript(ctx, consumerPayload, workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
@@ -906,11 +908,11 @@ func TestNormalizeTypeScriptExtendsTargetKeyMatchesProvider(t *testing.T) {
 func TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider(t *testing.T) {
 	ctx := context.Background()
 
-	providerSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "shared-library.json"), "/repositories/shared-library")
+	providerSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "shared-library.json"), workspace.Repository{RealPath: "/repositories/shared-library"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(shared-library) error = %v", err)
 	}
-	consumerSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-a.json"), "/repositories/consumer-a")
+	consumerSet, _, err := NormalizeTypeScript(ctx, loadPayload(t, "consumer-a.json"), workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
@@ -957,7 +959,7 @@ func TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider(t *testing.
 // normalised graph carries exactly the one PACKAGE_DEPENDS_ON edge a real
 // import backs: consumer-a to @ladygraph-fixture/shared.
 func TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge(t *testing.T) {
-	consumerSet, _, err := NormalizeTypeScript(context.Background(), loadPayload(t, "consumer-a.json"), "/repositories/consumer-a")
+	consumerSet, _, err := NormalizeTypeScript(context.Background(), loadPayload(t, "consumer-a.json"), workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
@@ -1009,7 +1011,7 @@ func TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved(t *testing.T) {
 		}},
 	}
 
-	set, report, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-x"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}
@@ -1065,7 +1067,7 @@ func TestNormalizeTypeScriptSeparatesHomonymsDeclaredInDifferentModules(t *testi
 		},
 	}
 
-	set, _, err := NormalizeTypeScript(context.Background(), payload, "/repositories/consumer-x")
+	set, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/consumer-x"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript() error = %v", err)
 	}

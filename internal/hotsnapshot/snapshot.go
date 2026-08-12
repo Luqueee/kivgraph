@@ -10,13 +10,17 @@ import (
 var ErrInvalidGraphSnapshot = errors.New("invalid graph snapshot")
 
 // RepositoryRecord stores the durable identity and display metadata for one
-// indexed repository.
+// indexed repository. Commit, Branch and Dirty describe the working tree the
+// graph was built from: a query cannot tell whether its answers still hold
+// without them, and a checkout moves all three.
 type RepositoryRecord struct {
 	Key       InternedString
 	Name      InternedString
 	Path      InternedString
 	Languages InternedString
 	Commit    InternedString
+	Branch    InternedString
+	Dirty     bool
 }
 
 // PackageRecord belongs to one repository.
@@ -38,6 +42,8 @@ type FileRecord struct {
 }
 
 // SymbolRecord stores source-independent and display identities for a symbol.
+// Exported separates public API from a private helper: breaking the first can
+// reach another repository, breaking the second cannot leave its package.
 type SymbolRecord struct {
 	StableKey          StableKey
 	CanonicalIdentity  InternedString
@@ -47,6 +53,7 @@ type SymbolRecord struct {
 	QualifiedName      InternedString
 	Kind               InternedString
 	Signature          InternedString
+	Exported           bool
 	StartLine, EndLine uint32
 }
 
