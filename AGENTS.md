@@ -120,6 +120,18 @@ integridad, compatibilidad o verificación descritos aquí.
   ambigüedad, no un repositorio roto: ningún manifest lo provee, ambos salen
   del registro y se declara `AMBIGUOUS_PACKAGE_PROVIDER`. Es el mismo trato que
   recibe un módulo Go con varios proveedores.
+- La publicación de una generación toma un `flock` sobre el propio store. El
+  mutex del `Store` sólo ordena las goroutines de un proceso, y un directorio
+  de estado lo comparten un `index --full`, un `index_project` de un cliente y
+  el resincronizador de un servidor: sin él dos pasadas se pisan. Un candidato
+  `<id>.tmp` que exista mientras se sostiene el lock es basura por
+  construcción -el kernel seguiría sosteniéndolo por su escritor si viviera- y
+  se retira. Rechazarlo convertía una pasada muerta -un OOM, una terminal
+  cerrada- en un store inservible para siempre, porque todo intento posterior
+  deriva el mismo identificador y choca con él. El lock no espera: una
+  reconstrucción dura minutos y bloquear parecería un cuelgue, así que el
+  perdedor recibe `ErrPublishInProgress`. Para el seguidor eso no es un fallo,
+  es exactamente lo que el lock existe para producir.
 - `ladygraph clean` retira generaciones publicadas: enumera y no toca nada sin
   `--yes`, porque no hay deshacer -- también se lleva el backup del que vive
   `rollback`. Sin flags deja el store vacío y libera la reserva de espacio;

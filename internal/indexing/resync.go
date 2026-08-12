@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/watcher"
 	"github.com/Luqueee/ladygraph/internal/workspace"
 )
@@ -217,6 +218,14 @@ func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryM
 	}()
 
 	if err := options.Resync(ctx, repositories); err != nil {
+		// Another process is publishing into the same store. That is what the
+		// lock exists to produce, not a failure: whoever holds it rebuilds,
+		// and this server installs the result through the CURRENT pointer it
+		// follows anyway. Reporting it would put an ERROR in a server's log
+		// for a system that is working.
+		if errors.Is(err, generation.ErrPublishInProgress) {
+			return false, nil
+		}
 		return false, fmt.Errorf("resync %d repository(ies): %w", len(repositories), err)
 	}
 	return true, nil

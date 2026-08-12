@@ -20,6 +20,10 @@ var (
 	ErrNoBackup          = errors.New("generation store has no backup generation")
 	ErrInvalidID         = errors.New("invalid generation id")
 	ErrInsufficientSpace = errors.New("insufficient space for candidate generation")
+	// ErrPublishInProgress reports that another process holds the store's
+	// publish lock. A store is shared by every invocation over one state
+	// directory, and a rebuild takes minutes: waiting would look like a hang.
+	ErrPublishInProgress = errors.New("another process is publishing into this generation store")
 )
 
 type Operation string

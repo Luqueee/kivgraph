@@ -47,6 +47,13 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 	if err := store.prepare(ctx); err != nil {
 		return Publication{}, err
 	}
+	lock, err := acquirePublishLock(filepath.Join(store.root, "publish.lock"))
+	if err != nil {
+		return Publication{}, err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, lock.release())
+	}()
 	space, err := store.checkSpace(ctx, request.EstimatedSnapshotBytes)
 	if err != nil {
 		return Publication{}, err
@@ -64,8 +71,13 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 
 	candidatePath := filepath.Join(store.generations, request.ID+".tmp")
 	finalPath := filepath.Join(store.generations, request.ID)
-	if err := requireAbsent(candidatePath); err != nil {
-		return Publication{}, err
+	// A candidate that exists while this process holds the publish lock is
+	// debris: its writer is gone, because the kernel would still be holding
+	// the lock for it otherwise. Refusing instead would make one killed
+	// rebuild -- an OOM, a lost terminal -- brick the store permanently,
+	// since every later attempt derives the same id and collides with it.
+	if err := os.RemoveAll(candidatePath); err != nil {
+		return Publication{}, fmt.Errorf("discard abandoned candidate generation: %w", err)
 	}
 	if err := requireAbsent(finalPath); err != nil {
 		return Publication{}, err

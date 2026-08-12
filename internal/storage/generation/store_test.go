@@ -611,3 +611,75 @@ func testHash(t *testing.T, path string) [sha256.Size]byte {
 	}
 	return sha256.Sum256(data)
 }
+
+// TestPublishReclaimsACandidateLeftByADeadWriter is the guard against bricking
+// the store. A rebuild killed between creating its candidate and renaming it
+// -- an OOM, a closed terminal, a lost pipe -- leaves `<id>.tmp` behind, and
+// every later attempt derives the same id from the same CURRENT pointer. When
+// that collision was an error the store never accepted another generation
+// again, and the only way out was deleting the directory by hand.
+func TestPublishReclaimsACandidateLeftByADeadWriter(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+
+	// What a killed process leaves: the candidate of the generation the next
+	// attempt will build, with a partial payload inside it.
+	abandoned := filepath.Join(store.generations, "000002.tmp")
+	if err := os.MkdirAll(abandoned, 0o700); err != nil {
+		t.Fatalf("seed abandoned candidate: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(abandoned, "half-written"), []byte("debris"), 0o600); err != nil {
+		t.Fatalf("seed debris: %v", err)
+	}
+
+	second := publishTestGeneration(t, store, "000002", "second")
+	if second.PreviousID != "000001" {
+		t.Fatalf("PreviousID = %q, want 000001", second.PreviousID)
+	}
+	assertCurrentGeneration(t, store, "000002", "second")
+	if _, err := os.Stat(filepath.Join(store.generations, "000002.tmp")); !os.IsNotExist(err) {
+		t.Errorf("the candidate directory survived publication: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.generations, "000002", "half-written")); !os.IsNotExist(err) {
+		t.Error("the debris of the dead writer was published")
+	}
+}
+
+// TestPublishRefusesWhileAnotherProcessHoldsTheLock keeps the reclaim above
+// from being a licence to overwrite a live rebuild. The store's mutex orders
+// only this process, and one state directory is shared by an `index --full`,
+// an `index_project` from a client, and a running server's resynchroniser.
+func TestPublishRefusesWhileAnotherProcessHoldsTheLock(t *testing.T) {
+	store := newTestStore(t)
+	publishTestGeneration(t, store, "000001", "first")
+
+	held, err := acquirePublishLock(filepath.Join(store.root, "publish.lock"))
+	if err != nil {
+		t.Fatalf("acquirePublishLock() error = %v", err)
+	}
+
+	built := false
+	_, err = store.Publish(context.Background(), PublishRequest{
+		ID: "000002",
+		Build: func(_ context.Context, path string) error {
+			built = true
+			return writeTestGeneration(path, "second")
+		},
+		Validate: validateTestGeneration("second"),
+	})
+	if !errors.Is(err, ErrPublishInProgress) {
+		t.Fatalf("Publish() error = %v, want ErrPublishInProgress", err)
+	}
+	if built {
+		t.Error("the candidate was built while another writer held the lock")
+	}
+	assertCurrentGeneration(t, store, "000001", "first")
+
+	// Releasing it lets the next publication through, so the refusal is the
+	// lock and not a latch the store never reopens.
+	if err := held.release(); err != nil {
+		t.Fatalf("release() error = %v", err)
+	}
+	publishTestGeneration(t, store, "000002", "second")
+	assertCurrentGeneration(t, store, "000002", "second")
+}
