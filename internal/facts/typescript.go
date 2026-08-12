@@ -301,9 +301,6 @@ func NormalizeTypeScript(
 			Key:       repositoryKey,
 			Name:      name,
 			RootPath:  rootPath,
-			Commit:    repository.Commit,
-			Branch:    repository.Branch,
-			Dirty:     repository.Dirty,
 			Languages: []Language{LanguageTypeScript},
 		}},
 		Packages: []Package{{

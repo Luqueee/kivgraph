@@ -130,9 +130,30 @@ de proveedores- es trivial de escribir y no sirve para nada.
 - `node_modules` es una entrada, pero también son cientos de miles de ficheros
   que son función del lockfile, y es el lockfile lo que se registra. Editar
   `node_modules` a mano no invalida una entrada.
+
+  El lockfile se busca desde la raíz del repositorio registrado **hacia
+  arriba**, y se registra la cadena entera, exista o no cada candidato. Un
+  workspace guarda ese fichero por encima de sus paquetes -pnpm escribe un
+  único `pnpm-lock.yaml` en la raíz del workspace y cada repositorio
+  registrado cuelga de él-, así que mirar sólo en la raíz del repositorio no
+  encontraba nada: los tres candidatos daban huella `absent`, invariantes bajo
+  cualquier instalación, y el único control sobre las dependencias instaladas
+  quedaba inerte justo en la disposición para la que se escribió. Se registra
+  la cadena completa y no sólo el primer acierto porque una entrada registra
+  el nombre de lo que hay que volver a medir: un lockfile que aparezca más
+  cerca del repositorio también tiene que invalidarla.
 - Un `tsconfig` que hereda de una ruta fuera del repositorio registrado no está
   en ninguna huella. Heredar de un paquete instalado sí lo está, por el
   lockfile.
+- La procedencia -commit, rama y estado sucio- no viaja en el conjunto de
+  hechos de una unidad y por tanto tampoco en la entrada. La estampa la pasada
+  al fusionar, desde el registro que se le dio. Guardarla dentro de la entrada
+  hacía que un acierto reprodujese el commit de la pasada que la escribió: el
+  grafo declaraba movido un repositorio cuyo contenido era el actual, el valor
+  publicado dependía de qué unidad acertara primero, y `verify` -que compara
+  conjuntos enteros- abortaba la pasada por un commit que no cambió ningún
+  fichero. La versión de entrada pasa a `2`; una entrada de la versión `1` se
+  descarta.
 - El código bajo `GOROOT` se identifica por `GOVERSION`, no por su contenido:
   un toolchain parcheado a mano conserva su identidad.
 - El recorrido de un árbol sobreaproxima a propósito: un fichero que el

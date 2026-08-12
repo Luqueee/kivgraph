@@ -631,7 +631,7 @@ func TestMergeSetsUnionsTheLanguagesOfEveryUnit(t *testing.T) {
 		repository("go-only", facts.LanguageGo),
 		repository("mixed", facts.LanguageTypeScript),
 		repository("mixed", facts.LanguageGo),
-	})
+	}, nil)
 
 	if len(merged.Repositories) != 2 {
 		t.Fatalf("repositories = %d, want the duplicate keys merged", len(merged.Repositories))
@@ -701,5 +701,64 @@ func TestNonBlockingDiagnosticsRendersWhatTheLoaderSaid(t *testing.T) {
 	}
 	if nonBlockingDiagnostics(blocking, blocking, "example.com/module") != nil {
 		t.Fatalf("a pass whose every diagnostic blocked must report none")
+	}
+}
+
+// TestMergeSetsStampsProvenanceFromThePass is the guard for a stale
+// indexed_commit. Provenance used to be copied into every unit's facts, which
+// put it inside the cached fact set: a served entry replayed the commit of the
+// pass that wrote it, so list_repositories reported a repository as moved
+// while every symbol it held was current. First-wins made it worse than
+// stale -- the published commit depended on which unit was merged first, so a
+// pass where one unit hit the cache and another missed could publish either
+// value.
+func TestMergeSetsStampsProvenanceFromThePass(t *testing.T) {
+	unit := func(key, staleCommit string, language facts.Language) facts.Set {
+		return facts.Set{Repositories: []facts.Repository{{
+			Key: facts.RepositoryKey(key), Name: key, RootPath: "/repos/" + key,
+			Commit: staleCommit, Branch: "old", Dirty: true,
+			Languages: []facts.Language{language},
+		}}}
+	}
+
+	merged := mergeSets(
+		[]facts.Set{
+			// A cache hit replays the commit of the pass that wrote it, and a
+			// miss carries whatever the unit saw. Neither may decide.
+			unit("mixed", "cafe1111", facts.LanguageGo),
+			unit("mixed", "beef2222", facts.LanguageTypeScript),
+			unit("unregistered", "dead3333", facts.LanguageGo),
+		},
+		[]workspace.Repository{{
+			Name: "mixed", Commit: "b746c53", Branch: "main", Dirty: false,
+		}},
+	)
+
+	byKey := make(map[string]facts.Repository, len(merged.Repositories))
+	for _, entry := range merged.Repositories {
+		byKey[entry.Key] = entry
+	}
+	stamped, found := byKey[facts.RepositoryKey("mixed")]
+	if !found {
+		t.Fatal("the registered repository is missing from the merge")
+	}
+	if stamped.Commit != "b746c53" {
+		t.Errorf("commit = %q, want the commit this pass read from git", stamped.Commit)
+	}
+	if stamped.Branch != "main" {
+		t.Errorf("branch = %q, want main", stamped.Branch)
+	}
+	if stamped.Dirty {
+		t.Error("dirty is set, but the pass read a clean tree")
+	}
+
+	// A repository the pass was not given keeps whatever the units said: the
+	// merge invents no provenance it did not observe.
+	untouched, found := byKey[facts.RepositoryKey("unregistered")]
+	if !found {
+		t.Fatal("the unregistered repository was dropped")
+	}
+	if untouched.Commit != "dead3333" {
+		t.Errorf("unregistered commit = %q, want the value its unit carried", untouched.Commit)
 	}
 }

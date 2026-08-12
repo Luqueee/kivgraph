@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -506,5 +507,49 @@ func TestFactCacheRefusesAnUnusableDirectory(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "fact cache") {
 		t.Fatalf("Full() error = %v, want a named fact cache failure", err)
+	}
+}
+
+// TestLockfilePathsClimbToTheWorkspaceRoot defends the only control the entry
+// has over installed dependencies. node_modules is never hashed, so an entry
+// that cannot name the lockfile cannot tell that `pnpm install` changed what
+// the analysis read -- and in the layout this is written for, one lockfile at
+// the workspace root above many registered repositories, a search confined to
+// the repository's own root names nothing at all.
+func TestLockfilePathsClimbToTheWorkspaceRoot(t *testing.T) {
+	root := testsupport.TempDir(t)
+	workspace := filepath.Join(root, "kena")
+	repository := filepath.Join(workspace, "services", "api-music")
+	lockfile := filepath.Join(workspace, "pnpm-lock.yaml")
+	writeFullFixture(t, lockfile, "lockfileVersion: '9.0'\n")
+
+	paths := lockfilePaths(repository)
+	if len(paths) == 0 {
+		t.Fatal("lockfilePaths() named nothing")
+	}
+	found := false
+	for _, candidate := range paths {
+		if candidate == lockfile {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the workspace lockfile %s is not among %v", lockfile, paths)
+	}
+
+	// Every level is named whether or not a file sits there today: the entry
+	// records what to re-measure, so a lockfile added closer to the
+	// repository afterwards has to invalidate it as well.
+	nearer := filepath.Join(repository, "pnpm-lock.yaml")
+	if !slices.Contains(paths, nearer) {
+		t.Errorf("the repository's own lockfile path %s is not among %v", nearer, paths)
+	}
+
+	// The chain is finite and reaches the filesystem root exactly once.
+	if seen := len(paths); seen != len(slices.Compact(slices.Clone(paths))) {
+		t.Errorf("lockfilePaths() repeats a candidate: %v", paths)
+	}
+	if lockfilePaths("  ") != nil {
+		t.Error("a repository with no path named a lockfile")
 	}
 }

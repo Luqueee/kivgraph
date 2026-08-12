@@ -328,7 +328,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	}
 
 	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
-	merged := mergeSets(sets)
+	merged := mergeSets(sets, options.Repositories)
 	if err := merged.Validate(); err != nil {
 		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
 	}
@@ -638,12 +638,28 @@ func toolchainHint(errors []goloader.PackageError) string {
 	return ""
 }
 
-// mergeSets merges every unit's facts into one set. A repository appears in
-// as many sets as it has units, and MergeAll keeps the first record of each
-// key, so the languages of the later ones are collected here and replace it:
-// a Go repository that also holds TypeScript must not lose either language
-// because one of its two units happened to be merged first.
-func mergeSets(sets []facts.Set) facts.Set {
+// mergeSets merges every unit's facts into one set and stamps the two things
+// no single unit can know.
+//
+// A repository appears in as many sets as it has units, and MergeAll keeps the
+// first record of each key, so the languages of the later ones are collected
+// here and replace it: a Go repository that also holds TypeScript must not
+// lose either language because one of its two units happened to be merged
+// first.
+//
+// Provenance is written here for a stronger reason. Where the tree stood is
+// not a fact any analysis produces, and recording it per unit put it inside
+// the cached fact set: a served entry replayed the commit of the pass that
+// wrote it, so the graph reported a repository as moved while its every
+// symbol was current. First-wins made it worse than stale -- with one unit
+// hit and another missed, the published commit depended on which -- and
+// `fact_cache: verify` compares whole sets, so a commit that changed no file
+// aborted the pass as a divergence.
+func mergeSets(sets []facts.Set, repositories []workspace.Repository) facts.Set {
+	provenance := make(map[string]workspace.Repository, len(repositories))
+	for _, repository := range repositories {
+		provenance[facts.RepositoryKey(repository.Name)] = repository
+	}
 	languages := make(map[string][]facts.Language)
 	for _, set := range sets {
 		for _, repository := range set.Repositories {
@@ -663,6 +679,11 @@ func mergeSets(sets []facts.Set) facts.Set {
 		}
 		sort.Slice(union, func(left, right int) bool { return union[left] < union[right] })
 		merged.Repositories[index].Languages = union
+		if source, known := provenance[merged.Repositories[index].Key]; known {
+			merged.Repositories[index].Commit = source.Commit
+			merged.Repositories[index].Branch = source.Branch
+			merged.Repositories[index].Dirty = source.Dirty
+		}
 	}
 	return merged
 }
@@ -1023,6 +1044,26 @@ func factsCommand(options FullOptions, arguments []string) (string, []string, er
 	}
 	command := parts[0]
 	commandArguments := append([]string(nil), parts[1:]...)
+
+	// Working inside a checkout means running the worker that was just built
+	// there. An installed shim from an earlier release sits on the PATH under
+	// the same default name and would silently win, so `pnpm build` would
+	// change nothing an index run could observe -- a wrong measurement that
+	// looks exactly like a correct one. An explicitly configured command
+	// still decides.
+	//
+	// The checkout entry point takes the arguments of the `facts` subcommand,
+	// which the shim would have consumed itself. A caller that passes none is
+	// asking for the command, not for a run.
+	workerRoot := filepath.Join(options.WorkingDirectory, "ts-worker")
+	checkoutEntry := filepath.Join(workerRoot, "dist", "facts-cli.js")
+	if info, statErr := os.Stat(checkoutEntry); command == defaultTypeScriptWorkerCommand &&
+		statErr == nil && info.Mode().IsRegular() {
+		if len(arguments) == 0 {
+			return "node", []string{checkoutEntry}, nil
+		}
+		return "node", append([]string{checkoutEntry}, arguments[1:]...), nil
+	}
 	if _, lookupErr := exec.LookPath(command); lookupErr == nil {
 		return command, append(commandArguments, arguments...), nil
 	} else if command != defaultTypeScriptWorkerCommand {
@@ -1034,18 +1075,6 @@ func factsCommand(options FullOptions, arguments []string) (string, []string, er
 	// is how anyone runs it by absolute path the first time.
 	if sibling, found := siblingExecutable(defaultTypeScriptWorkerCommand); found {
 		return sibling, append(commandArguments, arguments...), nil
-	}
-
-	workerRoot := filepath.Join(options.WorkingDirectory, "ts-worker")
-	factsEntry := filepath.Join(workerRoot, "dist", "facts-cli.js")
-	if info, statErr := os.Stat(factsEntry); statErr == nil && info.Mode().IsRegular() {
-		// The checkout entry point takes the arguments of the `facts`
-		// subcommand, which the shim would have consumed itself. A caller
-		// that passes none is asking for the command, not for a run.
-		if len(arguments) == 0 {
-			return "node", []string{factsEntry}, nil
-		}
-		return "node", append([]string{factsEntry}, arguments[1:]...), nil
 	}
 	if _, err := exec.LookPath("pnpm"); err != nil {
 		return "", nil, fmt.Errorf("default worker is unavailable and pnpm is not executable: %w", err)

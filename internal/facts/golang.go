@@ -73,9 +73,6 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		Key:       RepositoryKey(name),
 		Name:      name,
 		RootPath:  filepath.Clean(root),
-		Commit:    input.Repository.Commit,
-		Branch:    input.Repository.Branch,
-		Dirty:     input.Repository.Dirty,
 		Languages: []Language{LanguageGo},
 	}}}
 	repositoryKey := set.Repositories[0].Key

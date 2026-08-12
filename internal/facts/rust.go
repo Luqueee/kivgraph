@@ -66,9 +66,6 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 		Key:       repositoryKey,
 		Name:      name,
 		RootPath:  filepath.Clean(root),
-		Commit:    input.Repository.Commit,
-		Branch:    input.Repository.Branch,
-		Dirty:     input.Repository.Dirty,
 		Languages: []Language{LanguageRust},
 	}}}
 

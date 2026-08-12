@@ -50,8 +50,14 @@ func ValidCacheMode(mode CacheMode) bool {
 }
 
 // cacheEntryVersion is the format of a stored entry. An entry written by an
-// older format is not read: the fields it lacks are inputs nobody validated.
-const cacheEntryVersion = 1
+// older format is discarded rather than migrated.
+//
+// Version 2 dropped the repository's commit, branch and dirty flag from the
+// stored fact set: provenance is stamped by the pass now, not by the unit. A
+// version 1 entry still carries them, and under `fact_cache: verify` -- which
+// compares the stored set against a fresh analysis byte for byte -- it would
+// report a divergence that is only the format difference.
+const cacheEntryVersion = 2
 
 // ErrCacheDiverged reports that a cached entry did not match the facts the
 // analysis produced for the same unit. It aborts the pass on purpose: a cache
@@ -541,15 +547,39 @@ func requestedPackages(result analysisResult) []string {
 	return names
 }
 
+// lockfilePaths names every lockfile that could describe what this repository
+// installed, from its own root up to the filesystem root.
+//
+// node_modules is deliberately not hashed -- it is hundreds of thousands of
+// files that are a function of the lockfile -- so the lockfile is the entry's
+// only evidence that the installed dependencies are still the ones the pass
+// analysed. A workspace keeps that file above its packages: pnpm writes one
+// pnpm-lock.yaml at the workspace root, and a registered repository is a
+// directory underneath it. Looking only in the repository's own root finds
+// nothing there, every candidate fingerprints as absent, and the control is
+// inert exactly where it is needed most.
+//
+// The whole chain is recorded, not just the first hit: an entry records the
+// name of what to re-measure, so a lockfile that appears closer to the
+// repository later has to invalidate it too.
 func lockfilePaths(root string) []string {
-	if strings.TrimSpace(root) == "" {
+	trimmed := strings.TrimSpace(root)
+	if trimmed == "" {
 		return nil
 	}
-	return []string{
-		filepath.Join(root, "pnpm-lock.yaml"),
-		filepath.Join(root, "package-lock.json"),
-		filepath.Join(root, "yarn.lock"),
+	names := []string{"pnpm-lock.yaml", "package-lock.json", "yarn.lock"}
+	paths := make([]string, 0, len(names)*8)
+	for directory := filepath.Clean(trimmed); ; {
+		for _, name := range names {
+			paths = append(paths, filepath.Join(directory, name))
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			break
+		}
+		directory = parent
 	}
+	return paths
 }
 
 // analyzerFingerprint identifies what produces the facts, so an entry written
