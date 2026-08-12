@@ -1599,6 +1599,7 @@ Ladygraph utilizará el SDK oficial de MCP para Go, que proporciona las APIs par
 list_repositories
 find_symbol
 get_symbol
+get_file_outline
 find_references
 find_cross_repo_consumers
 trace_dependencies
@@ -1610,8 +1611,16 @@ graph_status
 Total:
 
 ```text
-9 tools
+10 tools
 ```
+
+Diez es el techo. Repowise midió en Claude Code cuántas veces un agente llega
+a llamar a cada servidor MCP y sale un acantilado por tamaño de superficie:
+un servidor de 1 tool y `1.567` caracteres de esquema fue llamado 13 de 15
+veces; uno de 10 tools y `17.561` caracteres, 15 de 15; uno de 29 y `29.050`,
+4 de 15; y uno de 30 y `28.118`, ninguna. Claude Code carga los esquemas bajo
+demanda, así que una superficie grande es una superficie que el agente no
+llega a mirar. La tool once exige retirar una.
 
 ## 17.2 No se expondrá
 

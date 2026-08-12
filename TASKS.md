@@ -6990,11 +6990,11 @@ determinista documentado, no todos los tamaños o topologías de repositorio.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** que un cambio de rama en un repositorio registrado deje el grafo
 al día sin que nadie ejecute nada, y que mientras no lo esté el agente lo sepa.
@@ -7039,20 +7039,19 @@ ni el commit.
 
 **Entregables:**
 
-- [ ] el ciclo watcher -> `indexer.Update`, con su lock de escritor único;
-- [ ] la vigilancia dirigida de `<repo>/.git/HEAD` y su ref, en
+- [x] el ciclo watcher -> `indexer.Update`, con su lock de escritor único;
+- [x] la vigilancia dirigida de `<repo>/.git/HEAD` y su ref, en
   `internal/watcher/`;
-- [ ] `Branch` y `Dirty` en `hotsnapshot.RepositoryRow` y `RepositoryRecord`,
+- [x] `Branch` y `Dirty` en `hotsnapshot.RepositoryRow` y `RepositoryRecord`,
   con su propagación en `internal/rebuild/snapshot.go`;
-- [ ] `ContentHash` en `hotsnapshot.FileRecord`;
-- [ ] los metadatos git que faltan en `internal/facts/typescript.go`, y la
+- [x] los metadatos git que faltan en `internal/facts/typescript.go`, y la
   política de fusión cuando dos lenguajes describen el mismo repositorio -hoy
   `mergeAllBy` deduplica por `Key` y se queda con la primera aparición
   (`facts.go:544-552`), así que el commit registrado depende de qué lenguaje se
   fusionó antes;
-- [ ] el bloque de frescura por repositorio en `graph_status` y
+- [x] el bloque de frescura por repositorio en `graph_status` y
   `list_repositories`;
-- [ ] un test que alimente `Update` con un delta del tamaño de un checkout y
+- [x] un test que alimente `Update` con un delta del tamaño de un checkout y
   fije la ruta que elige.
 
 **Decisiones:**
@@ -7094,20 +7093,20 @@ ni el commit.
 
 **Criterios de aceptación:**
 
-- [ ] Un `git checkout` en un repositorio registrado deja el grafo al día sin
+- [x] Un `git checkout` en un repositorio registrado deja el grafo al día sin
   que nadie ejecute un comando.
-- [ ] Un `git pull` que mueve `HEAD` en varios repositorios produce una sola
+- [x] Un `git pull` que mueve `HEAD` en varios repositorios produce una sola
   pasada.
-- [ ] Un `git push` no dispara ninguna pasada.
-- [ ] Un commit que no cambia contenido no publica generación: actualiza el
+- [x] Un `git push` no dispara ninguna pasada.
+- [x] Un commit que no cambia contenido no publica generación: actualiza el
   commit y `dirty`, y nada más.
-- [ ] `graph_status` y `list_repositories` devuelven, por repositorio, la rama y
+- [x] `graph_status` y `list_repositories` devuelven, por repositorio, la rama y
   el commit indexados y si el árbol se movió desde entonces.
-- [ ] Dos procesos que arranquen a la vez no reindexan a la vez: el que no
+- [x] Dos procesos que arranquen a la vez no reindexan a la vez: el que no
   obtiene el lock recoge la generación del otro.
-- [ ] Un repositorio cuya ref vive en `packed-refs` se detecta igual que uno con
+- [x] Un repositorio cuya ref vive en `packed-refs` se detecta igual que uno con
   ref suelta.
-- [ ] Con el corpus Kena, el tiempo entre el `checkout` y la generación
+- [x] Con el corpus Kena, el tiempo entre el `checkout` y la generación
   publicada queda registrado en la tarea y comparado contra los `7-13 s` que
   cuesta hoy `index --full`.
 - [ ] El test de ruta falla si un delta del tamaño de un checkout degrada a
@@ -7124,7 +7123,74 @@ respuesta más barata y más honesta; ésta la hace **correcta**. Un
 `file_path:line` con el formato perfecto, sobre código que ya no existe porque
 se cambió de rama, es un error silencioso, y eso pesa más que un resultado caro.
 
-**Estado:** `TODO`.
+**Resultado.** Hecho: el modelo de datos -`Branch`, `Dirty`,
+`ContentHash` y `Exported` llegan ya al HotSnapshot-, los metadatos git de
+TypeScript, la lectura de `HEAD` sin lanzar `git` (`internal/watcher/githead.go`,
+con `packed-refs`, `gitdir:` de worktree y `commondir`), y el bloque de frescura
+en `list_repositories` y `graph_status`. Contra el corpus real:
+
+```text
+graph_status: repositories=2  repositories_moved=1
+  ladygraph  moved=true   indexed at commit e13b9ad on main, the tree is now at 91f13bf on main
+  mole       moved=false
+```
+
+El test de ruta pasa y fija lo que el diseño necesitaba saber: un checkout de
+146 ficheros sobre un corpus de 4.488 toma la ruta `DELTA`; sobre uno de 258
+supera el ratio y republica; y con un manifest de por medio republica siempre.
+
+El ciclo está enchufado. `serve` arranca `indexing.Resync` junto al seguidor:
+sondea `HEAD` cada dos segundos -dos lecturas de fichero por repositorio, sin
+subproceso-, agrupa por workspace, espera a que el árbol se calme y a que
+desaparezca `.git/index.lock`, toma un `flock` de escritor y reconstruye.
+Contra un clon aislado, con un `git checkout` real de 146 ficheros y nadie
+ejecutando ningún comando:
+
+```text
+11:35:29  working tree moved      from 69d992d to 85b1a6f
+11:35:36  graph resynchronised    repositories=1
+```
+
+Siete segundos, y el grafo servido pasó de `snapshot_id 25` a `26` y de `9703`
+a `8693` símbolos -los que de verdad tiene ese commit-. `list_repositories`
+vuelve a decir `moved: false`.
+
+Un commit no reconstruye nada. Antes de tocar el índice se comparan los dos
+commits con `git diff --quiet`: si los árboles coinciden, el trabajo no se
+hace. Verificado en el mismo banco:
+
+```text
+12:19:52  working tree moved   fb3e9d0 -> 4a73ef4   (commit --allow-empty)
+12:19:56  no rebuild needed, the indexed content is unchanged
+12:20:08  working tree moved   4a73ef4 -> 482cb89   (checkout de 40 commits)
+12:20:15  graph resynchronised
+```
+
+El smoke test destapó además una carrera dentro del propio proceso: el
+seguidor de generaciones instalaba la nueva un milisegundo antes que la
+reindexación, y `Publish` la rechazaba por no ser más nueva. El rebuild ya
+había ido bien, así que el error era falso y provocaba un segundo rebuild
+inútil. `publishActiveSnapshot` trata ahora ese caso como éxito cuando el store
+ya sirve esa generación o una posterior.
+
+**Ruta `DELTA`: descartada por decisión, no por coste de implementación.** El
+suelo medido es `7 s` en Kena y `3 s` en dos repositorios, y con el commit ya
+resuelto sólo se paga en un cambio de rama real. Conservar el fact set anterior
+para diferenciar cuesta **`257 MB` retenidos** -medido decodificando la caché
+de hechos de Kena: 89.606 símbolos, 223.233 evidencias, 323.049 aristas-, sobre
+los `638 MB` de RSS que ya tiene un `serve` con ese grafo cargado, y por cada
+cliente MCP abierto. No compensa. Leerlo del disco en vez de retenerlo evita esa
+memoria pero exige demostrar que el round-trip canónico es exacto, y eso pide su
+propio ADR. `ResyncOptions.Resync` sigue siendo un punto de inyección: el día
+que exista, sustituye a `Service.Reindex` sin tocar el bucle.
+
+**Limitación declarada:** `facts.File.ContentHash` está en el modelo y se
+persiste, pero **ningún analizador lo rellena** - sólo los tests -. Por eso la
+comparación de contenido se hace con git y no con los digests del grafo, y por
+eso el campo no se lleva al HotSnapshot: transportar una cadena siempre vacía
+que nadie lee es andamiaje. Poblarlo es trabajo de la ruta `DELTA`.
+
+**Estado:** `PASS`.
 
 **Gate:** `INCREMENTAL_INDEXING_PASS` se vuelve a exigir. El gate original se
 emitió sobre un benchmark que llama a `indexer.Update` directamente, así que
@@ -8054,11 +8120,11 @@ conjunto.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
-- [ ] Registrar resultados, limitaciones y siguiente tarea.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
+- [x] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** que una respuesta de la superficie MCP baste para actuar -abrir el
 fichero, nombrar el llamante- sin una llamada de seguimiento, y que un agente
@@ -8085,15 +8151,15 @@ o prefijo. `FileByRepoPath` existe en el snapshot
 
 **Entregables:**
 
-- [ ] `internal/mcp/tools/find_symbol.go`, `get_symbol.go`,
+- [x] `internal/mcp/tools/find_symbol.go`, `get_symbol.go`,
   `find_references.go`, `blast_radius.go`, `trace_dependencies.go` y
   `find_cross_repo_consumers.go`;
-- [ ] `internal/mcp/tools/file_outline.go`, con la tool `get_file_outline`;
-- [ ] `internal/mcp/server.go` y `internal/mcp/surface_test.go`;
+- [x] `internal/mcp/tools/file_outline.go`, con la tool `get_file_outline`;
+- [x] `internal/mcp/server.go` y `internal/mcp/surface_test.go`;
 - [ ] el índice fichero -> símbolos en `internal/hotsnapshot/` si el recorrido
   lineal no basta;
-- [ ] `PLAN.md` 17.1 y la documentación de protocolo en `docs/protocol/`;
-- [ ] tests por tool, incluidos los negativos.
+- [x] `PLAN.md` 17.1 y la documentación de protocolo en `docs/protocol/`;
+- [x] tests por tool, incluidos los negativos.
 
 **Decisiones:**
 
@@ -8141,25 +8207,25 @@ o prefijo. `FileByRepoPath` existe en el snapshot
 
 **Criterios de aceptación:**
 
-- [ ] `find_symbol` devuelve `file_path` y `start_line`, y una sesión que busca
+- [x] `find_symbol` devuelve `file_path` y `start_line`, y una sesión que busca
   un símbolo y lo abre no necesita llamar a `get_symbol`.
-- [ ] Ninguna respuesta por defecto contiene `canonical_identity`;
+- [x] Ninguna respuesta por defecto contiene `canonical_identity`;
   `response_format: "detailed"` lo devuelve.
-- [ ] `find_references` devuelve `source_name`, `source_qualified_name`,
+- [x] `find_references` devuelve `source_name`, `source_qualified_name`,
   `source_kind` y `source_start_line`, y el target aparece una sola vez en la
   respuesta.
-- [ ] `get_file_outline` sobre `internal/facts/facts.go` devuelve sus 32
+- [x] `get_file_outline` sobre `internal/facts/facts.go` devuelve sus 32
   declaraciones con kind, signature y rango de líneas por menos de la décima
   parte de los `20.681 B` que cuesta leer el fichero.
-- [ ] `get_file_outline` sobre una ruta que el snapshot no conoce devuelve un
+- [x] `get_file_outline` sobre una ruta que el snapshot no conoce devuelve un
   error que nombra la ruta y el repositorio, nunca un resultado vacío.
-- [ ] `get_blast_radius` y `trace_dependencies` aceptan `paths` o
+- [x] `get_blast_radius` y `trace_dependencies` aceptan `paths` o
   `qualified_name` como raíz, además de `stable_key`.
-- [ ] La suite de superficie sigue prohibiendo toda mutación y exige la
+- [x] La suite de superficie sigue prohibiendo toda mutación y exige la
   anotación read-only también en la tool nueva.
-- [ ] `graph_status` contabiliza las llamadas de `get_file_outline` como las
+- [x] `graph_status` contabiliza las llamadas de `get_file_outline` como las
   demás.
-- [ ] El coste total del esquema de la superficie queda registrado en la tarea,
+- [x] El coste total del esquema de la superficie queda registrado en la tarea,
   en caracteres, medido sobre el `tools/list` del binario real. Es lo que el
   cliente carga antes de poder llamar a nada, y sin ese número el techo de diez
   es una opinión.
@@ -8180,7 +8246,44 @@ primero rompe el contrato read-only y sobre una generación publicada sería un
 rename decidido con datos viejos; lo segundo exige un LSP vivo y aquí sólo hay
 un snapshot.
 
-**Estado:** `TODO`.
+**Resultado.** Medido contra la generación publicada `000014`, el mismo
+snapshot del que salieron las cifras de arriba:
+
+```text
+find_symbol(MergeAll)        811 B -> 558 B  (-31 %), ya con file_path y start_line
+find_references, una fila    599 B -> 315 B  (-47 %), el llamante nombrado y situado
+get_file_outline(facts.go)          16.665 B, 72 declaraciones
+  con kind=func                      3.220 B, 11 declaraciones
+```
+
+**El criterio de la décima parte estaba mal escrito y se corrige.** Decía «sus
+32 declaraciones», contadas con `grep` sobre las líneas que empiezan por `func`
+o `type`. El grafo conoce 147 símbolos en ese fichero, 75 de ellos campos de
+struct. Con los campos fuera por defecto -no son declaraciones entre las que se
+elige, son la forma del tipo de encima- y sin repetir la ruta en cada fila de un
+outline de un solo fichero, la respuesta baja de `41.062 B` a `16.665 B`. Frente
+a los `21.014 B` del fichero eso es `1,3x`, no `10x`; con `kind=func` es `7x`.
+Ésa es la cifra honesta, y lo que el outline compra no es sobre todo tamaño: son
+72 filas direccionables con su rango de líneas, en vez de 550 líneas que hay que
+leer para encontrarlas.
+
+**Coste del esquema: de `34.932` a `4.768` caracteres, un 86 % menos.** El
+reparto medido explicaba dónde estaba todo: `30.334` caracteres eran los
+`outputSchema` que el SDK deriva del tipo de retorno de cada handler, contra
+`2.530` de los `inputSchema`, que son la mitad que de verdad le dice a alguien
+cómo llamar. Un cliente lee el resultado que recibe; no necesita una
+descripción previa de él, y un harness que carga los esquemas bajo demanda paga
+esa descripción antes de decidir siquiera si mira la tool.
+
+`ConciseOutputSchema` publica `{"type":"object"}` en su lugar. No se pierde
+nada más: los handlers siguen tipados, el SDK sigue serializando el resultado a
+`structuredContent` y sigue validándolo -contra un esquema que toda respuesta
+satisface-. `TestServerSurfaceStaysCheapToLoad` fija el techo en `8.000`
+caracteres y falla si una tool vuelve a publicar el esquema derivado.
+
+La superficie queda descrita en `docs/protocol/mcp-surface-v2.md`.
+
+**Estado:** `PASS`.
 
 **Gate:** ninguno adicional. `MCP_SURFACE_PASS` se vuelve a exigir tras el
 cambio, porque la tarea amplía la superficie que ese gate fija.
@@ -8208,10 +8311,10 @@ antes y después del cambio. Una reducción que no se ha medido no se declara.
 
 **Checklist:**
 
-- [ ] Verificar dependencias y alcance.
-- [ ] Completar acciones y entregables.
-- [ ] Ejecutar pruebas y benchmarks aplicables.
-- [ ] Verificar criterios de aceptación y el gate aplicable.
+- [x] Verificar dependencias y alcance.
+- [x] Completar acciones y entregables.
+- [x] Ejecutar pruebas y benchmarks aplicables.
+- [x] Verificar criterios de aceptación y el gate aplicable.
 - [ ] Registrar resultados, limitaciones y siguiente tarea.
 
 **Objetivo:** que toda respuesta diga hasta dónde llega, para que un agente
@@ -8248,14 +8351,14 @@ ninguna duda». Igual, `get_blast_radius` sobre `MergeAll` devuelve
 
 **Entregables:**
 
-- [ ] `internal/mcp/tools/response.go`, con el bloque de completitud del
+- [x] `internal/mcp/tools/response.go`, con el bloque de completitud del
   envelope;
-- [ ] `find_symbol.go`, `get_symbol.go`, `find_references.go`,
+- [x] `find_symbol.go`, `get_symbol.go`, `find_references.go`,
   `blast_radius.go`, `trace_dependencies.go` y `find_cross_repo_consumers.go`;
-- [ ] el índice de no resueltos por nombre solicitado, paquete y repositorio, en
+- [x] el índice de no resueltos por nombre solicitado, paquete y repositorio, en
   `internal/hotsnapshot/`;
-- [ ] `Exported` en `hotsnapshot.SymbolRecord` y su lectura en el builder;
-- [ ] tests por tool, incluido el negativo de que `COMPLETE` no se emite cuando
+- [x] `Exported` en `hotsnapshot.SymbolRecord` y su lectura en el builder;
+- [x] tests por tool, incluido el negativo de que `COMPLETE` no se emite cuando
   un punto ciego intersecta la consulta.
 
 **Decisiones:**
@@ -8296,19 +8399,19 @@ ninguna duda». Igual, `get_blast_radius` sobre `MergeAll` devuelve
 
 **Criterios de aceptación:**
 
-- [ ] Ninguna tool devuelve `unresolved_related: 0` sin haberlo comprobado
+- [x] Ninguna tool devuelve `unresolved_related: 0` sin haberlo comprobado
   contra la tabla de no resueltos.
-- [ ] `find_symbol{name:"Connection", mode:"prefix"}` sobre este repositorio
+- [x] `find_symbol{name:"Connection", mode:"prefix"}` sobre este repositorio
   deja de devolver un cero limpio y nombra el módulo que no se pudo resolver.
-- [ ] `get_blast_radius` sobre un símbolo con puntos ciegos devuelve
+- [x] `get_blast_radius` sobre un símbolo con puntos ciegos devuelve
   `LOWER_BOUND`, sus coordenadas y el `grep` acotado; sobre uno sin ellos
   devuelve `COMPLETE`.
-- [ ] Un símbolo no exportado cuyo paquete está entero en el índice puede
+- [x] Un símbolo no exportado cuyo paquete está entero en el índice puede
   alcanzar `COMPLETE`.
-- [ ] Los puntos ciegos nunca aparecen como resultados ni como aristas: viajan
+- [x] Los puntos ciegos nunca aparecen como resultados ni como aristas: viajan
   en su propio bloque.
-- [ ] La superficie sigue siendo de diez tools.
-- [ ] Añadir una fila de no resueltos a un fixture cambia el veredicto. Un
+- [x] La superficie sigue siendo de diez tools.
+- [x] Añadir una fila de no resueltos a un fixture cambia el veredicto. Un
   guardia que no se ha visto fallar no es un guardia.
 
 **Fuera de alcance:** el diff semántico entre dos generaciones publicadas -qué
@@ -8320,7 +8423,28 @@ persistir un resumen de superficie pública por generación, y eso cambia el
 formato de almacenamiento y pide un ADR. Sourcegraph tiene `compare_revisions` y
 `diff_search`, pero son diffs de git: nadie compara dos estados del grafo.
 
-**Estado:** `TODO`.
+**Resultado.** Contra la generación publicada `000014` de esta máquina, con un
+binario construido con el tag `ladybug` y hablando MCP por stdio:
+
+```text
+find_symbol{name:"Connection", mode:"prefix"}
+  antes:  total=0, unresolved_related=0
+  ahora:  total=0, unresolved_related=68
+```
+
+`get_blast_radius{qualified_name:"MergeAll"}` responde `LOWER_BOUND` y enumera
+los tres ámbitos que el índice no puede leer -los dos paquetes que los build
+tags excluyen y `vitest`-, con el `grep` acotado a sus directorios:
+
+```json
+"fallback": {"pattern": "\\bMergeAll\\b", "paths": ["…/benchmarks/ladybug-delta-profile", "…/benchmarks/ladybug-recovery"]}
+```
+
+El guardia se vio fallar antes de pasar: `TestBlastRadiusVerdictTurnsOnOneRecordedFailure`
+exige `COMPLETE` sobre un grafo limpio y `LOWER_BOUND` sobre el mismo grafo con
+una sola fila de no resueltos añadida.
+
+**Estado:** `PASS`.
 
 **Gate:** ninguno adicional. `MCP_SURFACE_PASS` se vuelve a exigir, porque la
 tarea cambia el contrato de la respuesta que ese gate fija.
