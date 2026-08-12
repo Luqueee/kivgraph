@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { LanguageService } from "./language-service.js";
 import {
+  createPackageProviderRegistry,
   resolvePackageImports,
   type PackageProvider,
   type PackageProviderRegistry,
@@ -64,7 +65,7 @@ function registryFor(
   const byName = new Map(
     providers.map((provider) => [provider.name, provider]),
   );
-  return { get: (name) => byName.get(name) };
+  return createPackageProviderRegistry([...byName.values()]);
 }
 
 afterEach(async () => {
@@ -324,5 +325,57 @@ export interface Shape { value: string }
           entry.exportedName === "default" && entry.status === "RESOLVED",
       ),
     ).toHaveLength(2);
+  });
+});
+
+describe("createPackageProviderRegistry ownership", () => {
+  const provider = (name: string, rootPath: string): PackageProvider => ({
+    name,
+    version: "1.0.0",
+    repository: name.replace("@scope/", ""),
+    rootPath,
+  });
+
+  it("credits the innermost package that contains the file", () => {
+    // Workspace packages nest. The outer root is a prefix of the inner one, so
+    // a first match would credit the workspace with declaring code that
+    // belongs to the library inside it.
+    const registry = createPackageProviderRegistry([
+      provider("@scope/workspace", "/repos/kena"),
+      provider("@scope/shared", "/repos/kena/libraries/library-shared"),
+    ]);
+
+    expect(
+      registry.owning(
+        "/repos/kena/libraries/library-shared/src/enums/events.ts",
+      )?.name,
+    ).toBe("@scope/shared");
+    expect(registry.owning("/repos/kena/tools/build.ts")?.name).toBe(
+      "@scope/workspace",
+    );
+  });
+
+  it("credits nobody for a file inside node_modules", () => {
+    // An installed copy sits below the consumer's root, so a prefix match
+    // would report the consumer as the declaring repository of a package it
+    // merely installed.
+    const registry = createPackageProviderRegistry([
+      provider("@scope/app", "/repos/app"),
+    ]);
+
+    expect(
+      registry.owning("/repos/app/node_modules/@scope/dep/dist/index.d.ts"),
+    ).toBeUndefined();
+    expect(registry.owning("/repos/app/src/main.ts")?.name).toBe("@scope/app");
+  });
+
+  it("credits nobody outside every registered root", () => {
+    const registry = createPackageProviderRegistry([
+      provider("@scope/app", "/repos/app"),
+    ]);
+
+    expect(registry.owning("/repos/other/src/main.ts")).toBeUndefined();
+    // A sibling whose name merely starts with the root is not inside it.
+    expect(registry.owning("/repos/app-extra/src/main.ts")).toBeUndefined();
   });
 });

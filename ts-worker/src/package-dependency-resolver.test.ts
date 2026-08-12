@@ -8,9 +8,10 @@ import {
   createPackageDependencies,
   resolvePackageDependencies,
 } from "./package-dependency-resolver.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
+  type PackageProviderRegistry,
 } from "./package-import-resolver.js";
 import { temporaryRoot } from "./temporary-root.js";
 
@@ -66,7 +67,7 @@ function registryFor(
   const byName = new Map(
     providers.map((provider) => [provider.name, provider]),
   );
-  return { get: (name) => byName.get(name) };
+  return createPackageProviderRegistry([...byName.values()]);
 }
 
 afterEach(async () => {

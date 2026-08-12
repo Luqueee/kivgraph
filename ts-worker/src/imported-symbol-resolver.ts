@@ -461,7 +461,7 @@ export async function resolveImportedSymbols(
     }
   }
 
-  const identities = await resolveTargetIdentities(pending);
+  const identities = await resolveTargetIdentities(pending, registry);
   const symbols: ImportedSymbol[] = [];
   const reexports: ReexportedSymbol[] = [];
   for (const [index, entry] of pending.entries()) {
@@ -832,7 +832,17 @@ export type ImportedSymbolIdentitySource =
 /** One target whose provider identity still needs to be classified. */
 interface IdentityRequest {
   readonly index: number;
+  /** The package the consumer imported from. */
   readonly provider: PackageProvider;
+  /**
+   * The package that declares the code, and is credited with it.
+   *
+   * These differ whenever a package re-exports another's symbol: the
+   * declaration map names a file in the owner's repository, and only the
+   * owner's project can parse it. Crediting the importing package would
+   * compose an identity against a repository that publishes no such symbol.
+   */
+  readonly owner: PackageProvider;
   readonly declaration: ImportedSymbolDeclaration;
   /** Public name requested from the provider module. */
   readonly exportedName: string;
@@ -840,8 +850,8 @@ interface IdentityRequest {
 }
 
 /**
- * Compute the provider identity of every pending target the provider's own
- * project can place, grouped by project so each project opens once.
+ * Compute the provider identity of every pending target some project can
+ * place, grouped by project so each project opens once.
  *
  * A declaration map is the cheaper answer and wins when it exists. Without
  * one the provider still names its source through its project roots, and its
@@ -849,9 +859,17 @@ interface IdentityRequest {
  * name — the same answer, reached by asking the compiler that owns the code
  * instead of reading a map the build never emitted. Everything else keeps
  * the default "not attempted" outcome without spawning anything.
+ *
+ * The project that answers is the one that owns the mapped file, which is not
+ * always the package the consumer imported from. A facade package exists to
+ * re-export its workspace's symbols, so its map points into the repository
+ * that declares them; asking the facade's own program for that file returns
+ * nothing, and the target used to be abandoned as PROVIDER_SOURCE_UNAVAILABLE
+ * even though the declaration was indexed, exact, and one directory away.
  */
 async function resolveTargetIdentities(
   pending: readonly PendingSymbol[],
+  registry: PackageProviderRegistry,
 ): Promise<TargetIdentityOutcome[]> {
   const outcomes: TargetIdentityOutcome[] = pending.map(
     () => IDENTITY_NOT_ATTEMPTED,
@@ -870,17 +888,23 @@ async function resolveTargetIdentities(
     if (declaration === undefined) {
       continue;
     }
-    if (entry.provider.projectPath === undefined) {
+    const mappedFile = mapped?.sourcePosition?.fileName;
+    const owner =
+      mappedFile === undefined
+        ? entry.provider
+        : (registry.owning(mappedFile) ?? entry.provider);
+    if (owner.projectPath === undefined) {
       outcomes[index] = identityUnresolved(
         "PROVIDER_SOURCE_UNAVAILABLE",
-        `provider ${entry.provider.repository} declares no project of its own`,
+        `provider ${owner.repository} declares no project of its own`,
       );
       continue;
     }
-    const projectPath = path.resolve(entry.provider.projectPath);
+    const projectPath = path.resolve(owner.projectPath);
     const request: IdentityRequest = {
       index,
       provider: entry.provider,
+      owner,
       declaration,
       exportedName: entry.exportedName,
       source: mapped === undefined ? "PROVIDER_EXPORT" : "DECLARATION_MAP",
@@ -972,13 +996,13 @@ async function classifyTarget(
   const declarationStart = candidate.declaration.getStart(sourceFile);
   return {
     identity: {
-      repository: request.provider.repository,
-      package: request.provider.name,
+      repository: request.owner.repository,
+      package: request.owner.name,
       qualifiedName: [...candidate.scope, candidate.name].join("."),
       kind: candidate.kind,
       signature: compactSignature(candidate.declaration, sourceFile),
       file: path
-        .relative(request.provider.rootPath, sourceFile.fileName)
+        .relative(request.owner.rootPath, sourceFile.fileName)
         .split(path.sep)
         .join("/"),
       startLine:

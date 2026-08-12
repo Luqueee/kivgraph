@@ -4,9 +4,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LanguageService } from "./language-service.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
+  type PackageProviderRegistry,
 } from "./package-import-resolver.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 import { temporaryRoot } from "./temporary-root.js";
@@ -63,7 +64,7 @@ function registryFor(
   const byName = new Map(
     providers.map((provider) => [provider.name, provider]),
   );
-  return { get: (name) => byName.get(name) };
+  return createPackageProviderRegistry([...byName.values()]);
 }
 
 afterEach(async () => {

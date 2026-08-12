@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { resolveImportedSymbols } from "./imported-symbol-resolver.js";
 import { LanguageService } from "./language-service.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 import { resolveProviderSourcePositions } from "./provider-source-position-resolver.js";
 
@@ -40,9 +40,7 @@ const providers: readonly PackageProvider[] = [
   },
 ];
 
-const registry: PackageProviderRegistry = {
-  get: (name) => providers.find((entry) => entry.name === name),
-};
+const registry = createPackageProviderRegistry(providers);
 
 afterEach(async () => {
   await Promise.all(services.splice(0).map((service) => service.close()));
@@ -88,10 +86,11 @@ describe("provider source positions", () => {
     const configFileName = path.join(CONSUMER, "tsconfig.json");
     await service.openProject(configFileName);
     const view = service.project(configFileName);
-    const resolution = await resolveImportedSymbols(service, view, {
-      get: (name) =>
-        name === "@ladygraph-fixture/unmapped" ? providers[1] : undefined,
-    });
+    const resolution = await resolveImportedSymbols(
+      service,
+      view,
+      createPackageProviderRegistry(providers.slice(1)),
+    );
 
     const unmapped = resolution.symbols.find(
       (entry) => entry.consumer.name === "unmapped",

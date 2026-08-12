@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { LanguageService } from "./language-service.js";
 import { resolvePackageDependencies } from "./package-dependency-resolver.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
@@ -43,9 +43,7 @@ const sharedProvider: PackageProvider = {
   outDir: "dist",
 };
 
-const registry: PackageProviderRegistry = {
-  get: (name) => (name === sharedProvider.name ? sharedProvider : undefined),
-};
+const registry = createPackageProviderRegistry([sharedProvider]);
 
 afterEach(async () => {
   await Promise.all(services.splice(0).map((service) => service.close()));

@@ -3,9 +3,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LanguageService } from "./language-service.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
@@ -82,9 +82,7 @@ const providers: readonly PackageProvider[] = [
   },
 ];
 
-const registry: PackageProviderRegistry = {
-  get: (name) => providers.find((entry) => entry.name === name),
-};
+const registry = createPackageProviderRegistry(providers);
 
 afterEach(async () => {
   await Promise.all(services.splice(0).map((service) => service.close()));

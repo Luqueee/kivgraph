@@ -1,0 +1,8 @@
+{
+  "name": "@ladygraph-fixture/consumer-c",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@ladygraph-fixture/facade": "3.1.0"
+  }
+}

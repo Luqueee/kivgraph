@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { resolveImportedSymbols } from "./imported-symbol-resolver.js";
 import { LanguageService } from "./language-service.js";
-import type { PackageProviderRegistry } from "./package-import-resolver.js";
+import { createPackageProviderRegistry } from "./package-import-resolver.js";
 import {
   extractLocalReferences,
   type LocalReference,
@@ -318,17 +318,14 @@ export const used = helper;
       ),
     ).toEqual([]);
 
-    const registry: PackageProviderRegistry = {
-      get: (name) =>
-        name === "shared"
-          ? {
-              name: "shared",
-              version: "1.0.0",
-              repository: "shared-repo",
-              rootPath: workspace.file("node_modules/shared"),
-            }
-          : undefined,
-    };
+    const registry = createPackageProviderRegistry([
+      {
+        name: "shared",
+        version: "1.0.0",
+        repository: "shared-repo",
+        rootPath: workspace.file("node_modules/shared"),
+      },
+    ]);
     const resolution = await resolveImportedSymbols(service, view, registry);
     expect(resolution.symbols).toHaveLength(1);
     const binding = resolution.symbols[0]?.consumer;

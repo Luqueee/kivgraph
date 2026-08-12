@@ -30,3 +30,11 @@ regenerarlo desde `shared-library/`:
 ```
 ../../../ts-worker/node_modules/.bin/tsc -p tsconfig.json
 ```
+- `facade-library`: paquete `@ladygraph-fixture/facade`, que no declara nada
+  propio y sólo reexporta `@ladygraph-fixture/shared`. Es la forma de un SDK
+  que existe para ser la única dependencia de sus consumidores.
+- `consumer-c`: importa a través de la fachada. Su mapa de declaraciones
+  apunta al fuente de `shared-library`, un repositorio distinto del que nombra
+  el import, así que prueba que la identidad se acredita al repositorio que
+  declara el símbolo y no al que lo reexporta: componerla contra la fachada
+  produciría una clave que nadie publica.

@@ -18,9 +18,9 @@ import {
   type ImportedSymbolResolution,
 } from "./imported-symbol-resolver.js";
 import { LanguageService } from "./language-service.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 
 const FIXTURE = path.resolve(
@@ -58,9 +58,7 @@ const sharedProvider: PackageProvider = {
   outDir: "dist",
 };
 
-const sharedRegistry: PackageProviderRegistry = {
-  get: (name) => (name === sharedProvider.name ? sharedProvider : undefined),
-};
+const sharedRegistry = createPackageProviderRegistry([sharedProvider]);
 
 async function resolveConsumer(
   name: string,
@@ -134,9 +132,11 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     const configFileName = path.join(NEGATIVE_CONSUMER, "tsconfig.json");
     await service.openProject(configFileName);
     const view = service.project(configFileName);
-    const resolution = await resolveImportedSymbols(service, view, {
-      get: (name) => (name === nomapProvider.name ? nomapProvider : undefined),
-    });
+    const resolution = await resolveImportedSymbols(
+      service,
+      view,
+      createPackageProviderRegistry([nomapProvider]),
+    );
 
     const plain = resolution.symbols.find(
       (entry) => entry.consumer.name === "plain",
@@ -181,10 +181,11 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     const configFileName = path.join(NEGATIVE_CONSUMER, "tsconfig.json");
     await service.openProject(configFileName);
     const view = service.project(configFileName);
-    const resolution = await resolveImportedSymbols(service, view, {
-      get: (name) =>
-        name === unmappedProvider.name ? unmappedProvider : undefined,
-    });
+    const resolution = await resolveImportedSymbols(
+      service,
+      view,
+      createPackageProviderRegistry([unmappedProvider]),
+    );
 
     const unmapped = resolution.symbols.find(
       (entry) => entry.consumer.name === "unmapped",
@@ -221,9 +222,11 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     const configFileName = path.join(linkedConsumer, "tsconfig.json");
     await service.openProject(configFileName);
     const view = service.project(configFileName);
-    const resolution = await resolveImportedSymbols(service, view, {
-      get: (name) => (name === nomapProvider.name ? nomapProvider : undefined),
-    });
+    const resolution = await resolveImportedSymbols(
+      service,
+      view,
+      createPackageProviderRegistry([nomapProvider]),
+    );
 
     const plain = resolution.symbols.find(
       (entry) => entry.consumer.name === "plain",
@@ -249,5 +252,65 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     expect(
       first.symbols.every((entry) => entry.target.identity !== undefined),
     ).toBe(true);
+  });
+});
+
+const FACADE_ROOT = path.join(FIXTURE, "facade-library");
+
+// The facade declares nothing: it re-exports the shared library so consumers
+// depend on one package. Its declaration map names its own barrel, and the
+// declaration a consumer actually reaches lives in the shared repository.
+const facadeProvider: PackageProvider = {
+  name: "@ladygraph-fixture/facade",
+  version: "3.1.0",
+  repository: "facade-library",
+  rootPath: FACADE_ROOT,
+  manifestPath: path.join(FACADE_ROOT, "package.json"),
+  projectPath: path.join(FACADE_ROOT, "tsconfig.json"),
+  typesPath: path.join(FACADE_ROOT, "dist/index.d.ts"),
+  sourceRoots: [path.join(FACADE_ROOT, "src")],
+  declarationRoots: [path.join(FACADE_ROOT, "dist")],
+  rootDir: "src",
+  outDir: "dist",
+};
+
+describe("a symbol reached through a re-exporting package", () => {
+  it("is credited to the repository that declares it", async () => {
+    const root = path.join(FIXTURE, "consumer-c");
+    const service = LanguageService.create({ cwd: root });
+    services.push(service);
+    const configFileName = path.join(root, "tsconfig.json");
+    await service.openProject(configFileName);
+    const view = service.project(configFileName);
+    const resolution = await resolveImportedSymbols(
+      service,
+      view,
+      createPackageProviderRegistry([facadeProvider, sharedProvider]),
+    );
+
+    const compute = resolution.symbols.find(
+      (entry) => entry.exportedName === "compute",
+    );
+    if (compute === undefined) {
+      throw new Error("expected the consumer to import compute");
+    }
+
+    // The import names the facade, and that is what the edge records as the
+    // package the consumer depends on.
+    expect(compute.packageName).toBe("@ladygraph-fixture/facade");
+
+    // The identity, though, has to name the declaring repository: it is what
+    // composes the stable key, and only the shared library publishes a symbol
+    // under it. Crediting the facade would compose a key nobody publishes and
+    // leave the edge dangling.
+    expect(compute.target.identityReason).toBeUndefined();
+    expect(compute.target.identity).toMatchObject({
+      repository: "shared-library",
+      package: "@ladygraph-fixture/shared",
+      qualifiedName: "compute",
+      kind: "function",
+      source: "DECLARATION_MAP",
+    });
+    expect(compute.target.identity?.file).toBe("src/value.ts");
   });
 });

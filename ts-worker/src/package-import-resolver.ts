@@ -46,9 +46,57 @@ export interface PackageProvider {
   readonly declarationDir?: string;
 }
 
-/** Read-only package-name lookup shared with the workspace registry. */
+/** Read-only package lookup shared with the workspace registry. */
 export interface PackageProviderRegistry {
   get(name: string): PackageProvider | undefined;
+  /**
+   * The registered package whose root contains `filePath`, if any.
+   *
+   * A declaration map points at the file that declares a symbol, and for a
+   * re-export that file belongs to whichever package actually owns the code,
+   * not to the one the consumer imported from. Naming that owner is what lets
+   * the identity be composed against the repository that publishes it.
+   */
+  owning(filePath: string): PackageProvider | undefined;
+}
+
+/**
+ * Build the registry every caller shares.
+ *
+ * Ownership is the longest matching root: workspace packages nest, and the
+ * innermost one is the package that declares the file. A path inside any
+ * `node_modules` is owned by nobody -- the copy of a package installed under
+ * a consumer sits below that consumer's root, so a prefix match would credit
+ * the consumer with declaring code it merely installed.
+ */
+export function createPackageProviderRegistry(
+  providers: readonly PackageProvider[],
+): PackageProviderRegistry {
+  const byName = new Map<string, PackageProvider>();
+  const roots: { readonly root: string; readonly provider: PackageProvider }[] =
+    [];
+  for (const provider of providers) {
+    byName.set(provider.name, provider);
+    const root = path.resolve(provider.rootPath);
+    roots.push({
+      root: root.endsWith(path.sep) ? root : root + path.sep,
+      provider,
+    });
+  }
+  roots.sort((left, right) => right.root.length - left.root.length);
+  return {
+    get: (name) => byName.get(name),
+    owning: (filePath) => {
+      const resolved = path.resolve(filePath);
+      if (resolved.split(path.sep).includes("node_modules")) {
+        return undefined;
+      }
+      const probe = resolved.endsWith(path.sep)
+        ? resolved
+        : resolved + path.sep;
+      return roots.find((entry) => probe.startsWith(entry.root))?.provider;
+    },
+  };
 }
 
 export type PackageImportStatus =

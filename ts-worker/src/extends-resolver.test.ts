@@ -9,9 +9,9 @@ import {
   resolveImportedSymbols,
 } from "./imported-symbol-resolver.js";
 import { LanguageService } from "./language-service.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 import { extractLocalSymbols } from "./symbol-extractor.js";
 import { temporaryRoot } from "./temporary-root.js";
@@ -160,10 +160,7 @@ export class LabeledWidget extends Widget {
       rootPath: workspace.file("node_modules/shared"),
       manifestPath: workspace.file("node_modules/shared/package.json"),
     };
-    const registry: PackageProviderRegistry = {
-      get: (name) =>
-        name === sharedProvider.name ? sharedProvider : undefined,
-    };
+    const registry = createPackageProviderRegistry([sharedProvider]);
 
     const imported = await resolveImportedSymbols(service, view, registry);
     const [firstImported] = imported.symbols;

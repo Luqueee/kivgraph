@@ -9,9 +9,9 @@
 import path from "node:path";
 
 import { LanguageService } from "./language-service.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 import { resolveProviderSourcePositions } from "./provider-source-position-resolver.js";
 import {
@@ -232,9 +232,7 @@ export async function measureCrossRepositoryPrecision(): Promise<PrecisionReport
 async function measureCase(
   testCase: PrecisionCase,
 ): Promise<PrecisionCaseReport> {
-  const registry: PackageProviderRegistry = {
-    get: (name) => testCase.providers.find((entry) => entry.name === name),
-  };
+  const registry = createPackageProviderRegistry(testCase.providers);
   const service = LanguageService.create({ cwd: testCase.root });
   try {
     const configFileName = path.join(testCase.root, "tsconfig.json");

@@ -79,9 +79,10 @@ import {
   type PackageDependency,
   resolvePackageDependencies,
 } from "./package-dependency-resolver.js";
-import type {
-  PackageProvider,
-  PackageProviderRegistry,
+import {
+  createPackageProviderRegistry,
+  type PackageProvider,
+  type PackageProviderRegistry,
 } from "./package-import-resolver.js";
 import {
   extractLocalReferences,
@@ -1006,18 +1007,19 @@ async function loadProvider(
 }
 
 async function buildRegistry(
-  providers: readonly ProviderArg[],
+  providerArgs: readonly ProviderArg[],
 ): Promise<PackageProviderRegistry> {
-  const byName = new Map<string, PackageProvider>();
-  for (const providerArg of providers) {
-    const provider = await loadProvider(
-      providerArg.repository,
-      providerArg.rootPath,
-      providerArg.projectPath,
+  const providers: PackageProvider[] = [];
+  for (const providerArg of providerArgs) {
+    providers.push(
+      await loadProvider(
+        providerArg.repository,
+        providerArg.rootPath,
+        providerArg.projectPath,
+      ),
     );
-    byName.set(provider.name, provider);
   }
-  return { get: (name) => byName.get(name) };
+  return createPackageProviderRegistry(providers);
 }
 
 function relative(root: string, file: string): string {
