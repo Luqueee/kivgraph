@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -141,6 +142,63 @@ func TestDecideRoutesByScopeAndRatio(t *testing.T) {
 	if len(decision.ForcedBy) != 2 || decision.ForcedBy[0] != ActionRebuildRegistry || decision.ForcedBy[1] != ActionReindexProject {
 		t.Fatalf("forced actions = %v, want registry then project", decision.ForcedBy)
 	}
+}
+
+// TestDecideOnACheckoutSizedDelta pins the route a branch switch takes. The
+// freshness design rests on it: a checkout that republishes pays the whole
+// fixed cost of a clean rebuild -- measured at 7 s on the 33-repository Kena
+// corpus, against 0.7 s of analysis -- and no trigger arrives in time.
+//
+// The counts are the ones measured on a real checkout of this repository: 146
+// files moved, against a corpus of 4488 files (Kena) and one of 258 (this
+// repository alone).
+func TestDecideOnACheckoutSizedDelta(t *testing.T) {
+	const (
+		changedByCheckout = 146
+		largeCorpusFiles  = 4488
+		smallCorpusFiles  = 258
+	)
+	delta := checkoutDelta(changedByCheckout)
+	sources := []InvalidationPlan{{Class: ChangeBodyOnly, Actions: []InvalidationAction{ActionReindexFile}}}
+
+	decision := Decide(sources, delta, true, largeCorpusFiles, 0)
+	if decision.Route != RouteDelta {
+		t.Fatalf("checkout on a large corpus = %#v, want DELTA", decision)
+	}
+	if len(decision.ChangedFiles) != changedByCheckout {
+		t.Fatalf("changed files = %d, want %d", len(decision.ChangedFiles), changedByCheckout)
+	}
+
+	// The same checkout is more than half of a small corpus, so a clean bulk
+	// load is the cheaper route and the delta stops being one. This is a
+	// property of the ratio, not a regression: it is recorded so the cost of
+	// a branch switch is known to depend on corpus size.
+	if decision := Decide(sources, delta, true, smallCorpusFiles, 0); decision.Route != RouteRepublish {
+		t.Fatalf("checkout on a small corpus = %#v, want REPUBLISH", decision)
+	}
+
+	// A branch that also moves go.mod, package.json or Cargo.toml changes
+	// package identity, and no file-scoped retirement withdraws that. Size
+	// must not decide here.
+	manifest := append(sources, InvalidationPlan{
+		Class:   ChangeManifestChanged,
+		Actions: []InvalidationAction{ActionRebuildRegistry, ActionReindexProject},
+	})
+	decision = Decide(manifest, delta, true, largeCorpusFiles, 0)
+	if decision.Route != RouteRepublish {
+		t.Fatalf("checkout with a manifest = %#v, want REPUBLISH", decision)
+	}
+	if len(decision.ForcedBy) == 0 {
+		t.Fatalf("manifest decision = %#v, want the forcing actions named", decision)
+	}
+}
+
+func checkoutDelta(files int) facts.Delta {
+	replaced := make([]string, files)
+	for index := range replaced {
+		replaced[index] = "file:repo:src/file" + strconv.Itoa(index) + ".go"
+	}
+	return facts.Delta{ReplacedFiles: replaced}
 }
 
 func TestUpdateAppliesDeltaAndRefreshesDigest(t *testing.T) {

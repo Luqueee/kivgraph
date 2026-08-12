@@ -38,6 +38,7 @@ import (
 	"github.com/Luqueee/ladygraph/internal/update"
 	"github.com/Luqueee/ladygraph/internal/upgrade"
 	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/ladygraph/internal/watcher"
 	"github.com/Luqueee/ladygraph/internal/webapi"
 	"github.com/Luqueee/ladygraph/internal/webassets"
 	"github.com/Luqueee/ladygraph/internal/workspace"
@@ -345,6 +346,8 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
 	stopFollower := followPublishedGeneration(ctx, loaded, store, "serve", indexing.FollowOptions{})
 	defer stopFollower()
+	stopResync := resyncOnBranchChange(ctx, loaded, store, projectIndexer, "serve")
+	defer stopResync()
 	return runServe(ctx, func(ctx context.Context) error {
 		return runMCP(ctx, store, projectIndexer)
 	})
@@ -394,6 +397,94 @@ func followPublishedGeneration(
 		cancel()
 		<-done
 	}
+}
+
+// resyncOnBranchChange keeps the published graph on the code that is actually
+// checked out. A checkout, pull, merge, rebase or reset moves HEAD and leaves
+// every path and line the server returns describing something else; without
+// this the only way back is a person remembering to run `index --full`.
+//
+// It observes HEAD and nothing else. A push moves no local ref and rewrites no
+// file, so it changes nothing the graph describes. A commit does move HEAD
+// without rewriting anything, so before rebuilding, the content the graph
+// recorded is compared against the bytes on disk: the cheapest rebuild is the
+// one that does not happen.
+//
+// Like the follower, it never fails the command and never outlives it.
+func resyncOnBranchChange(
+	ctx context.Context,
+	loaded config.Loaded,
+	store *hotsnapshot.SnapshotStore,
+	indexer *indexing.Service,
+	command string,
+) func() {
+	logger := logging.New(os.Stderr)
+	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
+	if err != nil {
+		logger.Error("could not read the repository registry", "command", command, "error", err)
+		return func() {}
+	}
+	repositories := registry.List()
+	if len(repositories) == 0 {
+		return func() {}
+	}
+	state := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	options := indexing.ResyncOptions{
+		Repositories: repositories,
+		LockPath:     filepath.Join(state, "resync.lock"),
+		Resync: func(ctx context.Context, moved []workspace.Repository) error {
+			// The indexer decides the route. This loop only decides when.
+			return indexer.Reindex(ctx)
+		},
+		ContentUnchanged: func(ctx context.Context, moved []indexing.RepositoryMovement) (bool, error) {
+			return commitChangedNothing(ctx, moved), nil
+		},
+		OnMoved: func(batch []indexing.RepositoryMovement) {
+			for _, movement := range batch {
+				logger.Info("working tree moved",
+					"command", command, "repository", movement.Repository.Name,
+					"from", movement.From, "to", movement.To, "branch", movement.Branch)
+			}
+		},
+		OnResynced: func(batch []indexing.RepositoryMovement) {
+			logger.Info("graph resynchronised", "command", command, "repositories", len(batch))
+		},
+		OnSkipped: func(batch []indexing.RepositoryMovement) {
+			logger.Info("no rebuild needed, the indexed content is unchanged",
+				"command", command, "repositories", len(batch))
+		},
+		OnError: func(err error) {
+			logger.Error("could not resynchronise the graph", "command", command, "error", err)
+		},
+	}
+	resyncCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := indexing.Resync(resyncCtx, options); err != nil {
+			logger.Error("resynchroniser stopped", "command", command, "error", err)
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+// commitChangedNothing reports whether the movement each repository made left
+// its files exactly as the graph indexed them.
+//
+// It is the difference between a commit and a checkout. Both move HEAD; only
+// one changes the code, and rebuilding the corpus to find out that nothing
+// changed spends seconds of every commit producing the graph that is already
+// published.
+func commitChangedNothing(ctx context.Context, moved []indexing.RepositoryMovement) bool {
+	for _, movement := range moved {
+		if !watcher.CommitsHaveIdenticalTrees(ctx, movement.Repository.RealPath, movement.From, movement.To) {
+			return false
+		}
+	}
+	return len(moved) > 0
 }
 
 func isLoopbackListenAddress(address string) bool {

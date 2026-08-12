@@ -262,6 +262,55 @@ func (service *Service) IndexProjects(
 	}, nil
 }
 
+// Reindex rebuilds the graph of the repositories already registered and
+// publishes it. It never touches the registry: keeping the graph on the code
+// that is checked out is not the same act as registering a project, and the
+// consent for it was given when the repository was registered.
+//
+// It shares the gate with IndexProjects, so a resynchronisation and an
+// index_project cannot run at once inside one process.
+func (service *Service) Reindex(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if service == nil {
+		return errors.New("project indexer is nil")
+	}
+	if service.snapshotStore == nil {
+		return errors.New("project indexer has no snapshot store")
+	}
+	select {
+	case service.gate <- struct{}{}:
+		defer func() { <-service.gate }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	registry, err := workspace.NewRegistry(ctx, service.loaded.Repositories)
+	if err != nil {
+		return fmt.Errorf("validate repository registry: %w", err)
+	}
+	repositories := registry.List()
+	if len(repositories) == 0 {
+		return nil
+	}
+
+	options := OptionsFromConfig(service.loaded.Config)
+	options.Repositories = repositories
+	options.WorkingDirectory = service.workingDirectory
+	options.ResolverVersion = service.resolverVersion
+	if _, err := RunFull(ctx, options); err != nil {
+		return fmt.Errorf("reindex registered repositories: %w", err)
+	}
+	if _, err := service.publishActiveSnapshot(ctx); err != nil {
+		return fmt.Errorf("publish reindexed snapshot: %w", err)
+	}
+	return nil
+}
+
 func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, error) {
 	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
 		Root:  filepath.Dir(service.loaded.Config.Storage.DatabasePath),
@@ -287,8 +336,18 @@ func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, erro
 	if !report.Passed {
 		return 0, errors.New("build published snapshot did not pass")
 	}
+	// Losing this race is success, not failure. The generation follower runs
+	// in the same process and installs whatever CURRENT points at; when it
+	// gets there first, the store is already serving exactly the snapshot
+	// this rebuild produced. Reporting an error here would make the caller
+	// retry a rebuild that already landed.
 	if err := service.snapshotStore.Publish(snapshot); err != nil {
-		return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+		}
+		if served := service.snapshotStore.Load(); served == nil || served.Metadata().ID < generationID {
+			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+		}
 	}
 	return generationID, nil
 }
