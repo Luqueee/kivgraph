@@ -76,6 +76,16 @@ integridad, compatibilidad o verificación descritos aquí.
 - Los identificadores que mezclan dominios usan tipos definidos.
 - Los paquetes bajo `internal/` no son API externa estable.
 - Cambiar un símbolo exportado exige revisar todos sus consumidores y tests.
+- Un método cuyo receptor no tiene nombre -el de una interfaz anónima, sea la
+  de `var _ interface{ ... } = x` o la de una aserción `y.(interface{ M() })`-
+  no es direccionable y nunca entra al grafo, igual que un `local N` de Rust.
+  No hay camino hasta él desde el scope del paquete, así que no obtiene
+  objectpath y su identidad cae al nombre cualificado, que sin dueño es el
+  nombre del método a secas: dos declaraciones así en un paquete derivan una
+  sola clave desde dos ficheros, y un `Symbol` con dos `File` que lo declaran
+  es lo que prohíbe la multiplicidad de `DEFINES`. `go.include_tests` lo hacía
+  aparecer porque un fichero de test es el segundo sitio donde se escribe esa
+  interfaz.
 - `internal/indexer.Full` carga Go mediante los patrones de paquetes producidos
   por `DiscoverGo`; no sustituirlos por `./...`, porque las `exclusions`
   configuradas deben seguir siendo efectivas durante `go/packages`.
@@ -191,6 +201,16 @@ integridad, compatibilidad o verificación descritos aquí.
   `include_tests` y `go.allow_network`. Un módulo que el cargador no pudo leer
   no se guarda jamás, porque su fallo depende del caché de módulos y ninguna
   huella del código lo describe. Ver ADR 0030.
+- La procedencia de un repositorio -commit, rama, sucio- no es un hecho que
+  produzca ningún análisis: la estampa la pasada al fusionar, desde el registro
+  que se le dio, y ninguna unidad la escribe. Dentro de la entrada de caché se
+  volvía rancia en cada acierto, hacía que el commit publicado dependiera de
+  qué unidad fallara, y abortaba `verify` por un commit que no tocó un fichero.
+- El lockfile se busca desde la raíz del repositorio registrado hacia arriba y
+  se registra la cadena entera. `node_modules` no se recorre -es función del
+  lockfile-, así que un lockfile que no se encuentra deja esa dependencia sin
+  ningún control: en un monorepo pnpm vive por encima de los repositorios
+  registrados.
 - Una entrada registra el nombre de lo que hay que volver a medir, nunca el
   valor medido: una entrada cuyo nombre lleva su propio valor se compara
   consigo misma y no puede invalidar nada.
@@ -273,6 +293,22 @@ integridad, compatibilidad o verificación descritos aquí.
   al proveedor por un symlink de `node_modules` y el motor devuelve la ruta
   del destino del enlace, así que `consumer-linked` es el fixture que defiende
   el caso real; exigir `declarationMap` en el proveedor no lo arregla.
+- El proyecto que resuelve la identidad de un símbolo importado es el que
+  **posee el fichero** que nombra el mapa de declaraciones, no el paquete del
+  que se importó. Un paquete fachada existe para reexportar los de su
+  workspace, así que su mapa apunta al repositorio que los declara; preguntar
+  al programa de la fachada por ese fichero no devuelve nada y la referencia se
+  abandonaba como `PROVIDER_SOURCE_UNAVAILABLE` aunque la declaración estuviera
+  indexada. La identidad acredita al dueño: componerla contra la fachada
+  produce una clave que ese repositorio no publica y deja la arista colgando.
+  La pertenencia es la raíz registrada más larga que contiene el fichero, y
+  nadie posee lo que está bajo un `node_modules` -la copia instalada de un
+  paquete cuelga de la raíz de quien lo instaló-.
+- El worker que ejecuta una pasada es el del checkout cuando existe
+  `ts-worker/dist` y nadie configuró otro: un shim instalado de una release
+  anterior ocupa el mismo nombre en el `PATH` y ganaba, de modo que `pnpm
+  build` no cambiaba nada observable y la medición salía mal con el aspecto de
+  estar bien.
 - La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
   Vitest; los payloads binarios grandes permanecen fuera del estado React y
   `web/dist` se regenera con el build de Vite.
