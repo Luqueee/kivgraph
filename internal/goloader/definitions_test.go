@@ -299,3 +299,86 @@ func equalStringSlices(left, right []string) bool {
 	}
 	return true
 }
+
+// anonymousSource declares the same method and the same field twice, each time
+// on a type with no name. Nothing can name either of them, and every field the
+// identity is built from -- package, qualified name, kind and signature -- is
+// equal across the pair.
+const anonymousSource = `package sample
+
+import "io"
+
+type Closer interface {
+	CloseWithError(error) error
+}
+
+type Box struct {
+	Payload string
+}
+
+type body struct{}
+
+func (b *body) Read(p []byte) (int, error)      { return 0, io.EOF }
+func (b *body) CloseWithError(err error) error  { return err }
+
+var _ interface {
+	io.Reader
+	CloseWithError(error) error
+} = (*body)(nil)
+
+func assertBody(value any) bool {
+	_, ok := value.(interface{ CloseWithError(error) error })
+	return ok
+}
+
+var first = struct{ Payload string }{}
+var second = struct{ Payload string }{}
+`
+
+// TestExtractDefinitionsGivesEveryDeclarationItsOwnKey is the guard for the
+// DEFINES multiplicity constraint: a Symbol has exactly one declaring File, so
+// two declarations that derive one key make the canonical graph unloadable.
+func TestExtractDefinitionsGivesEveryDeclarationItsOwnKey(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod":           "module example.com/module\n\ngo 1.24\n",
+		"sample/sample.go": anonymousSource,
+	})
+
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), result, DefinitionOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+	keyed, err := AssignStableKeys(context.Background(), definitions)
+	if err != nil {
+		t.Fatalf("AssignStableKeys() error = %v", err)
+	}
+
+	owners := make(map[string]KeyedDefinition, len(keyed))
+	for _, definition := range keyed {
+		key := string(definition.StableKey)
+		if previous, taken := owners[key]; taken {
+			t.Fatalf("%q at %s:%d and %q at %s:%d share the stable key %s",
+				previous.QualifiedName, filepath.Base(previous.FileName), previous.StartLine,
+				definition.QualifiedName, filepath.Base(definition.FileName), definition.StartLine,
+				definition.CanonicalIdentity)
+		}
+		owners[key] = definition
+	}
+
+	// The named declarations stay: they are the ones a consumer can reach.
+	present := make(map[string]struct{}, len(keyed))
+	for _, definition := range keyed {
+		present[definition.QualifiedName] = struct{}{}
+	}
+	for _, wanted := range []string{"Closer.CloseWithError", "Box.Payload", "body.CloseWithError"} {
+		if _, found := present[wanted]; !found {
+			t.Errorf("declaration %q is missing", wanted)
+		}
+	}
+}

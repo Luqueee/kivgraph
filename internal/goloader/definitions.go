@@ -213,7 +213,10 @@ func extractFile(
 func classifyObject(object types.Object) (DefinitionKind, bool) {
 	switch typed := object.(type) {
 	case *types.Func:
-		if typed.Signature() != nil && typed.Signature().Recv() != nil {
+		if signature := typed.Signature(); signature != nil && signature.Recv() != nil {
+			if !addressableReceiver(signature.Recv().Type()) {
+				return "", false
+			}
 			return KindMethod, true
 		}
 		if typed.Parent() != nil && typed.Parent() != typed.Pkg().Scope() {
@@ -339,6 +342,22 @@ func receiverTypeName(typ types.Type) string {
 	default:
 		return ""
 	}
+}
+
+// addressableReceiver reports whether a method's receiver has a name a
+// consumer could write.
+//
+// A method of an unnamed interface -- the assertion `x.(interface{ M() })`,
+// or the anonymous interface of a `var _ interface{ ... } = ...` compliance
+// check -- is unreachable: no path leads to it from the package scope, so it
+// gets no object path, and its identity falls back to the qualified name,
+// which for an unnamed owner is the bare method name. Two such declarations
+// in one package then derive one key while sitting in two files, and a
+// Symbol with two declaring Files is what the DEFINES multiplicity
+// constraint forbids. They are Go's counterpart to Rust's `local N`: not
+// addressable, so never in the graph.
+func addressableReceiver(receiver types.Type) bool {
+	return receiverTypeName(receiver) != ""
 }
 
 func qualifiedName(owner, name string) string {
