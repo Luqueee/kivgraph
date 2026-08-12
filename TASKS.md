@@ -13049,7 +13049,488 @@ un tipo foráneo, hoy silencioso porque el receptor no es un símbolo del grafo.
 
 ---
 
-# 22. Gates globales
+# 22. Fase 19 — Coste en tokens de la superficie MCP
+
+LUQUE-1113 dejó la superficie barata de cargar y las filas direccionables.
+Lo que ninguna tarea ha medido todavía es la sesión completa: lo que gasta un
+agente desde que pregunta hasta que tiene el código delante.
+
+**Medido el 2026-08-12** con `ladygraph v0.5.0`, generación `000017` (10.481
+símbolos, 300 ficheros, 38.477 aristas) y el tokenizador `cl100k_base`, sobre
+seis preguntas del tipo «voy a cambiar este símbolo, ¿qué se rompe?»
+-`MergeAll`, `CanonicalColumns`, `BuildPlan`, `Publish`, `NewServer` y
+`DiscoverGo`-:
+
+```text
+leer los ficheros que el grafo nombra    102.522 tokens   baseline artificial
+vía nativa de Oh My Pi                    38.094 tokens   la comparación real
+  `grep` acotado a `internal/`            27.712 tokens
+  leer los cuerpos que nombra             10.382 tokens
+grafo + leer esos mismos ficheros        106.078 tokens   2,8x PEOR que lo nativo
+  de los cuales, llamadas MCP              3.556 tokens
+grafo sirviendo los cuerpos               17.352 tokens   2,2x mejor, -54 %
+  de los cuales, cuerpos                  10.382 tokens
+  de los cuales, round-trips evitables     3.414 tokens
+```
+
+**La fila que importa es la segunda.** Ningún anfitrión lee ficheros enteros:
+omp hace `grep` acotado y luego lee los trozos. Medido contra eso, Ladygraph
+**hoy cuesta 2,8 veces más que no tenerlo**, y sirviendo cuerpos ahorra un
+54 %, no un 83 %. El 83 % era contra un rival de paja y no se vuelve a citar.
+
+Las dos lecturas de la tabla, y las dos importan:
+
+* Preguntar al grafo ya es barato: 593 tokens por pregunta -3.556 entre seis-
+  dicen quién llama a un símbolo, desde qué fichero, en qué línea y con qué
+  confianza.
+* Y aun así hoy no ahorra nada, porque la respuesta no trae el código: el
+  agente abre el fichero igual y paga las dos cosas. La superficie es exacta y
+  es cara.
+
+**Dónde se concentra el ahorro.** No es uniforme: crece con lo común que sea el
+nombre, que es exactamente donde `grep` es a la vez caro y equivocado.
+
+```text
+símbolo             vía nativa   Ladygraph   factor
+NewServer                6.093         320     19x
+Publish                 10.556       3.738    2,8x
+BuildPlan                9.684       4.803    2,0x
+CanonicalColumns         5.584       3.844   1,45x
+DiscoverGo               4.318       3.184    1,4x
+MergeAll                 1.859       1.463    1,3x
+```
+
+`grep -w Publish` sobre `internal/` cuesta 8.611 tokens y no distingue
+`SnapshotStore.Publish` de ningún otro `Publish`; `find_references` responde lo
+mismo con 850 y sin ambigüedad. `MergeAll` es un nombre raro: ahí `grep` acierta
+por 1.328 y nosotros somos un empate caro. Un nombre único en un repositorio
+pequeño **no es nuestro terreno**, y la descripción de la tool tiene que decirlo
+para que el agente no gaste la llamada.
+
+Ningún gate anterior lo cubre. `MCP_SURFACE_PASS` fija qué se devuelve y con
+qué garantías, nunca lo que cuesta obtenerlo.
+
+**Gate:** `MCP_TOKEN_COST_PASS`, y no se declara a mano: lo mide el arnés de
+LUQUE-1905, que es el instrumento con el que las otras cuatro tareas declaran
+sus cifras. Una reducción sin arnés reproducible es una anécdota.
+
+**Fuera de alcance de la fase entera:** edición simbólica, métricas de calidad
+de código y cualquier tool que no reduzca tokens medidos.
+
+**La cuenta de la superficie.** LUQUE-1113 fijó un techo de diez tools y hoy hay
+once. `get_source` haría doce, así que la fase no puede añadirla sin retirar
+algo: `graph_status`, `list_repositories` y `get_unresolved_references` cuestan
+unos 54 tokens residentes cada una en Oh My Pi para preguntas que ningún agente
+hace, y su sitio es el CLI y el `instructions`. Nueve tools al cerrar la fase.
+
+## Los dos anfitriones que esta fase tiene que satisfacer
+
+Ladygraph se optimiza para **Oh My Pi** y **Claude Code**, en ese orden. Los dos
+difieren en lo que cobran y en lo que escuchan, y varias decisiones de la fase
+dependen de esa diferencia. Medido el 2026-08-12 contra `ladygraph v0.5.0` y la
+documentación del propio anfitrión.
+
+```text
+                        Oh My Pi                     Claude Code
+esquema residente       no: se lee bajo demanda      no: diferido por ToolSearch
+                        con `read xd://<tool>`
+coste residente real    593 tok  (204 de rutas       nombres + `instructions`
+                        + 389 de descripciones)      (~120 tok, cifra de Anthropic)
+`instructions`          no lo expone                 inyectado al abrir sesión, 2 KB
+`_meta` alwaysLoad      irrelevante                  promociona una tool a residente
+structuredContent       se descarta, sólo texto      puede renderizarse
+tope de respuesta       no documentado               25.000 tok, avisa a partir de 10.000
+```
+
+**Consecuencias que la fase no puede ignorar:**
+
+* **El presupuesto residente en Oh My Pi es la descripción de la tool**, no su
+  esquema. Son 389 de los 593 tokens. Ahí es donde tiene que caber el enrutado
+  -«para esto, en vez de `grep`»- y no en un campo que este anfitrión no lee.
+* **`instructions` sólo sirve para Claude Code.** El canal portable es la
+  descripción más `AGENTS.md`, que este proyecto ya tiene enlazado desde
+  `CLAUDE.md`: un solo fichero cubre los dos anfitriones y los dos lo cargan
+  solos.
+* **Oh My Pi ya trae competidores nativos y son buenos.** Su `read` sin selector
+  devuelve un resumen estructural -declaraciones con sus rangos, cuerpos
+  elididos-: `internal/facts/facts.go` cuesta **3.013 tokens** por esa vía
+  frente a **6.597** de `get_file_outline` y 5.084 de leer el fichero entero.
+  Hoy nuestra tool es 2,2 veces peor que lo que el anfitrión da gratis. También
+  trae un dispositivo `lsp` con `references`, `definition` y `symbols`, así que
+  dentro de un repositorio y con servidor de lenguaje vivo, `find_references`
+  compite de tú a tú: lo nuestro gana en cross-repository, en `confidence` y
+  `provenance`, en radio de impacto y sin necesidad de un LSP arrancado. Eso es
+  lo que la descripción tiene que decir.
+* **Devolvemos el mismo dato dos veces.** `find_symbol(MergeAll)` responde 559
+  caracteres de texto y 600 de `structuredContent`. Oh My Pi tira el segundo;
+  un cliente que renderice los dos paga 406 tokens en vez de 174. Un canal por
+  tool.
+* **Oh My Pi normaliza los argumentos antes de que lleguen.** Quita el campo `i`
+  si el esquema no lo declara, y **omite toda propiedad opcional cuyo valor sea
+  cadena vacía, objeto vacío o `undefined`**. Ningún parámetro opcional puede
+  tener un valor vacío con significado.
+
+---
+
+## LUQUE-1901 — Una fila que no se puede abrir no es una respuesta
+
+**Dependencias:** LUQUE-1106, LUQUE-1108, LUQUE-1109, LUQUE-1113.
+
+**Objetivo:** que toda fila que nombra un símbolo se pueda abrir sin una
+segunda llamada.
+
+**Lo que hoy falta, medido:**
+
+* `find_references` da `start_line` pero no `end_line`. El agente sabe dónde
+  empieza el llamante y no dónde acaba, así que pide un `get_symbol` por fila:
+  **3.414 tokens** y una llamada por llamante en las seis preguntas.
+* `trace_dependencies` y `get_blast_radius` no dan ninguna de las dos. Una
+  traza de `MergeAll` son **8.420 tokens** para 50 filas -168 por fila- que
+  nombran el fichero y no la posición.
+* En esas mismas 50 filas, `stable_key`, `reached_from_key`, `file_key` y
+  `repository_key` suman **5.545 tokens, el 66 %**. `file_key` y
+  `repository_key` los deletrea la ruta que va al lado.
+
+**Entregables:**
+
+* `internal/mcp/tools/find_references.go`, `trace_dependencies.go` y
+  `blast_radius.go`: `start_line` y `end_line` en toda fila de símbolo;
+* los `*_key` derivables, sólo en `response_format: "detailed"`, como ya hizo
+  LUQUE-1113 con las demás tools;
+* un solo canal de contenido por tool: se retira `structuredContent` y queda el
+  bloque de texto, que es el que los dos anfitriones leen;
+* tests de cada tool tocada y la medida en tokens antes y después.
+
+**Decisiones:**
+
+* `end_line` viaja también en `concise`. Son siete tokens y sin él la fila
+  obliga a la llamada que la fila venía a evitar.
+* `reached_from_key` se conserva: es la arista del recorrido, no un
+  identificador derivable. Lo que se abarata es su forma, no su presencia.
+
+**Criterios de aceptación:**
+
+- Las seis preguntas se responden sin un solo `get_symbol` de apoyo.
+- Una traza de 50 nodos cuesta menos de la mitad que hoy y cada nodo trae su
+  rango de líneas.
+- `response_format: "detailed"` sigue devolviendo todo lo que devuelve hoy.
+- Ninguna respuesta duplica su contenido: el mismo dato no viaja como texto y
+  como `structuredContent`.
+
+**Estado:** `pendiente`.
+
+---
+
+## LUQUE-1902 — Que el índice de un fichero cueste menos que el fichero
+
+**Dependencias:** LUQUE-1113, LUQUE-1901.
+
+**Objetivo:** que `get_file_outline` cueste menos que las dos vías que el
+anfitrión ya ofrece gratis.
+
+**Lo que hoy pasa, medido sobre `internal/facts/facts.go`:** el outline cuesta
+**6.597 tokens**, el fichero entero **5.084**, y el resumen estructural que
+`read` de Oh My Pi devuelve solo **3.013**. Preguntar por el índice es más caro
+que leerlo todo y **2,2 veces más caro que lo que el anfitrión da gratis**. Y
+son 80 filas de 155: describir el fichero completo son dos llamadas y unos
+12.000 tokens. El reparto dice dónde está:
+
+```text
+stable_key   3.223 tokens   49 %
+signature    1.605 tokens   24 %
+```
+
+Las firmas son la otra mitad del problema: dentro de `internal/facts`, una
+firma se publica como `func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) ...`,
+con el camino completo del paquete al que pertenece el propio símbolo.
+
+**El bloqueo real:** la clave no se puede quitar porque `get_symbol` y
+`find_references` sólo aceptan `stable_key`. Sin otra forma de nombrar un
+símbolo, un outline sin claves es un callejón.
+
+**Y recortar campos no llega.** Medido: sin `stable_key` el outline baja a
+**4.329** tokens, y recortando además las firmas cualificadas se queda en unos
+**3.300**. Sigue por encima de los 3.013 del `read` nativo. **En JSON no se
+puede ganar**, así que la tarea incluye el cambio de forma: filas agrupadas por
+fichero con cabecera hoisted, que es lo que baja a unos 12,5 tokens por
+declaración -unos 1.900 para las 155 de este fichero-.
+
+**Y el caso que de verdad importa es el directorio, no el fichero.** El outline
+de `internal/facts` cuesta hoy 18.372 tokens; la vía nativa exige resumir doce
+ficheros, del orden de 37.800 [INFERENCE: extrapolado del 59 % que mide
+`facts.go`]. Reformateado serían unos 2.500. Ahí el factor es 15x, no 1,6x.
+
+**Entregables:**
+
+* direccionamiento por `(repository, path, qualified_name)` en `get_symbol`,
+  `find_references`, `trace_dependencies` y `get_blast_radius`, alternativo a
+  `stable_key` y nunca simultáneo;
+* `stable_key` fuera de `concise` en `get_file_outline`;
+* forma de línea agrupada por fichero, con `[mostradas/total]` en la cabecera;
+* firmas relativas al paquete del símbolo, con el camino completo sólo cuando
+  el tipo viene de otro paquete;
+* tests de ambigüedad y la medida en tokens antes y después, por el arnés.
+
+**Decisiones:**
+
+* Un `qualified_name` puede no ser único dentro de un fichero -dos métodos
+  homónimos de tipos distintos comparten nombre corto y no cualificado-. Si la
+  tripleta resuelve a más de un símbolo se devuelve un error que **nombra los
+  candidatos con su rango de líneas**; elegir uno sería la coincidencia
+  nominal que el proyecto prohíbe en el grafo y no vale más en la superficie.
+* La clave estable no desaparece: sigue siendo la identidad canónica y sigue
+  viajando en `detailed`. Lo que cambia es que dejar de pedirla no cierre el
+  camino.
+
+**Criterios de aceptación:**
+
+- El outline de `internal/facts/facts.go` cuesta menos que los 3.013 tokens del
+  resumen estructural de `read`, no sólo menos que leer el fichero.
+- Una sesión encadena `get_file_outline` → `find_references` sin haber visto
+  una sola `stable_key`.
+- Una tripleta ambigua falla nombrando los candidatos; una inexistente falla
+  distinguiéndose de la ambigua.
+- `detailed` sigue devolviendo la clave y la firma completamente cualificada.
+- El outline de `internal/facts` completo cuesta menos que resumir sus doce
+  ficheros por la vía nativa.
+- El caso de un solo fichero pequeño puede seguir perdiendo contra `read`, y
+  entonces la descripción de la tool lo dice y remite a `read`. Una tool que
+  finge ganar donde pierde gasta la llamada dos veces.
+
+**Estado:** `pendiente`.
+
+---
+
+## LUQUE-1903 — Servir el código, no su dirección
+
+**Dependencias:** LUQUE-1901, LUQUE-1902.
+
+**Objetivo:** cerrar la brecha entera. Es el único cambio de la fase que pone a
+Ladygraph por debajo de la vía nativa en las seis preguntas, porque es el único
+que retira la lectura del fichero.
+
+**Lo que esta tool no es:** un lector de rangos. `read internal/facts/facts.go:484-509`
+ya existe en los dos anfitriones, es más barato que una llamada MCP y está
+siempre fresco; competir con eso es perder. Lo que ningún anfitrión puede hacer
+es **una sola llamada que devuelva los cuerpos de los cuatro llamantes exactos
+repartidos por tres repositorios**, verificados contra la generación publicada.
+Ahí está el valor, y de ahí sale la forma de la entrada: símbolos, no rangos.
+
+**Entregables:**
+
+* tool `get_source`: una lista de símbolos por clave o por tripleta, y devuelve
+  sus cuerpos con `context_lines` opcional;
+* verificación de `FileRecord.ContentHash` antes de servir;
+* `docs/adr/00XX-serving-source-from-the-published-graph.md`;
+* la medida de las seis preguntas antes y después.
+
+**Decisiones:**
+
+* `serve` pasa a leer del sistema de archivos. Hoy responde sólo desde el
+  HotSnapshot publicado y ése es un contrato escrito: el ADR es obligatorio y
+  la tarea no empieza por el código.
+* **Falla cerrado en lo que afirma, degrada declarando en lo que entrega**, y la
+  distinción es el corazón del ADR. Si el digest del fichero coincide con el que
+  registró la generación, el rango del grafo es autoridad y se sirve sin más. Si
+  no coincide, **el fichero es la autoridad**: se reancla la declaración por su
+  nombre en el fichero actual, se sirven sus bytes y se declara el
+  desplazamiento -«el grafo dice 484-509; el fichero cambió; la declaración
+  está en 512»-. Si tampoco se encuentra allí, esa fila no devuelve bytes y dice
+  por qué, sin tumbar las demás.
+* Reanclar por nombre **no crea ninguna arista** y por eso no viola el contrato
+  de resolución exacta: entrega bytes de un fichero, no afirma una relación. El
+  ADR lo dice explícitamente para que nadie lo lea como una coincidencia nominal
+  permitida.
+* La razón de no fallar cerrado del todo: el árbol de trabajo cambia entre
+  generaciones -en la sesión que produjo estas cifras el snapshot se reconstruyó
+  dos veces en una hora-, y una tool que se niega a responder casi siempre hace
+  que el agente deserte a `read` para el resto de la sesión. Es la forma más
+  segura de perder el 54 %.
+* Nunca se lee fuera de `repository_path`, y la ruta se resuelve contra él sin
+  seguir componentes symlink, como ya exige la capa de workspace.
+* La respuesta tiene techo de bytes y lo declara al recortar; no se trunca en
+  silencio.
+* Sigue siendo read-only. Esta tool devuelve código; no lo escribe.
+* `context_lines` existe porque la telemetría de Serena lo midió: el 18,4 % de
+  sus consultas resueltas acabó en un `Read` del mismo fichero, y el 80,8 % de
+  esos ya tenía el cuerpo -el 83,3 % usó `offset`/`limit`-. El agente no quería
+  el cuerpo, quería lo que lo rodea. Por defecto `0`, tope `100`, como en
+  `probe` y `octocode`.
+
+**Criterios de aceptación:**
+
+- Las seis preguntas se responden por debajo de 20.000 tokens en total y **cada
+  una por debajo de su vía nativa**, sin abrir un solo fichero fuera del MCP.
+- Un fichero modificado después de la generación se sirve reanclado y con el
+  desplazamiento declarado; el test lo cubre insertando líneas por encima de la
+  declaración entre la publicación y la consulta.
+- Una declaración borrada después de la generación no devuelve bytes, lo dice, y
+  las demás filas de la misma respuesta sí se sirven.
+- Una ruta fuera del repositorio y una con un componente symlink se rechazan
+  con su código de error.
+- ADR con el contrato de frescura y el motivo por el que `serve` deja de ser
+  puramente snapshot.
+
+**Riesgos:** el reanclaje por nombre puede acertar el símbolo equivocado en un
+fichero muy editado -dos declaraciones homónimas-. Ante más de una candidata no
+se elige: se declara y no se sirven bytes de esa fila.
+
+**Estado:** `pendiente`.
+
+---
+
+## LUQUE-1904 — Que el agente sepa cuándo llamarnos
+
+**Dependencias:** LUQUE-1901, LUQUE-1902, LUQUE-1903.
+
+**Objetivo:** que un agente elija Ladygraph cuando Ladygraph es la respuesta
+correcta. Las tres tareas anteriores abaratan la respuesta; ninguna hace que se
+pida.
+
+**El techo está medido y es bajo.** Serena publicó 21.089 llamadas de 192
+sesiones reales con su servidor conectado todo el tiempo (issue #1491): el
+**35,4 %** de las sesiones usó alguna de sus tools, el **20,3 %** de las
+operaciones de lectura pasó por ella, y el **64,6 %** de las sesiones no la
+tocó nunca. Con `instructions`, descripciones cuidadas y un prompt de contexto
+propio. Y `repowise-bench` documenta que la adopción no es una propiedad de la
+tool: el mismo servidor, las mismas preguntas y el mismo índice pasaron de
+15/15 llamadas a 4/15 y a 3/15 entre reejecuciones del mismo arnés. Cualquier
+objetivo de esta tarea se declara con su arnés y su fecha o no vale nada.
+
+**Entregables:**
+
+* descripciones reescritas como enrutado: qué pregunta contestan, contra qué
+  alternativa nativa, y **dónde pierden** -un nombre único en un repositorio
+  pequeño lo resuelve `grep` más barato-; es el único presupuesto residente en
+  Oh My Pi, 389 de los 593 tokens;
+* retirar de la superficie del modelo `graph_status`, `list_repositories` y
+  `get_unresolved_references`: su contenido va a `instructions` y al CLI, y con
+  `get_source` dentro la fase cierra en nueve tools;
+* `ServerOptions.Instructions` -hasta 2 KB, frase decisiva primero-, que hoy
+  no se envía: `initialize` responde sin el campo;
+* `_meta["anthropic/alwaysLoad"]` en tres o cuatro tools y
+  `_meta["anthropic/maxResultSizeChars"]` en las de recorrido, para Claude Code;
+* guía condicionada al recuento de resultados, pegada a la respuesta: cero, uno
+  y muchos dicen cosas distintas, y la de cero nombra la llamada siguiente;
+* errores que traen la llamada de recambio ya formada, no un consejo;
+* un bloque de enrutado en `AGENTS.md`, que `CLAUDE.md` ya enlaza: un solo
+  fichero para los dos anfitriones, y los dos lo cargan sin que nadie lo pida;
+* servidor que **falla cerrado** cuando la generación publicada no sirve:
+  handshake completo con cero tools y el comando de reconstrucción en
+  `instructions`, como hace `codanna`. Un servidor que responde mal es peor que
+  uno que se declara inútil.
+
+**Decisiones:**
+
+* Nada volátil en una descripción ni en `instructions`. tokensave metió un
+  presupuesto derivado del número de nodos y cada reindexado reescribía bytes
+  del prompt de sistema, invalidando la caché del cliente (su issue #260). El
+  `snapshot_id`, los contadores y la lista de repositorios viven en
+  `graph_status`, y un test lo fija.
+* **Jamás pedirle al modelo que narre lo que ahorra.** tokensave lo hizo y
+  cerró el issue #356 concediendo que los tokens de salida -los caros-
+  compensaban el ahorro de entrada.
+* El texto dice qué garantiza y qué no. `codanna` tiene que escribir «trata
+  `find_callers` como una pista, confírmalo leyendo el código» porque sus
+  aristas son heurísticas; nosotros podemos afirmar lo contrario y es el único
+  argumento que un modelo puede usar para no hacer `grep`. Ahí es donde hay que
+  gastar las palabras.
+* Enriquecer descripciones no es gratis: medido sobre 856 tools y 103
+  servidores, +5,85 puntos de éxito pero **+67 % de pasos** y regresión en el
+  16,7 % de los casos (arXiv 2602.14878). Frases cortas, una por tool.
+* **Sin hooks como mecanismo principal.** Existen en Claude Code y en Cursor, y
+  `PreToolUse` no puede reconducir un `Read` a una llamada MCP: `updatedInput`
+  sólo reemplaza los argumentos de la misma tool. Y bloquear los subagentes de
+  exploración es valor esperado negativo -la instrumentación de Anthropic mide
+  el subagente convirtiendo 6.100 tokens de lectura en 420 de resumen, un 92 %-.
+  Si algún día se envía un hook, se documenta y lo instala el usuario.
+
+**Criterios de aceptación:**
+
+- `initialize` devuelve `instructions` y cabe en 2 KB.
+- El coste residente en Oh My Pi -rutas más descripciones- no crece respecto de
+  los 593 tokens medidos, y un test lo fija como fijó LUQUE-1113 el del esquema.
+- Ninguna descripción ni `instructions` contiene un número derivado del grafo.
+- Una respuesta vacía de cada tool de consulta nombra la llamada siguiente.
+- Con la generación ausente o ilegible, el servidor completa el handshake, no
+  publica ninguna tool y dice cómo repararse.
+- El bloque de `AGENTS.md` enumera las preguntas y su tool, sin adjetivos.
+
+**Riesgos:** es la única tarea de la fase cuyo resultado no se puede demostrar
+con un test. Se mide observando sesiones reales, con su arnés y su fecha, y se
+declara como observación, nunca como garantía.
+
+**Estado:** `pendiente`.
+
+---
+
+## LUQUE-1905 — Un arnés que mida la sesión, no la respuesta
+
+**Dependencias:** ninguna. **Se implementa primero**: es el instrumento con el
+que las otras cuatro tareas declaran sus cifras, y su posición al final del
+documento es la del entregable, no la del orden de ejecución.
+
+**Objetivo:** que ninguna reducción de esta fase sea una anécdota. Todas las
+cifras de arriba se midieron a mano una vez, en una sesión, con un script que no
+se conservó. Eso no es un gate.
+
+**Por qué existe:** el error que esta fase estuvo a punto de heredar es haber
+comparado contra el rival equivocado. El baseline de «leer los ficheros enteros»
+daba un `-83 %` que ningún anfitrión concede: la vía nativa cuesta 38.094 y no
+102.522, y el ahorro real es del 54 %. Un arnés que no mide la alternativa
+nativa mide una fantasía, y es exactamente el defecto que el propio `bench` de
+tokensave tiene -su baseline es el conjunto de ficheros que su propia respuesta
+eligió, con un tope que hace del 75 % el techo aritmético-.
+
+**Entregables:**
+
+* `benchmarks/mcp-token-cost/`, con `results.json` y `report.md`, conservando
+  comando, commit, entorno, generación, corpus, tokenizador y limitaciones, como
+  exige la convención de `benchmarks/`;
+* un conjunto de preguntas versionado -las seis actuales como semilla- que
+  incluya al menos un símbolo de nombre común, uno de nombre raro y uno con
+  consumidores en otro repositorio;
+* tres columnas por pregunta: **vía nativa** (`grep` acotado más la lectura de
+  los rangos que nombra), **Ladygraph** (las llamadas MCP más lo que el agente
+  aún tenga que leer) y el factor entre ambas;
+* el coste residente de la superficie en los dos anfitriones: rutas más
+  descripciones para Oh My Pi, y el esquema completo como cifra diferida;
+* fallo del gate ante una regresión: cualquier pregunta que empeore respecto de
+  `results.json`, o una superficie residente que crezca.
+
+**Decisiones:**
+
+* El tokenizador es `cl100k_base` y se declara. No se cambia sin regenerar
+  `results.json`, porque no son comparables.
+* La vía nativa se mide **con las tools del anfitrión, no con una imitación**:
+  su `grep` acotado y su `read` con selector, que es lo que un agente usaría.
+  Una aproximación escrita por nosotros sesga el resultado a nuestro favor.
+* Se mide la **sesión**, no la respuesta: cuenta lo que el agente aún tiene que
+  leer después de la llamada. Un payload magro seguido de tres lecturas no ha
+  ahorrado nada, y esa es precisamente la trampa en la que caen las cifras
+  publicadas del campo.
+* No se mide dinero ni latencia. La caché de prompt hace que el coste en euros
+  dependa del orden en que se ejecutan los brazos -correlación posición/coste
+  de `-0,487` medida por `repowise-bench`, con un servidor llamado cero veces
+  pareciendo un 43 % más barato-. Tokens y llamadas, nada más.
+* La adopción no entra aquí. Es observación de sesiones reales, no una métrica
+  del arnés, y LUQUE-1904 la declara como tal.
+
+**Criterios de aceptación:**
+
+- El arnés reproduce, sobre la generación publicada, las cifras que esta fase
+  cita: 38.094 nativo, 106.078 hoy, y el reparto por pregunta de 1,3x a 19x.
+- Una segunda ejecución sobre el mismo corpus y la misma generación da el mismo
+  `results.json` salvo el sello de tiempo.
+- `MCP_TOKEN_COST_PASS` se declara desde su salida, no a mano.
+- `report.md` nombra sus limitaciones, empezando por que un solo repositorio Go
+  no representa el caso cross-repository, que es donde el grafo más gana.
+
+**Estado:** `pendiente`.
+
+---
+
+# 23. Gates globales
 
 ```text
 PROJECT_FOUNDATION_PASS
@@ -13071,13 +13552,14 @@ DISTRIBUTION_PASS
 WEB_VIEWER_PASS
 RUST_SEMANTIC_PASS
 RUST_CROSS_REPO_PASS
+MCP_TOKEN_COST_PASS
 ```
 
 No se puede aprobar Ladygraph sin todos ellos.
 
 ---
 
-# 23. Orden recomendado para la IA
+# 24. Orden recomendado para la IA
 
 La IA deberá empezar exactamente en este orden:
 
@@ -13104,11 +13586,16 @@ No debe implementar TypeScript, Go ni Tree-sitter antes de que LadybugDB y el
 HotSnapshot hayan pasado sus benchmarks. La fase del visor se inicia después
 de `DISTRIBUTION_PASS` y respeta el orden `LUQUE-1701` a `LUQUE-1715`. La fase
 de Rust también depende de `DISTRIBUTION_PASS` y respeta el orden `LUQUE-1801`
-a `LUQUE-1824`.
+a `LUQUE-1824`. La fase de coste en tokens depende de `MCP_SURFACE_PASS` y se
+ejecuta en el orden `LUQUE-1905`, `LUQUE-1901`, `LUQUE-1902`, `LUQUE-1903`,
+`LUQUE-1904`: primero el arnés, porque es con lo que las demás declaran sus
+cifras; después las tres que retiran cada una un round-trip que la siguiente da
+por retirado; y al final la adopción, que sólo tiene sentido cuando ya hay algo
+que merezca la pena pedir.
 
 ---
 
-# 24. Plantilla de prompt para cada tarea
+# 25. Plantilla de prompt para cada tarea
 
 ```text
 Trabaja en la tarea <TASK-ID> del backlog de Ladygraph.
@@ -13144,7 +13631,7 @@ Tarea:
 
 ---
 
-# 25. Plantilla para revisar una tarea completada
+# 26. Plantilla para revisar una tarea completada
 
 ```text
 Revisa la implementación de <TASK-ID> sin modificar inicialmente el código.
