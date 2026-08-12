@@ -307,3 +307,32 @@ func isCargoDiscoveryExcluded(base, candidate, name string, isDirectory bool, ex
 	}
 	return isDiscoveryExcluded(base, candidate, name, isDirectory, exclusions)
 }
+
+// CargoExcludes reports whether Cargo discovery would skip a file below the
+// repository root.
+//
+// Discovery never descends into a vendored, generated or excluded directory,
+// so no manifest below one is ever read and no crate it declares exists for
+// this repository. Anything that indexes those files later has to answer the
+// same question over a path it did not walk, and it has to answer it the same
+// way: the boundary of a repository is one decision, not one per caller.
+func CargoExcludes(root, path string, exclusions []string) bool {
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	relative = filepath.ToSlash(relative)
+	if relative == "." || relative == "" || strings.HasPrefix(relative, "../") {
+		return false
+	}
+	components := strings.Split(relative, "/")
+	current := root
+	for index, component := range components {
+		current = filepath.Join(current, component)
+		isDirectory := index < len(components)-1
+		if isCargoDiscoveryExcluded(root, current, component, isDirectory, exclusions) {
+			return true
+		}
+	}
+	return false
+}

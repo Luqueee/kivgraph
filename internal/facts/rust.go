@@ -22,8 +22,10 @@ type RustInput struct {
 type RustReport struct {
 	// EdgesWithoutSource counts uses with no enclosing declaration.
 	EdgesWithoutSource int
-	// EdgesWithoutTarget counts references whose ends this pass could not
-	// place in a file or a crate of its own.
+	// EdgesWithoutTarget counts edges this Set could not close: an end it
+	// could not place in a file or a crate of its own, or a target of this
+	// repository that the pass decided not to publish. No merge resolves
+	// either, so the edge is dropped here instead of dangling in the graph.
 	EdgesWithoutTarget int
 	// DefinitionsWithoutCrate counts symbols whose crate no manifest of this
 	// workspace declares, which is a discovery and an index that disagree.
@@ -193,6 +195,14 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 			report.EdgesWithoutSource++
 			continue
 		}
+		if _, exists := symbols[reference.TargetKey]; !exists && reference.TargetRepository == "" {
+			// The target is this repository's own and this Set does not
+			// publish it, so the edge has no second end anywhere: a target
+			// of another repository is absent on purpose and resolves when
+			// the provider's Set is merged in, but this one never would.
+			report.EdgesWithoutTarget++
+			continue
+		}
 		evidence := Evidence{
 			Key:           EvidenceKey(fileKey, reference.StartOffset, reference.EndOffset),
 			RepositoryKey: repositoryKey,
@@ -233,6 +243,10 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 			report.EdgesWithoutSource++
 			continue
 		}
+		if _, exists := symbols[relation.TargetKey]; !exists && relation.TargetRepository == "" {
+			report.EdgesWithoutTarget++
+			continue
+		}
 		evidence := Evidence{
 			Key:           EvidenceKey(fileKey, relation.StartOffset, relation.EndOffset),
 			RepositoryKey: repositoryKey,
@@ -271,6 +285,12 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 			targetRepository = dependency.TargetRepository
 		}
 		targetKey := PackageKey(LanguageRust, targetRepository, dependency.TargetCrate.Name)
+		if _, exists := packages[targetKey]; !exists && dependency.TargetRepository == "" {
+			// A crate of this repository that this pass did not publish as a
+			// package: no manifest of the workspace declares it.
+			report.EdgesWithoutTarget++
+			continue
+		}
 		fileKey := FileKey(name, dependency.File)
 		if _, exists := files[fileKey]; !exists {
 			report.EdgesWithoutTarget++

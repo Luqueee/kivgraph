@@ -40,7 +40,10 @@ func valueClass(kind ReferenceKind, targetKind string) ReferenceKind {
 type targetResolver struct {
 	repository  string
 	definitions map[string]Definition
-	registry    *CrateRegistry
+	// byKey indexes the same definitions by the key they publish, which is
+	// what an enclosing body is named by.
+	byKey    map[string]Definition
+	registry *CrateRegistry
 }
 
 // resolution is what the resolver could prove about a referenced symbol.
@@ -145,12 +148,12 @@ func collectReferences(
 			continue
 		}
 		sourceKey, sourceCrate := document.enclosing(startOffset, endOffset, resolver)
-		if sourceKey == "" {
-			analysis.ReferencesWithoutSource++
-			continue
-		}
 		resolved := resolver.resolve(identity)
 		if resolved.key == "" {
+			// A failure to resolve is an observation of this file, not of
+			// the declaration that happens to contain it: the record travels
+			// with its file and position, and names a source only when this
+			// document publishes one.
 			record := UnresolvedReference{
 				Crate:           sourceCrate,
 				File:            document.path,
@@ -167,6 +170,12 @@ func collectReferences(
 			if _, exists := unresolved[key]; !exists {
 				unresolved[key] = record
 			}
+			continue
+		}
+		if sourceKey == "" {
+			// The use resolves and no declaration this document publishes
+			// contains it, so the graph has no end to hang the edge on.
+			analysis.ReferencesWithoutSource++
 			continue
 		}
 		if resolved.key == sourceKey {
@@ -219,17 +228,23 @@ func collectReferences(
 // SCIP attaches an enclosing range to the occurrences of a definition, so the
 // innermost definition body that contains the use is the declaration the use
 // belongs to. The analyzer never states this relation directly.
+//
+// A body whose symbol the graph publishes in another document names no
+// declaration of this file: the analyzer defines that symbol in several
+// documents and only one of them is the node. The use belongs to the next
+// declaration out that this file does publish -- a use inside a module is a
+// use inside everything that contains it -- and to none when there is no such
+// declaration.
 func (document *documentAnalysis) enclosing(start, end int, resolver *targetResolver) (string, CrateRef) {
 	for _, body := range document.bodies {
 		if body.key == "" || start < body.start || end > body.end {
 			continue
 		}
-		for _, definition := range resolver.definitions {
-			if string(definition.StableKey) == body.key {
-				return body.key, definition.Crate
-			}
+		definition, published := resolver.byKey[body.key]
+		if !published || definition.File != document.path {
+			continue
 		}
-		return body.key, CrateRef{}
+		return body.key, definition.Crate
 	}
 	return "", CrateRef{}
 }

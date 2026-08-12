@@ -231,6 +231,24 @@ rust:
 			wantError: "config.rust.maximum_workspaces: must not be negative",
 		},
 		{
+			// A word nothing implements is a setting that lies: the pass
+			// retains every unresolved reference whatever this says.
+			name: "invented unresolved reference policy",
+			contents: `version: 1
+indexing:
+  unresolved_references: drop
+`,
+			wantError: `config.indexing.unresolved_references: must be retain, got "drop"`,
+		},
+		{
+			name: "invented generated file policy",
+			contents: `version: 1
+indexing:
+  generated_files: skip
+`,
+			wantError: `config.indexing.generated_files: must be include, got "skip"`,
+		},
+		{
 			name:      "multiple documents",
 			contents:  "version: 1\n---\nversion: 1\n",
 			wantError: "multiple YAML documents",

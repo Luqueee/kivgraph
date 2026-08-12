@@ -50,6 +50,15 @@ type IndexSummary struct {
 	TypeScriptSymbols      int `json:"typescript_symbols"`
 	TypeScriptReferences   int `json:"typescript_references"`
 	TypeScriptUnresolved   int `json:"typescript_unresolved"`
+	RustRepositories       int `json:"rust_repositories"`
+	RustWorkspaces         int `json:"rust_workspaces"`
+	RustSymbols            int `json:"rust_symbols"`
+	RustReferences         int `json:"rust_references"`
+	RustUnresolved         int `json:"rust_unresolved"`
+	// RustWorkspacesNotLoaded counts the Cargo workspaces the analyzer
+	// could not read. Their facts are absent and declared, so a caller that
+	// only saw the symbol count would read silence as coverage.
+	RustWorkspacesNotLoaded int `json:"rust_workspaces_not_loaded"`
 }
 
 // ProjectIndexer is the mutation boundary used by the MCP tool. The caller
@@ -202,23 +211,12 @@ func (service *Service) IndexProjects(
 		service.loaded.Repositories = candidate
 	}
 
-	fullResult, err := RunFull(ctx, FullOptions{
-		Repositories:             registry.List(),
-		SyntheticWorkFile:        service.loaded.Config.Go.SyntheticWorkFile,
-		IncludeTests:             service.loaded.Config.Go.IncludeTests,
-		GoBuildTags:              service.loaded.Config.Go.BuildTags,
-		GoAllowNetwork:           service.loaded.Config.Go.AllowNetwork,
-		GoMaximumLoads:           service.loaded.Config.Go.MaximumLoads,
-		TypeScriptMaximumWorkers: service.loaded.Config.TypeScript.MaximumWorkers,
-		TypeScriptWorker:         service.loaded.Config.TypeScript.WorkerCommand,
-		CacheMode:                indexer.CacheMode(service.loaded.Config.Indexing.FactCache),
-		CacheDirectory:           service.loaded.Config.Indexing.FactCachePath,
-		WorkingDirectory:         service.workingDirectory,
-		Root:                     filepath.Dir(service.loaded.Config.Storage.DatabasePath),
-		ResolverVersion:          service.resolverVersion,
-		Store:                    generation.DefaultConfig(),
-		Progress:                 projectProgressSink(progress),
-	})
+	options := OptionsFromConfig(service.loaded.Config)
+	options.Repositories = registry.List()
+	options.WorkingDirectory = service.workingDirectory
+	options.ResolverVersion = service.resolverVersion
+	options.Progress = projectProgressSink(progress)
+	fullResult, err := RunFull(ctx, options)
 	if err != nil {
 		if !registered {
 			return ProjectResult{}, err
@@ -245,15 +243,21 @@ func (service *Service) IndexProjects(
 		SnapshotID:   snapshotID,
 		Counts:       fullResult.Counts,
 		Index: IndexSummary{
-			GoRepositories:         fullResult.IndexReport.GoRepositories,
-			GoModules:              fullResult.IndexReport.GoModules,
-			GoDefinitions:          fullResult.IndexReport.GoDefinitions,
-			GoReferences:           fullResult.IndexReport.GoReferences,
-			GoUnresolved:           fullResult.IndexReport.GoUnresolved,
-			TypeScriptRepositories: fullResult.IndexReport.TypeScriptRepositories,
-			TypeScriptSymbols:      fullResult.IndexReport.TypeScriptSymbols,
-			TypeScriptReferences:   fullResult.IndexReport.TypeScriptReferences,
-			TypeScriptUnresolved:   fullResult.IndexReport.TypeScriptUnresolved,
+			GoRepositories:          fullResult.IndexReport.GoRepositories,
+			GoModules:               fullResult.IndexReport.GoModules,
+			GoDefinitions:           fullResult.IndexReport.GoDefinitions,
+			GoReferences:            fullResult.IndexReport.GoReferences,
+			GoUnresolved:            fullResult.IndexReport.GoUnresolved,
+			TypeScriptRepositories:  fullResult.IndexReport.TypeScriptRepositories,
+			TypeScriptSymbols:       fullResult.IndexReport.TypeScriptSymbols,
+			TypeScriptReferences:    fullResult.IndexReport.TypeScriptReferences,
+			TypeScriptUnresolved:    fullResult.IndexReport.TypeScriptUnresolved,
+			RustRepositories:        fullResult.IndexReport.RustRepositories,
+			RustWorkspaces:          fullResult.IndexReport.RustWorkspaces,
+			RustSymbols:             fullResult.IndexReport.RustSymbols,
+			RustReferences:          fullResult.IndexReport.RustReferences,
+			RustUnresolved:          fullResult.IndexReport.RustUnresolved,
+			RustWorkspacesNotLoaded: fullResult.IndexReport.RustWorkspacesNotLoaded,
 		},
 	}, nil
 }

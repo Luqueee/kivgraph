@@ -711,41 +711,17 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	progressStart := time.Now()
-	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
-	fullResult, err := indexing.RunFull(ctx, indexing.FullOptions{
-		Repositories:             registry.List(),
-		SyntheticWorkFile:        loaded.Config.Go.SyntheticWorkFile,
-		IncludeTests:             loaded.Config.Go.IncludeTests,
-		GoBuildTags:              loaded.Config.Go.BuildTags,
-		GoAllowNetwork:           loaded.Config.Go.AllowNetwork,
-		GoMaximumLoads:           loaded.Config.Go.MaximumLoads,
-		TypeScriptMaximumWorkers: loaded.Config.TypeScript.MaximumWorkers,
-		TypeScriptWorker:         loaded.Config.TypeScript.WorkerCommand,
-		RustAnalyzer:             loaded.Config.Rust.AnalyzerCommand,
-		RustTargetDirectory:      loaded.Config.Rust.TargetDirectory,
-		RustMaximumWorkspaces:    loaded.Config.Rust.MaximumWorkspaces,
-		RustFeatures:             loaded.Config.Rust.Features,
-		RustAllFeatures:          loaded.Config.Rust.AllFeatures,
-		RustNoDefaultFeatures:    loaded.Config.Rust.NoDefaultFeatures,
-		RustCfgs:                 loaded.Config.Rust.Cfgs,
-		RustBuildScripts:         loaded.Config.Rust.BuildScripts,
-		RustProcMacros:           loaded.Config.Rust.ProcMacros,
-		RustIncludeTests:         loaded.Config.Rust.IncludeTests,
-		RustAllowNetwork:         loaded.Config.Rust.AllowNetwork,
-		RustSysroot:              loaded.Config.Rust.Sysroot,
-		CacheMode:                indexer.CacheMode(loaded.Config.Indexing.FactCache),
-		CacheDirectory:           loaded.Config.Indexing.FactCachePath,
-		WorkingDirectory:         workingDirectory,
-		Root:                     root,
-		ResolverVersion:          resolverVersion,
-		Store:                    generation.DefaultConfig(),
-		Progress: func(event indexer.ProgressEvent) {
-			writeIndexProgress(stderr, progressStart, event)
-		},
-		RebuildProgress: func(stage rebuild.StageName) {
-			writeInfo(stderr, "[%6.1fs] rebuild %s", time.Since(progressStart).Seconds(), stage)
-		},
-	})
+	options := indexing.OptionsFromConfig(loaded.Config)
+	options.Repositories = registry.List()
+	options.WorkingDirectory = workingDirectory
+	options.ResolverVersion = resolverVersion
+	options.Progress = func(event indexer.ProgressEvent) {
+		writeIndexProgress(stderr, progressStart, event)
+	}
+	options.RebuildProgress = func(stage rebuild.StageName) {
+		writeInfo(stderr, "[%6.1fs] rebuild %s", time.Since(progressStart).Seconds(), stage)
+	}
+	fullResult, err := indexing.RunFull(ctx, options)
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",

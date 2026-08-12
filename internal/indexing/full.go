@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/indexer"
 	"github.com/Luqueee/ladygraph/internal/metrics"
@@ -57,6 +58,43 @@ type FullOptions struct {
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
+}
+
+// OptionsFromConfig maps a loaded configuration onto a full index request.
+//
+// Every caller that indexes -- the CLI and the MCP tool -- asks for the same
+// pass over the same configuration, and the only difference between them is
+// who reports progress and where the work runs. Building the request twice is
+// how one of them came to index no Rust at all: a field added to the
+// configuration reached one call site and not the other. The caller fills in
+// Repositories, WorkingDirectory, ResolverVersion and the progress sinks,
+// which are the only things the configuration does not decide.
+func OptionsFromConfig(configuration config.Config) FullOptions {
+	return FullOptions{
+		SyntheticWorkFile:        configuration.Go.SyntheticWorkFile,
+		IncludeTests:             configuration.Go.IncludeTests,
+		GoBuildTags:              configuration.Go.BuildTags,
+		GoAllowNetwork:           configuration.Go.AllowNetwork,
+		GoMaximumLoads:           configuration.Go.MaximumLoads,
+		TypeScriptMaximumWorkers: configuration.TypeScript.MaximumWorkers,
+		TypeScriptWorker:         configuration.TypeScript.WorkerCommand,
+		RustAnalyzer:             configuration.Rust.AnalyzerCommand,
+		RustTargetDirectory:      configuration.Rust.TargetDirectory,
+		RustMaximumWorkspaces:    configuration.Rust.MaximumWorkspaces,
+		RustFeatures:             configuration.Rust.Features,
+		RustAllFeatures:          configuration.Rust.AllFeatures,
+		RustNoDefaultFeatures:    configuration.Rust.NoDefaultFeatures,
+		RustCfgs:                 configuration.Rust.Cfgs,
+		RustBuildScripts:         configuration.Rust.BuildScripts,
+		RustProcMacros:           configuration.Rust.ProcMacros,
+		RustIncludeTests:         configuration.Rust.IncludeTests,
+		RustAllowNetwork:         configuration.Rust.AllowNetwork,
+		RustSysroot:              configuration.Rust.Sysroot,
+		CacheMode:                indexer.CacheMode(configuration.Indexing.FactCache),
+		CacheDirectory:           configuration.Indexing.FactCachePath,
+		Root:                     filepath.Dir(configuration.Storage.DatabasePath),
+		Store:                    generation.DefaultConfig(),
+	}
 }
 
 // Counts is the number of authoritative facts produced by one full pass.

@@ -211,3 +211,33 @@ func TestDiscoverCargoHonoursRegistryExclusions(t *testing.T) {
 		t.Fatalf("Crates = %#v, want only the crate outside the exclusion", discovery.Crates)
 	}
 }
+
+// TestCargoExcludesAnswersForAPathDiscoveryNeverWalked keeps the boundary of a
+// repository one decision. Discovery skips a directory and never reads the
+// manifests below it; anything that indexes those files afterwards asks this
+// question over a path, and a different answer publishes code from a crate
+// this repository does not declare.
+func TestCargoExcludesAnswersForAPathDiscoveryNeverWalked(t *testing.T) {
+	root := testsupport.TempDir(t)
+	tests := map[string]struct {
+		path       string
+		exclusions []string
+		want       bool
+	}{
+		"source file":            {path: "src/lib.rs"},
+		"vendored crate":         {path: "vendor/songbird/src/id.rs", want: true},
+		"build output":           {path: "target/debug/build/generated.rs", want: true},
+		"nested vendor":          {path: "crates/engine/vendor/fork/src/lib.rs", want: true},
+		"configured exclusion":   {path: "examples/generated/src/lib.rs", exclusions: []string{"examples/**"}, want: true},
+		"named like a directory": {path: "src/vendor.rs"},
+		"outside the repository": {path: "../elsewhere/src/lib.rs"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			candidate := filepath.Join(root, filepath.FromSlash(test.path))
+			if excluded := CargoExcludes(root, candidate, test.exclusions); excluded != test.want {
+				t.Fatalf("CargoExcludes(%q) = %t, want %t", test.path, excluded, test.want)
+			}
+		})
+	}
+}

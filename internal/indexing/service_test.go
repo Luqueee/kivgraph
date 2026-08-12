@@ -149,3 +149,45 @@ func TestNormalizeProjectLanguagesFollowsTheOneVocabulary(t *testing.T) {
 		}
 	}
 }
+
+// TestOptionsFromConfigCarriesEveryConfiguredLanguage is why this mapping
+// exists at all. The MCP tool built its own request and named no Rust field in
+// it, so every project registered through it failed on "the Rust analyzer
+// command is required" -- the pass was asking for a setting the caller never
+// forwarded, while the same configuration worked from the CLI.
+func TestOptionsFromConfigCarriesEveryConfiguredLanguage(t *testing.T) {
+	configuration := config.DefaultConfig()
+	configuration.Go.BuildTags = []string{"ladybug"}
+	configuration.TypeScript.WorkerCommand = "node worker.js"
+	configuration.Rust.AnalyzerCommand = "/opt/bin/rust-analyzer"
+	configuration.Rust.TargetDirectory = "/state/rust-target"
+	configuration.Rust.Features = []string{"tokio"}
+
+	options := OptionsFromConfig(configuration)
+
+	if len(options.GoBuildTags) != 1 || options.GoBuildTags[0] != "ladybug" {
+		t.Fatalf("go build tags = %#v", options.GoBuildTags)
+	}
+	if options.TypeScriptWorker != "node worker.js" {
+		t.Fatalf("typescript worker = %q", options.TypeScriptWorker)
+	}
+	if options.RustAnalyzer != "/opt/bin/rust-analyzer" || options.RustTargetDirectory != "/state/rust-target" {
+		t.Fatalf("rust analyzer = %q, target directory = %q", options.RustAnalyzer, options.RustTargetDirectory)
+	}
+	if len(options.RustFeatures) != 1 || options.RustFeatures[0] != "tokio" {
+		t.Fatalf("rust features = %#v", options.RustFeatures)
+	}
+	if !options.RustBuildScripts || !options.RustProcMacros || !options.RustIncludeTests {
+		t.Fatalf("rust expansion defaults = %+v", options)
+	}
+	if options.Root == "" || options.CacheDirectory == "" {
+		t.Fatalf("storage options = %+v", options)
+	}
+	// The caller owns exactly these, and nothing else.
+	if options.Repositories != nil || options.WorkingDirectory != "" || options.ResolverVersion != "" {
+		t.Fatalf("options = %+v, want the caller's own fields left empty", options)
+	}
+	if options.Progress != nil || options.RebuildProgress != nil {
+		t.Fatal("the configuration decides no progress sink")
+	}
+}

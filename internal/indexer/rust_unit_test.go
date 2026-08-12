@@ -14,10 +14,15 @@ import (
 
 func rustFixtureRepository(t *testing.T, name string) workspace.Repository {
 	t.Helper()
+	return rustFixtureRepositoryFrom(t, "workspace", name)
+}
+
+func rustFixtureRepositoryFrom(t *testing.T, fixture, name string) workspace.Repository {
+	t.Helper()
 	root := filepath.Join(testsupport.TempDir(t), name)
-	source := filepath.Join("..", "..", "testdata", "rust", "workspace")
+	source := filepath.Join("..", "..", "testdata", "rust", fixture)
 	if err := os.CopyFS(root, os.DirFS(source)); err != nil {
-		t.Fatalf("copy Rust fixture: %v", err)
+		t.Fatalf("copy Rust fixture %q: %v", fixture, err)
 	}
 	return workspace.Repository{Name: name, Path: root, RealPath: root, Languages: []string{"rust"}}
 }
@@ -272,5 +277,123 @@ func TestFullDeclaresARustProviderNobodyRegistered(t *testing.T) {
 	}
 	if !declared {
 		t.Fatalf("unresolved = %#v, want the unregistered provider declared", set.Unresolved)
+	}
+}
+
+// TestFullKeepsARustGraphInsideItsOwnRepository defends the boundary of a Rust
+// repository. Both halves of it were a pass that could not publish at all.
+//
+// A crate vendored into the repository is code the analyzer indexes and no
+// manifest of this repository declares: keeping the uses of it while dropping
+// its declarations left every one of those edges without a target, and the
+// fact set never validated again. And one package compiles into several
+// crates -- a library, a binary, a build script, one per integration test --
+// whose root modules all arrive under the moniker of the package: crediting a
+// use to whichever of them the analyzer happened to emit first put the use in
+// a file its own source symbol does not live in, which no snapshot accepts.
+func TestFullKeepsARustGraphInsideItsOwnRepository(t *testing.T) {
+	requireRustAnalyzer(t)
+	repository := rustFixtureRepositoryFrom(t, "targets", "app")
+
+	set, report, err := Full(context.Background(), rustFullOptions(t, repository))
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.RustWorkspaces != 1 || report.RustCrates != 1 || report.RustWorkspacesNotLoaded != 0 {
+		t.Fatalf("report = %+v, want the vendored crate outside this repository", report)
+	}
+
+	files := make(map[string]facts.File, len(set.Files))
+	for _, file := range set.Files {
+		if strings.HasPrefix(file.Path, "vendor/") {
+			t.Fatalf("file %q belongs to a vendored crate this repository does not provide", file.Path)
+		}
+		files[file.Key] = file
+	}
+	for _, entry := range set.Packages {
+		if entry.Name != "app" {
+			t.Fatalf("package %q is not declared by any manifest of this repository", entry.Name)
+		}
+	}
+	// The vendored crate is out of the graph and said so: silence would read
+	// as a repository that uses nothing.
+	declared := false
+	for _, entry := range set.Unresolved {
+		if entry.Reason == "CRATE_PROVIDER_NOT_FOUND" && entry.RequestedPackage == "vendored" {
+			declared = true
+		}
+	}
+	if !declared {
+		t.Fatalf("unresolved = %#v, want the vendored crate declared", set.Unresolved)
+	}
+
+	symbols := make(map[string]facts.Symbol, len(set.Symbols))
+	roots, mains := make([]facts.Symbol, 0, 1), make([]facts.Symbol, 0, 1)
+	for _, symbol := range set.Symbols {
+		symbols[symbol.Key] = symbol
+		switch symbol.Name {
+		case "crate":
+			roots = append(roots, symbol)
+		case "main":
+			mains = append(mains, symbol)
+		}
+	}
+	// One node per moniker, placed in the target another repository can name:
+	// the library over the binary, the binary over the build script.
+	if len(roots) != 1 || files[roots[0].FileKey].Path != "src/lib.rs" {
+		t.Fatalf("crate root modules = %#v, want the library's", roots)
+	}
+	if len(mains) != 1 || files[mains[0].FileKey].Path != "src/main.rs" {
+		t.Fatalf("main declarations = %#v, want the binary's", mains)
+	}
+	// The binary really does call the library, and the edge proves the choice
+	// above: had the build script's `main` won the moniker, this call would
+	// have no source to hang on.
+	call := false
+	for _, edge := range set.Edges {
+		if edge.Kind != facts.CallsDirect || edge.SourceKey != mains[0].Key {
+			continue
+		}
+		target, published := symbols[edge.TargetKey]
+		if !published || target.Name != "run" {
+			continue
+		}
+		call = true
+		if files[target.FileKey].Path != "src/lib.rs" {
+			t.Fatalf("the call reaches %q", files[target.FileKey].Path)
+		}
+	}
+	if !call {
+		t.Fatal("the binary's call into the library did not become an edge")
+	}
+
+	// Every unresolved reference is an observation of one file: a record whose
+	// source declaration lives in another one is what stopped the snapshot.
+	for _, entry := range set.Unresolved {
+		if entry.SourceSymbolKey == "" || entry.FileKey == "" {
+			continue
+		}
+		source, published := symbols[entry.SourceSymbolKey]
+		if !published {
+			t.Fatalf("unresolved %q names a source symbol nobody published", entry.RequestedSymbol)
+		}
+		if source.FileKey != entry.FileKey {
+			t.Fatalf("unresolved %q observed in %q is credited to a declaration in %q",
+				entry.RequestedSymbol, files[entry.FileKey].Path, files[source.FileKey].Path)
+		}
+	}
+
+	// A declaration the graph could not keep is named, not counted.
+	duplicate := false
+	for _, diagnostic := range report.RustDiagnostics {
+		if strings.Contains(diagnostic, "in more than one document") {
+			duplicate = true
+		}
+	}
+	if !duplicate {
+		t.Fatalf("diagnostics = %#v, want the duplicated monikers named", report.RustDiagnostics)
 	}
 }

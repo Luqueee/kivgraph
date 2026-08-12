@@ -140,6 +140,14 @@ integridad, compatibilidad o verificación descritos aquí.
   una vez por proyecto paga ese coste una vez por proyecto y tira todos los
   grafos menos el último. La forma de un solo proyecto se conserva; mezclar
   ambas en una petición se rechaza.
+- Una petición de indexación se construye en un solo sitio,
+  `indexing.OptionsFromConfig`: el llamador sólo añade lo que la configuración
+  no decide -repositorios, directorio de trabajo, versión del resolver y los
+  sinks de progreso-. Construirla dos veces es cómo `index_project` acabó sin
+  nombrar ningún campo de Rust y fallando con «the Rust analyzer command is
+  required» sobre la misma configuración que el CLI indexaba sin problema.
+  Su resultado informa de los contadores de los tres lenguajes: un lenguaje
+  ausente del informe se lee como un lenguaje sin código.
 - El análisis de la pasada es concurrente: cada módulo Go y cada paquete
   TypeScript es una unidad independiente. El merge sigue el orden de las
   unidades, nunca el de finalización, así que el grafo publicado no depende de
@@ -206,6 +214,12 @@ integridad, compatibilidad o verificación descritos aquí.
 - El vocabulario de lenguajes es `config.SupportedLanguages` y se valida al
   escribir el registro, no sólo al indexar: `init` no acepta lo que la pasada
   rechaza.
+- Un ajuste de la configuración vale exactamente lo que el código implementa.
+  `indexing.generated_files` sólo acepta `include` y
+  `indexing.unresolved_references` sólo `retain`, porque eso es lo que la
+  pasada hace: aceptar otra palabra promete un comportamiento que no existe y
+  convierte una errata en una configuración silenciosamente distinta de la que
+  se leyó.
 - Una configuración escrita fuera de la ubicación por defecto es autocontenida:
   su estado, su caché y su registro cuelgan de su propio directorio. Un
   `--config` en `/tmp` que apuntase al estado real publicaría generaciones
@@ -416,6 +430,31 @@ integridad, compatibilidad o verificación descritos aquí.
 - El descubrimiento Cargo no ejecuta `cargo`: lee los manifests con
   `BurntSushi/toml` y resuelve la pertenencia por directorio, como hace Cargo.
   Un crate sin workspace por encima es un workspace de uno.
+- La frontera de un repositorio Rust es una sola decisión, y la responde
+  `workspace.CargoExcludes`: lo que el descubrimiento no camina -`.git`,
+  `target`, `vendor`, `node_modules` y las `exclusions` configuradas- tampoco
+  entra al análisis. Un crate vendorizado con `[patch.crates-io]` es código
+  que Cargo compila, que el analizador indexa y que ningún manifest de este
+  repositorio declara: publicar sus usos mientras se descartan sus
+  declaraciones deja una arista colgante por cada uno y aborta la pasada. Sus
+  usos se declaran `CRATE_PROVIDER_NOT_FOUND`, que es lo que son.
+- Un paquete Cargo compila varios crates -biblioteca, binarios, build script,
+  uno por test de integración- y el moniker SCIP nombra el paquete, así que
+  sus módulos raíz llegan como un símbolo definido en varios documentos. Lo
+  publica el target más alcanzable, con la ruta como desempate: sólo la
+  biblioteca es enlazable y es la única que otro repositorio puede nombrar.
+  Eso decide dónde vive el nodo y nunca cómo se llama; la clave no cambia.
+- Un uso pertenece a una declaración de su propio documento. Si la más interna
+  que lo contiene se publica en otro archivo, se sube al siguiente contenedor
+  y, si no queda ninguno, el uso no tiene fuente: acreditarlo sitúa la
+  observación en un archivo donde no ocurrió y el snapshot lo rechaza. Un
+  fallo de resolución no necesita fuente y se declara igual, con su archivo y
+  su posición.
+- Ninguna arista se publica hacia un destino de este repositorio que la pasada
+  no publica; se cuenta en `EdgesWithoutTarget`. Un destino de otro
+  repositorio es otra cosa: está ausente a propósito y lo cierra el merge.
+- Un símbolo que el analizador define en más de un documento se nombra en los
+  diagnósticos, con el documento que lo publica y los que no. Ver ADR 0039.
 
 ## LadybugDB y snapshots
 

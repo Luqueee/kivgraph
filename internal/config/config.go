@@ -777,11 +777,20 @@ func validateConfig(configuration Config) error {
 	if configuration.MCP.MaximumVisitedNodes < 1 {
 		return fmt.Errorf("config.mcp.maximum_visited_nodes: must be positive, got %d", configuration.MCP.MaximumVisitedNodes)
 	}
-	if configuration.Indexing.GeneratedFiles == "" {
-		return errors.New("config.indexing.generated_files: must not be empty")
+	// These two name what the pass does, and the pass does exactly one thing
+	// with each: it indexes generated files and it retains every unresolved
+	// reference, because a declared hole is a fact the graph owes its
+	// readers. Accepting any other word would promise behaviour no code
+	// implements, which is how a typo becomes a silent misconfiguration.
+	switch configuration.Indexing.GeneratedFiles {
+	case "include":
+	default:
+		return fmt.Errorf("config.indexing.generated_files: must be include, got %q", configuration.Indexing.GeneratedFiles)
 	}
-	if configuration.Indexing.UnresolvedReferences == "" {
-		return errors.New("config.indexing.unresolved_references: must not be empty")
+	switch configuration.Indexing.UnresolvedReferences {
+	case "retain":
+	default:
+		return fmt.Errorf("config.indexing.unresolved_references: must be retain, got %q", configuration.Indexing.UnresolvedReferences)
 	}
 	switch configuration.Indexing.FactCache {
 	case "off", "on", "verify":

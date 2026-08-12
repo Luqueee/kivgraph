@@ -44,6 +44,22 @@ func rustFixtureInput() RustInput {
 	}
 }
 
+// rustValueDefinition is a second durable identity of the same crate, so a
+// reference can name a target this pass publishes. An edge whose target no
+// Set publishes is dropped, which is the contract, not a use shape.
+func rustValueDefinition() rustloader.Definition {
+	return rustloader.Definition{
+		StableKey:         "engine-value",
+		CanonicalIdentity: "canonical:engine:Value",
+		Symbol:            "rust-analyzer cargo engine 1.4.0 Value#",
+		Crate:             rustloader.CrateRef{Name: "engine", Version: "1.4.0"},
+		File:              "crates/engine/src/lib.rs",
+		Name:              "Value", QualifiedName: "Value", Kind: string(rustloader.SuffixType),
+		Exported: true, Signature: "pub struct Value",
+		StartLine: 1, StartOffset: 10, EndLine: 3, EndOffset: 40,
+	}
+}
+
 func rustReference(kind rustloader.ReferenceKind, use rustloader.UseKind, target, repository string, offset int) rustloader.Reference {
 	return rustloader.Reference{
 		SourceKey:        "engine-run",
@@ -73,16 +89,7 @@ func edgesOfKind(set Set, kind EdgeKind) []Edge {
 // targets are all its own must produce a set that stands on its own.
 func TestNormalizeRustBuildsAValidLocalGraph(t *testing.T) {
 	input := rustFixtureInput()
-	input.Analysis.Definitions = append(input.Analysis.Definitions, rustloader.Definition{
-		StableKey:         "engine-value",
-		CanonicalIdentity: "canonical:engine:Value",
-		Symbol:            "rust-analyzer cargo engine 1.4.0 Value#",
-		Crate:             rustloader.CrateRef{Name: "engine", Version: "1.4.0"},
-		File:              "crates/engine/src/lib.rs",
-		Name:              "Value", QualifiedName: "Value", Kind: string(rustloader.SuffixType),
-		Exported: true, Signature: "pub struct Value",
-		StartLine: 1, StartOffset: 10, EndLine: 3, EndOffset: 40,
-	})
+	input.Analysis.Definitions = append(input.Analysis.Definitions, rustValueDefinition())
 	local := rustReference(rustloader.ReferenceType, rustloader.UseNone, "engine-value", "", 100)
 	local.TargetCrate = rustloader.CrateRef{Name: "engine", Version: "1.4.0"}
 	input.Analysis.References = append(input.Analysis.References, local)
@@ -142,12 +149,11 @@ func TestNormalizeRustClassifiesEveryUseShape(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			input := rustFixtureInput()
-			reference := rustReference(test.kind, test.use, "engine-run", "", 100)
+			input.Analysis.Definitions = append(input.Analysis.Definitions, rustValueDefinition())
 			// A symbol never references itself; point the use at the only
 			// other durable identity in the fixture.
-			reference.SourceKey = "engine-run"
-			reference.TargetKey = "provider-symbol"
-			reference.TargetRepository = ""
+			reference := rustReference(test.kind, test.use, "engine-value", "", 100)
+			reference.TargetCrate = rustloader.CrateRef{Name: "engine", Version: "1.4.0"}
 			input.Analysis.References = append(input.Analysis.References, reference)
 
 			set, _, err := NormalizeRust(context.Background(), input)

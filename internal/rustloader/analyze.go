@@ -203,6 +203,13 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 
 	definitions := make(map[string]Definition)
 	byKey := make(map[string]string)
+	// duplicated records every extra document that defines a symbol another
+	// document already defined. One analyzer symbol is one node, so only one
+	// of them can be published and the rest are a hole the graph has to name.
+	duplicated := make(map[string][]string)
+	// ranks remembers the Cargo target the published definition came from,
+	// which is what a later document has to beat to replace it.
+	ranks := make(map[string]int)
 	for _, document := range options.Index.Documents {
 		if err := ctx.Err(); err != nil {
 			return Analysis{}, err
@@ -215,20 +222,48 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 			continue
 		}
 		documents = append(documents, prepared)
-		analysis.Files = append(analysis.Files, IndexedFile{
-			Path:  prepared.path,
-			Crate: crateOf(prepared.path),
-		})
+		crate, cratePrefix := crateOf(prepared.path)
+		analysis.Files = append(analysis.Files, IndexedFile{Path: prepared.path, Crate: crate})
+		rank := cargoTargetRank(prepared.path, cratePrefix)
 		collected, err := collectDefinitions(repositoryName, prepared, symbols)
 		if err != nil {
 			return Analysis{}, err
 		}
 		for symbol, definition := range collected {
-			if _, exists := definitions[symbol]; !exists {
+			previous, exists := definitions[symbol]
+			if !exists {
 				definitions[symbol] = definition
+				ranks[symbol] = rank
+				continue
 			}
+			if previous.File == definition.File {
+				// One file compiled into two crates of the same package
+				// arrives as two documents. Both name the same declaration,
+				// so there is nothing to choose and nothing missing.
+				continue
+			}
+			// The analyzer defines one symbol in two documents: a package
+			// compiles into several crates -- a library, a binary, a build
+			// script, one per integration test -- and its moniker names the
+			// package, so every root module of it arrives as the same
+			// symbol. Only one node can carry the key: it is the one Cargo
+			// compiles into the most reachable target, and the path breaks a
+			// tie so the graph never depends on the order the analyzer
+			// happened to emit its documents in.
+			loser := definition
+			if rank < ranks[symbol] || (rank == ranks[symbol] && definition.File < previous.File) {
+				loser = previous
+				definitions[symbol] = definition
+				ranks[symbol] = rank
+			}
+			duplicated[symbol] = append(duplicated[symbol], loser.File)
 		}
 		analysis.Diagnostics = append(analysis.Diagnostics, collidingKeys(collected, byKey)...)
+	}
+	analysis.Diagnostics = append(analysis.Diagnostics, duplicateDefinitions(duplicated, definitions)...)
+	byDefinitionKey := make(map[string]Definition, len(definitions))
+	for _, definition := range definitions {
+		byDefinitionKey[string(definition.StableKey)] = definition
 	}
 	for _, definition := range definitions {
 		analysis.Definitions = append(analysis.Definitions, definition)
@@ -240,6 +275,7 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 	resolver := &targetResolver{
 		repository:  repositoryName,
 		definitions: definitions,
+		byKey:       byDefinitionKey,
 		registry:    options.Registry,
 	}
 	dependencies := make(map[string]CrateDependency)
@@ -306,6 +342,15 @@ func prepareDocument(
 		// node to the graph.
 		return nil, nil
 	}
+	if workspace.CargoExcludes(repositoryRoot, absolute, options.Repository.Exclusions) {
+		// Cargo discovery never walked this directory, so no manifest below
+		// it was read and no crate it declares belongs to this repository. A
+		// vendored crate patched into the build is real code the analyzer
+		// indexes and this repository does not provide: publishing its
+		// declarations would invent a package, and publishing only the uses
+		// of them would leave every one of those edges dangling.
+		return nil, nil
+	}
 	code, err := os.ReadFile(absolute)
 	if err != nil {
 		return nil, fmt.Errorf("read indexed file %q: %w", absolute, err)
@@ -336,10 +381,11 @@ func symbolInformation(index scipwire.Index) map[string]scipwire.SymbolInformati
 	return symbols
 }
 
-// crateLocator answers which crate owns a repository relative path, choosing
-// the deepest crate root that contains it. A file below no crate root belongs
-// to no crate, which is a fact the caller reports rather than guesses around.
-func crateLocator(repositoryRoot string, crates []workspace.CargoCrate) func(string) CrateRef {
+// crateLocator answers which crate owns a repository relative path and where
+// that crate is rooted, choosing the deepest crate root that contains it. A
+// file below no crate root belongs to no crate, which is a fact the caller
+// reports rather than guesses around.
+func crateLocator(repositoryRoot string, crates []workspace.CargoCrate) func(string) (CrateRef, string) {
 	type entry struct {
 		prefix string
 		crate  CrateRef
@@ -365,14 +411,58 @@ func crateLocator(repositoryRoot string, crates []workspace.CargoCrate) func(str
 		}
 		return entries[left].crate.Name < entries[right].crate.Name
 	})
-	return func(path string) CrateRef {
+	return func(path string) (CrateRef, string) {
 		for _, candidate := range entries {
 			if candidate.prefix == "" || strings.HasPrefix(path, candidate.prefix+"/") {
-				return candidate.crate
+				return candidate.crate, candidate.prefix
 			}
 		}
-		return CrateRef{}
+		return CrateRef{}, ""
 	}
+}
+
+// Cargo target ranks order the crates one package compiles into. Only the
+// library is linkable, so it is the target another repository can name; a
+// binary is next, and a build script, a test, a bench or an example is a leaf
+// nothing outside the package ever reaches.
+const (
+	cargoTargetLibrary = iota
+	cargoTargetBinary
+	cargoTargetBuildScript
+	cargoTargetTest
+	cargoTargetBench
+	cargoTargetExample
+	cargoTargetUnknown
+)
+
+// cargoTargetRank classifies a repository relative path by the Cargo target
+// that compiles it, following Cargo's own directory conventions.
+//
+// The rank decides which document publishes a symbol every target of a package
+// declares -- their root modules share one moniker, because a moniker names
+// the package -- so a manifest that renames a target with an explicit `path`
+// moves a node between two documents that both define it, and never invents
+// or loses a fact.
+func cargoTargetRank(path, cratePrefix string) int {
+	relative := path
+	if cratePrefix != "" {
+		relative = strings.TrimPrefix(path, cratePrefix+"/")
+	}
+	switch {
+	case relative == "build.rs":
+		return cargoTargetBuildScript
+	case relative == "src/main.rs" || strings.HasPrefix(relative, "src/bin/"):
+		return cargoTargetBinary
+	case strings.HasPrefix(relative, "src/"):
+		return cargoTargetLibrary
+	case strings.HasPrefix(relative, "tests/"):
+		return cargoTargetTest
+	case strings.HasPrefix(relative, "benches/"):
+		return cargoTargetBench
+	case strings.HasPrefix(relative, "examples/"):
+		return cargoTargetExample
+	}
+	return cargoTargetUnknown
 }
 
 func collectDefinitions(
@@ -519,4 +609,32 @@ func collidingKeys(collected map[string]Definition, byKey map[string]string) []s
 		collisions = append(collisions, "two symbols share one identity: "+previous+" and "+symbol)
 	}
 	return collisions
+}
+
+// duplicateDefinitions names one analyzer symbol defined in several
+// documents.
+//
+// One package compiles into several crates -- a library, a binary, one per
+// integration test -- and a moniker names the package, so the root module of
+// each of them, and any item they declare under the same path, arrive as one
+// symbol defined more than once. Only one of them can be the node, and the
+// declarations left out are a hole the graph has to name.
+func duplicateDefinitions(duplicated map[string][]string, definitions map[string]Definition) []string {
+	if len(duplicated) == 0 {
+		return nil
+	}
+	symbols := make([]string, 0, len(duplicated))
+	for symbol := range duplicated {
+		symbols = append(symbols, symbol)
+	}
+	sort.Strings(symbols)
+	reported := make([]string, 0, len(symbols))
+	for _, symbol := range symbols {
+		files := append([]string(nil), duplicated[symbol]...)
+		sort.Strings(files)
+		reported = append(reported, fmt.Sprintf(
+			"the analyzer defines %q in more than one document: published from %s, not from %s",
+			symbol, definitions[symbol].File, strings.Join(files, ", ")))
+	}
+	return reported
 }
