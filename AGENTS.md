@@ -337,6 +337,25 @@ integridad, compatibilidad o verificación descritos aquí.
   `meshPerAttribute * count` entre los atributos instanciados, `0` sin
   ninguno - para que ninguna librería pueda llevar un `Infinity` a
   `drawIndexed`.
+- `site/` es la landing pública y la documentación de usuario, en Astro con
+  Starlight, y es su propio proyecto pnpm como `ts-worker/` y `web/`. No entra
+  en ningún bundle: el payload de `scripts/build-bundle.sh` es una lista blanca
+  y el workflow de release comprueba que ni el directorio ni una línea de
+  `SHA256SUMS` lo nombran. Se verifica con `make site-check` y `make
+  site-build`, y se sirve con `pm2 start site/ecosystem.config.cjs` en el
+  puerto `6767`.
+- La documentación de `site/` está escrita para quien usa Ladygraph y sale de
+  las fuentes del repositorio -`cmd/ladygraph/help.go`, `internal/config`,
+  `internal/mcp/tools`, `README.md`-, copiadas literalmente cuando son un
+  contrato. `docs/` sigue siendo material interno de ingeniería -ADRs,
+  informes de cualificación- y no se publica.
+- El lienzo del hero (`site/src/lib/hero-graph.ts`) es un grafo sintético en
+  2D, sin three.js ni reagraph, y no importa nada de `web/`. Toma la paleta de
+  las propiedades `--color-graph-*` de `global.css`, que son los literales de
+  `web/src/renderer/reagraph.ts`, y dibuja bajo demanda: un
+  `IntersectionObserver` detiene el bucle fuera de pantalla y
+  `prefers-reduced-motion: reduce` pinta un solo fotograma sin instalar bucle
+  alguno.
 
 ## Rust
 
@@ -714,6 +733,13 @@ Si afecta `ts-worker/`:
 cd ts-worker
 pnpm check
 pnpm build
+```
+
+Si afecta `site/`:
+
+```bash
+make site-check
+make site-build
 ```
 
 Para cambios de instalación local, ejecutar el flujo con un `HOME` temporal y

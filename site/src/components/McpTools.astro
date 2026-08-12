@@ -1,0 +1,80 @@
+---
+// Names and descriptions are the ones the server registers, copied from the
+// tool definitions in internal/mcp/tools/.
+const tools = [
+  {
+    name: "find_symbol",
+    description:
+      "Finds symbols by exact name, qualified name, prefix or substring, and returns where each one is. Narrow with kind, repo and path_prefix.",
+  },
+  { name: "get_symbol", description: "Returns one symbol by its stable key." },
+  {
+    name: "get_file_outline",
+    description:
+      "Lists the declarations of one file or of a directory, with their kind, signature and line range. Use it to read the shape of code without opening it, and to get the stable keys the other tools need.",
+  },
+  {
+    name: "find_references",
+    description:
+      "Finds the symbols that reference one symbol, or the ones it reaches. Each row names the other end and where it is declared.",
+  },
+  {
+    name: "find_cross_repo_consumers",
+    description:
+      "Finds exact, package-level, candidate, and unresolved consumers of a symbol in other repositories.",
+  },
+  {
+    name: "trace_dependencies",
+    description: "Traces the bounded outgoing dependency graph of a symbol.",
+  },
+  {
+    name: "get_blast_radius",
+    description:
+      "Groups the bounded incoming impact of a symbol by repository, package, depth, and relation kind.",
+  },
+  {
+    name: "get_unresolved_references",
+    description:
+      "Lists references that could not be resolved to an exact symbol.",
+  },
+  {
+    name: "list_repositories",
+    description: "Lists repositories registered with Ladygraph.",
+  },
+  {
+    name: "graph_status",
+    description:
+      "Returns the published snapshot, its provenance, its counts, dependency health, and internal metrics.",
+  },
+  {
+    name: "index_project",
+    description:
+      "Registers one or more projects and rebuilds Ladygraph once, after explicit user approval. Pass every project in a single call: the rebuild costs the whole corpus, so calling this per project multiplies that cost and keeps only the last result. It never writes inside the source projects.",
+  },
+];
+---
+
+<section class="not-content mx-auto w-full max-w-6xl px-6 py-12">
+  <h2 class="text-2xl font-semibold">MCP tools</h2>
+  <p class="mt-2 text-(--sl-color-gray-3)">
+    Eleven tools over stdio. Ten are read-only; <code>index_project</code> is the
+    only one that writes, and only after explicit consent.
+  </p>
+  <div class="mt-6 grid gap-4 sm:grid-cols-2">
+    {
+      tools.map((tool) => (
+        <article class="rounded-lg border border-(--sl-color-gray-5) p-4">
+          <code class="font-mono text-sm text-(--sl-color-accent-high)">
+            {tool.name}
+          </code>
+          <p class="mt-2 text-sm text-(--sl-color-gray-3)">
+            {tool.description}
+          </p>
+        </article>
+      ))
+    }
+  </div>
+  <p class="mt-6 text-sm">
+    <a href="/reference/mcp-tools/">Full tool reference</a>
+  </p>
+</section>

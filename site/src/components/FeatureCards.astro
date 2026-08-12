@@ -1,0 +1,30 @@
+---
+const cards = [
+  {
+    title: "Cross-repository resolution",
+    body: "A symbol used in one repository resolves to the declaration in another. Ladygraph indexes every registered repository into a single canonical graph, so a consumer and its provider are two ends of one edge rather than two unrelated searches.",
+  },
+  {
+    title: "Evidence, not guesses",
+    body: "An edge is EXACT only when the resolution was observed and its provenance says so. A match on a name, a path or a single plausible candidate is not exactness: it is reported as CANDIDATE or UNRESOLVED, and both are queryable.",
+  },
+  {
+    title: "Nothing leaves the machine",
+    body: "Indexing and queries run locally against your own checkouts. A pass is hermetic: no network unless go.allow_network or rust.allow_network is set, and nothing is ever written inside an indexed repository.",
+  },
+];
+---
+
+<section class="not-content mx-auto w-full max-w-6xl px-6 py-12">
+  <h2 class="text-2xl font-semibold">What it is</h2>
+  <div class="mt-6 grid gap-5 md:grid-cols-3">
+    {
+      cards.map((card) => (
+        <article class="rounded-xl border border-(--sl-color-gray-5) bg-(--sl-color-black) p-5">
+          <h3 class="text-lg font-medium">{card.title}</h3>
+          <p class="mt-3 text-sm text-(--sl-color-gray-3)">{card.body}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>

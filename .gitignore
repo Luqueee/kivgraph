@@ -10,6 +10,9 @@ ts-worker/coverage/
 web/node_modules/
 web/dist/
 web/coverage/
+site/node_modules/
+site/dist/
+site/.astro/
 benchmarks/**/node_modules/
 
 testdata/generated/

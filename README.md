@@ -325,6 +325,8 @@ The [LadybugDB qualification](docs/decisions/ladybugdb-qualification.md) conclud
 cmd/ladygraph/   Main executable.
 internal/        Ladygraph internal packages.
 ts-worker/        TypeScript worker.
+web/              Graph viewer served by `ladygraph ui`.
+site/             Landing page and documentation site (not part of any release).
 testdata/         Test fixtures and corpora.
 benchmarks/       Benchmark results.
 docs/             Documentation and ADRs.

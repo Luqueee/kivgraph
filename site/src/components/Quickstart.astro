@@ -1,0 +1,42 @@
+---
+const steps = [
+  {
+    title: "Install the bundle",
+    command:
+      "curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash",
+  },
+  {
+    title: "Register a repository",
+    command:
+      "ladygraph init --repository name=/absolute/path --languages go,typescript,rust",
+  },
+  {
+    title: "Build and publish a generation",
+    command: "ladygraph index --full",
+  },
+  {
+    title: "Register the MCP client",
+    command: "ladygraph mcp install --scope user",
+  },
+];
+---
+
+<section class="not-content mx-auto w-full max-w-6xl px-6 py-12">
+  <h2 class="text-2xl font-semibold">Quickstart</h2>
+  <ol class="mt-6 list-none space-y-4 p-0">
+    {
+      steps.map((step, index) => (
+        <li class="rounded-lg border border-(--sl-color-gray-5) p-4">
+          <p class="text-sm font-medium">
+            <span class="mr-2 text-(--sl-color-accent-high)">{index + 1}</span>
+            {step.title}
+          </p>
+          <pre class="mt-3 overflow-x-auto rounded-md bg-(--sl-color-black) p-3"><code class="font-mono text-xs sm:text-sm">{step.command}</code></pre>
+        </li>
+      ))
+    }
+  </ol>
+  <p class="mt-6 text-sm">
+    <a href="/quickstart/">The quickstart in full</a>
+  </p>
+</section>

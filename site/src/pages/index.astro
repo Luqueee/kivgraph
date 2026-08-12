@@ -1,0 +1,54 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+
+import FeatureCards from "../components/FeatureCards.astro";
+import Hero from "../components/Hero.astro";
+import Languages from "../components/Languages.astro";
+import McpTools from "../components/McpTools.astro";
+import Quickstart from "../components/Quickstart.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import ViewerLegend from "../components/ViewerLegend.astro";
+
+// `output: "server"` makes on-demand rendering the default for src/pages, and
+// there is nothing dynamic on this page.
+export const prerender = true;
+---
+
+<StarlightPage
+  frontmatter={{
+    title: "Ladygraph",
+    description:
+      "A canonical code graph for Go, TypeScript and Rust, served over MCP.",
+    template: "splash",
+    tableOfContents: false,
+  }}
+  hasSidebar={false}
+>
+  <Hero />
+  <FeatureCards />
+  <Languages />
+  <McpTools />
+  <Quickstart />
+  <ViewerLegend />
+  <SiteFooter />
+</StarlightPage>
+
+<style is:global>
+  /* Starlight renders the page title as an h1 above the slot. The hero owns
+     the real h1, and two of them is both a duplicate and an outline error.
+     The heading stays in the document for the #_top anchor Pagefind links to;
+     only its box is removed. Astro emits this stylesheet for this page alone. */
+  .content-panel:has(> .sl-container > h1#_top) {
+    border: 0;
+    padding: 0;
+  }
+
+  h1#_top {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>

@@ -1,0 +1,12 @@
+# astro depends on esbuild, whose postinstall links the platform binary. pnpm
+# blocks dependency lifecycle scripts unless the package is approved here, and
+# without the link `astro build` cannot find its esbuild binary.
+allowBuilds:
+  esbuild: true
+
+# pnpm 11 holds back releases younger than its default minimumReleaseAge. These
+# two are the versions this project is pinned to, and the pin is deliberate:
+# astro@7.2.1 is what @astrojs/starlight@0.41.7 and @astrojs/node@11.1.1 peer.
+minimumReleaseAgeExclude:
+  - '@astrojs/node@11.1.1'
+  - astro@7.2.1

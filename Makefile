@@ -1,4 +1,4 @@
-.PHONY: build test version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64
+.PHONY: build test version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 site-check site-build
 
 build: test version
 	go build ./cmd/ladygraph
@@ -41,3 +41,12 @@ build-linux-amd64:
 
 build-darwin-arm64:
 	@scripts/build-bundle.sh --target darwin/arm64
+
+# site-check and site-build drive the landing and documentation site. It is not
+# part of any release bundle: scripts/build-bundle.sh names its payload
+# explicitly and never reads this directory.
+site-check:
+	@pnpm --dir site install --frozen-lockfile && pnpm --dir site check
+
+site-build:
+	@pnpm --dir site install --frozen-lockfile && pnpm --dir site build
