@@ -2,6 +2,11 @@
 /ladygraph
 *.test
 *.out
+# `go build ./benchmarks/x/` writes the executable into the working directory, so
+# a build from the repository root leaves it here. Build with `-o /tmp/...`
+# instead; these two have been committed by accident before.
+/mcp-token-cost
+/rust-engine
 
 # TypeScript / Node.js
 ts-worker/node_modules/
