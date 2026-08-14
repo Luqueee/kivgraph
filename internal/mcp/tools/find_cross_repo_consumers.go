@@ -30,11 +30,15 @@ const (
 // returned as a separate category: they describe a request and evidence, not
 // an exact symbol identity.
 type FindCrossRepoConsumersInput struct {
-	StableKey string `json:"stable_key"`
-	Repo      string `json:"repo,omitempty"`
-	Language  string `json:"language,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
-	Cursor    string `json:"cursor,omitempty"`
+	StableKey      string `json:"stable_key,omitempty"`
+	QualifiedName  string `json:"qualified_name,omitempty"`
+	Repository     string `json:"repository,omitempty"`
+	Path           string `json:"path,omitempty"`
+	Repo           string `json:"repo,omitempty"`
+	Language       string `json:"language,omitempty"`
+	Limit          int    `json:"limit,omitempty"`
+	Cursor         string `json:"cursor,omitempty"`
+	ResponseFormat string `json:"response_format,omitempty"`
 }
 
 // CrossRepoConsumerSummary is the common wire shape for exact symbol,
@@ -43,59 +47,94 @@ type FindCrossRepoConsumersInput struct {
 type CrossRepoConsumerSummary struct {
 	Category string `json:"category"`
 
-	ConsumerSymbolKey     string `json:"consumer_symbol_key,omitempty"`
-	ConsumerRepositoryKey string `json:"consumer_repository_key"`
-	ConsumerPackageKey    string `json:"consumer_package_key,omitempty"`
-	ConsumerPackageName   string `json:"consumer_package_name,omitempty"`
-	ConsumerFileKey       string `json:"consumer_file_key,omitempty"`
-	ConsumerFilePath      string `json:"consumer_file_path,omitempty"`
+	// The consumer, named and located the way every other row of this surface
+	// names one: enough to open it, and enough to address it in the next call.
+	Name          string `json:"name,omitempty"`
+	QualifiedName string `json:"qualified_name,omitempty"`
+	Kind          string `json:"kind,omitempty"`
+	EdgeKind      string `json:"edge_kind,omitempty"`
+	Repository    string `json:"repository"`
+	PackageName   string `json:"package_name,omitempty"`
+	FilePath      string `json:"file_path,omitempty"`
+	StartLine     uint32 `json:"start_line,omitempty"`
+	EndLine       uint32 `json:"end_line,omitempty"`
 
-	TargetSymbolKey     string `json:"target_symbol_key"`
-	TargetRepositoryKey string `json:"target_repository_key"`
-	TargetPackageKey    string `json:"target_package_key"`
-	TargetPackageName   string `json:"target_package_name"`
-	TargetModulePath    string `json:"target_module_path,omitempty"`
-
-	Kind         string `json:"kind,omitempty"`
 	Confidence   string `json:"confidence"`
 	Provenance   string `json:"provenance,omitempty"`
-	EvidenceKey  string `json:"evidence_key,omitempty"`
 	EvidenceKind string `json:"evidence_kind,omitempty"`
+
+	// Derived identifiers, returned only for the detailed format. Measured on a
+	// four-row answer they were 81 % of it.
+	ConsumerSymbolKey     string `json:"consumer_symbol_key,omitempty"`
+	ConsumerRepositoryKey string `json:"consumer_repository_key,omitempty"`
+	ConsumerPackageKey    string `json:"consumer_package_key,omitempty"`
+	ConsumerFileKey       string `json:"consumer_file_key,omitempty"`
+	EvidenceKey           string `json:"evidence_key,omitempty"`
 
 	UnresolvedKey    string `json:"unresolved_key,omitempty"`
 	RequestedPackage string `json:"requested_package,omitempty"`
 	RequestedSymbol  string `json:"requested_symbol,omitempty"`
 	Reason           string `json:"reason,omitempty"`
 	Detail           string `json:"detail,omitempty"`
-	StartLine        uint32 `json:"start_line,omitempty"`
 	StartColumn      uint32 `json:"start_column,omitempty"`
 	StartOffset      uint32 `json:"start_offset,omitempty"`
 }
 
+// CrossRepoSubject is the symbol the query asked about, stated once. It is the
+// argument, not a result, and it was repeated on every row as five target_*
+// fields.
+type CrossRepoSubject struct {
+	QualifiedName string `json:"qualified_name"`
+	Repository    string `json:"repository"`
+	PackageName   string `json:"package_name"`
+	ModulePath    string `json:"module_path,omitempty"`
+	FilePath      string `json:"file_path"`
+	StartLine     uint32 `json:"start_line"`
+	EndLine       uint32 `json:"end_line"`
+
+	StableKey     string `json:"stable_key,omitempty"`
+	RepositoryKey string `json:"repository_key,omitempty"`
+	PackageKey    string `json:"package_key,omitempty"`
+}
+
+// CrossRepoConsumers is one page of consumers around a subject.
+type CrossRepoConsumers struct {
+	Subject   CrossRepoSubject           `json:"subject"`
+	Consumers []CrossRepoConsumerSummary `json:"consumers"`
+}
+
 type findCrossRepoConsumersOptions struct {
-	StableKey string
-	Repo      string
-	Language  string
-	Limit     int
+	Selector symbolSelector
+	Repo     string
+	Language string
+	Limit    int
+	Format   string
 }
 
 type findCrossRepoConsumersQuery struct {
-	Tool      string `json:"tool"`
-	StableKey string `json:"stable_key"`
-	Repo      string `json:"repo,omitempty"`
-	Language  string `json:"language,omitempty"`
+	Tool          string `json:"tool"`
+	StableKey     string `json:"stable_key,omitempty"`
+	QualifiedName string `json:"qualified_name,omitempty"`
+	Repository    string `json:"repository,omitempty"`
+	Path          string `json:"path,omitempty"`
+	Repo          string `json:"repo,omitempty"`
+	Language      string `json:"language,omitempty"`
 }
 
 type consumerLocation struct {
-	SymbolKey     string
-	SymbolName    string
-	QualifiedName string
-	RepositoryKey string
-	PackageKey    string
-	PackageName   string
-	FileKey       string
-	FilePath      string
-	Languages     []string
+	SymbolKey      string
+	SymbolName     string
+	QualifiedName  string
+	SymbolKind     string
+	StartLine      uint32
+	EndLine        uint32
+	RepositoryName string
+	RepositoryKey  string
+	PackageKey     string
+	PackageName    string
+	FileKey        string
+	FilePath       string
+	Languages      []string
 }
 
 type targetLocation struct {
@@ -135,7 +174,7 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
 		arguments FindCrossRepoConsumersInput,
-	) (*sdkmcp.CallToolResult, Response[[]CrossRepoConsumerSummary], error) {
+	) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
 		return findCrossRepoConsumers(ctx, request, arguments, snapshotStore)
 	}
 	if observer != nil || callObserver != nil {
@@ -144,18 +183,17 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 			ctx context.Context,
 			request *sdkmcp.CallToolRequest,
 			arguments FindCrossRepoConsumersInput,
-		) (*sdkmcp.CallToolResult, Response[[]CrossRepoConsumerSummary], error) {
+		) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
 			observe(observer, callObserver, findCrossRepoConsumersToolName, start, response, err)
 			return result, response, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:         findCrossRepoConsumersToolName,
-		Description:  "Finds exact, package-level, candidate, and unresolved consumers of a symbol in other repositories.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        findCrossRepoConsumersToolName,
+		Description: "Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies. A language server stops at its workspace.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -164,31 +202,33 @@ func findCrossRepoConsumers(
 	_ *sdkmcp.CallToolRequest,
 	arguments FindCrossRepoConsumersInput,
 	snapshotStore *hotsnapshot.SnapshotStore,
-) (*sdkmcp.CallToolResult, Response[[]CrossRepoConsumerSummary], error) {
+) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
 	options, err := normalizeFindCrossRepoConsumersInput(arguments)
 	if err != nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, err
+		return nil, Response[CrossRepoConsumers]{}, err
 	}
 	queryHash, err := HashQuery(findCrossRepoConsumersQuery{
-		Tool: findCrossRepoConsumersToolName, StableKey: options.StableKey, Repo: options.Repo, Language: options.Language,
+		Tool: findCrossRepoConsumersToolName, StableKey: options.Selector.StableKey,
+		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
+		Path: options.Selector.Path, Repo: options.Repo, Language: options.Language,
 	})
 	if err != nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, err
+		return nil, Response[CrossRepoConsumers]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, ErrIndexNotReady()
+		return nil, Response[CrossRepoConsumers]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, ErrIndexNotReady()
+		return nil, Response[CrossRepoConsumers]{}, ErrIndexNotReady()
 	}
-	targetID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
-	if !found {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", options.StableKey))
+	targetID, err := resolveSymbolSelector(snapshot, options.Selector)
+	if err != nil {
+		return nil, Response[CrossRepoConsumers]{}, err
 	}
 	target, err := crossRepoTargetLocation(snapshot, targetID)
 	if err != nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid target metadata", err)
+		return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid target metadata", err)
 	}
 
 	metadata := snapshot.Metadata()
@@ -196,17 +236,17 @@ func findCrossRepoConsumers(
 	if arguments.Cursor != "" {
 		cursor, err := DecodeCursor(arguments.Cursor)
 		if err != nil {
-			return nil, Response[[]CrossRepoConsumerSummary]{}, err
+			return nil, Response[CrossRepoConsumers]{}, err
 		}
 		if err := cursor.ValidateAgainst(metadata.ID, queryHash, SortingVersionCrossRepoConsumersV1); err != nil {
-			return nil, Response[[]CrossRepoConsumerSummary]{}, err
+			return nil, Response[CrossRepoConsumers]{}, err
 		}
 		offset = cursor.Offset
 	}
 
 	results, coverage, err := collectCrossRepoConsumers(snapshot, targetID, target, options)
 	if err != nil {
-		return nil, Response[[]CrossRepoConsumerSummary]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid consumer metadata", err)
+		return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid consumer metadata", err)
 	}
 	total := len(results)
 	if offset > total {
@@ -222,26 +262,28 @@ func findCrossRepoConsumers(
 	if hasMore {
 		cursor, err := NewCursor(metadata.ID, queryHash, end, SortingVersionCrossRepoConsumersV1)
 		if err != nil {
-			return nil, Response[[]CrossRepoConsumerSummary]{}, err
+			return nil, Response[CrossRepoConsumers]{}, err
 		}
 		encoded, err := cursor.Encode()
 		if err != nil {
-			return nil, Response[[]CrossRepoConsumerSummary]{}, err
+			return nil, Response[CrossRepoConsumers]{}, err
 		}
 		nextCursor = &encoded
 	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
-	return nil, Response[[]CrossRepoConsumerSummary]{
+	return nil, Response[CrossRepoConsumers]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
-		Coverage: coverage, Results: page,
+		Coverage: coverage,
+		Guidance: crossRepoGuidance(total, len(page), hasMore),
+		Results:  CrossRepoConsumers{Subject: crossRepoSubject(target, options.Format), Consumers: page},
 	}, nil
 }
 
 func normalizeFindCrossRepoConsumersInput(arguments FindCrossRepoConsumersInput) (findCrossRepoConsumersOptions, error) {
-	stableKey, err := normalizeSymbolStableKey(arguments.StableKey)
+	selector, err := normalizeSymbolSelector(arguments.StableKey, arguments.Repository, arguments.Path, arguments.QualifiedName)
 	if err != nil {
 		return findCrossRepoConsumersOptions{}, err
 	}
@@ -260,7 +302,11 @@ func normalizeFindCrossRepoConsumersInput(arguments FindCrossRepoConsumersInput)
 	if limit < 1 || limit > MaximumCrossRepoConsumerLimit {
 		return findCrossRepoConsumersOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("limit must be between 1 and %d", MaximumCrossRepoConsumerLimit))
 	}
-	return findCrossRepoConsumersOptions{StableKey: stableKey, Repo: repo, Language: language, Limit: limit}, nil
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return findCrossRepoConsumersOptions{}, err
+	}
+	return findCrossRepoConsumersOptions{Selector: selector, Repo: repo, Language: language, Limit: limit, Format: format}, nil
 }
 
 func collectCrossRepoConsumers(
@@ -292,7 +338,7 @@ func collectCrossRepoConsumers(
 			category = CrossRepoConsumerExactSymbol
 		}
 		addReferenceCoverage(&coverage, decoded.Confidence)
-		summary, err := crossRepoSymbolSummary(snapshot, source, target, edge, decoded, category)
+		summary, err := crossRepoSymbolSummary(snapshot, source, target, edge, decoded, category, options.Format)
 		if err != nil {
 			return nil, Coverage{}, err
 		}
@@ -322,13 +368,18 @@ func collectCrossRepoConsumers(
 		// A PACKAGE_DEPENDS_ON edge is evidence about the package, not about
 		// the symbol this query names: it never counts as an exact consumer.
 		coverage.PackageLevel++
-		results = append(results, CrossRepoConsumerSummary{
-			Category:              CrossRepoConsumerPackage,
-			ConsumerRepositoryKey: source.RepositoryKey, ConsumerPackageKey: source.PackageKey, ConsumerPackageName: source.PackageName,
-			TargetSymbolKey: target.SymbolKey, TargetRepositoryKey: target.RepositoryKey, TargetPackageKey: target.PackageKey,
-			TargetPackageName: target.PackageName, TargetModulePath: target.ModulePath,
-			Kind: string(kind), Confidence: string(confidence), Provenance: string(provenance), EvidenceKey: crossRepoPackageEvidenceKey(snapshot, dependency.Evidence),
-		})
+		row := CrossRepoConsumerSummary{
+			Category:    CrossRepoConsumerPackage,
+			Repository:  source.RepositoryName,
+			PackageName: source.PackageName,
+			EdgeKind:    string(kind), Confidence: string(confidence), Provenance: string(provenance),
+		}
+		if options.Format == ResponseFormatDetailed {
+			row.ConsumerRepositoryKey = source.RepositoryKey
+			row.ConsumerPackageKey = source.PackageKey
+			row.EvidenceKey = crossRepoPackageEvidenceKey(snapshot, dependency.Evidence)
+		}
+		results = append(results, row)
 	}
 
 	for _, reference := range snapshot.UnresolvedReferences() {
@@ -353,17 +404,24 @@ func collectCrossRepoConsumers(
 		if !keyOK || !packageOK || !symbolOK || !reasonOK || !detailOK {
 			return nil, Coverage{}, fmt.Errorf("unresolved reference contains invalid strings")
 		}
-		results = append(results, CrossRepoConsumerSummary{
-			Category:          CrossRepoConsumerUnresolved,
-			ConsumerSymbolKey: source.SymbolKey, ConsumerRepositoryKey: source.RepositoryKey,
-			ConsumerPackageKey: source.PackageKey, ConsumerPackageName: source.PackageName,
-			ConsumerFileKey: source.FileKey, ConsumerFilePath: source.FilePath,
-			TargetSymbolKey: target.SymbolKey, TargetRepositoryKey: target.RepositoryKey,
-			TargetPackageKey: target.PackageKey, TargetPackageName: target.PackageName, TargetModulePath: target.ModulePath,
-			Confidence: string(confidence), UnresolvedKey: key, RequestedPackage: requestedPackage,
+		row := CrossRepoConsumerSummary{
+			Category:    CrossRepoConsumerUnresolved,
+			Name:        source.SymbolName,
+			Repository:  source.RepositoryName,
+			PackageName: source.PackageName,
+			FilePath:    source.FilePath,
+			Confidence:  string(confidence), RequestedPackage: requestedPackage,
 			RequestedSymbol: requestedSymbol, Reason: reason, Detail: detail,
 			StartLine: reference.StartLine, StartColumn: reference.StartColumn, StartOffset: reference.StartOffset,
-		})
+		}
+		if options.Format == ResponseFormatDetailed {
+			row.ConsumerSymbolKey = source.SymbolKey
+			row.ConsumerRepositoryKey = source.RepositoryKey
+			row.ConsumerPackageKey = source.PackageKey
+			row.ConsumerFileKey = source.FileKey
+			row.UnresolvedKey = key
+		}
+		results = append(results, row)
 	}
 
 	sort.SliceStable(results, func(i, j int) bool { return crossRepoConsumerLess(results[i], results[j]) })
@@ -377,6 +435,7 @@ func crossRepoSymbolSummary(
 	edge hotsnapshot.PackedEdge,
 	decoded decodedReferenceEdge,
 	category string,
+	format string,
 ) (CrossRepoConsumerSummary, error) {
 	evidence, found := snapshot.Evidence(edge.Evidence)
 	if !found {
@@ -386,16 +445,29 @@ func crossRepoSymbolSummary(
 	if !found {
 		return CrossRepoConsumerSummary{}, fmt.Errorf("edge evidence index %d has an invalid kind", edge.Evidence)
 	}
-	return CrossRepoConsumerSummary{
-		Category:          category,
-		ConsumerSymbolKey: source.SymbolKey, ConsumerRepositoryKey: source.RepositoryKey,
-		ConsumerPackageKey: source.PackageKey, ConsumerPackageName: source.PackageName,
-		ConsumerFileKey: source.FileKey, ConsumerFilePath: source.FilePath,
-		TargetSymbolKey: target.SymbolKey, TargetRepositoryKey: target.RepositoryKey,
-		TargetPackageKey: target.PackageKey, TargetPackageName: target.PackageName, TargetModulePath: target.ModulePath,
-		Kind: string(decoded.Kind), Confidence: string(decoded.Confidence), Provenance: string(decoded.Provenance),
-		EvidenceKey: crossRepoEvidenceKey(snapshot, edge.Evidence), EvidenceKind: evidenceKind,
-	}, nil
+	summary := CrossRepoConsumerSummary{
+		Category:      category,
+		Name:          source.SymbolName,
+		QualifiedName: source.QualifiedName,
+		Kind:          source.SymbolKind,
+		EdgeKind:      string(decoded.Kind),
+		Repository:    source.RepositoryName,
+		PackageName:   source.PackageName,
+		FilePath:      source.FilePath,
+		StartLine:     source.StartLine,
+		EndLine:       source.EndLine,
+		Confidence:    string(decoded.Confidence),
+		Provenance:    string(decoded.Provenance),
+		EvidenceKind:  evidenceKind,
+	}
+	if format == ResponseFormatDetailed {
+		summary.ConsumerSymbolKey = source.SymbolKey
+		summary.ConsumerRepositoryKey = source.RepositoryKey
+		summary.ConsumerPackageKey = source.PackageKey
+		summary.ConsumerFileKey = source.FileKey
+		summary.EvidenceKey = crossRepoEvidenceKey(snapshot, edge.Evidence)
+	}
+	return summary, nil
 }
 
 func crossRepoTargetLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID) (targetLocation, error) {
@@ -423,7 +495,7 @@ func crossRepoTargetLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot
 }
 
 func crossRepoSymbolLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID) (consumerLocation, error) {
-	symbol, file, repositoryKey, languages, err := symbolReferenceLocation(snapshot, id)
+	symbol, file, repository, languages, err := symbolReferenceLocation(snapshot, id)
 	if err != nil {
 		return consumerLocation{}, err
 	}
@@ -440,12 +512,15 @@ func crossRepoSymbolLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot
 	packageName, packageNameOK := table.String(pkg.Name)
 	symbolName, symbolNameOK := table.String(symbol.Name)
 	qualifiedName, qualifiedNameOK := table.String(symbol.QualifiedName)
-	if !packageOK || !packageNameOK || !symbolNameOK || !qualifiedNameOK {
+	symbolKind, kindOK := table.String(symbol.Kind)
+	if !packageOK || !packageNameOK || !symbolNameOK || !qualifiedNameOK || !kindOK {
 		return consumerLocation{}, fmt.Errorf("symbol %q references invalid package or symbol strings", symbol.StableKey)
 	}
 	return consumerLocation{
 		SymbolKey: string(symbol.StableKey), SymbolName: symbolName, QualifiedName: qualifiedName,
-		RepositoryKey: repositoryKey, PackageKey: packageKey, PackageName: packageName,
+		SymbolKind: symbolKind, StartLine: symbol.StartLine, EndLine: symbol.EndLine,
+		RepositoryName: repository.name, RepositoryKey: repository.key,
+		PackageKey: packageKey, PackageName: packageName,
 		FileKey: file.key, FilePath: file.path, Languages: languages,
 	}, nil
 }
@@ -556,8 +631,11 @@ func crossRepoUnresolvedMatchesTarget(snapshot *hotsnapshot.GraphSnapshot, refer
 		strings.HasSuffix(requestedSymbol, "."+target.SymbolName) || strings.HasSuffix(requestedSymbol, "::"+target.SymbolName)
 }
 
+// consumerLocationMatches applies the caller's narrowing. The repository filter
+// takes a name, which is what every row of this surface carries and what the
+// triple selector accepts.
 func consumerLocationMatches(location consumerLocation, options findCrossRepoConsumersOptions) bool {
-	if options.Repo != "" && location.RepositoryKey != options.Repo {
+	if options.Repo != "" && location.RepositoryName != options.Repo {
 		return false
 	}
 	return options.Language == "" || containsString(location.Languages, options.Language)
@@ -606,7 +684,9 @@ func crossRepoConsumerLess(left, right CrossRepoConsumerSummary) bool {
 			return keys[index] < rightKeys[index]
 		}
 	}
-	return left.TargetSymbolKey < right.TargetSymbolKey
+	// The subject is the same symbol on every row of a response, so what breaks
+	// a remaining tie is the consumer's own position.
+	return left.StartLine < right.StartLine
 }
 
 func nonEmptyStrings(value string) []string {
@@ -614,4 +694,38 @@ func nonEmptyStrings(value string) []string {
 		return nil
 	}
 	return []string{value}
+}
+
+// crossRepoSubject states the queried symbol once. It was five `target_*` fields
+// on every row, and it is the argument of the call.
+func crossRepoSubject(target targetLocation, format string) CrossRepoSubject {
+	subject := CrossRepoSubject{
+		QualifiedName: target.QualifiedName,
+		Repository:    target.RepositoryName,
+		PackageName:   target.PackageName,
+		ModulePath:    target.ModulePath,
+		FilePath:      target.FilePath,
+		StartLine:     target.StartLine,
+		EndLine:       target.EndLine,
+	}
+	if format == ResponseFormatDetailed {
+		subject.StableKey = target.SymbolKey
+		subject.RepositoryKey = target.RepositoryKey
+		subject.PackageKey = target.PackageKey
+	}
+	return subject
+}
+
+// crossRepoGuidance reads an empty answer for what it is. This tool is the one
+// with no native competitor, so "nobody outside uses it" is a finding rather than
+// a miss -- and the two ways it can be wrong are worth naming.
+func crossRepoGuidance(total, returned int, truncated bool) string {
+	switch {
+	case total == 0:
+		return "no repository in the published graph consumes this symbol. Check graph_status if a consumer is registered but was not indexed, and find_references for uses inside its own repository"
+	case truncated:
+		return truncatedGuidance(returned, total, "repo or language")
+	default:
+		return ""
+	}
 }

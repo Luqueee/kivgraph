@@ -33,6 +33,35 @@ type Registry struct {
 
 type gitRunner func(context.Context, string, ...string) (string, error)
 
+// NewSyntheticRepository builds a repository that is not registered and has no
+// version control: a provider the pass derives from the machine rather than
+// from `repositories.yaml`. The standard library of a Rust toolchain is the
+// only one today.
+//
+// The path policy is the registry's, unchanged: a synthetic provider that
+// resolved through a symlink component would let a pass read outside the tree
+// it declared, and the reason this exists is to index code, not to relax that.
+func NewSyntheticRepository(name, path string, languages []string) (Repository, error) {
+	trimmed := strings.TrimSpace(name)
+	if err := validateRepositoryIdentifier(trimmed); err != nil {
+		return Repository{}, fmt.Errorf("synthetic repository: %w", err)
+	}
+	if !IsSyntheticRepository(trimmed) {
+		return Repository{}, fmt.Errorf("synthetic repository %q: a derived provider must take the %q namespace",
+			trimmed, SyntheticRepositoryPrefix)
+	}
+	resolved, realPath, err := inspectRepositoryPath(path)
+	if err != nil {
+		return Repository{}, fmt.Errorf("synthetic repository %q: %w", trimmed, err)
+	}
+	return Repository{
+		Name:      trimmed,
+		Path:      resolved,
+		RealPath:  realPath,
+		Languages: append([]string(nil), languages...),
+	}, nil
+}
+
 // NewRegistry resolves configured paths, validates repository boundaries and
 // records filesystem and Git metadata. It preserves the order from
 // repositories.yaml.

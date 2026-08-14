@@ -1,0 +1,77 @@
+[delta.go#8EF9]
+251:
+252:func applyDeltaRoute(ctx context.Context, options UpdateOptions, layout rebuild.Layout, delta facts.Delta, result UpdateResult) (UpdateResult, error) {
+253:	apply := options.ApplyDelta
+254:	if apply == nil {
+255:		apply = ladybug.ApplyCanonicalDelta
+256:	}
+257:	counts := options.Counts
+258:	if counts == nil {
+259:		counts = ladybug.CanonicalTableCounts
+260:	}
+261:
+262:	mutationStart := time.Now()
+263:	mutation, err := apply(ctx, layout.Active.DatabasePath, delta, ladybug.CanonicalLoadOptions{
+264:		SnapshotID:      options.SnapshotID,
+265:		ResolverVersion: options.ResolverVersion,
+266:	})
+267:	if err != nil {
+268:		return result, fmt.Errorf("%w: apply delta to %s: %w", ErrUpdateFailed, rebuild.RoleActive, err)
+269:	}
+270:	result.Mutation = mutation
+271:	if options.Metrics != nil {
+272:		databaseBytes := int64(0)
+273:		if info, statErr := os.Stat(layout.Active.DatabasePath); statErr == nil {
+274:			databaseBytes = info.Size()
+275:		}
+276:		options.Metrics.ObserveLadybug(metrics.LadybugObservation{
+277:			TransactionDuration: time.Since(mutationStart),
+278:			DatabaseBytes:       databaseBytes,
+279:		})
+280:	}
+281:
+282:	tables, err := counts(ctx, layout.Active.DatabasePath)
+283:	if err != nil {
+284:		return result, fmt.Errorf("%w: read mutated table counts: %w", ErrUpdateFailed, err)
+285:	}
+286:	digest, err := rebuild.RefreshSnapshotDigest(filepath.Dir(layout.Active.DatabasePath), tables)
+287:	if err != nil {
+288:		return result, fmt.Errorf("%w: refresh snapshot digest: %w", ErrUpdateFailed, err)
+289:	}
+290:	result.SnapshotDigest = digest
+291:	if options.SnapshotStore != nil {
+292:		build := options.BuildSnapshot
+293:		if build == nil {
+294:			build = rebuild.BuildSnapshot
+295:		}
+296:		if options.SnapshotID < 0 {
+297:			return result, fmt.Errorf("%w: snapshot id %d is negative", ErrUpdateFailed, options.SnapshotID)
+298:		}
+299:		snapshot, report, err := build(ctx, rebuild.BuildSnapshotOptions{
+300:			DatabasePath: layout.Active.DatabasePath,
+301:			SnapshotID:   uint64(options.SnapshotID),
+302:			Metrics:      options.Metrics,
+303:		})
+304:		if err != nil {
+305:			return result, fmt.Errorf("%w: rebuild HotSnapshot: %w", ErrUpdateFailed, err)
+306:		}
+307:		if !report.Passed {
+308:			return result, fmt.Errorf("%w: rebuild HotSnapshot did not pass", ErrUpdateFailed)
+309:		}
+310:		if err := options.SnapshotStore.Publish(snapshot); err != nil {
+311:			return result, fmt.Errorf("%w: publish HotSnapshot: %w", ErrUpdateFailed, err)
+312:		}
+313:		result.Snapshot = SnapshotBuild{Report: report}
+314:	}
+315:	result.Generation = layout.Active
+316:	result.Passed = true
+317:	return result, nil
+318:}
+319:
+320:func republishRoute(ctx context.Context, options UpdateOptions, layout rebuild.Layout, result UpdateResult) (UpdateResult, error) {
+321:	republish := options.Republish
+…
+349:	return result, nil
+350:}
+
+[Showing lines 251-321 of 350. Use :322 to continue]

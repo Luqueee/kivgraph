@@ -82,7 +82,7 @@ func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        indexProjectToolName,
 		Title:       "Index project",
-		Description: "Registers one or more projects and rebuilds Ladygraph once, after explicit user approval. Pass every project in a single call: the rebuild costs the whole corpus, so calling this per project multiplies that cost and keeps only the last result. It never writes inside the source projects.",
+		Description: "Registers projects and rebuilds the graph once, after explicit user approval. Pass every project in one call: a rebuild costs the whole corpus. It never writes inside the source projects.",
 		Annotations: &sdkmcp.ToolAnnotations{
 			ReadOnlyHint:    false,
 			DestructiveHint: &confirmed,

@@ -27,16 +27,20 @@ const (
 // confidence gate which edges the traversal may follow, so they change what is
 // reachable; repo and language only select which reached symbols are returned.
 type TraceDependenciesInput struct {
-	StableKey     string   `json:"stable_key,omitempty"`
-	QualifiedName string   `json:"qualified_name,omitempty"`
-	Depth         int      `json:"depth,omitempty"`
-	MaxNodes      int      `json:"max_nodes,omitempty"`
-	Repo          string   `json:"repo,omitempty"`
-	Language      string   `json:"language,omitempty"`
-	EdgeKinds     []string `json:"edge_kinds,omitempty"`
-	Confidence    string   `json:"confidence,omitempty"`
-	Limit         int      `json:"limit,omitempty"`
-	Cursor        string   `json:"cursor,omitempty"`
+	StableKey      string   `json:"stable_key,omitempty"`
+	QualifiedName  string   `json:"qualified_name,omitempty"`
+	Repository     string   `json:"repository,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	Depth          int      `json:"depth,omitempty"`
+	MaxNodes       int      `json:"max_nodes,omitempty"`
+	Repo           string   `json:"repo,omitempty"`
+	Language       string   `json:"language,omitempty"`
+	EdgeKinds      []string `json:"edge_kinds,omitempty"`
+	Confidence     string   `json:"confidence,omitempty"`
+	IncludeDerived bool     `json:"include_derived,omitempty"`
+	Limit          int      `json:"limit,omitempty"`
+	Cursor         string   `json:"cursor,omitempty"`
+	ResponseFormat string   `json:"response_format,omitempty"`
 }
 
 // DependencyTrace is the traversal itself: the root, what the bounds did to
@@ -44,7 +48,7 @@ type TraceDependenciesInput struct {
 // next_cursor page over Nodes.
 type DependencyTrace struct {
 	RootKey            string          `json:"root_key"`
-	RootRepositoryKey  string          `json:"root_repository_key"`
+	RootRepository     string          `json:"root_repository"`
 	Depth              int             `json:"depth"`
 	MaxNodes           int             `json:"max_nodes"`
 	Reached            int             `json:"reached"`
@@ -57,42 +61,60 @@ type DependencyTrace struct {
 // edge it first arrived by. That edge is a fact of this traversal, not the only
 // route: a breadth-first frontier records the shortest one it found. Both
 // trace_dependencies and get_blast_radius return this shape.
+//
+// StartLine and EndLine are the declaration's own range, so a row can be opened
+// without a second call. A traversal answers with one row per reached symbol,
+// and asking for each range separately turned a page into a page of round
+// trips.
 type ReachedSymbol struct {
-	StableKey     string `json:"stable_key"`
 	Name          string `json:"name"`
 	QualifiedName string `json:"qualified_name"`
 	Kind          string `json:"kind"`
 	Depth         int    `json:"depth"`
-	RepositoryKey string `json:"repository_key"`
+	Repository    string `json:"repository"`
 	Language      string `json:"language"`
-	FileKey       string `json:"file_key"`
 	FilePath      string `json:"file_path"`
+	StartLine     uint32 `json:"start_line"`
+	EndLine       uint32 `json:"end_line"`
 
-	// ReachedFromKey is the already-reached symbol this one was discovered
+	// ReachedFrom names the already-reached symbol this one was discovered
 	// from, which is the edge's target when the traversal runs incoming. The
-	// edge's own orientation is therefore not implied by this field.
-	ReachedFromKey string `json:"reached_from_key"`
-	ViaKind        string `json:"via_kind"`
-	ViaConfidence  string `json:"via_confidence"`
-	ViaProvenance  string `json:"via_provenance"`
+	// edge's own orientation is therefore not implied by this field. It is the
+	// qualified name rather than the stable key because a key costs 35 tokens
+	// on a row that costs 20, and the symbol it names is another row of the
+	// same page.
+	ReachedFrom   string `json:"reached_from"`
+	ViaKind       string `json:"via_kind"`
+	ViaConfidence string `json:"via_confidence"`
+	ViaProvenance string `json:"via_provenance"`
+
+	// The identifiers below are derived: the path beside them already spells out
+	// the file, and the reached-from key is the stable key of a symbol this same
+	// page names.
+	StableKey      string `json:"stable_key,omitempty"`
+	FileKey        string `json:"file_key,omitempty"`
+	ReachedFromKey string `json:"reached_from_key,omitempty"`
 }
 
 type traceDependenciesOptions struct {
-	StableKey     string
-	QualifiedName string
-	Depth         int
-	MaxNodes      int
-	Repo          string
-	Language      string
-	EdgeKinds     []string
-	Confidence    string
-	Limit         int
+	Selector   symbolSelector
+	Depth      int
+	MaxNodes   int
+	Repo       string
+	Language   string
+	EdgeKinds  []string
+	Confidence string
+	Derived    derivedFilter
+	Limit      int
+	Format     string
 }
 
 type traceDependenciesQuery struct {
 	Tool          string   `json:"tool"`
 	StableKey     string   `json:"stable_key,omitempty"`
 	QualifiedName string   `json:"qualified_name,omitempty"`
+	Repository    string   `json:"repository,omitempty"`
+	Path          string   `json:"path,omitempty"`
 	Depth         int      `json:"depth"`
 	MaxNodes      int      `json:"max_nodes"`
 	Repo          string   `json:"repo,omitempty"`
@@ -148,11 +170,11 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 			return result, response, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:         traceDependenciesToolName,
-		Description:  "Traces the bounded outgoing dependency graph of a symbol.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        traceDependenciesToolName,
+		Description: "What this symbol reaches outward, bounded by depth. Grep does not follow a chain.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Meta:        boundedResultMeta(MaximumTraversalResultChars),
 	}, handler)
 }
 
@@ -167,7 +189,8 @@ func traceDependencies(
 		return nil, Response[DependencyTrace]{}, err
 	}
 	queryHash, err := HashQuery(traceDependenciesQuery{
-		Tool: traceDependenciesToolName, StableKey: options.StableKey, QualifiedName: options.QualifiedName, Depth: options.Depth,
+		Tool: traceDependenciesToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
+		Repository: options.Selector.Repository, Path: options.Selector.Path, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language,
 		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
 	})
@@ -181,7 +204,7 @@ func traceDependencies(
 	if snapshot == nil {
 		return nil, Response[DependencyTrace]{}, ErrIndexNotReady()
 	}
-	rootID, err := resolveRootSymbol(snapshot, options.StableKey, options.QualifiedName)
+	rootID, err := resolveSymbolSelector(snapshot, options.Selector)
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, err
 	}
@@ -245,8 +268,9 @@ func traceDependencies(
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage,
+		Guidance: traversalGuidance(traceDependenciesToolName, total, len(page), hasMore),
 		Results: DependencyTrace{
-			RootKey: string(root.StableKey), RootRepositoryKey: rootRepository,
+			RootKey: string(root.StableKey), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,
 			Reached: len(traversal.Visits) - 1, DeepestDepth: deepest,
 			TraversalTruncated: traversal.Truncated, Nodes: page,
@@ -255,7 +279,7 @@ func traceDependencies(
 }
 
 func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDependenciesOptions, error) {
-	stableKey, qualifiedName, err := normalizeRootSelector(arguments.StableKey, arguments.QualifiedName)
+	selector, err := normalizeSymbolSelector(arguments.StableKey, arguments.Repository, arguments.Path, arguments.QualifiedName)
 	if err != nil {
 		return traceDependenciesOptions{}, err
 	}
@@ -296,9 +320,14 @@ func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDep
 	if limit < 1 || limit > MaximumDependencyLimit {
 		return traceDependenciesOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("limit must be between 1 and %d", MaximumDependencyLimit))
 	}
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return traceDependenciesOptions{}, err
+	}
 	return traceDependenciesOptions{
-		StableKey: stableKey, QualifiedName: qualifiedName, Depth: depth, MaxNodes: maxNodes, Repo: repo,
-		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
+		Selector: selector, Depth: depth, MaxNodes: maxNodes, Repo: repo,
+		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
+		Derived: newDerivedFilter(arguments.IncludeDerived, repo),
 	}, nil
 }
 
@@ -355,11 +384,14 @@ func dependencyNodes(
 		if int(visit.Depth) > deepest {
 			deepest = int(visit.Depth)
 		}
-		symbol, file, repositoryKey, languages, err := symbolReferenceLocation(snapshot, visit.ID)
+		symbol, file, repository, languages, err := symbolReferenceLocation(snapshot, visit.ID)
 		if err != nil {
 			return nil, Coverage{}, 0, err
 		}
-		if options.Repo != "" && repositoryKey != options.Repo {
+		if options.Repo != "" && repository.name != options.Repo {
+			continue
+		}
+		if !options.Derived.keepsRepository(repository.name) {
 			continue
 		}
 		if options.Language != "" && !containsString(languages, options.Language) {
@@ -386,14 +418,24 @@ func dependencyNodes(
 		if !nameOK || !qualifiedOK || !kindOK {
 			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
 		}
+		reachedFrom, sourceOK := table.String(source.QualifiedName)
+		if !sourceOK {
+			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has an invalid qualified name", source.StableKey)
+		}
 		addReferenceCoverage(&coverage, decoded.Confidence)
-		nodes = append(nodes, ReachedSymbol{
-			StableKey: string(symbol.StableKey), Name: name, QualifiedName: qualifiedName, Kind: kind,
-			Depth: int(visit.Depth), RepositoryKey: repositoryKey, Language: firstString(languages),
-			FileKey: file.key, FilePath: file.path,
-			ReachedFromKey: string(source.StableKey), ViaKind: string(decoded.Kind),
+		row := ReachedSymbol{
+			Name: name, QualifiedName: qualifiedName, Kind: kind,
+			Depth: int(visit.Depth), Repository: repository.name, Language: firstString(languages),
+			FilePath: file.path, StartLine: symbol.StartLine, EndLine: symbol.EndLine,
+			ReachedFrom: reachedFrom, ViaKind: string(decoded.Kind),
 			ViaConfidence: string(decoded.Confidence), ViaProvenance: string(decoded.Provenance),
-		})
+		}
+		if options.Format == ResponseFormatDetailed {
+			row.StableKey = string(symbol.StableKey)
+			row.FileKey = file.key
+			row.ReachedFromKey = string(source.StableKey)
+		}
+		nodes = append(nodes, row)
 	}
 	return nodes, coverage, deepest, nil
 }

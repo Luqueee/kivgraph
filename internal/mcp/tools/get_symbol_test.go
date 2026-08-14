@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -24,14 +23,7 @@ func TestGetSymbolReturnsDetailByStableKey(t *testing.T) {
 		t.Fatalf("get_symbol CallTool() returned an error: %#v", result.Content)
 	}
 
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[SymbolDetails]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
+	response := decodeResponse[SymbolDetails](t, result)
 	if response.SnapshotID == nil || *response.SnapshotID != 21 {
 		t.Fatalf("snapshot_id = %#v, want 21", response.SnapshotID)
 	}
@@ -51,7 +43,7 @@ func TestGetSymbolReturnsDetailByStableKey(t *testing.T) {
 	if response.Results.CanonicalIdentity != "" || response.Results.RepositoryKey != "" {
 		t.Fatalf("concise response carries derived identifiers = %#v", response.Results)
 	}
-	if response.Results.RepositoryName != "alpha-repo" || response.Results.RepositoryPath != "/repo-a" {
+	if response.Results.Repository != "alpha-repo" || response.Results.RepositoryPath != "/repo-a" {
 		t.Fatalf("repository detail = %#v", response.Results)
 	}
 	if response.Results.PackageName != "pkg" || response.Results.ModulePath != "example.com/pkg" || response.Results.FilePath != "src/alpha.go" {
@@ -80,14 +72,7 @@ func TestGetSymbolDetailedFormatRestoresDerivedIdentifiers(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("get_symbol CallTool() returned an error: %#v", result.Content)
 	}
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[SymbolDetails]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
+	response := decodeResponse[SymbolDetails](t, result)
 	if response.Results.CanonicalIdentity != "go:alpha" || response.Results.RepositoryKey != "repo-a" {
 		t.Fatalf("detailed response = %#v, want the derived identifiers back", response.Results)
 	}

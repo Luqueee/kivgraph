@@ -25,12 +25,16 @@ const (
 // FindReferencesInput identifies one symbol and the direct relationship page
 // to inspect around it.
 type FindReferencesInput struct {
-	StableKey      string   `json:"stable_key"`
+	StableKey      string   `json:"stable_key,omitempty"`
+	QualifiedName  string   `json:"qualified_name,omitempty"`
+	Repository     string   `json:"repository,omitempty"`
+	Path           string   `json:"path,omitempty"`
 	Direction      string   `json:"direction,omitempty"`
 	Repo           string   `json:"repo,omitempty"`
 	Language       string   `json:"language,omitempty"`
 	EdgeKinds      []string `json:"edge_kinds,omitempty"`
 	Confidence     string   `json:"confidence,omitempty"`
+	IncludeDerived bool     `json:"include_derived,omitempty"`
 	ResponseFormat string   `json:"response_format,omitempty"`
 	Limit          int      `json:"limit,omitempty"`
 	Cursor         string   `json:"cursor,omitempty"`
@@ -54,24 +58,27 @@ type ReferenceSubject struct {
 // outgoing one. It is named and located, because a caller identified only by
 // an opaque key costs one more call per row before it means anything.
 //
-// StartLine is the declaration line of that symbol, not the position of the
-// token. The snapshot records which symbol contains a reference and never
-// where inside it: publishing a line nobody observed would be inventing
-// evidence.
+// StartLine and EndLine bound the declaration of that symbol, not the position
+// of the token. The snapshot records which symbol contains a reference and
+// never where inside it: publishing a line nobody observed would be inventing
+// evidence. The range is what makes the row openable without a second call --
+// without EndLine every row cost one `get_symbol` first, which measured 15
+// extra calls across the six questions of `benchmarks/mcp-token-cost`.
 type ReferenceSummary struct {
-	StableKey     string `json:"stable_key"`
 	Name          string `json:"name"`
 	QualifiedName string `json:"qualified_name"`
 	Kind          string `json:"kind"`
 	Repository    string `json:"repository"`
 	FilePath      string `json:"file_path"`
 	StartLine     uint32 `json:"start_line"`
+	EndLine       uint32 `json:"end_line"`
 	Language      string `json:"language"`
 	EdgeKind      string `json:"edge_kind"`
 	Confidence    string `json:"confidence"`
 	Provenance    string `json:"provenance"`
 
 	EvidenceKind  string `json:"evidence_kind,omitempty"`
+	StableKey     string `json:"stable_key,omitempty"`
 	FileKey       string `json:"file_key,omitempty"`
 	RepositoryKey string `json:"repository_key,omitempty"`
 }
@@ -84,23 +91,27 @@ type ReferenceResult struct {
 }
 
 type findReferencesOptions struct {
-	StableKey  string
+	Selector   symbolSelector
 	Direction  string
 	Repo       string
 	Language   string
 	EdgeKinds  []string
 	Confidence string
+	Derived    derivedFilter
 	Limit      int
 }
 
 type findReferencesQuery struct {
-	Tool       string   `json:"tool"`
-	StableKey  string   `json:"stable_key"`
-	Direction  string   `json:"direction"`
-	Repo       string   `json:"repo,omitempty"`
-	Language   string   `json:"language,omitempty"`
-	EdgeKinds  []string `json:"edge_kinds,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
+	Tool          string   `json:"tool"`
+	StableKey     string   `json:"stable_key,omitempty"`
+	QualifiedName string   `json:"qualified_name,omitempty"`
+	Repository    string   `json:"repository,omitempty"`
+	Path          string   `json:"path,omitempty"`
+	Direction     string   `json:"direction"`
+	Repo          string   `json:"repo,omitempty"`
+	Language      string   `json:"language,omitempty"`
+	EdgeKinds     []string `json:"edge_kinds,omitempty"`
+	Confidence    string   `json:"confidence,omitempty"`
 }
 
 type decodedReferenceEdge struct {
@@ -156,11 +167,11 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 			return result, references, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:         findReferencesToolName,
-		Description:  "Finds the symbols that reference one symbol, or the ones it reaches. Each row names the other end and where it is declared.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        findReferencesToolName,
+		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Meta:        alwaysLoadMeta(),
 	}, handler)
 }
 
@@ -179,7 +190,9 @@ func findReferences(
 		return nil, Response[ReferenceResult]{}, err
 	}
 	queryHash, err := HashQuery(findReferencesQuery{
-		Tool: findReferencesToolName, StableKey: options.StableKey, Direction: options.Direction,
+		Tool: findReferencesToolName, StableKey: options.Selector.StableKey,
+		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
+		Path: options.Selector.Path, Direction: options.Direction,
 		Repo: options.Repo, Language: options.Language, EdgeKinds: options.EdgeKinds,
 		Confidence: options.Confidence,
 	})
@@ -194,9 +207,9 @@ func findReferences(
 		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
 	}
 
-	startID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(options.StableKey))
-	if !found {
-		return nil, Response[ReferenceResult]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", options.StableKey))
+	startID, err := resolveSymbolSelector(snapshot, options.Selector)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
 	}
 	// referenceSubject resolves the start symbol and everything it needs to
 	// be named, so a missing index shows up here rather than twice.
@@ -295,12 +308,13 @@ func findReferences(
 		Truncated:     hasMore,
 		NextCursor:    nextCursor,
 		Coverage:      coverage,
+		Guidance:      referenceGuidance(options.Direction, total, len(results), hasMore),
 		Results:       ReferenceResult{Subject: subject, Direction: options.Direction, References: results},
 	}, nil
 }
 
 func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferencesOptions, error) {
-	stableKey, err := normalizeSymbolStableKey(arguments.StableKey)
+	selector, err := normalizeSymbolSelector(arguments.StableKey, arguments.Repository, arguments.Path, arguments.QualifiedName)
 	if err != nil {
 		return findReferencesOptions{}, err
 	}
@@ -335,8 +349,9 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 		return findReferencesOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("limit must be between 1 and %d", MaximumReferenceLimit))
 	}
 	return findReferencesOptions{
-		StableKey: stableKey, Direction: direction, Repo: repo, Language: language,
+		Selector: selector, Direction: direction, Repo: repo, Language: language,
 		EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
+		Derived: newDerivedFilter(arguments.IncludeDerived, repo),
 	}, nil
 }
 
@@ -439,16 +454,25 @@ func referenceMatches(
 		return false, err
 	}
 	if options.Repo != "" {
-		repositoryKey, ok := snapshot.Strings().String(repository.Key)
+		name, ok := snapshot.Strings().String(repository.Name)
 		if !ok {
-			return false, fmt.Errorf("repository has an invalid stable key: %v", repository)
+			return false, fmt.Errorf("repository has an invalid name: %v", repository)
 		}
-		if repositoryKey != options.Repo {
+		if name != options.Repo {
 			return false, nil
 		}
 	}
 	if options.Language != "" && !containsString(languages, options.Language) {
 		return false, nil
+	}
+	if !options.Derived.keepsAll() {
+		name, ok := snapshot.Strings().String(repository.Name)
+		if !ok {
+			return false, fmt.Errorf("repository has an invalid name: %v", repository)
+		}
+		if !options.Derived.keepsRepository(name) {
+			return false, nil
+		}
 	}
 	return true, nil
 }
@@ -463,7 +487,7 @@ func referenceSummary(
 	decoded decodedReferenceEdge,
 	format string,
 ) (ReferenceSummary, error) {
-	other, file, repositoryKey, languages, err := symbolReferenceLocation(snapshot, otherID)
+	other, file, repository, languages, err := symbolReferenceLocation(snapshot, otherID)
 	if err != nil {
 		return ReferenceSummary{}, err
 	}
@@ -482,13 +506,13 @@ func referenceSummary(
 		return ReferenceSummary{}, err
 	}
 	summary := ReferenceSummary{
-		StableKey:     string(other.StableKey),
 		Name:          name,
 		QualifiedName: qualifiedName,
 		Kind:          kind,
 		Repository:    location.RepositoryName,
 		FilePath:      file.path,
 		StartLine:     other.StartLine,
+		EndLine:       other.EndLine,
 		Language:      firstString(languages),
 		EdgeKind:      string(decoded.Kind),
 		Confidence:    string(decoded.Confidence),
@@ -506,8 +530,11 @@ func referenceSummary(
 		return ReferenceSummary{}, fmt.Errorf("edge evidence %d has an invalid kind", edge.Evidence)
 	}
 	summary.EvidenceKind = evidenceKind
+	summary.StableKey = string(other.StableKey)
 	summary.FileKey = file.key
-	summary.RepositoryKey = repositoryKey
+	// The detailed format restores the derived identifiers, and a repository key
+	// is derived from its name by construction.
+	summary.RepositoryKey = repository.key
 	return summary, nil
 }
 
@@ -547,34 +574,50 @@ type symbolReferenceFile struct {
 	path string
 }
 
+// symbolReferenceRepository is the repository a row belongs to, under both
+// identities the snapshot stores.
+//
+// A row carries the name, because the triple every tool accepts takes a name and
+// a row exists to be reopened; handing back `repository:app` made a caller strip
+// a prefix nobody documented. The key is what the detailed format restores, and
+// it is read rather than derived: the graph stores it, so composing it here would
+// be a second source of truth for the same fact.
+type symbolReferenceRepository struct {
+	name string
+	key  string
+}
+
+// symbolReferenceLocation answers the symbol, its file and its repository.
 func symbolReferenceLocation(
 	snapshot *hotsnapshot.GraphSnapshot,
 	id hotsnapshot.SymbolID,
-) (hotsnapshot.SymbolRecord, symbolReferenceFile, string, []string, error) {
+) (hotsnapshot.SymbolRecord, symbolReferenceFile, symbolReferenceRepository, []string, error) {
 	symbol, found := snapshot.Symbol(id)
 	if !found {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, "", nil, fmt.Errorf("symbol index %d is missing", id)
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol index %d is missing", id)
 	}
 	file, found := snapshot.File(symbol.File)
 	if !found {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, "", nil, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
 	}
 	repository, found := snapshot.Repository(file.Repository)
 	if !found {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, "", nil, fmt.Errorf("symbol %q references missing repository %d", symbol.StableKey, file.Repository)
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references missing repository %d", symbol.StableKey, file.Repository)
 	}
 	table := snapshot.Strings()
 	fileKey, fileKeyOK := table.String(file.Key)
 	filePath, filePathOK := table.String(file.Path)
+	repositoryName, repositoryNameOK := table.String(repository.Name)
 	repositoryKey, repositoryKeyOK := table.String(repository.Key)
-	if !fileKeyOK || !filePathOK || !repositoryKeyOK {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, "", nil, fmt.Errorf("symbol %q references invalid file or repository strings", symbol.StableKey)
+	if !fileKeyOK || !filePathOK || !repositoryNameOK || !repositoryKeyOK {
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references invalid file or repository strings", symbol.StableKey)
 	}
 	languages, err := symbolLanguages(snapshot, symbol, file, repository)
 	if err != nil {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, "", nil, err
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, err
 	}
-	return symbol, symbolReferenceFile{key: fileKey, path: filePath}, repositoryKey, languages, nil
+	return symbol, symbolReferenceFile{key: fileKey, path: filePath},
+		symbolReferenceRepository{name: repositoryName, key: repositoryKey}, languages, nil
 }
 
 func symbolRepositoryAndLanguages(

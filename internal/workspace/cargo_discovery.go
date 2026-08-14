@@ -192,11 +192,21 @@ func ownerWorkspace(
 	}
 
 	if manifest.workspace != nil {
-		// A manifest that declares its own [workspace] is a root, even when a
-		// workspace exists above it. Cargo rejects nesting, and claiming it
-		// from above would publish a membership no build agrees with.
+		// A manifest that declares its own [workspace] is a root. Nesting one
+		// inside another workspace's directory is how an independent tree is
+		// vendored, and Cargo accepts it: the standard library carries
+		// `library/backtrace` exactly like this. What Cargo rejects is a
+		// manifest that is both a root and a member of the workspace above,
+		// which it calls «multiple workspace roots found in the same
+		// workspace», so that is what this rejects too.
 		if ancestor := nearestWorkspace(manifest, workspaces); ancestor != "" {
-			return "", fmt.Errorf("manifest %q declares [workspace] inside the workspace %q", manifest.path, ancestor)
+			claimed, err := workspaceClaimsMember(manifests[ancestor], manifest.directory)
+			if err != nil {
+				return "", err
+			}
+			if claimed {
+				return "", fmt.Errorf("manifest %q is a workspace root and a member of the workspace %q", manifest.path, ancestor)
+			}
 		}
 		return manifest.path, nil
 	}
@@ -234,6 +244,33 @@ func nearestWorkspace(manifest cargoManifest, workspaces map[string]CargoWorkspa
 		}
 	}
 	return nearest
+}
+
+// workspaceClaimsMember reports whether a workspace lists a directory among its
+// members. Cargo matches `members` as glob patterns, so `crates/*` claims every
+// directory below `crates`, and the segment matcher this package already uses
+// for TypeScript wildcards has the same semantics.
+func workspaceClaimsMember(workspace cargoManifest, directory string) (bool, error) {
+	if workspace.workspace == nil {
+		return false, nil
+	}
+	for _, pattern := range workspace.workspace.Members {
+		cleaned := strings.TrimSpace(pattern)
+		if cleaned == "" {
+			continue
+		}
+		candidate := filepath.Join(workspace.directory, filepath.FromSlash(cleaned))
+		if directory == candidate {
+			return true, nil
+		}
+		if !strings.ContainsAny(cleaned, "*?") {
+			continue
+		}
+		if matchGlobSegments(splitAbsolutePathSegments(candidate), splitAbsolutePathSegments(directory)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // workspaceExcludes reports whether a workspace excludes a directory. The

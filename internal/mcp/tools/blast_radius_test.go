@@ -23,7 +23,7 @@ func TestGetBlastRadiusListsAffectedSymbolsAndGroupsThem(t *testing.T) {
 		t.Fatalf("getBlastRadius() error = %v", err)
 	}
 	radius := response.Results
-	if radius.RootKey != "sym-core" || radius.RootRepositoryKey != "repo-core" {
+	if radius.RootKey != "sym-core" || radius.RootRepository != "core" {
 		t.Fatalf("root = %#v", radius)
 	}
 	if radius.Affected != 3 || radius.DeepestDepth != 2 || radius.TraversalTruncated {
@@ -32,21 +32,29 @@ func TestGetBlastRadiusListsAffectedSymbolsAndGroupsThem(t *testing.T) {
 	if response.Total != 3 || response.Returned != 3 || response.Truncated {
 		t.Fatalf("pagination = %#v, want the three affected symbols", response)
 	}
-	wantSymbols := []string{"sym-direct", "sym-loose", "sym-indirect"}
+	wantSymbols := []string{"app.Direct", "core.Loose", "app.Indirect"}
 	for index, symbol := range radius.Symbols {
-		if symbol.StableKey != wantSymbols[index] {
+		if symbol.QualifiedName != wantSymbols[index] {
 			t.Fatalf("symbols = %#v, want %v", radius.Symbols, wantSymbols)
 		}
 	}
 	// The traversal runs incoming, so the symbol a consumer was reached from is
 	// the target of its own edge.
-	if direct := radius.Symbols[0]; direct.ReachedFromKey != "sym-core" || direct.Depth != 1 {
+	if direct := radius.Symbols[0]; direct.ReachedFrom != "core.Core" || direct.Depth != 1 {
 		t.Fatalf("direct consumer = %#v", direct)
 	}
-	if indirect := radius.Symbols[2]; indirect.ReachedFromKey != "sym-direct" || indirect.Depth != 2 {
+	if indirect := radius.Symbols[2]; indirect.ReachedFrom != "app.Direct" || indirect.Depth != 2 {
 		t.Fatalf("indirect consumer = %#v", indirect)
 	}
-	wantRepositories := []BlastRadiusGroup{{Key: "repo-app", Count: 2}, {Key: "repo-core", Count: 1}}
+	for index, symbol := range radius.Symbols {
+		if symbol.FilePath == "" || symbol.EndLine < symbol.StartLine {
+			t.Fatalf("symbol %d = %#v, want a file path and a declaration range", index, symbol)
+		}
+		if symbol.FileKey != "" || symbol.ReachedFromKey != "" {
+			t.Fatalf("symbol %d = %#v, want derived identifiers withheld from the concise format", index, symbol)
+		}
+	}
+	wantRepositories := []BlastRadiusGroup{{Key: "app", Count: 2}, {Key: "core", Count: 1}}
 	if len(radius.ByRepository) != 2 || radius.ByRepository[0] != wantRepositories[0] || radius.ByRepository[1] != wantRepositories[1] {
 		t.Fatalf("by_repository = %#v, want %#v", radius.ByRepository, wantRepositories)
 	}
@@ -131,7 +139,7 @@ func TestGetBlastRadiusPagesSymbolsAndKeepsAxesComplete(t *testing.T) {
 	if second.Returned != 1 || second.Truncated || second.NextCursor != nil {
 		t.Fatalf("second page = %#v, want the final affected symbol", second)
 	}
-	if second.Results.Symbols[0].StableKey != "sym-indirect" || second.Results.Affected != 3 {
+	if second.Results.Symbols[0].QualifiedName != "app.Indirect" || second.Results.Affected != 3 {
 		t.Fatalf("second page = %#v", second.Results)
 	}
 	if len(second.Results.ByPackage) != 2 {
@@ -251,22 +259,22 @@ func blastRadiusStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 	t.Helper()
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
 		Repositories: []hotsnapshot.RepositoryRow{
-			{Key: "repo-core", Name: "core", Languages: "go"},
-			{Key: "repo-app", Name: "app", Languages: "go"},
+			{Key: "core", Name: "core", Languages: "go"},
+			{Key: "app", Name: "app", Languages: "go"},
 		},
 		Packages: []hotsnapshot.PackageRow{
-			{Key: "pkg-core", RepositoryKey: "repo-core", Language: "go", Name: "core", ModulePath: "example.com/core"},
-			{Key: "pkg-app", RepositoryKey: "repo-app", Language: "go", Name: "app", ModulePath: "example.com/app"},
+			{Key: "pkg-core", RepositoryKey: "core", Language: "go", Name: "core", ModulePath: "example.com/core"},
+			{Key: "pkg-app", RepositoryKey: "app", Language: "go", Name: "app", ModulePath: "example.com/app"},
 		},
 		Files: []hotsnapshot.FileRow{
-			{Key: "file-core", RepositoryKey: "repo-core", PackageKey: "pkg-core", Path: "core.go", Language: "go"},
-			{Key: "file-app", RepositoryKey: "repo-app", PackageKey: "pkg-app", Path: "app.go", Language: "go"},
+			{Key: "file-core", RepositoryKey: "core", PackageKey: "pkg-core", Path: "core.go", Language: "go"},
+			{Key: "file-app", RepositoryKey: "app", PackageKey: "pkg-app", Path: "app.go", Language: "go"},
 		},
 		Symbols: []hotsnapshot.SymbolRow{
-			{StableKey: "sym-core", CanonicalIdentity: "go:core.Core", FileKey: "file-core", Language: "go", Name: "Core", QualifiedName: "core.Core", Kind: "func"},
-			{StableKey: "sym-direct", CanonicalIdentity: "go:app.Direct", FileKey: "file-app", Language: "go", Name: "Direct", QualifiedName: "app.Direct", Kind: "func"},
-			{StableKey: "sym-loose", CanonicalIdentity: "go:core.Loose", FileKey: "file-core", Language: "go", Name: "Loose", QualifiedName: "core.Loose", Kind: "func"},
-			{StableKey: "sym-indirect", CanonicalIdentity: "go:app.Indirect", FileKey: "file-app", Language: "go", Name: "Indirect", QualifiedName: "app.Indirect", Kind: "func"},
+			{StableKey: "sym-core", CanonicalIdentity: "go:core.Core", FileKey: "file-core", Language: "go", Name: "Core", QualifiedName: "core.Core", Kind: "func", StartLine: 20, EndLine: 26},
+			{StableKey: "sym-direct", CanonicalIdentity: "go:app.Direct", FileKey: "file-app", Language: "go", Name: "Direct", QualifiedName: "app.Direct", Kind: "func", StartLine: 30, EndLine: 36},
+			{StableKey: "sym-loose", CanonicalIdentity: "go:core.Loose", FileKey: "file-core", Language: "go", Name: "Loose", QualifiedName: "core.Loose", Kind: "func", StartLine: 40, EndLine: 46},
+			{StableKey: "sym-indirect", CanonicalIdentity: "go:app.Indirect", FileKey: "file-app", Language: "go", Name: "Indirect", QualifiedName: "app.Indirect", Kind: "func", StartLine: 50, EndLine: 56},
 		},
 		Edges: []hotsnapshot.EdgeRow{
 			{SourceKey: "sym-direct", TargetKey: "sym-core", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-app", EvidenceTargetFileKey: "file-core"},
@@ -281,4 +289,26 @@ func blastRadiusStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestGetBlastRadiusDetailedFormatRestoresDerivedIdentifiers mirrors the same
+// contract on the impact tool: nothing the concise row withholds is lost.
+func TestGetBlastRadiusDetailedFormatRestoresDerivedIdentifiers(t *testing.T) {
+	store := blastRadiusStore(t, 71)
+	_, response, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{
+		StableKey: "sym-core", ResponseFormat: ResponseFormatDetailed,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results.Symbols) == 0 {
+		t.Fatal("detailed blast radius returned no symbols")
+	}
+	first := response.Results.Symbols[0]
+	if first.FileKey == "" || first.ReachedFromKey != "sym-core" {
+		t.Fatalf("detailed symbol = %#v, want the derived identifiers back", first)
+	}
+	if first.ReachedFrom != "core.Core" || first.EndLine < first.StartLine {
+		t.Fatalf("detailed symbol = %#v, want the concise fields kept as well", first)
+	}
 }

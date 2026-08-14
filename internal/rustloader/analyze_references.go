@@ -54,9 +54,13 @@ type resolution struct {
 	// kind is the published kind of the target when this pass indexed it. A
 	// target resolved through the registry belongs to another repository and
 	// this pass never read its declaration, so the field stays empty.
-	kind   string
-	reason UnresolvedReason
-	detail string
+	kind string
+	// qualifiedName is how the target spells its path. A target of another
+	// repository is composed, not read, so this is the only description of it
+	// this pass can carry to whoever finds out the provider never published it.
+	qualifiedName string
+	reason        UnresolvedReason
+	detail        string
 }
 
 // resolve answers the durable identity of a referenced symbol.
@@ -109,7 +113,12 @@ func (resolver *targetResolver) resolve(identity SymbolIdentity) resolution {
 			detail: "the crate belongs to this repository and the index defines no such declaration",
 		}
 	}
-	return resolution{key: string(key), repository: provider.Repository, crate: identity.Crate}
+	return resolution{
+		key:           string(key),
+		repository:    provider.Repository,
+		crate:         identity.Crate,
+		qualifiedName: identity.QualifiedName(),
+	}
 }
 
 // collectReferences turns the non-definition occurrences of one document into
@@ -185,19 +194,20 @@ func collectReferences(
 		}
 
 		reference := Reference{
-			SourceKey:        sourceKey,
-			TargetKey:        resolved.key,
-			TargetRepository: resolved.repository,
-			Kind:             valueClass(document.source.Reference(startOffset, endOffset), resolved.kind),
-			Use:              document.source.Use(startOffset, endOffset),
-			SourceCrate:      sourceCrate,
-			TargetCrate:      resolved.crate,
-			File:             document.path,
-			StartLine:        int(occurrence.Range.StartLine) + 1,
-			StartColumn:      int(occurrence.Range.StartCharacter),
-			StartOffset:      startOffset,
-			EndOffset:        endOffset,
-			Text:             document.source.Text(startOffset, endOffset),
+			SourceKey:           sourceKey,
+			TargetKey:           resolved.key,
+			TargetRepository:    resolved.repository,
+			TargetQualifiedName: resolved.qualifiedName,
+			Kind:                valueClass(document.source.Reference(startOffset, endOffset), resolved.kind),
+			Use:                 document.source.Use(startOffset, endOffset),
+			SourceCrate:         sourceCrate,
+			TargetCrate:         resolved.crate,
+			File:                document.path,
+			StartLine:           int(occurrence.Range.StartLine) + 1,
+			StartColumn:         int(occurrence.Range.StartCharacter),
+			StartOffset:         startOffset,
+			EndOffset:           endOffset,
+			Text:                document.source.Text(startOffset, endOffset),
 		}
 		analysis.References = append(analysis.References, reference)
 

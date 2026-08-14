@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "tokenizer": "cl100k_base",
+  "repository": "ladygraph",
+  "question": "who calls this symbol, and what do those callers look like",
+  "traversal_root": "MergeAll",
+  "questions": [
+    {
+      "symbol": "MergeAll",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bMergeAll\\b",
+        "path": "internal",
+        "capture": "native/MergeAll.grep.txt"
+      }
+    },
+    {
+      "symbol": "CanonicalColumns",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bCanonicalColumns\\b",
+        "path": "internal",
+        "capture": "native/CanonicalColumns.grep.txt"
+      }
+    },
+    {
+      "symbol": "DiscoverGo",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bDiscoverGo\\b",
+        "path": "internal",
+        "capture": "native/DiscoverGo.grep.txt"
+      }
+    },
+    {
+      "symbol": "BuildPlan",
+      "class": "shared_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bBuildPlan\\b",
+        "path": "internal",
+        "capture": "native/BuildPlan.grep.txt"
+      }
+    },
+    {
+      "symbol": "NewServer",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bNewServer\\b",
+        "path": "internal",
+        "capture": "native/NewServer.grep.txt"
+      }
+    },
+    {
+      "symbol": "Publish",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bPublish\\b",
+        "path": "internal",
+        "capture": "native/Publish.grep.txt"
+      },
+      "repository": "ladygraph",
+      "path": "internal/hotsnapshot/publication.go",
+      "qualified_name": "SnapshotStore.Publish"
+    }
+  ]
+}

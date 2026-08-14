@@ -31,7 +31,7 @@ func analyzeFixture(t *testing.T) Analysis {
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	registry, err := NewCrateRegistry(context.Background(), []workspace.Repository{repository})
+	registry, err := NewCrateRegistry(context.Background(), []workspace.Repository{repository}, nil)
 	if err != nil {
 		t.Fatalf("NewCrateRegistry() error = %v", err)
 	}
@@ -367,7 +367,7 @@ func TestAnalyzeReadsFunctionValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	registry, err := NewCrateRegistry(context.Background(), []workspace.Repository{repository})
+	registry, err := NewCrateRegistry(context.Background(), []workspace.Repository{repository}, nil)
 	if err != nil {
 		t.Fatalf("NewCrateRegistry() error = %v", err)
 	}

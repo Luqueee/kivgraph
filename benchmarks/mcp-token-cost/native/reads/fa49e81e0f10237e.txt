@@ -1,0 +1,10 @@
+[facts.go#54B7]
+472:// key is what keeps one symbol from becoming two nodes.
+473:func (set *Set) Merge(other Set) {
+474:	*set = MergeAll([]Set{*set, other})
+475:}
+476:
+477:// MergeAll merges every set at once, deduplicated by durable key and sorted
+478:// a single time.
+
+[Showing lines 472-478 of 555. Use :479 to continue]

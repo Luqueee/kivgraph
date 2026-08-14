@@ -69,7 +69,38 @@ func validatePaths(ctx context.Context, source config.RepositoriesFile) ([]valid
 	return validated, nil
 }
 
+// SyntheticRepositoryPrefix is the namespace of the providers Ladygraph derives
+// from the machine instead of from `repositories.yaml`. The standard library of
+// a Rust toolchain is registered as `rust:1.96.1`.
+//
+// The namespace is reserved at registration, and that is what makes the name
+// authoritative: nothing else in the graph can be called this, so a consumer
+// can tell a derived provider from an indexed repository without a second
+// column to carry the answer.
+const SyntheticRepositoryPrefix = "rust:"
+
+// IsSyntheticRepository reports whether a repository name belongs to the
+// reserved namespace.
+func IsSyntheticRepository(name string) bool {
+	return strings.HasPrefix(strings.TrimSpace(name), SyntheticRepositoryPrefix)
+}
+
+// validateRepositoryName checks a name a user chose, which may not take the
+// reserved namespace.
 func validateRepositoryName(name string) error {
+	if err := validateRepositoryIdentifier(name); err != nil {
+		return err
+	}
+	if IsSyntheticRepository(name) {
+		return fmt.Errorf("name %q is reserved: the %q namespace names the providers Ladygraph derives from the toolchain",
+			name, SyntheticRepositoryPrefix)
+	}
+	return nil
+}
+
+// validateRepositoryIdentifier checks the shape every repository name has,
+// including the synthetic ones this package mints itself.
+func validateRepositoryIdentifier(name string) error {
 	if name == "" {
 		return fmt.Errorf("name must not be empty")
 	}
@@ -91,7 +122,7 @@ func inspectRepositoryPath(rawPath string) (string, string, error) {
 	if !info.IsDir() {
 		return "", "", fmt.Errorf("path %q is not a directory", path)
 	}
-	if symlink, err := firstSymlink(path); err != nil {
+	if symlink, err := FirstSymlink(path); err != nil {
 		return "", "", fmt.Errorf("inspect symlinks for %q: %w", path, err)
 	} else if symlink != "" {
 		return "", "", fmt.Errorf("path %q contains symlink component %q", path, symlink)
@@ -124,7 +155,14 @@ func validateDirectoryPermissions(path string, info os.FileInfo) error {
 	return nil
 }
 
-func firstSymlink(path string) (string, error) {
+// FirstSymlink returns the first component of path that is a symbolic link,
+// walking from the filesystem root inwards, or the empty string when none is.
+//
+// It is exported because two layers enforce the same policy for the same reason:
+// this package refuses to index through a link, and the MCP surface refuses to
+// serve bytes through one. Duplicating four lines of a security check is how two
+// copies of it end up disagreeing.
+func FirstSymlink(path string) (string, error) {
 	path = filepath.Clean(path)
 	components := make([]string, 0, 8)
 	for current := path; ; current = filepath.Dir(current) {
@@ -184,7 +222,7 @@ func validateScopedPath(base, rawPath string) error {
 	}
 
 	if _, err := os.Lstat(candidate); err == nil {
-		if symlink, err := firstSymlink(candidate); err != nil {
+		if symlink, err := FirstSymlink(candidate); err != nil {
 			return fmt.Errorf("inspect symlinks for %q: %w", rawPath, err)
 		} else if symlink != "" {
 			return fmt.Errorf("path %q contains symlink component %q", rawPath, symlink)
@@ -235,7 +273,7 @@ func pathWithin(parent, child string) bool {
 // a repository. A symlink component is rejected rather than resolved: the
 // resolution would change which file the facts describe.
 func validateContainedPath(repositoryRoot, target string) (string, error) {
-	if symlink, err := firstSymlink(target); err != nil {
+	if symlink, err := FirstSymlink(target); err != nil {
 		return "", fmt.Errorf("inspect symlinks for %q: %w", target, err)
 	} else if symlink != "" {
 		return "", fmt.Errorf("path %q contains symlink component %q", target, symlink)

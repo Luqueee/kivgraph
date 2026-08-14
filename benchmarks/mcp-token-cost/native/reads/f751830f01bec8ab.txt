@@ -1,0 +1,33 @@
+[main.go#F0C8]
+1301:// Reporting only the PATH toolchain invites the opposite conclusion.
+1302:func reportGoLanguageCeiling(report func(string, bool, string), repositories []workspace.Repository) {
+1303:	ceiling := goworkspace.LanguageVersion()
+1304:	if ceiling == "" {
+1305:		report("toolchain.typecheck", true, "unknown")
+1306:		return
+1307:	}
+1308:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+1309:	if err != nil {
+1310:		if errors.Is(err, goworkspace.ErrGoVersionUnsupported) {
+1311:			report("toolchain.typecheck", false, err.Error())
+1312:			return
+1313:		}
+1314:		// Everything else -- an ambiguous module, an unreadable
+1315:		// manifest -- belongs to the index, which reports it with its
+1316:		// own context. This check answers one question only.
+1317:		report("toolchain.typecheck", true, "go "+ceiling)
+1318:		return
+1319:	}
+1320:	highest := ceiling
+1321:	for _, module := range plan.Modules {
+1322:		if version := strings.TrimSpace(module.GoVersion); version != "" && semver.Compare("v"+version, "v"+highest) > 0 {
+1323:			highest = version
+1324:		}
+1325:	}
+1326:	report("toolchain.typecheck", true, fmt.Sprintf("go %s (highest registered module: go %s)", ceiling, highest))
+1327:}
+1328:
+1329:// factCacheStateParent answers where the fact cache will live. The directory
+1330:// itself is created by the first pass that uses it, so what doctor can check
+
+[Showing lines 1301-1330 of 1981. Use :1331 to continue]

@@ -1,0 +1,97 @@
+[precision.go#46B3]
+162:
+163:func measurePrecisionCase(
+164:	ctx context.Context,
+165:	root string,
+166:	testCase precisionCase,
+167:) (PrecisionCaseReport, error) {
+168:	repository := func(name string) workspace.Repository {
+169:		path := filepath.Join(root, testCase.fixture, name)
+170:		return workspace.Repository{Name: name, Path: path, RealPath: path}
+171:	}
+172:	workspaceRepositories := make([]workspace.Repository, 0, len(testCase.workspaceRepositories))
+173:	for _, name := range testCase.workspaceRepositories {
+174:		workspaceRepositories = append(workspaceRepositories, repository(name))
+175:	}
+176:	registryRepositories := make([]workspace.Repository, 0, len(testCase.registryRepositories))
+177:	for _, name := range testCase.registryRepositories {
+178:		registryRepositories = append(registryRepositories, repository(name))
+179:	}
+180:
+181:	plan, err := goworkspace.BuildPlan(ctx, workspaceRepositories, goworkspace.Options{})
+182:	if err != nil {
+183:		return PrecisionCaseReport{}, fmt.Errorf("case %q workspace: %w", testCase.name, err)
+184:	}
+185:	workFile, cleanup, err := temporaryWorkspace(ctx, plan, workspaceRepositories)
+186:	if err != nil {
+187:		return PrecisionCaseReport{}, fmt.Errorf("case %q workspace file: %w", testCase.name, err)
+188:	}
+189:	defer cleanup()
+190:
+191:	consumer := repository(testCase.consumer)
+192:	result, err := Load(ctx, Options{Directory: consumer.Path, WorkFile: workFile})
+193:	if err != nil {
+194:		return PrecisionCaseReport{}, fmt.Errorf("case %q load: %w", testCase.name, err)
+195:	}
+196:	uses, err := ExtractUses(ctx, result, UseOptions{Repository: consumer.Name})
+197:	if err != nil {
+198:		return PrecisionCaseReport{}, fmt.Errorf("case %q uses: %w", testCase.name, err)
+199:	}
+200:	references, err := ClassifyReferences(ctx, result, uses)
+201:	if err != nil {
+202:		return PrecisionCaseReport{}, fmt.Errorf("case %q references: %w", testCase.name, err)
+203:	}
+204:	registry, err := NewModuleRegistry(ctx, registryRepositories)
+205:	if err != nil {
+206:		return PrecisionCaseReport{}, fmt.Errorf("case %q registry: %w", testCase.name, err)
+207:	}
+208:	cross, err := ResolveCrossRepository(ctx, uses, registry, CrossRepositoryOptions{
+209:		ConsumerRepository: consumer.Name,
+210:	})
+211:	if err != nil {
+212:		return PrecisionCaseReport{}, fmt.Errorf("case %q cross-repository: %w", testCase.name, err)
+213:	}
+214:	unresolved, err := ClassifyUnresolved(ctx, result, cross, UnresolvedOptions{
+215:		Repository:         consumer.Name,
+216:		WorkspaceConflicts: plan.Conflicts,
+217:	})
+218:	if err != nil {
+219:		return PrecisionCaseReport{}, fmt.Errorf("case %q unresolved: %w", testCase.name, err)
+220:	}
+221:
+222:	observedEdges := observedPrecisionEdges(references, cross)
+223:	observedUnresolved := make([]string, 0, len(unresolved))
+224:	for _, entry := range unresolved {
+225:		observedUnresolved = append(observedUnresolved,
+226:			fmt.Sprintf("%s:%s:%s", entry.Reason, entry.RequestedModulePath, entry.RequestedSymbol))
+227:	}
+228:
+229:	missingEdges, unexpectedEdges := difference(testCase.expectedEdges, observedEdges)
+230:	missingUnresolved, unexpectedUnresolved := difference(testCase.expectedUnresolved, observedUnresolved)
+231:	truePositives := len(testCase.expectedEdges) - len(missingEdges)
+232:
+233:	return PrecisionCaseReport{
+234:		Name: testCase.name,
+235:		Metrics: PrecisionMetrics{
+236:			ExpectedEdges:                 len(testCase.expectedEdges),
+237:			TruePositives:                 truePositives,
+238:			FalsePositives:                len(unexpectedEdges),
+239:			FalseNegatives:                len(missingEdges),
+240:			Precision:                     ratio(truePositives, truePositives+len(unexpectedEdges)),
+241:			Recall:                        ratio(truePositives, len(testCase.expectedEdges)),
+242:			FalseExactEdges:               len(unexpectedEdges),
+243:			ExpectedUnresolved:            len(testCase.expectedUnresolved),
+244:			UnresolvedCorrectlyClassified: len(testCase.expectedUnresolved) - len(missingUnresolved),
+245:			UnresolvedMisclassified:       len(missingUnresolved) + len(unexpectedUnresolved),
+246:		},
+247:		MissingEdges:         missingEdges,
+248:		UnexpectedEdges:      unexpectedEdges,
+249:		MissingUnresolved:    missingUnresolved,
+250:		UnexpectedUnresolved: unexpectedUnresolved,
+251:	}, nil
+252:}
+253:
+254:// observedPrecisionEdges renders every resolved cross-repository edge with the
+255:// classification of its occurrence.
+
+[Showing lines 162-255 of 379. Use :256 to continue]

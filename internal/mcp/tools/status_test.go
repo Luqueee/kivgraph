@@ -60,14 +60,7 @@ func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
 		t.Fatalf("CallTool() returned an error result: %#v", result.Content)
 	}
 
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[GraphStatus]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
+	response := decodeResponse[GraphStatus](t, result)
 	status := response.Results
 	if status.Status != "empty" || status.Repositories != 0 || status.Symbols != 0 || status.Edges != 0 {
 		t.Fatalf("graph status = %#v, want empty response", status)

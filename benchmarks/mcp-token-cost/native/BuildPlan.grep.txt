@@ -1,0 +1,198 @@
+# internal/
+
+## facts/
+### golang_test.go#32A6
+ 33:	repositories := fixtureRepositories(t)
+*34:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 35:	if err != nil {
+*36:		t.Fatalf("BuildPlan() error = %v", err)
+ 37:	}
+ 38:	workFile := filepath.Join(t.TempDir(), "go.work")
+ 39:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
+
+## goloader/
+### crossrepo_test.go#FDA7
+ 81:	// module path cannot be used twice by go itself.
+*82:	plan, err := goworkspace.BuildPlan(context.Background(), repositories[:2], goworkspace.Options{})
+ 83:	if err != nil {
+*84:		t.Fatalf("BuildPlan() error = %v", err)
+ 85:	}
+ 86:	workFile := filepath.Join(root, "state", "go.work")
+ 87:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories[:2]); err != nil {
+...
+ 297:	}
+*298:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 299:	if err != nil {
+*300:		t.Fatalf("BuildPlan() error = %v", err)
+ 301:	}
+ 302:	workFile := filepath.Join(root, "state", "go.work")
+ 303:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
+### fixture_negative_test.go#598A
+ 48:
+*49:	plan, err := goworkspace.BuildPlan(context.Background(), workspaceRepositories, goworkspace.Options{})
+ 50:	if err != nil {
+*51:		t.Fatalf("BuildPlan() error = %v", err)
+ 52:	}
+ 53:	workFile := filepath.Join(testsupport.TempDir(t), "state", "go.work")
+ 54:	if _, err := goworkspace.Write(context.Background(), workFile, plan, workspaceRepositories); err != nil {
+### fixture_positive_test.go#0FC1
+ 34:	t.Helper()
+*35:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 36:	if err != nil {
+*37:		t.Fatalf("BuildPlan() error = %v", err)
+ 38:	}
+ 39:	if len(plan.Conflicts) != 0 {
+ 40:		t.Fatalf("fixture workspace has conflicts: %#v", plan.Conflicts)
+### loader_test.go#D513
+ 352:	}
+*353:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 354:	if err != nil {
+*355:		t.Fatalf("BuildPlan() error = %v", err)
+ 356:	}
+ 357:	target := filepath.Join(root, "state", "go.work")
+ 358:	if _, err := goworkspace.Write(context.Background(), target, plan, repositories); err != nil {
+### precision.go#46B3
+ 180:
+*181:	plan, err := goworkspace.BuildPlan(ctx, workspaceRepositories, goworkspace.Options{})
+ 182:	if err != nil {
+ 183:		return PrecisionCaseReport{}, fmt.Errorf("case %q workspace: %w", testCase.name, err)
+ 184:	}
+### unresolved_test.go#5AE6
+ 81:	}
+*82:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 83:	if err != nil {
+*84:		t.Fatalf("BuildPlan() error = %v", err)
+ 85:	}
+ 86:	workFile := filepath.Join(root, "state", "go.work")
+ 87:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
+
+## goworkspace/
+### synthetic.go#D737
+ 113:
+*114:// BuildPlan discovers every Go module of the registered repositories and
+ 115:// composes the workspace content without writing anything.
+ 116://
+ 117:// Ambiguous module paths and incompatible replacements are excluded and
+...
+ 119:// same module, and a replacement Ladygraph cannot decide must never be guessed.
+*120:func BuildPlan(ctx context.Context, repositories []workspace.Repository, options Options) (Plan, error) {
+ 121:	if ctx == nil {
+ 122:		ctx = context.Background()
+ 123:	}
+### synthetic_test.go#A027
+ 33:
+*34:	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+ 35:		{Name: "first", Path: first, RealPath: first},
+ 36:		{Name: "second", Path: second, RealPath: second},
+ 37:	}, Options{})
+ 38:	if err != nil {
+*39:		t.Fatalf("BuildPlan() error = %v", err)
+ 40:	}
+ 41:
+ 42:	if plan.GoVersion != "1.24" {
+...
+ 97:
+*98:	_, err := BuildPlan(context.Background(), []workspace.Repository{
+ 99:		{Name: "current", Path: current, RealPath: current},
+ 100:		{Name: "future", Path: future, RealPath: future},
+ 101:	}, Options{})
+ 102:	if !errors.Is(err, ErrGoVersionUnsupported) {
+*103:		t.Fatalf("BuildPlan() error = %v, want ErrGoVersionUnsupported", err)
+ 104:	}
+ 105:	for _, want := range []string{"future", "example.com/future", "1.99.0"} {
+ 106:		if !strings.Contains(err.Error(), want) {
+...
+ 123:
+*124:	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+ 125:		{Name: "patch", Path: module, RealPath: module},
+ 126:	}, Options{MaximumGoVersion: "1.30.1"})
+ 127:	if err != nil {
+*128:		t.Fatalf("BuildPlan() error = %v", err)
+ 129:	}
+ 130:	if plan.GoVersion != "1.30.9" {
+ 131:		t.Fatalf("GoVersion = %q, want the version declared by the member", plan.GoVersion)
+...
+ 158:
+*159:	plan, err := BuildPlan(context.Background(), []workspace.Repository{{
+ 160:		Name: "root", Path: root, RealPath: root, Exclusions: []string{"**/benchmarks"},
+ 161:	}}, Options{})
+ 162:	if err != nil {
+*163:		t.Fatalf("BuildPlan() error = %v", err)
+ 164:	}
+ 165:	if len(plan.Modules) != 1 || !equalStrings(plan.Modules[0].PackagePatterns, []string{"example.com/root"}) {
+ 166:		t.Fatalf("package patterns = %#v, want only the included package", plan.Modules)
+...
+ 188:
+*189:	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+ 190:		{Name: "left", Path: left, RealPath: left},
+ 191:		{Name: "right", Path: right, RealPath: right},
+ 192:		{Name: "consumer", Path: consumer, RealPath: consumer},
+...
+ 194:	if err != nil {
+*195:		t.Fatalf("BuildPlan() error = %v", err)
+ 196:	}
+ 197:
+ 198:	if got := modulePaths(plan); !equalStrings(got, []string{"example.com/consumer"}) {
+...
+ 236:
+*237:	plan, err := BuildPlan(context.Background(), []workspace.Repository{{
+ 238:		Name: "repo", Path: root, RealPath: root,
+ 239:	}}, Options{})
+ 240:	if err != nil {
+*241:		t.Fatalf("BuildPlan() error = %v", err)
+ 242:	}
+ 243:	if got := modulePaths(plan); !equalStrings(got, []string{"example.com/unique"}) {
+ 244:		t.Fatalf("modules = %v, want only the unambiguous module", got)
+...
+ 268:	// for it would shadow the very module the workspace loads from disk.
+*269:	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+ 270:		{Name: "provider", Path: provider, RealPath: provider},
+ 271:		{Name: "consumer", Path: consumer, RealPath: consumer},
+ 272:	}, Options{})
+ 273:	if err != nil {
+*274:		t.Fatalf("BuildPlan() error = %v", err)
+ 275:	}
+ 276:	if len(plan.Replaces) != 0 {
+ 277:		t.Fatalf("replaces = %#v, want none: use already provides the module", plan.Replaces)
+...
+ 285:	empty := testsupport.TempDir(t)
+*286:	_, err := BuildPlan(context.Background(), []workspace.Repository{
+ 287:		{Name: "empty", Path: empty, RealPath: empty},
+ 288:	}, Options{})
+ 289:	if !errors.Is(err, ErrNoModules) {
+*290:		t.Fatalf("BuildPlan() error = %v, want ErrNoModules", err)
+ 291:	}
+ 292:}
+ 293:
+...
+ 300:	repositories := []workspace.Repository{{Name: "module", Path: module, RealPath: module}}
+*301:	plan, err := BuildPlan(context.Background(), repositories, Options{})
+ 302:	if err != nil {
+*303:		t.Fatalf("BuildPlan() error = %v", err)
+ 304:	}
+ 305:
+ 306:	state := filepath.Join(root, "state", "ladygraph")
+...
+ 346:	repositories := []workspace.Repository{{Name: "module", Path: module, RealPath: module}}
+*347:	plan, err := BuildPlan(context.Background(), repositories, Options{})
+ 348:	if err != nil {
+*349:		t.Fatalf("BuildPlan() error = %v", err)
+ 350:	}
+ 351:
+ 352:	target := filepath.Join(module, "go.work")
+### toolchain_test.go#C864
+ 40:	}
+*41:	plan, err := BuildPlan(context.Background(), repositories, Options{})
+ 42:	if err != nil {
+*43:		t.Fatalf("BuildPlan() error = %v", err)
+ 44:	}
+ 45:	target := filepath.Join(root, "state", "go.work")
+ 46:	if _, err := Write(context.Background(), target, plan, repositories); err != nil {
+
+## indexer/
+### full.go#0C80
+ 246:		}
+*247:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
+ 248:		if err != nil {
+ 249:			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
+ 250:		}

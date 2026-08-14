@@ -1,0 +1,84 @@
+# internal/
+
+## goloader/
+### crossrepo.go#B08C
+ 65:		}
+*66:		discovery, err := workspace.DiscoverGo(ctx, repository)
+ 67:		if err != nil {
+ 68:			return nil, fmt.Errorf("repository %q Go modules: %w", name, err)
+ 69:		}
+
+## goworkspace/
+### synthetic.go#D737
+ 137:		}
+*138:		discovery, err := workspace.DiscoverGo(ctx, repository)
+ 139:		if err != nil {
+ 140:			return Plan{}, fmt.Errorf("repository %q Go modules: %w", name, err)
+ 141:		}
+
+## workspace/
+### go_discovery.go#D1E1
+ 21:
+*22:// DiscoverGo finds go.mod, go.sum, go.work, Go packages and replace
+ 23:// directives below a repository root. Results are deterministic and use
+ 24:// absolute, canonical paths.
+*25:func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error) {
+ 26:	if ctx == nil {
+ 27:		ctx = context.Background()
+ 28:	}
+### go_discovery_test.go#A9F0
+ 48:
+*49:	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+ 50:	if err != nil {
+*51:		t.Fatalf("DiscoverGo() error = %v", err)
+ 52:	}
+ 53:	if len(discovery.Modules) != 2 {
+ 54:		t.Fatalf("Modules = %#v, want two modules", discovery.Modules)
+...
+ 122:
+*123:	discovery, err := DiscoverGo(context.Background(), Repository{
+ 124:		RealPath: root, Exclusions: []string{"**/benchmarks"},
+ 125:	})
+ 126:	if err != nil {
+*127:		t.Fatalf("DiscoverGo() error = %v", err)
+ 128:	}
+ 129:	if len(discovery.Packages) != 1 || discovery.Packages[0].Directory != root {
+ 130:		t.Fatalf("Packages = %#v, want only the repository package", discovery.Packages)
+...
+ 169:			writeGoDiscoveryFile(t, filepath.Join(root, test.filename), test.contents)
+*170:			_, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+ 171:			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+*172:				t.Fatalf("DiscoverGo() error = %v, want substring %q", err, test.wantError)
+ 173:			}
+ 174:		})
+ 175:	}
+...
+ 180:		writeGoDiscoveryFile(t, filepath.Join(root, "two.go"), "package two\n")
+*181:		_, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+ 182:		if err == nil || !strings.Contains(err.Error(), "contains multiple Go packages") {
+*183:			t.Fatalf("DiscoverGo() error = %v, want multiple package error", err)
+ 184:		}
+ 185:	})
+ 186:}
+...
+ 196:	}
+*197:	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+ 198:	if err != nil {
+*199:		t.Fatalf("DiscoverGo() error = %v", err)
+ 200:	}
+ 201:	if len(discovery.Modules) != 0 || len(discovery.Packages) != 0 {
+ 202:		t.Fatalf("discovery followed symlink: %#v", discovery)
+...
+ 208:	cancel()
+*209:	_, err := DiscoverGo(ctx, Repository{RealPath: testsupport.TempDir(t)})
+ 210:	if !errors.Is(err, context.Canceled) {
+*211:		t.Fatalf("DiscoverGo(canceled) error = %v, want context.Canceled", err)
+ 212:	}
+ 213:}
+ 214:
+### go_registry.go#3BD3
+ 36:	}
+*37:	discovery, err := DiscoverGo(ctx, repository)
+ 38:	if err != nil {
+ 39:		return nil, err
+ 40:	}

@@ -1,0 +1,33 @@
+[facts.go#54B7]
+483:// the largest single source of garbage in a full index.
+484:func MergeAll(sets []Set) Set {
+485:	merged := Set{
+486:		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
+487:			func(value Repository) string { return value.Key }),
+488:		Packages: mergeAllBy(sets, func(set Set) []Package { return set.Packages },
+489:			func(value Package) string { return value.Key }),
+490:		Files: mergeAllBy(sets, func(set Set) []File { return set.Files },
+491:			func(value File) string { return value.Key }),
+492:		Symbols: mergeAllBy(sets, func(set Set) []Symbol { return set.Symbols },
+493:			func(value Symbol) string { return value.Key }),
+494:		Evidence: mergeAllBy(sets, func(set Set) []Evidence { return set.Evidence },
+495:			func(value Evidence) string { return value.Key }),
+496:		Edges: mergeAllBy(sets, func(set Set) []Edge { return set.Edges }, edgeIdentityOf),
+497:		Unresolved: mergeAllBy(sets, func(set Set) []UnresolvedReference { return set.Unresolved },
+498:			func(value UnresolvedReference) unresolvedIdentity {
+499:				return unresolvedIdentity{
+500:					file: value.FileKey, reason: value.Reason,
+501:					requestedPackage: value.RequestedPackage,
+502:					requestedSymbol:  value.RequestedSymbol,
+503:					offset:           value.Start.Offset,
+504:				}
+505:			}),
+506:	}
+507:	merged.Sort()
+508:	return merged
+509:}
+510:
+511:// edgeIdentity and unresolvedIdentity are what makes two facts the same fact:
+512:// the tuple Merge deduplicates on, and the one Delta checks for duplicates
+
+[Showing lines 483-512 of 555. Use :513 to continue]

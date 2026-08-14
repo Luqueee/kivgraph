@@ -96,12 +96,13 @@ func querySymbol(t *testing.T, session *sdkmcp.ClientSession) string {
 	if result.IsError {
 		t.Fatalf("get_symbol returned an error: %s", contentText(result))
 	}
-	encoded, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
+	// The tools answer in one channel: the text block. A test that read
+	// structuredContent would compare a copy the server no longer sends.
+	if result.StructuredContent != nil {
+		t.Fatalf("get_symbol carries structuredContent as well as text: %#v", result.StructuredContent)
 	}
 	var response tools.Response[tools.SymbolDetails]
-	if err := json.Unmarshal(encoded, &response); err != nil {
+	if err := json.Unmarshal([]byte(contentText(result)), &response); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
 	// snapshot_age_ms grows between calls by design; everything else must be

@@ -1,0 +1,95 @@
+# internal/storage/ladybug/
+## canonical_load.go#A562
+ 26:
+*27:// CanonicalColumns returns the CSV column order of one canonical table.
+ 28:// Node tables start with the primary key; relationship tables start with the
+ 29:// source key and the target key, which is what LadybugDB COPY expects.
+*30:func CanonicalColumns(table string) ([]string, bool) {
+ 31:	for _, node := range CanonicalNodeTables() {
+ 32:		if node.Name != table {
+ 33:			continue
+...
+ 59:func columnsOrError(table string) ([]string, error) {
+*60:	columns, exists := CanonicalColumns(table)
+ 61:	if !exists {
+ 62:		return nil, fmt.Errorf("%w: canonical schema has no table %q", ErrInvalidCanonicalLoad, table)
+ 63:	}
+...
+ 239:	// The columns of a kind are resolved once, and the snapshot rendered
+*240:	// once: CanonicalColumns rebuilds the entire schema on every call, and
+ 241:	// the graph holds one edge per reference in the corpus.
+ 242:	snapshot := strconv.FormatInt(options.SnapshotID, 10)
+ 243:	edgesByKind := make(map[facts.EdgeKind]int)
+...
+ 248:	for kind := range edgesByKind {
+*249:		columns, exists := CanonicalColumns(string(kind))
+ 250:		if !exists {
+ 251:			return nil, fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, kind)
+ 252:		}
+## canonical_load_native.go#D942
+ 270:		}
+*271:		columns, exists := CanonicalColumns(name)
+ 272:		if !exists {
+ 273:			return nil, fmt.Errorf("%w: table %q has no declared column order", ErrInvalidCanonicalLoad, name)
+ 274:		}
+## canonical_load_test.go#008B
+ 13:// TestCanonicalColumnsMatchesSchemaMetadata is the parity invariant with the
+*14:// schema: CanonicalColumns must not hand LoadCanonical an order that
+ 15:// disagrees with what CanonicalNodeTables/CanonicalRelationshipTables define.
+ 16:func TestCanonicalColumnsMatchesSchemaMetadata(t *testing.T) {
+ 17:	for _, node := range CanonicalNodeTables() {
+ 18:		want := append([]string{node.PrimaryKey.Name}, propertyNames(node.Properties)...)
+*19:		got, exists := CanonicalColumns(node.Name)
+ 20:		if !exists {
+*21:			t.Fatalf("CanonicalColumns(%q) not found", node.Name)
+ 22:		}
+ 23:		if !reflect.DeepEqual(got, want) {
+*24:			t.Fatalf("CanonicalColumns(%q) = %v, want %v", node.Name, got, want)
+ 25:		}
+ 26:	}
+ 27:
+...
+ 29:		want := append([]string{"from", "to"}, propertyNames(relationship.Properties)...)
+*30:		got, exists := CanonicalColumns(relationship.Name)
+ 31:		if !exists {
+*32:			t.Fatalf("CanonicalColumns(%q) not found", relationship.Name)
+ 33:		}
+ 34:		if !reflect.DeepEqual(got, want) {
+*35:			t.Fatalf("CanonicalColumns(%q) = %v, want %v", relationship.Name, got, want)
+ 36:		}
+ 37:	}
+ 38:
+*39:	if _, exists := CanonicalColumns("NotACanonicalTable"); exists {
+*40:		t.Fatalf("CanonicalColumns(unknown table) reported exists = true")
+ 41:	}
+ 42:}
+ 43:
+...
+ 88:// TestCanonicalTableRowsRendersFieldsInSchemaOrder is the round trip that
+*89:// matters: every field must land under the column CanonicalColumns says it
+ 90:// should, with BOOL as true/false and INT64 in base 10.
+ 91:func TestCanonicalTableRowsRendersFieldsInSchemaOrder(t *testing.T) {
+ 92:	fixture := newRichFixture()
+...
+ 395:	t.Helper()
+*396:	columns, exists := CanonicalColumns(table)
+ 397:	if !exists {
+*398:		t.Fatalf("CanonicalColumns(%q) missing", table)
+ 399:	}
+ 400:	index := -1
+ 401:	for candidateIndex, name := range columns {
+...
+ 420:	t.Helper()
+*421:	columns, exists := CanonicalColumns(table)
+ 422:	if !exists {
+*423:		t.Fatalf("CanonicalColumns(%q) missing", table)
+ 424:	}
+ 425:	if len(row) != len(columns) {
+ 426:		t.Fatalf("%s row has %d fields %v, want %d matching columns %v", table, len(row), row, len(columns), columns)
+## canonical_mutation.go#140E
+ 214:// canonicalColumnTypes returns the declared LadybugDB type ("STRING",
+*215:// "INT64" or "BOOL") of every column CanonicalColumns(table) would render
+*216:// for table, keyed by column name. CanonicalColumns itself intentionally
+ 217:// drops this information -- a CSV column is text regardless of the type it
+ 218:// loads into -- but a Cypher UNWIND row needs it back: ON CREATE/ON MATCH
+ 219:// SET rejects an implicit STRING -> INT64 cast from a struct field

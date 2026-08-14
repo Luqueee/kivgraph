@@ -45,7 +45,9 @@ type FullOptions struct {
 	RustIncludeTests      bool
 	RustAllowNetwork      bool
 	RustSysroot           string
-	WorkingDirectory      string
+	// RustIndexSysroot asks for the standard library in the graph.
+	RustIndexSysroot bool
+	WorkingDirectory string
 	// CacheMode and CacheDirectory configure the fact cache: whether a
 	// unit may be served from the facts a previous pass stored, and where
 	// those entries live.
@@ -90,6 +92,7 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 		RustIncludeTests:         configuration.Rust.IncludeTests,
 		RustAllowNetwork:         configuration.Rust.AllowNetwork,
 		RustSysroot:              configuration.Rust.Sysroot,
+		RustIndexSysroot:         configuration.Rust.IndexSysroot,
 		CacheMode:                indexer.CacheMode(configuration.Indexing.FactCache),
 		CacheDirectory:           configuration.Indexing.FactCachePath,
 		Root:                     filepath.Dir(configuration.Storage.DatabasePath),
@@ -151,6 +154,7 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		RustIncludeTests:         options.RustIncludeTests,
 		RustAllowNetwork:         options.RustAllowNetwork,
 		RustSysroot:              options.RustSysroot,
+		RustIndexSysroot:         options.RustIndexSysroot,
 		WorkingDirectory:         options.WorkingDirectory,
 		CacheMode:                options.CacheMode,
 		CacheDirectory:           options.CacheDirectory,

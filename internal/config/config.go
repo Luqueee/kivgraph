@@ -191,7 +191,20 @@ type RustConfig struct {
 	TargetDirectory string `yaml:"target_directory"`
 	// Sysroot is `discover`, `none`, or a path. Without a sysroot the
 	// standard library is absent and the proc-macro server cannot start.
+	//
+	// It says where the standard library is, never whether it enters the
+	// graph: loading it is what lets the analyzer resolve `Vec` at all, and
+	// that is needed even when nothing about `core` is published.
 	Sysroot string `yaml:"sysroot"`
+	// IndexSysroot publishes the standard library as a synthetic provider
+	// repository named after the toolchain release. It is off by default
+	// because it multiplies the symbols of a graph by an order of magnitude:
+	// one toolchain is around 350.000 monikers and half a minute of indexing.
+	//
+	// With it off, a `#[derive]`, an overloaded operator, a `?` and every call
+	// into the standard library leave no edge, and the pass says so. With it
+	// on, they resolve to the crate that declares them.
+	IndexSysroot bool `yaml:"index_sysroot"`
 }
 
 // TelemetryConfig controls metrics and tracing.

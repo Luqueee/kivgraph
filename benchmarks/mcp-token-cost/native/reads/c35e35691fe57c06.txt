@@ -1,0 +1,10 @@
+[server.go#DC4C]
+17:// NewServer creates the Ladygraph MCP server with no graph source.
+18:func NewServer() *sdkmcp.Server {
+19:	return newServer(nil, nil, nil)
+20:}
+21:
+22:// NewServerWithIndexer creates a server that also exposes the explicit
+23:// permission-gated index_project mutation.
+
+[Showing lines 17-23 of 195. Use :24 to continue]

@@ -1,0 +1,81 @@
+[go_discovery.go#D1E1]
+24:// absolute, canonical paths.
+25:func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error) {
+26:	if ctx == nil {
+27:		ctx = context.Background()
+28:	}
+29:	if err := ctx.Err(); err != nil {
+30:		return GoDiscovery{}, err
+31:	}
+32:	rootInput := repository.RealPath
+33:	if strings.TrimSpace(rootInput) == "" {
+34:		rootInput = repository.Path
+35:	}
+36:	_, root, err := inspectRepositoryPath(rootInput)
+37:	if err != nil {
+38:		return GoDiscovery{}, fmt.Errorf("discover Go root: %w", err)
+39:	}
+40:
+41:	modules := make(map[string]GoModule)
+42:	workspaces := make(map[string]GoWorkspace)
+43:	sumFiles := make(map[string]struct{})
+44:	goFiles := make(map[string][]string)
+45:	err = walkGoFiles(ctx, root, root, repository.Exclusions, func(filePath string) error {
+46:		if err := ctx.Err(); err != nil {
+47:			return err
+48:		}
+49:		switch filepath.Base(filePath) {
+50:		case "go.mod":
+51:			parsed, err := parseGoModule(filePath, root)
+52:			if err != nil {
+53:				return fmt.Errorf("parse module manifest %q: %w", filePath, err)
+54:			}
+55:			modules[parsed.module.ManifestPath] = parsed.module
+56:			if parsed.module.SumPath != "" {
+57:				sumFiles[parsed.module.SumPath] = struct{}{}
+58:			}
+59:		case "go.sum":
+60:			sumFiles[filePath] = struct{}{}
+61:		case "go.work":
+62:			parsed, err := parseGoWorkspace(filePath, root)
+63:			if err != nil {
+64:				return fmt.Errorf("parse workspace manifest %q: %w", filePath, err)
+65:			}
+66:			workspaces[parsed.workspace.Path] = parsed.workspace
+67:		default:
+68:			if strings.HasSuffix(filepath.Base(filePath), ".go") {
+69:				directory := filepath.Dir(filePath)
+70:				goFiles[directory] = append(goFiles[directory], filePath)
+71:			}
+72:		}
+73:		return nil
+74:	})
+75:	if err != nil {
+76:		return GoDiscovery{}, err
+77:	}
+78:	if err := addWorkspaceModules(root, workspaces, modules, sumFiles); err != nil {
+79:		return GoDiscovery{}, err
+80:	}
+81:	packages, err := discoverGoPackages(ctx, root, repository.Exclusions, goFiles, modules)
+82:	if err != nil {
+83:		return GoDiscovery{}, err
+84:	}
+85:
+86:	result := GoDiscovery{
+87:		Modules:    sortedGoModules(modules),
+88:		Workspaces: sortedGoWorkspaces(workspaces),
+89:		SumFiles:   sortedPathSet(sumFiles),
+90:		Packages:   packages,
+91:	}
+92:	return result, nil
+93:}
+94:
+95:func walkGoFiles(ctx context.Context, base, current string, exclusions []string, visit func(string) error) error {
+96:	if err := ctx.Err(); err != nil {
+…
+98:	}
+…
+136:	return nil
+137:}
+
+[Showing lines 24-96 of 304. Use :97 to continue]

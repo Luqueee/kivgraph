@@ -1,0 +1,170 @@
+# internal/
+
+## mcp/
+### server.go#DC4C
+ 16:
+*17:// NewServer creates the Ladygraph MCP server with no graph source.
+*18:func NewServer() *sdkmcp.Server {
+ 19:	return newServer(nil, nil, nil)
+ 20:}
+ 21:
+...
+ 102:) *sdkmcp.Server {
+*103:	server := sdkmcp.NewServer(&sdkmcp.Implementation{
+ 104:		Name:    serverName,
+ 105:		Version: version.Value,
+ 106:	}, nil)
+### server_test.go#B080
+ 18:	ctx := context.Background()
+*19:	server := NewServer()
+ 20:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 21:
+ 22:	serverSession, err := server.Connect(ctx, serverTransport, nil)
+### surface_test.go#3156
+ 48:func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
+*49:	names := listToolNames(t, NewServer())
+ 50:	if len(names) != len(allowedTools) {
+ 51:		t.Fatalf("tools = %v, want exactly %v", names, allowedTools)
+ 52:	}
+...
+ 71:func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
+*72:	session := connectToServer(t, NewServer())
+ 73:	listed, err := session.ListTools(context.Background(), nil)
+ 74:	if err != nil {
+ 75:		t.Fatalf("ListTools() error = %v", err)
+...
+ 106:func TestServerExposesNoMutatingTool(t *testing.T) {
+*107:	for _, name := range listToolNames(t, NewServer()) {
+ 108:		for _, forbidden := range forbiddenTools {
+ 109:			if name == forbidden || strings.Contains(name, forbidden) {
+ 110:				t.Fatalf("tool %q matches forbidden name %q", name, forbidden)
+...
+ 116:func TestServerAnnotatesEveryToolReadOnly(t *testing.T) {
+*117:	session := connectToServer(t, NewServer())
+ 118:	listed, err := session.ListTools(context.Background(), nil)
+ 119:	if err != nil {
+ 120:		t.Fatalf("ListTools() error = %v", err)
+...
+ 134:func TestServerRejectsForbiddenToolCalls(t *testing.T) {
+*135:	session := connectToServer(t, NewServer())
+ 136:	for _, name := range forbiddenTools {
+ 137:		t.Run(name, func(t *testing.T) {
+ 138:			result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+
+### tools/
+#### blast_radius_test.go#20CB
+ 207:func TestGetBlastRadiusIsRegisteredReadOnly(t *testing.T) {
+*208:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 209:	RegisterGetBlastRadius(server)
+ 210:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 211:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### file_outline_test.go#6920
+ 159:func TestGetFileOutlineIsRegisteredReadOnly(t *testing.T) {
+*160:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 161:	RegisterGetFileOutline(server)
+ 162:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 163:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+...
+ 214:	t.Helper()
+*215:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 216:	RegisterGetFileOutlineWithSnapshotStore(server, store)
+ 217:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 218:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### find_cross_repo_consumers_test.go#6FA3
+ 111:func TestFindCrossRepoConsumersIsRegisteredReadOnly(t *testing.T) {
+*112:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 113:	RegisterFindCrossRepoConsumers(server)
+ 114:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 115:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### find_references_test.go#6309
+ 118:func TestFindReferencesIsRegisteredReadOnly(t *testing.T) {
+*119:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 120:	RegisterFindReferences(server)
+ 121:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 122:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+...
+ 171:	t.Helper()
+*172:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 173:	RegisterFindReferencesWithSnapshotStore(server, store)
+ 174:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 175:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### find_symbol_test.go#DF59
+ 120:	t.Helper()
+*121:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 122:	RegisterFindSymbolWithSnapshotStore(server, store)
+ 123:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 124:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### get_symbol_test.go#9B0B
+ 132:func TestGetSymbolIsRegisteredReadOnly(t *testing.T) {
+*133:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 134:	RegisterGetSymbol(server)
+ 135:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 136:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+...
+ 165:	t.Helper()
+*166:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 167:	RegisterGetSymbolWithSnapshotStore(server, store)
+ 168:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 169:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### repositories_test.go#DCEC
+ 19:	ctx := context.Background()
+*20:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 21:	RegisterListRepositories(server)
+ 22:
+ 23:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+...
+ 178:	t.Helper()
+*179:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 180:	RegisterListRepositoriesWithSnapshotStore(server, store)
+ 181:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 182:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### status_test.go#F152
+ 19:	ctx := context.Background()
+*20:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 21:	RegisterGraphStatus(server)
+ 22:
+ 23:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+#### trace_dependencies_test.go#1F0C
+ 165:func TestTraceDependenciesIsRegisteredReadOnly(t *testing.T) {
+*166:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 167:	RegisterTraceDependencies(server)
+ 168:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 169:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### unresolved_test.go#D8F0
+ 157:func TestGetUnresolvedReferencesIsRegisteredReadOnly(t *testing.T) {
+*158:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 159:	RegisterGetUnresolvedReferences(server)
+ 160:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 161:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+
+## update/
+### notice_test.go#6684
+ 16:	var server *httptest.Server
+*17:	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+ 18:		requests.Add(1)
+ 19:		if request.URL.Path != "/repos/"+Repository+"/releases/latest" {
+ 20:			t.Fatalf("request path = %q, want latest release", request.URL.Path)
+...
+ 67:	var server *httptest.Server
+*68:	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+ 69:		current := version.Add(1)
+ 70:		tag := "v0.4.0"
+ 71:		if current > 1 {
+### update_test.go#3361
+ 144:	var releaseBase string
+*145:	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+ 146:		if request.URL.Path == "/repos/"+Repository+"/releases/latest" {
+ 147:			writeRelease(t, writer, releaseBase, "v0.1.1")
+ 148:			return
+...
+ 187:	var releaseBase string
+*188:	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+ 189:		switch request.URL.Path {
+ 190:		case "/repos/" + Repository + "/releases/latest":
+ 191:			writeRelease(t, writer, releaseBase, "v0.1.1")
+...
+ 231:	var releaseBase string
+*232:	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+ 233:		switch request.URL.Path {
+ 234:		case "/repos/" + Repository + "/releases/latest":
+ 235:			writeRelease(t, writer, releaseBase, "v0.1.1")

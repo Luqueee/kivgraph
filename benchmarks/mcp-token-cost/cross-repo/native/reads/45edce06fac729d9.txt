@@ -1,0 +1,6 @@
+[/private/tmp/lg-crossrepo/shared-library/api/api.go#90F0]
+16:// Compute is a function consumers call directly.
+17:func Compute(input int) int { return input + Answer }
+18:
+19:// Register invokes the callback it receives.
+20:func Register(handler func(int) int) int { return handler(Answer) }

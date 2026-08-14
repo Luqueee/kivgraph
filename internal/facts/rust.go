@@ -27,6 +27,10 @@ type RustReport struct {
 	// repository that the pass decided not to publish. No merge resolves
 	// either, so the edge is dropped here instead of dangling in the graph.
 	EdgesWithoutTarget int
+	// FilesWithoutPackage counts indexed files whose crate no manifest of this
+	// workspace declares. They are dropped: a file belongs to exactly one
+	// package, and a row without one is rejected when the generation is built.
+	FilesWithoutPackage int
 	// DefinitionsWithoutCrate counts symbols whose crate no manifest of this
 	// workspace declares, which is a discovery and an index that disagree.
 	DefinitionsWithoutCrate int
@@ -90,8 +94,20 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 	files := make(map[string]File, len(input.Analysis.Files))
 	packageOfFile := make(map[string]string, len(input.Analysis.Files))
 	for _, file := range input.Analysis.Files {
+		packageKey, known := packageByCrate[file.Crate.Name]
+		if !known {
+			// The analyzer indexed a file whose crate no manifest of this
+			// workspace declares: a path dependency into a directory the
+			// discovery does not walk, which is how the standard library reaches
+			// its vendored `compiler-builtins`. A file with no package is not a
+			// fact this set can hold, and publishing one aborts the generation
+			// after the whole corpus has been analysed. Its declarations are
+			// dropped with it and its uses are declared, which is what the
+			// contract says about a vendored crate nobody registered.
+			report.FilesWithoutPackage++
+			continue
+		}
 		key := FileKey(name, file.Path)
-		packageKey := packageByCrate[file.Crate.Name]
 		files[key] = File{
 			Key:           key,
 			RepositoryKey: repositoryKey,

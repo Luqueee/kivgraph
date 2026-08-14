@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,14 +59,7 @@ func TestListRepositoriesReturnsStableEmptyPage(t *testing.T) {
 		t.Fatalf("CallTool() returned an error result: %#v", result.Content)
 	}
 
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[[]RepositorySummary]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
+	response := decodeResponse[[]RepositorySummary](t, result)
 	if response.Results == nil || len(response.Results) != 0 {
 		t.Fatalf("repositories = %#v, want empty array", response.Results)
 	}
@@ -196,14 +188,7 @@ func newRepositoryToolClient(t *testing.T, store *hotsnapshot.SnapshotStore) *sd
 
 func decodeRepositoryResponse(t *testing.T, result *sdkmcp.CallToolResult) Response[[]RepositorySummary] {
 	t.Helper()
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[[]RepositorySummary]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
+	response := decodeResponse[[]RepositorySummary](t, result)
 	return response
 }
 

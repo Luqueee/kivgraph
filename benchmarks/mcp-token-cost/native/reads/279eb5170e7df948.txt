@@ -1,0 +1,29 @@
+[publication.go#66A4]
+44:// generation that won the race.
+45:func (store *SnapshotStore) Publish(candidate *GraphSnapshot) error {
+46:	if candidate == nil {
+47:		return ErrNilSnapshot
+48:	}
+49:	candidateID := candidate.Metadata().ID
+50:	for {
+51:		if store.closed.Load() {
+52:			return ErrSnapshotStoreClosed
+53:		}
+54:		current := store.active.Load()
+55:		if current != nil && candidateID <= current.Metadata().ID {
+56:			return ErrSnapshotGeneration
+57:		}
+58:		if store.active.CompareAndSwap(current, candidate) {
+59:			if store.closed.Load() {
+60:				store.active.CompareAndSwap(candidate, nil)
+61:				return ErrSnapshotStoreClosed
+62:			}
+63:			return nil
+64:		}
+65:	}
+66:}
+67:
+68:// Close removes the active snapshot and prevents future publications. It is
+69:// idempotent; readers holding an earlier pointer may still finish safely.
+
+[Showing lines 44-69 of 75. Use :70 to continue]

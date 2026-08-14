@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "tokenizer": "cl100k_base",
+  "repository": "shared-library",
+  "question": "who consumes this symbol from another repository",
+  "cross_repository_root": "Compute",
+  "cross_repository_native": "native/Compute.grep.txt",
+  "traversal_root": "Compute",
+  "questions": [
+    {
+      "symbol": "Compute",
+      "class": "cross_repository",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bCompute\\b",
+        "path": "/private/tmp/lg-crossrepo",
+        "capture": "native/Compute.grep.txt"
+      }
+    }
+  ]
+}

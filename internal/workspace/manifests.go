@@ -243,7 +243,7 @@ func resolveProjectReference(configDirectory, root, referencePath string) (strin
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("target is not a regular file")
 	}
-	if symlink, err := firstSymlink(target); err != nil {
+	if symlink, err := FirstSymlink(target); err != nil {
 		return "", fmt.Errorf("inspect symlinks: %w", err)
 	} else if symlink != "" {
 		return "", fmt.Errorf("target contains symlink component %q", symlink)

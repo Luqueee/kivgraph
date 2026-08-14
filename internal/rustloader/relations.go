@@ -33,6 +33,11 @@ type Relation struct {
 	TargetKey string
 	// TargetRepository is empty for a target of this repository.
 	TargetRepository string
+	// TargetCrate and TargetQualifiedName describe a target of another
+	// repository, whose key this pass composed without reading its
+	// declaration.
+	TargetCrate         CrateRef
+	TargetQualifiedName string
 
 	File        string
 	StartLine   int
@@ -130,16 +135,18 @@ func collectRelations(
 		consumed[traitEntry.start] = struct{}{}
 		consumed[typeEntry.start] = struct{}{}
 		relations = append(relations, Relation{
-			Kind:             RelationImplements,
-			SourceKey:        typeTarget.key,
-			TargetKey:        traitTarget.key,
-			TargetRepository: traitTarget.repository,
-			File:             document.path,
-			StartLine:        traitEntry.line,
-			StartColumn:      traitEntry.column,
-			StartOffset:      traitEntry.start,
-			EndOffset:        traitEntry.end,
-			Text:             document.source.Text(traitEntry.start, traitEntry.end),
+			Kind:                RelationImplements,
+			SourceKey:           typeTarget.key,
+			TargetKey:           traitTarget.key,
+			TargetRepository:    traitTarget.repository,
+			TargetCrate:         traitTarget.crate,
+			TargetQualifiedName: traitTarget.qualifiedName,
+			File:                document.path,
+			StartLine:           traitEntry.line,
+			StartColumn:         traitEntry.column,
+			StartOffset:         traitEntry.start,
+			EndOffset:           traitEntry.end,
+			Text:                document.source.Text(traitEntry.start, traitEntry.end),
 		})
 		relations = append(relations,
 			overridesOfImplementation(document, index, resolver, observed, header, traitEntry)...)
@@ -158,16 +165,18 @@ func collectRelations(
 		}
 		consumed[superEntry.start] = struct{}{}
 		relations = append(relations, Relation{
-			Kind:             RelationExtends,
-			SourceKey:        source.key,
-			TargetKey:        target.key,
-			TargetRepository: target.repository,
-			File:             document.path,
-			StartLine:        superEntry.line,
-			StartColumn:      superEntry.column,
-			StartOffset:      superEntry.start,
-			EndOffset:        superEntry.end,
-			Text:             document.source.Text(superEntry.start, superEntry.end),
+			Kind:                RelationExtends,
+			SourceKey:           source.key,
+			TargetKey:           target.key,
+			TargetRepository:    target.repository,
+			TargetCrate:         target.crate,
+			TargetQualifiedName: target.qualifiedName,
+			File:                document.path,
+			StartLine:           superEntry.line,
+			StartColumn:         superEntry.column,
+			StartOffset:         superEntry.start,
+			EndOffset:           superEntry.end,
+			Text:                document.source.Text(superEntry.start, superEntry.end),
 		})
 	}
 	return relations, consumed
@@ -219,16 +228,18 @@ func overridesOfImplementation(
 			continue
 		}
 		relations = append(relations, Relation{
-			Kind:             RelationOverrides,
-			SourceKey:        string(definition.StableKey),
-			TargetKey:        target.key,
-			TargetRepository: target.repository,
-			File:             document.path,
-			StartLine:        entry.line,
-			StartColumn:      entry.column,
-			StartOffset:      entry.start,
-			EndOffset:        entry.end,
-			Text:             document.source.Text(entry.start, entry.end),
+			Kind:                RelationOverrides,
+			SourceKey:           string(definition.StableKey),
+			TargetKey:           target.key,
+			TargetRepository:    target.repository,
+			TargetCrate:         target.crate,
+			TargetQualifiedName: target.qualifiedName,
+			File:                document.path,
+			StartLine:           entry.line,
+			StartColumn:         entry.column,
+			StartOffset:         entry.start,
+			EndOffset:           entry.end,
+			Text:                document.source.Text(entry.start, entry.end),
 		})
 	}
 	return relations

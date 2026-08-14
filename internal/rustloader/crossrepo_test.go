@@ -24,7 +24,7 @@ func writeCrate(t *testing.T, root, directory, name, version string) {
 
 func registryOver(t *testing.T, repositories ...workspace.Repository) *CrateRegistry {
 	t.Helper()
-	registry, err := NewCrateRegistry(context.Background(), repositories)
+	registry, err := NewCrateRegistry(context.Background(), repositories, nil)
 	if err != nil {
 		t.Fatalf("NewCrateRegistry() error = %v", err)
 	}
@@ -100,7 +100,87 @@ func TestCrateRegistryRefusesToGuess(t *testing.T) {
 func TestCrateRegistryRejectsARepositoryWithoutAName(t *testing.T) {
 	root := testsupport.TempDir(t)
 	writeCrate(t, root, ".", "anything", "1.0.0")
-	if _, err := NewCrateRegistry(context.Background(), []workspace.Repository{{RealPath: root}}); err == nil {
+	if _, err := NewCrateRegistry(context.Background(), []workspace.Repository{{RealPath: root}}, nil); err == nil {
 		t.Fatal("NewCrateRegistry() accepted a repository without a name")
+	}
+}
+
+// syntheticSysroot builds a sysroot provider over a directory laid out like the
+// library workspace of a toolchain, so the registry tests never depend on one
+// being installed.
+func syntheticSysroot(t *testing.T, toolchain string, crates ...string) *SysrootProvider {
+	t.Helper()
+	root := testsupport.TempDir(t)
+	if err := os.WriteFile(filepath.Join(root, "Cargo.toml"),
+		[]byte("[workspace]\nmembers = [\"core\"]\nresolver = \"2\"\n"), 0o600); err != nil {
+		t.Fatalf("write workspace manifest: %v", err)
+	}
+	for _, crate := range crates {
+		writeCrate(t, root, crate, crate, "0.0.0")
+	}
+	repository, err := workspace.NewSyntheticRepository(SyntheticRepositoryName(toolchain), root, []string{RustLanguage})
+	if err != nil {
+		t.Fatalf("NewSyntheticRepository() error = %v", err)
+	}
+	return &SysrootProvider{Repository: repository, Toolchain: toolchain, LibraryPath: repository.RealPath}
+}
+
+func sysrootRegistry(t *testing.T, sysroot *SysrootProvider, repositories ...workspace.Repository) *CrateRegistry {
+	t.Helper()
+	registry, err := NewCrateRegistry(context.Background(), repositories, sysroot)
+	if err != nil {
+		t.Fatalf("NewCrateRegistry() error = %v", err)
+	}
+	return registry
+}
+
+// TestCrateRegistryResolvesALangCrateByItsOrigin is the whole reason the sysroot
+// can be a provider at all. The two sides of the boundary write different things
+// in the version field of the moniker -- a consumer writes the origin URL and
+// the library indexed as a workspace writes `0.0.0` -- so what is compared is
+// the origin, which is evidence the analyzer produced, never the crate name.
+func TestCrateRegistryResolvesALangCrateByItsOrigin(t *testing.T) {
+	registry := sysrootRegistry(t, syntheticSysroot(t, "1.96.1", "core", "alloc"))
+
+	provider, status := registry.Resolve("core", LangCrateOrigin+"core")
+	if status != CrateResolved {
+		t.Fatalf("Resolve(core, origin) = %q, want %q", status, CrateResolved)
+	}
+	if provider.Repository != "rust:1.96.1" || !provider.Lang {
+		t.Fatalf("provider = %#v, want the synthetic sysroot", provider)
+	}
+	// A release is not an origin: the standard library has no version in the
+	// moniker, so a reference that carries one was compiled against something
+	// else and gets no edge.
+	if _, status := registry.Resolve("core", "1.96.1"); status != CrateVersionMismatch {
+		t.Fatalf("Resolve(core, release) = %q, want %q", status, CrateVersionMismatch)
+	}
+	// Name alone never resolves, here as everywhere else.
+	if _, status := registry.Resolve("core", unknownCrateVersion); status != CrateVersionUnknown {
+		t.Fatalf("Resolve(core, unknown) = %q, want %q", status, CrateVersionUnknown)
+	}
+	if _, status := registry.Resolve("std", LangCrateOrigin+"std"); status != CrateProviderNotFound {
+		t.Fatalf("Resolve(std) = %q, want %q for a crate this toolchain does not carry", status, CrateProviderNotFound)
+	}
+}
+
+// TestCrateRegistryDeclaresLangAmbiguity covers the two ways the standard
+// library stops being the provider of its own crate: a registered repository
+// that declares the same name, and two toolchains in one graph. Neither is
+// resolved by preference.
+func TestCrateRegistryDeclaresLangAmbiguity(t *testing.T) {
+	shadow := testsupport.TempDir(t)
+	writeCrate(t, shadow, ".", "core", "9.9.9")
+	shadowRepository := workspace.Repository{Name: "shadow", RealPath: shadow}
+
+	registry := sysrootRegistry(t, syntheticSysroot(t, "1.96.1", "core"), shadowRepository)
+	if _, status := registry.Resolve("core", LangCrateOrigin+"core"); status != AmbiguousCrateProvider {
+		t.Fatalf("Resolve(core) = %q, want %q when a repository shadows the standard library", status, AmbiguousCrateProvider)
+	}
+	// The registered crate is still reachable at its own version: the
+	// ambiguity is about who provides the standard library, not about whose
+	// code that repository holds.
+	if provider, status := registry.Resolve("core", "9.9.9"); status != CrateResolved || provider.Repository != "shadow" {
+		t.Fatalf("Resolve(core, 9.9.9) = %q %#v, want the registered repository", status, provider)
 	}
 }

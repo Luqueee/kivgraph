@@ -25,23 +25,34 @@ func TestTraceDependenciesWalksDepthAndRecordsDiscoveringEdge(t *testing.T) {
 		t.Fatalf("pagination = %#v, want three untruncated dependencies", response)
 	}
 	trace := response.Results
-	if trace.RootKey != "sym-root" || trace.RootRepositoryKey != "repo-root" {
+	if trace.RootKey != "sym-root" || trace.RootRepository != "root" {
 		t.Fatalf("root = %#v", trace)
 	}
 	if trace.Depth != DefaultDependencyDepth || trace.Reached != 3 || trace.DeepestDepth != 3 || trace.TraversalTruncated {
 		t.Fatalf("traversal metadata = %#v", trace)
 	}
-	wantKeys := []string{"sym-level1", "sym-level2", "sym-level3"}
+	wantNames := []string{"root.Level1", "root.Level2", "other.Level3"}
 	for index, node := range trace.Nodes {
-		if node.StableKey != wantKeys[index] || node.Depth != index+1 {
-			t.Fatalf("node %d = %#v, want %q at depth %d", index, node, wantKeys[index], index+1)
+		if node.QualifiedName != wantNames[index] || node.Depth != index+1 {
+			t.Fatalf("node %d = %#v, want %q at depth %d", index, node, wantNames[index], index+1)
 		}
 	}
-	if first := trace.Nodes[0]; first.ReachedFromKey != "sym-root" || first.ViaKind != string(facts.CallsDirect) || first.ViaConfidence != string(facts.ExactTypechecked) {
+	if first := trace.Nodes[0]; first.ReachedFrom != "root.Root" || first.ViaKind != string(facts.CallsDirect) || first.ViaConfidence != string(facts.ExactTypechecked) {
 		t.Fatalf("first hop = %#v, want an exact call from the root", first)
 	}
-	if third := trace.Nodes[2]; third.ReachedFromKey != "sym-level2" || third.RepositoryKey != "repo-other" {
+	if third := trace.Nodes[2]; third.ReachedFrom != "root.Level2" || third.Repository != "other" {
 		t.Fatalf("third hop = %#v, want discovery from level2 in the other repository", third)
+	}
+	// A row an agent cannot open costs a second call before it means anything.
+	for index, node := range trace.Nodes {
+		if node.FilePath == "" || node.EndLine < node.StartLine {
+			t.Fatalf("node %d = %#v, want a file path and a declaration range", index, node)
+		}
+	}
+	for index, node := range trace.Nodes {
+		if node.FileKey != "" || node.ReachedFromKey != "" {
+			t.Fatalf("node %d = %#v, want derived identifiers withheld from the concise format", index, node)
+		}
 	}
 	if response.Coverage != (Coverage{Exact: 2, Candidate: 1}) {
 		t.Fatalf("coverage = %#v, want two exact and one candidate hop", response.Coverage)
@@ -68,17 +79,17 @@ func TestTraceDependenciesSeparatesReachabilityFromRowFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exactOnly.Total != 1 || exactOnly.Results.Nodes[0].StableKey != "sym-level1" {
+	if exactOnly.Total != 1 || exactOnly.Results.Nodes[0].QualifiedName != "root.Level1" {
 		t.Fatalf("confidence-gated trace = %#v, want the candidate hop to cut the path", exactOnly.Results)
 	}
 
 	_, byRepo, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
-		StableKey: "sym-root", Repo: "repo-other",
+		StableKey: "sym-root", Repo: "other",
 	}, store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if byRepo.Total != 1 || byRepo.Results.Nodes[0].StableKey != "sym-level3" || byRepo.Results.Reached != 3 {
+	if byRepo.Total != 1 || byRepo.Results.Nodes[0].QualifiedName != "other.Level3" || byRepo.Results.Reached != 3 {
 		t.Fatalf("repo-filtered trace = %#v, want the depth-3 node reached through repo-root", byRepo.Results)
 	}
 
@@ -112,7 +123,7 @@ func TestTraceDependenciesPaginatesWithSnapshotCursor(t *testing.T) {
 	if second.Returned != 1 || second.Truncated || second.NextCursor != nil {
 		t.Fatalf("second page = %#v, want the final node", second)
 	}
-	if second.Results.Nodes[0].StableKey != "sym-level3" {
+	if second.Results.Nodes[0].QualifiedName != "other.Level3" {
 		t.Fatalf("second page node = %#v", second.Results.Nodes[0])
 	}
 }
@@ -202,21 +213,21 @@ func traceDependenciesStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore 
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
 		Repositories: []hotsnapshot.RepositoryRow{
 			{Key: "repo-root", Name: "root", Languages: "go"},
-			{Key: "repo-other", Name: "other", Languages: "ts"},
+			{Key: "other", Name: "other", Languages: "ts"},
 		},
 		Packages: []hotsnapshot.PackageRow{
 			{Key: "pkg-root", RepositoryKey: "repo-root", Language: "go", Name: "root", ModulePath: "example.com/root"},
-			{Key: "pkg-other", RepositoryKey: "repo-other", Language: "ts", Name: "other", ModulePath: "example.com/other"},
+			{Key: "pkg-other", RepositoryKey: "other", Language: "ts", Name: "other", ModulePath: "example.com/other"},
 		},
 		Files: []hotsnapshot.FileRow{
 			{Key: "file-root", RepositoryKey: "repo-root", PackageKey: "pkg-root", Path: "root.go", Language: "go"},
-			{Key: "file-other", RepositoryKey: "repo-other", PackageKey: "pkg-other", Path: "other.ts", Language: "ts"},
+			{Key: "file-other", RepositoryKey: "other", PackageKey: "pkg-other", Path: "other.ts", Language: "ts"},
 		},
 		Symbols: []hotsnapshot.SymbolRow{
-			{StableKey: "sym-root", CanonicalIdentity: "go:root.Root", FileKey: "file-root", Language: "go", Name: "Root", QualifiedName: "root.Root", Kind: "func"},
-			{StableKey: "sym-level1", CanonicalIdentity: "go:root.Level1", FileKey: "file-root", Language: "go", Name: "Level1", QualifiedName: "root.Level1", Kind: "func"},
-			{StableKey: "sym-level2", CanonicalIdentity: "go:root.Level2", FileKey: "file-root", Language: "go", Name: "Level2", QualifiedName: "root.Level2", Kind: "func"},
-			{StableKey: "sym-level3", CanonicalIdentity: "ts:other.Level3", FileKey: "file-other", Language: "ts", Name: "Level3", QualifiedName: "other.Level3", Kind: "function"},
+			{StableKey: "sym-root", CanonicalIdentity: "go:root.Root", FileKey: "file-root", Language: "go", Name: "Root", QualifiedName: "root.Root", Kind: "func", StartLine: 20, EndLine: 26},
+			{StableKey: "sym-level1", CanonicalIdentity: "go:root.Level1", FileKey: "file-root", Language: "go", Name: "Level1", QualifiedName: "root.Level1", Kind: "func", StartLine: 30, EndLine: 36},
+			{StableKey: "sym-level2", CanonicalIdentity: "go:root.Level2", FileKey: "file-root", Language: "go", Name: "Level2", QualifiedName: "root.Level2", Kind: "func", StartLine: 40, EndLine: 46},
+			{StableKey: "sym-level3", CanonicalIdentity: "ts:other.Level3", FileKey: "file-other", Language: "ts", Name: "Level3", QualifiedName: "other.Level3", Kind: "function", StartLine: 50, EndLine: 56},
 		},
 		Edges: []hotsnapshot.EdgeRow{
 			{SourceKey: "sym-root", TargetKey: "sym-level1", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-root", EvidenceTargetFileKey: "file-root"},
@@ -228,4 +239,28 @@ func traceDependenciesStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore 
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestTraceDependenciesDetailedFormatRestoresDerivedIdentifiers keeps the cut
+// reversible: the concise row drops the file key and the reached-from key
+// because a path and a qualified name already name both, but a caller that
+// wants the canonical identifiers must still be able to ask for them.
+func TestTraceDependenciesDetailedFormatRestoresDerivedIdentifiers(t *testing.T) {
+	store := traceDependenciesStore(t, 61)
+	_, response, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", ResponseFormat: ResponseFormatDetailed,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results.Nodes) == 0 {
+		t.Fatal("detailed trace returned no nodes")
+	}
+	first := response.Results.Nodes[0]
+	if first.FileKey != "file-root" || first.ReachedFromKey != "sym-root" {
+		t.Fatalf("detailed node = %#v, want the derived identifiers back", first)
+	}
+	if first.ReachedFrom != "root.Root" || first.EndLine < first.StartLine {
+		t.Fatalf("detailed node = %#v, want the concise fields kept as well", first)
+	}
 }

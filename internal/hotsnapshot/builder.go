@@ -1,6 +1,8 @@
 package hotsnapshot
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -49,6 +51,10 @@ type FileRow struct {
 	PackageKey    string
 	Path          string
 	Language      string
+	// ContentHash is the hex SHA-256 the canonical row carries. Anything that is
+	// not a SHA-256 in hexadecimal lands as a zero digest, which reads as "no
+	// comparable hash" and never as "fresh".
+	ContentHash string
 }
 
 type SymbolRow struct {
@@ -333,6 +339,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		}
 		fileRecords[index].Key = key
 		fileRecords[index].Language = language
+		fileRecords[index].ContentDigest = decodeContentDigest(row.ContentHash)
 	}
 	for index, row := range symbols {
 		language, err := interner.Intern(row.Language)
@@ -495,4 +502,26 @@ func edgeEqual(left, right EdgeRow) bool {
 		left.EvidenceKind == right.EvidenceKind &&
 		left.EvidenceSourceFileKey == right.EvidenceSourceFileKey &&
 		left.EvidenceTargetFileKey == right.EvidenceTargetFileKey
+}
+
+// decodeContentDigest turns the hex digest a canonical file row carries into the
+// raw bytes the record stores.
+//
+// Anything that is not a SHA-256 in hexadecimal -- an empty value, a placeholder,
+// a truncated digest -- becomes a zero digest, which reads as "the generation
+// recorded no comparable hash". It does not fail the build: refusing to publish a
+// whole generation because one row carries an odd hash trades a costlier answer
+// for no answer at all.
+//
+// The direction of the degradation is what makes it safe. A zero digest can only
+// make a file report as *not* fresh, never as fresh, so a reader is told to
+// re-anchor and is never handed a range from a file that moved. See ADR 0040.
+func decodeContentDigest(value string) [sha256.Size]byte {
+	digest := [sha256.Size]byte{}
+	decoded, err := hex.DecodeString(value)
+	if err != nil || len(decoded) != sha256.Size {
+		return digest
+	}
+	copy(digest[:], decoded)
+	return digest
 }

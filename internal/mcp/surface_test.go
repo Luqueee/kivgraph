@@ -6,21 +6,29 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 )
 
 // allowedTools is the entire MCP surface Ladygraph is allowed to expose, from
 // PLAN.md 17.1. This list is a contract, not a snapshot of the code: adding a
 // tool without adding it here is the failure this file exists to catch.
+//
+// get_unresolved_references is deliberately absent. It answers a question about
+// the index rather than about the code, no agent asks it, and every tool on this
+// list costs description tokens in every request of every session. It remains
+// available from the CLI.
 var allowedTools = []string{
 	"find_cross_repo_consumers",
 	"find_references",
 	"find_symbol",
 	"get_blast_radius",
 	"get_file_outline",
+	"get_source",
 	"get_symbol",
-	"get_unresolved_references",
 	"graph_status",
 	"list_repositories",
 	"trace_dependencies",
@@ -46,7 +54,7 @@ var forbiddenTools = []string{
 }
 
 func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
-	names := listToolNames(t, NewServer())
+	names := listToolNames(t, publishedServer(t))
 	if len(names) != len(allowedTools) {
 		t.Fatalf("tools = %v, want exactly %v", names, allowedTools)
 	}
@@ -69,7 +77,7 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 const MaximumSurfaceSchemaBytes = 8000
 
 func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
-	session := connectToServer(t, NewServer())
+	session := connectToServer(t, publishedServer(t))
 	listed, err := session.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools() error = %v", err)
@@ -83,20 +91,34 @@ func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 			len(encoded), len(listed.Tools), MaximumSurfaceSchemaBytes)
 	}
 
-	// The output schema is the part that was cut, and the cut is what the
-	// ceiling depends on: a tool that publishes a derived one again puts
-	// thousands of characters back without changing the tool count.
+	// No tool declares an output schema, and that is load-bearing rather than
+	// tidy. The SDK fills `structuredContent` from the typed handler result
+	// whenever a schema is present, and then repeats the same JSON in a text
+	// block: the answer travels twice. Measured over the six questions of
+	// `benchmarks/mcp-token-cost`, the duplicate was 24.066 bytes in one pass.
 	for _, tool := range listed.Tools {
-		if tool.OutputSchema == nil {
-			continue
+		if tool.OutputSchema != nil {
+			t.Fatalf("%s publishes an output schema, which restores the duplicate structured channel", tool.Name)
 		}
-		schema, err := json.Marshal(tool.OutputSchema)
-		if err != nil {
-			t.Fatalf("Marshal output schema of %q: %v", tool.Name, err)
-		}
-		if len(schema) > 64 {
-			t.Fatalf("%s publishes a %d-byte output schema; use ConciseOutputSchema", tool.Name, len(schema))
-		}
+	}
+}
+
+// TestServerAnswersInOneChannel closes the loop the schema check opens: no
+// declared schema is only a promise until a real call is inspected.
+func TestServerAnswersInOneChannel(t *testing.T) {
+	session := connectToServer(t, publishedServer(t))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{Name: "graph_status"})
+	if err != nil {
+		t.Fatalf("graph_status CallTool() error = %v", err)
+	}
+	if result.StructuredContent != nil {
+		t.Fatalf("graph_status carries structuredContent as well as text: %#v", result.StructuredContent)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("graph_status returned %d content blocks, want exactly one", len(result.Content))
+	}
+	if _, ok := result.Content[0].(*sdkmcp.TextContent); !ok {
+		t.Fatalf("graph_status content block is %T, want text", result.Content[0])
 	}
 }
 
@@ -104,7 +126,7 @@ func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 // by equality: a tool named "rebuild_graph" or "graph_index" would satisfy an
 // equality check while breaking the same rule.
 func TestServerExposesNoMutatingTool(t *testing.T) {
-	for _, name := range listToolNames(t, NewServer()) {
+	for _, name := range listToolNames(t, publishedServer(t)) {
 		for _, forbidden := range forbiddenTools {
 			if name == forbidden || strings.Contains(name, forbidden) {
 				t.Fatalf("tool %q matches forbidden name %q", name, forbidden)
@@ -114,7 +136,7 @@ func TestServerExposesNoMutatingTool(t *testing.T) {
 }
 
 func TestServerAnnotatesEveryToolReadOnly(t *testing.T) {
-	session := connectToServer(t, NewServer())
+	session := connectToServer(t, publishedServer(t))
 	listed, err := session.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools() error = %v", err)
@@ -132,7 +154,7 @@ func TestServerAnnotatesEveryToolReadOnly(t *testing.T) {
 // TestServerRejectsForbiddenToolCalls closes the loop: absence from the listing
 // is not enough, an unlisted name must also fail when called directly.
 func TestServerRejectsForbiddenToolCalls(t *testing.T) {
-	session := connectToServer(t, NewServer())
+	session := connectToServer(t, publishedServer(t))
 	for _, name := range forbiddenTools {
 		t.Run(name, func(t *testing.T) {
 			result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
@@ -177,4 +199,118 @@ func connectToServer(t *testing.T, server *sdkmcp.Server) *sdkmcp.ClientSession 
 	}
 	t.Cleanup(func() { _ = clientSession.Close() })
 	return clientSession
+}
+
+// publishedServer is a server with a graph to answer from. The surface contract
+// is about what a working server exposes; a server with no published generation
+// deliberately exposes nothing, which TestServerWithoutAGenerationPublishesNoTool
+// covers instead.
+func publishedServer(t *testing.T) *sdkmcp.Server {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo-a", Name: "a", Languages: "go"}},
+	}, 1, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return NewServerWithSnapshotStore(hotsnapshot.NewSnapshotStore(snapshot))
+}
+
+// TestServerWithoutAGenerationPublishesNoTool is the fail-closed handshake. A
+// client spawns this process, so exiting reads as a crash and says nothing;
+// answering with tools that cannot answer teaches the agent that the tools do
+// not work. Completing the handshake with no tools and a repair instruction is
+// the only shape a client can act on.
+func TestServerWithoutAGenerationPublishesNoTool(t *testing.T) {
+	session := connectToServer(t, NewServer())
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	if len(listed.Tools) != 0 {
+		t.Fatalf("tools without a published generation = %v, want none", toolNames(listed.Tools))
+	}
+	initResult := session.InitializeResult()
+	if initResult == nil {
+		t.Fatal("InitializeResult() = nil, want a completed handshake")
+	}
+	if !strings.Contains(initResult.Instructions, "ladygraph index --full") {
+		t.Fatalf("instructions = %q, want the command that repairs this", initResult.Instructions)
+	}
+}
+
+// TestServerInstructionsRouteWithoutVolatileFacts guards the one string that
+// survives every client's schema deferral. Claude Code truncates it at 2 KB, and
+// anything derived from the graph would rewrite bytes of a cached system prompt
+// on every re-index.
+func TestServerInstructionsRouteWithoutVolatileFacts(t *testing.T) {
+	session := connectToServer(t, publishedServer(t))
+	initResult := session.InitializeResult()
+	if initResult == nil {
+		t.Fatal("InitializeResult() = nil")
+	}
+	instructions := initResult.Instructions
+	if len(instructions) == 0 || len(instructions) > 2048 {
+		t.Fatalf("instructions are %d bytes, want between 1 and 2048", len(instructions))
+	}
+	for _, want := range []string{"find_references", "get_source", "Where it loses"} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("instructions = %q, want them to mention %q", instructions, want)
+		}
+	}
+	// A number that moves with the graph invalidates the client's prompt cache.
+	for _, digit := range []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"} {
+		if strings.Contains(instructions, digit) {
+			t.Fatalf("instructions contain the digit %q; volatile facts belong in graph_status", digit)
+		}
+	}
+}
+
+func toolNames(listed []*sdkmcp.Tool) []string {
+	names := make([]string, 0, len(listed))
+	for _, tool := range listed {
+		names = append(names, tool.Name)
+	}
+	return names
+}
+
+// MaximumResidentSurfaceBytes bounds what a host keeps resident for this server.
+//
+// Neither target host holds the JSON schemas: Oh My Pi mounts each tool as a
+// device whose documentation is read on demand, and Claude Code defers schemas
+// behind its tool search. What stays is the name, twice -- once as a route and
+// once as a heading -- and the description. That is the whole budget in which the
+// routing has to fit, so it is the number a regression is measured against.
+//
+// Bytes, not tokens: this package has no tokenizer, and the benchmark in
+// benchmarks/mcp-token-cost measures the token figure the phase quotes. The two
+// move together; this guards the drift.
+const MaximumResidentSurfaceBytes = 1900
+
+func TestServerSurfaceStaysCheapToKeepResident(t *testing.T) {
+	session := connectToServer(t, publishedServer(t))
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	resident := 0
+	for _, tool := range listed.Tools {
+		if tool.Description == "" {
+			t.Fatalf("tool %q has no description; the description is the only routing a deferred surface carries", tool.Name)
+		}
+		resident += len(tool.Name)*2 + len(tool.Description)
+	}
+	if resident > MaximumResidentSurfaceBytes {
+		t.Fatalf("resident surface = %d bytes over %d tools, above the %d ceiling",
+			resident, len(listed.Tools), MaximumResidentSurfaceBytes)
+	}
+	// A description that carries a number derived from the graph rewrites bytes
+	// of a cached system prompt on every re-index.
+	for _, tool := range listed.Tools {
+		for _, digit := range "0123456789" {
+			if strings.ContainsRune(tool.Description, digit) {
+				t.Fatalf("description of %q contains the digit %q; volatile facts belong in a call", tool.Name, digit)
+			}
+		}
+	}
 }

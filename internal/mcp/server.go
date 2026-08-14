@@ -100,10 +100,19 @@ func newServerWithIndexer(
 	registry *metrics.Registry,
 	indexer indexing.ProjectIndexer,
 ) *sdkmcp.Server {
+	// A server with no published generation completes the handshake, publishes no
+	// query tool and says how to repair itself. It is the one shape a client can
+	// act on: it spawns this process, so exiting reads as a crash, and answering
+	// with tools that cannot answer teaches the agent that the tools do not work.
+	published := snapshotStore != nil && snapshotStore.Load() != nil
+	instructions := serverInstructions
+	if !published {
+		instructions = staleServerInstructions
+	}
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name:    serverName,
 		Version: version.Value,
-	}, nil)
+	}, &sdkmcp.ServerOptions{Instructions: instructions})
 	var callObserver tools.CallObserver
 	if registry != nil {
 		callObserver = func(observation tools.CallObservation) {
@@ -128,16 +137,22 @@ func newServerWithIndexer(
 			})
 		}
 	}
+	if !published {
+		// index_project is the exception: it is how a client without a graph
+		// builds one, and it needs no graph to run.
+		tools.RegisterIndexProject(server, indexer)
+		return server
+	}
 	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
+	tools.RegisterGetSourceWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetFileOutlineWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindReferencesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterTraceDependenciesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetBlastRadiusWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
-	tools.RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterIndexProject(server, indexer)
 	return server
 }

@@ -30,10 +30,10 @@ func TestFindCrossRepoConsumersReturnsAllConfidenceCategories(t *testing.T) {
 		t.Fatalf("response coverage = %#v, want exact=1 candidate=1 unresolved=1 package=1", response.Coverage)
 	}
 	categories := []string{
-		response.Results[0].Category,
-		response.Results[1].Category,
-		response.Results[2].Category,
-		response.Results[3].Category,
+		response.Results.Consumers[0].Category,
+		response.Results.Consumers[1].Category,
+		response.Results.Consumers[2].Category,
+		response.Results.Consumers[3].Category,
 	}
 	wantCategories := []string{CrossRepoConsumerExactSymbol, CrossRepoConsumerPackage, CrossRepoConsumerCandidate, CrossRepoConsumerUnresolved}
 	for index := range categories {
@@ -41,17 +41,17 @@ func TestFindCrossRepoConsumersReturnsAllConfidenceCategories(t *testing.T) {
 			t.Fatalf("result categories = %v, want %v", categories, wantCategories)
 		}
 	}
-	if response.Results[0].ConsumerSymbolKey != "sym-exact" || response.Results[0].Kind != string(facts.References) {
-		t.Fatalf("exact result = %#v", response.Results[0])
+	if response.Results.Consumers[0].QualifiedName != "consumer.Exact" || response.Results.Consumers[0].EdgeKind != string(facts.References) {
+		t.Fatalf("exact result = %#v", response.Results.Consumers[0])
 	}
-	if response.Results[1].ConsumerSymbolKey != "" || response.Results[1].ConsumerPackageKey != "pkg-consumer" {
-		t.Fatalf("package result = %#v, want package-only consumer", response.Results[1])
+	if response.Results.Consumers[1].QualifiedName != "" || response.Results.Consumers[1].PackageName == "" {
+		t.Fatalf("package result = %#v, want package-only consumer", response.Results.Consumers[1])
 	}
-	if response.Results[2].Confidence != string(facts.Candidate) {
-		t.Fatalf("candidate result = %#v", response.Results[2])
+	if response.Results.Consumers[2].Confidence != string(facts.Candidate) {
+		t.Fatalf("candidate result = %#v", response.Results.Consumers[2])
 	}
-	unresolved := response.Results[3]
-	if unresolved.UnresolvedKey != "unresolved-consumer" || unresolved.Reason != "package_not_indexed" || unresolved.TargetSymbolKey != "sym-target" {
+	unresolved := response.Results.Consumers[3]
+	if unresolved.Reason != "package_not_indexed" || response.Results.Subject.QualifiedName == "" {
 		t.Fatalf("unresolved result = %#v", unresolved)
 	}
 }
@@ -69,7 +69,7 @@ func TestFindCrossRepoConsumersIgnoresFailuresThatNamedNoSymbol(t *testing.T) {
 	// The fixture holds a failure for the whole `example.com/target` import
 	// with no requested symbol. It belongs to the package, not to every
 	// symbol the package exports, so a query about one symbol never sees it.
-	for _, result := range response.Results {
+	for _, result := range response.Results.Consumers {
 		if result.UnresolvedKey == "unresolved-module" {
 			t.Fatalf("symbol query returned a package-level failure: %#v", result)
 		}

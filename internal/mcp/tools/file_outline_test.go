@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -17,16 +16,15 @@ func TestGetFileOutlineDescribesOneFileAndOneDirectory(t *testing.T) {
 	single := callFileOutline(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts/facts.go",
 	})
-	if single.Results.Files != 1 || single.Total != 2 || single.Returned != 2 {
+	if len(single.Results.Files) != 1 || single.Total != 2 || single.Returned != 2 {
 		t.Fatalf("single file outline = %#v", single)
 	}
-	first := single.Results.Symbols[0]
+	if single.Results.Files[0].Path != "internal/facts/facts.go" {
+		t.Fatalf("group path = %#v", single.Results.Files[0])
+	}
+	first := single.Results.Files[0].Symbols[0]
 	if first.Name != "Merge" || first.Kind != "method" || first.Signature != "func (Set) Merge(Set)" {
 		t.Fatalf("first declaration = %#v", first)
-	}
-	// A one-file outline does not repeat the path the caller just asked for.
-	if first.FilePath != "" {
-		t.Fatalf("single-file row repeats the path = %#v", first)
 	}
 	if first.StartLine != 10 || first.EndLine != 20 {
 		t.Fatalf("first location = %#v", first)
@@ -34,33 +32,34 @@ func TestGetFileOutlineDescribesOneFileAndOneDirectory(t *testing.T) {
 	if !first.Exported {
 		t.Fatalf("Merge must be reported as exported: %#v", first)
 	}
-	// The concise default omits the canonical identity here too.
-	if first.CanonicalIdentity != "" {
-		t.Fatalf("concise row carries the canonical identity = %#v", first)
+	// The concise default withholds the identifiers a caller can rebuild from
+	// the group path and the name beside it.
+	if first.CanonicalIdentity != "" || first.StableKey != "" {
+		t.Fatalf("concise row carries derived identifiers = %#v", first)
 	}
 	if len(single.Results.Languages) != 1 || single.Results.Languages[0] != "go" {
 		t.Fatalf("languages = %#v", single.Results.Languages)
 	}
 
 	// The same argument answers the directory question: one path, two
-	// granularities, one tool.
+	// granularities, one tool. The path is stated once per group, not per row.
 	directory := callFileOutline(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts",
 	})
-	for _, symbol := range directory.Results.Symbols {
-		if symbol.FilePath == "" {
-			t.Fatalf("a directory outline must say which file each row is in: %#v", symbol)
-		}
-	}
-	if directory.Results.Files != 2 || directory.Total != 3 {
+	if len(directory.Results.Files) != 2 || directory.Total != 3 {
 		t.Fatalf("directory outline = %#v", directory.Results)
+	}
+	for _, group := range directory.Results.Files {
+		if group.Path == "" || len(group.Symbols) == 0 {
+			t.Fatalf("directory group = %#v, want a path and its declarations", group)
+		}
 	}
 
 	// A trailing slash is the same directory.
 	slashed := callFileOutline(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts/",
 	})
-	if slashed.Results.Files != directory.Results.Files || slashed.Total != directory.Total {
+	if len(slashed.Results.Files) != len(directory.Results.Files) || slashed.Total != directory.Total {
 		t.Fatalf("trailing slash outline = %#v, want the same as %#v", slashed.Results, directory.Results)
 	}
 }
@@ -73,9 +72,9 @@ func TestGetFileOutlineDirectoryPrefixNeedsTheSeparator(t *testing.T) {
 	outline := callFileOutline(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts",
 	})
-	for _, symbol := range outline.Results.Symbols {
-		if symbol.FilePath == "internal/factsheet.go" {
-			t.Fatalf("directory outline reached a sibling file: %#v", symbol)
+	for _, group := range outline.Results.Files {
+		if group.Path == "internal/factsheet.go" {
+			t.Fatalf("directory outline reached a sibling file: %#v", group)
 		}
 	}
 }
@@ -86,7 +85,7 @@ func TestGetFileOutlineFiltersByKindAndRestoresDetail(t *testing.T) {
 	methods := callFileOutline(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts", "kind": "method",
 	})
-	for _, symbol := range methods.Results.Symbols {
+	for _, symbol := range outlineSymbols(methods.Results) {
 		if symbol.Kind != "method" {
 			t.Fatalf("kind filter kept %#v", symbol)
 		}
@@ -99,8 +98,9 @@ func TestGetFileOutlineFiltersByKindAndRestoresDetail(t *testing.T) {
 		"repository": "alpha-repo", "path": "internal/facts/facts.go",
 		"response_format": ResponseFormatDetailed,
 	})
-	if detailed.Results.Symbols[0].CanonicalIdentity == "" {
-		t.Fatalf("detailed row = %#v, want the canonical identity back", detailed.Results.Symbols[0])
+	detailedRows := outlineSymbols(detailed.Results)
+	if detailedRows[0].CanonicalIdentity == "" || detailedRows[0].StableKey == "" {
+		t.Fatalf("detailed row = %#v, want the derived identifiers back", detailedRows[0])
 	}
 }
 
@@ -199,14 +199,7 @@ func callFileOutline(t *testing.T, client *sdkmcp.ClientSession, arguments map[s
 	if result.IsError {
 		t.Fatalf("get_file_outline CallTool() returned an error: %#v", result.Content)
 	}
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[FileOutline]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
+	response := decodeResponse[FileOutline](t, result)
 	return response
 }
 
@@ -278,4 +271,14 @@ func fileOutlineSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// outlineSymbols flattens the grouped result for assertions that do not care
+// which file a declaration came from.
+func outlineSymbols(outline FileOutline) []OutlineSymbol {
+	rows := make([]OutlineSymbol, 0, len(outline.Files))
+	for _, group := range outline.Files {
+		rows = append(rows, group.Symbols...)
+	}
+	return rows
 }

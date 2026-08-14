@@ -260,7 +260,7 @@ func convertCanonicalGraph(graph ladybug.CanonicalGraph) (hotsnapshot.LadybugSna
 	for index, file := range graph.Files {
 		rows.Files[index] = hotsnapshot.FileRow{
 			Key: file.StableKey, RepositoryKey: file.RepositoryKey, PackageKey: file.PackageKey,
-			Path: file.Path, Language: file.Language,
+			Path: file.Path, Language: file.Language, ContentHash: file.ContentHash,
 		}
 	}
 

@@ -78,10 +78,13 @@ type Reference struct {
 	TargetKey string
 	// TargetRepository is empty for a target of this repository.
 	TargetRepository string
-	Kind             ReferenceKind
-	Use              UseKind
-	SourceCrate      CrateRef
-	TargetCrate      CrateRef
+	// TargetQualifiedName describes a target of another repository, whose key
+	// this pass composed without reading its declaration.
+	TargetQualifiedName string
+	Kind                ReferenceKind
+	Use                 UseKind
+	SourceCrate         CrateRef
+	TargetCrate         CrateRef
 
 	File        string
 	StartLine   int
@@ -261,16 +264,36 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 		analysis.Diagnostics = append(analysis.Diagnostics, collidingKeys(collected, byKey)...)
 	}
 	analysis.Diagnostics = append(analysis.Diagnostics, duplicateDefinitions(duplicated, definitions)...)
-	byDefinitionKey := make(map[string]Definition, len(definitions))
+	collected := make([]Definition, 0, len(definitions))
 	for _, definition := range definitions {
-		byDefinitionKey[string(definition.StableKey)] = definition
+		collected = append(collected, definition)
 	}
-	for _, definition := range definitions {
+	sort.Slice(collected, func(left, right int) bool {
+		return collected[left].Symbol < collected[right].Symbol
+	})
+	// Two analyzer symbols can share one stable key: the key carries the crate
+	// name, the descriptor path and the kind, never the crate version, and
+	// rust-analyzer has bugs that emit the same declaration twice under
+	// different versions -- the standard library reports several of them about
+	// its own `std` crate root. `collidingKeys` names them; this decides which
+	// one wins, and it has to be the same one on every pass. Chosen by walking
+	// the map it was not: iteration order picked the winner, and with it whether
+	// the 171 re-exports at the root of `std` had a source symbol at all. Two
+	// passes over one toolchain published different graphs.
+	//
+	// Only the winner is published. A key is one node, and a graph carrying two
+	// declarations of it asserts that one symbol lives in two files -- which the
+	// canonical schema rejects when the generation is built, after the whole
+	// corpus has been analysed.
+	byDefinitionKey := make(map[string]Definition, len(collected))
+	analysis.Definitions = make([]Definition, 0, len(collected))
+	for _, definition := range collected {
+		if _, exists := byDefinitionKey[string(definition.StableKey)]; exists {
+			continue
+		}
+		byDefinitionKey[string(definition.StableKey)] = definition
 		analysis.Definitions = append(analysis.Definitions, definition)
 	}
-	sort.Slice(analysis.Definitions, func(left, right int) bool {
-		return analysis.Definitions[left].Symbol < analysis.Definitions[right].Symbol
-	})
 
 	resolver := &targetResolver{
 		repository:  repositoryName,

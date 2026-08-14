@@ -1,0 +1,27 @@
+# /private/tmp/lg-crossrepo/
+
+## consumer-a/
+### main.go#89FC
+ 7:	shape := api.Shape{Width: api.Answer}
+*8:	direct := api.Compute(shape.Width)
+ 9:	method := shape.Area()
+*10:	callback := api.Register(api.Compute)
+ 11:	_ = direct + method + callback
+ 12:}
+
+## consumer-b/
+### main.go#CD6D
+ 10:func main() {
+*11:	aliased := shared.Compute(shared.Answer)
+ 12:	replaced := legacy.Legacy()
+ 13:	_ = aliased + replaced
+ 14:}
+
+## shared-library/api/
+### api.go#90F0
+ 15:
+*16:// Compute is a function consumers call directly.
+*17:func Compute(input int) int { return input + Answer }
+ 18:
+ 19:// Register invokes the callback it receives.
+ 20:func Register(handler func(int) int) int { return handler(Answer) }

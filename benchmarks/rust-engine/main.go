@@ -51,6 +51,35 @@ type measurement struct {
 	Detail       string  `json:"detail,omitempty"`
 }
 
+// arm is one configuration of the same corpus, measured cold and warm.
+//
+// The two arms exist because the standard library is opt-in and changes the size
+// of the graph by an order of magnitude: a single total would describe neither
+// configuration.
+type arm struct {
+	Name string `json:"name"`
+	// Sysroot names the synthetic repository the standard library was published
+	// under, and Reason says why it is absent when it is.
+	Sysroot string `json:"sysroot,omitempty"`
+	Reason  string `json:"sysroot_reason,omitempty"`
+
+	Workspaces int `json:"workspaces"`
+	Crates     int `json:"crates"`
+	Files      int `json:"files"`
+	Symbols    int `json:"symbols"`
+	Edges      int `json:"edges"`
+	Unresolved int `json:"unresolved"`
+	// EdgesWithoutProvider counts the uses the merge could not close because
+	// the provider publishes no declaration for them -- the impls the standard
+	// library generates with macros.
+	EdgesWithoutProvider int `json:"edges_without_provider"`
+
+	ColdMilliseconds float64 `json:"cold_milliseconds"`
+	WarmMilliseconds float64 `json:"warm_milliseconds"`
+	CacheHits        int     `json:"cache_hits"`
+	CacheMisses      int     `json:"cache_misses"`
+}
+
 type report struct {
 	Command      string        `json:"command"`
 	Corpus       string        `json:"corpus"`
@@ -60,6 +89,7 @@ type report struct {
 	Edges        int           `json:"edges"`
 	Environment  environment   `json:"environment"`
 	Measurements []measurement `json:"measurements"`
+	Arms         []arm         `json:"arms"`
 	Limitations  []string      `json:"limitations"`
 }
 
@@ -99,6 +129,8 @@ func run(ctx context.Context) error {
 			"El corpus son tres crates: mide el reparto del coste, no la escala.",
 			"El caché del toolchain y del sysroot están calientes; una máquina fría paga más.",
 			"Las cifras dependen de la versión de rust-analyzer instalada.",
+			"El brazo con sysroot mide la biblioteca del toolchain instalado; otra versión publica otro número de símbolos.",
+			"El sysroot del brazo con biblioteca se indexa en su sitio, sin copiarlo: su coste incluye leer y hashear sus ficheros.",
 		},
 	}
 
@@ -126,34 +158,35 @@ func run(ctx context.Context) error {
 		Detail:       fmt.Sprintf("documents=%d", len(result.Index.Documents)),
 	})
 
-	cacheDirectory := filepath.Join(root, "factcache")
-	coldStart := time.Now()
-	set, indexReport, err := indexer.Full(ctx, fullOptions(repositories, root, cacheDirectory, indexer.CacheOn))
-	if err != nil {
-		return fmt.Errorf("cold index: %w", err)
-	}
-	measured.Measurements = append(measured.Measurements, measurement{
-		Name:         "index.cold",
-		Milliseconds: milliseconds(time.Since(coldStart)),
-		Detail:       fmt.Sprintf("workspaces=%d", indexReport.RustWorkspaces),
-	})
-	measured.Crates = indexReport.RustCrates
-	measured.Symbols = len(set.Symbols)
-	measured.Edges = len(set.Edges)
-
-	warmStart := time.Now()
-	warmSet, warmReport, err := indexer.Full(ctx, fullOptions(repositories, root, cacheDirectory, indexer.CacheOn))
-	if err != nil {
-		return fmt.Errorf("warm index: %w", err)
-	}
-	measured.Measurements = append(measured.Measurements, measurement{
-		Name:         "index.warm",
-		Milliseconds: milliseconds(time.Since(warmStart)),
-		Detail:       fmt.Sprintf("cache_hits=%d misses=%d", warmReport.Cache.Hits, warmReport.Cache.Misses),
-	})
-	if len(warmSet.Symbols) != len(set.Symbols) || len(warmSet.Edges) != len(set.Edges) {
-		return fmt.Errorf("the warm pass published a different graph: %d/%d symbols, %d/%d edges",
-			len(warmSet.Symbols), len(set.Symbols), len(warmSet.Edges), len(set.Edges))
+	for _, stdlib := range []bool{false, true} {
+		// Each arm gets its own cache directory: a warm pass has to be warm for
+		// the configuration it measures, and an entry taken with the standard
+		// library describes a different graph.
+		name := "without-stdlib"
+		if stdlib {
+			name = "with-stdlib"
+		}
+		measuredArm, err := measureArm(ctx, repositories, root, name, stdlib)
+		if err != nil {
+			return err
+		}
+		measured.Arms = append(measured.Arms, measuredArm)
+		if !stdlib {
+			measured.Crates = measuredArm.Crates
+			measured.Symbols = measuredArm.Symbols
+			measured.Edges = measuredArm.Edges
+		}
+		measured.Measurements = append(measured.Measurements,
+			measurement{
+				Name:         "index.cold." + name,
+				Milliseconds: measuredArm.ColdMilliseconds,
+				Detail:       fmt.Sprintf("workspaces=%d symbols=%d", measuredArm.Workspaces, measuredArm.Symbols),
+			},
+			measurement{
+				Name:         "index.warm." + name,
+				Milliseconds: measuredArm.WarmMilliseconds,
+				Detail:       fmt.Sprintf("cache_hits=%d misses=%d", measuredArm.CacheHits, measuredArm.CacheMisses),
+			})
 	}
 
 	if err := os.MkdirAll(outputDirectory, 0o755); err != nil {
@@ -171,6 +204,56 @@ func run(ctx context.Context) error {
 	}
 	fmt.Println("RUST_ENGINE_MEASURED")
 	return nil
+}
+
+// measureArm indexes the corpus twice in one configuration and checks that the
+// warm pass published the same graph. A cache that changes the graph is a bug
+// this harness must fail on, not a speed-up it may report.
+func measureArm(
+	ctx context.Context,
+	repositories []workspace.Repository,
+	root, name string,
+	stdlib bool,
+) (arm, error) {
+	cacheDirectory := filepath.Join(root, "factcache-"+name)
+	options := fullOptions(repositories, root, cacheDirectory, indexer.CacheOn)
+	options.RustIndexSysroot = stdlib
+
+	coldStart := time.Now()
+	set, indexReport, err := indexer.Full(ctx, options)
+	if err != nil {
+		return arm{}, fmt.Errorf("cold index (%s): %w", name, err)
+	}
+	measured := arm{
+		Name:                 name,
+		Sysroot:              indexReport.RustSysroot,
+		Reason:               indexReport.RustSysrootReason,
+		Workspaces:           indexReport.RustWorkspaces,
+		Crates:               indexReport.RustCrates,
+		Files:                len(set.Files),
+		Symbols:              len(set.Symbols),
+		Edges:                len(set.Edges),
+		Unresolved:           len(set.Unresolved),
+		EdgesWithoutProvider: indexReport.EdgesWithoutProvider,
+		ColdMilliseconds:     milliseconds(time.Since(coldStart)),
+	}
+	if stdlib && measured.Sysroot == "" {
+		return arm{}, fmt.Errorf("the standard library was requested and is not in the graph: %s", measured.Reason)
+	}
+
+	warmStart := time.Now()
+	warmSet, warmReport, err := indexer.Full(ctx, options)
+	if err != nil {
+		return arm{}, fmt.Errorf("warm index (%s): %w", name, err)
+	}
+	measured.WarmMilliseconds = milliseconds(time.Since(warmStart))
+	measured.CacheHits = warmReport.Cache.Hits
+	measured.CacheMisses = warmReport.Cache.Misses
+	if len(warmSet.Symbols) != len(set.Symbols) || len(warmSet.Edges) != len(set.Edges) {
+		return arm{}, fmt.Errorf("the warm pass published a different graph (%s): %d/%d symbols, %d/%d edges",
+			name, len(warmSet.Symbols), len(set.Symbols), len(warmSet.Edges), len(set.Edges))
+	}
+	return measured, nil
 }
 
 func fullOptions(repositories []workspace.Repository, root, cache string, mode indexer.CacheMode) indexer.FullOptions {
@@ -226,6 +309,26 @@ func render(measured report) string {
 	for _, entry := range measured.Measurements {
 		fmt.Fprintf(&out, "| %s | %.1f | %s |\n", entry.Name, entry.Milliseconds, entry.Detail)
 	}
+	out.WriteString("\n## Con y sin biblioteca estándar\n\n")
+	out.WriteString("El sysroot es opt-in (`rust.index_sysroot`). Publicarlo cambia el tamaño del\n")
+	out.WriteString("grafo en un orden de magnitud, así que las dos configuraciones se miden\n")
+	out.WriteString("aparte: un total único no describiría ninguna de las dos.\n\n")
+	out.WriteString("| Brazo | Proveedor | Workspaces | Símbolos | Aristas | No resueltos | Sin proveedor | Frío ms | Caliente ms | Aciertos/Fallos |\n")
+	out.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	for _, entry := range measured.Arms {
+		provider := entry.Sysroot
+		if provider == "" {
+			provider = entry.Reason
+		}
+		fmt.Fprintf(&out, "| %s | %s | %d | %d | %d | %d | %d | %.1f | %.1f | %d/%d |\n",
+			entry.Name, provider, entry.Workspaces, entry.Symbols, entry.Edges,
+			entry.Unresolved, entry.EdgesWithoutProvider,
+			entry.ColdMilliseconds, entry.WarmMilliseconds, entry.CacheHits, entry.CacheMisses)
+	}
+	out.WriteString("\n`Sin proveedor` cuenta los usos que el merge no pudo cerrar porque la\n")
+	out.WriteString("biblioteca genera esa implementación con una macro y no existe en ningún\n")
+	out.WriteString("rango de código: se declaran como `PROVIDER_DEFINITION_NOT_INDEXED`, nunca\n")
+	out.WriteString("se publican como arista.\n")
 	out.WriteString("\nEl analizador externo es el término dominante: la normalización, la\n")
 	out.WriteString("atribución con Tree-sitter y el merge ocurren sobre un índice ya construido.\n")
 	out.WriteString("\n## Limitaciones\n\n")

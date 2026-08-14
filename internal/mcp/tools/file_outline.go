@@ -50,25 +50,35 @@ var outlineMemberKinds = map[string]struct{}{
 // FileOutline is the skeleton of everything declared under a path: what is
 // there, of what kind, with what signature and on which lines. It is what a
 // reader needs before deciding which body to open.
+//
+// Symbols are grouped by file rather than carrying a path each. On a directory
+// outline the path was the second largest field on every row, and it is the one
+// piece of a row that a whole group of rows shares.
 type FileOutline struct {
-	Repository string          `json:"repository"`
-	Path       string          `json:"path"`
-	Files      int             `json:"files"`
-	Symbols    []OutlineSymbol `json:"symbols"`
-	Packages   []string        `json:"packages,omitempty"`
-	Languages  []string        `json:"languages,omitempty"`
+	Repository string        `json:"repository"`
+	Path       string        `json:"path"`
+	Packages   []string      `json:"packages,omitempty"`
+	Languages  []string      `json:"languages,omitempty"`
+	Files      []OutlineFile `json:"files"`
+}
+
+// OutlineFile is one file and the declarations this page carries for it.
+type OutlineFile struct {
+	Path    string          `json:"path"`
+	Symbols []OutlineSymbol `json:"symbols"`
 }
 
 // OutlineSymbol is one declaration.
 //
-// FilePath is set only when the outline spans more than one file. Repeating
-// the path the caller just asked for, on every row, is the largest single
-// waste a one-file outline can carry.
-//
 // QualifiedName is set only when it differs from Name, which for a top-level
 // declaration in most languages it does not.
+//
+// The stable key is not here. An outline of a 155-declaration file spent half
+// its tokens on base32 keys, and every row already names the symbol well enough
+// to address it: the repository, the file of its group and its qualified name
+// are what `get_symbol` and `find_references` now accept. The key returns under
+// `response_format: "detailed"`, together with the fully qualified signature.
 type OutlineSymbol struct {
-	StableKey string `json:"stable_key"`
 	Name      string `json:"name"`
 	Kind      string `json:"kind"`
 	Signature string `json:"signature"`
@@ -77,7 +87,7 @@ type OutlineSymbol struct {
 	EndLine   uint32 `json:"end_line"`
 
 	QualifiedName     string `json:"qualified_name,omitempty"`
-	FilePath          string `json:"file_path,omitempty"`
+	StableKey         string `json:"stable_key,omitempty"`
 	CanonicalIdentity string `json:"canonical_identity,omitempty"`
 }
 
@@ -130,12 +140,10 @@ func RegisterGetFileOutlineWithObserverAndSnapshotStore(
 			return result, outline, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name: fileOutlineToolName,
-		Description: "Lists the declarations of one file or of a directory, with their kind, signature and line range. " +
-			"Use it to read the shape of code without opening it, and to get the stable keys the other tools need.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        fileOutlineToolName,
+		Description: "Declarations under a path, grouped by file, with kind, signature and range. Use it for a package; one small file is cheaper to read.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -210,9 +218,12 @@ func getFileOutline(
 		return nil, Response[FileOutline]{}, WrapToolError(CodeInvalidArgument, "outline pagination is invalid", err)
 	}
 
-	outline := FileOutline{Repository: repositoryName, Path: path, Files: len(files)}
+	outline := FileOutline{Repository: repositoryName, Path: path, Files: []OutlineFile{}}
 	packages := make(map[string]struct{})
 	languages := make(map[string]struct{})
+	// Groups follow the order the page first mentions each file, so two calls
+	// over the same page produce byte-identical responses.
+	groups := make(map[string]int, len(files))
 	kept := 0
 	for _, id := range page.IDs {
 		symbol, found := snapshot.Symbol(id)
@@ -223,7 +234,7 @@ func getFileOutline(
 				fmt.Errorf("symbol index %d is missing", id),
 			)
 		}
-		row, location, err := outlineSymbol(snapshot, symbol, format, len(files) > 1)
+		row, location, err := outlineSymbol(snapshot, symbol, format)
 		if err != nil {
 			return nil, Response[FileOutline]{}, WrapToolError(
 				CodeSnapshotUnavailable,
@@ -238,11 +249,14 @@ func getFileOutline(
 			continue
 		}
 		packages[location.PackageName] = struct{}{}
-		outline.Symbols = append(outline.Symbols, row)
+		index, exists := groups[location.FilePath]
+		if !exists {
+			index = len(outline.Files)
+			groups[location.FilePath] = index
+			outline.Files = append(outline.Files, OutlineFile{Path: location.FilePath})
+		}
+		outline.Files[index].Symbols = append(outline.Files[index].Symbols, row)
 		kept++
-	}
-	if outline.Symbols == nil {
-		outline.Symbols = []OutlineSymbol{}
 	}
 	for _, file := range files {
 		record, found := snapshot.File(file)
@@ -287,7 +301,6 @@ func outlineSymbol(
 	snapshot *hotsnapshot.GraphSnapshot,
 	symbol hotsnapshot.SymbolRecord,
 	format string,
-	withPath bool,
 ) (OutlineSymbol, symbolLocation, error) {
 	table := snapshot.Strings()
 	canonical, canonicalOK := table.String(symbol.CanonicalIdentity)
@@ -306,10 +319,9 @@ func outlineSymbol(
 		return OutlineSymbol{}, symbolLocation{}, err
 	}
 	row := OutlineSymbol{
-		StableKey: string(symbol.StableKey),
 		Name:      name,
 		Kind:      kind,
-		Signature: signature,
+		Signature: localSignature(signature, location.PackageName),
 		Exported:  symbol.Exported,
 		StartLine: symbol.StartLine,
 		EndLine:   symbol.EndLine,
@@ -317,13 +329,26 @@ func outlineSymbol(
 	if qualifiedName != name {
 		row.QualifiedName = qualifiedName
 	}
-	if withPath {
-		row.FilePath = location.FilePath
-	}
 	if format == ResponseFormatDetailed {
+		row.StableKey = string(symbol.StableKey)
+		row.Signature = signature
 		row.CanonicalIdentity = canonical
 	}
 	return row, location, nil
+}
+
+// localSignature drops the package path from the types a symbol's own package
+// declares, which is how the source that declares it reads.
+//
+// `func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) ...Set` inside
+// `internal/facts` spends most of its tokens spelling out where the reader
+// already is. Types from elsewhere keep their path, because there the package
+// is the information. The full signature returns under `detailed`.
+func localSignature(signature, packageName string) string {
+	if signature == "" || packageName == "" {
+		return signature
+	}
+	return strings.ReplaceAll(signature, packageName+".", "")
 }
 
 func normalizeOutlineArgument(value, field string) (string, error) {

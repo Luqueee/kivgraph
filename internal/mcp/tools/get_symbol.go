@@ -13,9 +13,13 @@ import (
 
 const getSymbolToolName = "get_symbol"
 
-// GetSymbolInput identifies one symbol by its durable stable key.
+// GetSymbolInput identifies one symbol, either by its durable stable key or by
+// the repository, path and qualified name every row of this surface carries.
 type GetSymbolInput struct {
-	StableKey      string `json:"stable_key"`
+	StableKey      string `json:"stable_key,omitempty"`
+	QualifiedName  string `json:"qualified_name,omitempty"`
+	Repository     string `json:"repository,omitempty"`
+	Path           string `json:"path,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`
 }
 
@@ -25,7 +29,7 @@ type GetSymbolInput struct {
 // returned only for the detailed format.
 type SymbolDetails struct {
 	StableKey      string `json:"stable_key"`
-	RepositoryName string `json:"repository_name"`
+	Repository     string `json:"repository"`
 	RepositoryPath string `json:"repository_path"`
 	PackageName    string `json:"package_name"`
 	ModulePath     string `json:"module_path"`
@@ -89,11 +93,10 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 			return result, symbol, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:         getSymbolToolName,
-		Description:  "Returns one symbol by its stable key.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        getSymbolToolName,
+		Description: "One symbol's package, signature, visibility and line range, by stable key or by repository, path and qualified name.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -103,7 +106,7 @@ func getSymbol(
 	arguments GetSymbolInput,
 	snapshotStore *hotsnapshot.SnapshotStore,
 ) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
-	stableKey, err := normalizeSymbolStableKey(arguments.StableKey)
+	selector, err := normalizeSymbolSelector(arguments.StableKey, arguments.Repository, arguments.Path, arguments.QualifiedName)
 	if err != nil {
 		return nil, Response[SymbolDetails]{}, err
 	}
@@ -119,9 +122,9 @@ func getSymbol(
 		return nil, Response[SymbolDetails]{}, ErrIndexNotReady()
 	}
 
-	symbolID, found := snapshot.SymbolByStableKey(hotsnapshot.StableKey(stableKey))
-	if !found {
-		return nil, Response[SymbolDetails]{}, NewToolError(CodeSymbolNotFound, fmt.Sprintf("symbol %q was not found", stableKey))
+	symbolID, err := resolveSymbolSelector(snapshot, selector)
+	if err != nil {
+		return nil, Response[SymbolDetails]{}, err
 	}
 	symbol, found := snapshot.Symbol(symbolID)
 	if !found {
@@ -174,7 +177,7 @@ func symbolDetails(
 	}
 	details := SymbolDetails{
 		StableKey:      summary.StableKey,
-		RepositoryName: location.RepositoryName,
+		Repository:     location.RepositoryName,
 		RepositoryPath: location.RepositoryPath,
 		PackageName:    location.PackageName,
 		ModulePath:     location.ModulePath,

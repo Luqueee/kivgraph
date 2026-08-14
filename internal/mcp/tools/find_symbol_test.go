@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -105,15 +104,7 @@ func callFindSymbol(t *testing.T, client *sdkmcp.ClientSession, arguments map[st
 	if result.IsError {
 		t.Fatalf("find_symbol CallTool() returned an error: %#v", result.Content)
 	}
-	data, err := json.Marshal(result.StructuredContent)
-	if err != nil {
-		t.Fatalf("Marshal structured content: %v", err)
-	}
-	var response Response[[]SymbolSummary]
-	if err := json.Unmarshal(data, &response); err != nil {
-		t.Fatalf("Unmarshal structured content: %v", err)
-	}
-	return response
+	return decodeResponse[[]SymbolSummary](t, result)
 }
 
 func newSymbolToolClient(t *testing.T, store *hotsnapshot.SnapshotStore) *sdkmcp.ClientSession {

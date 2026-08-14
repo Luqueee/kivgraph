@@ -11,6 +11,7 @@ package rustloader
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -42,7 +43,7 @@ const (
 	CrateVersionMismatch CrateStatus = "CRATE_VERSION_MISMATCH"
 )
 
-// CrateProvider is one crate offered by a registered repository.
+// CrateProvider is one crate offered by a repository.
 type CrateProvider struct {
 	Repository    string
 	Name          string
@@ -50,6 +51,13 @@ type CrateProvider struct {
 	RootPath      string
 	ManifestPath  string
 	WorkspacePath string
+	// Lang marks a crate of the standard library, provided by the synthetic
+	// sysroot repository. Its version field is not a release: a consumer
+	// spells it as an origin URL and the sysroot's own index spells it
+	// `0.0.0`, so the two sides never agree on it. They agree on the crate
+	// name and the descriptor path, which is all the stable key is built
+	// from, so a lang crate resolves without comparing versions.
+	Lang bool
 }
 
 // CrateRegistry indexes crate names across every registered repository.
@@ -61,8 +69,13 @@ type CrateRegistry struct {
 	providers map[string][]CrateProvider
 }
 
-// NewCrateRegistry builds the cross-repository crate index.
-func NewCrateRegistry(ctx context.Context, repositories []workspace.Repository) (*CrateRegistry, error) {
+// NewCrateRegistry builds the cross-repository crate index. A non-nil sysroot
+// adds the standard library as a provider of its own crates.
+func NewCrateRegistry(
+	ctx context.Context,
+	repositories []workspace.Repository,
+	sysroot *SysrootProvider,
+) (*CrateRegistry, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -92,6 +105,11 @@ func NewCrateRegistry(ctx context.Context, repositories []workspace.Repository) 
 				ManifestPath:  crate.ManifestPath,
 				WorkspacePath: crate.WorkspacePath,
 			})
+		}
+	}
+	if sysroot != nil {
+		if err := registry.addSysroot(ctx, *sysroot); err != nil {
+			return nil, err
 		}
 	}
 	for crateName := range registry.providers {
@@ -129,11 +147,65 @@ func (registry *CrateRegistry) Providers(name string) []CrateProvider {
 	return append([]CrateProvider(nil), stored...)
 }
 
+// addSysroot registers the crates of the standard library as lang providers.
+//
+// Discovery is the same one every repository gets: the sysroot is a Cargo
+// workspace and its crates are read from its manifests, never from a hardcoded
+// list of names. A toolchain that ships one more library crate provides it
+// without this package learning its name.
+//
+// Only the crates of the library workspace are registered. A toolchain vendors
+// several independent workspaces inside its library directory, and registering
+// their crates would promise a provider the pass does not index: every use of
+// one would compose a key nobody publishes.
+func (registry *CrateRegistry) addSysroot(ctx context.Context, sysroot SysrootProvider) error {
+	discovery, err := workspace.DiscoverCargo(ctx, sysroot.Repository)
+	if err != nil {
+		return fmt.Errorf("sysroot %q Cargo crates: %w", sysroot.Repository.Name, err)
+	}
+	library := filepath.Join(sysroot.LibraryPath, "Cargo.toml")
+	for _, crate := range discovery.Crates {
+		if crate.WorkspacePath != library {
+			continue
+		}
+		crateName := strings.TrimSpace(crate.Name)
+		if crateName == "" {
+			return fmt.Errorf("sysroot %q crate manifest %q has an empty name", sysroot.Repository.Name, crate.ManifestPath)
+		}
+		registry.providers[crateName] = append(registry.providers[crateName], CrateProvider{
+			Repository:    sysroot.Repository.Name,
+			Name:          crateName,
+			Version:       strings.TrimSpace(crate.Version),
+			RootPath:      crate.RootPath,
+			ManifestPath:  crate.ManifestPath,
+			WorkspacePath: crate.WorkspacePath,
+			Lang:          true,
+		})
+	}
+	return nil
+}
+
+// IsLangOrigin reports whether a moniker's version field names the standard
+// library rather than a release.
+//
+// This is the evidence that attributes a reference to the sysroot. Resolving
+// `core` because a provider happens to be called `core` would be attribution by
+// name, which never produces an exact edge in this project.
+func IsLangOrigin(version string) bool {
+	return strings.HasPrefix(strings.TrimSpace(version), LangCrateOrigin)
+}
+
 // Resolve attributes a crate reference to the repository that provides it.
 //
 // The version is part of the question, not a detail: two repositories may
 // declare the same crate, and a consumer compiled against a version nobody
 // registered was not compiled against the code in the graph.
+//
+// A crate of the standard library is the one case where the version cannot be
+// compared, because the two sides of the boundary do not write the same thing
+// in that field. What is compared instead is the origin the analyzer named,
+// which is evidence of the same kind: a reference that does not carry it is not
+// a reference to the standard library.
 func (registry *CrateRegistry) Resolve(name, version string) (CrateProvider, CrateStatus) {
 	if registry == nil {
 		return CrateProvider{}, CrateProviderNotFound
@@ -143,11 +215,20 @@ func (registry *CrateRegistry) Resolve(name, version string) (CrateProvider, Cra
 		return CrateProvider{}, CrateProviderNotFound
 	}
 	requested := strings.TrimSpace(version)
+	if IsLangOrigin(requested) {
+		return resolveLangCrate(candidates)
+	}
 	if requested == "" || requested == unknownCrateVersion {
 		return CrateProvider{}, CrateVersionUnknown
 	}
 	matching := make([]CrateProvider, 0, 1)
 	for _, candidate := range candidates {
+		if candidate.Lang {
+			// The reference names a release; the standard library is not
+			// one. Attributing it here would put a symbol of `core` behind
+			// a version nobody compiled against.
+			continue
+		}
 		if candidate.Version == requested {
 			matching = append(matching, candidate)
 		}
@@ -159,5 +240,31 @@ func (registry *CrateRegistry) Resolve(name, version string) (CrateProvider, Cra
 		return matching[0], CrateResolved
 	default:
 		return CrateProvider{}, AmbiguousCrateProvider
+	}
+}
+
+// resolveLangCrate attributes a reference the analyzer marked as coming from
+// the standard library.
+//
+// A registered repository declaring a crate the standard library also declares
+// is an ambiguity, not a preference: exactly as it is for two repositories, and
+// so are two toolchains in one graph.
+func resolveLangCrate(candidates []CrateProvider) (CrateProvider, CrateStatus) {
+	lang := make([]CrateProvider, 0, 1)
+	registered := 0
+	for _, candidate := range candidates {
+		if candidate.Lang {
+			lang = append(lang, candidate)
+			continue
+		}
+		registered++
+	}
+	switch {
+	case len(lang) == 0:
+		return CrateProvider{}, CrateProviderNotFound
+	case len(lang) > 1 || registered > 0:
+		return CrateProvider{}, AmbiguousCrateProvider
+	default:
+		return lang[0], CrateResolved
 	}
 }

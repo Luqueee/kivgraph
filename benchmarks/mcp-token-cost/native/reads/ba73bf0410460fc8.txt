@@ -1,0 +1,110 @@
+[synthetic.go#D737]
+119:// same module, and a replacement Ladygraph cannot decide must never be guessed.
+120:func BuildPlan(ctx context.Context, repositories []workspace.Repository, options Options) (Plan, error) {
+121:	if ctx == nil {
+122:		ctx = context.Background()
+123:	}
+124:	if err := ctx.Err(); err != nil {
+125:		return Plan{}, err
+126:	}
+127:
+128:	byModulePath := make(map[string][]Module)
+129:	replacements := make(map[replacementKey][]replacementSource)
+130:	for _, repository := range repositories {
+131:		if err := ctx.Err(); err != nil {
+132:			return Plan{}, err
+133:		}
+134:		name := strings.TrimSpace(repository.Name)
+135:		if name == "" {
+136:			return Plan{}, fmt.Errorf("repository %q: name must not be empty", repository.Path)
+137:		}
+138:		discovery, err := workspace.DiscoverGo(ctx, repository)
+139:		if err != nil {
+140:			return Plan{}, fmt.Errorf("repository %q Go modules: %w", name, err)
+141:		}
+142:		workspaceReplaces := workspaceReplacementsByManifest(discovery.Workspaces)
+143:		moduleByManifest := make(map[string]string, len(discovery.Modules))
+144:		for _, module := range discovery.Modules {
+145:			moduleByManifest[module.ManifestPath] = strings.TrimSpace(module.ModulePath)
+146:		}
+147:		for _, module := range discovery.Modules {
+148:			modulePath := strings.TrimSpace(module.ModulePath)
+149:			if modulePath == "" {
+150:				return Plan{}, fmt.Errorf("repository %q module manifest %q has an empty module path", name, module.ManifestPath)
+151:			}
+152:			packagePatterns := packagePatternsForModule(discovery.Packages, module)
+153:			provider := workspace.GoModuleProvider{
+154:				ModulePath:        modulePath,
+155:				Repository:        name,
+156:				ManifestPath:      module.ManifestPath,
+157:				RootPath:          module.RootPath,
+158:				GoVersion:         module.GoVersion,
+159:				Replaces:          append([]workspace.GoReplacement(nil), module.Replaces...),
+160:				WorkspaceReplaces: append([]workspace.GoReplacement(nil), workspaceReplaces[module.ManifestPath]...),
+161:			}
+162:			byModulePath[modulePath] = append(byModulePath[modulePath], Module{
+163:				Repository:       name,
+164:				ModulePath:       modulePath,
+165:				RootPath:         module.RootPath,
+166:				ManifestPath:     module.ManifestPath,
+167:				GoVersion:        module.GoVersion,
+168:				PackagePatterns:  packagePatterns,
+169:				Reaches:          moduleReaches(module),
+170:				WorkspaceMembers: workspaceMembers(discovery.Workspaces, module.ManifestPath, moduleByManifest),
+171:			})
+172:			collectReplacements(replacements, name, provider)
+173:		}
+174:	}
+175:
+176:	if err := rejectUnsupportedGoVersions(byModulePath, options.MaximumGoVersion); err != nil {
+177:		return Plan{}, err
+178:	}
+179:
+180:	plan := Plan{}
+181:	for modulePath, candidates := range byModulePath {
+182:		if len(candidates) > 1 {
+183:			plan.Conflicts = append(plan.Conflicts, ambiguousModuleConflict(modulePath, candidates))
+184:			continue
+185:		}
+186:		plan.Modules = append(plan.Modules, candidates[0])
+187:	}
+188:	if len(plan.Modules) == 0 {
+189:		return Plan{}, ErrNoModules
+190:	}
+191:	sort.Slice(plan.Modules, func(left, right int) bool {
+192:		if plan.Modules[left].ModulePath != plan.Modules[right].ModulePath {
+193:			return plan.Modules[left].ModulePath < plan.Modules[right].ModulePath
+194:		}
+195:		return plan.Modules[left].RootPath < plan.Modules[right].RootPath
+196:	})
+197:
+198:	included := make(map[string]struct{}, len(plan.Modules))
+199:	for _, module := range plan.Modules {
+200:		included[module.ModulePath] = struct{}{}
+201:	}
+202:	resolveReplacements(&plan, replacements, included)
+203:
+204:	version, err := workspaceGoVersion(plan.Modules, options.GoVersion)
+205:	if err != nil {
+206:		return Plan{}, err
+207:	}
+208:	plan.GoVersion = version
+209:
+210:	sort.Slice(plan.Conflicts, func(left, right int) bool {
+211:		if plan.Conflicts[left].Kind != plan.Conflicts[right].Kind {
+212:			return plan.Conflicts[left].Kind < plan.Conflicts[right].Kind
+213:
+214:		}
+215:		return plan.Conflicts[left].Subject < plan.Conflicts[right].Subject
+216:	})
+217:
+218:	return plan, nil
+219:}
+220:
+221:func packagePatternsForModule(packages []workspace.GoPackage, module workspace.GoModule) []string {
+222:	patterns := make([]string, 0)
+…
+239:	return deduplicated
+240:}
+
+[Showing lines 119-222 of 777. Use :223 to continue]

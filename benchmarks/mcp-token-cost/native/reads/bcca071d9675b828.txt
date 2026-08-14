@@ -1,0 +1,22 @@
+[go_registry.go#3BD3]
+32:// NewGoModuleRegistry discovers and indexes Go modules for one repository.
+33:func NewGoModuleRegistry(ctx context.Context, repository Repository) (*GoModuleRegistry, error) {
+34:	if ctx == nil {
+35:		ctx = context.Background()
+36:	}
+37:	discovery, err := DiscoverGo(ctx, repository)
+38:	if err != nil {
+39:		return nil, err
+40:	}
+41:	return newGoModuleRegistry(ctx, repository, discovery)
+42:}
+43:
+44:func newGoModuleRegistry(ctx context.Context, repository Repository, discovery GoDiscovery) (*GoModuleRegistry, error) {
+45:	registry := &GoModuleRegistry{
+…
+48:	}
+…
+85:	return registry, nil
+86:}
+
+[Showing lines 32-45 of 167. Use :46 to continue]

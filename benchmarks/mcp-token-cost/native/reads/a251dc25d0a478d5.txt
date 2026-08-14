@@ -1,0 +1,51 @@
+[crossrepo.go#B08C]
+52:// NewModuleRegistry builds the cross-repository module index.
+53:func NewModuleRegistry(ctx context.Context, repositories []workspace.Repository) (*ModuleRegistry, error) {
+54:	if ctx == nil {
+55:		ctx = context.Background()
+56:	}
+57:	registry := &ModuleRegistry{providers: make(map[string][]ModuleProvider)}
+58:	for _, repository := range repositories {
+59:		if err := ctx.Err(); err != nil {
+60:			return nil, err
+61:		}
+62:		name := strings.TrimSpace(repository.Name)
+63:		if name == "" {
+64:			return nil, fmt.Errorf("repository %q: name must not be empty", repository.Path)
+65:		}
+66:		discovery, err := workspace.DiscoverGo(ctx, repository)
+67:		if err != nil {
+68:			return nil, fmt.Errorf("repository %q Go modules: %w", name, err)
+69:		}
+70:		for _, module := range discovery.Modules {
+71:			modulePath := strings.TrimSpace(module.ModulePath)
+72:			if modulePath == "" {
+73:				return nil, fmt.Errorf("repository %q module manifest %q has an empty module path", name, module.ManifestPath)
+74:			}
+75:			registry.providers[modulePath] = append(registry.providers[modulePath], ModuleProvider{
+76:				Repository:   name,
+77:				ModulePath:   modulePath,
+78:				RootPath:     module.RootPath,
+79:				ManifestPath: module.ManifestPath,
+80:			})
+81:		}
+82:	}
+83:	for modulePath := range registry.providers {
+84:		sort.Slice(registry.providers[modulePath], func(left, right int) bool {
+85:			if registry.providers[modulePath][left].Repository != registry.providers[modulePath][right].Repository {
+86:				return registry.providers[modulePath][left].Repository <
+87:					registry.providers[modulePath][right].Repository
+88:			}
+89:			return registry.providers[modulePath][left].ManifestPath <
+90:				registry.providers[modulePath][right].ManifestPath
+91:		})
+92:	}
+93:	return registry, nil
+94:}
+95:
+96:// Providers returns every repository declaring modulePath.
+97:func (registry *ModuleRegistry) Providers(modulePath string) []ModuleProvider {
+…
+103:}
+
+[Showing lines 52-97 of 269. Use :98 to continue]

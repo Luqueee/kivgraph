@@ -114,11 +114,19 @@ func TestUnbuildableGraphLeavesTheServiceHonest(t *testing.T) {
 		t.Fatalf("store published %#v, want nothing", snapshot.Metadata())
 	}
 
-	code, _, err := lookupSymbol(session, "sym-root")
-	if err == nil {
-		t.Fatal("get_symbol answered without a published snapshot")
+	// Honesty moved to the handshake. A server with nothing published exposes no
+	// query tool at all and says how to repair itself, which is strictly clearer
+	// than publishing tools that answer INDEX_NOT_READY to everything.
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
 	}
-	if code != tools.CodeIndexNotReady {
-		t.Fatalf("error code = %q, want %q", code, tools.CodeIndexNotReady)
+	for _, tool := range listed.Tools {
+		if tool.Name != "index_project" {
+			t.Fatalf("tool %q is published without a generation, want none but index_project", tool.Name)
+		}
+	}
+	if _, _, err := lookupSymbol(session, "sym-root"); err == nil {
+		t.Fatal("get_symbol answered without a published snapshot")
 	}
 }

@@ -14,6 +14,38 @@ integridad, compatibilidad o verificación descritos aquí.
   derivada y no una fuente alternativa de hechos.
 - Los identificadores históricos `LUQUE-####` del backlog no se renombran.
 
+## Qué pregunta contesta cada tool de Ladygraph
+
+Este bloque es el canal de enrutado portable: `CLAUDE.md` es un enlace a este
+fichero, así que Oh My Pi y Claude Code lo cargan los dos sin que nadie lo pida.
+El campo `instructions` del servidor dice lo mismo, y Zed no lo lee.
+
+| la pregunta | la tool |
+| --- | --- |
+| quién llama a esto, qué referencia a esto | `find_references` |
+| qué se rompe si lo cambio | `get_blast_radius` |
+| qué alcanza esto hacia fuera | `trace_dependencies` |
+| quién lo usa desde otro repositorio | `find_cross_repo_consumers` |
+| dónde está declarado | `find_symbol` |
+| qué hay declarado en este paquete | `get_file_outline` |
+| dame el código de estos símbolos | `get_source` |
+| ¿está el grafo al día? | `graph_status` |
+
+Las aristas las resuelven `go/types`, el checker de TypeScript y
+`rust-analyzer`, no la coincidencia de nombres: una lista de referencias vacía
+significa que **nadie lo llama**, no que no se encontró. `grep` no puede decir
+eso, y tampoco distingue dos métodos homónimos.
+
+Toda fila trae repositorio, ruta, nombre cualificado y rango de líneas, y toda
+tool acepta esa tripleta en vez de una clave estable: la llamada siguiente se
+construye con la respuesta que ya se tiene.
+
+**Dónde pierde, y conviene no gastar la llamada:** un nombre raro en un solo
+repositorio pequeño lo resuelve `grep` más barato -medido: `1,08x` contra
+`7,69x` de un nombre común-, y el índice de un fichero pequeño cuesta más que
+leerlo. Gana en nombres comunes, en impacto transitivo, en consumidores de otro
+repositorio y en demostrar una ausencia.
+
 ## Herramientas MCP en Oh My Pi
 
 - Las rutas `xd://` se descubren consultando `xd://`; nunca se construyen
@@ -270,12 +302,53 @@ integridad, compatibilidad o verificación descritos aquí.
   el símbolo, en su propio contador `coverage.package_level`; sumarlas a
   `exact` informa de un uso que nadie vio. Por lo mismo, un fallo de
   resolución que no nombró símbolo -un módulo ilegible, un proveedor ausente-
-  pertenece al paquete y se sirve por `get_unresolved_references` con
-  `requested_package`, nunca atribuido a cada símbolo que ese paquete exporta.
+  pertenece al paquete y se declara con `requested_package`, nunca atribuido a
+  cada símbolo que ese paquete exporta. Esa lista salió de la superficie del
+  modelo en la fase 19 -es una pregunta sobre el índice, no sobre el código- y
+  vive en el CLI.
 - Un diagnóstico del cargador que no tumba la pasada se imprime, no sólo se
   cuenta; un repositorio TypeScript que no declara ningún paquete se nombra.
   Un contador sin detalle y una entrada de registro que no aporta nada son
   dos formas de callar.
+- Una respuesta viaja por **un solo canal**. Ninguna tool publica `outputSchema`,
+  porque el SDK entonces marshala el resultado tipado a `structuredContent` y
+  repite el mismo JSON en el bloque de texto: la respuesta se paga dos veces.
+  `get_source` va más allá y contesta en prosa: 302 tokens de fuente son 374
+  dentro de una cadena JSON y 430 como fila, que es lo que cuesta la lectura de
+  rango del anfitrión, así que servir código por el envoltorio no compra nada.
+- Toda fila que nombra un símbolo se puede abrir sin otra llamada: lleva
+  repositorio, ruta, nombre cualificado y **el rango completo**. Y toda tool
+  acepta esa tripleta en lugar de la clave estable, que son 35 tokens de base32
+  que sólo este servidor lee. Un nombre ambiguo no se resuelve en silencio: el
+  error nombra los candidatos por dónde están, y si repositorio y ruta ya no los
+  separan, ofrece las claves.
+- Sin generación publicada no hay superficie: el servidor completa el handshake,
+  publica cero tools de consulta y pone el comando de reconstrucción en
+  `instructions`. Un cliente lanza el proceso él mismo, así que salir se lee como
+  una caída, y publicar tools que contestan `INDEX_NOT_READY` a todo enseña al
+  agente que las tools no funcionan.
+- Lo que un anfitrión mantiene residente es el nombre de la tool y su
+  descripción, no su esquema: Oh My Pi lee el esquema bajo demanda y Claude Code
+  lo difiere. Ahí vive el enrutado -contra qué alternativa nativa compite cada
+  tool y **dónde pierde**- y por eso ninguna descripción ni `instructions` puede
+  llevar un número derivado del grafo: reescribiría el prompt de sistema del
+  cliente en cada reindexado. Los datos volátiles se piden con `graph_status`.
+- Una respuesta declara lo que su recuento significa sólo cuando la cifra
+  engaña. Cero filas se lee como «no existe» salvo que algo diga que es una
+  ausencia comprobada; una página truncada no dice si contiene lo que importaba.
+  Con filas y sin truncar, `guidance` calla: quince tokens de consejo en cada
+  llamada es cómo un ahorro se convierte en un coste.
+- `serve` puede leer los ficheros de los repositorios registrados **sólo para
+  entregar bytes**. Falla cerrado en lo que afirma y degrada declarando en lo que
+  entrega: si el fichero ya no cuadra con el `ContentDigest` de la generación, el
+  fichero es la autoridad, la declaración se reancla por nombre y el
+  desplazamiento se declara; si no queda o queda dos veces, esa fila no da bytes
+  y las demás sí. Reanclar no crea ninguna arista. Ver ADR 0040.
+- El coste en tokens de la superficie se mide, no se opina:
+  `benchmarks/mcp-token-cost` compara cada pregunta contra la vía nativa del
+  anfitrión con sus salidas **capturadas literalmente**, publica el factor de
+  responder y el de la sesión completa -uno solo engaña- y declara el gate desde
+  su digest.
 
 ## TypeScript
 
@@ -470,16 +543,58 @@ integridad, compatibilidad o verificación descritos aquí.
   El ascenso por la expresión atraviesa lo que no cambia lo nombrado -un
   camino, un préstamo, un literal de array o tupla- y nunca un acceso a
   campo: devolver `objeto.campo` no devuelve el objeto.
-- `core`, `std` y `alloc` no están en el grafo, y esa sola ausencia explica
-  cuatro silencios medidos: `#[derive(...)]` no produce ninguna relación, la
-  sobrecarga de operadores no alcanza su `impl` local -`a + b` se atribuye a
-  `core::ops::Add::add`-, el operador `?` cae en `Try::branch`, y toda llamada
-  a la biblioteca estándar desaparece. Es una carencia declarada, no un bug
-  que arreglar sobre la marcha: indexar el sysroot cambia el tamaño y el
-  versionado del grafo y tiene su propia tarea, `LUQUE-1826`. Fabricar esas
-  aristas contra un destino que nadie publica está prohibido por el contrato,
-  y llenar el grafo de `UNRESOLVED` por cada `derive` sería peor que el
-  silencio actual.
+- `core`, `std` y `alloc` entran al grafo con `rust.index_sysroot`, apagado por
+  defecto. Sin ellos, cuatro silencios medidos: `#[derive(...)]` no produce
+  ninguna relación, la sobrecarga de operadores no alcanza su trait, el operador
+  `?` no alcanza `Try::branch`, y toda llamada a la biblioteca estándar
+  desaparece. Con ellos, los cuatro son aristas exactas. La ausencia sigue
+  siendo una carencia declarada y nunca un fallo: una máquina sin toolchain o
+  sin `rust-src` indexa sus repositorios y dice por qué no indexó la
+  biblioteca. Ver ADR 0041.
+- La unidad del sysroot es el workspace `library` y nada por debajo. Un
+  toolchain vendoriza ahí dentro `backtrace`, `compiler-builtins`,
+  `portable-simd` y `stdarch`, que no son la biblioteca estándar: seis de esos
+  workspaces no cargan, aportan crates que nadie puede nombrar y sus build
+  scripts hacen que dos pasadas del mismo toolchain publiquen distinto número de
+  aristas. Se nombran en los diagnósticos y sus crates no se registran, porque
+  registrar un proveedor que la pasada no indexa compone una clave que nadie
+  publica.
+- Un crate de la biblioteca se atribuye por **origen**, nunca por versión ni por
+  nombre. Los dos lados de la frontera escriben cosas distintas en el campo de
+  versión del moniker -el consumidor una URL, la biblioteca indexada como
+  workspace `0.0.0`-, y la clave estable no lleva la versión, así que ambos
+  componen la misma clave. Una referencia que nombra `core` con una release es
+  `CRATE_VERSION_MISMATCH`; un repositorio registrado que declara un crate de la
+  biblioteca, o dos toolchains a la vez, es `AMBIGUOUS_CRATE_PROVIDER`.
+- El repositorio sintético se llama `rust:<release>` y ese namespace está
+  reservado en el registro: `init` rechaza un nombre de usuario que lo tome. Eso
+  es lo que hace del nombre la autoridad y evita una columna en el esquema
+  canónico para responder si una fila es derivada. No lleva `commit`, `branch`
+  ni `dirty`: nadie lo clona y nadie puede moverlo.
+- La huella de la caché de hechos incluye `rustc --version`, así que un cambio
+  de toolchain invalida cada hecho tomado de él. La biblioteca cuesta una pasada
+  fría por toolchain y se sirve del caché en las siguientes.
+- Una unidad acepta a crédito un destino atribuido a otro repositorio, porque no
+  puede ver los hechos del proveedor. Cuando el proveedor no lo publica -`impl
+  Add for u32` la genera `add_impl!` y no existe en ningún rango de código- el
+  merge retira la arista y declara el uso como `PROVIDER_DEFINITION_NOT_INDEXED`
+  con su crate, su símbolo y su posición; se cuenta en `EdgesWithoutProvider`.
+  La descripción viaja con la unidad que compuso la clave, también en su entrada
+  de caché: sin eso una pasada caliente no puede cerrar lo que la fría publicó.
+- El índice de claves estables se construye sobre la lista **ordenada** de
+  definiciones, primero gana. Dos símbolos del analizador pueden compartir una
+  clave -no lleva la versión del crate, y rust-analyzer emite duplicados-, y
+  recorriendo un mapa el orden de iteración decidía el ganador: dos pasadas del
+  mismo corpus publicaban 170 aristas de diferencia en la raíz de `std`.
+- El proveedor derivado se retira por defecto de las cuatro tools servidas que
+  pueden devolver una de sus filas -`find_symbol`, `find_references`,
+  `trace_dependencies` y `get_blast_radius`-, y lo anulan `include_derived` o
+  nombrarlo en `repo`. Retirar una fila es una decisión de página y nunca una afirmación
+  sobre lo observado: la arista sigue publicada con su confianza exacta.
+  `graph_status` lo desglosa en `derived`, sus no resueltos incluidos -una arista
+  pertenece al repositorio de su símbolo origen, que es el lado que observó- y
+  `list_repositories` marca la fila. Sin ese desglose, un repositorio de diez
+  símbolos responde `24.704`.
 - La visibilidad de Rust no es solo `pub`: un miembro de un `trait` es tan
   visible como el trait, y un método de una implementación de trait es
   alcanzable a través de él. Leer únicamente el modificador publicaría una API
@@ -497,6 +612,12 @@ integridad, compatibilidad o verificación descritos aquí.
 - El descubrimiento Cargo no ejecuta `cargo`: lee los manifests con
   `BurntSushi/toml` y resuelve la pertenencia por directorio, como hace Cargo.
   Un crate sin workspace por encima es un workspace de uno.
+- Un manifest que declara su propio `[workspace]` dentro del directorio de otro
+  es una raíz legítima, no un error: así se vendoriza un árbol independiente y
+  Cargo lo acepta -la biblioteca estándar lleva `library/backtrace` justo así-.
+  Lo que Cargo rechaza es un manifest que sea raíz **y** miembro del workspace
+  de encima, que llama «multiple workspace roots found in the same workspace», y
+  los `members` se comparan como globs.
 - La frontera de un repositorio Rust es una sola decisión, y la responde
   `workspace.CargoExcludes`: lo que el descubrimiento no camina -`.git`,
   `target`, `vendor`, `node_modules` y las `exclusions` configuradas- tampoco

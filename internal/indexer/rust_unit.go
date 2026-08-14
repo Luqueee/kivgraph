@@ -180,7 +180,43 @@ func indexRustWorkspace(
 		detail:      rustUnitDetail(rustUnit),
 		diagnostics: rustDiagnostics(rustUnit, analysis, report),
 		requested:   requestedCrates(analysis),
+		composed:    composedRustTargets(analysis),
 	}, nil
+}
+
+// composedRustTargets describes every target this workspace attributed to
+// another repository. The key was built from the provider's identity without
+// reading its declaration, so if the provider turns out not to publish it, this
+// is the only description of what was requested.
+func composedRustTargets(analysis rustloader.Analysis) map[string]composedTarget {
+	targets := make(map[string]composedTarget)
+	for _, reference := range analysis.References {
+		if reference.TargetRepository == "" || reference.TargetKey == "" {
+			continue
+		}
+		if _, exists := targets[reference.TargetKey]; exists {
+			continue
+		}
+		targets[reference.TargetKey] = composedTarget{
+			Repository: reference.TargetRepository,
+			Package:    reference.TargetCrate.Name,
+			Symbol:     reference.TargetQualifiedName,
+		}
+	}
+	for _, relation := range analysis.Relations {
+		if relation.TargetRepository == "" || relation.TargetKey == "" {
+			continue
+		}
+		if _, exists := targets[relation.TargetKey]; exists {
+			continue
+		}
+		targets[relation.TargetKey] = composedTarget{
+			Repository: relation.TargetRepository,
+			Package:    relation.TargetCrate.Name,
+			Symbol:     relation.TargetQualifiedName,
+		}
+	}
+	return targets
 }
 
 // workspaceNotLoadedFacts declares a Cargo workspace the analyzer could not
@@ -256,6 +292,10 @@ func rustDiagnostics(unit rustWorkspaceUnit, analysis rustloader.Analysis, repor
 	if dropped := report.EdgesWithoutSource - analysis.ReferencesWithoutSource; dropped > 0 {
 		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d edges name a source this pass does not publish",
 			unit.repository.Name, rustUnitDetail(unit), dropped))
+	}
+	if report.FilesWithoutPackage != 0 {
+		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d indexed files belong to no crate this workspace declares",
+			unit.repository.Name, rustUnitDetail(unit), report.FilesWithoutPackage))
 	}
 	if report.EdgesWithoutTarget != 0 {
 		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d edges name a target this pass does not publish",
@@ -337,6 +377,11 @@ func repositoriesForRust(repositories []workspace.Repository) []workspace.Reposi
 // prepareRust discovers the Cargo workspaces of the pass and the shared state
 // their analysis needs: the crate registry that attributes a crate to its
 // provider, and one Tree-sitter pool for every workspace.
+//
+// The standard library, when the configuration asks for it, is one more unit
+// with a synthetic repository. Nothing downstream distinguishes it: it is a
+// Cargo workspace whose crates the analyzer indexes and whose symbols other
+// repositories reference.
 func prepareRust(
 	ctx context.Context,
 	options FullOptions,
@@ -358,7 +403,22 @@ func prepareRust(
 	}
 	report.RustWithoutWorkspaces = withoutWorkspaces
 
-	registry, err := rustloader.NewCrateRegistry(ctx, repositories)
+	sysroot, reason, err := resolveSysroot(ctx, options)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	report.RustSysrootReason = string(reason)
+	if sysroot != nil {
+		report.RustSysroot = sysroot.Repository.Name
+		libraryUnits, vendored, err := sysrootLibraryUnits(ctx, *sysroot)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("discover the standard library of %s: %w", sysroot.Toolchain, err)
+		}
+		units = append(units, libraryUnits...)
+		report.RustDiagnostics = append(report.RustDiagnostics, vendored...)
+	}
+
+	registry, err := rustloader.NewCrateRegistry(ctx, repositories, sysroot)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Rust crate registry: %w", err)
 	}
@@ -367,6 +427,74 @@ func prepareRust(
 		return nil, nil, nil, fmt.Errorf("create Rust parsers: %w", err)
 	}
 	return units, registry, parsers, nil
+}
+
+// sysrootLibraryUnits answers the analysis units of the standard library, and
+// names what it left out.
+//
+// The unit is the library workspace itself and nothing below it. A toolchain
+// ships several independent Cargo workspaces inside its library directory --
+// `backtrace`, `compiler-builtins`, `portable-simd`, `stdarch` -- which are
+// vendored projects, not the standard library: `library/Cargo.toml` does not
+// resolve them, two of them it excludes by name, and the analyzer cannot even
+// load most of them because their own members are not distributed with the
+// sources.
+//
+// Indexing them was measured and rejected: sixteen analyzer invocations instead
+// of one, six workspaces that fail to load, crates nothing in the corpus can
+// name, and -- the reason it is not a trade-off -- two passes over the same
+// toolchain produced different edge counts, because their build scripts see
+// what the previous pass left in the target directory. A graph that is not
+// reproducible is not publishable.
+func sysrootLibraryUnits(ctx context.Context, sysroot rustloader.SysrootProvider) ([]rustWorkspaceUnit, []string, error) {
+	discovered, _, err := discoverRustWorkspaces(ctx, []workspace.Repository{sysroot.Repository})
+	if err != nil {
+		return nil, nil, err
+	}
+	units := make([]rustWorkspaceUnit, 0, 1)
+	vendored := make([]string, 0)
+	for _, unit := range discovered {
+		if unit.workspace.RootPath == sysroot.LibraryPath {
+			units = append(units, unit)
+			continue
+		}
+		vendored = append(vendored, fmt.Sprintf("%s: %s is a workspace vendored inside the library and is not indexed",
+			sysroot.Repository.Name, relativeSysrootPath(sysroot.LibraryPath, unit.workspace.RootPath)))
+	}
+	if len(units) == 0 {
+		return nil, nil, fmt.Errorf("the library directory %q declares no Cargo workspace", sysroot.LibraryPath)
+	}
+	sort.Strings(vendored)
+	return units, vendored, nil
+}
+
+// relativeSysrootPath names a vendored workspace by where it sits, so a
+// diagnostic does not repeat the whole toolchain path on every line.
+func relativeSysrootPath(base, path string) string {
+	if relative, err := filepath.Rel(base, path); err == nil {
+		return relative
+	}
+	return path
+}
+
+// resolveSysroot answers the standard library this pass will index, or nil and
+// the reason it will not.
+//
+// A configuration that did not ask for it is the same shape as a machine that
+// cannot provide it: both leave the graph as it is today and say so, because
+// the feature is opt-in and its absence is not a failure.
+func resolveSysroot(ctx context.Context, options FullOptions) (*rustloader.SysrootProvider, rustloader.SysrootUnavailableReason, error) {
+	if !options.RustIndexSysroot {
+		return nil, rustloader.SysrootNotRequested, nil
+	}
+	provider, reason, err := rustloader.DiscoverSysroot(ctx, options.WorkingDirectory)
+	if err != nil {
+		return nil, "", err
+	}
+	if reason != "" {
+		return nil, reason, nil
+	}
+	return &provider, "", nil
 }
 
 func rustAnalysisUnits(units []rustWorkspaceUnit) []analysisUnit {
@@ -401,9 +529,18 @@ func rustAnalysisFingerprint(options FullOptions) string {
 	sort.Strings(cfgs)
 	fmt.Fprintf(hash, "features=%s\x00all=%t\x00nodefault=%t\x00",
 		strings.Join(features, ","), options.RustAllFeatures, options.RustNoDefaultFeatures)
-	fmt.Fprintf(hash, "cfgs=%s\x00scripts=%t\x00macros=%t\x00tests=%t\x00network=%t\x00sysroot=%s\x00",
+	fmt.Fprintf(hash, "cfgs=%s\x00scripts=%t\x00macros=%t\x00tests=%t\x00network=%t\x00sysroot=%s\x00stdlib=%t\x00",
 		strings.Join(cfgs, ","), options.RustBuildScripts, options.RustProcMacros,
-		options.RustIncludeTests, options.RustAllowNetwork, strings.TrimSpace(options.RustSysroot))
+		options.RustIncludeTests, options.RustAllowNetwork, strings.TrimSpace(options.RustSysroot),
+		options.RustIndexSysroot)
+	// The standard library in the graph is decided by `rustc`, not by cargo:
+	// a toolchain change is what invalidates every fact taken from it, and an
+	// entry that did not record the release would be served across one.
+	if compiler, err := exec.LookPath("rustc"); err == nil {
+		if version, err := exec.Command(compiler, "--version").Output(); err == nil {
+			fmt.Fprintf(hash, "rustc=%s\x00", strings.TrimSpace(string(version)))
+		}
+	}
 	if cargo, err := exec.LookPath("cargo"); err == nil {
 		if version, err := exec.Command(cargo, "--version").Output(); err == nil {
 			fmt.Fprintf(hash, "cargo=%s\x00", strings.TrimSpace(string(version)))

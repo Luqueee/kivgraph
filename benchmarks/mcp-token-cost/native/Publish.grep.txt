@@ -1,0 +1,294 @@
+# internal/
+
+## hotsnapshot/
+### hotsnapshot_benchmark_test.go#10BA
+ 46:		store := NewSnapshotStore(nil)
+*47:		if err := store.Publish(snapshot); err != nil {
+ 48:			b.Fatal(err)
+ 49:		}
+ 50:		hotBenchmarkSnapshot = store.Load()
+### publication.go#66A4
+ 40:
+*41:// Publish atomically replaces the active snapshot. A candidate must be
+ 42:// non-nil and have a strictly newer snapshot ID than the active generation.
+ 43:// Compare-and-swap prevents a stale concurrent publisher from overwriting a
+ 44:// generation that won the race.
+*45:func (store *SnapshotStore) Publish(candidate *GraphSnapshot) error {
+ 46:	if candidate == nil {
+ 47:		return ErrNilSnapshot
+ 48:	}
+### publication_test.go#D790
+ 17:	}
+*18:	if err := store.Publish(next); err != nil {
+*19:		t.Fatalf("Publish() error = %v", err)
+ 20:	}
+ 21:	if store.Load() != next {
+ 22:		t.Fatal("Load() did not return published snapshot")
+...
+ 34:	}
+*35:	if err := store.Publish(nil); !errors.Is(err, ErrNilSnapshot) {
+*36:		t.Fatalf("Publish(nil) error = %v", err)
+ 37:	}
+ 38:	first := publishedSnapshot(t, 4)
+*39:	if err := store.Publish(first); err != nil {
+ 40:		t.Fatal(err)
+ 41:	}
+ 42:	for _, candidate := range []*GraphSnapshot{publishedSnapshot(t, 4), publishedSnapshot(t, 3)} {
+*43:		if err := store.Publish(candidate); !errors.Is(err, ErrSnapshotGeneration) {
+*44:			t.Fatalf("Publish(%d) error = %v, want ErrSnapshotGeneration", candidate.Metadata().ID, err)
+ 45:		}
+ 46:	}
+ 47:}
+...
+ 56:	}
+*57:	if err := store.Publish(publishedSnapshot(t, 2)); !errors.Is(err, ErrSnapshotStoreClosed) {
+*58:		t.Fatalf("Publish() after Close error = %v", err)
+ 59:	}
+ 60:	if _, found := old.SymbolByStableKey("s-a"); !found {
+ 61:		t.Fatal("reader holding old snapshot lost access after Close")
+...
+ 75:			candidate := publishedSnapshot(t, uint64(index))
+*76:			_ = store.Publish(candidate)
+ 77:		}()
+ 78:	}
+ 79:	var readersGroup sync.WaitGroup
+
+## indexer/
+### delta.go#8EF9
+ 197:// rebuilt into a complete immutable HotSnapshot. Only after that build passes
+*198:// validation does SnapshotStore.Publish atomically replace the pointer seen by
+ 199:// readers. A failed build leaves the previous in-memory snapshot serving.
+ 200://
+ 201:// On the republish route nothing touches graph.active: rebuild.Run builds
+...
+ 309:		}
+*310:		if err := options.SnapshotStore.Publish(snapshot); err != nil {
+ 311:			return result, fmt.Errorf("%w: publish HotSnapshot: %w", ErrUpdateFailed, err)
+ 312:		}
+ 313:		result.Snapshot = SnapshotBuild{Report: report}
+
+## indexing/
+### follow.go#6DDC
+ 44://
+*45:// It never coordinates with other publishers: SnapshotStore.Publish only
+ 46:// accepts a strictly newer generation, so a follower that loses the race to
+ 47:// an in-process index simply observes the newer identifier on its next tick.
+ 48://
+...
+ 89:			// being served has been rewound -- discarded and rebuilt.
+*90:			// Publish only accepts a newer identifier, so this server
+ 91:			// will never install anything again; saying so once is the
+ 92:			// difference between a restart and an afternoon.
+ 93:			if result.Rewound != 0 && result.Rewound != reportedRewind {
+...
+ 149:	}
+*150:	if err := store.Publish(snapshot); err != nil {
+ 151:		if errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+ 152:			// Another publisher installed this generation, or a newer
+ 153:			// one, while this snapshot was being built. Its work stands.
+### service.go#E43F
+ 343:	// retry a rebuild that already landed.
+*344:	if err := service.snapshotStore.Publish(snapshot); err != nil {
+ 345:		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+ 346:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+ 347:		}
+
+## mcp/tools/
+### find_symbol_test.go#DF59
+ 84:	secondSnapshot := buildSymbolSnapshot(t, 12)
+*85:	if err := store.Publish(secondSnapshot); err != nil {
+*86:		t.Fatalf("SnapshotStore.Publish() error = %v", err)
+ 87:	}
+ 88:	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+ 89:		Name: "find_symbol", Arguments: map[string]any{"name": "alp", "mode": FindSymbolModePrefix, "limit": 1, "cursor": *first.NextCursor},
+
+## rebuild/
+### rebuild.go#9128
+ 119:// snapshotFileName is the digest file Run writes next to the candidate
+*120:// database, inside the generation directory generation.Store.Publish builds.
+ 121:const snapshotFileName = "snapshot.sha256"
+ 122:
+ 123:// Run drives one full rebuild: it stages and bulk loads the fact set into a
+...
+ 209:	// The middle six stages are populated from inside the Build and Validate
+*210:	// closures below, which generation.Store.Publish calls in order. They
+*211:	// start as named placeholders so a Report is well formed even if Publish
+ 212:	// fails before reaching the closure that would have completed them.
+ 213:	stagingStage := Stage{Name: StageStaging}
+ 214:	graphNextStage := Stage{Name: StageGraphNext}
+...
+ 230:		// graph.next: the candidate directory already exists by the time
+*231:		// Publish calls us, so this stage just records where it landed.
+ 232:		notifyStage(options.Progress, StageGraphNext)
+ 233:		graphNextStart := time.Now()
+ 234:		graphNextStage = Stage{
+...
+ 280:		// per-table counts the loader reported, and write it beside the
+*281:		// candidate database before Publish ever renames the directory.
+ 282:		notifyStage(options.Progress, StageSnapshot)
+ 283:		snapshotStart := time.Now()
+ 284:		digest, digestErr := writeSnapshotDigest(candidatePath, result.Tables)
+...
+ 412:	publishStart := time.Now()
+*413:	publication, publishErr := store.Publish(ctx, generation.PublishRequest{
+ 414:		ID:       options.GenerationID,
+ 415:		Build:    build,
+ 416:		Validate: validate,
+...
+ 438:	// moment ago), so the store holds exactly graph.active and
+*439:	// graph.backup once a publish lands. It only runs after Publish has
+ 440:	// already returned success, so CURRENT is durable before anything is
+ 441:	// removed. A pruning failure (a directory that would not remove, a
+ 442:	// transient I/O error) must not turn an effective publish into a
+...
+ 571:// build stage just produced and writes it next to the candidate database,
+*572:// inside the directory generation.Store.Publish will rename into place.
+ 573:func writeSnapshotDigest(candidatePath string, tables map[string]int64) (string, error) {
+ 574:	digest := canonicalSnapshotDigest(tables)
+ 575:	path := filepath.Join(candidatePath, snapshotFileName)
+### rollback.go#B359
+ 26:// generation CURRENT names, graph.next is the <id>.tmp candidate
+*27:// generation.Store.Publish builds and swaps in, and graph.backup is the
+ 28:// generation a rollback would restore — the generation that was active a
+ 29:// moment ago, retained on purpose instead of being pruned.
+ 30:type Role string
+
+## resilience/
+### rebuild_test.go#1908
+ 23://
+*24:// rebuild.Run and SnapshotStore.Publish are deliberately separate steps. This
+ 25:// test is what makes that separation observable: a run that never reaches its
+ 26:// publish stage cannot reach the store either.
+ 27:func TestFailedFullRebuildDoesNotChangeTheServedGraph(t *testing.T) {
+...
+ 67:	stale := snapshotWithID(t, 1)
+*68:	if err := store.Publish(stale); err == nil {
+*69:		t.Fatal("Publish(stale) error = nil, want a rejected generation")
+ 70:	}
+ 71:	if after := querySymbol(t, session); after != before {
+ 72:		t.Fatalf("served graph changed after a rejected publication:\n%s\n%s", before, after)
+...
+ 83:
+*84:	if err := store.Publish(snapshotWithID(t, 92)); err != nil {
+*85:		t.Fatalf("Publish() error = %v", err)
+ 86:	}
+ 87:	if after := querySymbol(t, session); after == before {
+ 88:		t.Fatalf("querySymbol did not observe the new generation: %s", after)
+### snapshot_test.go#73B2
+ 69:	}
+*70:	if err := store.Publish(rebuilt); err != nil {
+*71:		t.Fatalf("Publish() error = %v", err)
+ 72:	}
+ 73:
+ 74:	// The rebuilt snapshot is the definitive graph's own corpus, so readers
+
+## storage/generation/
+### store.go#6C01
+ 40:
+*41:func (store *Store) Publish(ctx context.Context, request PublishRequest) (publication Publication, returnErr error) {
+ 42:	store.mu.Lock()
+ 43:	defer store.mu.Unlock()
+ 44:	if err := validatePublishRequest(request); err != nil {
+...
+ 203:	// The generation being displaced becomes the new backup, symmetric with
+*204:	// Publish: BACKUP is written before CURRENT so the pair is always
+ 205:	// interpretable after a crash (see backupGeneration).
+ 206:	changed, err := store.writeBackup(ctx, previous.ID)
+ 207:	backupChanged = changed
+### store_test.go#E70C
+ 81:	before := testHash(t, filepath.Join(store.generations, "000001", "graph.db"))
+*82:	_, err := store.Publish(context.Background(), PublishRequest{
+ 83:		ID: "000002",
+ 84:		Build: func(_ context.Context, path string) error {
+ 85:			if err := writeTestGeneration(path, "corrupt"); err != nil {
+...
+ 92:	if !errors.Is(err, syscall.ENOSPC) {
+*93:		t.Fatalf("Publish() error = %v, want ENOSPC", err)
+ 94:	}
+ 95:	assertCurrentGeneration(t, store, "000001", "stable")
+ 96:	if after := testHash(t, filepath.Join(store.generations, "000001", "graph.db")); after != before {
+...
+ 131:			}
+*132:			_, err := store.Publish(context.Background(), PublishRequest{
+ 133:				ID:       "000002",
+ 134:				Build:    func(_ context.Context, path string) error { return writeTestGeneration(path, "candidate") },
+ 135:				Validate: validateTestGeneration("candidate"),
+...
+ 137:			if !errors.Is(err, syscall.ENOSPC) {
+*138:				t.Fatalf("Publish() error = %v, want ENOSPC", err)
+ 139:			}
+ 140:			if !injected {
+ 141:				t.Fatal("fault was not injected")
+...
+ 154:	validationErr := errors.New("golden probe failed")
+*155:	_, err := store.Publish(context.Background(), PublishRequest{
+ 156:		ID:       "000002",
+ 157:		Build:    func(_ context.Context, path string) error { return writeTestGeneration(path, "candidate") },
+ 158:		Validate: func(context.Context, Generation) error { return validationErr },
+...
+ 160:	if !errors.Is(err, validationErr) {
+*161:		t.Fatalf("Publish() error = %v", err)
+ 162:	}
+ 163:	assertCurrentGeneration(t, store, "000001", "stable")
+ 164:	assertAbsent(t, filepath.Join(store.generations, "000002.tmp"))
+...
+ 169:	for _, id := range []string{"", "000000", "1", "../001", "abcdef"} {
+*170:		_, err := store.Publish(context.Background(), PublishRequest{ID: id, Build: func(context.Context, string) error { return nil }, Validate: func(context.Context, Generation) error { return nil }})
+ 171:		if !errors.Is(err, ErrInvalidID) {
+*172:			t.Fatalf("Publish(%q) error = %v, want ErrInvalidID", id, err)
+ 173:		}
+ 174:	}
+*175:	_, err := store.Publish(context.Background(), PublishRequest{
+ 176:		ID: "000001",
+ 177:		Build: func(_ context.Context, path string) error {
+ 178:			if err := os.WriteFile(filepath.Join(path, "graph.db"), []byte("data"), 0o600); err != nil {
+...
+ 185:	if err == nil || !strings.Contains(err.Error(), "symlink") {
+*186:		t.Fatalf("Publish() error = %v, want symlink rejection", err)
+ 187:	}
+ 188:}
+ 189:
+...
+ 337:			}
+*338:			_, err := store.Publish(context.Background(), PublishRequest{
+ 339:				ID:       "000003",
+ 340:				Build:    func(_ context.Context, path string) error { return writeTestGeneration(path, "third") },
+ 341:				Validate: validateTestGeneration("third"),
+...
+ 343:			if !errors.Is(err, syscall.ENOSPC) {
+*344:				t.Fatalf("Publish() error = %v, want ENOSPC", err)
+ 345:			}
+ 346:			if !injected {
+ 347:				t.Fatal("fault was not injected")
+...
+ 535:	t.Helper()
+*536:	publication, err := store.Publish(context.Background(), PublishRequest{
+ 537:		ID:       id,
+ 538:		Build:    func(_ context.Context, path string) error { return writeTestGeneration(path, content) },
+ 539:		Validate: validateTestGeneration(content),
+...
+ 541:	if err != nil {
+*542:		t.Fatalf("Publish(%s) error = %v", id, err)
+ 543:	}
+ 544:	return publication
+ 545:}
+...
+ 661:	built := false
+*662:	_, err = store.Publish(context.Background(), PublishRequest{
+ 663:		ID: "000002",
+ 664:		Build: func(_ context.Context, path string) error {
+ 665:			built = true
+...
+ 670:	if !errors.Is(err, ErrPublishInProgress) {
+*671:		t.Fatalf("Publish() error = %v, want ErrPublishInProgress", err)
+ 672:	}
+ 673:	if built {
+ 674:		t.Error("the candidate was built while another writer held the lock")
+
+## upgrade/
+### rollback_test.go#2A4C
+ 153:	}
+*154:	publication, err := store.Publish(context.Background(), generation.PublishRequest{
+ 155:		ID: id,
+ 156:		Build: func(_ context.Context, path string) error {
+ 157:			return os.WriteFile(filepath.Join(path, "graph.db"), []byte(contents), 0o600)

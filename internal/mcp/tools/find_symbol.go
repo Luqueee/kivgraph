@@ -9,6 +9,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 const (
@@ -33,6 +34,7 @@ type FindSymbolInput struct {
 	Mode           string `json:"mode,omitempty"`
 	Kind           string `json:"kind,omitempty"`
 	Repo           string `json:"repo,omitempty"`
+	IncludeDerived bool   `json:"include_derived,omitempty"`
 	PathPrefix     string `json:"path_prefix,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`
 	Limit          int    `json:"limit,omitempty"`
@@ -54,7 +56,7 @@ type SymbolSummary struct {
 	Kind              string `json:"kind"`
 	Signature         string `json:"signature"`
 	Exported          bool   `json:"exported"`
-	RepositoryName    string `json:"repository_name"`
+	Repository        string `json:"repository"`
 	FilePath          string `json:"file_path"`
 	StartLine         uint32 `json:"start_line"`
 	EndLine           uint32 `json:"end_line"`
@@ -117,11 +119,11 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 			return result, symbols, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:         findSymbolToolName,
-		Description:  "Finds symbols by exact name, qualified name, prefix or substring, and returns where each one is. Narrow with kind, repo and path_prefix.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        findSymbolToolName,
+		Description: "Where a symbol is declared, by name, qualified name, prefix or substring. Narrow with kind, repo and path_prefix. A unique name in one repository is cheaper to grep.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Meta:        alwaysLoadMeta(),
 	}, handler)
 }
 
@@ -151,6 +153,12 @@ func findSymbol(
 		Kind:           arguments.Kind,
 		RepositoryName: arguments.Repo,
 		PathPrefix:     arguments.PathPrefix,
+	}
+	// A name search reaches the whole graph, so the standard library has to be
+	// withheld here or `Clone` answers with `core`. Naming a derived provider
+	// through `repo` is a request for it and overrides the default.
+	if !newDerivedFilter(arguments.IncludeDerived, arguments.Repo).keepsAll() {
+		filter.ExcludeRepositoryPrefix = workspace.SyntheticRepositoryPrefix
 	}
 	// The cursor is bound to the whole query, filters included: a page taken
 	// with one filter is not a page of another.
@@ -320,16 +328,16 @@ func symbolSummary(
 		return SymbolSummary{}, err
 	}
 	summary := SymbolSummary{
-		StableKey:      string(symbol.StableKey),
-		Name:           name,
-		QualifiedName:  qualifiedName,
-		Kind:           kind,
-		Signature:      signature,
-		Exported:       symbol.Exported,
-		RepositoryName: location.RepositoryName,
-		FilePath:       location.FilePath,
-		StartLine:      symbol.StartLine,
-		EndLine:        symbol.EndLine,
+		StableKey:     string(symbol.StableKey),
+		Name:          name,
+		QualifiedName: qualifiedName,
+		Kind:          kind,
+		Signature:     signature,
+		Exported:      symbol.Exported,
+		Repository:    location.RepositoryName,
+		FilePath:      location.FilePath,
+		StartLine:     symbol.StartLine,
+		EndLine:       symbol.EndLine,
 	}
 	if format == ResponseFormatDetailed {
 		summary.CanonicalIdentity = canonical

@@ -18,7 +18,12 @@ type Response[T any] struct {
 	// reaches. Absent means it did not check, which is not the same as
 	// checking and finding nothing.
 	Completeness *Completeness `json:"completeness,omitempty"`
-	Results      T             `json:"results"`
+	// Guidance is what the count means and what to call next. It is present only
+	// when the answer alone would mislead: zero rows read as "no such thing"
+	// unless something says otherwise, and a truncated page does not say whether
+	// the rows that mattered are in it.
+	Guidance string `json:"guidance,omitempty"`
+	Results  T      `json:"results"`
 }
 
 // Coverage counts how confidently the response can account for related graph

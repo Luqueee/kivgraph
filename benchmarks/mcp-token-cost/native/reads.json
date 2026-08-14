@@ -1,0 +1,82 @@
+{
+ "cmd/ladygraph/main.go:1302-1327": {
+  "file": "native/reads/f751830f01bec8ab.txt",
+  "tokens": 427
+ },
+ "cmd/ladygraph/main.go:221-264": {
+  "file": "native/reads/4493e44e7d97220e.txt",
+  "tokens": 556
+ },
+ "internal/facts/facts.go:473-475": {
+  "file": "native/reads/fa49e81e0f10237e.txt",
+  "tokens": 95
+ },
+ "internal/facts/facts.go:484-509": {
+  "file": "native/reads/74f74d024a5ea23e.txt",
+  "tokens": 427
+ },
+ "internal/goloader/crossrepo.go:53-94": {
+  "file": "native/reads/a251dc25d0a478d5.txt",
+  "tokens": 543
+ },
+ "internal/goloader/precision.go:163-252": {
+  "file": "native/reads/659f72019499395e.txt",
+  "tokens": 1144
+ },
+ "internal/goworkspace/synthetic.go:120-219": {
+  "file": "native/reads/ba73bf0410460fc8.txt",
+  "tokens": 1166
+ },
+ "internal/hotsnapshot/publication.go:45-66": {
+  "file": "native/reads/279eb5170e7df948.txt",
+  "tokens": 245
+ },
+ "internal/indexer/delta.go:252-318": {
+  "file": "native/reads/e1e0a81e595e60c3.txt",
+  "tokens": 824
+ },
+ "internal/indexer/full.go:182-340": {
+  "file": "native/reads/59c4addde3a99320.txt",
+  "tokens": 1804
+ },
+ "internal/indexer/full.go:658-689": {
+  "file": "native/reads/8668818bd0bef619.txt",
+  "tokens": 435
+ },
+ "internal/indexing/follow.go:114-159": {
+  "file": "native/reads/e15dca1a5d40567b.txt",
+  "tokens": 548
+ },
+ "internal/indexing/service.go:314-353": {
+  "file": "native/reads/50cb70a53af6bb4a.txt",
+  "tokens": 541
+ },
+ "internal/mcp/server.go:18-20": {
+  "file": "native/reads/c35e35691fe57c06.txt",
+  "tokens": 93
+ },
+ "internal/storage/ladybug/canonical_load.go:30-54": {
+  "file": "native/reads/0fd6b6dbd2b24745.txt",
+  "tokens": 317
+ },
+ "internal/storage/ladybug/canonical_load.go:59-65": {
+  "file": "native/reads/cabfba1f779cd1c5.txt",
+  "tokens": 151
+ },
+ "internal/storage/ladybug/canonical_load.go:81-298": {
+  "file": "native/reads/b49f6a7f6a4a64b6.txt",
+  "tokens": 2494
+ },
+ "internal/storage/ladybug/canonical_load_native.go:252-283": {
+  "file": "native/reads/f530f2ece67759c9.txt",
+  "tokens": 480
+ },
+ "internal/workspace/go_discovery.go:25-93": {
+  "file": "native/reads/24fd793a72e34fb6.txt",
+  "tokens": 765
+ },
+ "internal/workspace/go_registry.go:33-42": {
+  "file": "native/reads/bcca071d9675b828.txt",
+  "tokens": 184
+ }
+}

@@ -1,0 +1,136 @@
+{
+  "benchmark": "mcp-token-cost",
+  "command": "go run ./benchmarks/mcp-token-cost --server /tmp/lg1906 --config /private/tmp/lg-crossrepo-config/config.json --dir benchmarks/mcp-token-cost/cross-repo --repository shared-library",
+  "commit": "a0372d4e566a8633f6222ffed7fc12ebefb74b2e",
+  "digest": "4cecf49be5bd046bd4762494d77ee8625028001659e8275626df6dd7e5249099",
+  "generated_at": "2026-08-13T18:47:43.968839Z",
+  "tokenizer": "cl100k_base",
+  "protocol_version": "2025-06-18",
+  "server_version": "0.5.1",
+  "server_instructions": true,
+  "server_diagnostic_lines": 1,
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "go": "go1.26.4"
+  },
+  "snapshot": {
+    "id": 3,
+    "symbols": 8,
+    "files": 3,
+    "edges": 12,
+    "built_at": "2026-08-13T18:47:43Z",
+    "resolver_version": "0.5.1",
+    "schema_version": 2
+  },
+  "corpus": {
+    "repository": "shared-library",
+    "path": "/private/tmp/lg-crossrepo/shared-library",
+    "branch": "main",
+    "indexed_commit": "9fe29054a01f2348af8946c67194382b89ce4965",
+    "current_commit": "9fe29054a01f2348af8946c67194382b89ce4965",
+    "fresh": true,
+    "repositories_in_generation": 3
+  },
+  "question_set": {
+    "version": 1,
+    "question": "who consumes this symbol from another repository"
+  },
+  "surface": {
+    "tools": 11,
+    "read_only_annotated": 10,
+    "route_tokens": 201,
+    "description_tokens": 444,
+    "resident_oh_my_pi": 645,
+    "deferred_schema_tokens": 1723
+  },
+  "questions": [
+    {
+      "symbol": "Compute",
+      "class": "cross_repository",
+      "references": 2,
+      "extra_calls": 0,
+      "duplicate_channel_bytes": 0,
+      "floor_bytes": 104,
+      "native": {
+        "answer_tokens": 211,
+        "body_tokens": 223,
+        "total": 434,
+        "note": "omp grep \\bCompute\\b over /private/tmp/lg-crossrepo, then the host reads each range"
+      },
+      "today": {
+        "call_tokens": 399,
+        "body_tokens": 223,
+        "total": 622,
+        "note": "the MCP calls a session needs, then the host reads each range the answer names"
+      },
+      "projected": {
+        "call_tokens": 399,
+        "body_tokens": 183,
+        "total": 582,
+        "note": "get_source returns every body the answer named in one call, so nothing goes through the host read"
+      },
+      "answer_factor_today": 0.5288220551378446,
+      "answer_factor_projected": 0.5288220551378446,
+      "session_factor_today": 0.6977491961414791,
+      "session_factor_projected": 0.7457044673539519
+    }
+  ],
+  "traversal": [
+    {
+      "tool": "trace_dependencies",
+      "root": "Compute",
+      "rows": 1,
+      "tokens": 210,
+      "tokens_per_row": 210,
+      "rows_without_range": 0,
+      "duplicate_channel_bytes": 0
+    },
+    {
+      "tool": "get_blast_radius",
+      "root": "Compute",
+      "rows": 1,
+      "tokens": 321,
+      "tokens_per_row": 321,
+      "rows_without_range": 0,
+      "duplicate_channel_bytes": 0
+    }
+  ],
+  "cross_repository": {
+    "root": "Compute",
+    "rows": 4,
+    "exact": 2,
+    "package_level": 2,
+    "native": 211,
+    "tokens": 369,
+    "tokens_per_row": 92.25,
+    "rows_without_range": 0,
+    "duplicate_channel_bytes": 0,
+    "factor": 0.5718157181571816
+  },
+  "totals": {
+    "native": 434,
+    "native_answer": 211,
+    "today": 622,
+    "today_answer": 399,
+    "projected": 582,
+    "projected_answer": 399,
+    "body_tokens": 223,
+    "served_body_tokens": 104,
+    "extra_calls": 0,
+    "duplicate_channel_bytes": 0,
+    "answer_factor_today": 0.5288220551378446,
+    "answer_factor_projected": 0.5288220551378446,
+    "session_factor_today": 0.6977491961414791,
+    "session_factor_projected": 0.7457044673539519,
+    "session_ceiling": 4.173076923076923
+  },
+  "limitations": [
+    "Both arms pay the same body cost, computed from the graph's exact line ranges. The native arm would in practice read wider, because grep reports a match line and not where the declaration ends, so the comparison is conservative in favour of the native path.",
+    "The arms that open files are billed from captured host reads, so the line prefixes they carry are counted; the served arm is billed from the bytes alone. A missing capture fails the run instead of falling back to the raw slice.",
+    "The served arm is measured against the real get_source, not projected.",
+    "Adoption is not measured here. Whether an agent calls these tools at all is an observation over real sessions and belongs to LUQUE-1904.",
+    "Neither money nor latency is measured. Prompt caching makes cost depend on the order the arms run in, so a token count is the only figure that survives a reordering.",
+    "The cross-repository question is measured on \"Compute\", and its native column is a floor rather than a ceiling: a grep finds the name but cannot tell whether the hit is the same symbol, and says nothing about a consumer that depends on the provider package without using the symbol."
+  ]
+}

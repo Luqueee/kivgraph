@@ -1,0 +1,14 @@
+[canonical_load.go#A562]
+58:// and canonical_schema.go have drifted apart, which is a bug, not bad input.
+59:func columnsOrError(table string) ([]string, error) {
+60:	columns, exists := CanonicalColumns(table)
+61:	if !exists {
+62:		return nil, fmt.Errorf("%w: canonical schema has no table %q", ErrInvalidCanonicalLoad, table)
+63:	}
+64:	return columns, nil
+65:}
+66:
+67:// rowFromColumns renders one row in schema column order. A column absent
+68:// from values becomes an empty field; that only happens for the relationship
+
+[Showing lines 58-68 of 352. Use :69 to continue]

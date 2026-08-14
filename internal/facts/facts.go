@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/Luqueee/ladygraph/internal/workspace"
 )
 
 // Language identifies the engine domain a fact belongs to.
@@ -255,9 +257,29 @@ type Set struct {
 // ErrInvalidFacts reports a fact set that cannot be stored.
 var ErrInvalidFacts = errors.New("invalid fact set")
 
+// IsSyntheticRepository reports whether a repository is one Ladygraph derives
+// from the machine -- today the standard library of a Rust toolchain -- rather
+// than one a user registered. The reserved namespace is enforced when a name is
+// registered, so the name is the answer and no row carries a second copy of it.
+func IsSyntheticRepository(name string) bool {
+	return workspace.IsSyntheticRepository(name)
+}
+
 // RepositoryKey builds the durable key of a repository.
 func RepositoryKey(name string) string {
-	return "repository:" + strings.TrimSpace(name)
+	return RepositoryKeyPrefix + strings.TrimSpace(name)
+}
+
+// RepositoryKeyPrefix opens the durable key of a repository. It is exported
+// because the read surface filters by that key, so a caller's value has to be
+// read back as a name in one place rather than by matching the literal in
+// several.
+const RepositoryKeyPrefix = "repository:"
+
+// RepositoryNameFromKey reads the name out of a repository key, and returns its
+// argument unchanged when it is already a name.
+func RepositoryNameFromKey(value string) string {
+	return strings.TrimPrefix(strings.TrimSpace(value), RepositoryKeyPrefix)
 }
 
 // PackageKey builds the durable key of a package or module.
@@ -277,9 +299,19 @@ func EvidenceKey(fileKey string, start, end int) string {
 
 // UnresolvedKey derives the durable key of an unresolved reference from the
 // same identity Merge deduplicates on.
+//
+// The file key already carries the repository, so it is the scope whenever there
+// is one. An entry without a file -- a class a provider declares, a module that
+// would not load -- is scoped by the repository instead: two repositories
+// declaring the same class are two facts, and sharing one key made them one row
+// and then a duplicate primary key when they did not.
 func UnresolvedKey(reference UnresolvedReference) string {
+	scope := strings.TrimSpace(reference.FileKey)
+	if scope == "" {
+		scope = strings.TrimSpace(reference.RepositoryKey)
+	}
 	return fmt.Sprintf("unresolved:%s:%s:%s:%s:%d",
-		strings.TrimSpace(reference.FileKey), strings.TrimSpace(reference.Reason),
+		scope, strings.TrimSpace(reference.Reason),
 		strings.TrimSpace(reference.RequestedPackage), strings.TrimSpace(reference.RequestedSymbol),
 		reference.Start.Offset)
 }
@@ -497,7 +529,8 @@ func MergeAll(sets []Set) Set {
 		Unresolved: mergeAllBy(sets, func(set Set) []UnresolvedReference { return set.Unresolved },
 			func(value UnresolvedReference) unresolvedIdentity {
 				return unresolvedIdentity{
-					file: value.FileKey, reason: value.Reason,
+					repository: value.RepositoryKey,
+					file:       value.FileKey, reason: value.Reason,
 					requestedPackage: value.RequestedPackage,
 					requestedSymbol:  value.RequestedSymbol,
 					offset:           value.Start.Offset,
@@ -527,6 +560,11 @@ type edgeIdentity struct {
 }
 
 type unresolvedIdentity struct {
+	// repository is part of the identity because two repositories declaring
+	// the same gap are two facts. It matters for an entry with no file: a
+	// repository-level declaration would otherwise collapse into whichever
+	// repository happened to merge first.
+	repository       string
 	file             string
 	reason           string
 	requestedPackage string

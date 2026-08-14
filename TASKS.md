@@ -8281,7 +8281,8 @@ nada más: los handlers siguen tipados, el SDK sigue serializando el resultado a
 satisface-. `TestServerSurfaceStaysCheapToLoad` fija el techo en `8.000`
 caracteres y falla si una tool vuelve a publicar el esquema derivado.
 
-La superficie queda descrita en `docs/protocol/mcp-surface-v2.md`.
+La superficie queda descrita en `docs/protocol/mcp-surface-v2.md`, que la fase 19
+sustituye por `docs/protocol/mcp-surface-v3.md`.
 
 **Estado:** `PASS`.
 
@@ -12985,9 +12986,9 @@ sintáctica en cualquier máquina.
 
 **Dependencias:** LUQUE-1825.
 
-**Estado:** `pendiente`; frente abierto por decisión, no por olvido. Cambia el
-tamaño y el versionado del grafo, así que no entra como añadido silencioso a
-otra tarea.
+**Estado:** `PASS`. Las cinco preguntas que bloqueaban esta ficha se respondieron
+-cuatro por decisión del 2026-08-13, la del coste por medición- y está
+implementada. Ver ADR 0041.
 
 **Objetivo:** que `core`, `std` y `alloc` tengan identidad en el grafo, que es
 la única causa común de tres carencias medidas.
@@ -13008,25 +13009,44 @@ la única causa común de tres carencias medidas.
 `rust-analyzer 1.96.1`: ninguna de las cuatro deja arista, y las tres últimas
 producen `UNRESOLVED` con destino en `core`.
 
-**Preguntas que la tarea debe responder antes de escribir código:**
+**Las cinco preguntas, respondidas.** Cuatro por decisión el 2026-08-13; la del
+coste por medición sobre `rust-analyzer 1.96.1` y el sysroot
+`stable-aarch64-apple-darwin`.
 
-1. **Alcance.** indexar el sysroot entero, o sólo los símbolos alcanzados
-   por los repositorios registrados. Lo primero son del orden de `10^5`
-   símbolos por toolchain; lo segundo exige una segunda pasada y deja el
-   conjunto dependiendo de quién lo consulta.
-2. **Identidad y versionado.** un símbolo de `core` pertenece a una versión de
-   Rust, no a un repositorio. Hay que decidir su `RepositoryKey` sintética, su
-   clave estable y qué ocurre cuando dos repositorios registrados se compilan
-   con toolchains distintos.
-3. **Ciclo de vida.** cuándo se reindexa -nunca, al cambiar el toolchain, o
-   por generación-. Un sysroot en el fact cache invalida su entrada al cambiar
-   `rustc --version`.
-4. **Coste.** medir el índice SCIP del sysroot y su tiempo antes de decidir.
-   `rust-analyzer scip` sin `--exclude-vendored-libraries` es el punto de
-   partida y hoy no se ha medido.
-5. **Efecto en las consultas.** un `find_references` sobre `Clone` devolvería
-   media base de código. Hay que decidir si el proveedor sintético se filtra
-   por defecto en la superficie MCP.
+4. **Coste — medido, y es lo que decide el resto.** El workspace de la
+   biblioteca son `1.972` ficheros y `950.409` líneas. `rust-analyzer scip` lo
+   indexa en **32,4 s** y emite **45,2 MB** con **354.338** monikers; un crate
+   trivial, como referencia, son 1,1 s y 991 bytes. Corre **offline** con
+   `CARGO_NET_OFFLINE=true`, así que la hermeticidad se sostiene y
+   `rust.allow_network` sigue siendo la única salida declarada. Emite
+   diagnósticos de símbolo duplicado -`core::num::imp::dec2flt::TABLE` entre
+   otros-, que es la clase que ADR 0039 ya resuelve.
+
+   El grafo publicado hoy tiene `10.501` símbolos: el sysroot de **un** toolchain
+   es del orden de **diez veces todo el corpus actual**. El orden de magnitud que
+   la ficha temía está confirmado.
+
+1. **Alcance: el sysroot entero, cacheado por toolchain.** La presencia de un
+   símbolo no puede depender de quién pregunte. Indexar sólo lo alcanzado exige
+   una segunda pasada y deja el conjunto dependiendo del corpus que consulta, así
+   que dos instalaciones con los mismos repositorios podrían publicar grafos
+   distintos. Los 32 s se pagan una vez por toolchain y la caché de hechos los
+   reutiliza.
+2. **Identidad: un repositorio sintético por versión**, `rust:1.96.1`. Dos
+   toolchains coexisten sin colisionar y la clave dice de qué versión habla. Un
+   cambio de toolchain invalida las claves de sus símbolos, que es exactamente lo
+   que ocurrió.
+3. **Ciclo de vida: se reindexa cuando cambia `rustc --version`.** La huella de
+   la entrada de caché incluye la versión, igual que ya incluye la respuesta de
+   `go env` y el contenido del worker TypeScript.
+5. **Superficie: el proveedor sintético se filtra por defecto**, con opt-in por
+   flag. `find_references` sobre `Clone` o `Debug` devolvería media base de
+   código: el grafo gana las aristas -`derive`, operadores, `?`- y las consultas
+   siguen siendo legibles.
+
+**Lo que queda por decidir dentro de la implementación**, y no antes: cómo se
+declara en `graph_status` el peso del proveedor sintético, y si el flag de opt-in
+es por llamada o por configuración.
 
 **Criterios de aceptación:**
 
@@ -13040,9 +13060,140 @@ producen `UNRESOLVED` con destino en `core`.
   fallo.
 - ADR con el alcance, la identidad sintética y la política de invalidación.
 
-**Riesgos:** el grafo crece un orden de magnitud; la identidad deja de ser
-puramente repositorio-relativa; y un `UNRESOLVED` por cada `derive` seria peor
-que el silencio actual si se implementa a medias.
+**Riesgos, revisados con la medida.** El grafo no creció un orden de magnitud:
+la biblioteca son `19.533` símbolos, unas dos veces el corpus actual, no diez
+-los `354.338` monikers que estimé eran ocurrencias, no símbolos-. La identidad
+deja de ser puramente repositorio-relativa, y por eso el namespace `rust:` está
+reservado en el registro. Ningún `derive` produce `UNRESOLVED`: los cuatro
+silencios son aristas exactas.
+
+**Resultado.** Medido con `rust-analyzer 1.96.1` sobre
+`stable-aarch64-apple-darwin`.
+
+El fixture `testdata/rust/stdlib` publica lo que antes perdía, y el test lo
+nombra relación por relación en vez de contar:
+
+```text
+Offset      IMPLEMENTS      -> ops::arith::Add
+Offset      REFERENCES      -> clone::Clone, cmp::PartialEq, default::Default, fmt::macros::Debug
+parse_line  REFERENCES      -> result::impl::Result<T, E>::Try::branch
+parse_line  CALLS_DIRECT    -> str::impl::str::parse, str::impl::str::trim
+render      CALLS_DIRECT    -> string::impl::String::push_str, string::impl::T::ToString::to_string
+```
+
+El coste, en `benchmarks/rust-engine/`:
+
+```text
+                símbolos   aristas   frío       caliente
+sin sysroot            6        19    1.288 ms      54 ms
+con sysroot       19.533   169.532   16.512 ms     829 ms
+```
+
+`829 ms` en caliente es lo que justifica cachear por toolchain: la pasada fría
+se paga una vez por release de `rustc`, que es lo que la huella incluye.
+
+**Y sobre un corpus real, con el binario y el grafo publicado** -un repositorio
+de 10 símbolos más la biblioteca, generación `000001` en 50 s-, el desglose es lo
+que mantiene legible la respuesta:
+
+```text
+totales      símbolos 24.704   aristas 188.788   no resueltos 6.048
+derivados    símbolos 24.694   propias 188.741   no resueltos 6.041   entrantes 26
+del código   símbolos     10   aristas      47   no resueltos     7
+```
+
+**El alcance cambió al medirlo.** Indexar todo el árbol del sysroot da 16
+unidades, 6 que no cargan, y **dos pasadas con distinto número de aristas**,
+porque los workspaces vendorizados -`stdarch`, `compiler-builtins`,
+`backtrace`, `portable-simd`- ejecutan build scripts que ven lo que dejó la
+pasada anterior. La unidad es el workspace `library` y nada por debajo: 1
+unidad, 0 fallos, reproducible.
+
+**Cinco bugs preexistentes que el trabajo destapó**, cuatro de ellos sólo
+visibles al publicar con el binario real:
+
+1. **`DiscoverCargo` rechazaba un workspace vendorizado.** Un manifest con su
+   propio `[workspace]` dentro de otro se declaraba error, y la biblioteca
+   estándar lleva `library/backtrace` exactamente así. Cargo sólo rechaza ser
+   raíz **y** miembro a la vez; se verificó contra `cargo metadata`.
+2. **`facts.NormalizeRust` publicaba ficheros sin paquete.** Un fichero que el
+   analizador indexa por una dependencia de ruta hacia un crate que ningún
+   manifest del workspace declara -así llega `std` a su `compiler-builtins`
+   vendorizado- se publicaba con paquete vacío, y el snapshot lo rechazaba
+   **después** de analizar el corpus entero. Sus declaraciones ya se
+   descartaban; ahora el fichero también, contado en `FilesWithoutPackage`.
+3. **Una colisión de clave publicaba dos declaraciones.** El ganador se elegía
+   para resolver, pero la lista publicada llevaba a los dos, así que el grafo
+   afirmaba que un símbolo vive en dos ficheros: `Copy exception: Node has more
+   than one neighbour in table DEFINES`. Sólo se publica el ganador, y la
+   colisión se sigue nombrando.
+4. **`UnresolvedKey` no llevaba el repositorio.** Se construía sobre el fichero,
+   que lo lleva dentro, así que dos entradas sin fichero -una clase de un
+   proveedor, un módulo que no carga- de repositorios distintos eran una sola
+   fila. El motor lo rechaza como clave primaria duplicada en cuanto dejan de
+   serlo.
+5. **El índice de claves estables no era determinista.** Se construía
+   recorriendo un mapa, así que una colisión de clave -dos símbolos del
+   analizador que comparten crate, camino y kind, que rust-analyzer emite por un
+   bug propio- se resolvía según el orden de iteración. Dos pasadas del mismo
+   corpus publicaban **170 aristas de diferencia** en la raíz de `std`. El
+   analizador quedó descartado por digest: dos invocaciones producen el mismo
+   índice byte a byte.
+
+**Los cuatro llevan test, y cada uno se verificó revirtiendo su arreglo:** sin
+él el test falla, con él pasa. Tres de los cuatro no fallaban en ninguna suite
+antes de escribirlos:
+
+```text
+TestDiscoverCargoAcceptsAVendoredWorkspaceRoot        workspace anidado legítimo
+TestNormalizeRustDropsAFileNoManifestDeclares         fichero sin paquete
+TestAnalyzeResolvesAKeyCollisionTheSameWayEveryTime   una declaración por clave,
+                                                      y siempre la misma
+```
+
+**Y sobre dos repositorios Rust reales** -`lanplay` y `naboscale`, 174 ficheros
+`.rs`-, publicado a la primera en 54 s con 0 workspaces que no cargan:
+
+```text
+                símbolos   aristas   no resueltos
+totales           29.251   257.962         7.099
+biblioteca        24.694   188.741         6.041
+código real        4.557    38.637         1.058
+    de ellas, hacia la biblioteca: 17.644 aristas
+```
+
+**17.644 aristas** que antes no existían, sobre 4.557 símbolos propios: casi la
+mitad de las aristas de su código toca la biblioteca estándar.
+
+**Y ahí apareció una regresión mía.** Declarar cada uso que la biblioteca no
+publica metía `5.635` entradas en el informe de huecos del código del usuario, y
+medido sobre `lanplay` eran `4.165` sobre `205` símbolos, todos de una clase:
+operadores sobre primitivos -`u64::add`, `f64::div`, `usize::PartialEq::eq`-. Los
+791 huecos que hablaban de sus dependencias quedaban sepultados. Un proveedor
+derivado se declara ahora una vez por símbolo y sin posición, como ya hace
+`MACRO_EXPANSION_DISABLED`: `5.635 -> 267`, y los del código real `6.426 ->
+1.058`, sin perder una sola arista.
+
+Eso destapó el quinto bug preexistente: `UnresolvedKey` se construía sobre el
+fichero -que lleva el repositorio dentro-, así que dos entradas **sin** fichero
+de repositorios distintos eran una sola fila. Sin fichero, el ámbito es el
+repositorio.
+
+**Lo que sigue ausente, declarado y contado:** los `impl` que la biblioteca
+genera con macros -`PROVIDER_DEFINITION_NOT_INDEXED`, 3 en el corpus del
+benchmark-, los workspaces vendorizados, y los crates de crates.io que la
+biblioteca usa y nadie registró.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/
+go vet ./...
+go test ./...
+make test-ladybug
+go test ./internal/rustloader/... ./internal/indexer/ -run Rust
+go run ./benchmarks/rust-engine
+```
 
 **Desbloquea además:** el `IMPLEMENTS` de un `impl<T> Trait for Vec<T>` sobre
 un tipo foráneo, hoy silencioso porque el receptor no es un símbolo del grafo.
@@ -13055,57 +13206,77 @@ LUQUE-1113 dejó la superficie barata de cargar y las filas direccionables.
 Lo que ninguna tarea ha medido todavía es la sesión completa: lo que gasta un
 agente desde que pregunta hasta que tiene el código delante.
 
-**Medido el 2026-08-12** con `ladygraph v0.5.0`, generación `000017` (10.481
-símbolos, 300 ficheros, 38.477 aristas) y el tokenizador `cl100k_base`, sobre
-seis preguntas del tipo «voy a cambiar este símbolo, ¿qué se rompe?»
--`MergeAll`, `CanonicalColumns`, `BuildPlan`, `Publish`, `NewServer` y
-`DiscoverGo`-:
+**Medido por el arnés de LUQUE-1905** el 2026-08-13, con `ladygraph v0.5.0`,
+generación `000024` (10.501 símbolos, 301 ficheros, 38.546 aristas), tokenizador
+`cl100k_base`, digest `1eb3f6af925c0491`, sobre seis preguntas del tipo «quién
+llama a este símbolo y qué aspecto tienen esos llamantes»:
 
 ```text
-leer los ficheros que el grafo nombra    102.522 tokens   baseline artificial
-vía nativa de Oh My Pi                    38.094 tokens   la comparación real
-  `grep` acotado a `internal/`            27.712 tokens
-  leer los cuerpos que nombra             10.382 tokens
-grafo + leer esos mismos ficheros        106.078 tokens   2,8x PEOR que lo nativo
-  de los cuales, llamadas MCP              3.556 tokens
-grafo sirviendo los cuerpos               17.352 tokens   2,2x mejor, -54 %
-  de los cuales, cuerpos                  10.382 tokens
-  de los cuales, round-trips evitables     3.414 tokens
+                              responder    sesión completa
+vía nativa de Oh My Pi           10.739             25.144
+Ladygraph al abrir la fase        6.991  1,54x      21.396  1,18x
+tras LUQUE-1901                   3.635  2,95x      18.040  1,39x
+tras LUQUE-1902                   3.059  3,51x      17.464  1,44x
+tras LUQUE-1903                   3.059  3,51x      14.222  1,77x
+tras LUQUE-1904                   3.109  3,45x      14.272  1,76x
+suelo: los bytes y nada más                         10.478  2,40x
 ```
 
-**La fila que importa es la segunda.** Ningún anfitrión lee ficheros enteros:
-omp hace `grep` acotado y luego lee los trozos. Medido contra eso, Ladygraph
-**hoy cuesta 2,8 veces más que no tenerlo**, y sirviendo cuerpos ahorra un
-54 %, no un 83 %. El 83 % era contra un rival de paja y no se vuelve a citar.
+Los 50 tokens que suma LUQUE-1904 son la guía que acompaña a una respuesta
+vacía, y están todos ahí: en las cinco preguntas con filas la guía calla.
 
-Las dos lecturas de la tabla, y las dos importan:
+La columna de la sesión creció al medirla bien: el `read` de rango del anfitrión
+cobra un **38 % sobre los bytes** en cabeceras y números de línea, y el arnés lo
+cobraba como bytes crudos en los dos brazos. Corregido con veinte lecturas
+capturadas, la vía nativa cuesta 25.144 y no 21.223, y **servir los cuerpos deja
+de ser un cambio sin efecto en tokens**: medido con la tool escrita, son 3.242,
+un 19 % de la sesión.
 
-* Preguntar al grafo ya es barato: 593 tokens por pregunta -3.556 entre seis-
-  dicen quién llama a un símbolo, desde qué fichero, en qué línea y con qué
-  confianza.
-* Y aun así hoy no ahorra nada, porque la respuesta no trae el código: el
-  agente abre el fichero igual y paga las dos cosas. La superficie es exacta y
-  es cara.
+**Hay dos factores y los dos se publican.** *Responder* es lo que cuesta decir
+quién llama al símbolo, y es la parte que un servidor de grafo posee. *Sesión
+completa* añade los cuerpos. Su envoltorio depende de por dónde lleguen -14.405
+tokens leídos por el anfitrión contra 11.163 servidos por `get_source`-, pero los
+bytes son irreducibles: 10.478, el 42 % del brazo nativo. De ahí el techo:
+**una respuesta que costara cero seguiría quedándose en `2,40x`**, así que
+ningún trabajo sobre el payload puede pasar de ahí en esta clase de pregunta.
+Publicar sólo uno de los dos factores es cómo este campo llega a sus titulares:
+el de responder nos favorece, el de sesión favorece a la alternativa.
 
-**Dónde se concentra el ahorro.** No es uniforme: crece con lo común que sea el
-nombre, que es exactamente donde `grep` es a la vez caro y equivocado.
+**Todas las cifras anteriores de esta fase eran falsas y se retiran.** El
+baseline de «leer los ficheros enteros» -102.522 tokens, del que salía un
+`-83 %`- no lo concede ningún anfitrión: omp hace `grep` acotado y lee los
+trozos. Y las medidas a mano que lo sustituyeron estaban infladas 2,7 veces,
+porque tokenizaban el envoltorio JSON del resultado en vez del texto que ve el
+modelo. Ésa es la razón por la que el arnés se implementa antes que cualquier
+mejora, y no después.
+
+**El reparto es la tesis entera de la fase.** Por símbolo, en el factor de
+responder:
 
 ```text
-símbolo             vía nativa   Ladygraph   factor
-NewServer                6.093         320     19x
-Publish                 10.556       3.738    2,8x
-BuildPlan                9.684       4.803    2,0x
-CanonicalColumns         5.584       3.844   1,45x
-DiscoverGo               4.318       3.184    1,4x
-MergeAll                 1.859       1.463    1,3x
+símbolo            clase        refs   nativo  antes   factor   tras 1901
+NewServer          común           0    2.308    300    7,69x       7,69x
+Publish            común           4    3.480  1.793    1,94x       3,98x
+BuildPlan          compartido      3    2.411  1.342    1,80x       3,58x
+CanonicalColumns   raro            3    1.156  1.287    0,90x       1,82x
+DiscoverGo         raro            3      903  1.316    0,69x       1,42x
+MergeAll           raro            2      481    953    0,50x       0,91x
 ```
 
-`grep -w Publish` sobre `internal/` cuesta 8.611 tokens y no distingue
-`SnapshotStore.Publish` de ningún otro `Publish`; `find_references` responde lo
-mismo con 850 y sin ambigüedad. `MergeAll` es un nombre raro: ahí `grep` acierta
-por 1.328 y nosotros somos un empate caro. Un nombre único en un repositorio
-pequeño **no es nuestro terreno**, y la descripción de la tool tiene que decirlo
-para que el agente no gaste la llamada.
+Hoy **perdemos en cuatro de las seis**. Tras LUQUE-1901 ganamos en cinco, y la
+que sigue perdiendo es la del nombre más raro: `MergeAll`, `0,91x`. Un nombre
+único en un repositorio pequeño lo resuelve `grep` más barato que nosotros y
+siempre lo hará. Donde ganamos es donde `grep` es a la vez caro y equivocado
+-`Publish` aparece por todas partes y no distingue `SnapshotStore.Publish` de
+ningún otro- y donde el grafo puede **afirmar una ausencia**: `NewServer` no
+tiene llamantes, y decirlo cuesta 300 tokens frente a 2.308 de ruido.
+
+De ahí salen tres obligaciones para el resto de la fase: la descripción de cada
+tool tiene que decir **dónde pierde**; `get_source` no puede justificarse por los
+cuerpos, sino por las llamadas que ahorra y por el caso que ningún anfitrión sabe
+hacer; y después de LUQUE-1901 el margen que queda en esta clase de pregunta es
+de un solo dígito porcentual, así que lo que siga tiene que atacar **otra clase
+de pregunta**, no este payload.
 
 Ningún gate anterior lo cubre. `MCP_SURFACE_PASS` fija qué se devuelve y con
 qué garantías, nunca lo que cuesta obtenerlo.
@@ -13118,10 +13289,12 @@ sus cifras. Una reducción sin arnés reproducible es una anécdota.
 de código y cualquier tool que no reduzca tokens medidos.
 
 **La cuenta de la superficie.** LUQUE-1113 fijó un techo de diez tools y hoy hay
-once. `get_source` haría doce, así que la fase no puede añadirla sin retirar
-algo: `graph_status`, `list_repositories` y `get_unresolved_references` cuestan
-unos 54 tokens residentes cada una en Oh My Pi para preguntas que ningún agente
-hace, y su sitio es el CLI y el `instructions`. Nueve tools al cerrar la fase.
+once. `get_source` haría doce, así que la fase no puede añadirla sin retirar algo.
+Retira `get_unresolved_references`, que responde una pregunta sobre el índice y no
+sobre el código, y cierra en **once tools y 645 tokens residentes** -menos que los
+670 con los que salió de LUQUE-1903-. `graph_status` y `list_repositories` se
+quedan: el plan las mandaba a `instructions`, pero sus datos son volátiles y ese
+campo no puede llevar nada que se reescriba al reindexar.
 
 ## Los dos anfitriones que esta fase tiene que satisfacer
 
@@ -13134,7 +13307,7 @@ documentación del propio anfitrión.
                         Oh My Pi                     Claude Code
 esquema residente       no: se lee bajo demanda      no: diferido por ToolSearch
                         con `read xd://<tool>`
-coste residente real    593 tok  (204 de rutas       nombres + `instructions`
+coste residente real    594 tok  (205 de rutas       nombres + `instructions`
                         + 389 de descripciones)      (~120 tok, cifra de Anthropic)
 `instructions`          no lo expone                 inyectado al abrir sesión, 2 KB
 `_meta` alwaysLoad      irrelevante                  promociona una tool a residente
@@ -13145,7 +13318,8 @@ tope de respuesta       no documentado               25.000 tok, avisa a partir 
 **Consecuencias que la fase no puede ignorar:**
 
 * **El presupuesto residente en Oh My Pi es la descripción de la tool**, no su
-  esquema. Son 389 de los 593 tokens. Ahí es donde tiene que caber el enrutado
+  esquema. Son 389 de los 594 tokens que mide el arnés. Ahí es donde tiene que
+  caber el enrutado
   -«para esto, en vez de `grep`»- y no en un campo que este anfitrión no lee.
 * **`instructions` sólo sirve para Claude Code.** El canal portable es la
   descripción más `AGENTS.md`, que este proyecto ya tiene enlazado desde
@@ -13179,17 +13353,23 @@ tope de respuesta       no documentado               25.000 tok, avisa a partir 
 **Objetivo:** que toda fila que nombra un símbolo se pueda abrir sin una
 segunda llamada.
 
-**Lo que hoy falta, medido:**
+**Lo que hoy falta, medido por el arnés:**
 
 * `find_references` da `start_line` pero no `end_line`. El agente sabe dónde
   empieza el llamante y no dónde acaba, así que pide un `get_symbol` por fila:
-  **3.414 tokens** y una llamada por llamante en las seis preguntas.
-* `trace_dependencies` y `get_blast_radius` no dan ninguna de las dos. Una
-  traza de `MergeAll` son **8.420 tokens** para 50 filas -168 por fila- que
-  nombran el fichero y no la posición.
-* En esas mismas 50 filas, `stable_key`, `reached_from_key`, `file_key` y
-  `repository_key` suman **5.545 tokens, el 66 %**. `file_key` y
-  `repository_key` los deletrea la ruta que va al lado.
+  **15 llamadas de apoyo** en las seis preguntas, **3.342 tokens netos** una vez
+  descontado lo que costará llevar `end_line` en cada fila. Es lo que separa el
+  `1,21x` actual del `1,50x` proyectado.
+* Cada respuesta medida viajó además duplicada como `structuredContent`:
+  **24.066 bytes** en la pasada. Oh My Pi descarta ese canal; un cliente que
+  renderice los dos paga el doble.
+* `trace_dependencies` y `get_blast_radius` no dan ni `start_line` ni
+  `end_line`. Medido a mano sobre la generación `000017`: una traza de
+  `MergeAll` son **8.420 tokens** para 50 filas -168 por fila- que nombran el
+  fichero y no la posición, y de ellos `stable_key`, `reached_from_key`,
+  `file_key` y `repository_key` suman **5.545, el 66 %**. `file_key` y
+  `repository_key` los deletrea la ruta que va al lado. El arnés todavía no
+  cubre esta clase de pregunta: esta tarea la añade a `questions.json`.
 
 **Entregables:**
 
@@ -13205,19 +13385,65 @@ segunda llamada.
 
 * `end_line` viaja también en `concise`. Son siete tokens y sin él la fila
   obliga a la llamada que la fila venía a evitar.
-* `reached_from_key` se conserva: es la arista del recorrido, no un
-  identificador derivable. Lo que se abarata es su forma, no su presencia.
+* `reached_from_key` se conserva, pero cambia de forma: en `concise` viaja como
+  el `qualified_name` del padre -que es otra fila de la misma página- y la clave
+  vuelve en `detailed`. Una clave base32 cuesta 35 tokens en una fila que cuesta
+  veinte.
+* Ninguna tool declara `outputSchema`. El SDK rellena `structuredContent` desde
+  el resultado tipado en cuanto hay esquema y repite el mismo JSON en el bloque
+  de texto: la respuesta viaja dos veces. Un esquema que se anuncia y no se
+  rellena describiría una respuesta que no se envía, así que se retira el
+  esquema, no sólo el segundo canal.
 
 **Criterios de aceptación:**
 
-- Las seis preguntas se responden sin un solo `get_symbol` de apoyo.
-- Una traza de 50 nodos cuesta menos de la mitad que hoy y cada nodo trae su
-  rango de líneas.
+- Las seis preguntas se responden sin un solo `get_symbol` de apoyo, y el arnés
+  mide `extra_calls: 0` y un total no peor que los 14.133 tokens proyectados.
+- Ninguna fila de recorrido sale sin su rango: `rows_without_range: 0`.
 - `response_format: "detailed"` sigue devolviendo todo lo que devuelve hoy.
 - Ninguna respuesta duplica su contenido: el mismo dato no viaja como texto y
   como `structuredContent`.
 
-**Estado:** `pendiente`.
+**Estado:** `PASS`.
+
+**Resultado.** Medido por el arnés con los dos binarios sobre la generación
+`000024`, digest `3534ae1b9c201e1e`:
+
+```text
+                                   antes    después
+responder, seis preguntas          6.991      3.635    1,54x -> 2,95x
+sesión completa                   17.475     14.119    1,21x -> 1,50x
+`get_symbol` de apoyo                 15          0
+contenido duplicado            24.066 B        0 B
+trace_dependencies, 50 filas       8.420      6.452    168 -> 129 por fila
+get_blast_radius, 9 filas          2.288      1.918    254 -> 213 por fila
+filas sin rango                       59          0
+esquema publicado                  1.580      1.515
+```
+
+La proyección de LUQUE-1905 dijo 3.649 tokens y salieron 3.635: el arnés
+acertó dentro del 0,4 %, que es la primera prueba de que sirve para decidir.
+
+**Un criterio estaba mal escrito y se corrige.** Decía que una traza de 50
+nodos costaría «menos de la mitad». Sale un 23 % menos, no un 50 %, y la
+aritmética explica por qué: la fila suelta `file_key` -18 tokens- y cambia
+`reached_from_key` por un nombre -35 a 8-, pero gana `start_line` y `end_line`
+-unos 14-. Lo que queda por quitar es `stable_key`, otros 35 por fila, y eso
+**no se puede hacer aquí**: hasta que LUQUE-1902 permita nombrar un símbolo por
+`(repository, path, qualified_name)`, una fila sin clave es un callejón. El
+criterio pertenecía a esa tarea y allí se cumple.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/
+go vet ./...
+go test ./...
+go run ./benchmarks/mcp-token-cost --server <binario nuevo>   (dos veces, mismo digest)
+go run ./benchmarks/mcp-token-cost --dir /tmp/mtc-old --server ladygraph   (el antes)
+```
+
+**Siguiente tarea:** LUQUE-1902.
 
 ---
 
@@ -13297,7 +13523,70 @@ ficheros, del orden de 37.800 [INFERENCE: extrapolado del 59 % que mide
   entonces la descripción de la tool lo dice y remite a `read`. Una tool que
   finge ganar donde pierde gasta la llamada dos veces.
 
-**Estado:** `pendiente`.
+**Estado:** `PASS`.
+
+**Resultado.** Medido con el binario nuevo sobre la generación `000024`, digest
+`2dda76df1387f8cf`:
+
+```text
+                                       antes    después
+responder, seis preguntas              3.635      3.059    2,95x -> 3,51x
+sesión completa                       14.119     13.543    1,50x -> 1,57x
+outline de facts.go, fichero entero    6.597      2.949    (read nativo 3.013)
+outline de internal/facts, 199 filas  18.372      8.861    (nativo ~37.800)
+trace_dependencies, 50 filas           6.452      4.535    129 -> 91 por fila
+get_blast_radius, 9 filas              1.918      1.562    213 -> 174 por fila
+```
+
+**Y ahora ganamos las seis preguntas.** `MergeAll`, la que perdía 0,50x antes de
+la fase y 0,91x tras LUQUE-1901, queda en `1,08x`. `Publish` pasa de 1,94x a
+`4,83x` y `BuildPlan` de 1,80x a `4,34x`.
+
+**Cómo se llegó.** La clave estable era la mitad del outline y no se podía
+quitar sin otra forma de nombrar un símbolo, así que `root_symbol.go` deja de
+resolver sólo raíces y pasa a ser el selector de la superficie: `stable_key` o
+bien `(repository, path, qualified_name)`, nunca las dos cosas, en `get_symbol`,
+`find_references`, `trace_dependencies` y `get_blast_radius`. Con eso, la clave
+sale de `concise` en las filas de outline, de referencia y de recorrido, y
+vuelve en `detailed`. Las firmas pierden el camino del paquete al que pertenece
+el propio símbolo -que es como se lee el fuente que lo declara- y el outline
+agrupa por fichero en vez de repetir la ruta por fila.
+
+**Dos cifras no llegaron y se declaran.**
+
+* El outline de `facts.go` gana al `read` nativo por **64 tokens** -2.949 contra
+  3.013-, que es un empate técnico y no la victoria que sugería el plan. Sobre
+  el paquete sí es holgada: 8.861 contra unos 37.800 [INFERENCE: extrapolado del
+  59 % que el resumen nativo mide sobre `facts.go`], es decir 4,3x, no los 15x
+  que estimé antes de medirlo.
+* La fila de recorrido baja a **90,7 tokens**, no por debajo de 84. Lo que queda
+  es `via_kind`, `via_confidence` y `via_provenance`, unos 25 tokens que en la
+  mayoría de las filas repiten el mismo valor. Cerrarlo es hoistear el valor
+  dominante a la cabecera y marcar sólo las excepciones, que es un cambio de
+  forma del payload y merece su propia tarea en vez de entrar aquí de tapadillo.
+
+**Lo que decidí no hacer, y por qué.** El plan pedía «filas agrupadas por
+fichero con cabecera hoisted» como formato de línea. Se quedó en JSON agrupado:
+un formato de texto sólo para esta tool sería una segunda convención de cable
+en una superficie donde las otras diez devuelven el mismo envoltorio, y
+`AGENTS.md` obliga a reutilizar la convención vigente. El criterio era el número
+de tokens y el JSON agrupado lo cumple.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/
+go vet ./...
+go test ./...
+go run ./benchmarks/mcp-token-cost --server <binario nuevo>   (dos veces, mismo digest)
+```
+
+Tests nuevos: `TestSymbolSelectorNarrowsAnAmbiguousNameAndNeverGuesses`,
+`TestNormalizeSymbolSelectorRejectsContradictions`,
+`TestFindReferencesAddressesASymbolWithoutItsKey` y
+`TestFindReferencesRejectsContradictoryAndAmbiguousSelectors`.
+
+**Siguiente tarea:** LUQUE-1903.
 
 ---
 
@@ -13305,16 +13594,34 @@ ficheros, del orden de 37.800 [INFERENCE: extrapolado del 59 % que mide
 
 **Dependencias:** LUQUE-1901, LUQUE-1902.
 
-**Objetivo:** cerrar la brecha entera. Es el único cambio de la fase que pone a
-Ladygraph por debajo de la vía nativa en las seis preguntas, porque es el único
-que retira la lectura del fichero.
+**Objetivo:** retirar la lectura del fichero, que es la mitad de la sesión.
 
-**Lo que esta tool no es:** un lector de rangos. `read internal/facts/facts.go:484-509`
-ya existe en los dos anfitriones, es más barato que una llamada MCP y está
-siempre fresco; competir con eso es perder. Lo que ningún anfitrión puede hacer
-es **una sola llamada que devuelva los cuerpos de los cuatro llamantes exactos
-repartidos por tres repositorios**, verificados contra la generación publicada.
-Ahí está el valor, y de ahí sale la forma de la entrada: símbolos, no rangos.
+**Medido, y corrige lo que esta ficha decía antes.** Dije que `get_source` no
+podía justificarse por tokens porque «los cuerpos los paga cualquier vía». Es
+falso, y el arnés lo demuestra: **no son los mismos tokens**. El `read` de rango
+del anfitrión antepone la cabecera del snapshot y el número de línea a cada
+línea, y eso mide un **38 % sobre los bytes** -427 tokens donde el cuerpo son
+302-. Sobre las seis preguntas, con las veinte lecturas capturadas en
+`native/reads/`:
+
+```text
+vía nativa, sesión completa            25.144
+Ladygraph antes de esta tarea          17.464   1,44x
+Ladygraph sirviendo los cuerpos        14.222   1,77x
+  cuerpos leídos por el anfitrión      14.405
+  los mismos cuerpos servidos          11.163
+suelo: los bytes y nada más            10.478   2,40x
+```
+
+Son **3.242 tokens, un 19 % de la sesión**, y mueven el factor de `1,44x` a
+`1,77x` sobre un suelo de `2,40x`. Ésa es la justificación, medida.
+
+**Lo que esta tool sigue sin ser:** un lector de rangos por gusto.
+`read internal/facts/facts.go:484-509` existe en los dos anfitriones y está
+siempre fresco. Lo que ningún anfitrión puede hacer es **una sola llamada que
+devuelva los cuerpos de los cuatro llamantes exactos repartidos por tres
+repositorios**, sin prefijos y verificados contra la generación publicada. De
+ahí sale la forma de la entrada: símbolos, no rangos.
 
 **Entregables:**
 
@@ -13375,7 +13682,69 @@ Ahí está el valor, y de ahí sale la forma de la entrada: símbolos, no rangos
 fichero muy editado -dos declaraciones homónimas-. Ante más de una candidata no
 se elige: se declara y no se sirven bytes de esa fila.
 
-**Estado:** `pendiente`.
+**Estado:** `PASS`.
+
+**Resultado.** Medido con el binario nuevo sobre la generación `000024`, digest
+`a4f59590ba4a234d`:
+
+```text
+                                    antes    después
+sesión completa                    17.464     14.222    1,44x -> 1,77x
+  cuerpos, por dónde llegan        14.405     11.163
+suelo: los bytes y nada más                   10.478    2,40x
+```
+
+Son **3.242 tokens, el 19 % de la sesión**, y quedan a un 6 % del suelo teórico.
+La proyección de la ficha decía 13.993 y salieron 14.222: acertó dentro del
+1,6 %.
+
+**El formato de la respuesta valía 2.914 de esos tokens, y casi los perdí.** La
+primera versión devolvía los cuerpos dentro del envoltorio JSON, como las otras
+once tools, y midió `17.136 / 1,47x`: **casi nada**. La causa es aritmética y la
+medí sobre una declaración de 26 líneas: 302 tokens de fuente son **374 como
+cadena JSON** -cada salto de línea y cada tabulador se pagan dos veces- y **430
+como fila completa**, que es exactamente lo que cuesta el `read` de rango del
+anfitrión. Servir código a través del envoltorio no compra nada.
+
+Así que `get_source` es la única tool que responde en prosa: una línea de
+cabecera por cuerpo -`@ repo path:inicio-fin kind nombre`, o `!` y el motivo
+cuando no hay bytes- y después el código tal cual, sin escapar y sin numerar. En
+LUQUE-1902 rechacé un formato de texto por no crear una segunda convención de
+cable; aquí la convención no es una preferencia, es la diferencia entre la tool y
+ninguna tool.
+
+**Lo que el snapshot no llevaba.** `FileRecord` había perdido el `ContentHash`,
+así que no había con qué comprobar la frescura. Vuelve como `ContentDigest`, los
+treinta y dos bytes crudos del SHA-256 en vez de sus sesenta y cuatro caracteres
+hexadecimales: no toca la arena de cadenas. Un hash que no se puede decodificar
+**no tumba la publicación**: queda a cero, que se lee como «esta generación no
+registró un hash comparable» y nunca como «fresco». La degradación sólo puede ir
+en la dirección segura.
+
+**La política de symlinks no se duplicó.** `workspace.FirstSymlink` se exporta y
+la usan las dos capas: la que indexa se niega a caminar por un enlace, la que
+sirve se niega a leer por uno. Dos copias de una comprobación de seguridad es
+cómo acaban discrepando.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/
+go vet ./...
+go test ./...
+go run ./benchmarks/mcp-token-cost --server <binario nuevo>   (dos veces, mismo digest)
+```
+
+Ocho tests nuevos en `get_source_test.go`, incluidos los cuatro que exige esta
+ficha -desplazamiento reanclado, declaración borrada sin tumbar las otras filas,
+ruta que escapa del repositorio y componente symlink- más el que fija que el
+código no viaje escapado y el que rechaza dos homónimas equidistantes.
+
+**Deuda que deja:** la superficie sube a doce tools y 670 tokens residentes en
+Oh My Pi. LUQUE-1904 la baja a nueve retirando `graph_status`,
+`list_repositories` y `get_unresolved_references` de la superficie del modelo.
+
+**Siguiente tarea:** LUQUE-1904.
 
 ---
 
@@ -13402,7 +13771,7 @@ objetivo de esta tarea se declara con su arnés y su fecha o no vale nada.
 * descripciones reescritas como enrutado: qué pregunta contestan, contra qué
   alternativa nativa, y **dónde pierden** -un nombre único en un repositorio
   pequeño lo resuelve `grep` más barato-; es el único presupuesto residente en
-  Oh My Pi, 389 de los 593 tokens;
+  Oh My Pi, 389 de los 594 tokens;
 * retirar de la superficie del modelo `graph_status`, `list_repositories` y
   `get_unresolved_references`: su contenido va a `instructions` y al CLI, y con
   `get_source` dentro la fase cierra en nueve tools;
@@ -13449,7 +13818,7 @@ objetivo de esta tarea se declara con su arnés y su fecha o no vale nada.
 
 - `initialize` devuelve `instructions` y cabe en 2 KB.
 - El coste residente en Oh My Pi -rutas más descripciones- no crece respecto de
-  los 593 tokens medidos, y un test lo fija como fijó LUQUE-1113 el del esquema.
+  los 594 tokens que mide el arnés, y su digest lo fija.
 - Ninguna descripción ni `instructions` contiene un número derivado del grafo.
 - Una respuesta vacía de cada tool de consulta nombra la llamada siguiente.
 - Con la generación ausente o ilegible, el servidor completa el handshake, no
@@ -13460,7 +13829,190 @@ objetivo de esta tarea se declara con su arnés y su fecha o no vale nada.
 con un test. Se mide observando sesiones reales, con su arnés y su fecha, y se
 declara como observación, nunca como garantía.
 
-**Estado:** `pendiente`.
+**Estado:** `PASS`.
+
+**Resultado.** Medido sobre la generación `000024`, digest `ba7b09a476fdf747`:
+
+```text
+                                      antes    después
+superficie residente en Oh My Pi        670        645   (12 -> 11 tools)
+  rutas                                 222        201
+  descripciones                         448        444
+`instructions` en `initialize`      ausentes    1.086 B
+guía en la respuesta                      -   +50 tok en las seis preguntas
+responder, seis preguntas             3.059      3.109   3,51x -> 3,45x
+```
+
+La superficie queda **por debajo de los 670 que dejó LUQUE-1903** y encima lleva
+enrutado; el techo lo fija ahora un test en bytes
+(`MaximumResidentSurfaceBytes`), porque este paquete no tiene tokenizador y el
+arnés ya publica la cifra en tokens.
+
+La guía cuesta **50 tokens en las seis preguntas**, todos en el caso vacío
+-`NewServer` pasa de 300 a 350-, y convierte «cero resultados» en «nada
+referencia a este símbolo; las aristas están comprobadas por el checker, así que
+esto es una ausencia, no un fallo». En una respuesta con filas la guía **calla**:
+quince tokens de consejo en cada llamada es cómo un ahorro se convierte en un
+coste.
+
+**Dos cosas de esta ficha estaban mal y se corrigen.**
+
+* **«Nueve tools» era incoherente con esta misma tarea.** El plan retiraba
+  `graph_status` y `list_repositories` diciendo que su contenido iba a
+  `instructions`, y dos líneas más abajo prohibía cualquier dato volátil en
+  `instructions`. El `snapshot_id`, los contadores y la lista de repositorios son
+  exactamente eso. Se retira sólo `get_unresolved_references`, que es la única de
+  las tres que responde una pregunta sobre el índice y no sobre el código, y la
+  fase cierra en **once**.
+* **El presupuesto de 594 tokens describía otra superficie.** Era el coste de
+  once tools sin `get_source` y con descripciones que sólo decían qué hacían.
+  Restando las 201 de rutas dejaba 24 tokens por tool, que no da para decir
+  contra qué alternativa competir ni dónde se pierde. El techo queda en lo que
+  mide con el enrutado dentro, 645, que sigue siendo menos que antes de la tarea.
+
+**Lo que no se envía.** Ningún hook. `PreToolUse` no puede reconducir un `Read` a
+una llamada MCP -`updatedInput` sólo reemplaza los argumentos de la misma tool- y
+bloquear los subagentes de exploración es valor esperado negativo. Y en ninguna
+parte se le pide al modelo que narre lo que ahorra: tokensave cerró su issue #356
+concediendo que los tokens de salida se comían el ahorro de entrada.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/
+go vet ./...
+go test ./...
+go run ./benchmarks/mcp-token-cost --server <binario nuevo>   (dos veces, mismo digest)
+```
+
+Tests nuevos: `TestServerWithoutAGenerationPublishesNoTool`,
+`TestServerInstructionsRouteWithoutVolatileFacts`,
+`TestServerSurfaceStaysCheapToKeepResident` -que además falla si una descripción
+lleva un dígito- y `TestEmptyAnswersNameTheNextCall`. Dos tests existentes
+cambiaron de premisa: la superficie se comprueba ahora contra un servidor con
+generación publicada, y `TestUnbuildableGraphLeavesTheServiceHonest` afirma el
+handshake sin tools en vez de un `INDEX_NOT_READY` por llamada.
+
+**Lo que queda sin demostrar, y así se declara:** si un agente llama más a
+Ladygraph por esto. El techo del campo es el 20,3 % de las lecturas que midió
+Serena con todo puesto, y la adopción no es una propiedad de la tool. Se observa
+en sesiones reales, con su arnés y su fecha, o no se afirma.
+
+**Siguiente tarea:** LUQUE-1906.
+
+---
+
+## LUQUE-1906 — La única fila que no se puede abrir
+
+**Dependencias:** LUQUE-1901, LUQUE-1902, LUQUE-1905.
+
+**Objetivo:** cerrar la limitación que el propio arnés declara en cada informe -no
+hay pregunta cross-repository- y arreglar lo que esa ceguera escondía.
+
+**Lo que se encontró al medirlo.** `find_cross_repo_consumers` **nunca se migró**.
+Mientras las otras diez tools perdían las claves base32 y ganaban rangos de
+líneas, ésta conservó su forma original, y ninguna pregunta del corpus la
+ejercitaba, así que nada lo señaló. Medido sobre un corpus de tres repositorios
+construido desde `testdata/go/cross-repository`, con `api.Compute` consumido por
+`consumer-a`:
+
+```text
+respuesta actual            957 tokens para 4 filas = 239 por fila
+  de ellos, claves          193 por fila (81 %)
+    consumer_symbol_key      46
+    target_symbol_key        43
+    los dos *_package_key    47
+    evidence_key             21
+    consumer_file_key        14
+    los dos *_repository_key 22
+```
+
+Y no lleva **ni el nombre del consumidor ni su rango de líneas**: es la única fila
+de la superficie que sigue sin poder abrirse. El símbolo consultado viaja además
+repetido en cada fila como `target_*`, que es el sujeto hoisteado que LUQUE-1113
+ya resolvió en `find_references`.
+
+**Entregables:**
+
+* la fila del consumidor con `name`, `qualified_name`, `kind`, `repository`,
+  `file_path`, `start_line` y `end_line`; las claves y la evidencia sólo en
+  `detailed`;
+* el símbolo consultado enunciado una vez como sujeto, no en cada fila;
+* una pregunta `cross_repository` en `questions.json` del arnés, con su corpus
+  propio y la salida nativa capturada;
+* `benchmarks/mcp-token-cost/cross-repo/` con su `results.json` y su `report.md`.
+
+**Decisiones:**
+
+* El corpus vive en una ruta privada bajo `/private/tmp`, no en `/tmp`: la
+  política de symlinks rechaza el enlace de macOS y no se relaja. Los tres
+  repositorios son copias de `testdata/go/cross-repository`, nunca el fixture del
+  árbol.
+* El consumidor alcanza al proveedor con un `require` a secas. Un `replace` local
+  hacia otro repositorio se rechaza -escapa del realpath- y sin ninguno de los dos
+  el `go.work` sintético no los agrupa y la referencia sale `UNRESOLVED`. Las tres
+  formas están medidas y las dos primeras son fallos declarados, no bugs.
+* `category` se conserva. Separar `exact_symbol` de `package_level` es el contrato
+  de esta tool: una dependencia de paquete prueba que el consumidor depende del
+  proveedor y nunca que use el símbolo.
+
+**Criterios de aceptación:**
+
+- La fila del consumidor se puede abrir sin otra llamada.
+- El sujeto aparece una vez por respuesta.
+- `detailed` sigue devolviendo las claves y la evidencia.
+- El arnés publica una pregunta cross-repository con su factor, y su informe deja
+  de declarar esa ausencia como limitación.
+- La respuesta de las cuatro filas del fixture cuesta menos de la mitad que hoy.
+
+**Estado:** `PASS`.
+
+**Resultado.** Corpus de tres repositorios copiado de
+`testdata/go/cross-repository` a `/private/tmp`, indexado con configuración
+aislada, generación `000003`. Digest del arnés `549dd41f2429…`:
+
+```text
+                          antes    después
+respuesta de 4 filas        957        369    -61 %
+por fila                    239         92
+filas sin rango               4          0
+```
+
+La fila del consumidor ya se puede abrir -`consumer-a main.go:6-12 func main`-, el
+sujeto se enuncia una vez, y la tripleta `(repository, path, qualified_name)`
+devuelve el mismo total que la clave.
+
+**Y el factor contra la vía nativa es `0,57x`: aquí perdemos.** Un `grep` de
+`Compute` en los tres repositorios cuesta 211 tokens y nuestra respuesta 369. El
+corpus son tres ficheros; en un corpus así grep gana y hay que decirlo. Lo que sus
+211 tokens no dicen es **cuál** `Compute`, y no ven en absoluto los dos
+consumidores de nivel-paquete que la respuesta clasifica aparte. El informe declara
+esa columna como un suelo, no un techo: compara una respuesta completa con una
+incompleta.
+
+**Tres contratos del proyecto se cumplieron solos durante el montaje**, y los tres
+dieron un fallo antes de dar un resultado: `/tmp` se rechazó por ser un enlace en
+macOS; un `replace` local hacia otro repositorio se rechazó por escapar del
+realpath; y sin `require` ni `replace` el `go.work` sintético no agrupa los módulos
+y la referencia sale `UNRESOLVED`. Sólo la tercera forma -un `require` a secas,
+con el proveedor registrado- produce aristas exactas.
+
+**Y el corpus destapó un fallo del arnés.** Resolvía los cuerpos contra la ruta de
+un solo repositorio, así que una referencia alojada en otro no se podía leer.
+Ahora cada fila se resuelve contra el repositorio que nombra. Ninguna pregunta del
+corpus anterior lo habría encontrado: las seis viven en `ladygraph`.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/
+go vet ./...
+go test ./...
+go run ./benchmarks/mcp-token-cost --server <binario> --config <aislada> \
+  --dir benchmarks/mcp-token-cost/cross-repo --repository shared-library
+```
+
+**Siguiente tarea:** —.
 
 ---
 
@@ -13492,7 +14044,10 @@ eligió, con un tope que hace del 75 % el techo aritmético-.
   consumidores en otro repositorio;
 * tres columnas por pregunta: **vía nativa** (`grep` acotado más la lectura de
   los rangos que nombra), **Ladygraph** (las llamadas MCP más lo que el agente
-  aún tenga que leer) y el factor entre ambas;
+  aún tenga que leer) y el factor entre ambas, con las dos salidas del anfitrión
+  -su `grep` y sus lecturas de rango- capturadas literalmente en `native/`;
+* dos factores por pregunta, el de responder y el de la sesión completa, porque
+  publicar sólo uno es cómo este campo llega a sus titulares;
 * el coste residente de la superficie en los dos anfitriones: rutas más
   descripciones para Oh My Pi, y el esquema completo como cifra diferida;
 * fallo del gate ante una regresión: cualquier pregunta que empeore respecto de
@@ -13518,15 +14073,75 @@ eligió, con un tope que hace del 75 % el techo aritmético-.
 
 **Criterios de aceptación:**
 
-- El arnés reproduce, sobre la generación publicada, las cifras que esta fase
-  cita: 38.094 nativo, 106.078 hoy, y el reparto por pregunta de 1,3x a 19x.
-- Una segunda ejecución sobre el mismo corpus y la misma generación da el mismo
-  `results.json` salvo el sello de tiempo.
+- El arnés mide la vía nativa, la actual y la proyectada por pregunta, y publica
+  el factor entre ellas.
+- Dos ejecuciones sobre el mismo corpus y la misma generación producen el mismo
+  digest.
 - `MCP_TOKEN_COST_PASS` se declara desde su salida, no a mano.
-- `report.md` nombra sus limitaciones, empezando por que un solo repositorio Go
-  no representa el caso cross-repository, que es donde el grafo más gana.
+- `report.md` nombra sus limitaciones, empezando por la ausencia de una pregunta
+  cross-repository, que es donde el grafo no tiene competidor nativo.
 
-**Estado:** `pendiente`.
+**Estado:** `PASS`.
+
+**Resultado.** El arnés retiró las cifras con las que se había escrito la fase.
+El baseline de ficheros enteros -102.522 tokens, `-83 %`- no lo concede ningún
+anfitrión, y las medidas a mano que lo sustituyeron estaban infladas 2,7 veces
+porque tokenizaban el envoltorio JSON del resultado en lugar del texto que ve el
+modelo. Sobre la generación `000024`, digest `ffb455a6881ea58f` -las cifras de
+sesión de este bloque son las de aquella pasada, antes de que LUQUE-1903
+descubriera que el `read` del anfitrión cobra un 38 % sobre los bytes; el
+preámbulo de la fase lleva las corregidas-:
+
+```text
+                              responder    sesión completa
+vía nativa                       10.739             21.223
+Ladygraph hoy                     6.991  1,54x      17.475  1,21x
+tras LUQUE-1901                   3.649  2,94x      14.133  1,50x
+cuerpos, los paga cualquier vía  10.484             techo    2,02x
+superficie residente en Oh My Pi    594  (205 rutas + 389 descripciones)
+esquema diferido por los dos anfitriones  1.580
+contenido duplicado en `structuredContent`  24.066 bytes en la pasada
+```
+
+**El arnés publica los dos factores porque uno solo engaña.** El techo de la
+sesión es `2,02x` y no depende de nosotros: los cuerpos son el 49 % del brazo
+nativo y los paga cualquier vía.
+
+Y el reparto, que es el hallazgo: hoy **perdemos en cuatro de las seis** en el
+factor de responder -`MergeAll` `0,50x`, `DiscoverGo` `0,69x`,
+`CanonicalColumns` `0,90x`, y `BuildPlan` ya gana con `1,80x`-. Tras LUQUE-1901
+ganamos en cinco y `MergeAll` sigue perdiendo con `0,91x`. Ganamos donde `grep`
+es caro y ambiguo (`Publish` `1,94x` hoy, `3,98x` después) y donde el grafo puede
+afirmar una ausencia (`NewServer` `7,69x`: cero llamantes por 300 tokens frente a
+2.308 de ruido).
+
+Tres decisiones salieron de escribirlo:
+
+* **El brazo nativo es una captura verbatim**, no una reimplementación. Los seis
+  ficheros de `native/` son la salida literal del `grep` del anfitrión, con su
+  patrón y su ruta registrados en `questions.json`.
+* **La identidad de una pasada es un digest**, no el fichero. El servidor
+  reconstruye su proyección del HotSnapshot al arrancar, así que su `built_at`
+  cambia entre pasadas idénticas; el digest cubre generación, corpus, superficie
+  y cifras, y deja fuera los sellos de tiempo.
+* **El tokenizador viaja embebido.** `tiktoken-go` con el cargador offline: el
+  cargador por defecto descarga el vocabulario, y un gate no puede depender de
+  que haya red. Se añadió `github.com/pkoukk/tiktoken-go` y su cargador al
+  módulo por esto y sólo por esto: los bytes no sirven de proxy, porque una
+  clave base32 de 52 caracteres cuesta 35 tokens -1,5 caracteres por token- y
+  una línea de Go pasa de 3, así que medir bytes esconde justo lo que la fase
+  quiere comprar.
+
+**Verificación:**
+
+```text
+gofmt -l benchmarks/mcp-token-cost/
+go vet ./...
+go test ./...
+go run ./benchmarks/mcp-token-cost   (dos veces, mismo digest)
+```
+
+**Siguiente tarea:** LUQUE-1901.
 
 ---
 
@@ -13657,3 +14272,118 @@ REJECT_TASK
 
 Incluye evidencia concreta, archivos, líneas, comandos y resultados.
 ```
+
+---
+
+## LUQUE-1907 — El factor sobre un monorepo real, no sobre un fixture
+
+**Dependencias:** LUQUE-1901, LUQUE-1902, LUQUE-1903, LUQUE-1905, LUQUE-1906.
+
+**Estado:** `PASS`.
+
+**Objetivo:** cerrar la única cifra de la fase 19 que era de fixture. El arnés
+medía seis preguntas sobre este mismo repositorio, y la pregunta
+cross-repository se midió sobre un corpus sintético de tres ficheros, donde
+salió `0,57x`: perdíamos contra `grep`. La duda era si el factor cruza a favor
+cuando el corpus es un monorepo de verdad, que es donde `grep` cuesta caro.
+
+**Corpus.** Privado y ajeno, así que no entra en este repositorio: el monorepo
+`kena` de la máquina `devlabs`, `linux/x86_64`, 43 repositorios git
+registrados. Indexado con `go1.26.4`, `rustc 1.96.1`, worker TypeScript del
+checkout:
+
+```text
+41 repositorios  120 paquetes  4.931 ficheros  100.118 símbolos
+255.972 aristas de símbolo  361 de paquete  11.698 no resueltos
+366.228 nodos y 622.516 aristas en la base canónica
+TypeScript aporta 97.153 símbolos y 5.055 no resueltos de 216.427 referencias -- 2,3 %
+```
+
+Las capturas del brazo nativo llevan su código, así que **se quedan en su
+máquina**: aquí sólo viven los números y el método.
+
+**Resultado.** Cuatro preguntas, cada una con su sujeto nombrado por tripleta:
+
+```text
+                                       responder            sesión completa
+                              nativo  Ladygraph  factor   nativo  Ladygraph  factor
+RedisAdapter  cross-repo       6.379      4.140   1,54x    7.598      5.359   1,42x
+register      nombre común    12.656        448  28,25x   13.276      1.068  12,43x
+KenaLogger    export             754      1.246   0,61x    4.035      4.527   0,89x
+AUTOMATION…   nombre raro        183        861   0,21x      330      1.008   0,33x
+TOTAL                         19.972      6.695   2,98x   25.239     11.962   2,11x
+sirviendo los cuerpos con get_source                                 13.268   1,90x
+techo de la sesión                                                            5,83x
+```
+
+**La pregunta cross-repository cruza: `0,57x` en el fixture de tres ficheros,
+`1,30x` aquí** -medida aparte, con su propio contador: `exact 83`,
+`package_level 24`, `rows_without_range 0`, 98 tokens por fila-. `grep` paga
+6.379 tokens por 234 líneas y no distingue la clase de sus 86 alias; nosotros
+4.919 por 83 consumidores exactos en nueve repositorios.
+
+**Y valida el enrutado que enviamos en las descripciones.** Decimos que ganamos
+en nombres comunes y en impacto transitivo, y que un nombre raro en un sitio
+pequeño lo resuelve `grep` más barato. Medido: `28,25x` en el nombre que el
+corpus declara 126 veces, `0,21x` en el que aparece dos veces. La superficie
+dice dónde pierde y pierde exactamente ahí.
+
+**El informe de devlabs queda cerrado.** Decía que los dos repositorios Rust
+indexaban sin error y luego impedían publicar, y que
+`find_cross_repo_consumers` daba falsos positivos sin resolver consumidores
+reales. En su máquina, con sus commits: los dos publican, y
+
+```text
+RedisAdapter  library-shared src/redis/RedisAdapter.ts:12-45
+              exact 83, package_level 24, unresolved 0
+              consumidores en 9 repositorios; find_references ve 86 desde 14
+KenaLogger    library-logger src/logger.ts:103-420
+              exact 6, package_level 22, unresolved 0; las dos tools concuerdan
+```
+
+**Cuatro defectos del arnés que sólo un corpus multi-repositorio destapa:**
+
+1. **El sujeto se elegía por orden de página.** `find_symbol` por nombre a secas
+   no identifica nada: `RedisAdapter` son 87 filas -una clase y 86 importaciones
+   y alias-, y tomar la primera medía los consumidores de un alias. Salía
+   `12,06x` a nuestro favor con `exact 0`. Ahora un nombre ambiguo **aborta** y
+   la pregunta tiene que nombrar la tripleta, que es para lo que existe.
+2. **El repositorio de una fila se leía con un solo nombre.** `find_references`
+   lo llama `repository` y `find_symbol` `repository_name`; el arnés leía el
+   primero, así que el sujeto llegaba sin repositorio y el cuerpo se buscaba
+   bajo el árbol equivocado. Un corpus de un repositorio nunca lo nota.
+3. **El brazo servido pedía 83 cuerpos en una llamada.** `get_source` acepta 20,
+   así que la medición fallaba; ahora pagan cinco llamadas, que es lo que paga
+   un agente.
+4. **`Publish` era ambiguo en nuestro propio corpus** -`SnapshotStore.Publish` y
+   `Store.Publish`- y se medía en silencio sobre la que la página devolvía
+   primero. Nombrada.
+
+**Hallazgo de superficie que no se arregla aquí:** el mismo hecho viaja con dos
+nombres -`repository` en las filas de referencia y de consumidor,
+`repository_name` en las de símbolo y de outline-. Cambiarlo toca el documento
+de protocolo, sus tests y las dos capturas del arnés, así que se decide aparte.
+
+**Limitaciones:**
+
+- El brazo nativo es el `grep -rn` de la máquina, con `node_modules`, `dist` y
+  `target` excluidos: un agente los excluye también e incluirlos infla el brazo
+  contra el que nos comparamos. No es el `grep` del anfitrión, que tiene su
+  propio formato.
+- Las lecturas se facturan renderizadas como las del anfitrión -un número de
+  línea por línea-, contadas con el mismo `cl100k_base` que el arnés, por un
+  programa que viaja con él (`benchmarks/mcp-token-cost/counttok`).
+- La adopción sigue sin medirse: que un agente llame a estas tools es una
+  observación sobre sesiones reales, no una propiedad de la tool.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/   limpio
+go vet ./...                     limpio
+go test ./...                    verde
+go run ./benchmarks/mcp-token-cost --server <binario>   digest 275af813d985
+   sobre este repositorio: responder 3,56x, sesión 1,44x, sirviendo 1,77x
+```
+
+**Siguiente tarea:** —.

@@ -336,3 +336,54 @@ func TestNormalizeRustPublishesStructuralRelations(t *testing.T) {
 		}
 	}
 }
+
+// TestNormalizeRustDropsAFileNoManifestDeclares is the shape of the standard
+// library reaching its vendored `compiler-builtins`: the analyzer indexes a file
+// through a path dependency into a crate no manifest of this workspace declares.
+//
+// Publishing it produced a file row with no package, which the fact set accepts
+// and the canonical generation rejects -- after the whole corpus has been
+// analysed, which for a toolchain is fifty seconds of work thrown away with a
+// message about a single row.
+func TestNormalizeRustDropsAFileNoManifestDeclares(t *testing.T) {
+	input := rustFixtureInput()
+	input.Analysis.Files = append(input.Analysis.Files, rustloader.IndexedFile{
+		Path:  "vendor/builtins/build.rs",
+		Crate: rustloader.CrateRef{Name: "builtins", Version: "0.1.0"},
+	})
+	// A declaration in that file is already dropped; this is the file itself.
+	input.Analysis.Definitions = append(input.Analysis.Definitions, rustloader.Definition{
+		StableKey:         "builtins-main",
+		CanonicalIdentity: "canonical:builtins:main",
+		Symbol:            "rust-analyzer cargo builtins 0.1.0 main().",
+		Crate:             rustloader.CrateRef{Name: "builtins", Version: "0.1.0"},
+		File:              "vendor/builtins/build.rs",
+		Name:              "main", QualifiedName: "main", Kind: string(rustloader.SuffixMethod),
+		Signature: "fn main()", StartLine: 1, EndLine: 2, EndOffset: 20,
+	})
+
+	set, report, err := NormalizeRust(context.Background(), input)
+	if err != nil {
+		t.Fatalf("NormalizeRust() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.FilesWithoutPackage != 1 || report.DefinitionsWithoutCrate != 1 {
+		t.Fatalf("report = %#v, want the file and its declaration both counted", report)
+	}
+	for _, file := range set.Files {
+		if file.Path == "vendor/builtins/build.rs" {
+			t.Fatalf("file = %#v, want it dropped: no package of this workspace holds it", file)
+		}
+		// Every file this set does publish belongs to exactly one package.
+		if file.PackageKey == "" {
+			t.Fatalf("file = %#v, want a package", file)
+		}
+	}
+	// The file that the workspace does declare survives, so the drop is
+	// selective and not a workspace that stopped publishing.
+	if len(set.Files) != 1 || set.Files[0].Path != "crates/engine/src/lib.rs" {
+		t.Fatalf("files = %#v, want only the declared one", set.Files)
+	}
+}

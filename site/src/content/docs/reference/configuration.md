@@ -106,11 +106,33 @@ reference. Accepting another word would promise behaviour no code implements.
 | `include_tests` | `true` | Sets `cfg(test)`. Turning it off removes every test item from the graph, and the grammar then reports each one as a declaration the index does not carry. |
 | `allow_network` | `false` | Lets cargo reach a registry while the analyzer loads a workspace. |
 | `target_directory` | `~/.local/state/ladygraph/rust-target` | Build artifacts of the analysis, outside every indexed repository. |
-| `sysroot` | `discover` | `discover`, `none`, or a path. Without a sysroot the standard library is absent and the proc-macro server cannot start. |
+| `sysroot` | `discover` | `discover`, `none`, or a path. Where the standard library is, never whether it enters the graph: loading it is what lets the analyzer resolve `Vec` at all. |
+| `index_sysroot` | `false` | Publishes the standard library as a synthetic provider repository named after the toolchain release, such as `rust:1.96.1`. |
 
 A symbol behind an inactive feature is absent from the graph and reported as
 unresolved. Feature selection is therefore part of what the graph *is*, not a
 performance knob.
+
+### The standard library
+
+With `index_sysroot` off, four things leave no edge at all: `#[derive(...)]`, an
+overloaded operator, the `?` operator, and every call into the standard library.
+Each one resolves to a symbol of `core`, `alloc` or `std`, and nothing in the
+graph declares it. The pass says so, per crate, as `CRATE_PROVIDER_NOT_FOUND`.
+
+With it on, they become exact edges. It costs one extra analysis unit — around
+`19.500` symbols and one cold pass per toolchain — and the fact cache serves it
+afterwards, because the cache fingerprint includes `rustc --version`. A machine
+with no toolchain, or one without the `rust-src` component, indexes its
+repositories and reports why the standard library is absent; it is never a
+failure.
+
+Read tools withhold it by default. `find_symbol`, `find_references`,
+`trace_dependencies` and `get_blast_radius` accept `include_derived: true` to ask
+for it, and naming the repository in `repo` is a request for it too.
+`graph_status` reports what it contributes under `derived` — including its own
+unresolved references, which the standard library declares by the thousand — and
+`list_repositories` marks the row.
 
 ## `telemetry`
 

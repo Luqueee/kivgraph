@@ -16,23 +16,67 @@
   "measurements": [
     {
       "name": "analyzer.provider",
-      "milliseconds": 998.016,
+      "milliseconds": 1027.276,
       "detail": "documents=1"
     },
     {
-      "name": "index.cold",
-      "milliseconds": 1140.475,
-      "detail": "workspaces=2"
+      "name": "index.cold.without-stdlib",
+      "milliseconds": 1205.215,
+      "detail": "workspaces=2 symbols=6"
     },
     {
-      "name": "index.warm",
-      "milliseconds": 40.415,
+      "name": "index.warm.without-stdlib",
+      "milliseconds": 52.294,
       "detail": "cache_hits=2 misses=0"
+    },
+    {
+      "name": "index.cold.with-stdlib",
+      "milliseconds": 15266.535,
+      "detail": "workspaces=3 symbols=19533"
+    },
+    {
+      "name": "index.warm.with-stdlib",
+      "milliseconds": 789.434,
+      "detail": "cache_hits=3 misses=0"
+    }
+  ],
+  "arms": [
+    {
+      "name": "without-stdlib",
+      "sysroot_reason": "SYSROOT_NOT_REQUESTED",
+      "workspaces": 2,
+      "crates": 2,
+      "files": 2,
+      "symbols": 6,
+      "edges": 19,
+      "unresolved": 1,
+      "edges_without_provider": 0,
+      "cold_milliseconds": 1205.215,
+      "warm_milliseconds": 52.294,
+      "cache_hits": 2,
+      "cache_misses": 0
+    },
+    {
+      "name": "with-stdlib",
+      "sysroot": "rust:1.96.1",
+      "workspaces": 3,
+      "crates": 18,
+      "files": 844,
+      "symbols": 19533,
+      "edges": 169532,
+      "unresolved": 6709,
+      "edges_without_provider": 3,
+      "cold_milliseconds": 15266.535,
+      "warm_milliseconds": 789.434,
+      "cache_hits": 3,
+      "cache_misses": 0
     }
   ],
   "limitations": [
     "El corpus son tres crates: mide el reparto del coste, no la escala.",
     "El caché del toolchain y del sysroot están calientes; una máquina fría paga más.",
-    "Las cifras dependen de la versión de rust-analyzer instalada."
+    "Las cifras dependen de la versión de rust-analyzer instalada.",
+    "El brazo con sysroot mide la biblioteca del toolchain instalado; otra versión publica otro número de símbolos.",
+    "El sysroot del brazo con biblioteca se indexa en su sitio, sin copiarlo: su coste incluye leer y hashear sus ficheros."
   ]
 }

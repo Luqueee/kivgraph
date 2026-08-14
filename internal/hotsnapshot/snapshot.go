@@ -1,6 +1,7 @@
 package hotsnapshot
 
 import (
+	"crypto/sha256"
 	"errors"
 	"math"
 	"sync"
@@ -33,12 +34,22 @@ type PackageRecord struct {
 }
 
 // FileRecord belongs to one package.
+//
+// ContentDigest is the SHA-256 of the bytes that were analysed, as raw bytes
+// rather than the hex the canonical row stores: thirty-two bytes per file
+// instead of sixty-four characters in the string arena. A zero digest means the
+// generation recorded none.
+//
+// It is here so a reader can tell whether a row still describes the file on
+// disk. Serving a line range from a file that changed is the one failure an
+// agent cannot notice on its own; see ADR 0040.
 type FileRecord struct {
-	Key        InternedString
-	Repository RepositoryID
-	Package    PackageID
-	Path       InternedString
-	Language   InternedString
+	Key           InternedString
+	Repository    RepositoryID
+	Package       PackageID
+	Path          InternedString
+	Language      InternedString
+	ContentDigest [sha256.Size]byte
 }
 
 // SymbolRecord stores source-independent and display identities for a symbol.

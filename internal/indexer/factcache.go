@@ -57,7 +57,13 @@ func ValidCacheMode(mode CacheMode) bool {
 // version 1 entry still carries them, and under `fact_cache: verify` -- which
 // compares the stored set against a fresh analysis byte for byte -- it would
 // report a divergence that is only the format difference.
-const cacheEntryVersion = 2
+//
+// Version 3 carries the targets the unit attributed to another repository
+// without reading their declarations. The merge is what decides whether the
+// provider published them, and it can only describe the ones it can name: a
+// served entry without them left the pass unable to close an edge it had
+// composed, which aborted a warm pass that a cold one had published.
+const cacheEntryVersion = 3
 
 // ErrCacheDiverged reports that a cached entry did not match the facts the
 // analysis produced for the same unit. It aborts the pass on purpose: a cache
@@ -121,6 +127,10 @@ type cacheEntry struct {
 	// the warning disappears the second time a graph is built.
 	Diagnostics []string `json:"diagnostics,omitempty"`
 	Requested   []string `json:"requested,omitempty"`
+	// Composed describes the cross-repository targets this unit named. It is a
+	// fact of the analysis, so a served entry has to carry it or the merge
+	// cannot tell a missing provider declaration from a graph it may publish.
+	Composed map[string]composedTarget `json:"composed,omitempty"`
 }
 
 func (entry cacheEntry) result() analysisResult {
@@ -135,6 +145,7 @@ func (entry cacheEntry) result() analysisResult {
 		detail:          entry.Detail,
 		diagnostics:     entry.Diagnostics,
 		requested:       entry.Requested,
+		composed:        entry.Composed,
 	}
 }
 
@@ -309,6 +320,7 @@ func (cache *factCache) store(
 		Detail:          result.detail,
 		Diagnostics:     result.diagnostics,
 		Requested:       requestedPackages(result),
+		Composed:        result.composed,
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {

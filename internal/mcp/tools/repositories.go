@@ -8,6 +8,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Luqueee/ladygraph/internal/facts"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
 	"github.com/Luqueee/ladygraph/internal/watcher"
 )
@@ -30,6 +31,11 @@ type RepositorySummary struct {
 	CurrentBranch string `json:"current_branch,omitempty"`
 	Moved         bool   `json:"moved"`
 	MovedDetail   string `json:"moved_detail,omitempty"`
+	// Derived marks a provider Ladygraph built from the machine rather than
+	// from the registry: the standard library of the toolchain that indexed
+	// this graph, whose release is in its name. Nothing checks it out and
+	// nothing can move it.
+	Derived bool `json:"derived,omitempty"`
 }
 
 // ListRepositoriesInput contains the optional page controls for
@@ -95,11 +101,10 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 			return result, repositories, err
 		}
 	}
-	sdkmcp.AddTool(server, &sdkmcp.Tool{
-		Name:         repositoryQueryToolName,
-		Description:  "Lists repositories registered with Ladygraph.",
-		OutputSchema: ConciseOutputSchema(),
-		Annotations:  &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+	addQueryTool(server, &sdkmcp.Tool{
+		Name:        repositoryQueryToolName,
+		Description: "The repositories the published graph covers, with the commit each was indexed at.",
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 	}, handler)
 }
 
@@ -230,6 +235,16 @@ func repositorySummary(snapshot *hotsnapshot.GraphSnapshot, record hotsnapshot.R
 		IndexedCommit: commit,
 		IndexedBranch: branch,
 		IndexedDirty:  record.Dirty,
+	}
+	if facts.IsSyntheticRepository(name) {
+		// A derived provider has no working tree to compare against: it is the
+		// standard library of the toolchain that indexed this graph, and the
+		// release is in its name. Reporting it as a repository whose commit
+		// could not be read would describe a freshness problem that does not
+		// exist.
+		summary.Derived = true
+		summary.MovedDetail = "derived from the toolchain, not a registered repository: it has no commit to compare"
+		return summary, nil
 	}
 	describeRepositoryMovement(&summary)
 	return summary, nil

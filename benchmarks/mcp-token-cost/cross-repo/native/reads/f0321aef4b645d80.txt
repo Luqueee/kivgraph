@@ -1,0 +1,9 @@
+[/private/tmp/lg-crossrepo/consumer-a/main.go#89FC]
+5:
+6:func main() {
+7:	shape := api.Shape{Width: api.Answer}
+8:	direct := api.Compute(shape.Width)
+9:	method := shape.Area()
+10:	callback := api.Register(api.Compute)
+11:	_ = direct + method + callback
+12:}

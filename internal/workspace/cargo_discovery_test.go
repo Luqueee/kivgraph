@@ -169,12 +169,21 @@ func TestDiscoverCargoRejectsManifestsItCannotResolve(t *testing.T) {
 			},
 			want: "declares no name",
 		},
-		"nested workspace": {
+		// Cargo calls this «multiple workspace roots found in the same
+		// workspace»: the inner manifest is a member and a root at once.
+		"nested workspace claimed as a member": {
 			setup: func(root string) {
 				writeCargoFile(t, filepath.Join(root, "Cargo.toml"), "[workspace]\nmembers = [\"inner\"]\n")
 				writeCargoFile(t, filepath.Join(root, "inner", "Cargo.toml"), "[workspace]\n\n[package]\nname = \"inner\"\nversion = \"0.1.0\"\n")
 			},
-			want: "declares [workspace] inside the workspace",
+			want: "is a workspace root and a member of the workspace",
+		},
+		"nested workspace claimed by a glob": {
+			setup: func(root string) {
+				writeCargoFile(t, filepath.Join(root, "Cargo.toml"), "[workspace]\nmembers = [\"crates/*\"]\n")
+				writeCargoFile(t, filepath.Join(root, "crates", "inner", "Cargo.toml"), "[workspace]\n\n[package]\nname = \"inner\"\nversion = \"0.1.0\"\n")
+			},
+			want: "is a workspace root and a member of the workspace",
 		},
 		"unparseable manifest": {
 			setup: func(root string) {
@@ -239,5 +248,51 @@ func TestCargoExcludesAnswersForAPathDiscoveryNeverWalked(t *testing.T) {
 				t.Fatalf("CargoExcludes(%q) = %t, want %t", test.path, excluded, test.want)
 			}
 		})
+	}
+}
+
+// TestDiscoverCargoAcceptsAVendoredWorkspaceRoot is the shape of the Rust
+// standard library: `library/backtrace` declares its own `[workspace]` inside
+// `library/`, is not one of its members and is not excluded either. Cargo builds
+// that tree every day, so discovery has to see two independent workspaces rather
+// than reject the repository.
+func TestDiscoverCargoAcceptsAVendoredWorkspaceRoot(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeCargoFile(t, filepath.Join(root, "Cargo.toml"), `[workspace]
+members = ["std"]
+exclude = ["stdarch"]
+resolver = "2"
+`)
+	writeCargoFile(t, filepath.Join(root, "std", "Cargo.toml"), "[package]\nname = \"std\"\nversion = \"0.0.0\"\n")
+	writeCargoFile(t, filepath.Join(root, "backtrace", "Cargo.toml"), `[workspace]
+members = ["crates/helper"]
+
+[package]
+name = "backtrace"
+version = "0.3.0"
+`)
+	writeCargoFile(t, filepath.Join(root, "backtrace", "crates", "helper", "Cargo.toml"),
+		"[package]\nname = \"helper\"\nversion = \"0.3.0\"\n")
+
+	discovery, err := DiscoverCargo(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("DiscoverCargo() error = %v", err)
+	}
+	if len(discovery.Workspaces) != 2 {
+		t.Fatalf("Workspaces = %#v, want the outer one and the vendored root", discovery.Workspaces)
+	}
+	owners := make(map[string]string, len(discovery.Crates))
+	for _, crate := range discovery.Crates {
+		owners[crate.Name] = crate.WorkspacePath
+	}
+	outer := filepath.Join(root, "Cargo.toml")
+	vendored := filepath.Join(root, "backtrace", "Cargo.toml")
+	if owners["std"] != outer {
+		t.Fatalf("std belongs to %q, want %q", owners["std"], outer)
+	}
+	// The vendored root resolves its own members: claiming them from above
+	// would publish a membership no build agrees with.
+	if owners["backtrace"] != vendored || owners["helper"] != vendored {
+		t.Fatalf("vendored crates = %#v, want both under %q", owners, vendored)
 	}
 }

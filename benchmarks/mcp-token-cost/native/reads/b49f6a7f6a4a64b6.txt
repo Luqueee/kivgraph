@@ -1,0 +1,225 @@
+[canonical_load.go#A562]
+80:// A table with no rows is absent from the map.
+81:func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string][][]string, error) {
+82:	if err := set.Validate(); err != nil {
+83:		return nil, fmt.Errorf("%w: %v", ErrInvalidCanonicalLoad, err)
+84:	}
+85:	if strings.TrimSpace(options.ResolverVersion) == "" {
+86:		return nil, fmt.Errorf("%w: resolver version is empty", ErrInvalidCanonicalLoad)
+87:	}
+88:
+89:	// A defensive copy: Sort mutates in place, and a caller that handed us a
+90:	// set has every right to expect it back unchanged.
+91:	clone := cloneSorted(set)
+92:	tables := make(map[string][][]string)
+93:
+94:	metadataColumns, err := columnsOrError("GraphMetadata")
+95:	if err != nil {
+96:		return nil, err
+97:	}
+98:	tables["GraphMetadata"] = graphMetadataRows(metadataColumns, options)
+99:
+100:	if len(clone.Repositories) > 0 {
+101:		columns, err := columnsOrError("Repository")
+102:		if err != nil {
+103:			return nil, err
+104:		}
+105:		rows := make([][]string, len(clone.Repositories))
+106:		for index, repository := range clone.Repositories {
+107:			rows[index] = rowFromColumns(columns, map[string]string{
+108:				"stable_key": repository.Key,
+109:				"name":       repository.Name,
+110:				"root_path":  repository.RootPath,
+111:				"commit":     repository.Commit,
+112:				"branch":     repository.Branch,
+113:				"dirty":      strconv.FormatBool(repository.Dirty),
+114:				"languages":  joinLanguages(repository.Languages),
+115:			})
+116:		}
+117:		tables["Repository"] = rows
+118:	}
+119:
+120:	if len(clone.Packages) > 0 {
+121:		columns, err := columnsOrError("Package")
+122:		if err != nil {
+123:			return nil, err
+124:		}
+125:		rows := make([][]string, len(clone.Packages))
+126:		for index, pkg := range clone.Packages {
+127:			rows[index] = rowFromColumns(columns, map[string]string{
+128:				"stable_key":     pkg.Key,
+129:				"repository_key": pkg.RepositoryKey,
+130:				"language":       string(pkg.Language),
+131:				"name":           pkg.Name,
+132:				"version":        pkg.Version,
+133:				"root_path":      pkg.RootPath,
+134:				"manifest_path":  pkg.ManifestPath,
+135:				"container":      pkg.Container,
+136:			})
+137:		}
+138:		tables["Package"] = rows
+139:	}
+140:
+141:	if len(clone.Files) > 0 {
+142:		columns, err := columnsOrError("File")
+143:		if err != nil {
+144:			return nil, err
+145:		}
+146:		rows := make([][]string, len(clone.Files))
+147:		for index, file := range clone.Files {
+148:			rows[index] = rowFromColumns(columns, map[string]string{
+149:				"stable_key":     file.Key,
+150:				"repository_key": file.RepositoryKey,
+151:				"package_key":    file.PackageKey,
+152:				"path":           file.Path,
+153:				"language":       string(file.Language),
+154:				"content_hash":   file.ContentHash,
+155:				"generated":      strconv.FormatBool(file.Generated),
+156:			})
+157:		}
+158:		tables["File"] = rows
+159:	}
+160:
+161:	if len(clone.Symbols) > 0 {
+162:		columns, err := columnsOrError("Symbol")
+163:		if err != nil {
+164:			return nil, err
+165:		}
+166:		rows := make([][]string, len(clone.Symbols))
+167:		for index, symbol := range clone.Symbols {
+168:			rows[index] = rowFromColumns(columns, map[string]string{
+169:				"stable_key":         symbol.Key,
+170:				"canonical_identity": symbol.CanonicalIdentity,
+171:				"repository_key":     symbol.RepositoryKey,
+172:				"package_key":        symbol.PackageKey,
+173:				"file_key":           symbol.FileKey,
+174:				"language":           string(symbol.Language),
+175:				"name":               symbol.Name,
+176:				"qualified_name":     symbol.QualifiedName,
+177:				"kind":               symbol.Kind,
+178:				"exported":           strconv.FormatBool(symbol.Exported),
+179:				"signature":          symbol.Signature,
+180:				"start_line":         strconv.Itoa(symbol.Start.Line),
+181:				"start_column":       strconv.Itoa(symbol.Start.Column),
+182:				"start_offset":       strconv.Itoa(symbol.Start.Offset),
+183:				"end_line":           strconv.Itoa(symbol.End.Line),
+184:				"end_offset":         strconv.Itoa(symbol.End.Offset),
+185:			})
+186:		}
+187:		tables["Symbol"] = rows
+188:	}
+189:
+190:	if len(clone.Evidence) > 0 {
+191:		columns, err := columnsOrError("Evidence")
+192:		if err != nil {
+193:			return nil, err
+194:		}
+195:		rows := make([][]string, len(clone.Evidence))
+196:		for index, evidence := range clone.Evidence {
+197:			rows[index] = rowFromColumns(columns, map[string]string{
+198:				"stable_key":     evidence.Key,
+199:				"repository_key": evidence.RepositoryKey,
+200:				"file_key":       evidence.FileKey,
+201:				"start_line":     strconv.Itoa(evidence.Start.Line),
+202:				"start_column":   strconv.Itoa(evidence.Start.Column),
+203:				"start_offset":   strconv.Itoa(evidence.Start.Offset),
+204:				"end_offset":     strconv.Itoa(evidence.End.Offset),
+205:				"text":           evidence.Text,
+206:			})
+207:		}
+208:		tables["Evidence"] = rows
+209:	}
+210:
+211:	if len(clone.Unresolved) > 0 {
+212:		columns, err := columnsOrError("UnresolvedReference")
+213:		if err != nil {
+214:			return nil, err
+215:		}
+216:		rows := make([][]string, len(clone.Unresolved))
+217:		for index, unresolved := range clone.Unresolved {
+218:			rows[index] = rowFromColumns(columns, map[string]string{
+219:				"stable_key":        facts.UnresolvedKey(unresolved),
+220:				"repository_key":    unresolved.RepositoryKey,
+221:				"file_key":          unresolved.FileKey,
+222:				"language":          string(unresolved.Language),
+223:				"source_symbol_key": unresolved.SourceSymbolKey,
+224:				"requested_package": unresolved.RequestedPackage,
+225:				"requested_symbol":  unresolved.RequestedSymbol,
+226:				"reason":            unresolved.Reason,
+227:				"detail":            unresolved.Detail,
+228:				"start_line":        strconv.Itoa(unresolved.Start.Line),
+229:				"start_column":      strconv.Itoa(unresolved.Start.Column),
+230:				"start_offset":      strconv.Itoa(unresolved.Start.Offset),
+231:			})
+232:		}
+233:		tables["UnresolvedReference"] = rows
+234:	}
+235:
+236:	// Every semantic and containment relation is keyed by its own EdgeKind,
+237:	// so the table name always comes straight from the edge.
+238:	//
+239:	// The columns of a kind are resolved once, and the snapshot rendered
+240:	// once: CanonicalColumns rebuilds the entire schema on every call, and
+241:	// the graph holds one edge per reference in the corpus.
+242:	snapshot := strconv.FormatInt(options.SnapshotID, 10)
+243:	edgesByKind := make(map[facts.EdgeKind]int)
+244:	for _, edge := range clone.Edges {
+245:		edgesByKind[edge.Kind]++
+246:	}
+247:	columnsByKind := make(map[facts.EdgeKind][]string, len(edgesByKind))
+248:	for kind := range edgesByKind {
+249:		columns, exists := CanonicalColumns(string(kind))
+250:		if !exists {
+251:			return nil, fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, kind)
+252:		}
+253:		columnsByKind[kind] = columns
+254:		tables[string(kind)] = make([][]string, 0, edgesByKind[kind])
+255:	}
+256:	for _, edge := range clone.Edges {
+257:		table := string(edge.Kind)
+258:		tables[table] = append(tables[table], rowFromColumns(columnsByKind[edge.Kind], map[string]string{
+259:			"from":             edge.SourceKey,
+260:			"to":               edge.TargetKey,
+261:			"confidence":       string(edge.Confidence),
+262:			"provenance":       string(edge.Provenance),
+263:			"evidence_key":     edge.EvidenceKey,
+264:			"source_snapshot":  snapshot,
+265:			"resolver_version": options.ResolverVersion,
+266:		}))
+267:	}
+268:
+269:	// OBSERVED_IN and REPORTS_UNRESOLVED have no facts.EdgeKind of their own;
+270:	// Evidence and UnresolvedReference already carry the owning key, so the
+271:	// relation is derived rather than read off an edge.
+272:	observedColumns, err := columnsOrError("OBSERVED_IN")
+273:	if err != nil {
+274:		return nil, err
+275:	}
+276:	for _, evidence := range clone.Evidence {
+277:		if evidence.FileKey == "" {
+278:			continue
+279:		}
+280:		tables["OBSERVED_IN"] = append(tables["OBSERVED_IN"], rowFromColumns(observedColumns, map[string]string{
+281:			"from": evidence.Key,
+282:			"to":   evidence.FileKey,
+283:		}))
+284:	}
+285:
+286:	reportsColumns, err := columnsOrError("REPORTS_UNRESOLVED")
+287:	if err != nil {
+288:		return nil, err
+289:	}
+290:	for _, unresolved := range clone.Unresolved {
+291:		tables["REPORTS_UNRESOLVED"] = append(tables["REPORTS_UNRESOLVED"], rowFromColumns(reportsColumns, map[string]string{
+292:			"from": unresolved.RepositoryKey,
+293:			"to":   facts.UnresolvedKey(unresolved),
+294:		}))
+295:	}
+296:
+297:	return tables, nil
+298:}
+299:
+300:// graphMetadataRows renders the fixed identity of the stored graph, sorted by
+301:// key so the load is byte deterministic. It never carries a timestamp or a
+
+[Showing lines 80-301 of 352. Use :302 to continue]

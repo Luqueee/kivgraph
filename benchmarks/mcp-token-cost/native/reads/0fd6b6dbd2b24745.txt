@@ -1,0 +1,32 @@
+[canonical_load.go#A562]
+29:// source key and the target key, which is what LadybugDB COPY expects.
+30:func CanonicalColumns(table string) ([]string, bool) {
+31:	for _, node := range CanonicalNodeTables() {
+32:		if node.Name != table {
+33:			continue
+34:		}
+35:		columns := make([]string, 0, len(node.Properties)+1)
+36:		columns = append(columns, node.PrimaryKey.Name)
+37:		for _, property := range node.Properties {
+38:			columns = append(columns, property.Name)
+39:		}
+40:		return columns, true
+41:	}
+42:	for _, relationship := range CanonicalRelationshipTables() {
+43:		if relationship.Name != table {
+44:			continue
+45:		}
+46:		columns := make([]string, 0, len(relationship.Properties)+2)
+47:		columns = append(columns, "from", "to")
+48:		for _, property := range relationship.Properties {
+49:			columns = append(columns, property.Name)
+50:		}
+51:		return columns, true
+52:	}
+53:	return nil, false
+54:}
+55:
+56:// columnsOrError looks up a table Ladygraph itself names, as opposed to a table
+57:// name derived from fact data (an edge kind). Any miss here means this file
+
+[Showing lines 29-57 of 352. Use :58 to continue]

@@ -28,11 +28,17 @@ type SymbolFilter struct {
 	Kind           string
 	RepositoryName string
 	PathPrefix     string
+	// ExcludeRepositoryPrefix drops symbols of every repository whose name
+	// starts with it. It exists for the providers Ladygraph derives from the
+	// machine, which live in a reserved namespace: a search for `Clone` or
+	// `Debug` otherwise answers with the standard library.
+	ExcludeRepositoryPrefix string
 }
 
 // Empty reports whether the filter would keep every symbol.
 func (filter SymbolFilter) Empty() bool {
-	return filter.Kind == "" && filter.RepositoryName == "" && filter.PathPrefix == ""
+	return filter.Kind == "" && filter.RepositoryName == "" &&
+		filter.PathPrefix == "" && filter.ExcludeRepositoryPrefix == ""
 }
 
 // SearchSymbolsByName returns one exact interned-name page. It never performs
@@ -121,7 +127,7 @@ func (snapshot *GraphSnapshot) symbolPassesFilter(id SymbolID, filter SymbolFilt
 			return false
 		}
 	}
-	if filter.RepositoryName == "" && filter.PathPrefix == "" {
+	if filter.RepositoryName == "" && filter.PathPrefix == "" && filter.ExcludeRepositoryPrefix == "" {
 		return true
 	}
 	file, fileFound := snapshot.File(symbol.File)
@@ -134,13 +140,19 @@ func (snapshot *GraphSnapshot) symbolPassesFilter(id SymbolID, filter SymbolFilt
 			return false
 		}
 	}
-	if filter.RepositoryName != "" {
+	if filter.RepositoryName != "" || filter.ExcludeRepositoryPrefix != "" {
 		repository, repositoryFound := snapshot.Repository(file.Repository)
 		if !repositoryFound {
 			return false
 		}
 		name, nameFound := snapshot.strings.String(repository.Name)
-		if !nameFound || name != filter.RepositoryName {
+		if !nameFound {
+			return false
+		}
+		if filter.RepositoryName != "" && name != filter.RepositoryName {
+			return false
+		}
+		if filter.ExcludeRepositoryPrefix != "" && strings.HasPrefix(name, filter.ExcludeRepositoryPrefix) {
 			return false
 		}
 	}
