@@ -99,7 +99,7 @@ func TestFindCrossRepoConsumersFiltersAndPaginatesWithSnapshotCursor(t *testing.
 	if second.Returned != 2 || second.Truncated || second.NextCursor != nil {
 		t.Fatalf("second page = %#v, want final two results", second)
 	}
-	_, filtered, err := findCrossRepoConsumers(context.Background(), nil, FindCrossRepoConsumersInput{StableKey: "sym-target", Repo: "repo-consumer"}, store)
+	_, filtered, err := findCrossRepoConsumers(context.Background(), nil, FindCrossRepoConsumersInput{StableKey: "sym-target", Repo: "consumer"}, store)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -536,16 +536,20 @@ func crossRepoPackageLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapsho
 	}
 	table := snapshot.Strings()
 	repositoryKey, repositoryOK := table.String(repository.Key)
+	repositoryName, repositoryNameOK := table.String(repository.Name)
 	packageKey, packageOK := table.String(pkg.Key)
 	packageName, packageNameOK := table.String(pkg.Name)
-	if !repositoryOK || !packageOK || !packageNameOK {
+	if !repositoryOK || !repositoryNameOK || !packageOK || !packageNameOK {
 		return consumerLocation{}, fmt.Errorf("package %d has invalid identity strings", id)
 	}
 	languages, err := packageLanguages(snapshot, pkg, repository)
 	if err != nil {
 		return consumerLocation{}, err
 	}
-	return consumerLocation{RepositoryKey: repositoryKey, PackageKey: packageKey, PackageName: packageName, Languages: languages}, nil
+	return consumerLocation{
+		RepositoryName: repositoryName, RepositoryKey: repositoryKey,
+		PackageKey: packageKey, PackageName: packageName, Languages: languages,
+	}, nil
 }
 
 func crossRepoUnresolvedLocation(snapshot *hotsnapshot.GraphSnapshot, reference hotsnapshot.UnresolvedReferenceRecord) (consumerLocation, error) {
@@ -554,9 +558,10 @@ func crossRepoUnresolvedLocation(snapshot *hotsnapshot.GraphSnapshot, reference 
 	if !found {
 		return consumerLocation{}, fmt.Errorf("unresolved reference references missing repository %d", reference.Repository)
 	}
-	repositoryKey, found := table.String(repository.Key)
-	if !found {
-		return consumerLocation{}, fmt.Errorf("unresolved reference has invalid repository key")
+	repositoryKey, keyOK := table.String(repository.Key)
+	repositoryName, nameOK := table.String(repository.Name)
+	if !keyOK || !nameOK {
+		return consumerLocation{}, fmt.Errorf("unresolved reference has invalid repository identity")
 	}
 	if reference.Source != hotsnapshot.InvalidSymbolID {
 		location, err := crossRepoSymbolLocation(snapshot, reference.Source)
@@ -565,7 +570,7 @@ func crossRepoUnresolvedLocation(snapshot *hotsnapshot.GraphSnapshot, reference 
 		}
 		return location, nil
 	}
-	location := consumerLocation{RepositoryKey: repositoryKey}
+	location := consumerLocation{RepositoryName: repositoryName, RepositoryKey: repositoryKey}
 	if reference.File != hotsnapshot.InvalidFileID {
 		file, found := snapshot.File(reference.File)
 		if !found {

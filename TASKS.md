@@ -14359,10 +14359,8 @@ KenaLogger    library-logger src/logger.ts:103-420
    `Store.Publish`- y se medía en silencio sobre la que la página devolvía
    primero. Nombrada.
 
-**Hallazgo de superficie que no se arregla aquí:** el mismo hecho viaja con dos
-nombres -`repository` en las filas de referencia y de consumidor,
-`repository_name` en las de símbolo y de outline-. Cambiarlo toca el documento
-de protocolo, sus tests y las dos capturas del arnés, así que se decide aparte.
+**Hallazgo de superficie, cerrado en LUQUE-1908:** el mismo hecho viajaba con
+tres nombres, y el documento de protocolo ya describía el correcto.
 
 **Limitaciones:**
 
@@ -14384,6 +14382,76 @@ go vet ./...                     limpio
 go test ./...                    verde
 go run ./benchmarks/mcp-token-cost --server <binario>   digest 275af813d985
    sobre este repositorio: responder 3,56x, sesión 1,44x, sirviendo 1,77x
+```
+
+**Siguiente tarea:** —.
+
+---
+
+## LUQUE-1908 — Un solo nombre para el repositorio de una fila
+
+**Dependencias:** LUQUE-1902, LUQUE-1907.
+
+**Estado:** `PASS`.
+
+**Objetivo:** que una fila se pueda copiar a la llamada siguiente sin traducir
+nada, que es lo que LUQUE-1902 prometió y el código no cumplía.
+
+**El mismo hecho viajaba con tres nombres, y con dos valores distintos:**
+
+```text
+find_references, find_cross_repo_consumers, get_source, get_file_outline
+    "repository": "app"                    el nombre
+find_symbol, get_symbol
+    "repository_name": "app"               el nombre, con otra clave
+trace_dependencies, get_blast_radius
+    "repository_key": "repository:app"     otro valor, con prefijo
+```
+
+Y el filtro `repo` heredaba la misma grieta: `find_symbol` comparaba contra el
+nombre, `find_references`, los dos recorridos y `find_cross_repo_consumers`
+contra la clave. Nueve sitios decían `repository`, dos `repository_name` y dos
+`repository_key`; el selector de entrada de la sección 4 dice `repository` y
+toma el nombre, y **`docs/protocol/mcp-surface-v3.md` ya publicaba `repository`
+en su fila de ejemplo**: el documento tenía razón y el código no lo cumplía.
+
+**Decisión.** `repository` en toda la superficie, con el nombre. La clave sigue
+existiendo bajo `repository_key` en `response_format: detailed`, que es el
+contrato de restaurar los identificadores derivados, y **se lee del snapshot en
+vez de componerse**: derivarla del nombre creaba una segunda fuente de verdad
+para un hecho que el grafo ya guarda, y un fixture con otra convención lo
+demostró en el acto.
+
+**Por qué no lo cazaba ningún test.** Los fixtures ponían `Key == Name`
+-`{Key: "repo-a", Name: "repo-a"}`-, así que las dos semánticas daban el mismo
+resultado. Los de recorrido sí los distinguían (`repo-core` contra `core`) y
+fueron los que fallaron al migrar. Ahora el fixture de `derived_test.go` los
+separa a propósito -`repository:app` contra `app`- y
+`TestEveryRowNamesItsRepositoryTheSameWay` fija las cuatro mitades del contrato:
+la fila lleva el nombre, la concisa no lleva clave, `detailed` restaura la que el
+grafo guarda, y el filtro acepta el nombre y **no** la clave.
+
+**Coste medido**, con el corpus reindexado y el brazo nativo recapturado con la
+`grep` del anfitrión y sus lecturas con su `read`:
+
+```text
+                  responder   sesión   sirviendo   techo
+antes de 1908       3,56x      1,44x     1,77x     2,40x
+después             3,46x      1,42x     1,74x     2,34x
+```
+
+Baja, y es correcto: el brazo nativo se recapturó contra un árbol con más
+código, así que las dos columnas cambian. Dos pasadas dan el mismo digest
+`9e74cb1c6896`.
+
+**Verificación:**
+
+```text
+gofmt -l internal/ benchmarks/   limpio
+go vet ./...                     limpio
+go test ./...                    verde
+make test-ladybug                39 paquetes
+make build                       0.5.1
 ```
 
 **Siguiente tarea:** —.

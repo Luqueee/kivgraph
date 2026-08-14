@@ -94,13 +94,13 @@
  347:		}
 
 ## mcp/tools/
-### find_symbol_test.go#DF59
- 84:	secondSnapshot := buildSymbolSnapshot(t, 12)
-*85:	if err := store.Publish(secondSnapshot); err != nil {
-*86:		t.Fatalf("SnapshotStore.Publish() error = %v", err)
- 87:	}
- 88:	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
- 89:		Name: "find_symbol", Arguments: map[string]any{"name": "alp", "mode": FindSymbolModePrefix, "limit": 1, "cursor": *first.NextCursor},
+### find_symbol_test.go#A9CE
+ 83:	secondSnapshot := buildSymbolSnapshot(t, 12)
+*84:	if err := store.Publish(secondSnapshot); err != nil {
+*85:		t.Fatalf("SnapshotStore.Publish() error = %v", err)
+ 86:	}
+ 87:	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+ 88:		Name: "find_symbol", Arguments: map[string]any{"name": "alp", "mode": FindSymbolModePrefix, "limit": 1, "cursor": *first.NextCursor},
 
 ## rebuild/
 ### rebuild.go#9128
@@ -174,7 +174,7 @@
  86:	}
  87:	if after := querySymbol(t, session); after == before {
  88:		t.Fatalf("querySymbol did not observe the new generation: %s", after)
-### snapshot_test.go#73B2
+### snapshot_test.go#BA32
  69:	}
 *70:	if err := store.Publish(rebuilt); err != nil {
 *71:		t.Fatalf("Publish() error = %v", err)

@@ -1,21 +1,21 @@
 # internal/
 
 ## facts/
-### facts.go#54B7
- 473:func (set *Set) Merge(other Set) {
-*474:	*set = MergeAll([]Set{*set, other})
- 475:}
- 476:
-*477:// MergeAll merges every set at once, deduplicated by durable key and sorted
- 478:// a single time.
- 479://
- 480:// Merging pairwise costs the whole accumulated set on every step: a
+### facts.go#33D2
+ 505:func (set *Set) Merge(other Set) {
+*506:	*set = MergeAll([]Set{*set, other})
+ 507:}
+ 508:
+*509:// MergeAll merges every set at once, deduplicated by durable key and sorted
+ 510:// a single time.
+ 511://
+ 512:// Merging pairwise costs the whole accumulated set on every step: a
 ...
- 483:// the largest single source of garbage in a full index.
-*484:func MergeAll(sets []Set) Set {
- 485:	merged := Set{
- 486:		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
- 487:			func(value Repository) string { return value.Key }),
+ 515:// the largest single source of garbage in a full index.
+*516:func MergeAll(sets []Set) Set {
+ 517:	merged := Set{
+ 518:		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
+ 519:			func(value Repository) string { return value.Key }),
 ### facts_test.go#15C6
  138:
 *139:	merged := MergeAll([]Set{first, second})
@@ -30,15 +30,29 @@
  168:	}
 
 ## indexer/
-### full.go#0C80
- 643://
-*644:// A repository appears in as many sets as it has units, and MergeAll keeps the
- 645:// first record of each key, so the languages of the later ones are collected
- 646:// here and replace it: a Go repository that also holds TypeScript must not
- 647:// lose either language because one of its two units happened to be merged
+### full.go#B02C
+ 666://
+*667:// A repository appears in as many sets as it has units, and MergeAll keeps the
+ 668:// first record of each key, so the languages of the later ones are collected
+ 669:// here and replace it: a Go repository that also holds TypeScript must not
+ 670:// lose either language because one of its two units happened to be merged
 ...
- 668:	}
-*669:	merged := facts.MergeAll(sets)
- 670:	for index := range merged.Repositories {
- 671:		seen := make(map[facts.Language]struct{})
- 672:		union := make([]facts.Language, 0, len(languages[merged.Repositories[index].Key]))
+ 691:	}
+*692:	merged := facts.MergeAll(sets)
+ 693:	for index := range merged.Repositories {
+ 694:		seen := make(map[facts.Language]struct{})
+ 695:		union := make([]facts.Language, 0, len(languages[merged.Repositories[index].Key]))
+...
+ 779:		// several edges can share one missing target at one position.
+*780:		merged = facts.MergeAll([]facts.Set{merged})
+ 781:	}
+ 782:	return merged, dropped
+ 783:}
+
+## mcp/tools/
+### get_source.go#5F8B
+ 364:// The test is deliberately coarse -- this is byte delivery, not resolution -- but
+*365:// it does require the name to stand alone, so `Merge` never matches `MergeAll`.
+ 366:func declaresName(line, name string) bool {
+ 367:	index := strings.Index(line, name)
+ 368:	for index >= 0 {

@@ -2,13 +2,13 @@
 
 Question: who calls this symbol, and what do those callers look like.
 
-- Command: `go run ./benchmarks/mcp-token-cost --server /tmp/lgnow`
-- Commit: `a0372d4e566a8633f6222ffed7fc12ebefb74b2e`
-- Generated: `2026-08-14T12:07:13Z`
+- Command: `go run ./benchmarks/mcp-token-cost --server /tmp/lgfinal`
+- Commit: `e2162d570b8849d3b14bb28288b3e6b343dcd4b8`
+- Generated: `2026-08-14T13:22:51Z`
 - Server: `0.5.1`, MCP protocol `2025-06-18`
 - Environment: `darwin/arm64`, `go1.26.4`
-- Generation: `000024`, 10501 symbols, 301 files, 38546 edges, schema `2`, resolver `0.5.0`
-- Corpus: `ladygraph` at `/Users/adria/Documents/programacion/projects/ladygraph`, indexed commit `a0372d4e`, tree unchanged
+- Generation: `000026`, 14424 symbols, 363 files, 55289 edges, schema `2`, resolver `0.5.1`
+- Corpus: `ladygraph` at `/Users/adria/Documents/programacion/projects/ladygraph`, indexed commit `e2162d57`, tree unchanged
 - Tokenizer: `cl100k_base`, question set version `2`
 
 ## Resident surface
@@ -30,13 +30,13 @@ What each side spends to say who calls the symbol. This is the part a graph serv
 
 | symbol | class | refs | native | today | projected | today | projected |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `MergeAll` | rare_name | 2 | 481 | 446 | 446 | 1.08x | 1.08x |
-| `CanonicalColumns` | rare_name | 3 | 1156 | 518 | 518 | 2.23x | 2.23x |
-| `DiscoverGo` | rare_name | 3 | 903 | 520 | 520 | 1.74x | 1.74x |
-| `BuildPlan` | shared_name | 3 | 2411 | 555 | 555 | 4.34x | 4.34x |
-| `NewServer` | common_name | 0 | 2308 | 350 | 350 | 6.59x | 6.59x |
-| `Publish` | common_name | 4 | 3480 | 631 | 631 | 5.52x | 5.52x |
-| **total** | | | **10739** | **3020** | **3020** | **3.56x** | **3.56x** |
+| `MergeAll` | rare_name | 3 | 621 | 516 | 516 | 1.20x | 1.20x |
+| `CanonicalColumns` | rare_name | 3 | 1156 | 517 | 517 | 2.24x | 2.24x |
+| `DiscoverGo` | rare_name | 3 | 903 | 519 | 519 | 1.74x | 1.74x |
+| `BuildPlan` | shared_name | 3 | 2411 | 554 | 554 | 4.35x | 4.35x |
+| `NewServer` | common_name | 0 | 2095 | 349 | 349 | 6.00x | 6.00x |
+| `Publish` | common_name | 4 | 3480 | 630 | 630 | 5.52x | 5.52x |
+| **total** | | | **10666** | **3085** | **3085** | **3.46x** | **3.46x** |
 
 ## The whole session
 
@@ -44,15 +44,15 @@ The same answer plus the bodies the agent then opens. Both sides pay those ident
 
 | symbol | native | today | projected | today | projected |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `MergeAll` | 1438 | 1403 | 1176 | 1.02x | 1.22x |
-| `CanonicalColumns` | 4598 | 3960 | 3216 | 1.16x | 1.43x |
-| `DiscoverGo` | 3561 | 3178 | 2515 | 1.12x | 1.42x |
-| `BuildPlan` | 6952 | 5096 | 4142 | 1.36x | 1.68x |
-| `NewServer` | 2401 | 443 | 408 | 5.42x | 5.88x |
-| `Publish` | 6194 | 3345 | 2729 | 1.85x | 2.27x |
-| **total** | **25144** | **17425** | **14186** | **1.44x** | **1.77x** |
+| `MergeAll` | 2207 | 2102 | 1725 | 1.05x | 1.28x |
+| `CanonicalColumns` | 4598 | 3959 | 3215 | 1.16x | 1.43x |
+| `DiscoverGo` | 3561 | 3177 | 2514 | 1.12x | 1.42x |
+| `BuildPlan` | 7020 | 5163 | 4202 | 1.36x | 1.67x |
+| `NewServer` | 2188 | 442 | 407 | 4.95x | 5.38x |
+| `Publish` | 6194 | 3344 | 2728 | 1.85x | 2.27x |
+| **total** | **25768** | **18187** | **14791** | **1.42x** | **1.74x** |
 
-Of the session totals, 14405 tokens are source bodies. That is the floor: an answer that cost nothing at all would still land at **2.40x**, so no amount of payload work on this question class can go past it. Removing the per-reference `get_symbol` round trip, and paying for `end_line` on every row instead, is worth 3239 tokens net.
+Of the session totals, 15102 tokens are source bodies. That is the floor: an answer that cost nothing at all would still land at **2.34x**, so no amount of payload work on this question class can go past it. Removing the per-reference `get_symbol` round trip, and paying for `end_line` on every row instead, is worth 3396 tokens net.
 
 Publishing only one of the two factors is how this field arrives at its headline numbers. The answer factor flatters us and the session factor flatters the alternative; both are here.
 

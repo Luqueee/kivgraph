@@ -216,3 +216,65 @@ func TestGraphStatusBreaksOutTheDerivedProvider(t *testing.T) {
 		t.Fatalf("total symbols = %d, want every symbol still counted", status.Results.Symbols)
 	}
 }
+
+// TestEveryRowNamesItsRepositoryTheSameWay is the contract that makes a row
+// addressable: the field is `repository` in every tool and it carries the name,
+// which is what the triple selector accepts.
+//
+// It is a real regression guard because this fixture is the only one whose
+// repository key and name differ -- `repository:app` against `app` -- and that
+// difference is what the code got wrong three ways at once: `find_symbol` and
+// `get_symbol` published `repository_name`, the two traversals published
+// `repository_key` with the prefixed value, and the `repo` filter compared
+// against the key in some tools and the name in others. A benchmark that read
+// only one of the names looked for a body under the wrong tree.
+func TestEveryRowNamesItsRepositoryTheSameWay(t *testing.T) {
+	store := derivedSnapshot(t, 66)
+	client := derivedClient(t, store)
+
+	var found Response[[]SymbolSummary]
+	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "duplicate"}, &found)
+	if len(found.Results) != 1 || found.Results[0].Repository != "app" {
+		t.Fatalf("find_symbol row = %#v, want the repository name", found.Results)
+	}
+
+	var references Response[ReferenceResult]
+	callDerivedTool(t, client, "find_references", map[string]any{
+		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
+	}, &references)
+	rows := references.Results.References
+	if len(rows) != 1 || rows[0].Repository != "app" {
+		t.Fatalf("find_references row = %#v, want the repository name", rows)
+	}
+	// A row carries no key by default, and the detailed format restores the one
+	// the graph stores rather than composing it.
+	if rows[0].RepositoryKey != "" {
+		t.Fatalf("concise row carries a repository key: %#v", rows[0])
+	}
+	var detailed Response[ReferenceResult]
+	callDerivedTool(t, client, "find_references", map[string]any{
+		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
+		"response_format": ResponseFormatDetailed,
+	}, &detailed)
+	if got := detailed.Results.References[0].RepositoryKey; got != "repository:app" {
+		t.Fatalf("detailed repository key = %q, want the stored key", got)
+	}
+
+	// And the filter takes the same value the row prints: the name, not the key.
+	var filtered Response[ReferenceResult]
+	callDerivedTool(t, client, "find_references", map[string]any{
+		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
+		"repo": "app",
+	}, &filtered)
+	if filtered.Total != 1 {
+		t.Fatalf("repo filter by name returned %d rows, want 1", filtered.Total)
+	}
+	var byKey Response[ReferenceResult]
+	callDerivedTool(t, client, "find_references", map[string]any{
+		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
+		"repo": "repository:app",
+	}, &byKey)
+	if byKey.Total != 0 {
+		t.Fatalf("repo filter accepted a key: %d rows", byKey.Total)
+	}
+}

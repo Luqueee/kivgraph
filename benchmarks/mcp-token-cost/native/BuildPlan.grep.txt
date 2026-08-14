@@ -190,9 +190,9 @@
  46:	if _, err := Write(context.Background(), target, plan, repositories); err != nil {
 
 ## indexer/
-### full.go#0C80
- 246:		}
-*247:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
- 248:		if err != nil {
- 249:			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
- 250:		}
+### full.go#B02C
+ 263:		}
+*264:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
+ 265:		if err != nil {
+ 266:			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
+ 267:		}

@@ -40,6 +40,13 @@ Una fila lleva **lo que el agente puede usar y con qué pedir la siguiente**: un
 nombre cualificado, un repositorio, una ruta y un rango de líneas. Con eso abre
 el fichero, y con eso nombra el símbolo en la llamada siguiente.
 
+El campo se llama `repository` en todas las tools y lleva el **nombre** del
+repositorio, que es lo que acepta el selector de la sección 4. Ese es el punto de
+que una fila sea direccionable: se copia tal cual a la llamada siguiente. Un
+`repository_key` -`repository:ladygraph`- obligaría a quitar un prefijo que
+ninguna respuesta explica, y `repository_name` obligaría a renombrar la clave; las
+dos formas existieron en el código y ninguna cumplía este documento.
+
 ```json
 {
   "name": "MergeAll", "qualified_name": "MergeAll", "kind": "func",

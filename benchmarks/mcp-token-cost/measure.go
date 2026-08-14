@@ -124,26 +124,16 @@ type findSymbolResponse struct {
 
 type symbolRow struct {
 	StableKey string `json:"stable_key"`
-	// Repository and RepositoryName are the same fact under the two names this
-	// surface uses: `find_references` rows say `repository` and `find_symbol`
-	// rows say `repository_name`. Reading only one left the subject of every
-	// question without a repository, which a single-repository corpus never
-	// notices and a monorepo fails on: the body was looked for under the wrong
-	// tree.
-	Repository     string `json:"repository"`
-	RepositoryName string `json:"repository_name"`
-	QualifiedName  string `json:"qualified_name"`
-	FilePath       string `json:"file_path"`
-	StartLine      int    `json:"start_line"`
-	EndLine        int    `json:"end_line"`
-}
-
-// owner answers the repository a row's path is relative to.
-func (row symbolRow) owner() string {
-	if row.Repository != "" {
-		return row.Repository
-	}
-	return row.RepositoryName
+	// Repository is the name every row of this surface carries, and the value
+	// the triple selector takes. It used to be spelled two ways -- `repository`
+	// in reference rows and `repository_name` in symbol rows -- and reading only
+	// one left the subject of every question without a repository: harmless in a
+	// corpus of one, a body looked for under the wrong tree in a monorepo.
+	Repository    string `json:"repository"`
+	QualifiedName string `json:"qualified_name"`
+	FilePath      string `json:"file_path"`
+	StartLine     int    `json:"start_line"`
+	EndLine       int    `json:"end_line"`
 }
 
 type findReferencesResponse struct {
@@ -324,7 +314,7 @@ func measureQuestion(
 	}
 	// servedTokens is the irreducible floor: the bytes themselves, which is what
 	// the ceiling in the totals is measured against.
-	servedTokens, err := bodyCost(tokens, repositoryRoot(roots, target.owner(), source.Path), target.FilePath, target.StartLine, target.EndLine)
+	servedTokens, err := bodyCost(tokens, repositoryRoot(roots, target.Repository, source.Path), target.FilePath, target.StartLine, target.EndLine)
 	if err != nil {
 		return questionResult{}, err
 	}
@@ -353,7 +343,7 @@ func measureQuestion(
 		if err != nil {
 			return questionResult{}, err
 		}
-		served, err := bodyCost(tokens, repositoryRoot(roots, row.owner(), source.Path), path, start, end)
+		served, err := bodyCost(tokens, repositoryRoot(roots, row.Repository, source.Path), path, start, end)
 		if err != nil {
 			return questionResult{}, err
 		}
@@ -393,7 +383,7 @@ func measureQuestion(
 	requests = append(requests, map[string]any{"stable_key": target.StableKey})
 	for _, row := range rows {
 		requests = append(requests, map[string]any{
-			"repository": row.owner(), "path": row.FilePath, "qualified_name": row.QualifiedName,
+			"repository": row.Repository, "path": row.FilePath, "qualified_name": row.QualifiedName,
 		})
 	}
 	served := 0
@@ -718,12 +708,12 @@ func resolveSubject(
 			return symbolRow{}, "", 0, fmt.Errorf("parse get_symbol: %w", err)
 		}
 		row := symbolRow{
-			StableKey:      decoded.Results.StableKey,
-			RepositoryName: asked.Repository,
-			QualifiedName:  decoded.Results.QualifiedName,
-			FilePath:       decoded.Results.FilePath,
-			StartLine:      decoded.Results.StartLine,
-			EndLine:        decoded.Results.EndLine,
+			StableKey:     decoded.Results.StableKey,
+			Repository:    asked.Repository,
+			QualifiedName: decoded.Results.QualifiedName,
+			FilePath:      decoded.Results.FilePath,
+			StartLine:     decoded.Results.StartLine,
+			EndLine:       decoded.Results.EndLine,
 		}
 		if row.StableKey == "" {
 			return symbolRow{}, "", 0, fmt.Errorf("get_symbol returned no symbol for %s %s %s",

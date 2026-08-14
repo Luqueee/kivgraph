@@ -61,7 +61,7 @@ func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 	})
 	if detailed.Results.References[0].EvidenceKind != "checker" ||
 		detailed.Results.References[0].FileKey != "file-a" ||
-		detailed.Results.References[0].RepositoryKey != facts.RepositoryKey("repo-a") {
+		detailed.Results.References[0].RepositoryKey != "repository:repo-a" {
 		t.Fatalf("detailed row = %#v", detailed.Results.References[0])
 	}
 
@@ -193,17 +193,17 @@ func referenceSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 	code := func(value uint8) uint8 { return value }
 	rows := hotsnapshot.LadybugSnapshotRows{
 		Repositories: []hotsnapshot.RepositoryRow{
-			{Key: "repo-a", Name: "repo-a", Path: "/repo-a", Languages: "go"},
-			{Key: "repo-b", Name: "repo-b", Path: "/repo-b", Languages: "typescript"},
+			{Key: "repository:repo-a", Name: "repo-a", Path: "/repo-a", Languages: "go"},
+			{Key: "repository:repo-b", Name: "repo-b", Path: "/repo-b", Languages: "typescript"},
 		},
 		Packages: []hotsnapshot.PackageRow{
-			{Key: "package-a", RepositoryKey: "repo-a", Name: "pkg-a", ModulePath: "example.com/a"},
-			{Key: "package-b", RepositoryKey: "repo-b", Name: "pkg-b", ModulePath: "example.com/b"},
+			{Key: "package-a", RepositoryKey: "repository:repo-a", Name: "pkg-a", ModulePath: "example.com/a"},
+			{Key: "package-b", RepositoryKey: "repository:repo-b", Name: "pkg-b", ModulePath: "example.com/b"},
 		},
 		Files: []hotsnapshot.FileRow{
-			{Key: "file-a", RepositoryKey: "repo-a", PackageKey: "package-a", Path: "src/caller.go", Language: "go"},
-			{Key: "file-b", RepositoryKey: "repo-b", PackageKey: "package-b", Path: "src/caller.ts", Language: "typescript"},
-			{Key: "file-result", RepositoryKey: "repo-a", PackageKey: "package-a", Path: "src/result.go", Language: "go"},
+			{Key: "file-a", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "src/caller.go", Language: "go"},
+			{Key: "file-b", RepositoryKey: "repository:repo-b", PackageKey: "package-b", Path: "src/caller.ts", Language: "typescript"},
+			{Key: "file-result", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "src/result.go", Language: "go"},
 		},
 		Symbols: []hotsnapshot.SymbolRow{
 			{StableKey: "symbol-caller-a", CanonicalIdentity: "go:caller-a", FileKey: "file-a", Language: "go", Name: "callerA", QualifiedName: "pkg.CallerA", Kind: "function", StartLine: 12, EndLine: 20},
