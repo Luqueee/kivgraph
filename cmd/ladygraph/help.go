@@ -65,7 +65,7 @@ var commandGroups = []commandGroup{
 		title: "Getting started",
 		commands: []commandEntry{
 			{"init [--repository NAME=PATH] [--languages LIST]", "Write the configuration and register repositories"},
-			{"index --full", "Index every registered repository and publish a generation"},
+			{"index --full [--json]", "Index every registered repository and publish a generation"},
 			{"serve", "Run the MCP server over stdio"},
 			{"ui [--addr HOST:PORT]", "Serve the read-only graph viewer, every interface by default"},
 			{"stop [--dry-run]", "Stop every running serve and ui of this user"},

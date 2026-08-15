@@ -11,7 +11,6 @@ import (
 
 	"github.com/Luqueee/ladygraph/internal/config"
 	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/indexer"
 	"github.com/Luqueee/ladygraph/internal/rebuild"
 	"github.com/Luqueee/ladygraph/internal/storage/generation"
 	"github.com/Luqueee/ladygraph/internal/version"
@@ -80,28 +79,11 @@ type ProjectIndexer interface {
 // its own timeout to a request. Without a sign of life it cancels a call that
 // is working, so every unit of work reports one.
 type ProjectProgress struct {
-	Phase      string
-	Repository string
-	Detail     string
-	Completed  int
-	Total      int
-}
-
-// projectProgressSink adapts index events to the project-level report. A nil
-// sink costs nothing: the indexer skips the callback entirely.
-func projectProgressSink(progress func(ProjectProgress)) func(indexer.ProgressEvent) {
-	if progress == nil {
-		return nil
-	}
-	return func(event indexer.ProgressEvent) {
-		progress(ProjectProgress{
-			Phase:      string(event.Phase),
-			Repository: event.Repository,
-			Detail:     event.Detail,
-			Completed:  event.Completed,
-			Total:      event.Total,
-		})
-	}
+	Phase      string `json:"phase,omitempty"`
+	Repository string `json:"repository,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+	Completed  int    `json:"completed,omitempty"`
+	Total      int    `json:"total,omitempty"`
 }
 
 // Service serializes registry mutations and full rebuilds while preserving the
@@ -112,6 +94,11 @@ type Service struct {
 	snapshotStore    *hotsnapshot.SnapshotStore
 	resolverVersion  string
 	workingDirectory string
+
+	// index runs the full pass, out of this process. It is a field so a test
+	// can substitute the child it would otherwise spawn, the same way
+	// rebuild.BuildSnapshotOptions.Scan stands in for the canonical reader.
+	index func(context.Context, DetachedOptions) (FullDocument, error)
 }
 
 // NewService creates a project indexer over the configured registry and
@@ -135,6 +122,7 @@ func NewService(
 		snapshotStore:    snapshotStore,
 		resolverVersion:  resolverVersion,
 		workingDirectory: workingDirectory,
+		index:            RunDetached,
 	}
 }
 
@@ -198,8 +186,10 @@ func (service *Service) IndexProjects(
 	}
 	normalized := normalizedProjects[0]
 
-	registry, err := workspace.NewRegistry(ctx, candidate)
-	if err != nil {
+	// The registry is validated here and read from disk by the child, which is
+	// why the validated value is not carried any further: persisting it below
+	// is what hands the batch over.
+	if _, err := workspace.NewRegistry(ctx, candidate); err != nil {
 		return ProjectResult{}, fmt.Errorf("validate project registry: %w", err)
 	}
 	// A registration that changes nothing leaves the file alone, so nothing
@@ -211,12 +201,7 @@ func (service *Service) IndexProjects(
 		service.loaded.Repositories = candidate
 	}
 
-	options := OptionsFromConfig(service.loaded.Config)
-	options.Repositories = registry.List()
-	options.WorkingDirectory = service.workingDirectory
-	options.ResolverVersion = service.resolverVersion
-	options.Progress = projectProgressSink(progress)
-	fullResult, err := RunFull(ctx, options)
+	document, err := service.runIndex(ctx, progress)
 	if err != nil {
 		if !registered {
 			return ProjectResult{}, err
@@ -239,26 +224,10 @@ func (service *Service) IndexProjects(
 	return ProjectResult{
 		Project:      normalized,
 		Projects:     normalizedProjects,
-		GenerationID: fullResult.RebuildReport.GenerationID,
+		GenerationID: document.GenerationID,
 		SnapshotID:   snapshotID,
-		Counts:       fullResult.Counts,
-		Index: IndexSummary{
-			GoRepositories:          fullResult.IndexReport.GoRepositories,
-			GoModules:               fullResult.IndexReport.GoModules,
-			GoDefinitions:           fullResult.IndexReport.GoDefinitions,
-			GoReferences:            fullResult.IndexReport.GoReferences,
-			GoUnresolved:            fullResult.IndexReport.GoUnresolved,
-			TypeScriptRepositories:  fullResult.IndexReport.TypeScriptRepositories,
-			TypeScriptSymbols:       fullResult.IndexReport.TypeScriptSymbols,
-			TypeScriptReferences:    fullResult.IndexReport.TypeScriptReferences,
-			TypeScriptUnresolved:    fullResult.IndexReport.TypeScriptUnresolved,
-			RustRepositories:        fullResult.IndexReport.RustRepositories,
-			RustWorkspaces:          fullResult.IndexReport.RustWorkspaces,
-			RustSymbols:             fullResult.IndexReport.RustSymbols,
-			RustReferences:          fullResult.IndexReport.RustReferences,
-			RustUnresolved:          fullResult.IndexReport.RustUnresolved,
-			RustWorkspacesNotLoaded: fullResult.IndexReport.RustWorkspacesNotLoaded,
-		},
+		Counts:       document.Counts,
+		Index:        document.Index,
 	}, nil
 }
 
@@ -298,17 +267,39 @@ func (service *Service) Reindex(ctx context.Context) error {
 		return nil
 	}
 
-	options := OptionsFromConfig(service.loaded.Config)
-	options.Repositories = repositories
-	options.WorkingDirectory = service.workingDirectory
-	options.ResolverVersion = service.resolverVersion
-	if _, err := RunFull(ctx, options); err != nil {
+	if _, err := service.runIndex(ctx, nil); err != nil {
 		return fmt.Errorf("reindex registered repositories: %w", err)
 	}
 	if _, err := service.publishActiveSnapshot(ctx); err != nil {
 		return fmt.Errorf("publish reindexed snapshot: %w", err)
 	}
 	return nil
+}
+
+// runIndex indexes the registered repositories in a child process.
+//
+// Both callers do exactly this, and neither may do it in this process: a full
+// pass peaks in gigabytes, and a server that once allocated them keeps the
+// arena for as long as it runs. The child's peak dies with the child. See
+// ADR 0042.
+func (service *Service) runIndex(
+	ctx context.Context,
+	progress func(ProjectProgress),
+) (FullDocument, error) {
+	run := service.index
+	if run == nil {
+		run = RunDetached
+	}
+	return run(ctx, DetachedOptions{
+		ConfigPath:       service.loaded.ConfigPath,
+		RepositoriesPath: service.loaded.RepositoriesPath,
+		ResolverVersion:  service.resolverVersion,
+		WorkingDirectory: service.workingDirectory,
+		Progress:         progress,
+		// The child logs what a loader reported without failing the pass, and
+		// this is where a server's own records already go.
+		Log: os.Stderr,
+	})
 }
 
 func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, error) {
@@ -330,6 +321,8 @@ func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, erro
 		DatabasePath: layout.Active.DatabasePath,
 		SnapshotID:   generationID,
 	})
+	// The build's inputs die here whether or not the publication below wins.
+	defer rebuild.ReturnBuildMemory()
 	if err != nil {
 		return 0, fmt.Errorf("build published snapshot: %w", err)
 	}

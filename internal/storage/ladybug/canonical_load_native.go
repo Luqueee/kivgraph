@@ -321,9 +321,17 @@ func millisecondsSince(start time.Time) float64 {
 // openCanonicalDatabase opens path through the package's own Open and hands
 // back the concrete type: the Database interface exposes no way to reach a
 // raw connection, and DDL and COPY need exactly that.
+//
+// A read-only open reads the graph once and closes it, so it is given a buffer
+// pool proportional to that graph instead of the engine's default, which is a
+// share of the machine. A writable open keeps the default: a COPY of millions
+// of rows is exactly the workload that cache is for.
 func openCanonicalDatabase(ctx context.Context, path string, readOnly bool) (*database, error) {
 	config := DefaultConfig()
 	config.ReadOnly = readOnly
+	if readOnly {
+		config.BufferPoolSize = scanBufferPoolBytes(path)
+	}
 	opened, err := Open(ctx, path, config)
 	if err != nil {
 		return nil, err

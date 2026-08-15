@@ -145,6 +145,32 @@ repositorio y en demostrar una ausencia.
   coordinarse con nadie -- `SnapshotStore.Publish` solo acepta una generación
   estrictamente más nueva. Un `index --full` en otra terminal no puede dejar a
   un servidor sirviendo un grafo que ya no existe en disco.
+- Una pasada de indexación nunca ocurre en el proceso que responde consultas.
+  `Service.IndexProjects` y `Service.Reindex` ejecutan `index --full --json`
+  como proceso hijo -este mismo ejecutable, con `--config`, `--repositories` y
+  `--resolver-version`- y el pico muere con el hijo. Una pasada sostiene el
+  universo de tipos de cada módulo Go, cada worker TypeScript y cada índice SCIP
+  a la vez, y el heap de Go conserva la arena: un servidor que indexó en su
+  propio proceso se quedaba en 1,68 GB de RSS mientras viviera, con el heap vivo
+  en 173 MB. El padre conserva el registro y su rollback; el hijo lee el registro
+  del disco y publica la generación; el padre construye el `HotSnapshot`, que no
+  se puede delegar porque sirve desde su propio heap. Ver ADR 0042.
+- El flujo de `index --full --json` es un protocolo, no una bitácora: `stdout`
+  lleva sólo eventos JSON por línea -`progress`, y un único `result` al final- y
+  el informe que leería una persona no se escribe en ese modo. Los contadores de
+  los tres lenguajes viajan en el `result`; derivarlos del `msg` de un registro
+  convertiría texto para humanos en una API. Un lector ignora una clase de
+  evento que no conoce.
+- Tras publicar un snapshot se llama a `rebuild.ReturnBuildMemory`: es el único
+  momento en que el transitorio de la construcción está muerto -publicado, o
+  descartado porque otro publicador ganó- y un servidor no tiene nada que hacer
+  hasta la siguiente petición. No se fija `GOMEMLIMIT`: acotaría también al
+  indexador, cuyo pico es el trabajo mismo.
+- Una apertura de sólo lectura del grafo canónico recibe un buffer pool
+  proporcional a ese grafo -el doble de su tamaño, entre 256 MiB y 2 GiB-, nunca
+  el 80 % de la memoria del sistema que da el motor por defecto: un scan lee cada
+  página una vez y cierra. Una apertura de escritura conserva el defecto, que es
+  la caché que un `COPY` de millones de filas necesita.
 - `doctor` informa del techo de versión con el que este binario comprueba
   tipos, no solo del `go` del PATH: son números distintos y el que decide si un
   repositorio se puede indexar es el primero.

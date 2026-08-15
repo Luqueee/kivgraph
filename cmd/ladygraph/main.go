@@ -249,6 +249,10 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 			DatabasePath: layout.Active.DatabasePath,
 			SnapshotID:   generationNumber,
 		})
+		// A server holds this snapshot for its whole life; what building it
+		// borrowed is dead the moment it is published, and returning it here
+		// is what keeps a long-running process near what it actually holds.
+		defer rebuild.ReturnBuildMemory()
 		if err != nil {
 			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
 		}
@@ -770,6 +774,8 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	flags.StringVar(&configPath, "config", "", "configuration file")
 	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file override")
 	flags.StringVar(&resolverVersion, "resolver-version", resolverVersion, "resolver version recorded in the graph")
+	jsonOutput := false
+	flags.BoolVar(&jsonOutput, "json", false, "write the pass as a JSON event stream on stdout")
 	if parsed, code := parseCommandFlags("index --full", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -806,6 +812,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	options.Repositories = registry.List()
 	options.WorkingDirectory = workingDirectory
 	options.ResolverVersion = resolverVersion
+	if jsonOutput {
+		return runIndexFullEvents(ctx, options, stdout, stderr)
+	}
 	options.Progress = func(event indexer.ProgressEvent) {
 		writeIndexProgress(stderr, progressStart, event)
 	}
@@ -869,6 +878,49 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		}
 		writeResult(stdout, stage.Passed, "stage.%s: %s (%s)", stage.Name, passFail(stage.Passed), stage.Detail)
 	}
+	if err != nil {
+		writeCommandError(stderr, "index --full: %v", err)
+		return 1
+	}
+	return 0
+}
+
+// runIndexFullEvents runs the pass for a caller that reads it rather than a
+// person: stdout carries only the event stream internal/indexing declares, so
+// the report is not written at all and the progress a person would read on
+// stderr travels as events instead.
+//
+// This is what a server runs when it indexes, and the reason it can: the pass
+// happens in this process, which exits, instead of in the one answering
+// queries, which does not. See ADR 0042.
+func runIndexFullEvents(
+	ctx context.Context,
+	options indexing.FullOptions,
+	stdout, stderr io.Writer,
+) int {
+	encoder := json.NewEncoder(stdout)
+	emit := func(event indexing.FullEvent) {
+		// A caller that stopped reading is not a reason to abandon a pass
+		// that is about to publish a generation.
+		_ = encoder.Encode(event)
+	}
+	report := func(progress indexing.ProjectProgress) {
+		emit(indexing.FullEvent{Event: indexing.FullEventProgress, Progress: &progress})
+	}
+	options.Progress = func(event indexer.ProgressEvent) {
+		report(indexing.ProgressFromEvent(event))
+	}
+	options.RebuildProgress = func(stage rebuild.StageName) {
+		report(indexing.ProjectProgress{Phase: "rebuild", Detail: string(stage)})
+	}
+
+	result, err := indexing.RunFull(ctx, options)
+	document := indexing.DocumentFromResult(result)
+	if err != nil {
+		document.Passed = false
+		document.Error = err.Error()
+	}
+	emit(indexing.FullEvent{Event: indexing.FullEventResult, Result: &document})
 	if err != nil {
 		writeCommandError(stderr, "index --full: %v", err)
 		return 1

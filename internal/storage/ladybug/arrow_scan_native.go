@@ -119,6 +119,7 @@ func (reader *reader) scanArrowAll(ctx context.Context) (ScanRows, error) {
 	config := C.lbug_default_system_config()
 	config.enable_compression = C.bool(true)
 	config.read_only = C.bool(true)
+	config.buffer_pool_size = C.uint64_t(scanBufferPoolBytes(reader.parent.path))
 
 	var database C.lbug_database
 	if status := C.lbug_database_init(path, config, &database); status != 0 {
@@ -648,6 +649,7 @@ func canonicalArrowScan(ctx context.Context, path string, run func(query arrowQu
 	config := C.lbug_default_system_config()
 	config.enable_compression = C.bool(true)
 	config.read_only = C.bool(true)
+	config.buffer_pool_size = C.uint64_t(scanBufferPoolBytes(path))
 
 	var database C.lbug_database
 	if status := C.lbug_database_init(cpath, config, &database); status != 0 {

@@ -141,6 +141,9 @@ func followOnce(
 		DatabasePath: active.DatabasePath,
 		SnapshotID:   activeID,
 	})
+	// From here the build's inputs are unreachable whatever happens next,
+	// including the lost race below, where the whole snapshot is dropped too.
+	defer rebuild.ReturnBuildMemory()
 	if err != nil {
 		return followResult{}, fmt.Errorf("build published snapshot %q: %w", active.ID, err)
 	}

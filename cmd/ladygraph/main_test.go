@@ -1744,3 +1744,47 @@ func TestReportRustToolchainNamesTheMissingPrerequisite(t *testing.T) {
 		})
 	}
 }
+
+// TestRunIndexFullEventsWritesOnlyTheEventStream fixes the channel a server
+// reads. stdout is the protocol: one result event, and no line of the report a
+// person would read, because a report interleaved with events is a stream the
+// parent cannot parse.
+//
+// The pass fails on a missing root, which is the cheapest way to reach the
+// result event without building a graph, and it also fixes the other half: a
+// failure is reported as a result the caller can read, never as silence.
+func TestRunIndexFullEventsWritesOnlyTheEventStream(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := runIndexFullEvents(
+		context.Background(),
+		indexing.FullOptions{ResolverVersion: "test"},
+		&stdout,
+		&stderr,
+	); code != 1 {
+		t.Fatalf("runIndexFullEvents() = %d, want 1", code)
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("stdout carried %d lines, want exactly the result event:\n%s", len(lines), stdout.String())
+	}
+	var event indexing.FullEvent
+	if err := json.Unmarshal([]byte(lines[0]), &event); err != nil {
+		t.Fatalf("stdout line is not an event: %v: %s", err, lines[0])
+	}
+	if event.Event != indexing.FullEventResult || event.Result == nil {
+		t.Fatalf("event = %#v, want a result event", event)
+	}
+	if event.Result.Passed {
+		t.Fatal("result reported a pass that never happened")
+	}
+	if !strings.Contains(event.Result.Error, "root is required") {
+		t.Fatalf("result error = %q, want the reason the pass stopped", event.Result.Error)
+	}
+	if strings.Contains(stdout.String(), "index.full:") {
+		t.Fatalf("stdout carried the human report as well:\n%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "index --full:") {
+		t.Fatalf("stderr = %q, want the failure named there", stderr.String())
+	}
+}
