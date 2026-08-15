@@ -1,6 +1,6 @@
 ---
 name: ladygraph
-description: Use Ladygraph's local MCP server to search symbols, references, dependencies, cross-repository consumers, graph status, and unresolved references in the indexed code graph.
+description: Use Ladygraph's local MCP server to search symbols, read their source, and follow references, dependencies, cross-repository consumers and graph status in the indexed code graph.
 license: Apache-2.0
 compatibility: Requires the Ladygraph MCP server registered as `ladygraph`.
 ---
@@ -17,19 +17,26 @@ Go, TypeScript or Rust repositories rather than a text-only search.
 2. Use `list_repositories` to identify the repository and language before
    narrowing a query. Repository names are case sensitive: two repositories
    whose names differ only in case are two repositories.
-3. Use `find_symbol` for names and qualified names; use `get_symbol` after a
-   stable key is known.
-4. Use `find_references` for direct incoming or outgoing references and
+3. Use `find_symbol` for names and qualified names, and `get_file_outline` to
+   read the declarations of a file or a directory without opening it. Every row
+   they return carries repository, repository-relative path, qualified name and
+   a line range, and every tool accepts that triple in place of a stable key:
+   build the next call out of the answer just received.
+4. Use `get_source` to read the code a row names. It answers in prose, not
+   JSON, and takes a list of selectors, so one call reads several declarations.
+5. Use `find_references` for direct incoming or outgoing references and
    `trace_dependencies` for bounded dependency paths.
-5. Use `find_cross_repo_consumers` for consumers in another repository and
+6. Use `find_cross_repo_consumers` for consumers in another repository and
    `get_blast_radius` for bounded impact analysis. Read its `coverage`
    carefully: `exact` and `candidate` count consumers of the symbol asked
    for, while `package_level` counts dependencies on the provider package,
    which prove nothing about that symbol. A failure that named no symbol
-   belongs to the package: ask `get_unresolved_references` with
-   `requested_package`.
-6. Use `get_unresolved_references` when a missing provider, candidate, or
-   unresolved import is relevant to the answer.
+   belongs to the package, and the response says so itself: its unresolved
+   rows and its `completeness.invisible_scopes` carry `requested_package`
+   rather than attributing the failure to every symbol that package exports.
+7. Read `completeness` before concluding. A verdict of `LOWER_BOUND` means the
+   answer is a floor: `invisible_scopes` names what could not be seen, and
+   `fallback` names the paths and the pattern to grep instead.
 
 ## Reading `graph_status`
 

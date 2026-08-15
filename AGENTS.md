@@ -854,6 +854,11 @@ repositorio y en demostrar una ausencia.
 - La skill canónica vive en
   `internal/integrations/assets/ladygraph/SKILL.md`; los bundles deben
   incluirla bajo `skills/ladygraph/SKILL.md` y en `SHA256SUMS`.
+- La skill sólo puede nombrar tools que `internal/mcp/server.go` registra. Es lo
+  que un agente lee antes de decidir, así que una tool que el servidor no
+  publica no es una imprecisión de documentación: enruta la pregunta a una
+  llamada que falla. Enviaba a `get_unresolved_references`, que no está
+  registrada, y no mencionaba `get_source` ni `get_file_outline`, que sí.
 
 ## Verificación obligatoria
 
