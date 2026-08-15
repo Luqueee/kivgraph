@@ -1,0 +1,86 @@
+---
+// The captured session that used to sit beside the hero copy. The canvas took
+// that column, and this is the section the transcript actually argues for: it
+// ends by showing that a row addresses the next call on its own.
+import Transcript from "./Transcript.astro";
+import type { Line } from "./transcript";
+
+// find_references on internal/facts.MergeAll, captured against snapshot 30.
+const session: Line[] = [
+  [
+    {
+      text: "# a client starts this process; framing on stdout, logs on stderr",
+      tone: "dim",
+    },
+  ],
+  [
+    { text: "$ ", tone: "exact" },
+    { text: "ladygraph serve --config ~/.config/ladygraph/config.yaml" },
+  ],
+  [],
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "find_references", tone: "tool" },
+  ],
+  [
+    {
+      text: '{"repository":"ladygraph","path":"internal/facts/facts.go",',
+      tone: "dim",
+    },
+  ],
+  [
+    {
+      text: ' "qualified_name":"MergeAll","direction":"incoming","limit":3}',
+      tone: "dim",
+    },
+  ],
+  [],
+  [
+    {
+      text: "# snapshot_id 30   total 3   returned 3   coverage.exact 3",
+      tone: "dim",
+    },
+  ],
+  [
+    { text: "subject   ", tone: "dim" },
+    { text: "ladygraph " },
+    { text: "internal/facts/facts.go:516", tone: "file" },
+    { text: "  func ", tone: "dim" },
+    { text: "MergeAll", tone: "symbol" },
+  ],
+  [
+    { text: "reference ", tone: "dim" },
+    { text: "ladygraph " },
+    { text: "internal/indexer/full.go:681-712", tone: "file" },
+    { text: "  func ", tone: "dim" },
+    { text: "mergeSets", tone: "symbol" },
+  ],
+  [
+    { text: "          go  CALLS_DIRECT  ", tone: "dim" },
+    { text: "EXACT_TYPECHECKED", tone: "exact" },
+    { text: "  GO_AST_CALL", tone: "dim" },
+  ],
+  [{ text: "# 2 further rows", tone: "dim" }],
+  [],
+  [
+    {
+      text: "# every row carries repository, path, qualified_name and a range,",
+      tone: "dim",
+    },
+  ],
+  [
+    {
+      text: "# so the next call is built from the answer, not from a key",
+      tone: "dim",
+    },
+  ],
+];
+---
+
+<div class="mt-10">
+  <Transcript
+    caption="captured stdio session, snapshot 30: values verbatim, lines reflowed"
+    lines={session}
+    caret={true}
+  />
+</div>

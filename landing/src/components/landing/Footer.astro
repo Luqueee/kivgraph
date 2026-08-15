@@ -1,0 +1,89 @@
+---
+// The footer carries no heading. Its three column titles name a group of links
+// and nothing else, so they are labels: text-gray-400, no marker, out of the
+// heading hierarchy, exactly like a table column header or a caption. The
+// <nav> around each group is already named by its aria-label, so dropping the
+// heading costs nothing and keeps the page's h2s to the six section heads.
+
+const groups = [
+  {
+    title: "start",
+    links: [
+      { href: "/install/", label: "install" },
+      { href: "/quickstart/", label: "quickstart" },
+      { href: "/mcp/clients/", label: "MCP clients" },
+      { href: "/limits/", label: "limits" },
+    ],
+  },
+  {
+    title: "guides",
+    links: [
+      { href: "/guides/indexing/", label: "indexing" },
+      { href: "/guides/viewer/", label: "viewer" },
+      { href: "/guides/maintenance/", label: "maintenance" },
+    ],
+  },
+  {
+    title: "reference",
+    links: [
+      { href: "/reference/cli/", label: "CLI" },
+      { href: "/reference/mcp-tools/", label: "MCP tools" },
+      { href: "/reference/configuration/", label: "configuration" },
+      { href: "/reference/resolution/", label: "resolution" },
+    ],
+  },
+];
+---
+
+<footer class="border-t border-rule">
+  <div
+    class="mx-auto box-border grid w-full max-w-6xl grid-cols-1 items-baseline gap-10 px-6 py-14 text-xs sm:grid-cols-2 lg:grid-cols-4"
+  >
+    <div>
+      <p class="flex items-center gap-2 text-gray-100">
+        <span class="inline-block h-2 w-2 bg-graph-repository" aria-hidden="true"
+        ></span>
+        ladygraph
+      </p>
+      <p class="mt-3 max-w-xs text-gray-400">
+        A local MCP server that answers questions about code across
+        repositories, for Go, TypeScript and Rust.
+      </p>
+      <ul class="mt-5 space-y-2">
+        <li>
+          <a
+            href="https://github.com/Luqueee/ladygraph/blob/main/LICENSE"
+            class="text-accent-200 underline underline-offset-4">Apache-2.0</a
+          >
+        </li>
+        <li>
+          <a
+            href="https://github.com/Luqueee/ladygraph"
+            class="text-accent-200 underline underline-offset-4"
+            >github.com/Luqueee/ladygraph</a
+          >
+        </li>
+      </ul>
+    </div>
+
+    {
+      groups.map((group) => (
+        <nav aria-label={group.title}>
+          <p class="text-gray-400">{group.title}</p>
+          <ul class="mt-3 space-y-2">
+            {group.links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  class="text-gray-300 underline-offset-4 transition-colors hover:text-gray-100 hover:underline"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))
+    }
+  </div>
+</footer>

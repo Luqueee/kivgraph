@@ -1,0 +1,40 @@
+---
+// The one subsection head on this page. A subsection opens with a dim mono
+// marker and a gray-100 mono title, one step quieter than the section head in
+// Section.astro and one step louder than the prose it introduces. It is a
+// component rather than a class so the geometry cannot drift between the
+// components that use it, and so a head with a control beside it keeps the same
+// first baseline as a head without one: the row carries min-h-7, which is
+// taller than a CopyButton, so two columns of a grid line up on their heads.
+//
+// The marker is "#", the same glyph the documentation restyle puts in front of
+// its own h3 (its h2 marker is "##"); the landing's section head keeps the
+// two-digit band index instead. A caller passes `marker` only where the number
+// is a real ordinal rather than decoration, which is the quickstart's steps.
+//
+// What is not a heading stays out of here: a table column header, a caption, a
+// transcript caption, a key in a key/value row or the footer's link-group
+// titles are labels, and a label stays text-xs text-gray-400 and out of the
+// outline. Every head this renders is an h3 inside a Section band, under that
+// band's h2, which is why the level is fixed rather than a prop.
+interface Props {
+  title: string;
+  marker?: string;
+}
+
+const { title, marker = "#" } = Astro.props;
+---
+
+<div
+  class="flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-2"
+>
+  <h3
+    class="flex items-baseline gap-2 text-sm font-medium tracking-tight text-gray-100 sm:text-base"
+  >
+    <span class="text-xs font-normal text-gray-400" aria-hidden="true"
+      >{marker}</span
+    >
+    {title}
+  </h3>
+  <slot />
+</div>

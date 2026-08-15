@@ -1,0 +1,52 @@
+@layer base, starlight, theme, components, utilities;
+
+@import "@astrojs/starlight-tailwind";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@theme {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  /* Accent is the repository colour of the graph viewer. */
+  --color-accent-200: #bfdbfe;
+  --color-accent-600: #2563eb;
+  --color-accent-900: #1e3a8a;
+  --color-accent-950: #172554;
+
+  --color-gray-100: #f5f5f5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4;
+  --color-gray-400: #a3a3a3;
+  --color-gray-500: #737373;
+  --color-gray-700: #404040;
+  --color-gray-800: #262626;
+  --color-gray-900: #171717;
+
+  /* The viewer palette, declared once and consumed by the hero canvas and the
+     legend. The literals are the ones in web/src/renderer/reagraph.ts. */
+  --color-graph-repository: #2563eb;
+  --color-graph-package: #7c3aed;
+  --color-graph-file: #059669;
+  --color-graph-symbol: #ea580c;
+  --color-graph-containment: #475569;
+  --color-graph-local: #4b5563;
+  --color-graph-cross: #94a3b8;
+  --color-graph-exact: #16a34a;
+
+  /* The surfaces of the terminal skin, shared by the landing shell and the
+     documentation. Cool-tinted near-blacks, never #000. Declared here rather
+     than on the landing's own <html> so both halves of the site read one
+     palette: the docs restyle in docs.css consumes exactly these.
+
+     The names avoid a `t-` prefix on purpose: `border-t-<colour>` is Tailwind's
+     border-top-colour utility, so a `--color-t-line` token would make
+     `border-t-line` mean two different things. */
+  --color-shell: #0a0b0d;
+  --color-panel: #101215;
+  --color-raise: #171a1f;
+  --color-rule: #22262b;
+  --color-rule-strong: #333a42;
+}

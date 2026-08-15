@@ -159,12 +159,12 @@ jobs:
             echo "bundle carries web assets the binary cannot serve: built without the webassets tag" >&2
             exit 1
           fi
-          # The documentation site is not a product artifact. The payload is a
-          # whitelist in scripts/build-bundle.sh; this is the assertion that
-          # notices when someone widens it.
-          test ! -e "$bundle/site"
-          if awk '{print $2}' "$bundle/SHA256SUMS" | grep -q '^site/'; then
-            echo "release payload carries the documentation site" >&2
+          # The landing and documentation site is not a product artifact. The
+          # payload is a whitelist in scripts/build-bundle.sh; this is the
+          # assertion that notices when someone widens it.
+          test ! -e "$bundle/landing"
+          if awk '{print $2}' "$bundle/SHA256SUMS" | grep -q '^landing/'; then
+            echo "release payload carries the landing site" >&2
             exit 1
           fi
 

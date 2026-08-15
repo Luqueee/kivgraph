@@ -1,0 +1,49 @@
+---
+interface Props {
+  value: string;
+  label?: string;
+}
+
+const { value, label = "copy" } = Astro.props;
+---
+
+<button
+  type="button"
+  data-copy={value}
+  class="w-16 shrink-0 border border-rule-strong py-1 text-center text-xs text-gray-300 transition-colors hover:bg-raise hover:text-gray-100"
+>{label}</button>
+
+<script>
+  // One listener per button, wired once for every copy button on the page.
+  const RESET_MS = 1500;
+
+  const buttons = Array.from(document.querySelectorAll("button[data-copy]"));
+
+  for (const node of buttons) {
+    if (!(node instanceof HTMLButtonElement)) {
+      continue;
+    }
+
+    const button = node;
+    const value = button.dataset.copy;
+    if (value === undefined) {
+      continue;
+    }
+
+    const label = button.textContent ?? "copy";
+
+    button.addEventListener("click", () => {
+      navigator.clipboard.writeText(value).then(
+        () => {
+          button.textContent = "copied";
+          window.setTimeout(() => {
+            button.textContent = label;
+          }, RESET_MS);
+        },
+        () => {
+          button.textContent = "failed";
+        },
+      );
+    });
+  }
+</script>

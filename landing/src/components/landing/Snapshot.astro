@@ -1,0 +1,155 @@
+---
+import LeaderRow from "./LeaderRow.astro";
+import SubHead from "./SubHead.astro";
+
+// graph_status and list_repositories, captured against snapshot 30.
+const counts = [
+  { key: "status", value: "ready" },
+  { key: "snapshot_id", value: "30" },
+  { key: "snapshot_built_at", value: "2026-08-15T11:14:10Z" },
+  { key: "schema_version", value: "2" },
+  { key: "resolver_version", value: "0.5.0" },
+  { key: "repositories", value: "2" },
+  { key: "packages", value: "57" },
+  { key: "files", value: "311" },
+  { key: "symbols", value: "10957" },
+  { key: "edges", value: "40125" },
+  { key: "package_edges", value: "123" },
+  { key: "unresolved", value: "1642" },
+];
+
+// Seven of the kinds in the captured edges_by_kind histogram.
+const edgeKinds = [
+  { key: "CALLS_DIRECT", value: "6198" },
+  { key: "EXPORTS", value: "312" },
+  { key: "PASSES_AS_CALLBACK", value: "75" },
+  { key: "ASSIGNS_FUNCTION", value: "22" },
+  { key: "IMPLEMENTS", value: "9" },
+  { key: "EMBEDS", value: "8" },
+  { key: "EXTENDS", value: "4" },
+];
+
+const repositories = [
+  {
+    name: "ladygraph",
+    languages: "go, typescript",
+    branch: "main",
+    commit: "d67bc0e",
+    note: "moved false",
+  },
+  {
+    name: "mole",
+    languages: "go, typescript",
+    branch: "main",
+    commit: "4cc05cd",
+    note: "indexed_dirty true",
+  },
+];
+
+const legend = [
+  { label: "repository", variable: "--color-graph-repository" },
+  { label: "file", variable: "--color-graph-file" },
+  { label: "symbol", variable: "--color-graph-symbol" },
+  { label: "exact dependency", variable: "--color-graph-exact" },
+];
+
+// Both readouts share one grid so the collision that used to happen in the
+// narrow track cannot come back in only one of them. auto-fit adds a column
+// only when a whole 20rem one fits, which is wider than the longest row here
+// (`snapshot_built_at` plus its 20-character timestamp), and the min(20rem,100%)
+// floor keeps that track from overflowing a container narrower than 20rem.
+// LeaderRow wraps rather than overflows in any case, so the two guards are
+// independent: the grid decides how many columns look right, the row guarantees
+// that none of them can collide.
+const READOUT =
+  "mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(20rem,100%),1fr))] gap-x-10 gap-y-2 text-xs";
+---
+
+<p class="max-w-[68ch] text-sm text-gray-300">
+  Queries are served from an immutable snapshot, published atomically, never
+  from the database. Below is <code>graph_status</code> and <code
+    >list_repositories</code
+  > on the corpus behind every transcript on this page: two repositories, one of
+  them a different project.
+</p>
+
+<div class="mt-10">
+  <SubHead title="graph_status" />
+  <ul class={READOUT}>
+    {counts.map((count) => <LeaderRow label={count.key} value={count.value} />)}
+  </ul>
+</div>
+
+<div class="mt-10 border-t border-rule pt-10">
+  <SubHead title="edges_by_kind" />
+  <ul class={READOUT}>
+    {edgeKinds.map((kind) => <LeaderRow label={kind.key} value={kind.value} />)}
+  </ul>
+</div>
+
+<div class="mt-10 border-t border-rule pt-10">
+  <SubHead title="list_repositories" />
+  <div class="mt-5 overflow-x-auto">
+    <table class="text-xs">
+      <thead>
+        <tr class="border-b border-rule-strong text-gray-400">
+          <th scope="col" class="py-2 pr-6 md:w-40">name</th>
+          <th scope="col" class="py-2 pr-6 md:w-48">languages</th>
+          <th scope="col" class="py-2 pr-6 md:w-32">indexed_branch</th>
+          <th scope="col" class="py-2 pr-6 md:w-32">indexed_commit</th>
+          <th scope="col" class="py-2">state</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          repositories.map((repository) => (
+            <tr class="border-b border-rule">
+              <td class="py-3 pr-6 text-gray-100">{repository.name}</td>
+              <td class="py-3 pr-6 text-gray-300">{repository.languages}</td>
+              <td class="py-3 pr-6 text-gray-300">{repository.branch}</td>
+              <td class="py-3 pr-6 text-gray-300 tabular-nums">
+                {repository.commit}
+              </td>
+              <td class="py-3 text-gray-400">{repository.note}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="mt-3 max-w-[68ch] text-xs text-gray-400">
+    The 1642 unresolved references are published with their reason, repository
+    and language rather than dropped, and they are counted apart from the 40125
+    edges. <code>graph_status</code> also reports whether a repository has moved
+    since it was indexed, which is the answer when a result looks stale.
+  </p>
+</div>
+
+<div class="mt-10 border-t border-rule pt-10">
+  <p class="max-w-[68ch] text-xs text-gray-400">
+    <code>ladygraph ui</code> serves a read-only 3D view of the same published
+    snapshot. It binds <code>0.0.0.0:7777</code> by default and carries no
+    authentication; restrict it with <code>--addr</code>. Its palette is the one
+    the transcripts on this page borrow: one colour per node kind, plus one for
+    an exact, type-checked edge.
+  </p>
+  <ul class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400">
+    {
+      legend.map((entry) => (
+        <li class="flex items-center gap-2">
+          <span
+            class="inline-block h-2 w-2 shrink-0"
+            style={`background:var(${entry.variable})`}
+            aria-hidden="true"
+          />
+          {entry.label}
+        </li>
+      ))
+    }
+  </ul>
+  <p class="mt-5 text-xs">
+    <a href="/guides/viewer/" class="text-accent-200 underline underline-offset-4"
+      >the viewer guide</a
+    >
+  </p>
+</div>

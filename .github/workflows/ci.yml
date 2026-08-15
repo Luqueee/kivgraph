@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   verify:
-    name: Verify Go, web and site packages
+    name: Verify Go, web and landing packages
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -72,7 +72,7 @@ jobs:
           cache-dependency-path: |
             ts-worker/pnpm-lock.yaml
             web/pnpm-lock.yaml
-            site/pnpm-lock.yaml
+            landing/pnpm-lock.yaml
 
       - name: Install TypeScript worker
         working-directory: ts-worker
@@ -110,16 +110,16 @@ jobs:
         working-directory: web
         run: pnpm build
 
-      - name: Install site package
-        working-directory: site
+      - name: Install landing package
+        working-directory: landing
         run: pnpm install --frozen-lockfile
 
-      - name: Check site package
-        working-directory: site
+      - name: Check landing package
+        working-directory: landing
         run: pnpm check
 
-      - name: Build site package
-        working-directory: site
+      - name: Build landing package
+        working-directory: landing
         run: pnpm build
 
   ladybug:

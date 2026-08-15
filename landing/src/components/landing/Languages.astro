@@ -1,0 +1,60 @@
+---
+import SubHead from "./SubHead.astro";
+
+// The three entries are a list of headed blocks rather than a <dl>: the
+// language name is a subsection head, and heading content is not allowed
+// inside a <dt>.
+const languages = [
+  {
+    name: "Go",
+    engine: "go/types, linked into the binary",
+    body: "Packages are loaded through go/packages with the build tags you configure, and resolution comes from a full type universe. The unit of analysis is the module.",
+    note: "The binary type-checks only up to the language version of the toolchain that built it. A module above that ceiling is rejected by name.",
+  },
+  {
+    name: "TypeScript",
+    engine: "the @ladygraph/ts-worker tsserver process",
+    body: "Each package.json project is analysed by the TypeScript checker itself. A cross-package symbol is placed by the provider's declaration map, or by asking the provider's own checker what its module exports.",
+    note: null,
+  },
+  {
+    name: "Rust",
+    engine: "rust-analyzer scip, bundled and pinned",
+    body: "The authority is rust-analyzer, invoked once per Cargo workspace. Tree-sitter contributes the syntactic class of a use and the declared visibility, never identity.",
+    note: "core, std and alloc are not indexed, so derive, operator overloading, ? and standard-library calls produce no edges.",
+  },
+];
+---
+
+<p class="max-w-[68ch] text-sm text-gray-300">
+  One authority per language, and it is the language's own. An edge is never
+  created from a name.
+</p>
+
+<ul class="mt-10">
+  {
+    languages.map((language) => (
+      <li class="grid grid-cols-1 items-baseline gap-x-10 gap-y-5 border-t border-rule py-5 md:grid-cols-[12rem_minmax(0,1fr)]">
+        <div>
+          <SubHead title={language.name} />
+          <p class="mt-3 text-xs text-accent-200">{language.engine}</p>
+        </div>
+        <div>
+          <p class="max-w-[68ch] text-xs text-gray-300">{language.body}</p>
+          {language.note !== null && (
+            <p class="mt-3 max-w-[68ch] border-l border-rule-strong pl-3 text-xs text-gray-400">
+              {language.note}
+            </p>
+          )}
+        </div>
+      </li>
+    ))
+  }
+</ul>
+
+<p class="mt-5 text-xs">
+  <a
+    href="/reference/resolution/"
+    class="text-accent-200 underline underline-offset-4">how resolution works</a
+  >
+</p>

@@ -1,0 +1,37 @@
+---
+const links = [
+  { href: "#answers", label: "what it answers" },
+  { href: "#snapshot", label: "snapshot" },
+  { href: "#quickstart", label: "quickstart" },
+  { href: "/reference/mcp-tools/", label: "reference" },
+  { href: "https://github.com/Luqueee/ladygraph", label: "github" },
+];
+---
+
+<header class="border-b border-rule">
+  <div
+    class="mx-auto box-border flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 text-xs"
+  >
+    <a href="/" class="flex items-center gap-2 text-gray-100">
+      <span class="inline-block h-2 w-2 bg-graph-repository" aria-hidden="true"
+      ></span>
+      ladygraph
+    </a>
+    <span class="text-gray-400">local MCP server, stdio only</span>
+    <nav
+      class="ml-auto flex flex-wrap items-center gap-x-6 gap-y-2"
+      aria-label="Primary"
+    >
+      {
+        links.map((link) => (
+          <a
+            href={link.href}
+            class="text-gray-400 underline-offset-4 transition-colors hover:text-gray-100 hover:underline"
+          >
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+</header>

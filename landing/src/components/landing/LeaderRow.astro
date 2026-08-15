@@ -1,0 +1,32 @@
+---
+// One dotted-leader row of a key/value readout: the key on the left, the value
+// on the right, a dashed rule running between them.
+//
+// The row wraps instead of overflowing, which is the whole point of it existing
+// as a component. It used to hold the key and the value at shrink-0 with a
+// min-w-6 leader between them, so its minimum width was the sum of the two
+// strings; in a narrow grid track the row overflowed its column and the value
+// printed on top of the next column's key. `snapshot_built_at` with its
+// 20-character timestamp did exactly that.
+//
+// Now the key and the value may shrink and break, and the row is a wrapping
+// flex line, so when a track cannot hold key + leader + value the value drops to
+// a second line and right-aligns under the leader. No captured value has to be
+// shortened for it to fit, and no width can make two rows collide.
+interface Props {
+  label: string;
+  value: string;
+}
+
+const { label, value } = Astro.props;
+---
+
+<li class="flex flex-wrap items-baseline gap-x-2">
+  <span class="min-w-0 break-all text-gray-400">{label}</span>
+  <span
+    class="min-w-6 flex-1 border-b border-dashed border-rule-strong"
+    aria-hidden="true"></span>
+  <span class="ml-auto min-w-0 break-all text-gray-100 tabular-nums"
+    >{value}</span
+  >
+</li>

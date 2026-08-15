@@ -1,0 +1,742 @@
+/* docs.css — the Starlight half of the terminal skin.
+ *
+ * Every colour here is a token declared in global.css: `--color-shell`,
+ * `--color-panel`, `--color-raise`, `--color-rule`, `--color-rule-strong`, the
+ * gray ramp, the accents and the graph palette. This file declares no colour of
+ * its own. It retunes Starlight's `--sl-*` properties and Expressive Code's
+ * `--ec-*` properties onto those tokens, and reaches for a class selector only
+ * where no property exists.
+ *
+ * Layering. global.css declares `@layer base, starlight, theme, components,
+ * utilities` and this file is loaded after it, so:
+ *
+ *   - Property assignments (the `:root` blocks) are UNLAYERED, and have to be.
+ *     `@astrojs/starlight-tailwind` assigns a dozen `--sl-*` properties inside
+ *     `@layer utilities`, the last layer, so the same assignment in `@layer
+ *     base` — or in any layer below `utilities` — would silently lose to it.
+ *     Unlayered beats every layer. Splitting the palette by which upstream
+ *     package happens to set which property would break the day
+ *     starlight-tailwind adds one more, so the whole palette sits unlayered.
+ *   - Rules that dress Starlight's own markup live in `@layer components`, the
+ *     slot global.css reserves between `theme` and `utilities`. It sits above
+ *     every `starlight.*` sublayer, so these rules beat Starlight's component
+ *     styles, and below `utilities`, so a Tailwind utility still wins. Nothing
+ *     here needs to beat a utility.
+ *   - `@layer base` holds the two element defaults that must lose to
+ *     everything else: the focus ring and the selection colour.
+ *
+ * Dark only. A ThemeProvider override pins `data-theme="dark"` and the site
+ * publishes no theme selector, so no `[data-theme='light']` branch is retuned.
+ */
+
+/* ==========================================================================
+   Palette
+   ========================================================================== */
+
+:root {
+  /* Surfaces. The page is the shell; a block that lifts is the panel; the only
+     thing above that is `raise`, for inline code and a pressed control. */
+  --sl-color-bg: var(--color-shell);
+  --sl-color-black: var(--color-shell);
+  /* Nav and sidebar are flush with the page and separated by a hairline, like
+     the landing's TopBar, rather than being their own darker slab. */
+  --sl-color-bg-nav: var(--color-shell);
+  --sl-color-bg-sidebar: var(--color-shell);
+  --sl-color-bg-inline-code: var(--color-raise);
+
+  /* Hairlines. Starlight defaults `hairline-light` to gray-5 and
+     `hairline-shade` to black; both read as an edge here, so all three land on
+     the same 1px rule and only the deliberate ones use `rule-strong`. */
+  --sl-color-hairline: var(--color-rule);
+  --sl-color-hairline-light: var(--color-rule);
+  --sl-color-hairline-shade: var(--color-rule);
+
+  /* The ramp, lightest to darkest. gray-3 is the dimmest step Starlight uses
+     for text (table of contents links, tab labels), so it stops at gray-400;
+     gray-4 and below are decoration only. gray-5 is every border Starlight
+     draws, gray-6 every raised surface it fills — including Expressive Code's
+     editor background, which resolves through it. */
+  --sl-color-white: var(--color-gray-100);
+  --sl-color-gray-1: var(--color-gray-200);
+  --sl-color-gray-2: var(--color-gray-300);
+  --sl-color-gray-3: var(--color-gray-400);
+  --sl-color-gray-4: var(--color-gray-500);
+  --sl-color-gray-5: var(--color-rule-strong);
+  --sl-color-gray-6: var(--color-panel);
+
+  --sl-color-text: var(--color-gray-300);
+  --sl-color-text-accent: var(--color-accent-200);
+  /* Text drawn on top of an accent fill: the skip link, a sidebar pill. */
+  --sl-color-text-invert: var(--color-shell);
+
+  --sl-color-accent: var(--color-accent-600);
+  --sl-color-accent-low: var(--color-accent-950);
+  --sl-color-accent-high: var(--color-accent-200);
+  --sl-color-bg-accent: var(--color-accent-200);
+
+  /* Aside and badge hues. Starlight names them by colour, not by role, and the
+     palette has no red: danger takes the hottest token there is, `graph-symbol`
+     orange, and caution takes `graph-package` purple so the two stay
+     distinguishable. Every `-low` is the panel, so all four asides share one
+     body surface, and every `-high` is gray-100, because the saturated tokens
+     do not carry text at this size — the 2px left edge carries the hue and the
+     title stays legible. */
+  --sl-color-blue: var(--color-graph-repository);
+  --sl-color-blue-low: var(--color-panel);
+  --sl-color-blue-high: var(--color-gray-100);
+  --sl-color-green: var(--color-graph-exact);
+  --sl-color-green-low: var(--color-panel);
+  --sl-color-green-high: var(--color-gray-100);
+  --sl-color-purple: var(--color-graph-package);
+  --sl-color-purple-low: var(--color-panel);
+  --sl-color-purple-high: var(--color-gray-100);
+  --sl-color-orange: var(--color-graph-symbol);
+  --sl-color-orange-low: var(--color-panel);
+  --sl-color-orange-high: var(--color-gray-100);
+  --sl-color-red: var(--color-graph-symbol);
+  --sl-color-red-low: var(--color-panel);
+  --sl-color-red-high: var(--color-gray-100);
+
+  /* The page behind the search modal goes fully dark rather than translucent,
+     which also neutralises the backdrop blur Starlight layers on top of it. */
+  --sl-color-backdrop-overlay: var(--color-shell);
+
+  /* No shadows. This kills the decorative ones in one place: pagination cards,
+     link cards, the mobile menu button, the search dialog and the mobile table
+     of contents. The tab underline and the step bullet ring are drawn with
+     `box-shadow` on purpose and are left alone. */
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: none;
+}
+
+/* ==========================================================================
+   Type
+   ========================================================================== */
+
+:root {
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+
+  /* Starlight's heading scale climbs to 42px and grows again above 50em. The
+     landing's scale is restrained and does not move, so hierarchy is carried by
+     the marker, the weight and the colour instead of by size. */
+  --sl-text-h1: var(--sl-text-2xl);
+  --sl-text-h2: var(--sl-text-lg);
+  --sl-text-h3: var(--sl-text-base);
+  --sl-text-h4: var(--sl-text-sm);
+  --sl-text-h5: var(--sl-text-sm);
+
+  /* 14px prose, like the landing's body. Fenced code drops to 13px, which is
+     one step less horizontal scrolling on a wide JSON response; inline code
+     keeps its own step. */
+  --sl-text-body: var(--sl-text-sm);
+  --sl-text-code: var(--sl-text-xs);
+
+  --sl-line-height: 1.6;
+  --sl-line-height-headings: 1.3;
+}
+
+@layer base {
+  /* Starlight sets no font size on `body`, so prose runs at the browser's 16px
+     default and `--sl-text-body` reaches nothing but a Card. Without this the
+     18px h2 above would barely outrank its own paragraphs. It sits in `base` so
+     every utility still wins over it. */
+  body {
+    font-size: var(--sl-text-body);
+  }
+}
+
+@layer components {
+  /* Monospace is the dominant voice: every heading, label, identifier, command,
+     table header and numeric readout. The sans face is left to running prose,
+     which reaches it through `--sl-font` on `body`. */
+  h1#_top,
+  .site-title,
+  #starlight__sidebar,
+  .right-sidebar-panel,
+  #starlight__mobile-toc,
+  .starlight-aside__title,
+  .pagination-links .link-title,
+  site-search button[data-open-modal],
+  .sl-markdown-content :is(h1, h2, h3, h4, h5, h6):not(:where(.not-content *)),
+  .sl-markdown-content th:not(:where(.not-content *)),
+  .sl-markdown-content [role="tablist"] {
+    font-family: var(--font-mono);
+  }
+
+  /* Weight, not size, separates a heading from its prose. */
+  h1#_top,
+  .sl-markdown-content :is(h1, h2, h3, h4, h5, h6):not(:where(.not-content *)) {
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* ==========================================================================
+   Headings
+   ========================================================================== */
+
+@layer components {
+  /* Starlight wraps every heading that has an id in `.sl-heading-wrapper` and
+     makes the heading itself `display: inline` so the anchor link can sit at
+     the end of the last line. Two consequences drive the rules below: the
+     block-level treatment (the rule above an h2) belongs on the wrapper, and
+     the marker belongs on the heading, where it lands before the text and
+     outside the anchor link, which is the heading's sibling.
+
+     So the h2 hairline is on the wrapper, not on the h2: a border on an inline
+     box would hug the words instead of spanning the column. Probe it with
+     `main .sl-heading-wrapper.level-h2`, not with `main h2`, which correctly
+     reports `border-top-width: 0px`. */
+  .sl-markdown-content .sl-heading-wrapper.level-h2 {
+    margin-top: 2.5rem;
+    border-top: 1px solid var(--color-rule);
+    padding-top: 1.25rem;
+  }
+
+  /* A page that opens on a heading would otherwise draw a second rule directly
+     under the one the title panel already ends with. */
+  .sl-markdown-content > .sl-heading-wrapper.level-h2:first-child {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .sl-markdown-content .sl-heading-wrapper.level-h3 {
+    margin-top: 2rem;
+  }
+
+  .sl-markdown-content .sl-heading-wrapper.level-h4 {
+    margin-top: 1.75rem;
+  }
+
+  /* The marker, in the language the landing uses for `01` and `02`: a small dim
+     mono index in front of a gray-100 title. Fixed at 12px so it stays small
+     whatever the heading step, and excluded from the selection and from the
+     accessibility tree — `content: "##" / ""` gives it empty alternative text,
+     so a screen reader announces the heading and not the glyphs. */
+  .sl-markdown-content :is(h2, h3):not(:where(.not-content *))::before {
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    margin-inline-end: 0.6em;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* h2 is the stronger break: it already carries the hairline, and its marker
+     is the double hash in the green of a shell prompt. */
+  .sl-markdown-content h2:not(:where(.not-content *))::before {
+    content: "##" / "";
+    color: var(--color-graph-exact);
+  }
+
+  /* h3 is a subtitle inside that break: one hash, dim, no rule. */
+  .sl-markdown-content h3:not(:where(.not-content *))::before {
+    content: "#" / "";
+    color: var(--color-gray-400);
+  }
+
+  /* h4 carries no marker at all, so the three levels stay countable. */
+
+  /* The page title. Its panel already ends in a hairline, so it needs no rule
+     of its own. */
+  h1#_top {
+    margin-top: 0.5rem;
+  }
+}
+
+/* ==========================================================================
+   Prose
+   ========================================================================== */
+
+@layer components {
+  /* Inline code: gray-100 on `raise`, square, at the smaller code step. The
+     `pre *` guard keeps this off the code inside a fenced block, which
+     Expressive Code owns. */
+  .sl-markdown-content code:not(:where(.not-content *, pre *)) {
+    border-radius: 0;
+    color: var(--color-gray-100);
+  }
+
+  /* Inside an aside, Starlight tints inline code with the aside's own accent.
+     Inline code reads the same everywhere here, so it keeps the `raise`
+     surface. */
+  .sl-markdown-content .starlight-aside code:not(:where(.not-content *)) {
+    background-color: var(--sl-color-bg-inline-code);
+  }
+
+  /* Links are the one place accent-200 appears in prose. */
+  .sl-markdown-content a:not(:where(.not-content *)) {
+    text-underline-offset: 0.25em;
+  }
+
+  /* A leading quote — every tool reference opens with the description the
+     server registers — is set apart by its edge alone. It is running prose, so
+     it stays on the body colour: gray-400 is for labels, and dimming a whole
+     paragraph made the docs read darker than the landing. */
+  .sl-markdown-content blockquote:not(:where(.not-content *)) {
+    border-inline-start: 2px solid var(--color-rule-strong);
+    padding-inline-start: 1rem;
+  }
+
+  /* Definition terms and summaries follow the heading weight, not bold. */
+  .sl-markdown-content :is(dt, summary):not(:where(.not-content *)) {
+    font-weight: 500;
+  }
+
+  /* Square the step bullet. Its surface and its 1px ring already resolve to the
+     panel and the strong rule through the gray ramp. */
+  .sl-steps > li::before {
+    border-radius: 0;
+  }
+}
+
+/* ==========================================================================
+   Code
+   ========================================================================== */
+
+/* Expressive Code renders every fenced block. Its own properties are declared
+   on `:root` inside `@layer starlight.components`, so these assignments are
+   unlayered for the same reason the palette is. Names follow Expressive Code's
+   abbreviation scheme: `background` is `Bg`, `border` is `Brd`, `frames` is
+   `frm`, and so on. */
+:root {
+  /* The frame: 1px rule around a panel, no radius, no shadow. Starlight already
+     asks for `borderRadius: 0`, but the frame adds the border width to it, so
+     the residual 1px is squared by rule below. */
+  --ec-brdCol: var(--color-rule);
+  --ec-codeBg: var(--color-panel);
+  --ec-codeFg: var(--color-gray-300);
+  --ec-frm-edBg: var(--color-panel);
+  --ec-frm-trmBg: var(--color-panel);
+  --ec-frm-frameBoxShdCssVal: none;
+
+  /* The frame header is the landing's transcript caption bar: same surface as
+     the body, a bottom hairline, a gray-400 mono caption at 12px. */
+  --ec-uiFontFml: var(--font-mono);
+  --ec-uiFontSize: var(--sl-text-2xs);
+  --ec-frm-trmTtbBg: var(--color-panel);
+  --ec-frm-trmTtbFg: var(--color-gray-400);
+  --ec-frm-trmTtbBrdBtmCol: var(--color-rule);
+  --ec-frm-edTabBarBg: var(--color-panel);
+  --ec-frm-edTabBarBrdCol: var(--color-rule);
+  --ec-frm-edTabBarBrdBtmCol: var(--color-rule);
+  --ec-frm-edActTabBg: var(--color-panel);
+  --ec-frm-edActTabFg: var(--color-gray-400);
+  --ec-frm-edActTabIndTopCol: var(--color-accent-200);
+
+  /* One dot, not three: the landing's caption bar carries a single
+     graph-repository square-ish dot, so the titlebar mask is replaced with a
+     single circle at full opacity instead of a dimmed traffic light. */
+  --ec-frm-trmIcon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8'/%3E%3C/svg%3E");
+  --ec-frm-trmTtbDotsFg: var(--color-graph-repository);
+  --ec-frm-trmTtbDotsOpa: 1;
+
+  /* The copy button, matched to CopyButton.astro: always visible, 1px
+     rule-strong border at full strength, gray-300 glyph, `raise` on hover. */
+  --ec-frm-inlBtnFg: var(--color-gray-300);
+  --ec-frm-inlBtnBrd: var(--color-rule-strong);
+  --ec-frm-inlBtnBrdOpa: 1;
+  --ec-frm-inlBtnBg: var(--color-raise);
+  --ec-frm-inlBtnBgIdleOpa: 0;
+  --ec-frm-inlBtnBgHoverOrFocusOpa: 1;
+  --ec-frm-inlBtnBgActOpa: 1;
+  --ec-frm-tooltipSuccessBg: var(--color-graph-exact);
+  --ec-frm-tooltipSuccessFg: var(--color-gray-100);
+
+  --ec-focusBrd: var(--color-accent-200);
+  --ec-sbThumbCol: var(--color-rule-strong);
+  --ec-sbThumbHoverCol: var(--color-gray-500);
+}
+
+@layer components {
+  /* Radius is 0 everywhere, and the frame derives its own from
+     `borderRadius + borderWidth`, which is 1px however low `borderRadius` goes.
+     Zeroing the two local properties squares the frame, the header and the tab;
+     `pre` and its scrollbar track compute the same sum themselves. */
+  .expressive-code .frame {
+    --header-border-radius: 0;
+    --tab-border-radius: 0;
+    border-radius: 0;
+  }
+
+  .expressive-code .frame pre,
+  .expressive-code .frame pre::-webkit-scrollbar,
+  .expressive-code .frame pre::-webkit-scrollbar-track,
+  .expressive-code .frame pre::-webkit-scrollbar-thumb {
+    border-radius: 0;
+  }
+
+  /* The caption is left-aligned behind its dot, as on the landing, rather than
+     centred between three. The reserved space is the dot plus the frame's own
+     inline padding. */
+  .expressive-code .frame.is-terminal .header {
+    justify-content: flex-start;
+    padding-inline-start: calc(var(--ec-uiPadInl) + 0.875rem);
+  }
+
+  .expressive-code .frame.is-terminal .header::before {
+    width: 0.375rem;
+    height: 0.375rem;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  /* A square control the size of the landing's copy button, visible without a
+     hover.
+
+     The ancestor is wrapped in `:where()` here and in the sidebar, the mobile
+     table of contents and the search field: this rule beats Expressive Code's
+     own by cascade layer, never by weight, so the scope contributes nothing.
+     Flattening it keeps the `button` and `a` rules in this file in ascending
+     specificity while each one stays next to the surface it dresses. */
+  :where(.expressive-code .copy) button {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0;
+    opacity: 1;
+  }
+
+  :where(.expressive-code .copy) button::after {
+    margin: 0.4375rem;
+  }
+}
+
+/* ==========================================================================
+   Tables
+   ========================================================================== */
+
+@layer components {
+  /* These pages carry wide argument tables. Starlight makes the table its own
+     scroll container; this states it, and caps it at the content column so a
+     long row scrolls inside the table instead of pushing the page sideways. */
+  .sl-markdown-content table:not(:where(.not-content *)) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Hairline row separators, no striping — Starlight ships none and none is
+     added. Cells align on the first baseline so a one-word cell lines up with
+     the first line of the paragraph beside it. */
+  .sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+    border-bottom: 1px solid var(--color-rule);
+    padding: 0.5rem 1.5rem 0.5rem 0;
+    font-size: var(--sl-text-xs);
+    vertical-align: baseline;
+  }
+
+  .sl-markdown-content :is(th, td):last-child:not(:where(.not-content *)) {
+    padding-inline-end: 0;
+  }
+
+  /* The header row is a label, not a title: mono, gray-400, regular weight,
+     closed by the one hairline in the table that reads as an edge. */
+  .sl-markdown-content th:not(:where(.not-content *)) {
+    border-bottom-color: var(--color-rule-strong);
+    color: var(--color-gray-400);
+    font-weight: 400;
+  }
+}
+
+/* ==========================================================================
+   Sidebar
+   ========================================================================== */
+
+@layer components {
+  /* A group label is a label, like `graph_status` on the landing: 12px mono,
+     gray-400, tracked out. `.large` is also on every top-level link, so the two
+     are separated by where they sit. */
+  :where(#starlight__sidebar) summary .large {
+    color: var(--color-gray-400);
+    font-size: var(--sl-text-2xs);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
+
+  /* A hairline between top-level groups instead of a wider gap. */
+  :where(#starlight__sidebar) .top-level > li + li {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--color-rule);
+    padding-top: 0.75rem;
+  }
+
+  /* Links are one size, nested or not, and that includes the top-level ones
+     Starlight marks `.large` and sets to 16px/600: `find_cross_repo_consumers`
+     is 25 characters and still fits the indented column at 13px mono. */
+  :where(#starlight__sidebar) a {
+    border-radius: 0;
+    color: var(--color-gray-300);
+    font-size: var(--sl-text-xs);
+    font-weight: 400;
+  }
+
+  :where(#starlight__sidebar) a:hover,
+  :where(#starlight__sidebar) a:focus {
+    background-color: var(--color-raise);
+    color: var(--color-gray-100);
+  }
+
+  /* The current page is a block on `raise` with a green left edge, not an
+     accent pill. The start padding gives the 2px edge back, so the label does
+     not shift when it becomes current. */
+  :where(#starlight__sidebar) a[aria-current="page"],
+  :where(#starlight__sidebar) a[aria-current="page"]:hover,
+  :where(#starlight__sidebar) a[aria-current="page"]:focus {
+    border-inline-start: 2px solid var(--color-graph-exact);
+    padding-inline-start: 0.375rem;
+    background-color: var(--color-raise);
+    color: var(--color-gray-100);
+    font-weight: 500;
+  }
+
+  /* The mobile menu control follows the landing's button language: a square on
+     the panel behind a 1px rule, not a light circle. */
+  starlight-menu-button button {
+    border: 1px solid var(--color-rule-strong);
+    border-radius: 0;
+    background-color: var(--color-panel);
+    color: var(--color-gray-300);
+  }
+
+  starlight-menu-button [aria-expanded="true"] button {
+    background-color: var(--color-raise);
+    color: var(--color-gray-100);
+  }
+
+  /* The site title, matched to the landing's TopBar: gray-100 at the body step
+     behind a graph-repository square. */
+  .site-title {
+    gap: 0.5rem;
+    color: var(--color-gray-100);
+    font-size: var(--sl-text-sm);
+    font-weight: 500;
+  }
+
+  .site-title::before {
+    content: "";
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    background-color: var(--color-graph-repository);
+  }
+}
+
+/* ==========================================================================
+   Table of contents
+   ========================================================================== */
+
+@layer components {
+  /* "On this page" is a label, closed by a hairline: the same group separator
+     the sidebar uses. */
+  .right-sidebar-panel h2#starlight__on-this-page {
+    border-bottom: 1px solid var(--color-rule);
+    padding-bottom: 0.5rem;
+    color: var(--color-gray-400);
+    font-size: var(--sl-text-2xs);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
+
+  .right-sidebar-panel a {
+    border-radius: 0;
+    color: var(--color-gray-400);
+  }
+
+  .right-sidebar-panel a:hover {
+    background-color: var(--color-raise);
+    color: var(--color-gray-100);
+  }
+
+  /* The current heading gets the sidebar's treatment, not a colour change, so
+     both columns mark position the same way. */
+  .right-sidebar-panel a[aria-current="true"],
+  .right-sidebar-panel a[aria-current="true"]:hover {
+    border-inline-start: 2px solid var(--color-graph-exact);
+    padding-inline-start: calc(1rem * var(--depth) + 0.375rem);
+    background-color: var(--color-raise);
+    color: var(--color-gray-100);
+  }
+
+  /* The mobile disclosure, squared and put on the panel. Its rows separate on
+     the same hairline as everything else. */
+  :where(#starlight__mobile-toc) .toggle {
+    border-color: var(--color-rule-strong);
+    border-radius: 0;
+    background-color: var(--color-panel);
+    color: var(--color-gray-300);
+  }
+
+  :where(#starlight__mobile-toc[open]) .toggle,
+  :where(#starlight__mobile-toc) .toggle:hover {
+    border-color: var(--color-rule-strong);
+    color: var(--color-gray-100);
+  }
+
+  :where(#starlight__mobile-toc) .dropdown {
+    border-color: var(--color-rule);
+    background-color: var(--color-panel);
+  }
+
+  :where(#starlight__mobile-toc) .dropdown a {
+    border-top-color: var(--color-rule);
+    color: var(--color-gray-300);
+  }
+}
+
+/* ==========================================================================
+   Asides
+   ========================================================================== */
+
+@layer components {
+  /* A 2px left edge in the aside's own accent, a panel body, square corners.
+     The hue is entirely in that edge: the four `-low` surfaces are one colour,
+     so an aside reads as one component with a marked severity. */
+  .starlight-aside {
+    border-inline-start-width: 2px;
+    border-radius: 0;
+    padding: 0.875rem 1rem;
+    color: var(--color-gray-300);
+  }
+
+  /* The title is a mono label at the h4 step, not a heading two sizes up. */
+  .starlight-aside__title {
+    color: var(--color-gray-100);
+    font-size: var(--sl-text-sm);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  /* The icon takes the hue the body gave up. */
+  .starlight-aside__icon {
+    color: var(--sl-color-asides-border);
+  }
+}
+
+/* ==========================================================================
+   Search
+   ========================================================================== */
+
+@layer components {
+  /* The field is the landing's control: square, on the panel, behind a 1px
+     rule, with a mono placeholder because what gets typed here is identifiers. */
+  site-search button[data-open-modal] {
+    border-color: var(--color-rule-strong);
+    border-radius: 0;
+    background-color: var(--color-panel);
+    color: var(--color-gray-400);
+    font-size: var(--sl-text-xs);
+  }
+
+  site-search button[data-open-modal]:hover {
+    border-color: var(--color-rule-strong);
+    background-color: var(--color-raise);
+    color: var(--color-gray-100);
+  }
+
+  /* The shortcut hint nests a kbd per key inside an outer kbd, so one selector
+     covers both. */
+  site-search kbd {
+    border-radius: 0;
+    background-color: var(--color-raise);
+    color: var(--color-gray-400);
+    font-family: var(--font-mono);
+  }
+
+  site-search dialog {
+    border-color: var(--color-rule);
+    border-radius: 0;
+    background-color: var(--color-panel);
+  }
+
+  /* Pagefind draws the results, and takes its own properties. `border-radius`
+     is one of them, so the whole result list squares from here. */
+  #starlight__search {
+    --pagefind-ui-font: var(--font-mono);
+    --pagefind-ui-primary: var(--color-gray-100);
+    --pagefind-ui-text: var(--color-gray-300);
+    --pagefind-ui-background: var(--color-panel);
+    --pagefind-ui-border: var(--color-rule);
+    --pagefind-ui-tag: var(--color-raise);
+    --pagefind-ui-border-radius: 0;
+    --pagefind-ui-image-border-radius: 0;
+  }
+
+  /* Starlight rounds the first and last row of each result group with a
+     property of its own; these are the two rules that use it. */
+  #starlight__search .pagefind-ui__result-inner > :first-child,
+  #starlight__search .pagefind-ui__result-inner > :last-child {
+    border-radius: 0;
+  }
+}
+
+/* ==========================================================================
+   Corners and shadows elsewhere
+   ========================================================================== */
+
+@layer components {
+  /* Everything else Starlight rounds. Radius is 0 across the skin, so these are
+     squared where they are declared rather than one by one further down. */
+  .sl-markdown-content .sl-link-card,
+  .sl-markdown-content .card,
+  .sl-markdown-content .card .icon,
+  .sl-markdown-content .sl-link-button,
+  .sl-markdown-content .sl-badge,
+  .pagination-links a {
+    border-radius: 0;
+  }
+
+  /* A card is a panel behind a hairline, like the landing's figures. */
+  .sl-markdown-content .sl-link-card,
+  .sl-markdown-content .card,
+  .pagination-links a {
+    border-color: var(--color-rule);
+    background-color: var(--color-panel);
+  }
+
+  .sl-markdown-content .sl-link-card:hover,
+  .pagination-links a:hover {
+    border-color: var(--color-rule-strong);
+    background-color: var(--color-raise);
+  }
+
+  /* Pagination titles come in at 24px by default, which outweighs the page's
+     own h2. */
+  .pagination-links .link-title {
+    font-size: var(--sl-text-sm);
+    font-weight: 500;
+  }
+
+  /* Tabs: a hairline strip, a mono label, and the selected tab marked by the
+     accent underline Starlight already draws with `box-shadow`. */
+  .sl-markdown-content [role="tablist"] {
+    border-bottom-width: 1px;
+    border-bottom-color: var(--color-rule);
+  }
+
+  .sl-markdown-content .tab > [role="tab"] {
+    font-size: var(--sl-text-xs);
+  }
+}
+
+/* ==========================================================================
+   Focus and selection
+   ========================================================================== */
+
+@layer base {
+  /* The focus ring the landing uses. It sits in `base` on purpose: Starlight
+     pulls the outline inside a few clipped controls with
+     `--sl-outline-offset-inside`, and those rules are in a higher layer, so
+     they still win on the offset while the colour applies everywhere. */
+  :focus-visible {
+    outline: 1px solid var(--color-accent-200);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-900);
+    color: var(--color-gray-100);
+  }
+}

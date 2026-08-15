@@ -1,0 +1,137 @@
+---
+import Transcript from "./Transcript.astro";
+import type { Line } from "./transcript";
+
+const claims = [
+  "Edges are resolved by go/types, the TypeScript checker and rust-analyzer. Never by matching a name, a path, an alias or a single plausible candidate.",
+  "An empty reference list means nobody calls it, not that nothing was found. Grep cannot tell those apart.",
+  "Two homonymous methods are two different symbols, with different kinds and different ranges.",
+  "A reference that cannot be resolved is published as UNRESOLVED with its reason, repository and language rather than dropped, and CANDIDATE is a different result from EXACT.",
+];
+
+const absence: Line[] = [
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "find_cross_repo_consumers", tone: "tool" },
+  ],
+  [
+    {
+      text: '{"repository":"ladygraph","path":"internal/facts/facts.go",',
+      tone: "dim",
+    },
+  ],
+  [{ text: ' "qualified_name":"MergeAll"}', tone: "dim" }],
+  [],
+  [{ text: "# total 0   returned 0   consumers null", tone: "dim" }],
+  [
+    { text: "guidance: ", tone: "dim" },
+    { text: "no repository in the published graph consumes this" },
+  ],
+  [{ text: "          symbol. Check graph_status if a consumer is" }],
+  [{ text: "          registered but was not indexed, and" }],
+  [{ text: "          find_references for uses inside its own" }],
+  [{ text: "          repository" }],
+];
+
+const homonyms: Line[] = [
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "find_symbol", tone: "tool" },
+  ],
+  [
+    {
+      text: '{"name":"Merge","mode":"substring","repo":"ladygraph","limit":5}',
+      tone: "dim",
+    },
+  ],
+  [],
+  [{ text: "# total 3   returned 3; the first row:", tone: "dim" }],
+  [
+    { text: "MergeAll  ", tone: "symbol" },
+    { text: " func    ", tone: "dim" },
+    { text: "ladygraph " },
+    { text: "internal/facts/facts.go:516-542", tone: "file" },
+  ],
+  [],
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "get_symbol", tone: "tool" },
+  ],
+  [{ text: '{"qualified_name":"Set.Merge"}', tone: "dim" }],
+  [],
+  [
+    { text: "Set.Merge ", tone: "symbol" },
+    { text: " method  ", tone: "dim" },
+    { text: "ladygraph " },
+    { text: "internal/facts/facts.go:505-507", tone: "file" },
+  ],
+  [
+    { text: "signature  func(other ", tone: "dim" },
+    { text: "github.com/Luqueee/ladygraph/internal/facts.Set" },
+    { text: ")", tone: "dim" },
+  ],
+  [],
+  [{ text: "# one file, two symbols, two kinds, two ranges", tone: "dim" }],
+];
+
+const notFound: Line[] = [
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "get_symbol", tone: "tool" },
+  ],
+  [
+    {
+      text: '{"repository":"ladygraph","qualified_name":"NoSuchThing"}',
+      tone: "dim",
+    },
+  ],
+  [],
+  [
+    { text: "SYMBOL_NOT_FOUND: " },
+    { text: 'qualified name "NoSuchThing" was not', tone: "dim" },
+  ],
+  [
+    {
+      text: "found under ladygraph; call it without repository and",
+      tone: "dim",
+    },
+  ],
+  [{ text: "path to search the whole graph", tone: "dim" }],
+];
+---
+
+<div
+  class="grid grid-cols-1 items-baseline gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
+>
+  <div>
+    <p class="max-w-[68ch] text-sm text-gray-300">
+      The edges are resolved by the language's own checker, not by matching
+      names. That is the difference from a search tool, and it is what makes an
+      empty answer worth something.
+    </p>
+    <ol class="mt-10 space-y-5">
+      {
+        claims.map((claim, index) => (
+          <li class="flex gap-3 border-t border-rule pt-5 text-xs text-gray-400">
+            <span class="shrink-0 text-graph-exact" aria-hidden="true">
+              {`0${index + 1}`}
+            </span>
+            <span>{claim}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <div class="space-y-5">
+    <Transcript
+      caption="an absence, captured: nobody imports this symbol"
+      lines={absence}
+    />
+    <Transcript
+      caption="two symbols named for Merge, captured"
+      lines={homonyms}
+    />
+    <Transcript caption="an error, captured: isError true" lines={notFound} />
+  </div>
+</div>

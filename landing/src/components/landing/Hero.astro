@@ -1,0 +1,189 @@
+---
+import CopyButton from "./CopyButton.astro";
+
+const installCommand =
+  "curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash";
+
+const facts = [
+  "local only",
+  "MCP over stdio",
+  "11 tools, ten read-only",
+  "linux/amd64, darwin/arm64",
+  "Apache-2.0",
+];
+
+// One published generation, as `graph_status` reported it on 2026-08-15.
+const readout = [
+  ["repositories", "2"],
+  ["packages", "57"],
+  ["files", "311"],
+  ["symbols", "10,957"],
+  ["edges", "40,125"],
+  ["unresolved", "1,642"],
+];
+---
+
+<section class="stage">
+  <canvas
+    id="hero-graph"
+    class="field"
+    role="img"
+    aria-label="A synthetic code graph: repositories holding packages, files and symbols, with cross-repository dependencies between them."
+  ></canvas>
+  <div class="scrim" aria-hidden="true"></div>
+
+  <div class="mx-auto box-border w-full max-w-6xl px-6 py-14">
+    <div class="relative max-w-xl">
+      <h1
+        class="text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-4xl"
+      >
+        A canonical code graph for Go, TypeScript and Rust
+      </h1>
+      <p class="mt-5 text-sm text-gray-300">
+        Ladygraph indexes repositories locally and serves cross-repository code
+        intelligence to any MCP client over stdio. Every exact edge carries the
+        evidence that produced it.
+      </p>
+
+      <div class="mt-10 border border-rule bg-panel">
+        <div
+          class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
+        >
+          <span>install the latest release</span>
+          <CopyButton value={installCommand} />
+        </div>
+        <pre
+          class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
+      </div>
+      <p class="mt-3 text-xs text-gray-400">
+        The installer detects the platform, verifies the release archive and the
+        bundle checksums, and installs into <code>~/.local/opt/ladygraph</code>.
+        It never modifies a registered repository, creates an index, or replaces
+        a configuration file.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-center gap-3 text-xs">
+        <a
+          href="/install/"
+          class="border border-rule-strong bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
+          >install guide</a
+        >
+        <a
+          href="https://github.com/Luqueee/ladygraph"
+          class="border border-rule px-4 py-2 text-gray-300 transition-colors hover:border-rule-strong hover:text-gray-100"
+          >github.com/Luqueee/ladygraph</a
+        >
+      </div>
+
+      <ul class="mt-10 flex flex-wrap gap-y-2 text-xs text-gray-400">
+        {
+          facts.map((fact) => (
+            <li class="mr-3 border-l border-rule-strong pl-3 first:border-l-0 first:pl-0">
+              {fact}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div class="relative border-t border-rule">
+    <div
+      class="mx-auto box-border flex w-full max-w-6xl flex-wrap items-baseline gap-x-6 gap-y-2 px-6 py-3 text-xs"
+    >
+      <dl class="flex flex-wrap gap-x-6 gap-y-2">
+        {
+          readout.map(([label, value]) => (
+            <div class="flex items-baseline gap-2">
+              <dt class="text-gray-400">{label}</dt>
+              <dd class="text-gray-100">{value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+      <p class="text-gray-400">
+        one published generation, as <code>graph_status</code> reports it; the
+        references it could not resolve are counted, not hidden
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* The field bleeds off the right edge so its centre lands in the empty half
+     of the grid, and the copy column keeps a near-solid ground under it. The
+     canvas takes no pointer input: hero-graph.ts installs no listeners, and
+     this keeps it out of the way of the links that overlap it.
+
+     There is deliberately no border-bottom here: the first Section band draws
+     its own border-top, and two adjacent hairlines read as one 2px rule that no
+     other seam on the page has. */
+  .stage {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .field {
+    position: absolute;
+    top: 50%;
+    right: -6%;
+    /* Both axes are stated. Leaving one to the intrinsic size lets the drawing
+       buffer feed back into the element box and the canvas grows without
+       bound. */
+    width: min(58vw, 780px);
+    height: min(58vw, 780px);
+    transform: translateY(-50%);
+    opacity: 0.85;
+    pointer-events: none;
+    z-index: -2;
+  }
+
+  /* Four stops rather than one: the copy needs page colour under it, the field
+     needs to stay readable as a field, and the seam between them must not show
+     as a band. */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        to right,
+        var(--color-shell) 0%,
+        var(--color-shell) 34%,
+        color-mix(in oklab, var(--color-shell) 82%, transparent) 56%,
+        transparent 78%
+      ),
+      linear-gradient(to bottom, var(--color-shell) 0%, transparent 22%),
+      linear-gradient(to top, var(--color-shell) 0%, transparent 26%);
+  }
+
+  /* Narrow screens put the copy over the middle of the field, so it drops to a
+     texture and legibility wins. */
+  @media (max-width: 63.99rem) {
+    .field {
+      opacity: 0.4;
+    }
+
+    .scrim {
+      background:
+        linear-gradient(
+          to right,
+          var(--color-shell) 0%,
+          color-mix(in oklab, var(--color-shell) 88%, transparent) 62%,
+          color-mix(in oklab, var(--color-shell) 70%, transparent) 100%
+        ),
+        linear-gradient(to bottom, var(--color-shell) 0%, transparent 18%);
+    }
+  }
+</style>
+
+<script>
+  import { startHeroGraph } from "../../lib/hero-graph";
+
+  const canvas = document.getElementById("hero-graph");
+  if (canvas instanceof HTMLCanvasElement) {
+    startHeroGraph(canvas);
+  }
+</script>

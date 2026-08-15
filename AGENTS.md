@@ -458,25 +458,86 @@ repositorio y en demostrar una ausencia.
   `meshPerAttribute * count` entre los atributos instanciados, `0` sin
   ninguno - para que ninguna librería pueda llevar un `Infinity` a
   `drawIndexed`.
-- `site/` es la landing pública y la documentación de usuario, en Astro con
+- `landing/` es la landing pública y la documentación de usuario, en Astro con
   Starlight, y es su propio proyecto pnpm como `ts-worker/` y `web/`. No entra
   en ningún bundle: el payload de `scripts/build-bundle.sh` es una lista blanca
   y el workflow de release comprueba que ni el directorio ni una línea de
-  `SHA256SUMS` lo nombran. Se verifica con `make site-check` y `make
-  site-build`, y se sirve con `pm2 start site/ecosystem.config.cjs` en el
+  `SHA256SUMS` lo nombran. Se verifica con `make landing-check` y `make
+  landing-build`, y se sirve con `pm2 start landing/ecosystem.config.cjs` en el
   puerto `6767`.
-- La documentación de `site/` está escrita para quien usa Ladygraph y sale de
+- La landing no es una página de Starlight: su shell es
+  `landing/src/components/landing/Layout.astro` y sus componentes viven en ese
+  mismo directorio; sólo la documentación lleva el chrome de Starlight
+  -sidebar, Pagefind, tabla de contenidos-. Es oscura por construcción, como el
+  visor: los overrides de `landing/src/components/starlight/` fijan
+  `data-theme="dark"` y no montan selector, porque la paleta clara de Starlight
+  vive entera bajo `[data-theme='light']` y basta con no seleccionarla nunca.
+- `global.css` importa las utilities de Tailwind dentro de la capa `utilities` y
+  no importa preflight, así que una página fuera de Starlight no tiene reset y
+  **una regla de componente sin capa gana a cualquier utility**, tenga la
+  especificidad que tenga. El reset de la landing es por eso un `@layer base`
+  con `:global()` dentro del shell: sin la capa, una regla como `p { margin: 0 }`
+  anulaba en silencio cada `mt-*` de la página. Un grid que deba encogerse
+  declara además su columna base -`grid-cols-1`-, porque la columna implícita
+  la dimensiona el hijo más ancho y un `<pre>` desbordaba el viewport.
+- Las dos mitades del sitio llevan la misma piel y **una sola declaración de
+  paleta**: los tokens viven en el `@theme` de `global.css` y nadie escribe un
+  literal de color en otro sitio. Las superficies son `--color-shell`,
+  `--color-panel`, `--color-raise`, `--color-rule` y `--color-rule-strong`, y
+  sus nombres evitan un prefijo `t-` a propósito: `border-t-<color>` es la
+  utility de `border-top-color` de Tailwind, así que un `--color-t-line` haría
+  que `border-t-line` significase dos cosas. La prosa es `--color-gray-300`, las
+  etiquetas `--color-gray-400`, y nada más tenue que eso lleva texto.
+- `landing/src/styles/docs.css` es la piel de Starlight y **sólo** entra por
+  `customCss` después de `global.css`: la landing no lo carga. Reasigna las
+  propiedades `--sl-*` -- que existen todas en
+  `node_modules/@astrojs/starlight/style/props.css`, nunca se inventa un
+  nombre -- y las `--ec-*` de Expressive Code a esos tokens. Todo radio es `0`
+  y no hay sombras.
+- La jerarquía de encabezados es la misma en las dos mitades y la lleva un
+  marcador monoespaciado, no el tamaño: la landing pone un índice tenue (`01`,
+  `#`) delante de un título `--color-gray-100`, y los docs ponen `##` en `h2` y
+  `#` en `h3`. Un `h2` de sección manda sobre todo subtítulo. Lo que es una
+  etiqueta -- cabecera de columna, pie de figura, clave de una fila -- se queda
+  en `--color-gray-400` y **fuera** de la jerarquía: los rótulos de columna del
+  footer eran `h2` con estilo de subtítulo y ahora el footer no aporta ningún
+  encabezado.
+- El filete sobre un `h2` de la documentación va en `.sl-heading-wrapper`, no en
+  el `h2`: Starlight lo deja `display: inline` para que el ancla quepa al final
+  de la última línea, así que un borde en el propio `h2` abrazaría las palabras
+  en vez de cruzar la columna. Medir `main h2` devuelve `0px` y no significa que
+  la regla esté muerta.
+- El ritmo vertical de la landing se declara en `Section.astro` y se aplica sin
+  excepciones: `py-14` por banda, `mt-10` de cabecera a contenido y entre
+  bloques, `mt-5` de subtítulo a su bloque, `mt-3` de bloque a su nota. Dos
+  bandas contiguas quedan a `7rem` y dos bloques de una banda a `5rem`, que es
+  lo que evita que se lean como una sola.
+- Una fila de puntos suspensivos (`LeaderRow.astro`) no puede solapar a su
+  vecina: clave y valor son `min-w-0` y la fila envuelve, porque con los dos
+  extremos `shrink-0` el ancho mínimo de la fila excedía su pista de grid y
+  `snapshot_built_at 2026-08-15T11:14:10Z` se metía encima de `schema_version`.
+  Las rejillas de lectura usan `auto-fit` con `minmax(min(20rem,100%),1fr)`, así
+  que sólo se añade columna cuando cabe entera.
+- La documentación de `landing/` está escrita para quien usa Ladygraph y sale de
   las fuentes del repositorio -`cmd/ladygraph/help.go`, `internal/config`,
   `internal/mcp/tools`, `README.md`-, copiadas literalmente cuando son un
   contrato. `docs/` sigue siendo material interno de ingeniería -ADRs,
   informes de cualificación- y no se publica.
-- El lienzo del hero (`site/src/lib/hero-graph.ts`) es un grafo sintético en
+- La referencia de tools documenta la superficie que `internal/mcp/server.go`
+  registra, no el paquete `internal/mcp/tools`: son once tools, `get_source`
+  entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta
+  la contesta el CLI. Sin generación publicada sólo se registra
+  `index_project`, y la documentación lo dice donde se instala.
+- El lienzo del hero (`landing/src/lib/hero-graph.ts`) es un grafo sintético en
   2D, sin three.js ni reagraph, y no importa nada de `web/`. Toma la paleta de
   las propiedades `--color-graph-*` de `global.css`, que son los literales de
   `web/src/renderer/reagraph.ts`, y dibuja bajo demanda: un
   `IntersectionObserver` detiene el bucle fuera de pantalla y
   `prefers-reduced-motion: reduce` pinta un solo fotograma sin instalar bucle
-  alguno.
+  alguno. No acepta entrada de puntero: es una figura, no un control, y no
+  instala ningún listener. El elemento declara ancho **y** alto en CSS; dejar
+  uno al tamaño intrínseco hace que el drawing buffer realimente la caja y el
+  canvas crece sin límite.
 
 ## Rust
 
@@ -909,11 +970,11 @@ pnpm check
 pnpm build
 ```
 
-Si afecta `site/`:
+Si afecta `landing/`:
 
 ```bash
-make site-check
-make site-build
+make landing-check
+make landing-build
 ```
 
 Para cambios de instalación local, ejecutar el flujo con un `HOME` temporal y

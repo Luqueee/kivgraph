@@ -1,0 +1,140 @@
+---
+import CopyButton from "./CopyButton.astro";
+import SubHead from "./SubHead.astro";
+import Transcript from "./Transcript.astro";
+import type { Line } from "./transcript";
+
+const steps = [
+  {
+    title: "register a repository",
+    command:
+      "ladygraph init \\\n  --repository project=/absolute/path/to/project \\\n  --languages go,typescript,rust",
+    note: "--repository NAME=PATH may be repeated. The name is compared exactly, and it travels inside the stable keys of everything the repository declares.",
+  },
+  {
+    title: "check the machine",
+    command: "ladygraph doctor",
+    note: "doctor reports the configuration, the toolchains it found and the state of the published graph. It names the language version ceiling this binary type-checks Go with, which is not the go on your PATH.",
+  },
+  {
+    title: "index and publish",
+    command: "ladygraph index --full",
+    note: "The pass analyses every registered repository, validates the canonical graph and publishes it as a new generation. Publication is atomic: a candidate that fails integrity or validation never becomes CURRENT, and the previous generation keeps serving.",
+  },
+  {
+    title: "register the client",
+    command: "ladygraph mcp install --scope user",
+    note: "Detects the coding agents on this machine and writes the entry after you select them. Supported targets: claude-code, claude-desktop, codex, opencode and oh-my-pi.",
+  },
+];
+
+const clientConfig = `{
+  "mcpServers": {
+    "ladygraph": {
+      "command": "/home/user/.local/bin/ladygraph",
+      "args": [
+        "serve",
+        "--config",
+        "/home/user/.config/ladygraph/config.yaml"
+      ]
+    }
+  }
+}`;
+
+const consent: Line[] = [
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "index_project", tone: "tool" },
+    { text: "        # confirmed unset", tone: "dim" },
+  ],
+  [],
+  [
+    { text: "PERMISSION_REQUIRED: " },
+    { text: "user approval is required; confirm the", tone: "dim" },
+  ],
+  [{ text: "operation before setting confirmed=true", tone: "dim" }],
+];
+---
+
+<p class="max-w-[68ch] text-sm text-gray-300">
+  Register, check, index, connect. Nothing answers until a generation exists, so
+  that order is the whole setup.
+</p>
+
+<ol class="mt-10">
+  {
+    steps.map((step, index) => (
+      <li class="border-t border-rule py-5">
+        <SubHead title={step.title} marker={`0${index + 1}`}>
+          <CopyButton value={step.command} />
+        </SubHead>
+        <pre class="mt-5 overflow-x-auto border border-rule bg-panel px-4 py-3 text-xs leading-5"><code><span class="text-graph-exact select-none">$ </span>{step.command}</code></pre>
+        <p class="mt-3 max-w-[68ch] text-xs text-gray-400">{step.note}</p>
+      </li>
+    ))
+  }
+</ol>
+
+<div
+  class="mt-10 grid grid-cols-1 items-baseline gap-10 border-t border-rule pt-10 lg:grid-cols-2"
+>
+  <div>
+    <SubHead title="or wire a client by hand">
+      <CopyButton value={clientConfig} />
+    </SubHead>
+    <pre class="mt-5 overflow-x-auto border border-rule bg-panel px-4 py-3 text-xs leading-5 text-gray-300"><code>{clientConfig}</code></pre>
+    <p class="mt-3 max-w-[68ch] text-xs text-gray-400">
+      <code>serve</code> is stdio and opens no port. It writes MCP framing to <code
+        >stdout</code
+      > and logs to <code>stderr</code>, and it follows the published generation:
+      an <code>index --full</code> in another terminal cannot leave it answering
+      from a graph that no longer exists on disk.
+    </p>
+  </div>
+
+  <div>
+    <SubHead title="before you start" />
+    <ul class="mt-5 space-y-3 text-xs text-gray-400">
+      <li>
+        Runtime for the installed bundle: Bash, Node.js 22 or later, <code
+          >curl</code
+        >, <code>tar</code>, and <code>sha256sum</code> or <code>shasum</code>.
+      </li>
+      <li>
+        The bundle carries its own <code>rust-analyzer</code>. Indexing Rust
+        additionally needs <code>cargo</code> on the <code>PATH</code>, because
+        the analyzer cannot load a Cargo workspace without it.
+      </li>
+      <li>
+        <code>index_project</code> is the only tool that writes. Without <code
+          >confirmed=true</code
+        > it refuses, and it never writes inside the source projects.
+      </li>
+    </ul>
+    <div class="mt-3">
+      <Transcript
+        caption="captured: index_project, isError true"
+        lines={consent}
+      />
+    </div>
+  </div>
+</div>
+
+<ul class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+  <li>
+    <a href="/quickstart/" class="text-accent-200 underline underline-offset-4"
+      >the quickstart in full</a
+    >
+  </li>
+  <li>
+    <a href="/mcp/clients/" class="text-accent-200 underline underline-offset-4"
+      >MCP clients</a
+    >
+  </li>
+  <li>
+    <a
+      href="/guides/indexing/"
+      class="text-accent-200 underline underline-offset-4">indexing guide</a
+    >
+  </li>
+</ul>

@@ -1,0 +1,17 @@
+---
+// Ladygraph is dark by construction, like the graph viewer it documents.
+// Starlight's default provider reads a stored preference and the system one,
+// and its light palette lives entirely under `[data-theme='light']`; pinning
+// the attribute here is what keeps that palette from ever being selected.
+//
+// `updatePickers` stays defined and does nothing: Starlight's own scripts call
+// it, and there is no picker to update because ThemeSelect is overridden too.
+---
+
+{/* Inlined, like the component it replaces, to avoid a flash of wrong theme. */}
+<script is:inline>
+  window.StarlightThemeProvider = {
+    updatePickers() {},
+  };
+  document.documentElement.dataset.theme = "dark";
+</script>

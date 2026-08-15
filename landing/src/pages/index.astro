@@ -1,0 +1,48 @@
+---
+import Footer from "../components/landing/Footer.astro";
+import Hero from "../components/landing/Hero.astro";
+import Languages from "../components/landing/Languages.astro";
+import Layout from "../components/landing/Layout.astro";
+import NotGrep from "../components/landing/NotGrep.astro";
+import Quickstart from "../components/landing/Quickstart.astro";
+import Routing from "../components/landing/Routing.astro";
+import Section from "../components/landing/Section.astro";
+import Session from "../components/landing/Session.astro";
+import Snapshot from "../components/landing/Snapshot.astro";
+import Tradeoffs from "../components/landing/Tradeoffs.astro";
+import TopBar from "../components/landing/TopBar.astro";
+
+// `output: "server"` makes on-demand rendering the default for src/pages, and
+// there is nothing dynamic on this page.
+export const prerender = true;
+---
+
+<Layout
+  title="Ladygraph: a canonical code graph for Go, TypeScript and Rust"
+  description="Ladygraph indexes Go, TypeScript and Rust repositories locally and serves a canonical code graph to any MCP client over stdio."
+>
+  <TopBar />
+  <main id="main">
+    <Hero />
+    <Section index="01" title="what it answers" id="answers">
+      <Routing />
+      <Session />
+    </Section>
+    <Section index="02" title="not grep" id="not-grep">
+      <NotGrep />
+    </Section>
+    <Section index="03" title="where it loses" id="tradeoffs">
+      <Tradeoffs />
+    </Section>
+    <Section index="04" title="languages" id="languages">
+      <Languages />
+    </Section>
+    <Section index="05" title="the published snapshot" id="snapshot">
+      <Snapshot />
+    </Section>
+    <Section index="06" title="quickstart" id="quickstart">
+      <Quickstart />
+    </Section>
+  </main>
+  <Footer />
+</Layout>

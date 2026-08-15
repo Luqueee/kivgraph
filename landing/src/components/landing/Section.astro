@@ -1,0 +1,66 @@
+---
+// The vertical rhythm of the whole landing page is defined here and nowhere
+// else. Four steps, and every vertical margin on the page is one of them:
+//
+//   py-14   (3.5rem)  a band's own top and bottom padding, identical for every
+//                     section and for the footer. Two bands therefore sit 7rem
+//                     apart across their hairline while two blocks inside one
+//                     band sit 5rem apart, so a band can never read as a
+//                     continuation of the one above it.
+//   mt-10   (2.5rem)  a section head to its content, and one block to the next
+//                     block. Where a hairline separates two blocks it is
+//                     centred in that space: `mt-10 border-t border-rule
+//                     pt-10`. The gaps of a grid of blocks use the same step:
+//                     `gap-10`.
+//   mt-5    (1.25rem) a subsection head to the block it opens; a trailing
+//                     pointer link below the block it points out of; and the
+//                     padding of a hairline-separated row inside a list, as
+//                     `border-t border-rule py-5` or `space-y-5` + `pt-5`,
+//                     which puts 1.25rem on each side of the row's rule and so
+//                     leaves 2.5rem between two rows' content.
+//   mt-3    (0.75rem) a block to the note, caption or legend that explains it.
+//
+// A subsection is therefore always the same three gaps:
+//
+//   (mt-10 [hairline] pt-10) SubHead -> mt-5 block -> mt-3 note
+//
+// A head has twice the air above it that it has below, which is what makes it
+// read as opening its block rather than labelling the line under it.
+//
+// Inside a block, rows are spaced with gap-2 (a key/value or data row) or
+// space-y-3 (a list of prose items). Those are intra-block and not part of the
+// scale above.
+//
+// Prose is capped at max-w-[68ch] rather than at a rem width, so the measure is
+// the same count of characters whether the paragraph is text-sm or text-xs, and
+// a transcript column cannot drag it wider: every grid that holds one declares
+// grid-cols-1 and minmax(0,1fr) tracks, and the transcript scrolls inside it.
+//
+// A grid of blocks also carries items-baseline, so two blocks side by side line
+// up on their first baseline rather than on their box tops.
+//
+// The head below is the strongest thing in its band: a two-digit mono index and
+// a text-lg/text-xl title. SubHead.astro is one step quieter and is the only
+// other heading pattern on the page.
+interface Props {
+  index: string;
+  title: string;
+  id: string;
+}
+
+const { index, title, id } = Astro.props;
+---
+
+<section id={id} class="border-t border-rule">
+  <div class="mx-auto box-border w-full max-w-6xl px-6 py-14">
+    <div class="flex items-baseline gap-3">
+      <span class="text-xs text-gray-400" aria-hidden="true">{index}</span>
+      <h2 class="text-lg font-medium tracking-tight text-gray-100 sm:text-xl">
+        {title}
+      </h2>
+    </div>
+    <div class="mt-10">
+      <slot />
+    </div>
+  </div>
+</section>

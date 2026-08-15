@@ -1,0 +1,53 @@
+---
+import { TONE_CLASS, type Line } from "./transcript";
+
+interface Props {
+  caption: string;
+  lines: Line[];
+  caret?: boolean;
+}
+
+const { caption, lines, caret = false } = Astro.props;
+---
+
+<figure class="border border-rule bg-panel">
+  <figcaption
+    class="flex items-center gap-2 border-b border-rule px-4 py-2 text-xs text-gray-400"
+  >
+    <span
+      class="inline-block h-2 w-2 shrink-0 bg-graph-repository"
+      aria-hidden="true"></span>
+    {caption}
+  </figcaption>
+  <pre
+    class="overflow-x-auto px-4 py-3 text-xs leading-5 text-gray-300"><code>{lines.map((line) => <span class="block whitespace-pre">{line.length === 0 ? " " : line.map((piece) => piece.tone === undefined ? piece.text : <span class={TONE_CLASS[piece.tone]}>{piece.text}</span>)}</span>)}{caret && <span class="block whitespace-pre"><span class="caret" aria-hidden="true"></span></span>}</code></pre>
+</figure>
+
+<style>
+  /* The only motion on the page, and it stops under prefers-reduced-motion. */
+  .caret {
+    display: inline-block;
+    width: 0.6em;
+    height: 1.05em;
+    vertical-align: text-bottom;
+    background-color: var(--color-graph-exact);
+    animation: terminal-caret 1.2s steps(1, end) infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .caret {
+      animation: none;
+    }
+  }
+
+  @keyframes terminal-caret {
+    0%,
+    49.9% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+</style>

@@ -1,0 +1,151 @@
+---
+// The standalone shell for the terminal variant. It imports nothing from
+// Starlight: `--sl-color-*` does not exist outside a Starlight page, so the
+// page runs on the Tailwind theme in global.css alone. The surfaces it needs
+// (shell, panel, raise, rule, rule-strong) are declared there, in `@theme`,
+// and shared with the documentation.
+import "../../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" />
+  </head>
+  <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-10 focus:border focus:border-rule-strong focus:bg-panel focus:px-3 focus:py-2 focus:text-xs"
+      >Skip to content</a
+    >
+    <slot />
+  </body>
+</html>
+
+<style>
+  /* global.css imports the Tailwind theme and utilities but no preflight, and
+     Starlight's reset only runs on Starlight pages. This is the reset for this
+     page. It sits in the base layer so every utility still wins over it. */
+  @layer base {
+    :global(*),
+    :global(*::before),
+    :global(*::after) {
+      box-sizing: border-box;
+    }
+
+    /* The two declarations that used to sit inline on <html>. The surfaces are
+       theme tokens now, so there is nothing left to declare there, and the
+       shell colour is kept on the root as well as on <body> so an overscroll
+       past the body still paints page colour rather than white. */
+    :global(html) {
+      color-scheme: dark;
+      background-color: var(--color-shell);
+    }
+
+    :global(body) {
+      margin: 0;
+      font-size: 0.875rem;
+      line-height: 1.55;
+    }
+
+    :global(h1),
+    :global(h2),
+    :global(h3),
+    :global(p),
+    :global(pre),
+    :global(figure),
+    :global(figcaption),
+    :global(ul),
+    :global(ol),
+    :global(dl),
+    :global(dd) {
+      margin: 0;
+      font-size: inherit;
+      font-weight: inherit;
+    }
+
+    :global(ul),
+    :global(ol) {
+      padding: 0;
+      list-style: none;
+    }
+
+    :global(a) {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    :global(button) {
+      appearance: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: inherit;
+      cursor: pointer;
+    }
+
+    :global(table) {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    :global(th) {
+      font-weight: inherit;
+      text-align: left;
+    }
+
+    :global(pre),
+    :global(code) {
+      font-family: var(--font-mono);
+    }
+
+    :global(code) {
+      color: var(--color-gray-100);
+    }
+
+    :global(p code),
+    :global(li code),
+    :global(td code),
+    :global(dd code) {
+      padding: 0.05em 0.3em;
+      background-color: var(--color-raise);
+    }
+
+    :global(:focus-visible) {
+      outline: 1px solid var(--color-accent-200);
+      outline-offset: 2px;
+    }
+
+    :global(::selection) {
+      background-color: var(--color-accent-900);
+      color: var(--color-gray-100);
+    }
+  }
+
+  /* Unlayered, so it overrides anything a utility asks for. */
+  @media (prefers-reduced-motion: reduce) {
+    :global(*),
+    :global(*::before),
+    :global(*::after) {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
