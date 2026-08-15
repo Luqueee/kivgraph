@@ -19,14 +19,19 @@ export default defineConfig({
       title: "Ladygraph",
       description:
         "A canonical code graph for Go, TypeScript and Rust, served over MCP.",
-      favicon: "/favicon.svg",
+      // The mark is a raster: there is no favicon.svg to prefer. Starlight
+      // emits this one, and Head adds the 16px and the Apple tile.
+      favicon: "/favicon-32.png",
       // global.css declares the tokens for both halves of the site; docs.css
       // is the Starlight-only skin that dresses these pages like the landing.
       // Order matters: the skin reads tokens the first file declares.
       customCss: ["./src/styles/global.css", "./src/styles/docs.css"],
-      // Dark only, like the graph viewer. The provider pins the attribute and
-      // the select has nothing left to offer.
+      // Dark only, like the graph viewer: the provider pins the attribute and
+      // the select has nothing left to offer. Head adds what Starlight omits --
+      // structured data, the Twitter card body, the icon set, and the links an
+      // agent follows to the markdown source.
       components: {
+        Head: "./src/components/starlight/Head.astro",
         ThemeProvider: "./src/components/starlight/ThemeProvider.astro",
         ThemeSelect: "./src/components/starlight/ThemeSelect.astro",
       },
@@ -63,7 +68,7 @@ export default defineConfig({
           ],
         },
         {
-          label: "Reference",
+          label: "Docs",
           items: [
             { label: "CLI", slug: "reference/cli" },
             { label: "MCP tools", slug: "reference/mcp-tools" },

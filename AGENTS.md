@@ -544,6 +544,53 @@ repositorio y en demostrar una ausencia.
   `snapshot_built_at 2026-08-15T11:14:10Z` se metía encima de `schema_version`.
   Las rejillas de lectura usan `auto-fit` con `minmax(min(20rem,100%),1fr)`, así
   que sólo se añade columna cuando cabe entera.
+- El SEO del sitio está escrito para dos lectores y el segundo es un agente. Lo
+  que existe para él: `/llms.txt` con el índice y `/llms-full.txt` con toda la
+  documentación en una sola petición, más el markdown de cada página en
+  `/raw/<ruta>.md`, que es lo que anuncia su `<link rel="alternate">`. Los tres
+  se generan con `getCollection`, nunca desde una lista escrita a mano: una
+  página nueva no puede dejarlos rancios.
+- `robots.txt` permite explícitamente a los rastreadores de IA y **cada token
+  sale de la documentación de su operador**, con la URL y la fecha impresas en
+  el propio fichero. Un token que no se pueda verificar no entra. Tres de ellos
+  -`ChatGPT-User`, `Perplexity-User`, `Meta-ExternalFetcher`- los publican sus
+  operadores advirtiendo que pueden ignorar `robots.txt`: se nombran porque un
+  permiso ignorado no cuesta nada, y el comentario lo dice en vez de sugerir un
+  control que quizá no obliga.
+- Toda URL absoluta se deriva de `Astro.site`, nunca de un literal: el
+  despliegue fija `LADYGRAPH_LANDING_URL` y un host escrito a mano publicaría el
+  canonical de otra máquina. Los hechos del proyecto -nombre, lema, repositorio,
+  licencia, la lista de tools- viven una sola vez en `landing/src/pages/_seo.ts`,
+  que consumen el shell de la landing, el override de `Head` y los tres
+  endpoints.
+- El JSON-LD del sitio es **un** grafo: la landing publica
+  `SoftwareApplication` en `<site>/#software` y `WebSite` en `<site>/#website`, y
+  cada página de documentación emite un `TechArticle` que los referencia por
+  `@id` en vez de duplicarlos. El `BreadcrumbList` es un nodo hermano, no una
+  propiedad del artículo: schema.org pone `breadcrumb` sólo en `WebPage`.
+- El override `Head` añade únicamente lo que Starlight no emite. Starlight ya
+  escribe el título, la descripción, el canonical y `twitter:card`, así que
+  repetir cualquiera de los cuatro es un defecto, no una redundancia inocua.
+- Los iconos son assets commiteados, no un paso de build:
+  `landing/scripts/icons.sh` los genera desde una imagen cuadrada con
+  ImageMagick o, en su defecto, con `sips`, y falla cerrado sin ninguno de los
+  dos. CI corre en Linux y nunca lo ejecuta. El maskable deja la marca dentro
+  del 80 % central porque el lanzador recorta a un círculo, y `og.png` es la
+  marca centrada en 1200x630.
+- El lienzo de un icono rellenado es `--bg`, y tiene que ser **el color de fondo
+  de la propia imagen fuente**, no el de la página: la marca actual trae
+  `#0f1117` y rellenar con `#0a0b0d` dejaba un recuadro visible dentro de
+  `og.png` y del maskable. Por eso `background_color` del manifest es `#0f1117`
+  -- es el campo que el lanzador pinta detrás del icono -- mientras `theme_color`
+  sigue siendo el `#0a0b0d` del sitio.
+- `--zoom` recorta la fuente a su centro antes de escalar, porque un icono de
+  app quiere la marca al ~80 % del lienzo y ésta ocupaba el 60,9 % medido: a
+  16 px eso son diez píxeles de marca en una pestaña. Se mide, no se estima.
+- No hay marca vectorial: la fuente es un ráster. Un `favicon.svg` rancio no es
+  inofensivo, **gana**, porque el navegador prefiere el vector -- el de la marca
+  antigua seguía sirviéndose y era lo que se veía en la pestaña. `icons.sh
+  --drop-svg` lo retira, y entonces `favicon` de Starlight apunta al PNG de
+  32 px, que emite como `rel="shortcut icon"`.
 - La documentación de `landing/` está escrita para quien usa Ladygraph y sale de
   las fuentes del repositorio -`cmd/ladygraph/help.go`, `internal/config`,
   `internal/mcp/tools`, `README.md`-, copiadas literalmente cuando son un

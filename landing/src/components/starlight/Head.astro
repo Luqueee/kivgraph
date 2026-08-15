@@ -1,0 +1,149 @@
+---
+// Starlight's `<head>` is already right about the things it owns: the title,
+// the description, `rel="canonical"`, the favicon, the OpenGraph set and
+// `twitter:card`. This override renders it untouched and appends only what it
+// does not emit — a preview image, the rest of the Twitter card, the robots
+// directives that unlock rich previews, links to this page's markdown source,
+// and the JSON-LD that says what the page is.
+//
+// Nothing here repeats a tag Starlight emits. `twitter:card` in particular is
+// already in its defaults, so only the title, description and image are added.
+import Default from "@astrojs/starlight/components/Head.astro";
+import {
+  LICENSE_URL,
+  PROJECT_NAME,
+  absoluteUrl,
+  docDescription,
+  docPathname,
+  isNotFoundPage,
+  rawPathname,
+  segmentLabel,
+} from "../../pages/_seo";
+
+const { entry } = Astro.locals.starlightRoute;
+
+// The 404 route is a real page with a title and no address worth indexing. It
+// gets the meta robots tag inverted and none of the rest: there is no markdown
+// source for it and no article to describe.
+const isNotFound = isNotFoundPage(entry.id);
+
+const description = docDescription(entry);
+const preview = absoluteUrl(Astro.site, "/og.png");
+
+// Derived from the entry, not from `Astro.url`, so it is byte-identical to the
+// `rel="canonical"` Starlight writes: `build.format` is `directory`, which
+// makes Starlight's canonical formatter append the trailing slash that
+// `docPathname` also appends. Two spellings of one URL is two pages.
+const canonical = absoluteUrl(Astro.site, docPathname(entry.id));
+const markdown = absoluteUrl(Astro.site, rawPathname(entry.id));
+
+interface ListItem {
+  "@type": "ListItem";
+  position: number;
+  name: string;
+  item?: string;
+}
+
+// One crumb per URL segment. The intermediate segments (`reference`, `tools`,
+// `mcp`) have no page of their own, so they carry a name and no `item` rather
+// than a link to a 404; `item` is optional on schema.org's ListItem.
+const segments = entry.id.split("/");
+const breadcrumb: ListItem[] = [
+  {
+    "@type": "ListItem",
+    position: 1,
+    name: PROJECT_NAME,
+    item: absoluteUrl(Astro.site, "/"),
+  },
+];
+for (const [index, segment] of segments.entries()) {
+  const last = index === segments.length - 1;
+  const crumb: ListItem = {
+    "@type": "ListItem",
+    position: index + 2,
+    name: last ? entry.data.title : segmentLabel(segment),
+  };
+  if (last) crumb.item = canonical;
+  breadcrumb.push(crumb);
+}
+
+// One graph, joined to the landing page's graph by `@id`. `SoftwareApplication`
+// and `WebSite` are declared once, on `/`, and referenced from every page here;
+// re-declaring them would describe the same two things twice and invite the two
+// descriptions to drift.
+//
+// `breadcrumb` is a property of `WebPage`, not of `Article`, so the
+// `BreadcrumbList` stands as its own node instead of hanging off the article.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "@id": `${canonical}#article`,
+      headline: entry.data.title,
+      description,
+      url: canonical,
+      inLanguage: "en",
+      isAccessibleForFree: true,
+      license: LICENSE_URL,
+      isPartOf: { "@id": absoluteUrl(Astro.site, "/#website") },
+      about: { "@id": absoluteUrl(Astro.site, "/#software") },
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${canonical}#breadcrumb`,
+      itemListElement: breadcrumb,
+    },
+  ],
+};
+---
+
+<Default {...Astro.props}><slot /></Default>
+
+<meta property="og:image" content={preview} />
+<meta name="twitter:title" content={entry.data.title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={preview} />
+
+{/* The rest of the icon set. Starlight emits the 32px one from its `favicon`
+    option, so repeating it here would be the duplicate. `theme-color` is the
+    page colour as a literal because a `<meta>` cannot read a CSS custom
+    property; it is the value `--color-shell` carries in global.css. */}
+<link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#0a0b0d" />
+
+{/* The directives Google documents for full-length snippets and large preview
+    images, which is also what an answer engine reads before quoting a page. */}
+<meta
+  name="robots"
+  content={
+    isNotFound
+      ? "noindex, follow"
+      : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+  }
+/>
+
+<link rel="license" href={LICENSE_URL} />
+
+{
+  !isNotFound && (
+    <>
+      {/* An agent that landed on the HTML can take the markdown source of this
+          page instead, or the index of every page, per llmstxt.org. */}
+      <link
+        rel="alternate"
+        type="text/markdown"
+        href={markdown}
+        title={`${entry.data.title} as markdown`}
+      />
+      <link rel="describedby" href={absoluteUrl(Astro.site, "/llms.txt")} />
+      <script
+        type="application/ld+json"
+        is:inline
+        set:html={JSON.stringify(structuredData)}
+      />
+    </>
+  )
+}

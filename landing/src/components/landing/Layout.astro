@@ -1,10 +1,18 @@
 ---
-// The standalone shell for the terminal variant. It imports nothing from
+// The standalone shell for the landing page. It imports nothing from
 // Starlight: `--sl-color-*` does not exist outside a Starlight page, so the
 // page runs on the Tailwind theme in global.css alone. The surfaces it needs
 // (shell, panel, raise, rule, rule-strong) are declared there, in `@theme`,
 // and shared with the documentation.
 import "../../styles/global.css";
+import {
+  LICENSE_NAME,
+  LICENSE_URL,
+  PROJECT_NAME,
+  PROJECT_TAGLINE,
+  REPOSITORY_URL,
+  absoluteUrl,
+} from "../../pages/_seo";
 
 interface Props {
   title: string;
@@ -12,6 +20,49 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
+
+// Absolute and derived from `site`, never a literal: the deployment sets
+// LADYGRAPH_LANDING_URL and a hardcoded host would publish the wrong canonical.
+const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
+const preview = absoluteUrl(Astro.site, "/og.png");
+
+// One graph, not three scripts. `SoftwareApplication` is what an answer engine
+// reads to say what Ladygraph is; `WebSite` ties the pages together and carries
+// the documentation search action.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": absoluteUrl(Astro.site, "/#software"),
+      name: PROJECT_NAME,
+      description: PROJECT_TAGLINE,
+      applicationCategory: "DeveloperApplication",
+      applicationSubCategory: "Static code analysis",
+      operatingSystem: "Linux, macOS",
+      url: absoluteUrl(Astro.site, "/"),
+      codeRepository: REPOSITORY_URL,
+      license: LICENSE_URL,
+      programmingLanguage: ["Go", "TypeScript", "Rust"],
+      isAccessibleForFree: true,
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": absoluteUrl(Astro.site, "/#website"),
+      name: PROJECT_NAME,
+      description: PROJECT_TAGLINE,
+      url: absoluteUrl(Astro.site, "/"),
+      inLanguage: "en",
+      license: LICENSE_URL,
+      about: { "@id": absoluteUrl(Astro.site, "/#software") },
+    },
+  ],
+};
 ---
 
 <!doctype html>
@@ -21,7 +72,55 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="icon" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+
+    {/* The mark is a raster, so there is no vector icon. A stale
+        `image/svg+xml` entry would win over these: a browser prefers the
+        vector, and it was still the old graph-nodes drawing. */}
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0a0b0d" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={PROJECT_NAME} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={preview} />
+    <meta property="og:locale" content="en" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={preview} />
+
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="license" content={LICENSE_NAME} />
+
+    {/* An agent that lands here can take the whole documentation in one
+        fetch instead of crawling thirty pages. */}
+    <link
+      rel="alternate"
+      type="text/plain"
+      href={absoluteUrl(Astro.site, "/llms.txt")}
+      title="Documentation index for language models"
+    />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href={absoluteUrl(Astro.site, "/llms-full.txt")}
+      title="Full documentation as plain text"
+    />
+
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(structuredData)}
+    />
   </head>
   <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
     <a

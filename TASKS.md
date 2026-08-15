@@ -14145,7 +14145,548 @@ go run ./benchmarks/mcp-token-cost   (dos veces, mismo digest)
 
 ---
 
-# 23. Gates globales
+# 23. Fase 20 — La memoria por cliente
+
+Un cliente MCP lanza `ladygraph serve` él mismo, así que hay un servidor por
+cliente y **cada uno reconstruye el grafo entero en su propio heap privado**.
+Medido el 2026-08-15 en `devlabs` -Linux, 16 núcleos, 24 GB- sobre la generación
+`000053`: 41 repositorios, 121 paquetes, 5.021 ficheros, 102.385 símbolos,
+259.556 aristas y 189 MB de `graph.db`.
+
+```text
+heap vivo tras cargar                    173 MB
+pico de heap durante la carga        495-531 MB
+VmHWM del proceso al cargar          808-897 MB
+RSS estable recién cargado           252-373 MB
+VmSize                                 3-4 GiB
+reparto de un proceso de 1,68 GB   Private_Dirty 1,663 GB · Shared_Clean 15 MB
+```
+
+Los 15 MB limpios son el binario: **no se comparte nada más**. Tres servidores
+vivos costaban 2,44 GB para contestar preguntas sobre el mismo grafo.
+
+La marginal de una *sesión* dentro de un proceso, en cambio, es prácticamente
+cero: `ServerSession` sólo guarda `InitializeParams`, el nivel de log y su
+conexión, y las tools viven en el `*Server` compartido. El coste es la frontera
+de proceso, no el número de clientes.
+
+**Y el grafo va a crecer.** `rust.index_sysroot` multiplica estos 189 MB, así
+que lo que se elija tiene que escalar con eso y no sólo con el número de
+clientes.
+
+## Por qué no un proceso compartido
+
+Las dos formas de compartir un proceso se estudiaron y se descartan; el análisis
+completo va al ADR de LUQUE-2007.
+
+* **Demonio con relé stdio sobre socket unix.** Es poco código -los dos lados
+  hablan JSON-RPC delimitado por línea, así que el relé es un `io.Copy` en cada
+  sentido y la elicitación, el progreso y la cancelación pasan sin que nadie los
+  interprete- y no cambia ninguna configuración de cliente. Lo que añade es un
+  sistema distribuido en miniatura: ciclo de vida, arranque en carrera, sockets
+  huérfanos, sesgo de versión entre el binario del cliente y el demonio vivo,
+  quién es dueño del bucle de resync, y qué significa `stop`, que hoy selecciona
+  por invocación `(argv[0] == "ladygraph", argv[1] ∈ {serve, ui})` y no vería un
+  demonio con otro argv. Y sobre todo: **el demonio tiene el grafo residente
+  siempre**, así que con el sysroot indexado son gigabytes que nadie puede
+  desalojar.
+* **HTTP loopback con los clientes reconfigurados por URL.** El SDK trae
+  `StreamableHTTPHandler` y `auth.RequireBearerToken`, pero ningún adaptador de
+  `internal/integrations` sabe escribir una entrada con `url`: todos escriben
+  `{"command": <exe>, "args": ["serve"]}` y la comparación es igualdad exacta
+  -`rawJSONMatches` + `DeepEqual`-, de modo que una entrada con URL se clasifica
+  `incompatible` y exige `--force`. Habría que enseñar la forma nueva a los cinco
+  adaptadores, pedir al usuario que reinstale, mantener stdio igual para los
+  clientes que no hablan HTTP, y añadir token y comprobación de origen porque un
+  puerto loopback lo alcanza cualquier proceso local. Encima el SDK no expira
+  sesiones -`transports` crece hasta el `DELETE`, `closeAll` no está exportado-
+  ni permite configurar el `EventStore` desde las opciones del handler.
+
+**La decisión de la fase es la tercera:** que el snapshot deje de ser privado.
+Se persiste una vez por generación y los procesos lo **mapean en sólo lectura**,
+de modo que comparten *page cache* en vez de heap -`Shared_Clean` en lugar de
+`Private_Dirty`, que es la métrica con la que se diagnosticó el problema-. No
+aparece ningún proceso nuevo, ningún ciclo de vida y ninguna configuración de
+cliente cambia; el sistema operativo desaloja lo que nadie toca; y de propina
+desaparecen el transitorio de carga y los 2-3 s de arranque que hoy paga cada
+cliente.
+
+## Lo que esta fase revisa
+
+`LUQUE-1204` fijó que «el `HotSnapshot` **nunca se escribe**: se deriva del
+grafo definitivo en cada construcción. Por eso de las dos ramas del requisito
+siempre se toma la segunda: no hay snapshot que cargar, hay grafo que
+reconstruir». Esta fase introduce la primera rama y **conserva la segunda como
+respaldo**: un fichero ausente, truncado, de otra versión o con otro digest se
+rechaza y la carga reconstruye desde LadybugDB diciéndolo una vez. La garantía de
+1204 no se relaja; se le añade un camino rápido que falla cerrado hacia ella.
+
+`storage.snapshots_path` ya existe, `init` lo crea y `doctor` comprueba que se
+puede escribir. Nadie ha escrito nunca nada ahí: esta fase es lo que ese
+directorio estaba esperando. `storage.retain_snapshots` -que vale 3- pasa a
+gobernar cuántos ficheros se conservan.
+
+**Gate:** `SHARED_SNAPSHOT_PASS`, y no se declara a mano: lo mide el arnés de
+LUQUE-2006, que compara N procesos sobre una generación publicada contra la
+línea base de esta cabecera y se niega a emitirlo si el corpus o la generación no
+coinciden con la referencia declarada, como ya hace `benchmarks/web-viewer`.
+
+**Fuera de alcance de la fase entera:** compartir un proceso entre clientes -que
+queda declarada en LUQUE-2008 con la condición que la reabriría-, cualquier
+transporte que no sea stdio, y reducir el grafo mismo. Esta fase no quita hechos:
+cambia dónde viven los que ya hay.
+
+---
+
+## LUQUE-2001 — Saber en qué se van los 173 MB antes de diseñar el fichero
+
+**Dependencias:** LUQUE-0304, LUQUE-0311, LUQUE-0906.
+
+**Objetivo:** un desglose por componente, en bytes, reproducible sobre una
+generación real. Diseñar el formato sin esto es diseñarlo a ciegas, y decidir
+entre un índice ordenado y una tabla hash sin saber lo que pesa cada uno es
+opinar.
+
+**Lo que hoy no se puede responder:** cuánto de los 173 MB es el arena de
+strings, cuánto son las cinco tablas de registros, cuánto los dos CSR y cuánto
+los cinco mapas de `GraphSnapshot` -`packageIncoming`, `symbolByStableKey`,
+`symbolsByName`, `symbolsByQName`, `fileByRepoPath`-. `StringTable.Stats()` ya
+publica entradas y bytes del arena, y es lo único que hoy se puede citar.
+
+**Alcance:**
+
+* `benchmarks/hot-snapshot-footprint/` con `results.json` y `report.md`, según la
+  convención de la sección 23: comando, commit, entorno, generación, digest del
+  corpus, métricas y limitaciones.
+* El desglose de cada componente y el residuo, más el mismo desglose por símbolo
+  y por arista, que es lo que permite proyectar a un corpus con el sysroot.
+
+**Decisiones:**
+
+* Las tablas planas y los CSR se miden **analíticamente**:
+  `unsafe.Sizeof(T{}) * cap(slice)` es exacto y no necesita instrumentación.
+* Los mapas y el arena se miden **observando el heap**: `runtime.GC()` y
+  `runtime.ReadMemStats().HeapAlloc` antes y después de construir cada índice por
+  separado, con el snapshot completo como control.
+* El informe declara su error: la suma de los componentes contra `HeapAlloc` tras
+  una GC forzada, con el residuo nombrado y no repartido. Un desglose que no
+  cierra no sirve para diseñar un fichero.
+* No se toca `graph_status`. Publicar el desglose es una decisión aparte y la
+  toma LUQUE-2007 si el número resulta útil de servir.
+
+**Criterios de aceptación:**
+
+- La suma de los componentes explica **≥95 %** de `HeapAlloc` tras una GC
+  forzada, y el residuo se nombra.
+- Dos ejecuciones sobre la misma generación coinciden dentro del **1 %**.
+- El informe nombra los tres componentes que dominan y su coste por símbolo y por
+  arista.
+- El arnés se niega a publicar cifras si la generación que abrió no es la
+  declarada en `results.json`.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+gofmt -l benchmarks/hot-snapshot-footprint/
+go vet ./...
+go test ./...
+make test-ladybug PKGS=./internal/hotsnapshot/...
+go run ./benchmarks/hot-snapshot-footprint   (dos veces, mismas cifras)
+```
+
+**Siguiente tarea:** LUQUE-2002.
+
+---
+
+## LUQUE-2002 — Que ninguna clave estable ocupe un puntero
+
+**Dependencias:** LUQUE-2001.
+
+**Objetivo:** que `SymbolRecord` no contenga ni un puntero, que es la condición
+para que su tabla se pueda mapear.
+
+**Lo que hoy lo impide:** `type StableKey string` -`internal/hotsnapshot/stablekey.go:22`-,
+así que cada `SymbolRecord` lleva una cabecera de cadena de 16 bytes más una
+asignación en el heap; la clave del corpus mide 52 caracteres de base32, que caen
+en la clase de tamaño de 64 bytes. Son unos 80 bytes por símbolo, y las mismas
+claves viven otra vez como llaves de `symbolByStableKey`. El coste en bytes es lo
+de menos: mientras haya un puntero en la tabla, la tabla no se puede mapear.
+
+**Alcance:**
+
+* `internal/hotsnapshot/{snapshot,builder,stablekey,ids}.go`: la clave pasa a un
+  identificador denso sobre un arena propio, y los accesores conservan su firma
+  -`SymbolByStableKey(key StableKey)` sigue aceptando la cadena-.
+* `EdgeRow.SourceKey` y `EdgeRow.TargetKey` siguen siendo cadenas: son filas que
+  vienen de la base y el builder ya las resuelve a IDs densos.
+
+**Decisiones:**
+
+* **El valor de la clave y su namespace no cambian.** El contrato de las stable
+  keys es sobre identidad persistente, no sobre su representación en memoria;
+  `stablekey.go` y sus tests no se tocan, y `stablekey_test.go` es la prueba de
+  que no se movió el algoritmo.
+* Las claves **no** entran en el `StringTable` de los nombres. Son únicas por
+  símbolo: meterlas ahí añadiría 102.385 entradas a un índice inverso que existe
+  para buscar nombres, y ese índice es precisamente uno de los cinco mapas que
+  LUQUE-2003 tiene que retirar.
+* El arena de claves se ordena por bytes al congelarlo, para que LUQUE-2003 pueda
+  resolver una clave con una búsqueda binaria en vez de una tabla hash.
+
+**Criterios de aceptación:**
+
+- `SymbolRecord` no tiene ningún campo de tipo puntero, cadena, slice o mapa.
+- Un test de propiedad resuelve **todas** las claves del corpus y obtiene el
+  mismo `SymbolID` que antes del cambio.
+- El ahorro medido coincide con lo que LUQUE-2001 atribuyó a este componente,
+  ±10 %.
+- Ninguna clave publicada cambia: el digest de contenido del snapshot es idéntico
+  antes y después.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+gofmt -l internal/hotsnapshot/
+go vet ./...
+go test ./internal/hotsnapshot/...
+make test-ladybug PKGS=./internal/rebuild/...
+go run ./benchmarks/hot-snapshot-footprint
+```
+
+**Siguiente tarea:** LUQUE-2003.
+
+---
+
+## LUQUE-2003 — Índices sin mapas
+
+**Dependencias:** LUQUE-2001, LUQUE-2002.
+
+**Objetivo:** que `GraphSnapshot` no contenga ningún mapa, que es la última cosa
+que impide que el grafo entero sea una secuencia de bytes mapeable.
+
+**Lo que hay que retirar:** `packageIncoming map[PackageID][]PackageDependencyRecord`,
+`symbolByStableKey map[StableKey]SymbolID`, `symbolsByName` y `symbolsByQName`
+-`map[InternedString][]SymbolID`- y `fileByRepoPath map[RepoPathKey]FileID`.
+`traversalWorkspacePool` se queda: es andamiaje por llamada, no estado del grafo,
+y nunca se persiste.
+
+**Alcance:**
+
+* Cada mapa pasa a un par de arrays planos: llaves ordenadas y valores, y para
+  los que devuelven varios resultados, desplazamientos estilo CSR sobre un
+  `[]SymbolID` contiguo -la misma forma que ya tienen las aristas-.
+* Los accesores conservan su firma y su semántica de copia, así que ningún
+  llamador cambia.
+
+**Decisiones:**
+
+* Las búsquedas exactas por nombre son **binarias sobre enteros**: la llave es un
+  `InternedString`, no una cadena, así que no hay comparación de bytes en el
+  camino caliente.
+* La búsqueda por prefijo -`search.go`, fijada por
+  `TestPrefixSearchIsNameOnlyAndStable`- exige orden lexicográfico de nombres.
+  Se decide con las cifras de LUQUE-2001 entre dos opciones, y el informe dice
+  cuál y por qué: que el interner asigne los IDs en orden lexicográfico al
+  congelar -aplicando la permutación a todos los registros una sola vez, con lo
+  que exacto y prefijo son la misma búsqueda binaria-, o un segundo array de IDs
+  ordenado por bytes.
+* `symbolByStableKey` se resuelve por búsqueda binaria sobre el arena ordenado de
+  LUQUE-2002 con `bytes.Compare`. No se usa un hash: una colisión obligaría a
+  guardar la clave completa para desempatar, que es exactamente lo que se acaba
+  de retirar.
+* El orden de los resultados no cambia. Es contrato: las páginas y los cursores
+  dependen de él.
+
+**Criterios de aceptación:**
+
+- `GraphSnapshot` no declara ningún `map` ni ningún campo con puntero, salvo el
+  `sync.Pool` de andamiaje.
+- Toda la suite de `internal/hotsnapshot` pasa **sin modificar un solo test**:
+  los accesores son el contrato y no se toca.
+- `benchmarks/mcp-client` no empeora el p50 ni el p99 más de un **5 %** contra la
+  medición previa, con el mismo corpus y semilla.
+- El desglose de LUQUE-2001 muestra la caída, y el residuo sigue nombrado.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+gofmt -l internal/hotsnapshot/
+go vet ./...
+go test ./internal/hotsnapshot/... ./internal/mcp/...
+go test -race ./internal/hotsnapshot/...
+go run ./benchmarks/mcp-client --clients 4   (antes y después)
+go run ./benchmarks/hot-snapshot-footprint
+```
+
+**Siguiente tarea:** LUQUE-2004.
+
+---
+
+## LUQUE-2004 — `LGHS`: el snapshot publicado se escribe
+
+**Dependencias:** LUQUE-2003, LUQUE-1204.
+
+**Objetivo:** un fichero versionado por generación, escrito por la pasada que la
+publica, que contenga exactamente lo que hoy se reconstruye.
+
+**Alcance:**
+
+* `internal/hotsnapshot/file.go`: escritor y lector del formato.
+* `internal/rebuild/snapshot.go`: escribir el fichero tras construir el snapshot
+  que ya se valida hoy.
+* `storage.snapshots_path` como destino y `storage.retain_snapshots` como poda.
+
+**Decisiones:**
+
+* Cabecera con magic `LGHS`, versión de formato, `snapshot_id`, `created_at`,
+  `schema_version`, `resolver_version`, los contadores y el digest de contenido
+  -que ya existe: `snapshotContentDigest(rows)`-, más una tabla de secciones con
+  desplazamiento y longitud por sección. Es la convención que el visor ya usa con
+  `LGVB`, y la misma que valida magic, versión, offsets y longitudes antes de
+  servir.
+* Little-endian y **cada sección alineada al tamaño de su elemento**. Una vista
+  `[]uint32` sobre bytes desalineados no es un detalle de rendimiento: en algunas
+  arquitecturas no está definida.
+* Se escribe en un temporal del mismo directorio y se renombra, con `fsync` del
+  fichero y del directorio. Una generación no puede quedar con un fichero a
+  medias.
+* **Determinismo:** dos publicaciones del mismo grafo producen el mismo fichero
+  byte a byte. La pasada ya garantiza hechos idénticos byte a byte; esto lo
+  extiende al artefacto, y es además la regresión más barata de escribir.
+* El fichero **no es una fuente de hechos**: sigue siendo una proyección
+  derivada del grafo canónico, y sigue siendo LadybugDB quien decide qué es
+  verdad.
+
+**Criterios de aceptación:**
+
+- Toda generación publicada tiene su fichero, y `retain_snapshots` conserva
+  exactamente los que dice.
+- Dos publicaciones del mismo grafo dan ficheros idénticos.
+- Un fichero truncado, con otro magic, con otra versión de formato, con otra
+  generación o con otro digest se rechaza con un código estable y **nunca se
+  sirve**. `internal/rebuild/snapshot_corruption_test.go` gana un caso por cada
+  una de esas cinco formas.
+- Nada se escribe fuera de `storage.snapshots_path`.
+- Una configuración escrita fuera de la ubicación por defecto sigue siendo
+  autocontenida: su fichero cuelga de su propio directorio.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+gofmt -l internal/hotsnapshot/ internal/rebuild/
+go vet ./...
+go test ./internal/hotsnapshot/...
+make test-ladybug PKGS=./internal/rebuild/...
+```
+
+**Siguiente tarea:** LUQUE-2005.
+
+---
+
+## LUQUE-2005 — Mapear en vez de reconstruir
+
+**Dependencias:** LUQUE-2004.
+
+**Objetivo:** que `serve` y `ui` carguen la generación publicada mapeando su
+fichero, de modo que N procesos compartan páginas físicas en vez de multiplicar
+heap privado.
+
+**Alcance:**
+
+* `hotsnapshot.Open(path)` devuelve un `*GraphSnapshot` cuyas tablas son vistas
+  sobre un mapeo `MAP_SHARED|PROT_READ`, en un fichero por plataforma con build
+  tag, como exige la convención de código.
+* `cmd/ladygraph/main.go: loadConfiguredSnapshot` e
+  `internal/indexing/follow.go: followOnce` intentan el fichero primero.
+
+**Decisiones:**
+
+* **Falla cerrado hacia LUQUE-1204:** ausencia, magic, versión, generación o
+  digest que no cuadren no son un error del comando; se reconstruye desde
+  LadybugDB y se registra **una vez**. Eso hace que las generaciones ya
+  publicadas sigan cargando y que el cambio se pueda desplegar sin migración.
+* **El mapeo lo libera el recolector, no un `Close` público.** El contrato de
+  `SnapshotStore` dice que un lector fija el puntero durante su operación, y
+  `Publish` deja el snapshot anterior como basura mientras alguien lo lee todavía:
+  desmapear ahí no da un error, da un `SIGSEGV`. La liberación se ata a la
+  inalcanzabilidad del `*GraphSnapshot`, y **ese es el riesgo más agudo de la
+  fase**, así que lleva su propio test con `-race`: publicar una generación nueva
+  mientras un lector recorre la anterior.
+* Un fichero mapeado que `clean` desenlaza sigue siendo válido -en POSIX el inodo
+  vive mientras esté mapeado- y eso se afirma con un test, no con un comentario.
+* `rebuild.ReturnBuildMemory` deja de tener nada que devolver en el camino
+  rápido: no hay transitorio si no hay construcción. Se conserva para el camino
+  de respaldo.
+
+**Criterios de aceptación:**
+
+- Con dos `serve` sobre la misma generación, `smaps_rollup` muestra **una sola
+  copia**: `Shared_Clean` domina y el `Pss` se reparte entre los procesos.
+- Con el fichero presente, la carga **no** llama a `rebuild.BuildSnapshot`, y el
+  tiempo hasta la primera respuesta a una tool se mide y se publica.
+- Un fichero corrupto degrada a reconstrucción, con una línea de registro y sin
+  fallar el comando.
+- El test de publicación concurrente pasa con `-race`.
+- `ui` obtiene el mismo beneficio sin cambios en `webapi`: el store es el mismo.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+gofmt -l internal/hotsnapshot/ internal/indexing/ cmd/ladygraph/
+go vet ./...
+go test -race ./internal/hotsnapshot/... ./internal/indexing/...
+make test-ladybug
+make build
+```
+
+**Siguiente tarea:** LUQUE-2006.
+
+---
+
+## LUQUE-2006 — El arnés que declara el gate
+
+**Dependencias:** LUQUE-2005, LUQUE-1905.
+
+**Objetivo:** que la mejora se declare con una medida reproducible y no con una
+anécdota, igual que hizo LUQUE-1905 con el coste en tokens.
+
+**Alcance:**
+
+* `benchmarks/shared-snapshot/` con `results.json` y `report.md`: arranca N
+  servidores contra una generación publicada, conduce el workload de
+  `internal/mcpworkload` por cada uno y publica, por proceso y en total, `VmRSS`,
+  `Pss`, `Shared_Clean` y `Private_Dirty`, más los percentiles de latencia y el
+  tiempo hasta la primera respuesta.
+* La línea base contra la que compara es la de la cabecera de esta fase, tomada
+  con el binario anterior sobre la misma generación.
+
+**Decisiones:**
+
+* El gate se emite desde el digest del propio arnés y se **niega** a emitirse si
+  el corpus, la generación o la plataforma no son los declarados, como ya hace
+  `benchmarks/web-viewer`.
+* `Pss` y `Shared_Clean` son de Linux. En macOS el arnés publica lo que la
+  plataforma sabe observar -`internal/procstat.ResidentBytes`- y **declara la
+  limitación**; el gate se mide en Linux, que es donde está la línea base.
+* Se mide con N=4, que es el número de clientes que el caso real tenía vivos.
+
+**Criterios de aceptación:**
+
+- `SHARED_SNAPSHOT_PASS` se emite sólo si, con N=4 sobre el corpus de
+  referencia: el residente total es **≤40 %** del de la línea base; el
+  `Private_Dirty` por proceso es **≤60 MB**; y el p99 de latencia no empeora más
+  de un **5 %** contra el snapshot construido en heap.
+- Dos ejecuciones dan el mismo digest.
+- El informe conserva comando, commit, entorno, generación, semilla, métricas y
+  limitaciones.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+gofmt -l benchmarks/shared-snapshot/
+go vet ./...
+go test ./...
+go run ./benchmarks/shared-snapshot --clients 4   (dos veces, mismo digest)
+```
+
+**Siguiente tarea:** LUQUE-2007.
+
+---
+
+## LUQUE-2007 — ADR, contratos y cierre de fase
+
+**Dependencias:** LUQUE-2006.
+
+**Objetivo:** que la decisión quede escrita donde se busca, con sus cifras y con
+las alternativas que se descartaron.
+
+**Alcance:**
+
+* `docs/adr/0043-shared-snapshot-file.md`: el problema medido, la decisión, el
+  formato, el respaldo hacia LUQUE-1204, y las dos alternativas descartadas -el
+  demonio con relé y el HTTP con URL- con el motivo de cada una.
+* `AGENTS.md`: los invariantes nuevos -el fichero es derivado y nunca una segunda
+  fuente de hechos; se mapea en sólo lectura; falla cerrado hacia la
+  reconstrucción; el mapeo lo libera el recolector-.
+* `landing/`: donde se describe el arranque y lo que cuesta un servidor.
+
+**Decisiones:**
+
+* `mcp.transport` sigue aceptando **sólo** `stdio`, y el ADR dice por qué eso
+  deja de ser una limitación: la razón para un transporte compartido era la
+  memoria, y la memoria ya no la multiplica un proceso por cliente.
+* Si LUQUE-2001 dejó un desglose que valga la pena servir, `graph_status` lo
+  publica en su respuesta -que es donde un dato volátil sí puede vivir- y nunca en
+  una descripción de tool.
+
+**Criterios de aceptación:**
+
+- El ADR publica el antes y el después medidos, no una promesa.
+- `AGENTS.md` describe el comportamiento implementado y nada más.
+- `make landing-check` y `make landing-build` limpios.
+- La documentación no presenta como compartido nada que siga siendo privado.
+
+**Estado:** pendiente.
+
+**Verificación:**
+
+```text
+go test ./...
+make test-ladybug
+make build
+make landing-check
+make landing-build
+```
+
+**Siguiente tarea:** LUQUE-2008, si su condición se cumple.
+
+---
+
+## LUQUE-2008 — (aplazada) Un proceso para muchos clientes
+
+**Dependencias:** LUQUE-2006.
+
+**Condición que la reabre:** que el arnés de LUQUE-2006 mida un
+`Private_Dirty` por proceso por encima de **100 MB**, o un corpus donde el
+fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace: su
+ahorro sería de decenas de megabytes y su coste es un demonio.
+
+**Diseño, si llega el caso:** socket unix bajo el directorio de estado, un
+`ladygraph daemon` que sostiene un `SnapshotStore`, un seguidor, un bucle de
+resync y el indexador, y un `serve` que detecta el socket y se convierte en un
+relé de bytes. No hace falta escribir un proxy MCP: los dos lados hablan
+JSON-RPC delimitado por línea, así que el relé es transparente y la elicitación,
+el progreso y la cancelación pasan sin interpretarse. El demonio necesita un
+`Transport` propio sobre `net.Conn` -unas ochenta líneas: `mcp.Connection` es una
+interfaz exportada de cuatro métodos y el paquete `jsonrpc` está documentado
+«for use by mcp transport authors»-, y `Server.Connect` por conexión aceptada, que
+es lo que `benchmarks/mcp-client` ya ejercita con N sesiones contra un solo
+servidor.
+
+**Lo que tendría que resolver antes de entrar:** quién arranca el demonio y
+cuándo sale; la clave por directorio de estado, para que dos configuraciones
+nunca compartan demonio; el sesgo de versión, porque un relé debe negarse a
+hablar con un demonio de otra build; y que `stop` y `doctor` aprendan la
+invocación nueva, porque hoy `stop` selecciona por `argv[1] ∈ {serve, ui}` y no
+vería un demonio.
+
+**Estado:** aplazada.
+
+---
+
+# 24. Gates globales
 
 ```text
 PROJECT_FOUNDATION_PASS
@@ -14168,13 +14709,14 @@ WEB_VIEWER_PASS
 RUST_SEMANTIC_PASS
 RUST_CROSS_REPO_PASS
 MCP_TOKEN_COST_PASS
+SHARED_SNAPSHOT_PASS
 ```
 
 No se puede aprobar Ladygraph sin todos ellos.
 
 ---
 
-# 24. Orden recomendado para la IA
+# 25. Orden recomendado para la IA
 
 La IA deberá empezar exactamente en este orden:
 
@@ -14208,9 +14750,17 @@ cifras; después las tres que retiran cada una un round-trip que la siguiente da
 por retirado; y al final la adopción, que sólo tiene sentido cuando ya hay algo
 que merezca la pena pedir.
 
+La fase de la memoria por cliente depende de `HOT_SNAPSHOT_PASS` y de
+`MCP_SURFACE_PASS`, y se ejecuta en el orden `LUQUE-2001` a `LUQUE-2007`: primero
+la medición, porque el formato se diseña con sus cifras; después las dos que
+retiran punteros y mapas, en ese orden, porque la segunda necesita el arena
+ordenado de la primera; luego el fichero y su mapeo, que no tienen sentido
+separados; y al final el arnés que declara el gate y el ADR que lo cierra.
+`LUQUE-2008` no entra salvo que su condición se cumpla.
+
 ---
 
-# 25. Plantilla de prompt para cada tarea
+# 26. Plantilla de prompt para cada tarea
 
 ```text
 Trabaja en la tarea <TASK-ID> del backlog de Ladygraph.
@@ -14246,7 +14796,7 @@ Tarea:
 
 ---
 
-# 26. Plantilla para revisar una tarea completada
+# 27. Plantilla para revisar una tarea completada
 
 ```text
 Revisa la implementación de <TASK-ID> sin modificar inicialmente el código.
@@ -14454,4 +15004,4 @@ make test-ladybug                39 paquetes
 make build                       0.5.1
 ```
 
-**Siguiente tarea:** —.
+**Siguiente tarea:** LUQUE-2001, que abre la fase 20.

@@ -266,6 +266,14 @@ documented in
 [docs/development/storage-benchmarks.md](docs/development/storage-benchmarks.md).
 It concludes with `ACCEPT_LADYBUGDB_WITH_LIMITS`.
 
+### The public site
+
+`landing/` carries the landing page and the user documentation. It ships in no
+release bundle, is verified with `make landing-check` and `make landing-build`,
+and is served on port `6767`. What it publishes, how the MCP reference was
+captured, and what is still open are recorded in
+[docs/development/landing-site.md](docs/development/landing-site.md).
+
 ## Structure
 
 ```text
