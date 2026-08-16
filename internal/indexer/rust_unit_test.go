@@ -93,14 +93,32 @@ func TestFullIndexesARustRepository(t *testing.T) {
 	}
 	// The standard library is not a registered repository, so its uses are
 	// declared rather than turned into edges.
-	declared := false
-	for _, entry := range set.Unresolved {
-		if entry.Reason == "CRATE_PROVIDER_NOT_FOUND" {
-			declared = true
+	//
+	// That declaration only exists when the analyzer could resolve a use of the
+	// standard library at all, and resolving one needs its sources on the
+	// machine: without `rust-src` those tokens carry no moniker and the index
+	// discards them, so nothing names a crate whose provider is missing. What is
+	// absent then is the machine's standard library, not the pass's declaration,
+	// and the difference is named rather than failed -- exactly as the analyzer's
+	// own absence is. A guard that ignored it turned a runner without `rust-src`
+	// into a broken release: the v0.1.3 release failed here on a commit whose CI
+	// had just passed on another runner.
+	_, reason, err := rustloader.DiscoverSysroot(context.Background(), repository.Path)
+	switch {
+	case err != nil:
+		t.Logf("the standard library could not be discovered (%v), so its uses are not declared here", err)
+	case reason != "":
+		t.Logf("this machine has no indexable standard library (%s), so its uses are not declared here", reason)
+	default:
+		declared := false
+		for _, entry := range set.Unresolved {
+			if entry.Reason == "CRATE_PROVIDER_NOT_FOUND" {
+				declared = true
+			}
 		}
-	}
-	if !declared {
-		t.Fatalf("unresolved = %#v, want the sysroot crates declared", set.Unresolved)
+		if !declared {
+			t.Fatalf("unresolved = %#v, want the sysroot crates declared", set.Unresolved)
+		}
 	}
 	// The absence is declared, not implied: a reader cannot tell a machine
 	// without a toolchain from a configuration that asked for nothing.
