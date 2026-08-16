@@ -28,29 +28,41 @@ se mapea.
 
 ## Decisión
 
-El publicador escribe el snapshot en la generación, junto a `graph.db`, y todo
-servidor lo mapea en lugar de reconstruirlo. La lectura es de sólo lectura, así
-que la inmutabilidad pasa a estar garantizada por el kernel y no por que los
-campos sean privados.
+El publicador escribe el snapshot en la generación, junto a `graph.db`, y ningún
+otro servidor lo vuelve a derivar del grafo canónico. Va en dos fases, y el
+orden no es una comodidad: la primera se lleva la mayor parte del coste sin
+tocar ni la API ni un solo byte reinterpretado, y la segunda es la que exige
+ambas cosas.
 
-**Se mapea el volumen, que no tiene punteros:**
+**Fase 1 -- leerlo en vez de escanear.** El servidor que sigue una generación
+carga el fichero y construye el snapshot desde él con el mismo
+`NewGraphSnapshot` de hoy. Desaparecen el escaneo canónico, la conversión de
+filas y con ellos los 1.003 MB asignados y los ~1,05 GB de `VmHWM` por
+instalación; lo que queda es leer y validar. Sin `unsafe`, sin cambio de API y
+con el camino actual intacto como respaldo.
 
-- la tabla de cadenas -`StringTable` ya define su serialización en orden de ID,
-  sin que ninguna iteración de mapa participe en el formato-;
-- las tablas de registros: repositorios, paquetes, archivos, símbolos,
-  evidencias, dependencias de paquete y referencias no resueltas, que son
-  structs planos de IDs internados, números y digests de tamaño fijo;
-- los dos CSR: `[]uint32` de offsets y `[]PackedEdge`, cuyo layout de 16 bytes
-  ya está declarado apto para un array de aristas.
+**Fase 2 -- mapearlo en vez de copiarlo.** Es la que comparte páginas entre
+procesos, y tiene una condición que la fase 1 no tiene: reinterpretar una tabla
+mapeada como `[]T` exige que `T` no lleve punteros, y `SymbolRecord.StableKey` es
+una `string`. O el registro guarda su clave como `InternedString` -- y entonces
+la clave entra en el arena, que además deduplica sus bytes -- o la tabla mapeada
+tiene su propia forma y `Symbol` materializa el registro por llamada, que ya
+devuelve una copia. Las demás tablas y los dos CSR ya son libres de punteros:
+`PackedEdge` incluso declara su layout de 16 bytes apto para un array de
+aristas. Esa elección se toma con la medición de la fase 1 delante, no antes.
 
-**No se mapean los cuatro índices, que se reconstruyen al cargar:**
-`map[StableKey]SymbolID`, los dos `map[InternedString][]SymbolID` de nombre y
-nombre cualificado, `map[RepoPathKey]FileID` y `map[PackageID][]…`. Son las
-únicas estructuras con estado de hash, y reconstruirlas es una pasada sobre las
-tablas ya mapeadas: sin escaneo de la base, sin decodificar cadenas y sin el
-gigabyte de asignación. La alternativa -un índice ordenado en el fichero y
-búsqueda binaria- cambiaría un `SymbolByStableKey` de 30 ns por uno de cientos
-de ns para ahorrar la parte más pequeña del snapshot. No se hace.
+**Lo que en ninguna de las dos se persiste son los cuatro índices**
+-`map[StableKey]SymbolID`, los dos `map[InternedString][]SymbolID` de nombre y
+nombre cualificado, `map[RepoPathKey]FileID` y `map[PackageID][]…`-. Son las
+únicas estructuras con estado de hash, y reconstruirlas es una pasada sobre
+tablas que ya están en memoria: sin escaneo de la base y sin decodificar
+cadenas. La alternativa -un índice ordenado en el fichero y búsqueda binaria-
+cambiaría un `SymbolByStableKey` de 30 ns por uno de cientos de ns para ahorrar
+la parte más pequeña del snapshot. No se hace.
+
+Lo que se escribe, en las dos fases: la tabla de cadenas -`StringTable` ya
+define su serialización en orden de ID, sin que ninguna iteración de mapa
+participe en el formato-, las siete tablas de registros y los dos CSR.
 
 ## Lo que hay que respetar
 
@@ -60,12 +72,13 @@ de ns para ahorrar la parte más pequeña del snapshot. No se hace.
   no cuadra no es un error del servidor: se descarta y se construye desde el
   grafo canónico, declarándolo. Fail-closed hacia el camino que hoy es el único.
 - **Reinterpretar bytes mapeados como registros exige que los registros no
-  lleven punteros** -hoy no los llevan- y que cada sección pase su comprobación
-  de tamaño, alineación y número de elementos derivada de la cabecera. Es la
-  parte que hay que revisar con lupa: un decoder equivocado produce un grafo que
-  parece correcto, y ya existe el precedente de cómo se defiende eso -- la ruta
-  columnar del scan conserva `scanCanonicalTuples` como oráculo y se compara
-  campo a campo.
+  lleven punteros**, y hoy uno lo lleva: `SymbolRecord.StableKey` es una
+  `string`. Es la condición de la fase 2 y la razón de que sea la segunda. Cada
+  sección pasa además su comprobación de tamaño, alineación y número de
+  elementos derivada de la cabecera. Es la parte que hay que revisar con lupa:
+  un decoder equivocado produce un grafo que parece correcto, y ya existe el
+  precedente de cómo se defiende eso -- la ruta columnar del scan conserva
+  `scanCanonicalTuples` como oráculo y se compara campo a campo.
 - **Little-endian y sin relleno implícito.** Los objetivos son `linux/amd64` y
   `darwin/arm64`; el formato lo declara y el lector lo comprueba en vez de
   suponerlo.
