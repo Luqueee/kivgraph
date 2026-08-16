@@ -596,6 +596,9 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if len(args) >= 2 && args[1] == "stop" {
 		return runStop(args[2:], stdout, stderr, procstat.List, signalProcess)
 	}
+	if len(args) >= 2 && args[1] == "stats" {
+		return runStats(args[2:], stdout, stderr, procstat.List)
+	}
 	if len(args) >= 2 && args[1] == "rebuild" {
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
 	}

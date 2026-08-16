@@ -78,6 +78,7 @@ var commandGroups = []commandGroup{
 			{"doctor storage --database PATH", "Inspect one LadybugDB database file"},
 			{"doctor graph --database PATH", "Validate the canonical graph of a database"},
 			{"graph status --root PATH", "Report the active and backup generations"},
+			{"stats [--interval D] [--once] [--json]", "Watch what every kivgraph process on this machine costs"},
 			{"version [--json]", "Print the release, with --json for full provenance"},
 		},
 	},
