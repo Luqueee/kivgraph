@@ -276,3 +276,48 @@ Mapear además las tablas y los dos CSR añade los otros 15 MB y trae consigo to
 lo que el arena no necesita: un layout mappable declarado por sección, la
 alineación comprobada antes de reinterpretar, y `SymbolRecord` sin `string`. Es
 la parte que menos compra y más cuesta, y por eso va al final.
+
+## Lo medido en la fase 2b
+
+El arena de cadenas se lee del fichero mapeado; las tablas y los dos CSR siguen
+copiándose. Misma máquina, generación `000112`, 103.384 símbolos:
+
+```text
+                                antes        con el arena mapeado
+heap vivo del snapshot        88,36 MB               40,81 MB
+arena leída en sitio                 -               47,80 MB
+asignación por carga          139,8 MB               92,2 MB
+tiempo de carga             144-159 ms            190-199 ms
+```
+
+En tres servidores del mismo grafo, y aquí está la razón de medir `Pss` y no
+`Rss`:
+
+```text
+                        arena en heap     arena mapeado
+RSS por servidor          114-119 MB        140-142 MB
+Pss por servidor            ~117 MB           79-81 MB
+Shared_Clean                  27 MB             90 MB
+Private_Dirty                ~87 MB          50-52 MB
+VmHWM                    224-232 MB        170-174 MB
+```
+
+**El RSS sube y el coste baja.** Un proceso cuenta como residente cada página
+mapeada que ha tocado, así que los tres cuentan las mismas; `Pss` las reparte y
+`Shared_Clean` dice cuántas son de todos. La suma de los tres pasa de unos
+`350 MB` a `239 MB`, y el fichero se cuenta una vez.
+
+La carga es `40 ms` más lenta: leer por el mapeo produce un fallo de página por
+cada página que se toca la primera vez. Sigue siendo ocho veces más rápida que
+derivar, y a cambio deja de asignar 47,8 MB por proceso.
+
+Lo que hace esto correcto está probado por dirección y no por valor: una tabla
+con arena prestada devuelve copias -- comparar los bytes pasaría igual, comparar
+dónde viven distingue una copia de una vista-- y el oráculo sobre datos reales
+compara el snapshot mapeado contra uno derivado del mismo `graph.db`, símbolo a
+símbolo y arista a arista.
+
+Queda por mapear el resto del volumen: las tablas y los dos CSR, unos 15 MB, con
+todo lo que el arena no necesitaba -- layout mappable declarado por sección,
+alineación comprobada antes de reinterpretar y `SymbolRecord` sin `string`. Es la
+parte que menos compra y más cuesta, y sigue al final.
