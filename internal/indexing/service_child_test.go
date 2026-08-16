@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/config"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // gitRepository builds a checkout the registry can read: it resolves HEAD, the
@@ -23,7 +23,7 @@ func gitRepository(t *testing.T) string {
 	for _, arguments := range [][]string{
 		{"init", "--quiet"},
 		{"config", "user.email", "test@example.invalid"},
-		{"config", "user.name", "Ladygraph Test"},
+		{"config", "user.name", "Kivgraph Test"},
 		{"-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "fixture"},
 	} {
 		command := exec.Command("git", arguments...)

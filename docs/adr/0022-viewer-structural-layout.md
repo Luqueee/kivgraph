@@ -140,7 +140,7 @@ sus vecinos. En cambio la tile sí trae la estructura: el árbol de contención 
   archivos-, así que el primer símbolo es el nodo `4.351` y como mucho caben
   `5.650` de los `82.443`. Ver más símbolos exige acotar el viewport, no subir
   el presupuesto.
-- El mundo ya no corresponde a las coordenadas publicadas: `ladygraph index
+- El mundo ya no corresponde a las coordenadas publicadas: `kivgraph index
   --full` no reproduce esta imagen, se reconstruye desde la estructura.
 - Un tile con presupuesto bajo no llega a los símbolos: la vista lo declara
   como muestra del nivel pedido en vez de mentir sobre lo que dibuja.

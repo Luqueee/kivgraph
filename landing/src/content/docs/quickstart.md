@@ -3,13 +3,13 @@ title: Quickstart
 description: Register a repository, publish a graph, and point an MCP client at it.
 ---
 
-Ladygraph serves queries from a published generation. Nothing answers until one
+Kivgraph serves queries from a published generation. Nothing answers until one
 exists, so the order below is the whole setup: register, check, index, connect.
 
 ## 1. Register a repository
 
 ```bash
-ladygraph init \
+kivgraph init \
   --repository project=/absolute/path/to/project \
   --languages go,typescript,rust
 ```
@@ -21,7 +21,7 @@ travels inside the stable keys of everything the repository declares.
 ## 2. Check the machine
 
 ```bash
-ladygraph doctor
+kivgraph doctor
 ```
 
 `doctor` reports the configuration, the toolchains it found and the state of
@@ -32,7 +32,7 @@ that decides whether a module can be indexed at all.
 ## 3. Index and publish
 
 ```bash
-ladygraph index --full
+kivgraph index --full
 ```
 
 The pass analyses every registered repository, validates the canonical graph
@@ -47,12 +47,12 @@ Configure any MCP client to start the server over stdio:
 ```json
 {
   "mcpServers": {
-    "ladygraph": {
-      "command": "/home/user/.local/bin/ladygraph",
+    "kivgraph": {
+      "command": "/home/user/.local/bin/kivgraph",
       "args": [
         "serve",
         "--config",
-        "/home/user/.config/ladygraph/config.yaml"
+        "/home/user/.config/kivgraph/config.yaml"
       ]
     }
   }

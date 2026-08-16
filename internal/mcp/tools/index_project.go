@@ -9,7 +9,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/indexing"
 )
 
 const indexProjectToolName = "index_project"
@@ -162,7 +162,7 @@ func requireIndexConsent(
 		if initialize != nil && initialize.Capabilities != nil && initialize.Capabilities.Elicitation != nil {
 			result, err := request.Session.Elicit(ctx, &sdkmcp.ElicitParams{
 				Message: fmt.Sprintf(
-					"Allow Ladygraph to register and index %s? This updates the registry and publishes a new graph generation.",
+					"Allow Kivgraph to register and index %s? This updates the registry and publishes a new graph generation.",
 					describeBatch(batch),
 				),
 				RequestedSchema: &jsonschema.Schema{

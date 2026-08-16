@@ -3,8 +3,8 @@ title: Configuration
 description: Every key of config.yaml and repositories.yaml, with its default and what it accepts.
 ---
 
-`ladygraph init` writes `~/.config/ladygraph/config.yaml` and
-`~/.config/ladygraph/repositories.yaml`. Paths use the `~` notation until they
+`kivgraph init` writes `~/.config/kivgraph/config.yaml` and
+`~/.config/kivgraph/repositories.yaml`. Paths use the `~` notation until they
 are expanded at load time; after expansion every path key must be absolute.
 
 A configuration written outside the default location is self-contained: its
@@ -21,22 +21,22 @@ state, its cache and its registry hang from its own directory. A `--config` in
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `repositories_file` | `~/.config/ladygraph/repositories.yaml` | The repository registry document. |
+| `repositories_file` | `~/.config/kivgraph/repositories.yaml` | The repository registry document. |
 
 ## `storage`
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `database_path` | `~/.local/state/ladygraph/graph.lbdb` | The canonical LadybugDB database. |
-| `snapshots_path` | `~/.local/state/ladygraph/snapshots` | Published generations. |
-| `backups_path` | `~/.local/state/ladygraph/backups` | What `rollback` restores from. |
+| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. |
+| `snapshots_path` | `~/.local/state/kivgraph/snapshots` | Published generations. |
+| `backups_path` | `~/.local/state/kivgraph/backups` | What `rollback` restores from. |
 | `retain_snapshots` | `3` | Must be positive. |
 
 ## `web`
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `address` | `0.0.0.0:7777` | Bind of `ladygraph ui`. Must be a valid `host:port`. Every non-loopback bind logs what it exposes; there is no authentication. |
+| `address` | `0.0.0.0:7777` | Bind of `kivgraph ui`. Must be a valid `host:port`. Every non-loopback bind logs what it exposes; there is no authentication. |
 
 ## `mcp`
 
@@ -57,7 +57,7 @@ state, its cache and its registry hang from its own directory. A `--config` in
 | `syntax_acceleration` | `true` | |
 | `full_rebuild_on_schema_change` | `true` | |
 | `fact_cache` | `on` | `off`, `on` or `verify`. `verify` analyses everything and fails the pass when a servable entry disagrees with the analysis. |
-| `fact_cache_path` | `~/.local/state/ladygraph/factcache` | One entry per analysis unit, outside every indexed repository. Must not be empty unless the cache is `off`. |
+| `fact_cache_path` | `~/.local/state/kivgraph/factcache` | One entry per analysis unit, outside every indexed repository. Must not be empty unless the cache is `off`. |
 
 The two words are not decoration. `generated_files` and
 `unresolved_references` accept exactly one value each because that is exactly
@@ -77,7 +77,7 @@ reference. Accepting another word would promise behaviour no code implements.
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `worker_command` | `ladygraph-ts-worker` | Must not be empty. |
+| `worker_command` | `kivgraph-ts-worker` | Must not be empty. |
 | `maximum_workers` | `3` | Must be positive. Bounds concurrent worker processes. |
 | `project_idle_timeout` | `30m` | Must be positive. |
 
@@ -85,9 +85,9 @@ reference. Accepting another word would promise behaviour no code implements.
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `synthetic_work_file` | `~/.local/state/ladygraph/go.work` | The synthetic workspace, outside every indexed repository. |
+| `synthetic_work_file` | `~/.local/state/kivgraph/go.work` | The synthetic workspace, outside every indexed repository. |
 | `include_tests` | `false` | |
-| `build_tags` | *(empty)* | The constraints every Go load satisfies. No tag may be empty or contain a comma or whitespace. Indexing the Ladygraph repository itself requires `ladybug`. |
+| `build_tags` | *(empty)* | The constraints every Go load satisfies. No tag may be empty or contain a comma or whitespace. Indexing the Kivgraph repository itself requires `ladybug`. |
 | `allow_network` | `false` | The one declared escape from a hermetic pass: lets the go command reach a module proxy. |
 | `maximum_loads` | `0` | Bounds concurrent Go loads; each holds a complete type universe. `0` uses the processor count, capped. Must not be negative. |
 
@@ -105,7 +105,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | `proc_macros` | `true` | |
 | `include_tests` | `true` | Sets `cfg(test)`. Turning it off removes every test item from the graph, and the grammar then reports each one as a declaration the index does not carry. |
 | `allow_network` | `false` | Lets cargo reach a registry while the analyzer loads a workspace. |
-| `target_directory` | `~/.local/state/ladygraph/rust-target` | Build artifacts of the analysis, outside every indexed repository. |
+| `target_directory` | `~/.local/state/kivgraph/rust-target` | Build artifacts of the analysis, outside every indexed repository. |
 | `sysroot` | `discover` | `discover`, `none`, or a path. Where the standard library is, never whether it enters the graph: loading it is what lets the analyzer resolve `Vec` at all. |
 | `index_sysroot` | `false` | Publishes the standard library as a synthetic provider repository named after the toolchain release, such as `rust:1.96.1`. |
 

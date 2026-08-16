@@ -1,8 +1,8 @@
 {
-  "name": "@ladygraph/ts-worker",
+  "name": "@kivgraph/ts-worker",
   "version": "0.1.0",
   "private": true,
-  "description": "Persistent TypeScript worker for Ladygraph",
+  "description": "Persistent TypeScript worker for Kivgraph",
   "type": "module",
   "packageManager": "pnpm@11.5.1",
   "engines": {

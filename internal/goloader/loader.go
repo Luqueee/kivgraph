@@ -2,7 +2,7 @@
 // registered repositories.
 //
 // Loading always goes through go/packages with the complete semantic mode of
-// the plan: anything less would force Ladygraph to reconstruct type identity by
+// the plan: anything less would force Kivgraph to reconstruct type identity by
 // hand. Every load creates a fresh go/types universe, so objects of different
 // loads are never mixed; callers must normalise before the session ends.
 package goloader

@@ -7,7 +7,7 @@ import { defineConfig } from "astro/config";
 // server only serves files and the 404 route; `output: "server"` is what makes
 // the adapter emit that entry point at all.
 export default defineConfig({
-  site: process.env.LADYGRAPH_LANDING_URL ?? "http://localhost:6767",
+  site: process.env.KIVGRAPH_LANDING_URL ?? "http://localhost:6767",
   output: "server",
   adapter: node({ mode: "standalone" }),
   // 6767 everywhere: `astro dev`, `astro preview` and the standalone server
@@ -16,7 +16,7 @@ export default defineConfig({
   server: { port: 6767, host: true },
   integrations: [
     starlight({
-      title: "Ladygraph",
+      title: "Kivgraph",
       description:
         "A canonical code graph for Go, TypeScript and Rust, served over MCP.",
       // The mark is a raster: there is no favicon.svg to prefer. Starlight
@@ -39,7 +39,7 @@ export default defineConfig({
         {
           icon: "github",
           label: "GitHub",
-          href: "https://github.com/Luqueee/ladygraph",
+          href: "https://github.com/Luqueee/kivgraph",
         },
       ],
       sidebar: [

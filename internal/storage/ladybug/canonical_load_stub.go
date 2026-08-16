@@ -5,7 +5,7 @@ package ladybug
 import (
 	"context"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 // LoadReport records what a canonical load wrote.

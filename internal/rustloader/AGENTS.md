@@ -18,7 +18,7 @@ Las reglas del motor están en `internal/AGENTS.md`.
   versión, URL y digest, y descargado por `scripts/fetch-rust-analyzer.sh`. En
   ejecución gana el binario que viaja junto al ejecutable, después una ruta
   explícita de la configuración y por último el `PATH`; `doctor` dice cuál
-  respondió y `ladygraph version --json` publica su release. Lo que el bundle
+  respondió y `kivgraph version --json` publica su release. Lo que el bundle
   no lleva es un toolchain de Rust: sin `cargo` el analizador no carga el
   workspace, así que `doctor` lo comprueba aparte y falla nombrándolo.
 - El subcomando `scip` ejecuta build scripts siempre, así que la hermeticidad

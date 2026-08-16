@@ -822,7 +822,7 @@ function identityUnresolved(
  * `PROVIDER_EXPORT` is the provider's checker naming the export inside a
  * source file its project roots already mapped the artifact to: the position
  * is exact, but the artifact-to-source step rests on the provider's build
- * configuration rather than on a map it emitted. Ladygraph grades the two
+ * configuration rather than on a map it emitted. Kivgraph grades the two
  * apart, so a consumer can tell which edges rest on which proof.
  */
 export type ImportedSymbolIdentitySource =

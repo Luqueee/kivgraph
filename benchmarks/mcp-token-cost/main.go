@@ -1,4 +1,4 @@
-// Command mcp-token-cost measures what a coding session costs with Ladygraph
+// Command mcp-token-cost measures what a coding session costs with Kivgraph
 // and what the same session costs without it.
 //
 // The comparison is the whole point. A benchmark that measures only its own
@@ -51,10 +51,10 @@ type config struct {
 
 func main() {
 	cfg := config{}
-	flag.StringVar(&cfg.Server, "server", "ladygraph", "ladygraph executable to measure")
-	flag.StringVar(&cfg.ConfigPath, "config", "", "optional --config passed to ladygraph serve")
+	flag.StringVar(&cfg.Server, "server", "kivgraph", "kivgraph executable to measure")
+	flag.StringVar(&cfg.ConfigPath, "config", "", "optional --config passed to kivgraph serve")
 	flag.StringVar(&cfg.Directory, "dir", defaultDirectory, "benchmark directory holding questions.json and native captures")
-	flag.StringVar(&cfg.Repository, "repository", "ladygraph", "indexed repository the questions belong to")
+	flag.StringVar(&cfg.Repository, "repository", "kivgraph", "indexed repository the questions belong to")
 	flag.Parse()
 
 	// os.Args[0] is whatever temporary path `go run` linked, which changes on
@@ -68,7 +68,7 @@ func main() {
 
 func canonicalCommand(cfg config) string {
 	command := "go run ./" + defaultDirectory
-	if cfg.Server != "ladygraph" {
+	if cfg.Server != "kivgraph" {
 		command += " --server " + cfg.Server
 	}
 	if cfg.ConfigPath != "" {
@@ -77,7 +77,7 @@ func canonicalCommand(cfg config) string {
 	if cfg.Directory != defaultDirectory {
 		command += " --dir " + cfg.Directory
 	}
-	if cfg.Repository != "ladygraph" {
+	if cfg.Repository != "kivgraph" {
 		command += " --repository " + cfg.Repository
 	}
 	return command

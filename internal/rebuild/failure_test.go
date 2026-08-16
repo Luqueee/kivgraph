@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 var errInjected = errors.New("injected failure")

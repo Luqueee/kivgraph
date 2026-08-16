@@ -30,12 +30,12 @@ var (
 	ErrNotFound = errors.New("LadybugDB entity was not found")
 	// ErrDatabaseLocked reports that another live process holds the database.
 	// It is separated from a generic open failure on purpose: a duplicate
-	// Ladygraph instance and a damaged file are the same status code coming
+	// Kivgraph instance and a damaged file are the same status code coming
 	// out of the engine, and an operator needs to tell them apart.
 	ErrDatabaseLocked = errors.New("LadybugDB database is held by another process")
 )
 
-// Error wraps a native or lifecycle failure with the Ladygraph operation that failed.
+// Error wraps a native or lifecycle failure with the Kivgraph operation that failed.
 type Error struct {
 	Op  string
 	Err error

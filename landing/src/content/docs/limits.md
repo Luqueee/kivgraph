@@ -1,6 +1,6 @@
 ---
 title: Limits
-description: What Ladygraph does not do, measured and stated without softening.
+description: What Kivgraph does not do, measured and stated without softening.
 ---
 
 A declared hole is a fact. Everything on this page is a known limitation, not a
@@ -28,13 +28,13 @@ a per-document counter, are not addressable, and never enter the graph.
 
 ## Go type-checking has a version ceiling
 
-`go/types` travels linked into the binary, so Ladygraph type-checks only up to
+`go/types` travels linked into the binary, so Kivgraph type-checks only up to
 the language version of the toolchain that compiled it. A registered module
 above that ceiling is rejected by name — repository, module and version — rather
 than being allowed to escalate the synthetic `go.work` toolchain and break the
 load of every other repository inside the standard library.
 
-`ladygraph doctor` reports that ceiling. It is not the `go` on your `PATH`, and
+`kivgraph doctor` reports that ceiling. It is not the `go` on your `PATH`, and
 it is the number that decides whether a repository can be indexed.
 
 ## Published platforms
@@ -65,7 +65,7 @@ database against `ENOSPC`; the qualification is recorded as
 
 ## The viewer is unauthenticated
 
-`ladygraph ui` binds every interface by default and carries no authentication.
+`kivgraph ui` binds every interface by default and carries no authentication.
 Its responses contain repository and file paths, symbol names and signatures.
 Restricting it is `--addr` or `web.address`. See the
 [viewer guide](/guides/viewer/).

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/synthetic"
+	"github.com/Luqueee/kivgraph/internal/synthetic"
 )
 
 func TestRunLoadsAndVerifiesEveryBatchSize(t *testing.T) {

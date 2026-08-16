@@ -16,7 +16,7 @@ const (
 // The engine's own default is 80% of the machine's memory, which is the right
 // size for a cache in a long-lived database process. A scan is the opposite of
 // that: it reads every page once, in stable key order, and then closes the
-// database. Sizing its cache from the machine means every `ladygraph serve`
+// database. Sizing its cache from the machine means every `kivgraph serve`
 // reserves gigabytes it cannot use while it loads its snapshot, and on a
 // machine running one server per MCP client that reservation is the difference
 // between fitting and swapping.

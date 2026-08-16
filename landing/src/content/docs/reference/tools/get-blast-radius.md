@@ -13,7 +13,7 @@ description: Bounded incoming impact of one symbol, grouped by repository, packa
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `depth` | integer | `3` | How many hops the walk may take backwards. Must be between 1 and 5. |
 | `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations may be followed, so it also changes what counts as affected. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
-| `include_derived` | boolean | `false` | Includes rows from providers Ladygraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. This tool takes no `repo` argument, so the flag is the only way to ask for them. |
+| `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. This tool takes no `repo` argument, so the flag is the only way to ask for them. |
 | `limit` | integer | `50` | Rows of `symbols` in this page. Must be between 1 and 500. The aggregates are never paged. |
 | `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
@@ -36,7 +36,7 @@ It is also the one tool that states how far its answer reaches, in a
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll",
   "depth": 2
@@ -62,39 +62,39 @@ It is also the one tool that states how far its answer reaches, in a
     "invisible_scopes": [
       {
         "reason": "PACKAGE_NOT_BUILDABLE",
-        "repository": "ladygraph",
-        "requested_package": "github.com/Luqueee/ladygraph/benchmarks/ladybug-delta-profile",
-        "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-delta-profile"
+        "repository": "kivgraph",
+        "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-delta-profile",
+        "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile"
       },
       {
         "reason": "PACKAGE_NOT_BUILDABLE",
-        "repository": "ladygraph",
-        "requested_package": "github.com/Luqueee/ladygraph/benchmarks/ladybug-recovery",
-        "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-recovery"
+        "repository": "kivgraph",
+        "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery",
+        "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
       },
       {
         "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "requested_package": "@astrojs/node"
       },
       …
       {
         "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "requested_package": "vitest"
       }
     ],
     "fallback": {
       "pattern": "\\bMergeAll\\b",
       "paths": [
-        "/Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-delta-profile",
-        "/Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-recovery"
+        "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile",
+        "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
       ]
     }
   },
   "results": {
     "root_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
-    "root_repository": "ladygraph",
+    "root_repository": "kivgraph",
     "depth": 2,
     "max_nodes": 5000,
     "affected": 5,
@@ -106,7 +106,7 @@ It is also the one tool that states how far its answer reaches, in a
         "qualified_name": "mergeSets",
         "kind": "func",
         "depth": 1,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/indexer/full.go",
         "start_line": 681,
@@ -121,7 +121,7 @@ It is also the one tool that states how far its answer reaches, in a
         "qualified_name": "closeCrossRepositoryEdges",
         "kind": "func",
         "depth": 1,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/indexer/full.go",
         "start_line": 735,
@@ -136,7 +136,7 @@ It is also the one tool that states how far its answer reaches, in a
         "qualified_name": "Set.Merge",
         "kind": "method",
         "depth": 1,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/facts/facts.go",
         "start_line": 505,
@@ -151,7 +151,7 @@ It is also the one tool that states how far its answer reaches, in a
         "qualified_name": "Full",
         "kind": "func",
         "depth": 2,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/indexer/full.go",
         "start_line": 199,
@@ -166,7 +166,7 @@ It is also the one tool that states how far its answer reaches, in a
         "qualified_name": "Diff",
         "kind": "func",
         "depth": 2,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/facts/delta.go",
         "start_line": 240,
@@ -179,7 +179,7 @@ It is also the one tool that states how far its answer reaches, in a
     ],
     "by_repository": [
       {
-        "key": "ladygraph",
+        "key": "kivgraph",
         "count": 5
       }
     ],
@@ -201,15 +201,15 @@ It is also the one tool that states how far its answer reaches, in a
     ],
     "by_package": [
       {
-        "package_key": "package:go:ladygraph:github.com/Luqueee/ladygraph/internal/facts",
-        "package_name": "github.com/Luqueee/ladygraph/internal/facts",
-        "repository": "ladygraph",
+        "package_key": "package:go:kivgraph:github.com/Luqueee/kivgraph/internal/facts",
+        "package_name": "github.com/Luqueee/kivgraph/internal/facts",
+        "repository": "kivgraph",
         "count": 2
       },
       {
-        "package_key": "package:go:ladygraph:github.com/Luqueee/ladygraph/internal/indexer",
-        "package_name": "github.com/Luqueee/ladygraph/internal/indexer",
-        "repository": "ladygraph",
+        "package_key": "package:go:kivgraph:github.com/Luqueee/kivgraph/internal/indexer",
+        "package_name": "github.com/Luqueee/kivgraph/internal/indexer",
+        "repository": "kivgraph",
         "count": 3
       }
     ]
@@ -219,7 +219,7 @@ It is also the one tool that states how far its answer reaches, in a
 
 Three of the seven `invisible_scopes` entries are elided above, marked with the
 `…` line; the response carries them all. This answer comes from snapshot `30` of
-two repositories, `ladygraph` and `mole`.
+two repositories, `kivgraph` and `mole`.
 
 ## Reading the result
 

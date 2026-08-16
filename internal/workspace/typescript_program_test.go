@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // buildMonorepoFixture writes a repository with three referenced projects, two

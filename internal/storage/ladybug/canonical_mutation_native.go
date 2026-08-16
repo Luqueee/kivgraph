@@ -11,7 +11,7 @@ import (
 
 	lbug "github.com/LadybugDB/go-ladybug"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 // Retirement queries. Every one filters on a bound $files/$keys list

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/rustloader/scipwire"
-	"github.com/Luqueee/ladygraph/internal/syntax"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // collidingIndex builds an index in which two analyzer symbols share one stable

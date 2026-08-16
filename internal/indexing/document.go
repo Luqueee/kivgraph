@@ -1,6 +1,6 @@
 package indexing
 
-import "github.com/Luqueee/ladygraph/internal/indexer"
+import "github.com/Luqueee/kivgraph/internal/indexer"
 
 // FullEventKind names one line of the stream `index --full --json` writes to
 // stdout.

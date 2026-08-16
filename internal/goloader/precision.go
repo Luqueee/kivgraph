@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // PrecisionGate is the gate emitted when the measurement is clean.
@@ -78,14 +78,14 @@ func precisionCases() []precisionCase {
 			registryRepositories:  []string{"shared-library", "consumer-a", "consumer-b"},
 			consumer:              "consumer-a",
 			expectedEdges: []string{
-				"main -> TYPE_USES -> example.com/ladygraph-fixture/shared/api.Shape",
-				"main -> REFERENCES -> example.com/ladygraph-fixture/shared/api.Shape.Width",
-				"main -> REFERENCES -> example.com/ladygraph-fixture/shared/api.Answer",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/shared/api.Compute",
-				"main -> REFERENCES -> example.com/ladygraph-fixture/shared/api.Shape.Width",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/shared/api.Shape.Area",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/shared/api.Register",
-				"main -> PASSES_AS_CALLBACK -> example.com/ladygraph-fixture/shared/api.Compute",
+				"main -> TYPE_USES -> example.com/kivgraph-fixture/shared/api.Shape",
+				"main -> REFERENCES -> example.com/kivgraph-fixture/shared/api.Shape.Width",
+				"main -> REFERENCES -> example.com/kivgraph-fixture/shared/api.Answer",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/shared/api.Compute",
+				"main -> REFERENCES -> example.com/kivgraph-fixture/shared/api.Shape.Width",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/shared/api.Shape.Area",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/shared/api.Register",
+				"main -> PASSES_AS_CALLBACK -> example.com/kivgraph-fixture/shared/api.Compute",
 			},
 			expectedUnresolved: nil,
 		},
@@ -96,9 +96,9 @@ func precisionCases() []precisionCase {
 			registryRepositories:  []string{"shared-library", "consumer-a", "consumer-b"},
 			consumer:              "consumer-b",
 			expectedEdges: []string{
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/shared/api.Compute",
-				"main -> REFERENCES -> example.com/ladygraph-fixture/shared/api.Answer",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/legacy.Legacy",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/shared/api.Compute",
+				"main -> REFERENCES -> example.com/kivgraph-fixture/shared/api.Answer",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/legacy.Legacy",
 			},
 			expectedUnresolved: nil,
 		},
@@ -109,15 +109,15 @@ func precisionCases() []precisionCase {
 			registryRepositories:  []string{"decoy", "mirror", "twin-a", "twin-b", "consumer"},
 			consumer:              "consumer",
 			expectedEdges: []string{
-				"main -> TYPE_USES -> example.com/ladygraph-fixture/decoy/api.Shape",
-				"main -> REFERENCES -> example.com/ladygraph-fixture/decoy/api.Shape.Width",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/decoy/api.Shape.Area",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/decoy/api.Compute",
-				"main -> CALLS_DIRECT -> example.com/ladygraph-fixture/decoy/api.Register",
+				"main -> TYPE_USES -> example.com/kivgraph-fixture/decoy/api.Shape",
+				"main -> REFERENCES -> example.com/kivgraph-fixture/decoy/api.Shape.Width",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/decoy/api.Shape.Area",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/decoy/api.Compute",
+				"main -> CALLS_DIRECT -> example.com/kivgraph-fixture/decoy/api.Register",
 			},
 			expectedUnresolved: []string{
-				"AMBIGUOUS_MODULE_PROVIDER:example.com/ladygraph-fixture/twin:Compute",
-				"REPLACE_CONFLICT:example.com/ladygraph-fixture/pinned:",
+				"AMBIGUOUS_MODULE_PROVIDER:example.com/kivgraph-fixture/twin:Compute",
+				"REPLACE_CONFLICT:example.com/kivgraph-fixture/pinned:",
 			},
 		},
 	}
@@ -295,7 +295,7 @@ func difference(expected, observed []string) (missing, unexpected []string) {
 }
 
 func mkdirTemporary() (string, error) {
-	directory, err := os.MkdirTemp("", "ladygraph-go-precision-")
+	directory, err := os.MkdirTemp("", "kivgraph-go-precision-")
 	if err != nil {
 		return "", fmt.Errorf("create temporary workspace directory: %w", err)
 	}

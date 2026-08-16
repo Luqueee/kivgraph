@@ -81,9 +81,9 @@ func TestListSeesThisProcess(t *testing.T) {
 
 // TestInvocationSplitsProgramAndCommand pins what the stop command matches on.
 func TestInvocationSplitsProgramAndCommand(t *testing.T) {
-	program, command := Process{Args: []string{"/opt/ladygraph/bin/ladygraph", "serve"}}.Invocation()
-	if program != "ladygraph" || command != "serve" {
-		t.Fatalf("invocation = %q/%q, want ladygraph/serve", program, command)
+	program, command := Process{Args: []string{"/opt/kivgraph/bin/kivgraph", "serve"}}.Invocation()
+	if program != "kivgraph" || command != "serve" {
+		t.Fatalf("invocation = %q/%q, want kivgraph/serve", program, command)
 	}
 	if program, command := (Process{}).Invocation(); program != "" || command != "" {
 		t.Fatalf("empty invocation = %q/%q, want both empty", program, command)

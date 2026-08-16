@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/indexer"
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 const (
@@ -187,7 +187,7 @@ func run(ctx context.Context, cfg config) (results, error) {
 }
 
 func measureScenario(ctx context.Context, base facts.Set, scenario scenario, sample int) (sampleResult, error) {
-	root, err := os.MkdirTemp("", "ladygraph-incremental-benchmark-")
+	root, err := os.MkdirTemp("", "kivgraph-incremental-benchmark-")
 	if err != nil {
 		return sampleResult{}, err
 	}

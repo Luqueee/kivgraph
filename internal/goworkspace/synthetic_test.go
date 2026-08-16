@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func TestBuildPlanComposesEveryModuleAndAgreedReplacements(t *testing.T) {
@@ -303,7 +303,7 @@ go 1.24
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
 
-	state := filepath.Join(root, "state", "ladygraph")
+	state := filepath.Join(root, "state", "kivgraph")
 	target := filepath.Join(state, "go.work")
 	first, err := Write(context.Background(), target, plan, repositories)
 	if err != nil {

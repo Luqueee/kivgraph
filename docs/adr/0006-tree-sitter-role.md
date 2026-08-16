@@ -5,7 +5,7 @@
 
 ## Context
 
-Ladygraph necesita detectar cambios y mantener inventarios sintácticos con rapidez,
+Kivgraph necesita detectar cambios y mantener inventarios sintácticos con rapidez,
 incluso cuando un archivo está temporalmente incompleto o contiene errores de
 sintaxis. Tree-sitter ofrece parsing incremental y árboles tolerantes, pero la
 precisión cross-repository requiere la semántica del compilador de cada

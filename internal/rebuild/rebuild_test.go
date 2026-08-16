@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/metrics"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // sampleFacts is a small but complete, Validate-passing fact set: one

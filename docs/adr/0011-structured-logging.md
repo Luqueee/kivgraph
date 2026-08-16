@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Ladygraph usa STDIO para el transporte MCP. La salida estándar pertenece al
+Kivgraph usa STDIO para el transporte MCP. La salida estándar pertenece al
 protocolo y no puede recibir diagnósticos del proceso. Los mensajes de error del
 CLI se escribían como texto libre en `stderr`, lo que impedía consumirlos de
 forma uniforme y mezclaba errores de argumentos con fallos de ejecución.
@@ -21,7 +21,7 @@ métricas de consultas y latencias pertenecen a LUQUE-1402.
 claves estándar `time`, `level` y `msg`, más atributos estructurados cuando
 aplican.
 
-El entrypoint `cmd/ladygraph` crea un logger por proceso. El ciclo `serve`
+El entrypoint `cmd/kivgraph` crea un logger por proceso. El ciclo `serve`
 registra inicio, cierre y error de cierre. Los escritores de error heredados del
 CLI se adaptan mediante `NewErrorWriter`, que convierte cada escritura en un
 evento `ERROR` sin cambiar los contratos de inyección de `run` y sus tests.

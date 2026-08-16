@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // Language identifies the engine domain a fact belongs to.
@@ -257,7 +257,7 @@ type Set struct {
 // ErrInvalidFacts reports a fact set that cannot be stored.
 var ErrInvalidFacts = errors.New("invalid fact set")
 
-// IsSyntheticRepository reports whether a repository is one Ladygraph derives
+// IsSyntheticRepository reports whether a repository is one Kivgraph derives
 // from the machine -- today the standard library of a Rust toolchain -- rather
 // than one a user registered. The reserved namespace is enforced when a name is
 // registered, so the name is the answer and no row carries a second copy of it.

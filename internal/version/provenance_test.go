@@ -23,7 +23,7 @@ func TestCollectReadsBundleManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	if provenance.Ladygraph != "0.1.0" || provenance.Go != "go1.24.4" {
+	if provenance.Kivgraph != "0.1.0" || provenance.Go != "go1.24.4" {
 		t.Fatalf("release/toolchain = %#v", provenance)
 	}
 	if provenance.Commit == nil || *provenance.Commit != strings.Repeat("a", 40) {
@@ -78,12 +78,12 @@ func TestCollectReadsBundleManifest(t *testing.T) {
 }
 
 func TestCollectFallsBackWithoutBundleManifest(t *testing.T) {
-	provenance, err := Collect(filepath.Join(t.TempDir(), "bin", "ladygraph"), t.TempDir())
+	provenance, err := Collect(filepath.Join(t.TempDir(), "bin", "kivgraph"), t.TempDir())
 	if err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	if provenance.Ladygraph != Value {
-		t.Fatalf("Ladygraph = %q, want %q", provenance.Ladygraph, Value)
+	if provenance.Kivgraph != Value {
+		t.Fatalf("Kivgraph = %q, want %q", provenance.Kivgraph, Value)
 	}
 	if provenance.Go != runtime.Version() {
 		t.Fatalf("Go = %q, want %q", provenance.Go, runtime.Version())
@@ -133,7 +133,7 @@ func TestCollectRejectsMalformedBundleManifest(t *testing.T) {
 		t.Fatalf("write malformed manifest: %v", err)
 	}
 
-	_, err := Collect(filepath.Join(root, "bin", "ladygraph"), t.TempDir())
+	_, err := Collect(filepath.Join(root, "bin", "kivgraph"), t.TempDir())
 	if err == nil {
 		t.Fatal("Collect() succeeded for malformed manifest")
 	}
@@ -174,13 +174,13 @@ func TestCollectRejectsBundleManifestBuiltForAnotherPlatform(t *testing.T) {
 
 func TestCollectReadsDistBundleForTheRunningPlatform(t *testing.T) {
 	workingDir := t.TempDir()
-	bundleRoot := filepath.Join(workingDir, "dist", "ladygraph-"+runtime.GOOS+"-"+runtime.GOARCH)
+	bundleRoot := filepath.Join(workingDir, "dist", "kivgraph-"+runtime.GOOS+"-"+runtime.GOARCH)
 	if err := os.MkdirAll(bundleRoot, 0o755); err != nil {
 		t.Fatalf("mkdir dist bundle: %v", err)
 	}
 	writeBundleFixture(t, bundleRoot)
 	// A bundle for another platform sitting next to it must be ignored.
-	otherRoot := filepath.Join(workingDir, "dist", "ladygraph-plan9-mips")
+	otherRoot := filepath.Join(workingDir, "dist", "kivgraph-plan9-mips")
 	if err := os.MkdirAll(otherRoot, 0o755); err != nil {
 		t.Fatalf("mkdir foreign dist bundle: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestCollectReadsDistBundleForTheRunningPlatform(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	if provenance.Ladygraph != "0.1.0" || provenance.Resolver == nil || *provenance.Resolver != "resolver-v9" {
+	if provenance.Kivgraph != "0.1.0" || provenance.Resolver == nil || *provenance.Resolver != "resolver-v9" {
 		t.Fatalf("provenance = %#v, want the dist bundle manifest", provenance)
 	}
 }
@@ -214,7 +214,7 @@ func writeBundleFixture(t *testing.T, root string) string {
 	grammarSHA := hex.EncodeToString(digest[:])
 	manifest := fmt.Sprintf(`{
   "manifest_version": 1,
-  "product": "ladygraph",
+  "product": "kivgraph",
   "release": "0.1.0",
   "target": {"os": "%s", "arch": "%s"},
   "source": {"commit": "%s", "dirty": false},
@@ -242,5 +242,5 @@ func writeBundleFixture(t *testing.T, root string) string {
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatalf("write bundle manifest: %v", err)
 	}
-	return filepath.Join(root, "bin", "ladygraph")
+	return filepath.Join(root, "bin", "kivgraph")
 }

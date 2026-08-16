@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Luqueee/ladygraph/internal/mcpworkload"
+	"github.com/Luqueee/kivgraph/internal/mcpworkload"
 )
 
 const defaultOutput = "benchmarks/mcp-workload/workload.json"

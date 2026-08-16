@@ -1,4 +1,4 @@
-// Package metrics provides the process-local metrics registry used by Ladygraph.
+// Package metrics provides the process-local metrics registry used by Kivgraph.
 //
 // The registry deliberately has no exporter dependency. Query counters use
 // atomics for accumulation after a shared lookup; lifecycle and storage
@@ -13,25 +13,25 @@ import (
 )
 
 const (
-	QueryDuration          = "ladygraph_query_duration"
-	QueryTotal             = "ladygraph_query_total"
-	QueryErrors            = "ladygraph_query_errors"
-	QueryResults           = "ladygraph_query_results"
-	QueryTruncated         = "ladygraph_query_truncated"
-	QueryUnresolvedRelated = "ladygraph_query_unresolved_related"
-	SnapshotID             = "ladygraph_snapshot_id"
-	SnapshotAge            = "ladygraph_snapshot_age"
-	SnapshotBuildDuration  = "ladygraph_snapshot_build_duration"
-	SnapshotBytes          = "ladygraph_snapshot_bytes"
-	IndexDuration          = "ladygraph_index_duration"
-	IndexFiles             = "ladygraph_index_files"
-	IndexSymbols           = "ladygraph_index_symbols"
-	IndexEdges             = "ladygraph_index_edges"
-	IndexUnresolved        = "ladygraph_index_unresolved"
-	LadybugTransaction     = "ladygraph_ladybug_transaction_duration"
-	LadybugDatabaseBytes   = "ladygraph_ladybug_database_bytes"
-	TSWorkerRestarts       = "ladygraph_ts_worker_restarts"
-	TSWorkerMemory         = "ladygraph_ts_worker_memory"
+	QueryDuration          = "kivgraph_query_duration"
+	QueryTotal             = "kivgraph_query_total"
+	QueryErrors            = "kivgraph_query_errors"
+	QueryResults           = "kivgraph_query_results"
+	QueryTruncated         = "kivgraph_query_truncated"
+	QueryUnresolvedRelated = "kivgraph_query_unresolved_related"
+	SnapshotID             = "kivgraph_snapshot_id"
+	SnapshotAge            = "kivgraph_snapshot_age"
+	SnapshotBuildDuration  = "kivgraph_snapshot_build_duration"
+	SnapshotBytes          = "kivgraph_snapshot_bytes"
+	IndexDuration          = "kivgraph_index_duration"
+	IndexFiles             = "kivgraph_index_files"
+	IndexSymbols           = "kivgraph_index_symbols"
+	IndexEdges             = "kivgraph_index_edges"
+	IndexUnresolved        = "kivgraph_index_unresolved"
+	LadybugTransaction     = "kivgraph_ladybug_transaction_duration"
+	LadybugDatabaseBytes   = "kivgraph_ladybug_database_bytes"
+	TSWorkerRestarts       = "kivgraph_ts_worker_restarts"
+	TSWorkerMemory         = "kivgraph_ts_worker_memory"
 )
 
 // Registry is a process-local metrics collector. It is safe for concurrent
@@ -139,7 +139,7 @@ type LadybugMetrics struct {
 
 // Report is a consistent copy of all metrics available from the registry.
 // Report is what one process measured. A section is absent when this process
-// never observed it: `ladygraph serve` records queries and the snapshot it
+// never observed it: `kivgraph serve` records queries and the snapshot it
 // loaded, and never indexes anything, so reporting an index that took zero
 // seconds over zero files would describe work that happened somewhere else --
 // and read exactly like a graph that is empty.

@@ -6,7 +6,7 @@
 
 ## Contexto
 
-ADR 0017 fijó `127.0.0.1:7777` como bind por defecto de `ladygraph ui` y exigió
+ADR 0017 fijó `127.0.0.1:7777` como bind por defecto de `kivgraph ui` y exigió
 «una opción explícita y una advertencia operacional» para cualquier bind que no
 fuera loopback. Era la decisión conservadora y describía mal el uso real.
 
@@ -31,7 +31,7 @@ Lo que no cambia:
 
 - El transporte sigue siendo read-only y sirve sólo el `HotSnapshot` publicado.
   No indexa, no reconstruye, no registra repositorios y no muta generaciones.
-- `ladygraph serve` sigue siendo STDIO y no abre ningún puerto.
+- `kivgraph serve` sigue siendo STDIO y no abre ningún puerto.
 - `ui` sigue siendo opt-in: nada lo arranca solo.
 - Una configuración ya escrita conserva su `web.address`. El default sólo
   aplica a una configuración nueva; cambiar una existente es editar el campo.

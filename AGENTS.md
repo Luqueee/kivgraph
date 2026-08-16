@@ -1,4 +1,4 @@
-# Instrucciones de desarrollo de Ladygraph
+# Instrucciones de desarrollo de Kivgraph
 
 Estas reglas aplican a todo el repositorio. Una instrucción más cercana a un
 archivo puede añadir restricciones, pero no puede relajar los contratos de
@@ -14,7 +14,7 @@ trabajar en él; ninguno repite lo que ya está aquí ni lo contradice.
 |`internal/`|`internal/AGENTS.md`|carga de Go, la pasada, caché de hechos, grafo canónico, generaciones, configuración, procesos|
 |`internal/mcp/`|`internal/mcp/AGENTS.md`|superficie de tools, `index_project`, la skill, coste en tokens|
 |`internal/rustloader/`|`internal/rustloader/AGENTS.md`|`rust-analyzer scip`, identidad SCIP, sysroot, descubrimiento Cargo|
-|`cmd/ladygraph/`|`cmd/ladygraph/AGENTS.md`|ayuda, registro, `index --full --json`, `clean`, `stop`, `ui`|
+|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|ayuda, registro, `index --full --json`, `clean`, `stop`, `ui`|
 |`ts-worker/`|`ts-worker/AGENTS.md`|worker TypeScript e identidad cross-repository|
 |`web/`|`web/AGENTS.md`|el visor: layout, dibujo, coste por fotograma|
 |`landing/`|`landing/AGENTS.md`|landing y documentación de usuario: capas, paleta, SEO, iconos|
@@ -26,15 +26,15 @@ editando `scripts/build-bundle.sh`.
 
 ## Identidad del proyecto
 
-- Proyecto: `Ladygraph`.
-- Módulo Go: `github.com/Luqueee/ladygraph`.
-- Ejecutable principal: `cmd/ladygraph`.
-- Worker TypeScript: `ts-worker/`, paquete privado `@ladygraph/ts-worker`.
+- Proyecto: `Kivgraph`.
+- Módulo Go: `github.com/Luqueee/kivgraph`.
+- Ejecutable principal: `cmd/kivgraph`.
+- Worker TypeScript: `ts-worker/`, paquete privado `@kivgraph/ts-worker`.
 - LadybugDB es el almacenamiento canónico; el HotSnapshot es una proyección
   derivada y no una fuente alternativa de hechos.
 - Los identificadores históricos `LUQUE-####` del backlog no se renombran.
 
-## Qué pregunta contesta cada tool de Ladygraph
+## Qué pregunta contesta cada tool de Kivgraph
 
 Este bloque es el canal de enrutado portable: `CLAUDE.md` es un enlace a este
 fichero, así que Oh My Pi y Claude Code lo cargan los dos sin que nadie lo pida.
@@ -70,15 +70,15 @@ repositorio y en demostrar una ausencia.
 
 - Las rutas `xd://` se descubren consultando `xd://`; nunca se construyen
   concatenando prefijos a partir del nombre visible de una herramienta.
-- Las herramientas directas de Ladygraph usan
-  `xd://mcp__ladygraph_<operación>`; a través de 1MCP el nombre agregado es
-  `ladygraph_1mcp_<operación>`.
-- No se debe inventar una forma `xd://mcp__mcp_ladygraph_<operación>`.
+- Las herramientas directas de Kivgraph usan
+  `xd://mcp__kivgraph_<operación>`; a través de 1MCP el nombre agregado es
+  `kivgraph_1mcp_<operación>`.
+- No se debe inventar una forma `xd://mcp__mcp_kivgraph_<operación>`.
 - Una respuesta MCP `tools/list` puede estar paginada: seguir `nextCursor`
   hasta `null` antes de concluir que una herramienta no está montada.
 
-- `ladygraph_1mcp_index_project` es la única herramienta MCP mutante de
-  Ladygraph; solo se registra en la ruta `serve` configurada y exige
+- `kivgraph_1mcp_index_project` es la única herramienta MCP mutante de
+  Kivgraph; solo se registra en la ruta `serve` configurada y exige
   consentimiento explícito del cliente antes de cambiar el registro de
   repositorios o publicar una generación.
 
@@ -86,7 +86,7 @@ repositorio y en demostrar una ausencia.
 
 - El toolchain Go es el del `go.mod`. `go/types` viaja enlazado en el binario,
   así que el techo de versión del lenguaje es el del toolchain que lo compiló;
-  `ladygraph doctor` informa de ese número y no del `go` del `PATH`.
+  `kivgraph doctor` informa de ese número y no del `go` del `PATH`.
 - La biblioteca nativa fijada se descarga y se verifica con `make ladybug-lib`.
   `make test-ladybug` la resuelve por su cuenta y exporta las variables `CGO_*`.
 - El analizador Rust fijado se descarga con `scripts/fetch-rust-analyzer.sh`. La
@@ -159,7 +159,7 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
 - Los parámetros y las salidas del CLI, incluidos el protocolo de
   `index --full --json` y `version --json`.
 - La configuración: claves, vocabularios aceptados y ubicación por defecto.
-- El bundle publicado: los nombres `ladygraph-<os>-<arch>`, `manifest.json`,
+- El bundle publicado: los nombres `kivgraph-<os>-<arch>`, `manifest.json`,
   `SHA256SUMS` y el `RUNPATH`.
 
 ## Go
@@ -179,13 +179,13 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
 - Los objetivos de distribución son `linux/amd64` y `darwin/arm64`, y sólo
   esos. En macOS se publica únicamente Apple Silicon; `darwin/amd64` está
   fuera de alcance por decisión, no por coste, y el instalador lo dice al
-  rechazarlo. La nomenclatura es `ladygraph-<os>-<arch>` para el directorio,
+  rechazarlo. La nomenclatura es `kivgraph-<os>-<arch>` para el directorio,
   la raíz del tar y el archivo publicado. Un bundle se construye siempre en un
   host de su propia plataforma: cgo enlaza la biblioteca nativa y no hay
   cross-compilation.
 - `scripts/build-bundle.sh` es el único generador de bundles; los objetivos
   `make build-linux-amd64` y `make build-darwin-arm64` delegan en él. El
-  manifest, `ladygraph version --json` y `ladygraph update` validan contra la
+  manifest, `kivgraph version --json` y `kivgraph update` validan contra la
   plataforma en ejecución, nunca contra literales.
 - Los scripts eligen la herramienta de digest por disponibilidad -`sha256sum`,
   si no `shasum -a 256`- y fallan cerrado sin ninguna. `--no-overwrite-dir` no
@@ -204,7 +204,7 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
 - La documentación de instalación debe reflejar el layout generado, el
   `RUNPATH`, el runtime Node requerido y la verificación `SHA256SUMS`; no
   presentar un bundle como autocontenido si faltan dependencias del sistema.
-- La release publicada lleva el visor. `ladygraph ui` se anuncia en la ayuda de
+- La release publicada lleva el visor. `kivgraph ui` se anuncia en la ayuda de
   toda build, así que un binario publicado que responda «this build carries no
   web bundle» ofrece un comando que nadie puede ejecutar; los assets web son
   `2.3 MB` de un bundle de `90 MB`. El workflow de release construye sin
@@ -216,7 +216,7 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
   `scripts/install.sh` no inicializa la configuración ni indexa repositorios.
 - Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` detecta la
   plataforma, descarga la última release publicada para ella, verifica el
-  checksum externo e interno, y `ladygraph update` solo sustituye el bundle
+  checksum externo e interno, y `kivgraph update` solo sustituye el bundle
   después de validar manifest, versión y checksums. El `SHA256SUMS` de la
   release lista todos los archivos publicados, así que se verifica la línea
   del propio archivo, no el fichero entero.
@@ -226,7 +226,7 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
 - Los bundles se generan con `make build-linux-amd64` y
   `make build-darwin-arm64`; el directorio `dist/` es generado y no se usa como
   entrada indexada ni de benchmark.
-- `ladygraph version --json` debe conservar salida JSON exclusiva en `stdout`;
+- `kivgraph version --json` debe conservar salida JSON exclusiva en `stdout`;
   el bundle obtiene provenance del `manifest.json` y valida el digest de
   `grammars/manifest.json`; los valores no observables se representan como
   `null`.
@@ -305,13 +305,13 @@ Para cambios de instalación local, ejecutar el flujo con un `HOME` temporal y
 sin modificar repositorios indexados:
 
 ```bash
-ladygraph init
-ladygraph doctor
-ladygraph index --full
-ladygraph serve
+kivgraph init
+kivgraph doctor
+kivgraph index --full
+kivgraph serve
 ```
 
-`ladygraph serve` debe cargar el `HotSnapshot` publicado antes de abrir el
+`kivgraph serve` debe cargar el `HotSnapshot` publicado antes de abrir el
 transporte MCP; sin una generación publicada debe fallar cada consulta que
 requiera snapshot de forma explícita.
 

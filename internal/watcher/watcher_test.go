@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 	"github.com/fsnotify/fsnotify"
 )
 

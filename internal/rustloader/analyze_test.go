@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/syntax"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // analyzeFixture runs the whole Rust path over the recorded workspace: the

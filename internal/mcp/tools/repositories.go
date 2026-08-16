@@ -8,9 +8,9 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/watcher"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/watcher"
 )
 
 // RepositorySummary is the stable public shape for a registered repository.
@@ -31,7 +31,7 @@ type RepositorySummary struct {
 	CurrentBranch string `json:"current_branch,omitempty"`
 	Moved         bool   `json:"moved"`
 	MovedDetail   string `json:"moved_detail,omitempty"`
-	// Derived marks a provider Ladygraph built from the machine rather than
+	// Derived marks a provider Kivgraph built from the machine rather than
 	// from the registry: the standard library of the toolchain that indexed
 	// this graph, whose release is in its name. Nothing checks it out and
 	// nothing can move it.

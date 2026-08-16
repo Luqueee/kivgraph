@@ -1,7 +1,7 @@
 {
   "version": 2,
   "tokenizer": "cl100k_base",
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "question": "who calls this symbol, and what do those callers look like",
   "traversal_root": "MergeAll",
   "questions": [
@@ -64,7 +64,7 @@
         "path": "internal",
         "capture": "native/Publish.grep.txt"
       },
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "path": "internal/hotsnapshot/publication.go",
       "qualified_name": "SnapshotStore.Publish"
     }

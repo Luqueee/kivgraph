@@ -20,7 +20,7 @@ snapshot build failed: unresolved reference "…src/main.rs:CRATE_PROVIDER_NOT_F
 
 `kenalink-rs` sustituye `songbird` por un fork en `vendor/songbird` con
 `[patch.crates-io]`. Cargo lo compila y `rust-analyzer` lo indexa; el
-descubrimiento Cargo de Ladygraph **nunca camina `vendor`**, así que ningún
+descubrimiento Cargo de Kivgraph **nunca camina `vendor`**, así que ningún
 manifest de ese repositorio declara ese crate. La normalización descartaba sus
 1 523 definiciones -no puede inventar un paquete- y publicaba igualmente las
 referencias hacia ellas: 74 destinos colgantes y una pasada que no valida. Los

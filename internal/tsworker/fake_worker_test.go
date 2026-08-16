@@ -15,7 +15,7 @@ import (
 // The supervisor tests drive a real child process. Re-executing the test
 // binary keeps them hermetic: no Node.js, no build step, and the fake speaks
 // the same codec as production because it is the same package.
-const fakeWorkerEnv = "LADYGRAPH_FAKE_WORKER"
+const fakeWorkerEnv = "KIVGRAPH_FAKE_WORKER"
 
 // Fake worker behaviours.
 const (

@@ -1,6 +1,6 @@
 # MCP STDIO transport benchmark
 
-- Command: go run ./benchmarks/mcp-stdio --server ./ladygraph --config benchmarks/mcp-stdio/testdata/config.yaml --calls 10000 --warmup 100 --output benchmarks/mcp-stdio
+- Command: go run ./benchmarks/mcp-stdio --server ./kivgraph --config benchmarks/mcp-stdio/testdata/config.yaml --calls 10000 --warmup 100 --output benchmarks/mcp-stdio
 - Commit: 4580240a155940cadf9e230626d42e8879a3e337
 - Generated at: 2026-08-07T14:26:07Z
 - Environment: linux/amd64, AMD Ryzen 7 9700X 8-Core Processor, 24543908 kB, Go go1.24.4
@@ -26,7 +26,7 @@
 
 graph_status was called against an empty published snapshot, so every measured
 call was a successful status response. The client completed initialization,
-tools/list, 100 warm-ups and the measured workload over the real Ladygraph STDIO
+tools/list, 100 warm-ups and the measured workload over the real Kivgraph STDIO
 transport. Server logs remained on stderr; no protocol bytes were written there.
 
 ## SLO interpretation
@@ -34,4 +34,4 @@ transport. Server logs remained on stderr; no protocol bytes were written there.
 docs/performance/slo.md defines limits for backend query handlers and does not
 define a transport limit. This artifact is therefore evidence for the STDIO
 path, not a new PASS gate. It excludes sockets and network transports, which are
-not configured by the current Ladygraph server.
+not configured by the current Kivgraph server.

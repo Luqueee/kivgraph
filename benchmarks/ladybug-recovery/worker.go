@@ -12,7 +12,7 @@ import (
 	"time"
 
 	lbug "github.com/LadybugDB/go-ladybug"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 const createRecoverySymbolQuery = `CREATE (:Symbol {
@@ -159,17 +159,17 @@ func workerDiskFull(ctx context.Context, databasePath, markerPath string) error 
 	for index := range symbols {
 		symbols[index] = recoverySymbol(fmt.Sprintf("recovery-enospc-%04d", index), index)
 	}
-	if err := os.Setenv("LADYGRAPH_ENOSPC_ARMED", "1"); err != nil {
+	if err := os.Setenv("KIVGRAPH_ENOSPC_ARMED", "1"); err != nil {
 		return err
 	}
-	if err := os.Setenv("LADYGRAPH_ENOSPC_PHASE", "apply"); err != nil {
+	if err := os.Setenv("KIVGRAPH_ENOSPC_PHASE", "apply"); err != nil {
 		return err
 	}
 	_, applyErr := writer.Apply(ctx, ladybug.Delta{AddSymbols: symbols})
-	if err := os.Setenv("LADYGRAPH_ENOSPC_PHASE", "after_apply"); err != nil {
+	if err := os.Setenv("KIVGRAPH_ENOSPC_PHASE", "after_apply"); err != nil {
 		return err
 	}
-	statusPath := os.Getenv("LADYGRAPH_ENOSPC_STATUS")
+	statusPath := os.Getenv("KIVGRAPH_ENOSPC_STATUS")
 	status, statusErr := os.ReadFile(statusPath)
 	injectedDuringApply := statusErr == nil && strings.TrimSpace(string(status)) == "ENOSPC apply"
 	if applyErr != nil {

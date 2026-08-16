@@ -8,10 +8,10 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/mcp/tools"
-	"github.com/Luqueee/ladygraph/internal/metrics"
-	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
+	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/version"
 )
 
 func TestServerInitializesWithIdentityAndCapabilities(t *testing.T) {

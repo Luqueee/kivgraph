@@ -75,8 +75,8 @@ missing snapshot: reporting that the index is empty is its job.
     ],
     "repository_freshness": [
       {
-        "name": "ladygraph",
-        "path": "/Users/adria/Documents/programacion/projects/ladygraph",
+        "name": "kivgraph",
+        "path": "/Users/adria/Documents/programacion/projects/kivgraph",
         "languages": ["go", "typescript"],
         "indexed_commit": "d67bc0ebfb3b002f7c52fb9b048b688bd24bd28b",
         "indexed_branch": "main",
@@ -119,7 +119,7 @@ missing snapshot: reporting that the index is empty is its job.
 }
 ```
 
-Corpus: snapshot `30` of two repositories, `ladygraph` and `mole`.
+Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`.
 
 ## Identity and freshness
 
@@ -133,7 +133,7 @@ Corpus: snapshot `30` of two repositories, `ladygraph` and `mole`.
 | `resolver_version` | The resolver that produced its edges. |
 | `snapshot_row_format_version` | The format version of the hot snapshot itself, as distinct from the graph schema it was derived from. |
 
-A `schema_version` older than the binary expects is what `ladygraph upgrade`
+A `schema_version` older than the binary expects is what `kivgraph upgrade`
 exists for. Two answers that disagree on `snapshot_id` came from two different
 graphs.
 

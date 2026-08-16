@@ -3,11 +3,11 @@ package tools
 import (
 	"fmt"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
-// derivedFilter decides whether rows from a provider Ladygraph derived from the
+// derivedFilter decides whether rows from a provider Kivgraph derived from the
 // machine belong in an answer.
 //
 // They are withheld by default, and that default is the difference between a

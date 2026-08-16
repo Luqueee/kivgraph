@@ -1,4 +1,4 @@
-module github.com/Luqueee/ladygraph
+module github.com/Luqueee/kivgraph
 
 go 1.26.0
 

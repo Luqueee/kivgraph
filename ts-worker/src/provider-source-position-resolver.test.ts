@@ -22,7 +22,7 @@ const services: LanguageService[] = [];
 
 const providers: readonly PackageProvider[] = [
   {
-    name: "@ladygraph-fixture/nomap",
+    name: "@kivgraph-fixture/nomap",
     version: "1.0.0",
     repository: "nomap",
     rootPath: NOMAP_ROOT,
@@ -31,7 +31,7 @@ const providers: readonly PackageProvider[] = [
     projectPath: path.join(NOMAP_ROOT, "tsconfig.json"),
   },
   {
-    name: "@ladygraph-fixture/unmapped",
+    name: "@kivgraph-fixture/unmapped",
     version: "1.0.0",
     repository: "unmapped",
     rootPath: UNMAPPED_ROOT,

@@ -10,11 +10,11 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
-const defaultMeterName = "github.com/Luqueee/ladygraph/internal/metrics"
+const defaultMeterName = "github.com/Luqueee/kivgraph/internal/metrics"
 
 // OpenTelemetryOptions configures the optional OpenTelemetry metrics bridge.
 //
-// MeterProvider is owned by the caller. Ladygraph never creates an exporter or
+// MeterProvider is owned by the caller. Kivgraph never creates an exporter or
 // a collector. A nil provider selects the OpenTelemetry no-op provider.
 type OpenTelemetryOptions struct {
 	MeterProvider metric.MeterProvider

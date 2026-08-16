@@ -73,7 +73,7 @@ func TestDiagnoseStorageReportsMissingCanonicalTables(t *testing.T) {
 }
 
 func TestDoctorLockHelper(t *testing.T) {
-	path := os.Getenv("LADYGRAPH_DOCTOR_LOCK_HELPER")
+	path := os.Getenv("KIVGRAPH_DOCTOR_LOCK_HELPER")
 	if path == "" {
 		return
 	}
@@ -139,7 +139,7 @@ func testFileHash(t *testing.T, path string) [sha256.Size]byte {
 func startExternalDoctorLock(t *testing.T, path string) (*exec.Cmd, int) {
 	t.Helper()
 	command := exec.Command(os.Args[0], "-test.run=^TestDoctorLockHelper$")
-	command.Env = append(os.Environ(), "LADYGRAPH_DOCTOR_LOCK_HELPER="+path)
+	command.Env = append(os.Environ(), "KIVGRAPH_DOCTOR_LOCK_HELPER="+path)
 	stdout, err := command.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)

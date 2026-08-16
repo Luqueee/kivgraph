@@ -1,6 +1,6 @@
 {
-  "benchmark": "ladygraph-large-corpus",
-  "command": "go run -tags ladybug ./benchmarks/ladybug-bulk --corpus /tmp/ladygraph-large-corpus --database /tmp/ladygraph-large-bulk/graph.db --output /tmp/ladygraph-large-output --individual-results benchmarks/ladybug-individual/results.json --batch-results benchmarks/ladybug-batch/results.json",
+  "benchmark": "kivgraph-large-corpus",
+  "command": "go run -tags ladybug ./benchmarks/ladybug-bulk --corpus /tmp/kivgraph-large-corpus --database /tmp/kivgraph-large-bulk/graph.db --output /tmp/kivgraph-large-output --individual-results benchmarks/ladybug-individual/results.json --batch-results benchmarks/ladybug-batch/results.json",
   "commit": "f968d16e4bf19b45b571e6571ce999ba45ed73cb",
   "generated_at": "2026-08-07T11:36:32.011205299Z",
   "environment": {

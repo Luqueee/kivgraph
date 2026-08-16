@@ -6,10 +6,10 @@
     "strict": true,
     "noEmit": true,
     "paths": {
-      "@ladygraph-fixture/facade": [
+      "@kivgraph-fixture/facade": [
         "../facade-library/dist/index.d.ts"
       ],
-      "@ladygraph-fixture/shared": [
+      "@kivgraph-fixture/shared": [
         "../shared-library/dist/index.d.ts"
       ]
     }

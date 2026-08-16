@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
 )
 
 // FollowInterval is how often a follower asks the generation store which
@@ -37,7 +37,7 @@ type FollowOptions struct {
 // Follow keeps a snapshot store on the generation the store root publishes.
 //
 // A server loads the published HotSnapshot once, at startup. Anything that
-// publishes afterwards -- `ladygraph index --full` in another terminal, or
+// publishes afterwards -- `kivgraph index --full` in another terminal, or
 // another process entirely -- leaves that server answering from a graph that
 // no longer exists on disk, with no way to tell. Follow closes that gap by
 // reading the CURRENT pointer and rebuilding only when the identifier moves.

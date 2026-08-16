@@ -10,7 +10,7 @@ import { type CollectionEntry, getCollection } from "astro:content";
 /** A page of the `docs` content collection. */
 export type DocEntry = CollectionEntry<"docs">;
 
-export const PROJECT_NAME = "Ladygraph";
+export const PROJECT_NAME = "Kivgraph";
 
 /**
  * One sentence, reused as the `description` of the site, of the software and of
@@ -25,9 +25,9 @@ export const PROJECT_TAGLINE =
  * and the one property that separates it from a grep.
  */
 export const PROJECT_SUMMARY =
-  'Ladygraph is a local MCP server. It indexes Go, TypeScript and Rust repositories into a canonical code graph and answers "what breaks if I change this" from that graph. Edges are resolved by go/types, the TypeScript checker and rust-analyzer, never by matching names, so a homonym is not a caller and an empty answer means nobody calls it.';
+  'Kivgraph is a local MCP server. It indexes Go, TypeScript and Rust repositories into a canonical code graph and answers "what breaks if I change this" from that graph. Edges are resolved by go/types, the TypeScript checker and rust-analyzer, never by matching names, so a homonym is not a caller and an empty answer means nobody calls it.';
 
-export const REPOSITORY_URL = "https://github.com/Luqueee/ladygraph";
+export const REPOSITORY_URL = "https://github.com/Luqueee/kivgraph";
 
 export const LICENSE_NAME = "Apache-2.0";
 

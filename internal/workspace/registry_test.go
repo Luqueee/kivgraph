@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/config"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestNewRegistryRecordsMetadataAndCopiesResults(t *testing.T) {
@@ -73,7 +73,7 @@ func TestNewRegistryReadsRealGitMetadata(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	gitTestCommand(t, "-C", root, "add", "README.md")
-	gitTestCommand(t, "-C", root, "-c", "user.name=Ladygraph Test", "-c", "user.email=ladygraph-test@example.invalid", "commit", "-qm", "initial")
+	gitTestCommand(t, "-C", root, "-c", "user.name=Kivgraph Test", "-c", "user.email=kivgraph-test@example.invalid", "commit", "-qm", "initial")
 
 	source := config.RepositoriesFile{
 		Version: 1,

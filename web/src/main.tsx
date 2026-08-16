@@ -5,7 +5,7 @@ import "@/index.css";
 
 const root = document.getElementById("root");
 if (!root) {
-  throw new Error("Ladygraph web root element is missing");
+  throw new Error("Kivgraph web root element is missing");
 }
 
 ReactDOM.createRoot(root).render(<App />);

@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/tools/go/types/objectpath"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // GoLanguage is the language recorded in every Go stable key identity.

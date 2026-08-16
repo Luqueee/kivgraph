@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestNewGoModuleRegistryBuildsProvidersPackagesAndReplaces(t *testing.T) {

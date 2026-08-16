@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/rustloader"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func rustFixtureInput() RustInput {

@@ -21,8 +21,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 const (
@@ -139,7 +139,7 @@ func run(ctx context.Context, cfg config) (benchmarkResults, error) {
 	if err != nil {
 		return benchmarkResults{}, fmt.Errorf("hash base database: %w", err)
 	}
-	workRoot, err := os.MkdirTemp("", "ladygraph-ladybug-recovery-")
+	workRoot, err := os.MkdirTemp("", "kivgraph-ladybug-recovery-")
 	if err != nil {
 		return benchmarkResults{}, err
 	}
@@ -359,8 +359,8 @@ func runDiskFull(ctx context.Context, executable, workRoot string, cfg config) c
 	statusPath := filepath.Join(directory, "enospc.injected")
 	environment := []string{
 		"LD_PRELOAD=" + shimPath,
-		"LADYGRAPH_ENOSPC_AFTER_BYTES=8192",
-		"LADYGRAPH_ENOSPC_STATUS=" + statusPath,
+		"KIVGRAPH_ENOSPC_AFTER_BYTES=8192",
+		"KIVGRAPH_ENOSPC_STATUS=" + statusPath,
 	}
 	var observation processObservation
 	_, publicationErr := store.Publish(ctx, generation.PublishRequest{
@@ -373,7 +373,7 @@ func runDiskFull(ctx context.Context, executable, workRoot string, cfg config) c
 			if err := writeSnapshotDigest(candidatePath, baselineSnapshotDigest); err != nil {
 				return err
 			}
-			environment = append(environment, "LADYGRAPH_ENOSPC_PATH="+databasePath)
+			environment = append(environment, "KIVGRAPH_ENOSPC_PATH="+databasePath)
 			var childErr error
 			observation, childErr = runChild(ctx, executable, workerArguments("disk-full", databasePath, markerPath, "", ""), environment, cfg.CaseTimeout)
 			if childErr != nil {
@@ -799,9 +799,9 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 		}
 		fmt.Fprintln(&document, "## Hallazgo crítico")
 		fmt.Fprintln(&document)
-		fmt.Fprintln(&document, "El caso de disco lleno no es recuperable con el comportamiento observado. El shim se armó justo antes de `Writer.Apply`; `Apply` devolvió éxito sin ninguna escritura interceptada. El primer `ENOSPC` apareció después, durante el cierre (`ENOSPC after_apply`), y la copia dejó de poder abrirse. La API nativa de cierre no devuelve un error que Ladygraph pueda propagar.")
+		fmt.Fprintln(&document, "El caso de disco lleno no es recuperable con el comportamiento observado. El shim se armó justo antes de `Writer.Apply`; `Apply` devolvió éxito sin ninguna escritura interceptada. El primer `ENOSPC` apareció después, durante el cierre (`ENOSPC after_apply`), y la copia dejó de poder abrirse. La API nativa de cierre no devuelve un error que Kivgraph pueda propagar.")
 		fmt.Fprintln(&document)
-		fmt.Fprintln(&document, "Este resultado queda registrado como **FAIL**, no como una recuperación soportada. `ladygraph doctor storage` detecta la base dañada después del fallo, pero no evita la corrupción de la copia activa. La estrategia operativa necesita publicación atómica desde una copia validada y backups antes de considerar tolerado un agotamiento de disco.")
+		fmt.Fprintln(&document, "Este resultado queda registrado como **FAIL**, no como una recuperación soportada. `kivgraph doctor storage` detecta la base dañada después del fallo, pero no evita la corrupción de la copia activa. La estrategia operativa necesita publicación atómica desde una copia validada y backups antes de considerar tolerado un agotamiento de disco.")
 		fmt.Fprintln(&document)
 	}
 	fmt.Fprintln(&document, "## Metodología")
@@ -823,7 +823,7 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 	fmt.Fprintln(&document, "CGO_LDFLAGS=\"-L/path/to/ladybug/lib -Wl,-rpath,/path/to/ladybug/lib\" \\")
 	fmt.Fprintln(&document, "LD_LIBRARY_PATH=/path/to/ladybug/lib \\")
 	fmt.Fprintln(&document, "go run -tags ladybug ./benchmarks/ladybug-recovery \\")
-	fmt.Fprintln(&document, "  --database /tmp/ladygraph-copy.db")
+	fmt.Fprintln(&document, "  --database /tmp/kivgraph-copy.db")
 	fmt.Fprintln(&document, "```")
 	fmt.Fprintln(&document)
 	fmt.Fprintln(&document, "## Límites")
@@ -831,7 +831,7 @@ func writeOutputs(outputDir, documentationPath string, result benchmarkResults) 
 	for _, limitation := range result.Limitations {
 		fmt.Fprintf(&document, "- %s\n", limitation)
 	}
-	fmt.Fprintln(&document, "- Estas pruebas no sustituyen los backups ni simulan pérdida de alimentación. Cubren la recuperación de Ladygraph ante los puntos `ENOSPC` inyectados y la publicación de `CURRENT` en Linux.")
+	fmt.Fprintln(&document, "- Estas pruebas no sustituyen los backups ni simulan pérdida de alimentación. Cubren la recuperación de Kivgraph ante los puntos `ENOSPC` inyectados y la publicación de `CURRENT` en Linux.")
 	return os.WriteFile(documentationPath, []byte(document.String()), 0o644)
 }
 

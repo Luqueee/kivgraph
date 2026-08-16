@@ -22,10 +22,10 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	ladygraphmcp "github.com/Luqueee/ladygraph/internal/mcp"
-	"github.com/Luqueee/ladygraph/internal/mcpworkload"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	kivgraphmcp "github.com/Luqueee/kivgraph/internal/mcp"
+	"github.com/Luqueee/kivgraph/internal/mcpworkload"
 )
 
 const (
@@ -270,7 +270,7 @@ func run(ctx context.Context, cfg config) (results, error) {
 	}
 	store := hotsnapshot.NewSnapshotStore(snapshot)
 	observer := &latencyObserver{durations: make(map[mcpworkload.Operation][]int64)}
-	server := ladygraphmcp.NewServerWithObserverAndSnapshotStore(observer.observe, store)
+	server := kivgraphmcp.NewServerWithObserverAndSnapshotStore(observer.observe, store)
 	sessions, closeSessions, err := newSessions(ctx, server, cfg.Clients)
 	if err != nil {
 		return results{}, fmt.Errorf("create %d client sessions: %w", cfg.Clients, err)

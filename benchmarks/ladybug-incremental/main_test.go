@@ -5,7 +5,7 @@ package main
 import (
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/indexer"
 )
 
 func TestPercentileUsesUpperObservedRank(t *testing.T) {

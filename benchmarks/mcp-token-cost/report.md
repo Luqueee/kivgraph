@@ -8,7 +8,7 @@ Question: who calls this symbol, and what do those callers look like.
 - Server: `0.5.1`, MCP protocol `2025-06-18`
 - Environment: `darwin/arm64`, `go1.26.4`
 - Generation: `000026`, 14424 symbols, 363 files, 55289 edges, schema `2`, resolver `0.5.1`
-- Corpus: `ladygraph` at `/Users/adria/Documents/programacion/projects/ladygraph`, indexed commit `e2162d57`, tree unchanged
+- Corpus: `kivgraph` at `/Users/adria/Documents/programacion/projects/kivgraph`, indexed commit `e2162d57`, tree unchanged
 - Tokenizer: `cl100k_base`, question set version `2`
 
 ## Resident surface

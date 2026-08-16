@@ -15,7 +15,7 @@ func testManager(t *testing.T) (Manager, string, string) {
 	manager, err := New(Options{
 		HomeDir:    home,
 		ProjectDir: project,
-		Executable: "/opt/ladygraph/bin/ladygraph",
+		Executable: "/opt/kivgraph/bin/kivgraph",
 		GOOS:       "darwin",
 	})
 	if err != nil {
@@ -39,7 +39,7 @@ func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	if !strings.Contains(string(first), `"command": "/opt/ladygraph/bin/ladygraph"`) {
+	if !strings.Contains(string(first), `"command": "/opt/kivgraph/bin/kivgraph"`) {
 		t.Fatalf("installed JSON does not contain executable: %s", first)
 	}
 	if mode := fileMode(t, path); mode.Perm() != 0o600 {
@@ -68,7 +68,7 @@ func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
 	if plan.Status != "removed" {
 		t.Fatalf("remove plan = %#v", plan)
 	}
-	if _, err := os.Stat(path + ".ladygraph.bak"); err != nil {
+	if _, err := os.Stat(path + ".kivgraph.bak"); err != nil {
 		t.Fatalf("backup missing after removal: %v", err)
 	}
 	if _, err := os.Stat(path); err != nil {
@@ -79,7 +79,7 @@ func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
 func TestIncompatibleJSONRequiresForceAndPreservesBackup(t *testing.T) {
 	manager, home, _ := testManager(t)
 	path := filepath.Join(home, ".claude.json")
-	original := []byte(`{"mcpServers":{"ladygraph":{"command":"/other/ladygraph","args":["serve"]}},"custom":true}` + "\n")
+	original := []byte(`{"mcpServers":{"kivgraph":{"command":"/other/kivgraph","args":["serve"]}},"custom":true}` + "\n")
 	if err := os.WriteFile(path, original, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestIncompatibleJSONRequiresForceAndPreservesBackup(t *testing.T) {
 	if _, err := manager.InstallMCP(TargetClaudeCode, ScopeUser, false, true); err != nil {
 		t.Fatalf("forced install error = %v", err)
 	}
-	backup, err := os.ReadFile(path + ".ladygraph.bak")
+	backup, err := os.ReadFile(path + ".kivgraph.bak")
 	if err != nil {
 		t.Fatalf("ReadFile(backup) error = %v", err)
 	}
@@ -131,7 +131,7 @@ func TestCodexTOMLPreservesUnmanagedContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), `model = "gpt"`) || !strings.Contains(string(data), "[other]\nvalue = 7") || !strings.Contains(string(data), "[mcp_servers.ladygraph]") {
+	if !strings.Contains(string(data), `model = "gpt"`) || !strings.Contains(string(data), "[other]\nvalue = 7") || !strings.Contains(string(data), "[mcp_servers.kivgraph]") {
 		t.Fatalf("Codex TOML lost content or entry: %s", data)
 	}
 	status, err := manager.StatusMCP(TargetCodex, ScopeUser)
@@ -152,7 +152,7 @@ func TestCodexTOMLPreservesUnmanagedContent(t *testing.T) {
 
 func TestSkillInstallConflictAndProjectPath(t *testing.T) {
 	manager, _, project := testManager(t)
-	path := filepath.Join(project, ".agents", "skills", "ladygraph", "SKILL.md")
+	path := filepath.Join(project, ".agents", "skills", "kivgraph", "SKILL.md")
 	if _, err := manager.InstallSkill(TargetCodex, ScopeProject, true, false); err != nil {
 		t.Fatalf("dry-run skill install error = %v", err)
 	}

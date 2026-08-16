@@ -19,11 +19,11 @@ instalados.
 Los comandos de instalación tienen dos modos:
 
 ```text
-ladygraph mcp install [--scope user|project]
-ladygraph skill install [--scope user|project]
+kivgraph mcp install [--scope user|project]
+kivgraph skill install [--scope user|project]
 ```
 
-Sin `--target`, Ladygraph:
+Sin `--target`, Kivgraph:
 
 1. inspecciona las raíces de configuración o instalación conocidas para el
    ámbito solicitado;
@@ -74,4 +74,4 @@ intentan y el proceso termina con código distinto de cero.
 El primer uso de `mcp install` y `skill install` requiere una entrada por
 `stdin` salvo que se pase `--target`. Los scripts existentes que usan
 `--target` siguen siendo válidos. La selección interactiva no inicializa
-Ladygraph ni indexa repositorios.
+Kivgraph ni indexa repositorios.

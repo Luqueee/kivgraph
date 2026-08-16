@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/mcpworkload"
+	"github.com/Luqueee/kivgraph/internal/mcpworkload"
 )
 
 func TestPercentileUsesNearestRank(t *testing.T) {

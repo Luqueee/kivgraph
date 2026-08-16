@@ -1,6 +1,6 @@
 {
   "benchmark": "mcp-stdio",
-  "command": "go run ./benchmarks/mcp-stdio --server ./ladygraph --config benchmarks/mcp-stdio/testdata/config.yaml --calls 10000 --warmup 100 --output benchmarks/mcp-stdio",
+  "command": "go run ./benchmarks/mcp-stdio --server ./kivgraph --config benchmarks/mcp-stdio/testdata/config.yaml --calls 10000 --warmup 100 --output benchmarks/mcp-stdio",
   "commit": "4580240a155940cadf9e230626d42e8879a3e337",
   "generated_at": "2026-08-07T14:26:07.690989125Z",
   "environment": {

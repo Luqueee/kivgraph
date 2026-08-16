@@ -9,7 +9,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 const (
@@ -340,7 +340,7 @@ func outlineSymbol(
 // localSignature drops the package path from the types a symbol's own package
 // declares, which is how the source that declares it reads.
 //
-// `func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) ...Set` inside
+// `func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) ...Set` inside
 // `internal/facts` spends most of its tokens spelling out where the reader
 // already is. Types from elsewhere keep their path, because there the package
 // is the information. The full signature returns under `detailed`.

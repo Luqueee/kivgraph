@@ -1,4 +1,4 @@
-# LADYGRAPH
+# KIVGRAPH
 
 ## MCP ultrarrápido de inteligencia de código cross-repository para TypeScript y Go
 
@@ -6,7 +6,7 @@
 
 # 1. Resumen ejecutivo
 
-**Ladygraph** será un servidor MCP autónomo, local y de solo lectura especializado en construir y consultar un grafo semántico entre múltiples repositorios.
+**Kivgraph** será un servidor MCP autónomo, local y de solo lectura especializado en construir y consultar un grafo semántico entre múltiples repositorios.
 
 Su objetivo será responder con precisión y muy baja latencia preguntas como:
 
@@ -20,7 +20,7 @@ Su objetivo será responder con precisión y muy baja latencia preguntas como:
 * ¿Qué camino de dependencias conecta dos símbolos?
 * ¿Qué repositorios dependen directa o transitivamente de un paquete?
 
-Ladygraph no será:
+Kivgraph no será:
 
 * un editor;
 * un agente;
@@ -60,7 +60,7 @@ PLANO DE CONSULTA
 Cliente MCP
     │
     ▼
-Ladygraph MCP
+Kivgraph MCP
     │
     ▼
 HotSnapshot inmutable en RAM
@@ -79,7 +79,7 @@ La regla principal será:
 
 ```yaml
 project:
-  name: Ladygraph
+  name: Kivgraph
   type: autonomous_mcp_server
   primary_language: Go
   initial_languages:
@@ -140,7 +140,7 @@ llm:
   required: false
 ```
 
-LadybugDB es una base de grafos embebida, por lo que se ejecuta dentro del proceso de la aplicación. Ofrece API oficial para Go, persistencia on-disk, WAL y transacciones ACID. El diseño de Ladygraph respetará su modelo de concurrencia: una única instancia `Database` será propietaria del fichero, y todas las conexiones procederán de esa misma instancia.
+LadybugDB es una base de grafos embebida, por lo que se ejecuta dentro del proceso de la aplicación. Ofrece API oficial para Go, persistencia on-disk, WAL y transacciones ACID. El diseño de Kivgraph respetará su modelo de concurrencia: una única instancia `Database` será propietaria del fichero, y todas las conexiones procederán de esa misma instancia.
 
 ---
 
@@ -178,7 +178,7 @@ petición
 
 ## 3.2 Exactitud antes que cobertura aparente
 
-Ladygraph nunca creará una arista exacta únicamente porque:
+Kivgraph nunca creará una arista exacta únicamente porque:
 
 * dos símbolos tengan el mismo nombre;
 * exista un único candidato global;
@@ -235,7 +235,7 @@ coverage
 
 ## 3.5 Los repositorios analizados son de solo lectura
 
-Ladygraph no escribirá:
+Kivgraph no escribirá:
 
 ```text
 archivos de configuración
@@ -251,9 +251,9 @@ dentro de los repositorios.
 Todo su estado vivirá en:
 
 ```text
-~/.config/ladygraph/
-~/.local/state/ladygraph/
-~/.cache/ladygraph/
+~/.config/kivgraph/
+~/.local/state/kivgraph/
+~/.cache/kivgraph/
 ```
 
 ---
@@ -362,7 +362,7 @@ logs:
 ## 5.1 Proceso principal
 
 ```text
-ladygraph
+kivgraph
 ```
 
 Implementado en Go.
@@ -385,7 +385,7 @@ Responsabilidades:
 ## 5.2 Worker TypeScript
 
 ```text
-ladygraph-ts-worker
+kivgraph-ts-worker
 ```
 
 Proceso Node.js persistente.
@@ -439,9 +439,9 @@ TypeScript Checker / go/types:
 # 6. Estructura del repositorio
 
 ```text
-ladygraph/
+kivgraph/
 ├── cmd/
-│   └── ladygraph/
+│   └── kivgraph/
 │       └── main.go
 │
 ├── internal/
@@ -604,7 +604,7 @@ ladygraph/
 ## 7.1 Archivo principal
 
 ```text
-~/.config/ladygraph/config.yaml
+~/.config/kivgraph/config.yaml
 ```
 
 Ejemplo:
@@ -613,12 +613,12 @@ Ejemplo:
 version: 1
 
 workspace:
-  repositories_file: ~/.config/ladygraph/repositories.yaml
+  repositories_file: ~/.config/kivgraph/repositories.yaml
 
 storage:
-  database_path: ~/.local/state/ladygraph/graph.lbdb
-  snapshots_path: ~/.local/state/ladygraph/snapshots
-  backups_path: ~/.local/state/ladygraph/backups
+  database_path: ~/.local/state/kivgraph/graph.lbdb
+  snapshots_path: ~/.local/state/kivgraph/snapshots
+  backups_path: ~/.local/state/kivgraph/backups
   retain_snapshots: 3
 
 mcp:
@@ -641,12 +641,12 @@ watcher:
   reconciliation_interval: 10m
 
 typescript:
-  worker_command: ladygraph-ts-worker
+  worker_command: kivgraph-ts-worker
   maximum_workers: 3
   project_idle_timeout: 30m
 
 go:
-  synthetic_work_file: ~/.local/state/ladygraph/go.work
+  synthetic_work_file: ~/.local/state/kivgraph/go.work
   include_tests: false
 
 telemetry:
@@ -661,7 +661,7 @@ logging:
 ## 7.2 Registro de repositorios
 
 ```text
-~/.config/ladygraph/repositories.yaml
+~/.config/kivgraph/repositories.yaml
 ```
 
 ```yaml
@@ -685,7 +685,7 @@ repositories:
       - go
 ```
 
-Ladygraph no debe depender de convenciones de nombres de carpetas.
+Kivgraph no debe depender de convenciones de nombres de carpetas.
 
 ---
 
@@ -1067,7 +1067,7 @@ snapshot desde LadybugDB.
 
 ## 10.5 Extensiones
 
-Ladygraph no descargará ni instalará automáticamente extensiones de LadybugDB.
+Kivgraph no descargará ni instalará automáticamente extensiones de LadybugDB.
 
 Toda extensión deberá:
 
@@ -1195,7 +1195,7 @@ Orden de selección:
 ```text
 1. dependencia del repositorio;
 2. dependencia del workspace;
-3. versión fallback fijada por Ladygraph.
+3. versión fallback fijada por Kivgraph.
 ```
 
 Se agruparán proyectos compatibles para reducir workers.
@@ -1212,7 +1212,7 @@ workspace manifests
 
 ## 12.3 Resolución de módulos
 
-Ladygraph deberá respetar:
+Kivgraph deberá respetar:
 
 ```text
 moduleResolution
@@ -1228,7 +1228,7 @@ project references
 declaration maps
 ```
 
-TypeScript adapta su resolución según la configuración del proyecto y el formato de módulos, por lo que Ladygraph debe utilizar las opciones reales del proyecto y no un resolvedor nominal propio.
+TypeScript adapta su resolución según la configuración del proyecto y el formato de módulos, por lo que Kivgraph debe utilizar las opciones reales del proyecto y no un resolvedor nominal propio.
 
 ## 12.4 Resolución de símbolos
 
@@ -1343,10 +1343,10 @@ Cada ejecución de `packages.Load` crea un universo nuevo de identidad de tipos,
 
 ## 13.2 Workspace sintético
 
-Ladygraph generará:
+Kivgraph generará:
 
 ```text
-~/.local/state/ladygraph/go.work
+~/.local/state/kivgraph/go.work
 ```
 
 Nunca escribirá un `go.work` en los repositorios.
@@ -1461,7 +1461,7 @@ Todo fallo debe quedar clasificado.
 
 ## 15.1 Watcher
 
-`fsnotify` proporciona notificaciones de filesystem multiplataforma para Go. Ladygraph lo utilizará como señal de cambio, no como única fuente de verdad.
+`fsnotify` proporciona notificaciones de filesystem multiplataforma para Go. Kivgraph lo utilizará como señal de cambio, no como única fuente de verdad.
 
 ```text
 evento
@@ -1591,7 +1591,7 @@ No se utilizará gRPC.
 
 # 17. Superficie MCP
 
-Ladygraph utilizará el SDK oficial de MCP para Go, que proporciona las APIs para construir servidores, registrar tools y gestionar el protocolo.
+Kivgraph utilizará el SDK oficial de MCP para Go, que proporciona las APIs para construir servidores, registrar tools y gestionar el protocolo.
 
 ## 17.1 Tools
 
@@ -1693,33 +1693,33 @@ INDEX_NOT_READY
 # 18. CLI
 
 ```bash
-ladygraph init
-ladygraph serve
-ladygraph index
-ladygraph update
-ladygraph status
-ladygraph doctor
-ladygraph benchmark
-ladygraph inspect
-ladygraph export
-ladygraph version
+kivgraph init
+kivgraph serve
+kivgraph index
+kivgraph update
+kivgraph status
+kivgraph doctor
+kivgraph benchmark
+kivgraph inspect
+kivgraph export
+kivgraph version
 ```
 
-## `ladygraph init`
+## `kivgraph init`
 
 * crea configuración;
 * crea directorios;
 * valida LadybugDB;
 * registra repositorios iniciales.
 
-## `ladygraph index`
+## `kivgraph index`
 
 ```bash
-ladygraph index --full
-ladygraph index --repository service-a
+kivgraph index --full
+kivgraph index --repository service-a
 ```
 
-## `ladygraph doctor`
+## `kivgraph doctor`
 
 Comprueba:
 
@@ -1736,7 +1736,7 @@ Comprueba:
 * toolchain Go;
 * repositorios inaccesibles.
 
-## `ladygraph inspect`
+## `kivgraph inspect`
 
 Permite consultas administrativas seguras y predefinidas.
 
@@ -1766,28 +1766,28 @@ No registrar contenido fuente por defecto.
 ## 19.2 Métricas
 
 ```text
-ladygraph_query_duration
-ladygraph_query_total
-ladygraph_query_errors
-ladygraph_query_results
-ladygraph_query_truncated
+kivgraph_query_duration
+kivgraph_query_total
+kivgraph_query_errors
+kivgraph_query_results
+kivgraph_query_truncated
 
-ladygraph_snapshot_id
-ladygraph_snapshot_age
-ladygraph_snapshot_build_duration
-ladygraph_snapshot_bytes
+kivgraph_snapshot_id
+kivgraph_snapshot_age
+kivgraph_snapshot_build_duration
+kivgraph_snapshot_bytes
 
-ladygraph_index_duration
-ladygraph_index_files
-ladygraph_index_symbols
-ladygraph_index_edges
-ladygraph_index_unresolved
+kivgraph_index_duration
+kivgraph_index_files
+kivgraph_index_symbols
+kivgraph_index_edges
+kivgraph_index_unresolved
 
-ladygraph_ladybug_transaction_duration
-ladygraph_ladybug_database_bytes
+kivgraph_ladybug_transaction_duration
+kivgraph_ladybug_database_bytes
 
-ladygraph_ts_worker_restarts
-ladygraph_ts_worker_memory
+kivgraph_ts_worker_restarts
+kivgraph_ts_worker_memory
 ```
 
 OpenTelemetry Go permite instrumentar métricas y trazas; se añadirá después de estabilizar el MVP, manteniendo exportadores desactivados por defecto.
@@ -1851,12 +1851,12 @@ umask:       0077
 
 ## 20.5 Base
 
-LadybugDB solo será abierta por Ladygraph.
+LadybugDB solo será abierta por Kivgraph.
 
 No se permitirá simultáneamente:
 
 ```text
-otro proceso Ladygraph
+otro proceso Kivgraph
 CLI de LadybugDB
 explorador
 script externo
@@ -1899,9 +1899,9 @@ CGO flags
 ## 21.3 Artefacto
 
 ```text
-ladygraph/
-├── bin/ladygraph
-├── bin/ladygraph-ts-worker
+kivgraph/
+├── bin/kivgraph
+├── bin/kivgraph-ts-worker
 ├── lib/libladybug.*
 ├── grammars/
 ├── licenses/
@@ -1910,11 +1910,11 @@ ladygraph/
 
 ## 21.4 Proveniencia
 
-`ladygraph version --json`:
+`kivgraph version --json`:
 
 ```json
 {
-  "ladygraph": "0.1.0",
+  "kivgraph": "0.1.0",
   "commit": "...",
   "go": "...",
   "ladybug": "...",
@@ -2427,7 +2427,7 @@ ROLLBACK_PASS
 Para aprobar:
 
 ```text
-ACCEPT_LADYGRAPH_FOR_PRODUCTION
+ACCEPT_KIVGRAPH_FOR_PRODUCTION
 ```
 
 deben pasar:
@@ -2524,7 +2524,7 @@ PGO podrá evaluarse cuando exista un workload estable; Go permite alimentar al 
 
 # 27. Resultado esperado
 
-Ladygraph deberá terminar con esta arquitectura:
+Kivgraph deberá terminar con esta arquitectura:
 
 ```text
                      INDEXACIÓN
@@ -2559,7 +2559,7 @@ Ladygraph deberá terminar con esta arquitectura:
 Cliente MCP
     │
     ▼
-Ladygraph MCP
+Kivgraph MCP
     │
     ▼
 HotSnapshot
@@ -2595,4 +2595,4 @@ MCP:
   interfaz de consulta cerrada y segura
 ```
 
-Ladygraph será rápido porque no analizará código cuando recibe una pregunta. Recibirá los resultados de análisis previamente certificados y consultará estructuras compactas en memoria.
+Kivgraph será rápido porque no analizará código cuando recibe una pregunta. Recibirá los resultados de análisis previamente certificados y consultará estructuras compactas en memoria.

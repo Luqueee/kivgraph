@@ -13,7 +13,7 @@ import (
 // owns and the compiler version that will analyse it.
 type TypeScriptProgram struct {
 	// ConfigPath is the absolute, canonical tsconfig path. It identifies the
-	// project everywhere else in Ladygraph.
+	// project everywhere else in Kivgraph.
 	ConfigPath string
 	// Directory is the directory containing ConfigPath. Relative options and
 	// patterns are resolved against it.

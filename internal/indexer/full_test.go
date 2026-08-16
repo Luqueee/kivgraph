@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/goloader"
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/goloader"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func TestFullBuildsGoFactsOutsideTheRepository(t *testing.T) {

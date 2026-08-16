@@ -7,9 +7,9 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	ladygraphmcp "github.com/Luqueee/ladygraph/internal/mcp"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	kivgraphmcp "github.com/Luqueee/kivgraph/internal/mcp"
 )
 
 func TestGeneratedRequestsAreAcceptedByMCPServer(t *testing.T) {
@@ -54,7 +54,7 @@ func TestGeneratedRequestsAreAcceptedByMCPServer(t *testing.T) {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 
-	server := ladygraphmcp.NewServerWithSnapshotStore(hotsnapshot.NewSnapshotStore(snapshot))
+	server := kivgraphmcp.NewServerWithSnapshotStore(hotsnapshot.NewSnapshotStore(snapshot))
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
 	if err != nil {

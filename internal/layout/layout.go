@@ -8,7 +8,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // Coord is a signed fixed-point layout coordinate. Layout calculations never

@@ -1,9 +1,9 @@
 ---
 title: Install
-description: Install the published Ladygraph bundle, choose where it lands, and keep it up to date.
+description: Install the published Kivgraph bundle, choose where it lands, and keep it up to date.
 ---
 
-Ladygraph is distributed as a self-contained bundle. The installer detects the
+Kivgraph is distributed as a self-contained bundle. The installer detects the
 platform, downloads the latest published release for it, verifies both the
 release archive and the bundle checksums, and installs it without requiring Go,
 Node.js or pnpm on the build side.
@@ -31,7 +31,7 @@ workspace without it.
 ## One command
 
 ```bash
-curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
 ```
 
 From a checkout, the same installer runs directly:
@@ -43,25 +43,25 @@ From a checkout, the same installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-LADYGRAPH_VERSION=v0.4.0 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.4.0 ./scripts/install.sh
 ```
 
 ## Where it lands
 
-The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
-in `~/.local/bin`. Override both with `LADYGRAPH_INSTALL_ROOT` and
-`LADYGRAPH_BIN_DIR`.
+The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
+in `~/.local/bin`. Override both with `KIVGRAPH_INSTALL_ROOT` and
+`KIVGRAPH_BIN_DIR`.
 
 It never modifies a registered repository, creates an index or replaces
-configuration files. Installing Ladygraph and initialising it are two separate
+configuration files. Installing Kivgraph and initialising it are two separate
 acts.
 
 Add the launcher directory to the current shell and verify both runtimes:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-ladygraph version
-ladygraph-ts-worker <<'EOF'
+kivgraph version
+kivgraph-ts-worker <<'EOF'
 hello
 EOF
 ```
@@ -77,24 +77,24 @@ and neither `curl` nor `tar` writes it: a release downloaded with the installer
 runs. A copy downloaded with a browser needs:
 
 ```bash
-xattr -dr com.apple.quarantine ~/.local/opt/ladygraph
+xattr -dr com.apple.quarantine ~/.local/opt/kivgraph
 ```
 
 ## Updating
 
 ```bash
-ladygraph update --check
-ladygraph update
+kivgraph update --check
+kivgraph update
 ```
 
 The update is atomic, preserves the configuration and graph state, verifies the
 release and bundle checksums, and replaces only the installed bundle. Restart
 the MCP client afterwards so it launches the new binary.
 
-When `ladygraph` is invoked without a command from an interactive terminal, it
+When `kivgraph` is invoked without a command from an interactive terminal, it
 checks for a newer release with an 800 ms timeout and a 24-hour cache in the
 platform cache directory (`$XDG_CACHE_HOME` on Linux, `$HOME/Library/Caches` on
-macOS), under `ladygraph/update-check.json`. The check never blocks the command
+macOS), under `kivgraph/update-check.json`. The check never blocks the command
 when the network is unavailable.
 
 Interactive command output uses semantic ANSI colours when the destination is a

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/integrations"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

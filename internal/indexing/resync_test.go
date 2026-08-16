@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // fakeClock lets a test decide that the debounce has elapsed instead of

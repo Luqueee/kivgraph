@@ -1,5 +1,5 @@
 {
-  "name": "@ladygraph-fixture/twin",
+  "name": "@kivgraph-fixture/twin",
   "version": "1.0.0",
   "type": "module",
   "types": "./dist/index.d.ts"

@@ -8,9 +8,9 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/metrics"
 )
 
 const (
@@ -57,7 +57,7 @@ type GraphStatus struct {
 	Edges        int `json:"edges"`
 	PackageEdges int `json:"package_edges"`
 	Unresolved   int `json:"unresolved"`
-	// Derived breaks out what the providers Ladygraph built from the machine
+	// Derived breaks out what the providers Kivgraph built from the machine
 	// contribute, so the totals above can be read. The standard library of one
 	// toolchain is around twenty thousand symbols: a count that folded it in
 	// silently would answer «how big is my code» with a number about Rust.
@@ -395,7 +395,7 @@ func sortedStatusCounts(counts map[string]int) []GraphStatusCount {
 	return result
 }
 
-// GraphStatusDerived is what the providers Ladygraph derived from the machine
+// GraphStatusDerived is what the providers Kivgraph derived from the machine
 // contribute to the totals of the graph.
 //
 // Only the counts that can be attributed to a repository are here. An edge is

@@ -5,7 +5,7 @@
 
 ## Context
 
-Ladygraph es un servidor MCP distribuible como software libre. El proyecto debe
+Kivgraph es un servidor MCP distribuible como software libre. El proyecto debe
 permitir su uso, modificación y redistribución, y debe mantener una política
 clara para contribuciones y dependencias nativas. La integración prevista con
 LadybugDB puede incorporar componentes con avisos de copyright y obligaciones
@@ -13,7 +13,7 @@ de redistribución que deben poder documentarse de forma explícita.
 
 ## Decision
 
-Ladygraph se distribuye bajo **Apache License 2.0** (`Apache-2.0`).
+Kivgraph se distribuye bajo **Apache License 2.0** (`Apache-2.0`).
 
 La licencia completa se encuentra en `LICENSE`. Los avisos y las licencias de
 terceros se registrarán en `THIRD_PARTY_NOTICES.md` a medida que se incorporen
@@ -36,7 +36,7 @@ documental mayor que MIT.
 
 ## Consequences
 
-- Los usuarios pueden usar, modificar y redistribuir Ladygraph bajo los términos
+- Los usuarios pueden usar, modificar y redistribuir Kivgraph bajo los términos
   de Apache-2.0.
 - Las redistribuciones deben conservar la licencia y los avisos aplicables.
 - Los archivos modificados deben indicar los cambios cuando corresponda.

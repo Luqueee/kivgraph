@@ -1,9 +1,9 @@
 ---
 title: MCP tools
-description: The eleven tools Ladygraph registers over stdio, and which question each one answers.
+description: The eleven tools Kivgraph registers over stdio, and which question each one answers.
 ---
 
-`ladygraph serve` registers eleven tools over stdio. Ten are read-only.
+`kivgraph serve` registers eleven tools over stdio. Ten are read-only.
 `index_project` is the only one that mutates anything, and only after explicit
 consent.
 

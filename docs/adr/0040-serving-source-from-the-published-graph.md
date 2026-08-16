@@ -6,7 +6,7 @@
 
 ## Contexto
 
-`ladygraph serve` responde desde el `HotSnapshot` publicado y **no abre la base
+`kivgraph serve` responde desde el `HotSnapshot` publicado y **no abre la base
 de datos**. Ese contrato está escrito, tiene tests y es la razón por la que un
 `index --full` en otra terminal no puede dejar a un servidor sirviendo un grafo
 que ya no existe.
@@ -20,7 +20,7 @@ preguntas del tipo «quién llama a este símbolo»:
 
 ```text
 vía nativa del anfitrión         25.144 tokens
-Ladygraph hoy                    17.464 tokens   1,44x
+Kivgraph hoy                    17.464 tokens   1,44x
   llamadas MCP                    3.059
   veinte lecturas de rango        14.405
 los mismos bytes, sin envoltorio 10.934 tokens

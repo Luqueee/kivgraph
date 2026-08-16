@@ -1,11 +1,11 @@
-# Calificación de producción de Ladygraph
+# Calificación de producción de Kivgraph
 
 **Fecha de verificación:** 2026-08-08
-**Decisión:** `ACCEPT_LADYGRAPH_WITH_LIMITS`
+**Decisión:** `ACCEPT_KIVGRAPH_WITH_LIMITS`
 
 ## Decisión
 
-Ladygraph queda aceptada para producción dentro del entorno calificado y con
+Kivgraph queda aceptada para producción dentro del entorno calificado y con
 los límites operativos de este documento. Los 16 gates globales previos al
 visor permanecen emitidos; `WEB_VIEWER_PASS` no se emite porque el benchmark
 del visor usa un snapshot publicado menor que el corpus de referencia.
@@ -132,7 +132,7 @@ par LadybugDB core/binding `v0.13.1`. Los resultados versionados están en
   clientes sigue excluyendo sockets y red; no se convierte en un SLO de
   transporte.
 - STDIO real, ejecutado sobre el commit del benchmark `4580240`, con un proceso
-  `ladygraph serve`, protocolo `2025-06-18`, nueve tools, 100 warm-ups y 10.000
+  `kivgraph serve`, protocolo `2025-06-18`, nueve tools, 100 warm-ups y 10.000
   llamadas `graph_status`: p50 `0,269231 ms`, p95 `0,362711 ms`, p99
   `0,573922 ms`, throughput `3.520,7 calls/s`, cero errores, exit code `0` y
   RSS máximo muestreado de `19.075.072` bytes. El resultado está en

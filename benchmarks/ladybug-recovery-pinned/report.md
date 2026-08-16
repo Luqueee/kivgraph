@@ -1,10 +1,10 @@
 # LadybugDB recovery benchmark — pinned rerun
 
-- Command: `CGO_ENABLED=1 CGO_CFLAGS="-I$PWD/.tooling/ladybug/v0.13.1" CGO_LDFLAGS="-L$PWD/.tooling/ladybug/v0.13.1 -Wl,-rpath,$PWD/.tooling/ladybug/v0.13.1 -llbug" go run -tags ladybug ./benchmarks/ladybug-recovery --database /tmp/ladygraph-acceptance-bulk/graph.db --output benchmarks/ladybug-recovery-pinned --documentation benchmarks/ladybug-recovery-pinned/report.md`
+- Command: `CGO_ENABLED=1 CGO_CFLAGS="-I$PWD/.tooling/ladybug/v0.13.1" CGO_LDFLAGS="-L$PWD/.tooling/ladybug/v0.13.1 -Wl,-rpath,$PWD/.tooling/ladybug/v0.13.1 -llbug" go run -tags ladybug ./benchmarks/ladybug-recovery --database /tmp/kivgraph-acceptance-bulk/graph.db --output benchmarks/ladybug-recovery-pinned --documentation benchmarks/ladybug-recovery-pinned/report.md`
 - Commit: `45220d30c17d4521568dde6e1f8ae2aa4e367356`
 - Generated at: `2026-08-07T13:51:37Z`
 - Environment: `linux/amd64`, Go `1.24.4`, LadybugDB core and binding `v0.13.1`
-- Input: private copy `/tmp/ladygraph-acceptance-bulk/graph.db`, `67.059.712` bytes
+- Input: private copy `/tmp/kivgraph-acceptance-bulk/graph.db`, `67.059.712` bytes
 - Input SHA-256 before/after: `9d4964e299688657369a89212d00a23903dadd1d432710d4e4da8c64162b526c`
 
 ## Results

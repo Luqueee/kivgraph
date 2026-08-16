@@ -20,7 +20,7 @@ a hacer trabajo cuyo resultado no ha cambiado.
 Una caché de hechos es la pieza más peligrosa que se puede añadir a este
 proyecto. Los demás errores de indexación fallan de forma ruidosa: la pasada
 aborta, o el repositorio sale visiblemente vacío. Una entrada mal invalidada
-publica un grafo que **parece correcto y miente**, y lo que Ladygraph vende es
+publica un grafo que **parece correcto y miente**, y lo que Kivgraph vende es
 justamente que una arista `EXACT` es de fiar.
 
 ## Decisión
@@ -73,7 +73,7 @@ Una entrada la escribe un analizador concreto y solo ese la puede leer:
   comandos ejecuta lo que dejó el último `pnpm build`;
 - los build tags, `include_tests` y `go.allow_network`.
 
-Cualquier actualización de Ladygraph o del toolchain arranca en frío. Es el
+Cualquier actualización de Kivgraph o del toolchain arranca en frío. Es el
 precio de no tener que acordarse de subir un número de versión.
 
 ### Lo que nunca se guarda

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/config"
 )
 
 // Indexing a project that is already registered must not be a conflict. The
@@ -15,7 +15,7 @@ import (
 // correctly, survives it.
 func TestUpsertRepositoryIsIdempotentForTheSameProject(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
-		{Name: "ladygraph", Path: "/repos/ladygraph", Languages: []string{"go", "typescript"},
+		{Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go", "typescript"},
 			Exclusions: []string{"**/testdata"}},
 		{Name: "mole", Path: "/repos/mole", Languages: []string{"go"}},
 	}}
@@ -38,12 +38,12 @@ func TestUpsertRepositoryIsIdempotentForTheSameProject(t *testing.T) {
 // request cannot express. Exclusions are the operator's, not the caller's.
 func TestUpsertRepositoryKeepsExclusionsWhenLanguagesChange(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
-		{Name: "ladygraph", Path: "/repos/ladygraph", Languages: []string{"go"},
+		{Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go"},
 			Exclusions: []string{"**/testdata", "**/dist"}},
 	}}
 
 	changed, err := upsertRepository(&registry, config.Repository{
-		Name: "ladygraph", Path: "/repos/ladygraph", Languages: []string{"go", "typescript"},
+		Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go", "typescript"},
 	})
 	if err != nil {
 		t.Fatalf("upsertRepository() error = %v", err)
@@ -85,7 +85,7 @@ func TestUpsertRepositoryRefusesANameHeldByAnotherPath(t *testing.T) {
 
 func TestUpsertRepositoryAppendsAProjectThatIsNew(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
-		{Name: "ladygraph", Path: "/repos/ladygraph", Languages: []string{"go"}},
+		{Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go"}},
 	}}
 
 	changed, err := upsertRepository(&registry, config.Repository{
@@ -104,7 +104,7 @@ func TestUpsertRepositoryAppendsAProjectThatIsNew(t *testing.T) {
 // eleven repositories must be able to hand them over together.
 func TestUpsertRepositoryAccumulatesAWholeBatch(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
-		{Name: "ladygraph", Path: "/repos/ladygraph", Languages: []string{"go"}},
+		{Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go"}},
 	}}
 
 	for index := range 11 {

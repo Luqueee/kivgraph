@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 const (
@@ -518,11 +518,11 @@ func mutateCanonicalScanFixtureDatabase(t *testing.T, path string, statement str
 // BenchmarkScanCanonicalAtScale measures ScanCanonical against a large
 // synthetic canonical graph, to ground the Arrow-vs-simple-query tradeoff
 // documented on ScanCanonical in a real number instead of a guess. Skipped
-// by default: set LADYGRAPH_LADYBUG_SCAN_BENCH=1 to run it, the same opt-in
+// by default: set KIVGRAPH_LADYBUG_SCAN_BENCH=1 to run it, the same opt-in
 // shape BenchmarkReaderScanAll uses in scan_native_benchmark_test.go.
 func BenchmarkScanCanonicalAtScale(b *testing.B) {
-	if os.Getenv("LADYGRAPH_LADYBUG_SCAN_BENCH") == "" {
-		b.Skip("set LADYGRAPH_LADYBUG_SCAN_BENCH=1 to build and scan a large synthetic canonical graph")
+	if os.Getenv("KIVGRAPH_LADYBUG_SCAN_BENCH") == "" {
+		b.Skip("set KIVGRAPH_LADYBUG_SCAN_BENCH=1 to build and scan a large synthetic canonical graph")
 	}
 	ctx := context.Background()
 	set := largeSyntheticCanonicalScanFixture(100_000, 5)

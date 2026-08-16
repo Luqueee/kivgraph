@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/mcp/tools"
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // TestCorruptSnapshotDigestDoesNotDisturbReaders is the LUQUE-1204 requirement

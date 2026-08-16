@@ -61,8 +61,8 @@ func TestRunRefusesAPlatformWithoutAPublishedBundle(t *testing.T) {
 // than recomputed from runtime.GOOS/GOARCH.
 func TestReleaseNamesTrackTheRunningPlatform(t *testing.T) {
 	names := map[string]string{
-		"linux/amd64":  "ladygraph-linux-amd64",
-		"darwin/arm64": "ladygraph-darwin-arm64",
+		"linux/amd64":  "kivgraph-linux-amd64",
+		"darwin/arm64": "kivgraph-darwin-arm64",
 	}
 	wantDir, ok := names[runtime.GOOS+"/"+runtime.GOARCH]
 	if !ok {
@@ -78,7 +78,7 @@ func TestReleaseNamesTrackTheRunningPlatform(t *testing.T) {
 
 func TestValidateBundleRejectsAForeignTarget(t *testing.T) {
 	root := t.TempDir()
-	manifest := `{"product":"ladygraph","release":"0.1.1","target":{"os":"plan9","arch":"mips"},"source":{"dirty":false}}`
+	manifest := `{"product":"kivgraph","release":"0.1.1","target":{"os":"plan9","arch":"mips"},"source":{"dirty":false}}`
 	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -101,9 +101,9 @@ func TestVerifyChecksumFileSelectsThePlatformAsset(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(payload)
-	other := "ladygraph-linux-amd64.tar.gz"
+	other := "kivgraph-linux-amd64.tar.gz"
 	if other == archiveName {
-		other = "ladygraph-darwin-arm64.tar.gz"
+		other = "kivgraph-darwin-arm64.tar.gz"
 	}
 	// The release file is sorted by artifact name, exactly as the workflow
 	// publishes it, and never lists itself.
@@ -173,11 +173,11 @@ func TestRunCheckReportsAvailableReleaseWithoutDownloading(t *testing.T) {
 func TestRunRejectsMismatchedReleaseChecksum(t *testing.T) {
 	requireReleasePlatform(t)
 	root := t.TempDir()
-	binaryPath := filepath.Join(root, "bin", "ladygraph")
+	binaryPath := filepath.Join(root, "bin", "kivgraph")
 	if err := os.MkdirAll(filepath.Dir(binaryPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(`{"product":"ladygraph"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(`{"product":"kivgraph"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(binaryPath, []byte("old"), 0o755); err != nil {
@@ -214,11 +214,11 @@ func TestRunRejectsMismatchedReleaseChecksum(t *testing.T) {
 func TestRunInstallsValidatedBundleAtomically(t *testing.T) {
 	requireReleasePlatform(t)
 	root := t.TempDir()
-	oldBinary := filepath.Join(root, "ladygraph", "bin", "ladygraph")
+	oldBinary := filepath.Join(root, "kivgraph", "bin", "kivgraph")
 	if err := os.MkdirAll(filepath.Dir(oldBinary), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "ladygraph", "manifest.json"), []byte(`{"product":"ladygraph"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "kivgraph", "manifest.json"), []byte(`{"product":"kivgraph"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(oldBinary, []byte("old"), 0o755); err != nil {
@@ -263,25 +263,25 @@ func TestRunInstallsValidatedBundleAtomically(t *testing.T) {
 	if string(newOutput) != "#!/bin/sh\nprintf '%s\\n' 0.1.1\n" {
 		t.Fatalf("installed binary = %q, want new release script", newOutput)
 	}
-	if _, err := os.Stat(filepath.Join(root, "ladygraph.previous")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "kivgraph.previous")); !os.IsNotExist(err) {
 		t.Fatalf("previous bundle stat error = %v, want absent", err)
 	}
 }
 
 func TestArchivePathNameRejectsTraversal(t *testing.T) {
 	unsafe := []string{
-		"/tmp/ladygraph",
+		"/tmp/kivgraph",
 		bundleDirName + "/../../outside",
 		bundleDirName + "\\outside",
 		// A bundle built for another platform must not be extracted here.
-		"ladygraph-plan9-mips/bin/ladygraph",
+		"kivgraph-plan9-mips/bin/kivgraph",
 	}
 	for _, name := range unsafe {
 		if _, err := archivePathName(name); err == nil {
 			t.Fatalf("archivePathName(%q) accepted unsafe path", name)
 		}
 	}
-	valid := bundleDirName + "/bin/ladygraph"
+	valid := bundleDirName + "/bin/kivgraph"
 	if got, err := archivePathName(valid); err != nil || got != valid {
 		t.Fatalf("archivePathName(%q) = %q, %v", valid, got, err)
 	}
@@ -304,9 +304,9 @@ func writeRelease(t *testing.T, writer http.ResponseWriter, baseURL, tag string)
 func testBundleArchive(t *testing.T, version string) []byte {
 	t.Helper()
 	files := map[string][]byte{
-		bundleDirName + "/manifest.json":           []byte(fmt.Sprintf(`{"product":"ladygraph","release":"%s","target":{"os":"%s","arch":"%s"},"source":{"dirty":false}}`, version, runtime.GOOS, runtime.GOARCH)),
-		bundleDirName + "/bin/ladygraph":           []byte("#!/bin/sh\nprintf '%s\\n' " + version + "\n"),
-		bundleDirName + "/bin/ladygraph-ts-worker": []byte("#!/bin/sh\nexit 0\n"),
+		bundleDirName + "/manifest.json":          []byte(fmt.Sprintf(`{"product":"kivgraph","release":"%s","target":{"os":"%s","arch":"%s"},"source":{"dirty":false}}`, version, runtime.GOOS, runtime.GOARCH)),
+		bundleDirName + "/bin/kivgraph":           []byte("#!/bin/sh\nprintf '%s\\n' " + version + "\n"),
+		bundleDirName + "/bin/kivgraph-ts-worker": []byte("#!/bin/sh\nexit 0\n"),
 	}
 	var checksumLines []string
 	for name, contents := range files {
@@ -328,7 +328,7 @@ func testBundleArchive(t *testing.T, version string) []byte {
 			Mode: 0o644,
 			Size: int64(len(contents)),
 		}
-		if strings.HasSuffix(name, "/ladygraph") || strings.HasSuffix(name, "/ladygraph-ts-worker") {
+		if strings.HasSuffix(name, "/kivgraph") || strings.HasSuffix(name, "/kivgraph-ts-worker") {
 			header.Mode = 0o755
 		}
 		if err := tarWriter.WriteHeader(header); err != nil {

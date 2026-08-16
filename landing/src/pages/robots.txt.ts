@@ -81,7 +81,7 @@ export const GET: APIRoute = ({ site }) => {
   // is the signal an operator looks for, and `Google-Extended` and
   // `Applebot-Extended` have no meaning anywhere but in this file.
   const lines = [
-    "# Ladygraph documentation.",
+    "# Kivgraph documentation.",
     "#",
     `# The agent-facing index of this site is ${absoluteUrl(site, "/llms.txt")}`,
     `# and the whole documentation in one fetch is ${absoluteUrl(site, "/llms-full.txt")}`,

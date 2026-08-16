@@ -8,20 +8,20 @@ usage() {
   cat <<'EOF'
 Usage: scripts/install.sh
 
-Download and install the latest published Ladygraph MCP release. Supported
+Download and install the latest published Kivgraph MCP release. Supported
 hosts are Linux/x86_64 and Darwin/arm64; no Go, Node.js, or pnpm is required.
 
 Environment:
-  LADYGRAPH_INSTALL_ROOT  Bundle directory (default: ~/.local/opt/ladygraph)
-  LADYGRAPH_BIN_DIR        Launcher directory (default: ~/.local/bin)
-  LADYGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Luqueee/ladygraph)
-  LADYGRAPH_VERSION        Pin a release tag such as vX.Y.Z instead of latest
-  LADYGRAPH_GITHUB_TOKEN   Optional token for a private GitHub repository
+  KIVGRAPH_INSTALL_ROOT  Bundle directory (default: ~/.local/opt/kivgraph)
+  KIVGRAPH_BIN_DIR        Launcher directory (default: ~/.local/bin)
+  KIVGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Luqueee/kivgraph)
+  KIVGRAPH_VERSION        Pin a release tag such as vX.Y.Z instead of latest
+  KIVGRAPH_GITHUB_TOKEN   Optional token for a private GitHub repository
 EOF
 }
 
 fail() {
-  printf 'ladygraph install: %s\n' "$*" >&2
+  printf 'kivgraph install: %s\n' "$*" >&2
   exit 1
 }
 
@@ -47,21 +47,21 @@ case "$host_system/$host_machine" in
     fail "unsupported host $host_system/$host_machine (supported: Linux/x86_64, Darwin/arm64 for Apple Silicon; Intel Macs are not published)"
     ;;
 esac
-bundle_name="ladygraph-$platform"
+bundle_name="kivgraph-$platform"
 
 [[ -n "${HOME:-}" ]] || fail 'HOME is not set'
 
-install_root=${LADYGRAPH_INSTALL_ROOT:-"$HOME/.local/opt/ladygraph"}
-bin_dir=${LADYGRAPH_BIN_DIR:-"$HOME/.local/bin"}
-release_base=${LADYGRAPH_RELEASE_BASE_URL:-"https://github.com/Luqueee/ladygraph/releases"}
-requested_version=${LADYGRAPH_VERSION:-}
+install_root=${KIVGRAPH_INSTALL_ROOT:-"$HOME/.local/opt/kivgraph"}
+bin_dir=${KIVGRAPH_BIN_DIR:-"$HOME/.local/bin"}
+release_base=${KIVGRAPH_RELEASE_BASE_URL:-"https://github.com/Luqueee/kivgraph/releases"}
+requested_version=${KIVGRAPH_VERSION:-}
 release_base=${release_base%/}
 
-[[ "$install_root" == /* ]] || fail "LADYGRAPH_INSTALL_ROOT must be absolute"
-[[ "$bin_dir" == /* ]] || fail "LADYGRAPH_BIN_DIR must be absolute"
+[[ "$install_root" == /* ]] || fail "KIVGRAPH_INSTALL_ROOT must be absolute"
+[[ "$bin_dir" == /* ]] || fail "KIVGRAPH_BIN_DIR must be absolute"
 [[ "$install_root" != "/" && "$bin_dir" != "/" ]] || fail 'installation paths must not be /'
 if [[ -n "$requested_version" && ! "$requested_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-  fail "invalid LADYGRAPH_VERSION: $requested_version"
+  fail "invalid KIVGRAPH_VERSION: $requested_version"
 fi
 
 archive_name="$bundle_name.tar.gz"
@@ -71,7 +71,7 @@ else
   download_base="$release_base/latest/download"
 fi
 
-download_parent=$(mktemp -d "${TMPDIR:-/tmp}/ladygraph-download.XXXXXX")
+download_parent=$(mktemp -d "${TMPDIR:-/tmp}/kivgraph-download.XXXXXX")
 staging_parent=""
 backup_root=""
 new_root_installed=false
@@ -100,7 +100,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$(dirname -- "$install_root")" "$bin_dir"
-staging_parent=$(mktemp -d "$(dirname -- "$install_root")/.ladygraph-install.XXXXXX")
+staging_parent=$(mktemp -d "$(dirname -- "$install_root")/.kivgraph-install.XXXXXX")
 archive_path="$download_parent/$archive_name"
 checksums_path="$download_parent/SHA256SUMS"
 
@@ -116,13 +116,13 @@ curl_download() {
     --max-time 900
     --output "$destination"
   )
-  if [[ -n "${LADYGRAPH_GITHUB_TOKEN:-}" ]]; then
-    arguments+=(--header "Authorization: Bearer ${LADYGRAPH_GITHUB_TOKEN}")
+  if [[ -n "${KIVGRAPH_GITHUB_TOKEN:-}" ]]; then
+    arguments+=(--header "Authorization: Bearer ${KIVGRAPH_GITHUB_TOKEN}")
   fi
   curl "${arguments[@]}" "$url"
 }
 
-printf 'ladygraph install: downloading %s\n' "${requested_version:-latest}" >&2
+printf 'kivgraph install: downloading %s\n' "${requested_version:-latest}" >&2
 curl_download "$download_base/$archive_name" "$archive_path"
 curl_download "$download_base/SHA256SUMS" "$checksums_path"
 
@@ -201,9 +201,9 @@ bundle="$extract_root/$bundle_name"
 [[ -z "$(find -L "$bundle" -type l -print -quit)" ]] ||
   fail 'release bundle contains symbolic links'
 verify_checksums "$bundle" SHA256SUMS || fail 'bundle checksum verification failed'
-[[ -x "$bundle/bin/ladygraph" ]] || fail 'bundle is missing bin/ladygraph'
-[[ -x "$bundle/bin/ladygraph-ts-worker" ]] || fail 'bundle is missing bin/ladygraph-ts-worker'
-installed_version=$("$bundle/bin/ladygraph" version)
+[[ -x "$bundle/bin/kivgraph" ]] || fail 'bundle is missing bin/kivgraph'
+[[ -x "$bundle/bin/kivgraph-ts-worker" ]] || fail 'bundle is missing bin/kivgraph-ts-worker'
+installed_version=$("$bundle/bin/kivgraph" version)
 [[ "$installed_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] ||
   fail "bundle reported invalid version: $installed_version"
 if [[ -n "$requested_version" && "${requested_version#v}" != "$installed_version" ]]; then
@@ -232,15 +232,15 @@ create_launcher() {
     return 0
   fi
   local temporary="$staging_parent/$name.launcher"
-  printf '#!/usr/bin/env bash\nset -euo pipefail\n# Managed by the Ladygraph release installer.\nexec %q "$@"\n' \
+  printf '#!/usr/bin/env bash\nset -euo pipefail\n# Managed by the Kivgraph release installer.\nexec %q "$@"\n' \
     "$target" >"$temporary"
   chmod 0755 "$temporary"
   mv -- "$temporary" "$launcher"
   created_launchers+=("$launcher")
 }
 
-validate_launcher "$bin_dir/ladygraph" "$install_root/bin/ladygraph"
-validate_launcher "$bin_dir/ladygraph-ts-worker" "$install_root/bin/ladygraph-ts-worker"
+validate_launcher "$bin_dir/kivgraph" "$install_root/bin/kivgraph"
+validate_launcher "$bin_dir/kivgraph-ts-worker" "$install_root/bin/kivgraph-ts-worker"
 
 if [[ -e "$install_root" || -L "$install_root" ]]; then
   backup_root="${install_root}.previous"
@@ -250,8 +250,8 @@ if [[ -e "$install_root" || -L "$install_root" ]]; then
 fi
 mv -- "$bundle" "$install_root"
 new_root_installed=true
-create_launcher ladygraph "$install_root/bin/ladygraph"
-create_launcher ladygraph-ts-worker "$install_root/bin/ladygraph-ts-worker"
+create_launcher kivgraph "$install_root/bin/kivgraph"
+create_launcher kivgraph-ts-worker "$install_root/bin/kivgraph-ts-worker"
 
 if [[ -n "$backup_root" ]]; then
   rm -rf -- "$backup_root"
@@ -259,9 +259,9 @@ if [[ -n "$backup_root" ]]; then
 fi
 new_root_installed=false
 
-printf 'ladygraph install: installed %s in %s\n' "$installed_version" "$install_root"
-printf 'ladygraph install: launchers in %s\n' "$bin_dir"
+printf 'kivgraph install: installed %s in %s\n' "$installed_version" "$install_root"
+printf 'kivgraph install: launchers in %s\n' "$bin_dir"
 if [[ ":${PATH}:" != *":${bin_dir}:"* ]]; then
-  printf 'ladygraph install: add %s to PATH before using ladygraph\n' "$bin_dir"
+  printf 'kivgraph install: add %s to PATH before using kivgraph\n' "$bin_dir"
 fi
-printf 'ladygraph install: run "ladygraph init" before starting the MCP server\n'
+printf 'kivgraph install: run "kivgraph init" before starting the MCP server\n'

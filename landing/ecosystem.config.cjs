@@ -4,7 +4,7 @@
 module.exports = {
   apps: [
     {
-      name: "ladygraph-landing",
+      name: "kivgraph-landing",
       script: "./dist/server/entry.mjs",
       cwd: __dirname,
       exec_mode: "fork",

@@ -2,7 +2,7 @@
 
 **Fecha de verificación:** 2026-08-15
 **Alcance:** `landing/`, más el asset de skill
-`internal/integrations/assets/ladygraph/SKILL.md`
+`internal/integrations/assets/kivgraph/SKILL.md`
 **Gate:** ninguno. `TASKS.md` no define un gate para esta superficie y no se
 inventa uno; lo que sigue son comprobaciones medidas, no un token emitido.
 
@@ -42,7 +42,7 @@ comprobando un path que ya no existe, es decir, nada.
 ## La documentación del MCP sale de una captura, no de la memoria
 
 Todo ejemplo de las once páginas de tool es una captura literal. Se construyó el
-binario de HEAD con el tag `ladybug` y se condujo `ladygraph serve` por stdio
+binario de HEAD con el tag `ladybug` y se condujo `kivgraph serve` por stdio
 contra la generación publicada `30` -- 2 repositorios, 311 ficheros, 57 paquetes,
 10.957 símbolos, 40.125 aristas, 1.642 referencias no resueltas -- registrando
 `tools/list` completo, una llamada real por tool y los caminos de error.
@@ -86,7 +86,7 @@ eran del sitio o de su documentación.
 | # | Defecto | Dónde |
 | --- | --- | --- |
 | 1 | La referencia documentaba `get_unresolved_references`, que `serve` no registra, y omitía `get_source`, que sí | `reference/mcp-tools.md` |
-| 2 | La skill instalada enrutaba al agente a esa tool inexistente y no mencionaba `get_source` ni `get_file_outline` | `assets/ladygraph/SKILL.md` |
+| 2 | La skill instalada enrutaba al agente a esa tool inexistente y no mencionaba `get_source` ni `get_file_outline` | `assets/kivgraph/SKILL.md` |
 | 3 | El quickstart afirmaba que sin generación publicada «toda consulta falla»; en realidad no hay superficie de consulta | `quickstart.md` |
 | 4 | Una regla de componente sin capa anulaba en silencio cada `mt-*`: `mt-8` computaba `0px` | cascada de Tailwind |
 | 5 | Un grid sin columna base lo dimensionaba su hijo más ancho: 172 px de desbordamiento en móvil | 5 componentes |
@@ -126,7 +126,7 @@ inventada.
 ## Límites residuales
 
 - **El dominio no existe todavía.** `site` vale `http://localhost:6767` hasta que
-  el despliegue fije `LADYGRAPH_LANDING_URL`. De ahí se derivan el canonical, el
+  el despliegue fije `KIVGRAPH_LANDING_URL`. De ahí se derivan el canonical, el
   `og:image`, el sitemap y las URLs de `llms.txt`, así que publicar sin fijarla
   emite el canonical de la máquina de desarrollo.
 - **Los iconos se regeneraron desde `icon-512.png`, no desde el original.** Para

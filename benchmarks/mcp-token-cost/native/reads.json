@@ -1,10 +1,10 @@
 {
- "cmd/ladygraph/main.go:1302-1327": {
-  "file": "cmd/ladygraph/main.go",
+ "cmd/kivgraph/main.go:1302-1327": {
+  "file": "cmd/kivgraph/main.go",
   "tokens": 427
  },
- "cmd/ladygraph/main.go:221-264": {
-  "file": "cmd/ladygraph/main.go",
+ "cmd/kivgraph/main.go:221-264": {
+  "file": "cmd/kivgraph/main.go",
   "tokens": 556
  },
  "internal/facts/facts.go:505-507": {

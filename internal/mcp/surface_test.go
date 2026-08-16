@@ -10,10 +10,10 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
-// allowedTools is the entire MCP surface Ladygraph is allowed to expose, from
+// allowedTools is the entire MCP surface Kivgraph is allowed to expose, from
 // PLAN.md 17.1. This list is a contract, not a snapshot of the code: adding a
 // tool without adding it here is the failure this file exists to catch.
 //
@@ -234,7 +234,7 @@ func TestServerWithoutAGenerationPublishesNoTool(t *testing.T) {
 	if initResult == nil {
 		t.Fatal("InitializeResult() = nil, want a completed handshake")
 	}
-	if !strings.Contains(initResult.Instructions, "ladygraph index --full") {
+	if !strings.Contains(initResult.Instructions, "kivgraph index --full") {
 		t.Fatalf("instructions = %q, want the command that repairs this", initResult.Instructions)
 	}
 }

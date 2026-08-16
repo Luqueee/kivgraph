@@ -17,7 +17,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	ladygraphmcp "github.com/Luqueee/ladygraph/internal/mcp"
+	kivgraphmcp "github.com/Luqueee/kivgraph/internal/mcp"
 )
 
 const (
@@ -239,7 +239,7 @@ func exercise(ctx context.Context, tool string, sessions []clientSession, callsP
 }
 
 func newSessions(ctx context.Context, count int, observer func(string, time.Duration)) ([]clientSession, func(), error) {
-	server := ladygraphmcp.NewServerWithObserver(observer)
+	server := kivgraphmcp.NewServerWithObserver(observer)
 	sessions := make([]clientSession, 0, count)
 	closeSessions := func() {
 		for i := len(sessions) - 1; i >= 0; i-- {

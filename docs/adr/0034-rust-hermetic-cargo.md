@@ -30,7 +30,7 @@ verifica después.
 
 ### Configuración generada por invocación
 
-Ladygraph escribe un JSON temporal y lo pasa con `--config-path`:
+Kivgraph escribe un JSON temporal y lo pasa con `--config-path`:
 
 | Clave | Valor | Por qué |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ se publica, exactamente como un módulo Go que no carga.
 
 - **`--locked` frente a lockfiles desactualizados.** Un repositorio cuyo
   `Cargo.lock` no corresponde a sus manifests no se indexa. Es el
-  comportamiento correcto: la alternativa es que Ladygraph modifique el
+  comportamiento correcto: la alternativa es que Kivgraph modifique el
   repositorio.
 - **Build scripts arbitrarios.** Indexar un repositorio Rust ejecuta código de
   ese repositorio. Es inherente a cualquier análisis de Cargo con precisión y

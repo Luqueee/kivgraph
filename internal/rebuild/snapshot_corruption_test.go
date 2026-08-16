@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 // What is persisted next to a generation is snapshot.sha256, the digest of its

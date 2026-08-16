@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Un cliente MCP lanza `ladygraph serve` él mismo, así que hay un servidor por
+Un cliente MCP lanza `kivgraph serve` él mismo, así que hay un servidor por
 cliente y cada uno reconstruye el grafo entero en su propio heap. Medido en
 `devlabs` -Linux, 24 GB, generación `000053`: 41 repositorios, 5.021 ficheros,
 102.385 símbolos, 259.556 aristas, 189 MB en disco-:
@@ -44,7 +44,7 @@ El otro servidor, que perdió `resync.lock`, se quedó en 586 MB.
 ## Decisión
 
 **Una pasada de indexación nunca ocurre en el proceso que responde consultas.**
-`Service.IndexProjects` y `Service.Reindex` ejecutan `ladygraph index --full
+`Service.IndexProjects` y `Service.Reindex` ejecutan `kivgraph index --full
 --json` como proceso hijo y leen su resultado; el pico muere con el hijo.
 
 El hijo es **este mismo ejecutable** (`os.Executable`). Lleva la misma

@@ -6,7 +6,7 @@ Este documento se genera desde `internal/storage/ladybug.CanonicalSchemaDocument
 
 ## Reglas
 
-- Toda clave primaria es una clave durable de Ladygraph. Ninguna se deriva de un nombre visible ni la genera la base.
+- Toda clave primaria es una clave durable de Kivgraph. Ninguna se deriva de un nombre visible ni la genera la base.
 - `GraphMetadata` guarda la versión del esquema y la del resolutor: una base con otra versión se reconstruye, no se migra en caliente.
 - Las rutas de `File` son relativas al repositorio, de modo que una clave nunca incrusta la máquina que la produjo.
 - Toda relación semántica transporta `confidence`, `provenance` y `evidence_key`; una arista sin procedencia no puede ser exacta.

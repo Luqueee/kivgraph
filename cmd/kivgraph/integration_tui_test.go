@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/integrations"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

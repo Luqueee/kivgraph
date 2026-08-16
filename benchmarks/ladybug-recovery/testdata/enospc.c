@@ -19,7 +19,7 @@ static _Atomic uint64_t target_bytes;
 static _Atomic int status_written;
 
 static int is_target_fd(int fd) {
-    const char *target = getenv("LADYGRAPH_ENOSPC_PATH");
+    const char *target = getenv("KIVGRAPH_ENOSPC_PATH");
     if (target == NULL || target[0] == '\0') {
         return 0;
     }
@@ -40,7 +40,7 @@ static int is_target_fd(int fd) {
 }
 
 static uint64_t byte_limit(void) {
-    const char *raw = getenv("LADYGRAPH_ENOSPC_AFTER_BYTES");
+    const char *raw = getenv("KIVGRAPH_ENOSPC_AFTER_BYTES");
     if (raw == NULL || raw[0] == '\0') {
         return 0;
     }
@@ -51,7 +51,7 @@ static void mark_injected(void) {
     if (atomic_exchange(&status_written, 1) != 0) {
         return;
     }
-    const char *path = getenv("LADYGRAPH_ENOSPC_STATUS");
+    const char *path = getenv("KIVGRAPH_ENOSPC_STATUS");
     if (path == NULL || path[0] == '\0') {
         return;
     }
@@ -59,7 +59,7 @@ static void mark_injected(void) {
     if (fd < 0) {
         return;
     }
-    const char *phase = getenv("LADYGRAPH_ENOSPC_PHASE");
+    const char *phase = getenv("KIVGRAPH_ENOSPC_PHASE");
     if (phase == NULL || phase[0] == '\0') {
         phase = "unknown";
     }
@@ -72,7 +72,7 @@ static void mark_injected(void) {
 }
 
 static int should_fail(int fd, uint64_t count) {
-    const char *armed = getenv("LADYGRAPH_ENOSPC_ARMED");
+    const char *armed = getenv("KIVGRAPH_ENOSPC_ARMED");
     if (armed == NULL || strcmp(armed, "1") != 0) {
         return 0;
     }

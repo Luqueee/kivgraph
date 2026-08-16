@@ -42,8 +42,8 @@ jobs:
     env:
       TARGET_OS: ${{ matrix.os }}
       TARGET_ARCH: ${{ matrix.arch }}
-      BUNDLE_NAME: ladygraph-${{ matrix.os }}-${{ matrix.arch }}
-      ARCHIVE_NAME: ladygraph-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+      BUNDLE_NAME: kivgraph-${{ matrix.os }}-${{ matrix.arch }}
+      ARCHIVE_NAME: kivgraph-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
       NATIVE_LIBRARY: ${{ matrix.native_library }}
     steps:
       - name: Checkout exact tag
@@ -107,11 +107,11 @@ jobs:
       - name: Build bundle
         shell: bash
         env:
-          LADYGRAPH_VERSION: ${{ steps.release.outputs.version }}
+          KIVGRAPH_VERSION: ${{ steps.release.outputs.version }}
         run: |
           scripts/build-bundle.sh \
             --target "$TARGET_OS/$TARGET_ARCH" \
-            --version "$LADYGRAPH_VERSION" \
+            --version "$KIVGRAPH_VERSION" \
             "$RUNNER_TEMP/$BUNDLE_NAME"
 
       - name: Verify bundle provenance and checksums
@@ -134,9 +134,9 @@ jobs:
           test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
           test "$(jq -r .target.os "$bundle/manifest.json")" = "$TARGET_OS"
           test "$(jq -r .target.arch "$bundle/manifest.json")" = "$TARGET_ARCH"
-          test "$("$bundle/bin/ladygraph" version)" = "$EXPECTED_VERSION"
-          version_json=$("$bundle/bin/ladygraph" version --json)
-          test "$(jq -r .ladygraph <<<"$version_json")" = "$EXPECTED_VERSION"
+          test "$("$bundle/bin/kivgraph" version)" = "$EXPECTED_VERSION"
+          version_json=$("$bundle/bin/kivgraph" version --json)
+          test "$(jq -r .kivgraph <<<"$version_json")" = "$EXPECTED_VERSION"
           # The Rust engine has to be in the payload, has to run on this
           # platform, and has to be the pinned one: an installation that falls
           # back to whatever the PATH holds indexes a different graph.
@@ -153,7 +153,7 @@ jobs:
           # webassets tag serves the "no web bundle" page on every route,
           # and the help is where that shows.
           test -f "$bundle/web/index.html"
-          help_output=$("$bundle/bin/ladygraph" --help)
+          help_output=$("$bundle/bin/kivgraph" --help)
           grep -q '^  ui \[' <<<"$help_output"
           if grep -q 'unavailable: this build carries no web bundle' <<<"$help_output"; then
             echo "bundle carries web assets the binary cannot serve: built without the webassets tag" >&2
@@ -265,7 +265,7 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --verify-tag \
-              --title "Ladygraph $TAG" \
+              --title "Kivgraph $TAG" \
               --generate-notes \
               --latest
           fi

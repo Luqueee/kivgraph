@@ -2,9 +2,9 @@
 package main
 
 import (
-	shared "example.com/ladygraph-fixture/shared/api"
+	shared "example.com/kivgraph-fixture/shared/api"
 
-	"example.com/ladygraph-fixture/legacy"
+	"example.com/kivgraph-fixture/legacy"
 )
 
 func main() {

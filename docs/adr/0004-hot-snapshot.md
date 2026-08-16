@@ -13,7 +13,7 @@ en curso.
 
 ## Decision
 
-Ladygraph construirá un `HotSnapshot` inmutable en memoria a partir del grafo
+Kivgraph construirá un `HotSnapshot` inmutable en memoria a partir del grafo
 canónico. Las consultas solo leerán el snapshot publicado y usarán sus índices
 densos, stable keys, CSR forward y CSR reverse.
 

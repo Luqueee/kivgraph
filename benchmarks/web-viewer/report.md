@@ -6,7 +6,7 @@
 - **Go/Node/pnpm:** `go1.24.4` / `v25.9.0` / `11.5.1`
 - **Navegador:** Chrome `150.0.7871.24`, viewport `1440 × 1000`, DPR `1`
 - **Renderer:** ANGLE Intel UHD 620 en el adaptador headless; no representa una GPU discreta
-- **Snapshot:** `~/kena`, `snapshot_id=2`, publicado por `ladygraph ui`
+- **Snapshot:** `~/kena`, `snapshot_id=2`, publicado por `kivgraph ui`
 
 ## Comando de verificación
 
@@ -26,7 +26,7 @@ resultado termina con código `1`.
 La captura se hizo con Chromium contra:
 
 ```bash
-ladygraph ui --config /home/devlabs/.config/ladygraph/config.yaml \
+kivgraph ui --config /home/devlabs/.config/kivgraph/config.yaml \
   --addr 127.0.0.1:7777
 ```
 

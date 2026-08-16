@@ -8,34 +8,34 @@ const steps = [
   {
     title: "register a repository",
     command:
-      "ladygraph init \\\n  --repository project=/absolute/path/to/project \\\n  --languages go,typescript,rust",
+      "kivgraph init \\\n  --repository project=/absolute/path/to/project \\\n  --languages go,typescript,rust",
     note: "--repository NAME=PATH may be repeated. The name is compared exactly, and it travels inside the stable keys of everything the repository declares.",
   },
   {
     title: "check the machine",
-    command: "ladygraph doctor",
+    command: "kivgraph doctor",
     note: "doctor reports the configuration, the toolchains it found and the state of the published graph. It names the language version ceiling this binary type-checks Go with, which is not the go on your PATH.",
   },
   {
     title: "index and publish",
-    command: "ladygraph index --full",
+    command: "kivgraph index --full",
     note: "The pass analyses every registered repository, validates the canonical graph and publishes it as a new generation. Publication is atomic: a candidate that fails integrity or validation never becomes CURRENT, and the previous generation keeps serving.",
   },
   {
     title: "register the client",
-    command: "ladygraph mcp install --scope user",
+    command: "kivgraph mcp install --scope user",
     note: "Detects the coding agents on this machine and writes the entry after you select them. Supported targets: claude-code, claude-desktop, codex, opencode and oh-my-pi.",
   },
 ];
 
 const clientConfig = `{
   "mcpServers": {
-    "ladygraph": {
-      "command": "/home/user/.local/bin/ladygraph",
+    "kivgraph": {
+      "command": "/home/user/.local/bin/kivgraph",
       "args": [
         "serve",
         "--config",
-        "/home/user/.config/ladygraph/config.yaml"
+        "/home/user/.config/kivgraph/config.yaml"
       ]
     }
   }

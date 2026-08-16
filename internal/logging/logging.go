@@ -1,4 +1,4 @@
-// Package logging provides the process logger used by Ladygraph commands.
+// Package logging provides the process logger used by Kivgraph commands.
 package logging
 
 import (

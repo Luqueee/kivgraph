@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestFollowRejectsAnIncompleteRequest(t *testing.T) {

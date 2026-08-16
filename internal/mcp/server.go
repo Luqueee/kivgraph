@@ -5,16 +5,16 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/indexing"
-	"github.com/Luqueee/ladygraph/internal/mcp/tools"
-	"github.com/Luqueee/ladygraph/internal/metrics"
-	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
+	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/version"
 )
 
-const serverName = "ladygraph"
+const serverName = "kivgraph"
 
-// NewServer creates the Ladygraph MCP server with no graph source.
+// NewServer creates the Kivgraph MCP server with no graph source.
 func NewServer() *sdkmcp.Server {
 	return newServer(nil, nil, nil)
 }

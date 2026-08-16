@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/goloader"
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/goloader"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 var fixtureRoot = filepath.Join("..", "..", "testdata", "go", "cross-repository")
@@ -134,8 +134,8 @@ func TestNormalizeGoProducesAValidatedGraph(t *testing.T) {
 		t.Fatalf("repositories = %#v", set.Repositories)
 	}
 	if len(set.Packages) != 1 ||
-		set.Packages[0].Name != "example.com/ladygraph-fixture/shared/api" ||
-		set.Packages[0].Container != "example.com/ladygraph-fixture/shared" {
+		set.Packages[0].Name != "example.com/kivgraph-fixture/shared/api" ||
+		set.Packages[0].Container != "example.com/kivgraph-fixture/shared" {
 		t.Fatalf("packages = %#v", set.Packages)
 	}
 	if len(set.Files) != 1 || set.Files[0].Path != "api/api.go" {
@@ -499,7 +499,7 @@ func TestNormalizeGoEmitsPackageDependencyEdgesAcrossRepositories(t *testing.T) 
 		t.Fatalf("provider packages = %#v, want exactly the shared/api package", provider.Packages)
 	}
 	providerPackage := provider.Packages[0]
-	if providerPackage.Name != "example.com/ladygraph-fixture/shared/api" {
+	if providerPackage.Name != "example.com/kivgraph-fixture/shared/api" {
 		t.Fatalf("provider package = %#v", providerPackage)
 	}
 	if len(consumer.Packages) != 1 {
@@ -591,8 +591,8 @@ func TestNormalizeGoEmitsPackageDependencyForANestedModuleOfTheSameRepository(t 
 	for _, entry := range consumer.Packages {
 		byName[entry.Name] = entry
 	}
-	main, hasMain := byName["example.com/ladygraph-fixture/consumer-b"]
-	legacy, hasLegacy := byName["example.com/ladygraph-fixture/legacy"]
+	main, hasMain := byName["example.com/kivgraph-fixture/consumer-b"]
+	legacy, hasLegacy := byName["example.com/kivgraph-fixture/legacy"]
 	if !hasMain || !hasLegacy {
 		t.Fatalf("packages = %#v, want both main and legacy", consumer.Packages)
 	}
@@ -642,8 +642,8 @@ func TestNormalizeGoEmitsIntraModulePackageDependencyWithoutModuleDependsOn(t *t
 	for _, entry := range set.Packages {
 		byName[entry.Name] = entry
 	}
-	units, hasUnits := byName["example.com/ladygraph-fixture/type-relations/units"]
-	geometry, hasGeometry := byName["example.com/ladygraph-fixture/type-relations"]
+	units, hasUnits := byName["example.com/kivgraph-fixture/type-relations/units"]
+	geometry, hasGeometry := byName["example.com/kivgraph-fixture/type-relations"]
 	if !hasUnits || !hasGeometry {
 		t.Fatalf("packages = %#v, want both units and the geometry root package", set.Packages)
 	}

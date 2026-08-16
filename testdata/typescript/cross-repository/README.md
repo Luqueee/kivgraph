@@ -3,7 +3,7 @@
 Tres repositorios sintéticos usados por LUQUE-0707, LUQUE-0709 y el cierre de
 `EXTENDS`/`PACKAGE_DEPENDS_ON`.
 
-- `shared-library`: provider publicado como `@ladygraph-fixture/shared`, con
+- `shared-library`: provider publicado como `@kivgraph-fixture/shared`, con
   barrel, alias de reexport y `declaration maps` hacia sus fuentes.
   `src/inheritance.ts` añade `NamedShape extends Shape, Named` — herencia
   local, con Shape en `src/value.ts` y Named en el mismo fichero, cada base
@@ -12,7 +12,7 @@ Tres repositorios sintéticos usados por LUQUE-0707, LUQUE-0709 y el cierre de
 - `consumer-a`: imports directos de valor y de tipo, más
   `src/derived.ts#LabeledWidget extends Widget`, herencia cross-repository
   contra la fuente real del proveedor gracias al declaration map. Su
-  `package.json` también declara `@ladygraph-fixture/unused`, una dependencia
+  `package.json` también declara `@kivgraph-fixture/unused`, una dependencia
   que nada importa: prueba de que `PACKAGE_DEPENDS_ON` nunca sale de una
   cadena nominal de `package.json`, sólo de un import resuelto por el
   checker.
@@ -30,8 +30,8 @@ regenerarlo desde `shared-library/`:
 ```
 ../../../ts-worker/node_modules/.bin/tsc -p tsconfig.json
 ```
-- `facade-library`: paquete `@ladygraph-fixture/facade`, que no declara nada
-  propio y sólo reexporta `@ladygraph-fixture/shared`. Es la forma de un SDK
+- `facade-library`: paquete `@kivgraph-fixture/facade`, que no declara nada
+  propio y sólo reexporta `@kivgraph-fixture/shared`. Es la forma de un SDK
   que existe para ser la única dependencia de sus consumidores.
 - `consumer-c`: importa a través de la fachada. Su mapa de declaraciones
   apunta al fuente de `shared-library`, un repositorio distinto del que nombra

@@ -1,6 +1,6 @@
 {
   "benchmark": "web-viewer",
-  "command": "Chromium headless smoke against ladygraph ui; node benchmarks/web-viewer/harness.mjs --results benchmarks/web-viewer/results.json --allow-limitations",
+  "command": "Chromium headless smoke against kivgraph ui; node benchmarks/web-viewer/harness.mjs --results benchmarks/web-viewer/results.json --allow-limitations",
   "commit": "fc2a808671cff0f86fc66b1af157cdccce55204c-dirty",
   "generated_at": "2026-08-08T12:12:00Z",
   "environment": {

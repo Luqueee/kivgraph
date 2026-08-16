@@ -1,6 +1,6 @@
 # LadybugDB bulk load benchmark
 
-- Command: `/home/devlabs/.cache/go-build/4e/4e7089d945d45446fdcdbb8c7d0e4a6f20f0be3e556fab46e503e44e0165f673-d/ladybug-bulk --corpus /tmp/ladygraph-synthetic-reduced --database /tmp/ladygraph-ladybug-copy-reduced-gated.db --output benchmarks/ladybug-bulk --individual-results benchmarks/ladybug-individual/results.json --batch-results benchmarks/ladybug-batch/results.json`
+- Command: `/home/devlabs/.cache/go-build/4e/4e7089d945d45446fdcdbb8c7d0e4a6f20f0be3e556fab46e503e44e0165f673-d/ladybug-bulk --corpus /tmp/kivgraph-synthetic-reduced --database /tmp/kivgraph-ladybug-copy-reduced-gated.db --output benchmarks/ladybug-bulk --individual-results benchmarks/ladybug-individual/results.json --batch-results benchmarks/ladybug-batch/results.json`
 - Commit: `d599f721ff740e039c8af105d806a437bae209d7-dirty`
 - Generated at: `2026-08-04T18:29:26Z`
 - Corpus seed: `42`

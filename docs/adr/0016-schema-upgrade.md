@@ -12,7 +12,7 @@ hechos en aristas inválidas y dejar `CURRENT` apuntando a datos no verificables
 
 ## Decisión
 
-`ladygraph upgrade` sigue este flujo:
+`kivgraph upgrade` sigue este flujo:
 
 1. Detecta la generación activa y la versión declarada en `GraphMetadata`.
 2. Si la versión ya es la actual, informa un no-op; no reindexa ni publica.

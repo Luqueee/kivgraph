@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // cachedFixture is one Go repository indexed through a fact cache. Every test
@@ -420,7 +420,7 @@ func TestTreeFingerprintSeesEveryKindOfChange(t *testing.T) {
 // binary, but the standard library it checks against and the versions the
 // build list selects are the go command's answers.
 func TestAnalyzerIdentityFollowsTheGoCommand(t *testing.T) {
-	options := FullOptions{TypeScriptWorker: "ladygraph-ts-worker"}
+	options := FullOptions{TypeScriptWorker: "kivgraph-ts-worker"}
 	before := analyzerFingerprint(options)
 	t.Setenv("GOFLAGS", "-mod=mod")
 	if after := analyzerFingerprint(options); after == before {

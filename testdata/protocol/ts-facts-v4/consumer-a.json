@@ -4,7 +4,7 @@
     "name": "consumer-a"
   },
   "package": {
-    "name": "@ladygraph-fixture/consumer-a",
+    "name": "@kivgraph-fixture/consumer-a",
     "version": "2.0.0",
     "rootPath": ".",
     "manifestPath": "package.json"
@@ -165,11 +165,11 @@
       "end": 15,
       "startLine": 1,
       "text": "Widget",
-      "requestedPackage": "@ladygraph-fixture/shared",
+      "requestedPackage": "@kivgraph-fixture/shared",
       "requestedSymbol": "Widget",
       "target": {
         "repository": "shared-library",
-        "package": "@ladygraph-fixture/shared",
+        "package": "@kivgraph-fixture/shared",
         "qualifiedName": "Widget",
         "kind": "class",
         "signature": "export class Widget",
@@ -186,11 +186,11 @@
       "end": 16,
       "startLine": 1,
       "text": "compute",
-      "requestedPackage": "@ladygraph-fixture/shared",
+      "requestedPackage": "@kivgraph-fixture/shared",
       "requestedSymbol": "compute",
       "target": {
         "repository": "shared-library",
-        "package": "@ladygraph-fixture/shared",
+        "package": "@kivgraph-fixture/shared",
         "qualifiedName": "compute",
         "kind": "function",
         "signature": "export function compute(input: number): number",
@@ -207,11 +207,11 @@
       "end": 23,
       "startLine": 1,
       "text": "value",
-      "requestedPackage": "@ladygraph-fixture/shared",
+      "requestedPackage": "@kivgraph-fixture/shared",
       "requestedSymbol": "value",
       "target": {
         "repository": "shared-library",
-        "package": "@ladygraph-fixture/shared",
+        "package": "@kivgraph-fixture/shared",
         "qualifiedName": "value",
         "kind": "variable",
         "signature": "value",
@@ -228,11 +228,11 @@
       "end": 35,
       "startLine": 1,
       "text": "type Shape",
-      "requestedPackage": "@ladygraph-fixture/shared",
+      "requestedPackage": "@kivgraph-fixture/shared",
       "requestedSymbol": "Shape",
       "target": {
         "repository": "shared-library",
-        "package": "@ladygraph-fixture/shared",
+        "package": "@kivgraph-fixture/shared",
         "qualifiedName": "Shape",
         "kind": "interface",
         "signature": "export interface Shape",
@@ -289,14 +289,14 @@
       "targetFile": null,
       "target": {
         "repository": "shared-library",
-        "package": "@ladygraph-fixture/shared",
+        "package": "@kivgraph-fixture/shared",
         "qualifiedName": "Widget",
         "kind": "class",
         "signature": "export class Widget",
         "file": "src/inheritance.ts",
         "startLine": 26
       },
-      "requestedPackage": "@ladygraph-fixture/shared",
+      "requestedPackage": "@kivgraph-fixture/shared",
       "requestedSymbol": "Widget",
       "reason": null,
       "detail": null
@@ -305,9 +305,9 @@
   "dependencies": [
     {
       "repository": "shared-library",
-      "package": "@ladygraph-fixture/shared",
+      "package": "@kivgraph-fixture/shared",
       "file": "src/derived.ts",
-      "specifier": "@ladygraph-fixture/shared",
+      "specifier": "@kivgraph-fixture/shared",
       "start": 23,
       "end": 46,
       "startLine": 1

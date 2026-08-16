@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/config"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestValidatePathsAcceptsScopedMetadata(t *testing.T) {

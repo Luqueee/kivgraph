@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Ladygraph necesita cargar un documento principal `config.yaml` y el registro
+Kivgraph necesita cargar un documento principal `config.yaml` y el registro
 independiente `repositories.yaml` antes de iniciar el indexador. La
 configuración debe ser reproducible entre invocaciones y no puede aceptar
 campos desconocidos silenciosamente.
@@ -45,6 +45,6 @@ con permisos `0600`. `RegisterRepositories` añade registros mediante una
 escritura atómica y valida nombres, paths y lenguajes antes de reemplazar el
 registro.
 
-La CLI expone este contrato mediante `ladygraph init`; el diagnóstico posterior
-pertenece a `ladygraph doctor`, que además valida la accesibilidad Git y el
+La CLI expone este contrato mediante `kivgraph init`; el diagnóstico posterior
+pertenece a `kivgraph doctor`, que además valida la accesibilidad Git y el
 estado publicado sin modificar repositorios fuente.

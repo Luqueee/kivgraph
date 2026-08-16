@@ -1,9 +1,9 @@
 ---
 title: Using the MCP server
-description: Route a question to the right Ladygraph tool, address a symbol without a stable key, and read the envelope, guidance and completeness of an answer.
+description: Route a question to the right Kivgraph tool, address a symbol without a stable key, and read the envelope, guidance and completeness of an answer.
 ---
 
-`ladygraph serve` speaks MCP over stdio and registers eleven tools. This page is
+`kivgraph serve` speaks MCP over stdio and registers eleven tools. This page is
 about using them: which tool answers which question, how to name a symbol, and
 how to read what comes back. Per-tool arguments live under
 [`/reference/mcp-tools/`](/reference/mcp-tools/) and on each tool's own page.
@@ -13,7 +13,7 @@ how to read what comes back. Per-tool arguments live under
 The `initialize` result carries an `instructions` string. This is it, literally:
 
 ```text
-Ladygraph answers "what breaks if I change this" from an exact, published code graph over Go, TypeScript and Rust. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
+Kivgraph answers "what breaks if I change this" from an exact, published code graph over Go, TypeScript and Rust. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
 
 Its edges are resolved by go/types, the TypeScript checker and rust-analyzer, not by matching names, so a reference list is complete for those languages and an empty one means nobody calls it. Grep cannot tell you that.
 
@@ -71,7 +71,7 @@ Step one, locate it:
 ```json
 {
   "name": "MergeAll",
-  "repo": "ladygraph",
+  "repo": "kivgraph",
   "limit": 3
 }
 ```
@@ -85,7 +85,7 @@ Step one, locate it:
   "qualified_name": "MergeAll",
   "kind": "func",
   "exported": true,
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "file_path": "internal/facts/facts.go",
   "start_line": 516,
   "end_line": 542
@@ -97,7 +97,7 @@ Step two, ask the real question. The row's `repository`, `file_path` and
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll",
   "direction": "incoming",
@@ -122,10 +122,10 @@ still matches twice, only the key separates them, and then, and only then, the
 error lists the stable keys.
 
 A name that is absent says so distinctly. This is the captured answer to
-`get_symbol` with `repository` `ladygraph` and `qualified_name` `NoSuchThing`:
+`get_symbol` with `repository` `kivgraph` and `qualified_name` `NoSuchThing`:
 
 ```text
-SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under ladygraph; call it without repository and path to search the whole graph
+SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under kivgraph; call it without repository and path to search the whole graph
 ```
 
 ## Read the answer
@@ -188,47 +188,47 @@ at depth 2:
   "invisible_scopes": [
     {
       "reason": "PACKAGE_NOT_BUILDABLE",
-      "repository": "ladygraph",
-      "requested_package": "github.com/Luqueee/ladygraph/benchmarks/ladybug-delta-profile",
-      "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-delta-profile"
+      "repository": "kivgraph",
+      "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-delta-profile",
+      "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile"
     },
     {
       "reason": "PACKAGE_NOT_BUILDABLE",
-      "repository": "ladygraph",
-      "requested_package": "github.com/Luqueee/ladygraph/benchmarks/ladybug-recovery",
-      "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-recovery"
+      "repository": "kivgraph",
+      "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery",
+      "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
     },
     {
       "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "requested_package": "@astrojs/node"
     },
     {
       "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "requested_package": "@astrojs/starlight"
     },
     {
       "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "requested_package": "@tailwindcss/vite"
     },
     {
       "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "requested_package": "astro"
     },
     {
       "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "requested_package": "vitest"
     }
   ],
   "fallback": {
     "pattern": "\\bMergeAll\\b",
     "paths": [
-      "/Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-delta-profile",
-      "/Users/adria/Documents/programacion/projects/ladygraph/benchmarks/ladybug-recovery"
+      "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile",
+      "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
     ]
   }
 }
@@ -294,7 +294,7 @@ the edge they arrived by as `via_confidence` and `via_provenance`. A captured
   "name": "mergeSets",
   "qualified_name": "mergeSets",
   "kind": "func",
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "file_path": "internal/indexer/full.go",
   "start_line": 681,
   "end_line": 712,
@@ -361,7 +361,7 @@ internal edges and unresolved references, and `list_repositories` marks its row
 ## When not to use it
 
 A rare name in one small repository is cheaper to grep. Indexing a small file
-costs more than reading it. Ladygraph wins on common names, on transitive
+costs more than reading it. Kivgraph wins on common names, on transitive
 impact, on consumers in another repository and on proving an absence. Spending a
 call where grep would have done means paying for the graph twice: once for the
 call, once for the read you still make.
@@ -371,7 +371,7 @@ and its numbers say the same thing. It compares two arms on the question "who
 calls this symbol, and what do those callers look like": the host's own captured
 answer, grep plus the file reads that follow it, against the MCP calls a session
 needs against the published generation plus the same reads. Tokens are counted
-with `cl100k_base`, over the `ladygraph` corpus at generation `000026`, 14424
+with `cl100k_base`, over the `kivgraph` corpus at generation `000026`, 14424
 symbols across 363 files.
 
 Measured on the answer alone, the part a graph server owns:
@@ -411,7 +411,7 @@ indexed at and the commit its working tree is on now, and `repositories_moved`
 counts the ones that left the indexed commit. A repository whose HEAD could not
 be read is not counted as moved and not silently counted as fresh either.
 
-Rebuilding is `ladygraph index --full` from the CLI, or
+Rebuilding is `kivgraph index --full` from the CLI, or
 [`index_project`](/reference/tools/index-project/) from the client. The tool
 requires explicit user approval before it runs: called without `confirmed`, it
 returns `PERMISSION_REQUIRED`. A rebuild costs the whole corpus, so pass every

@@ -12,7 +12,7 @@ package procstat
 // without a task port, which task_info would require. RUSAGE_INFO_V2 is
 // requested by name because the layout of the current flavour changes between
 // SDKs.
-static int ladygraph_resident_size(int pid, uint64_t *out) {
+static int kivgraph_resident_size(int pid, uint64_t *out) {
 	struct rusage_info_v2 info;
 	int result = proc_pid_rusage(pid, RUSAGE_INFO_V2, (rusage_info_t *)&info);
 	if (result != 0) {
@@ -28,7 +28,7 @@ const maxResidentBytes = int64(^uint64(0) >> 1)
 
 func residentBytes(pid int) int64 {
 	var resident C.uint64_t
-	if C.ladygraph_resident_size(C.int(pid), &resident) != 0 {
+	if C.kivgraph_resident_size(C.int(pid), &resident) != 0 {
 		return 0
 	}
 	if uint64(resident) > uint64(maxResidentBytes) {

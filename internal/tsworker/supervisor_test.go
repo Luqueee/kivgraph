@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/metrics"
 )
 
 // --- arranque y handshake -------------------------------------------------

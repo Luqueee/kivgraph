@@ -20,28 +20,28 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	"github.com/Luqueee/ladygraph/internal/app"
-	"github.com/Luqueee/ladygraph/internal/config"
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/indexer"
-	"github.com/Luqueee/ladygraph/internal/indexing"
-	"github.com/Luqueee/ladygraph/internal/logging"
-	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
-	"github.com/Luqueee/ladygraph/internal/procstat"
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/rustloader"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/synthetic"
-	"github.com/Luqueee/ladygraph/internal/update"
-	"github.com/Luqueee/ladygraph/internal/upgrade"
-	"github.com/Luqueee/ladygraph/internal/version"
-	"github.com/Luqueee/ladygraph/internal/watcher"
-	"github.com/Luqueee/ladygraph/internal/webapi"
-	"github.com/Luqueee/ladygraph/internal/webassets"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/app"
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/logging"
+	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
+	"github.com/Luqueee/kivgraph/internal/procstat"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/synthetic"
+	"github.com/Luqueee/kivgraph/internal/update"
+	"github.com/Luqueee/kivgraph/internal/upgrade"
+	"github.com/Luqueee/kivgraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/watcher"
+	"github.com/Luqueee/kivgraph/internal/webapi"
+	"github.com/Luqueee/kivgraph/internal/webassets"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 type mcpRunner func(context.Context) error
@@ -142,14 +142,14 @@ func main() {
 
 func writeUpdateNotice(stderr io.Writer) {
 	result, err := update.CheckNotice(context.Background(), update.NoticeOptions{
-		APIBaseURL:     os.Getenv("LADYGRAPH_UPDATE_API_URL"),
+		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
-		Token:          os.Getenv("LADYGRAPH_GITHUB_TOKEN"),
+		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
 	})
 	if err != nil || !result.UpdateAvailable {
 		return
 	}
-	writeWarning(stderr, "ladygraph update available: %s -> %s; run \"ladygraph update\" to install it",
+	writeWarning(stderr, "kivgraph update available: %s -> %s; run \"kivgraph update\" to install it",
 		result.CurrentVersion, result.LatestVersion)
 }
 
@@ -184,7 +184,7 @@ type configuredWebRunner func(context.Context, string, http.Handler) error
 
 // ensureConfiguration writes the default configuration when there is none.
 //
-// An MCP client starts its servers itself: it spawns `ladygraph serve` and
+// An MCP client starts its servers itself: it spawns `kivgraph serve` and
 // speaks the protocol over the pipe. A server that exits because nobody ran
 // `init` first turns installing the integration into a terminal session, and
 // the client only reports that the server failed. Creating the defaults costs
@@ -627,9 +627,9 @@ func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateR
 		return 2
 	}
 	result, err := runner(context.Background(), update.Options{
-		APIBaseURL:     os.Getenv("LADYGRAPH_UPDATE_API_URL"),
+		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
-		Token:          os.Getenv("LADYGRAPH_GITHUB_TOKEN"),
+		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
 		CheckOnly:      checkOnly,
 	})
 	if err != nil {
@@ -637,18 +637,18 @@ func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateR
 		return 1
 	}
 	if !result.UpdateAvailable {
-		writeSuccess(stdout, "ladygraph is up to date (%s)", result.CurrentVersion)
+		writeSuccess(stdout, "kivgraph is up to date (%s)", result.CurrentVersion)
 		return 0
 	}
 	if checkOnly {
-		writeInfo(stdout, "ladygraph update available: %s -> %s", result.CurrentVersion, result.LatestVersion)
+		writeInfo(stdout, "kivgraph update available: %s -> %s", result.CurrentVersion, result.LatestVersion)
 		return 0
 	}
 	if !result.Updated {
 		writeCommandError(stderr, "update: release %s was not installed", result.LatestVersion)
 		return 1
 	}
-	writeSuccess(stdout, "ladygraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
+	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
 	return 0
 }
 
@@ -1290,7 +1290,7 @@ func reportTypeScriptToolchain(report func(string, bool, string), configuration 
 		return
 	}
 	workingDirectory, err := os.Getwd()
-	if err == nil && command[0] == "ladygraph-ts-worker" {
+	if err == nil && command[0] == "kivgraph-ts-worker" {
 		factsEntry := filepath.Join(workingDirectory, "ts-worker", "src", "facts-cli.ts")
 		if _, factsErr := os.Stat(factsEntry); factsErr == nil {
 			if _, pnpmErr := exec.LookPath("pnpm"); pnpmErr == nil {
@@ -1305,7 +1305,7 @@ func reportTypeScriptToolchain(report func(string, bool, string), configuration 
 // reportRustToolchain states whether the external analyzer this build depends
 // on for Rust is present, and which one.
 //
-// Rust is the one language Ladygraph does not analyse itself: `rust-analyzer`
+// Rust is the one language Kivgraph does not analyse itself: `rust-analyzer`
 // is a prerequisite, like the Node runtime of the TypeScript worker, and a
 // missing one is a repository that will contribute nothing.
 func reportRustToolchain(report func(string, bool, string), configuration config.Config, needsRust bool) {
@@ -1898,12 +1898,12 @@ func signalProcess(pid int, signal syscall.Signal) error {
 	return process.Signal(signal)
 }
 
-// runStop ends every `ladygraph serve` and `ladygraph ui` of this user.
+// runStop ends every `kivgraph serve` and `kivgraph ui` of this user.
 //
 // It matches on the invocation, not on the executable: an index in flight is
 // left alone, because killing one throws away minutes of analysis, and the
 // stop command does not stop itself. Nothing else running on the machine can
-// match, since the first argument has to be a ladygraph binary.
+// match, since the first argument has to be a kivgraph binary.
 func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller) int {
 	flags := flag.NewFlagSet("stop", flag.ContinueOnError)
 	dryRun := false
@@ -1923,7 +1923,7 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 	}
 	targets := stoppableProcesses(processes, os.Getpid())
 	if len(targets) == 0 {
-		writeInfo(stdout, "stop: no ladygraph serve or ui process is running")
+		writeInfo(stdout, "stop: no kivgraph serve or ui process is running")
 		return 0
 	}
 	if dryRun {
@@ -1977,7 +1977,7 @@ func stoppableProcesses(processes []procstat.Process, self int) []procstat.Proce
 			continue
 		}
 		program, command := process.Invocation()
-		if program != "ladygraph" {
+		if program != "kivgraph" {
 			continue
 		}
 		if command != "serve" && command != "ui" {

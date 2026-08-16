@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // TypeScriptWireVersion is the version of the `ts-facts-v4` payload.
@@ -209,7 +209,7 @@ type TypeScriptExtends struct {
 // package crossing a module boundary does.
 type TypeScriptDependency struct {
 	// Repository and Package name the provider exactly as PackageKey derives
-	// it: the repository Ladygraph indexes it under, and its own package name.
+	// it: the repository Kivgraph indexes it under, and its own package name.
 	Repository string `json:"repository"`
 	Package    string `json:"package"`
 	// File, Specifier, Start, End and StartLine are one deterministic import

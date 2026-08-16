@@ -19,8 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
 )
 
 // CacheMode selects what the fact cache does during a pass.
@@ -595,7 +595,7 @@ func lockfilePaths(root string) []string {
 }
 
 // analyzerFingerprint identifies what produces the facts, so an entry written
-// by one build of Ladygraph is never served to another.
+// by one build of Kivgraph is never served to another.
 //
 // The executable's own content is the identity, not its release string: a
 // development build changes the normaliser without changing a version number,
@@ -626,7 +626,7 @@ func analyzerFingerprint(options FullOptions) string {
 // go/types travels linked inside this binary, but the standard library it
 // checks against is source under GOROOT, and which versions the build list
 // selects is the go command's answer, not this binary's. A toolchain upgrade
-// changes both without changing a byte of Ladygraph.
+// changes both without changing a byte of Kivgraph.
 func goEnvironmentFingerprint() string {
 	output, err := exec.Command("go", "env",
 		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()

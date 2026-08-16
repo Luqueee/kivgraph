@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/Luqueee/ladygraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/version"
 )
 
 func runVersionJSON(stdout, stderr io.Writer) int {

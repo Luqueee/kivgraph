@@ -1,4 +1,4 @@
-# Corpus sintético grande de Ladygraph
+# Corpus sintético grande de Kivgraph
 
 - Commit: `f968d16e4bf19b45b571e6571ce999ba45ed73cb`
 - Plataforma: Linux `amd64`
@@ -6,7 +6,7 @@
 - Go: `go1.24.4`
 - LadybugDB core/binding: `v0.13.1`
 - Semilla: `42`
-- Entrada privada: `/tmp/ladygraph-large-corpus`
+- Entrada privada: `/tmp/kivgraph-large-corpus`
 
 ## Escala
 
@@ -20,7 +20,7 @@
 
 ## Generación
 
-El comando `go run ./cmd/ladygraph benchmark generate-graph --repositories 40 --files 100000 --symbols 1000000 --edges 10000000 --seed 42` terminó en `7,756 s`.
+El comando `go run ./cmd/kivgraph benchmark generate-graph --repositories 40 --files 100000 --symbols 1000000 --edges 10000000 --seed 42` terminó en `7,756 s`.
 
 Una segunda generación con la misma semilla produjo byte a byte los cinco
 archivos del corpus. Los SHA-256 están en `results.json`.

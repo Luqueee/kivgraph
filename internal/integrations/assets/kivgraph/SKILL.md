@@ -1,13 +1,13 @@
 ---
-name: ladygraph
-description: Use Ladygraph's local MCP server to search symbols, read their source, and follow references, dependencies, cross-repository consumers and graph status in the indexed code graph.
+name: kivgraph
+description: Use Kivgraph's local MCP server to search symbols, read their source, and follow references, dependencies, cross-repository consumers and graph status in the indexed code graph.
 license: Apache-2.0
-compatibility: Requires the Ladygraph MCP server registered as `ladygraph`.
+compatibility: Requires the Kivgraph MCP server registered as `kivgraph`.
 ---
 
-# Ladygraph
+# Kivgraph
 
-Use the `ladygraph` MCP server when the task needs evidence from the indexed
+Use the `kivgraph` MCP server when the task needs evidence from the indexed
 Go, TypeScript or Rust repositories rather than a text-only search.
 
 ## Workflow

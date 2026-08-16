@@ -39,7 +39,7 @@ CGO_ENABLED=1 \
 CGO_LDFLAGS="-L/path/to/ladybug/lib -Wl,-rpath,/path/to/ladybug/lib" \
 LD_LIBRARY_PATH=/path/to/ladybug/lib \
 go run -tags ladybug ./benchmarks/ladybug-recovery \
-  --database /tmp/ladygraph-copy.db
+  --database /tmp/kivgraph-copy.db
 ```
 
 ## Límites
@@ -48,4 +48,4 @@ go run -tags ladybug ./benchmarks/ladybug-recovery \
 - The full-disk case injects ENOSPC at the libc boundary only for the copied database file.
 - The permission case assumes the benchmark is not run as root.
 - The generation-publication cases inject directory and CURRENT failures through deterministic filesystem hooks.
-- Estas pruebas no sustituyen los backups ni simulan pérdida de alimentación. Cubren la recuperación de Ladygraph ante los puntos `ENOSPC` inyectados y la publicación de `CURRENT` en Linux.
+- Estas pruebas no sustituyen los backups ni simulan pérdida de alimentación. Cubren la recuperación de Kivgraph ante los puntos `ENOSPC` inyectados y la publicación de `CURRENT` en Linux.

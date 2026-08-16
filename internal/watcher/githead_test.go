@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 const (
@@ -233,10 +233,10 @@ func TestReadGitHeadAgreesWithGitBinaryAfterBranchCheckout(t *testing.T) {
 			"GIT_CONFIG_GLOBAL=/dev/null",
 			"GIT_CONFIG_SYSTEM=/dev/null",
 			"GIT_CONFIG_NOSYSTEM=1",
-			"GIT_AUTHOR_NAME=Ladygraph Test",
-			"GIT_AUTHOR_EMAIL=test@ladygraph.invalid",
-			"GIT_COMMITTER_NAME=Ladygraph Test",
-			"GIT_COMMITTER_EMAIL=test@ladygraph.invalid",
+			"GIT_AUTHOR_NAME=Kivgraph Test",
+			"GIT_AUTHOR_EMAIL=test@kivgraph.invalid",
+			"GIT_COMMITTER_NAME=Kivgraph Test",
+			"GIT_COMMITTER_EMAIL=test@kivgraph.invalid",
 		)
 		output, err := command.CombinedOutput()
 		if err != nil {

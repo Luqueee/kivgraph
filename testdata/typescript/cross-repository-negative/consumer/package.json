@@ -1,13 +1,13 @@
 {
-  "name": "@ladygraph-fixture/consumer-negative",
+  "name": "@kivgraph-fixture/consumer-negative",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "@ladygraph-fixture/drifting": "1.0.0",
-    "@ladygraph-fixture/duplicated": "1.0.0",
-    "@ladygraph-fixture/nomap": "1.0.0",
-    "@ladygraph-fixture/shared": "1.4.2",
-    "@ladygraph-fixture/twin": "1.0.0",
-    "@ladygraph-fixture/unmapped": "1.0.0"
+    "@kivgraph-fixture/drifting": "1.0.0",
+    "@kivgraph-fixture/duplicated": "1.0.0",
+    "@kivgraph-fixture/nomap": "1.0.0",
+    "@kivgraph-fixture/shared": "1.4.2",
+    "@kivgraph-fixture/twin": "1.0.0",
+    "@kivgraph-fixture/unmapped": "1.0.0"
   }
 }

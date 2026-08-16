@@ -45,7 +45,7 @@ afterEach(async () => {
 // Same shape `cross-repository-positive.test.ts` builds by hand: a real
 // declaration map lives on disk for every declaration this provider reaches.
 const sharedProvider: PackageProvider = {
-  name: "@ladygraph-fixture/shared",
+  name: "@kivgraph-fixture/shared",
   version: "1.4.2",
   repository: "shared-library",
   rootPath: SHARED_ROOT,
@@ -85,7 +85,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     // proving the signature came from `src/value.ts` is the whole ticket.
     expect(compute?.target.identity).toEqual({
       repository: "shared-library",
-      package: "@ladygraph-fixture/shared",
+      package: "@kivgraph-fixture/shared",
       qualifiedName: "compute",
       kind: "function",
       signature: "export function compute(input: number): number",
@@ -107,7 +107,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     expect(helper?.target.identityReason).toBeUndefined();
     expect(helper?.target.identity).toEqual({
       repository: "shared-library",
-      package: "@ladygraph-fixture/shared",
+      package: "@kivgraph-fixture/shared",
       qualifiedName: "helper",
       kind: "function",
       signature: "export function helper(shape: Shape): number",
@@ -119,7 +119,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
 
   it("places a symbol of a provider that ships no declaration map", async () => {
     const nomapProvider: PackageProvider = {
-      name: "@ladygraph-fixture/nomap",
+      name: "@kivgraph-fixture/nomap",
       version: "1.0.0",
       repository: "nomap",
       rootPath: NOMAP_ROOT,
@@ -154,7 +154,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     expect(plain?.target.identityReason).toBeUndefined();
     expect(plain?.target.identity).toEqual({
       repository: "nomap",
-      package: "@ladygraph-fixture/nomap",
+      package: "@kivgraph-fixture/nomap",
       qualifiedName: "plain",
       kind: "variable",
       signature: "plain",
@@ -169,7 +169,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     // project root that could name one. There is nothing to ask a checker.
     const unmappedRoot = path.join(NEGATIVE, "unmapped");
     const unmappedProvider: PackageProvider = {
-      name: "@ladygraph-fixture/unmapped",
+      name: "@kivgraph-fixture/unmapped",
       version: "1.0.0",
       repository: "unmapped",
       rootPath: unmappedRoot,
@@ -207,7 +207,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     // link the same way, so both ends agree on one spelling.
     const nomapRoot = realpathSync(NOMAP_ROOT);
     const nomapProvider: PackageProvider = {
-      name: "@ladygraph-fixture/nomap",
+      name: "@kivgraph-fixture/nomap",
       version: "1.0.0",
       repository: "nomap",
       rootPath: nomapRoot,
@@ -234,7 +234,7 @@ describe("provider identity of an exact IMPORTS_SYMBOL target", () => {
     expect(plain?.target.identityReason).toBeUndefined();
     expect(plain?.target.identity).toEqual({
       repository: "nomap",
-      package: "@ladygraph-fixture/nomap",
+      package: "@kivgraph-fixture/nomap",
       qualifiedName: "plain",
       kind: "variable",
       signature: "plain",
@@ -261,7 +261,7 @@ const FACADE_ROOT = path.join(FIXTURE, "facade-library");
 // depend on one package. Its declaration map names its own barrel, and the
 // declaration a consumer actually reaches lives in the shared repository.
 const facadeProvider: PackageProvider = {
-  name: "@ladygraph-fixture/facade",
+  name: "@kivgraph-fixture/facade",
   version: "3.1.0",
   repository: "facade-library",
   rootPath: FACADE_ROOT,
@@ -297,7 +297,7 @@ describe("a symbol reached through a re-exporting package", () => {
 
     // The import names the facade, and that is what the edge records as the
     // package the consumer depends on.
-    expect(compute.packageName).toBe("@ladygraph-fixture/facade");
+    expect(compute.packageName).toBe("@kivgraph-fixture/facade");
 
     // The identity, though, has to name the declaring repository: it is what
     // composes the stable key, and only the shared library publishes a symbol
@@ -306,7 +306,7 @@ describe("a symbol reached through a re-exporting package", () => {
     expect(compute.target.identityReason).toBeUndefined();
     expect(compute.target.identity).toMatchObject({
       repository: "shared-library",
-      package: "@ladygraph-fixture/shared",
+      package: "@kivgraph-fixture/shared",
       qualifiedName: "compute",
       kind: "function",
       source: "DECLARATION_MAP",

@@ -1,5 +1,5 @@
 /**
- * Wire codec for the Ladygraph TypeScript worker protocol, version 1.
+ * Wire codec for the Kivgraph TypeScript worker protocol, version 1.
  *
  * The contract lives in docs/protocol/ts-worker-v1.md and must stay byte for
  * byte compatible with internal/tsworker in Go. The shared fixtures under

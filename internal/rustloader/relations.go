@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
 )
 
 // RelationKind is a structural relation between two declarations.

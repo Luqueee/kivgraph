@@ -1,8 +1,8 @@
-// Package goworkspace builds the synthetic go.work Ladygraph uses to load every
+// Package goworkspace builds the synthetic go.work Kivgraph uses to load every
 // registered Go module in a single go/packages universe.
 //
 // The file is written outside every repository, under the configured state
-// directory. Ladygraph never writes a go.work inside an indexed repository.
+// directory. Kivgraph never writes a go.work inside an indexed repository.
 package goworkspace
 
 import (
@@ -18,7 +18,7 @@ import (
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/semver"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // ErrRepositoryTarget reports a synthetic workspace path inside a repository.
@@ -116,7 +116,7 @@ func LanguageVersion() string {
 //
 // Ambiguous module paths and incompatible replacements are excluded and
 // reported: go itself rejects a workspace with two directories providing the
-// same module, and a replacement Ladygraph cannot decide must never be guessed.
+// same module, and a replacement Kivgraph cannot decide must never be guessed.
 func BuildPlan(ctx context.Context, repositories []workspace.Repository, options Options) (Plan, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -492,7 +492,7 @@ func rejectUnsupportedGoVersions(byModulePath map[string][]Module, maximum strin
 		return nil
 	}
 	sort.Strings(rejected)
-	return fmt.Errorf("%w (this build type-checks with go %s): %s; rebuild Ladygraph with that toolchain or drop \"go\" from the languages of that repository",
+	return fmt.Errorf("%w (this build type-checks with go %s): %s; rebuild Kivgraph with that toolchain or drop \"go\" from the languages of that repository",
 		ErrGoVersionUnsupported, supported, strings.Join(rejected, "; "))
 }
 
@@ -672,7 +672,7 @@ type Result struct {
 // Write renders the plan and installs it atomically at path.
 //
 // The path is rejected when it falls inside any registered repository, so a
-// misconfiguration cannot make Ladygraph write a go.work into indexed code.
+// misconfiguration cannot make Kivgraph write a go.work into indexed code.
 func Write(ctx context.Context, path string, plan Plan, repositories []workspace.Repository) (Result, error) {
 	if ctx == nil {
 		ctx = context.Background()

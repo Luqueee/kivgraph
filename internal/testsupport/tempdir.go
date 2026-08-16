@@ -1,4 +1,4 @@
-// Package testsupport holds helpers shared by Ladygraph tests. It is not
+// Package testsupport holds helpers shared by Kivgraph tests. It is not
 // imported by production code.
 package testsupport
 

@@ -13,7 +13,7 @@ description: Type-checked incoming or outgoing references for one symbol, each r
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `direction` | string | `incoming` | `incoming` returns the symbols that reference this one. `outgoing` returns the ones it reaches. Any other value is rejected with `INVALID_ARGUMENT`. |
 | `edge_kinds` | array of string | none, meaning every reference kind | Restricts rows to these relations. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
-| `include_derived` | boolean | `false` | Includes rows from providers Ladygraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
+| `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
 | `language` | string | none | Keeps rows whose symbol carries this language: `go`, `typescript` or `rust`. Compared exactly; surrounding whitespace is rejected. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
@@ -40,7 +40,7 @@ Incoming references, three at a time:
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll",
   "direction": "incoming",
@@ -68,7 +68,7 @@ Incoming references, three at a time:
       "name": "MergeAll",
       "qualified_name": "MergeAll",
       "kind": "func",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "file_path": "internal/facts/facts.go",
       "start_line": 516
     },
@@ -78,7 +78,7 @@ Incoming references, three at a time:
         "name": "mergeSets",
         "qualified_name": "mergeSets",
         "kind": "func",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "file_path": "internal/indexer/full.go",
         "start_line": 681,
         "end_line": 712,
@@ -91,7 +91,7 @@ Incoming references, three at a time:
         "name": "closeCrossRepositoryEdges",
         "qualified_name": "closeCrossRepositoryEdges",
         "kind": "func",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "file_path": "internal/indexer/full.go",
         "start_line": 735,
         "end_line": 783,
@@ -104,7 +104,7 @@ Incoming references, three at a time:
         "name": "Merge",
         "qualified_name": "Set.Merge",
         "kind": "method",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "file_path": "internal/facts/facts.go",
         "start_line": 505,
         "end_line": 507,
@@ -122,7 +122,7 @@ The same symbol, the other direction, with a page smaller than the answer:
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll",
   "direction": "outgoing",
@@ -151,7 +151,7 @@ The same symbol, the other direction, with a page smaller than the answer:
       "name": "MergeAll",
       "qualified_name": "MergeAll",
       "kind": "func",
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "file_path": "internal/facts/facts.go",
       "start_line": 516
     },
@@ -161,7 +161,7 @@ The same symbol, the other direction, with a page smaller than the answer:
         "name": "Symbols",
         "qualified_name": "Set.Symbols",
         "kind": "field",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "file_path": "internal/facts/facts.go",
         "start_line": 251,
         "end_line": 251,
@@ -174,7 +174,7 @@ The same symbol, the other direction, with a page smaller than the answer:
         "name": "Symbols",
         "qualified_name": "Set.Symbols",
         "kind": "field",
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "file_path": "internal/facts/facts.go",
         "start_line": 251,
         "end_line": 251,
@@ -188,7 +188,7 @@ The same symbol, the other direction, with a page smaller than the answer:
 }
 ```
 
-Both answers come from snapshot `30` of two repositories, `ladygraph` and
+Both answers come from snapshot `30` of two repositories, `kivgraph` and
 `mole`.
 
 ## Reading the result

@@ -28,7 +28,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   índice: se declara como `UNRESOLVED` con razón `PACKAGE_NOT_BUILDABLE` y la
   pasada continúa. Cualquier otro diagnóstico del cargador sigue abortándola.
   Indexar este repositorio exige el tag `ladybug`.
-- `go/types` viaja enlazado en el binario: Ladygraph solo comprueba tipos hasta
+- `go/types` viaja enlazado en el binario: Kivgraph solo comprueba tipos hasta
   la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
   por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
   repositorio, módulo y versión; nunca se deja que el `go.work` sintético
@@ -162,7 +162,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 
 ## Generaciones, publicación y snapshots
 
-- `ladygraph serve` y `ladygraph ui` siguen la generación publicada: cargan el
+- `kivgraph serve` y `kivgraph ui` siguen la generación publicada: cargan el
   HotSnapshot al arrancar y republican cuando el puntero `CURRENT` avanza, sin
   coordinarse con nadie -- `SnapshotStore.Publish` solo acepta una generación
   estrictamente más nueva. Un `index --full` en otra terminal no puede dejar a
@@ -222,7 +222,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 
 ## Servidores HTTP, assets y procesos
 
-- `ladygraph ui` es opt-in y sirve solo el `HotSnapshot` publicado por HTTP
+- `kivgraph ui` es opt-in y sirve solo el `HotSnapshot` publicado por HTTP
   read-only. Su bind por defecto es `0.0.0.0:7777`: el grafo se indexa donde
   están los repositorios y el visor se mira desde otra máquina, así que un
   default loopback obligaba a editar la configuración en el caso normal. La
@@ -230,7 +230,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   no sea loopback registra qué se expone -rutas de repositorio y de fichero,
   nombres y firmas de símbolos- y con qué se cierra. El endpoint no lleva
   autenticación; restringirlo es `--addr` o `web.address`.
-- `ladygraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
+- `kivgraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
   listener y ejecuta un cierre graceful acotado al cancelar el contexto.
 - `internal/webassets` sirve solo la copia generada de `web/dist` cuando la
   distribución se construye con el tag `webassets`; los binarios sin tag
@@ -258,10 +258,10 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 
 ## Integraciones de clientes
 
-- `ladygraph mcp install` y `ladygraph skill install` detectan raíces locales
+- `kivgraph mcp install` y `kivgraph skill install` detectan raíces locales
   conocidas cuando falta `--target`, muestran una selección interactiva de uno o
   varios clientes y conservan `--target` para automatización; nunca inicializan
-  Ladygraph ni indexan repositorios.
+  Kivgraph ni indexan repositorios.
 - La selección interactiva usa Bubble Tea y Lip Gloss: `↑`/`↓` o `j`/`k`
   mueven, `space` alterna, `a`/`n` seleccionan todos/ninguno, `Enter`
   confirma y `q`/`Esc` cancela; respeta `NO_COLOR` y no emite ANSI al
@@ -271,8 +271,8 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   sustituir o retirar una entrada incompatible. Las entradas idempotentes no
   reescriben el archivo.
 - La skill canónica vive en
-  `internal/integrations/assets/ladygraph/SKILL.md`; los bundles deben
-  incluirla bajo `skills/ladygraph/SKILL.md` y en `SHA256SUMS`.
+  `internal/integrations/assets/kivgraph/SKILL.md`; los bundles deben
+  incluirla bajo `skills/kivgraph/SKILL.md` y en `SHA256SUMS`.
 
 ## Verificación
 

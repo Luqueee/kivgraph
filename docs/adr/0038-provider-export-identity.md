@@ -82,7 +82,7 @@ hechos ya invalida por contenido del worker.
 
 ## Alternativas descartadas
 
-- **Exigir `declarationMap` en los proveedores.** No es de Ladygraph la
+- **Exigir `declarationMap` en los proveedores.** No es de Kivgraph la
   configuración de los repositorios que indexa, y medido sobre el corpus no
   habría funcionado: un paquete instalado desde el registro no lleva el mapa
   hasta que se publica una versión nueva, y aunque lo llevara, sus `sources`

@@ -13,7 +13,7 @@ describe("engine paths", () => {
   });
 
   it("recovers the spelling on disk of a folded path", async () => {
-    const root = await temporaryRoot("ladygraph-engine-path-");
+    const root = await temporaryRoot("kivgraph-engine-path-");
     const directory = path.join(root, "Dist");
     await mkdir(directory);
     const file = path.join(directory, "Index.d.ts");
@@ -29,7 +29,7 @@ describe("engine paths", () => {
   });
 
   it("keeps a component that does not exist", async () => {
-    const root = await temporaryRoot("ladygraph-engine-path-");
+    const root = await temporaryRoot("kivgraph-engine-path-");
     const missing = path.join(root, "absent", "file.ts");
 
     expect(enginePath(missing)).toBe(missing);
@@ -38,7 +38,7 @@ describe("engine paths", () => {
   // realpath would rewrite a pnpm node_modules entry into its .pnpm store
   // location and change the facts, so the walk corrects casing only.
   it("does not resolve a symlinked component", async () => {
-    const root = await temporaryRoot("ladygraph-engine-path-");
+    const root = await temporaryRoot("kivgraph-engine-path-");
     const real = path.join(root, "store");
     await mkdir(real);
     await writeFile(path.join(real, "index.d.ts"), "export {};\n");
@@ -53,7 +53,7 @@ describe("engine paths", () => {
   // The memoised listing predates anything an indexing run writes, so a miss
   // is only trusted after the directory is read again.
   it("sees an entry created after the directory was first read", async () => {
-    const root = await temporaryRoot("ladygraph-engine-path-");
+    const root = await temporaryRoot("kivgraph-engine-path-");
     const later = path.join(root, "Later.ts");
     const asked = path.join(root, "later.ts");
     forgetEnginePaths();

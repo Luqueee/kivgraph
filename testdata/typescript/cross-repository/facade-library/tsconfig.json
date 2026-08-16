@@ -9,7 +9,7 @@
     "rootDir": "src",
     "outDir": "dist",
     "paths": {
-      "@ladygraph-fixture/shared": [
+      "@kivgraph-fixture/shared": [
         "../shared-library/dist/index.d.ts"
       ]
     }

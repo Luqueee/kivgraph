@@ -15,7 +15,7 @@ const session: Line[] = [
   ],
   [
     { text: "$ ", tone: "exact" },
-    { text: "ladygraph serve --config ~/.config/ladygraph/config.yaml" },
+    { text: "kivgraph serve --config ~/.config/kivgraph/config.yaml" },
   ],
   [],
   [
@@ -24,7 +24,7 @@ const session: Line[] = [
   ],
   [
     {
-      text: '{"repository":"ladygraph","path":"internal/facts/facts.go",',
+      text: '{"repository":"kivgraph","path":"internal/facts/facts.go",',
       tone: "dim",
     },
   ],
@@ -43,14 +43,14 @@ const session: Line[] = [
   ],
   [
     { text: "subject   ", tone: "dim" },
-    { text: "ladygraph " },
+    { text: "kivgraph " },
     { text: "internal/facts/facts.go:516", tone: "file" },
     { text: "  func ", tone: "dim" },
     { text: "MergeAll", tone: "symbol" },
   ],
   [
     { text: "reference ", tone: "dim" },
-    { text: "ladygraph " },
+    { text: "kivgraph " },
     { text: "internal/indexer/full.go:681-712", tone: "file" },
     { text: "  func ", tone: "dim" },
     { text: "mergeSets", tone: "symbol" },

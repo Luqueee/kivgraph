@@ -2,7 +2,7 @@
 
 - **Estado:** aceptado como contrato inicial
 - **Fecha:** 2026-08-04
-- **Alcance:** backend de Ladygraph, sin overhead del cliente MCP
+- **Alcance:** backend de Kivgraph, sin overhead del cliente MCP
 
 Este documento convierte los objetivos de rendimiento del plan en límites
 medibles. Un resultado de benchmark debe conservar el comando, el commit, el

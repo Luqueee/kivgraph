@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
-const duplicateHolderEnv = "LADYGRAPH_DUPLICATE_HOLDER"
+const duplicateHolderEnv = "KIVGRAPH_DUPLICATE_HOLDER"
 
 // TestDuplicateProcessHolderHelper is the second process. It opens the database
 // and parks, so the test can attempt the same open from the process under test.
@@ -65,7 +65,7 @@ func TestSecondProcessIsRefusedWithALockedError(t *testing.T) {
 	stopDuplicateHolder(t, holder)
 
 	// Once the first process is gone the database is usable again: the lock is
-	// the engine's, not a stale file Ladygraph left behind.
+	// the engine's, not a stale file Kivgraph left behind.
 	database, err := Open(context.Background(), path, DefaultConfig())
 	if err != nil {
 		t.Fatalf("Open() after the holder exited error = %v", err)

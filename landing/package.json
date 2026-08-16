@@ -1,8 +1,8 @@
 {
-  "name": "@ladygraph/landing",
+  "name": "@kivgraph/landing",
   "version": "0.1.0",
   "private": true,
-  "description": "Ladygraph landing page and documentation site",
+  "description": "Kivgraph landing page and documentation site",
   "type": "module",
   "packageManager": "pnpm@11.5.1",
   "engines": {

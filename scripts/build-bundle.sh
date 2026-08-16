@@ -11,8 +11,8 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$root"
 mcp_only=false
-requested_version=${LADYGRAPH_VERSION:-}
-requested_target=${LADYGRAPH_TARGET:-}
+requested_version=${KIVGRAPH_VERSION:-}
+requested_target=${KIVGRAPH_TARGET:-}
 output_argument=""
 usage() {
   printf 'usage: %s [--target OS/ARCH] [--mcp-only] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
@@ -82,7 +82,7 @@ if [[ -n "$requested_target" && "$requested_target" != "$target" ]]; then
 fi
 target_os=${target%/*}
 target_arch=${target#*/}
-bundle_name="ladygraph-${target_os}-${target_arch}"
+bundle_name="kivgraph-${target_os}-${target_arch}"
 
 case "$target" in
   linux/amd64)
@@ -175,7 +175,7 @@ mkdir -p \
   "$output_dir/lib" \
   "$output_dir/grammars" \
   "$output_dir/licenses/third-party" \
-  "$output_dir/skills/ladygraph" \
+  "$output_dir/skills/kivgraph" \
   "$output_dir/tools" \
   "$output_dir/worker/node_modules"
 
@@ -208,10 +208,10 @@ if [[ "$web_assets" == true ]]; then
   build_tags=ladybug,webassets
 fi
 
-build_id="ladygraph-${source_commit}-${source_dirty}"
+build_id="kivgraph-${source_commit}-${source_dirty}"
 ldflags="-buildid=$build_id"
 if [[ -n "$requested_version" ]]; then
-  ldflags+=" -X github.com/Luqueee/ladygraph/internal/version.Value=$requested_version"
+  ldflags+=" -X github.com/Luqueee/kivgraph/internal/version.Value=$requested_version"
 fi
 
 printf 'build-bundle: compiling Go binary for %s\n' "$target" >&2
@@ -225,15 +225,15 @@ go build \
   -trimpath \
   -buildvcs=true \
   -ldflags "$ldflags" \
-  -o "$output_dir/bin/ladygraph" \
-  ./cmd/ladygraph
+  -o "$output_dir/bin/kivgraph" \
+  ./cmd/kivgraph
 
 # The pinned Go binding declares its own RUNPATH towards its module directory,
 # which holds no library and names the machine that built the bundle. The
 # executable is rewritten to carry exactly the relative entry, so a bundle does
 # not depend on where its builder kept its module cache.
 normalise_runpath() {
-  local binary="$output_dir/bin/ladygraph" observed
+  local binary="$output_dir/bin/kivgraph" observed
   case "$target" in
     darwin/*)
       while read -r observed; do
@@ -252,7 +252,7 @@ normalise_runpath() {
 normalise_runpath
 
 assert_single_runpath() {
-  local binary="$output_dir/bin/ladygraph" observed
+  local binary="$output_dir/bin/kivgraph" observed
   case "$target" in
     darwin/*)
       observed=$(otool -l "$binary" | awk '/LC_RPATH/{found=1} found && $1=="path"{print $2; found=0}')
@@ -285,7 +285,7 @@ install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
 install -m 0644 "$root/THIRD_PARTY_NOTICES.md" "$output_dir/licenses/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$root/docs/dependencies/ladybugdb.md" "$output_dir/licenses/ladybugdb-provenance.md"
 install -m 0644 "$root/grammars/manifest.json" "$output_dir/grammars/manifest.json"
-install -m 0644 "$root/internal/integrations/assets/ladygraph/SKILL.md" "$output_dir/skills/ladygraph/SKILL.md"
+install -m 0644 "$root/internal/integrations/assets/kivgraph/SKILL.md" "$output_dir/skills/kivgraph/SKILL.md"
 typescript_package_dir=$(cd "$root/ts-worker/node_modules/typescript" && pwd -P)
 typescript_platform_dir="$(dirname "$typescript_package_dir")/@typescript"
 [[ -d "$typescript_platform_dir" ]] ||
@@ -299,7 +299,7 @@ install -m 0644 "$root/ts-worker/package.json" "$output_dir/worker/package.json"
 install -m 0644 "$root/ts-worker/pnpm-lock.yaml" "$output_dir/worker/pnpm-lock.yaml"
 cp -a "$root/ts-worker/dist" "$output_dir/worker/dist"
 
-cat > "$output_dir/bin/ladygraph-ts-worker" <<'EOF'
+cat > "$output_dir/bin/kivgraph-ts-worker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -312,7 +312,7 @@ if [[ "${1:-}" == "facts" ]]; then
 fi
 exec node "$bundle_root/worker/dist/index.js" "$@"
 EOF
-chmod 0755 "$output_dir/bin/ladygraph-ts-worker"
+chmod 0755 "$output_dir/bin/kivgraph-ts-worker"
 
 copy_module_licenses() {
   local module version module_dir safe candidate
@@ -332,7 +332,7 @@ copy_module_licenses
 
 # The relative RUNPATH must be enough to start the executable. Running it
 # without any library search variable is the check that proves it.
-release_version=$("$output_dir/bin/ladygraph" version)
+release_version=$("$output_dir/bin/kivgraph" version)
 if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; then
   fail "built release version $release_version does not match requested $requested_version"
 fi
@@ -369,7 +369,7 @@ write_artifacts() {
 cat > "$output_dir/manifest.json" <<EOF
 {
   "manifest_version": 1,
-  "product": "ladygraph",
+  "product": "kivgraph",
   "release": "$release_version",
   "target": {
     "os": "$target_os",

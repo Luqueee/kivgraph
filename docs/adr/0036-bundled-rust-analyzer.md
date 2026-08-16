@@ -17,7 +17,7 @@ resuelve fijando la versión igual que se fijan las gramáticas:
 | Artefacto | Tamaño en el bundle |
 | --- | --- |
 | `bin/rust-analyzer` | `36 MB` (`darwin/arm64`), `40 MB` (`linux/amd64`) |
-| `bin/ladygraph` | `24 MB` |
+| `bin/kivgraph` | `24 MB` |
 | `lib/liblbug.dylib` | `34 MB` |
 | `worker/` | `31 MB` |
 | Bundle completo | `127 MB` |
@@ -33,8 +33,8 @@ versión, URL y digest, descargado y verificado por
 `scripts/fetch-rust-analyzer.sh`.
 
 - El binario y sus dos licencias entran en el payload, en `SHA256SUMS` y en
-  `manifest.json`, de modo que `ladygraph update` los valida como cualquier
-  otro artefacto y `ladygraph version --json` publica la release del
+  `manifest.json`, de modo que `kivgraph update` los valida como cualquier
+  otro artefacto y `kivgraph version --json` publica la release del
   analizador.
 - En ejecución, el analizador que viaja **junto al ejecutable** gana al del
   `PATH`. Una configuración que escribe una ruta explícita siempre manda.
@@ -56,7 +56,7 @@ la máquina**. `doctor` lo comprueba por separado y falla nombrándolo.
   de cada máquina, que es justo lo que un bundle existe para evitar.
 - **Empaquetar el toolchain completo (rustc, cargo, std).** Resolvería el
   requisito entero, multiplicaría el tamaño del bundle por varias veces y
-  pondría a Ladygraph a gestionar versiones de Rust. Si algún día se hace,
+  pondría a Kivgraph a gestionar versiones de Rust. Si algún día se hace,
   será su propia decisión, no un efecto lateral de esta.
 - **Descargar el analizador en el primer uso.** Convierte la primera
   indexación en una descarga silenciosa y rompe la instalación hermética.

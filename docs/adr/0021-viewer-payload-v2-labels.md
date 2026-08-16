@@ -108,7 +108,7 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
   kilobytes, muy por debajo del límite.
 - Cambiar el layout cambia las posiciones publicadas y el fingerprint del
   layout: es una proyección derivada, no un hecho canónico, y se reconstruye
-  con `ladygraph index --full` o al reabrir el snapshot.
+  con `kivgraph index --full` o al reabrir el snapshot.
 - Resolver posiciones por mapa en vez de recorrer el array de nodos elimina un
   coste cuadrático: con `2.000` nodos eran cuatro millones de comparaciones
   antes del primer frame.

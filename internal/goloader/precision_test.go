@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestMeasurePrecisionEmitsTheGoSemanticGate(t *testing.T) {

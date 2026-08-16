@@ -4,7 +4,7 @@ description: What a pass does, what bounds it, and why two passes over the same 
 ---
 
 ```bash
-ladygraph index --full
+kivgraph index --full
 ```
 
 A pass analyses every registered repository, merges the facts, validates the
@@ -48,7 +48,7 @@ events — any number of `progress`, then exactly one `result` — and the repor
 person reads is not written at all:
 
 ```bash
-ladygraph index --full --json
+kivgraph index --full --json
 ```
 
 ```text
@@ -109,7 +109,7 @@ that configuration excludes is not an index failure: it is declared
 `UNRESOLVED` with reason `PACKAGE_NOT_BUILDABLE` and the pass continues. Any
 other loader diagnostic still aborts it.
 
-Indexing the Ladygraph repository itself requires the `ladybug` tag.
+Indexing the Kivgraph repository itself requires the `ladybug` tag.
 
 ## Failures that do not stop the pass
 

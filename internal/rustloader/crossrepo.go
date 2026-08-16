@@ -1,7 +1,7 @@
 // Package rustloader turns the Rust code of a registered repository into the
-// facts Ladygraph can store.
+// facts Kivgraph can store.
 //
-// Rust has no type checker Ladygraph can link into its own process, so the
+// Rust has no type checker Kivgraph can link into its own process, so the
 // authority for identity and resolution is `rust-analyzer`, invoked as a batch
 // indexer over one Cargo workspace at a time. This package owns that
 // invocation, the index it produces, and the registry that decides which
@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // unknownCrateVersion is the version rust-analyzer writes into a symbol when

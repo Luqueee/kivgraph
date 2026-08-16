@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func writeCargoFile(t *testing.T, path, content string) {

@@ -8,11 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/indexer"
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 	"path/filepath"
 	"strconv"
 )
@@ -87,7 +87,7 @@ type Options struct {
 // Run upgrades an old canonical schema without mutating its database in
 // place. The old schema is not converted by guessing column meanings: source
 // repositories are re-indexed into a new canonical generation, which is the
-// only authoritative reconstruction path for Ladygraph facts.
+// only authoritative reconstruction path for Kivgraph facts.
 func Run(ctx context.Context, options Options) (Report, error) {
 	if ctx == nil {
 		ctx = context.Background()

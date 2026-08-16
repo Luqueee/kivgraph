@@ -12,11 +12,11 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
-	"github.com/Luqueee/ladygraph/internal/mcp/tools"
-	"github.com/Luqueee/ladygraph/internal/tsworker"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
+	"github.com/Luqueee/kivgraph/internal/tsworker"
 )
 
 // TestPublishedSnapshotSurvivesWorkerLoss is the requirement of LUQUE-1201 that

@@ -1,6 +1,6 @@
 {
-  "name": "Ladygraph",
-  "short_name": "Ladygraph",
+  "name": "Kivgraph",
+  "short_name": "Kivgraph",
   "description": "A canonical code graph for Go, TypeScript and Rust, served to any MCP client over stdio.",
   "start_url": "/",
   "scope": "/",

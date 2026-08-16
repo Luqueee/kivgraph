@@ -1,9 +1,9 @@
 {
-  "name": "@ladygraph-fixture/consumer-a",
+  "name": "@kivgraph-fixture/consumer-a",
   "version": "2.0.0",
   "type": "module",
   "dependencies": {
-    "@ladygraph-fixture/shared": "1.4.2",
-    "@ladygraph-fixture/unused": "1.0.0"
+    "@kivgraph-fixture/shared": "1.4.2",
+    "@kivgraph-fixture/unused": "1.0.0"
   }
 }

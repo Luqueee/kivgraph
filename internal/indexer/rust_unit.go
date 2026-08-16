@@ -13,10 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/rustloader"
-	"github.com/Luqueee/ladygraph/internal/syntax"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // defaultRustWorkspaceLimit bounds concurrent analyzer processes when the
@@ -117,7 +117,7 @@ func indexRustWorkspace(
 	parsers *syntax.ParserManager,
 ) (analysisResult, error) {
 	rustUnit := unit.rust
-	output, err := os.MkdirTemp("", "ladygraph-rust-*")
+	output, err := os.MkdirTemp("", "kivgraph-rust-*")
 	if err != nil {
 		return analysisResult{}, fmt.Errorf("create Rust analysis directory for %q: %w", rustUnit.repository.Name, err)
 	}

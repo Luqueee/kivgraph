@@ -1,6 +1,6 @@
 # LadybugDB individual insert benchmark
 
-- Command: `/tmp/go-build1029130918/b001/exe/ladybug-individual --corpus /tmp/ladygraph-synthetic-reduced --database /tmp/ladygraph-ladybug-individual-reduced.db --output benchmarks/ladybug-individual --transaction-size 1000`
+- Command: `/tmp/go-build1029130918/b001/exe/ladybug-individual --corpus /tmp/kivgraph-synthetic-reduced --database /tmp/kivgraph-ladybug-individual-reduced.db --output benchmarks/ladybug-individual --transaction-size 1000`
 - Commit: `6d2edb5a28ffda42b564f5b2d02e135e30b44864-dirty`
 - Generated at: `2026-08-04T17:37:48Z`
 - Corpus seed: `42`

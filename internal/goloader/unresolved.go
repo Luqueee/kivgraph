@@ -8,10 +8,10 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
 )
 
-// UnresolvedReason classifies a Go fact Ladygraph could not turn into an exact
+// UnresolvedReason classifies a Go fact Kivgraph could not turn into an exact
 // edge.
 type UnresolvedReason string
 

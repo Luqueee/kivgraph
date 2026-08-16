@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
 )
 
 // RequireSpaceOrSkip turns the one failure that belongs to the host rather

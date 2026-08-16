@@ -35,13 +35,13 @@ that name the same string.
 ```json
 {
   "name": "MergeAll",
-  "repo": "ladygraph",
+  "repo": "kivgraph",
   "limit": 3
 }
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":9019,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":1,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) github.com/Luqueee/ladygraph/internal/facts.Set","exported":true,"repository":"ladygraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542}]}
+{"snapshot_id":30,"snapshot_age_ms":9019,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":1,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542}]}
 ```
 
 The same query in `substring` mode, which matches anywhere in the unqualified
@@ -51,13 +51,13 @@ name:
 {
   "name": "Merge",
   "mode": "substring",
-  "repo": "ladygraph",
+  "repo": "kivgraph",
   "limit": 5
 }
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":21769,"total":3,"returned":3,"truncated":false,"next_cursor":null,"coverage":{"exact":3,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) github.com/Luqueee/ladygraph/internal/facts.Set","exported":true,"repository":"ladygraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542},{"stable_key":"VTNOLFOCZDSMBNROBRVHV2NM5MKA37B72M2K5LPCUPR3UJG2GGIA","name":"PhaseMerge","qualified_name":"PhaseMerge","kind":"const","signature":"github.com/Luqueee/ladygraph/internal/indexer.ProgressPhase","exported":true,"repository":"ladygraph","file_path":"internal/indexer/full.go","start_line":50,"end_line":50},{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/ladygraph/internal/facts.Set)","exported":true,"repository":"ladygraph","file_path":"internal/facts/facts.go","start_line":505,"end_line":507}]}
+{"snapshot_id":30,"snapshot_age_ms":21769,"total":3,"returned":3,"truncated":false,"next_cursor":null,"coverage":{"exact":3,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542},{"stable_key":"VTNOLFOCZDSMBNROBRVHV2NM5MKA37B72M2K5LPCUPR3UJG2GGIA","name":"PhaseMerge","qualified_name":"PhaseMerge","kind":"const","signature":"github.com/Luqueee/kivgraph/internal/indexer.ProgressPhase","exported":true,"repository":"kivgraph","file_path":"internal/indexer/full.go","start_line":50,"end_line":50},{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":505,"end_line":507}]}
 ```
 
 A name nobody declares is an empty array, not an error:
@@ -72,7 +72,7 @@ A name nobody declares is an empty array, not an error:
 {"snapshot_id":30,"snapshot_age_ms":21768,"total":0,"returned":0,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":[]}
 ```
 
-These three responses come from snapshot `30` of two repositories, `ladygraph`
+These three responses come from snapshot `30` of two repositories, `kivgraph`
 and `mole`.
 
 ## Limits

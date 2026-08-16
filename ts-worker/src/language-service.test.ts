@@ -33,7 +33,7 @@ interface Workspace {
 async function createWorkspace(
   files: Record<string, string> = {},
 ): Promise<Workspace> {
-  const root = await temporaryRoot("ladygraph-ls-");
+  const root = await temporaryRoot("kivgraph-ls-");
   workspaces.push(root);
 
   const workspace: Workspace = {

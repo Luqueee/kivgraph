@@ -13,7 +13,7 @@ import (
 // publishLock is the exclusive right to publish into one generation store.
 //
 // The store's mutex only orders the goroutines of one process, and a store is
-// shared by every Ladygraph invocation over the same state directory: an
+// shared by every Kivgraph invocation over the same state directory: an
 // `index --full` in a terminal, an `index_project` from a client, and the
 // resynchroniser inside a running server all publish into it. The kernel
 // releases this lock if its holder dies, which is the property that makes it

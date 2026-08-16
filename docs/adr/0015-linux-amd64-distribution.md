@@ -8,7 +8,7 @@
 
 LUQUE-1501 necesita un artefacto instalable que contenga el ejecutable Go,
 el worker TypeScript, la biblioteca nativa fijada de LadybugDB, las grammars y
-los avisos de licencia. Ladygraph usa CGO para LadybugDB; por tanto, un
+los avisos de licencia. Kivgraph usa CGO para LadybugDB; por tanto, un
 binario compilado sin su biblioteca nativa no es un producto ejecutable.
 
 La procedencia debe ser auditable sin introducir timestamps de build ni copiar
@@ -17,11 +17,11 @@ repositorios indexados o artefactos de entrada al bundle.
 ## Decisión
 
 `scripts/build-linux-amd64.sh` genera por defecto
-`dist/ladygraph-linux-amd64/` con este layout:
+`dist/kivgraph-linux-amd64/` con este layout:
 
 ```text
-bin/ladygraph
-bin/ladygraph-ts-worker
+bin/kivgraph
+bin/kivgraph-ts-worker
 lib/liblbug.so
 worker/dist/**
 worker/node_modules/typescript/**
@@ -36,7 +36,7 @@ manifest.json
 SHA256SUMS
 ```
 
-El launcher `bin/ladygraph-ts-worker` conserva también el protocolo
+El launcher `bin/kivgraph-ts-worker` conserva también el protocolo
 interactivo: sin argumentos delega en `worker/dist/index.js` para responder
 `hello`. Cuando recibe el subcomando `facts`, lo retira y delega en
 `worker/dist/facts-cli.js`, que es la interfaz one-shot que usa el indexador.
@@ -70,13 +70,13 @@ manifest no contiene la hora actual. Registra:
 grafo/snapshot generado, no al toolchain de distribución. El valor efectivo
 se publica con el snapshot que el servidor cargue.
 
-El binario expone `ladygraph version --json` como el contrato de provenance
+El binario expone `kivgraph version --json` como el contrato de provenance
 auditable del producto. En un bundle lee el `manifest.json` adyacente y
 comprueba el digest del inventario de grammars antes de emitirlo; en desarrollo
 usa la información de build/runtime disponible y deja `null` donde no puede
 afirmar un valor. El campo `resolver` describe el grafo/snapshot cargado, por
 lo que el bundle lo mantiene `null`; `serverInfo.version` conserva la misma
-versión de release que `ladygraph version`.
+versión de release que `kivgraph version`.
 
 `dist/` es un directorio generado e ignorado por Git. Un build limpio se
 obtiene ejecutando `make build-linux-amd64` desde un checkout sin cambios; un
@@ -87,7 +87,7 @@ build desde un árbol modificado no falla, pero `manifest.json` marca
 
 - El bundle es autocontenido para el código y LadybugDB, pero requiere Linux
   amd64 y las bibliotecas estándar del sistema.
-- El `RUNPATH` permite ejecutar `bin/ladygraph` directamente desde el bundle,
+- El `RUNPATH` permite ejecutar `bin/kivgraph` directamente desde el bundle,
   sin `LD_LIBRARY_PATH`.
 
 - Los hashes de payload permiten detectar alteraciones después de la

@@ -48,7 +48,7 @@
  * Without it the CLI uses `<repository-root>/tsconfig.json`.
  *
  * `--provider <name>=<path>` declares one provider repository this indexing
- * run may import from: `<name>` is the repository name (as Ladygraph names it,
+ * run may import from: `<name>` is the repository name (as Kivgraph names it,
  * not the npm package name) and `<path>` is its root directory. The optional
  * `--provider-project <name>=<path>` selects the provider's project relative to
  * that provider root. The CLI derives package identity and source/declaration
@@ -161,7 +161,7 @@ interface FactImport {
 
 /** The provider declaration, described exactly as the provider indexes it. */
 interface FactImportTarget {
-  /** Provider repository, as Ladygraph names it. */
+  /** Provider repository, as Kivgraph names it. */
   readonly repository: string;
   /** Provider package name. */
   readonly package: string;
@@ -178,7 +178,7 @@ interface FactImportTarget {
    * How the provider source position was reached: `DECLARATION_MAP` when the
    * artifact's own map placed the symbol, `PROVIDER_EXPORT` when the
    * provider's checker named the export inside a source file its project
-   * roots mapped the artifact to. Ladygraph grades the two apart.
+   * roots mapped the artifact to. Kivgraph grades the two apart.
    */
   readonly source: string;
 }
@@ -258,7 +258,7 @@ interface FactExtends {
  * becomes `MODULE_DEPENDS_ON`; only Go's package/module split does.
  */
 interface FactDependency {
-  /** Provider repository, as Ladygraph names it. */
+  /** Provider repository, as Kivgraph names it. */
   readonly repository: string;
   /** Provider package name. */
   readonly package: string;

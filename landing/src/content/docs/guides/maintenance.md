@@ -6,8 +6,8 @@ description: Inspect, repair, roll back and clean a published graph.
 ## Inspect
 
 ```bash
-ladygraph doctor
-ladygraph graph status --root PATH
+kivgraph doctor
+kivgraph graph status --root PATH
 ```
 
 `doctor` checks the configuration, the toolchains and the published graph. It
@@ -24,8 +24,8 @@ with no active generation reports `graph.active: none`; that is not an error.
 ## Validate a database
 
 ```bash
-ladygraph doctor storage --database PATH
-ladygraph doctor graph --database PATH
+kivgraph doctor storage --database PATH
+kivgraph doctor graph --database PATH
 ```
 
 `doctor storage` opens the database read-only and runs its transaction test on
@@ -40,7 +40,7 @@ the database it is given.
 ## Roll back
 
 ```bash
-ladygraph rollback --root PATH --generation 000123
+kivgraph rollback --root PATH --generation 000123
 ```
 
 `--generation` is optional: without it, `rollback` uses the registered
@@ -56,7 +56,7 @@ check fails, `CURRENT` does not change.
 ## Rebuild the hot snapshot
 
 ```bash
-ladygraph snapshot --root PATH --generation 000123
+kivgraph snapshot --root PATH --generation 000123
 ```
 
 Without `--generation` it builds from the registered `graph.active`. The
@@ -66,7 +66,7 @@ never from the fact set that originated it, and the database is not modified.
 ## Upgrade after a schema change
 
 ```bash
-ladygraph upgrade
+kivgraph upgrade
 ```
 
 An incompatible schema change requires detecting the version, backing up and
@@ -76,8 +76,8 @@ Only a candidate that passes integrity and validation may change `CURRENT`.
 ## Clean
 
 ```bash
-ladygraph clean
-ladygraph clean --keep-active --yes
+kivgraph clean
+kivgraph clean --keep-active --yes
 ```
 
 `clean` removes published generations. Without `--yes` it enumerates and
@@ -96,8 +96,8 @@ restart it.
 ## Update the installation
 
 ```bash
-ladygraph update --check
-ladygraph update
+kivgraph update --check
+kivgraph update
 ```
 
 The update validates the manifest, the version and the checksums before

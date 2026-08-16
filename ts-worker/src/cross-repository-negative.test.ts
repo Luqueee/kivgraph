@@ -39,14 +39,14 @@ function provider(
 
 const providers: readonly PackageProvider[] = [
   provider(
-    "@ladygraph-fixture/twin",
+    "@kivgraph-fixture/twin",
     "1.0.0",
     "twin",
     path.join(NEGATIVE, "twin"),
   ),
   {
     ...provider(
-      "@ladygraph-fixture/shared",
+      "@kivgraph-fixture/shared",
       "1.4.2",
       "shared-library",
       SHARED_ROOT,
@@ -54,26 +54,26 @@ const providers: readonly PackageProvider[] = [
     projectPath: path.join(SHARED_ROOT, "tsconfig.json"),
   },
   provider(
-    "@ladygraph-fixture/unmapped",
+    "@kivgraph-fixture/unmapped",
     "1.0.0",
     "unmapped",
     path.join(NEGATIVE, "unmapped"),
   ),
   provider(
-    "@ladygraph-fixture/duplicated",
+    "@kivgraph-fixture/duplicated",
     "1.0.0",
     "duplicated-a",
     path.join(NEGATIVE, "duplicated-a"),
   ),
   provider(
-    "@ladygraph-fixture/drifting",
+    "@kivgraph-fixture/drifting",
     "2.0.0",
     "drifting",
     path.join(NEGATIVE, "drifting"),
   ),
   {
     ...provider(
-      "@ladygraph-fixture/nomap",
+      "@kivgraph-fixture/nomap",
       "1.0.0",
       "nomap",
       path.join(NEGATIVE, "nomap"),
@@ -102,12 +102,12 @@ describe("cross-repository negative fixture", () => {
       {
         conflicts: [
           {
-            packageName: "@ladygraph-fixture/duplicated",
+            packageName: "@kivgraph-fixture/duplicated",
             kind: "AMBIGUOUS_PACKAGE_PROVIDER",
             repositories: ["duplicated-a", "duplicated-b"],
           },
           {
-            packageName: "@ladygraph-fixture/drifting",
+            packageName: "@kivgraph-fixture/drifting",
             kind: "PACKAGE_VERSION_MISMATCH",
             versions: ["1.0.0", "2.0.0"],
           },
@@ -123,17 +123,13 @@ describe("cross-repository negative fixture", () => {
       ]),
     ).toEqual([
       [
-        "@ladygraph-fixture/unmapped",
+        "@kivgraph-fixture/unmapped",
         "DECLARATION_SOURCE_NOT_MAPPED",
         "unmapped",
       ],
-      ["@ladygraph-fixture/unmapped", "EXPORT_NOT_FOUND", "missing"],
-      [
-        "@ladygraph-fixture/duplicated",
-        "AMBIGUOUS_PACKAGE_PROVIDER",
-        undefined,
-      ],
-      ["@ladygraph-fixture/drifting", "VERSION_MISMATCH", undefined],
+      ["@kivgraph-fixture/unmapped", "EXPORT_NOT_FOUND", "missing"],
+      ["@kivgraph-fixture/duplicated", "AMBIGUOUS_PACKAGE_PROVIDER", undefined],
+      ["@kivgraph-fixture/drifting", "VERSION_MISMATCH", undefined],
     ]);
 
     expect(
@@ -146,25 +142,25 @@ describe("cross-repository negative fixture", () => {
     ).toEqual([
       [
         "compute",
-        "@ladygraph-fixture/twin",
+        "@kivgraph-fixture/twin",
         "compute",
         path.join(NEGATIVE, "twin/dist/index.d.ts"),
       ],
       [
         "sharedValue",
-        "@ladygraph-fixture/shared",
+        "@kivgraph-fixture/shared",
         "value",
         path.join(SHARED_ROOT, "dist/value.d.ts"),
       ],
       [
         "unmapped",
-        "@ladygraph-fixture/unmapped",
+        "@kivgraph-fixture/unmapped",
         "unmapped",
         path.join(NEGATIVE, "unmapped/dist/index.d.ts"),
       ],
       [
         "plain",
-        "@ladygraph-fixture/nomap",
+        "@kivgraph-fixture/nomap",
         "plain",
         path.join(NEGATIVE, "nomap/dist/index.d.ts"),
       ],
@@ -191,7 +187,7 @@ describe("cross-repository negative fixture", () => {
     const compute = resolution.symbols.find(
       (entry) => entry.consumer.name === "compute",
     );
-    expect(compute?.packageName).toBe("@ladygraph-fixture/twin");
+    expect(compute?.packageName).toBe("@kivgraph-fixture/twin");
     expect(
       compute?.target.declarations.every((declaration) =>
         declaration.fileName.startsWith(path.join(NEGATIVE, "twin")),

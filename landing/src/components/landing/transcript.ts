@@ -1,6 +1,6 @@
 /**
  * The transcript figures on this page render traffic captured from
- * `ladygraph serve` over stdio. Field names, values and error strings are
+ * `kivgraph serve` over stdio. Field names, values and error strings are
  * verbatim; only the line wrapping is ours, and every line that is not part of
  * the capture is prefixed with `#`.
  *

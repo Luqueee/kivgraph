@@ -5,10 +5,10 @@
 
 ## Contexto
 
-Ladygraph expone actualmente sus nueve tools MCP únicamente por STDIO. El
+Kivgraph expone actualmente sus nueve tools MCP únicamente por STDIO. El
 servidor MCP y la configuración aceptan `StdioTransport` y `transport: stdio`,
 pero un navegador no puede consumir ese canal directamente. El SDK MCP trae
-transportes HTTP, aunque Ladygraph no los cablea.
+transportes HTTP, aunque Kivgraph no los cablea.
 
 El visor React necesita consultar el mismo grafo que usa MCP sin duplicar la
 carga de LadybugDB ni crear una segunda fuente de hechos. La superficie MCP
@@ -17,8 +17,8 @@ para entregar tiles, subgrafos inducidos o buffers binarios de renderizado.
 
 ## Decisión
 
-1. Se añadirá un subcomando independiente `ladygraph ui --config <path>`.
-   `ladygraph serve` conservará su contrato STDIO y no abrirá un puerto por
+1. Se añadirá un subcomando independiente `kivgraph ui --config <path>`.
+   `kivgraph serve` conservará su contrato STDIO y no abrirá un puerto por
    defecto.
 2. El visor usará una API HTTP read-only separada de las nueve tools MCP. La
    API leerá el `SnapshotStore` publicado y no podrá indexar, reconstruir,
@@ -56,8 +56,8 @@ para entregar tiles, subgrafos inducidos o buffers binarios de renderizado.
   que exige el render.
 - **Proceso Node separado que consulte LadybugDB:** duplica carga, schema,
   lifecycle y memoria, y puede observar una generación distinta al
-  `HotSnapshot` servido por Ladygraph.
-- **Abrir HTTP dentro de `ladygraph serve`:** cambia el contrato de un proceso
+  `HotSnapshot` servido por Kivgraph.
+- **Abrir HTTP dentro de `kivgraph serve`:** cambia el contrato de un proceso
   que actualmente es STDIO puro y complica el aislamiento de sesiones.
 
 ## Riesgos

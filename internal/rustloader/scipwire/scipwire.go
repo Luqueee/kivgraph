@@ -1,4 +1,4 @@
-// Package scipwire decodes the subset of the SCIP index format Ladygraph
+// Package scipwire decodes the subset of the SCIP index format Kivgraph
 // reads from `rust-analyzer scip`.
 //
 // The schema is pinned: scip.proto of github.com/scip-code/scip v0.9.0,
@@ -7,7 +7,7 @@
 // is skipped by wire type, so a newer indexer that adds fields still decodes.
 //
 // The decoder is written here rather than taken from the upstream Go bindings
-// because Ladygraph reads six messages out of the schema and the bindings
+// because Kivgraph reads six messages out of the schema and the bindings
 // arrive with a formatter, a validator and their dependency trees. The wire
 // format is fixed by protobuf itself, and every field number in this file is
 // taken from the pinned schema.

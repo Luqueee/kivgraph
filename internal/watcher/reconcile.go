@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // Rename is an unambiguous same-content path move found during reconciliation.

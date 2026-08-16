@@ -74,7 +74,7 @@
  116://
  117:// Ambiguous module paths and incompatible replacements are excluded and
 ...
- 119:// same module, and a replacement Ladygraph cannot decide must never be guessed.
+ 119:// same module, and a replacement Kivgraph cannot decide must never be guessed.
 *120:func BuildPlan(ctx context.Context, repositories []workspace.Repository, options Options) (Plan, error) {
  121:	if ctx == nil {
  122:		ctx = context.Background()
@@ -171,7 +171,7 @@
 *303:		t.Fatalf("BuildPlan() error = %v", err)
  304:	}
  305:
- 306:	state := filepath.Join(root, "state", "ladygraph")
+ 306:	state := filepath.Join(root, "state", "kivgraph")
 ...
  346:	repositories := []workspace.Repository{{Name: "module", Path: module, RealPath: module}}
 *347:	plan, err := BuildPlan(context.Background(), repositories, Options{})

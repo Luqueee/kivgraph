@@ -1,6 +1,6 @@
 # Convenciones de desarrollo
 
-Este documento fija las convenciones mínimas de Ladygraph. Las decisiones que
+Este documento fija las convenciones mínimas de Kivgraph. Las decisiones que
 cambien la arquitectura, el contrato MCP, el formato persistente o la política
 de compatibilidad deben registrarse además en un ADR.
 
@@ -69,7 +69,7 @@ Los mensajes pueden cambiar sin romper clientes.
 
 ### Interno frente a no resuelto
 
-Un error interno indica que Ladygraph no pudo cumplir una operación del sistema:
+Un error interno indica que Kivgraph no pudo cumplir una operación del sistema:
 fallo de I/O, corrupción, bug, dependencia caída o violación de una
 invariante. Debe clasificarse como error y no convertirse en un resultado
 semántico silencioso.
@@ -107,7 +107,7 @@ configuración y por tanto ningún símbolo al grafo.
 
 ### Techo de versión del lenguaje Go
 
-`go/types` viaja enlazado dentro del binario, así que Ladygraph solo puede
+`go/types` viaja enlazado dentro del binario, así que Kivgraph solo puede
 comprobar tipos hasta la versión del lenguaje del toolchain que lo compiló.
 
 - El `go.work` sintético declara la versión más alta de sus miembros y el
@@ -121,7 +121,7 @@ comprobar tipos hasta la versión del lenguaje del toolchain que lo compiló.
   silencio un repositorio registrado es peor que no publicarla.
 - El techo es `major.minor`: una release de parche no añade features del
   lenguaje.
-- La salida es rebuild de Ladygraph con ese toolchain, o retirar `go` de los
+- La salida es rebuild de Kivgraph con ese toolchain, o retirar `go` de los
   lenguajes de ese repositorio.
 - Un diagnóstico `file requires newer Go version` proveniente de una
   dependencia se acompaña de la versión con la que este binario comprueba
@@ -176,7 +176,7 @@ tiene un proveedor único.
 
 ### Retirar generaciones
 
-`ladygraph clean` es el único comando destructivo sobre el grafo, así que
+`kivgraph clean` es el único comando destructivo sobre el grafo, así que
 enumera lo que haría y no toca nada hasta `--yes`.
 
 - Sin flags retira todas las generaciones, ambos punteros y la reserva de
@@ -197,7 +197,7 @@ enumera lo que haría y no toca nada hasta `--yes`.
 
 `clean` retira el grafo y deja el registro de repositorios intacto: lo que se
 indexa es una decisión del operador, no un producto de la pasada. Reconstruir
-lo registrado es `ladygraph index --full`.
+lo registrado es `kivgraph index --full`.
 
 Por eso `index_project` es idempotente:
 
@@ -211,7 +211,7 @@ Por eso `index_project` es idempotente:
 
 ### Primer arranque de un cliente MCP
 
-El cliente lanza `ladygraph serve` él mismo y habla el protocolo por la
+El cliente lanza `kivgraph serve` él mismo y habla el protocolo por la
 tubería. Un servidor que sale porque falta la configuración deja al cliente
 informando de que «el servidor falló», y obliga a abrir una terminal para algo
 que la instalación debería haber resuelto.
@@ -224,7 +224,7 @@ que la instalación debería haber resuelto.
 - Una configuración que existe y no se puede leer aborta el arranque. Solo se
   crea la ausente.
 - `INDEX_NOT_READY` nombra las dos salidas —`index_project` o
-  `ladygraph index --full`— porque es la primera respuesta que recibe una
+  `kivgraph index --full`— porque es la primera respuesta que recibe una
   instalación recién hecha.
 
 ### Operaciones largas sobre MCP
@@ -404,7 +404,7 @@ respuesta MCP están en el ADR 0031.
 
 ### El visor y el bundle web
 
-- `ladygraph ui` registra la dirección enlazada antes de servir nada, también
+- `kivgraph ui` registra la dirección enlazada antes de servir nada, también
   cuando el puerto configurado es `0`.
 - Un binario sin el tag `webassets` no puede mostrar el visor. `ui` lo dice y
   no abre puerto, en lugar de servir la página de «bundle no disponible» en

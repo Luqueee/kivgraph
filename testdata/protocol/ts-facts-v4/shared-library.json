@@ -4,7 +4,7 @@
     "name": "shared-library"
   },
   "package": {
-    "name": "@ladygraph-fixture/shared",
+    "name": "@kivgraph-fixture/shared",
     "version": "1.4.2",
     "rootPath": ".",
     "manifestPath": "package.json"

@@ -5,7 +5,7 @@ package ladybug
 import (
 	"context"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 // ApplyCanonicalDelta reports that the native build is required to mutate

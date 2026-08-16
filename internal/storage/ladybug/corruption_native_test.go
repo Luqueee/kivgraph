@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 // A corrupt database is not a database with a wrong schema: that case is

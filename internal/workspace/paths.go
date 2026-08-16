@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/config"
 )
 
 type validatedRepositoryPath struct {
@@ -69,7 +69,7 @@ func validatePaths(ctx context.Context, source config.RepositoriesFile) ([]valid
 	return validated, nil
 }
 
-// SyntheticRepositoryPrefix is the namespace of the providers Ladygraph derives
+// SyntheticRepositoryPrefix is the namespace of the providers Kivgraph derives
 // from the machine instead of from `repositories.yaml`. The standard library of
 // a Rust toolchain is registered as `rust:1.96.1`.
 //
@@ -92,7 +92,7 @@ func validateRepositoryName(name string) error {
 		return err
 	}
 	if IsSyntheticRepository(name) {
-		return fmt.Errorf("name %q is reserved: the %q namespace names the providers Ladygraph derives from the toolchain",
+		return fmt.Errorf("name %q is reserved: the %q namespace names the providers Kivgraph derives from the toolchain",
 			name, SyntheticRepositoryPrefix)
 	}
 	return nil

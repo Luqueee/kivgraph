@@ -9,7 +9,7 @@ import (
 )
 
 const StableKeyFormatVersion uint16 = 1
-const stableKeyNamespace = "luque-stable-key" // Persistent namespace; retained across the Ladygraph rename.
+const stableKeyNamespace = "luque-stable-key" // Persistent namespace; retained across the Kivgraph rename.
 
 var (
 	ErrUnsupportedStableKeyFormat = errors.New("unsupported stable key format")

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 var typeScriptGolden = filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v4")
@@ -43,7 +43,7 @@ func TestNormalizeTypeScriptConsumesRealWorkerOutput(t *testing.T) {
 	if len(set.Repositories) != 1 || set.Repositories[0].Name != "shared-library" {
 		t.Fatalf("repositories = %#v", set.Repositories)
 	}
-	if len(set.Packages) != 1 || set.Packages[0].Name != "@ladygraph-fixture/shared" {
+	if len(set.Packages) != 1 || set.Packages[0].Name != "@kivgraph-fixture/shared" {
 		t.Fatalf("packages = %#v", set.Packages)
 	}
 	if set.Packages[0].RootPath != root {
@@ -282,7 +282,7 @@ func findSymbol(t *testing.T, symbols []Symbol, repository, file, qualifiedName 
 
 // TestNormalizeTypeScriptReexportsTargetKeyMatchesProvider is the REEXPORTS
 // half of the LUQUE-0907 acceptance test: consumer-b's
-// `export { value as republished } from "@ladygraph-fixture/shared"` crosses
+// `export { value as republished } from "@kivgraph-fixture/shared"` crosses
 // into another repository through a `from` clause, so it must derive the
 // exact same provider-source key an IMPORTS_SYMBOL edge would — REEXPORTS
 // is a different edge kind, never a weaker proof.
@@ -515,20 +515,20 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 		Version:    TypeScriptWireVersion,
 		Repository: TypeScriptRepository{Name: "consumer-x"},
 		Package: &TypeScriptPackage{
-			Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+			Name: "@kivgraph-fixture/consumer-x", Version: "1.0.0",
 			RootPath: ".", ManifestPath: "package.json",
 		},
 		Files: []string{"src/index.ts"},
 		Symbols: []TypeScriptSymbol{{
 			File: "src/index.ts", Name: "helper", QualifiedName: "helper", Kind: "import",
-			Signature: `import { helper } from "@ladygraph-fixture/shared"`,
+			Signature: `import { helper } from "@kivgraph-fixture/shared"`,
 			StartLine: 1, EndLine: 1, Start: 0, End: 47,
 		}},
 		Imports: []TypeScriptImport{{
 			File: "src/index.ts", QualifiedName: "helper",
 			Start: 0, End: 47, StartLine: 1,
-			Text:             `import { helper } from "@ladygraph-fixture/shared"`,
-			RequestedPackage: "@ladygraph-fixture/shared",
+			Text:             `import { helper } from "@kivgraph-fixture/shared"`,
+			RequestedPackage: "@kivgraph-fixture/shared",
 			RequestedSymbol:  "helper",
 			Target:           nil,
 			Reason:           "NO_DECLARATION_MAP",
@@ -537,7 +537,7 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 		Unresolved: []TypeScriptUnresolved{{
 			File:             "src/index.ts",
 			Reason:           "PACKAGE_PROVIDER_NOT_FOUND",
-			RequestedPackage: "@ladygraph-fixture/other",
+			RequestedPackage: "@kivgraph-fixture/other",
 			Start:            60,
 		}},
 	}
@@ -574,7 +574,7 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 	}
 
 	if fromImport.Detail != "provider has no declaration map for dist/helper.d.ts" ||
-		fromImport.RequestedPackage != "@ladygraph-fixture/shared" ||
+		fromImport.RequestedPackage != "@kivgraph-fixture/shared" ||
 		fromImport.RequestedSymbol != "helper" ||
 		fromImport.Language != LanguageTypeScript ||
 		fromImport.FileKey != FileKey("consumer-x", "src/index.ts") {
@@ -584,7 +584,7 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 		t.Fatalf("the import's unresolved entry should carry the consumer's own binding as its source symbol")
 	}
 
-	if fromPayload.RequestedPackage != "@ladygraph-fixture/other" ||
+	if fromPayload.RequestedPackage != "@kivgraph-fixture/other" ||
 		fromPayload.Language != LanguageTypeScript ||
 		fromPayload.FileKey != FileKey("consumer-x", "src/index.ts") {
 		t.Fatalf("unresolved entry passed through from payload.Unresolved = %#v", fromPayload)
@@ -601,7 +601,7 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 func TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved(t *testing.T) {
 	base := TypeScriptImportTarget{
 		Repository:    "shared-library",
-		Package:       "@ladygraph-fixture/shared",
+		Package:       "@kivgraph-fixture/shared",
 		QualifiedName: "helper",
 		Kind:          "function",
 		Signature:     "export function helper(shape: Shape): number",
@@ -627,20 +627,20 @@ func TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved(t *testing.T)
 				Version:    TypeScriptWireVersion,
 				Repository: TypeScriptRepository{Name: "consumer-x"},
 				Package: &TypeScriptPackage{
-					Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+					Name: "@kivgraph-fixture/consumer-x", Version: "1.0.0",
 					RootPath: ".", ManifestPath: "package.json",
 				},
 				Files: []string{"src/index.ts"},
 				Symbols: []TypeScriptSymbol{{
 					File: "src/index.ts", Name: "helper", QualifiedName: "helper", Kind: "import",
-					Signature: `import { helper } from "@ladygraph-fixture/shared"`,
+					Signature: `import { helper } from "@kivgraph-fixture/shared"`,
 					StartLine: 1, EndLine: 1, Start: 0, End: 47,
 				}},
 				Imports: []TypeScriptImport{{
 					File: "src/index.ts", QualifiedName: "helper",
 					Start: 0, End: 47, StartLine: 1,
-					Text:             `import { helper } from "@ladygraph-fixture/shared"`,
-					RequestedPackage: "@ladygraph-fixture/shared",
+					Text:             `import { helper } from "@kivgraph-fixture/shared"`,
+					RequestedPackage: "@kivgraph-fixture/shared",
 					RequestedSymbol:  "helper",
 					Target:           &target,
 					Reason:           "PROVIDER_DECLARATION_UNCLASSIFIED",
@@ -691,7 +691,7 @@ func TestNormalizeTypeScriptGradesCrossRepositoryTargetsByEvidence(t *testing.T)
 		t.Run(name, func(t *testing.T) {
 			target := TypeScriptImportTarget{
 				Repository:    "shared-library",
-				Package:       "@ladygraph-fixture/shared",
+				Package:       "@kivgraph-fixture/shared",
 				QualifiedName: "helper",
 				Kind:          "function",
 				Signature:     "export function helper(shape: Shape): number",
@@ -703,20 +703,20 @@ func TestNormalizeTypeScriptGradesCrossRepositoryTargetsByEvidence(t *testing.T)
 				Version:    TypeScriptWireVersion,
 				Repository: TypeScriptRepository{Name: "consumer-x"},
 				Package: &TypeScriptPackage{
-					Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+					Name: "@kivgraph-fixture/consumer-x", Version: "1.0.0",
 					RootPath: ".", ManifestPath: "package.json",
 				},
 				Files: []string{"src/index.ts"},
 				Symbols: []TypeScriptSymbol{{
 					File: "src/index.ts", Name: "helper", QualifiedName: "helper", Kind: "import",
-					Signature: `import { helper } from "@ladygraph-fixture/shared"`,
+					Signature: `import { helper } from "@kivgraph-fixture/shared"`,
 					StartLine: 1, EndLine: 1, Start: 0, End: 47,
 				}},
 				Imports: []TypeScriptImport{{
 					File: "src/index.ts", QualifiedName: "helper",
 					Start: 0, End: 47, StartLine: 1,
-					Text:             `import { helper } from "@ladygraph-fixture/shared"`,
-					RequestedPackage: "@ladygraph-fixture/shared",
+					Text:             `import { helper } from "@kivgraph-fixture/shared"`,
+					RequestedPackage: "@kivgraph-fixture/shared",
 					RequestedSymbol:  "helper",
 					Target:           &target,
 				}},
@@ -901,7 +901,7 @@ func TestNormalizeTypeScriptExtendsTargetKeyMatchesProvider(t *testing.T) {
 }
 
 // TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider covers
-// consumer-a's real dependency on @ladygraph-fixture/shared: the edge connects
+// consumer-a's real dependency on @kivgraph-fixture/shared: the edge connects
 // consumer-a's own package key to shared-library's package key, exactly as
 // PackageKey derives them independently on each side — the package-level
 // analogue of the symbol-level parity tests above.
@@ -917,8 +917,8 @@ func TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider(t *testing.
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
 
-	consumerPackageKey := PackageKey(LanguageTypeScript, "consumer-a", "@ladygraph-fixture/consumer-a")
-	providerPackageKey := PackageKey(LanguageTypeScript, "shared-library", "@ladygraph-fixture/shared")
+	consumerPackageKey := PackageKey(LanguageTypeScript, "consumer-a", "@kivgraph-fixture/consumer-a")
+	providerPackageKey := PackageKey(LanguageTypeScript, "shared-library", "@kivgraph-fixture/shared")
 
 	var dependsOnEdges []Edge
 	for _, edge := range consumerSet.Edges {
@@ -952,19 +952,19 @@ func TestNormalizeTypeScriptPackageDependsOnTargetKeyMatchesProvider(t *testing.
 
 // TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge covers
 // consumer-a's package.json, which lists a dependency on
-// @ladygraph-fixture/unused that nothing in src/ actually imports: decision 1
+// @kivgraph-fixture/unused that nothing in src/ actually imports: decision 1
 // forbids an edge from a nominal package.json string, so the worker itself
 // never reports one for it — facts-cli.ts derives PACKAGE_DEPENDS_ON purely
 // from checker-resolved imports, never from package.json — and the
 // normalised graph carries exactly the one PACKAGE_DEPENDS_ON edge a real
-// import backs: consumer-a to @ladygraph-fixture/shared.
+// import backs: consumer-a to @kivgraph-fixture/shared.
 func TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge(t *testing.T) {
 	consumerSet, _, err := NormalizeTypeScript(context.Background(), loadPayload(t, "consumer-a.json"), workspace.Repository{RealPath: "/repositories/consumer-a"})
 	if err != nil {
 		t.Fatalf("NormalizeTypeScript(consumer-a) error = %v", err)
 	}
 
-	sharedPackageKey := PackageKey(LanguageTypeScript, "shared-library", "@ladygraph-fixture/shared")
+	sharedPackageKey := PackageKey(LanguageTypeScript, "shared-library", "@kivgraph-fixture/shared")
 	var dependsOnEdges []Edge
 	for _, edge := range consumerSet.Edges {
 		if edge.Kind == PackageDependsOn {
@@ -973,7 +973,7 @@ func TestNormalizeTypeScriptUnusedManifestDependencyProducesNoEdge(t *testing.T)
 	}
 	if len(dependsOnEdges) != 1 || dependsOnEdges[0].TargetKey != sharedPackageKey {
 		t.Fatalf("PACKAGE_DEPENDS_ON edges from consumer-a = %#v, want exactly one targeting %s "+
-			"(@ladygraph-fixture/unused is declared in package.json but never imported, so it must "+
+			"(@kivgraph-fixture/unused is declared in package.json but never imported, so it must "+
 			"produce none)", dependsOnEdges, sharedPackageKey)
 	}
 }
@@ -988,7 +988,7 @@ func TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved(t *testing.T) {
 		Version:    TypeScriptWireVersion,
 		Repository: TypeScriptRepository{Name: "consumer-x"},
 		Package: &TypeScriptPackage{
-			Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+			Name: "@kivgraph-fixture/consumer-x", Version: "1.0.0",
 			RootPath: ".", ManifestPath: "package.json",
 		},
 		Files: []string{"src/index.ts"},
@@ -1004,7 +1004,7 @@ func TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved(t *testing.T) {
 			TargetQualifiedName: "",
 			TargetFile:          "",
 			Target:              nil,
-			RequestedPackage:    "@ladygraph-fixture/shared",
+			RequestedPackage:    "@kivgraph-fixture/shared",
 			RequestedSymbol:     "Base",
 			Reason:              "PROVIDER_SOURCE_UNAVAILABLE",
 			Detail:              "no declaration map places this symbol in the provider's source",
@@ -1031,7 +1031,7 @@ func TestNormalizeTypeScriptExtendsWithoutTargetIsUnresolved(t *testing.T) {
 	}
 	entry := set.Unresolved[0]
 	if entry.Reason != "PROVIDER_SOURCE_UNAVAILABLE" ||
-		entry.RequestedPackage != "@ladygraph-fixture/shared" ||
+		entry.RequestedPackage != "@kivgraph-fixture/shared" ||
 		entry.RequestedSymbol != "Base" ||
 		entry.Language != LanguageTypeScript ||
 		entry.FileKey != FileKey("consumer-x", "src/index.ts") {
@@ -1051,7 +1051,7 @@ func TestNormalizeTypeScriptSeparatesHomonymsDeclaredInDifferentModules(t *testi
 		Version:    TypeScriptWireVersion,
 		Repository: TypeScriptRepository{Name: "consumer-x"},
 		Package: &TypeScriptPackage{
-			Name: "@ladygraph-fixture/consumer-x", Version: "1.0.0",
+			Name: "@kivgraph-fixture/consumer-x", Version: "1.0.0",
 			RootPath: ".", ManifestPath: "package.json",
 		},
 		Files: []string{"src/first.ts", "src/second.ts"},

@@ -95,7 +95,7 @@ function provider(
 }
 
 const sharedProvider = provider(
-  "@ladygraph-fixture/shared",
+  "@kivgraph-fixture/shared",
   "1.4.2",
   "shared-library",
   SHARED_ROOT,
@@ -115,10 +115,10 @@ const cases: readonly PrecisionCase[] = [
     providers: [sharedProvider],
     conflicts: [],
     expectedEdges: [
-      "src/derived.ts#Widget -> @ladygraph-fixture/shared:Widget -> cross-repository/shared-library/dist/inheritance.d.ts",
-      "src/direct.ts#compute -> @ladygraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
-      "src/direct.ts#value -> @ladygraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
-      "src/direct.ts#Shape -> @ladygraph-fixture/shared:Shape -> cross-repository/shared-library/dist/value.d.ts",
+      "src/derived.ts#Widget -> @kivgraph-fixture/shared:Widget -> cross-repository/shared-library/dist/inheritance.d.ts",
+      "src/direct.ts#compute -> @kivgraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
+      "src/direct.ts#value -> @kivgraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      "src/direct.ts#Shape -> @kivgraph-fixture/shared:Shape -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
     expectedSourcePositions: 4,
@@ -129,9 +129,9 @@ const cases: readonly PrecisionCase[] = [
     providers: [sharedProvider],
     conflicts: [],
     expectedEdges: [
-      "src/barrel.ts#helper -> @ladygraph-fixture/shared:aliasedHelper -> cross-repository/shared-library/dist/helper.d.ts",
-      "src/barrel.ts#compute -> @ladygraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
-      "src/barrel.ts#republished -> @ladygraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      "src/barrel.ts#helper -> @kivgraph-fixture/shared:aliasedHelper -> cross-repository/shared-library/dist/helper.d.ts",
+      "src/barrel.ts#compute -> @kivgraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
+      "src/barrel.ts#republished -> @kivgraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
     expectedSourcePositions: 3,
@@ -142,32 +142,32 @@ const cases: readonly PrecisionCase[] = [
     providers: [
       sharedProvider,
       provider(
-        "@ladygraph-fixture/twin",
+        "@kivgraph-fixture/twin",
         "1.0.0",
         "twin",
         path.join(NEGATIVE, "twin"),
       ),
       provider(
-        "@ladygraph-fixture/unmapped",
+        "@kivgraph-fixture/unmapped",
         "1.0.0",
         "unmapped",
         path.join(NEGATIVE, "unmapped"),
       ),
       provider(
-        "@ladygraph-fixture/duplicated",
+        "@kivgraph-fixture/duplicated",
         "1.0.0",
         "duplicated-a",
         path.join(NEGATIVE, "duplicated-a"),
       ),
       provider(
-        "@ladygraph-fixture/drifting",
+        "@kivgraph-fixture/drifting",
         "2.0.0",
         "drifting",
         path.join(NEGATIVE, "drifting"),
       ),
       {
         ...provider(
-          "@ladygraph-fixture/nomap",
+          "@kivgraph-fixture/nomap",
           "1.0.0",
           "nomap",
           path.join(NEGATIVE, "nomap"),
@@ -177,27 +177,27 @@ const cases: readonly PrecisionCase[] = [
     ],
     conflicts: [
       {
-        packageName: "@ladygraph-fixture/duplicated",
+        packageName: "@kivgraph-fixture/duplicated",
         kind: "AMBIGUOUS_PACKAGE_PROVIDER",
         repositories: ["duplicated-a", "duplicated-b"],
       },
       {
-        packageName: "@ladygraph-fixture/drifting",
+        packageName: "@kivgraph-fixture/drifting",
         kind: "PACKAGE_VERSION_MISMATCH",
         versions: ["1.0.0", "2.0.0"],
       },
     ],
     expectedEdges: [
-      "src/consumer.ts#compute -> @ladygraph-fixture/twin:compute -> cross-repository-negative/twin/dist/index.d.ts",
-      "src/consumer.ts#sharedValue -> @ladygraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
-      "src/consumer.ts#unmapped -> @ladygraph-fixture/unmapped:unmapped -> cross-repository-negative/unmapped/dist/index.d.ts",
-      "src/consumer.ts#plain -> @ladygraph-fixture/nomap:plain -> cross-repository-negative/nomap/dist/index.d.ts",
+      "src/consumer.ts#compute -> @kivgraph-fixture/twin:compute -> cross-repository-negative/twin/dist/index.d.ts",
+      "src/consumer.ts#sharedValue -> @kivgraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      "src/consumer.ts#unmapped -> @kivgraph-fixture/unmapped:unmapped -> cross-repository-negative/unmapped/dist/index.d.ts",
+      "src/consumer.ts#plain -> @kivgraph-fixture/nomap:plain -> cross-repository-negative/nomap/dist/index.d.ts",
     ],
     expectedUnresolved: [
-      "@ladygraph-fixture/unmapped:DECLARATION_SOURCE_NOT_MAPPED:unmapped",
-      "@ladygraph-fixture/unmapped:EXPORT_NOT_FOUND:missing",
-      "@ladygraph-fixture/duplicated:AMBIGUOUS_PACKAGE_PROVIDER:-",
-      "@ladygraph-fixture/drifting:VERSION_MISMATCH:-",
+      "@kivgraph-fixture/unmapped:DECLARATION_SOURCE_NOT_MAPPED:unmapped",
+      "@kivgraph-fixture/unmapped:EXPORT_NOT_FOUND:missing",
+      "@kivgraph-fixture/duplicated:AMBIGUOUS_PACKAGE_PROVIDER:-",
+      "@kivgraph-fixture/drifting:VERSION_MISMATCH:-",
     ],
     // `unmapped` publishes neither map nor sources, so it stays unplaceable;
     // `nomap` has no map but its own project can place the symbol.

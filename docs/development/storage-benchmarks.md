@@ -14,7 +14,7 @@ Results live in `benchmarks/<name>/`, each with its own `results.json` and
 The generator creates a reproducible JSON Lines corpus for storage benchmarks:
 
 ```bash
-go run ./cmd/ladygraph benchmark generate-graph \
+go run ./cmd/kivgraph benchmark generate-graph \
   --symbols 100000 \
   --edges 1000000 \
   --seed 42
@@ -27,7 +27,7 @@ The individual reference load requires the native LadybugDB library and executes
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-individual \
   --corpus testdata/generated/synthetic \
-  --database /tmp/ladygraph-individual.db \
+  --database /tmp/kivgraph-individual.db \
   --transaction-size 1000
 ```
 
@@ -38,7 +38,7 @@ The batched variant uses an `UNWIND $rows` statement and one transaction per bat
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-batch \
   --corpus testdata/generated/synthetic \
-  --database-dir /tmp/ladygraph-batch \
+  --database-dir /tmp/kivgraph-batch \
   --batch-sizes 100,1000,10000,50000
 ```
 
@@ -49,7 +49,7 @@ The bulk load through `COPY` exports the corpus to temporary CSV files and execu
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-bulk \
   --corpus testdata/generated/synthetic \
-  --database /tmp/ladygraph-copy.db \
+  --database /tmp/kivgraph-copy.db \
   --output benchmarks/ladybug-bulk/full-scale
 ```
 
@@ -59,7 +59,7 @@ Direct queries reuse one connection and prepared statements for lookup by stable
 
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-queries \
-  --database /tmp/ladygraph-copy.db \
+  --database /tmp/kivgraph-copy.db \
   --corpus testdata/generated/synthetic \
   --output benchmarks/ladybug-queries
 ```
@@ -70,7 +70,7 @@ The incremental update uses a single logical writer, validates the complete delt
 
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-incremental \
-  --database /tmp/ladygraph-copy.db \
+  --database /tmp/kivgraph-copy.db \
   --corpus testdata/generated/synthetic \
   --output benchmarks/ladybug-incremental
 ```
@@ -81,7 +81,7 @@ Recovery is tested with isolated workers, `SIGKILL`, corruption, permissions, an
 
 ```bash
 go run -tags ladybug ./benchmarks/ladybug-recovery \
-  --database /tmp/ladygraph-copy.db
+  --database /tmp/kivgraph-copy.db
 ```
 
 The crash, reopen, truncation, and permissions cases pass. The recorded result retains an explicit `FAIL` for a full disk: `Writer.Apply` returned success and the first intercepted `ENOSPC` appeared during shutdown, leaving the copy unable to reopen. The command returns a nonzero status while this limitation exists. The complete methodology and evidence are in `docs/testing/ladybug-recovery.md`.
@@ -89,8 +89,8 @@ The crash, reopen, truncation, and permissions cases pass. The recorded result r
 The operational diagnostic opens the original database in read-only mode and runs the transaction test on a temporary copy:
 
 ```bash
-go run -tags ladybug ./cmd/ladygraph doctor storage \
-  --database /tmp/ladygraph-copy.db
+go run -tags ladybug ./cmd/kivgraph doctor storage \
+  --database /tmp/kivgraph-copy.db
 ```
 
 The command reports location, size, effective permissions, external locks, engine versions, storage and Go binding, schema, rollback, counts, and referential integrity. It returns `0` only when every check is `PASS`; a locked or incomplete database, or a binary built without the `ladybug` tag, returns `1`. The specified database is not modified.
@@ -98,8 +98,8 @@ The command reports location, size, effective permissions, external locks, engin
 Semantic integrity verification checks the six canonical graph invariants on an already-published database without rebuilding it:
 
 ```bash
-go run -tags ladybug ./cmd/ladygraph doctor graph \
-  --database /var/lib/ladygraph/graph/CURRENT/graph.db
+go run -tags ladybug ./cmd/kivgraph doctor graph \
+  --database /var/lib/kivgraph/graph/CURRENT/graph.db
 ```
 
 The command prints one line per rule with its status (`PASS`/`FAIL`) and violation count and, beneath each failed rule, up to `ladybug.MaxIntegritySamples` (20) samples with the table, key, and row detail that breaks it. The six invariants, all zero in a healthy graph, are:
@@ -116,9 +116,9 @@ LadybugDB guarantees that every relationship has both endpoints, so “missing s
 The full rebuild connects facts, staging, `graph.next`, bulk loading, integrity, snapshot, golden probes, and publication in a single operation over a serialized `facts.Set`:
 
 ```bash
-go run -tags ladybug ./cmd/ladygraph rebuild \
+go run -tags ladybug ./cmd/kivgraph rebuild \
   --facts facts.json \
-  --root /var/lib/ladygraph/graph \
+  --root /var/lib/kivgraph/graph \
   --generation 000123 \
   --resolver-version go-tsserver-1.0.0
 ```
@@ -130,8 +130,8 @@ Publication is atomic: `rebuild` builds and validates the candidate at `--root/g
 The status query resolves the three roles that `generation.Store` must maintain for backup and rollback without rebuilding anything:
 
 ```bash
-go run -tags ladybug ./cmd/ladygraph graph status \
-  --root /var/lib/ladygraph/graph
+go run -tags ladybug ./cmd/kivgraph graph status \
+  --root /var/lib/kivgraph/graph
 ```
 
 The command prints `graph.active`, `graph.next`, and `graph.backup` with the path named by each on disk, together with the complete list of retained generations. All three are reads over the same layout described above, not a new layout: `graph.active` is the generation pointed to by `--root/CURRENT`, `graph.next` is the candidate at `--root/generations/<id>.tmp` that the next `rebuild` would construct, and `graph.backup` is the generation that a `rollback` would restore, registered at `--root/BACKUP` with the same atomic discipline as `CURRENT` (`BACKUP.next`, `fsync`, `rename`). A store with no active generation reports `graph.active: none`, not an error; the command returns a nonzero status only if it cannot open the `generation.Store`.
@@ -141,8 +141,8 @@ The command prints `graph.active`, `graph.next`, and `graph.backup` with the pat
 Rollback switches `CURRENT` back to an already-published generation and revalidates it before switching:
 
 ```bash
-go run -tags ladybug ./cmd/ladygraph rollback \
-  --root /var/lib/ladygraph/graph \
+go run -tags ladybug ./cmd/kivgraph rollback \
+  --root /var/lib/kivgraph/graph \
   --generation 000123
 ```
 
@@ -151,8 +151,8 @@ go run -tags ladybug ./cmd/ladygraph rollback \
 HotSnapshot construction reads the already-published generation and produces, in memory, the dense index served by MCP queries:
 
 ```bash
-go run -tags ladybug ./cmd/ladygraph snapshot \
-  --root /var/lib/ladygraph/graph \
+go run -tags ladybug ./cmd/kivgraph snapshot \
+  --root /var/lib/kivgraph/graph \
   --generation 000123
 ```
 

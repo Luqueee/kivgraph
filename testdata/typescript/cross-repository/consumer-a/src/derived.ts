@@ -1,4 +1,4 @@
-import { Widget } from "@ladygraph-fixture/shared";
+import { Widget } from "@kivgraph-fixture/shared";
 
 export class LabeledWidget extends Widget {
   constructor(

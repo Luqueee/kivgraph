@@ -1,5 +1,5 @@
 // Package integrations manages the local configuration and skill files owned by
-// Ladygraph for supported MCP clients. It deliberately keeps each client's
+// Kivgraph for supported MCP clients. It deliberately keeps each client's
 // schema behind this package so the CLI only deals in targets and scopes.
 package integrations
 
@@ -125,10 +125,10 @@ func New(options Options) (Manager, error) {
 		var err error
 		executable, err = os.Executable()
 		if err != nil {
-			return Manager{}, fmt.Errorf("resolve Ladygraph executable: %w", err)
+			return Manager{}, fmt.Errorf("resolve Kivgraph executable: %w", err)
 		}
 	}
-	executable, err = absolutePath(executable, "Ladygraph executable")
+	executable, err = absolutePath(executable, "Kivgraph executable")
 	if err != nil {
 		return Manager{}, err
 	}
@@ -143,7 +143,7 @@ func New(options Options) (Manager, error) {
 }
 
 // InstallMCP registers the local MCP server, or returns an idempotent plan if
-// the exact Ladygraph-managed entry already exists.
+// the exact Kivgraph-managed entry already exists.
 func (manager Manager) InstallMCP(target Target, scope Scope, dryRun, force bool) (Plan, error) {
 	document, err := manager.mcpDocument(target, scope)
 	if err != nil {
@@ -155,7 +155,7 @@ func (manager Manager) InstallMCP(target Target, scope Scope, dryRun, force bool
 	return manager.installJSON(document, dryRun, force)
 }
 
-// RemoveMCP removes only an exact Ladygraph-managed MCP entry. An incompatible
+// RemoveMCP removes only an exact Kivgraph-managed MCP entry. An incompatible
 // entry requires force, even when the target name is the same.
 func (manager Manager) RemoveMCP(target Target, scope Scope, dryRun, force bool) (Plan, error) {
 	document, err := manager.mcpDocument(target, scope)
@@ -299,7 +299,7 @@ func (manager Manager) InstallSkill(target Target, scope Scope, dryRun, force bo
 	return manager.installSkillFile(target, scope, path, dryRun, force)
 }
 
-// RemoveSkill removes only the exact canonical skill installed by Ladygraph.
+// RemoveSkill removes only the exact canonical skill installed by Kivgraph.
 func (manager Manager) RemoveSkill(target Target, scope Scope, dryRun, force bool) (Plan, error) {
 	path, err := manager.skillPath(target, scope)
 	if err != nil {
@@ -323,10 +323,10 @@ func (manager Manager) StatusSkill(target Target, scope Scope) (Plan, error) {
 	if exists {
 		if bytes.Equal(data, embeddedSkill) {
 			status = "managed"
-			detail = "skill matches the embedded Ladygraph skill"
+			detail = "skill matches the embedded Kivgraph skill"
 		} else {
 			status = "incompatible"
-			detail = "skill exists but does not match the embedded Ladygraph skill"
+			detail = "skill exists but does not match the embedded Kivgraph skill"
 		}
 	}
 	return Plan{Action: ActionStatus, Target: target, Scope: scope, Path: path, Status: status, Detail: detail}, nil
@@ -407,19 +407,19 @@ func (manager Manager) skillPath(target Target, scope Scope) (string, error) {
 	}
 	switch target {
 	case TargetClaudeCode:
-		return filepath.Join(base, ".claude", "skills", "ladygraph", "SKILL.md"), nil
+		return filepath.Join(base, ".claude", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetCodex:
-		return filepath.Join(base, ".agents", "skills", "ladygraph", "SKILL.md"), nil
+		return filepath.Join(base, ".agents", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetOpenCode:
 		if scope == ScopeUser {
-			return filepath.Join(base, ".config", "opencode", "skills", "ladygraph", "SKILL.md"), nil
+			return filepath.Join(base, ".config", "opencode", "skills", "kivgraph", "SKILL.md"), nil
 		}
-		return filepath.Join(base, ".opencode", "skills", "ladygraph", "SKILL.md"), nil
+		return filepath.Join(base, ".opencode", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetOhMyPi:
 		if scope == ScopeUser {
-			return filepath.Join(base, ".omp", "agent", "skills", "ladygraph", "SKILL.md"), nil
+			return filepath.Join(base, ".omp", "agent", "skills", "kivgraph", "SKILL.md"), nil
 		}
-		return filepath.Join(base, ".omp", "skills", "ladygraph", "SKILL.md"), nil
+		return filepath.Join(base, ".omp", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetClaudeDesktop:
 		return "", fmt.Errorf("target %q does not support local skill installation", target)
 	default:
@@ -484,7 +484,7 @@ func (manager Manager) readJSON(document mcpDocument) (jsonState, error) {
 		}
 	}
 	status := "absent"
-	if raw, ok := section["ladygraph"]; ok {
+	if raw, ok := section["kivgraph"]; ok {
 		if rawJSONMatches(raw, manager.expectedJSONEntry(document.target)) {
 			status = "managed"
 		} else {
@@ -508,12 +508,12 @@ func (manager Manager) installJSON(document mcpDocument, dryRun, force bool) (Pl
 		return Plan{}, err
 	}
 	if state.status == "managed" {
-		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Ladygraph"}, nil
+		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Kivgraph"}, nil
 	}
 	if state.status == "incompatible" && !force {
 		return Plan{}, incompatibleError(document.path)
 	}
-	state.section["ladygraph"], err = json.Marshal(manager.expectedJSONEntry(document.target))
+	state.section["kivgraph"], err = json.Marshal(manager.expectedJSONEntry(document.target))
 	if err != nil {
 		return Plan{}, fmt.Errorf("encode MCP entry: %w", err)
 	}
@@ -526,7 +526,7 @@ func (manager Manager) installJSON(document mcpDocument, dryRun, force bool) (Pl
 		return Plan{}, fmt.Errorf("encode %s: %w", document.path, err)
 	}
 	data = append(data, '\n')
-	plan := Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "register Ladygraph MCP server"}
+	plan := Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "register Kivgraph MCP server"}
 	if dryRun {
 		plan.Status = "would-install"
 		return plan, nil
@@ -549,7 +549,7 @@ func (manager Manager) removeJSON(document mcpDocument, dryRun, force bool) (Pla
 	if state.status == "incompatible" && !force {
 		return Plan{}, incompatibleError(document.path)
 	}
-	delete(state.section, "ladygraph")
+	delete(state.section, "kivgraph")
 	state.root[document.section], err = json.Marshal(state.section)
 	if err != nil {
 		return Plan{}, fmt.Errorf("encode %s: %w", document.section, err)
@@ -559,7 +559,7 @@ func (manager Manager) removeJSON(document mcpDocument, dryRun, force bool) (Pla
 		return Plan{}, fmt.Errorf("encode %s: %w", document.path, err)
 	}
 	data = append(data, '\n')
-	plan := Plan{Action: ActionRemove, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "remove Ladygraph MCP server"}
+	plan := Plan{Action: ActionRemove, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "remove Kivgraph MCP server"}
 	if dryRun {
 		plan.Status = "would-remove"
 		return plan, nil
@@ -574,9 +574,9 @@ func (manager Manager) removeJSON(document mcpDocument, dryRun, force bool) (Pla
 func jsonStatusDetail(status string) string {
 	switch status {
 	case "managed":
-		return "MCP entry matches Ladygraph"
+		return "MCP entry matches Kivgraph"
 	case "incompatible":
-		return "MCP entry exists but does not match Ladygraph"
+		return "MCP entry exists but does not match Kivgraph"
 	default:
 		return "MCP entry is not present"
 	}
@@ -601,7 +601,7 @@ func (manager Manager) readTOML(document mcpDocument) (tomlState, error) {
 		return tomlState{}, fmt.Errorf("parse %s: %w", document.path, err)
 	}
 	status := "absent"
-	if table, ok := tomlTable(root, "mcp_servers", "ladygraph"); ok {
+	if table, ok := tomlTable(root, "mcp_servers", "kivgraph"); ok {
 		if valuesEqual(table, manager.expectedTOMLEntry()) {
 			status = "managed"
 		} else {
@@ -629,20 +629,20 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 		return Plan{}, err
 	}
 	if state.status == "managed" {
-		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Ladygraph"}, nil
+		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Kivgraph"}, nil
 	}
 	if state.status == "incompatible" && !force {
 		return Plan{}, incompatibleError(document.path)
 	}
 	data := state.data
 	if state.status == "incompatible" {
-		data, err = removeTOMLSection(data, "mcp_servers.ladygraph")
+		data, err = removeTOMLSection(data, "mcp_servers.kivgraph")
 		if err != nil {
-			return Plan{}, fmt.Errorf("replace Ladygraph TOML table: %w", err)
+			return Plan{}, fmt.Errorf("replace Kivgraph TOML table: %w", err)
 		}
 	}
 	data = appendTOMLSection(data, manager.executable)
-	plan := Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "register Ladygraph MCP server"}
+	plan := Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "register Kivgraph MCP server"}
 	if dryRun {
 		plan.Status = "would-install"
 		return plan, nil
@@ -665,11 +665,11 @@ func (manager Manager) removeTOML(document mcpDocument, dryRun, force bool) (Pla
 	if state.status == "incompatible" && !force {
 		return Plan{}, incompatibleError(document.path)
 	}
-	data, err := removeTOMLSection(state.data, "mcp_servers.ladygraph")
+	data, err := removeTOMLSection(state.data, "mcp_servers.kivgraph")
 	if err != nil {
-		return Plan{}, fmt.Errorf("remove Ladygraph TOML table: %w", err)
+		return Plan{}, fmt.Errorf("remove Kivgraph TOML table: %w", err)
 	}
-	plan := Plan{Action: ActionRemove, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "remove Ladygraph MCP server"}
+	plan := Plan{Action: ActionRemove, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "remove Kivgraph MCP server"}
 	if dryRun {
 		plan.Status = "would-remove"
 		return plan, nil
@@ -684,9 +684,9 @@ func (manager Manager) removeTOML(document mcpDocument, dryRun, force bool) (Pla
 func tomlStatusDetail(status string) string {
 	switch status {
 	case "managed":
-		return "MCP entry matches Ladygraph"
+		return "MCP entry matches Kivgraph"
 	case "incompatible":
-		return "MCP entry exists but does not match Ladygraph"
+		return "MCP entry exists but does not match Kivgraph"
 	default:
 		return "MCP entry is not present"
 	}
@@ -755,7 +755,7 @@ func appendTOMLSection(data []byte, executable string) []byte {
 	if builder.Len() > 0 {
 		builder.WriteByte('\n')
 	}
-	builder.WriteString("[mcp_servers.ladygraph]\n")
+	builder.WriteString("[mcp_servers.kivgraph]\n")
 	builder.WriteString("command = ")
 	builder.WriteString(tomlQuote(executable))
 	builder.WriteString("\nargs = [\"serve\"]\n")
@@ -820,14 +820,14 @@ func (manager Manager) installSkillFile(target Target, scope Scope, path string,
 	status := "absent"
 	if exists {
 		if bytes.Equal(data, embeddedSkill) {
-			return Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path, Status: "managed", Detail: "skill already matches Ladygraph"}, nil
+			return Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path, Status: "managed", Detail: "skill already matches Kivgraph"}, nil
 		}
 		status = "incompatible"
 		if !force {
 			return Plan{}, incompatibleError(path)
 		}
 	}
-	plan := Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path, Status: status, Changed: true, DryRun: dryRun, Detail: "install Ladygraph skill"}
+	plan := Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path, Status: status, Changed: true, DryRun: dryRun, Detail: "install Kivgraph skill"}
 	if dryRun {
 		plan.Status = "would-install"
 		return plan, nil
@@ -851,7 +851,7 @@ func (manager Manager) removeSkillFile(target Target, scope Scope, path string, 
 	if !managed && !force {
 		return Plan{}, incompatibleError(path)
 	}
-	plan := Plan{Action: ActionRemove, Target: target, Scope: scope, Path: path, Status: "managed", Changed: true, DryRun: dryRun, Detail: "remove Ladygraph skill"}
+	plan := Plan{Action: ActionRemove, Target: target, Scope: scope, Path: path, Status: "managed", Changed: true, DryRun: dryRun, Detail: "remove Kivgraph skill"}
 	if !managed {
 		plan.Status = "incompatible"
 	}
@@ -897,7 +897,7 @@ func writeDestination(path string, data []byte, exists bool, previous []byte) er
 			return err
 		}
 	}
-	temporary, err := os.CreateTemp(parent, ".ladygraph-integration-*")
+	temporary, err := os.CreateTemp(parent, ".kivgraph-integration-*")
 	if err != nil {
 		return fmt.Errorf("create integration temporary file: %w", err)
 	}
@@ -928,7 +928,7 @@ func writeDestination(path string, data []byte, exists bool, previous []byte) er
 }
 
 func preserveBackup(path string, data []byte) error {
-	backupPath := path + ".ladygraph.bak"
+	backupPath := path + ".kivgraph.bak"
 	info, err := os.Lstat(backupPath)
 	if err == nil {
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
@@ -965,7 +965,7 @@ func removeDestination(path string, previous []byte) error {
 		return err
 	}
 	parent := filepath.Dir(path)
-	tombstone, err := os.CreateTemp(parent, ".ladygraph-remove-*")
+	tombstone, err := os.CreateTemp(parent, ".kivgraph-remove-*")
 	if err != nil {
 		return fmt.Errorf("create integration removal marker: %w", err)
 	}
@@ -1002,7 +1002,7 @@ func syncDirectory(path string) error {
 }
 
 func incompatibleError(path string) error {
-	return fmt.Errorf("integration path %q contains an incompatible Ladygraph entry; use --force to replace or remove it", path)
+	return fmt.Errorf("integration path %q contains an incompatible Kivgraph entry; use --force to replace or remove it", path)
 }
 
 func absolutePath(value, label string) (string, error) {

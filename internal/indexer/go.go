@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 // GoChange contains the signals produced by Go loading and package/module

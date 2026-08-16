@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/goloader"
+	"github.com/Luqueee/kivgraph/internal/goloader"
 )
 
 const (

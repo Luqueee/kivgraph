@@ -38,14 +38,14 @@ nombre de sistema, así que un host con coreutils instalado se comporta igual en
 ambos casos.
 
 La comprobación de que el `RUNPATH` relativo basta ya no usa
-`LD_LIBRARY_PATH`: el script ejecuta `bin/ladygraph version` sin ninguna
+`LD_LIBRARY_PATH`: el script ejecuta `bin/kivgraph version` sin ninguna
 variable de búsqueda de bibliotecas. Si el enlazado fuera incorrecto, el build
 falla ahí.
 
 ### Nomenclatura de release
 
-- Directorio del bundle y raíz del tar: `ladygraph-<os>-<arch>`.
-- Archivo publicado: `ladygraph-<os>-<arch>.tar.gz`.
+- Directorio del bundle y raíz del tar: `kivgraph-<os>-<arch>`.
+- Archivo publicado: `kivgraph-<os>-<arch>.tar.gz`.
 - `SHA256SUMS` de la release: un único fichero que lista **todos** los archivos
   publicados, en orden lexicográfico. El instalador extrae la línea de su
   propio archivo y verifica sólo esa; si no existe, la release no publica esa
@@ -53,8 +53,8 @@ falla ahí.
 - `SHA256SUMS` dentro del bundle: sin cambios; sigue listando `manifest.json` y
   cada archivo del payload, y se verifica entero.
 
-`manifest.json` registra el `target.os`/`target.arch` real. `ladygraph version
---json` y `ladygraph update` validan contra la plataforma en ejecución en vez
+`manifest.json` registra el `target.os`/`target.arch` real. `kivgraph version
+--json` y `kivgraph update` validan contra la plataforma en ejecución en vez
 de contra literales.
 
 ### Un solo `RUNPATH`
@@ -85,7 +85,7 @@ El workflow de release construye una matriz `ubuntu-24.04` → `linux/amd64` y
 Bundle `darwin/arm64` generado con `scripts/build-bundle.sh --target
 darwin/arm64 --mcp-only`:
 
-- `bin/ladygraph version` arranca **sin** variables de entorno; el `RUNPATH`
+- `bin/kivgraph version` arranca **sin** variables de entorno; el `RUNPATH`
   relativo resuelve la `dylib`.
 - `otool -l` declara un único `LC_RPATH`, `@loader_path/../lib`.
 - `shasum -a 256 -c SHA256SUMS` verifica los `703` archivos del bundle.
@@ -110,7 +110,7 @@ Dos mecanismos distintos que se confunden a menudo:
    `com.apple.quarantine`, que escriben los navegadores y otros clientes de
    LaunchServices, no `curl` ni `tar`.
 
-Medido en macOS `26.6` sobre `bin/ladygraph` del bundle:
+Medido en macOS `26.6` sobre `bin/kivgraph` del bundle:
 
 | Situación | Resultado |
 | --- | --- |

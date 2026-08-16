@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/rustloader"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func rustFixtureRepository(t *testing.T, name string) workspace.Repository {
@@ -114,7 +114,7 @@ func TestFullIndexesARustRepository(t *testing.T) {
 func TestFullIsolatesARustWorkspaceThatCannotLoad(t *testing.T) {
 	repository := rustFixtureRepository(t, "fixture")
 	options := rustFullOptions(t, repository)
-	options.RustAnalyzer = "ladygraph-rust-analyzer-that-is-not-installed"
+	options.RustAnalyzer = "kivgraph-rust-analyzer-that-is-not-installed"
 
 	set, report, err := Full(context.Background(), options)
 	if err != nil {

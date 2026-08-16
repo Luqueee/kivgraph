@@ -1,4 +1,4 @@
-# Instrucciones del CLI (`cmd/ladygraph/`)
+# Instrucciones del CLI (`cmd/kivgraph/`)
 
 Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
 leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
@@ -38,12 +38,12 @@ superficie observable.
 
 ## Comandos que destruyen o terminan estado
 
-- `ladygraph clean` retira generaciones publicadas: enumera y no toca nada sin
+- `kivgraph clean` retira generaciones publicadas: enumera y no toca nada sin
   `--yes`, porque no hay deshacer -- también se lleva el backup del que vive
   `rollback`. Sin flags deja el store vacío y libera la reserva de espacio;
   con `--keep-active` conserva exactamente la generación publicada. Nunca toca
   la configuración ni el registro de repositorios.
-- `ladygraph stop` termina los procesos largos de este usuario -- `serve` y
+- `kivgraph stop` termina los procesos largos de este usuario -- `serve` y
   `ui` -- y nada más. Selecciona por invocación, no por ejecutable: una
   indexación en curso son minutos de análisis y no se tira, y el propio `stop`
   no se mata a sí mismo. Manda `SIGTERM`, espera el cierre graceful acotado y
@@ -51,9 +51,9 @@ superficie observable.
   sigue siendo la misma invocación: un pid liberado durante la espera puede ya
   pertenecer a otro proceso. `--dry-run` enumera sin señalar.
 
-## `ladygraph ui`
+## `kivgraph ui`
 
-- `ladygraph ui` registra la dirección que ha enlazado, incluida la que
+- `kivgraph ui` registra la dirección que ha enlazado, incluida la que
   resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
   tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría
   servir la página de «bundle no disponible».
@@ -61,7 +61,7 @@ superficie observable.
 ## Verificación
 
 Un cambio de la superficie del CLI es un cambio de compatibilidad: revisar
-`cmd/ladygraph/help.go`, la documentación de `landing/` y `scripts/install.sh`.
+`cmd/kivgraph/help.go`, la documentación de `landing/` y `scripts/install.sh`.
 
 ```bash
 go test ./cmd/...

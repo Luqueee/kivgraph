@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/syntax"
 )
 
 // TestReferenceClassifiesValuePositions pins the half of the contract the

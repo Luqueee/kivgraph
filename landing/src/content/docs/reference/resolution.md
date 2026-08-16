@@ -48,12 +48,12 @@ could not name the key its provider publishes.
 
 ## The six invariants
 
-A healthy graph has zero of each. `ladygraph doctor graph` prints one line per
+A healthy graph has zero of each. `kivgraph doctor graph` prints one line per
 rule with its status and violation count, and up to twenty samples beneath each
 failure with the table, key and row detail that breaks it.
 
 ```bash
-ladygraph doctor graph --database /var/lib/ladygraph/graph/CURRENT/graph.db
+kivgraph doctor graph --database /var/lib/kivgraph/graph/CURRENT/graph.db
 ```
 
 - **`exact_edge_without_source`** — a semantic edge with exact `confidence`

@@ -1,3 +1,3 @@
-module example.com/ladygraph-fixture/twin
+module example.com/kivgraph-fixture/twin
 
 go 1.24

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // publishTwoGenerations runs Run twice against the same root with the same

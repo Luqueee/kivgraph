@@ -47,8 +47,8 @@ that needs a second call to learn the first one is stale will not make it.
   },
   "results": [
     {
-      "name": "ladygraph",
-      "path": "/Users/adria/Documents/programacion/projects/ladygraph",
+      "name": "kivgraph",
+      "path": "/Users/adria/Documents/programacion/projects/kivgraph",
       "languages": [
         "go",
         "typescript"
@@ -77,7 +77,7 @@ that needs a second call to learn the first one is stale will not make it.
 }
 ```
 
-Corpus: snapshot `30` of two repositories, `ladygraph` and `mole`.
+Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`.
 
 ## The row
 
@@ -95,7 +95,7 @@ Corpus: snapshot `30` of two repositories, `ladygraph` and `mole`.
 
 Two more fields appear only when they say something. `moved_detail` carries the
 reason in prose: the two commits the tree moved between, or why the comparison
-could not be made at all. `derived` marks a provider Ladygraph built from the
+could not be made at all. `derived` marks a provider Kivgraph built from the
 machine rather than from the registry.
 
 Movement is decided by the commit alone. A branch renamed or recreated over the

@@ -8,8 +8,8 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/layout"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/layout"
 )
 
 const (

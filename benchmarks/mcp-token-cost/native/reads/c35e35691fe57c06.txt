@@ -1,5 +1,5 @@
 [server.go#DC4C]
-17:// NewServer creates the Ladygraph MCP server with no graph source.
+17:// NewServer creates the Kivgraph MCP server with no graph source.
 18:func NewServer() *sdkmcp.Server {
 19:	return newServer(nil, nil, nil)
 20:}

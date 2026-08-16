@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // fakeIndexChild writes an executable that answers like `index --full --json`.
@@ -17,7 +17,7 @@ import (
 func fakeIndexChild(t *testing.T, body string) (executable, argumentsFile string) {
 	t.Helper()
 	directory := testsupport.TempDir(t)
-	executable = filepath.Join(directory, "fake-ladygraph")
+	executable = filepath.Join(directory, "fake-kivgraph")
 	argumentsFile = filepath.Join(directory, "arguments")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argumentsFile + "\n" + body
 	if err := os.WriteFile(executable, []byte(script), 0o755); err != nil {

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/metrics"
-	"github.com/Luqueee/ladygraph/internal/procstat"
+	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 )
 
 // State is the observable lifecycle state of a supervisor.

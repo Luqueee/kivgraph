@@ -1,5 +1,5 @@
 {
-  "protocol": "ladygraph-ts-worker",
+  "protocol": "kivgraph-ts-worker",
   "version": 1,
   "byte_order": "big-endian",
   "header_bytes": 4,

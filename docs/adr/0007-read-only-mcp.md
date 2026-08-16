@@ -5,11 +5,11 @@
 
 ## Context
 
-Ladygraph analiza repositorios que pertenecen al usuario y expone consultas de
+Kivgraph analiza repositorios que pertenecen al usuario y expone consultas de
 inteligencia de código. Una petición MCP no debe modificar el código analizado,
 sus configuraciones ni metadatos, y debe ofrecer respuestas reproducibles con
 límites explícitos. El indexador sí necesita actualizar el almacenamiento
-interno de Ladygraph, pero esa escritura no puede convertirse en una operación
+interno de Kivgraph, pero esa escritura no puede convertirse en una operación
 arbitraria del cliente MCP.
 
 ## Decision
@@ -31,7 +31,7 @@ al snapshot y se rechazan cuando dejan de ser válidos.
 ## Alternatives
 
 - **MCP con operaciones de escritura:** ampliaría la superficie funcional, pero
-  convertiría a Ladygraph en un agente con riesgo de modificar código o estado del
+  convertiría a Kivgraph en un agente con riesgo de modificar código o estado del
   usuario.
 - **Permitir SQL/Cypher arbitrario:** dificultaría límites de recursos,
   estabilidad del contrato y aislamiento de datos.

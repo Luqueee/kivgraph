@@ -1,10 +1,10 @@
 {
-  "name": "@ladygraph-fixture/facade",
+  "name": "@kivgraph-fixture/facade",
   "version": "3.1.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@ladygraph-fixture/shared": "1.4.2"
+    "@kivgraph-fixture/shared": "1.4.2"
   }
 }

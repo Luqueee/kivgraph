@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Ladygraph ya mantiene un `metrics.Registry` local para consultas, snapshots,
+Kivgraph ya mantiene un `metrics.Registry` local para consultas, snapshots,
 indexación, el worker TypeScript y LadybugDB. El registro no debe depender de un
 collector ni forzar una exportación en procesos embebidos, pruebas o el servidor
 MCP por STDIO.
@@ -23,7 +23,7 @@ registro local.
 propiedad y el cierre del proveedor.
 
 Si el proveedor es `nil`, la integración usa el proveedor `noop` oficial de
-OpenTelemetry. Ladygraph no crea exporters, readers periódicos, collectors,
+OpenTelemetry. Kivgraph no crea exporters, readers periódicos, collectors,
 conexiones de red ni goroutines de telemetría. Un exporter sólo existe cuando
 el proceso consumidor construye y suministra explícitamente un proveedor.
 
@@ -33,7 +33,7 @@ El puente reutiliza las mismas observaciones que `metrics.Registry`:
 - gauges del snapshot, indexación y worker;
 - histograma de transacciones y gauge de tamaño de LadybugDB.
 
-Los nombres de instrumentos son las constantes históricas `ladygraph_*` del
+Los nombres de instrumentos son las constantes históricas `kivgraph_*` del
 registro. Las duraciones se publican en milisegundos y los tamaños en bytes.
 Los nombres de herramientas desconocidos se agrupan como `other` para evitar
 cardinalidad no acotada.

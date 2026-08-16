@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/version"
-	"github.com/Luqueee/ladygraph/internal/webassets"
+	"github.com/Luqueee/kivgraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/webassets"
 )
 
 // The command line is the first thing an operator sees, so it is written for a
@@ -96,10 +96,10 @@ var commandGroups = []commandGroup{
 		commands: []commandEntry{
 			{"mcp install [--scope user|project]", "Detect and register one or more MCP clients"},
 			{"mcp status --target TARGET [--scope user|project]", "Inspect a client MCP registration"},
-			{"mcp remove --target TARGET [--scope user|project]", "Remove only Ladygraph's MCP registration"},
+			{"mcp remove --target TARGET [--scope user|project]", "Remove only Kivgraph's MCP registration"},
 			{"skill install [--scope user|project]", "Detect and install the Agent Skill in one or more clients"},
 			{"skill status --target TARGET [--scope user|project]", "Inspect the installed Agent Skill"},
-			{"skill remove --target TARGET [--scope user|project]", "Remove only Ladygraph's Agent Skill"},
+			{"skill remove --target TARGET [--scope user|project]", "Remove only Kivgraph's Agent Skill"},
 		},
 	},
 	{
@@ -159,7 +159,7 @@ func writeHelp(writer io.Writer, program string) {
 		}
 	}
 
-	fmt.Fprintf(writer, "%sladygraph%s %s\n", paint.bold, paint.reset, version.Value)
+	fmt.Fprintf(writer, "%skivgraph%s %s\n", paint.bold, paint.reset, version.Value)
 	fmt.Fprintf(writer, "%s%s%s\n\n", paint.dim, helpTagline, paint.reset)
 	fmt.Fprintf(writer, "%sUsage%s\n  %s <command> [flags]\n", paint.bold, paint.reset, program)
 	for _, group := range commandGroups {
@@ -257,7 +257,7 @@ func parseCommandFlags(name string, flags *flag.FlagSet, args []string, stdout, 
 
 func writeCommandHelp(writer io.Writer, name string, flags *flag.FlagSet) {
 	paint := styleFor(writer)
-	fmt.Fprintf(writer, "%sUsage%s\n  ladygraph %s [flags]\n", paint.bold, paint.reset, name)
+	fmt.Fprintf(writer, "%sUsage%s\n  kivgraph %s [flags]\n", paint.bold, paint.reset, name)
 	if summary := summaryFor(name); summary != "" {
 		fmt.Fprintf(writer, "\n%s%s%s\n", paint.dim, summary, paint.reset)
 	}

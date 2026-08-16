@@ -207,7 +207,7 @@ func DiagnoseStorage(ctx context.Context, path string) (StorageDiagnosis, error)
 // detectSchemaKind lists every table once via show_tables(), recording
 // them on diagnosis, and reports which of the two schemas doctor storage
 // knows how to validate is present. The canonical schema is identified by
-// its GraphMetadata node table (LoadCanonical and `ladygraph rebuild` always
+// its GraphMetadata node table (LoadCanonical and `kivgraph rebuild` always
 // write one); its absence means the frozen 001-synthetic layout the
 // ladybug benchmarks still build against. diagnosis.Schema is set here,
 // before either schema's checks run, so a check that later fails still
@@ -333,7 +333,7 @@ func canonicalRequiredDiagnosticTables() []requiredDiagnosticTable {
 // schema_version GraphMetadata declares. A table or property mismatch is
 // reported before the version is even read: an unreadable schema has no
 // trustworthy version to report. A present but wrong version is always a
-// FAIL, on purpose — ladygraph never migrates a canonical database in place,
+// FAIL, on purpose — kivgraph never migrates a canonical database in place,
 // so treating one as healthy would be reporting a compatibility promise
 // this build does not keep.
 func diagnoseCanonicalSchema(connection *lbug.Connection, diagnosis *StorageDiagnosis) (string, error) {
@@ -376,7 +376,7 @@ func diagnoseTransactions(ctx context.Context, sourcePath string) (string, error
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	directory, err := os.MkdirTemp("", "ladygraph-doctor-transaction-")
+	directory, err := os.MkdirTemp("", "kivgraph-doctor-transaction-")
 	if err != nil {
 		return "", err
 	}
@@ -500,7 +500,7 @@ func diagnoseIntegrity(connection *lbug.Connection) (string, error) {
 }
 
 // canonicalCardinalityQueries checks the structural spine LoadCanonical
-// and `ladygraph rebuild` both depend on: Repository -CONTAINS_PACKAGE->
+// and `kivgraph rebuild` both depend on: Repository -CONTAINS_PACKAGE->
 // Package -CONTAINS_FILE-> File -DEFINES-> Symbol, each hop ONE_MANY per
 // canonical_schema.go, plus every repository_key/package_key/file_key
 // column on Package/File/Symbol against the value that chain implies.

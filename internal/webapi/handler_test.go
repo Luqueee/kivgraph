@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 func TestHandlerMetaAndReadOnlyMethod(t *testing.T) {

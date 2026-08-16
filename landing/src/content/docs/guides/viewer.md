@@ -1,10 +1,10 @@
 ---
 title: Graph viewer
-description: ladygraph ui, what it exposes, and how to restrict it.
+description: kivgraph ui, what it exposes, and how to restrict it.
 ---
 
 ```bash
-ladygraph ui
+kivgraph ui
 ```
 
 The viewer is opt-in and serves only the published HotSnapshot over read-only
@@ -27,7 +27,7 @@ that is not loopback logs exactly what is being exposed:
 `web.address`:
 
 ```bash
-ladygraph ui --addr 127.0.0.1:7777
+kivgraph ui --addr 127.0.0.1:7777
 ```
 
 The command logs the address it actually bound, including the one a port `0`
@@ -57,12 +57,12 @@ second costs a core for nothing.
 
 ## `serve` and `stop`
 
-`ladygraph serve` stays on stdio and opens no HTTP listener. The two commands
+`kivgraph serve` stays on stdio and opens no HTTP listener. The two commands
 are independent.
 
 ```bash
-ladygraph stop --dry-run
-ladygraph stop
+kivgraph stop --dry-run
+kivgraph stop
 ```
 
 `stop` terminates this user's long-running `serve` and `ui` processes and

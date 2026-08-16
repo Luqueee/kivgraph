@@ -1,5 +1,5 @@
 // Command rust-engine measures what the Rust path costs and how that cost is
-// split between the external analyzer and Ladygraph's own work.
+// split between the external analyzer and Kivgraph's own work.
 //
 // The two numbers are reported separately on purpose: `rust-analyzer` is the
 // dominant term, and a total that hides it would read as if the normalisation
@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/indexer"
-	"github.com/Luqueee/ladygraph/internal/rustloader"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 const (
@@ -104,7 +104,7 @@ func run(ctx context.Context) error {
 	if _, err := exec.LookPath("rust-analyzer"); err != nil {
 		return fmt.Errorf("rust-analyzer is required to measure the Rust path: %w", err)
 	}
-	root, err := os.MkdirTemp("", "ladygraph-rust-bench-*")
+	root, err := os.MkdirTemp("", "kivgraph-rust-bench-*")
 	if err != nil {
 		return fmt.Errorf("create benchmark directory: %w", err)
 	}

@@ -3,8 +3,8 @@ package indexer
 import (
 	"path/filepath"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/syntax"
 )
 
 // RustChange carries the syntax evidence and the workspace metadata for one

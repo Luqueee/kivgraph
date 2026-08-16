@@ -1,8 +1,8 @@
 {
-  "name": "@ladygraph-fixture/consumer-linked",
+  "name": "@kivgraph-fixture/consumer-linked",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "@ladygraph-fixture/nomap": "1.0.0"
+    "@kivgraph-fixture/nomap": "1.0.0"
   }
 }

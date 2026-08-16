@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 var goNegativeRoot = filepath.Join("..", "..", "testdata", "go", "cross-repository-negative")
@@ -105,7 +105,7 @@ func TestGoNegativeFixtureKeepsHomonymsApart(t *testing.T) {
 		default:
 			continue
 		}
-		if use.TargetPackagePath == "example.com/ladygraph-fixture/mirror/api" {
+		if use.TargetPackagePath == "example.com/kivgraph-fixture/mirror/api" {
 			t.Fatalf("a homonym of an unimported package was linked: %#v", use)
 		}
 	}
@@ -118,9 +118,9 @@ func TestGoNegativeFixtureKeepsHomonymsApart(t *testing.T) {
 			continue
 		}
 		switch use.TargetPackagePath {
-		case "example.com/ladygraph-fixture/consumer-negative":
+		case "example.com/kivgraph-fixture/consumer-negative":
 			locals++
-		case "example.com/ladygraph-fixture/decoy/api", "example.com/ladygraph-fixture/twin/api":
+		case "example.com/kivgraph-fixture/decoy/api", "example.com/kivgraph-fixture/twin/api":
 			providers++
 		default:
 			t.Fatalf("unexpected Compute target: %#v", use)
@@ -141,7 +141,7 @@ func TestGoNegativeFixtureKeepsHomonymsApart(t *testing.T) {
 			continue
 		}
 		callbacks++
-		if reference.TargetPackagePath != "example.com/ladygraph-fixture/consumer-negative" {
+		if reference.TargetPackagePath != "example.com/kivgraph-fixture/consumer-negative" {
 			t.Fatalf("callback resolved to %q", reference.TargetPackagePath)
 		}
 	}
@@ -160,10 +160,10 @@ func TestGoNegativeFixtureKeepsReceiversApart(t *testing.T) {
 		}
 		byPackage[use.TargetPackagePath]++
 	}
-	if byPackage["example.com/ladygraph-fixture/consumer-negative"] != 1 {
+	if byPackage["example.com/kivgraph-fixture/consumer-negative"] != 1 {
 		t.Fatalf("local Area uses = %#v", byPackage)
 	}
-	if byPackage["example.com/ladygraph-fixture/decoy/api"] != 1 {
+	if byPackage["example.com/kivgraph-fixture/decoy/api"] != 1 {
 		t.Fatalf("provider Area uses = %#v", byPackage)
 	}
 	if len(byPackage) != 2 {
@@ -177,7 +177,7 @@ func TestGoNegativeFixtureRefusesAmbiguousAndConflictingFacts(t *testing.T) {
 	// The duplicated module keeps two candidates and produces no identity.
 	ambiguous := 0
 	for _, reference := range facts.cross {
-		if reference.TargetModulePath != "example.com/ladygraph-fixture/twin" {
+		if reference.TargetModulePath != "example.com/kivgraph-fixture/twin" {
 			continue
 		}
 		ambiguous++
@@ -194,7 +194,7 @@ func TestGoNegativeFixtureRefusesAmbiguousAndConflictingFacts(t *testing.T) {
 
 	// The decoy module resolves normally: ambiguity is not contagious.
 	for _, reference := range facts.cross {
-		if reference.TargetModulePath != "example.com/ladygraph-fixture/decoy" {
+		if reference.TargetModulePath != "example.com/kivgraph-fixture/decoy" {
 			continue
 		}
 		if reference.Status != CrossRepositoryResolved || reference.Provider.Repository != "decoy" {
@@ -209,7 +209,7 @@ func TestGoNegativeFixtureRefusesAmbiguousAndConflictingFacts(t *testing.T) {
 	if len(reasons[UnresolvedReplaceConflict]) != 1 {
 		t.Fatalf("replace conflict = %#v", reasons[UnresolvedReplaceConflict])
 	}
-	if reasons[UnresolvedReplaceConflict][0].RequestedModulePath != "example.com/ladygraph-fixture/pinned" {
+	if reasons[UnresolvedReplaceConflict][0].RequestedModulePath != "example.com/kivgraph-fixture/pinned" {
 		t.Fatalf("replace conflict subject = %#v", reasons[UnresolvedReplaceConflict][0])
 	}
 	if len(reasons[UnresolvedTypecheckFailed]) != 0 || len(reasons[UnresolvedPackageNotLoaded]) != 0 {
@@ -219,7 +219,7 @@ func TestGoNegativeFixtureRefusesAmbiguousAndConflictingFacts(t *testing.T) {
 
 // TestGoNegativeFixtureRefusesEdgesOnAGuessedReplacement checks the rule the
 // workspace override makes necessary: go needs a single replacement to load
-// at all, so Ladygraph emits one, and every edge into that module is refused.
+// at all, so Kivgraph emits one, and every edge into that module is refused.
 func TestGoNegativeFixtureRefusesEdgesOnAGuessedReplacement(t *testing.T) {
 	facts := loadNegativeFixture(t)
 	if len(facts.uses) == 0 {
@@ -240,7 +240,7 @@ func TestGoNegativeFixtureRefusesEdgesOnAGuessedReplacement(t *testing.T) {
 	references, err := ResolveCrossRepository(context.Background(), facts.uses, registry,
 		CrossRepositoryOptions{
 			ConsumerRepository: "consumer",
-			ConflictingModules: []string{"example.com/ladygraph-fixture/decoy"},
+			ConflictingModules: []string{"example.com/kivgraph-fixture/decoy"},
 		})
 	if err != nil {
 		t.Fatalf("ResolveCrossRepository() error = %v", err)
@@ -248,7 +248,7 @@ func TestGoNegativeFixtureRefusesEdgesOnAGuessedReplacement(t *testing.T) {
 
 	guessed := 0
 	for _, reference := range references {
-		if reference.TargetModulePath != "example.com/ladygraph-fixture/decoy" {
+		if reference.TargetModulePath != "example.com/kivgraph-fixture/decoy" {
 			continue
 		}
 		guessed++

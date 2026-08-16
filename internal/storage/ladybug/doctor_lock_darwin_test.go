@@ -96,7 +96,7 @@ func TestDiagnoseStorageDetectsExternalLock(t *testing.T) {
 	}
 }
 
-const lockObserverEnv = "LADYGRAPH_LOCK_OBSERVER"
+const lockObserverEnv = "KIVGRAPH_LOCK_OBSERVER"
 
 // TestLockObserverHelper runs in a second process, where fcntl(F_GETLK) is
 // safe because that process holds no lock on the database.

@@ -3,8 +3,8 @@ package indexer
 import (
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/syntax"
 )
 
 func TestClassifyTypeScriptChangeMapsScopes(t *testing.T) {

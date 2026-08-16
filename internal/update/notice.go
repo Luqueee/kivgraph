@@ -55,11 +55,11 @@ func CheckNotice(ctx context.Context, options NoticeOptions) (NoticeResult, erro
 	}
 	current := strings.TrimSpace(options.CurrentVersion)
 	if current == "" {
-		return NoticeResult{}, errors.New("current Ladygraph version must not be empty")
+		return NoticeResult{}, errors.New("current Kivgraph version must not be empty")
 	}
 	currentSemver := semanticVersion(current)
 	if !semver.IsValid(currentSemver) {
-		return NoticeResult{}, fmt.Errorf("current Ladygraph version %q is not valid semver", current)
+		return NoticeResult{}, fmt.Errorf("current Kivgraph version %q is not valid semver", current)
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -73,7 +73,7 @@ func CheckNotice(ctx context.Context, options NoticeOptions) (NoticeResult, erro
 		if err != nil {
 			return NoticeResult{}, fmt.Errorf("resolve update cache directory: %w", err)
 		}
-		cachePath = filepath.Join(cacheDir, "ladygraph", "update-check.json")
+		cachePath = filepath.Join(cacheDir, "kivgraph", "update-check.json")
 	}
 	now := options.Now()
 	if cached, ok := readNoticeCache(cachePath, now, options.CacheTTL); ok {

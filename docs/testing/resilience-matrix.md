@@ -19,7 +19,7 @@ cobertura ausente.
 | LUQUE-1204 | Digest de snapshot ausente o corrupto y grafo no convertible | Un digest inválido no activa una generación no verificada; el snapshot se reconstruye desde el grafo válido; un grafo no convertible falla de forma explícita y no se publica | `internal/rebuild/snapshot_corruption_test.go`: `TestSnapshotGenerationRebuildsDespiteACorruptDigest`, `TestCorruptDigestBlocksRollbackUntilItIsRestored`, `TestSnapshotGenerationFailsLoudlyOnAnUnconvertibleGraph`; `internal/resilience/snapshot_test.go`: `TestCorruptSnapshotDigestDoesNotDisturbReaders`, `TestServiceRecoversByRebuildingAfterCorruption`, `TestUnbuildableGraphLeavesTheServiceHonest` | PASS |
 | LUQUE-1205 | Base LadybugDB truncada o sobrescrita mientras existe un snapshot servido | El doctor detecta el daño sin repararlo; las lecturas y escrituras contra la base dañada fallan sin crear una base encima ni devolver un grafo parcial; el snapshot en memoria sigue sirviéndose sin cambios | `internal/storage/ladybug/corruption_native_test.go`: `TestDiagnoseStorageDetectsADamagedDatabaseFile`, `TestCorruptDatabaseRefusesWrites`, `TestCorruptDatabaseRefusesReads`, `TestHealthyDatabasePassesTheSameChecks`; `internal/resilience/database_native_test.go`: `TestCorruptDatabaseKeepsReadersServedAndIsReportedByDoctor` | PASS |
 | LUQUE-1206 | Segundo proceso abre o muta la misma base | La segunda apertura falla antes de escribir con `ErrDatabaseLocked` y, en Linux, nombra los PIDs retenedores; una base dañada no se etiqueta como lock; al terminar el proceso retenedor la base vuelve a ser utilizable | `internal/storage/ladybug/duplicate_process_linux_test.go`: `TestSecondProcessIsRefusedWithALockedError`, `TestDamagedDatabaseIsNotReportedAsLocked` | PASS |
-| LUQUE-1207 | Señal de apagado y cierre de MCP, watcher, worker, conexiones, snapshot y LadybugDB | Se cancela el contexto compartido; se cierran los recursos en orden `MCP → snapshot → watcher → worker → conexiones → LadybugDB`; se ejecutan todos los cierres aunque uno falle; los runners terminan y `serve` sale con código 0 | `internal/app/lifecycle_test.go`: `TestLifecycleShutdownCancelsRunnersClosesEveryResourceInOrderAndIsIdempotent`, `TestLifecycleClosesResourcesBeforeWaitingForDependentRunner`, `TestLifecycleShutdownContinuesAfterCloseFailure`; `internal/resilience/shutdown_test.go`: `TestLifecycleClosesMCPWatcherWorkerAndSnapshot`; `internal/app/shutdown_native_test.go`; `cmd/ladygraph/main_test.go`; smoke real de `serve` con `SIGTERM` | PASS |
+| LUQUE-1207 | Señal de apagado y cierre de MCP, watcher, worker, conexiones, snapshot y LadybugDB | Se cancela el contexto compartido; se cierran los recursos en orden `MCP → snapshot → watcher → worker → conexiones → LadybugDB`; se ejecutan todos los cierres aunque uno falle; los runners terminan y `serve` sale con código 0 | `internal/app/lifecycle_test.go`: `TestLifecycleShutdownCancelsRunnersClosesEveryResourceInOrderAndIsIdempotent`, `TestLifecycleClosesResourcesBeforeWaitingForDependentRunner`, `TestLifecycleShutdownContinuesAfterCloseFailure`; `internal/resilience/shutdown_test.go`: `TestLifecycleClosesMCPWatcherWorkerAndSnapshot`; `internal/app/shutdown_native_test.go`; `cmd/kivgraph/main_test.go`; smoke real de `serve` con `SIGTERM` | PASS |
 
 ## Controles positivos
 
@@ -61,13 +61,13 @@ make test-ladybug: PASS; suites nativas de LadybugDB y resiliencia
 go vet ./...: PASS
 go test -race ./internal/app ./internal/indexer ./internal/rebuild ./internal/resilience ./internal/tsworker -count=1: PASS; 5 paquetes
 make build: PASS
-smoke /tmp/ladygraph-1208 serve + SIGTERM: exit 0
+smoke /tmp/kivgraph-1208 serve + SIGTERM: exit 0
 ```
 
 La suite nativa se ejecutó mediante `make test-ladybug`, que obtiene la
 biblioteca fijada y ejecuta `go test -tags ladybug ./...`; no se sustituyó por
 la suite sin tag. El smoke se ejecutó sobre el binario compilado con
-`go build -o /tmp/ladygraph-1208 ./cmd/ladygraph`.
+`go build -o /tmp/kivgraph-1208 ./cmd/kivgraph`.
 
 Se comprobaron además los controles positivos enumerados arriba dentro de las
 dos suites. No hubo fallos, warnings ni errores silenciados.

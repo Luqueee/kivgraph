@@ -91,14 +91,14 @@ func main() {
 
 func parseConfig() config {
 	cfg := config{
-		Server:      "./ladygraph",
+		Server:      "./kivgraph",
 		ConfigPath:  "benchmarks/mcp-stdio/testdata/config.yaml",
 		Calls:       10_000,
 		Warmup:      100,
 		OutputDir:   "benchmarks/mcp-stdio",
 		CallTimeout: 20 * time.Second,
 	}
-	flag.StringVar(&cfg.Server, "server", cfg.Server, "Ladygraph server executable")
+	flag.StringVar(&cfg.Server, "server", cfg.Server, "Kivgraph server executable")
 	flag.StringVar(&cfg.ConfigPath, "config", cfg.ConfigPath, "server configuration path")
 	flag.IntVar(&cfg.Calls, "calls", cfg.Calls, "measured graph_status calls")
 	flag.IntVar(&cfg.Warmup, "warmup", cfg.Warmup, "warm-up graph_status calls")
@@ -430,7 +430,7 @@ func writeOutputs(outputDir string, result results) error {
 
 graph_status was called against an empty published snapshot, so every measured
 call was a successful status response. The client completed initialization,
-tools/list, 100 warm-ups and the measured workload over the real Ladygraph STDIO
+tools/list, 100 warm-ups and the measured workload over the real Kivgraph STDIO
 transport. Server logs remained on stderr; no protocol bytes were written there.
 
 ## SLO interpretation
@@ -438,7 +438,7 @@ transport. Server logs remained on stderr; no protocol bytes were written there.
 docs/performance/slo.md defines limits for backend query handlers and does not
 define a transport limit. This artifact is therefore evidence for the STDIO
 path, not a new PASS gate. It excludes sockets and network transports, which are
-not configured by the current Ladygraph server.
+not configured by the current Kivgraph server.
 `, result.Command, result.Commit, result.GeneratedAt.UTC().Format(time.RFC3339),
 		result.Environment.OS, result.Environment.Arch, result.Environment.CPU, result.Environment.Memory,
 		result.Environment.Go, result.ServerConfig, result.WarmupCalls, result.Calls,

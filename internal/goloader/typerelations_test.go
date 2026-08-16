@@ -60,7 +60,7 @@ func TestResolveTypeRelationsImplementsByValueAndByPointer(t *testing.T) {
 	if circle.SourceKind != KindType || circle.TargetKind != KindType {
 		t.Fatalf("Circle IMPLEMENTS Shape kinds = %#v", circle)
 	}
-	if circle.TargetPackagePath != "example.com/ladygraph-fixture/type-relations" {
+	if circle.TargetPackagePath != "example.com/kivgraph-fixture/type-relations" {
 		t.Fatalf("Shape target package = %q", circle.TargetPackagePath)
 	}
 

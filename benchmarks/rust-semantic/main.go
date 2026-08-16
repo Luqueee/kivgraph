@@ -25,9 +25,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/indexer"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 const (
@@ -246,7 +246,7 @@ func auditCases() []auditCase {
 }
 
 func measureCase(ctx context.Context, testCase auditCase) (caseResult, error) {
-	root, err := os.MkdirTemp("", "ladygraph-rust-audit-*")
+	root, err := os.MkdirTemp("", "kivgraph-rust-audit-*")
 	if err != nil {
 		return caseResult{}, fmt.Errorf("create audit directory: %w", err)
 	}

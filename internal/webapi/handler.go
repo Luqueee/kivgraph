@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/layout"
-	"github.com/Luqueee/ladygraph/internal/webassets"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/layout"
+	"github.com/Luqueee/kivgraph/internal/webassets"
 )
 
 const APIVersion = "v1"

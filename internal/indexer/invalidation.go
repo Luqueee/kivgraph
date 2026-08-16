@@ -3,8 +3,8 @@
 package indexer
 
 import (
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/syntax"
 )
 
 // ChangeKind is a conservative classification of the observable impact of a

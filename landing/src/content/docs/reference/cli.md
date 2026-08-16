@@ -1,9 +1,9 @@
 ---
 title: CLI
-description: Every Ladygraph command, in the five groups the help prints them.
+description: Every Kivgraph command, in the five groups the help prints them.
 ---
 
-`ladygraph --help`, `-h` and `help` write to `stdout` and exit `0`. An
+`kivgraph --help`, `-h` and `help` write to `stdout` and exit `0`. An
 invocation with no command, or with an unknown one, writes a single line to
 `stderr` and points at the help rather than dumping the whole surface.
 
@@ -43,10 +43,10 @@ invocation with no command, or with an unknown one, writes a single line to
 | --- | --- |
 | `mcp install [--scope user\|project]` | Detect and register one or more MCP clients |
 | `mcp status --target TARGET [--scope user\|project]` | Inspect a client MCP registration |
-| `mcp remove --target TARGET [--scope user\|project]` | Remove only Ladygraph's MCP registration |
+| `mcp remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's MCP registration |
 | `skill install [--scope user\|project]` | Detect and install the Agent Skill in one or more clients |
 | `skill status --target TARGET [--scope user\|project]` | Inspect the installed Agent Skill |
-| `skill remove --target TARGET [--scope user\|project]` | Remove only Ladygraph's Agent Skill |
+| `skill remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's Agent Skill |
 
 ## Pipeline
 

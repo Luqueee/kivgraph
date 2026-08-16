@@ -33,7 +33,7 @@ repository are excluded by construction; ask
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll"
 }
@@ -57,9 +57,9 @@ repository are excluded by construction; ask
   "results": {
     "subject": {
       "qualified_name": "MergeAll",
-      "repository": "ladygraph",
-      "package_name": "github.com/Luqueee/ladygraph/internal/facts",
-      "module_path": "github.com/Luqueee/ladygraph",
+      "repository": "kivgraph",
+      "package_name": "github.com/Luqueee/kivgraph/internal/facts",
+      "module_path": "github.com/Luqueee/kivgraph",
       "file_path": "internal/facts/facts.go",
       "start_line": 516,
       "end_line": 542
@@ -69,7 +69,7 @@ repository are excluded by construction; ask
 }
 ```
 
-This answer comes from snapshot `30` of two repositories, `ladygraph` and
+This answer comes from snapshot `30` of two repositories, `kivgraph` and
 `mole`.
 
 ## Reading the result

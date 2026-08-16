@@ -7,9 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/watcher"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/watcher"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // ResyncInterval is how often the resynchroniser asks each registered

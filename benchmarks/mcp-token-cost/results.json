@@ -24,8 +24,8 @@
     "schema_version": 2
   },
   "corpus": {
-    "repository": "ladygraph",
-    "path": "/Users/adria/Documents/programacion/projects/ladygraph",
+    "repository": "kivgraph",
+    "path": "/Users/adria/Documents/programacion/projects/kivgraph",
     "branch": "main",
     "indexed_commit": "e2162d570b8849d3b14bb28288b3e6b343dcd4b8",
     "current_commit": "e2162d570b8849d3b14bb28288b3e6b343dcd4b8",

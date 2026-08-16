@@ -1,13 +1,13 @@
 .PHONY: build test version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
 
 build: test version
-	go build ./cmd/ladygraph
+	go build ./cmd/kivgraph
 
 test:
 	go test ./...
 
 version:
-	go run ./cmd/ladygraph version
+	go run ./cmd/kivgraph version
 
 # ladybug-lib downloads the pinned native library and verifies its digest.
 ladybug-lib:

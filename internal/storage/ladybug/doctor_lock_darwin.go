@@ -11,7 +11,7 @@ package ladybug
 #include <libproc.h>
 #include <sys/proc_info.h>
 
-// ladygraph_database_holders reports the processes of the current user that
+// kivgraph_database_holders reports the processes of the current user that
 // hold the file identified by device and inode open, excluding the caller.
 //
 // macOS has no /proc/locks. The obvious substitute, fcntl(F_GETLK), cannot be
@@ -29,7 +29,7 @@ package ladybug
 //
 // Returns the number of holders written to pids, -1 on a fatal error, or
 // -2 when capacity was too small.
-static int ladygraph_database_holders(uint32_t device, uint64_t inode,
+static int kivgraph_database_holders(uint32_t device, uint64_t inode,
                                       int32_t *pids, int capacity) {
 
 	int size = proc_listpids(PROC_UID_ONLY, (uint32_t)geteuid(), NULL, 0);
@@ -140,7 +140,7 @@ func externalStorageLocks(path string) ([]int, bool, error) {
 	}
 
 	pids := make([]C.int32_t, maxDatabaseHolders)
-	found := C.ladygraph_database_holders(
+	found := C.kivgraph_database_holders(
 		C.uint32_t(uint32(stat.Dev)),
 		C.uint64_t(stat.Ino),
 		&pids[0],

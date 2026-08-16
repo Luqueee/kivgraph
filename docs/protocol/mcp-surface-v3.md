@@ -5,7 +5,7 @@
 - Tareas: LUQUE-1113, LUQUE-1114 y la fase 19 (`LUQUE-1901` a `LUQUE-1905`)
 - Sustituye a: PLAN.md 17.1 y 17.3 en lo que este documento contradice
 
-Este documento describe la superficie que sirve `ladygraph serve`. Es el
+Este documento describe la superficie que sirve `kivgraph serve`. Es el
 contrato observable: lo que un agente recibe y en qué puede confiar.
 
 Las cifras que aparecen aquí las mide `benchmarks/mcp-token-cost`, con su digest
@@ -43,7 +43,7 @@ el fichero, y con eso nombra el símbolo en la llamada siguiente.
 El campo se llama `repository` en todas las tools y lleva el **nombre** del
 repositorio, que es lo que acepta el selector de la sección 4. Ese es el punto de
 que una fila sea direccionable: se copia tal cual a la llamada siguiente. Un
-`repository_key` -`repository:ladygraph`- obligaría a quitar un prefijo que
+`repository_key` -`repository:kivgraph`- obligaría a quitar un prefijo que
 ninguna respuesta explica, y `repository_name` obligaría a renombrar la clave; las
 dos formas existieron en el código y ninguna cumplía este documento.
 
@@ -51,7 +51,7 @@ dos formas existieron en el código y ninguna cumplía este documento.
 {
   "name": "MergeAll", "qualified_name": "MergeAll", "kind": "func",
   "signature": "func(sets []Set) Set", "exported": true,
-  "repository": "ladygraph", "file_path": "internal/facts/facts.go",
+  "repository": "kivgraph", "file_path": "internal/facts/facts.go",
   "start_line": 484, "end_line": 509
 }
 ```
@@ -144,12 +144,12 @@ compra nada.
 
 ```text
 snapshot 24  2 bodies  context 0
-@ ladygraph internal/facts/facts.go:484-509 func MergeAll
+@ kivgraph internal/facts/facts.go:484-509 func MergeAll
 func MergeAll(sets []Set) Set {
 …
-@ ladygraph internal/indexer/full.go:649-671 func mergeSets [file changed, re-anchored +3]
+@ kivgraph internal/indexer/full.go:649-671 func mergeSets [file changed, re-anchored +3]
 …
-! ladygraph src/other.go other.Other — the file changed and no declaration of "Other" remains in it
+! kivgraph src/other.go other.Other — the file changed and no declaration of "Other" remains in it
 ```
 
 La frescura viaja con los bytes. Cada `File` del grafo lleva el SHA-256 de lo que
@@ -167,7 +167,7 @@ misma función que usa la capa de indexación.
 
 Ésta es la parte que no tiene equivalente en otros servidores de este tipo.
 
-Ladygraph se niega a resolver por coincidencia de nombre, así que sabe dónde
+Kivgraph se niega a resolver por coincidencia de nombre, así que sabe dónde
 falló: cada fallo queda con su fichero, su línea y su motivo. Un índice que
 adivina siempre devuelve algo y por eso no puede decir esto.
 

@@ -24,7 +24,7 @@ const (
 
 // SchemaKind names which on-disk table layout a StorageDiagnosis was
 // validated against. A PASS or FAIL on "schema", "counts" or "integrity"
-// is not interpretable without knowing which of the two schemas ladygraph
+// is not interpretable without knowing which of the two schemas kivgraph
 // doctor storage measured them against, so every StorageDiagnosis
 // declares one.
 type SchemaKind string
@@ -32,7 +32,7 @@ type SchemaKind string
 const (
 	// SchemaCanonical is the schema CanonicalNodeTables and
 	// CanonicalRelationshipTables describe: the one LoadCanonical and
-	// `ladygraph rebuild` write, identified by its GraphMetadata node table.
+	// `kivgraph rebuild` write, identified by its GraphMetadata node table.
 	SchemaCanonical SchemaKind = "canonical"
 	// SchemaSynthetic is the frozen, hand written 001 schema the ladybug
 	// benchmarks still build and validate against.
@@ -50,7 +50,7 @@ type DiagnosticCheck struct {
 	Detail string           `json:"detail"`
 }
 
-// StorageDiagnosis is the complete result of `ladygraph doctor storage`.
+// StorageDiagnosis is the complete result of `kivgraph doctor storage`.
 type StorageDiagnosis struct {
 	Path             string `json:"path"`
 	SizeBytes        int64  `json:"size_bytes"`

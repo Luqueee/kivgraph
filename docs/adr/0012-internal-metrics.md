@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Ladygraph necesita medir consultas MCP, indexación incremental, rebuilds,
+Kivgraph necesita medir consultas MCP, indexación incremental, rebuilds,
 HotSnapshots, el worker TypeScript y transacciones de LadybugDB antes de
 exponer ese estado mediante `graph_status`. Las métricas no deben introducir
 una dependencia de red ni mezclar datos de usuario con etiquetas de alta
@@ -30,9 +30,9 @@ biblioteca estándar:
 - no se añade todavía un exportador Prometheus, endpoint HTTP ni serialización
   pública: la exposición pertenece a LUQUE-1403.
 
-Los nombres canónicos son `ladygraph_query_*`, `ladygraph_snapshot_*`,
-`ladygraph_index_*`, `ladygraph_unresolved_references`,
-`ladygraph_ts_worker_*` y `ladygraph_ladybug_*`. El informe Go usa esos mismos
+Los nombres canónicos son `kivgraph_query_*`, `kivgraph_snapshot_*`,
+`kivgraph_index_*`, `kivgraph_unresolved_references`,
+`kivgraph_ts_worker_*` y `kivgraph_ladybug_*`. El informe Go usa esos mismos
 nombres para que la futura capa `graph_status` no tenga que traducir el
 contrato.
 

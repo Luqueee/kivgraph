@@ -12,7 +12,7 @@
 // installed is a Write on every backend.
 //
 // On kqueue platforms - macOS and the BSDs - the backend holds one descriptor
-// per watched file and directory: 787 for the Ladygraph checkout itself, which
+// per watched file and directory: 787 for the Kivgraph checkout itself, which
 // has 659 files in 152 watched directories, against a per-process ceiling of
 // kern.maxfilesperproc, 92160 on macOS 26. A tree past that ceiling fails in
 // New with an explicit descriptor error rather than watching a subset of it.
@@ -31,7 +31,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 	"github.com/fsnotify/fsnotify"
 )
 

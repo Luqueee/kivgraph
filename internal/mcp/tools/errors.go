@@ -71,7 +71,7 @@ func WrapToolError(code, message string, cause error) *ToolError {
 // carries the guidance.
 func ErrIndexNotReady() *ToolError {
 	return NewToolError(CodeIndexNotReady,
-		"no graph is published yet: index a project with index_project, or run \"ladygraph index --full\"")
+		"no graph is published yet: index a project with index_project, or run \"kivgraph index --full\"")
 }
 
 // ErrorCode returns the stable public code carried by err, or an empty string

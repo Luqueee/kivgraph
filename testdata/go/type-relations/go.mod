@@ -1,3 +1,3 @@
-module example.com/ladygraph-fixture/type-relations
+module example.com/kivgraph-fixture/type-relations
 
 go 1.24

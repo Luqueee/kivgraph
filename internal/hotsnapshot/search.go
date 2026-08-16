@@ -29,7 +29,7 @@ type SymbolFilter struct {
 	RepositoryName string
 	PathPrefix     string
 	// ExcludeRepositoryPrefix drops symbols of every repository whose name
-	// starts with it. It exists for the providers Ladygraph derives from the
+	// starts with it. It exists for the providers Kivgraph derives from the
 	// machine, which live in a reserved namespace: a search for `Clone` or
 	// `Debug` otherwise answers with the standard library.
 	ExcludeRepositoryPrefix string

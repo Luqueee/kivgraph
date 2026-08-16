@@ -9,10 +9,10 @@ import (
 
 const fallbackHTML = `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Ladygraph web bundle unavailable</title></head>
+<head><meta charset="utf-8"><title>Kivgraph web bundle unavailable</title></head>
 <body>
 <h1>Web bundle unavailable</h1>
-<p>This Ladygraph binary was built without the versioned web bundle. Build the web assets and package the binary with the <code>webassets</code> build tag.</p>
+<p>This Kivgraph binary was built without the versioned web bundle. Build the web assets and package the binary with the <code>webassets</code> build tag.</p>
 </body>
 </html>
 `

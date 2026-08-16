@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Ladygraph expone consultas MCP sobre el `HotSnapshot` publicado. Registrar un
+Kivgraph expone consultas MCP sobre el `HotSnapshot` publicado. Registrar un
 proyecto y reconstruir el grafo cambia el registro persistente y puede publicar
 una nueva generación, por lo que no debe estar disponible como efecto lateral
 de una consulta ni ejecutarse sin autorización explícita del cliente.
@@ -48,7 +48,7 @@ El flujo es:
 
 La herramienta está anotada como no solo lectura y destructiva, con una
 confirmación de usuario requerida. La configuración persistente de Oh My Pi
-refuerza la aprobación con `tools.approval.ladygraph_1mcp_index_project: prompt`.
+refuerza la aprobación con `tools.approval.kivgraph_1mcp_index_project: prompt`.
 
 El servicio `internal/indexing.Service` serializa las mutaciones, agrega el
 proyecto a una copia del registro, persiste la candidata, ejecuta el flujo de
@@ -58,7 +58,7 @@ generación anterior. La publicación del snapshot ya validado se realiza despu�
 del rebuild. Un error de publicación conserva la candidata para permitir una
 reintentación sin reindexar.
 
-`cmd/ladygraph serve` construye este servicio con la configuración cargada y lo
+`cmd/kivgraph serve` construye este servicio con la configuración cargada y lo
 inyecta en el servidor MCP. El transporte continúa siendo STDIO y el cierre
 graceful sigue perteneciendo al contexto compartido del comando.
 

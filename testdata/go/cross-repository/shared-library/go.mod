@@ -1,3 +1,3 @@
-module example.com/ladygraph-fixture/shared
+module example.com/kivgraph-fixture/shared
 
 go 1.24

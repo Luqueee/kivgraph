@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/Luqueee/ladygraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/integrations"
 )
 
 func runMCPCommand(args []string, stdout, stderr io.Writer) int {
@@ -33,7 +33,7 @@ func runMCPCommand(args []string, stdout, stderr io.Writer) int {
 
 func runSkillCommand(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || helpRequested(args) {
-		writeIntegrationHelp(stdout, "skill", "Manage the Ladygraph Agent Skill", []string{
+		writeIntegrationHelp(stdout, "skill", "Manage the Kivgraph Agent Skill", []string{
 			"skill install [--target TARGET] [--scope user|project] [--dry-run] [--force]",
 			"skill status --target TARGET [--scope user|project]",
 			"skill remove --target TARGET [--scope user|project] [--dry-run] [--force]",
@@ -296,7 +296,7 @@ func writeIntegrationPlan(stdout io.Writer, kind string, plan integrations.Plan)
 
 func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []string) {
 	paint := styleFor(stdout)
-	fmt.Fprintf(stdout, "%sUsage%s: ladygraph %s <operation> [flags]\n\n", paint.bold, paint.reset, command)
+	fmt.Fprintf(stdout, "%sUsage%s: kivgraph %s <operation> [flags]\n\n", paint.bold, paint.reset, command)
 	fmt.Fprintf(stdout, "%s%s%s\n\n", paint.dim, summary, paint.reset)
 	for _, usage := range commands {
 		fmt.Fprintf(stdout, "  %s\n", usage)

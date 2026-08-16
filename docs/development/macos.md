@@ -1,8 +1,8 @@
 # Desarrollo en macOS
 
-Ladygraph se compila, se verifica y se distribuye en `darwin/arm64`. El bundle
+Kivgraph se compila, se verifica y se distribuye en `darwin/arm64`. El bundle
 se genera con `make build-darwin-arm64` y la release publica
-`ladygraph-darwin-arm64.tar.gz`, que instala `scripts/install.sh`. Las
+`kivgraph-darwin-arm64.tar.gz`, que instala `scripts/install.sh`. Las
 decisiones y sus límites están en
 [ADR 0025](../adr/0025-macos-development-support.md) y
 [ADR 0026](../adr/0026-multiplatform-distribution.md).
@@ -33,7 +33,7 @@ LIB="$(scripts/fetch-ladybug.sh)"
 CGO_ENABLED=1 \
 CGO_CFLAGS="-I$LIB" \
 CGO_LDFLAGS="-L$LIB -llbug -Wl,-rpath,$LIB" \
-go build -tags ladybug -o ladygraph ./cmd/ladygraph
+go build -tags ladybug -o kivgraph ./cmd/kivgraph
 ```
 
 El enlazador emite avisos `duplicate -rpath` y `ignoring duplicate libraries`
@@ -53,7 +53,7 @@ El bundle se genera y se comprueba con:
 
 ```bash
 make build-darwin-arm64
-(cd dist/ladygraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)
+(cd dist/kivgraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)
 ```
 
 `make test-ladybug` exporta las mismas variables `CGO_*` del ejemplo anterior;

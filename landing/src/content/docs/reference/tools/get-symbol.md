@@ -32,14 +32,14 @@ what you need to tell two same-named declarations apart by where they live.
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll"
 }
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":9019,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","repository":"ladygraph","repository_path":"/Users/adria/Documents/programacion/projects/ladygraph","package_name":"github.com/Luqueee/ladygraph/internal/facts","module_path":"github.com/Luqueee/ladygraph","file_path":"internal/facts/facts.go","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) github.com/Luqueee/ladygraph/internal/facts.Set","exported":true,"start_line":516,"end_line":542}}
+{"snapshot_id":30,"snapshot_age_ms":9019,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","repository":"kivgraph","repository_path":"/Users/adria/Documents/programacion/projects/kivgraph","package_name":"github.com/Luqueee/kivgraph/internal/facts","module_path":"github.com/Luqueee/kivgraph","file_path":"internal/facts/facts.go","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"start_line":516,"end_line":542}}
 ```
 
 A qualified name on its own searches the whole graph. Here `Set.Merge` names
@@ -52,23 +52,23 @@ exactly one symbol, so it resolves without narrowing:
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":21768,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","repository":"ladygraph","repository_path":"/Users/adria/Documents/programacion/projects/ladygraph","package_name":"github.com/Luqueee/ladygraph/internal/facts","module_path":"github.com/Luqueee/ladygraph","file_path":"internal/facts/facts.go","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/ladygraph/internal/facts.Set)","exported":true,"start_line":505,"end_line":507}}
+{"snapshot_id":30,"snapshot_age_ms":21768,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","repository":"kivgraph","repository_path":"/Users/adria/Documents/programacion/projects/kivgraph","package_name":"github.com/Luqueee/kivgraph/internal/facts","module_path":"github.com/Luqueee/kivgraph","file_path":"internal/facts/facts.go","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)","exported":true,"start_line":505,"end_line":507}}
 ```
 
 A name the narrowing excluded fails, and the message says how to widen it:
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "qualified_name": "NoSuchThing"
 }
 ```
 
 ```text
-SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under ladygraph; call it without repository and path to search the whole graph
+SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under kivgraph; call it without repository and path to search the whole graph
 ```
 
-These three responses come from snapshot `30` of two repositories, `ladygraph`
+These three responses come from snapshot `30` of two repositories, `kivgraph`
 and `mole`.
 
 ## Limits

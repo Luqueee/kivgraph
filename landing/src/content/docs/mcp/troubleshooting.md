@@ -1,6 +1,6 @@
 ---
 title: MCP troubleshooting
-description: The failure modes of the Ladygraph MCP server, each with the message you see, what causes it, and the command that fixes it.
+description: The failure modes of the Kivgraph MCP server, each with the message you see, what causes it, and the command that fixes it.
 ---
 
 Every failure the tool surface returns carries a stable code and a human-readable message. Branch on the code; the message text is free to change.
@@ -27,7 +27,7 @@ Every failure the tool surface returns carries a stable code and a human-readabl
 The client lists one tool, `index_project`, and nothing else. The session instructions read:
 
 ```text
-Ladygraph has no published graph to answer from, so it exposes no query tools. Run "ladygraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
+Kivgraph has no published graph to answer from, so it exposes no query tools. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
 ```
 
 **Cause**
@@ -41,10 +41,10 @@ The handshake still completes. The client spawns this process itself, so exiting
 Build a generation, then restart the server so it loads it:
 
 ```bash
-ladygraph index --full
+kivgraph index --full
 ```
 
-While the store is empty, `ladygraph doctor` says so without failing:
+While the store is empty, `kivgraph doctor` says so without failing:
 
 ```text
 graph.store: PASS (no published generation)
@@ -57,7 +57,7 @@ unresolved: PASS (no published generation)
 **Symptom**
 
 ```text
-INDEX_NOT_READY: no graph is published yet: index a project with index_project, or run "ladygraph index --full"
+INDEX_NOT_READY: no graph is published yet: index a project with index_project, or run "kivgraph index --full"
 ```
 
 **Cause**
@@ -69,10 +69,10 @@ No graph is published, so nothing can answer. `serve` registers the query tools 
 Either of the two the message names. From a shell:
 
 ```bash
-ladygraph index --full
+kivgraph index --full
 ```
 
-Or, from the client, call `index_project` with the project and `confirmed` set. A configuration written outside the default location is self-contained: its state, its cache and its registry hang from its own directory, so a `serve` started with `--config` pointing elsewhere does not see the graph built against `~/.config/ladygraph/config.yaml`.
+Or, from the client, call `index_project` with the project and `confirmed` set. A configuration written outside the default location is self-contained: its state, its cache and its registry hang from its own directory, so a `serve` started with `--config` pointing elsewhere does not see the graph built against `~/.config/kivgraph/config.yaml`.
 
 ## A tool refuses the arguments
 
@@ -118,7 +118,7 @@ qualified name "<name>" names <n> symbols in <repository> <path>, so only a stab
 
 **Cause**
 
-Ladygraph does not pick one for you. Choosing by name is the coincidence its edges exist to avoid.
+Kivgraph does not pick one for you. Choosing by name is the coincidence its edges exist to avoid.
 
 **Fix**
 
@@ -131,7 +131,7 @@ Add `repository`, then `path`. When the message offers keys, pass one as `stable
 A name the narrowing excluded says where it looked and how to widen:
 
 ```text
-SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under ladygraph; call it without repository and path to search the whole graph
+SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under kivgraph; call it without repository and path to search the whole graph
 ```
 
 A name nobody declares says only that:
@@ -232,12 +232,12 @@ Call `graph_status` first and read the entry for each repository:
 | `indexed_dirty` | The indexed tree carried uncommitted changes, so matching commits do not prove matching files. |
 | `moved` | The two disagree. `moved_detail` names both positions. |
 
-A repository whose `HEAD` could not be read is not counted as moved and is not counted as fresh either; its entry says why. A path that is not a checkout, and a graph built before the commit was recorded, are also not `moved` — and only a tree still holding the indexed commit means the results can be trusted. A `derived` entry is a provider Ladygraph built from the machine rather than from the registry; nothing checks it out and nothing can move it.
+A repository whose `HEAD` could not be read is not counted as moved and is not counted as fresh either; its entry says why. A path that is not a checkout, and a graph built before the commit was recorded, are also not `moved` — and only a tree still holding the indexed commit means the results can be trusted. A `derived` entry is a provider Kivgraph built from the machine rather than from the registry; nothing checks it out and nothing can move it.
 
 `serve` and `ui` follow the published generation and republish when the `CURRENT` pointer advances, so a rebuild in another terminal reaches a running server. To force the corpus back onto the current code:
 
 ```bash
-ladygraph index --full
+kivgraph index --full
 ```
 
 One thing the fact cache cannot see: a lockfile is searched from the registered repository root upwards, and `node_modules` is never walked because that is the lockfile's job. A lockfile that is not found leaves that dependency with no control at all — in a pnpm monorepo it lives above the registered repositories. This is a declared limitation. Where it applies, rebuild with the cache off or set `indexing.fact_cache: verify`, which analyses everything and aborts the pass when an entry disagrees with the analysis.
@@ -267,17 +267,17 @@ After a full `clean` the numbering returns to `000001`, and `SnapshotStore.Publi
 Stop the long-running processes, rebuild, start them again:
 
 ```bash
-ladygraph stop
-ladygraph index --full
+kivgraph stop
+kivgraph index --full
 ```
 
-`ladygraph stop --dry-run` lists what it would stop and stops nothing. It matches `serve` and `ui` only: an index in flight is left alone, because killing one throws away minutes of analysis. A client launches `serve` itself, so restarting the server means restarting that client, or reloading its MCP connection.
+`kivgraph stop --dry-run` lists what it would stop and stops nothing. It matches `serve` and `ui` only: an index in flight is left alone, because killing one throws away minutes of analysis. A client launches `serve` itself, so restarting the server means restarting that client, or reloading its MCP connection.
 
-`clean` never removes registered repositories, only published generations, so rebuilding what is registered is `ladygraph index --full` and nothing has to be registered again. Without `--yes` it lists and changes nothing; with `--keep-active` it keeps exactly the generation currently published, and then `rollback` has nothing to restore.
+`clean` never removes registered repositories, only published generations, so rebuilding what is registered is `kivgraph index --full` and nothing has to be registered again. Without `--yes` it lists and changes nothing; with `--keep-active` it keeps exactly the generation currently published, and then `rollback` has nothing to restore.
 
 ## Rust is not indexed
 
-Rust is the one language Ladygraph does not analyse itself. `rust-analyzer scip` is the authority, invoked as an external process once per Cargo workspace, and it is a prerequisite like the Node runtime of the TypeScript worker.
+Rust is the one language Kivgraph does not analyse itself. `rust-analyzer scip` is the authority, invoked as an external process once per Cargo workspace, and it is a prerequisite like the Node runtime of the TypeScript worker.
 
 ### The analyzer is not there, or is the wrong one
 
@@ -303,7 +303,7 @@ Unknown binary 'rust-analyzer' in official toolchain
 
 Being on the `PATH` is not being installed. rustup leaves a proxy named `rust-analyzer` for every toolchain whether or not the component exists, and the proxy fails with the line above.
 
-Resolution is fixed. A `rust.analyzer_command` that contains a path separator is honoured exactly as written. A bare command name resolves first to the binary sitting beside the Ladygraph executable, and only then through the `PATH`: an installation that ships its own engine must use it, or two machines with the same bundle would index the same repository with different analyzers.
+Resolution is fixed. A `rust.analyzer_command` that contains a path separator is honoured exactly as written. A bare command name resolves first to the binary sitting beside the Kivgraph executable, and only then through the `PATH`: an installation that ships its own engine must use it, or two machines with the same bundle would index the same repository with different analyzers.
 
 **Fix**
 
@@ -311,7 +311,7 @@ Resolution is fixed. A `rust.analyzer_command` that contains a path separator is
 rustup component add rust-analyzer
 ```
 
-`ladygraph doctor` reports which binary answered and its source — `bundled`, `explicit` or `path` — and `ladygraph version --json` publishes its release.
+`kivgraph doctor` reports which binary answered and its source — `bundled`, `explicit` or `path` — and `kivgraph version --json` publishes its release.
 
 ### cargo is missing
 
@@ -361,7 +361,7 @@ This is a declared limitation, never a failure: a machine with no toolchain, or 
 The package contributes nothing, `graph_status` counts it under `unresolved_by_reason`, and a walk that would have crossed it downgrades its verdict. From a real `get_blast_radius` response, with the absolute path abridged:
 
 ```json
-{"completeness":{"verdict":"LOWER_BOUND","invisible_scopes":[{"reason":"PACKAGE_NOT_BUILDABLE","repository":"ladygraph","requested_package":"github.com/Luqueee/ladygraph/benchmarks/ladybug-recovery","detail":"LIST: build constraints exclude all Go files in /path/to/benchmarks/ladybug-recovery"}]}}
+{"completeness":{"verdict":"LOWER_BOUND","invisible_scopes":[{"reason":"PACKAGE_NOT_BUILDABLE","repository":"kivgraph","requested_package":"github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery","detail":"LIST: build constraints exclude all Go files in /path/to/benchmarks/ladybug-recovery"}]}}
 ```
 
 **Cause**
@@ -370,7 +370,7 @@ Go is loaded with the tags in `go.build_tags`. A directory whose files those tag
 
 **Fix**
 
-Add the tag the package needs to `go.build_tags` and rebuild. Indexing the Ladygraph repository itself requires the `ladybug` tag.
+Add the tag the package needs to `go.build_tags` and rebuild. Indexing the Kivgraph repository itself requires the `ladybug` tag.
 
 The other reasons seen alongside it in a real graph are `DECLARATION_NOT_RESOLVED`, `MODULE_PROVIDER_NOT_FOUND` and `PACKAGE_PROVIDER_NOT_FOUND`. A package name nobody provides today is a dependency with an `absent` fingerprint, not the absence of a dependency, so it becomes the edge it should be once a provider appears.
 
@@ -393,7 +393,7 @@ Download the module's dependencies in its own checkout, then rebuild. Indexing i
 **Symptom**
 
 ```text
-toolchain.typecheck: FAIL (registered Go module requires a newer Go language version than this build supports (this build type-checks with go <ceiling>): repository "<name>" module "<path>" requires go <version>; rebuild Ladygraph with that toolchain or drop "go" from the languages of that repository)
+toolchain.typecheck: FAIL (registered Go module requires a newer Go language version than this build supports (this build type-checks with go <ceiling>): repository "<name>" module "<path>" requires go <version>; rebuild Kivgraph with that toolchain or drop "go" from the languages of that repository)
 ```
 
 A passing run reports both numbers, the ceiling and the highest registered module:
@@ -404,11 +404,11 @@ toolchain.typecheck: PASS (go <ceiling> (highest registered module: go <version>
 
 **Cause**
 
-`go/types` travels linked inside the binary, so Ladygraph type checks only up to the language version of the toolchain that compiled it. The `go` on your `PATH` is a different number and is not the one that decides whether a repository can be indexed. A module above the ceiling is rejected by name — repository, module and version — rather than being allowed to escalate the synthetic `go.work` and break the load of every other repository. The ceiling is `major.minor`.
+`go/types` travels linked inside the binary, so Kivgraph type checks only up to the language version of the toolchain that compiled it. The `go` on your `PATH` is a different number and is not the one that decides whether a repository can be indexed. A module above the ceiling is rejected by name — repository, module and version — rather than being allowed to escalate the synthetic `go.work` and break the load of every other repository. The ceiling is `major.minor`.
 
 **Fix**
 
-The message names both ways out: rebuild Ladygraph with that toolchain, or drop `go` from the languages of that repository. `ladygraph doctor` is where the ceiling is stated.
+The message names both ways out: rebuild Kivgraph with that toolchain, or drop `go` from the languages of that repository. `kivgraph doctor` is where the ceiling is stated.
 
 ## A provider is ambiguous or absent
 
@@ -434,7 +434,7 @@ A reference that names `core` with a release is `CRATE_VERSION_MISMATCH`, and a 
 ui: this binary carries no web bundle; build one with scripts/build-bundle.sh (without --mcp-only), or run the viewer from a source checkout with the webassets build tag
 ```
 
-`ladygraph --help` marks the command in the same build:
+`kivgraph --help` marks the command in the same build:
 
 ```text
   ui [--addr HOST:PORT]  Serve the read-only graph viewer, every interface by default (unavailable: this build carries no web bundle)
@@ -442,7 +442,7 @@ ui: this binary carries no web bundle; build one with scripts/build-bundle.sh (w
 
 **Cause**
 
-`ladygraph ui` refuses to start when the binary lacks the `webassets` build tag. Without it, every route would serve the page that says the bundle is missing, so the refusal costs one line instead of a browser tab.
+`kivgraph ui` refuses to start when the binary lacks the `webassets` build tag. Without it, every route would serve the page that says the bundle is missing, so the refusal costs one line instead of a browser tab.
 
 **Fix**
 
@@ -452,7 +452,7 @@ The viewer is opt-in and serves only the published `HotSnapshot` over read-only 
 
 ## Where to look next
 
-**`ladygraph doctor`** answers the machine questions in one pass, one line per check: `config`, the `state.*` directories, `repositories`, the `toolchain.*` checks, `graph.store`, `snapshot.digest`, `snapshot` and `unresolved`, then `doctor: PASS` or `doctor: FAIL`. It is where the Go type-checking ceiling is stated and where you find out which `rust-analyzer` answered.
+**`kivgraph doctor`** answers the machine questions in one pass, one line per check: `config`, the `state.*` directories, `repositories`, the `toolchain.*` checks, `graph.store`, `snapshot.digest`, `snapshot` and `unresolved`, then `doctor: PASS` or `doctor: FAIL`. It is where the Go type-checking ceiling is stated and where you find out which `rust-analyzer` answered.
 
 **`graph_status`, through the client**, answers the graph questions: `status`, which is `ready` or `empty`; `snapshot_id`, `snapshot_built_at` and `snapshot_age_ms`; the counts; `edges_by_kind` and `unresolved_by_reason`; and `repository_freshness` with `repositories_moved`. It reports nothing this process did not use or measure: `serve` answers from the published `HotSnapshot`, so it never opens the database and never runs the TypeScript worker, and declares them `not_applicable` saying why. Metrics nobody observed are omitted rather than reported as zero.
 

@@ -16,25 +16,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/config"
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/indexing"
-	"github.com/Luqueee/ladygraph/internal/logging"
-	"github.com/Luqueee/ladygraph/internal/procstat"
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/storage/generation"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/synthetic"
-	"github.com/Luqueee/ladygraph/internal/update"
-	"github.com/Luqueee/ladygraph/internal/version"
-	"github.com/Luqueee/ladygraph/internal/webassets"
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/logging"
+	"github.com/Luqueee/kivgraph/internal/procstat"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/synthetic"
+	"github.com/Luqueee/kivgraph/internal/update"
+	"github.com/Luqueee/kivgraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/webassets"
 )
 
 func TestRunVersion(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"ladygraph", "version"}, &stdout, &stderr); got != 0 {
+	if got := run([]string{"kivgraph", "version"}, &stdout, &stderr); got != 0 {
 		t.Fatalf("run() exit code = %d, want 0", got)
 	}
 	if got := stdout.String(); got != version.Value+"\n" {
@@ -48,7 +48,7 @@ func TestRunVersion(t *testing.T) {
 func TestRunVersionJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"ladygraph", "version", "--json"}, &stdout, &stderr); got != 0 {
+	if got := run([]string{"kivgraph", "version", "--json"}, &stdout, &stderr); got != 0 {
 		t.Fatalf("run() exit code = %d, want 0", got)
 	}
 	if stderr.Len() != 0 {
@@ -59,8 +59,8 @@ func TestRunVersionJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &provenance); err != nil {
 		t.Fatalf("version JSON = %q: %v", stdout.String(), err)
 	}
-	if provenance.Ladygraph != version.Value {
-		t.Fatalf("Ladygraph = %q, want %q", provenance.Ladygraph, version.Value)
+	if provenance.Kivgraph != version.Value {
+		t.Fatalf("Kivgraph = %q, want %q", provenance.Kivgraph, version.Value)
 	}
 	if provenance.Go == "" || provenance.Ladybug != ladybug.CoreVersion || provenance.GoLadybug != ladybug.GoBindingVersion {
 		t.Fatalf("provenance = %#v", provenance)
@@ -99,7 +99,7 @@ func TestRunUpdateCheckUsesReleaseRunner(t *testing.T) {
 	if !called {
 		t.Fatal("update runner was not called")
 	}
-	if got, want := stdout.String(), "ladygraph update available: "+version.Value+" -> 0.1.1\n"; got != want {
+	if got, want := stdout.String(), "kivgraph update available: "+version.Value+" -> 0.1.1\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
 	if stderr.Len() != 0 {
@@ -124,7 +124,7 @@ func TestRunUpdateReportsInstalledRelease(t *testing.T) {
 	if got := runUpdateWithRunner(nil, &stdout, &stderr, runner); got != 0 {
 		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
 	}
-	if got, want := stdout.String(), "ladygraph updated: "+version.Value+" -> 0.1.1\n"; got != want {
+	if got, want := stdout.String(), "kivgraph updated: "+version.Value+" -> 0.1.1\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
 	if stderr.Len() != 0 {
@@ -144,7 +144,7 @@ func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
 
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
-		"ladygraph",
+		"kivgraph",
 		"init",
 		"--config", configPath,
 		"--repositories", repositoriesPath,
@@ -160,7 +160,7 @@ func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
 	}
 
 	var doctorStdout, doctorStderr bytes.Buffer
-	if got := run([]string{"ladygraph", "doctor", "--config", configPath}, &doctorStdout, &doctorStderr); got != 0 {
+	if got := run([]string{"kivgraph", "doctor", "--config", configPath}, &doctorStdout, &doctorStderr); got != 0 {
 		t.Fatalf("doctor exit code = %d, stdout=%q stderr=%q", got, doctorStdout.String(), doctorStderr.String())
 	}
 	if !strings.Contains(doctorStdout.String(), "graph.store: PASS (no published generation)") ||
@@ -180,7 +180,7 @@ func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
-		"ladygraph",
+		"kivgraph",
 		"init",
 		"--config", configPath,
 		"--repositories", repositoriesPath,
@@ -189,7 +189,7 @@ func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if got := run([]string{"ladygraph", "upgrade", "--config", configPath}, &stdout, &stderr); got != 1 {
+	if got := run([]string{"kivgraph", "upgrade", "--config", configPath}, &stdout, &stderr); got != 1 {
 		t.Fatalf("upgrade exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "no published generation") {
@@ -211,7 +211,7 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 	configPath := filepath.Join(root, "config.yaml")
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
-		"ladygraph", "init",
+		"kivgraph", "init",
 		"--config", configPath,
 		"--repositories", filepath.Join(root, "repositories.yaml"),
 	}, &initStdout, &initStderr); got != 0 {
@@ -219,7 +219,7 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if got := run([]string{"ladygraph", "clean", "--config", configPath}, &stdout, &stderr); got != 0 {
+	if got := run([]string{"kivgraph", "clean", "--config", configPath}, &stdout, &stderr); got != 0 {
 		t.Fatalf("clean exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "nothing to remove") {
@@ -228,7 +228,7 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if got := run([]string{"ladygraph", "clean", "--config", configPath, "--keep-active", "--yes"}, &stdout, &stderr); got != 1 {
+	if got := run([]string{"kivgraph", "clean", "--config", configPath, "--keep-active", "--yes"}, &stdout, &stderr); got != 1 {
 		t.Fatalf("clean --keep-active exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "no generation is published") {
@@ -237,7 +237,7 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if got := run([]string{"ladygraph", "clean", "--config", configPath, "everything"}, &stdout, &stderr); got != 2 {
+	if got := run([]string{"kivgraph", "clean", "--config", configPath, "everything"}, &stdout, &stderr); got != 2 {
 		t.Fatalf("clean with an argument exit code = %d, want 2", got)
 	}
 }
@@ -254,7 +254,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, ".config", "ladygraph", "config.yaml")
+	configPath := filepath.Join(home, ".config", "kivgraph", "config.yaml")
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		t.Fatalf("config error = %v, want a home with no configuration", err)
 	}
@@ -276,7 +276,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("configuration was not created: %v", err)
 	}
-	registry, err := config.LoadRepositories(filepath.Join(home, ".config", "ladygraph", "repositories.yaml"))
+	registry, err := config.LoadRepositories(filepath.Join(home, ".config", "kivgraph", "repositories.yaml"))
 	if err != nil {
 		t.Fatalf("LoadRepositories() error = %v", err)
 	}
@@ -342,7 +342,7 @@ func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
-		"ladygraph",
+		"kivgraph",
 		"init",
 		"--config", configPath,
 		"--repositories", repositoriesPath,
@@ -352,7 +352,7 @@ func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if got := run([]string{"ladygraph", "doctor", "--config", configPath}, &stdout, &stderr); got != 1 {
+	if got := run([]string{"kivgraph", "doctor", "--config", configPath}, &stdout, &stderr); got != 1 {
 		t.Fatalf("doctor exit code = %d, stdout=%q stderr=%q", got, stdout.String(), stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "repositories: FAIL") || !strings.Contains(stdout.String(), "doctor: FAIL") {
@@ -554,13 +554,13 @@ func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 func TestRunWithoutCommandPointsAtTheHelp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"ladygraph"}, &stdout, &stderr); got != 2 {
+	if got := run([]string{"kivgraph"}, &stdout, &stderr); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	for _, want := range []string{"ladygraph: no command given", `Run "ladygraph --help"`} {
+	for _, want := range []string{"kivgraph: no command given", `Run "kivgraph --help"`} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("stderr = %q, want it to contain %q", stderr.String(), want)
 		}
@@ -570,7 +570,7 @@ func TestRunWithoutCommandPointsAtTheHelp(t *testing.T) {
 func TestRunNamesAnUnknownCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"ladygraph", "inedx"}, &stdout, &stderr); got != 2 {
+	if got := run([]string{"kivgraph", "inedx"}, &stdout, &stderr); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if !strings.Contains(stderr.String(), `unknown command "inedx"`) {
@@ -583,7 +583,7 @@ func TestRunNamesAnUnknownCommand(t *testing.T) {
 func TestRunHelpIsNotAnError(t *testing.T) {
 	for _, argument := range []string{"--help", "-h", "help"} {
 		var stdout, stderr bytes.Buffer
-		if got := run([]string{"ladygraph", argument}, &stdout, &stderr); got != 0 {
+		if got := run([]string{"kivgraph", argument}, &stdout, &stderr); got != 0 {
 			t.Fatalf("run(%s) exit code = %d, want 0", argument, got)
 		}
 		if stderr.Len() != 0 {
@@ -601,13 +601,13 @@ func TestRunHelpIsNotAnError(t *testing.T) {
 func TestCommandHelpListsFlagsOnStdout(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"ladygraph", "rollback", "--help"}, &stdout, &stderr); got != 0 {
+	if got := run([]string{"kivgraph", "rollback", "--help"}, &stdout, &stderr); got != 0 {
 		t.Fatalf("run() exit code = %d, want 0", got)
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
-	for _, want := range []string{"ladygraph rollback", "Flags", "--root", "--generation"} {
+	for _, want := range []string{"kivgraph rollback", "Flags", "--root", "--generation"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout = %q, want it to contain %q", stdout.String(), want)
 		}
@@ -619,7 +619,7 @@ func TestCommandHelpListsFlagsOnStdout(t *testing.T) {
 func TestUnknownFlagNamesItselfAndExitsTwo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"ladygraph", "doctor", "--nope"}, &stdout, &stderr); got != 2 {
+	if got := run([]string{"kivgraph", "doctor", "--nope"}, &stdout, &stderr); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if stdout.Len() != 0 {
@@ -637,7 +637,7 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	logger := logging.New(&stderr)
 
-	if got := run([]string{"ladygraph"}, &stdout, logging.NewCommandWriter(logger)); got != 2 {
+	if got := run([]string{"kivgraph"}, &stdout, logging.NewCommandWriter(logger)); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if stdout.Len() != 0 {
@@ -691,7 +691,7 @@ func TestRunDoctorStorageReportsEveryHealthyCheck(t *testing.T) {
 		return ladybug.StorageDiagnosis{Path: path, Checks: checks, Healthy: true}, nil
 	}
 
-	code := runWithStorageDiagnoser([]string{"ladygraph", "doctor", "storage", "--database", "/tmp/graph.db"}, &stdout, &stderr, diagnose)
+	code := runWithStorageDiagnoser([]string{"kivgraph", "doctor", "storage", "--database", "/tmp/graph.db"}, &stdout, &stderr, diagnose)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
@@ -714,7 +714,7 @@ func TestRunDoctorStorageReturnsFailureForUnhealthyDatabase(t *testing.T) {
 		}, nil
 	}
 
-	code := runWithStorageDiagnoser([]string{"ladygraph", "doctor", "storage", "--database=/tmp/graph.db"}, &stdout, &stderr, diagnose)
+	code := runWithStorageDiagnoser([]string{"kivgraph", "doctor", "storage", "--database=/tmp/graph.db"}, &stdout, &stderr, diagnose)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
@@ -734,7 +734,7 @@ func TestRunDoctorStorageRequiresDatabasePath(t *testing.T) {
 		return ladybug.StorageDiagnosis{}, nil
 	}
 
-	if code := runWithStorageDiagnoser([]string{"ladygraph", "doctor", "storage"}, &stdout, &stderr, diagnose); code != 2 {
+	if code := runWithStorageDiagnoser([]string{"kivgraph", "doctor", "storage"}, &stdout, &stderr, diagnose); code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
 	if called {
@@ -761,7 +761,7 @@ func TestRunDoctorGraphReportsCleanInvariants(t *testing.T) {
 		return report, nil
 	}
 
-	code := runWithGraphVerifier([]string{"ladygraph", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	code := runWithGraphVerifier([]string{"kivgraph", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -799,7 +799,7 @@ func TestRunDoctorGraphReportsViolationsAndSamples(t *testing.T) {
 		return report, nil
 	}
 
-	code := runWithGraphVerifier([]string{"ladygraph", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	code := runWithGraphVerifier([]string{"kivgraph", "doctor", "graph", "--database", "/tmp/graph.db"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
@@ -828,7 +828,7 @@ func TestRunDoctorGraphRequiresDatabasePath(t *testing.T) {
 		return ladybug.CanonicalIntegrityReport{}, nil
 	}
 
-	code := runWithGraphVerifier([]string{"ladygraph", "doctor", "graph"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
+	code := runWithGraphVerifier([]string{"kivgraph", "doctor", "graph"}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, verify)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
@@ -844,7 +844,7 @@ func TestRunGenerateGraph(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "synthetic")
 	var stdout, stderr bytes.Buffer
 	args := []string{
-		"ladygraph", "benchmark", "generate-graph",
+		"kivgraph", "benchmark", "generate-graph",
 		"--repositories", "2",
 		"--files", "10",
 		"--symbols", "20",
@@ -873,7 +873,7 @@ func TestRunGenerateGraph(t *testing.T) {
 
 func TestRunGenerateGraphRejectsInvalidSize(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	args := []string{"ladygraph", "benchmark", "generate-graph", "--files", "2", "--symbols", "9", "--edges", "10"}
+	args := []string{"kivgraph", "benchmark", "generate-graph", "--files", "2", "--symbols", "9", "--edges", "10"}
 	if got := run(args, &stdout, &stderr); got != 1 {
 		t.Fatalf("run() exit code = %d, want 1", got)
 	}
@@ -903,8 +903,8 @@ func TestRunRebuildPrintsAllStagesOnSuccess(t *testing.T) {
 		if options.GenerationID != "000123" {
 			t.Fatalf("generation id = %q, want 000123", options.GenerationID)
 		}
-		if options.Root != "/tmp/ladygraph-graph" {
-			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
+		if options.Root != "/tmp/kivgraph-graph" {
+			t.Fatalf("root = %q, want /tmp/kivgraph-graph", options.Root)
 		}
 		if options.ResolverVersion != "resolver-v1" {
 			t.Fatalf("resolver version = %q, want resolver-v1", options.ResolverVersion)
@@ -926,16 +926,16 @@ func TestRunRebuildPrintsAllStagesOnSuccess(t *testing.T) {
 			},
 			SnapshotDigest: "deadbeef",
 			Publication: generation.Publication{
-				Generation: generation.Generation{ID: "000123", Path: "/tmp/ladygraph-graph/generations/000123"},
+				Generation: generation.Generation{ID: "000123", Path: "/tmp/kivgraph-graph/generations/000123"},
 			},
 			Passed: true,
 		}, nil
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"ladygraph", "rebuild",
+		"kivgraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/ladygraph-graph",
+		"--root", "/tmp/kivgraph-graph",
 		"--generation", "000123",
 		"--resolver-version", "resolver-v1",
 		"--snapshot-id", "7",
@@ -976,9 +976,9 @@ func TestRunRebuildReturnsFailureAndExplainsStage(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"ladygraph", "rebuild",
+		"kivgraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/ladygraph-graph",
+		"--root", "/tmp/kivgraph-graph",
 		"--generation", "000124",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -1027,9 +1027,9 @@ func TestRunRebuildReportsIntegrityDiscrepanciesAndFailedProbes(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"ladygraph", "rebuild",
+		"kivgraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/ladygraph-graph",
+		"--root", "/tmp/kivgraph-graph",
 		"--generation", "000127",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -1069,8 +1069,8 @@ func TestRunRebuildRequiresFacts(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"ladygraph", "rebuild",
-		"--root", "/tmp/ladygraph-graph",
+		"kivgraph", "rebuild",
+		"--root", "/tmp/kivgraph-graph",
 		"--generation", "000125",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -1099,9 +1099,9 @@ func TestRunRebuildRejectsInvalidFactsJSON(t *testing.T) {
 	}
 
 	code := runWithGraphRebuilder([]string{
-		"ladygraph", "rebuild",
+		"kivgraph", "rebuild",
 		"--facts", factsPath,
-		"--root", "/tmp/ladygraph-graph",
+		"--root", "/tmp/kivgraph-graph",
 		"--generation", "000126",
 		"--resolver-version", "resolver-v1",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuilder)
@@ -1120,12 +1120,12 @@ func TestRunRebuildRejectsInvalidFactsJSON(t *testing.T) {
 func TestRunGraphStatusReportsRolesAndRetainedGenerations(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	roles := func(_ context.Context, options rebuild.LayoutOptions) (rebuild.Layout, error) {
-		if options.Root != "/tmp/ladygraph-graph" {
-			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
+		if options.Root != "/tmp/kivgraph-graph" {
+			t.Fatalf("root = %q, want /tmp/kivgraph-graph", options.Root)
 		}
 		return rebuild.Layout{
-			Active:    generation.Generation{ID: "000002", Path: "/tmp/ladygraph-graph/generations/000002"},
-			Backup:    generation.Generation{ID: "000001", Path: "/tmp/ladygraph-graph/generations/000001"},
+			Active:    generation.Generation{ID: "000002", Path: "/tmp/kivgraph-graph/generations/000002"},
+			Backup:    generation.Generation{ID: "000001", Path: "/tmp/kivgraph-graph/generations/000001"},
 			HasBackup: true,
 			NextID:    "000003",
 			Retained:  []string{"000001", "000002"},
@@ -1133,7 +1133,7 @@ func TestRunGraphStatusReportsRolesAndRetainedGenerations(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"ladygraph", "graph", "status", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "graph", "status", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -1166,7 +1166,7 @@ func TestRunGraphStatusReportsEmptyLayoutWithoutFailing(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"ladygraph", "graph", "status", "--root", "/tmp/ladygraph-empty",
+		"kivgraph", "graph", "status", "--root", "/tmp/kivgraph-empty",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q, want 0: an empty store is not a program error", code, stderr.String())
@@ -1192,7 +1192,7 @@ func TestRunGraphStatusRequiresRoot(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"ladygraph", "graph", "status",
+		"kivgraph", "graph", "status",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -1212,7 +1212,7 @@ func TestRunGraphStatusReturnsFailureOnRolesError(t *testing.T) {
 	}
 
 	code := runWithGraphRoles([]string{
-		"ladygraph", "graph", "status", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "graph", "status", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, roles)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -1225,8 +1225,8 @@ func TestRunGraphStatusReturnsFailureOnRolesError(t *testing.T) {
 func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	rollback := func(_ context.Context, options rebuild.RollbackOptions) (rebuild.RollbackReport, error) {
-		if options.Root != "/tmp/ladygraph-graph" {
-			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
+		if options.Root != "/tmp/kivgraph-graph" {
+			t.Fatalf("root = %q, want /tmp/kivgraph-graph", options.Root)
 		}
 		if options.GenerationID != "000001" {
 			t.Fatalf("generation id = %q, want 000001", options.GenerationID)
@@ -1245,7 +1245,7 @@ func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"ladygraph", "rollback", "--root", "/tmp/ladygraph-graph", "--generation", "000001",
+		"kivgraph", "rollback", "--root", "/tmp/kivgraph-graph", "--generation", "000001",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 
 	if code != 0 {
@@ -1282,7 +1282,7 @@ func TestRunRollbackReturnsFailureAndExplainsCause(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"ladygraph", "rollback", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "rollback", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 
 	if code != 1 {
@@ -1308,7 +1308,7 @@ func TestRunRollbackRequiresRoot(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"ladygraph", "rollback",
+		"kivgraph", "rollback",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 
 	if code != 2 {
@@ -1335,7 +1335,7 @@ func TestRunRollbackWithoutGenerationDefaultsToBackup(t *testing.T) {
 	}
 
 	code := runWithGraphRollback([]string{
-		"ladygraph", "rollback", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "rollback", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rollback)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -1345,8 +1345,8 @@ func TestRunRollbackWithoutGenerationDefaultsToBackup(t *testing.T) {
 func TestRunSnapshotPrintsReportOnSuccess(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	build := func(_ context.Context, options rebuild.GenerationSnapshotOptions) (*hotsnapshot.GraphSnapshot, rebuild.SnapshotReport, error) {
-		if options.Root != "/tmp/ladygraph-graph" {
-			t.Fatalf("root = %q, want /tmp/ladygraph-graph", options.Root)
+		if options.Root != "/tmp/kivgraph-graph" {
+			t.Fatalf("root = %q, want /tmp/kivgraph-graph", options.Root)
 		}
 		if options.GenerationID != "000002" {
 			t.Fatalf("generation id = %q, want 000002", options.GenerationID)
@@ -1359,7 +1359,7 @@ func TestRunSnapshotPrintsReportOnSuccess(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph", "--generation", "000002",
+		"kivgraph", "snapshot", "--root", "/tmp/kivgraph-graph", "--generation", "000002",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -1386,7 +1386,7 @@ func TestRunSnapshotReturnsFailureWhenBuildErrors(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "snapshot", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -1403,7 +1403,7 @@ func TestRunSnapshotReturnsFailureWhenReportDidNotPass(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "snapshot", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
@@ -1422,7 +1422,7 @@ func TestRunSnapshotRequiresRoot(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"ladygraph", "snapshot",
+		"kivgraph", "snapshot",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -1448,7 +1448,7 @@ func TestRunSnapshotWithoutGenerationDefaultsToEmpty(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph",
+		"kivgraph", "snapshot", "--root", "/tmp/kivgraph-graph",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -1465,7 +1465,7 @@ func TestRunSnapshotPassesSnapshotIDFlagThrough(t *testing.T) {
 	}
 
 	code := runWithSnapshotBuilder([]string{
-		"ladygraph", "snapshot", "--root", "/tmp/ladygraph-graph", "--snapshot-id", "42",
+		"kivgraph", "snapshot", "--root", "/tmp/kivgraph-graph", "--snapshot-id", "42",
 	}, &stdout, &stderr, ladybug.DiagnoseStorage, rebuild.Run, ladybug.VerifyCanonicalIntegrity, rebuild.Roles, rebuild.Rollback, build)
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
@@ -1478,7 +1478,7 @@ func TestRunSnapshotPassesSnapshotIDFlagThrough(t *testing.T) {
 // other command, log that it was starting and then exit 1.
 func TestHelpMarksACommandThisBuildCannotRun(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ladygraph", "--help"}, &stdout, &stderr); code != 0 {
+	if code := run([]string{"kivgraph", "--help"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("--help exit code = %d, want 0", code)
 	}
 	line := ""
@@ -1582,23 +1582,23 @@ func shortenStopGrace(t *testing.T) {
 	t.Cleanup(func() { stopGracePeriod = previous })
 }
 
-func ladygraphProcess(pid int, command string) procstat.Process {
-	return procstat.Process{PID: pid, Args: []string{"/opt/ladygraph/bin/ladygraph", command}}
+func kivgraphProcess(pid int, command string) procstat.Process {
+	return procstat.Process{PID: pid, Args: []string{"/opt/kivgraph/bin/kivgraph", command}}
 }
 
 // TestStopEndsServersAndViewersOnly is the whole risk of this command: what it
 // does not kill. An index in flight is minutes of analysis, the process
-// running stop is a ladygraph process too, and anything else on the machine
+// running stop is a kivgraph process too, and anything else on the machine
 // must not match however it is named.
 func TestStopEndsServersAndViewersOnly(t *testing.T) {
 	fixture := &stopFixture{
 		processes: []procstat.Process{
-			ladygraphProcess(11, "serve"),
-			ladygraphProcess(12, "ui"),
-			ladygraphProcess(13, "index"),
-			ladygraphProcess(14, "stop"),
-			{PID: 15, Args: []string{"/usr/bin/vim", "ladygraph", "serve"}},
-			{PID: 16, Args: []string{"/opt/other/ladygraph-ts-worker", "serve"}},
+			kivgraphProcess(11, "serve"),
+			kivgraphProcess(12, "ui"),
+			kivgraphProcess(13, "index"),
+			kivgraphProcess(14, "stop"),
+			{PID: 15, Args: []string{"/usr/bin/vim", "kivgraph", "serve"}},
+			{PID: 16, Args: []string{"/opt/other/kivgraph-ts-worker", "serve"}},
 		},
 		diesOn: map[int]syscall.Signal{11: syscall.SIGTERM, 12: syscall.SIGTERM},
 	}
@@ -1621,7 +1621,7 @@ func TestStopEndsServersAndViewersOnly(t *testing.T) {
 func TestStopKillsWhatDoesNotExit(t *testing.T) {
 	shortenStopGrace(t)
 	fixture := &stopFixture{
-		processes: []procstat.Process{ladygraphProcess(21, "serve")},
+		processes: []procstat.Process{kivgraphProcess(21, "serve")},
 		diesOn:    map[int]syscall.Signal{21: syscall.SIGKILL},
 	}
 
@@ -1643,7 +1643,7 @@ func TestStopKillsWhatDoesNotExit(t *testing.T) {
 func TestStopNeverKillsAReusedPid(t *testing.T) {
 	shortenStopGrace(t)
 	fixture := &stopFixture{
-		processes:     []procstat.Process{ladygraphProcess(31, "serve")},
+		processes:     []procstat.Process{kivgraphProcess(31, "serve")},
 		replaceOnTerm: map[int]string{31: "/usr/bin/postgres -D /var/lib/postgres"},
 	}
 
@@ -1658,7 +1658,7 @@ func TestStopNeverKillsAReusedPid(t *testing.T) {
 
 // TestStopDryRunSignalsNothing keeps the look-before-you-kill option honest.
 func TestStopDryRunSignalsNothing(t *testing.T) {
-	fixture := &stopFixture{processes: []procstat.Process{ladygraphProcess(41, "serve")}}
+	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(41, "serve")}}
 
 	var stdout, stderr bytes.Buffer
 	if code := runStop([]string{"--dry-run"}, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
@@ -1675,7 +1675,7 @@ func TestStopDryRunSignalsNothing(t *testing.T) {
 // TestStopReportsWhatItCouldNotStop keeps a failure out of the success line.
 func TestStopReportsWhatItCouldNotStop(t *testing.T) {
 	fixture := &stopFixture{
-		processes: []procstat.Process{ladygraphProcess(51, "serve")},
+		processes: []procstat.Process{kivgraphProcess(51, "serve")},
 		failOn:    map[int]error{51: errors.New("operation not permitted")},
 	}
 
@@ -1691,13 +1691,13 @@ func TestStopReportsWhatItCouldNotStop(t *testing.T) {
 // TestStopSaysWhenNothingIsRunning keeps an idempotent command from looking
 // like a failure.
 func TestStopSaysWhenNothingIsRunning(t *testing.T) {
-	fixture := &stopFixture{processes: []procstat.Process{ladygraphProcess(61, "index")}}
+	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(61, "index")}}
 
 	var stdout, stderr bytes.Buffer
 	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
 		t.Fatalf("runStop() = %d, want 0", code)
 	}
-	if !strings.Contains(stdout.String(), "no ladygraph serve or ui process is running") {
+	if !strings.Contains(stdout.String(), "no kivgraph serve or ui process is running") {
 		t.Fatalf("stdout = %q, want it said plainly", stdout.String())
 	}
 }
@@ -1714,7 +1714,7 @@ func TestReportRustToolchainNamesTheMissingPrerequisite(t *testing.T) {
 	}{
 		"no rust repository": {command: "rust-analyzer", needsRust: false, wantPass: true, wantValue: "not configured"},
 		"command is absent": {
-			command: "ladygraph-rust-analyzer-that-is-not-installed", needsRust: true,
+			command: "kivgraph-rust-analyzer-that-is-not-installed", needsRust: true,
 			wantPass: false, wantValue: "is unavailable",
 		},
 		"command is empty": {command: "   ", needsRust: true, wantPass: false, wantValue: "analyzer command is empty"},

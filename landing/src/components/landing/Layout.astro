@@ -22,12 +22,12 @@ interface Props {
 const { title, description } = Astro.props;
 
 // Absolute and derived from `site`, never a literal: the deployment sets
-// LADYGRAPH_LANDING_URL and a hardcoded host would publish the wrong canonical.
+// KIVGRAPH_LANDING_URL and a hardcoded host would publish the wrong canonical.
 const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
 const preview = absoluteUrl(Astro.site, "/og.png");
 
 // One graph, not three scripts. `SoftwareApplication` is what an answer engine
-// reads to say what Ladygraph is; `WebSite` ties the pages together and carries
+// reads to say what Kivgraph is; `WebSite` ties the pages together and carries
 // the documentation search action.
 const structuredData = {
   "@context": "https://schema.org",

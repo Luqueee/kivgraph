@@ -1,12 +1,12 @@
 ---
 title: Agent Skill
-description: What Ladygraph's Agent Skill tells a coding agent, how to install it per client and scope, and how to inspect or remove it.
+description: What Kivgraph's Agent Skill tells a coding agent, how to install it per client and scope, and how to inspect or remove it.
 ---
 
 ## What a skill is here
 
 An Agent Skill is a Markdown instruction file a coding agent loads alongside its
-tools. Ladygraph ships one, and it exists for a single reason: to route a
+tools. Kivgraph ships one, and it exists for a single reason: to route a
 question to the right tool before the agent reaches for grep or starts opening
 files. It is not required in order to use the MCP server. Install it to change
 which tool the agent picks; skip it and the eleven tools still work.
@@ -14,7 +14,7 @@ which tool the agent picks; skip it and the eleven tools still work.
 ## Install
 
 ```bash
-ladygraph skill install
+kivgraph skill install
 ```
 
 With no `--target`, the command detects the supported agents present in the
@@ -26,7 +26,7 @@ Confirming with nothing selected is refused.
 For scripted use, name the client:
 
 ```bash
-ladygraph skill install --target claude-code --scope user
+kivgraph skill install --target claude-code --scope user
 ```
 
 | Flag | Default | Meaning |
@@ -40,7 +40,7 @@ Without a terminal and without `--target`, the selector cannot run and the
 command fails with `interactive selection requires a terminal; pass --target`.
 Client integrations are supported on Linux and macOS only.
 
-`skill install` copies one file. It does not initialise Ladygraph, does not
+`skill install` copies one file. It does not initialise Kivgraph, does not
 register the MCP server, and does not index anything. Register the server
 separately: see [MCP clients](/mcp/clients/). Build a graph with
 [indexing](/guides/indexing/).
@@ -48,18 +48,18 @@ separately: see [MCP clients](/mcp/clients/). Build a graph with
 ## Where it lands
 
 The installed file is always named `SKILL.md` and always sits in a
-`skills/ladygraph/` directory. `<project>` is the current working directory.
+`skills/kivgraph/` directory. `<project>` is the current working directory.
 
 | Client | `--target` value | Scope | Path |
 | --- | --- | --- | --- |
-| Claude Code | `claude-code` | `user` | `~/.claude/skills/ladygraph/SKILL.md` |
-| Claude Code | `claude-code` | `project` | `<project>/.claude/skills/ladygraph/SKILL.md` |
-| Codex | `codex` | `user` | `~/.agents/skills/ladygraph/SKILL.md` |
-| Codex | `codex` | `project` | `<project>/.agents/skills/ladygraph/SKILL.md` |
-| OpenCode | `opencode` | `user` | `~/.config/opencode/skills/ladygraph/SKILL.md` |
-| OpenCode | `opencode` | `project` | `<project>/.opencode/skills/ladygraph/SKILL.md` |
-| Oh My Pi | `oh-my-pi` | `user` | `~/.omp/agent/skills/ladygraph/SKILL.md` |
-| Oh My Pi | `oh-my-pi` | `project` | `<project>/.omp/skills/ladygraph/SKILL.md` |
+| Claude Code | `claude-code` | `user` | `~/.claude/skills/kivgraph/SKILL.md` |
+| Claude Code | `claude-code` | `project` | `<project>/.claude/skills/kivgraph/SKILL.md` |
+| Codex | `codex` | `user` | `~/.agents/skills/kivgraph/SKILL.md` |
+| Codex | `codex` | `project` | `<project>/.agents/skills/kivgraph/SKILL.md` |
+| OpenCode | `opencode` | `user` | `~/.config/opencode/skills/kivgraph/SKILL.md` |
+| OpenCode | `opencode` | `project` | `<project>/.opencode/skills/kivgraph/SKILL.md` |
+| Oh My Pi | `oh-my-pi` | `user` | `~/.omp/agent/skills/kivgraph/SKILL.md` |
+| Oh My Pi | `oh-my-pi` | `project` | `<project>/.omp/skills/kivgraph/SKILL.md` |
 
 Claude Desktop has no local skill target. It is a supported MCP client, but it
 never appears in the skill selector, and `--target claude-desktop` fails with
@@ -142,15 +142,15 @@ timeout; the work still completes, and `graph_status` showing an advanced
 
 Stated in the skill's own terms, and not softened: a rare name in a single
 small repository is cheaper to grep, and one small file is cheaper to read than
-to outline. Ladygraph wins on common names, on transitive impact, on
+to outline. Kivgraph wins on common names, on transitive impact, on
 cross-repository consumers and on proving an absence. It is the wrong tool for
 a one-off literal string search.
 
 ## Inspect and remove
 
 ```bash
-ladygraph skill status --target claude-code --scope user
-ladygraph skill remove --target claude-code --scope user
+kivgraph skill status --target claude-code --scope user
+kivgraph skill remove --target claude-code --scope user
 ```
 
 Both require `--target`; neither opens the selector. `skill status` reads the
@@ -159,13 +159,13 @@ path and reports one of three states:
 | Status | Meaning |
 | --- | --- |
 | `absent` | Nothing at the path. |
-| `managed` | The file is byte-identical to the canonical Ladygraph skill. |
+| `managed` | The file is byte-identical to the canonical Kivgraph skill. |
 | `incompatible` | A file exists at the path and is not the canonical skill. |
 
 `skill remove` deletes only a file that is byte-identical to the canonical
 skill. Anything else at that path is left alone and reported as an error unless
 you pass `--force`. Nothing else in the client's skills directory is touched:
-removal withdraws Ladygraph's own skill and nothing more. `--dry-run` reports
+removal withdraws Kivgraph's own skill and nothing more. `--dry-run` reports
 `would-remove` and deletes nothing.
 
 ## Safety
@@ -179,18 +179,18 @@ removal withdraws Ladygraph's own skill and nothing more. `--dry-run` reports
   and the directory itself is synced afterwards. Removal uses the same
   rename-then-delete path.
 - Before an existing file is overwritten or removed, its previous content is
-  copied to `<path>.ladygraph.bak`. An existing backup is kept as it is and
+  copied to `<path>.kivgraph.bak`. An existing backup is kept as it is and
   never overwritten, so the first backup survives later runs. A backup path that
   is a symlink or not a regular file aborts the operation.
 - Replacing a file that is not the canonical skill requires `--force`. Without
   it the command fails with `integration path "<path>" contains an incompatible
-  Ladygraph entry; use --force to replace or remove it`.
+  Kivgraph entry; use --force to replace or remove it`.
 - An install whose destination already matches the canonical skill reports
   `managed` and writes nothing. No backup is created and no timestamp changes.
 
 ## In a release bundle
 
 The canonical skill ships inside the release bundle at
-`skills/ladygraph/SKILL.md` and is listed in the bundle's `SHA256SUMS`, so it is
+`skills/kivgraph/SKILL.md` and is listed in the bundle's `SHA256SUMS`, so it is
 verified with the same checksum pass as the rest of the payload. See
 [install](/install/).

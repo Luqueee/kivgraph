@@ -20,13 +20,13 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Luqueee/ladygraph/internal/config"
-	"github.com/Luqueee/ladygraph/internal/facts"
-	"github.com/Luqueee/ladygraph/internal/goloader"
-	"github.com/Luqueee/ladygraph/internal/goworkspace"
-	"github.com/Luqueee/ladygraph/internal/rustloader"
-	"github.com/Luqueee/ladygraph/internal/syntax"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/goloader"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // defaultGoLoadLimit and defaultTypeScriptWorkerLimit bound concurrent
@@ -655,7 +655,7 @@ func toolchainHint(errors []goloader.PackageError) string {
 			continue
 		}
 		return fmt.Sprintf(
-			" (this build type-checks with go %s; rebuild Ladygraph with a toolchain at least as new as the sources it must read)",
+			" (this build type-checks with go %s; rebuild Kivgraph with a toolchain at least as new as the sources it must read)",
 			goworkspace.LanguageVersion())
 	}
 	return ""
@@ -837,7 +837,7 @@ func collectTypeScriptFacts(
 ) (facts.TypeScriptPayload, error) {
 	repository := consumer.repository
 	packageValue := consumer.packageValue
-	output, err := os.CreateTemp("", "ladygraph-ts-facts-*.json")
+	output, err := os.CreateTemp("", "kivgraph-ts-facts-*.json")
 	if err != nil {
 		return facts.TypeScriptPayload{}, fmt.Errorf("create TypeScript facts output for %q package %q: %w",
 			repository.Name, packageValue.Name, err)
@@ -1230,7 +1230,7 @@ func factsCommand(options FullOptions, arguments []string) (string, []string, er
 
 // defaultTypeScriptWorkerCommand is the name a bundle installs and the
 // configuration defaults to.
-const defaultTypeScriptWorkerCommand = "ladygraph-ts-worker"
+const defaultTypeScriptWorkerCommand = "kivgraph-ts-worker"
 
 // siblingExecutable answers an executable installed next to the running
 // binary, which is what a bundle is.

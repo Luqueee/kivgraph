@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/tools/go/types/objectpath"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // CrossRepositoryStatus reports whether a use could be attributed to a

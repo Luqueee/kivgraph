@@ -1,3 +1,3 @@
-module example.com/ladygraph-fixture/legacy
+module example.com/kivgraph-fixture/legacy
 
 go 1.24

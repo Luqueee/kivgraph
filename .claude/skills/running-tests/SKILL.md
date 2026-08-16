@@ -1,9 +1,9 @@
 ---
 name: running-tests
-description: Cómo se ejecutan y se escriben los tests de Ladygraph - las tres suites, el tag `ladybug` que no se invoca a mano, qué se salta y por qué, y el smoke test del binario. Usar al correr tests, al añadirlos, ante un fallo de enlazado `library 'lbug' not found`, ante un `SKIP` inesperado, o antes de cerrar una tarea.
+description: Cómo se ejecutan y se escriben los tests de Kivgraph - las tres suites, el tag `ladybug` que no se invoca a mano, qué se salta y por qué, y el smoke test del binario. Usar al correr tests, al añadirlos, ante un fallo de enlazado `library 'lbug' not found`, ante un `SKIP` inesperado, o antes de cerrar una tarea.
 ---
 
-# Ejecutar los tests de Ladygraph
+# Ejecutar los tests de Kivgraph
 
 ## La regla que más cuesta descubrir
 
@@ -57,8 +57,8 @@ hasta que pasa `make test-ladybug`.
 | Camino Rust | además `go test ./internal/rustloader/ ./internal/indexer/ -run Rust` con `rust-analyzer` y `cargo` en el `PATH` |
 | `ts-worker/` | `cd ts-worker && pnpm check && pnpm build` |
 | `web/` | `cd web && pnpm check` |
-| CLI, superficie MCP, comandos | añadir `go test -race ./cmd/ladygraph/...` (`6 s`), que es lo que corre CI |
-| Distribución, bundle, manifest | `make build-darwin-arm64` y `(cd dist/ladygraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)` |
+| CLI, superficie MCP, comandos | añadir `go test -race ./cmd/kivgraph/...` (`6 s`), que es lo que corre CI |
+| Distribución, bundle, manifest | `make build-darwin-arm64` y `(cd dist/kivgraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)` |
 
 ## Lo que se salta, y cómo dejar de saltarlo
 
@@ -117,12 +117,12 @@ index.full: FAIL
 ```
 
 Construye uno con la capa nativa -las mismas flags que `make test-ladybug`- o usa
-el del bundle, `dist/ladygraph-darwin-arm64/bin/ladygraph`:
+el del bundle, `dist/kivgraph-darwin-arm64/bin/kivgraph`:
 
 ```bash
 LIB="$(scripts/fetch-ladybug.sh)"
 CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB -llbug -Wl,-rpath,$LIB" \
-  go build -tags ladybug -o /tmp/ladygraph-native ./cmd/ladygraph
+  go build -tags ladybug -o /tmp/kivgraph-native ./cmd/kivgraph
 ```
 
 El flujo completo, con un `HOME` desechable y sin tocar ningún repositorio real:
@@ -132,13 +132,13 @@ export RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo"   # el HOME de verd
 home=$(cd "$(mktemp -d)" && pwd -P); repo="$home/fixture"
 cp -r testdata/rust/workspace "$repo"
 (cd "$repo" && git init -q && git add -A && git -c user.email=a@b -c user.name=t commit -qm fixture)
-env HOME="$home" /tmp/ladygraph-native init --repository "fixture=$repo" --languages rust
-env HOME="$home" /tmp/ladygraph-native doctor
-env HOME="$home" /tmp/ladygraph-native index --full
+env HOME="$home" /tmp/kivgraph-native init --repository "fixture=$repo" --languages rust
+env HOME="$home" /tmp/kivgraph-native doctor
+env HOME="$home" /tmp/kivgraph-native index --full
 ```
 
 `RUSTUP_HOME` y `CARGO_HOME` se exportan **antes** y apuntan al `HOME` real: el
-`env HOME=` solo aísla la configuración de Ladygraph. Sin eso, el shim de rustup
+`env HOME=` solo aísla la configuración de Kivgraph. Sin eso, el shim de rustup
 no encuentra su toolchain y `doctor` declara `toolchain.cargo: FAIL` por un
 artefacto de la prueba, no por el estado de la máquina.
 

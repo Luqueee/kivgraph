@@ -14,16 +14,16 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/rebuild"
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
-	"github.com/Luqueee/ladygraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/syntax"
 )
 
-// Provenance is the stable machine-readable output of `ladygraph version
+// Provenance is the stable machine-readable output of `kivgraph version
 // --json`. Fields unavailable outside a distribution bundle are represented as
 // null rather than guessed values.
 type Provenance struct {
-	Ladygraph          string            `json:"ladygraph"`
+	Kivgraph           string            `json:"kivgraph"`
 	Commit             *string           `json:"commit"`
 	Dirty              *bool             `json:"dirty"`
 	Go                 string            `json:"go"`
@@ -136,7 +136,7 @@ func Collect(executablePath, workingDir string) (Provenance, error) {
 
 func fallbackProvenance(root string) (Provenance, error) {
 	provenance := Provenance{
-		Ladygraph:         Value,
+		Kivgraph:          Value,
 		Go:                runtime.Version(),
 		Ladybug:           ladybug.CoreVersion,
 		GoLadybug:         ladybug.GoBindingVersion,
@@ -238,7 +238,7 @@ func findBundleManifest(executablePath, workingDir string) (path, root string, f
 			path: filepath.Join(bundleRoot, "manifest.json"), root: bundleRoot,
 		})
 	}
-	distBundle := filepath.Join(workingDir, "dist", "ladygraph-"+runtime.GOOS+"-"+runtime.GOARCH)
+	distBundle := filepath.Join(workingDir, "dist", "kivgraph-"+runtime.GOOS+"-"+runtime.GOARCH)
 	candidates = append(candidates, struct{ path, root string }{
 		path: filepath.Join(distBundle, "manifest.json"),
 		root: distBundle,
@@ -286,7 +286,7 @@ func loadBundleProvenance(manifestPath, bundleRoot string) (Provenance, error) {
 		return Provenance{}, err
 	}
 	return Provenance{
-		Ladygraph:          manifest.Release,
+		Kivgraph:           manifest.Release,
 		Commit:             stringPointer(manifest.Source.Commit),
 		Dirty:              boolPointer(manifest.Source.Dirty),
 		Go:                 manifest.Toolchain.Go,
@@ -307,8 +307,8 @@ func validateBundleManifest(manifest bundleManifest) error {
 	if manifest.ManifestVersion != 1 {
 		return fmt.Errorf("manifest_version: want 1, got %d", manifest.ManifestVersion)
 	}
-	if manifest.Product != "ladygraph" {
-		return fmt.Errorf("product: want %q, got %q", "ladygraph", manifest.Product)
+	if manifest.Product != "kivgraph" {
+		return fmt.Errorf("product: want %q, got %q", "kivgraph", manifest.Product)
 	}
 	if manifest.Release == "" || manifest.Source.Commit == "" {
 		return errors.New("release and source.commit are required")

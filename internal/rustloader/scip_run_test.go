@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/rustloader/scipwire"
-	"github.com/Luqueee/ladygraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // analyzerFixture copies the recorded Rust workspace into a private directory,
@@ -90,7 +90,7 @@ func TestRunIndexesAWorkspaceWithoutWritingToIt(t *testing.T) {
 func TestRunClassifiesAMissingAnalyzer(t *testing.T) {
 	workspace, output := analyzerFixture(t)
 	options := defaultRunOptions(workspace, output)
-	options.AnalyzerCommand = "ladygraph-rust-analyzer-that-is-not-installed"
+	options.AnalyzerCommand = "kivgraph-rust-analyzer-that-is-not-installed"
 
 	_, err := Run(context.Background(), options)
 	var runErr *RunError
@@ -229,7 +229,7 @@ func TestResolveAnalyzerPrefersTheBundledBinary(t *testing.T) {
 	}
 
 	directory := testsupport.TempDir(t)
-	explicit := filepath.Join(directory, "ladygraph-fake-analyzer")
+	explicit := filepath.Join(directory, "kivgraph-fake-analyzer")
 	if err := os.WriteFile(explicit, []byte("#!/bin/sh\necho fake\n"), 0o755); err != nil {
 		t.Fatalf("write fake analyzer: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestResolveAnalyzerPrefersTheBundledBinary(t *testing.T) {
 	if _, _, err := ResolveAnalyzer("  "); err == nil {
 		t.Fatal("an empty command must not resolve")
 	}
-	if _, _, err := ResolveAnalyzer("ladygraph-analyzer-that-does-not-exist"); err == nil {
+	if _, _, err := ResolveAnalyzer("kivgraph-analyzer-that-does-not-exist"); err == nil {
 		t.Fatal("a missing command must not resolve")
 	}
 }

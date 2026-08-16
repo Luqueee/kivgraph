@@ -1,6 +1,6 @@
 ---
 title: index_project
-description: Registers projects and rebuilds the graph once, after explicit user approval. The only Ladygraph MCP tool that mutates anything.
+description: Registers projects and rebuilds the graph once, after explicit user approval. The only Kivgraph MCP tool that mutates anything.
 ---
 
 > Registers projects and rebuilds the graph once, after explicit user approval. Pass every project in one call: a rebuild costs the whole corpus. It never writes inside the source projects.
@@ -64,8 +64,8 @@ seeing which ones is not approval.
 {
   "name": "index_project",
   "arguments": {
-    "name": "ladygraph",
-    "path": "/Users/adria/Documents/programacion/projects/ladygraph",
+    "name": "kivgraph",
+    "path": "/Users/adria/Documents/programacion/projects/kivgraph",
     "languages": ["go"]
   }
 }
@@ -75,7 +75,7 @@ seeing which ones is not approval.
 PERMISSION_REQUIRED: user approval is required; confirm the operation before setting confirmed=true
 ```
 
-Corpus: snapshot `30` of two repositories, `ladygraph` and `mole`. The captured
+Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`. The captured
 call sent no `confirmed` and the client declared no elicitation capability, so
 the refusal is the whole response.
 
@@ -87,8 +87,8 @@ The batch form, which is the one to send:
   "arguments": {
     "projects": [
       {
-        "name": "ladygraph",
-        "path": "/Users/adria/Documents/programacion/projects/ladygraph",
+        "name": "kivgraph",
+        "path": "/Users/adria/Documents/programacion/projects/kivgraph",
         "languages": ["go", "typescript"]
       },
       {
@@ -146,7 +146,7 @@ for that repository to be in the graph, and it is.
 
 Names are compared exactly, and a name is an identifier: `.`, `..` and anything
 containing a path separator are rejected. The `rust:` namespace is reserved for
-the providers Ladygraph derives from the toolchain and cannot be taken.
+the providers Kivgraph derives from the toolchain and cannot be taken.
 
 ## Progress
 
@@ -169,7 +169,7 @@ the process answering queries; see [Indexing](/guides/indexing/#where-a-pass-run
 ## Limits
 
 - It never writes inside the source projects. It writes the repository registry
-  and the Ladygraph state directory; the checkouts it reads are left untouched.
+  and the Kivgraph state directory; the checkouts it reads are left untouched.
 - One index runs at a time inside a process. An `index_project` and a
   resynchronisation cannot overlap, and across processes a lock elects the single
   writer: the loser does not wait, because a rebuild lasting minutes would look

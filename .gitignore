@@ -1,5 +1,5 @@
 # Go
-/ladygraph
+/kivgraph
 *.test
 *.out
 # `go build ./benchmarks/x/` writes the executable into the working directory, so

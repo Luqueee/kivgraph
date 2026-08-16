@@ -1,15 +1,15 @@
 ---
 name: publishing-releases
-description: Cómo y sobre todo cuándo se publica una release de Ladygraph - la versión sólo sube, los tres sitios donde vive, qué verifica CI, y la lista de cambios que NO merecen release. Usar al proponer o preparar una release, al tocar `internal/version/version.go`, al crear un tag `vX.Y.Z`, o cuando alguien pida "saca una versión".
+description: Cómo y sobre todo cuándo se publica una release de Kivgraph - la versión sólo sube, los tres sitios donde vive, qué verifica CI, y la lista de cambios que NO merecen release. Usar al proponer o preparar una release, al tocar `internal/version/version.go`, al crear un tag `vX.Y.Z`, o cuando alguien pida "saca una versión".
 ---
 
-# Publicar una release de Ladygraph
+# Publicar una release de Kivgraph
 
 ## La regla que más cuesta descubrir
 
 **La versión sólo sube. Nunca baja, nunca se reinicia, nunca se reutiliza.**
 
-`ladygraph update` pregunta a GitHub por `/releases/latest` y decide con una sola
+`kivgraph update` pregunta a GitHub por `/releases/latest` y decide con una sola
 comparación (`internal/update/update.go:134`):
 
 ```go
@@ -34,7 +34,7 @@ Esta sección existe porque el historial dice lo contrario: **21 commits
 `chore(release)` en dos días**, uno cada pocas horas.
 
 Una release es un **evento de distribución**, no un punto de control. Sólo tiene
-sentido si alguien que ejecute `ladygraph update` va a recibir algo que necesita.
+sentido si alguien que ejecute `kivgraph update` va a recibir algo que necesita.
 
 No se publica por:
 
@@ -92,7 +92,7 @@ que lo haga: se editan a mano.
 
 ```bash
 grep -n 'Value = ' internal/version/version.go          # var Value = "X.Y.Z"
-grep -rn 'LADYGRAPH_VERSION=v' README.md docs/installation.md
+grep -rn 'KIVGRAPH_VERSION=v' README.md docs/installation.md
 ```
 
 Un commit propio, un tag **anotado** -como todos los anteriores-, y el tag
@@ -100,7 +100,7 @@ después del commit:
 
 ```bash
 git commit -am "chore(release): prepare vX.Y.Z"
-git tag -a vX.Y.Z -m "Ladygraph vX.Y.Z"
+git tag -a vX.Y.Z -m "Kivgraph vX.Y.Z"
 git push origin main
 git push origin vX.Y.Z
 ```
@@ -116,7 +116,7 @@ algo que no existe en `main`.
 plataforma y siempre en un host nativo -`linux/amd64` y `darwin/arm64`, no hay
 cross-compilation porque cgo enlaza la biblioteca nativa-:
 
-- que `ladygraph version` y `version --json` digan exactamente la versión del tag;
+- que `kivgraph version` y `version --json` digan exactamente la versión del tag;
 - que `bin/rust-analyzer` sea el release fijado en `tools/manifest.json`;
 - que `web/index.html` esté en el payload **y** que la ayuda no diga
   `unavailable: this build carries no web bundle` — un bundle con assets enlazado

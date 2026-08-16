@@ -1,4 +1,4 @@
-# Ladygraph
+# Kivgraph
 
 A local MCP server that answers questions about code across repositories, for
 Go, TypeScript and Rust.
@@ -42,7 +42,7 @@ output captured verbatim.
 
 ## Status
 
-Released and in use. `ladygraph version` reports the published release; the
+Released and in use. `kivgraph version` reports the published release; the
 backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 
 - **Languages:** Go, TypeScript, Rust. The Rust standard library enters the
@@ -53,13 +53,13 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - **Storage:** LadybugDB is canonical; queries are served from an immutable
   HotSnapshot published atomically, never from the database.
 - **Platforms:** `linux/amd64` and `darwin/arm64`.
-- **Viewer:** `ladygraph ui` serves a read-only 3D view of the published graph.
+- **Viewer:** `kivgraph ui` serves a read-only 3D view of the published graph.
 
 ## Requirements
 
 - Go 1.26 or later to build from source. The indexer type-checks with the
   `go/types` linked into the binary, so it can only read repositories and
-  dependencies written for its own language version or older; `ladygraph doctor`
+  dependencies written for its own language version or older; `kivgraph doctor`
   reports that ceiling.
 - Indexing Rust needs `cargo` and `rust-analyzer`. The release bundle carries
   the analyzer; it does not carry a Rust toolchain.
@@ -91,7 +91,7 @@ com.apple.quarantine`. See
 Install the latest release in one command:
 
 ```bash
-curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
 ```
 
 From a checkout, the same installer can be run directly:
@@ -103,38 +103,38 @@ From a checkout, the same installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-LADYGRAPH_VERSION=v0.6.0 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.6.0 ./scripts/install.sh
 ```
 
-The script installs the bundle in `~/.local/opt/ladygraph` and puts launchers
+The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
 in `~/.local/bin`. It never modifies a registered repository, creates an index,
 or replaces configuration files. To use a different location, set
-`LADYGRAPH_INSTALL_ROOT` and `LADYGRAPH_BIN_DIR`.
+`KIVGRAPH_INSTALL_ROOT` and `KIVGRAPH_BIN_DIR`.
 
 Add the launcher directory to the current shell and verify both runtimes:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-ladygraph version
-ladygraph-ts-worker <<'EOF'
+kivgraph version
+kivgraph-ts-worker <<'EOF'
 hello
 EOF
 ```
 Check for a newer release or update the installed bundle:
 
 ```bash
-ladygraph update --check
-ladygraph update
+kivgraph update --check
+kivgraph update
 ```
 
 The update is atomic, preserves the configuration and graph state, verifies
 the release and bundle checksums, and replaces only the installed bundle.
 Restart the MCP client after updating so it launches the new binary.
 
-When `ladygraph` is invoked without a command from an interactive terminal, it
+When `kivgraph` is invoked without a command from an interactive terminal, it
 checks for a newer release with an 800 ms timeout and a 24-hour cache in the
 platform cache directory (`$XDG_CACHE_HOME` on Linux and
-`$HOME/Library/Caches` on macOS), under `ladygraph/update-check.json`.
+`$HOME/Library/Caches` on macOS), under `kivgraph/update-check.json`.
 The optional check never blocks the command when the network is unavailable.
 
 Interactive command output uses semantic ANSI colors when the destination is a
@@ -143,15 +143,15 @@ terminal. Set `NO_COLOR` or redirect output to keep it plain.
 ### Configure an MCP client and install the skill
 
 The release installer does not edit client configuration automatically. After
-installing Ladygraph, run the integration commands without `--target` to detect
+installing Kivgraph, run the integration commands without `--target` to detect
 the coding agents present on this machine and select one or more of them:
 
 ```bash
-ladygraph mcp install --scope user
-ladygraph skill install --scope user
+kivgraph mcp install --scope user
+kivgraph skill install --scope user
 ```
 
-Ladygraph checks each client's known local configuration or installation roots
+Kivgraph checks each client's known local configuration or installation roots
 and marks detected agents. Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle
 an agent, `a` to select all, `n` to select none, `Enter` to confirm, and `q` or
 `Esc` to cancel. If none is detected, the selector starts with no agents
@@ -164,25 +164,25 @@ and `oh-my-pi`; Claude Desktop has no local skill target. The default scope is
 to inspect a plan without writing. Existing incompatible entries stop with an
 error; `--force` is required to replace or remove one. Existing files are
 written atomically with mode `0600` and receive a
-`*.ladygraph.bak` backup before replacement or removal.
+`*.kivgraph.bak` backup before replacement or removal.
 
 Inspect or remove a registration explicitly:
 
 ```bash
-ladygraph mcp status --target claude-code --scope user
-ladygraph mcp remove --target claude-code --scope user
-ladygraph skill status --target claude-code --scope user
-ladygraph skill remove --target claude-code --scope user
+kivgraph mcp status --target claude-code --scope user
+kivgraph mcp remove --target claude-code --scope user
+kivgraph skill status --target claude-code --scope user
+kivgraph skill remove --target claude-code --scope user
 ```
 
 Initialize and publish a graph before starting the MCP server:
 
 ```bash
-ladygraph init \
+kivgraph init \
   --repository project=/absolute/path/to/project \
   --languages go,typescript,rust
-ladygraph doctor
-ladygraph index --full
+kivgraph doctor
+kivgraph index --full
 ```
 
 `init` writes a self-contained configuration: with `--config` pointing
@@ -194,14 +194,14 @@ running follows the new generation on its own.
 Day to day:
 
 ```bash
-ladygraph graph status      # what is published, and whether a tree has moved
-ladygraph doctor            # toolchains, storage, and the type-checking ceiling
-ladygraph ui                # read-only 3D viewer, default 0.0.0.0:7777
-ladygraph stop              # terminate this user's serve and ui, never an index
-ladygraph clean --keep-active
+kivgraph graph status      # what is published, and whether a tree has moved
+kivgraph doctor            # toolchains, storage, and the type-checking ceiling
+kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
+kivgraph stop              # terminate this user's serve and ui, never an index
+kivgraph clean --keep-active
 ```
 
-`ladygraph ui` binds a non-loopback address by default, because the graph is
+`kivgraph ui` binds a non-loopback address by default, because the graph is
 indexed where the repositories are and looked at from elsewhere; there is no
 authentication, so it logs exactly what it exposes and `--addr` restricts it.
 
@@ -210,19 +210,19 @@ Configure any MCP client to start the server over STDIO:
 ```json
 {
   "mcpServers": {
-    "ladygraph": {
-      "command": "/home/user/.local/bin/ladygraph",
+    "kivgraph": {
+      "command": "/home/user/.local/bin/kivgraph",
       "args": [
         "serve",
         "--config",
-        "/home/user/.config/ladygraph/config.yaml"
+        "/home/user/.config/kivgraph/config.yaml"
       ]
     }
   }
 }
 ```
 
-`ladygraph serve` starts before a graph exists: with no published generation it
+`kivgraph serve` starts before a graph exists: with no published generation it
 completes the handshake, publishes no query tool and puts the rebuild command in
 `instructions`. A client launches the process itself, so exiting would read as a
 crash. It writes MCP framing exclusively to `stdout` and logs to `stderr`.
@@ -240,7 +240,7 @@ library indexed, `impl Add for u32` is generated by a macro and exists in no
 source range, so every use of it is declared `PROVIDER_DEFINITION_NOT_INDEXED`
 once per symbol instead of becoming an edge nobody could open.
 
-The providers Ladygraph derives from the machine — today the Rust standard
+The providers Kivgraph derives from the machine — today the Rust standard
 library, named `rust:1.96.1` after the toolchain — are withheld from read
 results by default: one toolchain is around twenty thousand symbols, and a
 search for `Clone` would answer with `core`. `include_derived` asks for them, and
@@ -277,10 +277,10 @@ captured, and what is still open are recorded in
 ## Structure
 
 ```text
-cmd/ladygraph/   Main executable.
-internal/        Ladygraph internal packages.
+cmd/kivgraph/   Main executable.
+internal/        Kivgraph internal packages.
 ts-worker/        TypeScript worker.
-web/              Graph viewer served by `ladygraph ui`.
+web/              Graph viewer served by `kivgraph ui`.
 landing/          Landing page and documentation site (not part of any release).
 testdata/         Test fixtures and corpora.
 benchmarks/       Benchmark results.
@@ -290,8 +290,8 @@ scripts/          Auxiliary automation.
 
 ## License
 
-Ladygraph is distributed under the [Apache License 2.0](LICENSE).
+Kivgraph is distributed under the [Apache License 2.0](LICENSE).
 
 ## Third-party licenses
 
-Notices and licenses for dependencies distributed with Ladygraph are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The list is updated whenever a dependency is added to the distributable product.
+Notices and licenses for dependencies distributed with Kivgraph are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The list is updated whenever a dependency is added to the distributable product.

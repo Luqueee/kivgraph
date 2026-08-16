@@ -28,7 +28,7 @@ interface Workspace {
 async function createWorkspace(
   files: Record<string, string>,
 ): Promise<Workspace> {
-  const root = await temporaryRoot("ladygraph-extends-");
+  const root = await temporaryRoot("kivgraph-extends-");
   workspaces.push(root);
   const workspace: Workspace = {
     root,

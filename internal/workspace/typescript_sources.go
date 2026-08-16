@@ -96,7 +96,7 @@ func effectiveTypeScriptExcludePatterns(configuration parsedTypeScriptConfig) []
 		patterns = append(patterns, configuration.Exclude...)
 		// TypeScript always prunes node_modules from wildcard expansion for
 		// performance, even when the project declares its own "exclude".
-		// Ladygraph mirrors that observable compiler behaviour here instead of
+		// Kivgraph mirrors that observable compiler behaviour here instead of
 		// diverging from it just because it could technically afford to walk
 		// the tree.
 		patterns = append(patterns, filepath.Join(configuration.Directory, "**", "node_modules"))

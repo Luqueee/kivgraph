@@ -32,7 +32,7 @@ func (process Process) Command() string {
 }
 
 // Invocation reports the executable's base name and its first argument, which
-// is what distinguishes `ladygraph serve` from `ladygraph index`.
+// is what distinguishes `kivgraph serve` from `kivgraph index`.
 func (process Process) Invocation() (program, command string) {
 	if len(process.Args) == 0 {
 		return "", ""

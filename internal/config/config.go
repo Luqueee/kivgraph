@@ -16,18 +16,18 @@ import (
 )
 
 const (
-	// CurrentSchemaVersion is the configuration schema understood by Ladygraph.
+	// CurrentSchemaVersion is the configuration schema understood by Kivgraph.
 	CurrentSchemaVersion = 1
 
-	defaultConfigFile       = "~/.config/ladygraph/config.yaml"
-	defaultRepositoriesFile = "~/.config/ladygraph/repositories.yaml"
+	defaultConfigFile       = "~/.config/kivgraph/config.yaml"
+	defaultRepositoriesFile = "~/.config/kivgraph/repositories.yaml"
 
-	defaultDatabasePath  = "~/.local/state/ladygraph/graph.lbdb"
-	defaultSnapshotsPath = "~/.local/state/ladygraph/snapshots"
-	defaultBackupsPath   = "~/.local/state/ladygraph/backups"
-	defaultFactCachePath = "~/.local/state/ladygraph/factcache"
-	defaultSyntheticWork = "~/.local/state/ladygraph/go.work"
-	defaultRustTargetDir = "~/.local/state/ladygraph/rust-target"
+	defaultDatabasePath  = "~/.local/state/kivgraph/graph.lbdb"
+	defaultSnapshotsPath = "~/.local/state/kivgraph/snapshots"
+	defaultBackupsPath   = "~/.local/state/kivgraph/backups"
+	defaultFactCachePath = "~/.local/state/kivgraph/factcache"
+	defaultSyntheticWork = "~/.local/state/kivgraph/go.work"
+	defaultRustTargetDir = "~/.local/state/kivgraph/rust-target"
 
 	maximumConfiguredDepth = 5
 )
@@ -58,7 +58,7 @@ func (duration Duration) String() string {
 	return time.Duration(duration).String()
 }
 
-// Config is the complete Ladygraph configuration document.
+// Config is the complete Kivgraph configuration document.
 type Config struct {
 	Version    int              `yaml:"version"`
 	Workspace  WorkspaceConfig  `yaml:"workspace"`
@@ -155,7 +155,7 @@ type GoConfig struct {
 
 // RustConfig controls the external rust-analyzer batch indexer.
 //
-// Rust is analysed by a process Ladygraph does not ship, so the command, the
+// Rust is analysed by a process Kivgraph does not ship, so the command, the
 // build configuration it is given and the directory its build artifacts land
 // in all belong to the configuration rather than to the code.
 type RustConfig struct {
@@ -275,7 +275,7 @@ func DefaultConfig() Config {
 		Web: WebConfig{
 			// The viewer listens on every interface. It is unauthenticated
 			// and its responses carry source paths, symbol names and
-			// signatures, so `ladygraph ui` warns on every bind that is not
+			// signatures, so `kivgraph ui` warns on every bind that is not
 			// loopback -- which, with this default, is every bind. Restrict
 			// it with `web.address` or `--addr`.
 			Address: "0.0.0.0:7777",
@@ -302,7 +302,7 @@ func DefaultConfig() Config {
 			ReconciliationInterval:   Duration(10 * time.Minute),
 		},
 		TypeScript: TypeScriptConfig{
-			WorkerCommand:      "ladygraph-ts-worker",
+			WorkerCommand:      "kivgraph-ts-worker",
 			MaximumWorkers:     3,
 			ProjectIdleTimeout: Duration(30 * time.Minute),
 		},
@@ -499,7 +499,7 @@ func writeInitialFile(path string, data []byte, force bool) (bool, error) {
 		return true, nil
 	}
 
-	temporary, err := os.CreateTemp(filepath.Dir(path), ".ladygraph-init-*")
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".kivgraph-init-*")
 	if err != nil {
 		return false, err
 	}
@@ -573,7 +573,7 @@ func SaveRepositories(path string, repositories RepositoriesFile) error {
 }
 
 // Load reads, validates, and combines config.yaml with its repositories.yaml.
-// An empty path selects ~/.config/ladygraph/config.yaml.
+// An empty path selects ~/.config/kivgraph/config.yaml.
 func Load(path string) (Loaded, error) {
 	configPath, err := resolveConfigPath(path)
 	if err != nil {
@@ -615,7 +615,7 @@ func LoadConfig(path string) (Config, error) {
 }
 
 // LoadRepositories reads and validates a repository registry document.
-// An empty path selects ~/.config/ladygraph/repositories.yaml.
+// An empty path selects ~/.config/kivgraph/repositories.yaml.
 func LoadRepositories(path string) (RepositoriesFile, error) {
 	repositoriesPath, err := resolveRepositoriesPath(path)
 	if err != nil {

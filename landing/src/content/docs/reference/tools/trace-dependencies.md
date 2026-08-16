@@ -13,7 +13,7 @@ description: Bounded outgoing traversal from one symbol, with the edge each reac
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `depth` | integer | `3` | How many hops the walk may take. Must be between 1 and 5. |
 | `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations the traversal may follow, so it also changes what is reachable. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
-| `include_derived` | boolean | `false` | Includes rows from providers Ladygraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
+| `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
 | `language` | string | none | Selects which reached symbols are returned: `go`, `typescript` or `rust`. It filters rows after reachability and never changes the walk. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
 | `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
@@ -36,7 +36,7 @@ is the root and is never listed as its own dependency.
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "qualified_name": "MergeAll",
   "depth": 1,
@@ -61,7 +61,7 @@ is the root and is never listed as its own dependency.
   "guidance": "showing 3 of 37; narrow with depth, max_nodes, edge_kinds or confidence, or pass the cursor for the next page",
   "results": {
     "root_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
-    "root_repository": "ladygraph",
+    "root_repository": "kivgraph",
     "depth": 1,
     "max_nodes": 5000,
     "reached": 37,
@@ -73,7 +73,7 @@ is the root and is never listed as its own dependency.
         "qualified_name": "Set.Symbols",
         "kind": "field",
         "depth": 1,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/facts/facts.go",
         "start_line": 251,
@@ -88,7 +88,7 @@ is the root and is never listed as its own dependency.
         "qualified_name": "unresolvedIdentity.file",
         "kind": "field",
         "depth": 1,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/facts/facts.go",
         "start_line": 568,
@@ -103,7 +103,7 @@ is the root and is never listed as its own dependency.
         "qualified_name": "unresolvedIdentity.reason",
         "kind": "field",
         "depth": 1,
-        "repository": "ladygraph",
+        "repository": "kivgraph",
         "language": "go",
         "file_path": "internal/facts/facts.go",
         "start_line": 569,
@@ -118,7 +118,7 @@ is the root and is never listed as its own dependency.
 }
 ```
 
-This answer comes from snapshot `30` of two repositories, `ladygraph` and
+This answer comes from snapshot `30` of two repositories, `kivgraph` and
 `mole`.
 
 ## Reading the result

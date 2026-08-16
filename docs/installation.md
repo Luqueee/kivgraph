@@ -1,11 +1,11 @@
 # Instalación y primera ejecución
 
-Esta guía instala Ladygraph como un servidor MCP local y prepara su primer
+Esta guía instala Kivgraph como un servidor MCP local y prepara su primer
 índice. El flujo recomendado usa el bundle publicado para la plataforma, que
 incluye el binario Go, la biblioteca nativa fijada de LadybugDB, el worker
 TypeScript, las grammars, los avisos de licencia y el visor web bajo `web/`.
 
-El visor viene en la release: tras instalar, `ladygraph ui` sirve el grafo
+El visor viene en la release: tras instalar, `kivgraph ui` sirve el grafo
 publicado en `0.0.0.0:7777` sin construir nada, porque lo normal es indexar
 donde están los repositorios y mirar el grafo desde otra máquina. Un bundle
 generado con `--mcp-only` no lo lleva, y en ese caso la ayuda marca `ui` como
@@ -14,7 +14,7 @@ no disponible en lugar de ofrecer un comando que termina en error.
 **El visor no lleva autenticación** y sus respuestas contienen rutas de
 repositorio y de fichero, nombres de símbolo y firmas. Con el bind por defecto
 lo ve cualquiera que alcance el puerto: `ui` lo advierte en cada arranque. Para
-restringirlo, `ladygraph ui --addr 127.0.0.1:7777` o `web.address` en la
+restringirlo, `kivgraph ui --addr 127.0.0.1:7777` o `web.address` en la
 configuración. Una configuración ya escrita conserva su valor: cambiarlo es
 editar `web.address`.
 
@@ -23,7 +23,7 @@ Cada vista materializada está limitada a `10.000` nodos por tile y `32 MiB`
 por respuesta; el LOD oculta detalle lejano y una vista mayor debe solicitar
 tiles o una neighborhood acotada en vez de truncarse en el navegador.
 
-Ladygraph no copia ni modifica los repositorios registrados. El grafo canónico,
+Kivgraph no copia ni modifica los repositorios registrados. El grafo canónico,
 los snapshots y los backups se escriben en el directorio de estado configurado.
 
 ## Compatibilidad y requisitos
@@ -34,13 +34,13 @@ La release publica un bundle por plataforma soportada:
 
 | Plataforma | Archivo | Biblioteca nativa |
 | --- | --- | --- |
-| Linux `x86_64`/`amd64` | `ladygraph-linux-amd64.tar.gz` | `lib/liblbug.so` |
-| macOS `arm64` (Apple Silicon) | `ladygraph-darwin-arm64.tar.gz` | `lib/liblbug.dylib` |
+| Linux `x86_64`/`amd64` | `kivgraph-linux-amd64.tar.gz` | `lib/liblbug.so` |
+| macOS `arm64` (Apple Silicon) | `kivgraph-darwin-arm64.tar.gz` | `lib/liblbug.dylib` |
 
-Cada bundle lleva dentro los tres motores que Ladygraph ejecuta: la biblioteca
+Cada bundle lleva dentro los tres motores que Kivgraph ejecuta: la biblioteca
 nativa de LadybugDB en `lib/`, el worker TypeScript en `worker/` y
 `bin/rust-analyzer`. Todos entran en `SHA256SUMS` y en `manifest.json`, y
-`ladygraph version --json` publica sus versiones.
+`kivgraph version --json` publica sus versiones.
 
 Cada bundle necesita:
 
@@ -102,26 +102,26 @@ reciente para ella, verifica el checksum del archivo y después los checksums
 internos del bundle:
 
 ```bash
-curl -fsSL https://github.com/Luqueee/ladygraph/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
 ```
 
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-LADYGRAPH_VERSION=v0.6.0 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.6.0 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
-`LADYGRAPH_GITHUB_TOKEN` al instalador.
+`KIVGRAPH_GITHUB_TOKEN` al instalador.
 
 Comprueba y aplica actualizaciones desde el bundle instalado:
 
 ```bash
-ladygraph update --check
-ladygraph update
+kivgraph update --check
+kivgraph update
 ```
 
-`ladygraph update` descarga la última release, rechaza tags que no sean SemVer,
+`kivgraph update` descarga la última release, rechaza tags que no sean SemVer,
 verifica el checksum externo, el `manifest.json`, todos los checksums internos y
 la versión del ejecutable. Solo después reemplaza atómicamente el bundle
 instalado; la configuración y el estado del grafo permanecen fuera del bundle.
@@ -129,13 +129,13 @@ Reinicia el cliente MCP después de actualizar.
 
 ## Instalar un bundle
 
-El artefacto es el directorio `ladygraph-<os>-<arch>/` generado por el build de
+El artefacto es el directorio `kivgraph-<os>-<arch>/` generado por el build de
 distribución. Antes de instalarlo, comprueba sus hashes desde la raíz del
 bundle, con `sha256sum -c SHA256SUMS` o, en macOS, `shasum -a 256 -c
 SHA256SUMS`:
 
 ```bash
-bundle=/ruta/al/ladygraph-darwin-arm64
+bundle=/ruta/al/kivgraph-darwin-arm64
 (
   cd "$bundle"
   shasum -a 256 -c SHA256SUMS
@@ -150,7 +150,7 @@ Una instalación por usuario conserva la estructura del bundle y no necesita
 permisos de administrador:
 
 ```bash
-install_root="$HOME/.local/opt/ladygraph"
+install_root="$HOME/.local/opt/kivgraph"
 mkdir -p "$install_root"
 cp -a "$bundle/." "$install_root/"
 export PATH="$install_root/bin:$PATH"
@@ -158,21 +158,21 @@ export PATH="$install_root/bin:$PATH"
 
 Para persistir el `PATH`, añade la exportación a la configuración de la shell
 que utilice el cliente MCP. No crees un symlink separado para
-`ladygraph-ts-worker`: su launcher calcula la raíz del bundle a partir de su
+`kivgraph-ts-worker`: su launcher calcula la raíz del bundle a partir de su
 propia ubicación.
 
 Verifica el runtime y la procedencia antes de inicializar datos:
 
 ```bash
 node --version
-ladygraph version
-ladygraph version --json
-ladygraph-ts-worker <<'EOF'
+kivgraph version
+kivgraph version --json
+kivgraph-ts-worker <<'EOF'
 hello
 EOF
 ```
 
-`ladygraph version --json` debe mostrar el `target.os` y `target.arch` de la
+`kivgraph version --json` debe mostrar el `target.os` y `target.arch` de la
 plataforma, la versión de LadybugDB y el digest de la biblioteca. El launcher
 del worker debe imprimir `hello`; también enruta el subcomando `facts` que usa
 el indexador TypeScript.
@@ -186,7 +186,7 @@ make build-darwin-arm64
 
 Ambos delegan en `scripts/build-bundle.sh --target <os>/<arch>`, que sólo
 acepta el objetivo del propio host: cgo enlaza la biblioteca nativa, así que no
-hay cross-compilation. El comando recrea `dist/ladygraph-<os>-<arch>/`,
+hay cross-compilation. El comando recrea `dist/kivgraph-<os>-<arch>/`,
 descarga y verifica el asset nativo, instala las dependencias del worker con
 `pnpm install --frozen`, construye `web/` con su lockfile cuando el paquete
 existe, copia únicamente `web/dist` al bundle y valida `SHA256SUMS`. `dist/` es
@@ -197,7 +197,7 @@ En un checkout limpio, el `buildid` Go se deriva del commit y del estado
 toolchain y plataforma producen el mismo payload; un árbol modificado se marca
 `source.dirty: true` en el manifest.
 
-El comando `ladygraph ui` sirve `web/index.html` y los demás archivos generados
+El comando `kivgraph ui` sirve `web/index.html` y los demás archivos generados
 del bundle. Un build sin el tag `webassets` o sin `web/` no sirve archivos del
 checkout: responde `503` con un fallback que indica que el bundle web no está
 construido.
@@ -208,8 +208,8 @@ Este flujo es útil para desarrollo o para una plataforma para la que no exista
 un bundle de distribución:
 
 ```bash
-git clone https://github.com/Luqueee/ladygraph.git
-cd ladygraph
+git clone https://github.com/Luqueee/kivgraph.git
+cd kivgraph
 
 scripts/fetch-ladybug.sh
 pnpm --dir ts-worker install --frozen-lockfile
@@ -221,18 +221,18 @@ CGO_ENABLED=1 \
 CGO_CFLAGS="-I$native_dir" \
 CGO_LDFLAGS="-L$native_dir -llbug -Wl,-rpath,$native_dir" \
 go build -tags ladybug -trimpath \
-  -o "$HOME/.local/bin/ladygraph" \
-  ./cmd/ladygraph
+  -o "$HOME/.local/bin/kivgraph" \
+  ./cmd/kivgraph
 ```
 
 Para una ejecución desde el checkout, el indexador puede usar
 `ts-worker/dist/facts-cli.js` como fallback cuando el comando por defecto
-`ladygraph-ts-worker` no está en `PATH`. Para instalar el binario fuera del
+`kivgraph-ts-worker` no está en `PATH`. Para instalar el binario fuera del
 checkout, crea un launcher que conserve esa resolución:
 
 ```bash
-repo_root=/ruta/al/checkout/de/ladygraph
-cat > "$HOME/.local/bin/ladygraph-ts-worker" <<EOF
+repo_root=/ruta/al/checkout/de/kivgraph
+cat > "$HOME/.local/bin/kivgraph-ts-worker" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "\${1:-}" == "facts" ]]; then
@@ -241,7 +241,7 @@ if [[ "\${1:-}" == "facts" ]]; then
 fi
 exec node "$repo_root/ts-worker/dist/index.js" "\$@"
 EOF
-chmod 0755 "$HOME/.local/bin/ladygraph-ts-worker"
+chmod 0755 "$HOME/.local/bin/kivgraph-ts-worker"
 ```
 
 Alternativamente, configura `typescript.worker_command` con un comando
@@ -252,14 +252,14 @@ Comprueba el binario compilado con:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-ladygraph version
+kivgraph version
 ```
 
 Un binario compilado sin `-tags ladybug` puede servir para comandos que no abren
 LadybugDB, pero no es una instalación funcional para indexar, diagnosticar o
 publicar el grafo canónico.
 
-`ladygraph --help` lista los comandos agrupados y `ladygraph <comando> --help`
+`kivgraph --help` lista los comandos agrupados y `kivgraph <comando> --help`
 describe sus banderas; ambos escriben en `stdout` y terminan con código `0`.
 Los errores de un comando puntual se escriben en texto plano cuando `stderr` es
 una terminal, y como registro JSON cuando es una tubería o un archivo, que es
@@ -270,24 +270,24 @@ lo que consume otra herramienta. `serve` y `ui` registran siempre en JSON.
 Genera los dos documentos de configuración y los directorios de estado:
 
 ```bash
-ladygraph init
+kivgraph init
 ```
 
 Por defecto se crean, con permisos restrictivos:
 
 ```text
-~/.config/ladygraph/config.yaml
-~/.config/ladygraph/repositories.yaml
-~/.local/state/ladygraph/
+~/.config/kivgraph/config.yaml
+~/.config/kivgraph/repositories.yaml
+~/.local/state/kivgraph/
 ```
 
 `init` es no destructivo: si los archivos existen, los conserva y devuelve
 `existing`. Para usar otras ubicaciones, pasa ambas rutas explícitamente:
 
 ```bash
-ladygraph init \
-  --config "$HOME/.config/ladygraph/config.yaml" \
-  --repositories "$HOME/.config/ladygraph/repositories.yaml"
+kivgraph init \
+  --config "$HOME/.config/kivgraph/config.yaml" \
+  --repositories "$HOME/.config/kivgraph/repositories.yaml"
 ```
 
 `--force` reemplaza los documentos de configuración y registro. Úsalo solo
@@ -300,11 +300,11 @@ Registra un repositorio Go y uno TypeScript en invocaciones separadas para que
 cada entrada conserve sus lenguajes correctos:
 
 ```bash
-ladygraph init \
+kivgraph init \
   --repository backend=/ruta/absoluta/al/backend \
   --languages go
 
-ladygraph init \
+kivgraph init \
   --repository frontend=/ruta/absoluta/al/frontend \
   --languages typescript
 ```
@@ -318,7 +318,7 @@ que se ejecutan como servicio.
 Para registrar más repositorios con la misma combinación de lenguajes:
 
 ```bash
-ladygraph init \
+kivgraph init \
   --repository shared=/ruta/absoluta/al/shared \
   --repository tools=/ruta/absoluta/al/tools \
   --languages go,typescript
@@ -342,7 +342,7 @@ repositories:
       - dist
 ```
 
-En un monorepo TypeScript, Ladygraph procesa cada `package.json` nombrado que
+En un monorepo TypeScript, Kivgraph procesa cada `package.json` nombrado que
 tenga un `tsconfig` aplicable de forma independiente. El `ProjectPath` elegido
 es el `tsconfig` más profundo que contiene ese paquete; no se reutiliza
 silenciosamente el `tsconfig` de la raíz para otro paquete. Un manifest sin
@@ -358,7 +358,7 @@ una generación vacía.
 Ejecuta el diagnóstico antes de abrir el servidor:
 
 ```bash
-ladygraph doctor
+kivgraph doctor
 ```
 
 El comando comprueba la configuración, los permisos de los directorios de
@@ -370,7 +370,7 @@ continuar.
 Construye el índice completo y publica una generación validada:
 
 ```bash
-ladygraph index --full
+kivgraph index --full
 ```
 
 La operación:
@@ -385,7 +385,7 @@ Un fallo deja intacta la generación activa anterior. Para registrar una versió
 de resolver estable de la instalación, puede pasarse explícitamente:
 
 ```bash
-ladygraph index --full --resolver-version mi-resolver-go-ts-v1
+kivgraph index --full --resolver-version mi-resolver-go-ts-v1
 ```
 
 Usa `--config PATH` si la configuración no está en la ruta predeterminada, y
@@ -395,7 +395,7 @@ Usa `--config PATH` si la configuración no está en la ruta predeterminada, y
 Después de indexar, vuelve a ejecutar:
 
 ```bash
-ladygraph doctor
+kivgraph doctor
 ```
 
 Un resultado `PASS` debe incluir una generación activa, un digest de snapshot y
@@ -408,7 +408,7 @@ contrato conserva como resultado distinto de `EXACT`.
 El transporte configurado por defecto es STDIO. Arranca el servidor con:
 
 ```bash
-ladygraph serve
+kivgraph serve
 ```
 
 Para un cliente MCP que ejecute procesos directamente, usa el binario y sus
@@ -417,12 +417,12 @@ argumentos sin envolverlos en `sh -c`:
 ```json
 {
   "mcpServers": {
-    "ladygraph": {
-      "command": "/home/usuario/.local/opt/ladygraph/bin/ladygraph",
+    "kivgraph": {
+      "command": "/home/usuario/.local/opt/kivgraph/bin/kivgraph",
       "args": [
         "serve",
         "--config",
-        "/home/usuario/.config/ladygraph/config.yaml"
+        "/home/usuario/.config/kivgraph/config.yaml"
       ]
     }
   }
@@ -441,13 +441,13 @@ Con la configuración por defecto, las rutas principales son:
 
 | Ruta | Contenido |
 | --- | --- |
-| `~/.config/ladygraph/config.yaml` | configuración versionada (`version: 1`) |
-| `~/.config/ladygraph/repositories.yaml` | registro de repositorios |
-| `~/.local/state/ladygraph/graph.lbdb` | ruta base configurada del almacenamiento |
-| `~/.local/state/ladygraph/generations/` | generaciones publicadas y candidatas |
-| `~/.local/state/ladygraph/snapshots/` | snapshots derivados retenidos |
-| `~/.local/state/ladygraph/backups/` | backups de upgrades de schema |
-| `~/.local/state/ladygraph/go.work` | workspace sintético temporal de Go |
+| `~/.config/kivgraph/config.yaml` | configuración versionada (`version: 1`) |
+| `~/.config/kivgraph/repositories.yaml` | registro de repositorios |
+| `~/.local/state/kivgraph/graph.lbdb` | ruta base configurada del almacenamiento |
+| `~/.local/state/kivgraph/generations/` | generaciones publicadas y candidatas |
+| `~/.local/state/kivgraph/snapshots/` | snapshots derivados retenidos |
+| `~/.local/state/kivgraph/backups/` | backups de upgrades de schema |
+| `~/.local/state/kivgraph/go.work` | workspace sintético temporal de Go |
 
 El snapshot es una proyección derivada. LadybugDB en la generación publicada es
 la fuente canónica; no edites sus archivos a mano ni reemplaces un snapshot sin
@@ -457,7 +457,7 @@ Si una actualización detecta un schema canónico incompatible, usa el flujo
 seguro de upgrade:
 
 ```bash
-ladygraph upgrade
+kivgraph upgrade
 ```
 
 `upgrade` crea un backup verificable, reconstruye desde los repositorios
@@ -478,7 +478,7 @@ la auditoría. En macOS la orden es `shasum -a 256 -c SHA256SUMS`.
 En Linux el mensaje es `error while loading shared libraries: liblbug.so`; en
 macOS, `dyld: Library not loaded: @rpath/liblbug.dylib`. En ambos casos se
 ejecutó el binario fuera de la estructura del bundle o se copió solo
-`bin/ladygraph`. Reinstala el directorio completo y añade `bundle/bin` al
+`bin/kivgraph`. Reinstala el directorio completo y añade `bundle/bin` al
 `PATH`; el ejecutable ya contiene el `RUNPATH` relativo a `../lib`.
 
 En un build fuente, confirma que `scripts/fetch-ladybug.sh` devuelve la
@@ -488,8 +488,8 @@ CGO mostrados arriba y `-tags ladybug`.
 ### `toolchain.typescript: FAIL`
 
 Comprueba `node --version` (debe ser `22` o posterior) y que
-`ladygraph-ts-worker` sea ejecutable desde el mismo entorno que ejecutará
-`ladygraph`. En un bundle, el launcher debe permanecer junto a `ladygraph` y
+`kivgraph-ts-worker` sea ejecutable desde el mismo entorno que ejecutará
+`kivgraph`. En un bundle, el launcher debe permanecer junto a `kivgraph` y
 `worker/`. En un checkout fuente, ejecuta `pnpm --dir ts-worker build` o usa el
 fallback documentado en la sección de compilación.
 
@@ -509,12 +509,12 @@ no reinterpretarse silenciosamente.
 
 Los directorios de estado deben ser privados (`0700`). Corrige el propietario
 y los permisos del directorio indicado sin hacerlos globalmente escribibles.
-Después repite `ladygraph doctor`.
+Después repite `kivgraph doctor`.
 
 ### No hay generación publicada
 
 `doctor` puede mostrar `no published generation` después de un `init` limpio.
-Registra al menos un repositorio accesible y ejecuta `ladygraph index --full`.
+Registra al menos un repositorio accesible y ejecuta `kivgraph index --full`.
 No intentes crear `CURRENT` manualmente.
 
 ### El índice falla por un repositorio
@@ -529,7 +529,7 @@ no cero; corrige el repositorio o su registro y repite la operación.
 - El artefacto distribuible documentado es únicamente `linux/amd64` y depende
   de las bibliotecas estándar del sistema y de Node.js. `darwin/arm64` se
   compila y se verifica desde un checkout, pero no tiene bundle publicado ni
-  instalador; `ladygraph update` lo rechaza nombrando la plataforma. Ver
+  instalador; `kivgraph update` lo rechaza nombrando la plataforma. Ver
   [Desarrollo en macOS](development/macos.md).
 - La configuración se valida sintácticamente y por permisos durante `doctor`;
   comprobaciones adicionales de políticas de repositorio pertenecen a la

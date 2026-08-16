@@ -5,13 +5,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/tsworker"
+	"github.com/Luqueee/kivgraph/internal/tsworker"
 )
 
 // workerEnv makes the test binary re-execute itself as a protocol-speaking
 // worker. Re-exec keeps the test hermetic: no Node.js, no build step, and the
 // fake uses the production codec because it links the same package.
-const workerEnv = "LADYGRAPH_RESILIENCE_WORKER"
+const workerEnv = "KIVGRAPH_RESILIENCE_WORKER"
 
 func TestMain(m *testing.M) {
 	if os.Getenv(workerEnv) != "" {

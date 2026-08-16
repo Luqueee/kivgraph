@@ -107,7 +107,7 @@ func (writer *writer) transactionCount(ctx context.Context, query string) (int64
 }
 
 func writeReferenceCSV(references []Reference, properties bool) (string, error) {
-	file, err := os.CreateTemp("", "ladygraph-ladybug-references-*.csv")
+	file, err := os.CreateTemp("", "kivgraph-ladybug-references-*.csv")
 	if err != nil {
 		return "", err
 	}

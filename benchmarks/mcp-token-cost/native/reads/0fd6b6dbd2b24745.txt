@@ -26,7 +26,7 @@
 53:	return nil, false
 54:}
 55:
-56:// columnsOrError looks up a table Ladygraph itself names, as opposed to a table
+56:// columnsOrError looks up a table Kivgraph itself names, as opposed to a table
 57:// name derived from fact data (an edge kind). Any miss here means this file
 
 [Showing lines 29-57 of 352. Use :58 to continue]

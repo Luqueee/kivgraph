@@ -7,22 +7,22 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@ladygraph-fixture/duplicated": [
+      "@kivgraph-fixture/duplicated": [
         "../duplicated-a/dist/index.d.ts"
       ],
-      "@ladygraph-fixture/drifting": [
+      "@kivgraph-fixture/drifting": [
         "../drifting/dist/index.d.ts"
       ],
-      "@ladygraph-fixture/unmapped": [
+      "@kivgraph-fixture/unmapped": [
         "../unmapped/dist/index.d.ts"
       ],
-      "@ladygraph-fixture/twin": [
+      "@kivgraph-fixture/twin": [
         "../twin/dist/index.d.ts"
       ],
-      "@ladygraph-fixture/shared": [
+      "@kivgraph-fixture/shared": [
         "../../cross-repository/shared-library/dist/index.d.ts"
       ],
-      "@ladygraph-fixture/nomap": [
+      "@kivgraph-fixture/nomap": [
         "../nomap/dist/index.d.ts"
       ]
     }

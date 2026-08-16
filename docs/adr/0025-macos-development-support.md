@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Ladygraph se construía y se verificaba únicamente en Linux `amd64`. En
+Kivgraph se construía y se verificaba únicamente en Linux `amd64`. En
 `darwin/arm64` (macOS `26.6`, Apple M5, Go `1.25.7`) el binario con el tag
 `ladybug` enlazaba y abría bases reales -el asset `liblbug-osx-universal`
 fijado por `scripts/fetch-ladybug.sh` es universal, está firmado ad-hoc y
@@ -80,7 +80,7 @@ check informa de lo que observó y nunca inventa un holder.
    existía cuando se instaló la vigilancia sí es `Write` en todos los backends,
    y el test lo exige.
 2. El backend mantiene **un descriptor por archivo y por directorio**. Medido
-   sobre el propio checkout de Ladygraph: `787` descriptores para `659`
+   sobre el propio checkout de Kivgraph: `787` descriptores para `659`
    archivos en `152` directorios vigilados. El techo por proceso es
    `kern.maxfilesperproc`, `92160` en macOS `26`. Un árbol mayor falla en `New`
    con un error que nombra el límite a subir, en vez de vigilar un subconjunto
@@ -123,7 +123,7 @@ instalación se saltan fuera de esa plataforma y
   stdio real levantada por `benchmarks/mcp-stdio`.
 - macOS **no** es todavía un objetivo de distribución. `scripts/install.sh`,
   `scripts/build-linux-amd64.sh`, el manifest de provenance y el workflow de
-  release siguen siendo `linux/amd64`, y `ladygraph update` lo dice.
+  release siguen siendo `linux/amd64`, y `kivgraph update` lo dice.
 - El binario nativo debe enlazarse con un `-Wl,-rpath` que apunte a la
   biblioteca: el binding fijado añade el suyo hacia su directorio de módulo,
   que no contiene ninguna `dylib`, y sin `rpath` propio `dyld` aborta el

@@ -132,5 +132,5 @@ go test ./internal/mcp/...
 
 Un cambio de nombre, descripción o esquema de una tool es un cambio de
 superficie: exige actualizar
-`internal/integrations/assets/ladygraph/SKILL.md`, la referencia de tools de
+`internal/integrations/assets/kivgraph/SKILL.md`, la referencia de tools de
 `landing/` y la tabla de enrutado de la raíz.

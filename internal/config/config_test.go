@@ -11,12 +11,12 @@ import (
 
 func TestLoadAppliesDefaultsAndExpandsPaths(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("LADYGRAPH_CONFIG_ROOT", root)
+	t.Setenv("KIVGRAPH_CONFIG_ROOT", root)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	writeConfigFixture(t, configPath, `version: 1
 workspace:
-  repositories_file: ${LADYGRAPH_CONFIG_ROOT}/repositories.yaml
+  repositories_file: ${KIVGRAPH_CONFIG_ROOT}/repositories.yaml
 storage:
   database_path: state/graph.lbdb
 `)
@@ -81,7 +81,7 @@ repositories:
 // build scripts, and cargo writes wherever CARGO_TARGET_DIR points.
 func TestRustDefaultsKeepBuildArtifactsOutsideEveryRepository(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("LADYGRAPH_CONFIG_ROOT", root)
+	t.Setenv("KIVGRAPH_CONFIG_ROOT", root)
 	configPath := filepath.Join(root, "config.yaml")
 	writeConfigFixture(t, configPath, "version: 1\n")
 
@@ -270,7 +270,7 @@ indexing:
 }
 
 func TestLoadConfigRejectsUnsetEnvironmentVariable(t *testing.T) {
-	const variable = "LADYGRAPH_CONFIG_VARIABLE_THAT_IS_NOT_SET"
+	const variable = "KIVGRAPH_CONFIG_VARIABLE_THAT_IS_NOT_SET"
 	oldValue, wasSet := os.LookupEnv(variable)
 	if err := os.Unsetenv(variable); err != nil {
 		t.Fatalf("Unsetenv() error = %v", err)
@@ -285,11 +285,11 @@ func TestLoadConfigRejectsUnsetEnvironmentVariable(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeConfigFixture(t, path, `version: 1
 storage:
-  database_path: ${LADYGRAPH_CONFIG_VARIABLE_THAT_IS_NOT_SET}/graph.lbdb
+  database_path: ${KIVGRAPH_CONFIG_VARIABLE_THAT_IS_NOT_SET}/graph.lbdb
 `)
 
 	_, err := LoadConfig(path)
-	if err == nil || !strings.Contains(err.Error(), `environment variable "LADYGRAPH_CONFIG_VARIABLE_THAT_IS_NOT_SET" is not set`) {
+	if err == nil || !strings.Contains(err.Error(), `environment variable "KIVGRAPH_CONFIG_VARIABLE_THAT_IS_NOT_SET" is not set`) {
 		t.Fatalf("LoadConfig() error = %v, want unset-variable error", err)
 	}
 }
@@ -503,7 +503,7 @@ func TestInitializeAtTheDefaultLocationKeepsTheDefaultState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	want := filepath.Join(home, ".local", "state", "ladygraph", "graph.lbdb")
+	want := filepath.Join(home, ".local", "state", "kivgraph", "graph.lbdb")
 	if loaded.Config.Storage.DatabasePath != want {
 		t.Fatalf("database_path = %q, want the default %q", loaded.Config.Storage.DatabasePath, want)
 	}

@@ -179,7 +179,7 @@ func readSnapshot(ctx context.Context, session *sdkmcp.ClientSession) (snapshot,
 		return snapshot{}, fmt.Errorf("parse graph_status: %w", err)
 	}
 	if decoded.Results.SnapshotID == 0 {
-		return snapshot{}, fmt.Errorf("graph_status reports no published generation; run ladygraph index --full first")
+		return snapshot{}, fmt.Errorf("graph_status reports no published generation; run kivgraph index --full first")
 	}
 	return snapshot{
 		ID:              decoded.Results.SnapshotID,
@@ -244,8 +244,8 @@ func measureSurface(ctx context.Context, session *sdkmcp.ClientSession, tokens *
 	routes := &strings.Builder{}
 	descriptions := &strings.Builder{}
 	for _, tool := range listed.Tools {
-		fmt.Fprintf(routes, "- %q → xd://mcp__ladygraph_%s\n", tool.Name, tool.Name)
-		fmt.Fprintf(descriptions, "- xd://mcp__ladygraph_%s — %s\n", tool.Name, tool.Description)
+		fmt.Fprintf(routes, "- %q → xd://mcp__kivgraph_%s\n", tool.Name, tool.Name)
+		fmt.Fprintf(descriptions, "- xd://mcp__kivgraph_%s — %s\n", tool.Name, tool.Description)
 		schemas = append(schemas, tool)
 		if tool.Annotations != nil && tool.Annotations.ReadOnlyHint {
 			measured.ReadOnly++

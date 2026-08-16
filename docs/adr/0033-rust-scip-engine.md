@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Ladygraph resuelve Go en proceso con `go/packages` y `go/types`, y TypeScript
+Kivgraph resuelve Go en proceso con `go/packages` y `go/types`, y TypeScript
 fuera de proceso con un worker Node sobre el compilador. Rust no tiene ninguna
 de las dos cosas: no existe una biblioteca Go que compruebe tipos de Rust, y el
 compilador no expone un índice consumible —`-Zsave-analysis` fue retirado—.
@@ -21,7 +21,7 @@ proyecto se niega a vender como conocimiento.
 ## Decisión
 
 El motor es **`rust-analyzer scip`, ejecutado como proceso externo, una vez por
-workspace Cargo**. La salida es un índice SCIP que Ladygraph decodifica y
+workspace Cargo**. La salida es un índice SCIP que Kivgraph decodifica y
 normaliza al modelo canónico.
 
 Tree-sitter no aporta identidad ni resolución. Aporta dos cosas que SCIP no
@@ -32,7 +32,7 @@ reparto que ya existe en Go, donde `CALLS_DIRECT` lleva procedencia
 
 ### Qué da el índice, verificado sobre el código de `cli/scip.rs`
 
-| Necesidad de Ladygraph | Campo SCIP | Observación |
+| Necesidad de Kivgraph | Campo SCIP | Observación |
 | --- | --- | --- |
 | Identidad durable | símbolo `rust-analyzer cargo <crate> <versión> <descriptores>` | `moniker_to_symbol()`; la versión es `"."` cuando se desconoce |
 | Definición | `Occurrence.symbol_roles` con `Definition` | es el único rol que se emite |
@@ -88,7 +88,7 @@ releases diaria que no controlamos.
   `EXACT_PACKAGE_MAPPED`.
 - El coste dominante de una pasada con Rust es el propio `rust-analyzer`, no la
   normalización. Los benchmarks lo reportan separado.
-- Ladygraph adquiere una dependencia de decodificación protobuf, sea el módulo
+- Kivgraph adquiere una dependencia de decodificación protobuf, sea el módulo
   publicado `github.com/scip-code/scip/bindings/go/scip` (Apache-2.0) o unos
   bindings mínimos generados del `.proto` fijado con digest.
 

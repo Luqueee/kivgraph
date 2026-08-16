@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	"github.com/Luqueee/ladygraph/internal/rustloader/scipwire"
-	"github.com/Luqueee/ladygraph/internal/syntax"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // RustLanguage is the language name every Rust stable key carries.

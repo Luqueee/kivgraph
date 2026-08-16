@@ -37,7 +37,7 @@ symbols are read once.
 {
   "symbols": [
     {
-      "repository": "ladygraph",
+      "repository": "kivgraph",
       "path": "internal/facts/facts.go",
       "qualified_name": "MergeAll"
     }
@@ -48,7 +48,7 @@ symbols are read once.
 
 ```text
 snapshot 30  1 bodies  context 0
-@ ladygraph internal/facts/facts.go:516-542 func MergeAll [file changed, re-anchored +0]
+@ kivgraph internal/facts/facts.go:516-542 func MergeAll [file changed, re-anchored +0]
 func MergeAll(sets []Set) Set {
 	merged := Set{
 		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
@@ -79,7 +79,7 @@ func MergeAll(sets []Set) Set {
 
 ```
 
-The response comes from snapshot `30` of two repositories, `ladygraph` and
+The response comes from snapshot `30` of two repositories, `kivgraph` and
 `mole`. The `[file changed, re-anchored +0]` marker on the header is the
 freshness contract at work: the file on disk no longer hashed to what the
 generation recorded, the declaration was found again by name, and it had not

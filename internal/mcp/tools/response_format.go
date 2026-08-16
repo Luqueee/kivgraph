@@ -3,7 +3,7 @@ package tools
 import (
 	"fmt"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // Response formats. A row carries what an agent can act on -- a name, a path,

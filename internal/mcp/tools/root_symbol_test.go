@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // TestSymbolSelectorNarrowsAnAmbiguousNameAndNeverGuesses is the whole reason a

@@ -1,5 +1,5 @@
 {
-  "name": "@ladygraph-fixture/unmapped",
+  "name": "@kivgraph-fixture/unmapped",
   "version": "1.0.0",
   "type": "module",
   "types": "./dist/index.d.ts"

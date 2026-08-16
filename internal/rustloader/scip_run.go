@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
 )
 
 // RunErrorKind classifies a failure of the external indexer. Every kind maps
@@ -381,7 +381,7 @@ func validateIndex(index scipwire.Index) error {
 	if definitions > 0 && bodies == 0 {
 		// Without a body range there is nothing to attribute a reference to,
 		// so every edge would silently lose its source.
-		return errors.New("no definition carries an enclosing range: this analyzer is too old for Ladygraph")
+		return errors.New("no definition carries an enclosing range: this analyzer is too old for Kivgraph")
 	}
 	return nil
 }

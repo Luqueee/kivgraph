@@ -37,16 +37,16 @@ is built out of the answer you just got. Under
 
 ```json
 {
-  "repository": "ladygraph",
+  "repository": "kivgraph",
   "path": "internal/mcp/instructions.go"
 }
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":9020,"total":2,"returned":2,"truncated":false,"next_cursor":null,"coverage":{"exact":2,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"repository":"ladygraph","path":"internal/mcp/instructions.go","packages":["github.com/Luqueee/ladygraph/internal/mcp"],"languages":["go"],"files":[{"path":"internal/mcp/instructions.go","symbols":[{"name":"staleServerInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":36,"end_line":36},{"name":"serverInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":21,"end_line":27}]}]}}
+{"snapshot_id":30,"snapshot_age_ms":9020,"total":2,"returned":2,"truncated":false,"next_cursor":null,"coverage":{"exact":2,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","packages":["github.com/Luqueee/kivgraph/internal/mcp"],"languages":["go"],"files":[{"path":"internal/mcp/instructions.go","symbols":[{"name":"staleServerInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":36,"end_line":36},{"name":"serverInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":21,"end_line":27}]}]}}
 ```
 
-The response comes from snapshot `30` of two repositories, `ladygraph` and
+The response comes from snapshot `30` of two repositories, `kivgraph` and
 `mole`.
 
 ## Limits

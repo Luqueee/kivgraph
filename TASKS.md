@@ -1,4 +1,4 @@
-# LADYGRAPH — Backlog de tareas para desarrollo asistido por IA
+# KIVGRAPH — Backlog de tareas para desarrollo asistido por IA
 
 ## 1. Reglas de ejecución
 
@@ -82,7 +82,7 @@ PASS_WITH_LIMITS
 - [x] Verificar criterios de aceptación y el gate aplicable.
 - [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Objetivo:** crear la estructura inicial del repositorio Ladygraph.
+**Objetivo:** crear la estructura inicial del repositorio Kivgraph.
 
 **Acciones:**
 
@@ -93,14 +93,14 @@ PASS_WITH_LIMITS
 * Crear `.gitignore`.
 * Crear `Makefile`.
 * Crear los directorios principales.
-* Inicializar el paquete `cmd/ladygraph`.
+* Inicializar el paquete `cmd/kivgraph`.
 * Añadir un comando que muestre la versión provisional.
 
 **Estructura mínima:**
 
 ```text
-ladygraph/
-├── cmd/ladygraph/
+kivgraph/
+├── cmd/kivgraph/
 ├── internal/
 ├── ts-worker/
 ├── testdata/
@@ -116,8 +116,8 @@ ladygraph/
 **Criterios de aceptación:**
 
 ```bash
-go build ./cmd/ladygraph
-./ladygraph version
+go build ./cmd/kivgraph
+./kivgraph version
 ```
 
 deben completarse correctamente.
@@ -418,7 +418,7 @@ PROJECT_FOUNDATION_PASS
 
 * El servidor responde a `initialize`.
 * Publica `serverInfo`.
-* `serverInfo.version` coincide con `ladygraph version`.
+* `serverInfo.version` coincide con `kivgraph version`.
 * Se cierra correctamente al terminar stdin.
 
 ---
@@ -616,7 +616,7 @@ type Database interface {
 * La base se abre.
 * Se cierra limpiamente.
 * Puede reabrirse.
-* Los errores nativos se convierten en errores propios de Ladygraph.
+* Los errores nativos se convierten en errores propios de Kivgraph.
 
 ---
 
@@ -696,7 +696,7 @@ docs/storage/synthetic-schema.md
 **Comando:**
 
 ```bash
-ladygraph benchmark generate-graph \
+kivgraph benchmark generate-graph \
   --symbols 100000 \
   --edges 1000000 \
   --seed 42
@@ -941,7 +941,7 @@ docs/testing/ladybug-recovery.md
 
 ---
 
-## LUQUE-0211 — Crear comando `ladygraph doctor storage`
+## LUQUE-0211 — Crear comando `kivgraph doctor storage`
 
 **Dependencias:** LUQUE-0210.
 
@@ -970,7 +970,7 @@ docs/testing/ladybug-recovery.md
 
 **Resultado registrado: `PASS`.**
 
-* `ladygraph doctor storage --database PATH` informa los diez diagnósticos requeridos y devuelve `0` únicamente si todos están en `PASS`.
+* `kivgraph doctor storage --database PATH` informa los diez diagnósticos requeridos y devuelve `0` únicamente si todos están en `PASS`.
 * La base original se abre en modo de solo lectura; la prueba `BEGIN`/mutación/`ROLLBACK` se ejecuta sobre una copia temporal y el SHA-256 del origen permanece idéntico.
 * Una base sintética completa de 40 repositorios, 100.000 archivos, 100.000 símbolos y 1.000.000 de aristas superó apertura, versiones, esquema, permisos, transacciones, conteos e integridad.
 * Un proceso externo con LadybugDB abierto fue detectado por PID y produjo estado no cero sin impedir el resto del informe.
@@ -1617,7 +1617,7 @@ repositories.yaml
 * La validación rechaza versiones incompatibles, campos desconocidos, límites incoherentes, duraciones inválidas, transportes no soportados y registros con nombres, paths o lenguajes duplicados.
 * Los paths se resuelven sin comprobar todavía existencia, permisos, symlinks o anidamiento; esas comprobaciones pertenecen a LUQUE-0403.
 * Las pruebas cubren defaults, expansión, documentos inválidos, variables ausentes, duplicados y registro vacío explícito.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race` del paquete y `go build ./cmd/ladygraph` pasan; `go tool staticcheck ./internal/config` no reporta incidencias.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race` del paquete y `go build ./cmd/kivgraph` pasan; `go tool staticcheck ./internal/config` no reporta incidencias.
 * Limitación de repositorio: `go tool staticcheck ./...` sigue reportando avisos preexistentes fuera de `internal/config` en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
 * Siguiente tarea: LUQUE-0402.
 
@@ -1654,7 +1654,7 @@ repositories.yaml
 * La metadata Git usa comandos con `exec.CommandContext`, sin shell; soporta branch normal y HEAD desacoplado, y marca cambios sin commitear incluyendo untracked.
 * `List` y `Get` devuelven copias profundas para impedir mutaciones del registro interno.
 * La ruta debe existir, ser un directorio y ser un repositorio Git operativo; la validación entre repositorios queda para LUQUE-0403 y el descubrimiento automático de manifests para LUQUE-0404/0405.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/ladygraph`, `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan; `go tool staticcheck ./internal/config ./internal/workspace` no reporta incidencias.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/kivgraph`, `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan; `go tool staticcheck ./internal/config ./internal/workspace` no reporta incidencias.
 * Smoke real: `TestNewRegistryReadsRealGitMetadata` creó un repositorio Git temporal, verificó commit, branch `main`, estado limpio y detección posterior de untracked.
 * Siguiente tarea: LUQUE-0403.
 
@@ -1688,8 +1688,8 @@ repositories.yaml
 * La validación rechaza nombres vacíos o inválidos, colisiones de nombres sin distinguir mayúsculas, realpaths duplicados, repositorios anidados y escapes en `manifests`, `roots` y `exclusions`.
 * `workspace.NewRegistry` ejecuta estas comprobaciones antes de invocar Git y conserva los paths ya validados para evitar una segunda resolución divergente.
 * Las pruebas cubren aceptación de metadatos acotados, duplicados, anidamiento, symlinks, escapes, permisos, colisiones, entradas inválidas y cancelación de contexto.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/ladygraph` y `go tool staticcheck ./internal/config ./internal/workspace` pasan.
-* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/ladygraph-ladybug-v0.19.0/lib`.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/config ./internal/workspace`, `go build ./cmd/kivgraph` y `go tool staticcheck ./internal/config ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/kivgraph-ladybug-v0.19.0/lib`.
 * Smoke real: `go test ./internal/workspace -run 'Test(NewRegistryReadsRealGitMetadata|ValidatePathsAcceptsScopedMetadata)$' -count=1 -v` pasa con un repositorio Git temporal y metadatos acotados.
 * Limitación: `go tool staticcheck ./...` conserva seis avisos preexistentes en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`; ninguno pertenece al alcance 0403.
 * No se requiere benchmark: la tarea solo valida configuración y límites de filesystem.
@@ -1726,8 +1726,8 @@ project references
 * Los `tsconfig` se leen como JSONC; las referencias se resuelven desde el archivo declarante, incluyendo referencias a directorios mediante `tsconfig.json`, y se rechazan targets ausentes o fuera del repositorio.
 * Se omiten `.git`, dependencias instaladas, symlinks y exclusiones configuradas.
 * Las pruebas cubren detección, workspaces array/objeto, pnpm, JSONC, referencias, escapes, targets ausentes, exclusiones, symlinks y cancelación.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/ladygraph` y `go tool staticcheck ./internal/workspace` pasan.
-* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/ladygraph-ladybug-v0.19.0/lib`.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/kivgraph` y `go tool staticcheck ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/kivgraph-ladybug-v0.19.0/lib`.
 * Smoke real: `go test ./internal/workspace -run '^TestDiscoverTypeScriptFindsManifestsWorkspacesAndReferences$' -count=1 -v` pasa con un árbol temporal de workspace.
 * Limitación: `go tool staticcheck ./...` conserva seis avisos fuera del alcance 0404 en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
 * No se requiere benchmark: el descubrimiento es una operación de configuración y filesystem; no se ha añadido un contrato de rendimiento.
@@ -1763,8 +1763,8 @@ replace directives
 * Los módulos de `go.work use` se resuelven a sus `go.mod`; las sustituciones locales se canonicalizan y se mantienen dentro del repositorio, mientras que las remotas se conservan sin resolver.
 * Los paquetes se agrupan por directorio, se identifican mediante la cláusula `package`, se asignan al módulo más profundo y se omiten `vendor`, dependencias instaladas, symlinks y exclusiones.
 * Las pruebas cubren módulos anidados, sums, workspaces, replacements locales, paquetes de test externos, escapes, targets ausentes, conflictos de paquetes, symlinks y cancelación.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/ladygraph` y `go tool staticcheck ./internal/workspace` pasan.
-* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/ladygraph-ladybug-v0.19.0/lib`.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/kivgraph` y `go tool staticcheck ./internal/workspace` pasan.
+* Verificación Ladybug: `go test -tags ladybug ./...` y `go vet -tags ladybug ./...` pasan con la biblioteca v0.19.0 fijada en `/tmp/kivgraph-ladybug-v0.19.0/lib`.
 * Smoke real: `go test ./internal/workspace -run '^TestDiscoverGoFindsModulesWorkspacesPackagesAndReplaces$' -count=1 -v` pasa con módulos y workspace temporales.
 * Limitación: `go tool staticcheck ./...` conserva seis avisos fuera del alcance 0405 en `benchmarks/mcp-empty`, `internal/hotsnapshot` e `internal/storage/ladybug`.
 * No se requiere benchmark: el descubrimiento es una operación de configuración y filesystem; la carga semántica con `go/packages` pertenece a fases posteriores.
@@ -1877,7 +1877,7 @@ MODULE_REPLACE_CONFLICT
 * Los `module path` duplicados producen `AMBIGUOUS_MODULE_PROVIDER`; los conjuntos de replacements de `go.mod` y `go.work` distintos producen `MODULE_REPLACE_CONFLICT`, incluido el mismo módulo sustituido desde módulos distintos.
 * Cada conflicto conserva clase, provider, repositorios, manifests y versiones aplicables. `List` devuelve copias profundas y `HasConflicts` permite comprobar el resultado.
 * Las pruebas cubren los cuatro tipos de conflicto, ausencia de conflicto, orden determinista, versiones, manifests, validación de repositorios, cancelación y mutabilidad.
-* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/ladygraph`, `go tool staticcheck ./internal/workspace`, smoke focal y suite Ladybug pasan.
+* Verificación: `go test ./...`, `go vet ./...`, `go test -race ./internal/workspace`, `go build ./cmd/kivgraph`, `go tool staticcheck ./internal/workspace`, smoke focal y suite Ladybug pasan.
 * No se requiere benchmark: esta tarea valida metadatos de configuración ya descubiertos.
 
 **Gate:**
@@ -2120,7 +2120,7 @@ pasa. No se requiere benchmark.
 
 **Gate:** `TREE_SITTER_ACCELERATOR_PASS`.
 **Gate de fase:** `TREE_SITTER_ACCELERATOR_PASS` emitido tras
-`go test ./...`, `go vet ./...`, `go test -race ./...`, `go build ./cmd/ladygraph`,
+`go test ./...`, `go vet ./...`, `go test -race ./...`, `go build ./cmd/kivgraph`,
 `go test -tags ladybug ./...`, `go vet -tags ladybug ./...`,
 `go tool staticcheck ./internal/syntax` y `go mod verify`.
 
@@ -2243,7 +2243,7 @@ terminara, contaminando la lectura siguiente. El cierre ahora espera a que el
 vigilante termine antes de limpiar el deadline. Sin esa espera el caso de
 cancelación fallaba de forma intermitente.
 
-**Verificación:** `go test ./...`, `go vet ./...`, `go build ./cmd/ladygraph`,
+**Verificación:** `go test ./...`, `go vet ./...`, `go build ./cmd/kivgraph`,
 `go tool staticcheck ./internal/tsworker`, `go test -race ./internal/tsworker`
 repetido cinco veces, y la suite Ladybug completa pasan.
 
@@ -2422,7 +2422,7 @@ Implementado como una subida de directorios desde el `tsconfig` buscando
 `node_modules/typescript`, que es como resuelve Node. El primer hallazgo gana.
 Se clasifica `local` cuando cuelga del paquete propio del proyecto —el
 `package.json` más cercano— y `workspace` cuando lo encontró más arriba. Sin
-instalación, `pinned`: el compilador que Ladygraph distribuye.
+instalación, `pinned`: el compilador que Kivgraph distribuye.
 
 **Qué decide la versión:** no el motor. Según el ADR 0010 el compilador es
 siempre el nativo; la versión del proyecto decide la **confianza**.
@@ -2824,7 +2824,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La suite nueva cubre resolución con el checker, llamadas directas, callbacks,
@@ -2903,7 +2903,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La prueba nueva cubre imports aliasados de valor y tipo, verifica el archivo
@@ -2989,7 +2989,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La prueba nueva comprueba exports directos, `default`, aliases, exports desde
@@ -3060,7 +3060,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 No se ejecutó un benchmark separado: esta tarea fija cobertura local de
@@ -3138,7 +3138,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La suite cubre providers registrados, providers ausentes, módulos no
@@ -3226,7 +3226,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La cobertura incluye exports nombrados, `default`, tipos, alias,
@@ -3318,7 +3318,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La cobertura verifica las cinco ramas de precedencia, configuración de proyecto,
@@ -3402,7 +3402,7 @@ pnpm check                         # 9 archivos, 53 tests passed
 gofmt -l .
 go test ./...                      # 11 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 No se requiere benchmark separado: la tarea agrupa metadata ya resuelta por el
@@ -3477,7 +3477,7 @@ pnpm build
 gofmt -l .
 go test ./...                      # 11 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La cobertura verifica aristas exactas con posiciones, mapeo a fuente mediante
@@ -3566,7 +3566,7 @@ pnpm build
 gofmt -l .
 go test ./...                      # 11 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La cobertura ejercita las siete razones sobre proyectos reales del compilador
@@ -3608,7 +3608,7 @@ ts-worker/src/cross-repository-positive.test.ts
 
 **Contenido:**
 
-* `shared-library` publica `@ladygraph-fixture/shared@1.4.2` con barrel,
+* `shared-library` publica `@kivgraph-fixture/shared@1.4.2` con barrel,
   reexport aliasado y `declaration maps` hacia sus fuentes reales.
 * `consumer-a` usa imports directos de valor y de tipo.
 * `consumer-b` usa alias de import, reexport y namespace.
@@ -3631,7 +3631,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La suite comprueba tres aristas exactas en `consumer-a`, dos en `consumer-b`
@@ -3696,7 +3696,7 @@ pnpm build
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 **Limitaciones:**
@@ -3762,7 +3762,7 @@ pnpm precision                     # TYPESCRIPT_CROSS_REPO_PASS
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 **Limitaciones:**
@@ -3846,7 +3846,7 @@ pnpm precision                     # exact source positions 7/7
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 La cobertura comprueba posiciones exactas de `const`, `function` e `interface`
@@ -3918,7 +3918,7 @@ pnpm precision                     # exact source positions 8/8
 gofmt -l .
 go test ./...
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 ```
 
 Posiciones comprobadas contra el código fuente real:
@@ -3962,7 +3962,7 @@ plain    nomap/src/index.ts:1:13    (sin declaration map)
 **Ubicación:**
 
 ```text
-~/.local/state/ladygraph/go.work
+~/.local/state/kivgraph/go.work
 ```
 
 **No modificar repositorios.**
@@ -3988,7 +3988,7 @@ conflictos excluidos.
 
 * La ruta destino se rechaza si cae dentro de cualquier repositorio registrado,
   comparando `path` y `realpath`. Un error de configuración no puede hacer que
-  Ladygraph escriba un `go.work` en código indexado.
+  Kivgraph escriba un `go.work` en código indexado.
 * La versión del workspace es la **más alta** declarada por sus módulos: un
   workspace no puede prometer menos que sus miembros.
 * Un `module path` declarado por dos repositorios se excluye como
@@ -4007,7 +4007,7 @@ conflictos excluidos.
 gofmt -l .
 go test ./...                       # 12 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 go test -race ./internal/goworkspace
 go tool staticcheck ./internal/goworkspace
 ```
@@ -4090,7 +4090,7 @@ NeedDeps NeedModule
 gofmt -l .
 go test ./...                       # 13 paquetes ok, 2 sin tests
 go vet ./...
-go build ./cmd/ladygraph
+go build ./cmd/kivgraph
 go test -race ./internal/goloader
 go tool staticcheck ./internal/goloader ./internal/goworkspace
 ```
@@ -5222,7 +5222,7 @@ relaciones   CONTAINS_PACKAGE CONTAINS_FILE DEFINES OBSERVED_IN
 * El DDL y la documentación se **generan desde una sola fuente de metadatos**
   en Go. Dos pruebas comparan los archivos versionados con lo generado: un
   esquema documentado que la base no tiene es peor que no documentarlo.
-* Toda clave primaria es `stable_key`, una clave durable de Ladygraph. Ninguna se
+* Toda clave primaria es `stable_key`, una clave durable de Kivgraph. Ninguna se
   deriva de un nombre visible ni la genera la base.
 * Las relaciones de contención son `ONE_MANY` y `OBSERVED_IN` es `MANY_ONE`;
   las semánticas son `MANY_MANY`, porque un símbolo puede llamar al mismo
@@ -5390,7 +5390,7 @@ internal/storage/ladybug/canonical_load.go           render determinista del esq
 internal/storage/ladybug/canonical_load_native.go    staging CSV + COPY + counts + sondas
 internal/storage/ladybug/canonical_load_stub.go      degradado sin CGO
 internal/facts/facts.go                              UnresolvedKey
-cmd/ladygraph/main.go                                    comando ladygraph rebuild
+cmd/kivgraph/main.go                                    comando kivgraph rebuild
 ```
 
 **Punto de partida real:** cada etapa existía aislada y **ninguna llamaba a la
@@ -5435,7 +5435,7 @@ no forma parte del `./...` de su padre— y combinando con `Set.Merge`:
 Set.Validate() pasa: 0 aristas colgantes
 ```
 
-Sobre esos hechos, `ladygraph rebuild` con la biblioteca nativa:
+Sobre esos hechos, `kivgraph rebuild` con la biblioteca nativa:
 
 ```text
 [PASS] facts          validated 3 repositories, 4 packages, 4 files, 9 symbols, 32 edges
@@ -5529,7 +5529,7 @@ internal/storage/ladybug/canonical_integrity.go            reglas, catálogos y 
 internal/storage/ladybug/canonical_integrity_native.go     los seis invariantes en Cypher
 internal/storage/ladybug/canonical_integrity_stub.go       degradado sin CGO
 internal/rebuild/rebuild.go                                etapa integrity ampliada
-cmd/ladygraph/main.go                                          comando ladygraph doctor graph
+cmd/kivgraph/main.go                                          comando kivgraph doctor graph
 ```
 
 **Decisión de semántica: «sin origen» no puede significar «el nodo no existe».**
@@ -5572,13 +5572,13 @@ que nadie declara es un fallo de integridad.
 
 **Verificación sobre un grafo canónico real.** Hechos derivados del fixture
 `testdata/go/cross-repository` con `goloader` + `facts.NormalizeGo`, publicados
-con `ladygraph rebuild`:
+con `kivgraph rebuild`:
 
 ```text
 [PASS] integrity  27 of 27 canonical table(s) matched their expected count; 0 invariant violation(s)
 [PASS] publish    published generation 000001
 
-ladygraph doctor graph --database generations/000001/graph.db  →  graph doctor: PASS
+kivgraph doctor graph --database generations/000001/graph.db  →  graph doctor: PASS
   exact_edge_without_source 0   exact_edge_without_target 0   missing_evidence_file 0
   duplicate_stable_key 0        unknown_confidence 0          invalid_repository_ownership 0
 ```
@@ -5586,7 +5586,7 @@ ladygraph doctor graph --database generations/000001/graph.db  →  graph doctor
 **Y las seis reglas muerden.** Cada violación se inyectó con Cypher crudo sobre
 una copia de la generación publicada —`LoadCanonical` valida los hechos, así que
 una violación sólo puede entrar escribiendo directamente— y se comprobó por la
-ruta del operador, `ladygraph doctor graph`, que salió 1 en los seis casos:
+ruta del operador, `kivgraph doctor graph`, que salió 1 en los seis casos:
 
 | Inyección | Regla que falla | Muestra emitida |
 | --- | --- | --- |
@@ -5662,7 +5662,7 @@ internal/storage/generation/backup.go    puntero BACKUP, List, Prune, NextID
 internal/storage/generation/store.go     BACKUP integrado en Publish y Restore
 internal/rebuild/rollback.go             Roles y Rollback verificado
 internal/rebuild/rebuild.go              retención tras publicar
-cmd/ladygraph/main.go                        ladygraph graph status y ladygraph rollback
+cmd/kivgraph/main.go                        kivgraph graph status y kivgraph rollback
 ```
 
 **Los tres nombres son roles, no directorios.** `generations/<id>` y `CURRENT`
@@ -5797,7 +5797,7 @@ internal/storage/ladybug/canonical_scan.go           lectura del grafo definitiv
 internal/storage/ladybug/canonical_scan_native.go
 internal/rebuild/snapshot.go                         adaptador y construcción
 internal/hotsnapshot/builder.go                      dos correcciones de contrato
-cmd/ladygraph/main.go                                    comando ladygraph snapshot
+cmd/kivgraph/main.go                                    comando kivgraph snapshot
 ```
 
 **El hueco que había.** `BuildGraphSnapshot` existía desde la fase 6 y **nunca
@@ -5861,7 +5861,7 @@ añadírselo. Ahora cada rechazo nombra la fila, su clave y el motivo.
                   9 symbols, 15 edges, 17 edge(s) not represented in the CSR)
 [PASS] publish    published generation 000001
 
-ladygraph snapshot --root …   PASS   digest 0c8ce3bf…   9 símbolos, 15 aristas
+kivgraph snapshot --root …   PASS   digest 0c8ce3bf…   9 símbolos, 15 aristas
 segunda construcción      mismo digest
 ```
 
@@ -6017,8 +6017,8 @@ La identidad depende sólo del destino, nunca del nombre que le dé el consumido
 [PASS] snapshot   hot snapshot built (12 symbols, 7 edges, 19 not in the CSR)
 [PASS] publish    published generation 000001
 
-ladygraph doctor graph   PASS, los seis invariantes a cero
-ladygraph snapshot       PASS
+kivgraph doctor graph   PASS, los seis invariantes a cero
+kivgraph snapshot       PASS
 ```
 
 Que `doctor graph` pase importa aquí especialmente: las cinco aristas son
@@ -7011,7 +7011,7 @@ grep "watcher\.|indexer\.Update"  en cmd/ + internal/indexing/ + internal/rebuil
   -> sin coincidencias
 ```
 
-No hay comando `watch`; `cmd/ladygraph/main.go:468-471` responde
+No hay comando `watch`; `cmd/kivgraph/main.go:468-471` responde
 `index: only --full is supported`. `config.watcher.enabled` vale `true` por
 defecto y no enciende nada. Toda sincronización pasa por `RunFull`.
 
@@ -7131,7 +7131,7 @@ en `list_repositories` y `graph_status`. Contra el corpus real:
 
 ```text
 graph_status: repositories=2  repositories_moved=1
-  ladygraph  moved=true   indexed at commit e13b9ad on main, the tree is now at 91f13bf on main
+  kivgraph  moved=true   indexed at commit e13b9ad on main, the tree is now at 91f13bf on main
   mole       moved=false
 ```
 
@@ -7282,7 +7282,7 @@ make build
 ```
 
 Las pruebas MCP in-memory validan el envelope de ambas herramientas y el
-smoke STDIO de `ladygraph serve` devolvió `structuredContent` con los ocho
+smoke STDIO de `kivgraph serve` devolvió `structuredContent` con los ocho
 campos del contrato para `list_repositories`.
 
 **Limitaciones:** el servidor todavía devuelve un grafo vacío; la carga desde
@@ -8300,8 +8300,8 @@ go test -race ./internal/mcp/... -count=1
 make build
 ```
 
-Y contra el binario real: `ladygraph index --full` sobre este repositorio,
-`ladygraph serve`, y la comparación en bytes de la respuesta de cada tool tocada
+Y contra el binario real: `kivgraph index --full` sobre este repositorio,
+`kivgraph serve`, y la comparación en bytes de la respuesta de cada tool tocada
 antes y después del cambio. Una reducción que no se ha medido no se declara.
 
 ---
@@ -8393,7 +8393,7 @@ ninguna duda». Igual, `get_blast_radius` sobre `MergeAll` devuelve
   enumeran jamás. Su etiqueta es binaria y para un humano en una interfaz.
   Aquí son coordenadas, con motivo, para un agente, y el veredicto es una
   palabra sobre la que puede ramificar.
-* Se puede hacer porque Ladygraph se negó a adivinar. Un índice que resuelve por
+* Se puede hacer porque Kivgraph se negó a adivinar. Un índice que resuelve por
   coincidencia de nombre siempre devuelve algo y por eso no sabe dónde falló:
   su recall es alto y desconocido. El de aquí es más bajo y **medido**, y eso es
   lo único que se puede reportar.
@@ -8462,7 +8462,7 @@ make build
 ```
 
 `make test-ladybug` entra porque `Exported` cruza la frontera nativa. Contra el
-binario real: `ladygraph index --full` sobre este repositorio y las tres
+binario real: `kivgraph index --full` sobre este repositorio y las tres
 consultas de arriba -`Connection`, `MergeAll` y un símbolo privado de un paquete
 íntegro- comparadas con su respuesta actual.
 
@@ -8740,7 +8740,7 @@ comprometidos.
 - [x] Verificar criterios de aceptación y el gate aplicable.
 - [x] Registrar resultados, limitaciones y siguiente tarea.
 
-**Ladygraph debe cargar el último snapshot válido o reconstruirlo.**
+**Kivgraph debe cargar el último snapshot válido o reconstruirlo.**
 
 **Implementación:**
 
@@ -8945,7 +8945,7 @@ original se conserva envuelta: no se sustituye un diagnóstico por otro.
 un segundo proceso real que retiene la base y comprueba que `Open` y
 `ApplyCanonicalDelta` se rechazan con `ErrDatabaseLocked`, que el error nombra
 los PIDs, y que al morir el proceso la base vuelve a ser utilizable —el cerrojo
-es del kernel, no un archivo obsoleto que Ladygraph deje atrás—.
+es del kernel, no un archivo obsoleto que Kivgraph deje atrás—.
 
 **Control:** `TestDamagedDatabaseIsNotReportedAsLocked` — una base destruida
 conserva su propio error. Sin él, clasificar todo como «locked» también pasaría.
@@ -8970,7 +8970,7 @@ make build
 **Limitaciones:** la detección del proceso que retiene es **de Linux**: lee
 `/proc/locks`. En otras plataformas `externalStorageLocks` declara que no está
 soportado y el error vuelve a ser el genérico del motor —seguro igualmente, pero
-sin nombrar la causa—. No existe un cerrojo propio de Ladygraph: la exclusión la
+sin nombrar la causa—. No existe un cerrojo propio de Kivgraph: la exclusión la
 da LadybugDB sobre el archivo de base, de modo que dos procesos que trabajen
 sobre **generaciones distintas** de la misma raíz no se excluyen entre sí. Ese
 caso —dos `rebuild` concurrentes publicando en la misma raíz— no lo cubre esta
@@ -9035,7 +9035,7 @@ llamador espera la misma operación y puede poner su propio deadline. Después d
 `Wait` o `Shutdown` no se pueden registrar bucles ni recursos nuevos: esto
 evita extender un `WaitGroup` mientras se está drenando.
 
-`cmd/ladygraph` usa `signal.NotifyContext` para `SIGINT` y `SIGTERM` y ejecuta
+`cmd/kivgraph` usa `signal.NotifyContext` para `SIGINT` y `SIGTERM` y ejecuta
 `serve` dentro del coordinador. El smoke contra el binario real terminó con
 `SIGTERM` y código **0**, sin dejar el proceso vivo.
 
@@ -9053,7 +9053,7 @@ evita extender un `WaitGroup` mientras se está drenando.
   `SnapshotStore`. Después del shutdown las sesiones no aceptan llamadas, los
   canales del watcher están cerrados, el worker está en `CLOSED` y el snapshot
   deja de servirse.
-* `cmd/ladygraph/main_test.go` verifica que cancelar el contexto de `serve`
+* `cmd/kivgraph/main_test.go` verifica que cancelar el contexto de `serve`
   detiene el runner MCP y no devuelve error de apagado esperado.
 
 **Comprobación por mutación:** invertir temporalmente el recorrido de recursos
@@ -9072,7 +9072,7 @@ go test ./... -count=1
 make test-ladybug
 go test -tags ladybug ./internal/app ./internal/resilience -run 'TestLifecycleCloses' -count=1 -v
 go vet ./...
-go test -race ./internal/app ./internal/resilience ./cmd/ladygraph -count=1
+go test -race ./internal/app ./internal/resilience ./cmd/kivgraph -count=1
 make build
 ```
 
@@ -9757,7 +9757,7 @@ PERFORMANCE_PASS
 **Estado:** `PASS`.
 
 **Implementación:** `internal/logging` usa `log/slog.JSONHandler` de la
-biblioteca estándar. `cmd/ladygraph` registra inicio y cierre de `serve`, y
+biblioteca estándar. `cmd/kivgraph` registra inicio y cierre de `serve`, y
 adapta los errores heredados del CLI a eventos JSON `ERROR` sin escribir
 diagnósticos en stdout ni registrar argumentos completos, payloads MCP o
 credenciales.
@@ -9767,13 +9767,13 @@ credenciales.
 ```text
 internal/logging/logging.go
 internal/logging/logging_test.go
-cmd/ladygraph/main.go
-cmd/ladygraph/main_test.go
+cmd/kivgraph/main.go
+cmd/kivgraph/main_test.go
 docs/adr/0011-structured-logging.md
 ```
 
 **Verificación:** `go test ./... -count=1` pasa con 22 paquetes y 4 sin tests;
-`go vet ./...` pasa; `go test -race ./internal/logging ./cmd/ladygraph -count=1`
+`go vet ./...` pasa; `go test -race ./internal/logging ./cmd/kivgraph -count=1`
 pasa. El CLI sin argumentos y el ciclo `serve` producen registros JSON válidos
 en `stderr`; `version` no produce logging espurio.
 
@@ -9933,7 +9933,7 @@ explícitamente para reflejar indexación y rebuild.
 **Implementación:** `internal/metrics` conserva el registro local sin
 dependencias de exporters y añade `NewRegistryWithOpenTelemetry` y
 `NewOpenTelemetry`. El proveedor `nil` usa el `noop` oficial; el proveedor
-configurado pertenece al llamador y Ladygraph no crea collectors, exporters,
+configurado pertenece al llamador y Kivgraph no crea collectors, exporters,
 readers periódicos, conexiones ni goroutines. Las observaciones de consultas,
 snapshot, indexación, worker y LadybugDB se proyectan a instrumentos
 OpenTelemetry; el atributo `tool.name` queda acotado y los nombres desconocidos
@@ -10048,7 +10048,7 @@ y el CPU registrado.
 **Estado:** `PASS`.
 
 **Implementación:** `scripts/build-linux-amd64.sh` genera
-`dist/ladygraph-linux-amd64/` con el binario Go compilado con LadybugDB,
+`dist/kivgraph-linux-amd64/` con el binario Go compilado con LadybugDB,
 `liblbug.so`, el worker TypeScript compilado y su runtime `typescript`, el
 inventario de grammars, licencias y `manifest.json`. El target
 `make build-linux-amd64` elimina y regenera el directorio de salida; `dist/`
@@ -10063,7 +10063,7 @@ Makefile
 AGENTS.md
 THIRD_PARTY_NOTICES.md
 docs/adr/0015-linux-amd64-distribution.md
-dist/ladygraph-linux-amd64/
+dist/kivgraph-linux-amd64/
 ```
 
 **Verificación:** `make build-linux-amd64` completó la descarga verificada de
@@ -10075,7 +10075,7 @@ JSON validó `linux/amd64`, esquema canónico `2`, formato de filas `3`,
 `sha256sum -c` confirmó todos los archivos. Dos ejecuciones consecutivas
 produjeron el mismo SHA-256 para `manifest.json`
 (`73d7219f444907122ef7f64268798fe27decdb693bd554845bc27a429494685c`) y
-`bin/ladygraph`
+`bin/kivgraph`
 (`e1dd29ed5468ac2aa51cdfd870bed2bae99a24b28ca08092d3e59f10149bacc3`).
 
 **Limitaciones:** el artefacto se construyó en Linux amd64 con Go
@@ -10089,7 +10089,7 @@ declara aquí.
 
 ---
 
-## LUQUE-1502 — Implementar `ladygraph version --json`
+## LUQUE-1502 — Implementar `kivgraph version --json`
 
 **Dependencias:** LUQUE-1501.
 
@@ -10103,7 +10103,7 @@ declara aquí.
 
 **Mostrar:**
 
-* Ladygraph;
+* Kivgraph;
 * commit;
 * Go;
 * Node;
@@ -10116,8 +10116,8 @@ declara aquí.
 
 **Estado:** `PASS`.
 
-**Implementación:** `ladygraph version --json` emite un único documento JSON
-estable con la versión de Ladygraph, commit y estado del árbol, toolchain Go,
+**Implementación:** `kivgraph version --json` emite un único documento JSON
+estable con la versión de Kivgraph, commit y estado del árbol, toolchain Go,
 Node y TypeScript, versiones core/binding de LadybugDB, schema, formato de
 filas del snapshot, resolver y grammars. En un bundle valida el `manifest.json`
 y el SHA-256 de `grammars/manifest.json`; fuera de un bundle usa metadatos de
@@ -10126,9 +10126,9 @@ build/runtime y representa como `null` los valores no disponibles.
 **Entregables:**
 
 ```text
-cmd/ladygraph/main.go
-cmd/ladygraph/version.go
-cmd/ladygraph/main_test.go
+cmd/kivgraph/main.go
+cmd/kivgraph/version.go
+cmd/kivgraph/main_test.go
 internal/version/provenance.go
 internal/version/provenance_test.go
 internal/rebuild/snapshot.go
@@ -10139,7 +10139,7 @@ scripts/build-linux-amd64.sh
 **Verificación:** `go vet ./...`, `go test ./... -count=1`, `make build`,
 `make test-ladybug` y `make build-linux-amd64` pasaron. El binario del bundle
 respondió `version` y `version --json` sin `LD_LIBRARY_PATH`; el JSON validó
-`ladygraph`, `commit`, `dirty`, Go `go1.24.4`, Node `v25.9.0`, TypeScript
+`kivgraph`, `commit`, `dirty`, Go `go1.24.4`, Node `v25.9.0`, TypeScript
 `7.0.2`, LadybugDB `v0.13.1`, binding `v0.13.1`, schema `2`, formato de filas
 `3`, `resolver: null` y las cuatro grammars fijadas. Las pruebas cubren
 manifest válido, fallback sin bundle, digest de grammars incorrecto y JSON
@@ -10184,14 +10184,14 @@ scripts/build-linux-amd64.sh
 docs/adr/0015-linux-amd64-distribution.md
 AGENTS.md
 TASKS.md
-dist/ladygraph-linux-amd64/SHA256SUMS
+dist/kivgraph-linux-amd64/SHA256SUMS
 ```
 
 **Verificación:** `bash -n scripts/build-linux-amd64.sh`, `go vet ./...`,
 `go test ./... -count=1` y `make build` pasaron. `make build-linux-amd64`
-generó 589 entradas; `cd dist/ladygraph-linux-amd64 && sha256sum -c
+generó 589 entradas; `cd dist/kivgraph-linux-amd64 && sha256sum -c
 SHA256SUMS` devolvió `OK` para todas. Una segunda generación en
-`/tmp/ladygraph-linux-amd64-second` produjo un `SHA256SUMS` idéntico mediante
+`/tmp/kivgraph-linux-amd64-second` produjo un `SHA256SUMS` idéntico mediante
 `cmp`.
 
 **Limitaciones:** `dist/` y los bundles temporales son artefactos generados e
@@ -10218,10 +10218,10 @@ LUQUE-1508.
 **Comandos esperados:**
 
 ```bash
-ladygraph init
-ladygraph doctor
-ladygraph index --full
-ladygraph serve
+kivgraph init
+kivgraph doctor
+kivgraph index --full
+kivgraph serve
 ```
 
 **Estado:** `PASS`.
@@ -10231,13 +10231,13 @@ ladygraph serve
 * `internal/config.Initialize` crea configuración, registro vacío y directorios
   de estado con escritura no destructiva por defecto; `RegisterRepositories`
   añade registros validados con paths resueltos y rechazo de duplicados.
-* `ladygraph doctor` valida configuración, rutas y permisos de estado, registro
+* `kivgraph doctor` valida configuración, rutas y permisos de estado, registro
   Git, toolchains, generación canónica, presencia del digest del snapshot,
   HotSnapshot y referencias no resueltas.
 * `internal/indexer.Full` coordina extracción Go y TypeScript fuera de los
   repositorios fuente, valida el `facts.Set` y conecta su resultado con
   `rebuild.Run`.
-* `ladygraph serve` resuelve `CURRENT`, reconstruye el HotSnapshot desde la
+* `kivgraph serve` resuelve `CURRENT`, reconstruye el HotSnapshot desde la
   base canónica activa y sirve MCP exclusivamente mediante el snapshot
   publicado.
 
@@ -10246,9 +10246,9 @@ ladygraph serve
 `cd ts-worker && pnpm build` pasaron. Las pruebas nuevas cubren init, doctor,
 repositorios inaccesibles y facts Go full.
 
-**Smoke real:** con un `HOME` temporal, `ladygraph init --repository`,
-`ladygraph doctor`, `ladygraph index --full`, `ladygraph doctor` y
-`ladygraph serve` pasaron contra un repositorio Go temporal y LadybugDB
+**Smoke real:** con un `HOME` temporal, `kivgraph init --repository`,
+`kivgraph doctor`, `kivgraph index --full`, `kivgraph doctor` y
+`kivgraph serve` pasaron contra un repositorio Go temporal y LadybugDB
 v0.13.1; también pasó una indexación TypeScript full con el worker compilado.
 
 **Limitaciones:** el worker y el grafo canónico requieren las dependencias
@@ -10291,7 +10291,7 @@ silenciosamente.
 * Los fallos previos a la publicación conservan `CURRENT`; un fallo de
   validación posterior restaura la generación anterior solo después de
   verificarla contra el backup.
-* `ladygraph upgrade` expone las etapas y sus detalles, y rechaza schemas
+* `kivgraph upgrade` expone las etapas y sus detalles, y rechaza schemas
   sintéticos, versiones posteriores y generaciones no publicadas.
 
 **Verificación:** `gofmt -l`, `go vet ./...`, `go test ./... -count=1`,
@@ -10300,10 +10300,10 @@ silenciosamente.
 backup idempotente, corrupción, rutas inseguras, migración, fallos de extracción,
 rollback validado y rechazo de schemas incompatibles.
 
-**Smoke real:** con un `HOME` temporal, `ladygraph index --full` creó una
+**Smoke real:** con un `HOME` temporal, `kivgraph index --full` creó una
 generación canónica con LadybugDB v0.13.1; se cambió `GraphMetadata.schema_version`
-a `1`, `ladygraph upgrade` publicó `000002` con backup `001-to-002` y todas las
-etapas en `PASS`; `ladygraph rollback --generation 000001` restauró `000001` con
+a `1`, `kivgraph upgrade` publicó `000002` con backup `001-to-002` y todas las
+etapas en `PASS`; `kivgraph rollback --generation 000001` restauró `000001` con
 digest e invariantes en `PASS`.
 
 **Limitaciones:** solo se reconstruye un schema canónico anterior cuya forma
@@ -10346,9 +10346,9 @@ simultáneo para el backup y una reconstrucción full.
 gates no aplican a esta tarea.
 
 **Smoke real:** contra la generación canónica temporal de LUQUE-1505,
-`ladygraph rollback --generation 000003` restauró la generación anterior con
+`kivgraph rollback --generation 000003` restauró la generación anterior con
 digest e invariantes en `PASS`. Tras eliminar `snapshot.sha256` del destino,
-`ladygraph rollback --generation 000001` devolvió código `1` y `CURRENT`
+`kivgraph rollback --generation 000001` devolvió código `1` y `CURRENT`
 permaneció en `000003`.
 
 **Limitaciones:** el rollback siempre falla cerrado si falta el digest, cambia
@@ -10386,7 +10386,7 @@ docs/installation.md
 
 **Implementación:** `docs/installation.md` documenta los requisitos del
 bundle `linux/amd64`, la verificación `SHA256SUMS`, la instalación por usuario,
-el build fuente con `-tags ladybug`, `ladygraph init`, `doctor`, `index --full`,
+el build fuente con `-tags ladybug`, `kivgraph init`, `doctor`, `index --full`,
 `serve`, las rutas de estado, upgrades y diagnóstico. `README.md` enlaza la
 guía. `scripts/build-linux-amd64.sh` conserva el worker interactivo y enruta
 `facts` a `facts-cli.js`, además de empaquetar el paquete nativo de TypeScript
@@ -10401,7 +10401,7 @@ contratos.
 (`21 symbols`, `4 references`). En un `HOME` temporal, `init`, `doctor`,
 `index --full` (1 repositorio Go, generación `000001`) y el diagnóstico
 posterior pasaron; el servidor MCP respondió a `initialize` con
-`serverInfo.name=ladygraph` y `protocolVersion=2025-06-18`.
+`serverInfo.name=kivgraph` y `protocolVersion=2025-06-18`.
 
 **Limitaciones:** el artefacto documentado es `linux/amd64` y requiere Node.js
 `22` o posterior y bibliotecas estándar del sistema. El bundle de verificación
@@ -10618,7 +10618,7 @@ evidencias, procedencias y extremos declarados del grafo canónico.
 
 **Verificación:**
 
-- `ladygraph doctor graph` sobre la generación canónica publicada
+- `kivgraph doctor graph` sobre la generación canónica publicada
   `000003` devolvió `PASS`: `exact_edge_without_source=0`,
   `exact_edge_without_target=0`, `missing_evidence_file=0`,
   `unknown_confidence=0`, `duplicate_stable_key=0` e
@@ -10705,14 +10705,14 @@ un archivo ni una posición para ocultar esa ausencia.
 docs/release/production-qualification.md
 ```
 
-**Estado:** `ACCEPT_LADYGRAPH_WITH_LIMITS`.
+**Estado:** `ACCEPT_KIVGRAPH_WITH_LIMITS`.
 
 **Decisiones válidas:**
 
 ```text
-ACCEPT_LADYGRAPH_FOR_PRODUCTION
-ACCEPT_LADYGRAPH_WITH_LIMITS
-REJECT_LADYGRAPH_FOR_PRODUCTION
+ACCEPT_KIVGRAPH_FOR_PRODUCTION
+ACCEPT_KIVGRAPH_WITH_LIMITS
+REJECT_KIVGRAPH_FOR_PRODUCTION
 ```
 
 **Resultado:** los 16 gates globales están emitidos. La aceptación queda
@@ -10774,7 +10774,7 @@ docs/adr/0017-read-only-web-transport.md
 **Criterios de aceptación:**
 
 - El ADR establece que la API es read-only y usa el mismo `SnapshotStore`.
-- `ladygraph serve` y sus nueve tools MCP no cambian por esta decisión.
+- `kivgraph serve` y sus nueve tools MCP no cambian por esta decisión.
 - Queda explícito que exponer una dirección no loopback requiere revisión.
 
 **Estado:** `PASS`.
@@ -10910,7 +10910,7 @@ reproducibles.
 
 ---
 
-## LUQUE-1707 — Añadir comando y configuración `ladygraph ui`
+## LUQUE-1707 — Añadir comando y configuración `kivgraph ui`
 
 **Dependencias:** LUQUE-1706.
 
@@ -10925,7 +10925,7 @@ reproducibles.
 
 **Criterios de aceptación:**
 
-- `ladygraph serve` sigue siendo STDIO y no abre HTTP por defecto.
+- `kivgraph serve` sigue siendo STDIO y no abre HTTP por defecto.
 - El default es `127.0.0.1:7777`.
 - Toda goroutine y listener tiene propietario y cierre por contexto.
 
@@ -11297,7 +11297,7 @@ legibles y relaciones visibles en cada nivel de detalle.
   lineal la celda más densa del mundo reunía `11` nodos y sólo `51` de `400`
   celdas tenían contenido; por rango, ninguna celda pasa de `2` y se ocupan
   `100`;
-* smoke Chromium contra `ladygraph ui`: `138 nodos` y `399 aristas` en
+* smoke Chromium contra `kivgraph ui`: `138 nodos` y `399 aristas` en
   paquetes — `295` dependencias más `104` de contención, una por paquete —,
   nombres legibles con zoom (`domain/dbtrackerror`, `infrastructure/locker`),
   leyenda con los siete rótulos, rotación y zoom confirmados, cero
@@ -11494,7 +11494,7 @@ esos niveles se dibujen en vez de quedar como puntos de una décima de píxel.
 
 * `pnpm --dir web check`: 7 archivos de test y 42 tests pasando;
 * `go vet ./...`, `go test ./...` y `make test-ladybug` correctos;
-* smoke Chromium contra `ladygraph ui`, midiendo el encuadre sobre los píxeles
+* smoke Chromium contra `kivgraph ui`, midiendo el encuadre sobre los píxeles
   del lienzo: el grafo ocupa `82 %` del ancho y `85 %` del alto en paquetes, y
   `70 %` y `94 %` en archivos; antes ocupaba `38 %` y `41 %`;
 * rotación con arrastre: clusters que se solapaban de frente se separan;
@@ -11731,7 +11731,7 @@ jerarquía de repositorios, paquetes y archivos; el detalle vuelve al acercarse.
 
 **Archivos modificados:** `AGENTS.md`, `TASKS.md`, `docs/installation.md`, `docs/release/production-qualification.md`, `.github/workflows/ci.yml`.
 
-**Verificación:** `pnpm --dir web check`, `pnpm --dir web build`, `make build-linux-amd64`, `sha256sum -c dist/ladygraph-linux-amd64/SHA256SUMS` y el harness del visor; `WEB_VIEWER_PASS` permanece sin emitir por corpus insuficiente.
+**Verificación:** `pnpm --dir web check`, `pnpm --dir web build`, `make build-linux-amd64`, `sha256sum -c dist/kivgraph-linux-amd64/SHA256SUMS` y el harness del visor; `WEB_VIEWER_PASS` permanece sin emitir por corpus insuficiente.
 
 ---
 
@@ -11922,7 +11922,7 @@ comprueben lo mismo.
 * `config.RustConfig` (`yaml:"rust"`);
 * `internal/indexing/service.go`: `normalizeProjectLanguages` deja de tener su
   propia lista y usa `config.SupportedLanguage`;
-* `cmd/ladygraph/main.go`: comprobación `toolchain.rust`.
+* `cmd/kivgraph/main.go`: comprobación `toolchain.rust`.
 
 **Contrato de configuración:**
 
@@ -11955,7 +11955,7 @@ rust:
 
 **Criterios de aceptación:**
 
-- `ladygraph init` acepta un repositorio `rust` y la pasada no lo rechaza.
+- `kivgraph init` acepta un repositorio `rust` y la pasada no lo rechaza.
 - `doctor` sin `rust-analyzer` en el `PATH` reporta `toolchain.rust: FAIL` y
   no aborta el resto del diagnóstico.
 - Un repositorio registrado con un lenguaje inexistente sigue fallando en
@@ -11963,7 +11963,7 @@ rust:
 
 **Estado:** `PASS`.
 
-**Verificación:** `go test ./internal/config/... ./internal/indexing/... ./cmd/ladygraph/...`.
+**Verificación:** `go test ./internal/config/... ./internal/indexing/... ./cmd/kivgraph/...`.
 
 **Resultado:** `config.SupportedLanguages` incluye `rust` y `rs`, la sección `rust:` existe con su validación, `internal/indexing` perdió su segunda lista y `doctor` informa `toolchain.rust` y `toolchain.cargo`. El suelo de versión no se expresa como número: el binario de rustup y el standalone usan esquemas de versión distintos, así que la capacidad se comprueba sobre el índice (`validateIndex` rechaza un índice sin `enclosing_range`) y `doctor` publica la cadena de versión observada.
 
@@ -12052,7 +12052,7 @@ la toolchain real sobre `testdata/rust/`.
   registra en el ADR con el peso medido, no por gusto.
 * Los rangos SCIP son de tres enteros cuando empiezan y acaban en la misma
   línea y de cuatro cuando no; líneas y columnas son base cero en UTF-8. Las
-  posiciones canónicas de Ladygraph son línea base uno y columna base cero
+  posiciones canónicas de Kivgraph son línea base uno y columna base cero
   (`facts.Position`), así que la conversión es explícita y está probada en los
   dos casos.
 * `Metadata.tool_info.version` se conserva: identifica al analizador en la
@@ -12069,7 +12069,7 @@ la toolchain real sobre `testdata/rust/`.
 
 **Verificación:** `go test ./internal/rustloader/...`.
 
-**Resultado:** `internal/rustloader/scipwire` decodifica el subconjunto de SCIP que Ladygraph lee, con el esquema fijado por digest. Se descartaron los bindings publicados: traen formateador, validador y cuatro módulos más para leer seis mensajes. Los tests decodifican un índice real grabado del analizador y rechazan índices malformados.
+**Resultado:** `internal/rustloader/scipwire` decodifica el subconjunto de SCIP que Kivgraph lee, con el esquema fijado por digest. Se descartaron los bindings publicados: traen formateador, validador y cuatro módulos más para leer seis mensajes. Los tests decodifican un índice real grabado del analizador y rechazan índices malformados.
 
 **Siguiente tarea:** LUQUE-1807.
 
@@ -12440,7 +12440,7 @@ mundo.
 
 **Entregables:**
 
-* `internal/integrations/assets/ladygraph/SKILL.md`;
+* `internal/integrations/assets/kivgraph/SKILL.md`;
 * `README.md`, `docs/installation.md`, `docs/development/conventions.md`;
 * documentación de `index_project` con `rust` entre los lenguajes.
 
@@ -12787,7 +12787,7 @@ analizador la provoque.
 
 **Dependencias:** LUQUE-1822.
 
-**Objetivo:** que una instalación traiga dentro todo lo que Ladygraph ejecuta,
+**Objetivo:** que una instalación traiga dentro todo lo que Kivgraph ejecuta,
 y que lo que no puede traer quede dicho.
 
 **Entregables:**
@@ -12797,7 +12797,7 @@ y que lo que no puede traer quede dicho.
   del bundle en `scripts/build-bundle.sh`;
 * `rustloader.ResolveAnalyzer` y la resolución equivalente del worker
   TypeScript en `indexer.factsCommand`;
-* `Provenance.RustAnalyzer` en `ladygraph version --json`;
+* `Provenance.RustAnalyzer` en `kivgraph version --json`;
 * `internal/storage/ladybug/canonical_catalog_test.go`;
 * `docs/adr/0036-bundled-rust-analyzer.md`.
 
@@ -12815,7 +12815,7 @@ y que lo que no puede traer quede dicho.
 **Criterios de aceptación:**
 
 - `SHA256SUMS` cubre el analizador y `sha256sum -c` pasa sobre el bundle.
-- `ladygraph version --json` publica la release del analizador empaquetado.
+- `kivgraph version --json` publica la release del analizador empaquetado.
 - `doctor` distingue `bundled` de `path`.
 - Un `index --full` de Rust funciona ejecutando el binario del bundle por ruta
   absoluta, sin su `bin/` en el `PATH`.
@@ -12823,7 +12823,7 @@ y que lo que no puede traer quede dicho.
 **Estado:** `PASS`.
 
 **Verificación:** `make build-darwin-arm64`, `shasum -a 256 -c SHA256SUMS`,
-`ladygraph doctor`, `ladygraph index --full` desde el bundle, `go test ./...`.
+`kivgraph doctor`, `kivgraph index --full` desde el bundle, `go test ./...`.
 
 **Resultado:** bundle `darwin/arm64` de `127 MB` (`bin/rust-analyzer` 36 MB),
 747 archivos con checksum correcto. El flujo completo publica: `index.full:
@@ -12831,7 +12831,7 @@ PASS`, `stage.integrity: PASS (0 violaciones)`, `stage.golden probes: PASS`,
 `generation=000001` con 18 símbolos y 2 no resueltas.
 
 Empaquetar destapó dos fallos que ninguna prueba anterior podía ver. El
-primero: ejecutar el `ladygraph` del bundle sin su `bin/` en el `PATH`
+primero: ejecutar el `kivgraph` del bundle sin su `bin/` en el `PATH`
 provocaba un `panic` en `factsCommand` -`arguments[1:]` sobre una lista
 vacía-, y el worker TypeScript sólo se resolvía por `PATH` pese a viajar
 dentro. El segundo: las seis procedencias Rust no estaban en el catálogo de
@@ -12878,7 +12878,7 @@ alguien, ya que ninguna estación macOS puede construirlo.
 **Verificación:** `go test ./internal/version/ -run ToolManifest`,
 `go test ./internal/rustloader/scipwire/ -run EveryPlatform`, ejecución del
 artefacto `linux/amd64` en un contenedor, y en un host Linux nativo
-`make build-linux-amd64`, `sha256sum -c SHA256SUMS`, `ladygraph index --full`,
+`make build-linux-amd64`, `sha256sum -c SHA256SUMS`, `kivgraph index --full`,
 `go test ./...` (34 paquetes) y `make test-ladybug` (40 paquetes con la capa
 nativa, entre ellos `internal/storage/ladybug`, `internal/rebuild` e
 `internal/indexer`). La misma suite nativa pasa en `darwin/arm64` con 39
@@ -13206,7 +13206,7 @@ LUQUE-1113 dejó la superficie barata de cargar y las filas direccionables.
 Lo que ninguna tarea ha medido todavía es la sesión completa: lo que gasta un
 agente desde que pregunta hasta que tiene el código delante.
 
-**Medido por el arnés de LUQUE-1905** el 2026-08-13, con `ladygraph v0.5.0`,
+**Medido por el arnés de LUQUE-1905** el 2026-08-13, con `kivgraph v0.5.0`,
 generación `000024` (10.501 símbolos, 301 ficheros, 38.546 aristas), tokenizador
 `cl100k_base`, digest `1eb3f6af925c0491`, sobre seis preguntas del tipo «quién
 llama a este símbolo y qué aspecto tienen esos llamantes»:
@@ -13214,7 +13214,7 @@ llama a este símbolo y qué aspecto tienen esos llamantes»:
 ```text
                               responder    sesión completa
 vía nativa de Oh My Pi           10.739             25.144
-Ladygraph al abrir la fase        6.991  1,54x      21.396  1,18x
+Kivgraph al abrir la fase        6.991  1,54x      21.396  1,18x
 tras LUQUE-1901                   3.635  2,95x      18.040  1,39x
 tras LUQUE-1902                   3.059  3,51x      17.464  1,44x
 tras LUQUE-1903                   3.059  3,51x      14.222  1,77x
@@ -13298,9 +13298,9 @@ campo no puede llevar nada que se reescriba al reindexar.
 
 ## Los dos anfitriones que esta fase tiene que satisfacer
 
-Ladygraph se optimiza para **Oh My Pi** y **Claude Code**, en ese orden. Los dos
+Kivgraph se optimiza para **Oh My Pi** y **Claude Code**, en ese orden. Los dos
 difieren en lo que cobran y en lo que escuchan, y varias decisiones de la fase
-dependen de esa diferencia. Medido el 2026-08-12 contra `ladygraph v0.5.0` y la
+dependen de esa diferencia. Medido el 2026-08-12 contra `kivgraph v0.5.0` y la
 documentación del propio anfitrión.
 
 ```text
@@ -13440,7 +13440,7 @@ gofmt -l internal/ benchmarks/
 go vet ./...
 go test ./...
 go run ./benchmarks/mcp-token-cost --server <binario nuevo>   (dos veces, mismo digest)
-go run ./benchmarks/mcp-token-cost --dir /tmp/mtc-old --server ladygraph   (el antes)
+go run ./benchmarks/mcp-token-cost --dir /tmp/mtc-old --server kivgraph   (el antes)
 ```
 
 **Siguiente tarea:** LUQUE-1902.
@@ -13467,7 +13467,7 @@ signature    1.605 tokens   24 %
 ```
 
 Las firmas son la otra mitad del problema: dentro de `internal/facts`, una
-firma se publica como `func(sets []github.com/Luqueee/ladygraph/internal/facts.Set) ...`,
+firma se publica como `func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) ...`,
 con el camino completo del paquete al que pertenece el propio símbolo.
 
 **El bloqueo real:** la clave no se puede quitar porque `get_symbol` y
@@ -13606,8 +13606,8 @@ línea, y eso mide un **38 % sobre los bytes** -427 tokens donde el cuerpo son
 
 ```text
 vía nativa, sesión completa            25.144
-Ladygraph antes de esta tarea          17.464   1,44x
-Ladygraph sirviendo los cuerpos        14.222   1,77x
+Kivgraph antes de esta tarea          17.464   1,44x
+Kivgraph sirviendo los cuerpos        14.222   1,77x
   cuerpos leídos por el anfitrión      14.405
   los mismos cuerpos servidos          11.163
 suelo: los bytes y nada más            10.478   2,40x
@@ -13752,7 +13752,7 @@ Oh My Pi. LUQUE-1904 la baja a nueve retirando `graph_status`,
 
 **Dependencias:** LUQUE-1901, LUQUE-1902, LUQUE-1903.
 
-**Objetivo:** que un agente elija Ladygraph cuando Ladygraph es la respuesta
+**Objetivo:** que un agente elija Kivgraph cuando Kivgraph es la respuesta
 correcta. Las tres tareas anteriores abaratan la respuesta; ninguna hace que se
 pida.
 
@@ -13894,7 +13894,7 @@ generación publicada, y `TestUnbuildableGraphLeavesTheServiceHonest` afirma el
 handshake sin tools en vez de un `INDEX_NOT_READY` por llamada.
 
 **Lo que queda sin demostrar, y así se declara:** si un agente llama más a
-Ladygraph por esto. El techo del campo es el 20,3 % de las lecturas que midió
+Kivgraph por esto. El techo del campo es el 20,3 % de las lecturas que midió
 Serena con todo puesto, y la adopción no es una propiedad de la tool. Se observa
 en sesiones reales, con su arnés y su fecha, o no se afirma.
 
@@ -14000,7 +14000,7 @@ con el proveedor registrado- produce aristas exactas.
 **Y el corpus destapó un fallo del arnés.** Resolvía los cuerpos contra la ruta de
 un solo repositorio, así que una referencia alojada en otro no se podía leer.
 Ahora cada fila se resuelve contra el repositorio que nombra. Ninguna pregunta del
-corpus anterior lo habría encontrado: las seis viven en `ladygraph`.
+corpus anterior lo habría encontrado: las seis viven en `kivgraph`.
 
 **Verificación:**
 
@@ -14043,7 +14043,7 @@ eligió, con un tope que hace del 75 % el techo aritmético-.
   incluya al menos un símbolo de nombre común, uno de nombre raro y uno con
   consumidores en otro repositorio;
 * tres columnas por pregunta: **vía nativa** (`grep` acotado más la lectura de
-  los rangos que nombra), **Ladygraph** (las llamadas MCP más lo que el agente
+  los rangos que nombra), **Kivgraph** (las llamadas MCP más lo que el agente
   aún tenga que leer) y el factor entre ambas, con las dos salidas del anfitrión
   -su `grep` y sus lecturas de rango- capturadas literalmente en `native/`;
 * dos factores por pregunta, el de responder y el de la sesión completa, porque
@@ -14095,7 +14095,7 @@ preámbulo de la fase lleva las corregidas-:
 ```text
                               responder    sesión completa
 vía nativa                       10.739             21.223
-Ladygraph hoy                     6.991  1,54x      17.475  1,21x
+Kivgraph hoy                     6.991  1,54x      17.475  1,21x
 tras LUQUE-1901                   3.649  2,94x      14.133  1,50x
 cuerpos, los paga cualquier vía  10.484             techo    2,02x
 superficie residente en Oh My Pi    594  (205 rutas + 389 descripciones)
@@ -14147,7 +14147,7 @@ go run ./benchmarks/mcp-token-cost   (dos veces, mismo digest)
 
 # 23. Fase 20 — La memoria por cliente
 
-Un cliente MCP lanza `ladygraph serve` él mismo, así que hay un servidor por
+Un cliente MCP lanza `kivgraph serve` él mismo, así que hay un servidor por
 cliente y **cada uno reconstruye el grafo entero en su propio heap privado**.
 Medido el 2026-08-15 en `devlabs` -Linux, 16 núcleos, 24 GB- sobre la generación
 `000053`: 41 repositorios, 121 paquetes, 5.021 ficheros, 102.385 símbolos,
@@ -14186,7 +14186,7 @@ completo va al ADR de LUQUE-2007.
   sistema distribuido en miniatura: ciclo de vida, arranque en carrera, sockets
   huérfanos, sesgo de versión entre el binario del cliente y el demonio vivo,
   quién es dueño del bucle de resync, y qué significa `stop`, que hoy selecciona
-  por invocación `(argv[0] == "ladygraph", argv[1] ∈ {serve, ui})` y no vería un
+  por invocación `(argv[0] == "kivgraph", argv[1] ∈ {serve, ui})` y no vería un
   demonio con otro argv. Y sobre todo: **el demonio tiene el grafo residente
   siempre**, así que con el sysroot indexado son gigabytes que nadie puede
   desalojar.
@@ -14504,7 +14504,7 @@ heap privado.
 * `hotsnapshot.Open(path)` devuelve un `*GraphSnapshot` cuyas tablas son vistas
   sobre un mapeo `MAP_SHARED|PROT_READ`, en un fichero por plataforma con build
   tag, como exige la convención de código.
-* `cmd/ladygraph/main.go: loadConfiguredSnapshot` e
+* `cmd/kivgraph/main.go: loadConfiguredSnapshot` e
   `internal/indexing/follow.go: followOnce` intentan el fichero primero.
 
 **Decisiones:**
@@ -14542,7 +14542,7 @@ heap privado.
 **Verificación:**
 
 ```text
-gofmt -l internal/hotsnapshot/ internal/indexing/ cmd/ladygraph/
+gofmt -l internal/hotsnapshot/ internal/indexing/ cmd/kivgraph/
 go vet ./...
 go test -race ./internal/hotsnapshot/... ./internal/indexing/...
 make test-ladybug
@@ -14664,7 +14664,7 @@ fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace: su
 ahorro sería de decenas de megabytes y su coste es un demonio.
 
 **Diseño, si llega el caso:** socket unix bajo el directorio de estado, un
-`ladygraph daemon` que sostiene un `SnapshotStore`, un seguidor, un bucle de
+`kivgraph daemon` que sostiene un `SnapshotStore`, un seguidor, un bucle de
 resync y el indexador, y un `serve` que detecta el socket y se convierte en un
 relé de bytes. No hace falta escribir un proxy MCP: los dos lados hablan
 JSON-RPC delimitado por línea, así que el relé es transparente y la elicitación,
@@ -14712,7 +14712,7 @@ MCP_TOKEN_COST_PASS
 SHARED_SNAPSHOT_PASS
 ```
 
-No se puede aprobar Ladygraph sin todos ellos.
+No se puede aprobar Kivgraph sin todos ellos.
 
 ---
 
@@ -14763,7 +14763,7 @@ separados; y al final el arnés que declara el gate y el ADR que lo cierra.
 # 26. Plantilla de prompt para cada tarea
 
 ```text
-Trabaja en la tarea <TASK-ID> del backlog de Ladygraph.
+Trabaja en la tarea <TASK-ID> del backlog de Kivgraph.
 
 Reglas:
 
@@ -14856,7 +14856,7 @@ máquina**: aquí sólo viven los números y el método.
 
 ```text
                                        responder            sesión completa
-                              nativo  Ladygraph  factor   nativo  Ladygraph  factor
+                              nativo  Kivgraph  factor   nativo  Kivgraph  factor
 RedisAdapter  cross-repo       6.379      4.140   1,54x    7.598      5.359   1,42x
 register      nombre común    12.656        448  28,25x   13.276      1.068  12,43x
 KenaLogger    export             754      1.246   0,61x    4.035      4.527   0,89x

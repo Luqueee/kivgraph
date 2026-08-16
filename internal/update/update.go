@@ -24,14 +24,14 @@ import (
 )
 
 const (
-	Repository     = "Luqueee/ladygraph"
+	Repository     = "Luqueee/kivgraph"
 	DefaultAPIBase = "https://api.github.com"
 	checksumsName  = "SHA256SUMS"
 	// bundleDirName is both the installed bundle directory and the single root
 	// entry of the release archive. runtime.GOOS and runtime.GOARCH are
 	// compile-time constants, so these names resolve to the platform this
 	// binary was built for.
-	bundleDirName    = "ladygraph-" + runtime.GOOS + "-" + runtime.GOARCH
+	bundleDirName    = "kivgraph-" + runtime.GOOS + "-" + runtime.GOARCH
 	archiveName      = bundleDirName + ".tar.gz"
 	maxDownloadBytes = 512 << 20
 	maxBundleBytes   = 512 << 20
@@ -108,11 +108,11 @@ func Run(ctx context.Context, options Options) (Result, error) {
 
 	current := strings.TrimSpace(options.CurrentVersion)
 	if current == "" {
-		return Result{}, errors.New("current Ladygraph version must not be empty")
+		return Result{}, errors.New("current Kivgraph version must not be empty")
 	}
 	currentSemver := semanticVersion(current)
 	if !semver.IsValid(currentSemver) {
-		return Result{}, fmt.Errorf("current Ladygraph version %q is not valid semver", current)
+		return Result{}, fmt.Errorf("current Kivgraph version %q is not valid semver", current)
 	}
 
 	client := options.Client
@@ -196,7 +196,7 @@ func installRelease(ctx context.Context, client *http.Client, token string, rele
 		return err
 	}
 
-	downloadDir, err := os.MkdirTemp("", "ladygraph-update-download-")
+	downloadDir, err := os.MkdirTemp("", "kivgraph-update-download-")
 	if err != nil {
 		return fmt.Errorf("create update download directory: %w", err)
 	}
@@ -214,7 +214,7 @@ func installRelease(ctx context.Context, client *http.Client, token string, rele
 	}
 
 	parent := filepath.Dir(bundleRoot)
-	stagingDir, err := os.MkdirTemp(parent, ".ladygraph-update-")
+	stagingDir, err := os.MkdirTemp(parent, ".kivgraph-update-")
 	if err != nil {
 		return fmt.Errorf("create update staging directory: %w", err)
 	}
@@ -281,7 +281,7 @@ func download(ctx context.Context, client *http.Client, token, url, destination 
 
 func setHeaders(request *http.Request, token, current string) {
 	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("User-Agent", "ladygraph/"+current)
+	request.Header.Set("User-Agent", "kivgraph/"+current)
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -433,7 +433,7 @@ func validateBundle(root, expectedVersion string) error {
 	if closeErr != nil {
 		return fmt.Errorf("close manifest: %w", closeErr)
 	}
-	if manifest.Product != "ladygraph" || manifest.Release != expectedVersion {
+	if manifest.Product != "kivgraph" || manifest.Release != expectedVersion {
 		return fmt.Errorf("manifest release is %q, want %q", manifest.Release, expectedVersion)
 	}
 	if manifest.Target.OS != runtime.GOOS || manifest.Target.Arch != runtime.GOARCH {
@@ -445,7 +445,7 @@ func validateBundle(root, expectedVersion string) error {
 	if err := verifyBundleChecksums(root); err != nil {
 		return err
 	}
-	binaryPath := filepath.Join(root, "bin", "ladygraph")
+	binaryPath := filepath.Join(root, "bin", "kivgraph")
 	info, err := os.Stat(binaryPath)
 	if err != nil {
 		return fmt.Errorf("stat binary: %w", err)
@@ -453,7 +453,7 @@ func validateBundle(root, expectedVersion string) error {
 	if info.Mode()&0o111 == 0 {
 		return errors.New("bundle binary is not executable")
 	}
-	workerPath := filepath.Join(root, "bin", "ladygraph-ts-worker")
+	workerPath := filepath.Join(root, "bin", "kivgraph-ts-worker")
 	workerInfo, err := os.Stat(workerPath)
 	if err != nil {
 		return fmt.Errorf("stat worker: %w", err)
@@ -552,7 +552,7 @@ func executablePath(value string) (string, error) {
 func currentBundleRoot(executable string) (string, error) {
 	binDir := filepath.Dir(executable)
 	if filepath.Base(binDir) != "bin" {
-		return "", fmt.Errorf("current executable %q is not inside a Ladygraph bundle", executable)
+		return "", fmt.Errorf("current executable %q is not inside a Kivgraph bundle", executable)
 	}
 	root := filepath.Dir(binDir)
 	manifest, err := os.Stat(filepath.Join(root, "manifest.json"))

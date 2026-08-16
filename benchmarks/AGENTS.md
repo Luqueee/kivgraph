@@ -25,7 +25,7 @@ declarado en la raíz.
 - Una auditoría de exactitud debe separar `false exact edges` de aristas
   colgantes: compara fixtures con ground truth para las primeras y ejecuta las
   invariantes canónicas de extremos, evidencia y procedencia para las segundas.
-- Un informe `ACCEPT_LADYGRAPH_WITH_LIMITS` debe enumerar plataforma,
+- Un informe `ACCEPT_KIVGRAPH_WITH_LIMITS` debe enumerar plataforma,
   toolchains, corpus, transporte, garantías, métricas y riesgos residuales;
   no puede convertir una limitación conocida en un PASS implícito.
 

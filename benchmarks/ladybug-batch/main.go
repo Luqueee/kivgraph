@@ -19,7 +19,7 @@ import (
 	"time"
 
 	lbug "github.com/LadybugDB/go-ladybug"
-	"github.com/Luqueee/ladygraph/internal/procstat"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 )
 
 const (
@@ -206,7 +206,7 @@ func runIsolated(ctx context.Context, cfg config) (benchmarkResults, error) {
 	if err != nil {
 		return benchmarkResults{}, err
 	}
-	outputRoot, err := os.MkdirTemp("", "ladygraph-ladybug-batch-")
+	outputRoot, err := os.MkdirTemp("", "kivgraph-ladybug-batch-")
 	if err != nil {
 		return benchmarkResults{}, fmt.Errorf("create scenario output directory: %w", err)
 	}

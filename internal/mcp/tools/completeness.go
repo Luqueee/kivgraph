@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // Verdicts a caller can branch on without reading anything else.

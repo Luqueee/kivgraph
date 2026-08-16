@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Luqueee/ladygraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/integrations"
 )
 
 func TestRunMCPInstallStatusRemove(t *testing.T) {
@@ -15,7 +15,7 @@ func TestRunMCPInstallStatusRemove(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ladygraph", "mcp", "install", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
+	if code := run([]string{"kivgraph", "mcp", "install", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("install exit code = %d, stderr=%q", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "installed") {
@@ -28,7 +28,7 @@ func TestRunMCPInstallStatusRemove(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := run([]string{"ladygraph", "mcp", "status", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
+	if code := run([]string{"kivgraph", "mcp", "status", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("status exit code = %d, stderr=%q", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "managed") {
@@ -37,10 +37,10 @@ func TestRunMCPInstallStatusRemove(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := run([]string{"ladygraph", "mcp", "remove", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
+	if code := run([]string{"kivgraph", "mcp", "remove", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("remove exit code = %d, stderr=%q", code, stderr.String())
 	}
-	if _, err := os.Stat(path + ".ladygraph.bak"); err != nil {
+	if _, err := os.Stat(path + ".kivgraph.bak"); err != nil {
 		t.Fatalf("MCP backup missing: %v", err)
 	}
 }
@@ -49,13 +49,13 @@ func TestRunSkillInstallDryRunDoesNotWrite(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ladygraph", "skill", "install", "--target", "codex", "--dry-run"}, &stdout, &stderr); code != 0 {
+	if code := run([]string{"kivgraph", "skill", "install", "--target", "codex", "--dry-run"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("skill dry-run exit code = %d, stderr=%q", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "would-install") {
 		t.Fatalf("skill dry-run output = %q", stdout.String())
 	}
-	path := filepath.Join(home, ".agents", "skills", "ladygraph", "SKILL.md")
+	path := filepath.Join(home, ".agents", "skills", "kivgraph", "SKILL.md")
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("skill dry-run wrote %s: %v", path, err)
 	}
@@ -109,7 +109,7 @@ func TestRunSkillInstallInteractiveFallsBackToSupportedAgents(t *testing.T) {
 	); code != 0 {
 		t.Fatalf("interactive skill install exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	path := filepath.Join(home, ".agents", "skills", "ladygraph", "SKILL.md")
+	path := filepath.Join(home, ".agents", "skills", "kivgraph", "SKILL.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("interactive skill install did not write %s: %v", path, err)
 	}

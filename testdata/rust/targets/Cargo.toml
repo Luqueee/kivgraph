@@ -5,7 +5,7 @@ edition = "2021"
 
 # A crate vendored inside the repository, reached by path exactly as a
 # `[patch.crates-io]` fork is. Cargo builds it and the analyzer indexes it;
-# Ladygraph's discovery never walks `vendor`, so no manifest of this
+# Kivgraph's discovery never walks `vendor`, so no manifest of this
 # repository declares it.
 [dependencies]
 vendored = { path = "vendor/vendored" }

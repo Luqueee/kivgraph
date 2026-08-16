@@ -11,7 +11,7 @@ export interface InstancedGeometryLike {
 }
 
 /** Backing store for the raw value libraries assign, kept off the prototype. */
-const RAW_INSTANCE_COUNT = Symbol.for("ladygraph.rawInstanceCount");
+const RAW_INSTANCE_COUNT = Symbol.for("kivgraph.rawInstanceCount");
 
 /**
  * Mirrors what WebGL derives from the instanced attributes, which is what

@@ -7,7 +7,7 @@ import (
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 
-	"github.com/Luqueee/ladygraph/internal/syntax"
+	"github.com/Luqueee/kivgraph/internal/syntax"
 )
 
 // UseKind says how a `use` brings a name into scope, which is the difference

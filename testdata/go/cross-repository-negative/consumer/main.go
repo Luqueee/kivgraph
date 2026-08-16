@@ -2,8 +2,8 @@
 package main
 
 import (
-	"example.com/ladygraph-fixture/decoy/api"
-	twin "example.com/ladygraph-fixture/twin/api"
+	"example.com/kivgraph-fixture/decoy/api"
+	twin "example.com/kivgraph-fixture/twin/api"
 )
 
 // Compute is a local homonym of the provider functions.

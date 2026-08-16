@@ -8,12 +8,12 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Luqueee/ladygraph/internal/app"
-	"github.com/Luqueee/ladygraph/internal/hotsnapshot"
-	mcpserver "github.com/Luqueee/ladygraph/internal/mcp"
-	"github.com/Luqueee/ladygraph/internal/tsworker"
-	"github.com/Luqueee/ladygraph/internal/watcher"
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/app"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
+	"github.com/Luqueee/kivgraph/internal/tsworker"
+	"github.com/Luqueee/kivgraph/internal/watcher"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func TestLifecycleClosesMCPWatcherWorkerAndSnapshot(t *testing.T) {

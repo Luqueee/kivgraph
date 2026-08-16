@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/workspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func TestReconcilerDetectsChangesRemovalsRenamesAndManifests(t *testing.T) {

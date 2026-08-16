@@ -90,7 +90,7 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   permiso ignorado no cuesta nada, y el comentario lo dice en vez de sugerir un
   control que quizá no obliga.
 - Toda URL absoluta se deriva de `Astro.site`, nunca de un literal: el
-  despliegue fija `LADYGRAPH_LANDING_URL` y un host escrito a mano publicaría el
+  despliegue fija `KIVGRAPH_LANDING_URL` y un host escrito a mano publicaría el
   canonical de otra máquina. Los hechos del proyecto -nombre, lema, repositorio,
   licencia, la lista de tools- viven una sola vez en `landing/src/pages/_seo.ts`,
   que consumen el shell de la landing, el override de `Head` y los tres
@@ -129,8 +129,8 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 
 ## Contenido
 
-- La documentación de `landing/` está escrita para quien usa Ladygraph y sale de
-  las fuentes del repositorio -`cmd/ladygraph/help.go`, `internal/config`,
+- La documentación de `landing/` está escrita para quien usa Kivgraph y sale de
+  las fuentes del repositorio -`cmd/kivgraph/help.go`, `internal/config`,
   `internal/mcp/tools`, `README.md`-, copiadas literalmente cuando son un
   contrato. `docs/` sigue siendo material interno de ingeniería -ADRs,
   informes de cualificación- y no se publica.

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Luqueee/ladygraph/internal/storage/ladybug"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 const (
