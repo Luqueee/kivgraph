@@ -78,10 +78,15 @@ func loadPublishedSnapshot(directory string) (*hotsnapshot.GraphSnapshot, error)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(directory, PublishedSnapshotFileName))
+	data, release, err := mapFile(filepath.Join(directory, PublishedSnapshotFileName))
 	if err != nil {
 		return nil, fmt.Errorf("read published snapshot: %w", err)
 	}
+	// The snapshot keeps nothing of these bytes -- every decoder copies -- so the
+	// mapping is released as soon as the decode is done rather than held for the
+	// life of the server. Holding it is phase 2b of ADR 0045, and it needs the
+	// records to stop carrying strings first.
+	defer release()
 	snapshot, err := hotsnapshot.ReadSnapshot(data, contentDigest)
 	if err != nil {
 		return nil, err

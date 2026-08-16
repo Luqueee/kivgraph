@@ -172,3 +172,57 @@ func remove(t *testing.T, directory, name string) {
 		t.Fatalf("remove %s: %v", name, err)
 	}
 }
+
+// TestALoadedSnapshotOutlivesTheMappedFile is the guard the mapped read depends
+// on. loadPublishedSnapshot releases the mapping before it returns, so if any
+// decoder handed out a view into those bytes instead of copying them, walking
+// the graph here reads unmapped memory. The file is removed too: a snapshot that
+// still needed it would be a snapshot that cannot survive a pruned generation.
+func TestALoadedSnapshotOutlivesTheMappedFile(t *testing.T) {
+	directory := t.TempDir()
+	databasePath := filepath.Join(directory, "graph.lbdb")
+	built := seedPublishedGeneration(t, directory, databasePath)
+
+	loaded, err := loadPublishedSnapshot(directory)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	remove(t, directory, PublishedSnapshotFileName)
+
+	counts := loaded.Metadata().Counts
+	if counts.Symbols == 0 || counts.Edges == 0 {
+		t.Fatal("the fixture carries no symbols or edges, so nothing here is exercised")
+	}
+	for id := range hotsnapshot.SymbolID(counts.Symbols) {
+		record, ok := loaded.Symbol(id)
+		if !ok {
+			t.Fatalf("symbol %d vanished", id)
+		}
+		// Every string this record names is read after the mapping is gone,
+		// including its stable key, which is the one field the format carries
+		// as bytes rather than as an interned id.
+		if len(record.StableKey) == 0 {
+			t.Fatalf("symbol %d has no stable key", id)
+		}
+		if resolved, found := loaded.SymbolByStableKey(record.StableKey); !found || resolved != id {
+			t.Fatalf("stable key %q resolves to %d, want %d", record.StableKey, resolved, id)
+		}
+		for _, interned := range []hotsnapshot.InternedString{record.Name, record.QualifiedName, record.Kind} {
+			value, ok := loaded.Strings().String(interned)
+			if !ok || value == "" {
+				t.Fatalf("interned string %d of symbol %d is %q (%v)", interned, id, value, ok)
+			}
+			if got, found := loaded.Strings().Lookup(value); !found || got != interned {
+				t.Fatalf("Lookup(%q) = %d (%v), want %d", value, got, found, interned)
+			}
+		}
+		for _, edge := range loaded.Outgoing(id) {
+			if _, ok := loaded.Evidence(edge.Evidence); !ok {
+				t.Fatalf("edge from %d names evidence %d, which is not there", id, edge.Evidence)
+			}
+		}
+	}
+	if loaded.Metadata() != built.Metadata() {
+		t.Fatalf("metadata\n got %+v\nwant %+v", loaded.Metadata(), built.Metadata())
+	}
+}
