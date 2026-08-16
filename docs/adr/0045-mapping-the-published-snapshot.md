@@ -212,6 +212,14 @@ con 0045 fase 2a       125-132 MB              pico   241-249 MB
 Queda la fase 2b, y ahora decide entre `32 MB` privados por proceso y `97`: el
 volumen es dos tercios de lo que queda, no la mitad.
 
+Su primer trozo ya está, y vale por sí solo: el fichero se **mapea** para
+decodificarlo y el mapeo se libera al acabar, en vez de leerlo al heap. La
+asignación por carga baja de `244,5` a `148,7 MB` -- los 73 MB del fichero y su
+basura-- y el pico de un servidor de `241-249` a `233-235 MB`. Es seguro porque
+todo decodificador copia, y ese es exactamente el invariante que la fase 2b
+tendrá que romper a propósito y con una regla de vida útil en la mano: mantener
+el mapeo vivo es querer que el snapshot **no** copie.
+
 ## Alternativas descartadas
 
 **Dejarlo como está y confiar en el ADR 0044.** Quita el crecimiento, no la

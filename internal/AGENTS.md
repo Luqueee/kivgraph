@@ -221,6 +221,24 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   es el 100 % del RSS y tres clientes son tres copias. Compartir páginas es
   mapear el fichero, no leerlo, y eso es la fase 2 del ADR 0045; su condición es
   que `SymbolRecord.StableKey` deje de ser una `string`.
+- El fichero publicado se **mapea** para decodificarlo y el mapeo se libera en
+  cuanto acaba la decodificación, en vez de leerlo al heap: eran 73 MB asignados
+  por carga sobre el corpus real, y ahora dos procesos que cargan la misma
+  generación leen las mismas páginas físicas mientras lo hacen. Eso es seguro
+  por una razón que **tiene que seguir siendo verdad**: todo decodificador del
+  formato copia -un registro a un struct, una cadena por una conversión que
+  asigna-, así que el snapshot no comparte nada con esos bytes. Un decodificador
+  que empezara a entregar una vista convertiría esto en un use-after-free que
+  contesta consultas en vez de romperse. El guardia es el test que carga, borra
+  el fichero y luego recorre cada símbolo, cada clave estable, cada cadena y
+  cada arista.
+- La tabla de cadenas resuelve `Lookup` por búsqueda binaria sobre los ids
+  ordenados por su valor, no con un mapa: eran 20,45 MB por proceso contra 1,9 MB,
+  y `Lookup` se llama una o dos veces por consulta. El orden lo lleva el fichero
+  en su propia sección -es derivado y determinista, así que el escritor ordena
+  una vez-, es opcional en las dos direcciones, y se valida exigiendo valores
+  estrictamente crecientes: es la única sección cuya corrupción sería silenciosa,
+  porque un orden válido de otra tabla sigue contestando con el id de otro valor.
 - El layout del visor es una proyección derivada del `HotSnapshot`: usa
   coordenadas enteras deterministas, contención repository/package/file/symbol
   y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta
