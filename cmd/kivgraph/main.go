@@ -245,13 +245,15 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 		if err != nil {
 			return config.Loaded{}, nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
 		}
-		snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+		snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
 			DatabasePath: layout.Active.DatabasePath,
 			SnapshotID:   generationNumber,
 		})
 		// A server holds this snapshot for its whole life; what building it
 		// borrowed is dead the moment it is published, and returning it here
 		// is what keeps a long-running process near what it actually holds.
+		// Loading it borrows far less, which is the point of ADR 0045, but the
+		// scavenge still runs: a fallback derived it the expensive way.
 		defer rebuild.ReturnBuildMemory()
 		if err != nil {
 			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
@@ -1227,6 +1229,11 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 			doctorResult("snapshot", false, snapshotIDErr.Error())
 			doctorResult("unresolved", false, "snapshot unavailable")
 		} else {
+			// doctor derives the snapshot and never reads the published one,
+			// which is not an oversight to optimise away: what it reports is
+			// whether *this graph* can still become a snapshot. Reading a file
+			// that was written when the graph was healthy would answer a
+			// different question and answer it reassuringly.
 			snapshot, snapshotReport, snapshotErr := rebuild.BuildSnapshot(context.Background(), rebuild.BuildSnapshotOptions{
 				DatabasePath: layout.Active.DatabasePath,
 				SnapshotID:   snapshotID,
