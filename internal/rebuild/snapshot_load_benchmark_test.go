@@ -93,6 +93,23 @@ func BenchmarkLoadPublishedSnapshot(b *testing.B) {
 		b.ReportMetric(float64(afterMaps.HeapAlloc-beforeMaps.HeapAlloc)/mb, "two_maps_MB")
 		runtime.KeepAlive(byStableKey)
 		runtime.KeepAlive(byName)
+		// The string table's own lookup map is the last candidate for the
+		// remainder, and the biggest single structure a snapshot cannot map: one
+		// entry per interned value, against seven megabytes of headers for the
+		// same values. It is rebuilt here over exactly those values.
+		var beforeIndex runtime.MemStats
+		runtime.ReadMemStats(&beforeIndex)
+		lookup := make(map[string]hotsnapshot.InternedString, strings.Entries)
+		for id := range hotsnapshot.InternedString(strings.Entries) {
+			value, _ := snapshot.Strings().String(id)
+			lookup[value] = id
+		}
+		runtime.GC()
+		var afterIndex runtime.MemStats
+		runtime.ReadMemStats(&afterIndex)
+		b.ReportMetric(float64(afterIndex.HeapAlloc-beforeIndex.HeapAlloc)/mb, "interner_map_MB")
+		b.ReportMetric(float64(strings.Entries), "interned")
+		runtime.KeepAlive(lookup)
 		b.ReportMetric(float64(info.Size())/mb, "file_MB")
 		b.ReportMetric(float64(counts.Symbols), "symbols")
 		runtime.KeepAlive(snapshot)
