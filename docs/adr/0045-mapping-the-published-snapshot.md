@@ -142,6 +142,46 @@ Lo que la fase 1 **no** cambia, y sigue esperando a la fase 2: `Private_Dirty`
 sigue siendo el 100 % del RSS. Tres servidores leen el mismo fichero y guardan
 tres copias privadas de lo que leyeron; compartir páginas es mapear, no leer.
 
+## De qué está hecho un snapshot cargado, y por qué eso reordena la fase 2
+
+Antes de mapear conviene saber qué fracción se puede mapear. Medido sobre la
+misma generación -122,1 MB vivos, 102.894 símbolos, 481.494 cadenas internadas-:
+
+```text
+volumen mapeable -tablas, los dos CSR, los bytes de las cadenas-   64,90 MB   53 %
+mapa de búsqueda del interner                                      20,45 MB   17 %
+cabeceras de string, dieciséis bytes por valor internado            7,35 MB    6 %
+los dos mapas de símbolos más pesados                               6,21 MB    5 %
+resto -los otros índices, las rebanadas de sus cubetas, holgura-      ~24 MB   19 %
+```
+
+Cargar cuesta `144 ms`, contra `1,7 s` de derivar: doce veces menos, y es el
+tiempo que un seguidor tarda en instalar una generación nueva.
+
+Eso parte la fase 2 en dos trabajos que no valen lo mismo ni cuestan lo mismo:
+
+**2a -- retirar el mapa de búsqueda de la tabla de cadenas.** `Lookup` es lo
+único que lo usa, y una consulta lo llama una o dos veces para resolver un
+nombre; el mapa cuesta 20,45 MB **en cada proceso**. Una permutación ordenada
+por valor y una búsqueda binaria son 1,9 MB -cuatro bytes por cadena- y
+diecinueve comparaciones. Además se puede persistir en el fichero, que es
+derivado y determinista: el escritor ordena una vez y ningún lector paga el
+`sort`. No hay `unsafe`, ni mmap, ni cambio de API, ni código por plataforma, y
+**mejora también a un servidor solo**, que es lo que mapear no hace.
+
+**2b -- mapear el volumen.** Sigue siendo la palanca mayor: 64,90 MB que pasan
+de tres copias privadas a una compartida. Pero su precio es el que ya estaba
+escrito -reinterpretar bytes, `SymbolRecord.StableKey` dejando de ser una
+`string`- más uno que sólo aparece al medir: `StringTable.String` devuelve una
+`string`, y sobre un arena mapeado eso es una vista de memoria que deja de ser
+válida cuando el mapeo muere. Una respuesta que sobreviva al relevo de una
+generación leería memoria liberada, así que 2b necesita además una regla de vida
+útil -- copiar al entregar, o no desmapear mientras un lector viva.
+
+El orden es 2a y después 2b, y no por comodidad: 2a se lleva un tercio del
+beneficio por una fracción del riesgo, y deja 2b mejor dimensionada -- con 2a
+hecha, mapear el volumen decide entre 37 MB privados por proceso y 102.
+
 ## Alternativas descartadas
 
 **Dejarlo como está y confiar en el ADR 0044.** Quita el crecimiento, no la
