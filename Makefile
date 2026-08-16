@@ -24,14 +24,18 @@ ladybug-lib:
 # why this target exists and why nobody should run the tag by hand.
 #
 # PKGS narrows the run while working on one package. The default is the whole
-# suite, because that is what a release has to pass.
+# suite, because that is what a release has to pass. ARGS passes flags through
+# to `go test`, which is the only way to reach a benchmark that needs this tag:
+# the flags cannot be appended to the target, because make would read them as
+# targets of its own.
 PKGS ?= ./...
+ARGS ?=
 test-ladybug:
 	@LIB="$$(scripts/fetch-ladybug.sh)"; \
 	CGO_ENABLED=1 \
 	CGO_CFLAGS="-I$$LIB" \
 	CGO_LDFLAGS="-L$$LIB -llbug -Wl,-rpath,$$LIB" \
-	go test -tags ladybug $(PKGS)
+	go test -tags ladybug $(ARGS) $(PKGS)
 
 # build-linux-amd64 and build-darwin-arm64 create the generated distribution
 # bundle for each supported target. cgo links the pinned LadybugDB library, so
