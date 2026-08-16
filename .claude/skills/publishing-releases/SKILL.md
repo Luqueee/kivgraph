@@ -26,7 +26,22 @@ empezar desde abajo. Toda instalación entre `v0.5.0` y `v0.10.1` quedó
 ofrecerá nada, porque `v0.4.0` no es mayor que `v0.10.1`.
 
 No tiene arreglo salvo saltar por encima de `v0.10.1`, que tiraría el numerado
-actual. Es el precio de haberlo hecho una vez. No se hace dos.
+actual. Ese fue el precio de hacerlo sin motivo.
+
+El 16 de agosto de 2026 se reinició otra vez, y esta vez la regla no protegía a
+nadie: el proyecto se renombró a Kivgraph y el nombre del asset que pide una
+instalación va compilado en el binario
+(`bundleDirName = "kivgraph-" + GOOS + GOARCH`, `internal/update/update.go:34`).
+Un `ladygraph` instalado pide `ladygraph-<os>-<arch>.tar.gz` y toda release
+futura publica `kivgraph-*`: `update` le falla por asset ausente antes de
+comparar un solo número. El rename ya cortó la línea de actualización de las 14
+releases anteriores -23 descargas de bundle en total, dos máquinas propias-, así
+que se borraron todas, se borraron sus tags y el numerado empezó en `v0.1.0`.
+
+De ahí sale la condición, que es la regla de verdad: **un reinicio sólo es
+legítimo cuando ninguna instalación podría haber actualizado de todos modos, y
+eso hay que demostrarlo con el asset que pide, no con el número que tiene.**
+Fuera de ese caso, la versión sólo sube.
 
 ## Cuándo NO se publica
 
@@ -143,8 +158,23 @@ nuevo; el que falló no se reutiliza.
 ```text
 v0.5.0 … v0.10.1     numerado original, abandonado
 d6b9b61              chore(release): restart versioning at v0.1.0
-v0.1.0 … v0.4.0      numerado actual
+v0.1.0 … v0.6.0      catorce releases bajo el nombre Ladygraph
+58f018b              refactor: rename the project to kivgraph
+                     las catorce releases y sus tags, borrados
+v0.1.0 …             numerado actual, bajo el nombre Kivgraph
 ```
 
-Once tags publicados entre el 11 y el 12 de agosto de 2026. Veintiún commits
-`chore(release)` en total. Ninguna de las dos cosas se repite.
+Catorce tags publicados entre el 11 y el 14 de agosto de 2026 -más los del
+numerado original, que ya no están en ninguna parte-, veintitrés commits
+`chore(release)` y dos reinicios de numerado. Sólo el segundo tiene una razón
+que se puede comprobar. El ritmo no se repite.
+
+El mapa de lo que se borró, por si alguien busca a qué commit apuntaba un tag:
+
+```text
+v0.1.0 d6b9b61   v0.3.1 5c3ef12   v0.3.5 13ab818   v0.6.0 d67bc0e
+v0.1.1 efe4bc3   v0.3.2 e13b9ad   v0.4.0 a07dc7b
+v0.1.2 bca77c4   v0.3.3 056d85b   v0.5.0 28b9e2d
+v0.2.0 515e101   v0.3.4 b1cf7b0   v0.5.1 a0372d4
+v0.3.0 ba091fe
+```
