@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -82,15 +83,22 @@ func loadPublishedSnapshot(directory string) (*hotsnapshot.GraphSnapshot, error)
 	if err != nil {
 		return nil, fmt.Errorf("read published snapshot: %w", err)
 	}
-	// The snapshot keeps nothing of these bytes -- every decoder copies -- so the
-	// mapping is released as soon as the decode is done rather than held for the
-	// life of the server. Holding it is phase 2b of ADR 0045, and it needs the
-	// records to stop carrying strings first.
-	defer release()
-	snapshot, err := hotsnapshot.ReadSnapshot(data, contentDigest)
+	snapshot, err := hotsnapshot.MapSnapshot(data, contentDigest)
 	if err != nil {
+		release()
 		return nil, err
 	}
+	// The mapping outlives this call, because the snapshot reads its string
+	// values out of it instead of copying them: some fifty megabytes on a real
+	// corpus, and two processes reading the same generation share those pages.
+	//
+	// It is released when the snapshot becomes unreachable, which is the only
+	// moment nothing can name those bytes. A query holding a snapshot keeps it
+	// reachable, and every string the snapshot hands out of a borrowed arena is a
+	// copy, so no answer can outlive the pages it was read from. The cleanup
+	// closes over the release function and never over the snapshot, which would
+	// keep it alive forever.
+	runtime.AddCleanup(snapshot, func(release func()) { release() }, release)
 	return snapshot, nil
 }
 

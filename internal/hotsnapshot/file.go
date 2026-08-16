@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -55,6 +57,14 @@ const (
 	// reader that does not know the section ignores it, which is what lets a
 	// file written by a newer build stay readable by an older one.
 	sectionStringOrder uint32 = 16
+	// sectionStringArena and sectionStringOffsets carry the values as one block
+	// of bytes with a boundary per id, which is the only shape a reader can map
+	// instead of copying. They replace sectionStrings, whose length-prefixed
+	// form cannot be read in place; a reader that finds neither says so and its
+	// caller derives the snapshot, which is what an older build does with a file
+	// written by this one.
+	sectionStringArena   uint32 = 17
+	sectionStringOffsets uint32 = 18
 )
 
 // Element widths. Every record is written field by field in a declared width,
@@ -102,10 +112,6 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 	if snapshot == nil {
 		return [sha256.Size]byte{}, fmt.Errorf("%w: no snapshot", ErrInvalidSnapshotFile)
 	}
-	strings, err := snapshot.strings.MarshalBinary()
-	if err != nil {
-		return [sha256.Size]byte{}, fmt.Errorf("%w: marshal string table: %w", ErrInvalidSnapshotFile, err)
-	}
 	keyOffsets, keyBytes := encodeSymbolKeys(snapshot.symbols)
 
 	payloads := []struct {
@@ -114,7 +120,8 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 		count    uint64
 		bytes    []byte
 	}{
-		{sectionStrings, byteElemSize, uint64(len(strings)), strings},
+		{sectionStringArena, byteElemSize, uint64(len(snapshot.strings.arena)), snapshot.strings.arena},
+		{sectionStringOffsets, offsetElemSize, uint64(len(snapshot.strings.offsets)), encodeOffsets(snapshot.strings.offsets)},
 		{sectionStringOrder, offsetElemSize, uint64(len(snapshot.strings.order)), encodeInterned(snapshot.strings.order)},
 		{sectionResolverVersion, byteElemSize, uint64(len(snapshot.metadata.ResolverVersion)), []byte(snapshot.metadata.ResolverVersion)},
 		{sectionRepositories, repositoryElemSize, uint64(len(snapshot.repositories)), encodeRepositories(snapshot.repositories)},
@@ -183,6 +190,26 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 // contentDigest, when not zero, is required to match the header. That is how a
 // caller asserts that this file belongs to the generation it was found beside.
 func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot, error) {
+	return readSnapshot(data, contentDigest, false)
+}
+
+// MapSnapshot restores a snapshot that reads its string values in place, out of
+// data, instead of copying them.
+//
+// The caller owns keeping data valid for as long as anything can reach the
+// snapshot: on a mapped file that means not unmapping it, and the collector
+// cannot help, because it does not see that memory. In exchange, the largest
+// single part of a snapshot -- some fifty megabytes of string bytes on a real
+// corpus -- is read rather than allocated, and two processes reading the same
+// generation share those pages.
+//
+// Everything else is copied either way, so the arena is the only thing this
+// contract is about. See ADR 0045.
+func MapSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot, error) {
+	return readSnapshot(data, contentDigest, true)
+}
+
+func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (*GraphSnapshot, error) {
 	header, sections, payload, err := parseSnapshotFile(data)
 	if err != nil {
 		return nil, err
@@ -200,13 +227,16 @@ func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot,
 	}
 	var symbolKeyOffsets []uint32
 	var symbolKeyBytes []byte
-	var stringBytes []byte
+	var stringArena []byte
+	var stringOffsets []uint32
 	var stringOrder []InternedString
 	for _, entry := range sections {
 		bytes := payload[entry.offset : entry.offset+entry.length]
 		switch entry.kind {
-		case sectionStrings:
-			stringBytes = bytes
+		case sectionStringArena:
+			stringArena = bytes
+		case sectionStringOffsets:
+			stringOffsets = decodeOffsets(bytes, entry.count)
 		case sectionStringOrder:
 			stringOrder = decodeInterned(bytes, entry.count)
 		case sectionResolverVersion:
@@ -245,7 +275,7 @@ func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot,
 			continue
 		}
 	}
-	table, err := readStringTable(stringBytes, stringOrder)
+	table, err := readStringTable(stringArena, stringOffsets, stringOrder, borrowed)
 	if err != nil {
 		return nil, err
 	}
@@ -391,18 +421,19 @@ func parseSnapshotFile(data []byte) (snapshotFileHeader, []section, []byte, erro
 // A file with no order section is not a defect: an older writer produced it, and
 // sorting is exactly what that costs. What is a defect is no values at all,
 // because every record in every other section names its strings by id.
-func readStringTable(values []byte, order []InternedString) (StringTable, error) {
-	if values == nil {
+func readStringTable(arena []byte, offsets []uint32, order []InternedString, borrowed bool) (StringTable, error) {
+	if offsets == nil {
 		return StringTable{}, fmt.Errorf("%w: no string table", ErrInvalidSnapshotFile)
 	}
-	if order != nil {
-		table, err := unmarshalStringTableWithOrder(values, order)
-		if err != nil {
-			return StringTable{}, fmt.Errorf("%w: string table order: %w", ErrInvalidSnapshotFile, err)
-		}
-		return table, nil
+	if !borrowed {
+		arena = append([]byte(nil), arena...)
 	}
-	table, err := UnmarshalStringTable(values)
+	if order == nil {
+		// A file that carries the values but not their order is not a defect: an
+		// older writer produced it, and sorting is exactly what that costs.
+		order = sortedStringOrder(arena, offsets)
+	}
+	table, err := StringTableFromArena(arena, offsets, order, borrowed)
 	if err != nil {
 		return StringTable{}, fmt.Errorf("%w: string table: %w", ErrInvalidSnapshotFile, err)
 	}
@@ -423,4 +454,20 @@ func decodeInterned(data []byte, count uint64) []InternedString {
 		ids[index] = InternedString(binary.LittleEndian.Uint32(data[uint64(index)*offsetElemSize:]))
 	}
 	return ids
+}
+
+// sortedStringOrder builds the lookup order of a table whose file did not carry
+// one. It is the same order Freeze computes: ids sorted by their value.
+func sortedStringOrder(arena []byte, offsets []uint32) []InternedString {
+	order := make([]InternedString, len(offsets)-1)
+	for index := range order {
+		order[index] = InternedString(index)
+	}
+	value := func(id InternedString) string {
+		return string(arena[offsets[id]:offsets[id+1]])
+	}
+	slices.SortFunc(order, func(left, right InternedString) int {
+		return strings.Compare(value(left), value(right))
+	})
+	return order
 }

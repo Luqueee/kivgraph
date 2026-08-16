@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 // TestSnapshotFileRoundTripPreservesEveryField is the oracle for this format. A
@@ -317,8 +318,8 @@ func TestStringTableOrderIsValidatedOnLoad(t *testing.T) {
 }
 
 // TestReadStringTableSortsWithoutAnOrderSection keeps the optional section
-// optional. A file written before it existed has to keep loading, which is what
-// makes adding sections a compatible change in both directions.
+// optional: a file that carries the values but not their order has to keep
+// loading, and sorting is exactly what that costs.
 func TestReadStringTableSortsWithoutAnOrderSection(t *testing.T) {
 	interner := NewStringInterner()
 	for _, value := range []string{"zulu", "kilo", "alpha"} {
@@ -326,11 +327,8 @@ func TestReadStringTableSortsWithoutAnOrderSection(t *testing.T) {
 			t.Fatalf("intern %q: %v", value, err)
 		}
 	}
-	values, err := interner.Freeze().MarshalBinary()
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	table, err := readStringTable(values, nil)
+	frozen := interner.Freeze()
+	table, err := readStringTable(frozen.arena, frozen.offsets, nil, false)
 	if err != nil {
 		t.Fatalf("readStringTable without an order: %v", err)
 	}
@@ -339,7 +337,52 @@ func TestReadStringTableSortsWithoutAnOrderSection(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %d (%v), want %d", value, got, found, id)
 		}
 	}
-	if _, err := readStringTable(nil, nil); !errors.Is(err, ErrInvalidSnapshotFile) {
+	if _, err := readStringTable(nil, nil, nil, false); !errors.Is(err, ErrInvalidSnapshotFile) {
 		t.Fatalf("a file with no string table must be refused, got %v", err)
+	}
+}
+
+// TestAMappedTableCopiesWhatItHandsOut is the whole safety argument of
+// MapSnapshot, and it is checked by address rather than by value: a borrowed
+// arena is memory the collector cannot see, so a returned string that pointed
+// into it would keep answering after the mapping went away. Comparing the bytes
+// would pass either way; comparing where they live is what distinguishes a copy
+// from a view.
+func TestAMappedTableCopiesWhatItHandsOut(t *testing.T) {
+	interner := NewStringInterner()
+	if _, err := interner.Intern("borrowed-value"); err != nil {
+		t.Fatalf("intern: %v", err)
+	}
+	frozen := interner.Freeze()
+
+	owned, err := StringTableFromArena(frozen.arena, frozen.offsets, frozen.order, false)
+	if err != nil {
+		t.Fatalf("owned table: %v", err)
+	}
+	borrowed, err := StringTableFromArena(frozen.arena, frozen.offsets, frozen.order, true)
+	if err != nil {
+		t.Fatalf("borrowed table: %v", err)
+	}
+
+	arenaStart := uintptr(unsafe.Pointer(unsafe.SliceData(frozen.arena)))
+	arenaEnd := arenaStart + uintptr(len(frozen.arena))
+	inside := func(value string) bool {
+		at := uintptr(unsafe.Pointer(unsafe.StringData(value)))
+		return at >= arenaStart && at < arenaEnd
+	}
+
+	ownedValue, ok := owned.String(0)
+	if !ok || ownedValue != "borrowed-value" {
+		t.Fatalf("owned String(0) = %q (%v)", ownedValue, ok)
+	}
+	if !inside(ownedValue) {
+		t.Error("a table that owns its arena copied a value it could have handed out in place")
+	}
+	borrowedValue, ok := borrowed.String(0)
+	if !ok || borrowedValue != "borrowed-value" {
+		t.Fatalf("borrowed String(0) = %q (%v)", borrowedValue, ok)
+	}
+	if inside(borrowedValue) {
+		t.Fatal("a borrowed arena handed out a view into memory the collector cannot see")
 	}
 }

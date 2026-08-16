@@ -45,6 +45,9 @@ type StringTable struct {
 	offsets []uint32
 	order   []InternedString
 	stats   StringTableStats
+	// borrowed says the arena is memory this table does not own -- a mapped
+	// file. It changes exactly one thing, and it has to: String copies.
+	borrowed bool
 }
 
 // value answers one interned value without copying it.
@@ -54,6 +57,10 @@ type StringTable struct {
 // so no reader can observe it change and no writer can invalidate what a reader
 // holds. A table that started mutating its arena would break every string it
 // ever handed out.
+//
+// It is unexported because what it returns must not leave the package when the
+// arena is borrowed. Inside, it is what makes Lookup and the order validation
+// free: they compare and discard.
 func (table StringTable) value(id InternedString) string {
 	start, end := table.offsets[id], table.offsets[id+1]
 	if start == end {
@@ -63,11 +70,22 @@ func (table StringTable) value(id InternedString) string {
 }
 
 // String returns the interned value identified by id.
+//
+// A borrowed arena is mapped memory, and the collector cannot see it: a string
+// pointing into it would not keep the mapping alive, so the moment the snapshot
+// became unreachable that string would name freed pages and keep answering. So
+// what leaves this package is a copy when the arena is borrowed -- what an answer
+// names, not what the snapshot holds -- and a view when the table owns its bytes,
+// where a view is free and safe.
 func (table StringTable) String(id InternedString) (string, bool) {
 	if id == InvalidInternedString || uint64(id)+1 >= uint64(len(table.offsets)) {
 		return "", false
 	}
-	return table.value(id), true
+	value := table.value(id)
+	if table.borrowed {
+		return strings.Clone(value), true
+	}
+	return value, true
 }
 
 // Lookup returns the ID assigned to value.
@@ -78,6 +96,47 @@ func (table StringTable) Lookup(value string) (InternedString, bool) {
 		return InvalidInternedString, false
 	}
 	return table.order[position], true
+}
+
+// StringTableFromArena builds a table over an arena and its offsets, borrowing
+// the bytes rather than copying them.
+//
+// borrowed is what a caller promises about the arena's lifetime: that it outlives
+// the table. Mapped memory does not outlive its munmap, so whoever passes true
+// owns keeping it mapped for as long as anything can reach the table.
+//
+// The offsets are validated here rather than trusted, because they are the only
+// thing that says where a value starts and ends: an offset past the arena is a
+// read out of bounds, and one that goes backwards is a value that overlaps
+// another. Neither would be visible in an answer.
+func StringTableFromArena(arena []byte, offsets []uint32, order []InternedString, borrowed bool) (StringTable, error) {
+	if len(offsets) == 0 {
+		return StringTable{}, ErrMalformedStringTable
+	}
+	var valueBytes uint64
+	for index := 1; index < len(offsets); index++ {
+		if offsets[index] < offsets[index-1] || uint64(offsets[index]) > uint64(len(arena)) {
+			return StringTable{}, ErrMalformedStringTable
+		}
+		valueBytes += uint64(offsets[index] - offsets[index-1])
+	}
+	if offsets[0] != 0 || uint64(offsets[len(offsets)-1]) != uint64(len(arena)) {
+		return StringTable{}, ErrMalformedStringTable
+	}
+	table := StringTable{
+		arena:   arena,
+		offsets: offsets,
+		stats:   StringTableStats{Entries: uint32(len(offsets) - 1), Bytes: valueBytes},
+		// The order is validated against the values below, so borrowing is set
+		// first: validateOrder reads through value, and value is what borrowing
+		// describes.
+		borrowed: borrowed,
+	}
+	if err := table.validateOrder(order); err != nil {
+		return StringTable{}, err
+	}
+	table.order = order
+	return table, nil
 }
 
 // Stats returns table cardinality and the bytes occupied by values.

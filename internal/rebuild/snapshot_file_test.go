@@ -173,11 +173,13 @@ func remove(t *testing.T, directory, name string) {
 	}
 }
 
-// TestALoadedSnapshotOutlivesTheMappedFile is the guard the mapped read depends
-// on. loadPublishedSnapshot releases the mapping before it returns, so if any
-// decoder handed out a view into those bytes instead of copying them, walking
-// the graph here reads unmapped memory. The file is removed too: a snapshot that
-// still needed it would be a snapshot that cannot survive a pruned generation.
+// TestALoadedSnapshotOutlivesTheMappedFile is the guard the mapped load depends
+// on. The snapshot reads its string values out of the mapping, so it keeps that
+// mapping alive; everything else it decoded is a copy. Deleting the file proves
+// both halves at once: a mapping survives its path being unlinked, so the graph
+// has to stay whole, and a snapshot that still needed the file would be one that
+// cannot survive its generation being pruned -- which is exactly what happens to
+// every generation but two.
 func TestALoadedSnapshotOutlivesTheMappedFile(t *testing.T) {
 	directory := t.TempDir()
 	databasePath := filepath.Join(directory, "graph.lbdb")
