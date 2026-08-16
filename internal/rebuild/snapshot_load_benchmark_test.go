@@ -73,11 +73,11 @@ func BenchmarkLoadPublishedSnapshot(b *testing.B) {
 			b.ReportMetric(float64(live-volume)/mb, "unmappable_MB")
 		}
 		// The unmappable part is worth splitting, because two very different
-		// changes attack it. The string headers are arithmetic: a Go string is
-		// sixteen bytes beside its own bytes, one per interned value. The hash
-		// tables are measured by rebuilding the two heaviest of them, which is
-		// what a sorted array and a binary search would replace.
-		b.ReportMetric(float64(uint64(strings.Entries)*16)/mb, "headers_MB")
+		// changes attack it. The two reported counterfactuals are what the table
+		// no longer pays: sixteen bytes of Go string header per interned value,
+		// which an arena replaced with four, and the hash tables, measured by
+		// rebuilding the two heaviest of them, which a sorted order replaced.
+		b.ReportMetric(float64(uint64(strings.Entries)*16)/mb, "headers_avoided_MB")
 		var beforeMaps runtime.MemStats
 		runtime.ReadMemStats(&beforeMaps)
 		byStableKey := make(map[hotsnapshot.StableKey]hotsnapshot.SymbolID, counts.Symbols)
@@ -107,7 +107,7 @@ func BenchmarkLoadPublishedSnapshot(b *testing.B) {
 		runtime.GC()
 		var afterIndex runtime.MemStats
 		runtime.ReadMemStats(&afterIndex)
-		b.ReportMetric(float64(afterIndex.HeapAlloc-beforeIndex.HeapAlloc)/mb, "interner_map_MB")
+		b.ReportMetric(float64(afterIndex.HeapAlloc-beforeIndex.HeapAlloc)/mb, "interner_map_avoided_MB")
 		b.ReportMetric(float64(strings.Entries), "interned")
 		runtime.KeepAlive(lookup)
 		b.ReportMetric(float64(info.Size())/mb, "file_MB")
