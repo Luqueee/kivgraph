@@ -118,3 +118,22 @@ KIVGRAPH_SNAPSHOT_BUILD_DB=<generación>/graph.db \
 `KIVGRAPH_SNAPSHOT_BUILD_UNBOUNDED_HEAP=1` reproduce el camino anterior en la
 misma máquina y con la misma caché caliente, que es la única forma de distinguir
 un efecto del asignador de una lectura en frío de un fichero de 189 MB.
+
+El banco mide la construcción; lo que decide es un servidor. Tres servidores
+reales en `devlabs`, con este bundle instalado y dos publicaciones forzadas de
+las 42 repositorios:
+
+```text
+                    antes    1ª publicación   2ª publicación
+pid 313694         256 MB          256 MB           256 MB
+pid 313703         259 MB          261 MB           269 MB
+pid 313840         259 MB          259 MB           263 MB
+```
+
+Entre 0 y 5 MB por publicación y por servidor, donde antes eran entre 61 y
+80 MB. Los tres juntos ocupan 788 MB, contra los 2,6 GB que ocupaban tres
+servidores que además seguían subiendo.
+
+Lo que no baja es el pico: el `VmHWM` de cada uno sigue en torno a `1,05 GB`,
+que es el transitorio de una construcción. Esta decisión no lo toca, y es
+exactamente lo que queda para las dos alternativas pendientes.
