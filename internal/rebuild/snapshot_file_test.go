@@ -2,6 +2,7 @@ package rebuild
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -227,4 +228,48 @@ func TestALoadedSnapshotOutlivesTheMappedFile(t *testing.T) {
 	if loaded.Metadata() != built.Metadata() {
 		t.Fatalf("metadata\n got %+v\nwant %+v", loaded.Metadata(), built.Metadata())
 	}
+}
+
+// TestInspectPublishedSnapshotDistinguishesAbsentFromUnusable is what makes the
+// answer actionable. A generation without a snapshot is a generation a server
+// derives, which is what always happened; one whose snapshot cannot be used is a
+// store with something wrong in it. A single "not available" would report the two
+// as the same thing, and the second one is the one worth waking up for.
+func TestInspectPublishedSnapshotDistinguishesAbsentFromUnusable(t *testing.T) {
+	t.Run("usable", func(t *testing.T) {
+		directory := t.TempDir()
+		databasePath := filepath.Join(directory, "graph.lbdb")
+		built := seedPublishedGeneration(t, directory, databasePath)
+		info, err := InspectPublishedSnapshot(directory)
+		if err != nil {
+			t.Fatalf("InspectPublishedSnapshot() error = %v", err)
+		}
+		if info.Symbols != int(built.Metadata().Counts.Symbols) || info.Symbols == 0 {
+			t.Fatalf("symbols = %d, want %d", info.Symbols, built.Metadata().Counts.Symbols)
+		}
+		if info.Bytes == 0 || info.ID != built.Metadata().ID {
+			t.Fatalf("info = %+v, want the published file's size and id", info)
+		}
+	})
+
+	t.Run("absent", func(t *testing.T) {
+		directory := t.TempDir()
+		databasePath := filepath.Join(directory, "graph.lbdb")
+		seedPublishedGeneration(t, directory, databasePath)
+		remove(t, directory, PublishedSnapshotFileName)
+		if _, err := InspectPublishedSnapshot(directory); !errors.Is(err, ErrNoPublishedSnapshot) {
+			t.Fatalf("error = %v, want ErrNoPublishedSnapshot", err)
+		}
+	})
+
+	t.Run("unusable", func(t *testing.T) {
+		directory := t.TempDir()
+		databasePath := filepath.Join(directory, "graph.lbdb")
+		seedPublishedGeneration(t, directory, databasePath)
+		write(t, directory, snapshotFileName, strings.Repeat("cd", 32))
+		_, err := InspectPublishedSnapshot(directory)
+		if err == nil || errors.Is(err, ErrNoPublishedSnapshot) {
+			t.Fatalf("error = %v, want a refusal that is not absence", err)
+		}
+	})
 }

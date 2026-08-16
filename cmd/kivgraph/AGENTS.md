@@ -23,6 +23,18 @@ superficie observable.
   `INFO` y sólo un fallo es `ERROR`, y el texto de la línea es el `msg` del
   registro, nunca un campo dentro de un mensaje fijo. Un registro que un
   lector no puede filtrar por nivel ni encontrar por texto no informa de nada.
+- `doctor` informa de `snapshot.published`, y las dos respuestas que no son un
+  fichero utilizable no valen lo mismo: **ausente es `PASS` y se declara** -- una
+  generación publicada antes de que el fichero existiera no lo lleva, y derivar
+  es lo que siempre se hizo-- mientras que **presente y no utilizable es `FAIL`**,
+  porque algo del store está mal. Una sola respuesta de «no disponible» las
+  contaría como lo mismo, y la segunda es la que merece despertar a alguien.
+- `serve` dice al arrancar si leyó el snapshot publicado o lo derivó, y con qué
+  razón. Nada más las distingue: un servidor que deriva contesta exactamente
+  igual que uno que leyó, y cuesta un gigabyte más de pico al nacer. Mientras
+  nadie lo dijo, esa confusión costó dos veces en una tarde -- el arranque
+  derivando y un fichero de formato anterior sin cargar-- y ninguna suite lo vio,
+  porque las dos rutas producen el mismo grafo.
 - `doctor` informa del techo de versión con el que este binario comprueba
   tipos, no solo del `go` del PATH: son números distintos y el que decide si un
   repositorio se puede indexar es el primero.

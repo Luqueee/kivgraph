@@ -264,6 +264,18 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 		if err := store.Publish(snapshot); err != nil {
 			return config.Loaded{}, nil, fmt.Errorf("publish active snapshot %q: %w", layout.Active.ID, err)
 		}
+		// Which of the two routes was taken is worth a line, because nothing else
+		// distinguishes them: a server that derives answers exactly like one that
+		// read the file, and costs a gigabyte more to start.
+		switch {
+		case report.Loaded:
+			logging.New(os.Stderr).Info("read the published snapshot",
+				"generation", layout.Active.ID, "symbols", report.Stats.Symbols)
+		default:
+			logging.New(os.Stderr).Info("derived the snapshot from the canonical graph",
+				"generation", layout.Active.ID, "symbols", report.Stats.Symbols,
+				"reason", report.LoadRefused)
+		}
 	}
 	keepStore = true
 	return loaded, store, nil
@@ -1224,6 +1236,24 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		digestPath := filepath.Join(layout.Active.Path, "snapshot.sha256")
 		digestInfo, digestErr := os.Stat(digestPath)
 		doctorResult("snapshot.digest", digestErr == nil && digestInfo.Mode().IsRegular(), digestPath)
+		// Whether the generation carries a usable snapshot decides whether every
+		// server on this machine reads it or derives the graph, and the two are
+		// invisible from the outside: they produce the same answers and differ by
+		// a gigabyte of peak per install. Absence is not a failure -- a generation
+		// published before the file existed has none, and deriving is what always
+		// happened -- but a file that is there and cannot be used is, because
+		// something in the store is wrong.
+		published, publishedErr := rebuild.InspectPublishedSnapshot(layout.Active.Path)
+		switch {
+		case errors.Is(publishedErr, rebuild.ErrNoPublishedSnapshot):
+			doctorResult("snapshot.published", true,
+				"absent, so every server derives the graph from the canonical store")
+		case publishedErr != nil:
+			doctorResult("snapshot.published", false, publishedErr.Error())
+		default:
+			doctorResult("snapshot.published", true, fmt.Sprintf("%s (%d symbols, %d bytes)",
+				published.Path, published.Symbols, published.Bytes))
+		}
 		snapshotID, snapshotIDErr := snapshotReportID(layout.Active.ID)
 		if snapshotIDErr != nil {
 			doctorResult("snapshot", false, snapshotIDErr.Error())
