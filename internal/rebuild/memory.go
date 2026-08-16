@@ -19,9 +19,16 @@ import "runtime/debug"
 // nothing can reach its inputs. A server has nothing else to do until the next
 // request, so the collection and scavenge cost it nothing a caller can observe.
 //
-// It is deliberately not a memory limit. GOMEMLIMIT would also bound the
-// indexer, whose peak is the work itself, and bounding that trades memory for
-// a GC that never stops running.
+// It is deliberately not a memory limit, and since ADR 0042 the reason is
+// narrower than it was: the pass runs as a child process, so what a limit here
+// would still reach is only what the child inherits. That is the environment --
+// `subprocess.go` never sets `command.Env` -- so `GOMEMLIMIT` in the
+// environment would bound the indexer too, whose peak is the work itself, and
+// bounding that trades memory for a GC that never stops running. A limit set
+// programmatically in `serve` would not travel to the child; it would also have
+// to clear this build's own peak, which is measured above at roughly three
+// times the live snapshot, so it can only reclaim the distance between that
+// peak and where a long-lived server parks. The peak itself is the lever.
 func ReturnBuildMemory() {
 	debug.FreeOSMemory()
 }
