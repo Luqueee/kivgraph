@@ -72,6 +72,27 @@ func BenchmarkLoadPublishedSnapshot(b *testing.B) {
 		if live > volume {
 			b.ReportMetric(float64(live-volume)/mb, "unmappable_MB")
 		}
+		// The unmappable part is worth splitting, because two very different
+		// changes attack it. The string headers are arithmetic: a Go string is
+		// sixteen bytes beside its own bytes, one per interned value. The hash
+		// tables are measured by rebuilding the two heaviest of them, which is
+		// what a sorted array and a binary search would replace.
+		b.ReportMetric(float64(uint64(strings.Entries)*16)/mb, "headers_MB")
+		var beforeMaps runtime.MemStats
+		runtime.ReadMemStats(&beforeMaps)
+		byStableKey := make(map[hotsnapshot.StableKey]hotsnapshot.SymbolID, counts.Symbols)
+		byName := make(map[hotsnapshot.InternedString][]hotsnapshot.SymbolID)
+		for id := range hotsnapshot.SymbolID(counts.Symbols) {
+			record, _ := snapshot.Symbol(id)
+			byStableKey[record.StableKey] = id
+			byName[record.Name] = append(byName[record.Name], id)
+		}
+		runtime.GC()
+		var afterMaps runtime.MemStats
+		runtime.ReadMemStats(&afterMaps)
+		b.ReportMetric(float64(afterMaps.HeapAlloc-beforeMaps.HeapAlloc)/mb, "two_maps_MB")
+		runtime.KeepAlive(byStableKey)
+		runtime.KeepAlive(byName)
 		b.ReportMetric(float64(info.Size())/mb, "file_MB")
 		b.ReportMetric(float64(counts.Symbols), "symbols")
 		runtime.KeepAlive(snapshot)
