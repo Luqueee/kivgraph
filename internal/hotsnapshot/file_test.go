@@ -95,6 +95,19 @@ func TestSnapshotFileRoundTripPreservesEveryField(t *testing.T) {
 			t.Fatalf("interned string %d is %q (%v), expected %q", id, got, ok, want)
 		}
 	}
+	// Every value has to resolve back to the same id. A lookup order that is
+	// valid but wrong -- sorted, in range, and simply not this table's -- would
+	// pass every check above and answer every query with another value's id.
+	if !reflect.DeepEqual(loaded.strings.order, built.strings.order) {
+		t.Errorf("lookup order differs")
+	}
+	for id := range InternedString(built.strings.Stats().Entries) {
+		value, _ := built.strings.String(id)
+		got, found := loaded.strings.Lookup(value)
+		if !found || got != id {
+			t.Fatalf("Lookup(%q) = %d (%v), want %d", value, got, found, id)
+		}
+	}
 
 	// Rewriting the same snapshot has to produce the same payload digest:
 	// nothing in this format may depend on map iteration order.
@@ -259,5 +272,74 @@ func fileFixtureRows() LadybugSnapshotRows {
 			{Key: "unres-2", RepositoryKey: "repo-b", Language: "rust", RequestedPackage: "missing-crate",
 				Reason: "CRATE_PROVIDER_NOT_FOUND", Detail: "nobody declares it"},
 		},
+	}
+}
+
+// TestStringTableOrderIsValidatedOnLoad guards the one section whose corruption
+// is silent. Values and records are checked by their widths and by the snapshot
+// validation that follows; a lookup order is just numbers, and a wrong one keeps
+// answering -- with another value's id.
+func TestStringTableOrderIsValidatedOnLoad(t *testing.T) {
+	interner := NewStringInterner()
+	for _, value := range []string{"delta", "alpha", "charlie", "bravo"} {
+		if _, err := interner.Intern(value); err != nil {
+			t.Fatalf("intern %q: %v", value, err)
+		}
+	}
+	table := interner.Freeze()
+	values, err := table.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	if restored, err := unmarshalStringTableWithOrder(values, table.order); err != nil {
+		t.Fatalf("the table's own order was refused: %v", err)
+	} else if id, found := restored.Lookup("charlie"); !found || id != 2 {
+		t.Fatalf(`Lookup("charlie") = %d (%v), want 2`, id, found)
+	}
+
+	for _, testCase := range []struct {
+		name  string
+		order []InternedString
+	}{
+		{"too short", []InternedString{0, 1, 2}},
+		{"too long", []InternedString{1, 3, 2, 0, 0}},
+		{"id out of range", []InternedString{1, 3, 2, 9}},
+		{"not sorted by value", []InternedString{0, 1, 2, 3}},
+		{"a repeated id", []InternedString{1, 1, 2, 0}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if _, err := unmarshalStringTableWithOrder(values, testCase.order); !errors.Is(err, ErrMalformedStringTable) {
+				t.Fatalf("expected ErrMalformedStringTable, got %v", err)
+			}
+		})
+	}
+}
+
+// TestReadStringTableSortsWithoutAnOrderSection keeps the optional section
+// optional. A file written before it existed has to keep loading, which is what
+// makes adding sections a compatible change in both directions.
+func TestReadStringTableSortsWithoutAnOrderSection(t *testing.T) {
+	interner := NewStringInterner()
+	for _, value := range []string{"zulu", "kilo", "alpha"} {
+		if _, err := interner.Intern(value); err != nil {
+			t.Fatalf("intern %q: %v", value, err)
+		}
+	}
+	values, err := interner.Freeze().MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	table, err := readStringTable(values, nil)
+	if err != nil {
+		t.Fatalf("readStringTable without an order: %v", err)
+	}
+	for id, value := range map[InternedString]string{0: "zulu", 1: "kilo", 2: "alpha"} {
+		if got, found := table.Lookup(value); !found || got != id {
+			t.Fatalf("Lookup(%q) = %d (%v), want %d", value, got, found, id)
+		}
+	}
+	if _, err := readStringTable(nil, nil); !errors.Is(err, ErrInvalidSnapshotFile) {
+		t.Fatalf("a file with no string table must be refused, got %v", err)
 	}
 }

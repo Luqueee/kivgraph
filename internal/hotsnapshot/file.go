@@ -49,6 +49,12 @@ const (
 	sectionReverseOffsets    uint32 = 13
 	sectionReverseEdges      uint32 = 14
 	sectionResolverVersion   uint32 = 15
+	// sectionStringOrder carries the lookup order of the string table, which is
+	// derived and deterministic: the writer sorts once so that no reader has to.
+	// It is optional by design -- a reader that does not find it sorts, and a
+	// reader that does not know the section ignores it, which is what lets a
+	// file written by a newer build stay readable by an older one.
+	sectionStringOrder uint32 = 16
 )
 
 // Element widths. Every record is written field by field in a declared width,
@@ -109,6 +115,7 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 		bytes    []byte
 	}{
 		{sectionStrings, byteElemSize, uint64(len(strings)), strings},
+		{sectionStringOrder, offsetElemSize, uint64(len(snapshot.strings.order)), encodeInterned(snapshot.strings.order)},
 		{sectionResolverVersion, byteElemSize, uint64(len(snapshot.metadata.ResolverVersion)), []byte(snapshot.metadata.ResolverVersion)},
 		{sectionRepositories, repositoryElemSize, uint64(len(snapshot.repositories)), encodeRepositories(snapshot.repositories)},
 		{sectionPackages, packageElemSize, uint64(len(snapshot.packages)), encodePackages(snapshot.packages)},
@@ -193,15 +200,15 @@ func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot,
 	}
 	var symbolKeyOffsets []uint32
 	var symbolKeyBytes []byte
+	var stringBytes []byte
+	var stringOrder []InternedString
 	for _, entry := range sections {
 		bytes := payload[entry.offset : entry.offset+entry.length]
 		switch entry.kind {
 		case sectionStrings:
-			table, err := UnmarshalStringTable(bytes)
-			if err != nil {
-				return nil, fmt.Errorf("%w: string table: %w", ErrInvalidSnapshotFile, err)
-			}
-			input.Strings = table
+			stringBytes = bytes
+		case sectionStringOrder:
+			stringOrder = decodeInterned(bytes, entry.count)
 		case sectionResolverVersion:
 			input.ResolverVersion = string(bytes)
 		case sectionRepositories:
@@ -238,6 +245,11 @@ func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot,
 			continue
 		}
 	}
+	table, err := readStringTable(stringBytes, stringOrder)
+	if err != nil {
+		return nil, err
+	}
+	input.Strings = table
 	if err := restoreSymbolKeys(input.Symbols, symbolKeyOffsets, symbolKeyBytes); err != nil {
 		return nil, err
 	}
@@ -371,4 +383,44 @@ func parseSnapshotFile(data []byte) (snapshotFileHeader, []section, []byte, erro
 			ErrInvalidSnapshotFile, computed[:8], header.payloadDigest[:8])
 	}
 	return header, sections, payload, nil
+}
+
+// readStringTable rebuilds the table from its values and, when the file carried
+// one, the lookup order it already computed.
+//
+// A file with no order section is not a defect: an older writer produced it, and
+// sorting is exactly what that costs. What is a defect is no values at all,
+// because every record in every other section names its strings by id.
+func readStringTable(values []byte, order []InternedString) (StringTable, error) {
+	if values == nil {
+		return StringTable{}, fmt.Errorf("%w: no string table", ErrInvalidSnapshotFile)
+	}
+	if order != nil {
+		table, err := unmarshalStringTableWithOrder(values, order)
+		if err != nil {
+			return StringTable{}, fmt.Errorf("%w: string table order: %w", ErrInvalidSnapshotFile, err)
+		}
+		return table, nil
+	}
+	table, err := UnmarshalStringTable(values)
+	if err != nil {
+		return StringTable{}, fmt.Errorf("%w: string table: %w", ErrInvalidSnapshotFile, err)
+	}
+	return table, nil
+}
+
+func encodeInterned(ids []InternedString) []byte {
+	out := make([]byte, 0, len(ids)*offsetElemSize)
+	for _, id := range ids {
+		out = binary.LittleEndian.AppendUint32(out, uint32(id))
+	}
+	return out
+}
+
+func decodeInterned(data []byte, count uint64) []InternedString {
+	ids := make([]InternedString, count)
+	for index := range ids {
+		ids[index] = InternedString(binary.LittleEndian.Uint32(data[uint64(index)*offsetElemSize:]))
+	}
+	return ids
 }
