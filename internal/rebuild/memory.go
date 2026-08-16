@@ -1,6 +1,10 @@
 package rebuild
 
-import "runtime/debug"
+import (
+	"runtime/debug"
+
+	"github.com/Luqueee/kivgraph/internal/nativeheap"
+)
 
 // ReturnBuildMemory hands what a snapshot build borrowed back to the operating
 // system.
@@ -19,16 +23,25 @@ import "runtime/debug"
 // nothing can reach its inputs. A server has nothing else to do until the next
 // request, so the collection and scavenge cost it nothing a caller can observe.
 //
-// It is deliberately not a memory limit, and since ADR 0042 the reason is
-// narrower than it was: the pass runs as a child process, so what a limit here
-// would still reach is only what the child inherits. That is the environment --
-// `subprocess.go` never sets `command.Env` -- so `GOMEMLIMIT` in the
-// environment would bound the indexer too, whose peak is the work itself, and
-// bounding that trades memory for a GC that never stops running. A limit set
-// programmatically in `serve` would not travel to the child; it would also have
-// to clear this build's own peak, which is measured above at roughly three
-// times the live snapshot, so it can only reclaim the distance between that
-// peak and where a long-lived server parks. The peak itself is the lever.
+// It is deliberately not a memory limit, and the reason is now narrower than it
+// was. Since ADR 0042 the pass runs as a child process, so what a limit set
+// here still reaches is only what the child inherits -- the environment, since
+// `subprocess.go` never sets `command.Env` -- and `GOMEMLIMIT` there would
+// bound the indexer, whose peak is the work itself.
+//
+// It would also buy almost nothing, which is the part measurement had to
+// settle. On a 189 MB graph the Go heap parks 2.4-4 MB above the live snapshot
+// after every single build: there is no Go-side gap for a ceiling to close.
+// What made a long-lived server park at three times what it holds was the
+// allocator underneath the engine, and that is what the second call below
+// returns. See ADR 0044.
 func ReturnBuildMemory() {
 	debug.FreeOSMemory()
+	// The Go arena is the smaller half. Most of a build's bytes are the
+	// engine's, allocated through libc, and measured on a 189 MB graph the Go
+	// side parks 2.4 MB above the live snapshot while resident size climbs
+	// 80 MB per build. That memory is free as far as the allocator is
+	// concerned and still resident as far as the kernel is concerned, which
+	// is the difference this closes.
+	nativeheap.Return()
 }

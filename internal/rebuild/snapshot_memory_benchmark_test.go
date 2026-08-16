@@ -44,6 +44,17 @@ func BenchmarkBuildSnapshotMemory(b *testing.B) {
 		b.Fatalf("stat %s: %v", databasePath, err)
 	}
 
+	// This measures what a server does, which is return the native heap along
+	// with the Go arena. Setting KIVGRAPH_SNAPSHOT_BUILD_UNBOUNDED_HEAP
+	// reproduces the code path before that existed -- the Go scavenge alone --
+	// so the two numbers can be compared on one machine with one warm page
+	// cache, which is the only way to tell an allocator effect from a cold
+	// read of a 189 MB file.
+	returnBuildMemory := ReturnBuildMemory
+	if os.Getenv("KIVGRAPH_SNAPSHOT_BUILD_UNBOUNDED_HEAP") != "" {
+		returnBuildMemory = debug.FreeOSMemory
+	}
+
 	ctx := context.Background()
 	for b.Loop() {
 		// A previous iteration's arena would be read as this one's, so the
@@ -71,7 +82,7 @@ func BenchmarkBuildSnapshotMemory(b *testing.B) {
 		runtime.GC()
 		var live runtime.MemStats
 		runtime.ReadMemStats(&live)
-		ReturnBuildMemory()
+		returnBuildMemory()
 		var parked runtime.MemStats
 		runtime.ReadMemStats(&parked)
 		runtime.KeepAlive(snapshot)

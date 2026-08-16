@@ -186,20 +186,27 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 - Tras publicar un snapshot se llama a `rebuild.ReturnBuildMemory`: es el único
   momento en que el transitorio de la construcción está muerto -publicado, o
   descartado porque otro publicador ganó- y un servidor no tiene nada que hacer
-  hasta la siguiente petición. No se fija `GOMEMLIMIT` de entorno, que el hijo
-  de la pasada hereda -`indexing/subprocess.go` no fija `command.Env`- y cuyo
-  pico es el trabajo mismo. Un límite fijado en proceso sí sería sólo del
-  servidor, pero tendría que dejar pasar el pico de esta construcción, así que
-  el pico es la palanca y no el techo.
+  hasta la siguiente petición. Devuelve **las dos** mitades: el arena de Go con
+  `debug.FreeOSMemory` y el asignador nativo con `nativeheap.Return`. La segunda
+  no es un detalle: el heap de Go aparca entre 2,4 y 4 MB por encima del
+  snapshot vivo en cada construcción, así que lo que hacía crecer a un servidor
+  no era suyo. No se fija `GOMEMLIMIT`, que el hijo de la pasada heredaría del
+  entorno -`indexing/subprocess.go` no fija `command.Env`- y que en el lado de
+  Go no tendría hueco que cerrar. Ver ADR 0044.
+- La memoria del motor es de libc, no de Go, y ninguna métrica de `runtime` la
+  ve. glibc da una arena por hilo que compite y la hace crecer antes de
+  reutilizar nada, así que cada reconstrucción conserva otra arena hasta que
+  saturan. Medido en `devlabs` sobre un grafo de 189 MB, cuatro construcciones:
+  con sólo el scavenge de Go el RSS va de 309,5 a 511,1 MB -67 MB por
+  construcción-, y devolviendo también el nativo se queda en 241,5-249,6 MB, sin
+  coste en tiempo. Acotar las arenas desde el proceso no sirve y está medido:
+  `mallopt` después de arrancar no mueve lo que ya vive en arenas secundarias.
 - Cada servidor construye su propio HotSnapshot, también el que sólo sigue una
   generación que publicó otro: una generación en disco es `graph.db` y su
-  digest, nunca el snapshot. Medido en `devlabs` sobre 42 repositorios y un
-  grafo de 189 MB -102.881 símbolos-: un servidor recién cargado son 344 MB de
-  RSS con un pico de 768 MB, cada reconstrucción de seguidor retiene 61 MB más,
-  y uno que lleva diez encima se estabiliza en 1,07-1,13 GB con el 100 % en
-  `Private_Dirty`. Con tres clientes son 2,6 GB para servir el mismo grafo
-  inmutable, y diez publicaciones en ochenta minutos son diez reconstrucciones
-  por servidor.
+  digest, nunca el snapshot. Con tres clientes eso es tres veces el snapshot
+  vivo -173 MB cada uno sobre ese grafo- y diez publicaciones en ochenta
+  minutos son diez reconstrucciones por servidor. Devolver el heap nativo evita
+  que además crezcan; la duplicación en sí sigue ahí.
 - El layout del visor es una proyección derivada del `HotSnapshot`: usa
   coordenadas enteras deterministas, contención repository/package/file/symbol
   y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta

@@ -1,0 +1,70 @@
+{
+  "benchmark": "snapshot-build-memory",
+  "commit": "5521ced",
+  "generated_at": "2026-08-16T13:50:00Z",
+  "go_version": "go1.24.4",
+  "goos": "linux",
+  "goarch": "amd64",
+  "host": "devlabs, AMD Ryzen 7 9700X, 23 GiB",
+  "command": "KIVGRAPH_SNAPSHOT_BUILD_DB=<generation>/graph.db make test-ladybug PKGS=./internal/rebuild ARGS='-run NONE -bench BenchmarkBuildSnapshotMemory -benchtime=1x -count=4'",
+  "workload": {
+    "graph_bytes": 189579264,
+    "symbols": 102894,
+    "repositories": 42,
+    "builds_per_sample": 1,
+    "builds_in_one_process": 4,
+    "page_cache": "warm"
+  },
+  "results": [
+    {
+      "strategy": "go_scavenge_only",
+      "detail": "debug.FreeOSMemory, the path before ADR 0044",
+      "allocated_mb_per_build": 1003,
+      "live_mb": 173.1,
+      "parked_go_heap_mb": [176.6, 179.9, 177.0, 176.7],
+      "resident_mb": [309.5, 400.7, 453.7, 511.1],
+      "resident_growth_mb_per_build": 67.2,
+      "seconds_per_build": [1.63, 1.66, 1.77, 1.67]
+    },
+    {
+      "strategy": "go_scavenge_and_malloc_trim",
+      "detail": "rebuild.ReturnBuildMemory as of ADR 0044",
+      "allocated_mb_per_build": 1003,
+      "live_mb": 173.0,
+      "parked_go_heap_mb": [178.5, 176.8, 176.7, 176.8],
+      "resident_mb": [241.5, 243.6, 244.5, 249.6],
+      "resident_growth_mb_per_build": 2.7,
+      "seconds_per_build": [1.76, 1.67, 1.74, 1.84]
+    },
+    {
+      "strategy": "mallopt_arena_max_1_in_process",
+      "detail": "rejected: glibc reads arena_max when it creates an arena",
+      "resident_mb": [334.0, 395.9, 467.2, 553.3],
+      "resident_growth_mb_per_build": 73.1
+    },
+    {
+      "strategy": "malloc_arena_max_1_in_environment",
+      "detail": "rejected: effective but not ours to set, an MCP server is launched by its client",
+      "resident_mb": [259.5, 259.4, 256.3],
+      "resident_growth_mb_per_build": -1.1
+    },
+    {
+      "strategy": "malloc_trim_threshold_in_environment",
+      "detail": "rejected: only partial",
+      "resident_mb": [259.3, 267.1, 317.3],
+      "resident_growth_mb_per_build": 29.0
+    },
+    {
+      "strategy": "malloc_arena_max_2_in_environment",
+      "detail": "rejected: only partial",
+      "resident_mb": [290.7, 313.5, 313.1],
+      "resident_growth_mb_per_build": 11.2
+    }
+  ],
+  "limitations": [
+    "Resident size is read from /proc/self/statm, so the benchmark reports no resident metric on darwin and the comparison exists only on Linux.",
+    "The first samples taken during this investigation ran on a cold page cache and were 2.7-3.3 s per build; every number here is warm. An allocator strategy cannot be timed against a cold read of a 189 MB file.",
+    "The four builds happen in one process, which is what a server does across published generations. A single build in a fresh process does not show the growth.",
+    "The graph is a real corpus, not a generated one: a synthetic corpus with few distinct strings measures the interner rather than the string volume a real scan decodes."
+  ]
+}
