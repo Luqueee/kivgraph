@@ -97,7 +97,7 @@ func TestRenderStatsPlainSaysWhatTheTotalMeans(t *testing.T) {
 		Sample: procstat.Sample{CPU: 3 * time.Second, Uptime: 90 * time.Minute}}}
 
 	divided := renderStatsPlain(statsReport{Rows: rows, Proportional: true, Total: 79 << 20})
-	for _, want := range []string{"COST", "PRIVATE", "SHARED", "79.0 MiB", "50.0 MiB", "1h30m", "shared pages counted once"} {
+	for _, want := range []string{"COST", "PRIVATE", "SHARED", "79.0 MiB", "50.0 MiB", "1h30m", "total 79.0 MiB across 1 process"} {
 		if !strings.Contains(divided, want) {
 			t.Fatalf("proportional output missing %q:\n%s", want, divided)
 		}
@@ -105,9 +105,15 @@ func TestRenderStatsPlainSaysWhatTheTotalMeans(t *testing.T) {
 	if strings.Contains(divided, "RESIDENT") {
 		t.Fatalf("a platform that divides pages must not headline resident size:\n%s", divided)
 	}
+	// A correct number needs no apology: the caveat exists to qualify a total
+	// that counts shared pages twice, and printing it either way would teach a
+	// reader to skip the line that matters.
+	if strings.Contains(divided, "cannot divide") {
+		t.Fatalf("a divided total must carry no caveat:\n%s", divided)
+	}
 
 	undivided := renderStatsPlain(statsReport{Rows: rows, Proportional: false, Total: 140 << 20})
-	for _, want := range []string{"RESIDENT", "140.0 MiB", "counted once per process"} {
+	for _, want := range []string{"RESIDENT", "140.0 MiB", "shared pages counted once per process", "cannot divide them"} {
 		if !strings.Contains(undivided, want) {
 			t.Fatalf("undivided output missing %q:\n%s", want, undivided)
 		}

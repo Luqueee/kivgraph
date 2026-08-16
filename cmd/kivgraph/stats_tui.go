@@ -109,6 +109,9 @@ func (model *statsModel) View() string {
 
 	lines = append(lines, "")
 	lines = append(lines, styles.render(styles.total, statsTotalLine(model.report)))
+	if caveat := statsCaveat(model.report); caveat != "" {
+		lines = append(lines, styles.render(styles.warning, caveat))
+	}
 	for _, row := range model.report.Rows {
 		if row.Detail == "" {
 			continue

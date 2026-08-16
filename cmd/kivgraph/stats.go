@@ -193,18 +193,28 @@ func renderStatsPlain(report statsReport) string {
 			formatDuration(row.Sample.CPU), formatDuration(row.Sample.Uptime))
 	}
 	fmt.Fprintf(&out, "%s\n", statsTotalLine(report))
+	if caveat := statsCaveat(report); caveat != "" {
+		fmt.Fprintf(&out, "%s\n", caveat)
+	}
 	return out.String()
 }
 
-// statsTotalLine says what the sum means, because on a machine that cannot
-// divide shared pages it does not mean what it looks like.
+// statsTotalLine is the sum and nothing else. What the sum means goes on its own
+// line: the sentence that qualifies it is longer than most terminals are wide,
+// and a total that wraps mid-number is worse than one that needs a second line.
 func statsTotalLine(report statsReport) string {
+	return fmt.Sprintf("total %s across %d process(es)", formatBytes(report.Total), len(report.Rows))
+}
+
+// statsCaveat qualifies the total on a machine that cannot divide shared pages,
+// and says nothing on one that can. Silence is the right answer there: fifteen
+// words explaining that a correct number is correct is how a reader learns to
+// skip the line that matters.
+func statsCaveat(report statsReport) string {
 	if report.Proportional {
-		return fmt.Sprintf("total %s across %d process(es), shared pages counted once",
-			formatBytes(report.Total), len(report.Rows))
+		return ""
 	}
-	return fmt.Sprintf("total %s across %d process(es); this platform cannot divide shared pages, so anything they share is counted once per process",
-		formatBytes(report.Total), len(report.Rows))
+	return "shared pages counted once per process: this platform cannot divide them"
 }
 
 // formatBytes writes a size the way a person reads one, and a dash for the zero

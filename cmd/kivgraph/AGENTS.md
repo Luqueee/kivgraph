@@ -35,6 +35,24 @@ superficie observable.
   nadie lo dijo, esa confusión costó dos veces en una tarde -- el arranque
   derivando y un fichero de formato anterior sin cargar-- y ninguna suite lo vio,
   porque las dos rutas producen el mismo grafo.
+- `stats` encabeza con la **memoria proporcional**, no con la residente, y esa
+  elección es el motivo de que el comando exista: tres servidores que leen el
+  mismo snapshot mapeado cuentan cada uno todas sus páginas, así que sumar
+  residentes informa de una máquina gastando el triple de un fichero que está
+  una vez. Medido: el RSS subió de 114 a 141 MB por servidor mientras el coste
+  bajaba de 117 a 79. Donde la plataforma no sabe dividir páginas compartidas
+  -macOS no sabe- no se ofrece ninguna aproximación: se encabeza con la
+  residente y la nota dice que lo compartido se cuenta una vez por proceso.
+  Adivinar qué páginas son compartidas es cómo un fichero mapeado empieza a
+  parecer una fuga.
+- El pico es columna propia porque es lo que dimensiona una máquina: un servidor
+  que llegó a un gigabyte necesita ese gigabyte aunque aparque en la décima
+  parte. Una pasada de indexado se colorea distinto justo porque explica un pico
+  que un servidor no explicaría.
+- Una vista viva que nadie mira es un comando que no termina: con `stdout`
+  redirigido, `stats` imprime **una** observación y sale, y `--json` es esa misma
+  observación para un script. La vista interactiva respeta `NO_COLOR` y
+  `TERM=dumb` como el resto de la superficie.
 - `doctor` informa del techo de versión con el que este binario comprueba
   tipos, no solo del `go` del PATH: son números distintos y el que decide si un
   repositorio se puede indexar es el primero.
