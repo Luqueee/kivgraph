@@ -212,6 +212,14 @@ con 0045 fase 2a       125-132 MB              pico   241-249 MB
 Queda la fase 2b, y ahora decide entre `32 MB` privados por proceso y `97`: el
 volumen es dos tercios de lo que queda, no la mitad.
 
+Y el arena de cadenas ya existe, que era su otra condición: la tabla guardaba
+medio millón de `string` de Go -- una asignación cada uno, redondeada a su clase
+de tamaño, más dieciséis bytes de cabecera-- y ahora es un bloque contiguo con
+un desplazamiento de cuatro bytes por id. Sobre el mismo corpus, el snapshot
+vivo baja de `97,27` a `88,36 MB` y su parte no mapeable de `32,3` a `23,4 MB`;
+los servidores, a `114-119 MB` de RSS con pico de `224-232 MB`. Un arena es
+además lo único que se puede mapear: un `[]string` no.
+
 Su primer trozo ya está, y vale por sí solo: el fichero se **mapea** para
 decodificarlo y el mapeo se libera al acabar, en vez de leerlo al heap. La
 asignación por carga baja de `244,5` a `148,7 MB` -- los 73 MB del fichero y su
@@ -237,3 +245,34 @@ servidor y eso no se negocia con el usuario.
 **Mapear también los índices.** Cambia el coste de cada consulta por el ahorro
 de la parte más pequeña. Si alguna vez el índice pesa más que el volumen, se
 revisa con medición.
+
+## Lo que queda de la fase 2b, dimensionado
+
+Con el arena y el orden hechos, un snapshot cargado son `88,4 MB`: `65,0` de
+volumen -- de los cuales unos 50 son los bytes de las cadenas-- y `23,4` que
+ningún mapeo alcanza. Mapear el volumen deja tres servidores en
+`65 + 3 × 23,4 = 135 MB` de snapshot contra los `265 MB` de hoy.
+
+El camino más corto para la mayor parte de eso es **mapear sólo el arena**, y su
+precio es distinto del de mapear las tablas:
+
+- No hay problema de layout: los bytes son bytes. Basta con que el fichero lleve
+  el arena crudo y sus desplazamientos en secciones propias, en vez de una
+  cadena con su longitud delante.
+- No hace falta que `SymbolRecord` deje de llevar una `string`, porque la tabla
+  de símbolos se queda en el heap.
+- Sí aparece entera la regla de vida útil, y con una vuelta de tuerca que hay que
+  escribir antes de codificar: `value` entrega una vista del arena, y sobre un
+  arena mapeado el recolector **no** ve esa memoria, así que una cadena
+  devuelta no mantiene vivo el mapeo. La consecuencia es que `String` tiene que
+  **copiar** cuando el arena está mapeado, mientras las comparaciones internas
+  -- `Lookup`, el orden-- siguen leyéndolo sin copiar. Se copia lo que una
+  respuesta nombra, no lo que el snapshot guarda.
+- Y el mapeo pertenece al snapshot, no a la carga: se libera cuando el snapshot
+  deja de ser alcanzable, no al acabar de decodificar. Un test tiene que exigir
+  que una cadena devuelta sobreviva a que el snapshot se suelte.
+
+Mapear además las tablas y los dos CSR añade los otros 15 MB y trae consigo todo
+lo que el arena no necesita: un layout mappable declarado por sección, la
+alineación comprobada antes de reinterpretar, y `SymbolRecord` sin `string`. Es
+la parte que menos compra y más cuesta, y por eso va al final.
