@@ -227,12 +227,15 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 	}
 	var symbolKeyOffsets []uint32
 	var symbolKeyBytes []byte
+	var stringValues []byte
 	var stringArena []byte
 	var stringOffsets []uint32
 	var stringOrder []InternedString
 	for _, entry := range sections {
 		bytes := payload[entry.offset : entry.offset+entry.length]
 		switch entry.kind {
+		case sectionStrings:
+			stringValues = bytes
 		case sectionStringArena:
 			stringArena = bytes
 		case sectionStringOffsets:
@@ -275,7 +278,7 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 			continue
 		}
 	}
-	table, err := readStringTable(stringArena, stringOffsets, stringOrder, borrowed)
+	table, err := readStringTable(stringArena, stringOffsets, stringValues, stringOrder, borrowed)
 	if err != nil {
 		return nil, err
 	}
@@ -421,9 +424,21 @@ func parseSnapshotFile(data []byte) (snapshotFileHeader, []section, []byte, erro
 // A file with no order section is not a defect: an older writer produced it, and
 // sorting is exactly what that costs. What is a defect is no values at all,
 // because every record in every other section names its strings by id.
-func readStringTable(arena []byte, offsets []uint32, order []InternedString, borrowed bool) (StringTable, error) {
+func readStringTable(arena []byte, offsets []uint32, values []byte, order []InternedString, borrowed bool) (StringTable, error) {
 	if offsets == nil {
-		return StringTable{}, fmt.Errorf("%w: no string table", ErrInvalidSnapshotFile)
+		// A file written before the arena sections existed carries the values
+		// length-prefixed, which cannot be read in place: it is parsed into an
+		// arena this table owns. Supporting it costs these four lines and saves a
+		// server that has just been upgraded from deriving the whole graph until
+		// the next generation is published.
+		if values == nil {
+			return StringTable{}, fmt.Errorf("%w: no string table", ErrInvalidSnapshotFile)
+		}
+		parsed, err := parseStringValues(values)
+		if err != nil {
+			return StringTable{}, fmt.Errorf("%w: string table: %w", ErrInvalidSnapshotFile, err)
+		}
+		arena, offsets, borrowed = parsed.arena, parsed.offsets, false
 	}
 	if !borrowed {
 		arena = append([]byte(nil), arena...)

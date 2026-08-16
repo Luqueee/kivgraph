@@ -64,14 +64,14 @@ func BenchmarkLoadPublishedSnapshot(b *testing.B) {
 
 		live := loaded.HeapAlloc
 		b.ReportMetric(float64(loaded.TotalAlloc-before.TotalAlloc)/mb, "alloc_MB")
-		b.ReportMetric(float64(live)/mb, "live_MB")
+		// The heap is no longer the whole snapshot: since the string arena is
+		// read out of the mapped file, heap_live excludes it and volume is the
+		// arithmetic size of everything a file could be read in place -- which is
+		// now larger than the heap rather than a fraction of it. What the two
+		// together say is how much of the snapshot stopped being per-process.
+		b.ReportMetric(float64(live)/mb, "heap_live_MB")
 		b.ReportMetric(float64(volume)/mb, "volume_MB")
-		// Whatever the volume does not explain is the part phase 2 cannot map:
-		// the four lookup indexes, the interner's own map, and the string
-		// headers a Go string carries beside its bytes.
-		if live > volume {
-			b.ReportMetric(float64(live-volume)/mb, "unmappable_MB")
-		}
+		b.ReportMetric(float64(uint64(strings.Bytes))/mb, "mapped_arena_MB")
 		// The unmappable part is worth splitting, because two very different
 		// changes attack it. The two reported counterfactuals are what the table
 		// no longer pays: sixteen bytes of Go string header per interned value,

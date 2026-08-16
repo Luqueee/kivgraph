@@ -328,7 +328,7 @@ func TestReadStringTableSortsWithoutAnOrderSection(t *testing.T) {
 		}
 	}
 	frozen := interner.Freeze()
-	table, err := readStringTable(frozen.arena, frozen.offsets, nil, false)
+	table, err := readStringTable(frozen.arena, frozen.offsets, nil, nil, false)
 	if err != nil {
 		t.Fatalf("readStringTable without an order: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestReadStringTableSortsWithoutAnOrderSection(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %d (%v), want %d", value, got, found, id)
 		}
 	}
-	if _, err := readStringTable(nil, nil, nil, false); !errors.Is(err, ErrInvalidSnapshotFile) {
+	if _, err := readStringTable(nil, nil, nil, nil, false); !errors.Is(err, ErrInvalidSnapshotFile) {
 		t.Fatalf("a file with no string table must be refused, got %v", err)
 	}
 }
