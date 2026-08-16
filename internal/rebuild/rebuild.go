@@ -288,7 +288,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		}
 		snapshotDigest = digest
 
-		_, hotSnapshotReport, hotSnapshotErr := BuildSnapshot(buildCtx, BuildSnapshotOptions{
+		builtSnapshot, hotSnapshotReport, hotSnapshotErr := BuildSnapshot(buildCtx, BuildSnapshotOptions{
 			DatabasePath: databasePath,
 			SnapshotID:   uint64(options.SnapshotID),
 			Metrics:      options.Metrics,
@@ -300,12 +300,21 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			snapshotStage = Stage{Name: StageSnapshot, Detail: detail, DurationMS: elapsedMS(snapshotStart)}
 			return fmt.Errorf("build hot snapshot: %w", hotSnapshotErr)
 		}
+		// The snapshot travels with the generation so no other process has to
+		// derive it again. Failing to write it costs every reader a rebuild it
+		// could have skipped, which is a reason to say so and not a reason to
+		// refuse a generation whose graph is sound: the file is an economy, and
+		// a reader that does not find one derives the snapshot exactly as before.
+		published := PublishedSnapshotFileName
+		if writeErr := writePublishedSnapshot(candidatePath, builtSnapshot, digest); writeErr != nil {
+			published = fmt.Sprintf("no %s (%v)", PublishedSnapshotFileName, writeErr)
+		}
 		snapshotStage = Stage{
 			Name:   StageSnapshot,
 			Passed: true,
 			Detail: fmt.Sprintf(
-				"wrote %s with digest %s; hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols, %d symbol edges, %d package edges, %d unresolved reference(s), %d edge(s) not represented in the CSR)",
-				snapshotFileName, digest, hotSnapshotReport.SnapshotID,
+				"wrote %s with digest %s and %s; hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols, %d symbol edges, %d package edges, %d unresolved reference(s), %d edge(s) not represented in the CSR)",
+				snapshotFileName, digest, published, hotSnapshotReport.SnapshotID,
 				hotSnapshotReport.Stats.Repositories, hotSnapshotReport.Stats.Packages, hotSnapshotReport.Stats.Files,
 				hotSnapshotReport.Stats.Symbols, hotSnapshotReport.Stats.Edges, hotSnapshotReport.Stats.PackageEdges,
 				hotSnapshotReport.Stats.Unresolved, hotSnapshotReport.Stats.SkippedEdges,

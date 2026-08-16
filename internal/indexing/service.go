@@ -317,7 +317,9 @@ func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, erro
 	if err != nil {
 		return 0, err
 	}
-	snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+	// The child that ran the pass wrote the snapshot into the generation it
+	// published, so the parent reads it instead of scanning the graph again.
+	snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
 		DatabasePath: layout.Active.DatabasePath,
 		SnapshotID:   generationID,
 	})

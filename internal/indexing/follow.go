@@ -137,7 +137,7 @@ func followOnce(
 		}
 		return followResult{}, nil
 	}
-	snapshot, report, err := rebuild.BuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+	snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
 		DatabasePath: active.DatabasePath,
 		SnapshotID:   activeID,
 	})

@@ -11,11 +11,13 @@ import (
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
-// What is persisted next to a generation is snapshot.sha256, the digest of its
-// canonical table counts. The HotSnapshot itself is never written down: it is
-// derived from the definitive graph on every build. That is what makes the
-// LUQUE-1204 requirement answerable — "load the last valid snapshot or rebuild
-// it" is always the second branch, and these tests fix what that means.
+// A generation persists two things: snapshot.sha256, the digest of its canonical
+// table counts, and since ADR 0045 the HotSnapshot itself. Neither is required
+// to answer a query. The digest is what a published snapshot proves it belongs
+// to, and the snapshot is an economy, so "load the last valid snapshot or
+// rebuild it" has both branches now and either one has to end in a usable
+// graph. These tests fix the second branch: whatever is wrong with what was
+// written down, the definitive graph is still there and still enough.
 
 // TestSnapshotGenerationRebuildsDespiteACorruptDigest is the recovery half: a
 // corrupted digest must not cost the graph. The digest records what a previous

@@ -52,12 +52,21 @@ type SnapshotStats struct {
 }
 
 // SnapshotReport is the account of one snapshot build.
+//
+// Loaded and LoadRefused describe where the snapshot came from, which a server
+// has to be able to say out loud: one that derives the graph on every published
+// generation looks exactly like one that never had a published snapshot to read,
+// and the difference is a gigabyte of peak per install. Digest is empty for a
+// loaded snapshot -- it is computed from the canonical rows a build reads, and a
+// load never reads them.
 type SnapshotReport struct {
-	SnapshotID uint64
-	Version    uint32
-	Digest     string
-	Stats      SnapshotStats
-	Passed     bool
+	SnapshotID  uint64
+	Version     uint32
+	Digest      string
+	Stats       SnapshotStats
+	Passed      bool
+	Loaded      bool
+	LoadRefused string
 }
 
 // BuildSnapshotOptions configures one snapshot build.
