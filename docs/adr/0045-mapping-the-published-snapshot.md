@@ -1,6 +1,6 @@
 # ADR 0045: Publicar el HotSnapshot y mapearlo
 
-- **Estado:** propuesta
+- **Estado:** fase 1 aceptada e implementada; fase 2 propuesta
 - **Fecha:** 2026-08-16
 - **Revisa:** de dónde sale el HotSnapshot de un servidor, y qué comparten dos servidores del mismo grafo
 
@@ -106,6 +106,41 @@ declarar éxito con la métrica equivocada:
 - Que el digest del snapshot mapeado sea idéntico al del construido, y que las
   suites `go test ./...` y `make test-ladybug` pasen sin tocar ningún test de
   consulta: la superficie no cambia.
+
+## Lo medido en la fase 1
+
+`devlabs`, generación `000090`: 41 repositorios, 5.050 ficheros, 102.894
+símbolos, 262.750 aristas, `graph.db` de 189 MB. El snapshot publicado pesa
+`74,6 MB`. Tres servidores reinstalados sobre la misma generación, antes
+derivando y después leyendo:
+
+```text
+                 RSS por servidor   VmHWM por servidor
+derivando            253-255 MB          787-836 MB
+leyendo              150-152 MB          264-269 MB
+```
+
+−41 % de residente y −67 % de pico, y los tres juntos pasan de 759 a 452 MB. El
+pico es lo que más baja porque es lo que se deja de hacer: ni escaneo canónico
+ni conversión de filas, y con ellos los 1.003 MB que se asignaban por
+instalación.
+
+Corrección: la primera medición dio 787-836 MB de pico *después* de la fase 1 y
+parecía desmentirla. No la desmentía: el camino de arranque de `serve` era el
+único que seguía derivando, y es justo el que toma todo servidor al nacer. Vale
+la pena anotarlo porque el fallo no se ve en ninguna suite -- las dos rutas
+producen el mismo grafo, y sólo la memoria las distingue.
+
+La corrección se comprueba sobre datos reales, no sobre un fixture: el oráculo
+compara el snapshot publicado contra uno derivado del mismo `graph.db`, símbolo
+a símbolo y arista a arista por la superficie pública -- 102.894 símbolos, 5.050
+ficheros, 262.750 aristas-, porque dos snapshots que coincidan en sus recuentos
+y discrepen en el fichero de un símbolo pasarían cualquier comprobación más
+gruesa.
+
+Lo que la fase 1 **no** cambia, y sigue esperando a la fase 2: `Private_Dirty`
+sigue siendo el 100 % del RSS. Tres servidores leen el mismo fichero y guardan
+tres copias privadas de lo que leyeron; compartir páginas es mapear, no leer.
 
 ## Alternativas descartadas
 

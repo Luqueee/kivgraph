@@ -201,12 +201,26 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   construcción-, y devolviendo también el nativo se queda en 241,5-249,6 MB, sin
   coste en tiempo. Acotar las arenas desde el proceso no sirve y está medido:
   `mallopt` después de arrancar no mueve lo que ya vive en arenas secundarias.
-- Cada servidor construye su propio HotSnapshot, también el que sólo sigue una
-  generación que publicó otro: una generación en disco es `graph.db` y su
-  digest, nunca el snapshot. Con tres clientes eso es tres veces el snapshot
-  vivo -173 MB cada uno sobre ese grafo- y diez publicaciones en ochenta
-  minutos son diez reconstrucciones por servidor. Devolver el heap nativo evita
-  que además crezcan; la duplicación en sí sigue ahí.
+- Una generación lleva su HotSnapshot en `snapshot.kvsnap`, y un servidor lo lee
+  en vez de derivarlo del grafo canónico: `rebuild.LoadOrBuildSnapshot` es la
+  puerta, y las tres rutas que instalan una generación -el arranque de `serve`,
+  el seguidor y el padre de una pasada- pasan por ella. Lo que prueba que el
+  fichero pertenece a esa generación es su propio `snapshot.sha256`, repetido en
+  la cabecera: un delta incremental muta la generación en sitio y refresca ese
+  digest, así que un snapshot del grafo anterior deja de cuadrar sin que nadie
+  tenga que acordarse de borrarlo. Escribirlo es una economía y nunca una
+  precondición -- un fichero ausente, ajeno, rancio o corrupto cuesta una
+  derivación, se declara en el informe y jamás una respuesta. Medido en
+  `devlabs`: 253-255 MB de RSS y 787-836 MB de pico derivando, contra 150-152 MB
+  y 264-269 MB leyendo. Ver ADR 0045.
+- `doctor` deriva el snapshot y nunca lee el publicado. No es un descuido que
+  optimizar: informa de si **este grafo** todavía puede convertirse en snapshot,
+  y leer un fichero escrito cuando el grafo estaba sano contestaría otra
+  pregunta, y la contestaría tranquilizando.
+- Cada servidor sigue guardando su propia copia de lo que leyó: `Private_Dirty`
+  es el 100 % del RSS y tres clientes son tres copias. Compartir páginas es
+  mapear el fichero, no leerlo, y eso es la fase 2 del ADR 0045; su condición es
+  que `SymbolRecord.StableKey` deje de ser una `string`.
 - El layout del visor es una proyección derivada del `HotSnapshot`: usa
   coordenadas enteras deterministas, contención repository/package/file/symbol
   y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta

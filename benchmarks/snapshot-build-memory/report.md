@@ -63,3 +63,13 @@ es la del asignador de libc del que asigna el motor C++, que ninguna métrica de
 - Esto no toca la duplicación entre servidores: cada uno sigue construyendo su
   propio snapshot y tres siguen costando tres veces los 173 MB vivos. Ver
   ADR 0044.
+
+## Lo que pasó después
+
+Este banco mide **derivar** un snapshot, que desde el ADR 0045 ya no es lo que
+hace un servidor: una generación lleva el suyo y el servidor lo lee. Las cifras
+de arriba siguen describiendo el coste de la derivación -- que es lo que ocurre
+cuando el fichero falta, es ajeno, está rancio o está corrupto, y lo que `doctor`
+hace siempre a propósito-, pero el coste de instalar una generación ya no es
+éste. Medido sobre la misma máquina y el mismo grafo, un servidor pasó de
+253-255 MB de RSS y 787-836 MB de pico a 150-152 MB y 264-269 MB.
