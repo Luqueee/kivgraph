@@ -1,6 +1,6 @@
 # ADR 0045: Publicar el HotSnapshot y mapearlo
 
-- **Estado:** fase 1 aceptada e implementada; fase 2 propuesta
+- **Estado:** fases 1 y 2a aceptadas e implementadas; fase 2b propuesta
 - **Fecha:** 2026-08-16
 - **Revisa:** de dónde sale el HotSnapshot de un servidor, y qué comparten dos servidores del mismo grafo
 
@@ -181,6 +181,36 @@ generación leería memoria liberada, así que 2b necesita además una regla de 
 El orden es 2a y después 2b, y no por comodidad: 2a se lleva un tercio del
 beneficio por una fracción del riesgo, y deja 2b mejor dimensionada -- con 2a
 hecha, mapear el volumen decide entre 37 MB privados por proceso y 102.
+
+## Lo medido en la fase 2a
+
+Misma máquina, mismo corpus, generación `000093`:
+
+```text
+                          antes de 2a     con 2a
+snapshot vivo               122,1 MB     97,2 MB
+parte no mapeable            57,2 MB     32,3 MB
+volumen mapeable             64,9 MB     64,9 MB
+tiempo de carga               144 ms     151 ms
+fichero publicado           71,15 MB    73,00 MB
+```
+
+−24,9 MB en cada proceso que sostiene el snapshot, a cambio de `1,85 MB` de
+fichero -- la sección del orden -- y siete milisegundos de carga. En servidores
+reales, los tres de `devlabs`: `125-132 MB` de RSS con pico de `241-249 MB`,
+contra `150-154 MB` y `264-271 MB`.
+
+El recorrido completo sobre el mismo grafo inmutable, por servidor:
+
+```text
+antes del ADR 0044   1,07-1,13 GB y subiendo   pico 2,1-2,3 GB
+con 0044               253-255 MB estables     pico   787-836 MB
+con 0045 fase 1        150-154 MB              pico   264-271 MB
+con 0045 fase 2a       125-132 MB              pico   241-249 MB
+```
+
+Queda la fase 2b, y ahora decide entre `32 MB` privados por proceso y `97`: el
+volumen es dos tercios de lo que queda, no la mitad.
 
 ## Alternativas descartadas
 
