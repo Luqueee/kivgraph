@@ -6,6 +6,7 @@
 // and shared with the documentation.
 import "../../styles/global.css";
 import {
+  GOOGLE_SITE_VERIFICATION,
   LICENSE_NAME,
   LICENSE_URL,
   PROJECT_NAME,
@@ -73,6 +74,13 @@ const structuredData = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
+
+    {/* Search Console verifies an URL-prefix property by fetching its root, so
+        the tag lives on this page alone. */}
+    <meta
+      name="google-site-verification"
+      content={GOOGLE_SITE_VERIFICATION}
+    />
 
     {/* The mark is a raster, so there is no vector icon. A stale
         `image/svg+xml` entry would win over these: a browser prefers the

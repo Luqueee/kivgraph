@@ -35,6 +35,15 @@ export const LICENSE_NAME = "Apache-2.0";
 export const LICENSE_URL = "https://spdx.org/licenses/Apache-2.0.html";
 
 /**
+ * The token Search Console hands out for HTML-tag verification of the
+ * URL-prefix property. It is a literal because it belongs to the property, not
+ * to the machine serving it, and Google fetches it from the property root, so
+ * only the landing shell emits it; the documentation pages do not.
+ */
+export const GOOGLE_SITE_VERIFICATION =
+  "6Fs8IePpUHnOCsQg8mlX_ADhWLEmTI8MRm41hPztRvI";
+
+/**
  * The eleven tools the server registers over stdio, in the order the reference
  * lists them: lookups first, then traversal, then the two whole-graph tools and
  * the one that mutates. `get_unresolved_references` is not among them.
