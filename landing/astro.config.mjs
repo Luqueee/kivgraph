@@ -1,7 +1,20 @@
+import { existsSync } from "node:fs";
 import node from "@astrojs/node";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
+
+// The deployment declares itself in `landing/.env`, and this file has to read
+// it before Vite does: the config is not a module Vite transforms, so a bare
+// `process.env` sees only what the shell exported -- which is how a deploy that
+// forgot to export one variable published `http://localhost:6767` as the
+// canonical of every page. `loadEnvFile` puts the file into `process.env`,
+// which is also what feeds `import.meta.env` in the components, so `site` and
+// the analytics tracker cannot end up half configured. It throws when the file
+// is absent, and a variable already exported wins over the file.
+if (existsSync(".env")) {
+  process.loadEnvFile();
+}
 
 // pm2 runs one Node process. Every route is prerendered, so the standalone
 // server only serves files and the 404 route; `output: "server"` is what makes

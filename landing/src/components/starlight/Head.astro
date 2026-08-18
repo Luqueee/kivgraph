@@ -18,6 +18,7 @@ import {
   isNotFoundPage,
   rawPathname,
   segmentLabel,
+  umamiTracker,
 } from "../../pages/_seo";
 
 const { entry } = Astro.locals.starlightRoute;
@@ -29,6 +30,11 @@ const isNotFound = isNotFoundPage(entry.id);
 
 const description = docDescription(entry);
 const preview = absoluteUrl(Astro.site, "/og.png");
+
+// The same analytics the landing shell emits: one instance covers both halves
+// of the site, so a visitor who walks from the landing into the documentation
+// stays one session.
+const umami = umamiTracker();
 
 // Derived from the entry, not from `Astro.url`, so it is byte-identical to the
 // `rel="canonical"` Starlight writes: `build.format` is `directory`, which
@@ -145,5 +151,15 @@ const structuredData = {
         set:html={JSON.stringify(structuredData)}
       />
     </>
+  )
+}
+
+{/* The tracker of the self-hosted Umami instance, on every page including the
+    404: what an unreachable link is, and where it came from, is the one thing
+    that page is worth measuring for. `is:inline` because the file belongs to
+    that instance and is not bundled here. */}
+{
+  umami && (
+    <script is:inline defer src={umami.src} data-website-id={umami.websiteId} />
   )
 }

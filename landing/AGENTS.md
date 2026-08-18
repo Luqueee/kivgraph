@@ -95,6 +95,23 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   licencia, la lista de tools- viven una sola vez en `landing/src/pages/_seo.ts`,
   que consumen el shell de la landing, el override de `Head` y los tres
   endpoints.
+- El entorno del despliegue se declara en `landing/.env`, y `astro.config.mjs`
+  lo lee con `process.loadEnvFile()` antes de que Vite mire: el config **no** es
+  un módulo que Vite transforme, así que `import.meta.env` está vacío ahí y un
+  `process.env` pelado sólo ve lo que exportó la shell. Eso es exactamente lo
+  que publicó `http://localhost:6767` como canonical y en el sitemap de todas
+  las páginas del despliegue. Una variable ya exportada gana sobre el fichero
+  -medido-, y `.env` está en `.gitignore`.
+- Las analíticas son un Umami autoalojado y **el tracker sale de ese par de
+  variables o no sale**: `KIVGRAPH_UMAMI_SCRIPT_URL` y
+  `KIVGRAPH_UMAMI_WEBSITE_ID`, que lee `umamiTracker()` en `_seo.ts`. Con una
+  sola de las dos no se emite nada, así que `astro dev`, un build local y CI no
+  pueden escribir en el dataset de producción. El `id` es un UUID que acuña la
+  instancia en tiempo de ejecución, no un hecho del repositorio, y por eso no
+  vive en `_seo.ts` como el resto. El `<script>` va `is:inline` -- el fichero lo
+  sirve la instancia, no este bundle -- y lo emiten **las dos** mitades del
+  sitio, incluido el 404, para que un visitante que pasa de la landing a la
+  documentación siga siendo una sesión.
 - El JSON-LD del sitio es **un** grafo: la landing publica
   `SoftwareApplication` en `<site>/#software` y `WebSite` en `<site>/#website`, y
   cada página de documentación emite un `TechArticle` que los referencia por

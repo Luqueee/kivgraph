@@ -43,6 +43,29 @@ export const LICENSE_URL = "https://spdx.org/licenses/Apache-2.0.html";
 export const GOOGLE_SITE_VERIFICATION =
   "6Fs8IePpUHnOCsQg8mlX_ADhWLEmTI8MRm41hPztRvI";
 
+/** The self-hosted analytics tracker a deployment carries, if it carries one. */
+export interface UmamiTracker {
+  /** Absolute URL of the tracker script, served by the Umami instance. */
+  readonly src: string;
+  /** The id Umami minted for this site, which the script reports against. */
+  readonly websiteId: string;
+}
+
+/**
+ * Reads the analytics deployment out of the environment, the way `site` does:
+ * the instance host and the website id belong to the machine that serves the
+ * page, not to the source, and the id is a UUID Umami mints at runtime.
+ *
+ * Both halves of the site call this, and both emit nothing when either half of
+ * the pair is missing -- so `astro dev`, a local `astro build` and CI never
+ * report a page view into the production dataset.
+ */
+export function umamiTracker(): UmamiTracker | null {
+  const src = import.meta.env.KIVGRAPH_UMAMI_SCRIPT_URL;
+  const websiteId = import.meta.env.KIVGRAPH_UMAMI_WEBSITE_ID;
+  return src && websiteId ? { src, websiteId } : null;
+}
+
 /**
  * The eleven tools the server registers over stdio, in the order the reference
  * lists them: lookups first, then traversal, then the two whole-graph tools and

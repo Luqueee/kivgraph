@@ -13,6 +13,7 @@ import {
   PROJECT_TAGLINE,
   REPOSITORY_URL,
   absoluteUrl,
+  umamiTracker,
 } from "../../pages/_seo";
 
 interface Props {
@@ -26,6 +27,9 @@ const { title, description } = Astro.props;
 // KIVGRAPH_LANDING_URL and a hardcoded host would publish the wrong canonical.
 const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
 const preview = absoluteUrl(Astro.site, "/og.png");
+
+// Self-hosted analytics, or nothing at all when the deployment declares none.
+const umami = umamiTracker();
 
 // One graph, not three scripts. `SoftwareApplication` is what an answer engine
 // reads to say what Kivgraph is; `WebSite` ties the pages together and carries
@@ -129,6 +133,19 @@ const structuredData = {
       is:inline
       set:html={JSON.stringify(structuredData)}
     />
+
+    {/* The tracker of the self-hosted Umami instance, which is why it is
+        `is:inline`: the file is served by that instance, not bundled here. */}
+    {
+      umami && (
+        <script
+          is:inline
+          defer
+          src={umami.src}
+          data-website-id={umami.websiteId}
+        />
+      )
+    }
   </head>
   <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
     <a
