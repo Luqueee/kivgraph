@@ -1,0 +1,218 @@
+{
+ "version": 1,
+ "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "tasks": [
+  {
+   "id": "api-db-go-f3a50ad",
+   "repo": "services/api-db-go",
+   "commit": "f3a50ad5ae25752fb9b7f38a8468708d6354742a",
+   "short": "f3a50ad",
+   "parent": "051d90a06d5a81cb584ed67f4c986a9d58dfc579",
+   "language": "go",
+   "subject": "fix(validación): normalizar los enums vacíos y rechazar sólo lo imposible",
+   "prompt_intent": "fix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».",
+   "truth_files": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "n_truth": 6
+  },
+  {
+   "id": "api-db-go-821977c",
+   "repo": "services/api-db-go",
+   "commit": "821977cccf6ad6e188f771346a94ec8ab3212973",
+   "short": "821977c",
+   "parent": "9471c235a03cd972a5ce93cf7843cbd31196ab96",
+   "language": "go",
+   "subject": "feat(leveling): bloque `requirements` en la config del módulo",
+   "prompt_intent": "feat(leveling): bloque `requirements` en la config del módulo\n\nEspejo Go de `DBLevelingRequirements`: struct, backfill en `NormalizeLeveling`\n(la lista de roles exentos nunca queda `nil`), defaults del mock y campo en el\nbody del PATCH.",
+   "truth_files": [
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/dbleveling/curve.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "n_truth": 5
+  },
+  {
+   "id": "core-bf909e2",
+   "repo": "packages/core",
+   "commit": "bf909e26f6a3610dc12bdd303ed27535d9fb7ca4",
+   "short": "bf909e2",
+   "parent": "9d30c590acb099c3338c47120a4c8b0beb653ee7",
+   "language": "typescript",
+   "subject": "feat(grpc): no trabajar en peticiones que su llamante ya dio por perdidas",
+   "prompt_intent": "feat(grpc): no trabajar en peticiones que su llamante ya dio por perdidas\n\nMitad de core del último agujero del informe\n(«archivo», punto 3). La otra mitad va en el\ngateway (`3236d8f` de ese repo), que es quien reenvía el plazo.",
+   "truth_files": [
+    "src/infrastructure/grpc/server.ts",
+    "tests/infrastructure/grpc/server.test.ts"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "core-9d30c59",
+   "repo": "packages/core",
+   "commit": "9d30c590acb099c3338c47120a4c8b0beb653ee7",
+   "short": "9d30c59",
+   "parent": "6ad7d656064a33bf065688d16e4a60bb06fe8aa4",
+   "language": "typescript",
+   "subject": "feat(grpc): presupuesto de bytes en vuelo, y corrección de lo que dije del tracker",
+   "prompt_intent": "feat(grpc): presupuesto de bytes en vuelo, y corrección de lo que dije del tracker\n\nCORRECCIÓN PRIMERO, porque la afirmación viajó en un mensaje de commit: dije que\n`RequestTracker.pendingRequests` retenía «el payload completo, hasta 16 MiB» por\nentrada. Es FALSO y lo he comprobado: `PendingRequest` guarda `resolve`, `reject`,\nun `Timeout` y un `timestamp`, nada más. El payload sigue vivo, sí, pero lo\nsostiene el marco del handler que está esperando la respuesta, no el mapa. El techo\ndel tracker sigue siendo correcto y útil —acota cuántas peticiones pueden estar\nvivas—, pero no por el motivo que escribí.",
+   "truth_files": [
+    "src/infrastructure/grpc/middleware/InFlightBytesBudget.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/infrastructure/grpc/middleware/InFlightBytesBudget.test.ts"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "core-6ad7d65",
+   "repo": "packages/core",
+   "commit": "6ad7d656064a33bf065688d16e4a60bb06fe8aa4",
+   "short": "6ad7d65",
+   "parent": "7e6588cb29d986061c043931dd02936f085969a4",
+   "language": "typescript",
+   "subject": "feat(ipc): techo de la cola de peticiones del RequestTracker",
+   "prompt_intent": "feat(ipc): techo de la cola de peticiones del RequestTracker\n\nCierra el otro agujero de RAM del informe: `pendingRequests` no tenía `maxPending`.\nCada entrada retiene sus closures, un `Timeout` y el payload completo —hasta 16 MiB\npor `max_receive_message_length`— mientras se espera al worker, así que si las\npeticiones entran más rápido de lo que el worker resuelve, el mapa crece hasta\ndonde aguante el heap. Es lo que mejor explica los 10 GB del 11-08-2026.",
+   "truth_files": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "gateway-37cd672",
+   "repo": "packages/gateway",
+   "commit": "37cd672bee801a1aa66158a19466a942e8c36cde",
+   "short": "37cd672",
+   "parent": "d968fbca270c193118169a334157c514d9d94b8e",
+   "language": "typescript",
+   "subject": "perf(request-metrics): volcar el contador cada segundo",
+   "prompt_intent": "perf(request-metrics): volcar el contador cada segundo\n\nEl panel en vivo sondea cada segundo y pinta la diferencia entre dos\nsondeos, pero el buffer bajaba a Redis cada 10 s: nueve de cada diez\npuntos salían clavados a cero y el décimo con los 10 s de golpe, una\ncurva de picos que no se parece al trafico que la produjo.",
+   "truth_files": [
+    "src/shared/RequestMetrics.test.ts",
+    "src/shared/RequestMetrics.ts"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "gateway-3236d8f",
+   "repo": "packages/gateway",
+   "commit": "3236d8fc09c0123f7a2ec14fc2f4c2bce6a371ec",
+   "short": "3236d8f",
+   "parent": "13fcd8d4428748e1aa6692495037f650f7be60d7",
+   "language": "typescript",
+   "subject": "feat(grpc): reenviar al core el plazo real de quien llama",
+   "prompt_intent": "feat(grpc): reenviar al core el plazo real de quien llama\n\nMitad de gateway del último agujero del informe del core\n(«archivo»).",
+   "truth_files": [
+    "src/grpc/manager/CoreStreamManager.ts",
+    "src/grpc/services/DomainProxyService.ts"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "library-shared-e294840",
+   "repo": "libraries/library-shared",
+   "commit": "e294840012d18e37614d4557ae881ed07777d9e8",
+   "short": "e294840",
+   "parent": "11e7554785d149dc227c861e12168677c414c38f",
+   "language": "typescript",
+   "subject": "feat(automation): «contar miembros conectados» tiene su propia tarjeta",
+   "prompt_intent": "feat(automation): «contar miembros conectados» tiene su propia tarjeta\n\nLo metí ayer como tercera opción del «dónde contar» de «contar personas con un\nrol», defendiendo que era la misma pregunta con otro filtro. Me equivoqué: una\nopción escondida en un desplegable no se encuentra escaneando el catálogo, que\nes como se busca aquí — el usuario la pidió y luego no la vio «en ningún sitio».",
+   "truth_files": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "library-shared-02fde93",
+   "repo": "libraries/library-shared",
+   "commit": "02fde938d987e9edc7895edc05f8351565659610",
+   "short": "02fde93",
+   "parent": "28f27ee8043fefdbf2f775f3eb2813f6509a55d6",
+   "language": "typescript",
+   "subject": "feat(automation): contar personas con un rol que estén EN LÍNEA",
+   "prompt_intent": "feat(automation): contar personas con un rol que estén EN LÍNEA\n\nTercera opción del «dónde contar» que ya tenía «en todo el servidor» y «sólo\nlos conectados a voz», en vez de una acción nueva: es la misma pregunta con\notro filtro y se lee al lado de su hermana.",
+   "truth_files": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "music-module-b8fd33d",
+   "repo": "modules/music-module",
+   "commit": "b8fd33db3522774640b9b54fec0b8a351f43b10d",
+   "short": "b8fd33d",
+   "parent": "c33db4a171d95849f660dd29a984a0c5cad4f4ab",
+   "language": "typescript",
+   "subject": "fix(music): el bot que pides entra a tu canal aunque ya haya otro Kena sonando",
+   "prompt_intent": "fix(music): el bot que pides entra a tu canal aunque ya haya otro Kena sonando\n\nBug: con kena1 sonando en tu canal, pedir kena2 te encolaba la cancion en\nkena1 y kena2 no entraba nunca. Un canal de voz admite varios bots\n—Discord lo permite y el nodo los aisla por (session_id, guild_id)— y\nelegir un bot concreto que ademas esta libre es justo pedir que entre ese.",
+   "truth_files": [
+    "src/shared/bot-pool.test.ts",
+    "src/shared/bot-pool.ts"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "kenalink-rs-e39c66b",
+   "repo": "services/kenalink-rs",
+   "commit": "e39c66bee53abf93895c47e0ae729e32557952c6",
+   "short": "e39c66b",
+   "parent": "38169e6cae2c5d6d365c573248746c2fd0a95357",
+   "language": "rust",
+   "subject": "feat(audio): medir el ping con el ACK del heartbeat",
+   "prompt_intent": "feat(audio): medir el ping con el ACK del heartbeat\n\n`PlayerState.ping` lo suplia una sonda propia: un connect TCP al puerto\n443 del host del websocket de voz, cada 30 s, cacheado por host. Medía\nun camino que no es el del contrato, metía la resolución DNS dentro del\ncronómetro y abría sockets sólo para medir; dos players de la misma\nregión compartían literalmente la misma entrada del mapa, así que el\nplayer no aportaba ni un bit al número.",
+   "truth_files": [
+    "src/app_state.rs",
+    "src/audio/engine.rs",
+    "src/audio/mod.rs",
+    "src/audio/songbird_engine.rs",
+    "src/main.rs",
+    "src/voice_ping.rs"
+   ],
+   "n_truth": 6
+  },
+  {
+   "id": "kenalink-rs-188ae97",
+   "repo": "services/kenalink-rs",
+   "commit": "188ae97a344bb24595335cfdf6fd097ac603f2b8",
+   "short": "188ae97",
+   "parent": "5a16b240127a50ecdc992e488900afdfc0029916",
+   "language": "rust",
+   "subject": "feat(stats): emitir pausedPlayers y disconnectedPlayers",
+   "prompt_intent": "feat(stats): emitir pausedPlayers y disconnectedPlayers\n\nbuild_stats es el unico constructor de StatsPayload, asi que el STATS del\nWebSocket y el GET /v4/stats ganan los dos contadores de una vez.",
+   "truth_files": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "n_truth": 4
+  },
+  {
+   "id": "api-music-nodo-2fd7c63",
+   "repo": "services/api-music-nodo",
+   "commit": "2fd7c63b8a4de12ffd34f5773147657e7c506898",
+   "short": "2fd7c63",
+   "parent": "d4af38722e0117867143ac69a1668f721027af93",
+   "language": "rust",
+   "subject": "refactor(system): move Chipbot file orchestration into the core",
+   "prompt_intent": "refactor(system): move Chipbot file orchestration into the core\n\n«archivo» absorbs ISRC/format validation, fs-cache probe,\ntmp+rename download, ID3, manifest and counter. The controller becomes\nan adapter: Range over AudioServe and Err(String) -> 500 with cause\nmapping, keeping the handler name in the log. Zero observable changes.",
+   "truth_files": [
+    "src/http/controllers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "n_truth": 3
+  }
+ ]
+}
