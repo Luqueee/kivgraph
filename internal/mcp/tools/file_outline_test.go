@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -188,8 +190,14 @@ func TestGetFileOutlineIsRegisteredReadOnly(t *testing.T) {
 	t.Fatal("get_file_outline is not registered")
 }
 
+// callFileOutline asks for the row-per-declaration shape unless the test names
+// a view: the tests that use it are about which declarations are reported, and
+// only the two payload tests are about how they are spelled.
 func callFileOutline(t *testing.T, client *sdkmcp.ClientSession, arguments map[string]any) Response[FileOutline] {
 	t.Helper()
+	if _, named := arguments["view"]; !named {
+		arguments["view"] = ViewFull
+	}
 	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
 		Name: fileOutlineToolName, Arguments: arguments,
 	})
@@ -201,6 +209,28 @@ func callFileOutline(t *testing.T, client *sdkmcp.ClientSession, arguments map[s
 	}
 	response := decodeResponse[FileOutline](t, result)
 	return response
+}
+
+// fileOutlineText is the payload itself, which is what a view changes.
+func fileOutlineText(t *testing.T, client *sdkmcp.ClientSession, arguments map[string]any) string {
+	t.Helper()
+	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: fileOutlineToolName, Arguments: arguments,
+	})
+	if err != nil {
+		t.Fatalf("get_file_outline CallTool() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("get_file_outline CallTool() returned an error: %#v", result.Content)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("get_file_outline returned %d content blocks, want exactly one", len(result.Content))
+	}
+	text, ok := result.Content[0].(*sdkmcp.TextContent)
+	if !ok {
+		t.Fatalf("get_file_outline content block is %T, want text", result.Content[0])
+	}
+	return text.Text
 }
 
 func newFileOutlineToolClient(t *testing.T, store *hotsnapshot.SnapshotStore) *sdkmcp.ClientSession {
@@ -273,6 +303,129 @@ func fileOutlineSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 	return hotsnapshot.NewSnapshotStore(snapshot)
 }
 
+// manyDeclarationsSnapshot has six declarations under one directory: four
+// exported functions across two files, and two unexported variables in a
+// third. Every declaration shares `repository` and `package`, so kind and
+// visibility are the only columns left for compact to hoist or group.
+func manyDeclarationsSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(
+		hotsnapshot.LadybugSnapshotRows{
+			Repositories: []hotsnapshot.RepositoryRow{
+				{Key: "repo-a", Name: "alpha-repo", Path: "/repo-a", Languages: "go"},
+			},
+			Packages: []hotsnapshot.PackageRow{
+				{Key: "package-a", RepositoryKey: "repo-a", Language: "go", Name: "handlers", ModulePath: "example.com/pkg"},
+			},
+			Files: []hotsnapshot.FileRow{
+				{Key: "file-a", RepositoryKey: "repo-a", PackageKey: "package-a", Path: "handlers/a.go", Language: "go"},
+				{Key: "file-b", RepositoryKey: "repo-a", PackageKey: "package-a", Path: "handlers/b.go", Language: "go"},
+				{Key: "file-c", RepositoryKey: "repo-a", PackageKey: "package-a", Path: "handlers/c.go", Language: "go"},
+			},
+			Symbols: []hotsnapshot.SymbolRow{
+				{StableKey: "symbol-1", CanonicalIdentity: "go:1", FileKey: "file-a", Language: "go", Name: "HandleOne", QualifiedName: "handlers.HandleOne", Kind: "func", Signature: "func HandleOne()", Exported: true, StartLine: 10, EndLine: 10},
+				{StableKey: "symbol-2", CanonicalIdentity: "go:2", FileKey: "file-a", Language: "go", Name: "HandleTwo", QualifiedName: "handlers.HandleTwo", Kind: "func", Signature: "func HandleTwo()", Exported: true, StartLine: 20, EndLine: 20},
+				{StableKey: "symbol-3", CanonicalIdentity: "go:3", FileKey: "file-b", Language: "go", Name: "HandleThree", QualifiedName: "handlers.HandleThree", Kind: "func", Signature: "func HandleThree()", Exported: true, StartLine: 30, EndLine: 30},
+				{StableKey: "symbol-4", CanonicalIdentity: "go:4", FileKey: "file-b", Language: "go", Name: "HandleFour", QualifiedName: "handlers.HandleFour", Kind: "func", Signature: "func HandleFour()", Exported: true, StartLine: 40, EndLine: 40},
+				{StableKey: "symbol-5", CanonicalIdentity: "go:5", FileKey: "file-c", Language: "go", Name: "handleFive", QualifiedName: "handlers.handleFive", Kind: "variable", Signature: "func()", Exported: false, StartLine: 50, EndLine: 50},
+				{StableKey: "symbol-6", CanonicalIdentity: "go:6", FileKey: "file-c", Language: "go", Name: "handleSix", QualifiedName: "handlers.handleSix", Kind: "variable", Signature: "func()", Exported: false, StartLine: 60, EndLine: 60},
+			},
+		},
+		id,
+		time.Unix(1_700_000_000+int64(id), 0).UTC(),
+		1,
+	)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestGetFileOutlineCompactGroupsTheMajorityKindOnce is the regression guard
+// for the real page that motivated this: a 197-declaration directory outline
+// over `kena` had 7 distinct kinds, one covering 132 of them, and repeating
+// `kind` on every row cost more than reading the source would have. Here four
+// declarations share one (kind, visibility) pair across two files and two
+// share another in a third, which is enough to force grouping over the flat
+// fallback.
+func TestGetFileOutlineCompactGroupsTheMajorityKindOnce(t *testing.T) {
+	client := newFileOutlineToolClient(t, manyDeclarationsSnapshot(t, 51))
+
+	wire := fileOutlineText(t, client, map[string]any{"repository": "alpha-repo", "path": "handlers"})
+	var payload struct {
+		Results struct {
+			Repository string `json:"repository"`
+			Package    string `json:"package"`
+			Files      []any  `json:"files"`
+			Groups     []struct {
+				Kind     string `json:"kind"`
+				Exported *bool  `json:"exported"`
+				Files    []struct {
+					File string `json:"file"`
+					At   []any  `json:"at"`
+				} `json:"files"`
+			} `json:"groups"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(wire), &payload); err != nil {
+		t.Fatalf("unmarshal compact page: %v (%s)", err, wire)
+	}
+	if payload.Results.Repository != "alpha-repo" || payload.Results.Package != "handlers" {
+		t.Fatalf("header = %#v, want repository and package hoisted", payload.Results)
+	}
+	if payload.Results.Files != nil {
+		t.Fatalf("page stayed flat instead of grouping two real kinds: %#v", payload.Results.Files)
+	}
+	if len(payload.Results.Groups) != 2 {
+		t.Fatalf("groups = %#v, want exactly two: func/exported and variable/unexported", payload.Results.Groups)
+	}
+	rowsIn := func(group int) int {
+		total := 0
+		for _, file := range payload.Results.Groups[group].Files {
+			total += len(file.At)
+		}
+		return total
+	}
+	var funcRows, varRows int
+	for index, group := range payload.Results.Groups {
+		switch group.Kind {
+		case "func":
+			if group.Exported == nil || !*group.Exported {
+				t.Fatalf("func group exported = %v, want true", group.Exported)
+			}
+			funcRows = rowsIn(index)
+			if len(group.Files) != 2 {
+				t.Fatalf("func group files = %#v, want two", group.Files)
+			}
+		case "variable":
+			if group.Exported == nil || *group.Exported {
+				t.Fatalf("variable group exported = %v, want false", group.Exported)
+			}
+			varRows = rowsIn(index)
+			if len(group.Files) != 1 {
+				t.Fatalf("variable group files = %#v, want one", group.Files)
+			}
+		default:
+			t.Fatalf("unexpected group kind %q", group.Kind)
+		}
+	}
+	if funcRows != 4 || varRows != 2 {
+		t.Fatalf("func rows = %d, variable rows = %d, want 4 and 2", funcRows, varRows)
+	}
+	// Every entry inside a group is a bare label: kind and visibility are
+	// entirely accounted for by the group, and every name here is implied by
+	// its qualified name, so nothing is left for the row to carry.
+	for _, group := range payload.Results.Groups {
+		for _, file := range group.Files {
+			for _, entry := range file.At {
+				if _, isArray := entry.([]any); isArray {
+					t.Fatalf("group %+v entry = %#v, want a bare label", group, entry)
+				}
+			}
+		}
+	}
+}
+
 // outlineSymbols flattens the grouped result for assertions that do not care
 // which file a declaration came from.
 func outlineSymbols(outline FileOutline) []OutlineSymbol {
@@ -281,4 +434,130 @@ func outlineSymbols(outline FileOutline) []OutlineSymbol {
 		rows = append(rows, group.Symbols...)
 	}
 	return rows
+}
+
+// TestGetFileOutlineFullViewKeepsTodaysPayload pins the shape a client that
+// asks for `view: "full"` still gets: every envelope field present, and every
+// column on every declaration.
+func TestGetFileOutlineFullViewKeepsTodaysPayload(t *testing.T) {
+	client := newFileOutlineToolClient(t, fileOutlineSnapshot(t, 45))
+	text := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "internal/facts/facts.go", "view": ViewFull,
+	})
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("Unmarshal payload: %v", err)
+	}
+	// The age is the one field a snapshot cannot state twice in a row.
+	if _, ok := payload["snapshot_age_ms"].(float64); !ok {
+		t.Fatalf("snapshot_age_ms = %#v, want a number", payload["snapshot_age_ms"])
+	}
+	payload["snapshot_age_ms"] = "measured"
+	want := map[string]any{
+		"snapshot_id": float64(45), "snapshot_age_ms": "measured",
+		"total": float64(2), "returned": float64(2),
+		"truncated": false, "next_cursor": nil,
+		"coverage": map[string]any{
+			"exact": float64(2), "candidate": float64(0),
+			"unresolved_related": float64(0), "package_level": float64(0),
+		},
+		"results": map[string]any{
+			"repository": "alpha-repo", "path": "internal/facts/facts.go",
+			"packages": []any{"facts"}, "languages": []any{"go"},
+			"files": []any{map[string]any{
+				"path": "internal/facts/facts.go",
+				"symbols": []any{
+					map[string]any{
+						"name": "Merge", "kind": "method", "signature": "func (Set) Merge(Set)",
+						"exported": true, "start_line": float64(10), "end_line": float64(20),
+						"qualified_name": "facts.Set.Merge",
+					},
+					map[string]any{
+						"name": "merged", "kind": "func", "signature": "func merged()",
+						"exported": false, "start_line": float64(30), "end_line": float64(35),
+						"qualified_name": "facts.merged",
+					},
+				},
+			}},
+		},
+	}
+	if !reflect.DeepEqual(payload, want) {
+		t.Fatalf("full payload = %s", text)
+	}
+}
+
+// TestGetFileOutlineCompactViewHoistsAndDropsSignatures is the default answer:
+// the same declarations, on the same lines, without the signature that is the
+// largest field of a row and without repeating the package on each of them.
+func TestGetFileOutlineCompactViewHoistsAndDropsSignatures(t *testing.T) {
+	client := newFileOutlineToolClient(t, fileOutlineSnapshot(t, 46))
+
+	compact := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "internal/facts/facts.go",
+	})
+	wantCompact := `{"snapshot_id":46,"total":2,"returned":2,"coverage":{"exact":2},` +
+		`"results":{"repository":"alpha-repo","path":"internal/facts/facts.go","package":"facts",` +
+		`"files":[{"file":"internal/facts/facts.go","at":[` +
+		`["facts.Set.Merge@10-20","method","exported"],` +
+		`["facts.merged@30-35","func","unexported"]]}]}}`
+	if compact != wantCompact {
+		t.Fatalf("compact payload =\n%s\nwant\n%s", compact, wantCompact)
+	}
+
+	// A page whose declarations agree on their kind states it once.
+	methods := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "internal/facts", "kind": "method",
+	})
+	wantMethods := `{"snapshot_id":46,"total":3,"returned":1,"coverage":{"exact":1},` +
+		`"results":{"repository":"alpha-repo","path":"internal/facts","package":"facts",` +
+		`"kind":"method","exported":true,` +
+		`"files":[{"file":"internal/facts/facts.go","at":["facts.Set.Merge@10-20"]}]}}`
+	if methods != wantMethods {
+		t.Fatalf("compact kind-filtered payload =\n%s\nwant\n%s", methods, wantMethods)
+	}
+
+	// The signature and the identifiers are one argument away, in this view too.
+	detailed := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "internal/facts/facts.go",
+		"response_format": ResponseFormatDetailed,
+	})
+	wantDetailed := `{"snapshot_id":46,"total":2,"returned":2,"coverage":{"exact":2},` +
+		`"results":{"repository":"alpha-repo","path":"internal/facts/facts.go","package":"facts",` +
+		`"files":[{"file":"internal/facts/facts.go","at":[` +
+		`["facts.Set.Merge@10-20","method","exported","func (Set) Merge(Set)","symbol-merge","go:facts.Set.Merge"],` +
+		`["facts.merged@30-35","func","unexported","func merged()","symbol-merged","go:facts.merged"]]}]}}`
+	if detailed != wantDetailed {
+		t.Fatalf("compact detailed payload =\n%s\nwant\n%s", detailed, wantDetailed)
+	}
+
+	// Same declarations, fewer bytes: that is the whole point of the view.
+	verbose := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "internal/facts/facts.go", "view": ViewFull,
+	})
+	t.Logf("one page of two declarations: full %d bytes, compact %d bytes", len(verbose), len(compact))
+	if len(compact) >= len(verbose) {
+		t.Fatalf("compact payload is %d bytes and full is %d", len(compact), len(verbose))
+	}
+}
+
+// TestGetFileOutlineFilesViewAnswersWhereWithoutWhat is the cheapest question
+// the tool answers: which files hold the declarations, and how many each.
+func TestGetFileOutlineFilesViewAnswersWhereWithoutWhat(t *testing.T) {
+	client := newFileOutlineToolClient(t, fileOutlineSnapshot(t, 47))
+	files := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "internal/facts", "view": ViewFiles,
+	})
+	want := `{"snapshot_id":47,"total":3,"returned":3,"coverage":{"exact":3},` +
+		`"results":{"repository":"alpha-repo","path":"internal/facts","files":[` +
+		`{"file":"internal/facts/delta.go","declarations":1},` +
+		`{"file":"internal/facts/facts.go","declarations":2}]}}`
+	if files != want {
+		t.Fatalf("files payload =\n%s\nwant\n%s", files, want)
+	}
+
+	if _, _, err := getFileOutline(context.Background(), nil, GetFileOutlineInput{
+		Repository: "alpha-repo", Path: "internal/facts", View: "brief",
+	}, fileOutlineSnapshot(t, 48)); ErrorCode(err) != CodeInvalidArgument {
+		t.Fatalf("unsupported view error code = %q, want %q", ErrorCode(err), CodeInvalidArgument)
+	}
 }

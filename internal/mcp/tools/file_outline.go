@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -24,6 +25,11 @@ const (
 // wanted. It is the only entry point into the graph that starts from
 // something an agent already holds: everything else needs a stable key, and
 // the only way to get one is to guess a symbol name.
+//
+// View is the granularity of the answer: "compact", the default, hoists what
+// every declaration shares and leaves the signatures out; "full" is the
+// row-per-declaration shape; "files" answers only which files hold the page's
+// declarations and how many each holds.
 type GetFileOutlineInput struct {
 	Repository string `json:"repository"`
 	Path       string `json:"path"`
@@ -36,6 +42,7 @@ type GetFileOutlineInput struct {
 	ResponseFormat string `json:"response_format,omitempty"`
 	Limit          int    `json:"limit,omitempty"`
 	Cursor         string `json:"cursor,omitempty"`
+	View           string `json:"view,omitempty"`
 }
 
 // outlineMemberKinds are the symbol kinds that belong to the declaration
@@ -60,6 +67,10 @@ type FileOutline struct {
 	Packages   []string      `json:"packages,omitempty"`
 	Languages  []string      `json:"languages,omitempty"`
 	Files      []OutlineFile `json:"files"`
+
+	// View decides how MarshalJSON spells the outline. It never travels in
+	// it: the caller already knows what it asked for.
+	View string `json:"-"`
 }
 
 // OutlineFile is one file and the declarations this page carries for it.
@@ -89,6 +100,243 @@ type OutlineSymbol struct {
 	QualifiedName     string `json:"qualified_name,omitempty"`
 	StableKey         string `json:"stable_key,omitempty"`
 	CanonicalIdentity string `json:"canonical_identity,omitempty"`
+}
+
+// compactOutlineFile is one file and its declarations, each an entry that
+// starts with the name and the lines it occupies.
+type compactOutlineFile struct {
+	File string `json:"file"`
+	At   []any  `json:"at"`
+}
+
+// compactOutlineGroup is every declaration that shares one exact (kind,
+// visibility) pair the page could not hoist. Absent means this group's rows
+// hold the page's hoisted value too.
+type compactOutlineGroup struct {
+	Kind     string               `json:"kind,omitempty"`
+	Exported *bool                `json:"exported,omitempty"`
+	Files    []compactOutlineFile `json:"files"`
+}
+
+// outlineFileCount is the whole of the `files` view: which files hold the
+// page's declarations and how many each holds. It is the answer to "where is
+// this defined" without paying for what is defined there.
+type outlineFileCount struct {
+	File         string `json:"file"`
+	Declarations int    `json:"declarations"`
+}
+
+// MarshalJSON writes the outline at the granularity the caller asked for.
+//
+// The compact page states the repository, the package when the whole page
+// shares one and the kind when every declaration shares one, and then one
+// entry per declaration grouped by file. A signature is not there: it is the
+// largest field of a row and the reader who wants it asks for
+// `response_format: "detailed"`.
+func (outline FileOutline) MarshalJSON() ([]byte, error) {
+	type fullOutline FileOutline
+	switch outline.View {
+	case ViewFull, "":
+		return json.Marshal(fullOutline(outline))
+	case ViewFiles:
+		files := make([]outlineFileCount, 0, len(outline.Files))
+		for _, group := range outline.Files {
+			files = append(files, outlineFileCount{File: group.Path, Declarations: len(group.Symbols)})
+		}
+		return json.Marshal(struct {
+			Repository string             `json:"repository"`
+			Path       string             `json:"path"`
+			Files      []outlineFileCount `json:"files"`
+		}{Repository: outline.Repository, Path: outline.Path, Files: files})
+	}
+
+	rows := 0
+	for _, group := range outline.Files {
+		rows += len(group.Symbols)
+	}
+	// One flat pass over the page: the groups are the answer's shape, not the
+	// order a column has to be read in. Each entry keeps the file its symbol
+	// came from, because OutlineSymbol itself does not carry one -- today's
+	// grouping is external, by OutlineFile.Path, and residual grouping needs
+	// to rebuild it once the page is regrouped by (kind, visibility) instead.
+	page := make([]outlineEntry, 0, rows)
+	for _, group := range outline.Files {
+		for _, symbol := range group.Symbols {
+			page = append(page, outlineEntry{file: group.Path, symbol: symbol})
+		}
+	}
+	kind := hoistString(len(page), func(index int) string { return page[index].symbol.Kind })
+	namesImplied := true
+	exportedEverywhere, unexportedEverywhere := true, true
+	for _, entry := range page {
+		if !nameIsLastSegment(entry.symbol.Name, outlineName(entry.symbol)) {
+			namesImplied = false
+		}
+		if entry.symbol.Exported {
+			unexportedEverywhere = false
+		} else {
+			exportedEverywhere = false
+		}
+	}
+	var exported *bool
+	if rows > 0 && (exportedEverywhere || unexportedEverywhere) {
+		shared := exportedEverywhere
+		exported = &shared
+	}
+
+	header := struct {
+		Repository string                `json:"repository"`
+		Path       string                `json:"path"`
+		Package    string                `json:"package,omitempty"`
+		Packages   []string              `json:"packages,omitempty"`
+		Kind       string                `json:"kind,omitempty"`
+		Exported   *bool                 `json:"exported,omitempty"`
+		Files      []compactOutlineFile  `json:"files,omitempty"`
+		Groups     []compactOutlineGroup `json:"groups,omitempty"`
+	}{
+		Repository: outline.Repository, Path: outline.Path,
+		Kind: kind, Exported: exported,
+	}
+	if len(outline.Packages) == 1 {
+		header.Package = outline.Packages[0]
+	} else {
+		header.Packages = outline.Packages
+	}
+
+	flat := outlineFileGroups(outline.Files, namesImplied, kind, exported)
+	if kind != "" && exported != nil {
+		// Both grouping dimensions are already on the page: nothing left to
+		// group by, so this is the whole answer, not a candidate.
+		header.Files = flat
+		return json.Marshal(header)
+	}
+
+	residual := func(entry outlineEntry) []string {
+		kindResidual := ""
+		if kind == "" {
+			kindResidual = entry.symbol.Kind
+		}
+		visibilityResidual := ""
+		if exported == nil {
+			visibilityResidual = "unexported"
+			if entry.symbol.Exported {
+				visibilityResidual = "exported"
+			}
+		}
+		return []string{kindResidual, visibilityResidual}
+	}
+	buckets := groupByResidual(page, residual)
+	if len(buckets) <= 1 {
+		header.Files = flat
+		return json.Marshal(header)
+	}
+
+	groups := make([]compactOutlineGroup, 0, len(buckets))
+	for _, bucket := range buckets {
+		first := bucket[0].symbol
+		group := compactOutlineGroup{}
+		effectiveKind := kind
+		if effectiveKind == "" {
+			effectiveKind = first.Kind
+			group.Kind = first.Kind
+		}
+		effectiveExported := exported
+		if effectiveExported == nil {
+			shared := first.Exported
+			effectiveExported = &shared
+			group.Exported = &shared
+		}
+		group.Files = outlineFileGroups(groupOutlineEntriesByFile(bucket), namesImplied, effectiveKind, effectiveExported)
+		groups = append(groups, group)
+	}
+	// Grouping only wins when a (kind, visibility) pair repeats enough to pay
+	// for its own header; a page where every declaration disagrees is cheaper
+	// flat. Marshaling both candidates costs nothing on a page this small, and
+	// it is the only way to guarantee grouping never costs more than not
+	// grouping.
+	if flatBytes, err := json.Marshal(flat); err == nil {
+		if groupedBytes, err := json.Marshal(groups); err == nil && len(groupedBytes) >= len(flatBytes) {
+			header.Files = flat
+			return json.Marshal(header)
+		}
+	}
+	header.Groups = groups
+	return json.Marshal(header)
+}
+
+// outlineEntry is one declaration together with the file it was grouped
+// under, the pairing OutlineSymbol alone does not carry.
+type outlineEntry struct {
+	file   string
+	symbol OutlineSymbol
+}
+
+// outlineFileGroups writes one file's declarations against the header and,
+// when it has one, the group above it: kind and visibility are the row's own
+// only when neither already states them.
+func outlineFileGroups(fileGroups []OutlineFile, namesImplied bool, effectiveKind string, effectiveExported *bool) []compactOutlineFile {
+	files := make([]compactOutlineFile, 0, len(fileGroups))
+	for _, group := range fileGroups {
+		compact := compactOutlineFile{File: group.Path, At: make([]any, 0, len(group.Symbols))}
+		for _, symbol := range group.Symbols {
+			name := ""
+			if !namesImplied {
+				name = symbol.Name
+			}
+			visibility := ""
+			if effectiveExported == nil {
+				visibility = "unexported"
+				if symbol.Exported {
+					visibility = "exported"
+				}
+			}
+			// The signature is the largest field of a row, so it rides only
+			// with the identifiers that `response_format: "detailed"` sets.
+			signature := ""
+			if symbol.StableKey != "" {
+				signature = symbol.Signature
+			}
+			compact.At = append(compact.At, compactRowTail(
+				declarationLabel(outlineName(symbol), symbol.StartLine, symbol.EndLine),
+				name,
+				blankWhenHoisted(symbol.Kind, effectiveKind),
+				visibility,
+				signature,
+				symbol.StableKey,
+				symbol.CanonicalIdentity,
+			))
+		}
+		files = append(files, compact)
+	}
+	return files
+}
+
+// groupOutlineEntriesByFile rebuilds the file grouping for one bucket of
+// entries that groupByResidual already separated from the rest of the page,
+// in the order the entries were first seen.
+func groupOutlineEntriesByFile(bucket []outlineEntry) []OutlineFile {
+	index := make(map[string]int, len(bucket))
+	files := make([]OutlineFile, 0, len(bucket))
+	for _, entry := range bucket {
+		position, exists := index[entry.file]
+		if !exists {
+			position = len(files)
+			index[entry.file] = position
+			files = append(files, OutlineFile{Path: entry.file})
+		}
+		files[position].Symbols = append(files[position].Symbols, entry.symbol)
+	}
+	return files
+}
+
+// outlineName is how a compact row addresses a declaration: the qualified
+// name when the row carries one, which is exactly when it differs from the
+// bare name, and the name otherwise.
+func outlineName(symbol OutlineSymbol) string {
+	if symbol.QualifiedName != "" {
+		return symbol.QualifiedName
+	}
+	return symbol.Name
 }
 
 type fileOutlineQuery struct {
@@ -169,6 +417,10 @@ func getFileOutline(
 	if err != nil {
 		return nil, Response[FileOutline]{}, err
 	}
+	view, err := normalizeView(arguments.View, true)
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
 	queryHash, err := HashQuery(fileOutlineQuery{
 		Tool: fileOutlineToolName, Repository: repositoryName, Path: path,
 		Kind: arguments.Kind, IncludeMembers: arguments.IncludeMembers,
@@ -218,7 +470,7 @@ func getFileOutline(
 		return nil, Response[FileOutline]{}, WrapToolError(CodeInvalidArgument, "outline pagination is invalid", err)
 	}
 
-	outline := FileOutline{Repository: repositoryName, Path: path, Files: []OutlineFile{}}
+	outline := FileOutline{Repository: repositoryName, Path: path, Files: []OutlineFile{}, View: view}
 	packages := make(map[string]struct{})
 	languages := make(map[string]struct{})
 	// Groups follow the order the page first mentions each file, so two calls
@@ -294,6 +546,7 @@ func getFileOutline(
 		NextCursor:    nextCursor,
 		Coverage:      Coverage{Exact: kept},
 		Results:       outline,
+		View:          view,
 	}, nil
 }
 

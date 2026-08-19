@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -155,8 +156,14 @@ func TestFindReferencesIsRegisteredReadOnly(t *testing.T) {
 	t.Fatal("find_references is not registered")
 }
 
+// callFindReferences decodes the typed page, which only the full view
+// produces: the compact views are asserted over the wire in
+// TestFindReferencesCompactViewHoistsSharedColumns.
 func callFindReferences(t *testing.T, client *sdkmcp.ClientSession, arguments map[string]any) Response[ReferenceResult] {
 	t.Helper()
+	if _, chosen := arguments["view"]; !chosen {
+		arguments["view"] = ViewFull
+	}
 	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{Name: findReferencesToolName, Arguments: arguments})
 	if err != nil {
 		t.Fatalf("find_references CallTool() error = %v", err)
@@ -166,6 +173,20 @@ func callFindReferences(t *testing.T, client *sdkmcp.ClientSession, arguments ma
 	}
 	response := decodeResponse[ReferenceResult](t, result)
 	return response
+}
+
+// callFindReferencesWire returns the payload as it travels, which is the only
+// way to assert what a view removed.
+func callFindReferencesWire(t *testing.T, client *sdkmcp.ClientSession, arguments map[string]any) string {
+	t.Helper()
+	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{Name: findReferencesToolName, Arguments: arguments})
+	if err != nil {
+		t.Fatalf("find_references CallTool() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("find_references CallTool() returned an error: %#v", result.Content)
+	}
+	return contentText(result)
 }
 
 func newFindReferencesToolClient(t *testing.T, store *hotsnapshot.SnapshotStore) *sdkmcp.ClientSession {
@@ -222,6 +243,63 @@ func referenceSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// manyCallersSnapshot has one target referenced by five callers: four
+// functions across two files, and one export in a third. Every edge shares
+// direction, confidence and provenance, so only `kind` disagrees -- the shape
+// that forces grouping while keeping the rest of the header intact.
+func manyCallersSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	code := func(value uint8) uint8 { return value }
+	symbols := []hotsnapshot.SymbolRow{
+		{StableKey: "symbol-target", CanonicalIdentity: "go:target", FileKey: "file-target", Language: "go", Name: "target", QualifiedName: "pkg.Target", Kind: "function", StartLine: 1, EndLine: 3},
+		{StableKey: "symbol-caller-1", CanonicalIdentity: "go:caller-1", FileKey: "file-a", Language: "go", Name: "caller1", QualifiedName: "pkg.Caller1", Kind: "function", StartLine: 10, EndLine: 12},
+		{StableKey: "symbol-caller-2", CanonicalIdentity: "go:caller-2", FileKey: "file-a", Language: "go", Name: "caller2", QualifiedName: "pkg.Caller2", Kind: "function", StartLine: 20, EndLine: 22},
+		{StableKey: "symbol-caller-3", CanonicalIdentity: "go:caller-3", FileKey: "file-a", Language: "go", Name: "caller3", QualifiedName: "pkg.Caller3", Kind: "function", StartLine: 30, EndLine: 32},
+		{StableKey: "symbol-caller-4", CanonicalIdentity: "go:caller-4", FileKey: "file-b", Language: "go", Name: "caller4", QualifiedName: "pkg.Caller4", Kind: "function", StartLine: 5, EndLine: 7},
+		{StableKey: "symbol-caller-5", CanonicalIdentity: "go:caller-5", FileKey: "file-c", Language: "go", Name: "caller5", QualifiedName: "pkg.Caller5", Kind: "export", StartLine: 1, EndLine: 1},
+	}
+	edges := make([]hotsnapshot.EdgeRow, 0, 5)
+	for _, caller := range []hotsnapshot.StableKey{"symbol-caller-1", "symbol-caller-2", "symbol-caller-3", "symbol-caller-4", "symbol-caller-5"} {
+		edges = append(edges, hotsnapshot.EdgeRow{
+			SourceKey: caller, TargetKey: "symbol-target",
+			Kind:         code(mustFactsEdgeCode(t, facts.CallsDirect)),
+			Confidence:   code(mustFactsConfidenceCode(t, facts.ExactTypechecked)),
+			Provenance:   code(mustFactsProvenanceCode(t, facts.GoASTCall)),
+			EvidenceKind: "checker", EvidenceSourceFileKey: fileOf(symbols, caller), EvidenceTargetFileKey: "file-target",
+		})
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repository:repo-a", Name: "repo-a", Path: "/repo-a", Languages: "go"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "package-a", RepositoryKey: "repository:repo-a", Name: "pkg-a", ModulePath: "example.com/a"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-target", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "src/target.go", Language: "go"},
+			{Key: "file-a", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "src/a.go", Language: "go"},
+			{Key: "file-b", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "src/b.go", Language: "go"},
+			{Key: "file-c", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "src/c.go", Language: "go"},
+		},
+		Symbols: symbols,
+		Edges:   edges,
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000+int64(id), 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+func fileOf(symbols []hotsnapshot.SymbolRow, stableKey hotsnapshot.StableKey) string {
+	for _, symbol := range symbols {
+		if symbol.StableKey == stableKey {
+			return symbol.FileKey
+		}
+	}
+	return ""
 }
 
 func mustFactsEdgeCode(t *testing.T, kind facts.EdgeKind) uint8 {
@@ -321,4 +399,254 @@ func contentText(result *sdkmcp.CallToolResult) string {
 		}
 	}
 	return ""
+}
+
+// TestFindReferencesCompactViewHoistsSharedColumns is the token contract of
+// ADR 0046: the default view states what every row shares once. Over `kena`,
+// confidence and provenance alone were 1.200 of the 4.236 tokens of one page.
+func TestFindReferencesCompactViewHoistsSharedColumns(t *testing.T) {
+	client := newFindReferencesToolClient(t, referenceSnapshot(t, 35))
+
+	// No view argument: compact is the default.
+	compact := callFindReferencesWire(t, client, map[string]any{
+		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming, "limit": 1,
+	})
+	var payload struct {
+		Total    int  `json:"total"`
+		Returned int  `json:"returned"`
+		AgeMS    *int `json:"snapshot_age_ms"`
+		Results  struct {
+			Subject    string `json:"subject"`
+			QN         string `json:"qn"`
+			Repository string `json:"repository"`
+			Kind       string `json:"kind"`
+			EdgeKind   string `json:"edge_kind"`
+			Confidence string `json:"confidence"`
+			Provenance string `json:"provenance"`
+			Files      []struct {
+				File string `json:"file"`
+				At   []any  `json:"at"`
+			} `json:"files"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(compact), &payload); err != nil {
+		t.Fatalf("unmarshal compact page: %v (%s)", err, compact)
+	}
+	if payload.Total != 2 || payload.Returned != 1 {
+		t.Fatalf("compact counts = %d/%d, want 2/1", payload.Total, payload.Returned)
+	}
+	// The envelope drops what carried nothing: the age nobody asked for.
+	if payload.AgeMS != nil {
+		t.Fatalf("compact envelope carries snapshot_age_ms = %v", *payload.AgeMS)
+	}
+	if payload.Results.Subject != "repo-a:src/caller.go:40" || payload.Results.QN != "pkg.Target" {
+		t.Fatalf("compact subject = %q %q", payload.Results.Subject, payload.Results.QN)
+	}
+	// One row, so every column hoists, and the confidence of the fact stays
+	// readable: a compact view spells the same edge, never a weaker one.
+	if payload.Results.Repository != "repo-a" || payload.Results.Kind != "function" ||
+		payload.Results.EdgeKind != string(facts.References) ||
+		payload.Results.Confidence != string(facts.ExactTypechecked) ||
+		payload.Results.Provenance != string(facts.GoTypesUse) {
+		t.Fatalf("compact header = %#v", payload.Results)
+	}
+	if len(payload.Results.Files) != 1 || payload.Results.Files[0].File != "src/caller.go" {
+		t.Fatalf("compact files = %#v", payload.Results.Files)
+	}
+	if len(payload.Results.Files[0].At) != 1 || payload.Results.Files[0].At[0] != "pkg.CallerA@12-20" {
+		t.Fatalf("compact entries = %#v, want the caller with its declaration range", payload.Results.Files[0].At)
+	}
+	// The row still has to be openable as it stands: dropping the end of the
+	// range costs one get_symbol per row, which is what the range is for.
+	resultsOnly, _ := json.Marshal(payload.Results)
+	if strings.Contains(string(resultsOnly), "stable_key") || strings.Contains(string(resultsOnly), "language") {
+		t.Fatalf("compact page carries derived or deducible fields: %s", resultsOnly)
+	}
+
+	// Two rows that disagree on everything: grouping them would cost one
+	// object per row for zero repeated tuples, so the page stays flat and each
+	// row carries its own tail -- exactly what a page with no shared tuple
+	// looked like before grouping existed.
+	both := callFindReferencesWire(t, client, map[string]any{
+		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming,
+	})
+	var flat struct {
+		Results struct {
+			Confidence string                  `json:"confidence"`
+			Repository string                  `json:"repository"`
+			Files      []compactReferenceFile  `json:"files"`
+			Groups     []compactReferenceGroup `json:"groups"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(both), &flat); err != nil {
+		t.Fatalf("unmarshal second compact page: %v", err)
+	}
+	if flat.Results.Confidence != "" || flat.Results.Repository != "" {
+		t.Fatalf("disagreeing rows hoisted to the page anyway: %#v", flat.Results)
+	}
+	if flat.Results.Groups != nil {
+		t.Fatalf("page grouped two singleton tuples instead of staying flat: %#v", flat.Results.Groups)
+	}
+	if len(flat.Results.Files) != 2 {
+		t.Fatalf("files = %#v, want one entry per file", flat.Results.Files)
+	}
+	for _, file := range flat.Results.Files {
+		if _, isArray := file.At[0].([]any); !isArray {
+			t.Fatalf("file = %#v, want a row tail since nothing hoisted", file)
+		}
+	}
+	if !strings.Contains(both, string(facts.Candidate)) || !strings.Contains(both, string(facts.ExactTypechecked)) {
+		t.Fatalf("compact page lost a confidence: %s", both)
+	}
+}
+
+// TestFindReferencesCompactGroupsTheMajorityTupleOnce is the regression guard
+// for the case that made this shape necessary: a page where most rows share
+// one (kind, edge_kind) pair and a minority carries a different one. A single
+// dissenting row used to keep both columns off the header and repeat them on
+// every row; grouping states each tuple once and leaves the majority's rows
+// bare.
+func TestFindReferencesCompactGroupsTheMajorityTupleOnce(t *testing.T) {
+	client := newFindReferencesToolClient(t, manyCallersSnapshot(t, 40))
+
+	wire := callFindReferencesWire(t, client, map[string]any{
+		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming, "limit": 500,
+	})
+	var payload struct {
+		Total   int `json:"total"`
+		Results struct {
+			EdgeKind string                  `json:"edge_kind"`
+			Files    []any                   `json:"files"`
+			Groups   []compactReferenceGroup `json:"groups"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(wire), &payload); err != nil {
+		t.Fatalf("unmarshal compact page: %v (%s)", err, wire)
+	}
+	if payload.Total != 5 {
+		t.Fatalf("total = %d, want 5", payload.Total)
+	}
+	// edge_kind is uniform (every row calls directly), so it hoists to the
+	// page even though kind does not -- the two columns hoist independently.
+	if payload.Results.EdgeKind != string(facts.CallsDirect) {
+		t.Fatalf("edge_kind = %q, want it hoisted to the page", payload.Results.EdgeKind)
+	}
+	if payload.Results.Files != nil {
+		t.Fatalf("page emitted flat files although kind disagreed: %#v", payload.Results.Files)
+	}
+	if len(payload.Results.Groups) != 2 {
+		t.Fatalf("groups = %#v, want exactly two kinds", payload.Results.Groups)
+	}
+	var majority, minority compactReferenceGroup
+	for _, group := range payload.Results.Groups {
+		if group.EdgeKind != "" {
+			t.Fatalf("group repeats the page-hoisted edge_kind: %#v", group)
+		}
+		if group.Kind == "function" {
+			majority = group
+		} else {
+			minority = group
+		}
+	}
+	if majority.Kind != "function" || minority.Kind != "export" {
+		t.Fatalf("groups = %+v / %+v, want kinds function and export", majority, minority)
+	}
+	majorityRows := 0
+	for _, file := range majority.Files {
+		majorityRows += len(file.At)
+		for _, entry := range file.At {
+			if _, isArray := entry.([]any); isArray {
+				t.Fatalf("a row inside a fully-hoisted group still carries a tail: %#v", entry)
+			}
+		}
+	}
+	if majorityRows != 4 {
+		t.Fatalf("majority group rows = %d, want 4", majorityRows)
+	}
+	minorityRows := 0
+	for _, file := range minority.Files {
+		minorityRows += len(file.At)
+	}
+	if minorityRows != 1 {
+		t.Fatalf("minority group rows = %d, want 1", minorityRows)
+	}
+}
+
+// TestFindReferencesFilesViewAnswersWhichFiles covers the cheapest granularity:
+// which files hold the fact, and how many each holds.
+func TestFindReferencesFilesViewAnswersWhichFiles(t *testing.T) {
+	client := newFindReferencesToolClient(t, referenceSnapshot(t, 36))
+
+	wire := callFindReferencesWire(t, client, map[string]any{
+		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming, "view": ViewFiles,
+	})
+	var payload struct {
+		Total   int `json:"total"`
+		Results struct {
+			Files []struct {
+				File  string `json:"file"`
+				Count int    `json:"count"`
+			} `json:"files"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(wire), &payload); err != nil {
+		t.Fatalf("unmarshal files page: %v (%s)", err, wire)
+	}
+	if payload.Total != 2 || len(payload.Results.Files) != 2 {
+		t.Fatalf("files page = %#v", payload.Results.Files)
+	}
+	for _, file := range payload.Results.Files {
+		if file.Count != 1 || (file.File != "repo-a/src/caller.go" && file.File != "repo-b/src/caller.ts") {
+			t.Fatalf("files row = %#v", file)
+		}
+	}
+	if strings.Contains(wire, "edge_kind") {
+		t.Fatalf("files view carries per-edge fields: %s", wire)
+	}
+
+	unsupported, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      findReferencesToolName,
+		Arguments: map[string]any{"stable_key": "symbol-target", "view": "summary"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if !unsupported.IsError {
+		t.Fatalf("unknown view = %#v, want a classified argument error", unsupported)
+	}
+}
+
+// TestFindReferencesResolvesAnUnqualifiedName is the second call this surface
+// used to charge for: with one declaration of the name, the answer needs no
+// find_symbol first; with several, the candidates are named and nothing is
+// resolved quietly.
+func TestFindReferencesResolvesAnUnqualifiedName(t *testing.T) {
+	client := newFindReferencesToolClient(t, referenceSnapshot(t, 37))
+
+	byName := callFindReferences(t, client, map[string]any{
+		"name": "target", "direction": FindReferencesDirectionIncoming,
+	})
+	byKey := callFindReferences(t, client, map[string]any{
+		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming,
+	})
+	if byName.Total != byKey.Total || byName.Results.Subject.QualifiedName != "pkg.Target" {
+		t.Fatalf("name answered %#v, want the same page as the key: %#v", byName.Results, byKey.Results)
+	}
+
+	for name, arguments := range map[string]map[string]any{
+		"name with a key":            {"name": "target", "stable_key": "symbol-target"},
+		"name with a qualified name": {"name": "target", "qualified_name": "pkg.Target"},
+		"path without repository":    {"name": "target", "path": "src/caller.go"},
+		"name nobody declares":       {"name": "absent"},
+	} {
+		result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+			Name: findReferencesToolName, Arguments: arguments,
+		})
+		if err != nil {
+			t.Fatalf("%s: CallTool() error = %v", name, err)
+		}
+		if !result.IsError {
+			t.Fatalf("%s: result = %#v, want a classified error", name, result)
+		}
+	}
 }

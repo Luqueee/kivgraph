@@ -2,8 +2,11 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -24,7 +27,20 @@ const (
 
 // GetBlastRadiusInput bounds the impact traversal. edge_kinds and confidence
 // gate which incoming edges may be followed, so they change what counts as
-// affected; the tool reports aggregates, never a symbol listing.
+// affected.
+//
+// Kinds selects which symbol kinds the answer reports. Left empty it excludes
+// `variable` and `field`, the local bindings a traversal walks through on its
+// way to real consumers: measured on `getRequiredField` of `kena`, 48 of the
+// 50 rows of the first page were bindings like `handleBan.userId`, and the
+// callers a reviewer came for fell to page two. `["*"]` reports every kind and
+// an explicit list reports exactly those. The filter is part of the query, not
+// a display option: total, affected and every aggregate count the same set it
+// keeps, and it therefore also changes the cursor's query identity.
+//
+// View is the granularity of the answer, never a different answer: `compact`
+// (the default) spells the columns every row shares once in the header, `full`
+// repeats them on every row.
 type GetBlastRadiusInput struct {
 	StableKey      string   `json:"stable_key,omitempty"`
 	QualifiedName  string   `json:"qualified_name,omitempty"`
@@ -34,10 +50,12 @@ type GetBlastRadiusInput struct {
 	MaxNodes       int      `json:"max_nodes,omitempty"`
 	EdgeKinds      []string `json:"edge_kinds,omitempty"`
 	Confidence     string   `json:"confidence,omitempty"`
+	Kinds          []string `json:"kinds,omitempty"`
 	IncludeDerived bool     `json:"include_derived,omitempty"`
 	Limit          int      `json:"limit,omitempty"`
 	Cursor         string   `json:"cursor,omitempty"`
 	ResponseFormat string   `json:"response_format,omitempty"`
+	View           string   `json:"view,omitempty"`
 }
 
 // BlastRadius is the impact of changing one symbol: the affected symbols
@@ -51,6 +69,8 @@ type BlastRadius struct {
 	RootRepository     string                    `json:"root_repository"`
 	Depth              int                       `json:"depth"`
 	MaxNodes           int                       `json:"max_nodes"`
+	Kinds              []string                  `json:"kinds,omitempty"`
+	KindsExcluded      []string                  `json:"kinds_default_excluded,omitempty"`
 	Affected           int                       `json:"affected"`
 	DeepestDepth       int                       `json:"deepest_depth"`
 	TraversalTruncated bool                      `json:"traversal_truncated"`
@@ -59,6 +79,13 @@ type BlastRadius struct {
 	ByDepth            []BlastRadiusDepthGroup   `json:"by_depth"`
 	ByKind             []BlastRadiusGroup        `json:"by_kind"`
 	ByPackage          []BlastRadiusPackageGroup `json:"by_package"`
+
+	// View and the root location are marshaling inputs, never payload: the
+	// compact header names the root as `repository:path:line` instead of the
+	// stable key, and the view says which spelling to write.
+	View     string `json:"-"`
+	RootPath string `json:"-"`
+	RootLine uint32 `json:"-"`
 }
 
 // BlastRadiusGroup counts affected symbols under one repository key or one
@@ -82,17 +109,125 @@ type BlastRadiusPackageGroup struct {
 	Count       int    `json:"count"`
 }
 
+// compactBlastRadiusPackage is one affected package. The package key is absent:
+// it is `package:<language>:<repository>:<name>` (facts.PackageKey), which is
+// the name and the repository this row already spells; the full view keeps it.
+// Repository is present only when the package is not in the hoisted one.
+type compactBlastRadiusPackage struct {
+	Package    string `json:"package"`
+	Repository string `json:"repository,omitempty"`
+	Count      int    `json:"count"`
+}
+
+// MarshalJSON writes the impact at the granularity the caller asked for.
+//
+// The compact answer leads with the filter and the four axes, because "how far
+// does this reach" is the question and the page behind them only names what the
+// axes counted. The root is `repository:path:line`, the triple every tool
+// accepts as a selector, instead of the stable key the full view carries.
+func (radius BlastRadius) MarshalJSON() ([]byte, error) {
+	type fullRadius BlastRadius
+	if radius.View == ViewFull || radius.View == "" {
+		return json.Marshal(fullRadius(radius))
+	}
+	header, files, groups := compactReachedSymbols(radius.Symbols)
+	return json.Marshal(struct {
+		Root               string                      `json:"root"`
+		Depth              int                         `json:"depth"`
+		MaxNodes           int                         `json:"max_nodes"`
+		Kinds              []string                    `json:"kinds,omitempty"`
+		KindsExcluded      []string                    `json:"kinds_default_excluded,omitempty"`
+		Affected           int                         `json:"affected"`
+		DeepestDepth       int                         `json:"deepest_depth"`
+		TraversalTruncated bool                        `json:"traversal_truncated,omitempty"`
+		ByDepth            map[string]int              `json:"by_depth,omitempty"`
+		ByKind             map[string]int              `json:"by_kind,omitempty"`
+		ByRepository       map[string]int              `json:"by_repository,omitempty"`
+		ByPackage          []compactBlastRadiusPackage `json:"by_package,omitempty"`
+		compactReachedHeader
+		Files  []compactSymbolGroup  `json:"files,omitempty"`
+		Groups []compactReachedGroup `json:"groups,omitempty"`
+	}{
+		Root:     locationLabel(radius.RootRepository, radius.RootPath, radius.RootLine),
+		Depth:    radius.Depth,
+		MaxNodes: radius.MaxNodes,
+		Kinds:    radius.Kinds, KindsExcluded: radius.KindsExcluded,
+		Affected: radius.Affected, DeepestDepth: radius.DeepestDepth,
+		TraversalTruncated:   radius.TraversalTruncated,
+		ByDepth:              compactDepthCounts(radius.ByDepth),
+		ByKind:               compactGroupCounts(radius.ByKind),
+		ByRepository:         compactGroupCounts(radius.ByRepository),
+		ByPackage:            compactPackageCounts(radius.ByPackage, header.Repository),
+		compactReachedHeader: header,
+		Files:                files,
+		Groups:               groups,
+	})
+}
+
+// compactGroupCounts writes an axis as one object. A key beside its count is two
+// tokens; the same pair as `{"key":…,"count":…}` is six, on every row of four
+// axes. The order the axis was sorted in is lost, but a count keyed by its own
+// name does not need one.
+func compactGroupCounts(groups []BlastRadiusGroup) map[string]int {
+	if len(groups) == 0 {
+		return nil
+	}
+	counts := make(map[string]int, len(groups))
+	for _, group := range groups {
+		counts[group.Key] = group.Count
+	}
+	return counts
+}
+
+// compactDepthCounts keys the depth axis by the depth itself. A traversal is
+// bounded by MaxTraversalDepth, one digit, so the object's keys sort the way
+// their numbers do.
+func compactDepthCounts(groups []BlastRadiusDepthGroup) map[string]int {
+	if len(groups) == 0 {
+		return nil
+	}
+	counts := make(map[string]int, len(groups))
+	for _, group := range groups {
+		counts[strconv.Itoa(group.Depth)] = group.Count
+	}
+	return counts
+}
+
+// compactPackageCounts keeps the package axis as rows: two packages of the same
+// name in different repositories are two facts, and an object keyed by name
+// would silently add them together.
+func compactPackageCounts(groups []BlastRadiusPackageGroup, hoisted string) []compactBlastRadiusPackage {
+	if len(groups) == 0 {
+		return nil
+	}
+	rows := make([]compactBlastRadiusPackage, 0, len(groups))
+	for _, group := range groups {
+		row := compactBlastRadiusPackage{Package: group.PackageName, Count: group.Count}
+		if group.Repository != hoisted {
+			row.Repository = group.Repository
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
 type blastRadiusOptions struct {
 	Selector   symbolSelector
 	Depth      int
 	MaxNodes   int
 	EdgeKinds  []string
 	Confidence string
+	Kinds      blastRadiusKindFilter
 	Limit      int
 	Format     string
+	View       string
 	Derived    derivedFilter
 }
 
+// blastRadiusQuery is the identity a cursor is bound to. Kinds carries no
+// `omitempty`: the default filter is a `null` here, so a cursor minted before
+// the filter existed hashes differently and is refused instead of resuming a
+// page of a set that no longer means the same thing.
 type blastRadiusQuery struct {
 	Tool          string   `json:"tool"`
 	StableKey     string   `json:"stable_key,omitempty"`
@@ -103,6 +238,113 @@ type blastRadiusQuery struct {
 	MaxNodes      int      `json:"max_nodes"`
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
+	Kinds         []string `json:"kinds"`
+}
+
+// blastRadiusDefaultExcludedKinds are the symbol kinds an unasked-for impact
+// answer leaves out: the local bindings a traversal crosses on its way to the
+// consumers a reviewer is looking for. They are excluded from the page and from
+// every aggregate, never from the traversal itself, so a consumer reached
+// through an excluded binding is still reported behind it.
+var blastRadiusDefaultExcludedKinds = []string{"field", "variable"}
+
+// blastRadiusSelectableKinds is the vocabulary `kinds` accepts: every symbol
+// kind the loaders publish -- Go declaration kinds, the TypeScript worker's
+// local kinds plus its import and export bindings, and the SCIP kind names
+// rust-analyzer can produce. A name outside it is a typo far more often than a
+// kind, and a typo that silently matched nothing would understate an impact.
+// `kinds: ["*"]` reports whatever the snapshot holds, including a kind a future
+// loader adds before this list learns about it.
+var blastRadiusSelectableKinds = []string{
+	"alias", "associated_type", "attribute", "class", "const", "constant",
+	"enum", "enum_member", "export", "field", "func", "function",
+	"implementation", "import", "interface", "macro", "method", "module",
+	"namespace", "parameter", "property", "self_parameter", "static",
+	"static_method", "struct", "trait", "trait_method", "type", "type_alias",
+	"type_parameter", "union", "var", "variable",
+}
+
+// blastRadiusKindAll is the wildcard that turns the filter off.
+const blastRadiusKindAll = "*"
+
+// blastRadiusKindFilter decides which reached symbols the answer reports. It is
+// a query filter, not a view: the page, total, affected and the four axes are
+// all computed over the symbols it keeps, so they describe one set.
+type blastRadiusKindFilter struct {
+	// selected is the caller's explicit list, nil when it asked for nothing.
+	selected map[string]struct{}
+	// all is `kinds: ["*"]`.
+	all bool
+	// applied is the canonical spelling of the selection, sorted, and `["*"]`
+	// for the wildcard. It is what the response states and what the cursor's
+	// query hash covers, so no two filters share a page.
+	applied []string
+}
+
+// keeps answers whether a symbol of this kind is part of the reported impact.
+func (filter blastRadiusKindFilter) keeps(kind string) bool {
+	if filter.all {
+		return true
+	}
+	if filter.selected != nil {
+		_, selected := filter.selected[kind]
+		return selected
+	}
+	for _, excluded := range blastRadiusDefaultExcludedKinds {
+		if kind == excluded {
+			return false
+		}
+	}
+	return true
+}
+
+// state fills the two fields that tell the caller which filter ran. Exactly one
+// of them is set: a filtered count that does not say it is filtered is a lie
+// about the size of the impact.
+func (filter blastRadiusKindFilter) state() (selected, defaultExcluded []string) {
+	if filter.all || filter.selected != nil {
+		return filter.applied, nil
+	}
+	return nil, blastRadiusDefaultExcludedKinds
+}
+
+// normalizeBlastRadiusKinds validates the requested kinds. The wildcard stands
+// alone: mixing it with names asks for a filter and for no filter at once.
+func normalizeBlastRadiusKinds(values []string) (blastRadiusKindFilter, error) {
+	if len(values) == 0 {
+		return blastRadiusKindFilter{}, nil
+	}
+	selected := make(map[string]struct{}, len(values))
+	wildcard := false
+	for _, value := range values {
+		kind := strings.TrimSpace(value)
+		if kind == blastRadiusKindAll {
+			wildcard = true
+			continue
+		}
+		if !containsString(blastRadiusSelectableKinds, kind) {
+			return blastRadiusKindFilter{}, NewToolError(CodeInvalidArgument, fmt.Sprintf(
+				"kind %q is unsupported, use %q or any of: %s",
+				value, blastRadiusKindAll, strings.Join(blastRadiusSelectableKinds, ", "),
+			))
+		}
+		selected[kind] = struct{}{}
+	}
+	if wildcard {
+		if len(selected) > 0 {
+			return blastRadiusKindFilter{}, NewToolError(CodeInvalidArgument, fmt.Sprintf(
+				"kinds must be %q or a list of kinds, not both",
+				blastRadiusKindAll,
+			))
+		}
+		return blastRadiusKindFilter{all: true, applied: []string{blastRadiusKindAll}}, nil
+	}
+	applied := make([]string, 0, len(selected))
+	for kind := range selected {
+		applied = append(applied, kind)
+	}
+	sort.Strings(applied)
+	return blastRadiusKindFilter{selected: selected, applied: applied}, nil
 }
 
 // RegisterGetBlastRadius adds the read-only impact query without a graph
@@ -174,6 +416,7 @@ func getBlastRadius(
 		Tool: blastRadiusToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
 		Repository: options.Selector.Repository, Path: options.Selector.Path, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
+		Kinds: options.Kinds.applied,
 	})
 	if err != nil {
 		return nil, Response[BlastRadius]{}, err
@@ -189,7 +432,7 @@ func getBlastRadius(
 	if err != nil {
 		return nil, Response[BlastRadius]{}, err
 	}
-	root, _, rootRepository, _, err := symbolReferenceLocation(snapshot, rootID)
+	root, rootLocation, rootRepository, _, err := symbolReferenceLocation(snapshot, rootID)
 	if err != nil {
 		return nil, Response[BlastRadius]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid root metadata", err)
 	}
@@ -216,15 +459,19 @@ func getBlastRadius(
 		return nil, Response[BlastRadius]{}, classifyTraversalError(err)
 	}
 
-	radius, coverage, err := blastRadiusGroups(snapshot, traversal.Visits, traversalOptions, options.Format, options.Derived)
+	radius, coverage, err := blastRadiusGroups(snapshot, traversal.Visits, traversalOptions, options.Format, options.Derived, options.Kinds)
 	if err != nil {
 		return nil, Response[BlastRadius]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid impact metadata", err)
 	}
 	radius.RootKey = string(root.StableKey)
 	radius.RootRepository = rootRepository.name
+	radius.RootPath = rootLocation.path
+	radius.RootLine = root.StartLine
 	radius.Depth = options.Depth
 	radius.MaxNodes = options.MaxNodes
 	radius.TraversalTruncated = traversal.Truncated
+	radius.View = options.View
+	radius.Kinds, radius.KindsExcluded = options.Kinds.state()
 
 	total := len(radius.Symbols)
 	if offset > total {
@@ -282,7 +529,7 @@ func getBlastRadius(
 		Total: total, Returned: len(radius.Symbols), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage, Completeness: &completeness,
 		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore),
-		Results:  radius,
+		Results:  radius, View: options.View,
 	}, nil
 }
 
@@ -324,10 +571,21 @@ func normalizeBlastRadiusInput(arguments GetBlastRadiusInput) (blastRadiusOption
 	if err != nil {
 		return blastRadiusOptions{}, err
 	}
+	kinds, err := normalizeBlastRadiusKinds(arguments.Kinds)
+	if err != nil {
+		return blastRadiusOptions{}, err
+	}
+	// An impact answer is not a set of files: a file holding one affected
+	// symbol says nothing about what a change to it breaks.
+	view, err := normalizeView(arguments.View, false)
+	if err != nil {
+		return blastRadiusOptions{}, err
+	}
 	derived := newDerivedFilter(arguments.IncludeDerived, "")
 	return blastRadiusOptions{
 		Selector: selector, Depth: depth, MaxNodes: maxNodes,
-		EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
+		EdgeKinds: edgeKinds, Confidence: confidence, Kinds: kinds,
+		Limit: limit, Format: format, View: view,
 		Derived: derived,
 	}, nil
 }
@@ -353,12 +611,18 @@ func blastRadiusTraversalOptions(ctx context.Context, options blastRadiusOptions
 // and using its type, say -- and reporting only the edge BFS happened to take
 // first would hide the others. Every edge from the affected symbol into the
 // visited set is inspected, under the same filters the traversal used.
+//
+// reported selects which reached symbols the answer counts. It runs here, once,
+// so the page and all four axes describe the same set; the visited set it is
+// checked against is the whole traversal, because an edge into an unreported
+// symbol is still how the symbol behind it was reached.
 func blastRadiusGroups(
 	snapshot *hotsnapshot.GraphSnapshot,
 	visits []hotsnapshot.TraversalVisit,
 	traversal hotsnapshot.TraversalOptions,
 	format string,
 	derived derivedFilter,
+	reported blastRadiusKindFilter,
 ) (BlastRadius, Coverage, error) {
 	radius := BlastRadius{Symbols: make([]ReachedSymbol, 0, len(visits))}
 	coverage := Coverage{}
@@ -379,6 +643,16 @@ func blastRadiusGroups(
 		if !derived.keepsRepository(repository.name) {
 			continue
 		}
+		table := snapshot.Strings()
+		kind, kindOK := table.String(symbol.Kind)
+		if !kindOK {
+			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
+		}
+		// Tested before the package and source lookups below: on the page this
+		// filter exists for, it discards most of the frontier.
+		if !reported.keeps(kind) {
+			continue
+		}
 		decoded, isReference, err := decodeReferenceEdge(visit.Edge)
 		if err != nil {
 			return BlastRadius{}, Coverage{}, err
@@ -394,11 +668,9 @@ func blastRadiusGroups(
 		if !found {
 			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol index %d is missing", visit.Source)
 		}
-		table := snapshot.Strings()
 		name, nameOK := table.String(symbol.Name)
 		qualifiedName, qualifiedOK := table.String(symbol.QualifiedName)
-		kind, kindOK := table.String(symbol.Kind)
-		if !nameOK || !qualifiedOK || !kindOK {
+		if !nameOK || !qualifiedOK {
 			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
 		}
 

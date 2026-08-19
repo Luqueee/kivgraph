@@ -103,7 +103,7 @@ func TestFindSymbolWithholdsTheDerivedProviderByDefault(t *testing.T) {
 	client := derivedClient(t, store)
 
 	var withheld Response[[]SymbolSummary]
-	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "Clone"}, &withheld)
+	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "Clone", "view": ViewFull}, &withheld)
 	if withheld.Total != 1 || len(withheld.Results) != 1 {
 		t.Fatalf("default page = %#v, want only the repository's own symbol", withheld.Results)
 	}
@@ -112,7 +112,7 @@ func TestFindSymbolWithholdsTheDerivedProviderByDefault(t *testing.T) {
 	}
 
 	var asked Response[[]SymbolSummary]
-	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "Clone", "include_derived": true}, &asked)
+	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "Clone", "include_derived": true, "view": ViewFull}, &asked)
 	if asked.Total != 2 {
 		t.Fatalf("include_derived total = %d, want both", asked.Total)
 	}
@@ -120,7 +120,7 @@ func TestFindSymbolWithholdsTheDerivedProviderByDefault(t *testing.T) {
 	// Naming the provider is a request for it: a caller who spells the
 	// repository out should not also need the flag.
 	var named Response[[]SymbolSummary]
-	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "Clone", "repo": "rust:1.96.1"}, &named)
+	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "Clone", "repo": "rust:1.96.1", "view": ViewFull}, &named)
 	if named.Total != 1 || named.Results[0].QualifiedName != "clone::Clone" {
 		t.Fatalf("repo-named page = %#v, want the standard library's symbol", named.Results)
 	}
@@ -134,7 +134,7 @@ func TestFindReferencesWithholdsDerivedRows(t *testing.T) {
 
 	var withheld Response[ReferenceResult]
 	callDerivedTool(t, client, "find_references", map[string]any{
-		"stable_key": "symbol-app-use", "direction": FindReferencesDirectionOutgoing,
+		"stable_key": "symbol-app-use", "direction": FindReferencesDirectionOutgoing, "view": ViewFull,
 	}, &withheld)
 	if withheld.Total != 0 || len(withheld.Results.References) != 0 {
 		t.Fatalf("default page = %#v, want no derived rows", withheld.Results.References)
@@ -143,7 +143,7 @@ func TestFindReferencesWithholdsDerivedRows(t *testing.T) {
 	var asked Response[ReferenceResult]
 	callDerivedTool(t, client, "find_references", map[string]any{
 		"stable_key": "symbol-app-use", "direction": FindReferencesDirectionOutgoing,
-		"include_derived": true,
+		"include_derived": true, "view": ViewFull,
 	}, &asked)
 	if asked.Total != 1 || asked.Results.References[0].QualifiedName != "clone::Clone" {
 		t.Fatalf("include_derived page = %#v, want the standard library row", asked.Results.References)
@@ -233,14 +233,14 @@ func TestEveryRowNamesItsRepositoryTheSameWay(t *testing.T) {
 	client := derivedClient(t, store)
 
 	var found Response[[]SymbolSummary]
-	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "duplicate"}, &found)
+	callDerivedTool(t, client, "find_symbol", map[string]any{"name": "duplicate", "view": ViewFull}, &found)
 	if len(found.Results) != 1 || found.Results[0].Repository != "app" {
 		t.Fatalf("find_symbol row = %#v, want the repository name", found.Results)
 	}
 
 	var references Response[ReferenceResult]
 	callDerivedTool(t, client, "find_references", map[string]any{
-		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
+		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming, "view": ViewFull,
 	}, &references)
 	rows := references.Results.References
 	if len(rows) != 1 || rows[0].Repository != "app" {
@@ -254,7 +254,7 @@ func TestEveryRowNamesItsRepositoryTheSameWay(t *testing.T) {
 	var detailed Response[ReferenceResult]
 	callDerivedTool(t, client, "find_references", map[string]any{
 		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
-		"response_format": ResponseFormatDetailed,
+		"response_format": ResponseFormatDetailed, "view": ViewFull,
 	}, &detailed)
 	if got := detailed.Results.References[0].RepositoryKey; got != "repository:app" {
 		t.Fatalf("detailed repository key = %q, want the stored key", got)
@@ -264,7 +264,7 @@ func TestEveryRowNamesItsRepositoryTheSameWay(t *testing.T) {
 	var filtered Response[ReferenceResult]
 	callDerivedTool(t, client, "find_references", map[string]any{
 		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
-		"repo": "app",
+		"repo": "app", "view": ViewFull,
 	}, &filtered)
 	if filtered.Total != 1 {
 		t.Fatalf("repo filter by name returned %d rows, want 1", filtered.Total)
@@ -272,7 +272,7 @@ func TestEveryRowNamesItsRepositoryTheSameWay(t *testing.T) {
 	var byKey Response[ReferenceResult]
 	callDerivedTool(t, client, "find_references", map[string]any{
 		"stable_key": "symbol-core-clone", "direction": FindReferencesDirectionIncoming,
-		"repo": "repository:app",
+		"repo": "repository:app", "view": ViewFull,
 	}, &byKey)
 	if byKey.Total != 0 {
 		t.Fatalf("repo filter accepted a key: %d rows", byKey.Total)

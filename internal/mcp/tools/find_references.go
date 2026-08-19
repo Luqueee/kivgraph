@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -24,9 +25,19 @@ const (
 
 // FindReferencesInput identifies one symbol and the direct relationship page
 // to inspect around it.
+//
+// Name is the unqualified name, and it exists so the common question costs one
+// call: with a single declaration of that name the tool answers about it, and
+// with several it returns the candidates as `repository:path:line` instead of
+// answering about one nobody chose. Repository and Path narrow it.
+//
+// View is the granularity of the answer: `compact` groups the rows by file and
+// hoists whatever every row shares, `full` keeps the field-per-row shape, and
+// `files` answers only which files hold references and how many each holds.
 type FindReferencesInput struct {
 	StableKey      string   `json:"stable_key,omitempty"`
 	QualifiedName  string   `json:"qualified_name,omitempty"`
+	Name           string   `json:"name,omitempty"`
 	Repository     string   `json:"repository,omitempty"`
 	Path           string   `json:"path,omitempty"`
 	Direction      string   `json:"direction,omitempty"`
@@ -36,6 +47,7 @@ type FindReferencesInput struct {
 	Confidence     string   `json:"confidence,omitempty"`
 	IncludeDerived bool     `json:"include_derived,omitempty"`
 	ResponseFormat string   `json:"response_format,omitempty"`
+	View           string   `json:"view,omitempty"`
 	Limit          int      `json:"limit,omitempty"`
 	Cursor         string   `json:"cursor,omitempty"`
 }
@@ -83,15 +95,229 @@ type ReferenceSummary struct {
 	RepositoryKey string `json:"repository_key,omitempty"`
 }
 
-// ReferenceResult is one page of relationships around a subject.
+// ReferenceResult is one page of relationships around a subject. View decides
+// how it is written, never which facts it holds: see MarshalJSON below.
 type ReferenceResult struct {
 	Subject    ReferenceSubject   `json:"subject"`
 	Direction  string             `json:"direction"`
 	References []ReferenceSummary `json:"references"`
+	View       string             `json:"-"`
+}
+
+// MarshalJSON writes the page under the view the caller asked for. The compact
+// and files shapes carry the same edges as full: a column leaves a row only
+// when the header states it for every row, and `confidence` and `provenance`
+// are always readable in one of the two places.
+func (result ReferenceResult) MarshalJSON() ([]byte, error) {
+	type fullResult struct {
+		Subject    ReferenceSubject   `json:"subject"`
+		Direction  string             `json:"direction"`
+		References []ReferenceSummary `json:"references"`
+	}
+	switch result.View {
+	case ViewCompact:
+		return json.Marshal(result.compact())
+	case ViewFiles:
+		return json.Marshal(result.files())
+	default:
+		return json.Marshal(fullResult{
+			Subject:    result.Subject,
+			Direction:  result.Direction,
+			References: result.References,
+		})
+	}
+}
+
+func (result ReferenceResult) subjectLabel() string {
+	return locationLabel(result.Subject.Repository, result.Subject.FilePath, result.Subject.StartLine)
+}
+
+// compact hoists to the page header what every row shares, then groups what is
+// left. `kind`, `edge_kind`, `confidence` and `provenance` each hoist
+// independently when the whole page agrees; the rows that do not all agree on
+// one of them are grouped by the exact tuple they still share, so the tuple is
+// stated once per group instead of once per row. Measured on a 66-row page
+// where one dissenting export kept `kind` and `edge_kind` off the header: three
+// groups replaced sixty-six row tails, one of them covering 62 rows.
+func (result ReferenceResult) compact() compactReferenceResult {
+	rows := result.References
+	count := len(rows)
+	compact := compactReferenceResult{
+		Subject:    result.subjectLabel(),
+		QN:         result.Subject.QualifiedName,
+		Direction:  result.Direction,
+		Repository: hoistString(count, func(index int) string { return rows[index].Repository }),
+		Kind:       hoistString(count, func(index int) string { return rows[index].Kind }),
+		EdgeKind:   hoistString(count, func(index int) string { return rows[index].EdgeKind }),
+		Confidence: hoistString(count, func(index int) string { return rows[index].Confidence }),
+		Provenance: hoistString(count, func(index int) string { return rows[index].Provenance }),
+	}
+
+	residual := func(row ReferenceSummary) []string {
+		return []string{
+			blankWhenHoisted(row.Kind, compact.Kind),
+			blankWhenHoisted(row.EdgeKind, compact.EdgeKind),
+			blankWhenHoisted(row.Confidence, compact.Confidence),
+			blankWhenHoisted(row.Provenance, compact.Provenance),
+		}
+	}
+	flatFiles := referenceFileGroups(rows, compact.Repository, compact.Kind, compact.EdgeKind, compact.Confidence, compact.Provenance)
+	groups := groupByResidual(rows, residual)
+	if len(groups) <= 1 {
+		compact.Files = flatFiles
+		return compact
+	}
+	candidateGroups := make([]compactReferenceGroup, 0, len(groups))
+	for _, bucket := range groups {
+		first := bucket[0]
+		group := compactReferenceGroup{
+			Kind:       blankWhenHoisted(first.Kind, compact.Kind),
+			EdgeKind:   blankWhenHoisted(first.EdgeKind, compact.EdgeKind),
+			Confidence: blankWhenHoisted(first.Confidence, compact.Confidence),
+			Provenance: blankWhenHoisted(first.Provenance, compact.Provenance),
+		}
+		// Every column left is now uniform inside the bucket, so a row inside
+		// it carries nothing beyond its own declaration.
+		group.Files = referenceFileGroups(bucket, compact.Repository, first.Kind, first.EdgeKind, first.Confidence, first.Provenance)
+		candidateGroups = append(candidateGroups, group)
+	}
+	// Grouping only wins when a tuple repeats enough to pay for its own
+	// header; a page where every row disagrees on everything is cheaper left
+	// flat. Marshaling both candidates on a page this small costs nothing, and
+	// it is the only way to guarantee grouping never costs more than not
+	// grouping instead of hoping a heuristic holds.
+	if flatBytes, err := json.Marshal(flatFiles); err == nil {
+		if groupedBytes, err := json.Marshal(candidateGroups); err == nil && len(groupedBytes) >= len(flatBytes) {
+			compact.Files = flatFiles
+			return compact
+		}
+	}
+	compact.Groups = candidateGroups
+	return compact
+}
+
+// referenceFileGroups groups rows by file with a bare `qn@lines` label per
+// row: valid once every one of kind, edge_kind, confidence and provenance is
+// accounted for above the row, whether on the page header or on a group.
+func referenceFileGroups(rows []ReferenceSummary, hoistedRepository, kind, edgeKind, confidence, provenance string) []compactReferenceFile {
+	files := make([]compactReferenceFile, 0, len(rows))
+	index := make(map[string]int, len(rows))
+	for _, row := range rows {
+		key := row.Repository + "\x00" + row.FilePath
+		position, seen := index[key]
+		if !seen {
+			position = len(files)
+			index[key] = position
+			file := compactReferenceFile{File: row.FilePath}
+			if row.Repository != hoistedRepository {
+				file.Repository = row.Repository
+			}
+			files = append(files, file)
+		}
+		files[position].At = append(files[position].At, compactRowTail(
+			declarationLabel(row.QualifiedName, row.StartLine, row.EndLine),
+			blankWhenHoisted(row.Kind, kind),
+			blankWhenHoisted(row.EdgeKind, edgeKind),
+			blankWhenHoisted(row.Confidence, confidence),
+			blankWhenHoisted(row.Provenance, provenance),
+		))
+	}
+	return files
+}
+
+// files counts the references per file. The question it answers is which files
+// to open, so a repeated caller in one file is a count and not a row.
+func (result ReferenceResult) files() referenceFilesResult {
+	files := referenceFilesResult{
+		Subject:   result.subjectLabel(),
+		QN:        result.Subject.QualifiedName,
+		Direction: result.Direction,
+		Files:     make([]referenceFileCount, 0, len(result.References)),
+	}
+	index := make(map[string]int, len(result.References))
+	for _, row := range result.References {
+		path := row.Repository + "/" + row.FilePath
+		position, seen := index[path]
+		if !seen {
+			position = len(files.Files)
+			index[path] = position
+			files.Files = append(files.Files, referenceFileCount{File: path})
+		}
+		files.Files[position].Count++
+	}
+	return files
+}
+
+// compactReferenceResult is one page with the repeated columns lifted out of
+// the rows. Every field it hoists is one an agent read fifty times to learn
+// one thing: `confidence` and `provenance` alone were 1.200 of the 4.236
+// tokens of one page over `kena`.
+//
+// Files and Groups are mutually exclusive: Groups appears only when the page
+// itself could not agree on kind, edge_kind, confidence or provenance, and a
+// second tier of hoisting groups the rows by what they do still share instead
+// of repeating it on each one; see compact() and groupByResidual.
+type compactReferenceResult struct {
+	Subject   string `json:"subject"`
+	QN        string `json:"qn"`
+	Direction string `json:"direction"`
+
+	// Hoisted columns. Absent means the page disagreed; see Groups.
+	Repository string `json:"repository,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	EdgeKind   string `json:"edge_kind,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Provenance string `json:"provenance,omitempty"`
+
+	Files  []compactReferenceFile  `json:"files,omitempty"`
+	Groups []compactReferenceGroup `json:"groups,omitempty"`
+}
+
+// compactReferenceGroup is every row that shares one exact tuple of the
+// columns the page header could not hoist. Absent means this group's rows
+// hold the page's hoisted value too and it is not the field distinguishing
+// them.
+type compactReferenceGroup struct {
+	Kind       string `json:"kind,omitempty"`
+	EdgeKind   string `json:"edge_kind,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Provenance string `json:"provenance,omitempty"`
+
+	Files []compactReferenceFile `json:"files"`
+}
+
+// compactReferenceFile is one file and the symbols in it that hold the fact.
+// An entry is `qualified_name@line`, and becomes an array when this row had to
+// carry a column neither the page nor its group could hoist.
+type compactReferenceFile struct {
+	Repository string `json:"repo,omitempty"`
+	File       string `json:"file"`
+	At         []any  `json:"at"`
+}
+
+// referenceFilesResult answers which files hold references, and how many each
+// holds. It is the shape of the question "which files call this", which is what
+// an agent asks before deciding what to open.
+type referenceFilesResult struct {
+	Subject   string               `json:"subject"`
+	QN        string               `json:"qn"`
+	Direction string               `json:"direction"`
+	Files     []referenceFileCount `json:"files"`
+}
+
+type referenceFileCount struct {
+	File  string `json:"file"`
+	Count int    `json:"count"`
 }
 
 type findReferencesOptions struct {
-	Selector   symbolSelector
+	Selector symbolSelector
+	// Name is the unqualified name to resolve to its one declaration. It is
+	// resolved against the snapshot, so it never reaches the query hash: the
+	// hash covers the qualified name it resolved to, and a page stays valid
+	// while the snapshot does.
+	Name       string
+	View       string
 	Direction  string
 	Repo       string
 	Language   string
@@ -189,6 +415,29 @@ func findReferences(
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err
 	}
+	if snapshotStore == nil {
+		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
+	}
+	snapshot := snapshotStore.Load()
+	if snapshot == nil {
+		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
+	}
+
+	// A name resolves to its declaration before anything else: the query hash
+	// covers the qualified name it resolved to, so a cursor keeps addressing
+	// the same page whether the caller arrived by name or by triple.
+	var startID hotsnapshot.SymbolID
+	if options.Name != "" {
+		resolvedID, qualifiedName, resolveErr := resolveDeclarationByName(
+			snapshot, options.Name, options.Selector.Repository, options.Selector.Path,
+		)
+		if resolveErr != nil {
+			return nil, Response[ReferenceResult]{}, resolveErr
+		}
+		startID = resolvedID
+		options.Selector.QualifiedName = qualifiedName
+	}
+
 	queryHash, err := HashQuery(findReferencesQuery{
 		Tool: findReferencesToolName, StableKey: options.Selector.StableKey,
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
@@ -199,17 +448,12 @@ func findReferences(
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err
 	}
-	if snapshotStore == nil {
-		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
-	}
-	snapshot := snapshotStore.Load()
-	if snapshot == nil {
-		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
-	}
 
-	startID, err := resolveSymbolSelector(snapshot, options.Selector)
-	if err != nil {
-		return nil, Response[ReferenceResult]{}, err
+	if options.Name == "" {
+		startID, err = resolveSymbolSelector(snapshot, options.Selector)
+		if err != nil {
+			return nil, Response[ReferenceResult]{}, err
+		}
 	}
 	// referenceSubject resolves the start symbol and everything it needs to
 	// be named, so a missing index shows up here rather than twice.
@@ -309,14 +553,41 @@ func findReferences(
 		NextCursor:    nextCursor,
 		Coverage:      coverage,
 		Guidance:      referenceGuidance(options.Direction, total, len(results), hasMore),
-		Results:       ReferenceResult{Subject: subject, Direction: options.Direction, References: results},
+		View:          options.View,
+		Results: ReferenceResult{
+			Subject: subject, Direction: options.Direction, References: results, View: options.View,
+		},
 	}, nil
 }
 
 func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferencesOptions, error) {
-	selector, err := normalizeSymbolSelector(arguments.StableKey, arguments.Repository, arguments.Path, arguments.QualifiedName)
-	if err != nil {
-		return findReferencesOptions{}, err
+	name := arguments.Name
+	var selector symbolSelector
+	if name != "" {
+		if arguments.StableKey != "" || arguments.QualifiedName != "" {
+			return findReferencesOptions{}, NewToolError(CodeInvalidArgument,
+				"name identifies a declaration on its own; pass stable_key or qualified_name instead, not both")
+		}
+		if strings.TrimSpace(name) != name {
+			return findReferencesOptions{}, NewToolError(CodeInvalidArgument, "name must not carry surrounding whitespace")
+		}
+		if arguments.Path != "" && arguments.Repository == "" {
+			return findReferencesOptions{}, NewToolError(CodeInvalidArgument, "path is repository-relative, so it requires repository")
+		}
+		selector = symbolSelector{Repository: arguments.Repository, Path: arguments.Path}
+		if selector.Path != "" {
+			normalized, err := normalizeOutlinePath(selector.Path)
+			if err != nil {
+				return findReferencesOptions{}, err
+			}
+			selector.Path = normalized
+		}
+	} else {
+		resolved, err := normalizeSymbolSelector(arguments.StableKey, arguments.Repository, arguments.Path, arguments.QualifiedName)
+		if err != nil {
+			return findReferencesOptions{}, err
+		}
+		selector = resolved
 	}
 	direction := arguments.Direction
 	if direction == "" {
@@ -348,8 +619,17 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 	if limit < 1 || limit > MaximumReferenceLimit {
 		return findReferencesOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("limit must be between 1 and %d", MaximumReferenceLimit))
 	}
+	view, err := normalizeView(arguments.View, true)
+	if err != nil {
+		return findReferencesOptions{}, err
+	}
+	// A file list is one line per file, so paging it is a cost with no payoff:
+	// the question "which files" is answered wrong by a page that stops at 50.
+	if view == ViewFiles && arguments.Limit == 0 {
+		limit = MaximumReferenceLimit
+	}
 	return findReferencesOptions{
-		Selector: selector, Direction: direction, Repo: repo, Language: language,
+		Selector: selector, Name: name, View: view, Direction: direction, Repo: repo, Language: language,
 		EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
 		Derived: newDerivedFilter(arguments.IncludeDerived, repo),
 	}, nil

@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -262,5 +264,150 @@ func TestTraceDependenciesDetailedFormatRestoresDerivedIdentifiers(t *testing.T)
 	}
 	if first.ReachedFrom != "root.Root" || first.EndLine < first.StartLine {
 		t.Fatalf("detailed node = %#v, want the concise fields kept as well", first)
+	}
+}
+
+// TestTraceDependenciesFullViewKeepsTodaysPayload pins the shape a client that
+// asks for `view: "full"` still gets: every envelope field present, including
+// the ones that carry nothing, and every column on every row.
+func TestTraceDependenciesFullViewKeepsTodaysPayload(t *testing.T) {
+	store := traceDependenciesStore(t, 36)
+	_, response, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", View: ViewFull,
+	}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("Marshal response: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("Unmarshal payload: %v", err)
+	}
+	// The age is the one field a snapshot cannot state twice in a row.
+	if _, ok := payload["snapshot_age_ms"].(float64); !ok {
+		t.Fatalf("snapshot_age_ms = %#v, want a number", payload["snapshot_age_ms"])
+	}
+	payload["snapshot_age_ms"] = "measured"
+
+	row := func(name, qualifiedName, kind string, depth int, repository, language, path string,
+		startLine, endLine int, reachedFrom string, viaKind facts.EdgeKind,
+		viaConfidence facts.Confidence, viaProvenance facts.Provenance,
+	) map[string]any {
+		return map[string]any{
+			"name": name, "qualified_name": qualifiedName, "kind": kind,
+			"depth": float64(depth), "repository": repository, "language": language,
+			"file_path": path, "start_line": float64(startLine), "end_line": float64(endLine),
+			"reached_from": reachedFrom, "via_kind": string(viaKind),
+			"via_confidence": string(viaConfidence), "via_provenance": string(viaProvenance),
+		}
+	}
+	want := map[string]any{
+		"snapshot_id": float64(36), "snapshot_age_ms": "measured",
+		"total": float64(3), "returned": float64(3),
+		"truncated": false, "next_cursor": nil,
+		"coverage": map[string]any{
+			"exact": float64(2), "candidate": float64(1),
+			"unresolved_related": float64(0), "package_level": float64(0),
+		},
+		"results": map[string]any{
+			"root_key": "sym-root", "root_repository": "root",
+			"depth": float64(DefaultDependencyDepth), "max_nodes": float64(DefaultDependencyMaxNodes),
+			"reached": float64(3), "deepest_depth": float64(3), "traversal_truncated": false,
+			"nodes": []any{
+				row("Level1", "root.Level1", "func", 1, "root", "go", "root.go", 30, 36,
+					"root.Root", facts.CallsDirect, facts.ExactTypechecked, facts.GoTypesUse),
+				row("Level2", "root.Level2", "func", 2, "root", "go", "root.go", 40, 46,
+					"root.Level1", facts.References, facts.Candidate, facts.TreeSitterSyntax),
+				row("Level3", "other.Level3", "function", 3, "other", "ts", "other.ts", 50, 56,
+					"root.Level2", facts.ImportsSymbol, facts.ExactTypechecked, facts.GoTypesUse),
+			},
+		},
+	}
+	if !reflect.DeepEqual(payload, want) {
+		t.Fatalf("full payload = %s", encoded)
+	}
+}
+
+// TestTraceDependenciesCompactViewHoistsWhatEveryRowShares is the default
+// answer: the same three hops, the same edges, the same confidence and the
+// same provenance, spelled without repeating what the page agrees on.
+func TestTraceDependenciesCompactViewHoistsWhatEveryRowShares(t *testing.T) {
+	store := traceDependenciesStore(t, 37)
+
+	// One hop: every column is shared, so the header states each of them once
+	// and the row is nothing but where the symbol is declared.
+	_, single, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", Depth: 1,
+	}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	encoded, err := json.Marshal(single)
+	if err != nil {
+		t.Fatalf("Marshal response: %v", err)
+	}
+	wantSingle := `{"snapshot_id":37,"total":1,"returned":1,"coverage":{"exact":1},` +
+		`"results":{"root_key":"sym-root","root_repository":"root","depth":1,"max_nodes":5000,` +
+		`"reached":1,"deepest_depth":1,"repository":"root","kind":"func","hop_depth":1,` +
+		`"reached_from":"root.Root","via_kind":"CALLS_DIRECT","via_confidence":"EXACT_TYPECHECKED",` +
+		`"via_provenance":"GO_TYPES_USE","files":[{"file":"root.go","at":["root.Level1@30-36"]}]}}`
+	if string(encoded) != wantSingle {
+		t.Fatalf("compact payload =\n%s\nwant\n%s", encoded, wantSingle)
+	}
+
+	// Three hops that agree on nothing: every column stays on its row, in the
+	// documented order, and the group states the repository it is not in.
+	_, full, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-root"}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	compact, err := json.Marshal(full)
+	if err != nil {
+		t.Fatalf("Marshal response: %v", err)
+	}
+	wantCompact := `{"snapshot_id":37,"total":3,"returned":3,"coverage":{"exact":2,"candidate":1},` +
+		`"results":{"root_key":"sym-root","root_repository":"root","depth":3,"max_nodes":5000,` +
+		`"reached":3,"deepest_depth":3,"files":[` +
+		`{"file":"root.go","repo":"root","at":[` +
+		`["root.Level1@30-36","func","1","root.Root","CALLS_DIRECT","EXACT_TYPECHECKED","GO_TYPES_USE"],` +
+		`["root.Level2@40-46","func","2","root.Level1","REFERENCES","CANDIDATE","TREE_SITTER_SYNTAX"]]},` +
+		`{"file":"other.ts","repo":"other","at":[` +
+		`["other.Level3@50-56","function","3","root.Level2","IMPORTS_SYMBOL","EXACT_TYPECHECKED","GO_TYPES_USE"]]}]}}`
+	if string(compact) != wantCompact {
+		t.Fatalf("compact payload =\n%s\nwant\n%s", compact, wantCompact)
+	}
+
+	// Same page, same facts, fewer bytes: that is the whole point of the view.
+	_, verbose, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+		StableKey: "sym-root", View: ViewFull,
+	}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	encodedFull, err := json.Marshal(verbose)
+	if err != nil {
+		t.Fatalf("Marshal response: %v", err)
+	}
+	t.Logf("one page of three hops: full %d bytes, compact %d bytes", len(encodedFull), len(compact))
+	if len(compact) >= len(encodedFull) {
+		t.Fatalf("compact payload is %d bytes and full is %d", len(compact), len(encodedFull))
+	}
+}
+
+// TestTraceDependenciesRejectsAViewItCannotAnswer keeps the argument honest: a
+// traversal is not a set of files, so asking for that granularity is an error
+// rather than a compact answer wearing the wrong name.
+func TestTraceDependenciesRejectsAViewItCannotAnswer(t *testing.T) {
+	store := traceDependenciesStore(t, 38)
+	for _, view := range []string{ViewFiles, "brief"} {
+		_, _, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+			StableKey: "sym-root", View: view,
+		}, store)
+		if ErrorCode(err) != CodeInvalidArgument {
+			t.Fatalf("view %q error code = %q, want %q", view, ErrorCode(err), CodeInvalidArgument)
+		}
 	}
 }

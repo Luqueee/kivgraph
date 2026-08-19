@@ -159,3 +159,112 @@ func errSelectorAmbiguous(
 		selector.QualifiedName, page.Total, strings.Join(candidates, ", "),
 	))
 }
+
+// declarationKinds are the kinds that declare a symbol rather than mention one.
+// An import row and a re-export row are facts about the same name, but a
+// question about references is a question about the declaration: resolving to
+// the import of a name would answer for the file that borrowed it.
+var declarationKinds = map[string]struct{}{
+	"function": {}, "func": {}, "method": {}, "class": {}, "interface": {},
+	"struct": {}, "enum": {}, "type": {}, "trait": {}, "const": {},
+	"variable": {}, "field": {}, "module": {}, "namespace": {},
+}
+
+func isDeclarationKind(kind string) bool {
+	_, found := declarationKinds[kind]
+	return found
+}
+
+// resolveDeclarationByName turns an unqualified name into the one symbol that
+// declares it, so the common question costs one call instead of two.
+//
+// It is the same refusal to guess as resolveSymbolSelector: several
+// declarations of one name -- `withRetry` names seven symbols across three
+// languages in `kena` -- return the candidates as `repository:path:line`, which
+// measured 49 to 144 tokens against the 2.293 of listing every row of
+// find_symbol, imports and re-exports included.
+func resolveDeclarationByName(
+	snapshot *hotsnapshot.GraphSnapshot,
+	name, repository, path string,
+) (hotsnapshot.SymbolID, string, error) {
+	if repository != "" {
+		if _, found := snapshot.RepositoryByName(repository); !found {
+			return 0, "", NewToolError(CodeRepositoryNotFound, fmt.Sprintf(
+				"repository %q is not in the published graph", repository,
+			))
+		}
+	}
+	interned, found := snapshot.Strings().Lookup(name)
+	if !found {
+		return 0, "", NewToolError(CodeSymbolNotFound, fmt.Sprintf("name %q was not found", name))
+	}
+	filter := hotsnapshot.SymbolFilter{RepositoryName: repository, PathPrefix: path}
+	page, err := snapshot.SearchSymbolsByName(interned, filter, 0, hotsnapshot.MaxExactResults)
+	if err != nil {
+		return 0, "", WrapToolError(CodeSnapshotUnavailable, "name lookup failed", err)
+	}
+
+	declarations := make([]hotsnapshot.SymbolID, 0, len(page.IDs))
+	mentions := 0
+	for _, id := range page.IDs {
+		symbol, ok := snapshot.Symbol(id)
+		if !ok {
+			continue
+		}
+		kind, kindOK := snapshot.Strings().String(symbol.Kind)
+		if !kindOK {
+			continue
+		}
+		if isDeclarationKind(kind) {
+			declarations = append(declarations, id)
+			continue
+		}
+		mentions++
+	}
+
+	switch len(declarations) {
+	case 1:
+		symbol, ok := snapshot.Symbol(declarations[0])
+		if !ok {
+			return 0, "", NewToolError(CodeSnapshotUnavailable, "resolved symbol left the snapshot")
+		}
+		qualifiedName, qualifiedNameOK := snapshot.Strings().String(symbol.QualifiedName)
+		if !qualifiedNameOK {
+			return 0, "", NewToolError(CodeSnapshotUnavailable, "resolved symbol has an invalid qualified name")
+		}
+		return declarations[0], qualifiedName, nil
+	case 0:
+		if mentions > 0 {
+			return 0, "", NewToolError(CodeSymbolNotFound, fmt.Sprintf(
+				"name %q is only imported or re-exported here, never declared; pass the repository and path that declares it",
+				name,
+			))
+		}
+		return 0, "", NewToolError(CodeSymbolNotFound, fmt.Sprintf("name %q was not found", name))
+	}
+	return 0, "", errNameAmbiguous(snapshot, name, declarations)
+}
+
+func errNameAmbiguous(
+	snapshot *hotsnapshot.GraphSnapshot,
+	name string,
+	declarations []hotsnapshot.SymbolID,
+) error {
+	candidates := make([]string, 0, len(declarations))
+	for _, id := range declarations {
+		symbol, ok := snapshot.Symbol(id)
+		if !ok {
+			continue
+		}
+		location, err := resolveSymbolLocation(snapshot, symbol)
+		if err != nil {
+			candidates = append(candidates, string(symbol.StableKey))
+			continue
+		}
+		candidates = append(candidates, locationLabel(location.RepositoryName, location.FilePath, symbol.StartLine))
+	}
+	return NewToolError(CodeAmbiguousSymbol, fmt.Sprintf(
+		"name %q declares %d symbols; repeat with the repository and path of the one you mean: %s",
+		name, len(declarations), strings.Join(candidates, ", "),
+	))
+}

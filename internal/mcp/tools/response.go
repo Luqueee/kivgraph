@@ -3,9 +3,11 @@ package tools
 // Response is the common envelope returned by every query tool.
 //
 // A nil snapshot identifier and age mean that no immutable snapshot has been
-// published yet. Optional metadata is still encoded as JSON null: clients can
-// rely on all envelope fields being present without confusing an empty graph
-// with a missing response field.
+// published yet. Under `view: "full"` optional metadata is still encoded as
+// JSON null, so a client can rely on every envelope field being present
+// without confusing an empty graph with a missing response field. Under the
+// compact views the fields that carried nothing are absent instead; see
+// ADR 0046 and `MarshalJSON` in `view.go`.
 type Response[T any] struct {
 	SnapshotID    *uint64  `json:"snapshot_id"`
 	SnapshotAgeMS *int64   `json:"snapshot_age_ms"`
@@ -24,6 +26,9 @@ type Response[T any] struct {
 	// the rows that mattered are in it.
 	Guidance string `json:"guidance,omitempty"`
 	Results  T      `json:"results"`
+	// View is the granularity the caller asked for. It shapes the envelope and
+	// never travels in it.
+	View string `json:"-"`
 }
 
 // Coverage counts how confidently the response can account for related graph

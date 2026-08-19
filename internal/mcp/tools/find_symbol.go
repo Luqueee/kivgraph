@@ -2,7 +2,9 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,11 @@ const (
 // Kind, Repo and PathPrefix narrow the page without changing its cost class:
 // prefix and substring already walk every symbol name in the snapshot, so
 // filtering while walking is free.
+//
+// View is the granularity of the answer. The default, `compact`, hoists what
+// every row shares into a header and leaves `stable_key` out; `full` is the
+// field-per-row shape of SymbolSummary. `files` is rejected here: find_symbol
+// answers declarations, not files.
 type FindSymbolInput struct {
 	Name           string `json:"name"`
 	Mode           string `json:"mode,omitempty"`
@@ -37,6 +44,7 @@ type FindSymbolInput struct {
 	IncludeDerived bool   `json:"include_derived,omitempty"`
 	PathPrefix     string `json:"path_prefix,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`
+	View           string `json:"view,omitempty"`
 	Limit          int    `json:"limit,omitempty"`
 	Cursor         string `json:"cursor,omitempty"`
 }
@@ -61,6 +69,255 @@ type SymbolSummary struct {
 	StartLine         uint32 `json:"start_line"`
 	EndLine           uint32 `json:"end_line"`
 	CanonicalIdentity string `json:"canonical_identity,omitempty"`
+}
+
+// SymbolResults is one page of declarations together with the granularity to
+// spell it with. The rows are always the full shape in memory: MarshalJSON is
+// the single place that decides whether the payload repeats what every row
+// shares.
+type SymbolResults struct {
+	Symbols []SymbolSummary
+	// View is the granularity the caller asked for and never travels in the
+	// payload.
+	View string `json:"-"`
+	// Format is the response format asked for. Only the detailed one restores
+	// the keys a compact row drops.
+	Format string `json:"-"`
+}
+
+// MarshalJSON writes the rows as they are under the full view, and the compact
+// page otherwise. An absent page is an empty page, never a null: `results` is
+// documented as always present.
+func (results SymbolResults) MarshalJSON() ([]byte, error) {
+	if results.View == ViewFull || results.View == "" {
+		if results.Symbols == nil {
+			return []byte("[]"), nil
+		}
+		return json.Marshal(results.Symbols)
+	}
+	return json.Marshal(results.compact())
+}
+
+// compactSymbolPage is what every row shares written once, then one entry per
+// declaration -- flat when kind and exported both hoist to the page, grouped
+// by whichever of the two does not; see compact.
+type compactSymbolPage struct {
+	Name       string                   `json:"name,omitempty"`
+	Kind       string                   `json:"kind,omitempty"`
+	Exported   *bool                    `json:"exported,omitempty"`
+	Repository string                   `json:"repository,omitempty"`
+	Symbols    []compactSymbol          `json:"symbols,omitempty"`
+	Groups     []compactSymbolKindGroup `json:"groups,omitempty"`
+}
+
+// compactSymbolKindGroup is every declaration that shares one exact (kind,
+// exported) pair the page could not hoist. Absent means this group's rows
+// hold the page's hoisted value too.
+type compactSymbolKindGroup struct {
+	Kind     string          `json:"kind,omitempty"`
+	Exported *bool           `json:"exported,omitempty"`
+	Symbols  []compactSymbol `json:"symbols"`
+}
+
+// compactSymbol is one declaration. At addresses it: `path:line` under a header
+// that names the repository, and the whole `repository:path:line` triple when
+// the rows come from more than one repository. Both forms reconstruct the triple
+// every tool accepts by reading the header, so the repository is never spelled
+// twice and never invented. End is present only when the declaration does not
+// start and finish on the same line.
+//
+// What is absent is not lost: it is in the header, on its group, or it is the
+// tail of the qualified name.
+type compactSymbol struct {
+	At                string `json:"at"`
+	End               uint32 `json:"end,omitempty"`
+	Name              string `json:"name,omitempty"`
+	QualifiedName     string `json:"qn,omitempty"`
+	Kind              string `json:"kind,omitempty"`
+	Exported          *bool  `json:"exported,omitempty"`
+	Signature         string `json:"sig,omitempty"`
+	StableKey         string `json:"stable_key,omitempty"`
+	CanonicalIdentity string `json:"canonical_identity,omitempty"`
+}
+
+// compact spells the page without repeating what every row shares. Measured
+// over `kena`, `stable_key` was 885 of the 2.293 tokens of a 22-row page and no
+// tool needs it: every one accepts the repository, path and qualified name that
+// the rows already carry. See ADR 0046.
+//
+// A second tier groups by (kind, exported) when the page cannot hoist either:
+// on a real 453-row search, 222 shared one pair and repeating it on every row
+// was `kind` and `exported` twice over. Grouping is measured against the flat
+// page and only kept when it is smaller -- a page where every row disagrees
+// costs more grouped, one object per row instead of one value.
+func (results SymbolResults) compact() compactSymbolPage {
+	rows := results.Symbols
+	page := compactSymbolPage{
+		Name:       hoistString(len(rows), func(index int) string { return rows[index].Name }),
+		Kind:       hoistString(len(rows), func(index int) string { return rows[index].Kind }),
+		Repository: hoistString(len(rows), func(index int) string { return rows[index].Repository }),
+	}
+	exportedHoisted, exportedShared := hoistExported(rows)
+	if exportedShared {
+		page.Exported = &exportedHoisted
+	}
+	detailed := results.Format == ResponseFormatDetailed
+
+	flat := make([]compactSymbol, 0, len(rows))
+	for index := range rows {
+		flat = append(flat, compactSymbolEntry(&rows[index], page.Repository, page.Name, page.Kind, page.Exported, detailed))
+	}
+	if page.Kind != "" && exportedShared {
+		// Both grouping dimensions are already on the page: nothing left to
+		// group by, so this is the whole answer, not a candidate.
+		page.Symbols = flat
+		return page
+	}
+
+	residual := func(row SymbolSummary) []string {
+		kindResidual := ""
+		if page.Kind == "" {
+			kindResidual = row.Kind
+		}
+		exportedResidual := ""
+		if !exportedShared {
+			exportedResidual = strconv.FormatBool(row.Exported)
+		}
+		return []string{kindResidual, exportedResidual}
+	}
+	buckets := groupByResidual(rows, residual)
+	if len(buckets) <= 1 {
+		page.Symbols = flat
+		return page
+	}
+
+	groups := make([]compactSymbolKindGroup, 0, len(buckets))
+	for _, bucket := range buckets {
+		first := bucket[0]
+		group := compactSymbolKindGroup{}
+		effectiveKind := page.Kind
+		if effectiveKind == "" {
+			effectiveKind = first.Kind
+			group.Kind = first.Kind
+		}
+		effectiveExported := page.Exported
+		if effectiveExported == nil {
+			exported := first.Exported
+			effectiveExported = &exported
+			group.Exported = &exported
+		}
+		group.Symbols = make([]compactSymbol, 0, len(bucket))
+		for index := range bucket {
+			group.Symbols = append(group.Symbols, compactSymbolEntry(&bucket[index], page.Repository, page.Name, effectiveKind, effectiveExported, detailed))
+		}
+		groups = append(groups, group)
+	}
+	// Grouping only wins when a (kind, exported) pair repeats enough to pay
+	// for its own header; a page where every row disagrees is cheaper flat.
+	// Marshaling both candidates costs nothing on a page this small, and it is
+	// the only way to guarantee grouping never costs more than not grouping.
+	if flatBytes, err := json.Marshal(flat); err == nil {
+		if groupedBytes, err := json.Marshal(groups); err == nil && len(groupedBytes) >= len(flatBytes) {
+			page.Symbols = flat
+			return page
+		}
+	}
+	page.Groups = groups
+	return page
+}
+
+// compactSymbolEntry writes one declaration against the header and, when it
+// has one, the group above it: kind and exported are its own only when
+// neither already states them.
+func compactSymbolEntry(row *SymbolSummary, hoistedRepository, hoistedName, effectiveKind string, effectiveExported *bool, detailed bool) compactSymbol {
+	symbol := compactSymbol{At: symbolLocationLabel(hoistedRepository, row.Repository, row.FilePath, row.StartLine)}
+	if row.EndLine != row.StartLine {
+		symbol.End = row.EndLine
+	}
+	if effectiveKind == "" {
+		symbol.Kind = row.Kind
+	}
+	if row.QualifiedName != row.Name {
+		symbol.QualifiedName = row.QualifiedName
+	}
+	// The name is a fact of its own only when the header does not carry it
+	// and it cannot be read off the qualified name. An omitted qualified
+	// name means it equals the name, so the name has to stay.
+	if hoistedName == "" && (symbol.QualifiedName == "" || !nameIsQualifiedTail(row.QualifiedName, row.Name)) {
+		symbol.Name = row.Name
+	}
+	if effectiveExported == nil {
+		exported := row.Exported
+		symbol.Exported = &exported
+	}
+	if signatureAnswersHowToCall(row.Kind) {
+		symbol.Signature = row.Signature
+	}
+	if detailed {
+		symbol.StableKey = row.StableKey
+		symbol.CanonicalIdentity = row.CanonicalIdentity
+	}
+	return symbol
+}
+
+// symbolLocationLabel addresses a row against the header it sits under. A
+// hoisted repository is the one fact the whole page shares, so repeating it on
+// every row is the repetition ADR 0046 exists to remove; when the rows disagree
+// the row carries the full triple instead.
+func symbolLocationLabel(hoistedRepository, repository, path string, line uint32) string {
+	if hoistedRepository == "" {
+		return locationLabel(repository, path, line)
+	}
+	return path + ":" + strconv.FormatUint(uint64(line), 10)
+}
+
+// hoistExported returns the visibility every row shares. Unlike the string
+// hoists it cannot read the zero value as "not shared": false is a fact, and
+// dropping it would make an unexported page indistinguishable from a mixed one.
+func hoistExported(rows []SymbolSummary) (bool, bool) {
+	if len(rows) == 0 {
+		return false, false
+	}
+	first := rows[0].Exported
+	for index := 1; index < len(rows); index++ {
+		if rows[index].Exported != first {
+			return false, false
+		}
+	}
+	return first, true
+}
+
+// signatureAnswersHowToCall reports whether a signature earns its bytes. For a
+// callable or a class it is how to use the symbol; for a field, a constant or a
+// variable it restates the type its own declaration shows, and signatures were
+// 360 of the 2.293 tokens of a 22-row page (ADR 0046). The full view keeps them
+// all.
+func signatureAnswersHowToCall(kind string) bool {
+	switch kind {
+	case "function", "func", "method", "class":
+		return true
+	default:
+		return false
+	}
+}
+
+// nameIsQualifiedTail reports whether the qualified name ends in the name after
+// a segment separator, whichever one the language uses (`.`, `::`, `#`, `/`).
+// Then the name is a suffix the reader already has.
+func nameIsQualifiedTail(qualifiedName, name string) bool {
+	if name == "" || !strings.HasSuffix(qualifiedName, name) {
+		return false
+	}
+	prefix := qualifiedName[:len(qualifiedName)-len(name)]
+	if prefix == "" {
+		return true
+	}
+	switch prefix[len(prefix)-1] {
+	case '.', ':', '#', '/':
+		return true
+	default:
+		return false
+	}
 }
 
 type findSymbolQuery struct {
@@ -103,7 +360,7 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
 		arguments FindSymbolInput,
-	) (*sdkmcp.CallToolResult, Response[[]SymbolSummary], error) {
+	) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
 		return findSymbol(ctx, request, arguments, snapshotStore)
 	}
 	if observer != nil || callObserver != nil {
@@ -112,7 +369,7 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 			ctx context.Context,
 			request *sdkmcp.CallToolRequest,
 			arguments FindSymbolInput,
-		) (*sdkmcp.CallToolResult, Response[[]SymbolSummary], error) {
+		) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
 			start := time.Now()
 			result, symbols, err := underlying(ctx, request, arguments)
 			observe(observer, callObserver, findSymbolToolName, start, symbols, err)
@@ -132,22 +389,29 @@ func findSymbol(
 	_ *sdkmcp.CallToolRequest,
 	arguments FindSymbolInput,
 	snapshotStore *hotsnapshot.SnapshotStore,
-) (*sdkmcp.CallToolResult, Response[[]SymbolSummary], error) {
+) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
 	name, err := normalizeSymbolName(arguments.Name)
 	if err != nil {
-		return nil, Response[[]SymbolSummary]{}, err
+		return nil, Response[SymbolResults]{}, err
 	}
 	mode, err := normalizeFindSymbolMode(arguments.Mode)
 	if err != nil {
-		return nil, Response[[]SymbolSummary]{}, err
+		return nil, Response[SymbolResults]{}, err
 	}
 	limit, err := normalizeSymbolLimit(arguments.Limit)
 	if err != nil {
-		return nil, Response[[]SymbolSummary]{}, err
+		return nil, Response[SymbolResults]{}, err
 	}
 	format, err := normalizeResponseFormat(arguments.ResponseFormat)
 	if err != nil {
-		return nil, Response[[]SymbolSummary]{}, err
+		return nil, Response[SymbolResults]{}, err
+	}
+	// A declaration is not a file, so `files` is not one of the granularities
+	// this tool can answer in: asking for it fails instead of quietly
+	// answering something else.
+	view, err := normalizeView(arguments.View, false)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
 	}
 	filter := hotsnapshot.SymbolFilter{
 		Kind:           arguments.Kind,
@@ -167,14 +431,14 @@ func findSymbol(
 		Kind: filter.Kind, Repo: filter.RepositoryName, PathPrefix: filter.PathPrefix,
 	})
 	if err != nil {
-		return nil, Response[[]SymbolSummary]{}, err
+		return nil, Response[SymbolResults]{}, err
 	}
 	if snapshotStore == nil {
-		return nil, Response[[]SymbolSummary]{}, ErrIndexNotReady()
+		return nil, Response[SymbolResults]{}, ErrIndexNotReady()
 	}
 	snapshot := snapshotStore.Load()
 	if snapshot == nil {
-		return nil, Response[[]SymbolSummary]{}, ErrIndexNotReady()
+		return nil, Response[SymbolResults]{}, ErrIndexNotReady()
 	}
 	metadata := snapshot.Metadata()
 
@@ -182,23 +446,23 @@ func findSymbol(
 	if arguments.Cursor != "" {
 		cursor, err := DecodeCursor(arguments.Cursor)
 		if err != nil {
-			return nil, Response[[]SymbolSummary]{}, err
+			return nil, Response[SymbolResults]{}, err
 		}
 		if err := cursor.ValidateAgainst(metadata.ID, queryHash, SortingVersionStableKeyV1); err != nil {
-			return nil, Response[[]SymbolSummary]{}, err
+			return nil, Response[SymbolResults]{}, err
 		}
 		offset = cursor.Offset
 	}
 
 	page, err := searchSymbolPage(snapshot, name, mode, filter, offset, limit)
 	if err != nil {
-		return nil, Response[[]SymbolSummary]{}, WrapToolError(CodeInvalidArgument, "symbol search pagination is invalid", err)
+		return nil, Response[SymbolResults]{}, WrapToolError(CodeInvalidArgument, "symbol search pagination is invalid", err)
 	}
 	results := make([]SymbolSummary, 0, len(page.IDs))
 	for _, id := range page.IDs {
 		symbol, found := snapshot.Symbol(id)
 		if !found {
-			return nil, Response[[]SymbolSummary]{}, WrapToolError(
+			return nil, Response[SymbolResults]{}, WrapToolError(
 				CodeSnapshotUnavailable,
 				"active snapshot symbol index is inconsistent",
 				fmt.Errorf("symbol index %d is missing", id),
@@ -206,7 +470,7 @@ func findSymbol(
 		}
 		summary, err := symbolSummary(snapshot, symbol, format)
 		if err != nil {
-			return nil, Response[[]SymbolSummary]{}, WrapToolError(
+			return nil, Response[SymbolResults]{}, WrapToolError(
 				CodeSnapshotUnavailable,
 				"active snapshot contains invalid symbol metadata",
 				err,
@@ -220,11 +484,11 @@ func findSymbol(
 		nextOffset := page.Offset + len(page.IDs)
 		cursor, err := NewCursor(metadata.ID, queryHash, nextOffset, SortingVersionStableKeyV1)
 		if err != nil {
-			return nil, Response[[]SymbolSummary]{}, err
+			return nil, Response[SymbolResults]{}, err
 		}
 		encoded, err := cursor.Encode()
 		if err != nil {
-			return nil, Response[[]SymbolSummary]{}, err
+			return nil, Response[SymbolResults]{}, err
 		}
 		nextCursor = &encoded
 	}
@@ -236,7 +500,7 @@ func findSymbol(
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
-	return nil, Response[[]SymbolSummary]{
+	return nil, Response[SymbolResults]{
 		SnapshotID:    &snapshotID,
 		SnapshotAgeMS: &snapshotAgeMS,
 		Total:         page.Total,
@@ -244,7 +508,8 @@ func findSymbol(
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
 		Coverage:      Coverage{Exact: len(results), UnresolvedRelated: unresolvedRelated},
-		Results:       results,
+		Results:       SymbolResults{Symbols: results, View: view, Format: format},
+		View:          view,
 	}, nil
 }
 

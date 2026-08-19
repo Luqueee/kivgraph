@@ -2,8 +2,11 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -26,6 +29,11 @@ const (
 // TraceDependenciesInput bounds one dependency traversal. edge_kinds and
 // confidence gate which edges the traversal may follow, so they change what is
 // reachable; repo and language only select which reached symbols are returned.
+//
+// View is the granularity of the answer, never a different answer: "compact",
+// the default, hoists what every reached symbol shares into the header and
+// groups the rest by file, and "full" keeps the row-per-fact shape. A traversal
+// is not a set of files, so "files" is rejected rather than reinterpreted.
 type TraceDependenciesInput struct {
 	StableKey      string   `json:"stable_key,omitempty"`
 	QualifiedName  string   `json:"qualified_name,omitempty"`
@@ -41,6 +49,7 @@ type TraceDependenciesInput struct {
 	Limit          int      `json:"limit,omitempty"`
 	Cursor         string   `json:"cursor,omitempty"`
 	ResponseFormat string   `json:"response_format,omitempty"`
+	View           string   `json:"view,omitempty"`
 }
 
 // DependencyTrace is the traversal itself: the root, what the bounds did to
@@ -55,6 +64,10 @@ type DependencyTrace struct {
 	DeepestDepth       int             `json:"deepest_depth"`
 	TraversalTruncated bool            `json:"traversal_truncated"`
 	Nodes              []ReachedSymbol `json:"nodes"`
+
+	// View decides how MarshalJSON spells the page. It never travels in it:
+	// the caller already knows what it asked for.
+	View string `json:"-"`
 }
 
 // ReachedSymbol is one symbol a bounded traversal reached, together with the
@@ -96,6 +109,290 @@ type ReachedSymbol struct {
 	ReachedFromKey string `json:"reached_from_key,omitempty"`
 }
 
+// compactReachedHeader is what every row of a page of reached symbols shares.
+// An empty field means the rows disagreed, and each row then carries its own
+// value in its tail. Both trace_dependencies and get_blast_radius answer with
+// ReachedSymbol, so both hoist it the same way.
+//
+// HopDepth is the depth of the rows, not the traversal's bound: a trace states
+// the bound it was given under `depth`, and these two numbers are different
+// facts that happen to share a name in the full view.
+type compactReachedHeader struct {
+	Repository    string `json:"repository,omitempty"`
+	Kind          string `json:"kind,omitempty"`
+	HopDepth      int    `json:"hop_depth,omitempty"`
+	ReachedFrom   string `json:"reached_from,omitempty"`
+	ViaKind       string `json:"via_kind,omitempty"`
+	ViaConfidence string `json:"via_confidence,omitempty"`
+	ViaProvenance string `json:"via_provenance,omitempty"`
+}
+
+// compactSymbolGroup is one file and the symbols this page holds in it. Repo
+// is present only when the group is not in the hoisted repository, which on a
+// single-repository answer is never.
+type compactSymbolGroup struct {
+	File string `json:"file"`
+	Repo string `json:"repo,omitempty"`
+	At   []any  `json:"at"`
+}
+
+// declarationLabel names a declaration and the lines it occupies:
+// `qualified_name@start` when it is one line, `qualified_name@start-end` when
+// it is not. One string instead of two numbered fields, and no range is lost.
+func declarationLabel(qualifiedName string, startLine, endLine uint32) string {
+	label := symbolAtLine(qualifiedName, startLine)
+	if endLine > startLine {
+		return label + "-" + strconv.FormatUint(uint64(endLine), 10)
+	}
+	return label
+}
+
+// compactReachedGroup is every reached symbol that shares one exact tuple of
+// the columns the page header could not hoist: kind, the depth of the hop,
+// and the edge that reached it. Absent means this group's rows hold the
+// page's hoisted value too.
+//
+// ReachedFrom is not part of that tuple -- it names the specific symbol one
+// hop closer to the root, which in a bulk fan-in is close to unique per row,
+// on a real 29-row page 27 rows named 27 different ones, and folding it into
+// the grouping key fragmented every group back down to one row each. It is
+// still hoisted here when the rows a tuple happened to collect share one: the
+// four depth-1 callers of one root all share the root as ReachedFrom even
+// though none of the tuple fields drove that. A group whose rows disagree on
+// it leaves the field blank and each row carries its own, exactly like Name.
+type compactReachedGroup struct {
+	Kind          string `json:"kind,omitempty"`
+	HopDepth      int    `json:"hop_depth,omitempty"`
+	ReachedFrom   string `json:"reached_from,omitempty"`
+	ViaKind       string `json:"via_kind,omitempty"`
+	ViaConfidence string `json:"via_confidence,omitempty"`
+	ViaProvenance string `json:"via_provenance,omitempty"`
+
+	Files []compactSymbolGroup `json:"files"`
+}
+
+// compactReachedSymbols hoists the columns the whole page agrees on, groups
+// what is left by the exact tuple each row still shares, and files what
+// remains inside a group by path. A row is the bare `qn@lines` label once its
+// group states kind, depth and the edge that reached it; only the name, what
+// it was reached from, and, under the detailed format, the stable key can
+// still travel on the row itself.
+//
+// `language` is absent by construction: it is the file's extension.
+//
+// Grouping is the second tier of ADR 0046: on a real 29-row impact page,
+// (kind, via_kind, via_confidence, via_provenance, depth) collapsed to four
+// distinct tuples, one of them covering 26 rows on its own -- with
+// `reached_from` excluded from the tuple; see compactReachedGroup. Files and
+// Groups are mutually exclusive in the return value the same way; a caller
+// emits whichever is non-nil.
+func compactReachedSymbols(nodes []ReachedSymbol) (compactReachedHeader, []compactSymbolGroup, []compactReachedGroup) {
+	header := compactReachedHeader{
+		Repository:    hoistString(len(nodes), func(index int) string { return nodes[index].Repository }),
+		Kind:          hoistString(len(nodes), func(index int) string { return nodes[index].Kind }),
+		ReachedFrom:   hoistString(len(nodes), func(index int) string { return nodes[index].ReachedFrom }),
+		ViaKind:       hoistString(len(nodes), func(index int) string { return nodes[index].ViaKind }),
+		ViaConfidence: hoistString(len(nodes), func(index int) string { return nodes[index].ViaConfidence }),
+		ViaProvenance: hoistString(len(nodes), func(index int) string { return nodes[index].ViaProvenance }),
+	}
+	depth := hoistString(len(nodes), func(index int) string { return strconv.Itoa(nodes[index].Depth) })
+	if depth != "" {
+		header.HopDepth = nodes[0].Depth
+	}
+
+	residual := func(node ReachedSymbol) []string {
+		rowDepth := ""
+		if header.HopDepth == 0 {
+			rowDepth = strconv.Itoa(node.Depth)
+		}
+		return []string{
+			blankWhenHoisted(node.Kind, header.Kind),
+			rowDepth,
+			blankWhenHoisted(node.ViaKind, header.ViaKind),
+			blankWhenHoisted(node.ViaConfidence, header.ViaConfidence),
+			blankWhenHoisted(node.ViaProvenance, header.ViaProvenance),
+		}
+	}
+	flat := reachedFileGroups(nodes, header.Repository, header.Kind, header.HopDepth, header.ReachedFrom, header.ViaKind, header.ViaConfidence, header.ViaProvenance)
+	buckets := groupByResidual(nodes, residual)
+	if len(buckets) <= 1 {
+		return header, flat, nil
+	}
+
+	// effectiveOf is what a row is compared against to stay silent on a
+	// grouping-tuple field: whichever of the page or this bucket already
+	// states it. It must stay distinct from the group's own JSON field, which
+	// is deliberately blank when the page already carries it -- passing that
+	// blank into reachedFileGroups as though nothing were hoisted put `kind`
+	// back on every one of eight rows the first time this ran.
+	effectiveOf := func(pageValue, bucketValue string) string {
+		if pageValue != "" {
+			return pageValue
+		}
+		return bucketValue
+	}
+	groups := make([]compactReachedGroup, 0, len(buckets))
+	for _, bucket := range buckets {
+		first := bucket[0]
+		group := compactReachedGroup{
+			Kind:          blankWhenHoisted(first.Kind, header.Kind),
+			ViaKind:       blankWhenHoisted(first.ViaKind, header.ViaKind),
+			ViaConfidence: blankWhenHoisted(first.ViaConfidence, header.ViaConfidence),
+			ViaProvenance: blankWhenHoisted(first.ViaProvenance, header.ViaProvenance),
+		}
+		groupDepth := header.HopDepth
+		if groupDepth == 0 {
+			groupDepth = first.Depth
+			group.HopDepth = groupDepth
+		}
+		groupReachedFrom := header.ReachedFrom
+		if groupReachedFrom == "" {
+			// Not a grouping key, but still worth a second look now that the
+			// bucket is fixed: it costs one more hoistString over rows the
+			// caller already holds.
+			groupReachedFrom = hoistString(len(bucket), func(index int) string { return bucket[index].ReachedFrom })
+			group.ReachedFrom = groupReachedFrom
+		}
+		group.Files = reachedFileGroups(bucket, header.Repository,
+			effectiveOf(header.Kind, first.Kind), groupDepth, groupReachedFrom,
+			effectiveOf(header.ViaKind, first.ViaKind),
+			effectiveOf(header.ViaConfidence, first.ViaConfidence),
+			effectiveOf(header.ViaProvenance, first.ViaProvenance))
+		groups = append(groups, group)
+	}
+	// Grouping only wins when a tuple repeats enough to pay for its own
+	// header; a page where every row disagrees on everything -- three hops
+	// down three different edges is the common case, not the exception -- is
+	// cheaper left flat. There is no cost to marshaling both candidates on a
+	// page this small, and it is the only way to guarantee grouping never
+	// costs more than not grouping instead of hoping a heuristic holds.
+	if flatBytes, err := json.Marshal(flat); err == nil {
+		if groupedBytes, err := json.Marshal(groups); err == nil && len(groupedBytes) >= len(flatBytes) {
+			return header, flat, nil
+		}
+	}
+	return header, nil, groups
+}
+
+// reachedFileGroups groups rows by file with a label per row: bare once kind,
+// depth and the edge are accounted for above the row, on the page header or
+// on its group. `reached_from` and `name` stay row-level regardless of
+// grouping: `name` is dropped page-wide when every row's name is implied by
+// its qualified name, and a group narrower than the page can only make that
+// true for more rows, never fewer, so the page-wide test is never wrong to
+// reuse inside a group too.
+func reachedFileGroups(nodes []ReachedSymbol, hoistedRepository, kind string, depth int, reachedFrom, viaKind, viaConfidence, viaProvenance string) []compactSymbolGroup {
+	namesImplied := true
+	for _, node := range nodes {
+		if !nameIsLastSegment(node.Name, node.QualifiedName) {
+			namesImplied = false
+			break
+		}
+	}
+	rowDepth := ""
+	groups := make([]compactSymbolGroup, 0, len(nodes))
+	index := make(map[string]int, len(nodes))
+	for _, node := range nodes {
+		position, exists := index[node.FilePath]
+		if !exists {
+			position = len(groups)
+			index[node.FilePath] = position
+			group := compactSymbolGroup{File: node.FilePath}
+			if node.Repository != hoistedRepository {
+				group.Repo = node.Repository
+			}
+			groups = append(groups, group)
+		}
+		rowName := ""
+		if !namesImplied {
+			rowName = node.Name
+		}
+		if depth == 0 {
+			rowDepth = strconv.Itoa(node.Depth)
+		}
+		groups[position].At = append(groups[position].At, compactRowTail(
+			declarationLabel(node.QualifiedName, node.StartLine, node.EndLine),
+			rowName,
+			blankWhenHoisted(node.Kind, kind),
+			rowDepth,
+			blankWhenHoisted(node.ReachedFrom, reachedFrom),
+			blankWhenHoisted(node.ViaKind, viaKind),
+			blankWhenHoisted(node.ViaConfidence, viaConfidence),
+			blankWhenHoisted(node.ViaProvenance, viaProvenance),
+			// Set only under `response_format: "detailed"`, which is the only
+			// way a stable key reaches any view.
+			node.StableKey,
+		))
+	}
+	return groups
+}
+
+// nameIsLastSegment reports whether the qualified name already spells the name
+// out at its end, which is what makes a separate `name` field redundant. The
+// separator is the language's, so the test is a suffix rather than a split.
+//
+// A trailing `#N` is the snapshot's discriminator between two declarations of
+// one qualified name, not part of any name, and it is stripped before the test:
+// one `getRequiredField#2` export in a page used to put `name` back on all
+// twenty-nine rows, which is the repetition this shape exists to remove.
+func nameIsLastSegment(name, qualifiedName string) bool {
+	return name != "" && strings.HasSuffix(withoutDiscriminator(qualifiedName), name)
+}
+
+// withoutDiscriminator drops a trailing `#<digits>`. A `#` followed by anything
+// else is a language's own separator -- a TypeScript private field -- and stays.
+func withoutDiscriminator(qualifiedName string) string {
+	hash := strings.LastIndexByte(qualifiedName, '#')
+	if hash <= 0 || hash == len(qualifiedName)-1 {
+		return qualifiedName
+	}
+	for _, digit := range qualifiedName[hash+1:] {
+		if digit < '0' || digit > '9' {
+			return qualifiedName
+		}
+	}
+	return qualifiedName[:hash]
+}
+
+// blankWhenHoisted drops a row's value when the header already states it.
+func blankWhenHoisted(value, hoisted string) string {
+	if hoisted != "" {
+		return ""
+	}
+	return value
+}
+
+// MarshalJSON writes the traversal at the granularity the caller asked for.
+// The compact page states the root, the bounds and what every reached symbol
+// shares once, and then one entry per symbol grouped by file.
+func (trace DependencyTrace) MarshalJSON() ([]byte, error) {
+	type fullTrace DependencyTrace
+	if trace.View == ViewFull || trace.View == "" {
+		return json.Marshal(fullTrace(trace))
+	}
+	header, files, groups := compactReachedSymbols(trace.Nodes)
+	return json.Marshal(struct {
+		RootKey            string `json:"root_key"`
+		RootRepository     string `json:"root_repository"`
+		Depth              int    `json:"depth"`
+		MaxNodes           int    `json:"max_nodes"`
+		Reached            int    `json:"reached"`
+		DeepestDepth       int    `json:"deepest_depth"`
+		TraversalTruncated bool   `json:"traversal_truncated,omitempty"`
+		compactReachedHeader
+		Files  []compactSymbolGroup  `json:"files,omitempty"`
+		Groups []compactReachedGroup `json:"groups,omitempty"`
+	}{
+		RootKey: trace.RootKey, RootRepository: trace.RootRepository,
+		Depth: trace.Depth, MaxNodes: trace.MaxNodes,
+		Reached: trace.Reached, DeepestDepth: trace.DeepestDepth,
+		TraversalTruncated:   trace.TraversalTruncated,
+		compactReachedHeader: header,
+		Files:                files,
+		Groups:               groups,
+	})
+}
+
 type traceDependenciesOptions struct {
 	Selector   symbolSelector
 	Depth      int
@@ -107,6 +404,7 @@ type traceDependenciesOptions struct {
 	Derived    derivedFilter
 	Limit      int
 	Format     string
+	View       string
 }
 
 type traceDependenciesQuery struct {
@@ -274,7 +572,9 @@ func traceDependencies(
 			Depth: options.Depth, MaxNodes: options.MaxNodes,
 			Reached: len(traversal.Visits) - 1, DeepestDepth: deepest,
 			TraversalTruncated: traversal.Truncated, Nodes: page,
+			View: options.View,
 		},
+		View: options.View,
 	}, nil
 }
 
@@ -324,10 +624,14 @@ func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDep
 	if err != nil {
 		return traceDependenciesOptions{}, err
 	}
+	view, err := normalizeView(arguments.View, false)
+	if err != nil {
+		return traceDependenciesOptions{}, err
+	}
 	return traceDependenciesOptions{
 		Selector: selector, Depth: depth, MaxNodes: maxNodes, Repo: repo,
 		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
-		Derived: newDerivedFilter(arguments.IncludeDerived, repo),
+		Derived: newDerivedFilter(arguments.IncludeDerived, repo), View: view,
 	}, nil
 }
 
