@@ -1,0 +1,1197 @@
+{
+  "benchmark": "kivgraph-vs-codebase-memory-mcp",
+  "date": "2026-08-18",
+  "commit": "f8a952d",
+  "environment": {
+    "os": "macOS 26.6",
+    "machine": "Mac17,2 (Apple M5)",
+    "cpus": 10,
+    "node": "v25.2.1",
+    "go": "go1.26.4 darwin/arm64",
+    "rust_analyzer": "0.3.3008-standalone (bundled)",
+    "cargo": "1.96.1"
+  },
+  "systems": {
+    "kivgraph": {
+      "version": "0.2.1",
+      "commit": "67338a42b0d652db1c3edce47d8b262cb07cc06f",
+      "state_home": "/tmp/kivbench-home (isolated; user generation 000088 untouched)",
+      "languages": [
+        "go",
+        "typescript",
+        "rust"
+      ],
+      "config_deltas": [
+        "go.include_tests=true",
+        "rust.include_tests=true"
+      ]
+    },
+    "codebase_memory_mcp": {
+      "version": "0.8.1",
+      "db": "~/.cache/codebase-memory-mcp/<project>.db"
+    }
+  },
+  "dataset": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repos": 37,
+    "code_files": 5302,
+    "loc": {
+      "ts": 444017,
+      "tsx": 196209,
+      "go": 133700,
+      "rs": 53061,
+      "mjs": 9118,
+      "jsx": 3577,
+      "js": 1772
+    },
+    "state": "dependencies installed (pnpm), TypeScript packages NOT built (no dist/)"
+  },
+  "indexing": {
+    "kivgraph": {
+      "cold_seconds": 41.8,
+      "warm_seconds": 26.5,
+      "repositories": 35,
+      "files": 4814,
+      "symbols": 96923,
+      "edges": 368166,
+      "evidence": 260489,
+      "unresolved": 22929,
+      "state_bytes_du": "1.4G",
+      "breakdown": {
+        "go_definitions": 19691,
+        "go_references": 114741,
+        "typescript_symbols": 90729,
+        "typescript_references": 212885,
+        "rust_symbols": 3063,
+        "rust_references": 13223
+      },
+      "deterministic": "identical counts across three full rebuilds"
+    },
+    "codebase_memory": {
+      "cold_seconds": 11.4,
+      "warm_seconds": 5.3,
+      "nodes": 67120,
+      "edges": 235905,
+      "db_bytes": 220659712,
+      "call_edges": 63021
+    }
+  },
+  "static_context_cost_tokens": {
+    "kivgraph": 2568,
+    "codebase_memory": 2956
+  },
+  "tool_counts": {
+    "kivgraph": 11,
+    "codebase_memory": 14
+  },
+  "questions": {
+    "Q1_ts_xrepo_callers": {
+      "question": "Which call sites use the withRetry declared in libraries/library-shared/src/utils/retry.ts?",
+      "gt_files": [
+        "packages/core/src/cluster/master/index.ts",
+        "packages/core/src/cluster/worker/BotWorker.ts",
+        "packages/core/src/shared/utils/sharding.ts",
+        "packages/gateway/src/grpc/server.ts",
+        "modules/sdk-module-ts/src/sdk/client/KenaModule.ts"
+      ],
+      "kivgraph": {
+        "tokens": 2708,
+        "ms": 1.7,
+        "n": 2,
+        "sequence": [
+          "find_symbol",
+          "find_references"
+        ],
+        "qualified_name": "withRetry",
+        "files": [
+          "libraries/library-shared/src/client/index.ts",
+          "libraries/library-shared/src/index.ts",
+          "libraries/library-shared/src/utils/index.ts"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "missing": [
+          "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+          "packages/core/src/cluster/master/index.ts",
+          "packages/core/src/cluster/worker/BotWorker.ts",
+          "packages/core/src/shared/utils/sharding.ts",
+          "packages/gateway/src/grpc/server.ts"
+        ],
+        "spurious": [
+          "libraries/library-shared/src/client/index.ts",
+          "libraries/library-shared/src/index.ts",
+          "libraries/library-shared/src/utils/index.ts"
+        ]
+      },
+      "codebase_memory": {
+        "tokens": 830,
+        "ms": 460.9,
+        "n": 3,
+        "sequence": [
+          "search_graph",
+          "trace_path",
+          "query_graph"
+        ],
+        "qualified_name": "Users-adria-Documents-programacion-projects-kena.libraries.library-shared.src.utils.retry.withRetry",
+        "files": [],
+        "precision": 0.0,
+        "recall": 0.0,
+        "missing": [
+          "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+          "packages/core/src/cluster/master/index.ts",
+          "packages/core/src/cluster/worker/BotWorker.ts",
+          "packages/core/src/shared/utils/sharding.ts",
+          "packages/gateway/src/grpc/server.ts"
+        ],
+        "spurious": []
+      }
+    },
+    "Q2_go_callers": {
+      "question": "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+      "gt_files": [
+        "services/api-db-go/internal/infrastructure/postgres/client.go",
+        "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+      ],
+      "kivgraph": {
+        "tokens": 2918,
+        "ms": 1.3,
+        "n": 2,
+        "sequence": [
+          "find_symbol",
+          "find_references"
+        ],
+        "qualified_name": "withRetry",
+        "files": [
+          "services/api-db-go/internal/infrastructure/postgres/client.go",
+          "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "spurious": []
+      },
+      "codebase_memory": {
+        "tokens": 961,
+        "ms": 432.1,
+        "n": 3,
+        "sequence": [
+          "search_graph",
+          "trace_path",
+          "query_graph"
+        ],
+        "qualified_name": "Users-adria-Documents-programacion-projects-kena.services.api-db-go.internal.infrastructure.postgres.retry.withRetry",
+        "files": [
+          "packages/core/src/cluster/master/index.ts",
+          "packages/core/src/cluster/worker/BotWorker.ts",
+          "packages/core/src/shared/utils/sharding.ts",
+          "packages/gateway/src/grpc/server.ts",
+          "services/api-db-go/internal/infrastructure/postgres/client.go",
+          "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+        ],
+        "precision": 0.333,
+        "recall": 1.0,
+        "missing": [],
+        "spurious": [
+          "packages/core/src/cluster/master/index.ts",
+          "packages/core/src/cluster/worker/BotWorker.ts",
+          "packages/core/src/shared/utils/sharding.ts",
+          "packages/gateway/src/grpc/server.ts"
+        ]
+      }
+    },
+    "Q3_ts_intra_callers": {
+      "question": "Which files call getRequiredField from packages/core ipcCase.ts?",
+      "gt_files": [
+        "packages/core/src/cluster/worker/ipc/channel.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/client.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/guild.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/member.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/role.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/thread.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/user.ipc.ts",
+        "packages/core/src/cluster/worker/ipc/voice.ipc.ts",
+        "packages/core/tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+      ],
+      "kivgraph": {
+        "tokens": 4505,
+        "ms": 1.3,
+        "n": 2,
+        "sequence": [
+          "find_symbol",
+          "find_references"
+        ],
+        "qualified_name": "getRequiredField",
+        "files": [
+          "packages/core/src/cluster/worker/ipc/channel.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/client.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/guild.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/member.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/role.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/thread.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/user.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/voice.ipc.ts"
+        ],
+        "precision": 1.0,
+        "recall": 0.889,
+        "missing": [
+          "packages/core/tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+        ],
+        "spurious": []
+      },
+      "codebase_memory": {
+        "tokens": 830,
+        "ms": 431.3,
+        "n": 3,
+        "sequence": [
+          "search_graph",
+          "trace_path",
+          "query_graph"
+        ],
+        "qualified_name": "Users-adria-Documents-programacion-projects-kena.packages.core.src.cluster.worker.ipc.utils.ipcCase.getRequiredField",
+        "files": [
+          "packages/core/src/cluster/worker/ipc/channel.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/client.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/guild.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/member.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/role.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/thread.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/user.ipc.ts",
+          "packages/core/src/cluster/worker/ipc/voice.ipc.ts",
+          "packages/core/tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "spurious": []
+      }
+    },
+    "Q4_rust_callers": {
+      "question": "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+      "gt_files": [
+        "services/kenalink-rs/src/api_rest/error.rs",
+        "services/kenalink-rs/src/api_rest/routes_players.rs",
+        "services/kenalink-rs/src/api_rest/routes_sessions.rs",
+        "services/kenalink-rs/src/api_ws/mod.rs",
+        "services/kenalink-rs/src/audio/songbird_engine.rs",
+        "services/kenalink-rs/src/main.rs"
+      ],
+      "kivgraph": {
+        "tokens": 3455,
+        "ms": 1.3,
+        "n": 2,
+        "sequence": [
+          "find_symbol",
+          "find_references"
+        ],
+        "qualified_name": "util::now_ms",
+        "files": [
+          "services/kenalink-rs/src/api_rest/error.rs",
+          "services/kenalink-rs/src/api_rest/routes_players.rs",
+          "services/kenalink-rs/src/api_rest/routes_sessions.rs",
+          "services/kenalink-rs/src/api_ws/mod.rs",
+          "services/kenalink-rs/src/audio/songbird_engine.rs",
+          "services/kenalink-rs/src/main.rs"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "spurious": []
+      },
+      "codebase_memory": {
+        "tokens": 596,
+        "ms": 426.1,
+        "n": 3,
+        "sequence": [
+          "search_graph",
+          "trace_path",
+          "query_graph"
+        ],
+        "qualified_name": "Users-adria-Documents-programacion-projects-kena.services.kenalink-rs.src.util.now_ms",
+        "files": [
+          "services/kenalink-rs/src/api_rest/error.rs",
+          "services/kenalink-rs/src/api_rest/routes_sessions.rs",
+          "services/kenalink-rs/src/audio/songbird_engine.rs",
+          "services/kenalink-rs/src/main.rs"
+        ],
+        "precision": 1.0,
+        "recall": 0.667,
+        "missing": [
+          "services/kenalink-rs/src/api_rest/routes_players.rs",
+          "services/kenalink-rs/src/api_ws/mod.rs"
+        ],
+        "spurious": []
+      }
+    },
+    "Q5_decl_census": {
+      "question": "How many distinct declarations named withRetry exist, and where?",
+      "gt_files": [
+        "libraries/library-env/src/retry.ts",
+        "libraries/library-shared/src/utils/retry.ts",
+        "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+        "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
+        "services/api-db-go/internal/infrastructure/postgres/retry.go",
+        "services/api-db-go/internal/shared/infisical/infisical.go",
+        "services/api-music/internal/shared/infisical/infisical.go"
+      ],
+      "kivgraph": {
+        "tokens": 2292,
+        "ms": 1.3,
+        "n": 1,
+        "sequence": [
+          "find_symbol"
+        ],
+        "files": [
+          "libraries/library-env/src/retry.ts",
+          "libraries/library-shared/src/utils/retry.ts",
+          "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+          "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
+          "services/api-db-go/internal/infrastructure/postgres/retry.go",
+          "services/api-db-go/internal/shared/infisical/infisical.go",
+          "services/api-music/internal/shared/infisical/infisical.go"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "spurious": []
+      },
+      "codebase_memory": {
+        "tokens": 4392,
+        "ms": 8.1,
+        "n": 1,
+        "sequence": [
+          "search_graph"
+        ],
+        "files": [
+          "libraries/library-env/src/retry.ts",
+          "libraries/library-shared/src/utils/retry.ts",
+          "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+          "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
+          "packages/core/tests/cluster/master/index.test.ts",
+          "packages/core/tests/cluster/worker/BotWorker.presence.test.ts",
+          "packages/core/tests/cluster/worker/BotWorker.test.ts",
+          "services/api-db-go/internal/infrastructure/postgres/retry.go",
+          "services/api-db-go/internal/shared/infisical/infisical.go",
+          "services/api-music/internal/shared/infisical/infisical.go"
+        ],
+        "precision": 0.7,
+        "recall": 1.0,
+        "missing": [],
+        "spurious": [
+          "packages/core/tests/cluster/master/index.test.ts",
+          "packages/core/tests/cluster/worker/BotWorker.presence.test.ts",
+          "packages/core/tests/cluster/worker/BotWorker.test.ts"
+        ]
+      }
+    }
+  },
+  "baseline_grep_read": {
+    "Q1_ts_xrepo_callers": {
+      "grep_lines": 61,
+      "grep_tokens": 2588,
+      "decl_files": [
+        "libraries/library-env/src/retry.ts",
+        "libraries/library-shared/src/utils/retry.ts",
+        "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+        "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
+        "packages/core/tests/cluster/worker/BotWorker.test.ts",
+        "services/api-db-go/internal/infrastructure/postgres/retry.go",
+        "services/api-db-go/internal/shared/infisical/infisical.go",
+        "services/api-music/internal/shared/infisical/infisical.go"
+      ],
+      "read_tokens": 13416,
+      "total_tokens": 16004
+    },
+    "Q2_go_callers": {
+      "grep_lines": 61,
+      "grep_tokens": 2588,
+      "decl_files": [
+        "libraries/library-env/src/retry.ts",
+        "libraries/library-shared/src/utils/retry.ts",
+        "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+        "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
+        "packages/core/tests/cluster/worker/BotWorker.test.ts",
+        "services/api-db-go/internal/infrastructure/postgres/retry.go",
+        "services/api-db-go/internal/shared/infisical/infisical.go",
+        "services/api-music/internal/shared/infisical/infisical.go"
+      ],
+      "read_tokens": 13416,
+      "total_tokens": 16004
+    },
+    "Q3_ts_intra_callers": {
+      "grep_lines": 81,
+      "grep_tokens": 3798,
+      "decl_files": [
+        "packages/core/src/cluster/worker/ipc/utils/ipcCase.ts"
+      ],
+      "read_tokens": 412,
+      "total_tokens": 4210
+    },
+    "Q4_rust_callers": {
+      "grep_lines": 85,
+      "grep_tokens": 3288,
+      "decl_files": [
+        "services/kenalink-rs/src/util.rs"
+      ],
+      "read_tokens": 106,
+      "total_tokens": 3394
+    }
+  },
+  "auxiliary": {
+    "schema_tokens": {
+      "kivgraph": 2568,
+      "codebase_memory": 2956
+    },
+    "tool_count": {
+      "kivgraph": 11,
+      "codebase_memory": 14
+    },
+    "outline": {
+      "kivgraph": {
+        "tokens": 633,
+        "rows": 13,
+        "calls": 1
+      },
+      "codebase_memory": {
+        "tokens": 8815,
+        "rows": 7,
+        "calls": 3
+      }
+    },
+    "source_two_symbols": {
+      "kivgraph": {
+        "tokens": 201,
+        "calls": 1
+      },
+      "codebase_memory": {
+        "tokens": 1231,
+        "calls": 2
+      }
+    },
+    "impact": {
+      "kivgraph": {
+        "tokens": 5102,
+        "affected": 118,
+        "returned": 50,
+        "calls": 1
+      },
+      "codebase_memory": {
+        "tokens": 2071,
+        "rows": 47,
+        "calls": 2,
+        "note": "trace_path empty; Cypher fallback required"
+      }
+    },
+    "cross_repo_consumers_shared_withRetry": {
+      "kivgraph": {
+        "tokens": 2456,
+        "total": 35,
+        "coverage": {
+          "exact": 0,
+          "candidate": 0,
+          "unresolved_related": 13,
+          "package_level": 22
+        },
+        "calls": 1
+      },
+      "codebase_memory": {
+        "equivalent_tool": null,
+        "note": "no repository dimension; CALLS edges for the same name point at services/api-db-go/.../retry.go"
+      }
+    },
+    "exact_answers": {
+      "kivgraph": 2,
+      "codebase_memory": 1,
+      "of": 4
+    }
+  },
+  "aggregate": {
+    "kivgraph": {
+      "tokens_total": 13586,
+      "tokens_mean": 3396.5,
+      "precision_mean": 0.75,
+      "recall_mean": 0.722,
+      "calls_total": 8,
+      "ms_total": 5.6
+    },
+    "codebase_memory": {
+      "tokens_total": 3217,
+      "tokens_mean": 804.2,
+      "precision_mean": 0.583,
+      "recall_mean": 0.667,
+      "calls_total": 12,
+      "ms_total": 1750.4
+    },
+    "baseline_grep_read": {
+      "tokens_total": 39612,
+      "tokens_mean": 9903,
+      "precision_mean": 1.0,
+      "recall_mean": 1.0,
+      "calls_total": 8,
+      "note": "rg output + full read of every file declaring the name"
+    }
+  },
+  "tokenizer": "tiktoken o200k_base (proxy for the Claude tokenizer)",
+  "cross_repository": {
+    "kena_structural_fact": {
+      "workspace_or_link_deps_between_kena_repos": 0,
+      "detail": "todo @kena/* se declara con rango de registro (0.0.1); node_modules/.pnpm contiene una copia del paquete publicado con su propio dist, no un enlace al repo del workspace",
+      "built_dist_effect": {
+        "kivgraph_symbols_before": 96923,
+        "kivgraph_symbols_after": 96923,
+        "kivgraph_edges_before": 368166,
+        "kivgraph_edges_after": 368166,
+        "unresolved_before": 22929,
+        "unresolved_after": 22929,
+        "fact_cache_dropped": true,
+        "codebase_memory_changed_files": 0,
+        "note": "library-shared y library-env se construyeron y se revirtieron; git status limpio"
+      }
+    },
+    "package_level_kena": {
+      "question": "que repositorios consumen @kena/shared",
+      "ground_truth_repos": 22,
+      "ground_truth_rule": "importa el paquete en codigo; excluye services/api-metrics (lo declara y no lo importa) y los repos que solo lo mencionan en comentarios",
+      "kivgraph": {
+        "tool": "find_cross_repo_consumers",
+        "calls": 1,
+        "tokens": 2456,
+        "repos": 22,
+        "precision": 1.0,
+        "recall": 1.0,
+        "coverage": {
+          "exact": 0,
+          "package_level": 22,
+          "unresolved_related": 13
+        }
+      },
+      "codebase_memory": {
+        "tool": null,
+        "calls": 3,
+        "tokens": 13847,
+        "result": "sin respuesta: los paquetes npm no son nodos (Package=100, todos modulos Go); get_architecture no contiene dependencias npm"
+      }
+    },
+    "fixture": {
+      "path": "/private/tmp/xrepo-bench",
+      "repos": 2,
+      "shape": "lib-a exporta withRetry y se consume desde app-b via node_modules symlink + dist/*.d.ts; app-b declara ademas un homonimo local withRetry llamado solo desde unused.ts",
+      "kivgraph_index": {
+        "seconds": 2.8,
+        "symbols": 18,
+        "edges": 45,
+        "unresolved": 0
+      },
+      "codebase_memory_index": {
+        "seconds": 0.04,
+        "nodes": 21,
+        "edges": 25
+      },
+      "X1": {
+        "question": "quien llama al withRetry de lib-a/src/retry.ts",
+        "ground_truth": [
+          "app-b/src/main.ts"
+        ],
+        "kivgraph": {
+          "calls": 2,
+          "tokens": 962,
+          "answer": [
+            "app-b/src/main.ts (IMPORTS_SYMBOL, EXACT_PACKAGE_MAPPED, TYPESCRIPT_PROJECT_REFERENCE)"
+          ],
+          "precision": 1.0,
+          "recall": 1.0,
+          "granularity": "import, no los dos call sites"
+        },
+        "codebase_memory": {
+          "calls": 3,
+          "tokens": 218,
+          "answer": [],
+          "precision": 0.0,
+          "recall": 0.0,
+          "detail": "atribuye main.ts:3 y main.ts:7 al homonimo app-b/src/local.ts"
+        }
+      },
+      "X2": {
+        "question": "quien llama al withRetry local de app-b/src/local.ts",
+        "ground_truth": [
+          "app-b/src/unused.ts"
+        ],
+        "kivgraph": {
+          "calls": 1,
+          "tokens": 270,
+          "answer": [
+            "app-b/src/unused.ts:3 (CALLS_DIRECT, EXACT_TYPECHECKED)"
+          ],
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "codebase_memory": {
+          "calls": 1,
+          "tokens": 63,
+          "answer": [
+            "app-b/src/main.ts:3",
+            "app-b/src/main.ts:7",
+            "app-b/src/unused.ts:3"
+          ],
+          "precision": 0.333,
+          "recall": 1.0
+        }
+      }
+    },
+    "codebase_memory_cross_repo_mode": {
+      "fixture": {
+        "projects_scanned": 21,
+        "total_cross_edges": 0
+      },
+      "kena_services": {
+        "projects": [
+          "api-gateway",
+          "api-db-go",
+          "api-premium",
+          "api-translations",
+          "packages/core"
+        ],
+        "projects_scanned": 4,
+        "cross_http_calls": 0,
+        "cross_grpc_calls": 0,
+        "total_cross_edges": 0,
+        "observed": "api-gateway habla gRPC con host y puerto de entorno (env.grpc.host) y consume rutas de api-db; ninguna arista cross-service se creo"
+      },
+      "scope": "solo enlaza Route/Channel HTTP, async, gRPC, GraphQL y tRPC entre proyectos; no proyecta identidad de simbolo importado"
+    },
+    "operational": {
+      "kivgraph": "rechaza rutas con componente symlink: /tmp en macOS falla, hay que registrar /private/tmp",
+      "trace_path_empty_calls": 7
+    }
+  },
+  "token_budget": {
+    "field_costs": {
+      "find_references.getRequiredField": {
+        "file_path": 930,
+        "provenance": 650,
+        "qualified_name": 590,
+        "confidence": 550,
+        "edge_kind": 499,
+        "repository": 408,
+        "name": 363,
+        "kind": 357,
+        "start_line": 357,
+        "end_line": 350,
+        "language": 350,
+        "next_cursor": 223
+      },
+      "find_symbol.withRetry": {
+        "stable_key": 885,
+        "signature": 360,
+        "file_path": 284,
+        "repository": 211,
+        "qualified_name": 208,
+        "name": 154,
+        "kind": 154,
+        "start_line": 154,
+        "end_line": 154,
+        "exported": 132,
+        "snapshot_age_ms": 10,
+        "unresolved_related": 8
+      },
+      "blast.getRequiredField": {
+        "file_path": 912,
+        "via_provenance": 700,
+        "via_confidence": 650,
+        "qualified_name": 583,
+        "reached_from": 550,
+        "via_kind": 499,
+        "repository": 408,
+        "name": 353,
+        "kind": 350,
+        "language": 350,
+        "start_line": 350,
+        "end_line": 350
+      },
+      "xrepo.withRetry": {
+        "detail": 536,
+        "confidence": 372,
+        "package_name": 370,
+        "repository": 353,
+        "provenance": 286,
+        "category": 258,
+        "edge_kind": 242,
+        "file_path": 185,
+        "reason": 157,
+        "requested_package": 130,
+        "requested_symbol": 117,
+        "start_offset": 84
+      }
+    },
+    "schema_cost_per_tool": {
+      "index_project": {
+        "total": 796,
+        "description": 36,
+        "input_schema": 143
+      },
+      "find_references": {
+        "total": 231,
+        "description": 42,
+        "input_schema": 150
+      },
+      "get_blast_radius": {
+        "total": 220,
+        "description": 26,
+        "input_schema": 142
+      },
+      "trace_dependencies": {
+        "total": 219,
+        "description": 18,
+        "input_schema": 160
+      },
+      "find_symbol": {
+        "total": 181,
+        "description": 36,
+        "input_schema": 107
+      },
+      "get_source": {
+        "total": 173,
+        "description": 27,
+        "input_schema": 108
+      },
+      "find_cross_repo_consumers": {
+        "total": 153,
+        "description": 25,
+        "input_schema": 100
+      },
+      "get_file_outline": {
+        "total": 146,
+        "description": 30,
+        "input_schema": 90
+      },
+      "get_symbol": {
+        "total": 113,
+        "description": 24,
+        "input_schema": 64
+      },
+      "list_repositories": {
+        "total": 75,
+        "description": 15,
+        "input_schema": 34
+      },
+      "graph_status": {
+        "total": 63,
+        "description": 26,
+        "input_schema": 12
+      }
+    },
+    "cursor_tokens": 221,
+    "blast_first_page_kinds": {
+      "variable": 48,
+      "function": 1,
+      "export": 1
+    },
+    "projection": {
+      "stage1_compact": {
+        "find_references.getRequiredField": 874,
+        "find_references.now_ms": 354,
+        "find_symbol.withRetry": 664,
+        "blast.getRequiredField": 1447,
+        "xrepo.withRetry": 1697,
+        "four_questions_total": 3058
+      },
+      "stage2_name_first": {
+        "four_questions_total": 1868,
+        "four_questions_files_view": 684
+      },
+      "stage3_blast_callables_only": 172,
+      "codebase_memory_reference": 3217
+    },
+    "adr": "docs/adr/0046-token-budget-of-the-mcp-payload.md"
+  },
+  "after_adr_0046": {
+    "binary": "repo HEAD build of cmd/kivgraph with ADR 0046 (view/compact default, name-first find_references, blast radius kind filter, short cursor)",
+    "same_generation": "000003 of the isolated HOME, unchanged; no reindex",
+    "schema_cost_tokens": {
+      "kivgraph": 2651,
+      "codebase_memory": 2956
+    },
+    "questions": {
+      "Q1_ts_xrepo_callers": {
+        "tokens": 297,
+        "calls": 2,
+        "ms": 0.4,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "Q2_go_callers": {
+        "tokens": 320,
+        "calls": 2,
+        "ms": 0.2,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "Q3_ts_intra_callers": {
+        "tokens": 1034,
+        "calls": 1,
+        "ms": 0.2,
+        "precision": 1.0,
+        "recall": 0.889
+      },
+      "Q4_rust_callers": {
+        "tokens": 1232,
+        "calls": 2,
+        "ms": 0.3,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "totals": {
+      "kivgraph_compact_default": 2883,
+      "kivgraph_files_view": 963,
+      "kivgraph_before": 13594,
+      "codebase_memory": 3217,
+      "vs_codebase_memory": 0.9,
+      "vs_before": 4.7
+    },
+    "auxiliary": {
+      "find_symbol_withRetry": {
+        "before": 2292,
+        "after": 901
+      },
+      "get_file_outline_dir": {
+        "before": 633,
+        "after": 248
+      },
+      "get_blast_radius_depth2": {
+        "before": 5102,
+        "after": 921,
+        "affected_before": 118,
+        "affected_after": 29,
+        "excluded": [
+          "field",
+          "variable"
+        ]
+      },
+      "find_cross_repo_consumers": {
+        "before": 2456,
+        "after": 2202
+      },
+      "get_source_two_symbols": {
+        "before": 201,
+        "after": 201
+      },
+      "cursor_chars": {
+        "before": 314,
+        "after": 31
+      }
+    },
+    "accuracy": "unchanged: Q1 0.00/0.00, Q2 1.00/1.00, Q3 1.00/0.89, Q4 1.00/1.00",
+    "adr": "docs/adr/0046-token-budget-of-the-mcp-payload.md"
+  },
+  "rematch_after_adr_0046": {
+    "date": "2026-08-18",
+    "note": "same generation 000003 of kena, same manual ground truth, no reindex; kivgraph built from repo HEAD with ADR 0046, codebase-memory-mcp 0.8.1 unchanged",
+    "fixed_context_tokens": {
+      "kivgraph": 2651,
+      "codebase_memory": 2956
+    },
+    "reference_questions": {
+      "Q1_ts_xrepo_callers": {
+        "kivgraph": {
+          "tokens": 297,
+          "calls": 2,
+          "ms": 3.7,
+          "precision": 0.0,
+          "recall": 0.0,
+          "missing": [
+            "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+            "packages/core/src/cluster/master/index.ts",
+            "packages/core/src/cluster/worker/BotWorker.ts",
+            "packages/core/src/shared/utils/sharding.ts",
+            "packages/gateway/src/grpc/server.ts"
+          ],
+          "spurious": [
+            "libraries/library-shared/src/client/index.ts",
+            "libraries/library-shared/src/index.ts",
+            "libraries/library-shared/src/utils/index.ts"
+          ]
+        },
+        "kivgraph_files_view": 246,
+        "codebase_memory": {
+          "tokens": 830,
+          "calls": 3,
+          "ms": 777.2,
+          "precision": 0.0,
+          "recall": 0.0,
+          "missing": [
+            "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+            "packages/core/src/cluster/master/index.ts",
+            "packages/core/src/cluster/worker/BotWorker.ts",
+            "packages/core/src/shared/utils/sharding.ts",
+            "packages/gateway/src/grpc/server.ts"
+          ],
+          "spurious": []
+        }
+      },
+      "Q2_go_callers": {
+        "kivgraph": {
+          "tokens": 320,
+          "calls": 2,
+          "ms": 0.3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "missing": [],
+          "spurious": []
+        },
+        "kivgraph_files_view": 227,
+        "codebase_memory": {
+          "tokens": 961,
+          "calls": 3,
+          "ms": 514.9,
+          "precision": 0.333,
+          "recall": 1.0,
+          "missing": [],
+          "spurious": [
+            "packages/core/src/cluster/master/index.ts",
+            "packages/core/src/cluster/worker/BotWorker.ts",
+            "packages/core/src/shared/utils/sharding.ts",
+            "packages/gateway/src/grpc/server.ts"
+          ]
+        }
+      },
+      "Q3_ts_intra_callers": {
+        "kivgraph": {
+          "tokens": 1034,
+          "calls": 1,
+          "ms": 0.3,
+          "precision": 1.0,
+          "recall": 0.889,
+          "missing": [
+            "packages/core/tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+          ],
+          "spurious": []
+        },
+        "kivgraph_files_view": 240,
+        "codebase_memory": {
+          "tokens": 830,
+          "calls": 3,
+          "ms": 478.1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "missing": [],
+          "spurious": []
+        }
+      },
+      "Q4_rust_callers": {
+        "kivgraph": {
+          "tokens": 1232,
+          "calls": 2,
+          "ms": 0.3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "missing": [],
+          "spurious": []
+        },
+        "kivgraph_files_view": 250,
+        "codebase_memory": {
+          "tokens": 596,
+          "calls": 3,
+          "ms": 558.5,
+          "precision": 1.0,
+          "recall": 0.667,
+          "missing": [
+            "services/kenalink-rs/src/api_rest/routes_players.rs",
+            "services/kenalink-rs/src/api_ws/mod.rs"
+          ],
+          "spurious": []
+        }
+      }
+    },
+    "reference_totals": {
+      "kivgraph": 2883,
+      "kivgraph_files_view": 963,
+      "codebase_memory": 3217,
+      "exact_answers": {
+        "kivgraph": 2,
+        "codebase_memory": 1,
+        "of": 4
+      },
+      "latency_ms": {
+        "kivgraph": 4.6,
+        "codebase_memory": 2328.7
+      }
+    },
+    "auxiliary_questions": {
+      "decl_census": {
+        "kivgraph": {
+          "tokens": 901,
+          "calls": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "missing": [],
+          "spurious": []
+        },
+        "codebase_memory": {
+          "tokens": 4392,
+          "calls": 1,
+          "precision": 0.7,
+          "recall": 1.0,
+          "missing": [],
+          "spurious": [
+            "packages/core/tests/cluster/master/index.test.ts",
+            "packages/core/tests/cluster/worker/BotWorker.presence.test.ts",
+            "packages/core/tests/cluster/worker/BotWorker.test.ts"
+          ]
+        }
+      },
+      "outline": {
+        "kivgraph": {
+          "tokens": 248,
+          "calls": 1,
+          "rows": 13
+        },
+        "codebase_memory": {
+          "tokens": 4875,
+          "calls": 2,
+          "rows": 7
+        }
+      },
+      "source_two": {
+        "kivgraph": {
+          "tokens": 201,
+          "calls": 1
+        },
+        "codebase_memory": {
+          "tokens": 1231,
+          "calls": 2
+        }
+      },
+      "impact": {
+        "kivgraph": {
+          "tokens": 921,
+          "calls": 1,
+          "affected": 29
+        },
+        "codebase_memory": {
+          "tokens": 2071,
+          "calls": 2,
+          "rows": 47
+        }
+      },
+      "xrepo": {
+        "kivgraph": {
+          "tokens": 2202,
+          "calls": 1
+        },
+        "codebase_memory": {
+          "tokens": 13847,
+          "calls": 3,
+          "note": "no npm package nodes; get_architecture does not carry it"
+        }
+      }
+    },
+    "nine_question_totals": {
+      "kivgraph": 7356,
+      "codebase_memory": 29633,
+      "factor": 4.03
+    },
+    "session_totals_with_fixed_cost": {
+      "kivgraph": 10007,
+      "codebase_memory": 32589,
+      "factor": 3.26
+    }
+  },
+  "stage4_second_tier_hoisting": {
+    "date": "2026-08-18",
+    "note": "same generation 000003 of kena, no reindex; codebase-memory-mcp unchanged",
+    "questions": {
+      "Q1_ts_xrepo_callers": {
+        "tokens": 297,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "Q2_go_callers": {
+        "tokens": 320,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "Q3_ts_intra_callers": {
+        "tokens_before": 1034,
+        "tokens_after": 729,
+        "precision": 1.0,
+        "recall": 0.889
+      },
+      "Q4_rust_callers": {
+        "tokens_before": 1232,
+        "tokens_after": 868,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "reference_totals": {
+      "before": 2883,
+      "after": 2214,
+      "codebase_memory": 3217,
+      "vs_codebase_memory": 0.69,
+      "vs_pre_adr": 6.1
+    },
+    "auxiliary": {
+      "impact_before": 921,
+      "impact_after": 821
+    },
+    "nine_question_totals": {
+      "before": 7356,
+      "after": 6587,
+      "codebase_memory": 29633,
+      "factor": 4.5
+    },
+    "bug_found_and_fixed": {
+      "description": "first implementation conflated the group's display value (blank when already page-hoisted) with the value used to suppress a row's own field, so reachedFileGroups re-emitted kind/via_kind/via_confidence/via_provenance on every row of a group even when the page or the group already stated it",
+      "symptom": "grouping silently cost more than not grouping; the byte-comparison guard correctly always chose the flat fallback, so no test failed and no wrong answer was served -- only the token saving was lost",
+      "found_by": "TestGetBlastRadiusGroupsFanInDespiteDivergingReachedFrom, a fixture with four direct callers of a root each with their own consumer, matching the real kena shape",
+      "fix": "internal/mcp/tools/trace_dependencies.go: compute an effective value (page value if hoisted, else the group's own) distinct from the group's JSON display value"
+    },
+    "adr": "docs/adr/0046-token-budget-of-the-mcp-payload.md stage 4"
+  },
+  "stage5_second_tier_hoisting_symbol_outline_xrepo": {
+    "date": "2026-08-18",
+    "note": "same generation 000003 of kena, no reindex; codebase-memory-mcp unchanged; extends stage4's grouping to find_symbol, get_file_outline and find_cross_repo_consumers",
+    "questions": {
+      "withRetry_declaration_census": {
+        "tool": "find_symbol",
+        "tokens_before": 901,
+        "tokens_after": 773,
+        "precision": 1.0,
+        "recall": 1.0,
+        "note": "7 declarations; a minority share (kind, exported), the rest disagree, so paging stays partly grouped and partly flat rather than an all-or-nothing hoist"
+      },
+      "ipc_utils_outline": {
+        "tool": "get_file_outline",
+        "tokens_before": 248,
+        "tokens_after": 248,
+        "note": "13 declarations across too few repeated (kind, exported) tuples for grouping to beat the flat page; the byte-comparison guard kept it flat, unchanged"
+      },
+      "cross_repo_consumers_kena_shared": {
+        "tool": "find_cross_repo_consumers",
+        "tokens_before": 2202,
+        "tokens_after": 926,
+        "precision": 1.0,
+        "recall": 1.0,
+        "note": "35 consumers: 22 package-level dependencies share one (edge_kind, confidence, provenance) tuple, and 13 unresolved rows collapse to two (reason, detail) pairs -- `detail` reads as each row's own prose but is a template repeated verbatim per file"
+      }
+    },
+    "nine_question_totals": {
+      "before": 6587,
+      "after": 5183,
+      "codebase_memory": 29633,
+      "factor": 5.72
+    },
+    "session_totals_with_fixed_cost": {
+      "kivgraph_fixed_cost": 2651,
+      "kivgraph_after": 7834,
+      "codebase_memory_fixed_cost": 2956,
+      "codebase_memory_total": 32589,
+      "factor": 4.16
+    },
+    "unchanged": {
+      "fixed_context_cost_tokens": 2651,
+      "reason": "no new input parameters on find_symbol, get_file_outline or find_cross_repo_consumers; only their response serialization changed"
+    },
+    "adr": "docs/adr/0046-token-budget-of-the-mcp-payload.md stage 5"
+  }
+}
