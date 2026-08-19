@@ -25,7 +25,10 @@ Go, TypeScript or Rust repositories rather than a text-only search.
 4. Use `get_source` to read the code a row names. It answers in prose, not
    JSON, and takes a list of selectors, so one call reads several declarations.
 5. Use `find_references` for direct incoming or outgoing references and
-   `trace_dependencies` for bounded dependency paths.
+   `trace_dependencies` for bounded dependency paths. `find_references` takes
+   `name` on its own: with one declaration of that name it answers about it,
+   and with several it names the candidates as `repository:path:line`, so the
+   usual question costs one call and not two.
 6. Use `find_cross_repo_consumers` for consumers in another repository and
    `get_blast_radius` for bounded impact analysis. Read its `coverage`
    carefully: `exact` and `candidate` count consumers of the symbol asked
@@ -37,6 +40,42 @@ Go, TypeScript or Rust repositories rather than a text-only search.
 7. Read `completeness` before concluding. A verdict of `LOWER_BOUND` means the
    answer is a floor: `invisible_scopes` names what could not be seen, and
    `fallback` names the paths and the pattern to grep instead.
+
+## Choosing a view
+
+Every query tool takes `view`, which is the granularity of the answer and never
+which facts it holds:
+
+- `compact`, the default: rows grouped by file, and whatever every row shares
+  -- `repository`, `kind`, `edge_kind`, `confidence`, `provenance` -- stated
+  once in the header instead of on every row. An entry reads
+  `qualified_name@line` for a reference, which is a point, and
+  `qualified_name@start-end` for a declaration that spans lines; it becomes an
+  array when that row carries a column the page could not hoist. A row drops
+  the repository when the header states it, so the triple is the header's
+  repository plus the row's `path:line`.
+- `files`, on `find_references` and `get_file_outline`: only which files hold
+  the facts and how many each holds. It is the shape of "which files call this".
+- `full`: one row per fact with every field spelled out. Ask for it when a
+  client parses fixed field names.
+
+`get_blast_radius` reports invocable symbols by default. Local variables and
+fields are traversal noise -- on one real query 48 of the first 50 rows were
+local variables -- and `kinds` brings them back.
+
+A page also tries a second grouping tier: when a column cannot hoist to the
+header because one row disagrees, `find_symbol`, `find_references`,
+`trace_dependencies`, `get_blast_radius`, `get_file_outline` and
+`find_cross_repo_consumers` try grouping the page by whatever exact tuple of
+the remaining columns each row still shares, so that tuple is stated once per
+group instead of once per row. When present, `results.groups` replaces the
+flat field (`symbols`, `files` or `consumers`) rather than sitting beside it;
+each group is its own small header followed by rows in the tool's normal
+shape. The response always measures both the flat and the grouped form and
+serves whichever is smaller, so a page where nothing repeats -- most
+`trace_dependencies` fan-out -- stays flat. Read a group's header the same way
+as the page's: a column stated there applies to every row inside it, and a
+column still absent from both stays on the row.
 
 ## Reading `graph_status`
 

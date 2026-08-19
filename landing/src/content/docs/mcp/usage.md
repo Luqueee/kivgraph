@@ -63,8 +63,9 @@ requires `repository`.
 
 A stable key is exact and durable, and it is also about thirty-five tokens of
 opaque base32 that nothing outside the server can read. You never need one,
-because every row a tool returns already carries the triple. Find the symbol,
-then feed the answer straight into the next call.
+because every row a tool returns already carries the triple -- which is why the
+default view of every query tool leaves the key out. Find the symbol, then feed
+the answer straight into the next call.
 
 Step one, locate it:
 
@@ -76,7 +77,28 @@ Step one, locate it:
 }
 ```
 
-`find_symbol` answers with the row you need:
+`find_symbol` answers with the row you need. This is the default `compact` view:
+the header states what the whole page shares, the row states where it is:
+
+```json
+{
+  "name": "MergeAll",
+  "kind": "func",
+  "exported": true,
+  "repository": "kivgraph",
+  "symbols": [
+    {
+      "at": "internal/facts/facts.go:516",
+      "end": 542,
+      "sig": "func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set"
+    }
+  ]
+}
+```
+
+`at` is `path:line` under a header that names the repository, and the full
+`repository:path:line` triple when the page's rows come from more than one. Under
+`"view": "full"` the same row is spelled field by field, key included:
 
 ```json
 {
@@ -92,8 +114,8 @@ Step one, locate it:
 }
 ```
 
-Step two, ask the real question. The row's `repository`, `file_path` and
-`qualified_name` become the call's `repository`, `path` and `qualified_name`:
+Step two, ask the real question. The header's `repository`, the row's path and
+its qualified name become the call's `repository`, `path` and `qualified_name`:
 
 ```json
 {
@@ -105,13 +127,19 @@ Step two, ask the real question. The row's `repository`, `file_path` and
 }
 ```
 
-Note the one rename: rows report the file as `file_path`, arguments call it
-`path`. Both are repository-relative.
+Note the one rename: a compact row reports the file inside `at`, a full row as
+`file_path`, and arguments call it `path`. All of them are repository-relative.
+
+For a reference question the two steps collapse into one:
+[`find_references`](/reference/tools/find-references/) takes `name` on its own,
+answers directly when a single declaration carries that name, and returns the
+candidates as `repository:path:line` under `AMBIGUOUS_SYMBOL` when several do.
 
 [`get_file_outline`](/reference/tools/get-file-outline/) is the other way in
 when you know the file or the package but not the name. It takes `repository`
-and `path` and returns the declarations grouped by file, each with kind,
-signature and line range, and those rows address the next call the same way.
+and `path` and returns the declarations grouped by file, each as a
+`name@start-end` entry with its kind, and those rows address the next call the
+same way. The signature comes with `response_format: "detailed"`.
 
 If a qualified name matches more than one symbol, the call fails with
 `AMBIGUOUS_SYMBOL` instead of a silent pick. What the error offers depends on
@@ -128,23 +156,141 @@ A name that is absent says so distinctly. This is the captured answer to
 SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under kivgraph; call it without repository and path to search the whole graph
 ```
 
+## Choose a view
+
+Every query tool takes a `view`, and it changes the granularity of an answer,
+never the answer. The same edges, with the same confidence and the same
+provenance, spelled with or without the parts a row shares with every other row.
+
+| `view` | What you get | Where |
+| --- | --- | --- |
+| `compact` | The default. Whatever every row of the page shares is stated once in a header, and a row carries only what the header could not state for it. | Every query tool |
+| `full` | The field-per-row shape: every field on every row, including the stable keys and the `language` the compact view drops. Ask for it when a client was written against that shape. | Every query tool |
+| `files` | Only which files hold the facts, with a count each. The answer to "which files do I open". | [`find_references`](/reference/tools/find-references/) and [`get_file_outline`](/reference/tools/get-file-outline/) |
+
+An unsupported value is `INVALID_ARGUMENT`, and so is `files` on a tool whose
+answer is not a set of files -- it fails rather than quietly returning something
+else.
+
+Pick `compact` unless you have a reason, which is why it is the default: over the
+four reference questions of `benchmarks/codebase-memory-comparison`, measured on
+the `kena` corpus, they cost `13.594` tokens in the previous shape, `2.883` in the
+compact view and `963` in the files view, with precision and recall unchanged.
+`view` is never part of a cursor's identity, so a page taken in one view can be
+continued in another.
+
+Four tools group their rows by file and spell each row as a label:
+[`find_references`](/reference/tools/find-references/),
+[`trace_dependencies`](/reference/tools/trace-dependencies/),
+[`get_blast_radius`](/reference/tools/get-blast-radius/) and
+[`get_file_outline`](/reference/tools/get-file-outline/). Three habits make their
+answers readable:
+
+- **Read the header first.** A field there applies to every row. A field missing
+  from it means the rows disagreed and each carries its own.
+- **A row is a label.** `qualified_name@start`, or `qualified_name@start-end`
+  when the declaration spans lines -- the qualified name when the row has one and
+  the bare name when it does not. It becomes an array when the row had to carry
+  a column the header could not hoist, and the elements after the label are that
+  tool's columns in a fixed order, skipping whatever the header states -- so the
+  header tells you which columns a tail can hold and the order tells you which is
+  which. Numbers in a tail are written as strings.
+- **The triple is assembled, not printed.** The repository comes from the header
+  (or a group's own `repo`), the path from the group's `file`, the qualified name
+  and line from the label. That is the selector every tool accepts, so no row
+  needs a stable key.
+
+The other two spell a row as an object, for the same reason: their answer is not
+a set of files. [`find_symbol`](/reference/tools/find-symbol/) addresses a
+declaration with `at`, which is `path:line` under a header that names the
+repository and the whole `repository:path:line` triple when the rows come from
+more than one. [`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/)
+keeps a field per consumer -- `repo`, `pkg`, `at` -- because a package dependency
+has a repository and no file at all.
+
+## When a page groups
+
+A header only states a column when **every** row of the page agrees on it. One
+dissenting row is enough to knock a column back down to the rows -- a `65`-row
+page sharing `kind` and `edge_kind` pays for both on every row if row `66` is a
+re-export the other `65` are not. `groups` is the second tier that catches this:
+the six query tools that carry a `compact` view -- `find_symbol`,
+`find_references`, `trace_dependencies`, `get_blast_radius`,
+`get_file_outline` and `find_cross_repo_consumers` -- also try grouping the page
+by whatever exact tuple of the remaining columns each row still shares, instead
+of stating that tuple over and over on every row.
+
+`results.groups` replaces the flat field -- `symbols`, `files` or `consumers`,
+depending on the tool -- it never sits beside it. Each entry is a small header of
+its own, holding the columns that tuple fixed, followed by the tool's normal rows
+in their normal shape: a label list under `files` for the four that group by
+file, a `symbols` array for `find_symbol`, a `consumers` array for
+`find_cross_repo_consumers`. A column already stated on the page header is never
+repeated on a group; a column that still disagrees within a group stays on the
+row, exactly as it would on a flat page.
+
+Grouping is a bet, and the response never assumes it pays off: building both the
+flat page and the grouped one and keeping whichever serializes smaller is cheap
+next to a snapshot lookup, and it is the only way to guarantee grouping never
+costs more than not grouping. A page where every row disagrees with every other
+-- three hops down three different edges is the ordinary shape of
+`trace_dependencies` -- stays flat, because a group is an object with its own
+keys and a row with nothing to share only had to pay for its own values. Neither
+shape changes `total`, `returned` or `coverage`; it only changes how the same
+rows are spelled.
+
+A `find_symbol` search for `handle` across two repositories, three kinds and no
+column the whole page agrees on:
+
+```json
+{
+  "exported": false,
+  "groups": [
+    { "kind": "method", "symbols": [ /* 6 rows */ ] },
+    { "kind": "variable", "symbols": [ /* 1 row */ ] },
+    { "kind": "func", "symbols": [ /* 1 row */ ] }
+  ]
+}
+```
+
+`exported` is `false` for the whole page -- nothing here is exported -- so it
+stays in the header; `kind` disagrees, so each group states its own and never
+repeats it on a row. Every tool's own reference page shows the full, unabridged
+capture:
+[`find_symbol`](/reference/tools/find-symbol/#example-grouped),
+[`find_references`](/reference/tools/find-references/#reading-a-grouped-page),
+[`trace_dependencies`](/reference/tools/trace-dependencies/#reading-a-grouped-page),
+[`get_blast_radius`](/reference/tools/get-blast-radius/#reading-a-grouped-page),
+[`get_file_outline`](/reference/tools/get-file-outline/#example-grouped) and
+[`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/#reading-a-grouped-page).
+
 ## Read the answer
 
 Every query tool returns the same envelope around its `results`. No tool
 publishes an `outputSchema`, so the answer arrives once, in the text block, and
 is not repeated as structured content.
 
-| Field | What it says |
-| --- | --- |
-| `total` | How many rows the query matched. |
-| `returned` | How many are in this page. |
-| `truncated` | Whether `returned` is less than `total`. |
-| `next_cursor` | The opaque token for the next page, or `null`. |
-| `coverage` | Four disjoint counters: `exact`, `candidate`, `unresolved_related`, `package_level`. |
-| `snapshot_id` | The published generation that answered. `null` means none is published. |
-| `snapshot_age_ms` | How long ago that generation was built. |
-| `guidance` | Present only when the count alone would mislead. |
-| `completeness` | Present only when the tool checked how far its answer reaches. |
+| Field | What it says | In a compact envelope |
+| --- | --- | --- |
+| `snapshot_id` | The published generation that answered. `null` means none is published. | Always |
+| `total` | How many rows the query matched. | Always |
+| `returned` | How many are in this page. | Always |
+| `results` | The answer itself. | Always |
+| `truncated` | Whether `returned` is less than `total`. | Only when it is `true` |
+| `next_cursor` | The opaque token for the next page. | Only when there is one |
+| `coverage` | Four disjoint counters: `exact`, `candidate`, `unresolved_related`, `package_level`. | Only the counters above zero, and absent entirely when all four are zero |
+| `snapshot_age_ms` | How long ago that generation was built. | Never; ask [`graph_status`](/reference/tools/graph-status/) for the age |
+| `guidance` | Present only when the count alone would mislead. | Unchanged |
+| `completeness` | Present only when the tool checked how far its answer reaches. | Unchanged |
+
+What the compact envelope leaves out is what carried no information: an age
+nobody asked for, a `truncated` that is `false`, a cursor that does not exist and
+a category that counted nothing. Read an absence accordingly -- a missing
+`truncated` is `false`, a missing `next_cursor` is `null`, a missing
+`unresolved_related` is `0` -- and note that `snapshot_id`, `total`, `returned`
+and `results` are always there, so the four numbers that say how much of the
+answer you are holding never move. The `full` view writes every field, `false`,
+`null` and zeros included.
 
 `coverage.package_level` is counted apart from `exact` on purpose: a package
 dependency proves the consumer depends on the provider package, never that it
@@ -251,12 +397,11 @@ only:
 ```json
 {
   "snapshot_id": 30,
-  "snapshot_age_ms": 9020,
   "total": 37,
   "returned": 3,
   "truncated": true,
-  "next_cursor": "eyJ2ZXJzaW9uIjoxLCJzbmFwc2hvdF9pZCI6MzAsInF1ZXJ5X2hhc2giOiIyZDNiNDY2YmY5MmIxOWFiOTA2Yjg5YjczZmI1YWViODk5YWMyYWRjN2U3OGFmZGUwYmMwNmE3OTg4ZTQyOWQwIiwib2Zmc2V0IjozLCJzb3J0aW5nX3ZlcnNpb24iOiJkZXBlbmRlbmNpZXMtdjEiLCJjaGVja3N1bSI6ImU4MGU0YTViZTEwNWIwM2VhOGEzOWQ0MzVkZWZmODZjMjU5ZTNmMDY4OGM5Yzc3ZWU0YTAzMGRjZDk0YmRiNDgifQ",
-  "coverage": { "exact": 37, "candidate": 0, "unresolved_related": 0, "package_level": 0 },
+  "next_cursor": "Ah4DYbLgOYhUrECElsmz0oFlyLUGpgE",
+  "coverage": { "exact": 37 },
   "guidance": "showing 3 of 37; narrow with depth, max_nodes, edge_kinds or confidence, or pass the cursor for the next page"
 }
 ```
@@ -265,18 +410,22 @@ Three of thirty-seven. Concluding anything about the other thirty-four from this
 page is a mistake the envelope told you not to make.
 
 The token is base64url without padding, and it is opaque: do not parse it, do
-not build one. It encodes a format version, the snapshot id it was taken
-against, a hash of the query identity, the row offset, a sorting version and a
-checksum over all of it. The query identity covers the tool name and every
-argument that can affect which rows match or in what order, so the next call
-must repeat the original arguments unchanged and add `cursor`.
+not build one. It is about 31 characters over a binary body -- a format version,
+the snapshot id it was taken against, the row offset, a digest of the query
+identity, a digest of the sorting contract and a checksum over all of it -- where
+the previous version spent 314 characters of base64-wrapped JSON, `221` tokens on
+every truncated page. The query identity covers the tool name and every argument
+that can affect which rows match or in what order, so the next call must repeat
+the original arguments unchanged and add `cursor`. `view`, `limit` and
+`response_format` are not among them.
 
 | What changed | What happens |
 | --- | --- |
 | A newer generation was published | `CURSOR_SNAPSHOT_EXPIRED`; start the query again from page one. |
 | Any argument affecting membership or ordering | `CURSOR_INVALID`, the cursor does not match the active query. |
 | The tool's sorting contract | `CURSOR_INVALID`. |
-| The cursor was edited, truncated or re-encoded | `CURSOR_INVALID`; the checksum covers the body. |
+| The cursor was edited, truncated or re-encoded, or decodes with trailing bytes after the checksum | `CURSOR_INVALID`; the checksum covers the body. |
+| The cursor was minted by a server of the previous cursor version | `CURSOR_INVALID`; the body declares version 2, and a version-1 token fails closed rather than being read under the new layout. |
 
 The guidance names narrowing before paging, and in that order for a reason: a
 second page of rows you did not want is a second payload. Cut with `depth`,
@@ -285,9 +434,13 @@ only when the narrowed answer is still too large.
 
 ## Confidence and provenance
 
-Every edge row carries a `confidence` and a `provenance`. Traversal rows name
-the edge they arrived by as `via_confidence` and `via_provenance`. A captured
-`find_references` row on `MergeAll`:
+Every edge carries a `confidence` and a `provenance`, and neither view ever drops
+them: in the compact one they sit in the header when the whole page agrees and on
+the row when it does not, and in the full one they are on every row. Traversal
+rows name the edge they arrived by as `via_confidence` and `via_provenance`. This
+is a captured `find_references` row on `MergeAll` in the `full` view; the compact
+page that carries the same edge states the last three fields once above it, and
+spells the row as `["mergeSets@681-712", "func"]`:
 
 ```json
 {
@@ -374,7 +527,9 @@ needs against the published generation plus the same reads. Tokens are counted
 with `cl100k_base`, over the `kivgraph` corpus at generation `000026`, 14424
 symbols across 363 files.
 
-Measured on the answer alone, the part a graph server owns:
+Measured on the answer alone, the part a graph server owns. These factors were
+taken against the previous output shape, before the compact view became the
+default, so they are a ceiling on what a session pays today:
 
 | Symbol | Class | Factor against the native arm |
 | --- | --- | ---: |
