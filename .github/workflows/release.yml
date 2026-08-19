@@ -88,9 +88,20 @@ jobs:
 
       # The bundle rewrites the executable's RUNPATH to the relative entry,
       # dropping the one the Go binding points at its own module directory.
+      #
+      # The timeout options are not cosmetic: the runner's apt mirrorlist puts
+      # azure.archive.ubuntu.com first, and when it black-holes connections
+      # apt pays 30 s plus backoff per index file before falling back to
+      # archive.ubuntu.com. Unbounded, that alone can approach this job's
+      # 30-minute budget, and a release that times out burns a version number.
       - name: Install patchelf
         if: matrix.os == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y patchelf
+        run: |
+          sudo apt-get update \
+            -o Acquire::Retries=0 \
+            -o Acquire::http::Timeout=5 \
+            -o Acquire::https::Timeout=5
+          sudo apt-get install -y patchelf
 
       - name: Resolve and validate release version
         id: release

@@ -156,8 +156,20 @@ jobs:
 
       # The bundle rewrites the executable's RUNPATH to the relative entry,
       # dropping the one the Go binding points at its own module directory.
+      #
+      # The runner points apt at a mirrorlist -- azure.archive.ubuntu.com
+      # first, archive.ubuntu.com as fallback. When the Azure mirror
+      # black-holes connections instead of refusing them, apt pays its default
+      # 30 s connect timeout plus ~7 s of backoff *per index file* before
+      # failing over, which turned this step into ten minutes of `Ign:` lines.
+      # Bounding the timeout keeps the fast path fast and the failover cheap.
       - name: Install patchelf
-        run: sudo apt-get update && sudo apt-get install -y patchelf
+        run: |
+          sudo apt-get update \
+            -o Acquire::Retries=0 \
+            -o Acquire::http::Timeout=5 \
+            -o Acquire::https::Timeout=5
+          sudo apt-get install -y patchelf
 
       # The Rust engine is a 40 MB download the bundle carries; the digest in
       # the manifest is what makes the cache safe to reuse.
