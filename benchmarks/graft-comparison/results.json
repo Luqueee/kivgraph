@@ -1,0 +1,1129 @@
+{
+  "benchmark": "kivgraph-vs-graft",
+  "generated_at": "2026-08-19T16:44:05.853997Z",
+  "commit": "e115fce",
+  "tokenizer": "o200k_base",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "darwin"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "code_files_searched": 5330
+  },
+  "versions": {
+    "graft": "0.10.1",
+    "kivgraph": "0.2.1"
+  },
+  "surfaces": {
+    "graft": {
+      "tools": 6,
+      "names": [
+        "graft_find_code",
+        "graft_file_api",
+        "graft_check_freshness",
+        "graft_trace_calls",
+        "graft_find_all",
+        "graft_repo_map"
+      ],
+      "description_tokens": 279,
+      "instruction_tokens": 241,
+      "schema_tokens": 420,
+      "resident_tokens": 520
+    },
+    "kivgraph": {
+      "tools": 11,
+      "names": [
+        "find_cross_repo_consumers",
+        "find_references",
+        "find_symbol",
+        "get_blast_radius",
+        "get_file_outline",
+        "get_source",
+        "get_symbol",
+        "graph_status",
+        "index_project",
+        "list_repositories",
+        "trace_dependencies"
+      ],
+      "description_tokens": 335,
+      "instruction_tokens": 196,
+      "schema_tokens": 862,
+      "resident_tokens": 531
+    }
+  },
+  "indexing": {
+    "graft": {
+      "command": "graft --dir /private/tmp/graft-kena-ctx build /Users/adria/Documents/programacion/projects/kena",
+      "cold_ms": 23760,
+      "warm_ms": 2894,
+      "files": 5186,
+      "nodes": 34523,
+      "edges": 76919,
+      "state_bytes": 180065660,
+      "needs": "node; no API key and no language toolchain (tree-sitter is linked in)",
+      "cold_is": "context directory deleted first: nothing replayed from cache",
+      "warm_is": "same build re-run with the extract cache populated and no file changed"
+    },
+    "graft_lsp": {
+      "command": "graft --dir /private/tmp/graft-kena-lsp build /Users/adria/Documents/programacion/projects/kena --lsp",
+      "cold_ms": 114418,
+      "warm_ms": 0,
+      "files": 5186,
+      "nodes": 34523,
+      "edges": 76863,
+      "state_bytes": 180057099,
+      "needs": "a language server on PATH per language: gopls, rust-analyzer, typescript-language-server",
+      "cold_is": "context directory deleted first, every language server cold",
+      "warm_is": "not measured: the flag's cost is the cold pass"
+    },
+    "kivgraph": {
+      "command": "kivgraph index --full --json",
+      "cold_ms": 45465,
+      "warm_ms": 8097,
+      "files": 4814,
+      "nodes": 96923,
+      "edges": 368166,
+      "unresolved": 22929,
+      "generation": "000011",
+      "state_bytes": 1695189887,
+      "needs": "the Go module cache for every indexed module, plus cargo for every Rust workspace; without them a load fails and its symbols are absent",
+      "cold_is": "fact cache and Rust target directory deleted first: every front end loads from nothing",
+      "warm_is": "a second full rebuild immediately after, which still re-loads every compiler front end"
+    }
+  },
+  "wiring": {
+    "graft": {
+      "path": "/private/tmp/graft-kena-ctx/.graph/wiring.json",
+      "nodes": 34523,
+      "edges": 76919,
+      "scopes": [
+        "services/api-music-nodo (Cargo.toml)",
+        "services/kenalink-rs (Cargo.toml)",
+        "services/api-db-go (go.mod)",
+        "services/api-music (go.mod)"
+      ],
+      "relations": {
+        "calls": 24670,
+        "contains": 27445,
+        "extends": 692,
+        "implements": 49,
+        "imports": 21340,
+        "references": 2723
+      },
+      "confidence": {
+        "extracted": 65425,
+        "inferred": 11494
+      },
+      "lsp_resolved_edges": 0
+    },
+    "graft_lsp": {
+      "path": "/private/tmp/graft-kena-lsp/.graph/wiring.json",
+      "nodes": 34523,
+      "edges": 76863,
+      "scopes": [
+        "services/api-music-nodo (Cargo.toml)",
+        "services/kenalink-rs (Cargo.toml)",
+        "services/api-db-go (go.mod)",
+        "services/api-music (go.mod)"
+      ],
+      "relations": {
+        "calls": 24670,
+        "contains": 27445,
+        "extends": 692,
+        "implements": 49,
+        "imports": 21340,
+        "references": 2667
+      },
+      "confidence": {
+        "extracted": 65369,
+        "inferred": 11494
+      },
+      "lsp_resolved_edges": 0
+    }
+  },
+  "questions": [
+    {
+      "id": "Q1_ts_xrepo",
+      "question": "Which call sites use the withRetry declared in libraries/library-shared/src/utils/retry.ts?",
+      "language": "typescript, cross-package",
+      "subject": {
+        "repo": "library-shared",
+        "dir": "libraries/library-shared",
+        "path": "src/utils/retry.ts",
+        "name": "withRetry",
+        "symbol": "withRetry"
+      },
+      "ground_truth": [
+        "sdk-module-ts:src/sdk/client/KenaModule.ts",
+        "core:src/cluster/master/index.ts",
+        "core:src/cluster/worker/BotWorker.ts",
+        "core:src/shared/utils/sharding.ts",
+        "gateway:src/grpc/server.ts"
+      ],
+      "arms": {
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 659,
+              "ms": 188.192,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 659,
+          "ms": 188.192,
+          "call_count": 1,
+          "score": {
+            "files": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "core:src/cluster/master/index.ts",
+              "core:src/cluster/worker/BotWorker.ts",
+              "core:src/shared/utils/sharding.ts",
+              "gateway:src/grpc/server.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+            ],
+            "spurious": null
+          },
+          "attributed_to_subject": true,
+          "ambiguous_declarations": 7,
+          "declared_no_callers": true
+        },
+        "graft_lsp": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 659,
+              "ms": 182.236,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 659,
+          "ms": 182.236,
+          "call_count": 1,
+          "score": {
+            "files": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "core:src/cluster/master/index.ts",
+              "core:src/cluster/worker/BotWorker.ts",
+              "core:src/shared/utils/sharding.ts",
+              "gateway:src/grpc/server.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+            ],
+            "spurious": null
+          },
+          "attributed_to_subject": true,
+          "ambiguous_declarations": 7,
+          "declared_no_callers": true
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_symbol",
+              "tokens": 2277,
+              "ms": 1.235
+            },
+            {
+              "tool": "find_references",
+              "tokens": 414,
+              "ms": 0.2
+            }
+          ],
+          "tokens": 2691,
+          "ms": 1.435,
+          "call_count": 2,
+          "score": {
+            "files": [
+              "library-shared:src/client/index.ts",
+              "library-shared:src/index.ts",
+              "library-shared:src/utils/index.ts"
+            ],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "core:src/cluster/master/index.ts",
+              "core:src/cluster/worker/BotWorker.ts",
+              "core:src/shared/utils/sharding.ts",
+              "gateway:src/grpc/server.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+            ],
+            "spurious": [
+              "library-shared:src/client/index.ts",
+              "library-shared:src/index.ts",
+              "library-shared:src/utils/index.ts"
+            ]
+          }
+        }
+      },
+      "native": {
+        "pattern": "\\bwithRetry\\b",
+        "searched_files": 5330,
+        "match_lines": 58,
+        "search_tokens": 1699,
+        "read_files": 7,
+        "read_tokens": 8355,
+        "tokens": 10054,
+        "ms": 0
+      }
+    },
+    {
+      "id": "Q2_go",
+      "question": "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+      "language": "go",
+      "subject": {
+        "repo": "api-db-go",
+        "dir": "services/api-db-go",
+        "path": "internal/infrastructure/postgres/retry.go",
+        "name": "withRetry",
+        "symbol": "withRetry"
+      },
+      "ground_truth": [
+        "api-db-go:internal/infrastructure/postgres/client.go",
+        "api-db-go:internal/infrastructure/postgres/retry_test.go"
+      ],
+      "arms": {
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 659,
+              "ms": 90.879,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 659,
+          "ms": 90.879,
+          "call_count": 1,
+          "score": {
+            "files": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": null
+          },
+          "attributed_to_subject": true,
+          "ambiguous_declarations": 7,
+          "declared_no_callers": true
+        },
+        "graft_lsp": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 659,
+              "ms": 93.259,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 659,
+          "ms": 93.259,
+          "call_count": 1,
+          "score": {
+            "files": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": null
+          },
+          "attributed_to_subject": true,
+          "ambiguous_declarations": 7,
+          "declared_no_callers": true
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_symbol",
+              "tokens": 2277,
+              "ms": 2.297
+            },
+            {
+              "tool": "find_references",
+              "tokens": 619,
+              "ms": 0.217
+            }
+          ],
+          "tokens": 2896,
+          "ms": 2.5140000000000002,
+          "call_count": 2,
+          "score": {
+            "files": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": null,
+            "spurious": null
+          }
+        }
+      },
+      "native": {
+        "pattern": "\\bwithRetry\\b",
+        "searched_files": 5330,
+        "match_lines": 58,
+        "search_tokens": 1699,
+        "read_files": 7,
+        "read_tokens": 8355,
+        "tokens": 10054,
+        "ms": 0
+      }
+    },
+    {
+      "id": "Q3_ts_intra",
+      "question": "Which files call getRequiredField from packages/core ipcCase.ts?",
+      "language": "typescript, intra-repository",
+      "subject": {
+        "repo": "core",
+        "dir": "packages/core",
+        "path": "src/cluster/worker/ipc/utils/ipcCase.ts",
+        "name": "getRequiredField",
+        "symbol": "getRequiredField"
+      },
+      "ground_truth": [
+        "core:src/cluster/worker/ipc/channel.ipc.ts",
+        "core:src/cluster/worker/ipc/client.ipc.ts",
+        "core:src/cluster/worker/ipc/guild.ipc.ts",
+        "core:src/cluster/worker/ipc/member.ipc.ts",
+        "core:src/cluster/worker/ipc/role.ipc.ts",
+        "core:src/cluster/worker/ipc/thread.ipc.ts",
+        "core:src/cluster/worker/ipc/user.ipc.ts",
+        "core:src/cluster/worker/ipc/voice.ipc.ts",
+        "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+      ],
+      "arms": {
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 1082,
+              "ms": 67.558,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 1082,
+          "ms": 67.558,
+          "call_count": 1,
+          "score": {
+            "files": [
+              "core:src/cluster/worker/ipc/channel.ipc.ts",
+              "core:src/cluster/worker/ipc/client.ipc.ts",
+              "core:src/cluster/worker/ipc/guild.ipc.ts",
+              "core:src/cluster/worker/ipc/member.ipc.ts",
+              "core:src/cluster/worker/ipc/role.ipc.ts",
+              "core:src/cluster/worker/ipc/thread.ipc.ts",
+              "core:src/cluster/worker/ipc/user.ipc.ts",
+              "core:src/cluster/worker/ipc/voice.ipc.ts",
+              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": null,
+            "spurious": null
+          },
+          "attributed_to_subject": true
+        },
+        "graft_lsp": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 1331,
+              "ms": 68.164,
+              "banner_tokens": 86
+            }
+          ],
+          "tokens": 1331,
+          "ms": 68.164,
+          "call_count": 1,
+          "score": {
+            "files": [
+              "core:src/cluster/worker/ipc/channel.ipc.ts",
+              "core:src/cluster/worker/ipc/client.ipc.ts",
+              "core:src/cluster/worker/ipc/guild.ipc.ts",
+              "core:src/cluster/worker/ipc/member.ipc.ts",
+              "core:src/cluster/worker/ipc/role.ipc.ts",
+              "core:src/cluster/worker/ipc/thread.ipc.ts",
+              "core:src/cluster/worker/ipc/user.ipc.ts",
+              "core:src/cluster/worker/ipc/voice.ipc.ts",
+              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": null,
+            "spurious": null
+          },
+          "attributed_to_subject": true
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_symbol",
+              "tokens": 274,
+              "ms": 1.102
+            },
+            {
+              "tool": "find_references",
+              "tokens": 4195,
+              "ms": 0.647
+            },
+            {
+              "tool": "find_references",
+              "tokens": 1355,
+              "ms": 0.264
+            }
+          ],
+          "tokens": 5824,
+          "ms": 2.013,
+          "call_count": 3,
+          "score": {
+            "files": [
+              "core:src/cluster/worker/ipc/channel.ipc.ts",
+              "core:src/cluster/worker/ipc/client.ipc.ts",
+              "core:src/cluster/worker/ipc/guild.ipc.ts",
+              "core:src/cluster/worker/ipc/member.ipc.ts",
+              "core:src/cluster/worker/ipc/role.ipc.ts",
+              "core:src/cluster/worker/ipc/thread.ipc.ts",
+              "core:src/cluster/worker/ipc/user.ipc.ts",
+              "core:src/cluster/worker/ipc/voice.ipc.ts"
+            ],
+            "precision": 1,
+            "recall": 0.8888888888888888,
+            "missing": [
+              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+            ],
+            "spurious": null
+          },
+          "pages": 2
+        }
+      },
+      "native": {
+        "pattern": "\\bgetRequiredField\\b",
+        "searched_files": 5330,
+        "match_lines": 81,
+        "search_tokens": 2825,
+        "read_files": 1,
+        "read_tokens": 412,
+        "tokens": 3237,
+        "ms": 0
+      }
+    },
+    {
+      "id": "Q4_rust",
+      "question": "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+      "language": "rust",
+      "subject": {
+        "repo": "kenalink-rs",
+        "dir": "services/kenalink-rs",
+        "path": "src/util.rs",
+        "name": "util::now_ms",
+        "symbol": "now_ms"
+      },
+      "ground_truth": [
+        "kenalink-rs:src/api_rest/error.rs",
+        "kenalink-rs:src/api_rest/routes_players.rs",
+        "kenalink-rs:src/api_rest/routes_sessions.rs",
+        "kenalink-rs:src/api_ws/mod.rs",
+        "kenalink-rs:src/audio/songbird_engine.rs",
+        "kenalink-rs:src/main.rs"
+      ],
+      "arms": {
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 524,
+              "ms": 76.965,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 524,
+          "ms": 76.965,
+          "call_count": 1,
+          "score": {
+            "files": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/audio/songbird_engine.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": null
+          },
+          "attributed_to_subject": true,
+          "ambiguous_declarations": 4,
+          "declared_no_callers": true
+        },
+        "graft_lsp": {
+          "calls": [
+            {
+              "tool": "graft_trace_calls",
+              "tokens": 524,
+              "ms": 76.25,
+              "banner_tokens": 84
+            }
+          ],
+          "tokens": 524,
+          "ms": 76.25,
+          "call_count": 1,
+          "score": {
+            "files": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/audio/songbird_engine.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": null
+          },
+          "attributed_to_subject": true,
+          "ambiguous_declarations": 4,
+          "declared_no_callers": true
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_symbol",
+              "tokens": 467,
+              "ms": 1.07
+            },
+            {
+              "tool": "find_references",
+              "tokens": 2910,
+              "ms": 0.472
+            }
+          ],
+          "tokens": 3377,
+          "ms": 1.542,
+          "call_count": 2,
+          "score": {
+            "files": [
+              "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/audio/songbird_engine.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": null,
+            "spurious": null
+          }
+        }
+      },
+      "native": {
+        "pattern": "\\bnow_ms\\b",
+        "searched_files": 5330,
+        "match_lines": 85,
+        "search_tokens": 2243,
+        "read_files": 4,
+        "read_tokens": 32031,
+        "tokens": 34274,
+        "ms": 0
+      }
+    }
+  ],
+  "census": {
+    "question": "How many distinct declarations named withRetry exist, and where?",
+    "ground_truth": [
+      "library-env:src/retry.ts",
+      "library-shared:src/utils/retry.ts",
+      "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+      "sdk-module-ts:src/sdk/types/ModuleResult.ts",
+      "api-db-go:internal/infrastructure/postgres/retry.go",
+      "api-db-go:internal/shared/infisical/infisical.go",
+      "api-music:internal/shared/infisical/infisical.go"
+    ],
+    "arms": {
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_trace_calls",
+            "tokens": 659,
+            "ms": 84.398,
+            "banner_tokens": 84
+          }
+        ],
+        "tokens": 659,
+        "ms": 84.398,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical.go",
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+          ],
+          "precision": 1,
+          "recall": 1,
+          "missing": null,
+          "spurious": null
+        },
+        "note": "the census is a by-product of graft_trace_calls: it answers about every declaration sharing the name"
+      },
+      "graft_lsp": {
+        "calls": [
+          {
+            "tool": "graft_trace_calls",
+            "tokens": 659,
+            "ms": 83.816,
+            "banner_tokens": 84
+          }
+        ],
+        "tokens": 659,
+        "ms": 83.816,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical.go",
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+          ],
+          "precision": 1,
+          "recall": 1,
+          "missing": null,
+          "spurious": null
+        },
+        "note": "the census is a by-product of graft_trace_calls: it answers about every declaration sharing the name"
+      },
+      "kivgraph": {
+        "calls": [
+          {
+            "tool": "find_symbol",
+            "tokens": 2277,
+            "ms": 1.297
+          }
+        ],
+        "tokens": 2277,
+        "ms": 1.297,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical.go",
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+          ],
+          "precision": 1,
+          "recall": 1,
+          "missing": null,
+          "spurious": null
+        }
+      }
+    },
+    "native": {
+      "pattern": "\\bwithRetry\\b",
+      "searched_files": 5330,
+      "match_lines": 58,
+      "search_tokens": 1699,
+      "read_files": 7,
+      "read_tokens": 8355,
+      "tokens": 10054,
+      "ms": 0
+    }
+  },
+  "auxiliary": {
+    "directory_outline": {
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_file_api",
+            "tokens": 182,
+            "ms": 58.777,
+            "banner_tokens": 80
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 648,
+            "ms": 56.667,
+            "banner_tokens": 84
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 414,
+            "ms": 57.355,
+            "banner_tokens": 84
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 319,
+            "ms": 55.41,
+            "banner_tokens": 82
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 23,
+            "ms": 56.287,
+            "failed": true,
+            "error": "graft skeleton — packages/core/src/cluster/worker/ipc/index.ts\n\nno definitions indexed for this file"
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 605,
+            "ms": 56.326,
+            "banner_tokens": 84
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 389,
+            "ms": 55.402,
+            "banner_tokens": 84
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 354,
+            "ms": 56.589,
+            "banner_tokens": 84
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 260,
+            "ms": 56.198,
+            "banner_tokens": 80
+          },
+          {
+            "tool": "graft_file_api",
+            "tokens": 442,
+            "ms": 62.146,
+            "banner_tokens": 84
+          }
+        ],
+        "tokens": 3636,
+        "ms": 571.1569999999999,
+        "call_count": 10,
+        "note": "graft has no directory outline: one graft_file_api per file, 10 files in this directory",
+        "rows": 84
+      },
+      "kivgraph": {
+        "calls": [
+          {
+            "tool": "get_file_outline",
+            "tokens": 9111,
+            "ms": 2.267
+          }
+        ],
+        "tokens": 9111,
+        "ms": 2.267,
+        "call_count": 1,
+        "rows": 619
+      }
+    },
+    "blast_radius": {
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_trace_calls",
+            "tokens": 1556,
+            "ms": 68.036,
+            "banner_tokens": 86
+          }
+        ],
+        "tokens": 1556,
+        "ms": 68.036,
+        "call_count": 1,
+        "note": "graft_trace_calls with depth 2; rows counted are the `calls ←` lines",
+        "rows": 47
+      },
+      "kivgraph": {
+        "calls": [
+          {
+            "tool": "get_blast_radius",
+            "tokens": 5062,
+            "ms": 1.933
+          }
+        ],
+        "tokens": 5062,
+        "ms": 1.933,
+        "call_count": 1,
+        "rows": 118
+      }
+    },
+    "cross_repository_consumers": {
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_find_all",
+            "tokens": 11992,
+            "ms": 1152.116,
+            "banner_tokens": 86
+          }
+        ],
+        "tokens": 11992,
+        "ms": 1152.116,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "automation-module",
+            "greeter-module",
+            "levels-module",
+            "library-env",
+            "library-lavalink",
+            "logs-module",
+            "moderation-module",
+            "modmail-module",
+            "music-module"
+          ],
+          "precision": 0.8888888888888888,
+          "recall": 0.36363636363636365,
+          "missing": [
+            "admin.kena.lan",
+            "api-cdn",
+            "api-gateway",
+            "api-premium",
+            "api-translations",
+            "captcha.kena.bot",
+            "core",
+            "dash.kena.bot",
+            "gateway",
+            "sdk-module-ts",
+            "tempVoice-module",
+            "template-module",
+            "tickets-module",
+            "utils-module"
+          ],
+          "spurious": [
+            "library-env"
+          ]
+        },
+        "note": "graft models no package dimension; graft_find_all over the specifier is the closest available answer"
+      },
+      "kivgraph": {
+        "calls": [
+          {
+            "tool": "find_cross_repo_consumers",
+            "tokens": 2408,
+            "ms": 2.065
+          }
+        ],
+        "tokens": 2408,
+        "ms": 2.065,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "admin.kena.lan",
+            "api-cdn",
+            "api-gateway",
+            "api-premium",
+            "api-translations",
+            "automation-module",
+            "captcha.kena.bot",
+            "core",
+            "dash.kena.bot",
+            "gateway",
+            "greeter-module",
+            "levels-module",
+            "library-lavalink",
+            "logs-module",
+            "moderation-module",
+            "modmail-module",
+            "music-module",
+            "sdk-module-ts",
+            "tempVoice-module",
+            "template-module",
+            "tickets-module",
+            "utils-module"
+          ],
+          "precision": 1,
+          "recall": 1,
+          "missing": null,
+          "spurious": null
+        }
+      }
+    }
+  },
+  "scope_probes": [
+    {
+      "id": "go_repository_scope",
+      "graft_build_root": "services/api-db-go",
+      "subject": {
+        "repo": "api-db-go",
+        "dir": "services/api-db-go",
+        "path": "internal/infrastructure/postgres/retry.go",
+        "name": "withRetry",
+        "symbol": "withRetry"
+      },
+      "ground_truth": [
+        "internal/infrastructure/postgres/client.go",
+        "internal/infrastructure/postgres/retry_test.go"
+      ],
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_trace_calls",
+            "tokens": 232,
+            "ms": 36.675,
+            "banner_tokens": 84
+          }
+        ],
+        "tokens": 232,
+        "ms": 36.675,
+        "call_count": 1,
+        "score": {
+          "files": [],
+          "precision": 0,
+          "recall": 0,
+          "missing": [
+            "internal/infrastructure/postgres/client.go",
+            "internal/infrastructure/postgres/retry_test.go"
+          ],
+          "spurious": null
+        },
+        "attributed_to_subject": true,
+        "ambiguous_declarations": 2,
+        "declared_no_callers": true
+      }
+    },
+    {
+      "id": "go_package_scope",
+      "graft_build_root": "services/api-db-go/internal/infrastructure/postgres",
+      "subject": {
+        "repo": "api-db-go",
+        "dir": "services/api-db-go",
+        "path": "internal/infrastructure/postgres/retry.go",
+        "name": "withRetry",
+        "symbol": "withRetry"
+      },
+      "ground_truth": [
+        "client.go",
+        "retry_test.go"
+      ],
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_trace_calls",
+            "tokens": 206,
+            "ms": 21.846,
+            "banner_tokens": 84
+          }
+        ],
+        "tokens": 206,
+        "ms": 21.846,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "client.go",
+            "retry_test.go"
+          ],
+          "precision": 1,
+          "recall": 1,
+          "missing": null,
+          "spurious": null
+        },
+        "attributed_to_subject": true
+      }
+    },
+    {
+      "id": "rust_repository_scope",
+      "graft_build_root": "services/kenalink-rs",
+      "subject": {
+        "repo": "kenalink-rs",
+        "dir": "services/kenalink-rs",
+        "path": "src/util.rs",
+        "name": "util::now_ms",
+        "symbol": "now_ms"
+      },
+      "ground_truth": [
+        "src/api_rest/error.rs",
+        "src/api_rest/routes_players.rs",
+        "src/api_rest/routes_sessions.rs",
+        "src/api_ws/mod.rs",
+        "src/audio/songbird_engine.rs",
+        "src/main.rs"
+      ],
+      "graft": {
+        "calls": [
+          {
+            "tool": "graft_trace_calls",
+            "tokens": 532,
+            "ms": 22.174,
+            "banner_tokens": 84
+          }
+        ],
+        "tokens": 532,
+        "ms": 22.174,
+        "call_count": 1,
+        "score": {
+          "files": [
+            "src/api_rest/error.rs",
+            "src/api_rest/routes_players.rs",
+            "src/api_rest/routes_sessions.rs",
+            "src/api_ws/mod.rs",
+            "src/audio/songbird_engine.rs",
+            "src/main.rs"
+          ],
+          "precision": 1,
+          "recall": 1,
+          "missing": null,
+          "spurious": null
+        },
+        "attributed_to_subject": true
+      }
+    }
+  ],
+  "aggregate": {
+    "graft": {
+      "tokens_total": 2924,
+      "calls_total": 4,
+      "ms_total": 423.59400000000005,
+      "precision_mean": 0.25,
+      "recall_mean": 0.25,
+      "exact_answers": 1,
+      "of": 4
+    },
+    "graft_lsp": {
+      "tokens_total": 3173,
+      "calls_total": 4,
+      "ms_total": 419.909,
+      "precision_mean": 0.25,
+      "recall_mean": 0.25,
+      "exact_answers": 1,
+      "of": 4
+    },
+    "kivgraph": {
+      "tokens_total": 14788,
+      "calls_total": 9,
+      "ms_total": 7.504,
+      "precision_mean": 0.75,
+      "recall_mean": 0.7222222222222222,
+      "exact_answers": 2,
+      "of": 4
+    },
+    "native": {
+      "tokens_total": 57619,
+      "calls_total": 23,
+      "ms_total": 0,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 4,
+      "of": 4
+    }
+  }
+}
