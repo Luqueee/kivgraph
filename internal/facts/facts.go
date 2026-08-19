@@ -418,6 +418,10 @@ func (set Set) Validate() error {
 	}
 
 	symbols := make(map[string]struct{}, len(set.Symbols))
+	// Names are kept beside the set because the DEFINES check below reports with
+	// them: a message that names only the key sends a reader to 52 characters of
+	// base32 that appear nowhere in their code.
+	symbolNames := make(map[string]string, len(set.Symbols))
 	for _, symbol := range set.Symbols {
 		if symbol.Key == "" || symbol.CanonicalIdentity == "" || symbol.QualifiedName == "" {
 			return fmt.Errorf("%w: symbol %q is incomplete", ErrInvalidFacts, symbol.QualifiedName)
@@ -429,6 +433,7 @@ func (set Set) Validate() error {
 			return fmt.Errorf("%w: symbol %q references unknown package %q", ErrInvalidFacts, symbol.Key, symbol.PackageKey)
 		}
 		symbols[symbol.Key] = struct{}{}
+		symbolNames[symbol.Key] = symbol.QualifiedName
 	}
 
 	evidence := make(map[string]struct{}, len(set.Evidence))
@@ -465,7 +470,9 @@ func (set Set) Validate() error {
 	// One symbol has one definer. LadybugDB enforces it as a multiplicity of
 	// the DEFINES table, and a set that breaks it fails there with a node
 	// offset and no name: two declarations that collapse to one identity are an
-	// identity defect, so the message has to name the identity and both files.
+	// identity defect, so the message has to name the declaration and both
+	// files. The key alone is unactionable -- it is 52 characters of base32 that
+	// appear in no source file -- so the qualified name leads.
 	definers := make(map[string]string, len(symbols))
 	for _, edge := range set.Edges {
 		if edge.Kind != Defines {
@@ -473,10 +480,11 @@ func (set Set) Validate() error {
 		}
 		if first, seen := definers[edge.TargetKey]; seen {
 			if first == edge.SourceKey {
-				return fmt.Errorf("%w: file %q defines symbol %q twice", ErrInvalidFacts, first, edge.TargetKey)
+				return fmt.Errorf("%w: file %q defines symbol %q (%s) twice",
+					ErrInvalidFacts, first, symbolNames[edge.TargetKey], edge.TargetKey)
 			}
-			return fmt.Errorf("%w: symbol %q is defined by two files, %q and %q, so two declarations share one identity",
-				ErrInvalidFacts, edge.TargetKey, first, edge.SourceKey)
+			return fmt.Errorf("%w: symbol %q (%s) is defined by two files, %q and %q, so two declarations share one identity",
+				ErrInvalidFacts, symbolNames[edge.TargetKey], edge.TargetKey, first, edge.SourceKey)
 		}
 		definers[edge.TargetKey] = edge.SourceKey
 	}

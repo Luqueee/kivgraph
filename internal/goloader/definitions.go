@@ -288,8 +288,18 @@ func ownerFor(kind DefinitionKind, object types.Object, stack []declarationConte
 // rejects at publish time. The path is built from names alone, so moving a
 // declaration inside its struct does not change it, and a nested named type
 // restarts the path because it is addressable on its own.
+//
+// The path must be *rooted* at a named type, and an unrooted one is no answer at
+// all. `var env struct{ Errors []struct{ Message string } }` inside a function
+// has intermediate field names but no type declaration above them, so this used
+// to return `Errors` -- non-empty, so the caller took it and never asked
+// localContainer for the function and variable that actually separate it. Every
+// file in a package that unmarshals into that shape then declared one
+// `Errors.Message`, and indexing failed at publish time: measured on a real
+// corpus, two test files of one package were enough.
 func fieldOwner(stack []declarationContext) string {
 	parts := make([]string, 0, 4)
+	rooted := false
 	innermost := -1
 	for index, entry := range stack {
 		if _, isField := entry.node.(*ast.Field); isField {
@@ -300,11 +310,15 @@ func fieldOwner(stack []declarationContext) string {
 		switch node := entry.node.(type) {
 		case *ast.TypeSpec:
 			parts = append(parts[:0], node.Name.Name)
+			rooted = true
 		case *ast.Field:
 			if index != innermost && len(node.Names) != 0 {
 				parts = append(parts, node.Names[0].Name)
 			}
 		}
+	}
+	if !rooted {
+		return ""
 	}
 	return strings.Join(parts, ".")
 }

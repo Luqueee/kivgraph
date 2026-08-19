@@ -295,15 +295,14 @@ func (i indexer) register() error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", config, err)
 	}
-	// Go tests stay out, which is kivgraph's default and not a preference.
-	// Turning them on makes the index fail closed on this corpus: two mock test
-	// files in api-db-go declare the same interface, and the fact set refuses a
-	// symbol defined by two files ("two declarations share one identity"). The
-	// released 0.2.1 accepted it; HEAD does not. So graft indexes Go test files
-	// here and kivgraph does not, and any task whose change includes a Go test is
-	// asymmetric in graft's favour. It is disclosed rather than hidden, because
-	// the alternative is not indexing at all.
-	patched := string(raw)
+	// Go tests are indexed, so both surfaces see the same files: graft always
+	// parses them. This needed a fix in the loader -- a field of a nested
+	// anonymous struct inside a function took an unrooted owner path, so every
+	// file in a package that unmarshalled into the same shape declared one
+	// `Errors.Message` and the fact set failed the DEFINES multiplicity at publish
+	// time. The sweep recorded in report.md predates that fix and ran with Go
+	// tests excluded on the kivgraph side only.
+	patched := strings.Replace(string(raw), "include_tests: false", "include_tests: true", 1)
 	// The generated configuration locates state through `~`, which resolves
 	// against whatever HOME the reader has. The arms cannot set HOME: an `env`
 	// block in an MCP config replaces the environment instead of extending it,

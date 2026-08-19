@@ -149,14 +149,25 @@ respuesta estaba dentro del workspace que yo mismo repartía. Corregido: el mens
 no nombra nada, y `Read`, `Grep` y `Glob` están denegados bajo cualquier `.git`,
 verificado contra una ejecución a la que se le pidió leerlo y no pudo.
 
-### Y una asimetría que no pude quitar
+### Y una asimetría que el barrido sí tuvo, ya cerrada
 
-`0.3.0` **no indexa este corpus con tests Go**: dos `*_mock_test.go` de
-`api-db-go` declaran la misma interfaz y el fact set lo rechaza -- «two
-declarations share one identity», el invariante de multiplicidad de `DEFINES`. El
-`0.2.1` publicado sí lo aceptaba. Así que en este barrido **graft indexa los tests
-Go y Kivgraph no**, y cualquier tarea cuyo cambio incluya un test Go juega a favor
-de graft. Afecta a la tarea Go, que además es inválida por otra razón.
+Durante el barrido, `0.3.0` **no podía indexar este corpus con tests Go**: fallaba
+con «two declarations share one identity». Así que graft indexó los tests Go y
+Kivgraph no, y cualquier tarea cuyo cambio incluyera un test Go jugaba a favor de
+graft. Afecta a la tarea Go, que además es inválida por otra razón.
+
+La causa se localizó después y está arreglada: `fieldOwner` construía la ruta de
+un campo desde los nombres de campo intermedios **sin exigir que estuviera
+enraizada en un tipo con nombre**. Con
+`var env struct{ Errors []struct{ Message string } }` dentro de una función eso
+devolvía `Errors` -- no vacío, así que el llamador lo tomaba y nunca preguntaba por
+la función y la variable que de verdad separan una de otra. Dos archivos de test
+del mismo paquete bastaban para que un `Symbol` tuviera dos `File` declarándolo.
+
+Ahora la identidad es `TestX.env.Errors.Message`, el corpus entero indexa con
+tests Go (`91.572` símbolos, `passed: true`) y el harness los vuelve a incluir en
+los dos lados. **Los números de este informe son anteriores al arreglo**: rehacer
+el barrido con simetría en los tests Go queda pendiente.
 
 ## Garantías del experimento
 
@@ -196,6 +207,9 @@ de graft. Afecta a la tarea Go, que además es inválida por otra razón.
   justamente la que su documentación presenta como el producto.
 - Kivgraph se midió con el arreglo del handshake aplicado, es decir, con HEAD y no
   con el `0.2.1` publicado. Sin ese arreglo su brazo mide un servidor invisible.
+- El barrido corrió con los tests Go fuera del índice de Kivgraph y dentro del de
+  graft. La causa está arreglada después de medir, así que esa asimetría se puede
+  eliminar rehaciendo el barrido; estos números todavía la llevan.
 
 ## Qué mediría después
 

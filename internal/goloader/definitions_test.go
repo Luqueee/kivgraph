@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -287,6 +288,95 @@ func (store Store) ParseSecond() string {
 		}
 		keys[definition.StableKey] = definition.QualifiedName
 	}
+}
+
+// A nested anonymous struct inside a function is the case that failed on a real
+// corpus: `var env struct{ Errors []struct{ Message string } }` has an
+// intermediate field name, so the owner path looked answerable -- `Errors` --
+// while being rooted at nothing. Every file of a package that unmarshals into
+// that shape then declared one `Errors.Message`, and two test files were enough
+// to make indexing fail at publish time on the DEFINES multiplicity.
+//
+// The identity has to carry what actually separates the two: the function and the
+// variable.
+func TestExtractDefinitionsQualifiesFieldsOfNestedLocalAnonymousStructs(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod": "module example.com/module\n\ngo 1.24\n",
+		"sample/first.go": `package sample
+
+func ParseFirst() string {
+	var env struct {
+		Errors []struct {
+			Message string
+		}
+	}
+	if len(env.Errors) == 0 {
+		return ""
+	}
+	return env.Errors[0].Message
+}
+`,
+		"sample/second.go": `package sample
+
+func ParseSecond() string {
+	var env struct {
+		Errors []struct {
+			Message string
+		}
+	}
+	if len(env.Errors) == 0 {
+		return ""
+	}
+	return env.Errors[0].Message
+}
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), result, DefinitionOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+
+	names := make(map[string]struct{})
+	for _, definition := range definitions {
+		if definition.Kind == KindField && definition.Name == "Message" {
+			names[definition.QualifiedName] = struct{}{}
+		}
+	}
+	for _, want := range []string{"ParseFirst.env.Errors.Message", "ParseSecond.env.Errors.Message"} {
+		if _, found := names[want]; !found {
+			t.Fatalf("missing qualified name %q; got %v", want, sortedNames(names))
+		}
+	}
+	if len(names) != 2 {
+		t.Fatalf("Message fields = %v, want exactly the two qualified names", sortedNames(names))
+	}
+
+	keyed, err := AssignStableKeys(context.Background(), definitions)
+	if err != nil {
+		t.Fatalf("AssignStableKeys() error = %v", err)
+	}
+	keys := make(map[hotsnapshot.StableKey]string)
+	for _, definition := range keyed {
+		if previous, clash := keys[definition.StableKey]; clash {
+			t.Fatalf("%q and %q share a stable key", previous, definition.QualifiedName)
+		}
+		keys[definition.StableKey] = definition.QualifiedName
+	}
+}
+
+func sortedNames(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for name := range set {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func equalStringSlices(left, right []string) bool {
