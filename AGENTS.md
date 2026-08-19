@@ -61,10 +61,21 @@ tool acepta esa tripleta en vez de una clave estable: la llamada siguiente se
 construye con la respuesta que ya se tiene.
 
 **Dónde pierde, y conviene no gastar la llamada:** un nombre raro en un solo
-repositorio pequeño lo resuelve `grep` más barato -medido: `1,08x` contra
-`7,69x` de un nombre común-, y el índice de un fichero pequeño cuesta más que
-leerlo. Gana en nombres comunes, en impacto transitivo, en consumidores de otro
-repositorio y en demostrar una ausencia.
+repositorio pequeño lo resuelve `grep` más barato -una llamada, sin esquema,
+sin resolver un símbolo primero-, y el índice de un fichero pequeño cuesta más
+que leerlo. Gana en nombres comunes, en impacto transitivo, en consumidores de
+otro repositorio y en demostrar una ausencia.
+
+Medido con `benchmarks/mcp-token-cost` después del ADR 0046, sobre las seis
+preguntas de referencias de este mismo repositorio (generación `000001`,
+commit `f8a952d6`): responder cuesta entre `3,29x` (`MergeAll`, nombre raro) y
+`11,95x` (`NewServer`, nombre común) menos que `grep` más la lectura; la sesión
+completa -incluidos los cuerpos que el agente abre después, que pagan igual en
+los dos lados- entre `1,26x` y `8,05x`, con un suelo de `2,41x` fijado por el
+coste de esos cuerpos y no por el de la respuesta. El harness no incluye
+todavía el caso genuinamente trivial -un nombre raro en una sola línea de un
+archivo pequeño-, así que la ventaja de `grep` ahí sigue siendo estructural y
+no una fila medida.
 
 ## Herramientas MCP en Oh My Pi
 
