@@ -1,0 +1,88 @@
+{
+ "benchmark": "agent-e2e",
+ "generated_at": "2026-08-19T18:48:53.356858Z",
+ "commit": "65833c3",
+ "model": "claude-sonnet-5",
+ "agent": "claude",
+ "environment": {
+  "arch": "arm64",
+  "go": "go1.26.4",
+  "os": "darwin"
+ },
+ "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "arms": [
+  "cold",
+  "kivgraph",
+  "graft"
+ ],
+ "trials": 2,
+ "budget_usd_per_run": 1.5,
+ "tasks": [
+  {
+   "id": "api-db-go-f3a50ad",
+   "repo": "services/api-db-go",
+   "language": "go",
+   "commit": "f3a50ad5ae25752fb9b7f38a8468708d6354742a",
+   "subject": "fix(validación): normalizar los enums vacíos y rechazar sólo lo imposible",
+   "truth_files": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».\n\nThe change belongs in the services/api-db-go repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  }
+ ],
+ "runs": [
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 287362,
+   "cost_usd": 1.5591267000000002,
+   "input_tokens": 54,
+   "output_tokens": 17040,
+   "cache_read_tokens": 1818472,
+   "cache_creation_tokens": 96139,
+   "turns": 30,
+   "tool_calls": 28,
+   "tools_used": [
+    "Edit×1",
+    "Glob×2",
+    "Grep×13",
+    "Read×10",
+    "Skill×1",
+    "ToolSearch×1"
+   ],
+   "context_tool_calls": 0,
+   "errored": true,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t1.jsonl",
+   "wrote": [
+    "internal/domain/dbguild/module_moderation.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.16666666666666666,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": null,
+   "exact": false
+  }
+ ],
+ "aggregate": {},
+ "setup": {
+  "index_kivgraph_ms": [
+   63816
+  ],
+  "index_graft_ms": [
+   4882
+  ]
+ }
+}

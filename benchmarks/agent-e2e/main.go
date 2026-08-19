@@ -120,6 +120,7 @@ type armAgg struct {
 	ContextMean   float64 `json:"context_tool_calls_mean"`
 	SecondsMean   float64 `json:"seconds_mean"`
 	Errored       int     `json:"errored"`
+	BudgetCapped  int     `json:"budget_exhausted"`
 	Leaks         int     `json:"leaks"`
 }
 
@@ -228,6 +229,9 @@ func leakNote(r runResult) string {
 	if r.Leak != "" {
 		notes = append(notes, "LEAK: "+r.Leak)
 	}
+	if r.BudgetExhausted {
+		notes = append(notes, "budget spent")
+	}
 	if r.Errored {
 		notes = append(notes, "ERROR: "+r.Error)
 	}
@@ -279,6 +283,9 @@ func aggregate(runs []runResult) map[string]armAgg {
 			if r.Errored {
 				summary.Errored++
 			}
+			if r.BudgetExhausted {
+				summary.BudgetCapped++
+			}
 			if r.Leak != "" {
 				summary.Leaks++
 			}
@@ -312,8 +319,9 @@ func printSummary(out results) {
 			a.CostUSD, a.TokensMean, a.ToolCallsMean, a.ContextMean, a.SecondsMean)
 	}
 	for _, name := range names {
-		if a := out.Aggregate[name]; a.Errored > 0 || a.Leaks > 0 {
-			fmt.Printf("%-10s %d errored, %d leaked\n", name, a.Errored, a.Leaks)
+		if a := out.Aggregate[name]; a.Errored > 0 || a.Leaks > 0 || a.BudgetCapped > 0 {
+			fmt.Printf("%-10s %d errored, %d leaked, %d hit the budget\n",
+				name, a.Errored, a.Leaks, a.BudgetCapped)
 		}
 	}
 }

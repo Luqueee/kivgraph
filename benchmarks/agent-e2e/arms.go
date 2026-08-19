@@ -220,9 +220,15 @@ type runResult struct {
 	ToolCalls  int      `json:"tool_calls"`
 	ToolsUsed  []string `json:"tools_used"`
 	ContextUse int      `json:"context_tool_calls"`
-	Errored    bool     `json:"errored"`
-	Error      string   `json:"error,omitempty"`
-	Transcript string   `json:"transcript"`
+	// BudgetExhausted separates a run that ran out of the shared budget from one
+	// that failed. The host reports both as an error result, and conflating them
+	// would read every capped run as a failure when it is the opposite: the arm
+	// was still working when the budget it shares with the others ran out.
+	BudgetExhausted bool   `json:"budget_exhausted,omitempty"`
+	TerminalReason  string `json:"terminal_reason,omitempty"`
+	Errored         bool   `json:"errored"`
+	Error           string `json:"error,omitempty"`
+	Transcript      string `json:"transcript"`
 
 	// Wrote and Outside are filled by the scorer from git, not from the model's
 	// account of itself: an agent that says it edited a file and did not is a
@@ -245,13 +251,14 @@ type runResult struct {
 // tool calls and cost comes from the agent's own event stream.
 func (r *runResult) absorb(line string) {
 	event := struct {
-		Type    string  `json:"type"`
-		Subtype string  `json:"subtype"`
-		IsError bool    `json:"is_error"`
-		Result  string  `json:"result"`
-		Cost    float64 `json:"total_cost_usd"`
-		Turns   int     `json:"num_turns"`
-		Usage   struct {
+		Type     string  `json:"type"`
+		Subtype  string  `json:"subtype"`
+		IsError  bool    `json:"is_error"`
+		Result   string  `json:"result"`
+		Cost     float64 `json:"total_cost_usd"`
+		Turns    int     `json:"num_turns"`
+		Terminal string  `json:"terminal_reason"`
+		Usage    struct {
 			Input      int `json:"input_tokens"`
 			Output     int `json:"output_tokens"`
 			CacheRead  int `json:"cache_read_input_tokens"`
@@ -286,8 +293,10 @@ func (r *runResult) absorb(line string) {
 		r.OutTokens = event.Usage.Output
 		r.CacheRead = event.Usage.CacheRead
 		r.CacheWrite = event.Usage.CacheWrite
-		r.Errored = event.IsError
-		if event.IsError {
+		r.TerminalReason = event.Terminal
+		r.BudgetExhausted = event.Subtype == "error_max_budget_usd" || event.Terminal == "budget_exhausted"
+		r.Errored = event.IsError && !r.BudgetExhausted
+		if r.Errored {
 			r.Error = firstLine(event.Result)
 		}
 		names := make([]string, 0, len(r.tools))
