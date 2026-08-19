@@ -74,6 +74,48 @@
    ],
    "spurious": null,
    "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 186857,
+   "cost_usd": 1.5521664,
+   "input_tokens": 44,
+   "output_tokens": 11728,
+   "cache_read_tokens": 1766871,
+   "cache_creation_tokens": 121698,
+   "turns": 31,
+   "tool_calls": 29,
+   "tools_used": [
+    "Grep×8",
+    "Read×10",
+    "Skill×2",
+    "ToolSearch×2",
+    "mcp__kivgraph__find_references×1",
+    "mcp__kivgraph__find_symbol×4",
+    "mcp__kivgraph__get_file_outline×1",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 7,
+   "errored": true,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-kivgraph-t1.jsonl",
+   "wrote": null,
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": null,
+   "exact": false,
+   "leak": "transcript mentions /.git/"
   }
  ],
  "aggregate": {},

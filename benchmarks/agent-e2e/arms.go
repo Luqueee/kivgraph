@@ -139,6 +139,11 @@ func (a arm) run(cfg config, t task, trial int) (runResult, error) {
 	arguments = append(arguments, "--allowedTools")
 	arguments = append(arguments, allowed...)
 	arguments = append(arguments, "--disallowedTools", "Bash", "WebFetch", "WebSearch", "Task")
+	// Denying the object database closes the last route to the answer that does
+	// not go through the code. Disallowing the shell removes `git log`; this
+	// removes reading the refs and the reflog by hand, which one run did try.
+	arguments = append(arguments, "--settings",
+		`{"permissions":{"deny":["Read(**/.git/**)","Grep(**/.git/**)","Glob(**/.git/**)"]}}`)
 	// Every arm passes a config and --strict-mcp-config, cold included with an
 	// empty one. Without it the agent inherits whatever MCP the environment
 	// offers -- this corpus ships a project `.mcp.json`, and the host's own

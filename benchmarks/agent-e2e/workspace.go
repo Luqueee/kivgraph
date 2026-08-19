@@ -130,7 +130,12 @@ func (w workspace) prepare(t task) error {
 	for _, arguments := range [][]string{
 		{"init", "-q", "-b", "bench"},
 		{"-c", "user.email=bench@local", "-c", "user.name=bench", "add", "-A"},
-		{"-c", "user.email=bench@local", "-c", "user.name=bench", "commit", "-qm", "state at " + t.Short + "^"},
+		// The message names nothing. It used to say "state at <short>^", and an
+		// agent that read .git/logs/HEAD -- one did -- would find the identifier of
+		// the very commit it was re-implementing. It could not fetch that commit,
+		// so no file list escaped, but a benchmark should not put the answer's name
+		// inside the workspace it hands out.
+		{"-c", "user.email=bench@local", "-c", "user.name=bench", "commit", "-qm", "workspace state"},
 	} {
 		if out, err := exec.Command("git", append([]string{"-C", target}, arguments...)...).CombinedOutput(); err != nil {
 			return fmt.Errorf("git %s in %s: %w (%s)", arguments[0], t.Repo, err, strings.TrimSpace(string(out)))
