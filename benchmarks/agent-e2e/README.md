@@ -15,22 +15,24 @@ similitud: `git` dice qué escribió el brazo y el commit dice qué debía escri
 
 ## Estado
 
-El harness está completo y verificado con un agente stub. **Falta la credencial
-del agente**: `claude` responde `OAuth session expired and could not be
-refreshed`. Desbloquea con una de las dos:
+Barrido corrido: **36 ejecuciones** (6 tareas × 3 brazos × 2 trials),
+`claude-sonnet-5`, tope de `$3,00` por ejecución, `$47,62` y 2 h 1 min.
+El resultado y su lectura están en `report.md`; el resumen es que **ninguna de las
+dos capas de contexto mejora a un agente sin capa sobre estas tareas**, y las dos
+cuestan más.
+
+Dos condiciones anteriores se conservan aparte porque miden otra cosa:
+`uncapped-pilot/` (sin tope: 54-75 turnos por ejecución, ninguno converge) y
+`starved-1.50/` (tope de `$1,50`: ahoga la tarea Go de 6 archivos en los tres
+brazos).
 
 ```bash
-claude /login                      # suscripción, flujo interactivo
-export ANTHROPIC_API_KEY=sk-...    # por tokens
+go run ./benchmarks/agent-e2e --kivgraph /private/tmp/kivgraph-e2e \
+  --model claude-sonnet-5 --trials 2 --budget-usd 3.0 --only <ids>
 ```
 
-Y entonces:
-
-```bash
-go run ./benchmarks/agent-e2e                      # 13 tareas x 3 brazos x 1 trial
-go run ./benchmarks/agent-e2e --trials 3           # con repetición
-go run ./benchmarks/agent-e2e --only core-6ad7d65  # una tarea
-```
+El agente necesita credencial de suscripción (`claude auth login --claudeai`); no
+hay soporte de API key en esta configuración.
 
 ## Qué garantiza el harness
 

@@ -1,0 +1,1604 @@
+{
+ "benchmark": "agent-e2e",
+ "generated_at": "2026-08-19T19:06:25.750923Z",
+ "commit": "06312fe",
+ "model": "claude-sonnet-5",
+ "agent": "claude",
+ "environment": {
+  "arch": "arm64",
+  "go": "go1.26.4",
+  "os": "darwin"
+ },
+ "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "arms": [
+  "cold",
+  "kivgraph",
+  "graft"
+ ],
+ "trials": 2,
+ "budget_usd_per_run": 3,
+ "tasks": [
+  {
+   "id": "api-db-go-f3a50ad",
+   "repo": "services/api-db-go",
+   "language": "go",
+   "commit": "f3a50ad5ae25752fb9b7f38a8468708d6354742a",
+   "subject": "fix(validación): normalizar los enums vacíos y rechazar sólo lo imposible",
+   "truth_files": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».\n\nThe change belongs in the services/api-db-go repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "core-6ad7d65",
+   "repo": "packages/core",
+   "language": "typescript",
+   "commit": "6ad7d656064a33bf065688d16e4a60bb06fe8aa4",
+   "subject": "feat(ipc): techo de la cola de peticiones del RequestTracker",
+   "truth_files": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(ipc): techo de la cola de peticiones del RequestTracker\n\nCierra el otro agujero de RAM del informe: `pendingRequests` no tenía `maxPending`.\nCada entrada retiene sus closures, un `Timeout` y el payload completo —hasta 16 MiB\npor `max_receive_message_length`— mientras se espera al worker, así que si las\npeticiones entran más rápido de lo que el worker resuelve, el mapa crece hasta\ndonde aguante el heap. Es lo que mejor explica los 10 GB del 11-08-2026.\n\nThe change belongs in the packages/core repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "gateway-37cd672",
+   "repo": "packages/gateway",
+   "language": "typescript",
+   "commit": "37cd672bee801a1aa66158a19466a942e8c36cde",
+   "subject": "perf(request-metrics): volcar el contador cada segundo",
+   "truth_files": [
+    "src/shared/RequestMetrics.test.ts",
+    "src/shared/RequestMetrics.ts"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nperf(request-metrics): volcar el contador cada segundo\n\nEl panel en vivo sondea cada segundo y pinta la diferencia entre dos\nsondeos, pero el buffer bajaba a Redis cada 10 s: nueve de cada diez\npuntos salían clavados a cero y el décimo con los 10 s de golpe, una\ncurva de picos que no se parece al trafico que la produjo.\n\nThe change belongs in the packages/gateway repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "library-shared-e294840",
+   "repo": "libraries/library-shared",
+   "language": "typescript",
+   "commit": "e294840012d18e37614d4557ae881ed07777d9e8",
+   "subject": "feat(automation): «contar miembros conectados» tiene su propia tarjeta",
+   "truth_files": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(automation): «contar miembros conectados» tiene su propia tarjeta\n\nLo metí ayer como tercera opción del «dónde contar» de «contar personas con un\nrol», defendiendo que era la misma pregunta con otro filtro. Me equivoqué: una\nopción escondida en un desplegable no se encuentra escaneando el catálogo, que\nes como se busca aquí — el usuario la pidió y luego no la vio «en ningún sitio».\n\nThe change belongs in the libraries/library-shared repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kenalink-rs-188ae97",
+   "repo": "services/kenalink-rs",
+   "language": "rust",
+   "commit": "188ae97a344bb24595335cfdf6fd097ac603f2b8",
+   "subject": "feat(stats): emitir pausedPlayers y disconnectedPlayers",
+   "truth_files": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(stats): emitir pausedPlayers y disconnectedPlayers\n\nbuild_stats es el unico constructor de StatsPayload, asi que el STATS del\nWebSocket y el GET /v4/stats ganan los dos contadores de una vez.\n\nThe change belongs in the services/kenalink-rs repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "api-music-nodo-2fd7c63",
+   "repo": "services/api-music-nodo",
+   "language": "rust",
+   "commit": "2fd7c63b8a4de12ffd34f5773147657e7c506898",
+   "subject": "refactor(system): move Chipbot file orchestration into the core",
+   "truth_files": [
+    "src/http/controllers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nrefactor(system): move Chipbot file orchestration into the core\n\n«archivo» absorbs ISRC/format validation, fs-cache probe,\ntmp+rename download, ID3, manifest and counter. The controller becomes\nan adapter: Range over AudioServe and Err(String) -\u003e 500 with cause\nmapping, keeping the handler name in the log. Zero observable changes.\n\nThe change belongs in the services/api-music-nodo repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  }
+ ],
+ "runs": [
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 363161,
+   "cost_usd": 3.0437214,
+   "input_tokens": 114,
+   "output_tokens": 29432,
+   "cache_read_tokens": 5648890,
+   "cache_creation_tokens": 140760,
+   "turns": 58,
+   "tool_calls": 57,
+   "tools_used": [
+    "Edit×5",
+    "Glob×6",
+    "Grep×19",
+    "Read×26",
+    "ToolSearch×1"
+   ],
+   "context_tool_calls": 0,
+   "budget_exhausted": true,
+   "terminal_reason": "budget_exhausted",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t1.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_music_handler.go",
+    "internal/domain/validations/module_validations.go",
+    "internal/domain/validations/module_validations_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_music_handler.go",
+    "internal/domain/validations/module_validations.go",
+    "internal/domain/validations/module_validations_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 400146,
+   "cost_usd": 3.0193700999999997,
+   "input_tokens": 72,
+   "output_tokens": 29721,
+   "cache_read_tokens": 4395637,
+   "cache_creation_tokens": 182887,
+   "turns": 39,
+   "tool_calls": 37,
+   "tools_used": [
+    "Edit×2",
+    "Glob×3",
+    "Grep×10",
+    "Read×14",
+    "Skill×1",
+    "ToolSearch×1",
+    "mcp__kivgraph__find_symbol×4",
+    "mcp__kivgraph__get_file_outline×1",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 6,
+   "budget_exhausted": true,
+   "terminal_reason": "budget_exhausted",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 374757,
+   "cost_usd": 2.7844751999999997,
+   "input_tokens": 80,
+   "output_tokens": 34215,
+   "cache_read_tokens": 4301894,
+   "cache_creation_tokens": 163407,
+   "turns": 40,
+   "tool_calls": 39,
+   "tools_used": [
+    "Edit×3",
+    "Glob×4",
+    "Grep×9",
+    "Read×10",
+    "ToolSearch×1",
+    "mcp__graft__graft_file_api×4",
+    "mcp__graft__graft_find_all×3",
+    "mcp__graft__graft_find_code×3",
+    "mcp__graft__graft_repo_map×1",
+    "mcp__graft__graft_trace_calls×1"
+   ],
+   "context_tool_calls": 12,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-graft-t1.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_moderation_handler.go",
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_moderation_handler.go",
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 405927,
+   "cost_usd": 2.9164358999999997,
+   "input_tokens": 100,
+   "output_tokens": 34670,
+   "cache_read_tokens": 5241273,
+   "cache_creation_tokens": 137284,
+   "turns": 50,
+   "tool_calls": 49,
+   "tools_used": [
+    "Edit×5",
+    "Glob×4",
+    "Grep×21",
+    "Read×19"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t2.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_moderation_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.3333333333333333,
+   "recall": 0.16666666666666666,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_moderation_handler.go",
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 385620,
+   "cost_usd": 2.8813592999999993,
+   "input_tokens": 86,
+   "output_tokens": 32373,
+   "cache_read_tokens": 4875721,
+   "cache_creation_tokens": 155465,
+   "turns": 44,
+   "tool_calls": 43,
+   "tools_used": [
+    "Edit×4",
+    "Glob×5",
+    "Grep×17",
+    "Read×15",
+    "ToolSearch×1",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_moderation_handler.go",
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_moderation_handler.go",
+    "internal/domain/validations/module_moderation_validations.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "graft",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 437223,
+   "cost_usd": 2.8433288999999995,
+   "input_tokens": 86,
+   "output_tokens": 37986,
+   "cache_read_tokens": 4623363,
+   "cache_creation_tokens": 147712,
+   "turns": 60,
+   "tool_calls": 59,
+   "tools_used": [
+    "Edit×6",
+    "Glob×7",
+    "Grep×13",
+    "Read×13",
+    "ToolSearch×1",
+    "mcp__graft__graft_file_api×5",
+    "mcp__graft__graft_find_all×7",
+    "mcp__graft__graft_find_code×7"
+   ],
+   "context_tool_calls": 19,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-graft-t2.jsonl",
+   "wrote": [
+    "internal/domain/validations/module_greeter_validations.go",
+    "internal/domain/validations/module_tts_validations.go",
+    "internal/infrastructure/mongo/module_greeter_repository.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/domain/validations/module_greeter_validations.go",
+    "internal/domain/validations/module_tts_validations.go",
+    "internal/infrastructure/mongo/module_greeter_repository.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 136511,
+   "cost_usd": 0.7798068000000001,
+   "input_tokens": 44,
+   "output_tokens": 11794,
+   "cache_read_tokens": 1094196,
+   "cache_creation_tokens": 45751,
+   "turns": 24,
+   "tool_calls": 23,
+   "tools_used": [
+    "Edit×2",
+    "Glob×2",
+    "Grep×8",
+    "Read×9",
+    "ToolSearch×1",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-cold-t1.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 238244,
+   "cost_usd": 1.3604895000000004,
+   "input_tokens": 56,
+   "output_tokens": 21795,
+   "cache_read_tokens": 1942615,
+   "cache_creation_tokens": 75102,
+   "turns": 32,
+   "tool_calls": 31,
+   "tools_used": [
+    "Edit×8",
+    "Glob×1",
+    "Grep×7",
+    "Read×10",
+    "ScheduleWakeup×1",
+    "Write×1",
+    "mcp__kivgraph__find_references×1",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 221988,
+   "cost_usd": 1.3874985,
+   "input_tokens": 68,
+   "output_tokens": 18497,
+   "cache_read_tokens": 2144405,
+   "cache_creation_tokens": 77753,
+   "turns": 34,
+   "tool_calls": 33,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×11",
+    "Read×11",
+    "ToolSearch×1",
+    "Write×1",
+    "mcp__graft__graft_file_api×1",
+    "mcp__graft__graft_find_code×2",
+    "mcp__graft__graft_trace_calls×3"
+   ],
+   "context_tool_calls": 6,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-graft-t1.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 205581,
+   "cost_usd": 1.1745215999999998,
+   "input_tokens": 48,
+   "output_tokens": 18421,
+   "cache_read_tokens": 1625682,
+   "cache_creation_tokens": 68393,
+   "turns": 24,
+   "tool_calls": 23,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×4",
+    "Read×12",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-cold-t2.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 213644,
+   "cost_usd": 1.2502356000000003,
+   "input_tokens": 66,
+   "output_tokens": 18722,
+   "cache_read_tokens": 2018052,
+   "cache_creation_tokens": 60632,
+   "turns": 33,
+   "tool_calls": 32,
+   "tools_used": [
+    "Edit×8",
+    "Grep×9",
+    "Read×12",
+    "Write×1",
+    "mcp__kivgraph__find_references×1",
+    "mcp__kivgraph__find_symbol×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-kivgraph-t2.jsonl",
+   "wrote": [
+    "docs/REQUEST_TRACKER.md",
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.3333333333333333,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "docs/REQUEST_TRACKER.md",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "graft",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 80391,
+   "cost_usd": 0.5083938,
+   "input_tokens": 30,
+   "output_tokens": 6634,
+   "cache_read_tokens": 683406,
+   "cache_creation_tokens": 33962,
+   "turns": 15,
+   "tool_calls": 14,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×1",
+    "Read×2",
+    "ToolSearch×1",
+    "Write×1",
+    "mcp__graft__graft_find_all×2",
+    "mcp__graft__graft_find_code×2",
+    "mcp__graft__graft_trace_calls×2"
+   ],
+   "context_tool_calls": 6,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-graft-t2.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 24070,
+   "cost_usd": 0.1605219,
+   "input_tokens": 10,
+   "output_tokens": 1882,
+   "cache_read_tokens": 155713,
+   "cache_creation_tokens": 14258,
+   "turns": 5,
+   "tool_calls": 4,
+   "tools_used": [
+    "Edit×1",
+    "Grep×1",
+    "Read×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-cold-t1.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 42742,
+   "cost_usd": 0.3695304,
+   "input_tokens": 22,
+   "output_tokens": 3625,
+   "cache_read_tokens": 434238,
+   "cache_creation_tokens": 30803,
+   "turns": 14,
+   "tool_calls": 13,
+   "tools_used": [
+    "Edit×1",
+    "Glob×1",
+    "Grep×4",
+    "Read×3",
+    "ToolSearch×1",
+    "mcp__kivgraph__find_symbol×2",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 35991,
+   "cost_usd": 0.2575674,
+   "input_tokens": 16,
+   "output_tokens": 2698,
+   "cache_read_tokens": 301898,
+   "cache_creation_tokens": 21080,
+   "turns": 8,
+   "tool_calls": 7,
+   "tools_used": [
+    "Edit×1",
+    "Glob×1",
+    "Read×1",
+    "ToolSearch×1",
+    "mcp__graft__graft_find_all×2",
+    "mcp__graft__graft_find_code×1"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-graft-t1.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 27767,
+   "cost_usd": 0.1471761,
+   "input_tokens": 12,
+   "output_tokens": 2103,
+   "cache_read_tokens": 192497,
+   "cache_creation_tokens": 9641,
+   "turns": 6,
+   "tool_calls": 5,
+   "tools_used": [
+    "Edit×1",
+    "Grep×2",
+    "Read×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-cold-t2.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 37128,
+   "cost_usd": 0.35014980000000007,
+   "input_tokens": 18,
+   "output_tokens": 2984,
+   "cache_read_tokens": 398226,
+   "cache_creation_tokens": 30978,
+   "turns": 10,
+   "tool_calls": 9,
+   "tools_used": [
+    "Edit×1",
+    "Grep×2",
+    "Read×3",
+    "ToolSearch×1",
+    "mcp__kivgraph__find_symbol×1",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-kivgraph-t2.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "graft",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 41772,
+   "cost_usd": 0.2350002,
+   "input_tokens": 14,
+   "output_tokens": 2905,
+   "cache_read_tokens": 263824,
+   "cache_creation_tokens": 18706,
+   "turns": 7,
+   "tool_calls": 6,
+   "tools_used": [
+    "Edit×1",
+    "Read×2",
+    "ToolSearch×1",
+    "mcp__graft__graft_find_all×1",
+    "mcp__graft__graft_find_code×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-graft-t2.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "library-shared-e294840",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 155832,
+   "cost_usd": 1.0380347999999997,
+   "input_tokens": 64,
+   "output_tokens": 13716,
+   "cache_read_tokens": 1737096,
+   "cache_creation_tokens": 51829,
+   "turns": 32,
+   "tool_calls": 31,
+   "tools_used": [
+    "Edit×6",
+    "Glob×3",
+    "Grep×10",
+    "Read×11",
+    "ToolSearch×1"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/library-shared-e294840-cold-t1.jsonl",
+   "wrote": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "library-shared-e294840",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 275966,
+   "cost_usd": 1.4243807999999998,
+   "input_tokens": 76,
+   "output_tokens": 24133,
+   "cache_read_tokens": 2318466,
+   "cache_creation_tokens": 61103,
+   "turns": 41,
+   "tool_calls": 40,
+   "tools_used": [
+    "Edit×6",
+    "Glob×2",
+    "Grep×16",
+    "Read×10",
+    "mcp__kivgraph__find_references×1",
+    "mcp__kivgraph__find_symbol×2",
+    "mcp__kivgraph__get_file_outline×2",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 6,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/library-shared-e294840-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "library-shared-e294840",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 251185,
+   "cost_usd": 1.4498934,
+   "input_tokens": 76,
+   "output_tokens": 16988,
+   "cache_read_tokens": 2599498,
+   "cache_creation_tokens": 69166,
+   "turns": 38,
+   "tool_calls": 37,
+   "tools_used": [
+    "Edit×5",
+    "Grep×6",
+    "Read×13",
+    "ToolSearch×1",
+    "mcp__graft__graft_check_freshness×1",
+    "mcp__graft__graft_file_api×1",
+    "mcp__graft__graft_find_all×5",
+    "mcp__graft__graft_find_code×5"
+   ],
+   "context_tool_calls": 12,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/library-shared-e294840-graft-t1.jsonl",
+   "wrote": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "library-shared-e294840",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 150908,
+   "cost_usd": 1.2781986,
+   "input_tokens": 60,
+   "output_tokens": 13188,
+   "cache_read_tokens": 2116822,
+   "cache_creation_tokens": 74192,
+   "turns": 30,
+   "tool_calls": 29,
+   "tools_used": [
+    "Edit×7",
+    "Glob×2",
+    "Grep×10",
+    "Read×10"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/library-shared-e294840-cold-t2.jsonl",
+   "wrote": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "library-shared-e294840",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 170743,
+   "cost_usd": 1.0603220999999998,
+   "input_tokens": 48,
+   "output_tokens": 15131,
+   "cache_read_tokens": 1443957,
+   "cache_creation_tokens": 66671,
+   "turns": 24,
+   "tool_calls": 23,
+   "tools_used": [
+    "Edit×7",
+    "Glob×2",
+    "Grep×5",
+    "Read×9"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/library-shared-e294840-kivgraph-t2.jsonl",
+   "wrote": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts",
+    "src/automation/variables.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.75,
+   "recall": 1,
+   "missing": null,
+   "spurious": [
+    "src/automation/variables.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "library-shared-e294840",
+   "arm": "graft",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 185470,
+   "cost_usd": 1.1546208,
+   "input_tokens": 62,
+   "output_tokens": 14380,
+   "cache_read_tokens": 1966956,
+   "cache_creation_tokens": 58108,
+   "turns": 32,
+   "tool_calls": 31,
+   "tools_used": [
+    "Edit×6",
+    "Grep×2",
+    "Read×13",
+    "ToolSearch×1",
+    "mcp__graft__graft_file_api×1",
+    "mcp__graft__graft_find_all×8"
+   ],
+   "context_tool_calls": 9,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/library-shared-e294840-graft-t2.jsonl",
+   "wrote": [
+    "src/automation/actions.ts",
+    "src/automation/catalog.test.ts",
+    "src/automation/types.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kenalink-rs-188ae97",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 59138,
+   "cost_usd": 0.45843540000000005,
+   "input_tokens": 46,
+   "output_tokens": 4617,
+   "cache_read_tokens": 868788,
+   "cache_creation_tokens": 21401,
+   "turns": 23,
+   "tool_calls": 22,
+   "tools_used": [
+    "Edit×4",
+    "Glob×3",
+    "Grep×8",
+    "Read×7"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-cold-t1.jsonl",
+   "wrote": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kenalink-rs-188ae97",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 61312,
+   "cost_usd": 0.5313096,
+   "input_tokens": 42,
+   "output_tokens": 5361,
+   "cache_read_tokens": 877802,
+   "cache_creation_tokens": 31238,
+   "turns": 31,
+   "tool_calls": 30,
+   "tools_used": [
+    "Edit×4",
+    "Glob×2",
+    "Grep×5",
+    "Read×6",
+    "ToolSearch×1",
+    "mcp__kivgraph__find_references×3",
+    "mcp__kivgraph__find_symbol×5",
+    "mcp__kivgraph__get_source×4"
+   ],
+   "context_tool_calls": 12,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kenalink-rs-188ae97",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 58989,
+   "cost_usd": 0.3656286,
+   "input_tokens": 34,
+   "output_tokens": 4234,
+   "cache_read_tokens": 623922,
+   "cache_creation_tokens": 19140,
+   "turns": 21,
+   "tool_calls": 20,
+   "tools_used": [
+    "Edit×4",
+    "Glob×2",
+    "Grep×2",
+    "Read×5",
+    "ToolSearch×1",
+    "mcp__graft__graft_find_all×6"
+   ],
+   "context_tool_calls": 6,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-graft-t1.jsonl",
+   "wrote": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kenalink-rs-188ae97",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 39127,
+   "cost_usd": 0.2702394,
+   "input_tokens": 32,
+   "output_tokens": 3037,
+   "cache_read_tokens": 546388,
+   "cache_creation_tokens": 10112,
+   "turns": 16,
+   "tool_calls": 15,
+   "tools_used": [
+    "Edit×4",
+    "Grep×5",
+    "Read×6"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-cold-t2.jsonl",
+   "wrote": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kenalink-rs-188ae97",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 47462,
+   "cost_usd": 0.33072149999999995,
+   "input_tokens": 30,
+   "output_tokens": 3949,
+   "cache_read_tokens": 556235,
+   "cache_creation_tokens": 17421,
+   "turns": 21,
+   "tool_calls": 20,
+   "tools_used": [
+    "Edit×4",
+    "Grep×4",
+    "Read×4",
+    "mcp__kivgraph__find_references×1",
+    "mcp__kivgraph__find_symbol×6",
+    "mcp__kivgraph__get_source×1"
+   ],
+   "context_tool_calls": 8,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-kivgraph-t2.jsonl",
+   "wrote": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kenalink-rs-188ae97",
+   "arm": "graft",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 61375,
+   "cost_usd": 0.4452068999999999,
+   "input_tokens": 30,
+   "output_tokens": 5046,
+   "cache_read_tokens": 673763,
+   "cache_creation_tokens": 27883,
+   "turns": 24,
+   "tool_calls": 23,
+   "tools_used": [
+    "Edit×5",
+    "Grep×1",
+    "Read×5",
+    "ToolSearch×1",
+    "mcp__graft__graft_file_api×3",
+    "mcp__graft__graft_find_all×1",
+    "mcp__graft__graft_find_code×5",
+    "mcp__graft__graft_trace_calls×2"
+   ],
+   "context_tool_calls": 11,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-graft-t2.jsonl",
+   "wrote": [
+    "src/api_ws/mod.rs",
+    "src/protocol.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "api-music-nodo-2fd7c63",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 290890,
+   "cost_usd": 1.8038892,
+   "input_tokens": 50,
+   "output_tokens": 31339,
+   "cache_read_tokens": 2295774,
+   "cache_creation_tokens": 107487,
+   "turns": 33,
+   "tool_calls": 32,
+   "tools_used": [
+    "Edit×2",
+    "Glob×2",
+    "Grep×9",
+    "Read×16",
+    "ToolSearch×1",
+    "Write×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-cold-t1.jsonl",
+   "wrote": [
+    "src/http/controllers/chipbot.rs",
+    "src/providers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.75,
+   "recall": 1,
+   "missing": null,
+   "spurious": [
+    "src/providers/chipbot.rs"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-music-nodo-2fd7c63",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 350004,
+   "cost_usd": 2.4861773999999994,
+   "input_tokens": 60,
+   "output_tokens": 38128,
+   "cache_read_tokens": 3507438,
+   "cache_creation_tokens": 143641,
+   "turns": 38,
+   "tool_calls": 37,
+   "tools_used": [
+    "Edit×11",
+    "Glob×1",
+    "Grep×6",
+    "Read×14",
+    "ToolSearch×1",
+    "Write×2",
+    "mcp__kivgraph__find_symbol×1",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/http/controllers/chipbot.rs",
+    "src/providers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.75,
+   "recall": 1,
+   "missing": null,
+   "spurious": [
+    "src/providers/chipbot.rs"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-music-nodo-2fd7c63",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 419307,
+   "cost_usd": 2.6344704000000005,
+   "input_tokens": 66,
+   "output_tokens": 46952,
+   "cache_read_tokens": 3707988,
+   "cache_creation_tokens": 136266,
+   "turns": 44,
+   "tool_calls": 43,
+   "tools_used": [
+    "Edit×7",
+    "Glob×1",
+    "Grep×14",
+    "Read×10",
+    "ToolSearch×1",
+    "Write×2",
+    "mcp__graft__graft_file_api×6",
+    "mcp__graft__graft_find_all×1",
+    "mcp__graft__graft_find_code×1"
+   ],
+   "context_tool_calls": 8,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-graft-t1.jsonl",
+   "wrote": [
+    "src/http/controllers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "api-music-nodo-2fd7c63",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 247593,
+   "cost_usd": 1.6706772,
+   "input_tokens": 34,
+   "output_tokens": 28832,
+   "cache_read_tokens": 1754404,
+   "cache_creation_tokens": 118629,
+   "turns": 23,
+   "tool_calls": 22,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×4",
+    "Read×13",
+    "Write×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-cold-t2.jsonl",
+   "wrote": [
+    "src/http/controllers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "api-music-nodo-2fd7c63",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 307712,
+   "cost_usd": 1.8574962,
+   "input_tokens": 40,
+   "output_tokens": 34537,
+   "cache_read_tokens": 1953204,
+   "cache_creation_tokens": 125560,
+   "turns": 29,
+   "tool_calls": 28,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×4",
+    "Read×16",
+    "ToolSearch×1",
+    "Write×2",
+    "mcp__kivgraph__find_symbol×1",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-kivgraph-t2.jsonl",
+   "wrote": [
+    "src/http/controllers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "api-music-nodo-2fd7c63",
+   "arm": "graft",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 270037,
+   "cost_usd": 1.8861057000000003,
+   "input_tokens": 46,
+   "output_tokens": 28489,
+   "cache_read_tokens": 2473609,
+   "cache_creation_tokens": 119425,
+   "turns": 35,
+   "tool_calls": 34,
+   "tools_used": [
+    "Edit×2",
+    "Grep×1",
+    "Read×9",
+    "ToolSearch×1",
+    "Write×2",
+    "mcp__graft__graft_file_api×9",
+    "mcp__graft__graft_find_all×3",
+    "mcp__graft__graft_find_code×2",
+    "mcp__graft__graft_repo_map×1",
+    "mcp__graft__graft_trace_calls×4"
+   ],
+   "context_tool_calls": 19,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-graft-t2.jsonl",
+   "wrote": [
+    "src/http/controllers/chipbot.rs",
+    "src/system/chipbot_files.rs",
+    "src/system/mod.rs"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  }
+ ],
+ "aggregate": {
+  "cold": {
+   "runs": 12,
+   "exact": 5,
+   "precision_mean": 0.7708333333333334,
+   "recall_mean": 0.6805555555555555,
+   "cost_usd_total": 14.7416583,
+   "cost_usd_mean": 1.228471525,
+   "tokens_mean": 2022575.4166666667,
+   "tool_calls_mean": 26,
+   "context_tool_calls_mean": 0,
+   "seconds_mean": 175.54208333333327,
+   "errored": 0,
+   "budget_exhausted": 1,
+   "leaks": 0
+  },
+  "graft": {
+   "runs": 12,
+   "exact": 6,
+   "precision_mean": 0.75,
+   "recall_mean": 0.6388888888888888,
+   "cost_usd_total": 15.952189800000001,
+   "cost_usd_mean": 1.32934915,
+   "tokens_mean": 2123063.8333333335,
+   "tool_calls_mean": 28.833333333333332,
+   "context_tool_calls_mean": 9.416666666666666,
+   "seconds_mean": 203.20708333333334,
+   "errored": 0,
+   "budget_exhausted": 0,
+   "leaks": 0
+  },
+  "kivgraph": {
+   "runs": 12,
+   "exact": 4,
+   "precision_mean": 0.7083333333333334,
+   "recall_mean": 0.6666666666666666,
+   "cost_usd_total": 16.9215423,
+   "cost_usd_mean": 1.410128525,
+   "tokens_mean": 2161180.5833333335,
+   "tool_calls_mean": 28.583333333333332,
+   "context_tool_calls_mean": 3.9166666666666665,
+   "seconds_mean": 210.89358333333328,
+   "errored": 0,
+   "budget_exhausted": 1,
+   "leaks": 0
+  }
+ },
+ "setup": {
+  "index_kivgraph_ms": [
+   64273,
+   14856,
+   15652,
+   23574,
+   9999,
+   7611
+  ],
+  "index_graft_ms": [
+   4760,
+   5168,
+   4838,
+   4221,
+   2780,
+   2377
+  ]
+ }
+}
