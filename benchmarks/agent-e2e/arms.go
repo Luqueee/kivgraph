@@ -25,19 +25,41 @@ type arm struct {
 	Tools []string
 }
 
+// absolutePath resolves an executable through PATH once, here, so a server that
+// runs with a replaced environment still finds its binary.
+func absolutePath(name string) string {
+	resolved, err := exec.LookPath(name)
+	if err != nil {
+		return name
+	}
+	return resolved
+}
+
 // fileTools is what every arm gets. The shell is absent on purpose: with it an
 // agent can run `git log`, and on a corpus built from real commits that is a
 // route to the answer rather than to the code.
-var fileTools = []string{"Read", "Glob", "Grep", "Edit", "Write", "MultiEdit", "NotebookEdit", "TodoWrite"}
+// ToolSearch is in the shared list for a measured reason. The host publishes an
+// MCP server's tools inline only when the server is connected as the session
+// starts; a server still handshaking is left `pending` and its tools are deferred
+// behind tool search for the whole run. kivgraph reads a `git rev-parse` per
+// registered repository before it answers `initialize` -- 0.09 s at 2
+// repositories, 1.29 s at 37 -- so on this workspace its tools are deferred while
+// graft's, which start in milliseconds, are inline. Without tool search in every
+// arm the kivgraph arm measures an invisible server rather than a graph.
+var fileTools = []string{"Read", "Glob", "Grep", "Edit", "Write", "MultiEdit", "NotebookEdit", "TodoWrite", "ToolSearch"}
 
 func arms(cfg config) []arm {
 	return []arm{
 		{Name: "cold"},
 		{
 			Name: "kivgraph",
+			// No env block: it would replace the environment rather than extend
+			// it, and the server -- which shells out to git for provenance --
+			// then never completes its handshake. The isolated state travels in
+			// --config instead, whose paths register() made absolute.
 			MCP: map[string]any{"kivgraph": map[string]any{
-				"command": cfg.Kivgraph, "args": []string{"serve"},
-				"env": map[string]string{"HOME": cfg.Home},
+				"command": absolutePath(cfg.Kivgraph),
+				"args":    []string{"serve", "--config", filepath.Join(cfg.Home, ".config", "kivgraph", "config.yaml")},
 			}},
 			Tools: []string{
 				"mcp__kivgraph__find_symbol", "mcp__kivgraph__find_references",
@@ -50,7 +72,7 @@ func arms(cfg config) []arm {
 		{
 			Name: "graft",
 			MCP: map[string]any{"graft": map[string]any{
-				"command": cfg.Graft,
+				"command": absolutePath(cfg.Graft),
 				"args":    []string{"--dir", cfg.GraftContext, "mcp", cfg.Root},
 			}},
 			Tools: []string{
@@ -75,7 +97,10 @@ Implement this change:
 The change belongs in the %s repository. Work out which files to modify by
 reading the code, then make the edits. Follow the conventions already in the
 repository, including its tests if the change warrants one. Do not run builds or
-tests. Stop when the edits are complete.`, root, t.Intent, t.Repo)
+tests. Stop when the edits are complete.
+
+Tools beyond plain file access may be available in this session; discover them
+if they would help.`, root, t.Intent, t.Repo)
 }
 
 // run executes one arm on one task and returns what it cost and what it wrote.
@@ -92,17 +117,29 @@ func (a arm) run(cfg config, t task, trial int) (runResult, error) {
 	arguments = append(arguments, "--allowedTools")
 	arguments = append(arguments, allowed...)
 	arguments = append(arguments, "--disallowedTools", "Bash", "WebFetch", "WebSearch", "Task")
-	if a.MCP != nil {
-		path := filepath.Join(cfg.Directory, "mcp-"+a.Name+".json")
-		encoded, err := json.MarshalIndent(map[string]any{"mcpServers": a.MCP}, "", " ")
-		if err != nil {
-			return result, fmt.Errorf("encode %s mcp config: %w", a.Name, err)
-		}
-		if err := os.WriteFile(path, encoded, 0o644); err != nil {
-			return result, fmt.Errorf("write %s: %w", path, err)
-		}
-		arguments = append(arguments, "--mcp-config", path, "--strict-mcp-config")
+	// Every arm passes a config and --strict-mcp-config, cold included with an
+	// empty one. Without it the agent inherits whatever MCP the environment
+	// offers -- this corpus ships a project `.mcp.json`, and the host's own
+	// plugins mount more -- and the cold arm would not be cold. Verified: with
+	// the flag the init event lists no `mcp__` tool at all.
+	servers := a.MCP
+	if servers == nil {
+		servers = map[string]any{}
 	}
+	// Absolute: the agent runs with the copy as its working directory, so a path
+	// relative to the benchmark directory would resolve inside the corpus copy.
+	path, err := filepath.Abs(filepath.Join(cfg.Directory, "mcp-"+a.Name+".json"))
+	if err != nil {
+		return result, fmt.Errorf("resolve %s mcp config path: %w", a.Name, err)
+	}
+	encoded, err := json.MarshalIndent(map[string]any{"mcpServers": servers}, "", " ")
+	if err != nil {
+		return result, fmt.Errorf("encode %s mcp config: %w", a.Name, err)
+	}
+	if err := os.WriteFile(path, encoded, 0o644); err != nil {
+		return result, fmt.Errorf("write %s: %w", path, err)
+	}
+	arguments = append(arguments, "--mcp-config", path, "--strict-mcp-config")
 
 	command := exec.Command(cfg.Agent, arguments...)
 	command.Dir = cfg.Root

@@ -291,10 +291,23 @@ func (i indexer) register() error {
 		return fmt.Errorf("read %s: %w", config, err)
 	}
 	patched := strings.Replace(string(raw), "include_tests: false", "include_tests: true", 1)
+	// The generated configuration locates state through `~`, which resolves
+	// against whatever HOME the reader has. The arms cannot set HOME: an `env`
+	// block in an MCP config replaces the environment instead of extending it,
+	// and a server spawned that way never finishes its handshake -- the host
+	// reports only a tool-less server stuck in `pending`. So the paths are made
+	// absolute here and `serve --config` reads them with the environment intact.
+	patched = strings.ReplaceAll(patched, "~/", i.Home+"/")
 	if err := os.WriteFile(config, []byte(patched), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", config, err)
 	}
 	return nil
+}
+
+// configPath is the isolated configuration both the indexer and the arm's server
+// read, so they agree on where the generation lives.
+func (i indexer) configPath() string {
+	return filepath.Join(i.Home, ".config", "kivgraph", "config.yaml")
 }
 
 func lastLines(text string, count int) string {

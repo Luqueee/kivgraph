@@ -1,0 +1,318 @@
+{
+ "benchmark": "agent-e2e",
+ "generated_at": "2026-08-19T17:46:45.771769Z",
+ "commit": "7fa6689",
+ "model": "sonnet",
+ "agent": "claude",
+ "environment": {
+  "arch": "arm64",
+  "go": "go1.26.4",
+  "os": "darwin"
+ },
+ "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "arms": [
+  "cold",
+  "kivgraph",
+  "graft"
+ ],
+ "trials": 1,
+ "tasks": [
+  {
+   "id": "core-6ad7d65",
+   "repo": "packages/core",
+   "language": "typescript",
+   "commit": "6ad7d656064a33bf065688d16e4a60bb06fe8aa4",
+   "subject": "feat(ipc): techo de la cola de peticiones del RequestTracker",
+   "truth_files": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(ipc): techo de la cola de peticiones del RequestTracker\n\nCierra el otro agujero de RAM del informe: `pendingRequests` no tenía `maxPending`.\nCada entrada retiene sus closures, un `Timeout` y el payload completo —hasta 16 MiB\npor `max_receive_message_length`— mientras se espera al worker, así que si las\npeticiones entran más rápido de lo que el worker resuelve, el mapa crece hasta\ndonde aguante el heap. Es lo que mejor explica los 10 GB del 11-08-2026.\n\nThe change belongs in the packages/core repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\nTools beyond plain file access may be available in this session; discover them\nif they would help."
+  },
+  {
+   "id": "gateway-37cd672",
+   "repo": "packages/gateway",
+   "language": "typescript",
+   "commit": "37cd672bee801a1aa66158a19466a942e8c36cde",
+   "subject": "perf(request-metrics): volcar el contador cada segundo",
+   "truth_files": [
+    "src/shared/RequestMetrics.test.ts",
+    "src/shared/RequestMetrics.ts"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nperf(request-metrics): volcar el contador cada segundo\n\nEl panel en vivo sondea cada segundo y pinta la diferencia entre dos\nsondeos, pero el buffer bajaba a Redis cada 10 s: nueve de cada diez\npuntos salían clavados a cero y el décimo con los 10 s de golpe, una\ncurva de picos que no se parece al trafico que la produjo.\n\nThe change belongs in the packages/gateway repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\nTools beyond plain file access may be available in this session; discover them\nif they would help."
+  }
+ ],
+ "runs": [
+  {
+   "task": "core-6ad7d65",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 421295,
+   "cost_usd": 2.6598233999999996,
+   "input_tokens": 159,
+   "output_tokens": 37193,
+   "cache_read_tokens": 5024098,
+   "cache_creation_tokens": 99037,
+   "turns": 62,
+   "tool_calls": 61,
+   "tools_used": [
+    "Edit×18",
+    "Glob×1",
+    "Grep×18",
+    "Read×22",
+    "ToolSearch×1",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-cold-t1.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "kivgraph",
+   "trial": 1,
+   "ms": 143506,
+   "cost_usd": 0.9588401999999998,
+   "input_tokens": 46,
+   "output_tokens": 12338,
+   "cache_read_tokens": 1346814,
+   "cache_creation_tokens": 61598,
+   "turns": 23,
+   "tool_calls": 22,
+   "tools_used": [
+    "Edit×3",
+    "Glob×1",
+    "Grep×7",
+    "Read×10",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker-max-pending.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "core-6ad7d65",
+   "arm": "graft",
+   "trial": 1,
+   "ms": 216598,
+   "cost_usd": 1.4518379999999997,
+   "input_tokens": 80,
+   "output_tokens": 18703,
+   "cache_read_tokens": 2539170,
+   "cache_creation_tokens": 68217,
+   "turns": 40,
+   "tool_calls": 39,
+   "tools_used": [
+    "Edit×9",
+    "Glob×3",
+    "Grep×5",
+    "Read×21",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/core-6ad7d65-graft-t1.jsonl",
+   "wrote": [
+    "src/cluster/master/ipc/RequestTracker.ts",
+    "src/infrastructure/grpc/server.ts",
+    "tests/cluster/master/ipc/RequestTracker.test.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
+   ],
+   "spurious": [
+    "tests/cluster/master/ipc/RequestTracker.test.ts"
+   ],
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 36131,
+   "cost_usd": 0.2341305,
+   "input_tokens": 20,
+   "output_tokens": 2762,
+   "cache_read_tokens": 329995,
+   "cache_creation_tokens": 15607,
+   "turns": 10,
+   "tool_calls": 9,
+   "tools_used": [
+    "Edit×1",
+    "Glob×1",
+    "Grep×5",
+    "Read×2"
+   ],
+   "context_tool_calls": 0,
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-cold-t1.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "kivgraph",
+   "trial": 1,
+   "ms": 27480,
+   "cost_usd": 0.2396535,
+   "input_tokens": 16,
+   "output_tokens": 2011,
+   "cache_read_tokens": 264315,
+   "cache_creation_tokens": 21691,
+   "turns": 8,
+   "tool_calls": 7,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×2",
+    "Read×2"
+   ],
+   "context_tool_calls": 0,
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-kivgraph-t1.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "gateway-37cd672",
+   "arm": "graft",
+   "trial": 1,
+   "ms": 40230,
+   "cost_usd": 0.23620409999999997,
+   "input_tokens": 18,
+   "output_tokens": 3138,
+   "cache_read_tokens": 305267,
+   "cache_creation_tokens": 16250,
+   "turns": 9,
+   "tool_calls": 8,
+   "tools_used": [
+    "Edit×1",
+    "Grep×1",
+    "Read×2",
+    "ToolSearch×1",
+    "mcp__graft__graft_find_all×2",
+    "mcp__graft__graft_find_code×1"
+   ],
+   "context_tool_calls": 3,
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/gateway-37cd672-graft-t1.jsonl",
+   "wrote": [
+    "src/shared/RequestMetrics.ts"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "src/shared/RequestMetrics.test.ts"
+   ],
+   "spurious": null,
+   "exact": false
+  }
+ ],
+ "aggregate": {
+  "cold": {
+   "runs": 2,
+   "exact": 0,
+   "precision_mean": 0.8333333333333333,
+   "recall_mean": 0.5833333333333333,
+   "cost_usd_total": 2.8939538999999996,
+   "cost_usd_mean": 1.4469769499999998,
+   "tokens_mean": 2754435.5,
+   "tool_calls_mean": 35,
+   "context_tool_calls_mean": 0,
+   "seconds_mean": 228.71300000000002,
+   "errored": 0,
+   "leaks": 0
+  },
+  "graft": {
+   "runs": 2,
+   "exact": 0,
+   "precision_mean": 0.8333333333333333,
+   "recall_mean": 0.5833333333333333,
+   "cost_usd_total": 1.6880420999999997,
+   "cost_usd_mean": 0.8440210499999998,
+   "tokens_mean": 1475421.5,
+   "tool_calls_mean": 23.5,
+   "context_tool_calls_mean": 1.5,
+   "seconds_mean": 128.41400000000002,
+   "errored": 0,
+   "leaks": 0
+  },
+  "kivgraph": {
+   "runs": 2,
+   "exact": 0,
+   "precision_mean": 0.75,
+   "recall_mean": 0.41666666666666663,
+   "cost_usd_total": 1.1984936999999998,
+   "cost_usd_mean": 0.5992468499999999,
+   "tokens_mean": 854414.5,
+   "tool_calls_mean": 14.5,
+   "context_tool_calls_mean": 0,
+   "seconds_mean": 85.493,
+   "errored": 0,
+   "leaks": 0
+  }
+ },
+ "setup": {
+  "index_kivgraph_ms": [
+   8838,
+   8566
+  ],
+  "index_graft_ms": [
+   2411,
+   2348
+  ]
+ }
+}
