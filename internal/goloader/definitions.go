@@ -167,6 +167,9 @@ func extractFile(
 		if !keep {
 			return true
 		}
+		if kind == KindField && fieldOfUnnamedLiteral(stack) {
+			return true
+		}
 		if options.ExcludeUnexported && !object.Exported() {
 			return true
 		}
@@ -262,15 +265,48 @@ func ownerFor(kind DefinitionKind, object types.Object, stack []declarationConte
 	if kind != KindMethod && kind != KindField {
 		return ""
 	}
+	if kind == KindField {
+		if owner := fieldOwner(stack); owner != "" {
+			return owner
+		}
+		return localContainer(stack)
+	}
 	for index := len(stack) - 1; index >= 0; index-- {
 		if stack[index].owner != "" {
 			return stack[index].owner
 		}
 	}
-	if kind == KindField {
-		return localContainer(stack)
-	}
 	return ""
+}
+
+// fieldOwner names the path from a named type down to a field, through the
+// anonymous structs in between: the `Release` of `bundleManifest.Tools
+// .RustAnalyzer` is not the `Release` of `bundleManifest`.
+//
+// Taking only the nearest named type made both of them `bundleManifest.Release`,
+// one identity for two declarations, which the DEFINES multiplicity constraint
+// rejects at publish time. The path is built from names alone, so moving a
+// declaration inside its struct does not change it, and a nested named type
+// restarts the path because it is addressable on its own.
+func fieldOwner(stack []declarationContext) string {
+	parts := make([]string, 0, 4)
+	innermost := -1
+	for index, entry := range stack {
+		if _, isField := entry.node.(*ast.Field); isField {
+			innermost = index
+		}
+	}
+	for index, entry := range stack {
+		switch node := entry.node.(type) {
+		case *ast.TypeSpec:
+			parts = append(parts[:0], node.Name.Name)
+		case *ast.Field:
+			if index != innermost && len(node.Names) != 0 {
+				parts = append(parts, node.Names[0].Name)
+			}
+		}
+	}
+	return strings.Join(parts, ".")
 }
 
 // localContainer names the container of a field declared in an anonymous
@@ -312,6 +348,59 @@ func localContainer(stack []declarationContext) string {
 	// The field's own name is the last Field on the stack; it is added by
 	// qualifiedName, not by the container.
 	return strings.Join(parts[:len(parts)-1], ".")
+}
+
+// fieldOfUnnamedLiteral reports whether a field belongs to an anonymous struct
+// written inline inside a function, with no name on the way down to it: the
+// `struct{ Files []group }` a method marshals itself into, or the
+// `struct{ path, root string }` appended straight to a slice.
+//
+// Such a field is not addressable and, worse, not distinguishable: its identity
+// falls back to the names of its containers, and there are none between the
+// function and the field. Two sibling literals in one function then derive one
+// key -- as do an embedded field, which contributes no name at all -- and one
+// Symbol with two declaring Files is what the DEFINES multiplicity constraint
+// forbids, failing at publish time as a node offset far from the declarations.
+// They are the same class as the methods of an unnamed interface: not
+// addressable, so never in the graph.
+//
+// A local struct bound to a name keeps its field: `var raw struct{ GuildID
+// string }` inside `ParseFirst` is `ParseFirst.raw.GuildID`, which separates it
+// from every other one.
+func fieldOfUnnamedLiteral(stack []declarationContext) bool {
+	function := -1
+	for index, entry := range stack {
+		switch entry.node.(type) {
+		case *ast.TypeSpec:
+			// A named type restarts the path, so the field is addressable
+			// through it however deep the anonymous structs go.
+			function = -1
+		case *ast.FuncDecl, *ast.FuncLit:
+			function = index
+		}
+	}
+	if function == -1 {
+		return false
+	}
+	innermost := -1
+	for index, entry := range stack {
+		if _, isField := entry.node.(*ast.Field); isField {
+			innermost = index
+		}
+	}
+	for index := function + 1; index < len(stack); index++ {
+		switch node := stack[index].node.(type) {
+		case *ast.ValueSpec:
+			if len(node.Names) != 0 {
+				return false
+			}
+		case *ast.Field:
+			if index != innermost && len(node.Names) != 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // receiverTypeExpr names the receiver type of a method declaration, ignoring

@@ -1,6 +1,9 @@
 package facts
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestUnresolvedKeyMatchesTheMergeIdentity keeps UnresolvedKey and Set.Merge
 // deduplicating on the same tuple: a key that drifts from Merge would let two
@@ -112,6 +115,53 @@ func TestValidateRejectsUnresolvedReferenceWithoutRequestedPackage(t *testing.T)
 	set.Unresolved[0].RequestedSymbol = "EventEmitter"
 	if err := set.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want the named reference to pass", err)
+	}
+}
+
+// TestValidateRejectsASymbolWithTwoDefiners keeps the DEFINES multiplicity where
+// the facts are still readable. LadybugDB enforces it too, and its message is a
+// node offset: a set that reaches storage with two declarations sharing one
+// identity fails minutes into a rebuild, naming neither file.
+func TestValidateRejectsASymbolWithTwoDefiners(t *testing.T) {
+	repository := Repository{Key: "repo:acme", Name: "acme", RootPath: "/repos/acme", Languages: []Language{LanguageGo}}
+	pkg := Package{Key: "pkg:acme:widgets", RepositoryKey: repository.Key, Language: LanguageGo, Name: "widgets", RootPath: "/repos/acme/widgets"}
+	first := File{Key: "file:acme:a.go", RepositoryKey: repository.Key, PackageKey: pkg.Key, Path: "widgets/a.go", Language: LanguageGo}
+	second := File{Key: "file:acme:b.go", RepositoryKey: repository.Key, PackageKey: pkg.Key, Path: "widgets/b.go", Language: LanguageGo}
+	symbol := Symbol{
+		Key: "sym:acme:widgets.Thing", CanonicalIdentity: "acme/widgets.Thing",
+		RepositoryKey: repository.Key, PackageKey: pkg.Key, FileKey: first.Key,
+		Language: LanguageGo, Name: "Thing", QualifiedName: "widgets.Thing", Kind: "field",
+	}
+	set := Set{
+		Repositories: []Repository{repository},
+		Packages:     []Package{pkg},
+		Files:        []File{first, second},
+		Symbols:      []Symbol{symbol},
+		Edges: []Edge{
+			{Kind: Defines, SourceKey: first.Key, TargetKey: symbol.Key, Confidence: StructuralCertain, Provenance: GoTypesDefinition},
+			{Kind: Defines, SourceKey: second.Key, TargetKey: symbol.Key, Confidence: StructuralCertain, Provenance: GoTypesDefinition},
+		},
+	}
+
+	err := set.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want two definers rejected")
+	}
+	for _, named := range []string{symbol.Key, first.Key, second.Key} {
+		if !strings.Contains(err.Error(), named) {
+			t.Fatalf("Validate() error = %v, want it to name %q", err, named)
+		}
+	}
+
+	// The same file defining it twice is a different defect, and it also fails.
+	set.Edges[1].SourceKey = first.Key
+	if err := set.Validate(); err == nil || !strings.Contains(err.Error(), "twice") {
+		t.Fatalf("Validate() error = %v, want the repeated definition rejected", err)
+	}
+
+	set.Edges = set.Edges[:1]
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want one definer to pass", err)
 	}
 }
 

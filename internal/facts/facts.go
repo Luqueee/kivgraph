@@ -462,6 +462,25 @@ func (set Set) Validate() error {
 		}
 	}
 
+	// One symbol has one definer. LadybugDB enforces it as a multiplicity of
+	// the DEFINES table, and a set that breaks it fails there with a node
+	// offset and no name: two declarations that collapse to one identity are an
+	// identity defect, so the message has to name the identity and both files.
+	definers := make(map[string]string, len(symbols))
+	for _, edge := range set.Edges {
+		if edge.Kind != Defines {
+			continue
+		}
+		if first, seen := definers[edge.TargetKey]; seen {
+			if first == edge.SourceKey {
+				return fmt.Errorf("%w: file %q defines symbol %q twice", ErrInvalidFacts, first, edge.TargetKey)
+			}
+			return fmt.Errorf("%w: symbol %q is defined by two files, %q and %q, so two declarations share one identity",
+				ErrInvalidFacts, edge.TargetKey, first, edge.SourceKey)
+		}
+		definers[edge.TargetKey] = edge.SourceKey
+	}
+
 	for _, entry := range set.Unresolved {
 		if entry.Reason == "" {
 			return fmt.Errorf("%w: unresolved reference without reason", ErrInvalidFacts)

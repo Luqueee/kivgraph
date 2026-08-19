@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -379,6 +380,98 @@ func TestExtractDefinitionsGivesEveryDeclarationItsOwnKey(t *testing.T) {
 	for _, wanted := range []string{"Closer.CloseWithError", "Box.Payload", "body.CloseWithError"} {
 		if _, found := present[wanted]; !found {
 			t.Errorf("declaration %q is missing", wanted)
+		}
+	}
+}
+
+// inlineLiteralSource is the shape that made this repository unindexable: two
+// anonymous structs marshalled inline inside one method, an embedded field that
+// contributes no name, and two `Release` fields at different depths of one
+// named type.
+const inlineLiteralSource = `package sample
+
+import "encoding/json"
+
+type header struct {
+	Repository string
+}
+
+type Payload struct {
+	Release string
+	Tools   struct {
+		Release      string
+		RustAnalyzer struct {
+			Release string
+		}
+	}
+}
+
+type View struct {
+	Compact bool
+}
+
+func (view View) MarshalJSON() ([]byte, error) {
+	if view.Compact {
+		return json.Marshal(struct {
+			header
+			Files []string ` + "`json:\"files\"`" + `
+		}{header: header{Repository: "a"}, Files: nil})
+	}
+	return json.Marshal(struct {
+		header
+		Files []string ` + "`json:\"files\"`" + `
+	}{header: header{Repository: "b"}, Files: nil})
+}
+`
+
+// TestExtractDefinitionsSkipsFieldsOfInlineLiteralsAndQualifiesNestedOnes is the
+// regression guard for the two identity collapses that reached LadybugDB as a
+// node offset: sibling inline literals in one function, and two fields of the
+// same name at different depths of one named type.
+func TestExtractDefinitionsSkipsFieldsOfInlineLiteralsAndQualifiesNestedOnes(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod":           "module example.com/module\n\ngo 1.24\n",
+		"sample/sample.go": inlineLiteralSource,
+	})
+
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), result, DefinitionOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+
+	identities := make(map[string]Definition, len(definitions))
+	for _, definition := range definitions {
+		identity := definition.QualifiedName + "|" + string(definition.Kind)
+		if previous, taken := identities[identity]; taken {
+			t.Fatalf("%q at line %d and line %d share one identity",
+				identity, previous.StartLine, definition.StartLine)
+		}
+		identities[identity] = definition
+	}
+
+	// The inline literals contribute no field: nothing names them, so nothing
+	// separates the two of them either.
+	for identity := range identities {
+		if strings.HasSuffix(identity, "Files|field") {
+			t.Fatalf("a field of an inline literal reached the graph: %q", identity)
+		}
+	}
+	// Depth is part of the path, so the three `Release` fields are three symbols.
+	for _, wanted := range []string{
+		"Payload.Release|field",
+		"Payload.Tools.Release|field",
+		"Payload.Tools.RustAnalyzer.Release|field",
+		"header.Repository|field",
+		"View.MarshalJSON|method",
+	} {
+		if _, found := identities[wanted]; !found {
+			t.Fatalf("declaration %q is missing; got %d identities", wanted, len(identities))
 		}
 	}
 }
