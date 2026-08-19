@@ -53,7 +53,7 @@ func main() {
 	flag.StringVar(&cfg.Kivgraph, "kivgraph", "kivgraph", "kivgraph executable")
 	flag.StringVar(&cfg.Graft, "graft", "graft", "graft executable")
 	flag.StringVar(&cfg.Agent, "agent", "claude", "headless coding agent executable")
-	flag.StringVar(&cfg.Model, "model", "sonnet", "model every arm runs on")
+	flag.StringVar(&cfg.Model, "model", "claude-sonnet-5", "model every arm runs on")
 	flag.StringVar(&cfg.Corpus, "corpus", "/Users/adria/Documents/programacion/projects/kena", "corpus read to build the private copy")
 	flag.StringVar(&cfg.Root, "root", "/private/tmp/e2e-kena", "private copy the arms work in")
 	flag.StringVar(&cfg.Home, "home", "/private/tmp/e2e-kivhome", "isolated HOME holding kivgraph's state for the copy")
@@ -180,7 +180,7 @@ func run(cfg config) error {
 		fmt.Printf("  indexed: kivgraph %.1fs, graft %.1fs\n", kivMS/1000, graftMS/1000)
 		out.Tasks = append(out.Tasks, taskRecord{
 			ID: t.ID, Repo: t.Repo, Language: t.Language, Commit: t.Commit,
-			Subject: t.Subject, Truth: t.Truth, Prompt: prompt(t, cfg.Root),
+			Subject: t.Subject, Truth: t.Truth, Prompt: prompt(t, cfg.Root, ""),
 		})
 
 		for trial := 1; trial <= cfg.Trials; trial++ {

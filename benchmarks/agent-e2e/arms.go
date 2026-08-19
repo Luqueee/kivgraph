@@ -19,6 +19,13 @@ type arm struct {
 	Name string
 	// MCP is the server block written to a per-arm config, empty for cold.
 	MCP map[string]any
+	// Directive is the one sentence that tells an arm its context layer exists
+	// and to reach for it first. The pilot settled why it is needed: with only a
+	// neutral hint, the agents queried the graph in one run out of six and worked
+	// the same way cold in the other five, so the sweep measured whether an agent
+	// spontaneously reaches for a tool instead of what the tool is worth. Cold
+	// carries no directive, which is what makes it the baseline.
+	Directive string
 	// Tools are the arm's MCP tools, appended to the shared file tools. They are
 	// named explicitly because an allow-list that ended at a wildcard would let
 	// one arm reach a tool the others cannot.
@@ -53,6 +60,9 @@ func arms(cfg config) []arm {
 		{Name: "cold"},
 		{
 			Name: "kivgraph",
+			Directive: "A code graph of this workspace is mounted over MCP as `kivgraph`. " +
+				"Query it first -- to find the declaration, its callers and what a change to it reaches -- " +
+				"and read files once it has told you which ones matter.",
 			// No env block: it would replace the environment rather than extend
 			// it, and the server -- which shells out to git for provenance --
 			// then never completes its handshake. The isolated state travels in
@@ -71,6 +81,9 @@ func arms(cfg config) []arm {
 		},
 		{
 			Name: "graft",
+			Directive: "A code graph of this workspace is mounted over MCP as `graft`. " +
+				"Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- " +
+				"and read files once it has told you which ones matter.",
 			MCP: map[string]any{"graft": map[string]any{
 				"command": absolutePath(cfg.Graft),
 				"args":    []string{"--dir", cfg.GraftContext, "mcp", cfg.Root},
@@ -87,7 +100,7 @@ func arms(cfg config) []arm {
 // prompt is what every arm is asked. It states the intent and the workspace, and
 // says nothing about which tools exist: an instruction to "use the graph" would
 // be the harness doing the arm's job.
-func prompt(t task, root string) string {
+func prompt(t task, root string, directive string) string {
 	return fmt.Sprintf(`You are working in a multi-repository workspace at %s.
 
 Implement this change:
@@ -99,15 +112,14 @@ reading the code, then make the edits. Follow the conventions already in the
 repository, including its tests if the change warrants one. Do not run builds or
 tests. Stop when the edits are complete.
 
-Tools beyond plain file access may be available in this session; discover them
-if they would help.`, root, t.Intent, t.Repo)
+%s`, root, t.Intent, t.Repo, directive)
 }
 
 // run executes one arm on one task and returns what it cost and what it wrote.
 func (a arm) run(cfg config, t task, trial int) (runResult, error) {
-	result := runResult{Arm: a.Name, Task: t.ID, Trial: trial}
+	result := runResult{Arm: a.Name, Task: t.ID, Trial: trial, Directive: a.Directive}
 	arguments := []string{
-		"-p", prompt(t, cfg.Root),
+		"-p", prompt(t, cfg.Root, a.Directive),
 		"--model", cfg.Model,
 		"--output-format", "stream-json", "--verbose",
 		"--dangerously-skip-permissions",
@@ -182,9 +194,12 @@ func (a arm) run(cfg config, t task, trial int) (runResult, error) {
 
 // runResult is one arm's run: its cost, its tool use and its edits.
 type runResult struct {
-	Task       string   `json:"task"`
-	Arm        string   `json:"arm"`
-	Trial      int      `json:"trial"`
+	Task  string `json:"task"`
+	Arm   string `json:"arm"`
+	Trial int    `json:"trial"`
+	// Directive travels with the run so a reader can see exactly what the arm was
+	// told, rather than inferring it from the arm's name.
+	Directive  string   `json:"directive,omitempty"`
 	MS         float64  `json:"ms"`
 	CostUSD    float64  `json:"cost_usd"`
 	InTokens   int      `json:"input_tokens"`
