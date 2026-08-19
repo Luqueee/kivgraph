@@ -116,6 +116,88 @@
    "spurious": null,
    "exact": false,
    "leak": "transcript mentions /.git/"
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 178911,
+   "cost_usd": 1.5548619,
+   "input_tokens": 46,
+   "output_tokens": 12665,
+   "cache_read_tokens": 1940156,
+   "cache_creation_tokens": 120959,
+   "turns": 29,
+   "tool_calls": 28,
+   "tools_used": [
+    "Edit×1",
+    "Glob×3",
+    "Read×9",
+    "ToolSearch×1",
+    "mcp__graft__graft_file_api×4",
+    "mcp__graft__graft_find_all×4",
+    "mcp__graft__graft_find_code×4",
+    "mcp__graft__graft_repo_map×1",
+    "mcp__graft__graft_trace_calls×1"
+   ],
+   "context_tool_calls": 14,
+   "errored": true,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-graft-t1.jsonl",
+   "wrote": [
+    "internal/domain/validations/module_validations.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": [
+    "internal/domain/validations/module_validations.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-f3a50ad",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 202973,
+   "cost_usd": 1.5390065999999996,
+   "input_tokens": 58,
+   "output_tokens": 14298,
+   "cache_read_tokens": 2298054,
+   "cache_creation_tokens": 90924,
+   "turns": 43,
+   "tool_calls": 43,
+   "tools_used": [
+    "Glob×3",
+    "Grep×23",
+    "Read×16",
+    "ToolSearch×1"
+   ],
+   "context_tool_calls": 0,
+   "errored": true,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t2.jsonl",
+   "wrote": null,
+   "wrote_outside_repo": [],
+   "precision": 0,
+   "recall": 0,
+   "missing": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_moderation.go",
+    "internal/domain/dbguild/module_moderation_test.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/mongo/module_leveling_repository.go"
+   ],
+   "spurious": null,
+   "exact": false
   }
  ],
  "aggregate": {},
