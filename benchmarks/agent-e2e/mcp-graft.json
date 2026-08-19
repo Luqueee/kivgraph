@@ -1,0 +1,13 @@
+{
+ "mcpServers": {
+  "graft": {
+   "args": [
+    "--dir",
+    "/private/tmp/e2e-graft-ctx",
+    "mcp",
+    "/private/tmp/e2e-kena"
+   ],
+   "command": "/Users/adria/.nvm/versions/node/v25.2.1/bin/graft"
+  }
+ }
+}

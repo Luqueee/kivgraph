@@ -1,0 +1,12 @@
+{
+ "mcpServers": {
+  "kivgraph": {
+   "args": [
+    "serve",
+    "--config",
+    "/private/tmp/e2e-kivhome/.config/kivgraph/config.yaml"
+   ],
+   "command": "/private/tmp/kivgraph-e2e"
+  }
+ }
+}

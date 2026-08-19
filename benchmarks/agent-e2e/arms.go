@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -123,6 +124,15 @@ func (a arm) run(cfg config, t task, trial int) (runResult, error) {
 		"--model", cfg.Model,
 		"--output-format", "stream-json", "--verbose",
 		"--dangerously-skip-permissions",
+	}
+	// One budget, the same for every arm. Without it the runs do not converge:
+	// the first measured task spent 54, 55 and 75 turns and $4.03, $4.47 and
+	// $5.60, so the arms were not competing on equal terms and a full sweep would
+	// have crossed the host's five-hour rate-limit window -- a run cut short by
+	// throttling is not a weak datum, it is a false one. With a cap the question
+	// becomes the right one: given the same budget, which arm gets further.
+	if cfg.BudgetUSD > 0 {
+		arguments = append(arguments, "--max-budget-usd", strconv.FormatFloat(cfg.BudgetUSD, 'f', 2, 64))
 	}
 	allowed := append([]string{}, fileTools...)
 	allowed = append(allowed, a.Tools...)

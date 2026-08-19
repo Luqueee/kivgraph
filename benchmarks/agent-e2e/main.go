@@ -46,6 +46,7 @@ type config struct {
 	Only         string
 	Arms         string
 	Setup        bool
+	BudgetUSD    float64
 }
 
 func main() {
@@ -63,6 +64,7 @@ func main() {
 	flag.IntVar(&cfg.Trials, "trials", 1, "trials per task per arm")
 	flag.StringVar(&cfg.Only, "only", "", "comma-separated task ids to run, empty for all")
 	flag.StringVar(&cfg.Arms, "arms", "cold,kivgraph,graft", "comma-separated arms to run")
+	flag.Float64Var(&cfg.BudgetUSD, "budget-usd", 1.5, "per-run spend cap, identical for every arm; 0 disables it")
 	flag.BoolVar(&cfg.Setup, "setup", true, "rebuild the private copy and register both indexes first")
 	flag.Parse()
 
@@ -82,6 +84,7 @@ type results struct {
 	Corpus      string            `json:"corpus"`
 	Arms        []string          `json:"arms"`
 	Trials      int               `json:"trials"`
+	BudgetUSD   float64           `json:"budget_usd_per_run"`
 	Tasks       []taskRecord      `json:"tasks"`
 	Runs        []runResult       `json:"runs"`
 	Aggregate   map[string]armAgg `json:"aggregate"`
@@ -146,7 +149,7 @@ func run(cfg config) error {
 	}
 	out := results{
 		Benchmark: benchmarkName, GeneratedAt: time.Now().UTC(), Model: cfg.Model,
-		Agent: cfg.Agent, Corpus: cfg.Corpus, Trials: cfg.Trials,
+		Agent: cfg.Agent, Corpus: cfg.Corpus, Trials: cfg.Trials, BudgetUSD: cfg.BudgetUSD,
 		Environment: map[string]string{"os": runtime.GOOS, "arch": runtime.GOARCH, "go": runtime.Version()},
 		Aggregate:   map[string]armAgg{},
 	}
