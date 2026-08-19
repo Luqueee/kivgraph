@@ -1,4 +1,4 @@
-[go_discovery.go#D1E1]
+[internal/workspace/go_discovery.go#D1E1]
 24:// absolute, canonical paths.
 25:func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error) {
 26:	if ctx == nil {

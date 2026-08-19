@@ -1,4 +1,4 @@
-[canonical_load.go#A562]
+[internal/storage/ladybug/canonical_load.go#FF4D]
 80:// A table with no rows is absent from the map.
 81:func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string][][]string, error) {
 82:	if err := set.Validate(); err != nil {

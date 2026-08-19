@@ -1,0 +1,39 @@
+[internal/indexer/full.go#5C1A]
+680:// aborted the pass as a divergence.
+681:func mergeSets(sets []facts.Set, repositories []workspace.Repository) facts.Set {
+682:	provenance := make(map[string]workspace.Repository, len(repositories))
+683:	for _, repository := range repositories {
+684:		provenance[facts.RepositoryKey(repository.Name)] = repository
+685:	}
+686:	languages := make(map[string][]facts.Language)
+687:	for _, set := range sets {
+688:		for _, repository := range set.Repositories {
+689:			languages[repository.Key] = append(languages[repository.Key], repository.Languages...)
+690:		}
+691:	}
+692:	merged := facts.MergeAll(sets)
+693:	for index := range merged.Repositories {
+694:		seen := make(map[facts.Language]struct{})
+695:		union := make([]facts.Language, 0, len(languages[merged.Repositories[index].Key]))
+696:		for _, language := range languages[merged.Repositories[index].Key] {
+697:			if _, exists := seen[language]; exists {
+698:				continue
+699:			}
+700:			seen[language] = struct{}{}
+701:			union = append(union, language)
+702:		}
+703:		sort.Slice(union, func(left, right int) bool { return union[left] < union[right] })
+704:		merged.Repositories[index].Languages = union
+705:		if source, known := provenance[merged.Repositories[index].Key]; known {
+706:			merged.Repositories[index].Commit = source.Commit
+707:			merged.Repositories[index].Branch = source.Branch
+708:			merged.Repositories[index].Dirty = source.Dirty
+709:		}
+710:	}
+711:	return merged
+712:}
+713:
+714:// ProviderDefinitionNotIndexed is the reason of a use whose provider is in the
+715:// graph and does not publish the declaration the use resolves to. The standard
+
+[Showing lines 680-715 of 1447. Use :716 to continue]

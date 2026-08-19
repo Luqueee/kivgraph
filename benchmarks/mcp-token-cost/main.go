@@ -30,13 +30,6 @@ const (
 	defaultDirectory = "benchmarks/mcp-token-cost"
 	callTimeout      = 30 * time.Second
 
-	// getSourceEnvelope and getSourceBodyHeader price the response a
-	// source-serving tool would add around the bytes: one envelope per call and
-	// one path-and-range line per body. They are the rates the other tools
-	// already measure, and they are declared here rather than buried so the
-	// projection can be argued with.
-	getSourceEnvelope   = 40
-	getSourceBodyHeader = 10
 	// maximumSourceSymbols mirrors tools.MaximumSourceSymbols: one get_source
 	// call assembles at most this many bodies.
 	maximumSourceSymbols = 20

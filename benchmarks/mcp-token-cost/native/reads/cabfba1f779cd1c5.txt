@@ -1,4 +1,4 @@
-[canonical_load.go#A562]
+[internal/storage/ladybug/canonical_load.go#FF4D]
 58:// and canonical_schema.go have drifted apart, which is a bug, not bad input.
 59:func columnsOrError(table string) ([]string, error) {
 60:	columns, exists := CanonicalColumns(table)

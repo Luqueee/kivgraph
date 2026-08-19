@@ -1,4 +1,4 @@
-[delta.go#8EF9]
+[internal/indexer/delta.go#F2F6]
 251:
 252:func applyDeltaRoute(ctx context.Context, options UpdateOptions, layout rebuild.Layout, delta facts.Delta, result UpdateResult) (UpdateResult, error) {
 253:	apply := options.ApplyDelta

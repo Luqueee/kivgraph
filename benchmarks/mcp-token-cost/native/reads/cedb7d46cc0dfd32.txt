@@ -1,0 +1,174 @@
+[internal/indexer/full.go#5C1A]
+198:// pass instead of publishing a graph that is known to be incomplete.
+199:func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, error) {
+200:	if ctx == nil {
+201:		ctx = context.Background()
+202:	}
+203:	if err := ctx.Err(); err != nil {
+204:		return facts.Set{}, FullReport{}, err
+205:	}
+206:
+207:	repositories := append([]workspace.Repository(nil), options.Repositories...)
+208:	sort.SliceStable(repositories, func(left, right int) bool {
+209:		return repositories[left].Name < repositories[right].Name
+210:	})
+211:	if options.WorkingDirectory == "" {
+212:		workingDirectory, err := os.Getwd()
+213:		if err != nil {
+214:			return facts.Set{}, FullReport{}, fmt.Errorf("resolve indexing working directory: %w", err)
+215:		}
+216:		options.WorkingDirectory = workingDirectory
+217:	}
+218:	if err := validateLanguages(repositories); err != nil {
+219:		return facts.Set{}, FullReport{}, err
+220:	}
+221:
+222:	goRepositories := repositoriesForLanguage(repositories, "go")
+223:	typeScriptRepositories := repositoriesForTypeScript(repositories)
+224:	rustRepositories := repositoriesForRust(repositories)
+225:	report := FullReport{
+226:		GoRepositories:         len(goRepositories),
+227:		TypeScriptRepositories: len(typeScriptRepositories),
+228:		RustRepositories:       len(rustRepositories),
+229:	}
+230:	typeScriptPackages, typeScriptConflicts, withoutPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
+231:	if err != nil {
+232:		return facts.Set{}, report, err
+233:	}
+234:	report.TypeScriptWithoutPackages = withoutPackages
+235:	// Every unit's facts are merged in one pass at the end of the pass, not
+236:	// one at a time: a pairwise merge pays for the whole accumulated graph
+237:	// on every step.
+238:	sets := make([]facts.Set, 0, len(typeScriptConflicts))
+239:	for _, entry := range typeScriptConflicts {
+240:		sets = append(sets, ambiguousPackageFacts(entry))
+241:		report.TypeScriptAmbiguous++
+242:	}
+243:
+244:	rustUnits, rustCrateRegistry, rustParsers, err := prepareRust(ctx, options, rustRepositories, &report)
+245:	if err != nil {
+246:		return facts.Set{}, report, err
+247:	}
+248:	if rustParsers != nil {
+249:		defer rustParsers.Close()
+250:	}
+251:
+252:	var (
+253:		goUnits            []analysisUnit
+254:		goModules          []goworkspace.Module
+255:		workFiles          map[string]string
+256:		moduleRegistry     *goloader.ModuleRegistry
+257:		conflictingModules []string
+258:		planConflicts      []goworkspace.Conflict
+259:	)
+260:	if len(goRepositories) != 0 {
+261:		if strings.TrimSpace(options.SyntheticWorkFile) == "" {
+262:			return facts.Set{}, report, errors.New("full index: synthetic Go work file is required")
+263:		}
+264:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
+265:		if err != nil {
+266:			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
+267:		}
+268:		files, workspaces, err := writeWorkspaces(ctx, options.SyntheticWorkFile, plan, goRepositories)
+269:		if err != nil {
+270:			return facts.Set{}, report, err
+271:		}
+272:		workFiles = files
+273:		goModules = plan.Modules
+274:		report.SyntheticWorkFile = options.SyntheticWorkFile
+275:		report.GoWorkspaces = workspaces
+276:
+277:		moduleRegistry, err = goloader.NewModuleRegistry(ctx, goRepositories)
+278:		if err != nil {
+279:			return facts.Set{}, report, fmt.Errorf("build Go module registry: %w", err)
+280:		}
+281:		modulesByRepository := modulesByRepository(plan.Modules)
+282:		conflictingModules = conflictSubjects(plan.Conflicts)
+283:		planConflicts = plan.Conflicts
+284:		goUnits = make([]analysisUnit, 0, len(plan.Modules))
+285:		for _, repository := range goRepositories {
+286:			for _, module := range modulesByRepository[repository.Name] {
+287:				goUnits = append(goUnits, analysisUnit{
+288:					repository: repository, module: module,
+289:					workFile: workFiles[module.ModulePath], isGo: true,
+290:				})
+291:			}
+292:		}
+293:	}
+294:
+295:	units := append(goUnits, typeScriptUnits(typeScriptPackages)...)
+296:	units = append(units, rustAnalysisUnits(rustUnits)...)
+297:	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
+298:		moduleRegistry:     moduleRegistry,
+299:		conflictingModules: conflictingModules,
+300:		planConflicts:      planConflicts,
+301:		typeScriptPackages: typeScriptPackages,
+302:		goModules:          goModules,
+303:		workFiles:          workFiles,
+304:		crateRegistry:      rustCrateRegistry,
+305:		parsers:            rustParsers,
+306:	})
+307:	if err != nil {
+308:		return facts.Set{}, report, err
+309:	}
+310:	report.Cache = cacheReport
+311:
+312:	// The merge follows the order of the units, never the order they
+313:	// finished, so the published graph does not depend on how the work was
+314:	// scheduled.
+315:	composed := make(map[string]composedTarget)
+316:	for index, unit := range units {
+317:		result := results[index]
+318:		sets = append(sets, result.set)
+319:		for key, target := range result.composed {
+320:			composed[key] = target
+321:		}
+322:		switch {
+323:		case unit.isGo:
+324:			report.GoLoads++
+325:			report.GoModules++
+326:			if result.notLoaded {
+327:				report.GoModulesNotLoaded++
+328:			}
+329:			report.GoLoadDiagnostics += result.loadDiagnostics
+330:			report.GoDiagnostics = append(report.GoDiagnostics, result.diagnostics...)
+331:			report.GoDefinitions += result.definitions
+332:			report.GoReferences += result.references
+333:			report.GoUnresolved += result.unresolved
+334:		case unit.isRust:
+335:			report.RustWorkspaces++
+336:			report.RustCrates += len(unit.rust.crates)
+337:			if result.notLoaded {
+338:				report.RustWorkspacesNotLoaded++
+339:			}
+340:			report.RustDiagnostics = append(report.RustDiagnostics, result.diagnostics...)
+341:			report.RustSymbols += result.symbols
+342:			report.RustReferences += result.references
+343:			report.RustUnresolved += result.unresolved
+344:		default:
+345:			report.TypeScriptSymbols += result.symbols
+346:			report.TypeScriptReferences += result.references
+347:			report.TypeScriptUnresolved += result.unresolved
+348:		}
+349:	}
+350:
+351:	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
+352:	merged := mergeSets(sets, options.Repositories)
+353:	merged, withoutProvider := closeCrossRepositoryEdges(merged, composed)
+354:	report.EdgesWithoutProvider = withoutProvider
+355:	if err := merged.Validate(); err != nil {
+356:		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
+357:	}
+358:	emitProgress(options.Progress, ProgressEvent{
+359:		Phase:  PhaseMerge,
+360:		Detail: fmt.Sprintf("symbols=%d edges=%d unresolved=%d", len(merged.Symbols), len(merged.Edges), len(merged.Unresolved)),
+361:	})
+362:	return merged, report, nil
+363:}
+364:
+365:// emitProgress reports one event when the caller asked for progress.
+366:func emitProgress(report func(ProgressEvent), event ProgressEvent) {
+…
+371:}
+
+[Showing lines 198-366 of 1447. Use :367 to continue]

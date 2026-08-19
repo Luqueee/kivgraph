@@ -1,4 +1,4 @@
-[precision.go#46B3]
+[internal/goloader/precision.go#98AD]
 162:
 163:func measurePrecisionCase(
 164:	ctx context.Context,

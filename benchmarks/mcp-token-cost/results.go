@@ -288,8 +288,8 @@ func writeReport(directory string, out results) error {
 		out.Totals.Native, out.Totals.Today, out.Totals.Projected,
 		out.Totals.SessionFactorToday, out.Totals.SessionFactorProjected)
 
-	fmt.Fprintf(report, "Of the session totals, %d tokens are source bodies. That is the floor: an answer that cost nothing at all would still land at **%.2fx**, so no amount of payload work on this question class can go past it. Removing the per-reference `get_symbol` round trip, and paying for `end_line` on every row instead, is worth %d tokens net.\n\n",
-		out.Totals.Bodies, out.Totals.SessionCeiling, out.Totals.Today-out.Totals.Projected)
+	fmt.Fprintf(report, "Of the session totals, %d tokens are source bodies. That is the floor: an answer that cost nothing at all would still land at **%.2fx**, so no amount of payload work on this question class can go past it. What separates `today` from the served arm is no longer the answer -- a compact row carries its own line range, so the per-reference `get_symbol` cost %d calls -- but who hands the bodies over: serving them with `get_source` instead of the host's range read is worth %d tokens net.\n\n",
+		out.Totals.Bodies, out.Totals.SessionCeiling, out.Totals.ExtraCalls, out.Totals.Today-out.Totals.Projected)
 
 	report.WriteString("Publishing only one of the two factors is how this field arrives at its headline numbers. The answer factor flatters us and the session factor flatters the alternative; both are here.\n\n")
 	if out.Totals.DuplicateChannelBytes > 0 {

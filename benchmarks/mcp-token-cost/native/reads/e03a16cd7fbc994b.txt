@@ -1,0 +1,56 @@
+[internal/indexing/follow.go#ADB0]
+113:// being served, and reports what it concluded.
+114:func followOnce(
+115:	ctx context.Context,
+116:	store *hotsnapshot.SnapshotStore,
+117:	generations *generation.Store,
+118:) (followResult, error) {
+119:	active, err := generations.Current(ctx)
+120:	if err != nil {
+121:		if errors.Is(err, generation.ErrNoCurrent) {
+122:			// Nothing has ever been published, or everything was
+123:			// discarded. A server keeps whatever it holds: the store
+124:			// publishes generations, it never retracts one.
+125:			return followResult{}, nil
+126:		}
+127:		return followResult{}, fmt.Errorf("read active generation: %w", err)
+128:	}
+129:	activeID, err := parseSnapshotID(active.ID)
+130:	if err != nil {
+131:		return followResult{}, err
+132:	}
+133:	served := store.Load()
+134:	if !needsPublication(served, activeID) {
+135:		if served != nil && served.Metadata().ID > activeID {
+136:			return followResult{Rewound: activeID}, nil
+137:		}
+138:		return followResult{}, nil
+139:	}
+140:	snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+141:		DatabasePath: active.DatabasePath,
+142:		SnapshotID:   activeID,
+143:	})
+144:	// From here the build's inputs are unreachable whatever happens next,
+145:	// including the lost race below, where the whole snapshot is dropped too.
+146:	defer rebuild.ReturnBuildMemory()
+147:	if err != nil {
+148:		return followResult{}, fmt.Errorf("build published snapshot %q: %w", active.ID, err)
+149:	}
+150:	if !report.Passed {
+151:		return followResult{}, fmt.Errorf("build published snapshot %q did not pass", active.ID)
+152:	}
+153:	if err := store.Publish(snapshot); err != nil {
+154:		if errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+155:			// Another publisher installed this generation, or a newer
+156:			// one, while this snapshot was being built. Its work stands.
+157:			return followResult{}, nil
+158:		}
+159:		return followResult{}, fmt.Errorf("publish snapshot %q: %w", active.ID, err)
+160:	}
+161:	return followResult{Published: activeID}, nil
+162:}
+163:
+164:// needsPublication reports whether the active generation is newer than the one
+165:// being served.
+
+[Showing lines 113-165 of 197. Use :166 to continue]

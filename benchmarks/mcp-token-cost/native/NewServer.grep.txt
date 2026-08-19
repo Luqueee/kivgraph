@@ -1,7 +1,7 @@
 # internal/
 
 ## mcp/
-### server.go#E37D
+### server.go#36C1
  16:
 *17:// NewServer creates the Kivgraph MCP server with no graph source.
 *18:func NewServer() *sdkmcp.Server {
@@ -14,13 +14,13 @@
  113:		Name:    serverName,
  114:		Version: version.Value,
  115:	}, &sdkmcp.ServerOptions{Instructions: instructions})
-### server_test.go#D0F3
+### server_test.go#4C62
  18:	ctx := context.Background()
 *19:	server := NewServer()
  20:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
  21:
  22:	serverSession, err := server.Connect(ctx, serverTransport, nil)
-### surface_test.go#FF92
+### surface_test.go#5F01
  224:func TestServerWithoutAGenerationPublishesNoTool(t *testing.T) {
 *225:	session := connectToServer(t, NewServer())
  226:	listed, err := session.ListTools(context.Background(), nil)
@@ -28,55 +28,55 @@
  228:		t.Fatalf("ListTools() error = %v", err)
 
 ### tools/
-#### blast_radius_test.go#E451
- 215:func TestGetBlastRadiusIsRegisteredReadOnly(t *testing.T) {
-*216:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 217:	RegisterGetBlastRadius(server)
- 218:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 219:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### derived_test.go#FD1C
+#### blast_radius_test.go#1235
+ 221:func TestGetBlastRadiusIsRegisteredReadOnly(t *testing.T) {
+*222:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 223:	RegisterGetBlastRadius(server)
+ 224:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 225:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### derived_test.go#F54B
  63:	t.Helper()
 *64:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
  65:	RegisterFindSymbolWithSnapshotStore(server, store)
  66:	RegisterFindReferencesWithSnapshotStore(server, store)
  67:	RegisterListRepositoriesWithSnapshotStore(server, store)
-#### file_outline_test.go#5CEB
- 159:func TestGetFileOutlineIsRegisteredReadOnly(t *testing.T) {
-*160:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 161:	RegisterGetFileOutline(server)
- 162:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 163:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### file_outline_test.go#F760
+ 161:func TestGetFileOutlineIsRegisteredReadOnly(t *testing.T) {
+*162:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 163:	RegisterGetFileOutline(server)
+ 164:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 165:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
 ...
- 207:	t.Helper()
-*208:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 209:	RegisterGetFileOutlineWithSnapshotStore(server, store)
- 210:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 211:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### find_cross_repo_consumers_test.go#D6BE
- 111:func TestFindCrossRepoConsumersIsRegisteredReadOnly(t *testing.T) {
-*112:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 113:	RegisterFindCrossRepoConsumers(server)
- 114:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 115:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### find_references_test.go#2928
- 126:func TestFindReferencesIsRegisteredReadOnly(t *testing.T) {
-*127:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 128:	RegisterFindReferences(server)
- 129:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 130:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+ 237:	t.Helper()
+*238:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 239:	RegisterGetFileOutlineWithSnapshotStore(server, store)
+ 240:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 241:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### find_cross_repo_consumers_test.go#D246
+ 112:func TestFindCrossRepoConsumersIsRegisteredReadOnly(t *testing.T) {
+*113:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 114:	RegisterFindCrossRepoConsumers(server)
+ 115:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 116:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### find_references_test.go#B4CC
+ 127:func TestFindReferencesIsRegisteredReadOnly(t *testing.T) {
+*128:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 129:	RegisterFindReferences(server)
+ 130:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 131:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
 ...
- 172:	t.Helper()
-*173:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 174:	RegisterFindReferencesWithSnapshotStore(server, store)
- 175:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 176:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### find_symbol_test.go#A9CE
- 111:	t.Helper()
-*112:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 113:	RegisterFindSymbolWithSnapshotStore(server, store)
- 114:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 115:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### get_symbol_test.go#3D8B
+ 193:	t.Helper()
+*194:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 195:	RegisterFindReferencesWithSnapshotStore(server, store)
+ 196:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 197:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### find_symbol_test.go#9D8D
+ 267:	t.Helper()
+*268:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 269:	RegisterFindSymbolWithSnapshotStore(server, store)
+ 270:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 271:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### get_symbol_test.go#A9DF
  117:func TestGetSymbolIsRegisteredReadOnly(t *testing.T) {
 *118:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
  119:	RegisterGetSymbol(server)
@@ -88,7 +88,7 @@
  152:	RegisterGetSymbolWithSnapshotStore(server, store)
  153:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
  154:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### repositories_test.go#B9C5
+#### repositories_test.go#EB6E
  18:	ctx := context.Background()
 *19:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
  20:	RegisterListRepositories(server)
@@ -100,19 +100,19 @@
  172:	RegisterListRepositoriesWithSnapshotStore(server, store)
  173:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
  174:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### status_test.go#60B6
+#### status_test.go#143D
  19:	ctx := context.Background()
 *20:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
  21:	RegisterGraphStatus(server)
  22:
  23:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
-#### trace_dependencies_test.go#D668
- 176:func TestTraceDependenciesIsRegisteredReadOnly(t *testing.T) {
-*177:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
- 178:	RegisterTraceDependencies(server)
- 179:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
- 180:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-#### unresolved_test.go#D8F0
+#### trace_dependencies_test.go#25CF
+ 178:func TestTraceDependenciesIsRegisteredReadOnly(t *testing.T) {
+*179:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+ 180:	RegisterTraceDependencies(server)
+ 181:	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+ 182:	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+#### unresolved_test.go#2BC0
  157:func TestGetUnresolvedReferencesIsRegisteredReadOnly(t *testing.T) {
 *158:	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
  159:	RegisterGetUnresolvedReferences(server)
@@ -132,7 +132,7 @@
  69:		current := version.Add(1)
  70:		tag := "v0.4.0"
  71:		if current > 1 {
-### update_test.go#3361
+### update_test.go#C518
  144:	var releaseBase string
 *145:	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
  146:		if request.URL.Path == "/repos/"+Repository+"/releases/latest" {

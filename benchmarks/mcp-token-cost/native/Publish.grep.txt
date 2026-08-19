@@ -1,4 +1,16 @@
 # internal/
+## AGENTS.md#9A17
+ 166:  HotSnapshot al arrancar y republican cuando el puntero `CURRENT` avanza, sin
+*167:  coordinarse con nadie -- `SnapshotStore.Publish` solo acepta una generación
+ 168:  estrictamente más nueva. Un `index --full` en otra terminal no puede dejar a
+ 169:  un servidor sirviendo un grafo que ya no existe en disco.
+ 170:- La publicación de una generación toma un `flock` sobre el propio store. El
+...
+ 182:- Tras un `clean` completo la numeración vuelve a `000001`, y
+*183:  `SnapshotStore.Publish` solo acepta una generación estrictamente más nueva:
+ 184:  un servidor vivo conserva el grafo que ya no existe y no instalará ninguno
+ 185:  más. El seguidor lo declara una vez y el comando avisa de reiniciar.
+ 186:- Tras publicar un snapshot se llama a `rebuild.ReturnBuildMemory`: es el único
 
 ## hotsnapshot/
 ### hotsnapshot_benchmark_test.go#10BA
@@ -54,7 +66,7 @@
  79:	var readersGroup sync.WaitGroup
 
 ## indexer/
-### delta.go#8EF9
+### delta.go#F2F6
  197:// rebuilt into a complete immutable HotSnapshot. Only after that build passes
 *198:// validation does SnapshotStore.Publish atomically replace the pointer seen by
  199:// readers. A failed build leaves the previous in-memory snapshot serving.
@@ -68,7 +80,7 @@
  313:		result.Snapshot = SnapshotBuild{Report: report}
 
 ## indexing/
-### follow.go#6DDC
+### follow.go#ADB0
  44://
 *45:// It never coordinates with other publishers: SnapshotStore.Publish only
  46:// accepts a strictly newer generation, so a follower that loses the race to
@@ -81,29 +93,29 @@
  92:			// difference between a restart and an afternoon.
  93:			if result.Rewound != 0 && result.Rewound != reportedRewind {
 ...
- 149:	}
-*150:	if err := store.Publish(snapshot); err != nil {
- 151:		if errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
- 152:			// Another publisher installed this generation, or a newer
- 153:			// one, while this snapshot was being built. Its work stands.
-### service.go#E43F
- 343:	// retry a rebuild that already landed.
-*344:	if err := service.snapshotStore.Publish(snapshot); err != nil {
- 345:		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
- 346:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
- 347:		}
+ 152:	}
+*153:	if err := store.Publish(snapshot); err != nil {
+ 154:		if errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+ 155:			// Another publisher installed this generation, or a newer
+ 156:			// one, while this snapshot was being built. Its work stands.
+### service.go#CD41
+ 338:	// retry a rebuild that already landed.
+*339:	if err := service.snapshotStore.Publish(snapshot); err != nil {
+ 340:		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+ 341:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+ 342:		}
 
 ## mcp/tools/
-### find_symbol_test.go#A9CE
- 83:	secondSnapshot := buildSymbolSnapshot(t, 12)
-*84:	if err := store.Publish(secondSnapshot); err != nil {
-*85:		t.Fatalf("SnapshotStore.Publish() error = %v", err)
- 86:	}
- 87:	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
- 88:		Name: "find_symbol", Arguments: map[string]any{"name": "alp", "mode": FindSymbolModePrefix, "limit": 1, "cursor": *first.NextCursor},
+### find_symbol_test.go#9D8D
+ 209:	secondSnapshot := buildSymbolSnapshot(t, 12)
+*210:	if err := store.Publish(secondSnapshot); err != nil {
+*211:		t.Fatalf("SnapshotStore.Publish() error = %v", err)
+ 212:	}
+ 213:	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+ 214:		Name: "find_symbol", Arguments: map[string]any{"name": "alp", "mode": FindSymbolModePrefix, "limit": 1, "cursor": *first.NextCursor},
 
 ## rebuild/
-### rebuild.go#9128
+### rebuild.go#BDE7
  119:// snapshotFileName is the digest file Run writes next to the candidate
 *120:// database, inside the generation directory generation.Store.Publish builds.
  121:const snapshotFileName = "snapshot.sha256"
@@ -129,24 +141,24 @@
  283:		snapshotStart := time.Now()
  284:		digest, digestErr := writeSnapshotDigest(candidatePath, result.Tables)
 ...
- 412:	publishStart := time.Now()
-*413:	publication, publishErr := store.Publish(ctx, generation.PublishRequest{
- 414:		ID:       options.GenerationID,
- 415:		Build:    build,
- 416:		Validate: validate,
+ 421:	publishStart := time.Now()
+*422:	publication, publishErr := store.Publish(ctx, generation.PublishRequest{
+ 423:		ID:       options.GenerationID,
+ 424:		Build:    build,
+ 425:		Validate: validate,
 ...
- 438:	// moment ago), so the store holds exactly graph.active and
-*439:	// graph.backup once a publish lands. It only runs after Publish has
- 440:	// already returned success, so CURRENT is durable before anything is
- 441:	// removed. A pruning failure (a directory that would not remove, a
- 442:	// transient I/O error) must not turn an effective publish into a
+ 447:	// moment ago), so the store holds exactly graph.active and
+*448:	// graph.backup once a publish lands. It only runs after Publish has
+ 449:	// already returned success, so CURRENT is durable before anything is
+ 450:	// removed. A pruning failure (a directory that would not remove, a
+ 451:	// transient I/O error) must not turn an effective publish into a
 ...
- 571:// build stage just produced and writes it next to the candidate database,
-*572:// inside the directory generation.Store.Publish will rename into place.
- 573:func writeSnapshotDigest(candidatePath string, tables map[string]int64) (string, error) {
- 574:	digest := canonicalSnapshotDigest(tables)
- 575:	path := filepath.Join(candidatePath, snapshotFileName)
-### rollback.go#B359
+ 580:// build stage just produced and writes it next to the candidate database,
+*581:// inside the directory generation.Store.Publish will rename into place.
+ 582:func writeSnapshotDigest(candidatePath string, tables map[string]int64) (string, error) {
+ 583:	digest := canonicalSnapshotDigest(tables)
+ 584:	path := filepath.Join(candidatePath, snapshotFileName)
+### rollback.go#5114
  26:// generation CURRENT names, graph.next is the <id>.tmp candidate
 *27:// generation.Store.Publish builds and swaps in, and graph.backup is the
  28:// generation a rollback would restore — the generation that was active a
@@ -154,7 +166,7 @@
  30:type Role string
 
 ## resilience/
-### rebuild_test.go#1908
+### rebuild_test.go#0A68
  23://
 *24:// rebuild.Run and SnapshotStore.Publish are deliberately separate steps. This
  25:// test is what makes that separation observable: a run that never reaches its
@@ -174,7 +186,7 @@
  86:	}
  87:	if after := querySymbol(t, session); after == before {
  88:		t.Fatalf("querySymbol did not observe the new generation: %s", after)
-### snapshot_test.go#BA32
+### snapshot_test.go#0396
  69:	}
 *70:	if err := store.Publish(rebuilt); err != nil {
 *71:		t.Fatalf("Publish() error = %v", err)
@@ -286,7 +298,7 @@
  674:		t.Error("the candidate was built while another writer held the lock")
 
 ## upgrade/
-### rollback_test.go#2A4C
+### rollback_test.go#6E29
  153:	}
 *154:	publication, err := store.Publish(context.Background(), generation.PublishRequest{
  155:		ID: id,

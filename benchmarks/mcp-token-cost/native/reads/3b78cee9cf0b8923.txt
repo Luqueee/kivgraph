@@ -1,0 +1,54 @@
+[internal/indexing/service.go#CD41]
+304:
+305:func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, error) {
+306:	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+307:		Root:  filepath.Dir(service.loaded.Config.Storage.DatabasePath),
+308:		Store: generation.DefaultConfig(),
+309:	})
+310:	if err != nil {
+311:		return 0, fmt.Errorf("resolve published generation: %w", err)
+312:	}
+313:	if layout.Active.ID == "" {
+314:		return 0, errors.New("rebuild published no active generation")
+315:	}
+316:	generationID, err := parseSnapshotID(layout.Active.ID)
+317:	if err != nil {
+318:		return 0, err
+319:	}
+320:	// The child that ran the pass wrote the snapshot into the generation it
+321:	// published, so the parent reads it instead of scanning the graph again.
+322:	snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+323:		DatabasePath: layout.Active.DatabasePath,
+324:		SnapshotID:   generationID,
+325:	})
+326:	// The build's inputs die here whether or not the publication below wins.
+327:	defer rebuild.ReturnBuildMemory()
+328:	if err != nil {
+329:		return 0, fmt.Errorf("build published snapshot: %w", err)
+330:	}
+331:	if !report.Passed {
+332:		return 0, errors.New("build published snapshot did not pass")
+333:	}
+334:	// Losing this race is success, not failure. The generation follower runs
+335:	// in the same process and installs whatever CURRENT points at; when it
+336:	// gets there first, the store is already serving exactly the snapshot
+337:	// this rebuild produced. Reporting an error here would make the caller
+338:	// retry a rebuild that already landed.
+339:	if err := service.snapshotStore.Publish(snapshot); err != nil {
+340:		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+341:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+342:		}
+343:		if served := service.snapshotStore.Load(); served == nil || served.Metadata().ID < generationID {
+344:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+345:		}
+346:	}
+347:	return generationID, nil
+348:}
+349:
+350:func parseSnapshotID(value string) (uint64, error) {
+351:	parsed, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+…
+355:	return parsed, nil
+356:}
+
+[Showing lines 304-351 of 496. Use :352 to continue]

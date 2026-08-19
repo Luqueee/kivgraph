@@ -1,7 +1,13 @@
 # internal/
+## AGENTS.md#9A17
+ 32:  la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
+*33:  por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
+ 34:  repositorio, módulo y versión; nunca se deja que el `go.work` sintético
+ 35:  escale el toolchain y reviente la carga de todos los repositorios dentro de
+ 36:  la biblioteca estándar. El techo es `major.minor`.
 
 ## facts/
-### golang_test.go#32A6
+### golang_test.go#333B
  33:	repositories := fixtureRepositories(t)
 *34:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
  35:	if err != nil {
@@ -11,7 +17,7 @@
  39:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
 
 ## goloader/
-### crossrepo_test.go#FDA7
+### crossrepo_test.go#26E4
  81:	// module path cannot be used twice by go itself.
 *82:	plan, err := goworkspace.BuildPlan(context.Background(), repositories[:2], goworkspace.Options{})
  83:	if err != nil {
@@ -27,7 +33,7 @@
  301:	}
  302:	workFile := filepath.Join(root, "state", "go.work")
  303:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
-### fixture_negative_test.go#598A
+### fixture_negative_test.go#4D1C
  48:
 *49:	plan, err := goworkspace.BuildPlan(context.Background(), workspaceRepositories, goworkspace.Options{})
  50:	if err != nil {
@@ -35,7 +41,7 @@
  52:	}
  53:	workFile := filepath.Join(testsupport.TempDir(t), "state", "go.work")
  54:	if _, err := goworkspace.Write(context.Background(), workFile, plan, workspaceRepositories); err != nil {
-### fixture_positive_test.go#0FC1
+### fixture_positive_test.go#C9E7
  34:	t.Helper()
 *35:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
  36:	if err != nil {
@@ -43,7 +49,7 @@
  38:	}
  39:	if len(plan.Conflicts) != 0 {
  40:		t.Fatalf("fixture workspace has conflicts: %#v", plan.Conflicts)
-### loader_test.go#D513
+### loader_test.go#4F9A
  352:	}
 *353:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
  354:	if err != nil {
@@ -51,13 +57,13 @@
  356:	}
  357:	target := filepath.Join(root, "state", "go.work")
  358:	if _, err := goworkspace.Write(context.Background(), target, plan, repositories); err != nil {
-### precision.go#46B3
+### precision.go#98AD
  180:
 *181:	plan, err := goworkspace.BuildPlan(ctx, workspaceRepositories, goworkspace.Options{})
  182:	if err != nil {
  183:		return PrecisionCaseReport{}, fmt.Errorf("case %q workspace: %w", testCase.name, err)
  184:	}
-### unresolved_test.go#5AE6
+### unresolved_test.go#11A7
  81:	}
 *82:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
  83:	if err != nil {
@@ -67,7 +73,7 @@
  87:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
 
 ## goworkspace/
-### synthetic.go#D737
+### synthetic.go#83C4
  113:
 *114:// BuildPlan discovers every Go module of the registered repositories and
  115:// composes the workspace content without writing anything.
@@ -79,7 +85,7 @@
  121:	if ctx == nil {
  122:		ctx = context.Background()
  123:	}
-### synthetic_test.go#A027
+### synthetic_test.go#77B2
  33:
 *34:	plan, err := BuildPlan(context.Background(), []workspace.Repository{
  35:		{Name: "first", Path: first, RealPath: first},
@@ -180,7 +186,7 @@
  350:	}
  351:
  352:	target := filepath.Join(module, "go.work")
-### toolchain_test.go#C864
+### toolchain_test.go#986D
  40:	}
 *41:	plan, err := BuildPlan(context.Background(), repositories, Options{})
  42:	if err != nil {
@@ -190,7 +196,7 @@
  46:	if _, err := Write(context.Background(), target, plan, repositories); err != nil {
 
 ## indexer/
-### full.go#B02C
+### full.go#5C1A
  263:		}
 *264:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
  265:		if err != nil {

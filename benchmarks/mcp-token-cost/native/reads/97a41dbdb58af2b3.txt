@@ -1,0 +1,33 @@
+[cmd/kivgraph/main.go#C685]
+1393:// Reporting only the PATH toolchain invites the opposite conclusion.
+1394:func reportGoLanguageCeiling(report func(string, bool, string), repositories []workspace.Repository) {
+1395:	ceiling := goworkspace.LanguageVersion()
+1396:	if ceiling == "" {
+1397:		report("toolchain.typecheck", true, "unknown")
+1398:		return
+1399:	}
+1400:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+1401:	if err != nil {
+1402:		if errors.Is(err, goworkspace.ErrGoVersionUnsupported) {
+1403:			report("toolchain.typecheck", false, err.Error())
+1404:			return
+1405:		}
+1406:		// Everything else -- an ambiguous module, an unreadable
+1407:		// manifest -- belongs to the index, which reports it with its
+1408:		// own context. This check answers one question only.
+1409:		report("toolchain.typecheck", true, "go "+ceiling)
+1410:		return
+1411:	}
+1412:	highest := ceiling
+1413:	for _, module := range plan.Modules {
+1414:		if version := strings.TrimSpace(module.GoVersion); version != "" && semver.Compare("v"+version, "v"+highest) > 0 {
+1415:			highest = version
+1416:		}
+1417:	}
+1418:	report("toolchain.typecheck", true, fmt.Sprintf("go %s (highest registered module: go %s)", ceiling, highest))
+1419:}
+1420:
+1421:// factCacheStateParent answers where the fact cache will live. The directory
+1422:// itself is created by the first pass that uses it, so what doctor can check
+
+[Showing lines 1393-1422 of 2073. Use :1423 to continue]

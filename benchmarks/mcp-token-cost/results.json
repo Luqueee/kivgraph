@@ -1,36 +1,36 @@
 {
   "benchmark": "mcp-token-cost",
-  "command": "go run ./benchmarks/mcp-token-cost --server /tmp/lgfinal",
-  "commit": "e2162d570b8849d3b14bb28288b3e6b343dcd4b8",
-  "digest": "9e74cb1c6896bc067029ada4f098e5dc6fee7aae10853c0c2ec10abbf647571b",
-  "generated_at": "2026-08-14T13:22:51.034872Z",
+  "command": "go run ./benchmarks/mcp-token-cost --server /tmp/kivgraph-tagged",
+  "commit": "f8a952d6112707e2d5a09882771e55ab6118729b",
+  "digest": "f54d654609f21b3e61f90ace5923d7aa49235f1df68912c5562a702c6795c011",
+  "generated_at": "2026-08-18T17:19:16.527132Z",
   "tokenizer": "cl100k_base",
   "protocol_version": "2025-06-18",
-  "server_version": "0.5.1",
+  "server_version": "0.2.1",
   "server_instructions": true,
-  "server_diagnostic_lines": 1,
+  "server_diagnostic_lines": 2,
   "environment": {
     "os": "darwin",
     "arch": "arm64",
     "go": "go1.26.4"
   },
   "snapshot": {
-    "id": 26,
-    "symbols": 14424,
-    "files": 363,
-    "edges": 55289,
-    "built_at": "2026-08-14T13:22:50Z",
-    "resolver_version": "0.5.1",
+    "id": 1,
+    "symbols": 13222,
+    "files": 305,
+    "edges": 50103,
+    "built_at": "2026-08-18T16:18:07Z",
+    "resolver_version": "0.2.1",
     "schema_version": 2
   },
   "corpus": {
     "repository": "kivgraph",
     "path": "/Users/adria/Documents/programacion/projects/kivgraph",
     "branch": "main",
-    "indexed_commit": "e2162d570b8849d3b14bb28288b3e6b343dcd4b8",
-    "current_commit": "e2162d570b8849d3b14bb28288b3e6b343dcd4b8",
+    "indexed_commit": "f8a952d6112707e2d5a09882771e55ab6118729b",
+    "current_commit": "f8a952d6112707e2d5a09882771e55ab6118729b",
     "fresh": true,
-    "repositories_in_generation": 2
+    "repositories_in_generation": 1
   },
   "question_set": {
     "version": 2,
@@ -42,7 +42,7 @@
     "route_tokens": 201,
     "description_tokens": 444,
     "resident_oh_my_pi": 645,
-    "deferred_schema_tokens": 1755
+    "deferred_schema_tokens": 1810
   },
   "questions": [
     {
@@ -53,57 +53,57 @@
       "duplicate_channel_bytes": 0,
       "floor_bytes": 1089,
       "native": {
-        "answer_tokens": 621,
-        "body_tokens": 1586,
-        "total": 2207,
+        "answer_tokens": 750,
+        "body_tokens": 1600,
+        "total": 2350,
         "note": "omp grep \\bMergeAll\\b over internal, then the host reads each range"
       },
       "today": {
-        "call_tokens": 516,
-        "body_tokens": 1586,
-        "total": 2102,
+        "call_tokens": 228,
+        "body_tokens": 1600,
+        "total": 1828,
         "note": "the MCP calls a session needs, then the host reads each range the answer names"
       },
       "projected": {
-        "call_tokens": 516,
-        "body_tokens": 1209,
-        "total": 1725,
+        "call_tokens": 228,
+        "body_tokens": 1213,
+        "total": 1441,
         "note": "get_source returns the bodies the answer named, twenty to a call, so nothing goes through the host read"
       },
-      "answer_factor_today": 1.2034883720930232,
-      "answer_factor_projected": 1.2034883720930232,
-      "session_factor_today": 1.049952426260704,
-      "session_factor_projected": 1.2794202898550724
+      "answer_factor_today": 3.289473684210526,
+      "answer_factor_projected": 3.289473684210526,
+      "session_factor_today": 1.285557986870897,
+      "session_factor_projected": 1.6308119361554476
     },
     {
       "symbol": "CanonicalColumns",
       "class": "rare_name",
-      "references": 3,
+      "references": 2,
       "extra_calls": 0,
       "duplicate_channel_bytes": 0,
-      "floor_bytes": 2557,
+      "floor_bytes": 2224,
       "native": {
-        "answer_tokens": 1156,
-        "body_tokens": 3442,
-        "total": 4598,
+        "answer_tokens": 1284,
+        "body_tokens": 2987,
+        "total": 4271,
         "note": "omp grep \\bCanonicalColumns\\b over internal, then the host reads each range"
       },
       "today": {
-        "call_tokens": 517,
-        "body_tokens": 3442,
-        "total": 3959,
+        "call_tokens": 195,
+        "body_tokens": 2987,
+        "total": 3182,
         "note": "the MCP calls a session needs, then the host reads each range the answer names"
       },
       "projected": {
-        "call_tokens": 517,
-        "body_tokens": 2698,
-        "total": 3215,
+        "call_tokens": 195,
+        "body_tokens": 2334,
+        "total": 2529,
         "note": "get_source returns the bodies the answer named, twenty to a call, so nothing goes through the host read"
       },
-      "answer_factor_today": 2.2359767891682787,
-      "answer_factor_projected": 2.2359767891682787,
-      "session_factor_today": 1.161404395049255,
-      "session_factor_projected": 1.4301710730948678
+      "answer_factor_today": 6.584615384615384,
+      "answer_factor_projected": 6.584615384615384,
+      "session_factor_today": 1.342237586423633,
+      "session_factor_projected": 1.6888098062475287
     },
     {
       "symbol": "DiscoverGo",
@@ -113,27 +113,27 @@
       "duplicate_channel_bytes": 0,
       "floor_bytes": 1868,
       "native": {
-        "answer_tokens": 903,
-        "body_tokens": 2658,
-        "total": 3561,
+        "answer_tokens": 1020,
+        "body_tokens": 2675,
+        "total": 3695,
         "note": "omp grep \\bDiscoverGo\\b over internal, then the host reads each range"
       },
       "today": {
-        "call_tokens": 519,
-        "body_tokens": 2658,
-        "total": 3177,
+        "call_tokens": 246,
+        "body_tokens": 2675,
+        "total": 2921,
         "note": "the MCP calls a session needs, then the host reads each range the answer names"
       },
       "projected": {
-        "call_tokens": 519,
-        "body_tokens": 1995,
-        "total": 2514,
+        "call_tokens": 246,
+        "body_tokens": 1999,
+        "total": 2245,
         "note": "get_source returns the bodies the answer named, twenty to a call, so nothing goes through the host read"
       },
-      "answer_factor_today": 1.739884393063584,
-      "answer_factor_projected": 1.739884393063584,
-      "session_factor_today": 1.120868744098206,
-      "session_factor_projected": 1.4164677804295942
+      "answer_factor_today": 4.146341463414634,
+      "answer_factor_projected": 4.146341463414634,
+      "session_factor_today": 1.2649777473467991,
+      "session_factor_projected": 1.645879732739421
     },
     {
       "symbol": "BuildPlan",
@@ -143,27 +143,27 @@
       "duplicate_channel_bytes": 0,
       "floor_bytes": 3520,
       "native": {
-        "answer_tokens": 2411,
-        "body_tokens": 4609,
-        "total": 7020,
+        "answer_tokens": 2547,
+        "body_tokens": 4627,
+        "total": 7174,
         "note": "omp grep \\bBuildPlan\\b over internal, then the host reads each range"
       },
       "today": {
-        "call_tokens": 554,
-        "body_tokens": 4609,
-        "total": 5163,
+        "call_tokens": 271,
+        "body_tokens": 4627,
+        "total": 4898,
         "note": "the MCP calls a session needs, then the host reads each range the answer names"
       },
       "projected": {
-        "call_tokens": 554,
-        "body_tokens": 3648,
-        "total": 4202,
+        "call_tokens": 271,
+        "body_tokens": 3652,
+        "total": 3923,
         "note": "get_source returns the bodies the answer named, twenty to a call, so nothing goes through the host read"
       },
-      "answer_factor_today": 4.351985559566787,
-      "answer_factor_projected": 4.351985559566787,
-      "session_factor_today": 1.3596746077861708,
-      "session_factor_projected": 1.6706330318895763
+      "answer_factor_today": 9.398523985239853,
+      "answer_factor_projected": 9.398523985239853,
+      "session_factor_today": 1.4646794610044915,
+      "session_factor_projected": 1.8287025235788936
     },
     {
       "symbol": "NewServer",
@@ -173,27 +173,27 @@
       "duplicate_channel_bytes": 0,
       "floor_bytes": 20,
       "native": {
-        "answer_tokens": 2095,
-        "body_tokens": 93,
-        "total": 2188,
+        "answer_tokens": 2092,
+        "body_tokens": 97,
+        "total": 2189,
         "note": "omp grep \\bNewServer\\b over internal, then the host reads each range"
       },
       "today": {
-        "call_tokens": 349,
-        "body_tokens": 93,
-        "total": 442,
+        "call_tokens": 175,
+        "body_tokens": 97,
+        "total": 272,
         "note": "the MCP calls a session needs, then the host reads each range the answer names"
       },
       "projected": {
-        "call_tokens": 349,
-        "body_tokens": 58,
-        "total": 407,
+        "call_tokens": 175,
+        "body_tokens": 59,
+        "total": 234,
         "note": "get_source returns the bodies the answer named, twenty to a call, so nothing goes through the host read"
       },
-      "answer_factor_today": 6.002865329512894,
-      "answer_factor_projected": 6.002865329512894,
-      "session_factor_today": 4.950226244343892,
-      "session_factor_projected": 5.375921375921376
+      "answer_factor_today": 11.954285714285714,
+      "answer_factor_projected": 11.954285714285714,
+      "session_factor_today": 8.047794117647058,
+      "session_factor_projected": 9.354700854700855
     },
     {
       "symbol": "Publish",
@@ -201,29 +201,29 @@
       "references": 4,
       "extra_calls": 0,
       "duplicate_channel_bytes": 0,
-      "floor_bytes": 1945,
+      "floor_bytes": 2281,
       "native": {
-        "answer_tokens": 3480,
-        "body_tokens": 2714,
-        "total": 6194,
+        "answer_tokens": 3718,
+        "body_tokens": 3117,
+        "total": 6835,
         "note": "omp grep \\bPublish\\b over internal, then the host reads each range"
       },
       "today": {
-        "call_tokens": 630,
-        "body_tokens": 2714,
-        "total": 3344,
+        "call_tokens": 379,
+        "body_tokens": 3117,
+        "total": 3496,
         "note": "the MCP calls a session needs, then the host reads each range the answer names"
       },
       "projected": {
-        "call_tokens": 630,
-        "body_tokens": 2098,
-        "total": 2728,
+        "call_tokens": 379,
+        "body_tokens": 2439,
+        "total": 2818,
         "note": "get_source returns the bodies the answer named, twenty to a call, so nothing goes through the host read"
       },
-      "answer_factor_today": 5.523809523809524,
-      "answer_factor_projected": 5.523809523809524,
-      "session_factor_today": 1.8522727272727273,
-      "session_factor_projected": 2.2705278592375366
+      "answer_factor_today": 9.810026385224274,
+      "answer_factor_projected": 9.810026385224274,
+      "session_factor_today": 1.955091533180778,
+      "session_factor_projected": 2.4254790631653655
     }
   ],
   "traversal": [
@@ -231,8 +231,8 @@
       "tool": "trace_dependencies",
       "root": "MergeAll",
       "rows": 50,
-      "tokens": 4471,
-      "tokens_per_row": 89.42,
+      "tokens": 1198,
+      "tokens_per_row": 23.96,
       "rows_without_range": 0,
       "duplicate_channel_bytes": 0
     },
@@ -240,28 +240,28 @@
       "tool": "get_blast_radius",
       "root": "MergeAll",
       "rows": 10,
-      "tokens": 1616,
-      "tokens_per_row": 161.6,
+      "tokens": 1253,
+      "tokens_per_row": 125.3,
       "rows_without_range": 0,
       "duplicate_channel_bytes": 0
     }
   ],
   "totals": {
-    "native": 25768,
-    "native_answer": 10666,
-    "today": 18187,
-    "today_answer": 3085,
-    "projected": 14791,
-    "projected_answer": 3085,
-    "body_tokens": 15102,
-    "served_body_tokens": 10999,
+    "native": 26514,
+    "native_answer": 11411,
+    "today": 16597,
+    "today_answer": 1494,
+    "projected": 13190,
+    "projected_answer": 1494,
+    "body_tokens": 15103,
+    "served_body_tokens": 11002,
     "extra_calls": 0,
     "duplicate_channel_bytes": 0,
-    "answer_factor_today": 3.457374392220421,
-    "answer_factor_projected": 3.457374392220421,
-    "session_factor_today": 1.4168362016825204,
-    "session_factor_projected": 1.7421404908390237,
-    "session_ceiling": 2.3427584325847803
+    "answer_factor_today": 7.637884872824632,
+    "answer_factor_projected": 7.637884872824632,
+    "session_factor_today": 1.5975176236669277,
+    "session_factor_projected": 2.0101592115238818,
+    "session_ceiling": 2.4099254680967097
   },
   "limitations": [
     "Both arms pay the same body cost, computed from the graph's exact line ranges. The native arm would in practice read wider, because grep reports a match line and not where the declaration ends, so the comparison is conservative in favour of the native path.",
@@ -269,6 +269,6 @@
     "The served arm is measured against the real get_source, not projected.",
     "Adoption is not measured here. Whether an agent calls these tools at all is an observation over real sessions and belongs to LUQUE-1904.",
     "Neither money nor latency is measured. Prompt caching makes cost depend on the order the arms run in, so a token count is the only figure that survives a reordering.",
-    "The generation holds 2 repositories but no question in the set has consumers outside its own, so the cross-repository case is unmeasured."
+    "The generation holds a single repository, so no question exercises cross-repository resolution, which is where an exact graph has no native competitor at all."
   ]
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -115,15 +116,101 @@ func loadQuestions(directory string) (questionSet, error) {
 // The response types decode only the fields this harness needs. Decoding the
 // whole response would couple the benchmark to every field the surface happens
 // to carry today.
+//
+// Every query tool answers in the compact view unless a call asks for another
+// one, and this harness asks for none: a session pays for the default, so that
+// is what has to be priced. Compact states the columns every row shares once in
+// the header and groups the facts by file, which is why a decoder here resolves
+// a row against the header it sits under instead of reading a field off it.
 type findSymbolResponse struct {
-	// Total is how many symbols carry the name, which is not len(Results): a
+	// Total is how many symbols carry the name, which is not len(Symbols): a
 	// page is bounded and the count is what says whether the name is ambiguous.
-	Total   int         `json:"total"`
-	Results []symbolRow `json:"results"`
+	Total   int `json:"total"`
+	Results struct {
+		// Name and Repository are hoisted columns: empty means the rows
+		// disagreed and each carries its own.
+		Name       string          `json:"name"`
+		Repository string          `json:"repository"`
+		Symbols    []compactSymbol `json:"symbols"`
+	} `json:"results"`
 }
 
+// compactSymbol is one declaration of a compact find_symbol page. At addresses
+// it as `path:line` under a header that names the repository, and as the whole
+// `repository:path:line` triple when the rows come from more than one. End is
+// present only when the declaration does not begin and end on one line, and Qn
+// only when the qualified name is not the bare name.
+type compactSymbol struct {
+	At   string `json:"at"`
+	End  int    `json:"end"`
+	Name string `json:"name"`
+	Qn   string `json:"qn"`
+}
+
+// declaration resolves one entry of the page into the row the rest of the
+// harness addresses. What the entry omits is stated in the header or readable
+// off the qualified name; nothing here is guessed.
+func (page findSymbolResponse) declaration(index int) (symbolRow, error) {
+	entry := page.Results.Symbols[index]
+	repository, path, line, err := parseSymbolLocation(page.Results.Repository, entry.At)
+	if err != nil {
+		return symbolRow{}, err
+	}
+	name := entry.Qn
+	if name == "" {
+		name = entry.Name
+	}
+	if name == "" {
+		name = page.Results.Name
+	}
+	if name == "" {
+		return symbolRow{}, fmt.Errorf("find_symbol row %q names no symbol", entry.At)
+	}
+	end := entry.End
+	if end < line {
+		end = line
+	}
+	return symbolRow{
+		Repository:    repository,
+		QualifiedName: name,
+		FilePath:      path,
+		StartLine:     line,
+		EndLine:       end,
+	}, nil
+}
+
+// parseSymbolLocation reads a compact find_symbol address. Which of the two
+// spellings to expect is a fact of the header rather than a guess about the
+// string: the row carries the repository exactly when the page hoisted none.
+func parseSymbolLocation(hoisted, at string) (string, string, int, error) {
+	colon := strings.LastIndex(at, ":")
+	if colon < 0 {
+		return "", "", 0, fmt.Errorf("find_symbol row %q names no line", at)
+	}
+	line, err := strconv.Atoi(at[colon+1:])
+	if err != nil {
+		return "", "", 0, fmt.Errorf("find_symbol row %q names no line: %w", at, err)
+	}
+	location := at[:colon]
+	if hoisted != "" {
+		return hoisted, location, line, nil
+	}
+	separator := strings.Index(location, ":")
+	if separator < 0 {
+		return "", "", 0, fmt.Errorf("find_symbol row %q carries no repository and the page hoisted none", at)
+	}
+	return location[:separator], location[separator+1:], line, nil
+}
+
+// symbolRow is one declaration addressed the way every tool accepts one:
+// repository, path and qualified name, plus the lines it occupies. The json
+// tags are get_symbol's, the one answer that is still a field per row.
+//
+// There is no stable key here. A compact page carries none -- it is 35 tokens
+// of base32 that nothing but the server reads -- so the triple is the whole
+// addressing an agent holds after reading an answer, and it is what this
+// harness calls with.
 type symbolRow struct {
-	StableKey string `json:"stable_key"`
 	// Repository is the name every row of this surface carries, and the value
 	// the triple selector takes. It used to be spelled two ways -- `repository`
 	// in reference rows and `repository_name` in symbol rows -- and reading only
@@ -136,10 +223,140 @@ type symbolRow struct {
 	EndLine       int    `json:"end_line"`
 }
 
-type findReferencesResponse struct {
+// selector names one declaration for the next call. Repository, path and
+// qualified name resolve to a single symbol, which is what makes it affordable
+// for a compact page to withhold the key, and get_source reads the same three
+// fields under the same names.
+func selector(repository, path, qualifiedName string) map[string]any {
+	return map[string]any{
+		"repository":     repository,
+		"path":           path,
+		"qualified_name": qualifiedName,
+	}
+}
+
+// compactFilesResponse decodes the shape find_references, trace_dependencies
+// and get_blast_radius answer in: a hoisted repository, then one group per file
+// holding the declarations of that file which carry the fact.
+type compactFilesResponse struct {
 	Results struct {
-		References []symbolRow `json:"references"`
+		Repository string             `json:"repository"`
+		Files      []compactFileGroup `json:"files"`
 	} `json:"results"`
+}
+
+// compactFileGroup is one file. Repo is present only when the group is not in
+// the repository the header hoisted, which on a single-repository answer is
+// never. An At entry is a bare label while the header could hoist every column,
+// and an array whose first element is that label once the row has to carry one
+// of its own.
+type compactFileGroup struct {
+	Repo string `json:"repo"`
+	File string `json:"file"`
+	At   []any  `json:"at"`
+}
+
+// compactRow is one fact of such a page, resolved against the header and the
+// group it sat under.
+type compactRow struct {
+	Repository    string
+	FilePath      string
+	QualifiedName string
+	StartLine     int
+	EndLine       int
+}
+
+// openable reports whether the row can be read as it stands. The range travels
+// inside the label, so naming a start line is enough: a declaration that begins
+// and ends on that line spells only the start.
+func (row compactRow) openable() bool {
+	return row.StartLine > 0
+}
+
+// compactRows flattens one compact page into a row per fact. Three tools answer
+// in this shape, so they share the decoder: one per tool would be three places
+// to keep in step with one contract.
+func compactRows(tool, text string) ([]compactRow, error) {
+	decoded := compactFilesResponse{}
+	if err := json.Unmarshal([]byte(text), &decoded); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", tool, err)
+	}
+	rows := make([]compactRow, 0, len(decoded.Results.Files))
+	for _, group := range decoded.Results.Files {
+		repository := group.Repo
+		if repository == "" {
+			repository = decoded.Results.Repository
+		}
+		for _, entry := range group.At {
+			label, err := compactLabel(tool, entry)
+			if err != nil {
+				return nil, err
+			}
+			name, start, end, err := parseDeclarationLabel(tool, label)
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, compactRow{
+				Repository:    repository,
+				FilePath:      group.File,
+				QualifiedName: name,
+				StartLine:     start,
+				EndLine:       end,
+			})
+		}
+	}
+	return rows, nil
+}
+
+// compactLabel reads the label out of one entry. Both spellings name the
+// declaration identically; the array only means this row still carried a column
+// the page could not hoist.
+func compactLabel(tool string, entry any) (string, error) {
+	switch typed := entry.(type) {
+	case string:
+		return typed, nil
+	case []any:
+		if len(typed) == 0 {
+			return "", fmt.Errorf("parse %s: an `at` entry is an empty array", tool)
+		}
+		label, isString := typed[0].(string)
+		if !isString {
+			return "", fmt.Errorf("parse %s: an `at` entry leads with %T instead of a label", tool, typed[0])
+		}
+		return label, nil
+	default:
+		return "", fmt.Errorf("parse %s: an `at` entry is %T instead of a label or a row", tool, entry)
+	}
+}
+
+// parseDeclarationLabel reads `qualified_name@start`, or
+// `qualified_name@start-end` when the declaration spans lines. The range being
+// in the label is what removed the per-reference get_symbol: a label with only
+// a start is a one-line declaration, openable at that line, and not a row
+// without a range.
+//
+// A label naming no start at all is returned range-less rather than as an
+// error. Such a row would still cost a call to open, and the point of counting
+// them is to price that call instead of failing the run.
+func parseDeclarationLabel(tool, label string) (string, int, int, error) {
+	marker := strings.LastIndex(label, "@")
+	if marker < 0 {
+		return label, 0, 0, nil
+	}
+	name, lines := label[:marker], label[marker+1:]
+	first, last := lines, lines
+	if dash := strings.Index(lines, "-"); dash >= 0 {
+		first, last = lines[:dash], lines[dash+1:]
+	}
+	start, err := strconv.Atoi(first)
+	if err != nil {
+		return name, 0, 0, nil
+	}
+	end, err := strconv.Atoi(last)
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("parse %s: label %q starts at %d and then names %q", tool, label, start, last)
+	}
+	return name, start, end, nil
 }
 
 type getSymbolResponse struct {
@@ -265,12 +482,16 @@ func measureSurface(ctx context.Context, session *sdkmcp.ClientSession, tokens *
 // measureQuestion prices one question three ways.
 //
 //   - native: the host's captured answer plus the bodies the agent still opens.
-//   - today: the MCP calls a session actually needs now, plus the same bodies.
-//     find_references carries no end_line, so today includes one get_symbol per
-//     reference; that round trip is the cost LUQUE-1901 removes.
-//   - projected: today without those round trips, with end_line priced into
-//     each row. Marked projected because it is arithmetic over measured parts,
-//     not an observation, and it becomes measured once LUQUE-1901 lands.
+//   - today: the MCP calls a session actually needs now, plus the same bodies
+//     opened through the host's read. A compact reference row carries its own
+//     range inside the label, so the get_symbol per reference this arm used to
+//     pay is now measured at zero rather than argued away; the branch stays
+//     because a row that arrived without a start would still cost that call,
+//     and an accounting that stopped looking could not say so.
+//   - projected: the same calls with get_source handing over every body the
+//     answer named, instead of the host opening each range. Both halves are
+//     observed -- the real tool over the real rows -- so what the name marks is
+//     the arm, not a projection.
 func measureQuestion(
 	ctx context.Context,
 	session *sdkmcp.ClientSession,
@@ -288,18 +509,16 @@ func measureQuestion(
 		return questionResult{}, err
 	}
 
-	referenceText, referenceStructured, err := call(ctx, session, "find_references", map[string]any{
-		"stable_key": target.StableKey,
-		"direction":  "incoming",
-	})
+	arguments := selector(target.Repository, target.FilePath, target.QualifiedName)
+	arguments["direction"] = "incoming"
+	referenceText, referenceStructured, err := call(ctx, session, "find_references", arguments)
 	if err != nil {
 		return questionResult{}, err
 	}
-	references := findReferencesResponse{}
-	if err := json.Unmarshal([]byte(referenceText), &references); err != nil {
-		return questionResult{}, fmt.Errorf("parse find_references: %w", err)
+	rows, err := compactRows("find_references", referenceText)
+	if err != nil {
+		return questionResult{}, err
 	}
-	rows := references.Results.References
 	result.References = len(rows)
 
 	callTokens := tokens.count(findText) + tokens.count(referenceText)
@@ -323,10 +542,14 @@ func measureQuestion(
 	roundTripTokens := 0
 	for _, row := range rows {
 		start, end, path := row.StartLine, row.EndLine, row.FilePath
-		if end == 0 {
-			// The row cannot be opened as it stands, so the session pays for
-			// one more call before it can read anything.
-			symbolText, symbolStructured, callErr := call(ctx, session, "get_symbol", map[string]any{"stable_key": row.StableKey})
+		if !row.openable() {
+			// The label named no start line, so the row cannot be opened as it
+			// stands and the session pays one more call first. Compact labels
+			// carry the range, so this arm measures the round trip at zero
+			// instead of asserting it away: a count nobody takes is not a
+			// measurement, and a row that lost its start would still cost this.
+			symbolText, symbolStructured, callErr := call(ctx, session, "get_symbol",
+				selector(row.Repository, row.FilePath, row.QualifiedName))
 			if callErr != nil {
 				return questionResult{}, callErr
 			}
@@ -368,23 +591,21 @@ func measureQuestion(
 		Total:  callTokens + roundTripTokens + readTokens,
 		Note:   "the MCP calls a session needs, then the host reads each range the answer names",
 	}
-	// The served arm is measured, not projected, once get_source exists: the
-	// bodies come back without a line number on every line.
+	// The served arm is measured, not projected: get_source hands the bodies
+	// over without a line number on every line.
 	//
-	// Every symbol is named the way the rows name it: a reference row carries no
-	// stable key any more, and this is the addressing an agent reading the answer
-	// actually has.
+	// Every symbol is named the way the answer named it -- repository, path and
+	// qualified name -- because that is the addressing a compact page leaves an
+	// agent, the subject of the question included.
 	//
 	// One call assembles at most twenty bodies, so an answer with eighty-three
 	// consumers is five calls and the arm pays for five. Asking for all of them
 	// at once is an error the tool refuses, and pricing one call would credit
 	// this arm with an envelope it never gets.
 	requests := make([]map[string]any, 0, len(rows)+1)
-	requests = append(requests, map[string]any{"stable_key": target.StableKey})
+	requests = append(requests, selector(target.Repository, target.FilePath, target.QualifiedName))
 	for _, row := range rows {
-		requests = append(requests, map[string]any{
-			"repository": row.Repository, "path": row.FilePath, "qualified_name": row.QualifiedName,
-		})
+		requests = append(requests, selector(row.Repository, row.FilePath, row.QualifiedName))
 	}
 	served := 0
 	for offset := 0; offset < len(requests); offset += maximumSourceSymbols {
@@ -523,64 +744,47 @@ func measureTraversal(
 	if err := json.Unmarshal([]byte(findText), &found); err != nil {
 		return nil, fmt.Errorf("parse find_symbol: %w", err)
 	}
-	if len(found.Results) == 0 {
+	if len(found.Results.Symbols) == 0 {
 		return nil, fmt.Errorf("find_symbol found no symbol named %q", symbol)
+	}
+	root, err := found.declaration(0)
+	if err != nil {
+		return nil, err
 	}
 	measured := make([]traversalResult, 0, 2)
 	for _, tool := range []string{"trace_dependencies", "get_blast_radius"} {
-		text, structured, callErr := call(ctx, session, tool, map[string]any{"stable_key": found.Results[0].StableKey})
+		text, structured, callErr := call(ctx, session, tool,
+			selector(root.Repository, root.FilePath, root.QualifiedName))
 		if callErr != nil {
 			return nil, callErr
 		}
-		rows, missing, parseErr := traversalRows(tool, text)
+		// Both traversals answer with the same compact page, so one decoder
+		// reads them: a row per label, grouped by the file that holds it.
+		rows, parseErr := compactRows(tool, text)
 		if parseErr != nil {
 			return nil, parseErr
 		}
 		total := tokens.count(text)
 		row := traversalResult{
-			Tool: tool, Root: symbol, Rows: rows, Tokens: total,
-			RowsWithoutRange:      missing,
+			Tool: tool, Root: symbol, Rows: len(rows), Tokens: total,
+			RowsWithoutRange:      rowsWithoutRange(rows),
 			DuplicateChannelBytes: structured,
 		}
-		if rows > 0 {
-			row.TokensPerRow = float64(total) / float64(rows)
+		if len(rows) > 0 {
+			row.TokensPerRow = float64(total) / float64(len(rows))
 		}
 		measured = append(measured, row)
 	}
 	return measured, nil
 }
 
-func traversalRows(tool, text string) (int, int, error) {
-	switch tool {
-	case "trace_dependencies":
-		decoded := struct {
-			Results struct {
-				Nodes []symbolRow `json:"nodes"`
-			} `json:"results"`
-		}{}
-		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
-			return 0, 0, fmt.Errorf("parse %s: %w", tool, err)
-		}
-		return len(decoded.Results.Nodes), rowsWithoutRange(decoded.Results.Nodes), nil
-	case "get_blast_radius":
-		decoded := struct {
-			Results struct {
-				Symbols []symbolRow `json:"symbols"`
-			} `json:"results"`
-		}{}
-		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
-			return 0, 0, fmt.Errorf("parse %s: %w", tool, err)
-		}
-		return len(decoded.Results.Symbols), rowsWithoutRange(decoded.Results.Symbols), nil
-	default:
-		return 0, 0, fmt.Errorf("unknown traversal tool %q", tool)
-	}
-}
-
-func rowsWithoutRange(rows []symbolRow) int {
+// rowsWithoutRange counts the rows an agent cannot open out of the answer it
+// already has. The label carries the range, so the number is a zero that was
+// looked for rather than one that was assumed.
+func rowsWithoutRange(rows []compactRow) int {
 	missing := 0
 	for _, row := range rows {
-		if row.StartLine == 0 || row.EndLine < row.StartLine {
+		if !row.openable() {
 			missing++
 		}
 	}
@@ -613,22 +817,25 @@ func measureCrossRepository(
 	if err != nil {
 		return nil, err
 	}
-	text, structured, err := call(ctx, session, "find_cross_repo_consumers", map[string]any{
-		"stable_key": subject.StableKey,
-	})
+	text, structured, err := call(ctx, session, "find_cross_repo_consumers",
+		selector(subject.Repository, subject.FilePath, subject.QualifiedName))
 	if err != nil {
 		return nil, err
 	}
+	// The compact page hoists the category whenever every consumer shares one,
+	// and gives a repository one entry for all its package dependencies. Rows
+	// are therefore entries of the payload, which is what a token-per-row
+	// divides, and can be fewer than the facts `coverage` counted.
 	decoded := struct {
 		Coverage struct {
 			Exact        int `json:"exact"`
 			PackageLevel int `json:"package_level"`
 		} `json:"coverage"`
 		Results struct {
+			Category  string `json:"category"`
 			Consumers []struct {
-				Category  string `json:"category"`
-				StartLine int    `json:"start_line"`
-				EndLine   int    `json:"end_line"`
+				Category string `json:"category"`
+				At       string `json:"at"`
 			} `json:"consumers"`
 		} `json:"results"`
 	}{}
@@ -649,13 +856,17 @@ func measureCrossRepository(
 		DuplicateChannelBytes: structured,
 	}
 	for _, row := range decoded.Results.Consumers {
+		category := row.Category
+		if category == "" {
+			category = decoded.Results.Category
+		}
 		// A package-level consumer has no symbol and therefore no position: the
 		// edge proves the dependency, never a use. Counting it as an unopenable
 		// row would be asking for a line nobody observed.
-		if row.Category != "exact_symbol" && row.Category != "candidate" {
+		if category != "exact_symbol" && category != "candidate" {
 			continue
 		}
-		if row.StartLine == 0 || row.EndLine < row.StartLine {
+		if !consumerOpenable(row.At) {
 			result.RowsWithoutRange++
 		}
 	}
@@ -664,6 +875,19 @@ func measureCrossRepository(
 	}
 	result.Factor = ratio(result.Native, result.Tokens)
 	return result, nil
+}
+
+// consumerOpenable reports whether a compact consumer can be read out of the
+// answer that named it. Its address is `path:line` -- the repository is the
+// row's own `repo` -- so naming a line is all it takes; `end_line` appears only
+// when the declaration does not finish on the line it starts.
+func consumerOpenable(at string) bool {
+	colon := strings.LastIndex(at, ":")
+	if colon < 0 {
+		return false
+	}
+	line, err := strconv.Atoi(at[colon+1:])
+	return err == nil && line > 0
 }
 
 // repositoryRoot resolves which repository a row's path is relative to, falling
@@ -694,11 +918,7 @@ func resolveSubject(
 	asked question,
 ) (symbolRow, string, int, error) {
 	if asked.Repository != "" && asked.Path != "" {
-		arguments := map[string]any{
-			"repository":     asked.Repository,
-			"path":           asked.Path,
-			"qualified_name": asked.QualifiedName(),
-		}
+		arguments := selector(asked.Repository, asked.Path, asked.QualifiedName())
 		text, structured, err := call(ctx, session, "get_symbol", arguments)
 		if err != nil {
 			return symbolRow{}, "", 0, err
@@ -708,14 +928,15 @@ func resolveSubject(
 			return symbolRow{}, "", 0, fmt.Errorf("parse get_symbol: %w", err)
 		}
 		row := symbolRow{
-			StableKey:     decoded.Results.StableKey,
 			Repository:    asked.Repository,
 			QualifiedName: decoded.Results.QualifiedName,
 			FilePath:      decoded.Results.FilePath,
 			StartLine:     decoded.Results.StartLine,
 			EndLine:       decoded.Results.EndLine,
 		}
-		if row.StableKey == "" {
+		// The qualified name is what the next call addresses the subject with,
+		// so an answer without one is an answer this harness cannot use.
+		if row.QualifiedName == "" || row.FilePath == "" {
 			return symbolRow{}, "", 0, fmt.Errorf("get_symbol returned no symbol for %s %s %s",
 				asked.Repository, asked.Path, asked.QualifiedName())
 		}
@@ -730,7 +951,7 @@ func resolveSubject(
 	if err := json.Unmarshal([]byte(text), &found); err != nil {
 		return symbolRow{}, "", 0, fmt.Errorf("parse find_symbol: %w", err)
 	}
-	if len(found.Results) == 0 {
+	if len(found.Results.Symbols) == 0 {
 		return symbolRow{}, "", 0, fmt.Errorf("find_symbol found no symbol named %q", asked.Symbol)
 	}
 	if found.Total > 1 {
@@ -738,5 +959,9 @@ func resolveSubject(
 			"%q names %d symbols in this corpus: give the question a repository and a path so both arms answer about the same declaration",
 			asked.Symbol, found.Total)
 	}
-	return found.Results[0], text, structured, nil
+	subject, err := found.declaration(0)
+	if err != nil {
+		return symbolRow{}, "", 0, err
+	}
+	return subject, text, structured, nil
 }

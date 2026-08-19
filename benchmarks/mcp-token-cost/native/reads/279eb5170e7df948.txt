@@ -1,4 +1,4 @@
-[publication.go#66A4]
+[internal/hotsnapshot/publication.go#66A4]
 44:// generation that won the race.
 45:func (store *SnapshotStore) Publish(candidate *GraphSnapshot) error {
 46:	if candidate == nil {

@@ -1,4 +1,4 @@
-[go_registry.go#3BD3]
+[internal/workspace/go_registry.go#3BD3]
 32:// NewGoModuleRegistry discovers and indexes Go modules for one repository.
 33:func NewGoModuleRegistry(ctx context.Context, repository Repository) (*GoModuleRegistry, error) {
 34:	if ctx == nil {

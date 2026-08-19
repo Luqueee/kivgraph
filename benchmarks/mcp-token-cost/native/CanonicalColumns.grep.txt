@@ -1,5 +1,13 @@
-# internal/storage/ladybug/
-## canonical_load.go#A562
+# internal/
+## AGENTS.md#9A17
+ 134:  no exponen slices internas; sus rangos son half-open y cancelables.
+*135:- `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
+ 136:  así que las columnas de una tabla se resuelven una vez por tabla y nunca por
+ 137:  fila. El grafo tiene una arista por referencia del corpus.
+ 138:- El scan canónico lee en chunks de Arrow, no valor a valor: un `Symbol` son
+
+## storage/ladybug/
+### canonical_load.go#FF4D
  26:
 *27:// CanonicalColumns returns the CSV column order of one canonical table.
  28:// Node tables start with the primary key; relationship tables start with the
@@ -26,13 +34,13 @@
  250:		if !exists {
  251:			return nil, fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, kind)
  252:		}
-## canonical_load_native.go#D942
+### canonical_load_native.go#B2C6
  270:		}
 *271:		columns, exists := CanonicalColumns(name)
  272:		if !exists {
  273:			return nil, fmt.Errorf("%w: table %q has no declared column order", ErrInvalidCanonicalLoad, name)
  274:		}
-## canonical_load_test.go#008B
+### canonical_load_test.go#A0D7
  13:// TestCanonicalColumnsMatchesSchemaMetadata is the parity invariant with the
 *14:// schema: CanonicalColumns must not hand LoadCanonical an order that
  15:// disagrees with what CanonicalNodeTables/CanonicalRelationshipTables define.
@@ -86,7 +94,7 @@
  424:	}
  425:	if len(row) != len(columns) {
  426:		t.Fatalf("%s row has %d fields %v, want %d matching columns %v", table, len(row), row, len(columns), columns)
-## canonical_mutation.go#140E
+### canonical_mutation.go#3E23
  214:// canonicalColumnTypes returns the declared LadybugDB type ("STRING",
 *215:// "INT64" or "BOOL") of every column CanonicalColumns(table) would render
 *216:// for table, keyed by column name. CanonicalColumns itself intentionally

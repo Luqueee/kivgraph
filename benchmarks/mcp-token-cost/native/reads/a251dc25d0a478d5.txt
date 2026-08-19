@@ -1,4 +1,4 @@
-[crossrepo.go#B08C]
+[internal/goloader/crossrepo.go#0B69]
 52:// NewModuleRegistry builds the cross-repository module index.
 53:func NewModuleRegistry(ctx context.Context, repositories []workspace.Repository) (*ModuleRegistry, error) {
 54:	if ctx == nil {

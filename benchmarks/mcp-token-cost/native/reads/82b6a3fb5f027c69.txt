@@ -1,0 +1,73 @@
+[cmd/kivgraph/main.go#C685]
+220:
+221:func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
+222:	if err := ensureConfiguration(configPath); err != nil {
+223:		return config.Loaded{}, nil, err
+224:	}
+225:	loaded, err := config.Load(configPath)
+226:	if err != nil {
+227:		return config.Loaded{}, nil, fmt.Errorf("load configuration: %w", err)
+228:	}
+229:	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+230:		Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
+231:		Store: generation.DefaultConfig(),
+232:	})
+233:	if err != nil {
+234:		return config.Loaded{}, nil, fmt.Errorf("resolve active generation: %w", err)
+235:	}
+236:	store := hotsnapshot.NewSnapshotStore(nil)
+237:	keepStore := false
+238:	defer func() {
+239:		if !keepStore {
+240:			store.Close()
+241:		}
+242:	}()
+243:	if layout.Active.ID != "" {
+244:		generationNumber, err := strconv.ParseUint(layout.Active.ID, 10, 64)
+245:		if err != nil {
+246:			return config.Loaded{}, nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
+247:		}
+248:		snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+249:			DatabasePath: layout.Active.DatabasePath,
+250:			SnapshotID:   generationNumber,
+251:		})
+252:		// A server holds this snapshot for its whole life; what building it
+253:		// borrowed is dead the moment it is published, and returning it here
+254:		// is what keeps a long-running process near what it actually holds.
+255:		// Loading it borrows far less, which is the point of ADR 0045, but the
+256:		// scavenge still runs: a fallback derived it the expensive way.
+257:		defer rebuild.ReturnBuildMemory()
+258:		if err != nil {
+259:			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
+260:		}
+261:		if !report.Passed {
+262:			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
+263:		}
+264:		if err := store.Publish(snapshot); err != nil {
+265:			return config.Loaded{}, nil, fmt.Errorf("publish active snapshot %q: %w", layout.Active.ID, err)
+266:		}
+267:		// Which of the two routes was taken is worth a line, because nothing else
+268:		// distinguishes them: a server that derives answers exactly like one that
+269:		// read the file, and costs a gigabyte more to start.
+270:		switch {
+271:		case report.Loaded:
+272:			logging.New(os.Stderr).Info("read the published snapshot",
+273:				"generation", layout.Active.ID, "symbols", report.Stats.Symbols)
+274:		default:
+275:			logging.New(os.Stderr).Info("derived the snapshot from the canonical graph",
+276:				"generation", layout.Active.ID, "symbols", report.Stats.Symbols,
+277:				"reason", report.LoadRefused)
+278:		}
+279:	}
+280:	keepStore = true
+281:	return loaded, store, nil
+282:}
+283:
+284:func runConfiguredUI(
+285:	ctx context.Context,
+…
+289:) error {
+…
+324:}
+
+[Showing lines 220-285 of 2073. Use :286 to continue]

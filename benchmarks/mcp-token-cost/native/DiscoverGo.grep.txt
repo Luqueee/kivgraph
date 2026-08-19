@@ -1,7 +1,13 @@
 # internal/
+## AGENTS.md#9A17
+ 23:- `internal/indexer.Full` carga Go mediante los patrones de paquetes producidos
+*24:  por `DiscoverGo`; no sustituirlos por `./...`, porque las `exclusions`
+ 25:  configuradas deben seguir siendo efectivas durante `go/packages`.
+ 26:- Los tags de build con los que se carga Go vienen de `go.build_tags`. Un
+ 27:  directorio cuyos archivos excluye esa configuración no es un fallo del
 
 ## goloader/
-### crossrepo.go#B08C
+### crossrepo.go#0B69
  65:		}
 *66:		discovery, err := workspace.DiscoverGo(ctx, repository)
  67:		if err != nil {
@@ -9,7 +15,7 @@
  69:		}
 
 ## goworkspace/
-### synthetic.go#D737
+### synthetic.go#83C4
  137:		}
 *138:		discovery, err := workspace.DiscoverGo(ctx, repository)
  139:		if err != nil {
@@ -26,7 +32,7 @@
  26:	if ctx == nil {
  27:		ctx = context.Background()
  28:	}
-### go_discovery_test.go#A9F0
+### go_discovery_test.go#B650
  48:
 *49:	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
  50:	if err != nil {

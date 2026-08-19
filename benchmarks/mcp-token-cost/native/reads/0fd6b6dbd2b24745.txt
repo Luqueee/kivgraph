@@ -1,4 +1,4 @@
-[canonical_load.go#A562]
+[internal/storage/ladybug/canonical_load.go#FF4D]
 29:// source key and the target key, which is what LadybugDB COPY expects.
 30:func CanonicalColumns(table string) ([]string, bool) {
 31:	for _, node := range CanonicalNodeTables() {

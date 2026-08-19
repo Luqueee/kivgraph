@@ -1,0 +1,56 @@
+[internal/indexer/full.go#5C1A]
+734:// the repository that provides it does not publish the declaration.
+735:func closeCrossRepositoryEdges(merged facts.Set, composed map[string]composedTarget) (facts.Set, int) {
+736:	symbols := make(map[string]facts.Symbol, len(merged.Symbols))
+737:	for _, symbol := range merged.Symbols {
+738:		symbols[symbol.Key] = symbol
+739:	}
+740:	placed := make(map[string]struct{}, len(merged.Packages)+len(merged.Files))
+741:	for _, entry := range merged.Packages {
+742:		placed[entry.Key] = struct{}{}
+743:	}
+744:	for _, entry := range merged.Files {
+745:		placed[entry.Key] = struct{}{}
+746:	}
+747:	evidence := make(map[string]facts.Evidence, len(merged.Evidence))
+748:	for _, entry := range merged.Evidence {
+749:		evidence[entry.Key] = entry
+750:	}
+751:	kept := merged.Edges[:0]
+752:	dropped := 0
+753:	for _, edge := range merged.Edges {
+754:		if _, exists := symbols[edge.TargetKey]; exists {
+755:			kept = append(kept, edge)
+756:			continue
+757:		}
+758:		if _, exists := placed[edge.TargetKey]; exists {
+759:			kept = append(kept, edge)
+760:			continue
+761:		}
+762:		source, sourceKnown := symbols[edge.SourceKey]
+763:		target, described := composed[edge.TargetKey]
+764:		if !sourceKnown || !described {
+765:			// Nothing here can say what was observed: an end that is not a
+766:			// symbol of this graph, or a key no unit reported composing.
+767:			// Validation names it rather than this dropping it unexplained.
+768:			kept = append(kept, edge)
+769:			continue
+770:		}
+771:		dropped++
+772:		merged.Unresolved = append(merged.Unresolved,
+773:			unresolvedFromEdge(edge, source, target, evidence[edge.EvidenceKey]))
+774:	}
+775:	merged.Edges = kept
+776:	if dropped != 0 {
+777:		// One pass over the single set deduplicates the appended entries on
+778:		// the same identity Merge uses and restores the canonical order:
+779:		// several edges can share one missing target at one position.
+780:		merged = facts.MergeAll([]facts.Set{merged})
+781:	}
+782:	return merged, dropped
+783:}
+784:
+785:// composedTarget describes a target whose key a unit built from a provider's
+786:// identity without reading its declaration.
+
+[Showing lines 734-786 of 1447. Use :787 to continue]

@@ -1,36 +1,42 @@
 # internal/
+## AGENTS.md#9A17
+ 65:- Los hechos de todas las unidades se fusionan en una sola pasada
+*66:  (`facts.MergeAll`), no una unidad contra el acumulado: una fusión par a par
+ 67:  vuelve a deduplicar, copiar y reordenar el grafo entero en cada paso, que es
+ 68:  cuadrático en su tamaño. La identidad con la que se deduplica es una tupla
+ 69:  comparable, no una cadena unida por separadores, y es la misma que usa
 
 ## facts/
-### facts.go#33D2
- 505:func (set *Set) Merge(other Set) {
-*506:	*set = MergeAll([]Set{*set, other})
- 507:}
- 508:
-*509:// MergeAll merges every set at once, deduplicated by durable key and sorted
- 510:// a single time.
- 511://
- 512:// Merging pairwise costs the whole accumulated set on every step: a
+### facts.go#4079
+ 524:func (set *Set) Merge(other Set) {
+*525:	*set = MergeAll([]Set{*set, other})
+ 526:}
+ 527:
+*528:// MergeAll merges every set at once, deduplicated by durable key and sorted
+ 529:// a single time.
+ 530://
+ 531:// Merging pairwise costs the whole accumulated set on every step: a
 ...
- 515:// the largest single source of garbage in a full index.
-*516:func MergeAll(sets []Set) Set {
- 517:	merged := Set{
- 518:		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
- 519:			func(value Repository) string { return value.Key }),
-### facts_test.go#15C6
- 138:
-*139:	merged := MergeAll([]Set{first, second})
- 140:	if len(merged.Symbols) != 1 {
- 141:		t.Fatalf("symbols = %d, want the duplicate key merged into one", len(merged.Symbols))
- 142:	}
+ 534:// the largest single source of garbage in a full index.
+*535:func MergeAll(sets []Set) Set {
+ 536:	merged := Set{
+ 537:		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
+ 538:			func(value Repository) string { return value.Key }),
+### facts_test.go#4DF3
+ 188:
+*189:	merged := MergeAll([]Set{first, second})
+ 190:	if len(merged.Symbols) != 1 {
+ 191:		t.Fatalf("symbols = %d, want the duplicate key merged into one", len(merged.Symbols))
+ 192:	}
 ...
- 164:
-*165:	merged := MergeAll([]Set{{Edges: []Edge{right}}, {Edges: []Edge{left, same}}})
- 166:	if len(merged.Edges) != 2 {
- 167:		t.Fatalf("edges = %d, want the two observations kept and the repeat dropped", len(merged.Edges))
- 168:	}
+ 214:
+*215:	merged := MergeAll([]Set{{Edges: []Edge{right}}, {Edges: []Edge{left, same}}})
+ 216:	if len(merged.Edges) != 2 {
+ 217:		t.Fatalf("edges = %d, want the two observations kept and the repeat dropped", len(merged.Edges))
+ 218:	}
 
 ## indexer/
-### full.go#B02C
+### full.go#5C1A
  666://
 *667:// A repository appears in as many sets as it has units, and MergeAll keeps the
  668:// first record of each key, so the languages of the later ones are collected
@@ -50,7 +56,7 @@
  783:}
 
 ## mcp/tools/
-### get_source.go#5F8B
+### get_source.go#EB4B
  364:// The test is deliberately coarse -- this is byte delivery, not resolution -- but
 *365:// it does require the name to stand alone, so `Merge` never matches `MergeAll`.
  366:func declaresName(line, name string) bool {
