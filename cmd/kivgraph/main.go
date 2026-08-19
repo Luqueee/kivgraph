@@ -437,48 +437,60 @@ func resyncOnBranchChange(
 	command string,
 ) func() {
 	logger := logging.New(os.Stderr)
-	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
-	if err != nil {
-		logger.Error("could not read the repository registry", "command", command, "error", err)
-		return func() {}
-	}
-	repositories := registry.List()
-	if len(repositories) == 0 {
-		return func() {}
-	}
-	state := filepath.Dir(loaded.Config.Storage.DatabasePath)
-	options := indexing.ResyncOptions{
-		Repositories: repositories,
-		LockPath:     filepath.Join(state, "resync.lock"),
-		Resync: func(ctx context.Context, moved []workspace.Repository) error {
-			// The indexer decides the route. This loop only decides when.
-			return indexer.Reindex(ctx)
-		},
-		ContentUnchanged: func(ctx context.Context, moved []indexing.RepositoryMovement) (bool, error) {
-			return commitChangedNothing(ctx, moved), nil
-		},
-		OnMoved: func(batch []indexing.RepositoryMovement) {
-			for _, movement := range batch {
-				logger.Info("working tree moved",
-					"command", command, "repository", movement.Repository.Name,
-					"from", movement.From, "to", movement.To, "branch", movement.Branch)
-			}
-		},
-		OnResynced: func(batch []indexing.RepositoryMovement) {
-			logger.Info("graph resynchronised", "command", command, "repositories", len(batch))
-		},
-		OnSkipped: func(batch []indexing.RepositoryMovement) {
-			logger.Info("no rebuild needed, the indexed content is unchanged",
-				"command", command, "repositories", len(batch))
-		},
-		OnError: func(err error) {
-			logger.Error("could not resynchronise the graph", "command", command, "error", err)
-		},
-	}
 	resyncCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		// Discovering the workspace reads HEAD, the branch and the working tree of
+		// every registered repository, which is one git invocation each: measured
+		// 0.09 s at two repositories and 1.29 s at 37. Done before the caller
+		// returns, that delay sits between the process starting and the MCP
+		// transport opening, and a host that waits less than that records the
+		// server as still connecting and then defers its tools for the whole
+		// session -- the server works and answers, and its tools are invisible to
+		// the model. Claude Code does exactly this on a 37-repository workspace.
+		//
+		// So the watcher discovers the workspace on its own time. It already never
+		// fails the command and never outlives it; this only stops it from holding
+		// the door shut on the way in.
+		registry, err := workspace.NewRegistry(resyncCtx, loaded.Repositories)
+		if err != nil {
+			logger.Error("could not read the repository registry", "command", command, "error", err)
+			return
+		}
+		repositories := registry.List()
+		if len(repositories) == 0 {
+			return
+		}
+		state := filepath.Dir(loaded.Config.Storage.DatabasePath)
+		options := indexing.ResyncOptions{
+			Repositories: repositories,
+			LockPath:     filepath.Join(state, "resync.lock"),
+			Resync: func(ctx context.Context, moved []workspace.Repository) error {
+				// The indexer decides the route. This loop only decides when.
+				return indexer.Reindex(ctx)
+			},
+			ContentUnchanged: func(ctx context.Context, moved []indexing.RepositoryMovement) (bool, error) {
+				return commitChangedNothing(ctx, moved), nil
+			},
+			OnMoved: func(batch []indexing.RepositoryMovement) {
+				for _, movement := range batch {
+					logger.Info("working tree moved",
+						"command", command, "repository", movement.Repository.Name,
+						"from", movement.From, "to", movement.To, "branch", movement.Branch)
+				}
+			},
+			OnResynced: func(batch []indexing.RepositoryMovement) {
+				logger.Info("graph resynchronised", "command", command, "repositories", len(batch))
+			},
+			OnSkipped: func(batch []indexing.RepositoryMovement) {
+				logger.Info("no rebuild needed, the indexed content is unchanged",
+					"command", command, "repositories", len(batch))
+			},
+			OnError: func(err error) {
+				logger.Error("could not resynchronise the graph", "command", command, "error", err)
+			},
+		}
 		if err := indexing.Resync(resyncCtx, options); err != nil {
 			logger.Error("resynchroniser stopped", "command", command, "error", err)
 		}
