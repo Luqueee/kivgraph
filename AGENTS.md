@@ -67,6 +67,13 @@ acotar es copiar uno. Sobre `kena` la negativa cuesta `129` tokens donde el
 `find_symbol` previo costaba `750`; medido en
 `benchmarks/graft-comparison/report.md`.
 
+Y se pide a la granularidad que se pregunta: `view: "files"` responde qué
+archivos sin la línea de cada referencia. Las cuatro preguntas de referencias de
+`kena` cuestan `2.480` tokens con línea y `912` sin ella, con la misma precisión
+y la misma exhaustividad -- y una página en vez de dos donde 66 referencias caben
+en 9 archivos. Quien necesite la línea pide las filas compactas, que son el
+valor por defecto.
+
 **Dónde pierde, y conviene no gastar la llamada:** un nombre raro en un solo
 repositorio pequeño lo resuelve `grep` más barato -una llamada, sin esquema,
 sin resolver un símbolo primero-, y el índice de un fichero pequeño cuesta más

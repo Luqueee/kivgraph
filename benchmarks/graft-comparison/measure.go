@@ -188,11 +188,20 @@ type fileRows struct {
 	File       string            `json:"file"`
 	Repository string            `json:"repository"`
 	At         []json.RawMessage `json:"at"`
+	// Count is how many facts the file holds, which is what the `files` view
+	// sends instead of a position each. It is the same multiplicity `At` spells
+	// out one entry at a time.
+	Count int `json:"count"`
 }
 
 // rows walks the two container forms and yields one address per fact, keeping
 // multiplicity: seven calls in one file are seven facts, and the scorer is what
 // decides to compare sets of files.
+//
+// The `files` view carries no header repository, because a file list spanning
+// repositories has nowhere to hoist one; each entry names its own as
+// `repository/path`. So an empty header is not a missing field, it is the signal
+// that the address is already whole.
 func (page referencesPage) rows() []string {
 	out := make([]string, 0, page.Returned)
 	collect := func(files []fileRows, groupRepository string) {
@@ -204,8 +213,18 @@ func (page referencesPage) rows() []string {
 			if file.Repository != "" {
 				repository = file.Repository
 			}
-			for range file.At {
-				out = append(out, repository+":"+file.File)
+			address := repository + ":" + file.File
+			if repository == "" {
+				if name, path, found := strings.Cut(file.File, "/"); found {
+					address = name + ":" + path
+				}
+			}
+			facts := len(file.At)
+			if facts == 0 {
+				facts = file.Count
+			}
+			for range facts {
+				out = append(out, address)
 			}
 		}
 	}

@@ -3,7 +3,7 @@ title: find_references
 description: Type-checked incoming or outgoing references for one symbol, with the edge kind, confidence and provenance in the header when the page agrees on them and on the row when it does not.
 ---
 
-> Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first.
+> Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: "files"` answers which files without a line each.
 
 ## Arguments
 

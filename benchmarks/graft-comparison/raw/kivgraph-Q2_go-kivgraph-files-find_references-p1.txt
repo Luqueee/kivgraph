@@ -1,0 +1,1 @@
+{"snapshot_id":23,"total":6,"returned":6,"coverage":{"exact":6},"results":{"subject":"api-db-go:internal/infrastructure/postgres/retry.go:49","qn":"withRetry","direction":"incoming","files":[{"file":"api-db-go/internal/infrastructure/postgres/retry_test.go","count":5},{"file":"api-db-go/internal/infrastructure/postgres/client.go","count":1}]}}

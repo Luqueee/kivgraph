@@ -395,12 +395,20 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name: findReferencesToolName,
-		// The last sentence is worth its 19 tokens of resident surface. Without
-		// it a caller resolves the symbol first, and `find_symbol` answered a
-		// 22-row page for `withRetry` where the ambiguity error names the 7
-		// candidates: measured 750 tokens against 129, paid on every ambiguous
-		// question. The tool already accepted a bare name; nothing said so.
-		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first.",
+		// The last two sentences are worth their 33 tokens of resident surface,
+		// both because the surface taught a dearer path than the tool supports.
+		//
+		// Without the first, a caller resolves the symbol before asking, and
+		// `find_symbol` answered a 22-row page for `withRetry` where the
+		// ambiguity error names the 7 candidates: 750 tokens against 129, on
+		// every ambiguous question.
+		//
+		// Without the second, "which files call this" is answered with a line
+		// per reference. Over four questions on a 37-repository workspace that
+		// is 2,480 tokens against 912 for the same files, the same precision and
+		// the same recall -- and one page instead of two where 66 references
+		// collapse into 9 files. Both were already supported; nothing said so.
+		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: \"files\"` answers which files without a line each.",
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 		Meta:        alwaysLoadMeta(),
 	}, handler)

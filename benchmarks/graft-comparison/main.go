@@ -308,42 +308,24 @@ func measureQuestion(
 		Truth: truth, Arms: map[string]*armResult{},
 	}
 
-	kivArm := &armResult{}
-	arguments := map[string]any{"name": q.Subject.Symbol, "direction": "incoming"}
-	answer := kiv.call(ctx, tokens, q.ID+"-kivgraph-find_references-by-name", "find_references", arguments)
-	kivArm.add(answer)
-	// Only ambiguity is recoverable, and it is not a failed measurement: the
-	// refusal is what tells the caller which declarations exist. Any other
-	// error stands as this arm's answer rather than being retried into silence.
-	if answer.Failed && strings.Contains(answer.Error, "AMBIGUOUS_SYMBOL") {
-		kivArm.AmbiguousBy = ambiguousDeclarations(answer.Error)
-		arguments = map[string]any{
-			"qualified_name": q.Subject.Name,
-			"repository":     q.Subject.Repo,
-			"path":           q.Subject.Path,
-			"direction":      "incoming",
-		}
-		answer = kiv.call(ctx, tokens, q.ID+"-kivgraph-find_references-p1", "find_references", arguments)
-		kivArm.add(answer)
+	kivArm, err := kivgraphArm(ctx, tokens, repos, kiv, q, truth, "")
+	if err != nil {
+		return questionResult{}, err
 	}
-	claimed := []string{}
-	for page := 1; !answer.Failed; page++ {
-		files, decoded, err := kivgraphFiles(answer.Text)
-		if err != nil {
-			return questionResult{}, err
-		}
-		claimed = append(claimed, files...)
-		if decoded.NextCursor == nil || *decoded.NextCursor == "" {
-			break
-		}
-		kivArm.Pages = page + 1
-		arguments["cursor"] = *decoded.NextCursor
-		answer = kiv.call(ctx, tokens,
-			fmt.Sprintf("%s-kivgraph-find_references-p%d", q.ID, page+1), "find_references", arguments)
-		kivArm.add(answer)
-	}
-	kivArm.Score = scoreAgainst(withoutDeclaring(claimed, repos.canonical(q.Subject.corpusPath())), truth)
 	out.Arms["kivgraph"] = kivArm
+	// The same sequence at the granularity the question actually asks. Every
+	// question here is "which files call this" and every score is computed over
+	// files, so the `files` view answers it whole; the compact rows additionally
+	// carry the line of each reference, which nothing here asked for. graft has
+	// no equivalent mode -- `graft callers` takes direction, depth, `--in`,
+	// `--json` and `--no-refresh`, and always answers with caller blocks and
+	// line ranges -- so this arm is reported beside the comparable one rather
+	// than in place of it.
+	filesArm, err := kivgraphArm(ctx, tokens, repos, kiv, q, truth, "files")
+	if err != nil {
+		return questionResult{}, err
+	}
+	out.Arms["kivgraph_files"] = filesArm
 
 	out.Arms["graft"] = graftArm(ctx, tokens, repos, gra, "graft", q, truth)
 	out.Arms["graft_lsp"] = graftArm(ctx, tokens, repos, lsp, "graft_lsp", q, truth)
@@ -354,6 +336,62 @@ func measureQuestion(
 	}
 	out.Native = native
 	return out, nil
+}
+
+// kivgraphArm prices the cheapest correct path to one reference question: ask by
+// name, and when several declarations carry it, name the one the question is
+// about. An empty view takes the default compact rows; "files" answers only
+// which files hold the references.
+func kivgraphArm(
+	ctx context.Context, tokens *counter, repos repositories, kiv *server,
+	q question, truth []string, view string,
+) (*armResult, error) {
+	label := "kivgraph"
+	if view != "" {
+		label += "-" + view
+	}
+	arm := &armResult{}
+	arguments := map[string]any{"name": q.Subject.Symbol, "direction": "incoming"}
+	if view != "" {
+		arguments["view"] = view
+	}
+	answer := kiv.call(ctx, tokens, q.ID+"-"+label+"-find_references-by-name", "find_references", arguments)
+	arm.add(answer)
+	// Only ambiguity is recoverable, and it is not a failed measurement: the
+	// refusal is what tells the caller which declarations exist. Any other
+	// error stands as this arm's answer rather than being retried into silence.
+	if answer.Failed && strings.Contains(answer.Error, "AMBIGUOUS_SYMBOL") {
+		arm.AmbiguousBy = ambiguousDeclarations(answer.Error)
+		arguments = map[string]any{
+			"qualified_name": q.Subject.Name,
+			"repository":     q.Subject.Repo,
+			"path":           q.Subject.Path,
+			"direction":      "incoming",
+		}
+		if view != "" {
+			arguments["view"] = view
+		}
+		answer = kiv.call(ctx, tokens, q.ID+"-"+label+"-find_references-p1", "find_references", arguments)
+		arm.add(answer)
+	}
+	claimed := []string{}
+	for page := 1; !answer.Failed; page++ {
+		files, decoded, err := kivgraphFiles(answer.Text)
+		if err != nil {
+			return nil, err
+		}
+		claimed = append(claimed, files...)
+		if decoded.NextCursor == nil || *decoded.NextCursor == "" {
+			break
+		}
+		arm.Pages = page + 1
+		arguments["cursor"] = *decoded.NextCursor
+		answer = kiv.call(ctx, tokens,
+			fmt.Sprintf("%s-%s-find_references-p%d", q.ID, label, page+1), "find_references", arguments)
+		arm.add(answer)
+	}
+	arm.Score = scoreAgainst(withoutDeclaring(claimed, repos.canonical(q.Subject.corpusPath())), truth)
+	return arm, nil
 }
 
 // graftArm prices one graft trace and attributes only the callers graft placed
@@ -591,7 +629,7 @@ func measureScopes(ctx context.Context, tokens *counter, cfg config, out *result
 
 func aggregate(out results) map[string]agg {
 	totals := map[string]agg{}
-	for _, name := range []string{"kivgraph", "graft", "graft_lsp"} {
+	for _, name := range []string{"kivgraph", "kivgraph_files", "graft", "graft_lsp"} {
 		summary := agg{Of: len(out.Questions)}
 		precision, recall := 0.0, 0.0
 		for _, question := range out.Questions {
@@ -673,17 +711,19 @@ func printSummary(out results) {
 		fmt.Printf("surface %-9s %2d tools, %5d tok resident (%d descriptions + %d instructions), %d tok schemas\n",
 			name, s.Tools, s.Resident, s.DescriptionToks, s.InstructionToks, s.SchemaToks)
 	}
-	fmt.Printf("\n%-14s %26s %26s %26s %9s\n", "", "kivgraph", "graft", "graft --lsp", "native")
-	fmt.Printf("%-14s %8s %6s %5s %5s %8s %6s %5s %5s %8s %6s %5s %5s %9s\n",
-		"question", "tok", "calls", "P", "R", "tok", "calls", "P", "R", "tok", "calls", "P", "R", "tok")
+	fmt.Printf("\n%-14s %26s %26s %26s %26s %9s\n", "", "kivgraph", "kivgraph files-view", "graft", "graft --lsp", "native")
+	fmt.Printf("%-14s %8s %6s %5s %5s %8s %6s %5s %5s %8s %6s %5s %5s %8s %6s %5s %5s %9s\n",
+		"question", "tok", "calls", "P", "R", "tok", "calls", "P", "R",
+		"tok", "calls", "P", "R", "tok", "calls", "P", "R", "tok")
 	for _, q := range out.Questions {
-		k, g, l := q.Arms["kivgraph"], q.Arms["graft"], q.Arms["graft_lsp"]
-		fmt.Printf("%-14s %8d %6d %5.2f %5.2f %8d %6d %5.2f %5.2f %8d %6d %5.2f %5.2f %9d\n",
+		k, f, g, l := q.Arms["kivgraph"], q.Arms["kivgraph_files"], q.Arms["graft"], q.Arms["graft_lsp"]
+		fmt.Printf("%-14s %8d %6d %5.2f %5.2f %8d %6d %5.2f %5.2f %8d %6d %5.2f %5.2f %8d %6d %5.2f %5.2f %9d\n",
 			q.ID, k.Tokens, k.CallCount, k.Score.Precision, k.Score.Recall,
+			f.Tokens, f.CallCount, f.Score.Precision, f.Score.Recall,
 			g.Tokens, g.CallCount, g.Score.Precision, g.Score.Recall,
 			l.Tokens, l.CallCount, l.Score.Precision, l.Score.Recall, q.Native.Tokens)
 	}
-	for _, name := range []string{"kivgraph", "graft", "graft_lsp", "native"} {
+	for _, name := range []string{"kivgraph", "kivgraph_files", "graft", "graft_lsp", "native"} {
 		a := out.Aggregate[name]
 		fmt.Printf("%-9s total %6d tok, %2d calls, %7.1f ms, P=%.2f R=%.2f, exact %d/%d\n",
 			name, a.Tokens, a.Calls, a.MS, a.PrecisionMean, a.RecallMean, a.Exact, a.Of)
