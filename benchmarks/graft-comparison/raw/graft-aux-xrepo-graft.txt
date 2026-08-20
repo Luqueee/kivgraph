@@ -7,7 +7,7 @@ Node · class · libraries/library-lavalink/src/node/Node.ts:L216-L940 · 11 in-
   L727: * Lee el tri-estado del flag 24/7, con degradación si el `@kena/shared`
   L732: * nada obliga a publicar `@kena/shared` antes que este: si el orden se
 
-closeThread · function · modules/modmail-module/src/shared/thread-lifecycle.ts:L4459-L4610 · 5 in-edges
+closeThread · function · modules/modmail-module/src/shared/thread-lifecycle.ts:L4459-L4610 · 6 in-edges
   L4568: // `ModmailTicketClosePayload` (`@kena/shared`, fuera de alcance en este
 
 loadGreeterConfig · function · modules/greeter-module/src/shared/entitlement.ts:L121-L153 · 4 in-edges

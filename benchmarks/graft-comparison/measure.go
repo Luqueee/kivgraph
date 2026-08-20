@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -286,6 +287,23 @@ func kivgraphDeclarations(text string) ([]string, int, error) {
 		}
 	}
 	return out, decoded.Total, nil
+}
+
+// kivgraphAmbiguity reads how many declarations a refusal refused between, so
+// the number means the same thing on both arms: graft says "7 definitions share
+// the name", and this says `declares 7 symbols`.
+var kivgraphAmbiguity = regexp.MustCompile(`declares (\d+) symbols`)
+
+func ambiguousDeclarations(message string) int {
+	match := kivgraphAmbiguity.FindStringSubmatch(message)
+	if match == nil {
+		return 0
+	}
+	count, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0
+	}
+	return count
 }
 
 // ---------- graft ----------

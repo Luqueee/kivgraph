@@ -60,6 +60,13 @@ Toda fila trae repositorio, ruta, nombre cualificado y rango de líneas, y toda
 tool acepta esa tripleta en vez de una clave estable: la llamada siguiente se
 construye con la respuesta que ya se tiene.
 
+Una pregunta de referencias no necesita resolver el símbolo antes: `name` a
+secas basta, y cuando varias declaraciones comparten el nombre la respuesta se
+niega a elegir y **nombra los candidatos** con esa misma tripleta, así que
+acotar es copiar uno. Sobre `kena` la negativa cuesta `129` tokens donde el
+`find_symbol` previo costaba `750`; medido en
+`benchmarks/graft-comparison/report.md`.
+
 **Dónde pierde, y conviene no gastar la llamada:** un nombre raro en un solo
 repositorio pequeño lo resuelve `grep` más barato -una llamada, sin esquema,
 sin resolver un símbolo primero-, y el índice de un fichero pequeño cuesta más

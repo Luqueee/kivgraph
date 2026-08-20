@@ -1,7 +1,7 @@
 {
   "benchmark": "kivgraph-vs-graft",
-  "generated_at": "2026-08-20T10:26:35.396345Z",
-  "commit": "fcc3871",
+  "generated_at": "2026-08-20T10:50:58.122907Z",
+  "commit": "9195855",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -48,52 +48,52 @@
         "list_repositories",
         "trace_dependencies"
       ],
-      "description_tokens": 335,
+      "description_tokens": 354,
       "instruction_tokens": 196,
       "schema_tokens": 926,
-      "resident_tokens": 531
+      "resident_tokens": 550
     }
   },
   "indexing": {
     "graft": {
       "command": "graft --dir /private/tmp/graft-kena-ctx build /Users/adria/Documents/programacion/projects/kena",
-      "cold_ms": 25493,
-      "warm_ms": 2505,
+      "cold_ms": 24634,
+      "warm_ms": 2479,
       "files": 5186,
       "nodes": 34523,
-      "edges": 77264,
-      "state_bytes": 180762947,
+      "edges": 77356,
+      "state_bytes": 180806040,
       "needs": "node; no API key and no language toolchain (tree-sitter is linked in)",
       "cold_is": "context directory deleted first: nothing replayed from cache",
       "warm_is": "same build re-run with the extract cache populated and no file changed"
     },
     "graft_lsp": {
       "command": "graft --dir /private/tmp/graft-kena-lsp build /Users/adria/Documents/programacion/projects/kena --lsp",
-      "cold_ms": 115837,
+      "cold_ms": 114402,
       "warm_ms": 0,
       "files": 5186,
       "nodes": 34523,
-      "edges": 77359,
-      "state_bytes": 180814213,
+      "edges": 77281,
+      "state_bytes": 180864300,
       "needs": "a language server on PATH per language: gopls, rust-analyzer, typescript-language-server",
       "cold_is": "context directory deleted first, every language server cold",
       "warm_is": "not measured: the flag's cost is the cold pass"
     },
     "kivgraph": {
       "command": "kivgraph index --full --json",
-      "cold_ms": 43740,
-      "warm_ms": 8320,
+      "cold_ms": 39538,
+      "warm_ms": 8267,
       "files": 4814,
       "nodes": 96482,
       "edges": 367725,
-      "unresolved": 22929,
+      "unresolved": 22926,
       "languages": {
         "go": 19166,
         "rust": 3063,
         "typescript": 90729
       },
-      "generation": "000017",
-      "state_bytes": 1693924595,
+      "generation": "000019",
+      "state_bytes": 1693875048,
       "needs": "the Go module cache for every indexed module, plus cargo for every Rust workspace; without them a load fails and its symbols are absent",
       "cold_is": "fact cache and Rust target directory deleted first: every front end loads from nothing",
       "warm_is": "a second full rebuild immediately after, which still re-loads every compiler front end"
@@ -103,7 +103,7 @@
     "graft": {
       "path": "/private/tmp/graft-kena-ctx/.graph/wiring.json",
       "nodes": 34523,
-      "edges": 77264,
+      "edges": 77356,
       "scopes": [
         "services/api-music-nodo (Cargo.toml)",
         "services/kenalink-rs (Cargo.toml)",
@@ -116,10 +116,10 @@
         "extends": 692,
         "implements": 49,
         "imports": 21340,
-        "references": 3068
+        "references": 3160
       },
       "confidence": {
-        "extracted": 65770,
+        "extracted": 65862,
         "inferred": 11494
       },
       "lsp_resolved_edges": 0
@@ -127,7 +127,7 @@
     "graft_lsp": {
       "path": "/private/tmp/graft-kena-lsp/.graph/wiring.json",
       "nodes": 34523,
-      "edges": 77359,
+      "edges": 77281,
       "scopes": [
         "services/api-music-nodo (Cargo.toml)",
         "services/kenalink-rs (Cargo.toml)",
@@ -140,10 +140,10 @@
         "extends": 692,
         "implements": 49,
         "imports": 21340,
-        "references": 3163
+        "references": 3085
       },
       "confidence": {
-        "extracted": 65865,
+        "extracted": 65787,
         "inferred": 11494
       },
       "lsp_resolved_edges": 0
@@ -174,12 +174,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 202.487,
+              "ms": 187.328,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 202.487,
+          "ms": 187.328,
           "call_count": 1,
           "score": {
             "files": [],
@@ -203,12 +203,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 179.731,
+              "ms": 186.009,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 179.731,
+          "ms": 186.009,
           "call_count": 1,
           "score": {
             "files": [],
@@ -230,18 +230,20 @@
         "kivgraph": {
           "calls": [
             {
-              "tool": "find_symbol",
-              "tokens": 750,
-              "ms": 1.173
+              "tool": "find_references",
+              "tokens": 129,
+              "ms": 0.273,
+              "failed": true,
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 159,
-              "ms": 0.185
+              "ms": 0.201
             }
           ],
-          "tokens": 909,
-          "ms": 1.358,
+          "tokens": 288,
+          "ms": 0.47400000000000003,
           "call_count": 2,
           "score": {
             "files": [
@@ -263,7 +265,8 @@
               "library-shared:src/index.ts",
               "library-shared:src/utils/index.ts"
             ]
-          }
+          },
+          "ambiguous_declarations": 7
         }
       },
       "native": {
@@ -298,12 +301,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 94.382,
+              "ms": 98.466,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 94.382,
+          "ms": 98.466,
           "call_count": 1,
           "score": {
             "files": [],
@@ -324,12 +327,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 92.278,
+              "ms": 94.829,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 92.278,
+          "ms": 94.829,
           "call_count": 1,
           "score": {
             "files": [],
@@ -348,18 +351,20 @@
         "kivgraph": {
           "calls": [
             {
-              "tool": "find_symbol",
-              "tokens": 750,
-              "ms": 1.164
+              "tool": "find_references",
+              "tokens": 129,
+              "ms": 0.2,
+              "failed": true,
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 182,
-              "ms": 0.151
+              "ms": 0.137
             }
           ],
-          "tokens": 932,
-          "ms": 1.315,
+          "tokens": 311,
+          "ms": 0.337,
           "call_count": 2,
           "score": {
             "files": [
@@ -370,7 +375,8 @@
             "recall": 1,
             "missing": null,
             "spurious": null
-          }
+          },
+          "ambiguous_declarations": 7
         }
       },
       "native": {
@@ -411,13 +417,13 @@
           "calls": [
             {
               "tool": "graft_trace_calls",
-              "tokens": 1157,
-              "ms": 70.209,
+              "tokens": 1082,
+              "ms": 70.083,
               "banner_tokens": 84
             }
           ],
-          "tokens": 1157,
-          "ms": 70.209,
+          "tokens": 1082,
+          "ms": 70.083,
           "call_count": 1,
           "score": {
             "files": [
@@ -442,13 +448,13 @@
           "calls": [
             {
               "tool": "graft_trace_calls",
-              "tokens": 1178,
-              "ms": 67.312,
+              "tokens": 1082,
+              "ms": 67.69,
               "banner_tokens": 84
             }
           ],
-          "tokens": 1178,
-          "ms": 67.312,
+          "tokens": 1082,
+          "ms": 67.69,
           "call_count": 1,
           "score": {
             "files": [
@@ -472,24 +478,19 @@
         "kivgraph": {
           "calls": [
             {
-              "tool": "find_symbol",
-              "tokens": 124,
-              "ms": 1.067
-            },
-            {
               "tool": "find_references",
-              "tokens": 695,
-              "ms": 0.294
+              "tokens": 696,
+              "ms": 0.473
             },
             {
               "tool": "find_references",
               "tokens": 325,
-              "ms": 0.165
+              "ms": 0.187
             }
           ],
-          "tokens": 1144,
-          "ms": 1.526,
-          "call_count": 3,
+          "tokens": 1021,
+          "ms": 0.6599999999999999,
+          "call_count": 2,
           "score": {
             "files": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -547,12 +548,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 524,
-              "ms": 79.063,
+              "ms": 74.372,
               "banner_tokens": 84
             }
           ],
           "tokens": 524,
-          "ms": 79.063,
+          "ms": 74.372,
           "call_count": 1,
           "score": {
             "files": [],
@@ -577,12 +578,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 524,
-              "ms": 74.874,
+              "ms": 76.149,
               "banner_tokens": 84
             }
           ],
           "tokens": 524,
-          "ms": 74.874,
+          "ms": 76.149,
           "call_count": 1,
           "score": {
             "files": [],
@@ -605,18 +606,20 @@
         "kivgraph": {
           "calls": [
             {
-              "tool": "find_symbol",
-              "tokens": 231,
-              "ms": 1.077
+              "tool": "find_references",
+              "tokens": 84,
+              "ms": 0.206,
+              "failed": true,
+              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
               "tokens": 775,
-              "ms": 0.307
+              "ms": 0.286
             }
           ],
-          "tokens": 1006,
-          "ms": 1.384,
+          "tokens": 859,
+          "ms": 0.492,
           "call_count": 2,
           "score": {
             "files": [
@@ -631,7 +634,8 @@
             "recall": 1,
             "missing": null,
             "spurious": null
-          }
+          },
+          "ambiguous_declarations": 4
         }
       },
       "native": {
@@ -663,12 +667,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 659,
-            "ms": 84.178,
+            "ms": 83.293,
             "banner_tokens": 84
           }
         ],
         "tokens": 659,
-        "ms": 84.178,
+        "ms": 83.293,
         "call_count": 1,
         "score": {
           "files": [
@@ -692,12 +696,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 659,
-            "ms": 84.755,
+            "ms": 82.031,
             "banner_tokens": 84
           }
         ],
         "tokens": 659,
-        "ms": 84.755,
+        "ms": 82.031,
         "call_count": 1,
         "score": {
           "files": [
@@ -721,11 +725,11 @@
           {
             "tool": "find_symbol",
             "tokens": 750,
-            "ms": 1.172
+            "ms": 1.165
           }
         ],
         "tokens": 750,
-        "ms": 1.172,
+        "ms": 1.165,
         "call_count": 1,
         "score": {
           "files": [
@@ -762,67 +766,67 @@
           {
             "tool": "graft_file_api",
             "tokens": 182,
-            "ms": 61.263,
+            "ms": 60.458,
             "banner_tokens": 80
           },
           {
             "tool": "graft_file_api",
             "tokens": 648,
-            "ms": 60.14,
+            "ms": 58.693,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 414,
-            "ms": 60.117,
+            "ms": 58.534,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 319,
-            "ms": 59.993,
+            "ms": 58.979,
             "banner_tokens": 82
           },
           {
             "tool": "graft_file_api",
             "tokens": 23,
-            "ms": 59.82,
+            "ms": 59.466,
             "failed": true,
             "error": "graft skeleton — packages/core/src/cluster/worker/ipc/index.ts\n\nno definitions indexed for this file"
           },
           {
             "tool": "graft_file_api",
             "tokens": 605,
-            "ms": 60.245,
+            "ms": 57.433,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 389,
-            "ms": 58.792,
+            "ms": 58.788,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 354,
-            "ms": 60.665,
+            "ms": 59.098,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 260,
-            "ms": 58.999,
+            "ms": 57.677,
             "banner_tokens": 80
           },
           {
             "tool": "graft_file_api",
             "tokens": 442,
-            "ms": 58.266,
+            "ms": 58.191,
             "banner_tokens": 84
           }
         ],
         "tokens": 3636,
-        "ms": 598.3,
+        "ms": 587.317,
         "call_count": 10,
         "note": "graft has no directory outline: one graft_file_api per file, 10 files in this directory",
         "rows": 84
@@ -831,12 +835,12 @@
         "calls": [
           {
             "tool": "get_file_outline",
-            "tokens": 3282,
-            "ms": 1.624
+            "tokens": 3284,
+            "ms": 1.504
           }
         ],
-        "tokens": 3282,
-        "ms": 1.624,
+        "tokens": 3284,
+        "ms": 1.504,
         "call_count": 1,
         "rows": 619
       }
@@ -847,12 +851,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 1556,
-            "ms": 72.433,
+            "ms": 69.995,
             "banner_tokens": 86
           }
         ],
         "tokens": 1556,
-        "ms": 72.433,
+        "ms": 69.995,
         "call_count": 1,
         "note": "graft_trace_calls with depth 2; rows counted are the `calls ←` lines",
         "rows": 47
@@ -862,11 +866,11 @@
           {
             "tool": "get_blast_radius",
             "tokens": 818,
-            "ms": 1.314
+            "ms": 1.29
           }
         ],
         "tokens": 818,
-        "ms": 1.314,
+        "ms": 1.29,
         "call_count": 1,
         "rows": 29
       }
@@ -877,12 +881,12 @@
           {
             "tool": "graft_find_all",
             "tokens": 11992,
-            "ms": 1233.863,
+            "ms": 1200.866,
             "banner_tokens": 86
           }
         ],
         "tokens": 11992,
-        "ms": 1233.863,
+        "ms": 1200.866,
         "call_count": 1,
         "score": {
           "files": [
@@ -925,11 +929,11 @@
           {
             "tool": "find_cross_repo_consumers",
             "tokens": 878,
-            "ms": 1.747
+            "ms": 1.795
           }
         ],
         "tokens": 878,
-        "ms": 1.747,
+        "ms": 1.795,
         "call_count": 1,
         "score": {
           "files": [
@@ -984,12 +988,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 232,
-            "ms": 37.331,
+            "ms": 36.876,
             "banner_tokens": 84
           }
         ],
         "tokens": 232,
-        "ms": 37.331,
+        "ms": 36.876,
         "call_count": 1,
         "score": {
           "files": [],
@@ -1025,12 +1029,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 206,
-            "ms": 24.036,
+            "ms": 21.842,
             "banner_tokens": 84
           }
         ],
         "tokens": 206,
-        "ms": 24.036,
+        "ms": 21.842,
         "call_count": 1,
         "score": {
           "files": [
@@ -1068,12 +1072,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 532,
-            "ms": 23.558,
+            "ms": 21.212,
             "banner_tokens": 84
           }
         ],
         "tokens": 532,
-        "ms": 23.558,
+        "ms": 21.212,
         "call_count": 1,
         "score": {
           "files": [
@@ -1095,27 +1099,27 @@
   ],
   "aggregate": {
     "graft": {
-      "tokens_total": 2999,
+      "tokens_total": 2924,
       "calls_total": 4,
-      "ms_total": 446.141,
+      "ms_total": 430.24899999999997,
       "precision_mean": 0.25,
       "recall_mean": 0.25,
       "exact_answers": 1,
       "of": 4
     },
     "graft_lsp": {
-      "tokens_total": 3020,
+      "tokens_total": 2924,
       "calls_total": 4,
-      "ms_total": 414.19500000000005,
+      "ms_total": 424.67699999999996,
       "precision_mean": 0.25,
       "recall_mean": 0.25,
       "exact_answers": 1,
       "of": 4
     },
     "kivgraph": {
-      "tokens_total": 3991,
-      "calls_total": 9,
-      "ms_total": 5.583,
+      "tokens_total": 2479,
+      "calls_total": 8,
+      "ms_total": 1.963,
       "precision_mean": 0.75,
       "recall_mean": 0.7222222222222222,
       "exact_answers": 2,

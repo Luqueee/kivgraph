@@ -285,9 +285,19 @@ func run(ctx context.Context, cfg config) error {
 // measureQuestion prices one "who calls this" question on all three arms.
 //
 // The sequences are the ones each surface documents for the question, not ones
-// invented to flatter either: kivgraph resolves the declaration and then asks
-// for its references, graft traces callers of the name in one call, and the
-// native arm searches and then reads every declaring file.
+// invented to flatter either: all three start from the bare name the asker has.
+// graft traces callers of it in one call, the native arm searches and then reads
+// every declaring file, and kivgraph asks for its references directly -- which
+// answers in one call when the name is unique, and when it is not comes back
+// refusing to pick, listing the candidates as the same triple every tool
+// accepts.
+//
+// This arm used to resolve the symbol with `find_symbol` first, which is the
+// same answer by a dearer route: that page listed 22 rows for `withRetry`,
+// imports and re-exports included, and cost 750 tokens where the refusal costs
+// 129. Starting from the name was always supported; until this run nothing in
+// the tool's description said so, so the harness modelled a caller who reads
+// the surface and pays for the lookup.
 func measureQuestion(
 	ctx context.Context, tokens *counter, repos repositories, cfg config,
 	kiv, gra, lsp *server, q question,
@@ -299,23 +309,26 @@ func measureQuestion(
 	}
 
 	kivArm := &armResult{}
-	kivArm.add(kiv.call(ctx, tokens, q.ID+"-kivgraph-find_symbol", "find_symbol",
-		map[string]any{"name": q.Subject.Symbol}))
-	claimed := []string{}
-	arguments := map[string]any{
-		"qualified_name": q.Subject.Name,
-		"repository":     q.Subject.Repo,
-		"path":           q.Subject.Path,
-		"direction":      "incoming",
-	}
-	for page := 1; ; page++ {
-		capture := fmt.Sprintf("%s-kivgraph-find_references-p%d", q.ID, page)
-		references := kiv.call(ctx, tokens, capture, "find_references", arguments)
-		kivArm.add(references)
-		if references.Failed {
-			break
+	arguments := map[string]any{"name": q.Subject.Symbol, "direction": "incoming"}
+	answer := kiv.call(ctx, tokens, q.ID+"-kivgraph-find_references-by-name", "find_references", arguments)
+	kivArm.add(answer)
+	// Only ambiguity is recoverable, and it is not a failed measurement: the
+	// refusal is what tells the caller which declarations exist. Any other
+	// error stands as this arm's answer rather than being retried into silence.
+	if answer.Failed && strings.Contains(answer.Error, "AMBIGUOUS_SYMBOL") {
+		kivArm.AmbiguousBy = ambiguousDeclarations(answer.Error)
+		arguments = map[string]any{
+			"qualified_name": q.Subject.Name,
+			"repository":     q.Subject.Repo,
+			"path":           q.Subject.Path,
+			"direction":      "incoming",
 		}
-		files, decoded, err := kivgraphFiles(references.Text)
+		answer = kiv.call(ctx, tokens, q.ID+"-kivgraph-find_references-p1", "find_references", arguments)
+		kivArm.add(answer)
+	}
+	claimed := []string{}
+	for page := 1; !answer.Failed; page++ {
+		files, decoded, err := kivgraphFiles(answer.Text)
 		if err != nil {
 			return questionResult{}, err
 		}
@@ -325,6 +338,9 @@ func measureQuestion(
 		}
 		kivArm.Pages = page + 1
 		arguments["cursor"] = *decoded.NextCursor
+		answer = kiv.call(ctx, tokens,
+			fmt.Sprintf("%s-kivgraph-find_references-p%d", q.ID, page+1), "find_references", arguments)
+		kivArm.add(answer)
 	}
 	kivArm.Score = scoreAgainst(withoutDeclaring(claimed, repos.canonical(q.Subject.corpusPath())), truth)
 	out.Arms["kivgraph"] = kivArm
