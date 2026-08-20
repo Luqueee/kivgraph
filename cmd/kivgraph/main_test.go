@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -1787,4 +1788,116 @@ func TestRunIndexFullEventsWritesOnlyTheEventStream(t *testing.T) {
 	if !strings.Contains(stderr.String(), "index --full:") {
 		t.Fatalf("stderr = %q, want the failure named there", stderr.String())
 	}
+}
+
+// Discovery moved off the startup path so the MCP transport opens immediately,
+// which put it in reach of shutdown: a serve that exits while git is still being
+// asked about the second of thirty-seven repositories cancels it. The pair below
+// is the whole contract -- that cancellation is silent, and every other failure
+// is still named -- because either half alone is satisfied by a log that says
+// nothing at all.
+func TestResyncOnBranchChangeKeepsShutdownOutOfTheLog(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	capture := captureStderr(t)
+	// Stopping waits for the watcher, so once it returns the log is complete and
+	// an absence is a fact rather than a race not yet lost.
+	resyncOnBranchChange(ctx, loadedWithRepository(config.Repository{
+		Name: "kivgraph", Path: t.TempDir(),
+	}), nil, nil, "serve")()
+	logged := capture.stop(t)
+
+	if strings.Contains(logged, "could not read the repository registry") {
+		t.Fatalf("stderr = %q, want shutdown to say nothing", logged)
+	}
+}
+
+func TestResyncOnBranchChangeReportsAnUnreadableRegistry(t *testing.T) {
+	capture := captureStderr(t)
+	stop := resyncOnBranchChange(context.Background(), loadedWithRepository(config.Repository{
+		Name: "absent", Path: filepath.Join(t.TempDir(), "not-a-repository"),
+	}), nil, nil, "serve")
+	// Waiting for the line rather than stopping first: stopping cancels, and a
+	// cancelled read is exactly the case this test must not be able to observe.
+	capture.waitFor(t, "could not read the repository registry")
+	stop()
+	capture.stop(t)
+}
+
+func loadedWithRepository(repository config.Repository) config.Loaded {
+	return config.Loaded{Repositories: config.RepositoriesFile{
+		Version:      1,
+		Repositories: []config.Repository{repository},
+	}}
+}
+
+// stderrCapture collects what the logger writes, which goes to os.Stderr rather
+// than to a writer the caller chooses.
+type stderrCapture struct {
+	mutex    sync.Mutex
+	buffer   bytes.Buffer
+	reader   *os.File
+	writer   *os.File
+	original *os.File
+	drained  chan struct{}
+}
+
+func captureStderr(t *testing.T) *stderrCapture {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	capture := &stderrCapture{
+		reader: reader, writer: writer, original: os.Stderr, drained: make(chan struct{}),
+	}
+	os.Stderr = writer
+	go func() {
+		defer close(capture.drained)
+		chunk := make([]byte, 4096)
+		for {
+			read, err := reader.Read(chunk)
+			if read > 0 {
+				capture.mutex.Lock()
+				capture.buffer.Write(chunk[:read])
+				capture.mutex.Unlock()
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+	return capture
+}
+
+func (capture *stderrCapture) text() string {
+	capture.mutex.Lock()
+	defer capture.mutex.Unlock()
+	return capture.buffer.String()
+}
+
+func (capture *stderrCapture) waitFor(t *testing.T, want string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(capture.text(), want) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("stderr = %q, want %q named there", capture.text(), want)
+}
+
+func (capture *stderrCapture) stop(t *testing.T) string {
+	t.Helper()
+	os.Stderr = capture.original
+	if err := capture.writer.Close(); err != nil {
+		t.Fatalf("close stderr writer: %v", err)
+	}
+	<-capture.drained
+	if err := capture.reader.Close(); err != nil {
+		t.Fatalf("close stderr reader: %v", err)
+	}
+	return capture.text()
 }

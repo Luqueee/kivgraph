@@ -455,7 +455,16 @@ func resyncOnBranchChange(
 		// the door shut on the way in.
 		registry, err := workspace.NewRegistry(resyncCtx, loaded.Repositories)
 		if err != nil {
-			logger.Error("could not read the repository registry", "command", command, "error", err)
+			// Moving discovery off the startup path put it in reach of shutdown:
+			// a command that exits while git is still being asked about the
+			// second of thirty-seven repositories cancels this context. That is
+			// the command ending, not a registry that cannot be read, and
+			// reporting it as one teaches a reader to distrust the log. A real
+			// failure -- an entry that is not a git repository, an unreadable
+			// HEAD -- still arrives here and is still reported.
+			if !errors.Is(err, context.Canceled) {
+				logger.Error("could not read the repository registry", "command", command, "error", err)
+			}
 			return
 		}
 		repositories := registry.List()
