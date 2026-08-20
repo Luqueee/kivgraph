@@ -585,6 +585,17 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 			return findReferencesOptions{}, NewToolError(CodeInvalidArgument, "name must not carry surrounding whitespace")
 		}
 		if arguments.Path != "" && arguments.Repository == "" {
+			// `repo` filters which repositories the answer may come from;
+			// `repository` says where the subject is declared. Four characters
+			// apart, and a caller that means the second reaches for the first:
+			// measured on a real session, where the model passed `repo` with a
+			// path, was told the path needed `repository`, and spent another
+			// call saying the same thing with the other name. The correction is
+			// cheap to give and nothing else here can give it.
+			if arguments.Repo != "" {
+				return findReferencesOptions{}, NewToolError(CodeInvalidArgument,
+					"path is repository-relative, so it requires repository; repo only filters which repositories the answer may come from")
+			}
 			return findReferencesOptions{}, NewToolError(CodeInvalidArgument, "path is repository-relative, so it requires repository")
 		}
 		selector = symbolSelector{Repository: arguments.Repository, Path: arguments.Path}

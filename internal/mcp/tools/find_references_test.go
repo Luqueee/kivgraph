@@ -650,3 +650,36 @@ func TestFindReferencesResolvesAnUnqualifiedName(t *testing.T) {
 		}
 	}
 }
+
+// A caller that means "the subject is declared here" reaches for `repo`, which
+// is four characters from `repository` and filters the answer instead. Measured
+// on a real session: the model passed `repo` with a path, was told the path
+// needed `repository`, and spent another call saying the same thing with the
+// other name.
+//
+// The pair is the contract. Only the message for a caller who passed `repo`
+// carries the correction, so the plain one cannot drift into explaining a
+// mistake nobody made.
+func TestFindReferencesNamesTheRepoFilterWhenItWasMeantAsTheSubject(t *testing.T) {
+	store := referenceSnapshot(t, 1)
+
+	_, _, err := findReferences(context.Background(), nil, FindReferencesInput{
+		Name: "target", Repo: "alpha-repo", Path: "internal/facts/facts.go",
+	}, store)
+	if got := ErrorCode(err); got != CodeInvalidArgument {
+		t.Fatalf("error code = %q, want %q", got, CodeInvalidArgument)
+	}
+	if !strings.Contains(err.Error(), "repo only filters which repositories") {
+		t.Fatalf("error = %q, want the filter named", err)
+	}
+
+	_, _, err = findReferences(context.Background(), nil, FindReferencesInput{
+		Name: "target", Path: "internal/facts/facts.go",
+	}, store)
+	if !strings.Contains(err.Error(), "requires repository") {
+		t.Fatalf("error = %q, want the requirement stated", err)
+	}
+	if strings.Contains(err.Error(), "repo only filters") {
+		t.Fatalf("error = %q, want no correction when repo was not passed", err)
+	}
+}

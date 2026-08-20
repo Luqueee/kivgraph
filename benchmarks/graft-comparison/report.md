@@ -289,10 +289,24 @@ Quedan tres, con su número, para que nadie tenga que volver a medirlas:
   criterio ahorraría otros `426` tokens en esa página -- pero recuperar una firma
   cuesta `428` tokens de `get_source`, así que quitarla sin una vía barata de
   vuelta cambia tokens por un viaje de ida y vuelta, y sale peor.
-- **Los esquemas son `926` tokens contra `420`.** Están repartidos (`133` el
-  mayor), así que recortarlos de verdad significa menos tools o menos argumentos
-  aceptados, y las dos cosas rompen compatibilidad. Es la partida que decide la
-  contabilidad por sesión con filas compactas.
+- **Los esquemas son `926` tokens contra `420`, y no son grasa.** Se serializan
+  desnudos -- `{"type":"string"}` por propiedad, sin una descripción -- así que
+  lo que cuesta son los nombres, y `find_references` declara 15. Busqué
+  redundancia en tres de ellos y no la había: `repo` **filtra** de qué
+  repositorios puede venir la respuesta y `repository` dice dónde está declarado
+  el sujeto; `response_format` elige qué identificadores vuelven y `view` la
+  granularidad, que son ortogonales; y `stable_key` sigue emitiéndose bajo
+  `detailed`, así que un llamante puede obtenerlo. Recortar aquí no es quitar
+  grasa, es quitar capacidad: la tool que se fuera empujaría su pregunta a `grep`
+  o a una peor, que es cambiar tokens residentes por respuestas peores. Así que
+  esta partida se declara y no se toca -- es el precio de una superficie de 11
+  preguntas contra 6, y con filas compactas es la que decide el empate.
+
+  Lo que sí salió de mirarla es un defecto de nombres, no de tamaño: en una
+  sesión real el modelo pasó `repo` con una ruta queriendo decir `repository`,
+  recibió «path requires repository» y gastó otra llamada en decir lo mismo con
+  el otro nombre. Ese error ahora nombra la diferencia; los `133` tokens del
+  esquema no cambian.
 
 ## Dónde gana cada uno
 
