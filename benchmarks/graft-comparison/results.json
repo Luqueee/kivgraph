@@ -1,7 +1,7 @@
 {
   "benchmark": "kivgraph-vs-graft",
-  "generated_at": "2026-08-19T16:44:05.853997Z",
-  "commit": "e115fce",
+  "generated_at": "2026-08-20T10:26:35.396345Z",
+  "commit": "fcc3871",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -15,7 +15,7 @@
   },
   "versions": {
     "graft": "0.10.1",
-    "kivgraph": "0.2.1"
+    "kivgraph": "0.3.1"
   },
   "surfaces": {
     "graft": {
@@ -50,45 +50,50 @@
       ],
       "description_tokens": 335,
       "instruction_tokens": 196,
-      "schema_tokens": 862,
+      "schema_tokens": 926,
       "resident_tokens": 531
     }
   },
   "indexing": {
     "graft": {
       "command": "graft --dir /private/tmp/graft-kena-ctx build /Users/adria/Documents/programacion/projects/kena",
-      "cold_ms": 23760,
-      "warm_ms": 2894,
+      "cold_ms": 25493,
+      "warm_ms": 2505,
       "files": 5186,
       "nodes": 34523,
-      "edges": 76919,
-      "state_bytes": 180065660,
+      "edges": 77264,
+      "state_bytes": 180762947,
       "needs": "node; no API key and no language toolchain (tree-sitter is linked in)",
       "cold_is": "context directory deleted first: nothing replayed from cache",
       "warm_is": "same build re-run with the extract cache populated and no file changed"
     },
     "graft_lsp": {
       "command": "graft --dir /private/tmp/graft-kena-lsp build /Users/adria/Documents/programacion/projects/kena --lsp",
-      "cold_ms": 114418,
+      "cold_ms": 115837,
       "warm_ms": 0,
       "files": 5186,
       "nodes": 34523,
-      "edges": 76863,
-      "state_bytes": 180057099,
+      "edges": 77359,
+      "state_bytes": 180814213,
       "needs": "a language server on PATH per language: gopls, rust-analyzer, typescript-language-server",
       "cold_is": "context directory deleted first, every language server cold",
       "warm_is": "not measured: the flag's cost is the cold pass"
     },
     "kivgraph": {
       "command": "kivgraph index --full --json",
-      "cold_ms": 45465,
-      "warm_ms": 8097,
+      "cold_ms": 43740,
+      "warm_ms": 8320,
       "files": 4814,
-      "nodes": 96923,
-      "edges": 368166,
+      "nodes": 96482,
+      "edges": 367725,
       "unresolved": 22929,
-      "generation": "000011",
-      "state_bytes": 1695189887,
+      "languages": {
+        "go": 19166,
+        "rust": 3063,
+        "typescript": 90729
+      },
+      "generation": "000017",
+      "state_bytes": 1693924595,
       "needs": "the Go module cache for every indexed module, plus cargo for every Rust workspace; without them a load fails and its symbols are absent",
       "cold_is": "fact cache and Rust target directory deleted first: every front end loads from nothing",
       "warm_is": "a second full rebuild immediately after, which still re-loads every compiler front end"
@@ -98,7 +103,7 @@
     "graft": {
       "path": "/private/tmp/graft-kena-ctx/.graph/wiring.json",
       "nodes": 34523,
-      "edges": 76919,
+      "edges": 77264,
       "scopes": [
         "services/api-music-nodo (Cargo.toml)",
         "services/kenalink-rs (Cargo.toml)",
@@ -111,10 +116,10 @@
         "extends": 692,
         "implements": 49,
         "imports": 21340,
-        "references": 2723
+        "references": 3068
       },
       "confidence": {
-        "extracted": 65425,
+        "extracted": 65770,
         "inferred": 11494
       },
       "lsp_resolved_edges": 0
@@ -122,7 +127,7 @@
     "graft_lsp": {
       "path": "/private/tmp/graft-kena-lsp/.graph/wiring.json",
       "nodes": 34523,
-      "edges": 76863,
+      "edges": 77359,
       "scopes": [
         "services/api-music-nodo (Cargo.toml)",
         "services/kenalink-rs (Cargo.toml)",
@@ -135,10 +140,10 @@
         "extends": 692,
         "implements": 49,
         "imports": 21340,
-        "references": 2667
+        "references": 3163
       },
       "confidence": {
-        "extracted": 65369,
+        "extracted": 65865,
         "inferred": 11494
       },
       "lsp_resolved_edges": 0
@@ -169,12 +174,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 188.192,
+              "ms": 202.487,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 188.192,
+          "ms": 202.487,
           "call_count": 1,
           "score": {
             "files": [],
@@ -198,12 +203,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 182.236,
+              "ms": 179.731,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 182.236,
+          "ms": 179.731,
           "call_count": 1,
           "score": {
             "files": [],
@@ -226,17 +231,17 @@
           "calls": [
             {
               "tool": "find_symbol",
-              "tokens": 2277,
-              "ms": 1.235
+              "tokens": 750,
+              "ms": 1.173
             },
             {
               "tool": "find_references",
-              "tokens": 414,
-              "ms": 0.2
+              "tokens": 159,
+              "ms": 0.185
             }
           ],
-          "tokens": 2691,
-          "ms": 1.435,
+          "tokens": 909,
+          "ms": 1.358,
           "call_count": 2,
           "score": {
             "files": [
@@ -293,12 +298,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 90.879,
+              "ms": 94.382,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 90.879,
+          "ms": 94.382,
           "call_count": 1,
           "score": {
             "files": [],
@@ -319,12 +324,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 659,
-              "ms": 93.259,
+              "ms": 92.278,
               "banner_tokens": 84
             }
           ],
           "tokens": 659,
-          "ms": 93.259,
+          "ms": 92.278,
           "call_count": 1,
           "score": {
             "files": [],
@@ -344,17 +349,17 @@
           "calls": [
             {
               "tool": "find_symbol",
-              "tokens": 2277,
-              "ms": 2.297
+              "tokens": 750,
+              "ms": 1.164
             },
             {
               "tool": "find_references",
-              "tokens": 619,
-              "ms": 0.217
+              "tokens": 182,
+              "ms": 0.151
             }
           ],
-          "tokens": 2896,
-          "ms": 2.5140000000000002,
+          "tokens": 932,
+          "ms": 1.315,
           "call_count": 2,
           "score": {
             "files": [
@@ -406,13 +411,13 @@
           "calls": [
             {
               "tool": "graft_trace_calls",
-              "tokens": 1082,
-              "ms": 67.558,
+              "tokens": 1157,
+              "ms": 70.209,
               "banner_tokens": 84
             }
           ],
-          "tokens": 1082,
-          "ms": 67.558,
+          "tokens": 1157,
+          "ms": 70.209,
           "call_count": 1,
           "score": {
             "files": [
@@ -437,13 +442,13 @@
           "calls": [
             {
               "tool": "graft_trace_calls",
-              "tokens": 1331,
-              "ms": 68.164,
-              "banner_tokens": 86
+              "tokens": 1178,
+              "ms": 67.312,
+              "banner_tokens": 84
             }
           ],
-          "tokens": 1331,
-          "ms": 68.164,
+          "tokens": 1178,
+          "ms": 67.312,
           "call_count": 1,
           "score": {
             "files": [
@@ -468,22 +473,22 @@
           "calls": [
             {
               "tool": "find_symbol",
-              "tokens": 274,
-              "ms": 1.102
+              "tokens": 124,
+              "ms": 1.067
             },
             {
               "tool": "find_references",
-              "tokens": 4195,
-              "ms": 0.647
+              "tokens": 695,
+              "ms": 0.294
             },
             {
               "tool": "find_references",
-              "tokens": 1355,
-              "ms": 0.264
+              "tokens": 325,
+              "ms": 0.165
             }
           ],
-          "tokens": 5824,
-          "ms": 2.013,
+          "tokens": 1144,
+          "ms": 1.526,
           "call_count": 3,
           "score": {
             "files": [
@@ -542,12 +547,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 524,
-              "ms": 76.965,
+              "ms": 79.063,
               "banner_tokens": 84
             }
           ],
           "tokens": 524,
-          "ms": 76.965,
+          "ms": 79.063,
           "call_count": 1,
           "score": {
             "files": [],
@@ -572,12 +577,12 @@
             {
               "tool": "graft_trace_calls",
               "tokens": 524,
-              "ms": 76.25,
+              "ms": 74.874,
               "banner_tokens": 84
             }
           ],
           "tokens": 524,
-          "ms": 76.25,
+          "ms": 74.874,
           "call_count": 1,
           "score": {
             "files": [],
@@ -601,17 +606,17 @@
           "calls": [
             {
               "tool": "find_symbol",
-              "tokens": 467,
-              "ms": 1.07
+              "tokens": 231,
+              "ms": 1.077
             },
             {
               "tool": "find_references",
-              "tokens": 2910,
-              "ms": 0.472
+              "tokens": 775,
+              "ms": 0.307
             }
           ],
-          "tokens": 3377,
-          "ms": 1.542,
+          "tokens": 1006,
+          "ms": 1.384,
           "call_count": 2,
           "score": {
             "files": [
@@ -658,12 +663,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 659,
-            "ms": 84.398,
+            "ms": 84.178,
             "banner_tokens": 84
           }
         ],
         "tokens": 659,
-        "ms": 84.398,
+        "ms": 84.178,
         "call_count": 1,
         "score": {
           "files": [
@@ -687,12 +692,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 659,
-            "ms": 83.816,
+            "ms": 84.755,
             "banner_tokens": 84
           }
         ],
         "tokens": 659,
-        "ms": 83.816,
+        "ms": 84.755,
         "call_count": 1,
         "score": {
           "files": [
@@ -715,12 +720,12 @@
         "calls": [
           {
             "tool": "find_symbol",
-            "tokens": 2277,
-            "ms": 1.297
+            "tokens": 750,
+            "ms": 1.172
           }
         ],
-        "tokens": 2277,
-        "ms": 1.297,
+        "tokens": 750,
+        "ms": 1.172,
         "call_count": 1,
         "score": {
           "files": [
@@ -757,67 +762,67 @@
           {
             "tool": "graft_file_api",
             "tokens": 182,
-            "ms": 58.777,
+            "ms": 61.263,
             "banner_tokens": 80
           },
           {
             "tool": "graft_file_api",
             "tokens": 648,
-            "ms": 56.667,
+            "ms": 60.14,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 414,
-            "ms": 57.355,
+            "ms": 60.117,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 319,
-            "ms": 55.41,
+            "ms": 59.993,
             "banner_tokens": 82
           },
           {
             "tool": "graft_file_api",
             "tokens": 23,
-            "ms": 56.287,
+            "ms": 59.82,
             "failed": true,
             "error": "graft skeleton — packages/core/src/cluster/worker/ipc/index.ts\n\nno definitions indexed for this file"
           },
           {
             "tool": "graft_file_api",
             "tokens": 605,
-            "ms": 56.326,
+            "ms": 60.245,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 389,
-            "ms": 55.402,
+            "ms": 58.792,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 354,
-            "ms": 56.589,
+            "ms": 60.665,
             "banner_tokens": 84
           },
           {
             "tool": "graft_file_api",
             "tokens": 260,
-            "ms": 56.198,
+            "ms": 58.999,
             "banner_tokens": 80
           },
           {
             "tool": "graft_file_api",
             "tokens": 442,
-            "ms": 62.146,
+            "ms": 58.266,
             "banner_tokens": 84
           }
         ],
         "tokens": 3636,
-        "ms": 571.1569999999999,
+        "ms": 598.3,
         "call_count": 10,
         "note": "graft has no directory outline: one graft_file_api per file, 10 files in this directory",
         "rows": 84
@@ -826,12 +831,12 @@
         "calls": [
           {
             "tool": "get_file_outline",
-            "tokens": 9111,
-            "ms": 2.267
+            "tokens": 3282,
+            "ms": 1.624
           }
         ],
-        "tokens": 9111,
-        "ms": 2.267,
+        "tokens": 3282,
+        "ms": 1.624,
         "call_count": 1,
         "rows": 619
       }
@@ -842,12 +847,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 1556,
-            "ms": 68.036,
+            "ms": 72.433,
             "banner_tokens": 86
           }
         ],
         "tokens": 1556,
-        "ms": 68.036,
+        "ms": 72.433,
         "call_count": 1,
         "note": "graft_trace_calls with depth 2; rows counted are the `calls ←` lines",
         "rows": 47
@@ -856,14 +861,14 @@
         "calls": [
           {
             "tool": "get_blast_radius",
-            "tokens": 5062,
-            "ms": 1.933
+            "tokens": 818,
+            "ms": 1.314
           }
         ],
-        "tokens": 5062,
-        "ms": 1.933,
+        "tokens": 818,
+        "ms": 1.314,
         "call_count": 1,
-        "rows": 118
+        "rows": 29
       }
     },
     "cross_repository_consumers": {
@@ -872,12 +877,12 @@
           {
             "tool": "graft_find_all",
             "tokens": 11992,
-            "ms": 1152.116,
+            "ms": 1233.863,
             "banner_tokens": 86
           }
         ],
         "tokens": 11992,
-        "ms": 1152.116,
+        "ms": 1233.863,
         "call_count": 1,
         "score": {
           "files": [
@@ -919,12 +924,12 @@
         "calls": [
           {
             "tool": "find_cross_repo_consumers",
-            "tokens": 2408,
-            "ms": 2.065
+            "tokens": 878,
+            "ms": 1.747
           }
         ],
-        "tokens": 2408,
-        "ms": 2.065,
+        "tokens": 878,
+        "ms": 1.747,
         "call_count": 1,
         "score": {
           "files": [
@@ -979,12 +984,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 232,
-            "ms": 36.675,
+            "ms": 37.331,
             "banner_tokens": 84
           }
         ],
         "tokens": 232,
-        "ms": 36.675,
+        "ms": 37.331,
         "call_count": 1,
         "score": {
           "files": [],
@@ -1020,12 +1025,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 206,
-            "ms": 21.846,
+            "ms": 24.036,
             "banner_tokens": 84
           }
         ],
         "tokens": 206,
-        "ms": 21.846,
+        "ms": 24.036,
         "call_count": 1,
         "score": {
           "files": [
@@ -1063,12 +1068,12 @@
           {
             "tool": "graft_trace_calls",
             "tokens": 532,
-            "ms": 22.174,
+            "ms": 23.558,
             "banner_tokens": 84
           }
         ],
         "tokens": 532,
-        "ms": 22.174,
+        "ms": 23.558,
         "call_count": 1,
         "score": {
           "files": [
@@ -1090,27 +1095,27 @@
   ],
   "aggregate": {
     "graft": {
-      "tokens_total": 2924,
+      "tokens_total": 2999,
       "calls_total": 4,
-      "ms_total": 423.59400000000005,
+      "ms_total": 446.141,
       "precision_mean": 0.25,
       "recall_mean": 0.25,
       "exact_answers": 1,
       "of": 4
     },
     "graft_lsp": {
-      "tokens_total": 3173,
+      "tokens_total": 3020,
       "calls_total": 4,
-      "ms_total": 419.909,
+      "ms_total": 414.19500000000005,
       "precision_mean": 0.25,
       "recall_mean": 0.25,
       "exact_answers": 1,
       "of": 4
     },
     "kivgraph": {
-      "tokens_total": 14788,
+      "tokens_total": 3991,
       "calls_total": 9,
-      "ms_total": 7.504,
+      "ms_total": 5.583,
       "precision_mean": 0.75,
       "recall_mean": 0.7222222222222222,
       "exact_answers": 2,

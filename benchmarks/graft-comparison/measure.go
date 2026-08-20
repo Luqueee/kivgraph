@@ -147,26 +147,72 @@ func sortedKeys(set map[string]bool) []string {
 
 // ---------- kivgraph ----------
 
-// referencesPage is the shape find_references answers in: the subject once, then
-// a row per fact carrying the repository and the path that holds it.
+// referencesPage is the shape find_references answers in once ADR 0046 hoisted
+// every field that repeated. What was a row per fact carrying its own
+// repository, confidence and provenance is now the subject once, the repository
+// once, and rows grouped by whatever they share -- so a row is a symbol and a
+// line, and nothing else.
+//
+// The container has two forms and the parser must read both: one group collapses
+// into `results.files`, several stay under `results.groups`. An `at` entry is a
+// bare string when its group already hoisted the edge kind and a tuple when it
+// did not. Reading only one form would silently score half an answer.
 type referencesPage struct {
 	Total      int     `json:"total"`
 	Returned   int     `json:"returned"`
 	Truncated  bool    `json:"truncated"`
 	NextCursor *string `json:"next_cursor"`
 	Results    struct {
-		Subject struct {
-			Repository string `json:"repository"`
-			FilePath   string `json:"file_path"`
-		} `json:"subject"`
-		Direction  string `json:"direction"`
-		References []struct {
-			Repository string `json:"repository"`
-			FilePath   string `json:"file_path"`
-			EdgeKind   string `json:"edge_kind"`
-			Confidence string `json:"confidence"`
-		} `json:"references"`
+		Subject    string      `json:"subject"`
+		Direction  string      `json:"direction"`
+		Repository string      `json:"repository"`
+		Files      []fileRows  `json:"files"`
+		Groups     []groupRows `json:"groups"`
 	} `json:"results"`
+}
+
+// groupRows is one hoisting level: the rows that share a kind and an edge kind.
+type groupRows struct {
+	Kind       string     `json:"kind"`
+	EdgeKind   string     `json:"edge_kind"`
+	Repository string     `json:"repository"`
+	Files      []fileRows `json:"files"`
+}
+
+// fileRows is one file and the positions inside it. `Repository` is empty
+// whenever the answer hoisted it, which is the common case; a group or a file
+// that names its own overrides it, so an answer spanning repositories is still
+// addressed correctly rather than attributed to the subject's repository.
+type fileRows struct {
+	File       string            `json:"file"`
+	Repository string            `json:"repository"`
+	At         []json.RawMessage `json:"at"`
+}
+
+// rows walks the two container forms and yields one address per fact, keeping
+// multiplicity: seven calls in one file are seven facts, and the scorer is what
+// decides to compare sets of files.
+func (page referencesPage) rows() []string {
+	out := make([]string, 0, page.Returned)
+	collect := func(files []fileRows, groupRepository string) {
+		for _, file := range files {
+			repository := page.Results.Repository
+			if groupRepository != "" {
+				repository = groupRepository
+			}
+			if file.Repository != "" {
+				repository = file.Repository
+			}
+			for range file.At {
+				out = append(out, repository+":"+file.File)
+			}
+		}
+	}
+	collect(page.Results.Files, "")
+	for _, group := range page.Results.Groups {
+		collect(group.Files, group.Repository)
+	}
+	return out
 }
 
 // kivgraphFiles reads the referencing files out of one page, as
@@ -181,22 +227,33 @@ func kivgraphFiles(text string) ([]string, referencesPage, error) {
 	if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 		return nil, decoded, fmt.Errorf("parse find_references page: %w", err)
 	}
-	out := make([]string, 0, len(decoded.Results.References))
-	for _, row := range decoded.Results.References {
-		out = append(out, row.Repository+":"+row.FilePath)
-	}
-	return out, decoded, nil
+	return decoded.rows(), decoded, nil
 }
 
-// symbolsPage is the shape find_symbol answers in.
+// symbolsPage is the shape find_symbol answers in: the name once, then the
+// declarations grouped by kind, and a symbol addressed as `repository:path:line`
+// instead of three keys repeated per row.
 type symbolsPage struct {
 	Total   int `json:"total"`
-	Results []struct {
-		Kind          string `json:"kind"`
-		QualifiedName string `json:"qualified_name"`
-		Repository    string `json:"repository"`
-		FilePath      string `json:"file_path"`
+	Results struct {
+		Name   string `json:"name"`
+		Groups []struct {
+			Kind    string `json:"kind"`
+			Symbols []struct {
+				At string `json:"at"`
+				QN string `json:"qn"`
+			} `json:"symbols"`
+		} `json:"groups"`
 	} `json:"results"`
+}
+
+// addressOf drops the line from `repository:path:line`. The line is what makes
+// two declarations in one file two rows, and the census counts files.
+func addressOf(at string) string {
+	if index := strings.LastIndex(at, ":"); index > 0 {
+		return at[:index]
+	}
+	return at
 }
 
 // bindingKinds are the rows a symbol search returns that are not declarations:
@@ -216,14 +273,16 @@ func kivgraphDeclarations(text string) ([]string, int, error) {
 	}
 	seen := map[string]bool{}
 	out := []string{}
-	for _, row := range decoded.Results {
-		if bindingKinds[row.Kind] {
+	for _, group := range decoded.Results.Groups {
+		if bindingKinds[group.Kind] {
 			continue
 		}
-		address := row.Repository + ":" + row.FilePath
-		if !seen[address] {
-			seen[address] = true
-			out = append(out, address)
+		for _, symbol := range group.Symbols {
+			address := addressOf(symbol.At)
+			if !seen[address] {
+				seen[address] = true
+				out = append(out, address)
+			}
 		}
 	}
 	return out, decoded.Total, nil

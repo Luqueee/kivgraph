@@ -23,9 +23,16 @@ type indexCost struct {
 	Nodes      int     `json:"nodes"`
 	Edges      int     `json:"edges"`
 	Unresolved int     `json:"unresolved,omitempty"`
-	Generation string  `json:"generation,omitempty"`
-	StateBytes int64   `json:"state_bytes,omitempty"`
-	Needs      string  `json:"needs"`
+	// Languages is what each front end actually contributed. A run that loses a
+	// toolchain still publishes a generation, so a total alone cannot say whether
+	// a language was measured or was absent: the first attempt at this benchmark
+	// published `passed: true` with zero Go and zero Rust symbols. Recording the
+	// breakdown is what lets a later reader tell one run from another, and it is
+	// why the previous run's Kivgraph arm cannot be recomposed from what it wrote.
+	Languages  map[string]int `json:"languages,omitempty"`
+	Generation string         `json:"generation,omitempty"`
+	StateBytes int64          `json:"state_bytes,omitempty"`
+	Needs      string         `json:"needs"`
 	// Cold and Warm do not mean the same thing on both surfaces, so each says
 	// what it timed. Pretending otherwise would compare an empty cache against a
 	// populated one and call the difference a speed.
@@ -83,6 +90,11 @@ type kivgraphIndexResult struct {
 			Edges      int `json:"edges"`
 			Unresolved int `json:"unresolved"`
 		} `json:"counts"`
+		Index struct {
+			GoDefinitions     int `json:"go_definitions"`
+			TypeScriptSymbols int `json:"typescript_symbols"`
+			RustSymbols       int `json:"rust_symbols"`
+		} `json:"index"`
 	} `json:"result"`
 }
 
@@ -117,6 +129,11 @@ func measureKivgraphIndex(cfg config) (indexCost, error) {
 	out.Edges = decoded.Result.Counts.Edges
 	out.Unresolved = decoded.Result.Counts.Unresolved
 	out.Generation = decoded.Result.GenerationID
+	out.Languages = map[string]int{
+		"go":         decoded.Result.Index.GoDefinitions,
+		"typescript": decoded.Result.Index.TypeScriptSymbols,
+		"rust":       decoded.Result.Index.RustSymbols,
+	}
 
 	second, secondOutput, err := timeCommand2(cfg.Corpus, map[string]string{"HOME": cfg.Home}, cfg.Kivgraph, "index", "--full", "--json")
 	if err != nil {
