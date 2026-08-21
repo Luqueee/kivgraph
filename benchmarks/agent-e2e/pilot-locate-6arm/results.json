@@ -1,0 +1,432 @@
+{
+ "benchmark": "agent-e2e",
+ "generated_at": "2026-08-21T11:21:14.21143Z",
+ "commit": "f5b5304",
+ "model": "claude-sonnet-5",
+ "agent": "claude",
+ "environment": {
+  "arch": "arm64",
+  "go": "go1.26.4",
+  "os": "darwin"
+ },
+ "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "arms": [
+  "cold",
+  "kivgraph",
+  "graft",
+  "code-review-graph",
+  "codebase-memory",
+  "graphify"
+ ],
+ "trials": 1,
+ "budget_usd_per_run": 3,
+ "tasks": [
+  {
+   "id": "api-db-go-821977c",
+   "repo": "services/api-db-go",
+   "language": "go",
+   "commit": "821977cccf6ad6e188f771346a94ec8ab3212973",
+   "subject": "feat(leveling): bloque `requirements` en la config del módulo",
+   "truth_files": [
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/dbleveling/curve.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nAñade a la configuración del módulo de niveles un bloque de requisitos, con su validación y su reflejo en la caché.\n\nThe change belongs in the services/api-db-go repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  }
+ ],
+ "runs": [
+  {
+   "task": "api-db-go-821977c",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 271972,
+   "cost_usd": 3.048826499999999,
+   "input_tokens": 102,
+   "output_tokens": 23608,
+   "cache_read_tokens": 6010499,
+   "cache_creation_tokens": 138341,
+   "turns": 64,
+   "tool_calls": 63,
+   "tools_used": [
+    "Edit×12",
+    "Glob×10",
+    "Grep×22",
+    "Read×18",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "budget_exhausted": true,
+   "terminal_reason": "budget_exhausted",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-cold-t1.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.75,
+   "missing": [
+    "internal/domain/dbleveling/curve.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-821977c",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 222915,
+   "cost_usd": 1.8586943999999994,
+   "input_tokens": 102,
+   "output_tokens": 18387,
+   "cache_read_tokens": 3802658,
+   "cache_creation_tokens": 73631,
+   "turns": 51,
+   "tool_calls": 50,
+   "tools_used": [
+    "Edit×8",
+    "Glob×5",
+    "Grep×16",
+    "Read×16",
+    "ToolSearch×1",
+    "mcp__kivgraph__find_symbol×3",
+    "mcp__kivgraph__list_repositories×1"
+   ],
+   "context_tool_calls": 4,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.75,
+   "recall": 0.75,
+   "missing": [
+    "internal/domain/dbleveling/curve.go"
+   ],
+   "spurious": [
+    "internal/domain/mocks/module_leveling_mock.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-821977c",
+   "arm": "graft",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
+   "ms": 184826,
+   "cost_usd": 1.5504708,
+   "input_tokens": 52,
+   "output_tokens": 15275,
+   "cache_read_tokens": 2384826,
+   "cache_creation_tokens": 100957,
+   "turns": 35,
+   "tool_calls": 34,
+   "tools_used": [
+    "Edit×4",
+    "Glob×4",
+    "Read×11",
+    "ToolSearch×1",
+    "Write×1",
+    "mcp__graft__graft_file_api×1",
+    "mcp__graft__graft_find_all×8",
+    "mcp__graft__graft_find_code×3",
+    "mcp__graft__graft_repo_map×1"
+   ],
+   "context_tool_calls": 13,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-graft-t1.jsonl",
+   "wrote": [
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/dbguild/module_leveling_test.go",
+    "internal/domain/mocks/module_leveling_mock.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.3333333333333333,
+   "recall": 0.25,
+   "missing": [
+    "internal/domain/dbleveling/curve.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "spurious": [
+    "internal/domain/dbguild/module_leveling_test.go",
+    "internal/domain/mocks/module_leveling_mock.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-821977c",
+   "arm": "code-review-graph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `crg`. Query it first -- to find a declaration, its callers and the blast radius of a change -- and read files once it has told you which ones matter.",
+   "ms": 348230,
+   "cost_usd": 3.0201236999999996,
+   "input_tokens": 104,
+   "output_tokens": 30168,
+   "cache_read_tokens": 5327283,
+   "cache_creation_tokens": 147218,
+   "turns": 58,
+   "tool_calls": 57,
+   "tools_used": [
+    "Edit×8",
+    "Glob×5",
+    "Grep×21",
+    "Read×17",
+    "ToolSearch×1",
+    "Write×1",
+    "mcp__crg__list_repos_tool×1",
+    "mcp__crg__semantic_search_nodes_tool×3"
+   ],
+   "context_tool_calls": 4,
+   "budget_exhausted": true,
+   "terminal_reason": "budget_exhausted",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-code-review-graph-t1.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.75,
+   "missing": [
+    "internal/domain/dbleveling/curve.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-821977c",
+   "arm": "codebase-memory",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `memory`. Query it first -- to search the graph, trace a path between symbols and read a snippet -- and read files once it has told you which ones matter.",
+   "ms": 271436,
+   "cost_usd": 2.7861944999999997,
+   "input_tokens": 90,
+   "output_tokens": 23951,
+   "cache_read_tokens": 5180885,
+   "cache_creation_tokens": 145399,
+   "turns": 47,
+   "tool_calls": 46,
+   "tools_used": [
+    "Edit×5",
+    "Glob×3",
+    "Grep×15",
+    "Read×16",
+    "ToolSearch×1",
+    "Write×1",
+    "mcp__memory__list_projects×1",
+    "mcp__memory__search_code×2",
+    "mcp__memory__search_graph×2"
+   ],
+   "context_tool_calls": 5,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-codebase-memory-t1.jsonl",
+   "wrote": [
+    ".agents/skills/api-db-go-endpoints/reference/mongo-core.md",
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/dbguild/module_leveling_normalize_test.go",
+    "internal/domain/mocks/module_leveling_mock.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.25,
+   "recall": 0.25,
+   "missing": [
+    "internal/domain/dbleveling/curve.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "spurious": [
+    ".agents/skills/api-db-go-endpoints/reference/mongo-core.md",
+    "internal/domain/dbguild/module_leveling_normalize_test.go",
+    "internal/domain/mocks/module_leveling_mock.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "api-db-go-821977c",
+   "arm": "graphify",
+   "trial": 1,
+   "directive": "A code graph of this workspace is built at `graphify-out/graph.json` in each repository, and the `graphify` command queries it: `graphify affected \"\u003cname\u003e\"`, `graphify query \"\u003cquestion\u003e\"` and `graphify explain \"\u003cname\u003e\"`, each with `--graph \u003cpath\u003e`. Query it first and read files once it has told you which ones matter.",
+   "ms": 285925,
+   "cost_usd": 2.6826486000000003,
+   "input_tokens": 114,
+   "output_tokens": 25236,
+   "cache_read_tokens": 5502082,
+   "cache_creation_tokens": 108857,
+   "turns": 57,
+   "tool_calls": 56,
+   "tools_used": [
+    "Bash×19",
+    "Edit×13",
+    "Grep×1",
+    "Read×21",
+    "Write×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-graphify-t1.jsonl",
+   "wrote": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/dbguild/module_leveling_test.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/domain/validations/module_leveling_validations_test.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.42857142857142855,
+   "recall": 0.75,
+   "missing": [
+    "internal/domain/dbleveling/curve.go"
+   ],
+   "spurious": [
+    "internal/application/handlers/module_leveling_handler.go",
+    "internal/domain/dbguild/module_leveling_test.go",
+    "internal/domain/mocks/module_leveling_mock.go",
+    "internal/domain/validations/module_leveling_validations_test.go"
+   ],
+   "exact": false
+  }
+ ],
+ "aggregate": {
+  "code-review-graph": {
+   "runs": 1,
+   "exact": 0,
+   "precision_mean": 0.5,
+   "recall_mean": 0.75,
+   "cost_usd_total": 3.0201236999999996,
+   "cost_usd_mean": 3.0201236999999996,
+   "tokens_mean": 5504773,
+   "tool_calls_mean": 57,
+   "context_tool_calls_mean": 4,
+   "seconds_mean": 348.23,
+   "errored": 0,
+   "budget_exhausted": 1,
+   "leaks": 0
+  },
+  "codebase-memory": {
+   "runs": 1,
+   "exact": 0,
+   "precision_mean": 0.25,
+   "recall_mean": 0.25,
+   "cost_usd_total": 2.7861944999999997,
+   "cost_usd_mean": 2.7861944999999997,
+   "tokens_mean": 5350325,
+   "tool_calls_mean": 46,
+   "context_tool_calls_mean": 5,
+   "seconds_mean": 271.436,
+   "errored": 0,
+   "budget_exhausted": 0,
+   "leaks": 0
+  },
+  "cold": {
+   "runs": 1,
+   "exact": 0,
+   "precision_mean": 0.5,
+   "recall_mean": 0.75,
+   "cost_usd_total": 3.048826499999999,
+   "cost_usd_mean": 3.048826499999999,
+   "tokens_mean": 6172550,
+   "tool_calls_mean": 63,
+   "context_tool_calls_mean": 0,
+   "seconds_mean": 271.972,
+   "errored": 0,
+   "budget_exhausted": 1,
+   "leaks": 0
+  },
+  "graft": {
+   "runs": 1,
+   "exact": 0,
+   "precision_mean": 0.3333333333333333,
+   "recall_mean": 0.25,
+   "cost_usd_total": 1.5504708,
+   "cost_usd_mean": 1.5504708,
+   "tokens_mean": 2501110,
+   "tool_calls_mean": 34,
+   "context_tool_calls_mean": 13,
+   "seconds_mean": 184.826,
+   "errored": 0,
+   "budget_exhausted": 0,
+   "leaks": 0
+  },
+  "graphify": {
+   "runs": 1,
+   "exact": 0,
+   "precision_mean": 0.42857142857142855,
+   "recall_mean": 0.75,
+   "cost_usd_total": 2.6826486000000003,
+   "cost_usd_mean": 2.6826486000000003,
+   "tokens_mean": 5636289,
+   "tool_calls_mean": 56,
+   "context_tool_calls_mean": 0,
+   "seconds_mean": 285.925,
+   "errored": 0,
+   "budget_exhausted": 0,
+   "leaks": 0
+  },
+  "kivgraph": {
+   "runs": 1,
+   "exact": 0,
+   "precision_mean": 0.75,
+   "recall_mean": 0.75,
+   "cost_usd_total": 1.8586943999999994,
+   "cost_usd_mean": 1.8586943999999994,
+   "tokens_mean": 3894778,
+   "tool_calls_mean": 50,
+   "context_tool_calls_mean": 4,
+   "seconds_mean": 222.915,
+   "errored": 0,
+   "budget_exhausted": 0,
+   "leaks": 0
+  }
+ },
+ "setup": {
+  "index_ms": {
+   "code-review-graph": [
+    4033
+   ],
+   "codebase-memory": [
+    103
+   ],
+   "graft": [
+    3247
+   ],
+   "graphify": [
+    4230
+   ],
+   "kivgraph": [
+    9519
+   ]
+  }
+ }
+}

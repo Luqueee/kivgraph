@@ -245,29 +245,74 @@ func gitRepositories(root string) ([]string, error) {
 type indexer struct {
 	Kivgraph     string
 	Graft        string
+	CRG          string
+	CMM          string
+	Graphify     string
 	Home         string
 	GraftContext string
+	CRGData      string
+	CMMHome      string
 	Root         string
+	// Repos are the repositories the tasks touch. code-review-graph and graphify
+	// keep one graph per repository and their build truncates the directory it
+	// is given, so each needs its own; building all 37 would price an index no
+	// task reads.
+	Repos []string
 }
 
-func (i indexer) reindex() (kivgraphMS, graftMS float64, err error) {
+func (i indexer) reindex() (map[string]float64, error) {
+	elapsed := map[string]float64{}
+
 	started := time.Now()
-	// 0.2.1 has no delta mode on the CLI: a task state costs a full index.
 	command := exec.Command(i.Kivgraph, "index", "--full", "--json")
 	command.Dir = i.Root
 	command.Env = append(os.Environ(), "HOME="+i.Home)
 	if out, runErr := command.CombinedOutput(); runErr != nil {
-		return 0, 0, fmt.Errorf("kivgraph index: %w (%s)", runErr, lastLines(string(out), 2))
+		return nil, fmt.Errorf("kivgraph index: %w (%s)", runErr, lastLines(string(out), 2))
 	}
-	kivgraphMS = float64(time.Since(started).Milliseconds())
+	elapsed["kivgraph"] = float64(time.Since(started).Milliseconds())
 
 	started = time.Now()
 	build := exec.Command(i.Graft, "--dir", i.GraftContext, "build", i.Root)
 	if out, runErr := build.CombinedOutput(); runErr != nil {
-		return 0, 0, fmt.Errorf("graft build: %w (%s)", runErr, lastLines(string(out), 2))
+		return nil, fmt.Errorf("graft build: %w (%s)", runErr, lastLines(string(out), 2))
 	}
-	graftMS = float64(time.Since(started).Milliseconds())
-	return kivgraphMS, graftMS, nil
+	elapsed["graft"] = float64(time.Since(started).Milliseconds())
+
+	started = time.Now()
+	memory := exec.Command(i.CMM, "cli", "index_repository", `{"repo_path":"`+i.Root+`"}`)
+	memory.Env = append(os.Environ(), "HOME="+i.CMMHome)
+	if out, runErr := memory.CombinedOutput(); runErr != nil {
+		return nil, fmt.Errorf("codebase-memory index: %w (%s)", runErr, lastLines(string(out), 2))
+	}
+	elapsed["codebase-memory"] = float64(time.Since(started).Milliseconds())
+
+	// One graph per repository for the two that cannot hold the corpus, and only
+	// the repositories the tasks name.
+	started = time.Now()
+	for _, repo := range i.Repos {
+		path := filepath.Join(i.Root, repo)
+		crg := exec.Command(i.CRG, "build", "--repo", path, "--data-dir",
+			filepath.Join(i.CRGData, filepath.Base(repo)), "-q")
+		crg.Env = append(os.Environ(), "HOME="+i.CRGData)
+		if out, runErr := crg.CombinedOutput(); runErr != nil {
+			return nil, fmt.Errorf("code-review-graph build %s: %w (%s)", repo, runErr, lastLines(string(out), 2))
+		}
+	}
+	elapsed["code-review-graph"] = float64(time.Since(started).Milliseconds())
+
+	started = time.Now()
+	for _, repo := range i.Repos {
+		// graphify writes beside the code it reads, which is why this only ever
+		// runs against the prepared copy and never against the corpus.
+		update := exec.Command(i.Graphify, "update", filepath.Join(i.Root, repo))
+		update.Env = append(os.Environ(), "HOME="+i.CRGData)
+		if out, runErr := update.CombinedOutput(); runErr != nil {
+			return nil, fmt.Errorf("graphify update %s: %w (%s)", repo, runErr, lastLines(string(out), 2))
+		}
+	}
+	elapsed["graphify"] = float64(time.Since(started).Milliseconds())
+	return elapsed, nil
 }
 
 // register writes the isolated kivgraph configuration for the copy: the same 37
@@ -328,4 +373,20 @@ func lastLines(text string, count int) string {
 		lines = lines[len(lines)-count:]
 	}
 	return strings.Join(lines, " | ")
+}
+
+// taskRepositories is the set of repositories the selected tasks touch, which is
+// what the two per-repository surfaces have to index. Building the other 33
+// would price a graph no task reads.
+func taskRepositories(tasks []task) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, t := range tasks {
+		if !seen[t.Repo] {
+			seen[t.Repo] = true
+			out = append(out, t.Repo)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

@@ -32,8 +32,18 @@ const (
 )
 
 type config struct {
-	Kivgraph     string
-	Graft        string
+	Kivgraph string
+	Graft    string
+	// CRG, CMM and Graphify are the three surfaces added after the two-way
+	// sweep. graphify has no MCP server -- it ships a skill that drives its CLI
+	// -- so its arm is the only one that needs a shell, and CRGData is where its
+	// per-repository graphs and code-review-graph's database live, outside the
+	// corpus.
+	CRG          string
+	CMM          string
+	Graphify     string
+	CRGData      string
+	CMMHome      string
 	Agent        string
 	Model        string
 	Corpus       string
@@ -45,6 +55,7 @@ type config struct {
 	Trials       int
 	Only         string
 	Arms         string
+	Tasks        string
 	Setup        bool
 	BudgetUSD    float64
 }
@@ -53,6 +64,11 @@ func main() {
 	cfg := config{}
 	flag.StringVar(&cfg.Kivgraph, "kivgraph", "kivgraph", "kivgraph executable")
 	flag.StringVar(&cfg.Graft, "graft", "graft", "graft executable")
+	flag.StringVar(&cfg.CRG, "crg", "/private/tmp/crg-venv/bin/code-review-graph", "code-review-graph executable")
+	flag.StringVar(&cfg.CMM, "codebase-memory", "codebase-memory-mcp", "codebase-memory-mcp executable")
+	flag.StringVar(&cfg.Graphify, "graphify", "graphify", "graphify executable")
+	flag.StringVar(&cfg.CRGData, "crg-data", "/private/tmp/e2e5/crg-data", "code-review-graph databases, outside the corpus")
+	flag.StringVar(&cfg.CMMHome, "cmm-home", "/private/tmp/e2e5/cmm-home", "isolated HOME for codebase-memory-mcp")
 	flag.StringVar(&cfg.Agent, "agent", "claude", "headless coding agent executable")
 	flag.StringVar(&cfg.Model, "model", "claude-sonnet-5", "model every arm runs on")
 	flag.StringVar(&cfg.Corpus, "corpus", "/Users/adria/Documents/programacion/projects/kena", "corpus read to build the private copy")
@@ -61,9 +77,13 @@ func main() {
 	flag.StringVar(&cfg.AgentHome, "agent-home", os.Getenv("HOME"), "HOME the agent runs under, for its credentials")
 	flag.StringVar(&cfg.GraftContext, "graft-context", "/private/tmp/e2e-graft-ctx", "graft context for the copy")
 	flag.StringVar(&cfg.Directory, "dir", defaultDirectory, "benchmark directory")
+	// The frozen set of the two-way sweep stays where its report points at it.
+	// A second set does not replace it: it is a different question, asked of six
+	// arms instead of three, and both files are evidence.
+	flag.StringVar(&cfg.Tasks, "tasks", "tasks.json", "task set to run, relative to --dir")
 	flag.IntVar(&cfg.Trials, "trials", 1, "trials per task per arm")
 	flag.StringVar(&cfg.Only, "only", "", "comma-separated task ids to run, empty for all")
-	flag.StringVar(&cfg.Arms, "arms", "cold,kivgraph,graft", "comma-separated arms to run")
+	flag.StringVar(&cfg.Arms, "arms", "cold,kivgraph,graft,code-review-graph,codebase-memory,graphify", "comma-separated arms to run")
 	flag.Float64Var(&cfg.BudgetUSD, "budget-usd", 1.5, "per-run spend cap, identical for every arm; 0 disables it")
 	flag.BoolVar(&cfg.Setup, "setup", true, "rebuild the private copy and register both indexes first")
 	flag.Parse()
@@ -102,8 +122,11 @@ type taskRecord struct {
 }
 
 type setupCost struct {
-	IndexKivgraphMS []float64 `json:"index_kivgraph_ms"`
-	IndexGraftMS    []float64 `json:"index_graft_ms"`
+	// IndexMS is what each surface's index cost per task, keyed by arm. Two
+	// named fields stopped scaling at two surfaces, and a benchmark that only
+	// records the entry price of the arms it started with cannot compare the
+	// ones it added.
+	IndexMS map[string][]float64 `json:"index_ms"`
 }
 
 // armAgg is one arm's outcome over the whole matrix. Correctness comes first
@@ -125,7 +148,14 @@ type armAgg struct {
 }
 
 func run(cfg config) error {
-	set, err := loadTasks(filepath.Join(cfg.Directory, "tasks.json"))
+	// A different question must not land on another run's evidence. Pointing a
+	// second task set at the default directory overwrote the frozen 36-run
+	// sweep's results.json, which was only recoverable because it was committed.
+	if cfg.Tasks != "tasks.json" && cfg.Directory == defaultDirectory {
+		return fmt.Errorf("task set %q needs its own --dir: writing it to %s would overwrite the results of whatever ran there last",
+			cfg.Tasks, defaultDirectory)
+	}
+	set, err := loadTasks(filepath.Join(cfg.Directory, cfg.Tasks))
 	if err != nil {
 		return err
 	}
@@ -145,8 +175,10 @@ func run(cfg config) error {
 
 	space := workspace{Root: cfg.Root, Corpus: cfg.Corpus}
 	index := indexer{
-		Kivgraph: cfg.Kivgraph, Graft: cfg.Graft, Home: cfg.Home,
-		GraftContext: cfg.GraftContext, Root: cfg.Root,
+		Kivgraph: cfg.Kivgraph, Graft: cfg.Graft, CRG: cfg.CRG, CMM: cfg.CMM,
+		Graphify: cfg.Graphify, Home: cfg.Home, GraftContext: cfg.GraftContext,
+		CRGData: cfg.CRGData, CMMHome: cfg.CMMHome, Root: cfg.Root,
+		Repos: taskRepositories(selected),
 	}
 	out := results{
 		Benchmark: benchmarkName, GeneratedAt: time.Now().UTC(), Model: cfg.Model,
@@ -175,13 +207,19 @@ func run(cfg config) error {
 		if err := space.prepare(t); err != nil {
 			return err
 		}
-		kivMS, graftMS, err := index.reindex()
+		indexed, err := index.reindex()
 		if err != nil {
 			return err
 		}
-		out.Setup.IndexKivgraphMS = append(out.Setup.IndexKivgraphMS, kivMS)
-		out.Setup.IndexGraftMS = append(out.Setup.IndexGraftMS, graftMS)
-		fmt.Printf("  indexed: kivgraph %.1fs, graft %.1fs\n", kivMS/1000, graftMS/1000)
+		if out.Setup.IndexMS == nil {
+			out.Setup.IndexMS = map[string][]float64{}
+		}
+		line := "  indexed:"
+		for _, name := range []string{"kivgraph", "graft", "code-review-graph", "graphify", "codebase-memory"} {
+			out.Setup.IndexMS[name] = append(out.Setup.IndexMS[name], indexed[name])
+			line += fmt.Sprintf(" %s %.1fs", name, indexed[name]/1000)
+		}
+		fmt.Println(line)
 		out.Tasks = append(out.Tasks, taskRecord{
 			ID: t.ID, Repo: t.Repo, Language: t.Language, Commit: t.Commit,
 			Subject: t.Subject, Truth: t.Truth, Prompt: prompt(t, cfg.Root, ""),

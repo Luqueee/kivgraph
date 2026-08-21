@@ -31,6 +31,12 @@ type arm struct {
 	// named explicitly because an allow-list that ended at a wildcard would let
 	// one arm reach a tool the others cannot.
 	Tools []string
+	// Shell is true for the one arm whose product is not an MCP server. graphify
+	// ships a skill that drives its CLI, so measuring it means giving that arm a
+	// shell the other five do not have. It is an asymmetry, and the honest way to
+	// carry it is to name it and close the route it opens: `git` stays denied, so
+	// the shell reaches the tool and not the answer.
+	Shell bool
 }
 
 // absolutePath resolves an executable through PATH once, here, so a server that
@@ -95,6 +101,55 @@ func arms(cfg config) []arm {
 				"mcp__graft__graft_repo_map", "mcp__graft__graft_check_freshness",
 			},
 		},
+		{
+			Name: "code-review-graph",
+			Directive: "A code graph of this workspace is mounted over MCP as `crg`. " +
+				"Query it first -- to find a declaration, its callers and the blast radius of a change -- " +
+				"and read files once it has told you which ones matter.",
+			MCP: map[string]any{"crg": map[string]any{
+				"command": absolutePath(cfg.CRG),
+				"args":    []string{"serve", "--repo", cfg.Root},
+				// Its registry records which data directory holds each
+				// repository's graph, and the registry lives in HOME. Without an
+				// isolated one the arm would read the graph the benchmark built
+				// for the user's own checkout.
+				"env": map[string]any{"HOME": cfg.CRGData, "PATH": os.Getenv("PATH")},
+			}},
+			// The server publishes thirty tools. Naming them all would be a
+			// wildcard by another spelling, so the arm gets the ones that answer
+			// the three questions every other arm is also given.
+			Tools: []string{
+				"mcp__crg__query", "mcp__crg__impact", "mcp__crg__search",
+				"mcp__crg__build", "mcp__crg__file_summary",
+			},
+		},
+		{
+			Name: "codebase-memory",
+			Directive: "A code graph of this workspace is mounted over MCP as `memory`. " +
+				"Query it first -- to search the graph, trace a path between symbols and read a snippet -- " +
+				"and read files once it has told you which ones matter.",
+			MCP: map[string]any{"memory": map[string]any{
+				"command": absolutePath(cfg.CMM),
+				"env":     map[string]any{"HOME": cfg.CMMHome, "PATH": os.Getenv("PATH")},
+			}},
+			Tools: []string{
+				"mcp__memory__search_graph", "mcp__memory__query_graph",
+				"mcp__memory__trace_path", "mcp__memory__get_code_snippet",
+				"mcp__memory__get_architecture", "mcp__memory__search_code",
+				"mcp__memory__index_status", "mcp__memory__list_projects",
+			},
+		},
+		{
+			Name:  "graphify",
+			Shell: true,
+			Directive: "A code graph of this workspace is built at `graphify-out/graph.json` in each " +
+				"repository, and the `graphify` command queries it: `graphify affected \"<name>\"`, " +
+				"`graphify query \"<question>\"` and `graphify explain \"<name>\"`, each with " +
+				"`--graph <path>`. Query it first and read files once it has told you which ones matter.",
+			// No MCP block: graphify has no server. Its own install path is a
+			// skill plus this CLI, so that is what is measured.
+			Tools: []string{"Bash"},
+		},
 	}
 }
 
@@ -138,12 +193,31 @@ func (a arm) run(cfg config, t task, trial int) (runResult, error) {
 	allowed = append(allowed, a.Tools...)
 	arguments = append(arguments, "--allowedTools")
 	arguments = append(arguments, allowed...)
-	arguments = append(arguments, "--disallowedTools", "Bash", "WebFetch", "WebSearch", "Task")
-	// Denying the object database closes the last route to the answer that does
-	// not go through the code. Disallowing the shell removes `git log`; this
-	// removes reading the refs and the reflog by hand, which one run did try.
+	// The shell is denied to every arm but the one whose product needs it, and
+	// that one gets `git` denied instead. Either way the route to the answer that
+	// does not go through the code stays shut: on a corpus built from real
+	// commits, `git log` is the answer.
+	denied := []string{"WebFetch", "WebSearch", "Task"}
+	deny := []string{`"Read(**/.git/**)"`, `"Grep(**/.git/**)"`, `"Glob(**/.git/**)"`}
+	if a.Shell {
+		deny = append(deny, `"Bash(git:*)"`, `"Bash(gh:*)"`)
+	} else {
+		denied = append([]string{"Bash"}, denied...)
+		// graphify writes its graph inside the tree it reads, so the prepared
+		// copy carries a `graphify-out/graph.json` that every arm can see. One
+		// arm is supposed to: the other five would be reading a prebuilt graph
+		// they were never given, which is the same leak as the object database
+		// and is closed the same way.
+		deny = append(deny,
+			`"Read(**/graphify-out/**)"`, `"Grep(**/graphify-out/**)"`, `"Glob(**/graphify-out/**)"`)
+	}
+	arguments = append(arguments, "--disallowedTools")
+	arguments = append(arguments, denied...)
+	// Denying the object database closes the last route that does not go through
+	// the code: disallowing the shell removes `git log`, and this removes reading
+	// the refs and the reflog by hand, which one run did try.
 	arguments = append(arguments, "--settings",
-		`{"permissions":{"deny":["Read(**/.git/**)","Grep(**/.git/**)","Glob(**/.git/**)"]}}`)
+		`{"permissions":{"deny":[`+strings.Join(deny, ",")+`]}}`)
 	// Every arm passes a config and --strict-mcp-config, cold included with an
 	// empty one. Without it the agent inherits whatever MCP the environment
 	// offers -- this corpus ships a project `.mcp.json`, and the host's own

@@ -1,0 +1,123 @@
+{
+ "note": "Locate-hard set. Every commit changes several call sites across directories, so finding them is the work rather than making the edit -- the previous sweep concluded its own tasks lacked that property. The intent of each task is written as a user request rather than lifted from the commit message, which named helpers that did not exist yet and gave away part of the answer.",
+ "tasks": [
+  {
+   "id": "core-045db27",
+   "repo": "packages/core",
+   "commit": "045db2797e18b7bf23cc71a1b0e433f7fa456b87",
+   "short": "045db27",
+   "parent": "fa860d927783b9e5940bc322620a5bf12f9d961d",
+   "language": "typescript",
+   "subject": "perf(events): resolver módulos y config de guild desde caché en vez de por HTTP",
+   "prompt_intent": "En los handlers de eventos de mensaje y de interacción, deja de ir a la API de base de datos por los módulos habilitados del servidor y por su configuración cuando Redis ya tiene la respuesta: resuélvelos desde la caché. Añade los helpers que haga falta.",
+   "truth_files": [
+    "src/bot/events/message/InteractionCreate.ts",
+    "src/bot/events/message/MessageCreate.ts",
+    "src/bot/events/message/MessageDelete.ts",
+    "src/bot/events/message/MessageDeleteBulk.ts",
+    "src/bot/events/message/MessageUpdate.ts",
+    "src/infrastructure/redis.ts",
+    "src/shared/utils/ensureGuildConfig.ts",
+    "src/shared/utils/guildPrefix.ts"
+   ],
+   "n_truth": 8
+  },
+  {
+   "id": "core-c1129ae",
+   "repo": "packages/core",
+   "commit": "c1129ae6c8e234bc0693018c324596cb8a774433",
+   "short": "c1129ae",
+   "parent": "bc0488184540b7a69825c09771f1cd5c8160e6f0",
+   "language": "typescript",
+   "subject": "fix(members): no dar por fiables unos permisos calculados a medias",
+   "prompt_intent": "Deja de tratar como fiables unos permisos de miembro calculados a medias: cuando el cálculo no dispone de los roles completos del servidor, no los persistas ni los publiques como si lo fueran. Aplícalo en todos los sitios que los calculan.",
+   "truth_files": [
+    "src/bot/events/guild/member/GuildMemberAdd.ts",
+    "src/bot/events/guild/member/GuildMemberUpdate.ts",
+    "src/bot/events/guild/member/GuildMembersChunk.ts",
+    "src/bot/events/guild/role/GuildRoleDelete.ts",
+    "src/bot/events/guild/role/GuildRoleUpdate.ts",
+    "src/cluster/worker/ipc/member.ipc.ts"
+   ],
+   "n_truth": 6
+  },
+  {
+   "id": "api-db-go-9c47084",
+   "repo": "services/api-db-go",
+   "commit": "9c4708438b6f7c3169318cb6b3273e046a7a330e",
+   "short": "9c47084",
+   "parent": "ff98710e5db5dc59cc19af0c1ae2b33431ed851a",
+   "language": "go",
+   "subject": "feat(modmail): detalle por staff y buscador en las estadísticas",
+   "prompt_intent": "Añade a las estadísticas de modmail el detalle por miembro del staff y un buscador sobre ellas, de punta a punta: validación, ruta, dominio y consultas.",
+   "truth_files": [
+    "internal/application/handlers/modmail_stats_handler.go",
+    "internal/application/routers/modmail_stats_router.go",
+    "internal/domain/dbmodmailstats/dbmodmailstats.go",
+    "internal/domain/validations/modmail_stats_validations.go",
+    "internal/infrastructure/pgrepo/repos.go",
+    "internal/infrastructure/postgres/modmail_stats_repository.go",
+    "internal/infrastructure/postgres/modmail_tickets_repository.go"
+   ],
+   "n_truth": 7
+  },
+  {
+   "id": "api-db-go-821977c",
+   "repo": "services/api-db-go",
+   "commit": "821977cccf6ad6e188f771346a94ec8ab3212973",
+   "short": "821977c",
+   "parent": "9471c235a03cd972a5ce93cf7843cbd31196ab96",
+   "language": "go",
+   "subject": "feat(leveling): bloque `requirements` en la config del módulo",
+   "prompt_intent": "Añade a la configuración del módulo de niveles un bloque de requisitos, con su validación y su reflejo en la caché.",
+   "truth_files": [
+    "internal/domain/dbguild/module_leveling.go",
+    "internal/domain/dbleveling/curve.go",
+    "internal/domain/validations/module_leveling_validations.go",
+    "internal/infrastructure/redis/module_cache.go"
+   ],
+   "n_truth": 4
+  },
+  {
+   "id": "kenalink-rs-e39c66b",
+   "repo": "services/kenalink-rs",
+   "commit": "e39c66bee53abf93895c47e0ae729e32557952c6",
+   "short": "e39c66b",
+   "parent": "38169e6cae2c5d6d365c573248746c2fd0a95357",
+   "language": "rust",
+   "subject": "feat(audio): medir el ping con el ACK del heartbeat",
+   "prompt_intent": "Mide el ping de voz con el ACK del heartbeat en vez de estimarlo, y expón esa medida donde ya se publica el estado del motor de audio.",
+   "truth_files": [
+    "src/app_state.rs",
+    "src/audio/engine.rs",
+    "src/audio/mod.rs",
+    "src/audio/songbird_engine.rs",
+    "src/main.rs",
+    "src/voice_ping.rs"
+   ],
+   "n_truth": 6
+  },
+  {
+   "id": "kenalink-rs-43a4608",
+   "repo": "services/kenalink-rs",
+   "commit": "43a460876da1a56726b4d2abd0362cf993a171eb",
+   "short": "43a4608",
+   "parent": "d84cb7b606148e79ebd1ccc5157f88843b168b28",
+   "language": "rust",
+   "subject": "feat: implement session grace period for player retention on disconnection",
+   "prompt_intent": "Cuando un cliente se desconecta, no destruyas su reproductor de inmediato: dale un periodo de gracia configurable para que pueda reconectar y recuperar la sesión.",
+   "truth_files": [
+    "src/api_rest/routes_players.rs",
+    "src/api_rest/routes_sessions.rs",
+    "src/api_ws/mod.rs",
+    "src/app_state.rs",
+    "src/config.rs",
+    "src/main.rs",
+    "src/state/memory.rs",
+    "src/state/mod.rs",
+    "src/state/types.rs"
+   ],
+   "n_truth": 9
+  }
+ ]
+}
