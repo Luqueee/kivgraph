@@ -8,18 +8,20 @@ the same 37-repository monorepo, against a manual ground truth. Plus a sixth arm
 `grep` and reading the files, which is what an agent already has.
 
 Everything below is one run of `benchmarks/graph-tools-comparison`, on
-2026-08-21, commit `4c1bfae`, tokenised with `o200k_base`. The raw response of
+2026-08-21, commit `b4afce9`, tokenised with `o200k_base`. The raw response of
 every call is published next to the harness, so any number here can be checked
-against the bytes it came from.
+against the bytes it came from. An earlier pass on `kivgraph 0.3.2` is kept in
+`report.md`; what changed between them, and the third defect the re-measurement
+found, is in `remeasure.md`.
 
 ## The result
 
 | tool | version | tokens | calls | precision | recall | exact |
 | --- | --- | --- | --- | --- | --- | --- |
-| **kivgraph** | `0.3.2` | `4,449` | 11 | **`0.81`** | `0.84` | **`4/7`** |
+| **kivgraph** | `0.3.6` | `6,295` | 11 | **`0.94`** | **`0.98`** | **`5/7`** |
 | graphify | `0.8.31` | **`2,469`** | 9 | `0.54` | `0.35` | `1/7` |
-| graft | `0.10.1` | `8,942` | 7 | `0.14` | `0.14` | `1/7` |
-| codebase-memory-mcp | `0.8.1` | `25,961` | 21 | `0.67` | `0.81` | `3/7` |
+| graft | `0.10.1` | `8,770` | 7 | `0.14` | `0.14` | `1/7` |
+| codebase-memory-mcp | `0.8.1` | `26,599` | 21 | `0.67` | `0.81` | `3/7` |
 | code-review-graph | `2.3.7` | `109,298` | 10 | `0.67` | `0.85` | `3/7` |
 | `grep` + reading | — | `63,531` | 27 | `1.00` | `1.00` | `7/7` |
 
@@ -30,8 +32,8 @@ alternative to these tools is not being wrong, it is spending `63,531` tokens.
 None of the five matches its accuracy, ours included.
 
 **Among the five, the cheapest is not the most accurate.** graphify costs `2,469`
-tokens and answers one of seven; Kivgraph costs `4,449` and answers four. Per
-correct answer that is `1,112` tokens against `2,469` and against code-review-
+tokens and answers one of seven; Kivgraph costs `6,295` and answers five. Per
+correct answer that is `1,259` tokens against `2,469` and against code-review-
 graph's `36,433`.
 
 ## Why three families of question
@@ -100,27 +102,27 @@ edges, and the same command in another repository returns 43 genuine callers.
 
 | | |
 | --- | --- |
-| indexing | `37.6 s` cold, the slowest of the five, against graphify's `11.1 s` and codebase-memory's `5.1 s` |
-| disk | `1,423 MB`, `6.5x` the next |
+| indexing | `50.3 s` cold, the slowest of the five, against graphify's `12.1 s` and codebase-memory's `5.3 s` |
+| disk | `1,542 MB`, `7x` the next |
 | dependencies | the only one that needs a toolchain: without the Go module cache or `cargo`, a load fails and those symbols are absent |
-| cross-package references | zero, like the other four |
-| the TypeScript question | recall `0.89`: a test file excluded by `packages/core`'s `tsconfig.json` is invisible to the checker, and the tree-sitter tools see it |
-| impact | precision `0.67` — one file too many, against reading's `1.00` |
-| accuracy overall | `4/7` against `grep`'s `7/7` |
+| the TypeScript question | recall `0.89`: the missing caller's only calls sit inside an `it(...)` callback, and a use with no enclosing named declaration has no source symbol for an edge to start from, so it is dropped. The file itself is indexed |
+| re-export barrels | precision `0.56` on the cross-package question: an incoming-references answer mixes `REEXPORTS` with `CALLS_DIRECT`, so a barrel forwarding a name ranks beside the five sites that use it |
+| accuracy overall | `5/7` against `grep`'s `7/7` |
 
 ## Entry cost
 
 Every index was timed cold, with the derived state deleted first, because "cold"
 has to mean the same thing in every row: graft took `2.6 s` over a context it had
-already built and `24.6 s` over none.
+already built and `26.1 s` over none. Every arm was a little slower this pass
+than the one `report.md` records; the machine, not the code.
 
 | tool | cold | disk | scope | needs |
 | --- | --- | --- | --- | --- |
-| codebase-memory-mcp | `5.1 s` | `221 MB` | whole corpus | nothing |
-| code-review-graph | `7.2 s` | `201 MB` | one graph per repository | nothing |
-| graphify | `11.1 s` | — | one graph per repository | nothing for the structural pass |
-| graft | `24.6 s` | `181 MB` | whole corpus | nothing for the structural tier |
-| kivgraph | `37.6 s` | `1,423 MB` | whole corpus, `96,482` symbols | Go module cache, `cargo` |
+| codebase-memory-mcp | `5.3 s` | `221 MB` | whole corpus | nothing |
+| code-review-graph | `8.0 s` | `201 MB` | one graph per repository | nothing |
+| graphify | `12.1 s` | — | one graph per repository | nothing for the structural pass |
+| graft | `26.1 s` | `181 MB` | whole corpus | nothing for the structural tier |
+| kivgraph | `50.3 s` | `1,542 MB` | whole corpus, `122,583` symbols | Go module cache, `cargo` |
 
 A per-repository graph has a consequence beyond cost: a cross-package reference
 is structurally invisible to it, which is why code-review-graph and graphify both

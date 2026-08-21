@@ -174,3 +174,57 @@ The fixture of the unclaimed-sources work missed this because its call sat in a
 named function (`readsTheRequiredField`). That is the warning in
 `ts-worker/AGENTS.md`, earned again: a fixture proves the real case or it
 proves nothing.
+
+## The original seven, re-run on `0.3.6`
+
+Same harness, same corpus, same five rivals, commit `b4afce9`. Raw numbers in
+`results-0.3.6.json`, kivgraph's literal answers in `raw-0.3.6/`. `report.md`
+keeps the `0.3.2` measurement it is dated for.
+
+|arm|tokens|`P`|`R`|exact|
+|---|---|---|---|---|
+|**kivgraph** `0.3.2` -> `0.3.6`|`4.449` -> `6.295`|`0,81` -> **`0,94`**|`0,84` -> **`0,98`**|`4/7` -> **`5/7`**|
+|graft `0.10.1`|`8.942` -> `8.770`|`0,14`|`0,14`|`1/7`|
+|code-review-graph `2.3.7`|`109.298`|`0,67`|`0,85`|`3/7`|
+|graphify `0.8.31`|`2.469`|`0,54`|`0,35`|`1/7`|
+|codebase-memory-mcp `0.8.1`|`25.961` -> `26.599`|`0,67`|`0,81`|`3/7`|
+|`grep` + reading|`63.531`|`1,00`|`1,00`|`7/7`|
+
+The four rivals did not move, which is what validates the pass: same versions,
+same corpus, only our arm changed.
+
+Per question, ours:
+
+|question|before|after|
+|---|---|---|
+|`R1_ts_xrepo`|`0,00` / `0,00`|**`0,56` / `1,00`**|
+|`R2_go`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`R3_ts_intra`|`1,00` / `0,89`|`1,00` / `0,89`|
+|`R4_rust`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`I1_go_depth2`|`0,67` / `1,00`|**`1,00` / `1,00`, exact**|
+|`O1_ts_large`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`O2_go_small`|`1,00` / `1,00`|`1,00` / `1,00`|
+
+`I1` became exact because the spurious row it used to claim was the build-cache
+file. `R1` went from naming none of the five call sites to naming all five, and
+its four remaining false positives are the re-export barrels. Nothing regressed.
+
+**The answer got dearer, not cheaper: `4.449` -> `6.295` tokens.** `R1` now
+returns ten rows where it used to return three, and `I1` names a real second
+hop instead of a cache entry. That is the trade, and it is the honest direction
+of it: a wrong short answer was replaced by a right longer one.
+
+### A harness bug this uncovered
+
+The first re-run scored `R1` at `0,00` / `0,00` even though the answer already
+carried all five call sites, and the summary said `5/7` for the wrong reason.
+`arm_kivgraph.go` read a group's repository from the answer's header, and the
+server hoists that header **only when every row shares one repository**. While
+`R1` was wrong, its three claimed files all sat in `library-shared`, so the
+header existed and the parser worked. The moment the fix made the answer span
+four repositories, the header disappeared, each row carried its own `repo`, and
+the parser -- which never read that field -- scored an empty set.
+
+A benchmark that under-reports its own subject is still a broken benchmark, so
+the row parser now prefers the row's repository and falls back to the header.
+The numbers above are from the corrected parser, against captures on disk.

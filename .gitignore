@@ -33,3 +33,6 @@ testdata/generated/
 
 # graphify writes its graph beside the code it reads; ours is never an input.
 /graphify-out/
+
+# stray binary from `go build ./benchmarks/...`: the harness is run with `go run`
+/graph-tools-comparison

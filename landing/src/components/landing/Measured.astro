@@ -6,11 +6,11 @@
 const arms = [
   {
     name: "kivgraph",
-    version: "0.3.2",
-    tokens: "4,449",
-    precision: "0.81",
-    exact: "4/7",
-    index: "37.6 s",
+    version: "0.3.6",
+    tokens: "6,295",
+    precision: "0.94",
+    exact: "5/7",
+    index: "50.3 s",
     ours: true,
   },
   {
@@ -19,23 +19,23 @@ const arms = [
     tokens: "2,469",
     precision: "0.54",
     exact: "1/7",
-    index: "11.1 s",
+    index: "12.1 s",
   },
   {
     name: "graft",
     version: "0.10.1",
-    tokens: "8,942",
+    tokens: "8,770",
     precision: "0.14",
     exact: "1/7",
-    index: "24.6 s",
+    index: "26.1 s",
   },
   {
     name: "codebase-memory-mcp",
     version: "0.8.1",
-    tokens: "25,961",
+    tokens: "26,599",
     precision: "0.67",
     exact: "3/7",
-    index: "5.1 s",
+    index: "5.3 s",
   },
   {
     name: "code-review-graph",
@@ -43,7 +43,7 @@ const arms = [
     tokens: "109,298",
     precision: "0.67",
     exact: "3/7",
-    index: "7.2 s",
+    index: "8.0 s",
   },
   {
     name: "grep + reading",
@@ -58,7 +58,7 @@ const arms = [
 
 const findings = [
   "A name is not a symbol. `withRetry` is declared seven times in this corpus, in three languages, and three of the five resolve callers by name: one drags four TypeScript files into a Go answer, one attributes another package's tests to this declaration, and one drops the cross-file callers and says it may undercount.",
-  "`grep` plus reading answers all seven. It is the honest denominator, and none of the five matches it — ours included. What the graph buys is the same answer for a fourteenth of the tokens, not a better one.",
+  "`grep` plus reading answers all seven. It is the honest denominator, and none of the five matches it — ours included. What the graph buys is nearly the same answer for a tenth of the tokens, not a better one.",
   "We are the slowest to index and the heaviest on disk, and the only one that needs a toolchain. That row is in the table on purpose.",
 ];
 ---

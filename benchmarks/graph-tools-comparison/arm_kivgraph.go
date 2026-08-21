@@ -129,22 +129,26 @@ func kivgraphOutline(ctx context.Context, tokens *counter, kiv *server, q questi
 type referencePage struct {
 	NextCursor *string `json:"next_cursor"`
 	Results    struct {
-		Repository string `json:"repository"`
-		Files      []struct {
-			File  string            `json:"file"`
-			At    []json.RawMessage `json:"at"`
-			Count int               `json:"count"`
-		} `json:"files"`
-		Groups []struct {
-			Repository string `json:"repository"`
-			Files      []struct {
-				File  string            `json:"file"`
-				At    []json.RawMessage `json:"at"`
-				Count int               `json:"count"`
-			} `json:"files"`
+		Repository string         `json:"repository"`
+		Files      []referenceRow `json:"files"`
+		Groups     []struct {
+			Repository string         `json:"repository"`
+			Files      []referenceRow `json:"files"`
 		} `json:"groups"`
 		KindsExcluded []string `json:"kinds_default_excluded"`
 	} `json:"results"`
+}
+
+// referenceRow is one file in an answer. The header hoists a repository only
+// when every row shares one, so a row that spans repositories carries its own
+// under `repo`. Reading only the header was silently correct while every
+// answer stayed inside one repository, and silently empty the moment one did
+// not -- which is exactly what a cross-repository answer looks like.
+type referenceRow struct {
+	File  string            `json:"file"`
+	Repo  string            `json:"repo"`
+	At    []json.RawMessage `json:"at"`
+	Count int               `json:"count"`
 }
 
 // kivgraphReferenceFiles reads one page as `repository/path` addresses, keeping
@@ -169,16 +173,25 @@ func kivgraphReferenceFiles(text string) ([]string, string, error) {
 			out = append(out, address)
 		}
 	}
+	// A row names its own repository when it has one; the header is the
+	// fallback for the hoisted case.
+	rowRepository := func(header, group string, row referenceRow) string {
+		if row.Repo != "" {
+			return row.Repo
+		}
+		if group != "" {
+			return group
+		}
+		return header
+	}
 	for _, file := range page.Results.Files {
-		collect(page.Results.Repository, file.File, max(len(file.At), file.Count))
+		collect(rowRepository(page.Results.Repository, "", file), file.File,
+			max(len(file.At), file.Count))
 	}
 	for _, group := range page.Results.Groups {
-		repository := page.Results.Repository
-		if group.Repository != "" {
-			repository = group.Repository
-		}
 		for _, file := range group.Files {
-			collect(repository, file.File, max(len(file.At), file.Count))
+			collect(rowRepository(page.Results.Repository, group.Repository, file),
+				file.File, max(len(file.At), file.Count))
 		}
 	}
 	cursor := ""
