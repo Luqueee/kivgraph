@@ -707,6 +707,16 @@ func appendDartAnalyzerOutlines(events []analyzerMessage, root string, contents 
 				}
 				return
 			}
+			// Analysis Server outlines also contain constructor invocation
+			// expressions (for example repeated Flutter SizedBox widgets).
+			// They are not declarations, and their outline-qualified names are
+			// intentionally identical when they occur more than once in the
+			// same build method. Publishing them would therefore create several
+			// DEFINES edges for one stable symbol identity. Constructors that are
+			// actual declarations are still supplied by the LSP document outline.
+			if isDartAnalyzerConstructorInvocation(row, root) {
+				return
+			}
 			qualified := name
 			if prefix != "" {
 				qualified = prefix + "." + name
@@ -748,6 +758,24 @@ func appendDartAnalyzerOutlines(events []analyzerMessage, root string, contents 
 		visit(params.Outline, "")
 	}
 	sort.Slice(payload.Symbols, func(i, j int) bool { return payload.Symbols[i].ID < payload.Symbols[j].ID })
+}
+
+func isDartAnalyzerConstructorInvocation(row analyzerOutline, root string) bool {
+	kind := strings.ToUpper(strings.TrimSpace(row.Element.Kind))
+	if kind == "CONSTRUCTOR_INVOCATION" {
+		return true
+	}
+	if kind != "CONSTRUCTOR" {
+		return false
+	}
+	if row.Element.Location == nil || strings.TrimSpace(row.Element.Location.File) == "" {
+		return true
+	}
+	path := filepath.Clean(row.Element.Location.File)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(root, path)
+	}
+	return !pathWithin(root, path)
 }
 
 func analyzerSignature(element analyzerElement) string {

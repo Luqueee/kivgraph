@@ -107,6 +107,29 @@ func TestNewTypeScriptPackageRegistryBuildsProvidersAndRoots(t *testing.T) {
 	}
 }
 
+func TestNewTypeScriptPackageRegistryPrefersReferencedSourceProject(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name":"@example/frontend","version":"1.0.0"}`)
+	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"references":[{"path":"./tsconfig.app.json"},{"path":"./tsconfig.node.json"}]}`)
+	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.app.json"), `{"include":["app"]}`)
+	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.node.json"), `{"include":["vite.config.ts"]}`)
+
+	registry, err := NewTypeScriptPackageRegistry(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("NewTypeScriptPackageRegistry() error = %v", err)
+	}
+	packageValue, ok := registry.Get("@example/frontend")
+	if !ok {
+		t.Fatal("package was not discovered")
+	}
+	if packageValue.ProjectPath != filepath.Join(root, "tsconfig.app.json") {
+		t.Fatalf("ProjectPath = %q, want the referenced source project", packageValue.ProjectPath)
+	}
+	if !equalStrings(packageValue.SourceRoots, []string{filepath.Join(root, "app")}) {
+		t.Fatalf("SourceRoots = %#v", packageValue.SourceRoots)
+	}
+}
+
 // A package name declared twice is an ambiguity, not a broken repository: no
 // manifest can be chosen, both leave the registry, and the conflict is
 // declared. A path that escapes its package is still a hard failure.
