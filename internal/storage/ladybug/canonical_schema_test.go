@@ -12,7 +12,7 @@ import (
 // TestCanonicalSchemaFileMatchesTheMetadata keeps the versioned DDL and the Go
 // metadata from drifting: the file is generated, never hand edited.
 func TestCanonicalSchemaFileMatchesTheMetadata(t *testing.T) {
-	path := filepath.Join("..", "..", "..", "schemas", "ladybug", "002-canonical.cypher")
+	path := filepath.Join("..", "..", "..", "schemas", "ladybug", "003-canonical.cypher")
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read canonical schema: %v", err)
@@ -60,7 +60,7 @@ func TestCanonicalSchemaCoversEveryEdgeKind(t *testing.T) {
 		facts.ImportsSymbol, facts.Exports, facts.Reexports,
 		facts.References, facts.CallsDirect, facts.PassesAsCallback,
 		facts.AssignsFunction, facts.ReturnsFunction,
-		facts.TypeUses, facts.Implements, facts.Extends, facts.Embeds, facts.Overrides,
+		facts.TypeUses, facts.Implements, facts.Extends, facts.Embeds, facts.Overrides, facts.PartOf,
 	} {
 		if !kind.Valid() {
 			t.Fatalf("edge kind %q is not part of the canonical vocabulary", kind)

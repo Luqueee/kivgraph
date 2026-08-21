@@ -510,7 +510,7 @@ func (index snapshotIndex) fragment(fileKey string) (Set, bool) {
 // source is a symbol, anchored through that symbol's own file (see
 // internal/rebuild's symbolRelationKinds for the full list: REFERENCES,
 // CALLS_DIRECT, PASSES_AS_CALLBACK, ASSIGNS_FUNCTION, RETURNS_FUNCTION,
-// TYPE_USES, IMPLEMENTS, EXTENDS, EMBEDS, OVERRIDES, IMPORTS_SYMBOL,
+// TYPE_USES, IMPLEMENTS, EXTENDS, EMBEDS, OVERRIDES, PART_OF, IMPORTS_SYMBOL,
 // EXPORTS, REEXPORTS). CONTAINS_FILE inverts the pattern — its source is
 // the containing package, not a file — so a file-typed target anchors too:
 // the file's own existence is what brings that edge into being. Only one of

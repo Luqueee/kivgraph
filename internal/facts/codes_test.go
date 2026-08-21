@@ -24,7 +24,7 @@ var goldenCodes = struct {
 		"REFERENCES": 9, "CALLS_DIRECT": 10, "PASSES_AS_CALLBACK": 11,
 		"ASSIGNS_FUNCTION": 12, "RETURNS_FUNCTION": 13,
 		"TYPE_USES": 14, "IMPLEMENTS": 15, "EXTENDS": 16, "EMBEDS": 17,
-		"OVERRIDES": 18,
+		"OVERRIDES": 18, "PART_OF": 19,
 	},
 	confidences: map[Confidence]uint8{
 		"EXACT_TYPECHECKED": 1, "EXACT_DECLARATION_MAPPED": 2,
@@ -43,6 +43,9 @@ var goldenCodes = struct {
 		"RUST_SYNTAX_TYPE": 17, "RUST_SYNTAX_IMPL": 18,
 		// Appended when function values landed. Never inserted above.
 		"RUST_SYNTAX_CALLBACK": 19,
+		"PYTHON_INDEXER_DEF":   20, "PYTHON_INDEXER_USE": 21,
+		"PYTHON_SYNTAX_CALL": 22, "DART_ANALYZER_DEF": 23,
+		"DART_ANALYZER_USE": 24, "DART_SYNTAX_CALL": 25,
 	},
 }
 

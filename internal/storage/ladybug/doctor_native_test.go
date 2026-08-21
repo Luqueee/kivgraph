@@ -162,7 +162,7 @@ func startExternalDoctorLock(t *testing.T, path string) (*exec.Cmd, int) {
 // TestDiagnoseStorageValidatesCanonicalSchemaWithFullCounts builds a real
 // canonical database with LoadCanonical from a complete facts.Set and
 // checks that DiagnoseStorage reports it healthy, declares the canonical
-// schema and its version, and counts every one of the 27 canonical tables
+// schema and its version, and counts every one of the 28 canonical tables
 // (CanonicalTableNames), including the ones the fixture leaves empty.
 func TestDiagnoseStorageValidatesCanonicalSchemaWithFullCounts(t *testing.T) {
 	ctx := context.Background()
@@ -198,8 +198,8 @@ func TestDiagnoseStorageValidatesCanonicalSchemaWithFullCounts(t *testing.T) {
 		}
 	}
 	names := CanonicalTableNames()
-	if len(names) != 27 {
-		t.Fatalf("CanonicalTableNames() = %d entries, want 27", len(names))
+	if len(names) != 28 {
+		t.Fatalf("CanonicalTableNames() = %d entries, want 28", len(names))
 	}
 	if len(diagnosis.Counts) != len(names) {
 		t.Fatalf("Counts has %d entries, want %d: %#v", len(diagnosis.Counts), len(names), diagnosis.Counts)

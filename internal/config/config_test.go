@@ -58,6 +58,12 @@ repositories:
 	if loaded.Config.Web.Address != "0.0.0.0:7777" {
 		t.Fatalf("web address default = %q, want 0.0.0.0:7777", loaded.Config.Web.Address)
 	}
+	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.AnalyzerCommand != "kivgraph-python-pyright" || loaded.Config.Python.AnalyzerMode != "fallback" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 || loaded.Config.Python.IncludeTests || loaded.Config.Python.IncludeGenerated || loaded.Config.Python.IncludeExternal {
+		t.Fatalf("Python defaults = %#v", loaded.Config.Python)
+	}
+	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {
+		t.Fatalf("Dart defaults = %#v", loaded.Config.Dart)
+	}
 	if loaded.Config.Storage.RetainSnapshots != 3 || loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
 		t.Fatalf("core defaults = storage=%#v indexing=%#v", loaded.Config.Storage, loaded.Config.Indexing)
 	}
@@ -110,12 +116,12 @@ func TestRustDefaultsKeepBuildArtifactsOutsideEveryRepository(t *testing.T) {
 // its aliases in one place: a second list is what let `init` accept a language
 // the pass refuses.
 func TestSupportedLanguagesCoversEveryAnalysedLanguage(t *testing.T) {
-	for _, language := range []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "  RUST  "} {
+	for _, language := range []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "python", "py", "dart", "  RUST  "} {
 		if !SupportedLanguage(language) {
 			t.Fatalf("SupportedLanguage(%q) = false", language)
 		}
 	}
-	for _, language := range []string{"", "python", "rustlang"} {
+	for _, language := range []string{"", "rustlang"} {
 		if SupportedLanguage(language) {
 			t.Fatalf("SupportedLanguage(%q) = true", language)
 		}

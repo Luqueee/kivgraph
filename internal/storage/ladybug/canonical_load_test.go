@@ -313,7 +313,7 @@ func TestCanonicalTableRowsDerivesStructuralRelationsWithoutEdges(t *testing.T) 
 		"Symbol", "CONTAINS_PACKAGE", "CONTAINS_FILE", "DEFINES",
 		"PACKAGE_DEPENDS_ON", "MODULE_DEPENDS_ON", "IMPORTS_SYMBOL", "EXPORTS", "REEXPORTS",
 		"REFERENCES", "CALLS_DIRECT", "PASSES_AS_CALLBACK", "ASSIGNS_FUNCTION", "RETURNS_FUNCTION",
-		"TYPE_USES", "IMPLEMENTS", "EXTENDS", "EMBEDS", "OVERRIDES",
+		"TYPE_USES", "IMPLEMENTS", "EXTENDS", "EMBEDS", "OVERRIDES", "PART_OF",
 	} {
 		if rows, exists := tables[name]; exists {
 			t.Fatalf("table %q must be omitted when it has no rows, got %v", name, rows)

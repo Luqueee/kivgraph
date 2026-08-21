@@ -41,6 +41,7 @@ const (
 	CodeExtends
 	CodeEmbeds
 	CodeOverrides
+	CodePartOf
 )
 
 // Confidence codes. Frozen: append only. The order matches the strength
@@ -79,6 +80,12 @@ const (
 	CodeRustSyntaxType
 	CodeRustSyntaxImplementation
 	CodeRustSyntaxCallback
+	CodePythonIndexerDefinition
+	CodePythonIndexerUse
+	CodePythonSyntaxCall
+	CodeDartAnalyzerDefinition
+	CodeDartAnalyzerUse
+	CodeDartSyntaxCall
 )
 
 var edgeKindCodes = map[EdgeKind]uint8{
@@ -100,6 +107,7 @@ var edgeKindCodes = map[EdgeKind]uint8{
 	Extends:          CodeExtends,
 	Embeds:           CodeEmbeds,
 	Overrides:        CodeOverrides,
+	PartOf:           CodePartOf,
 }
 
 var confidenceCodes = map[Confidence]uint8{
@@ -131,6 +139,12 @@ var provenanceCodes = map[Provenance]uint8{
 	RustSyntaxType:             CodeRustSyntaxType,
 	RustSyntaxImplementation:   CodeRustSyntaxImplementation,
 	RustSyntaxCallback:         CodeRustSyntaxCallback,
+	PythonIndexerDefinition:    CodePythonIndexerDefinition,
+	PythonIndexerUse:           CodePythonIndexerUse,
+	PythonSyntaxCall:           CodePythonSyntaxCall,
+	DartAnalyzerDefinition:     CodeDartAnalyzerDefinition,
+	DartAnalyzerUse:            CodeDartAnalyzerUse,
+	DartSyntaxCall:             CodeDartSyntaxCall,
 }
 
 // reverse builds the decoding table of a coding table. The tables are

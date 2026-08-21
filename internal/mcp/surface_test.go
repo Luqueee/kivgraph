@@ -253,7 +253,7 @@ func TestServerInstructionsRouteWithoutVolatileFacts(t *testing.T) {
 	if len(instructions) == 0 || len(instructions) > 2048 {
 		t.Fatalf("instructions are %d bytes, want between 1 and 2048", len(instructions))
 	}
-	for _, want := range []string{"find_references", "get_source", "Where it loses"} {
+	for _, want := range []string{"find_references", "get_source", "Where it loses", "Python", "Dart", "CANDIDATE"} {
 		if !strings.Contains(instructions, want) {
 			t.Fatalf("instructions = %q, want them to mention %q", instructions, want)
 		}

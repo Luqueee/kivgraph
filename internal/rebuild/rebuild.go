@@ -652,6 +652,7 @@ var symbolRelationKinds = map[facts.EdgeKind]struct{}{
 	facts.Extends:          {},
 	facts.Embeds:           {},
 	facts.Overrides:        {},
+	facts.PartOf:           {},
 }
 
 // symbolToSymbolEdges keeps only the edges a Symbol-anchored probe can read.

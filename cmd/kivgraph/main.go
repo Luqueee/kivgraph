@@ -888,6 +888,18 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		indexReport.RustReferences,
 		indexReport.RustUnresolved,
 	)
+	writeInfo(stdout, "index.python: repositories=%d symbols=%d references=%d unresolved=%d",
+		indexReport.PythonRepositories,
+		indexReport.PythonSymbols,
+		indexReport.PythonReferences,
+		indexReport.PythonUnresolved,
+	)
+	writeInfo(stdout, "index.dart: repositories=%d symbols=%d references=%d unresolved=%d",
+		indexReport.DartRepositories,
+		indexReport.DartSymbols,
+		indexReport.DartReferences,
+		indexReport.DartUnresolved,
+	)
 	// A count says something happened; the lines say what. Both are on
 	// stdout with the rest of the report, because a warning in a log the
 	// caller is not reading is a warning nobody has.
@@ -1313,6 +1325,8 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	needsGo := false
 	needsTypeScript := false
 	needsRust := false
+	needsPython := false
+	needsDart := false
 	for _, repository := range repositories {
 		for _, language := range repository.Languages {
 			switch strings.ToLower(strings.TrimSpace(language)) {
@@ -1322,6 +1336,10 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 				needsTypeScript = true
 			case "rust", "rs":
 				needsRust = true
+			case "python", "py":
+				needsPython = true
+			case "dart":
+				needsDart = true
 			}
 		}
 	}
@@ -1334,6 +1352,52 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	}
 	reportTypeScriptToolchain(report, configuration, needsTypeScript)
 	reportRustToolchain(report, configuration, needsRust)
+	reportPythonToolchain(report, configuration, needsPython)
+	reportExternalToolchain(report, "dart", configuration.Dart.AnalyzerCommand, needsDart)
+}
+
+func reportPythonToolchain(report func(string, bool, string), configuration config.Config, needed bool) {
+	if !needed {
+		report("toolchain.python", true, "not configured")
+		return
+	}
+	command := strings.Fields(strings.TrimSpace(configuration.Python.IndexerCommand))
+	if len(command) != 0 {
+		if resolved, err := exec.LookPath(command[0]); err == nil {
+			report("toolchain.python", true, resolved)
+			return
+		}
+	}
+	pythonPath := strings.TrimSpace(configuration.Python.PythonPath)
+	if pythonPath == "" {
+		pythonPath = "python3"
+	}
+	if resolved, err := exec.LookPath(strings.Fields(pythonPath)[0]); err == nil {
+		report("toolchain.python", true, fmt.Sprintf("bundled AST fallback (%s)", resolved))
+		return
+	}
+	if len(command) == 0 {
+		report("toolchain.python", false, "indexer command is empty and Python fallback is unavailable")
+		return
+	}
+	report("toolchain.python", false, fmt.Sprintf("command %q and Python fallback are unavailable", command[0]))
+}
+
+func reportExternalToolchain(report func(string, bool, string), language, configured string, needed bool) {
+	if !needed {
+		report("toolchain."+language, true, "not configured")
+		return
+	}
+	command := strings.Fields(strings.TrimSpace(configured))
+	if len(command) == 0 {
+		report("toolchain."+language, false, "command is empty")
+		return
+	}
+	if resolved, err := exec.LookPath(command[0]); err == nil {
+		report("toolchain."+language, true, resolved)
+		return
+	}
+	report("toolchain."+language, false, fmt.Sprintf("command %q is unavailable", command[0]))
 }
 
 func reportTypeScriptToolchain(report func(string, bool, string), configuration config.Config, needsTypeScript bool) {
