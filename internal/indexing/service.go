@@ -39,6 +39,20 @@ type ProjectResult struct {
 }
 
 // IndexSummary retains the useful phase counts from the full index pass.
+//
+// These count what each language pass **observed**, and Counts on the same
+// result counts what the published graph **holds**. They differ on purpose and
+// they differ by language: a file belonging to two packages -- `pkg` and
+// `pkg.test` -- is observed twice and stored once, so on kena with
+// include_tests: true GoDefinitions runs 1.63x over the graph's Go symbols and
+// GoUnresolved 1.58x, TypeScript symbols 1.14x, and Rust exactly 1.00x because
+// it loads one pass per workspace. With include_tests: false the Go unresolved
+// counts match, 4397 either way.
+//
+// Neither number is wrong and neither is deduplicated here. Observations are
+// the only figure that says how much work the pass did; the graph is the only
+// one that says what a query will find. A reader comparing the two and
+// expecting them to agree is comparing those two different things.
 type IndexSummary struct {
 	GoRepositories         int `json:"go_repositories"`
 	GoModules              int `json:"go_modules"`

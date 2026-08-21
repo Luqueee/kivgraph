@@ -144,6 +144,20 @@ superficie observable.
   los tres lenguajes viajan en el `result`; derivarlos del `msg` de un registro
   convertiría texto para humanos en una API. Un lector ignora una clase de
   evento que no conoce.
+- **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
+  `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
+  `index` es lo que cada pasada de lenguaje **observó**. Un fichero que
+  pertenece a dos paquetes -- `pkg` y `pkg.test` -- se observa dos veces y se
+  guarda una, así que los dos bloques del mismo evento divergen sin que ninguno
+  esté mal. Medido sobre `kena` con `include_tests: true`: `index` suma `146.600`
+  símbolos y `counts.symbols` dice `124.073`; `go_definitions` va `1,63x` por
+  encima de los símbolos Go del grafo y `go_unresolved` `1,58x`, mientras que
+  Rust -- una pasada por workspace -- coincide exacto. Con `include_tests: false`
+  los no resueltos de Go coinciden: `4.397` y `4.397`.
+  Quien compare las dos cifras y espere que cuadren está comparando trabajo
+  hecho con hechos guardados. No se deduplican los contadores del cargador: el
+  número de observaciones dice cuánto trabajó la pasada, y es la única cifra que
+  lo dice.
 
 ## Comandos que destruyen o terminan estado
 

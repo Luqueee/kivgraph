@@ -15379,6 +15379,8 @@ para siempre**.
 
 ## LUQUE-2009 — Un contador de no resueltos cuenta observaciones, no hechos
 
+**Estado:** cerrada, y **la premisa era falsa**: no es un contador, son todos.
+
 **Dependencias:** LUQUE-2007.
 
 **El hecho, medido:** `go_unresolved` declara `9.581` sobre `kena` y el grafo
@@ -15409,3 +15411,28 @@ son hechos distintos. Uno de los dos está midiendo otra cosa que sus vecinos.
 
 **Lo que no vale:** dejar dos números que se llaman igual, se leen igual y miden
 cosas distintas según un flag de configuración.
+
+**Corrección y resultado.** Esta tarea decía que uno de los contadores medía algo
+distinto de sus vecinos, y que los de al lado -- símbolos, referencias-- sí eran
+hechos distintos. **Es falso.** Medido en un solo pase sobre `kena` con
+`include_tests: true`:
+
+|lenguaje|símbolos: cargador|grafo|ratio|no resueltos|grafo|ratio|
+|---|---|---|---|---|---|---|
+|`go`|`19.166`|`11.731`|`1,63`|`9.581`|`6.059`|`1,58`|
+|`typescript`|`124.371`|`109.279`|`1,14`|`4.969`|`4.962`|`1,00`|
+|`rust`|`3.063`|`3.063`|`1,00`|`1.969`|`1.969`|`1,00`|
+
+Las **definiciones** de Go divergen en el mismo `1,63x` que sus no resueltos. No
+hay un contador raro: **el bloque `index` cuenta lo que cada pasada observó y el
+bloque `counts` cuenta lo que el grafo guarda**, y los dos viajan en el mismo
+evento `result` sin que nada lo diga. En ese evento la suma de `index.*_symbols`
+es `146.600` y `counts.symbols` dice `124.073`: `22.527` de diferencia.
+
+**Decisión: nombrarlo, no deduplicar.** El número de observaciones es la única
+cifra que dice cuánto trabajó la pasada, y el del grafo la única que dice qué
+encontrará una consulta; deduplicar el primero borraría información. Documentado
+donde se declaran los campos -- `IndexSummary` en `internal/indexing/service.go` --
+y en el protocolo de `cmd/kivgraph/AGENTS.md`, con los ratios medidos y el caso
+que los explica: un fichero de `pkg` y `pkg.test` se observa dos veces y se guarda
+una. Rust coincide exacto porque carga una pasada por workspace.
