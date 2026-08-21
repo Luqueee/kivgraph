@@ -141,19 +141,49 @@ lo que sobra son observaciones repetidas. Queda en `LUQUE-2009`.
 `@kena/web::Translations`. La causa es el estado del corpus, verificado:
 **ninguno** de los tres paquetes internos tiene `dist/`.
 
-Y aquí la parte accionable, con la condición que fija el ADR 0038:
+Y aquí la parte accionable, que no es la que este informe dijo primero.
 
-|paquete|`declaration`|`declarationMap`|qué pasaría al construirlo|
-|---|---|---|---|
-|`@kena/sdk`|sí|**sí**|resolvería|
-|`@kena/shared`|sí|**sí**|resolvería|
-|`@kena/web`|sí|**no**|seguiría en `DECLARATION_SOURCE_NOT_MAPPED`|
+**Corrección.** La primera versión de esta sección leyó `declarationMap` en los
+tres `tsconfig.json` y concluyó que `@kena/web` no lo emitía. Es falso:
+`library-web` no compila con `tsc` sino con `tsdown`, y su `tsdown.config.ts`
+lleva `dts: { sourcemap: true }` con un comentario que explica el motivo en los
+términos de este grafo -- «sin ellos nada conecta el `.d.ts` publicado con `src/`,
+y los consumidores cross-repo se quedan en dependencia de paquete en lugar de
+arista de símbolo». Buscar una clave en el fichero equivocado es la misma clase de
+error que la verdad construida por patrón del conjunto `reach`.
 
-Así que construir el workspace recupera la mayor parte de ese cuarto -- `@kena/sdk`
-son `67` de las `80` etiquetas distintas del grupo grande-- y `@kena/web` no,
-hasta que su `tsconfig.json` emita el mapa. Eso no es un defecto de Kivgraph: es
-lo que el grafo puede saber de un paquete que no publica de dónde viene su
-declaración.
+Se construyó la librería y se volvió a medir. **No cambió nada**: `5.998` no
+resueltos antes, `5.997` después. El motivo es estructural y no es el mapa:
+
+|paquete|¿en `pnpm-workspace.yaml`?|cómo lo resuelve el consumidor|
+|---|---|---|
+|`@kena/sdk`|sí|paquete del workspace, sin `dist/`|
+|`@kena/shared`|sí|paquete del workspace, sin `dist/`|
+|`@kena/web`|**no**|un tarball publicado, desde `.pnpm/@kena+web@0.0.1_...`|
+
+`dash.kena.bot` declara `"@kena/web": "0.0.1"` -- un rango de registro, no
+`workspace:*` -- así que `pnpm` le sirve una copia instalada cuyo `dist` no lleva
+ningún `.d.ts.map` y que no trae `src/`. Y `PROVIDER_SOURCE_UNAVAILABLE` salta
+exactamente donde el worker dice: cuando el dueño de la declaración **no declara
+proyecto propio**. Una copia bajo `node_modules` no pertenece a ningún
+repositorio registrado, y el cargador las excluye por diseño.
+
+De modo que las dos mitades del cuarto interno se arreglan de formas distintas:
+
+* `@kena/sdk` y `@kena/shared` son paquetes del workspace sin construir.
+  Construirlos apunta sus mapas a `src/` **dentro de su propio repositorio
+  registrado**, que es lo que el puente necesita. Son `67` de las `80` etiquetas
+  distintas del grupo grande.
+* `@kena/web` no se arregla construyéndolo ni publicándolo: su `package.json`
+  lleva `files: ["dist"]`, así que el tarball no incluiría los `src/` a los que
+  apuntan sus nueve mapas. Y aunque los incluyera, seguirían viviendo bajo
+  `node_modules`. Lo que lo arreglaría es que el consumidor resuelva el paquete
+  **del workspace** -- añadir `libraries/library-web` a `pnpm-workspace.yaml` y
+  pedirlo como `workspace:*`.
+
+Nada de esto es un defecto de Kivgraph: es lo que un grafo puede saber de un
+paquete que llega como artefacto sin fuente. Pero decir «construye el workspace y
+se arregla» era falso, y sólo medirlo lo demostró.
 
 ## Reproducir
 
