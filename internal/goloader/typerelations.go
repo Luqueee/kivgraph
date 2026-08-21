@@ -173,6 +173,46 @@ func (builder relationBuilder) implements(named *types.Named, interfaces []inter
 			RelationImplements, object, candidate.object,
 			object.Pos(), len(object.Name()), !byValue, 0,
 		))
+		relations = append(relations, builder.implementsMethods(named, pointer, byValue, candidate)...)
+	}
+	return relations
+}
+
+// implementsMethods pairs every method of a satisfied interface with the
+// concrete method a call through that interface reaches. It is what makes a
+// dynamic call answerable: the type-level relation says the type satisfies the
+// interface, and only this one says which declaration the call arrives at.
+//
+// The pairing is types.LookupFieldOrMethod's own selection over the receiver
+// that satisfied the interface, never a match on names. Two methods can share a
+// name -- an unexported one from another package does not satisfy an interface
+// method spelled the same -- and the checker is the only thing that knows which
+// is in the method set.
+//
+// A method the receiver only has by promotion from another package is skipped.
+// The relation is anchored at the concrete declaration, and a pass cannot
+// anchor evidence in a file it did not load; EMBEDS and OVERRIDES already
+// describe the promotion chain that leads there.
+func (builder relationBuilder) implementsMethods(
+	named *types.Named, pointer *types.Pointer, byValue bool, candidate interfaceCandidate,
+) []TypeRelation {
+	interfaceType := candidate.named.Underlying().(*types.Interface)
+	receiver := types.Type(named)
+	if !byValue {
+		receiver = pointer
+	}
+	relations := make([]TypeRelation, 0, interfaceType.NumMethods())
+	for index := range interfaceType.NumMethods() {
+		declared := interfaceType.Method(index)
+		selected, _, _ := types.LookupFieldOrMethod(receiver, true, declared.Pkg(), declared.Name())
+		concrete, isFunc := selected.(*types.Func)
+		if !isFunc || concrete.Pkg() != builder.loaded.Types {
+			continue
+		}
+		relations = append(relations, builder.build(
+			RelationImplements, concrete, declared,
+			concrete.Pos(), len(concrete.Name()), !byValue, 0,
+		))
 	}
 	return relations
 }

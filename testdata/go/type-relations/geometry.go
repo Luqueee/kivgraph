@@ -77,3 +77,15 @@ func (triangle Triangle) Perimeter() float64 { return 2 * (triangle.Width + tria
 // which is what tells ASSIGNS_FUNCTION and RETURNS_FUNCTION apart from a
 // plain call.
 func Measure(shape Shape) float64 { return shape.Area() }
+
+// Blob declares a method spelled exactly like Shape's and satisfies nothing:
+// Area returns an int, so the method set does not match and types.Implements
+// says no. It exists to prove the method pairing follows the checker rather
+// than the spelling -- a name match would report Blob.Area as the
+// implementation a call through Shape reaches.
+type Blob struct {
+	Cells int
+}
+
+// Area is the homonym trap: same name as Shape's method, different signature.
+func (blob Blob) Area() int { return blob.Cells }

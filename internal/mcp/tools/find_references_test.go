@@ -817,3 +817,113 @@ func TestFindReferencesRejectsWildcardMixedWithEdgeKinds(t *testing.T) {
 		t.Fatalf("mixed wildcard = %s", contentText(result))
 	}
 }
+
+// dispatchSnapshot is the shape a dynamic call has in the graph: a caller that
+// calls the interface method, an interface method, and the concrete methods
+// that implement it. `sole` has one implementation; `shared` has two.
+func dispatchSnapshot(t *testing.T, id uint64, sharedImplementations int) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	code := func(value uint8) uint8 { return value }
+	symbols := []hotsnapshot.SymbolRow{
+		{StableKey: "iface-sole", CanonicalIdentity: "go:Store.Put", FileKey: "file-iface", Language: "go", Name: "Put", QualifiedName: "Store.Put", Kind: "method", StartLine: 4, EndLine: 4},
+		{StableKey: "impl-sole", CanonicalIdentity: "go:Memory.Put", FileKey: "file-impl", Language: "go", Name: "Put", QualifiedName: "Memory.Put", Kind: "method", StartLine: 10, EndLine: 14},
+		{StableKey: "caller-sole", CanonicalIdentity: "go:Handler.Save", FileKey: "file-caller", Language: "go", Name: "Save", QualifiedName: "Handler.Save", Kind: "method", StartLine: 30, EndLine: 36},
+		{StableKey: "iface-shared", CanonicalIdentity: "go:Store.Get", FileKey: "file-iface", Language: "go", Name: "Get", QualifiedName: "Store.Get", Kind: "method", StartLine: 5, EndLine: 5},
+		{StableKey: "impl-shared-a", CanonicalIdentity: "go:Memory.Get", FileKey: "file-impl", Language: "go", Name: "Get", QualifiedName: "Memory.Get", Kind: "method", StartLine: 16, EndLine: 20},
+		{StableKey: "impl-shared-b", CanonicalIdentity: "go:Disk.Get", FileKey: "file-other", Language: "go", Name: "Get", QualifiedName: "Disk.Get", Kind: "method", StartLine: 8, EndLine: 12},
+		{StableKey: "caller-shared", CanonicalIdentity: "go:Handler.Load", FileKey: "file-caller", Language: "go", Name: "Load", QualifiedName: "Handler.Load", Kind: "method", StartLine: 40, EndLine: 46},
+	}
+	edge := func(source, target hotsnapshot.StableKey, kind facts.EdgeKind, sourceFile, targetFile string) hotsnapshot.EdgeRow {
+		return hotsnapshot.EdgeRow{
+			SourceKey: source, TargetKey: target,
+			Kind:         code(mustFactsEdgeCode(t, kind)),
+			Confidence:   code(mustFactsConfidenceCode(t, facts.ExactTypechecked)),
+			Provenance:   code(mustFactsProvenanceCode(t, facts.GoTypesUse)),
+			EvidenceKind: "checker", EvidenceSourceFileKey: sourceFile, EvidenceTargetFileKey: targetFile,
+		}
+	}
+	edges := []hotsnapshot.EdgeRow{
+		// The call names the interface method, which is where the checker
+		// resolves it, and the implementation carries no incoming edge at all.
+		edge("caller-sole", "iface-sole", facts.CallsDirect, "file-caller", "file-iface"),
+		edge("impl-sole", "iface-sole", facts.Implements, "file-impl", "file-iface"),
+		edge("caller-shared", "iface-shared", facts.CallsDirect, "file-caller", "file-iface"),
+		edge("impl-shared-a", "iface-shared", facts.Implements, "file-impl", "file-iface"),
+	}
+	if sharedImplementations > 1 {
+		edges = append(edges, edge("impl-shared-b", "iface-shared", facts.Implements, "file-other", "file-iface"))
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repository:repo-a", Name: "repo-a", Path: "/repo-a", Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "package-a", RepositoryKey: "repository:repo-a", Name: "pkg", ModulePath: "example.com/a"}},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-iface", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "store.go", Language: "go"},
+			{Key: "file-impl", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "memory.go", Language: "go"},
+			{Key: "file-other", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "disk.go", Language: "go"},
+			{Key: "file-caller", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "handler.go", Language: "go"},
+		},
+		Symbols: symbols,
+		Edges:   edges,
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000+int64(id), 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestFindReferencesReachesTheSoleImplementationOfAnInterfaceMethod defends the
+// bridge and, more importantly, its limit. A call through an interface resolves
+// to the interface method, so a question about the implementation used to answer
+// that nothing referenced it -- in the same words a real absence gets.
+func TestFindReferencesReachesTheSoleImplementationOfAnInterfaceMethod(t *testing.T) {
+	client := newFindReferencesToolClient(t, dispatchSnapshot(t, 81, 1))
+
+	sole := callFindReferences(t, client, map[string]any{
+		"qualified_name": "Memory.Put", "repository": "repo-a", "path": "memory.go",
+		"direction": FindReferencesDirectionIncoming, "view": ViewFull,
+	})
+	if sole.Total != 1 || len(sole.Results.References) != 1 {
+		t.Fatalf("sole implementation = total %d rows %d", sole.Total, len(sole.Results.References))
+	}
+	row := sole.Results.References[0]
+	if row.FilePath != "handler.go" || row.QualifiedName != "Handler.Save" {
+		t.Fatalf("bridged row = %#v", row)
+	}
+	// The row says how it got here: a caller of the interface method is not a
+	// direct caller of the implementation, and passing it off as one would be
+	// the same lie in the other direction.
+	if row.Via != "Store.Put" {
+		t.Fatalf("bridged row does not name the interface it came through: %#v", row)
+	}
+	if !reflect.DeepEqual([]string{"Store.Put"}, sole.Results.DispatchThrough) {
+		t.Fatalf("page does not declare the dispatch: %#v", sole.Results.DispatchThrough)
+	}
+}
+
+// TestFindReferencesWillNotGuessBetweenTwoImplementations is the other half. A
+// call through an interface with two implementations reaches one of them, and
+// naming both as called would trade a false absence for a false presence.
+func TestFindReferencesWillNotGuessBetweenTwoImplementations(t *testing.T) {
+	client := newFindReferencesToolClient(t, dispatchSnapshot(t, 82, 2))
+
+	shared := callFindReferences(t, client, map[string]any{
+		"qualified_name": "Memory.Get", "repository": "repo-a", "path": "memory.go",
+		"direction": FindReferencesDirectionIncoming, "view": ViewFull,
+	})
+	if shared.Total != 0 || len(shared.Results.DispatchThrough) != 0 {
+		t.Fatalf("two implementations were bridged: total %d dispatch %#v",
+			shared.Total, shared.Results.DispatchThrough)
+	}
+
+	// With one implementation the same question is answered, which is what
+	// makes the refusal above a decision rather than a missing feature.
+	single := newFindReferencesToolClient(t, dispatchSnapshot(t, 83, 1))
+	answered := callFindReferences(t, single, map[string]any{
+		"qualified_name": "Memory.Get", "repository": "repo-a", "path": "memory.go",
+		"direction": FindReferencesDirectionIncoming, "view": ViewFull,
+	})
+	if answered.Total != 1 {
+		t.Fatalf("one implementation was not bridged: total %d", answered.Total)
+	}
+}

@@ -394,6 +394,17 @@ triple in one string, with the resolved qualified name beside it in `qn`; the
 full view spells the same facts as an object of fields. `direction` echoes which
 question was answered, so a cached response cannot be misread later.
 
+`dispatch_through` is present when the subject is the one implementation of an
+interface method and the answer therefore also holds the references to it: a call
+through the interface can reach nothing else, so leaving them out answered that
+nothing called the implementation. Every row that arrived that way repeats the
+interface method in `via`, which hoists and groups like the other columns, so a
+bridged row is never read as a direct call. With two implementations nothing is
+bridged -- a call reaches one of them, and naming both would trade a false
+absence for a false presence -- and
+[`get_blast_radius`](/reference/tools/get-blast-radius/) crosses `IMPLEMENTS` in
+either direction regardless.
+
 `edge_kinds_default_excluded` is present only when a filter you did not ask for
 ran. Its value, `["EXPORTS", "REEXPORTS"]`, is what the answer left out: the
 export bindings that forward the name rather than use it. It is on the page and

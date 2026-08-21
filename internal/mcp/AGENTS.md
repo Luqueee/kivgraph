@@ -73,6 +73,16 @@ declarado en la raíz.
   pertenece al repositorio de su símbolo origen, que es el lado que observó- y
   `list_repositories` marca la fila. Sin ese desglose, un repositorio de diez
   símbolos responde `24.704`.
+- Una respuesta entrante de `find_references` sobre un método incluye las
+  referencias a los métodos de interfaz que implementa, **sólo donde es la única
+  implementación**: ahí una llamada por la interfaz no puede alcanzar otra cosa.
+  Con dos no se puentea -sería cambiar una ausencia falsa por una presencia
+  falsa- y `get_blast_radius` sigue cruzando `IMPLEMENTS` en los dos sentidos.
+  Cada fila puenteada lleva `via` y la página declara `dispatch_through`, así que
+  ninguna se lee como llamada directa. Añadir una fila es una afirmación, no una
+  decisión de página: la correspondencia método a método la emite el cargador con
+  `types.LookupFieldOrMethod`, nunca la consulta por nombre. Rust todavía no la
+  emite. Ver ADR 0054.
 - Las aristas de reenvío -`EXPORTS` y `REEXPORTS`- se retiran por defecto de
   `find_references`, y lo anula `edge_kinds`, con `["*"]` para desactivar el
   filtro entero. Es la misma decisión de página que la anterior: la arista sigue

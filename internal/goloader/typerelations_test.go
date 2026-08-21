@@ -194,3 +194,57 @@ func TestResolveTypeRelationsIsDeterministicAndCancellable(t *testing.T) {
 		t.Fatalf("ResolveTypeRelations() error = %v, want context.Canceled", err)
 	}
 }
+
+// TestResolveTypeRelationsPairsInterfaceMethodsWithTheirImplementation is the
+// property a dynamic call depends on. The type-level relation says Circle
+// satisfies Shape; only the method-level one says which declaration a call
+// through Shape.Area arrives at, and without it a reference question about the
+// implementation answers that nothing calls it.
+//
+// Blob is the reason the pairing cannot be a name match: it declares Area too,
+// spelled identically, and returns an int, so the method set does not match and
+// the checker says no. A tool that paired on names would name Blob.Area as an
+// implementation of Shape.Area, which no call can ever reach.
+func TestResolveTypeRelationsPairsInterfaceMethodsWithTheirImplementation(t *testing.T) {
+	relations := resolvedTypeRelations(t)
+
+	byValue, found := findRelation(relations, RelationImplements, "Circle.Area", "Shape.Area")
+	if !found {
+		t.Fatalf("Circle.Area -> Shape.Area is missing from %d relations", len(relations))
+	}
+	if byValue.Pointer {
+		t.Fatalf("Circle.Area pairs by value, got pointer = true: %#v", byValue)
+	}
+	if byValue.SourceKind != "method" || byValue.TargetKind != "method" {
+		t.Fatalf("method pairing has non-method ends: source %q target %q", byValue.SourceKind, byValue.TargetKind)
+	}
+
+	// The pointer receiver is the one that satisfies Shape, and the pairing
+	// says so on the method as well as on the type.
+	byPointer, found := findRelation(relations, RelationImplements, "Square.Area", "Shape.Area")
+	if !found {
+		t.Fatal("Square.Area -> Shape.Area is missing")
+	}
+	if !byPointer.Pointer {
+		t.Fatalf("Square.Area satisfies Shape only by pointer, got pointer = false: %#v", byPointer)
+	}
+
+	// An interface whose method lives in a dependency pairs the same way.
+	if _, found := findRelation(relations, RelationImplements, "Circle.String", "Stringer.String"); !found {
+		t.Fatal("Circle.String -> Stringer.String is missing")
+	}
+
+	// The trap: same name, different signature, no relation of either
+	// granularity.
+	if _, found := findRelation(relations, RelationImplements, "Blob.Area", "Shape.Area"); found {
+		t.Fatal("Blob.Area was paired with Shape.Area, which a name match would do and the checker does not")
+	}
+	if _, found := findRelation(relations, RelationImplements, "Blob", "Shape"); found {
+		t.Fatal("Blob was reported as implementing Shape")
+	}
+
+	// A type that declares no such method at all pairs nothing either.
+	if _, found := findRelation(relations, RelationImplements, "Triangle.Area", "Shape.Area"); found {
+		t.Fatal("Triangle.Area exists in no source file and was paired anyway")
+	}
+}

@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T16:27:24.696749Z",
-  "commit": "71e6c57",
+  "generated_at": "2026-08-21T17:25:19.328504Z",
+  "commit": "8ba145a",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -25,42 +25,42 @@
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /tmp/kivbench-graft-home; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/kivhome-seven; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
   "indexing": {
     "code-review-graph": {
       "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 9181.838,
+      "ms": 7791.762000000001,
       "scope": "one graph per repository; built the 4 the questions name, not all 37",
       "state_bytes": 201101880,
       "needs": "nothing beyond the binary"
     },
     "codebase-memory": {
       "command": "codebase-memory-mcp cli index_repository",
-      "ms": 6116.215,
+      "ms": 5433.383,
       "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220463104,
+      "state_bytes": 220659712,
       "needs": "nothing beyond the binary"
     },
     "graft": {
       "command": "graft build",
-      "ms": 29124.193,
+      "ms": 28749.189,
       "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180573265,
+      "state_bytes": 180976252,
       "needs": "nothing: the structural tier needs no key and no toolchain"
     },
     "graphify": {
       "command": "graphify update \u003cr\u003e",
-      "ms": 13777.728,
+      "ms": 11894.464,
       "scope": "one graph per repository; built the 4 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
       "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
     },
     "kivgraph": {
       "command": "kivgraph index --full",
-      "ms": 63143.639,
+      "ms": 55060.937,
       "scope": "the whole corpus, 37 repositories, 126720 symbols published",
-      "state_bytes": 1606778234,
+      "state_bytes": 1607841139,
       "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
     },
     "native": {
@@ -70,6 +70,7 @@
       "needs": "nothing"
     }
   },
+  "question_set": "measured",
   "questions": [
     {
       "id": "R1_ts_xrepo",
@@ -88,11 +89,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 131,
-              "ms": 127.448
+              "ms": 127.535
             }
           ],
           "tokens": 131,
-          "ms": 127.448,
+          "ms": 127.535,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -114,26 +115,26 @@
             {
               "tool": "search_graph",
               "tokens": 4392,
-              "ms": 9.451
+              "ms": 10.061
             },
             {
               "tool": "search_graph",
               "tokens": 563,
-              "ms": 9.573
+              "ms": 8.636
             },
             {
               "tool": "trace_path",
-              "tokens": 19,
-              "ms": 0.199
+              "tokens": 471,
+              "ms": 0.535
             },
             {
               "tool": "query_graph",
               "tokens": 34,
-              "ms": 547.866
+              "ms": 508.092
             }
           ],
-          "tokens": 5008,
-          "ms": 567.0889999999999,
+          "tokens": 5460,
+          "ms": 527.324,
           "call_count": 4,
           "score": {
             "claimed_set": [],
@@ -148,7 +149,7 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS.",
+          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
           "ambiguous_declarations": 10
         },
         "graft": {
@@ -156,11 +157,11 @@
             {
               "tool": "graft --dir",
               "tokens": 1244,
-              "ms": 361.581
+              "ms": 295.568
             }
           ],
           "tokens": 1244,
-          "ms": 361.581,
+          "ms": 295.568,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -196,11 +197,11 @@
             {
               "tool": "graphify affected",
               "tokens": 52,
-              "ms": 131.222
+              "ms": 122.519
             }
           ],
           "tokens": 52,
-          "ms": 131.222,
+          "ms": 122.519,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -222,18 +223,18 @@
             {
               "tool": "find_references",
               "tokens": 129,
-              "ms": 0.413,
+              "ms": 0.232,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 203,
-              "ms": 0.213
+              "ms": 0.193
             }
           ],
           "tokens": 332,
-          "ms": 0.626,
+          "ms": 0.42500000000000004,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/BotWorker.ts",
@@ -341,16 +342,16 @@
             {
               "tool": "code-review-graph query",
               "tokens": 590,
-              "ms": 117.813
+              "ms": 118.945
             },
             {
               "tool": "code-review-graph query",
               "tokens": 3084,
-              "ms": 119.788
+              "ms": 117.859
             }
           ],
           "tokens": 3674,
-          "ms": 237.601,
+          "ms": 236.80399999999997,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/client.go",
@@ -385,26 +386,26 @@
             {
               "tool": "search_graph",
               "tokens": 4392,
-              "ms": 9.194
+              "ms": 9.295
             },
             {
               "tool": "search_graph",
               "tokens": 597,
-              "ms": 9.529
+              "ms": 9.539
             },
             {
               "tool": "trace_path",
-              "tokens": 19,
-              "ms": 0.195
+              "tokens": 471,
+              "ms": 0.496
             },
             {
               "tool": "query_graph",
               "tokens": 84,
-              "ms": 496.164
+              "ms": 477.863
             }
           ],
-          "tokens": 5092,
-          "ms": 515.082,
+          "tokens": 5544,
+          "ms": 497.193,
           "call_count": 4,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/client.go",
@@ -433,7 +434,7 @@
               "gateway:src/grpc/server.ts"
             ]
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS.",
+          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
           "ambiguous_declarations": 10
         },
         "graft": {
@@ -441,11 +442,11 @@
             {
               "tool": "graft --dir",
               "tokens": 1244,
-              "ms": 280.093
+              "ms": 279.648
             }
           ],
           "tokens": 1244,
-          "ms": 280.093,
+          "ms": 279.648,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -478,16 +479,16 @@
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 143.902
+              "ms": 138.795
             },
             {
               "tool": "graphify affected",
               "tokens": 76,
-              "ms": 151.579
+              "ms": 147.248
             }
           ],
           "tokens": 84,
-          "ms": 295.481,
+          "ms": 286.043,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -507,18 +508,18 @@
             {
               "tool": "find_references",
               "tokens": 129,
-              "ms": 0.29,
+              "ms": 0.332,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 197,
-              "ms": 0.181
+              "ms": 0.189
             }
           ],
           "tokens": 326,
-          "ms": 0.471,
+          "ms": 0.521,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/retry_test.go",
@@ -625,16 +626,16 @@
             {
               "tool": "code-review-graph query",
               "tokens": 621,
-              "ms": 117.981
+              "ms": 118.944
             },
             {
               "tool": "code-review-graph query",
               "tokens": 11920,
-              "ms": 171.277
+              "ms": 127.168
             }
           ],
           "tokens": 12541,
-          "ms": 289.258,
+          "ms": 246.11200000000002,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -704,21 +705,21 @@
             {
               "tool": "search_graph",
               "tokens": 527,
-              "ms": 8.846
+              "ms": 8.857
             },
             {
               "tool": "trace_path",
               "tokens": 1602,
-              "ms": 1.313
+              "ms": 1.064
             },
             {
               "tool": "query_graph",
               "tokens": 153,
-              "ms": 550.95
+              "ms": 474.657
             }
           ],
           "tokens": 2282,
-          "ms": 561.109,
+          "ms": 484.578,
           "call_count": 3,
           "claimed": [
             "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -755,11 +756,11 @@
             {
               "tool": "graft --dir",
               "tokens": 3903,
-              "ms": 254.213
+              "ms": 249.301
             }
           ],
           "tokens": 3903,
-          "ms": 254.213,
+          "ms": 249.301,
           "call_count": 1,
           "claimed": [
             "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -830,11 +831,11 @@
             {
               "tool": "graphify affected",
               "tokens": 1596,
-              "ms": 136.165
+              "ms": 130.511
             }
           ],
           "tokens": 1596,
-          "ms": 136.165,
+          "ms": 130.511,
           "call_count": 1,
           "claimed": [
             "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -938,16 +939,16 @@
             {
               "tool": "find_references",
               "tokens": 725,
-              "ms": 0.498
+              "ms": 0.507
             },
             {
               "tool": "find_references",
               "tokens": 365,
-              "ms": 0.23
+              "ms": 0.181
             }
           ],
           "tokens": 1090,
-          "ms": 0.728,
+          "ms": 0.688,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/ipc/role.ipc.ts",
@@ -1104,16 +1105,16 @@
             {
               "tool": "code-review-graph query",
               "tokens": 1574,
-              "ms": 118.227
+              "ms": 119.729
             },
             {
               "tool": "code-review-graph query",
               "tokens": 6364,
-              "ms": 118.765
+              "ms": 116.538
             }
           ],
           "tokens": 7938,
-          "ms": 236.99200000000002,
+          "ms": 236.267,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_rest/error.rs",
@@ -1161,26 +1162,26 @@
             {
               "tool": "search_graph",
               "tokens": 690,
-              "ms": 10.533
+              "ms": 9.884
             },
             {
               "tool": "search_graph",
               "tokens": 178,
-              "ms": 9.846
+              "ms": 10.012
             },
             {
               "tool": "trace_path",
-              "tokens": 616,
-              "ms": 0.496
+              "tokens": 451,
+              "ms": 0.548
             },
             {
               "tool": "query_graph",
               "tokens": 65,
-              "ms": 480.188
+              "ms": 469.829
             }
           ],
-          "tokens": 1549,
-          "ms": 501.063,
+          "tokens": 1384,
+          "ms": 490.273,
           "call_count": 4,
           "claimed": [
             "kenalink-rs:src/api_rest/error.rs",
@@ -1203,7 +1204,7 @@
             ],
             "spurious": []
           },
-          "note": "trace_path named 13 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
+          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
           "ambiguous_declarations": 4
         },
         "graft": {
@@ -1211,11 +1212,11 @@
             {
               "tool": "graft --dir",
               "tokens": 1345,
-              "ms": 274.945
+              "ms": 262.033
             }
           ],
           "tokens": 1345,
-          "ms": 274.945,
+          "ms": 262.033,
           "call_count": 1,
           "claimed": [
             "api-music-nodo:src/providers/chipbot.rs",
@@ -1259,11 +1260,11 @@
             {
               "tool": "graphify affected",
               "tokens": 261,
-              "ms": 110.376
+              "ms": 108.323
             }
           ],
           "tokens": 261,
-          "ms": 110.376,
+          "ms": 108.323,
           "call_count": 1,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs",
@@ -1304,18 +1305,18 @@
             {
               "tool": "find_references",
               "tokens": 84,
-              "ms": 0.256,
+              "ms": 0.294,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
               "tokens": 790,
-              "ms": 0.263
+              "ms": 0.284
             }
           ],
           "tokens": 874,
-          "ms": 0.519,
+          "ms": 0.578,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs",
@@ -1440,268 +1441,268 @@
             {
               "tool": "code-review-graph impact",
               "tokens": 82057,
-              "ms": 190.742
+              "ms": 171.724
             }
           ],
           "tokens": 82057,
-          "ms": 190.742,
+          "ms": 171.724,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/mongo/module_logs_repository_integration_test.go",
-            "api-db-go:internal/domain/dbmodmailticket/dbmodmailticket.go",
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/domain/dbplaylist/dbplaylist.go",
-            "api-db-go:internal/infrastructure/redis/bot_cache.go",
-            "api-db-go:internal/domain/dbguild/module_greeter.go",
-            "api-db-go:internal/infrastructure/mongo/guild_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository.go",
-            "api-db-go:internal/domain/dbtts/user_pref.go",
-            "api-db-go:internal/domain/mocks/module_greeter_mock.go",
-            "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-            "api-db-go:internal/domain/dbguild/dbguild_test.go",
-            "api-db-go:internal/application/handlers/premium_handler.go",
-            "api-db-go:internal/infrastructure/glitchtip/glitchtip_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_notifier_repository.go",
-            "api-db-go:internal/application/handlers/kpis_mock_test.go",
-            "api-db-go:internal/domain/mocks/fake_track_counter_repo.go",
-            "api-db-go:internal/domain/mocks/module_giveaway_mock.go",
-            "api-db-go:internal/domain/mocks/fake_tts_repo.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_automation_repository.go",
-            "api-db-go:internal/domain/mocks/fake_core_reader.go",
-            "api-db-go:internal/infrastructure/kpiscraper/scraper.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository.go",
-            "api-db-go:internal/application/handlers/core_handler.go",
-            "api-db-go:internal/domain/dbtrackcounter/dbtrackcounter.go",
-            "api-db-go:internal/domain/mocks/fake_bot_repo.go",
-            "api-db-go:internal/application/handlers/tempvoice_mock_test.go",
-            "api-db-go:internal/domain/mocks/guild_mock_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_greeter_repository.go",
-            "api-db-go:internal/infrastructure/redis/giveaway_stream.go",
-            "api-db-go:internal/domain/errors/custom_error.go",
-            "api-db-go:internal/testutil/integration.go",
-            "api-db-go:internal/domain/mocks/fake_command_repo.go",
-            "api-db-go:internal/infrastructure/postgres/track_errors_repository.go",
-            "api-db-go:internal/application/handlers/moderation_mock_test.go",
-            "api-db-go:internal/infrastructure/mongorepo/repos_test.go",
-            "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository.go",
-            "api-db-go:internal/infrastructure/postgres/giveaways_repository_integration_test.go",
-            "api-db-go:internal/application/handlers/giveaways_handler.go",
-            "api-db-go:internal/infrastructure/mongo/deezer_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository.go",
-            "api-db-go:internal/domain/validations/tracks_validations.go",
-            "api-db-go:internal/infrastructure/mongo/module_logs_repository.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/leveling_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/tracks_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_music_repository.go",
-            "api-db-go:internal/infrastructure/mongo/enabled_snapshot.go",
-            "api-db-go:internal/infrastructure/redis/translations_cache.go",
-            "api-db-go:internal/domain/validations/moderation_infractions_validations.go",
-            "api-db-go:internal/infrastructure/mongo/deezer_repository.go",
-            "api-db-go:internal/infrastructure/rediscache/cache.go",
-            "api-db-go:internal/domain/mocks/fake_track_errors_repo.go",
-            "api-db-go:internal/domain/mocks/module_automation_mock.go",
-            "api-db-go:internal/infrastructure/mongo/dashboard_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/giveaways_repository.go",
-            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-            "api-db-go:internal/infrastructure/redis/module_cache.go",
-            "api-db-go:internal/domain/validations/playlists_validations.go",
-            "api-db-go:internal/domain/mocks/module_leveling_mock.go",
-            "api-db-go:internal/infrastructure/pgrepo/repos.go",
-            "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/locker/locker_test.go",
-            "api-db-go:internal/domain/mocks/fake_global_repo.go",
-            "api-db-go:internal/domain/validations/messages_validations.go",
-            "api-db-go:internal/infrastructure/redis/core_cache_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_tickets_repository.go",
-            "api-db-go:internal/infrastructure/postgres/client_test.go",
-            "api-db-go:internal/infrastructure/postgres/tts_user_prefs_repository.go",
-            "api-db-go:internal/infrastructure/mongo/translation_repository.go",
-            "api-db-go:internal/infrastructure/mongo/module_moderation_repository.go",
-            "api-db-go:internal/domain/services/modmail_web_access_test.go",
-            "api-db-go:internal/domain/mocks/module_notifier_mock.go",
-            "api-db-go:internal/infrastructure/postgres/playlists_repository.go",
-            "api-db-go:internal/domain/dbleveling/curve.go",
-            "api-db-go:internal/domain/mocks/fake_bots_repo.go",
-            "api-db-go:internal/domain/mocks/fake_giveaway_templates_repo.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/bot_core_cache.go",
-            "api-db-go:internal/infrastructure/redis/global_cache.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-            "api-db-go:internal/infrastructure/mongo/dashboard_repository.go",
-            "api-db-go:internal/domain/mocks/fake_guild_repo.go",
-            "api-db-go:internal/domain/mocks/module_tempvoice_mock.go",
-            "api-db-go:cmd/clone-db/main.go",
-            "api-db-go:internal/infrastructure/postgres/platforms_repository.go",
-            "api-db-go:internal/domain/dbgiveaway/dbgiveaway.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/infrastructure/mongo/module_leveling_repository.go",
-            "api-db-go:internal/infrastructure/redis/premium_cache.go",
-            "api-db-go:internal/domain/dbkpi/dbkpi.go",
-            "api-db-go:internal/domain/dbtrackerror/dbtrackerror.go",
-            "api-db-go:internal/infrastructure/kpiscraper/scraper_test.go",
-            "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-            "api-db-go:internal/domain/dbnotifier/notifier_sub.go",
-            "api-db-go:internal/domain/mocks/fake_module_cache.go",
-            "api-db-go:internal/domain/mocks/fake_modmail_tickets_repo.go",
-            "api-db-go:internal/infrastructure/locker/memcached.go",
             "api-db-go:internal/infrastructure/mongo/module_music_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/partition_health.go",
-            "api-db-go:internal/infrastructure/mongo/client.go",
-            "api-db-go:cmd/seed-bot-visibility/main.go",
-            "api-db-go:internal/domain/dbflowrun/dbflowrun.go",
-            "api-db-go:internal/domain/mocks/fake_playlists_repo.go",
-            "api-db-go:internal/application/handlers/tracks_mock_test.go",
-            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-            "api-db-go:internal/domain/dbleveling/dbleveling.go",
-            "api-db-go:internal/domain/dbguild/module_music_test.go",
-            "api-db-go:internal/infrastructure/redis/user_cache.go",
-            "api-db-go:internal/domain/validations/deezer_validations.go",
-            "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-            "api-db-go:internal/infrastructure/postgres/migrate.go",
-            "api-db-go:internal/application/handlers/module_music_handler.go",
-            "api-db-go:internal/domain/mocks/fake_premium_repo.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository_test.go",
-            "api-db-go:internal/domain/dbmessage/dbmessage.go",
-            "api-db-go:internal/infrastructure/mongo/translation_repository_integration_test.go",
-            "api-db-go:internal/domain/services/core_reader.go",
-            "api-db-go:internal/infrastructure/redis/redis_search_init.go",
-            "api-db-go:internal/domain/mocks/module_tts_mock.go",
-            "api-db-go:internal/infrastructure/mongo/module_greeter_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_stats_repository_integration_test.go",
-            "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-            "api-db-go:internal/domain/dbguild/module_tempvoice_test.go",
-            "api-db-go:internal/infrastructure/postgres/postgres_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/track_errors_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_giveaway_repo.go",
-            "api-db-go:internal/domain/mocks/fake_modmail_stats_repo.go",
-            "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-            "api-db-go:internal/domain/mocks/fake_moderation_repo.go",
-            "api-db-go:internal/domain/mocks/fake_moderation_infractions_repo.go",
-            "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository_integration_test.go",
-            "api-db-go:internal/domain/dbinfraction/dbinfraction.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository.go",
-            "api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository_integration_test.go",
-            "api-db-go:internal/domain/validations/modmail_tickets_validations.go",
-            "api-db-go:internal/infrastructure/redis/lavalink_cache.go",
-            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go",
-            "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-            "api-db-go:internal/domain/validations/core_query_validations.go",
-            "api-db-go:internal/infrastructure/mongo/audit_log_repository.go",
-            "api-db-go:internal/infrastructure/singleflight/group_test.go",
-            "api-db-go:internal/infrastructure/redis/serialization_bench_test.go",
-            "api-db-go:internal/application/handlers/kpis_handler.go",
-            "api-db-go:internal/infrastructure/mongo/global_repository_test.go",
-            "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/module_cache_test.go",
-            "api-db-go:internal/infrastructure/lavalinknodes/client_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_modmail_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_tempvoice_repo.go",
-            "api-db-go:internal/infrastructure/postgres/messages_repository_integration_test.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-db-go:internal/domain/dbguild/jsondate_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_music_legacy_migration_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_tts_repository.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/infrastructure/postgres/tickets_repository.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache.go",
-            "api-db-go:internal/domain/mocks/fake_modmail_repo.go",
-            "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_giveaway_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/tickets_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/kpis_players_repository.go",
-            "api-db-go:internal/infrastructure/mongo/guild_repository.go",
-            "api-db-go:internal/infrastructure/locker/locker.go",
-            "api-db-go:internal/infrastructure/redis/serialization_test.go",
-            "api-db-go:internal/domain/validations/track_errors_validations.go",
-            "api-db-go:internal/infrastructure/mongo/merge_deep_test.go",
-            "api-db-go:internal/domain/dbguild/jsondate.go",
-            "api-db-go:internal/infrastructure/postgres/recordings_repository.go",
-            "api-db-go:internal/infrastructure/mongo/module_giveaway_repository.go",
-            "api-db-go:internal/domain/dbguild/module_greeter_normalize_test.go",
-            "api-db-go:scripts/coverage-viewer/main.go",
-            "api-db-go:cmd/migrate/main.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_integration_test.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/domain/mocks/fake_deezer_repo.go",
-            "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
-            "api-db-go:internal/domain/dbticket/dbticket.go",
-            "api-db-go:internal/infrastructure/mongo/module_modmail_repository.go",
-            "api-db-go:internal/infrastructure/mongo/command_repository.go",
-            "api-db-go:internal/domain/validations/modmail_stats_validations.go",
-            "api-db-go:internal/application/handlers/playlists_handler.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-            "api-db-go:internal/domain/dbtranslation/dbtranslation.go",
-            "api-db-go:internal/infrastructure/postgres/track_counter_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-            "api-db-go:internal/domain/validations/modmail_stats_validations_test.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/lavalinknodes/client.go",
-            "api-db-go:internal/infrastructure/postgres/messages_repository.go",
-            "api-db-go:internal/infrastructure/redis/lavalink_persistence_integration_test.go",
-            "api-db-go:internal/application/middlewares/logger.go",
-            "api-db-go:internal/application/handlers/music_http_integration_test.go",
-            "api-db-go:cmd/backfill-enabled-since/main.go",
-            "api-db-go:internal/domain/mocks/fake_moderation_flow_runs_repo.go",
-            "api-db-go:internal/infrastructure/mongorepo/repos.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/application/handlers/track_counter_mock_test.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository.go",
-            "api-db-go:internal/domain/mocks/fake_tracks_repos.go",
-            "api-db-go:internal/domain/mocks/fake_audit_log_repo.go",
-            "api-db-go:internal/domain/dbmodmailstats/dbmodmailstats.go",
-            "api-db-go:internal/infrastructure/glitchtip/glitchtip.go",
-            "api-db-go:internal/infrastructure/postgres/playlists_repository_integration_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/application/handlers/global_mock_test.go",
-            "api-db-go:internal/application/handlers/tracks_handler.go",
-            "api-db-go:internal/domain/mocks/fake_kpis_repos.go",
-            "api-db-go:internal/application/handlers/modules_mock_test.go",
-            "api-db-go:internal/infrastructure/postgres/leveling_repository.go",
-            "api-db-go:internal/infrastructure/redis/adapter.go",
-            "api-db-go:internal/domain/dbkpi/dbkpi_test.go",
-            "api-db-go:internal/infrastructure/rediscache/cache_test.go",
-            "api-db-go:internal/application/handlers/enabled_handler.go",
-            "api-db-go:internal/domain/validations/giveaways_validations.go",
-            "api-db-go:internal/infrastructure/postgres/tracks_repository.go",
-            "api-db-go:internal/domain/validations/bandwidth_validations.go",
-            "api-db-go:internal/infrastructure/redis/redis_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_dashboard_repo.go",
-            "api-db-go:internal/infrastructure/postgres/track_counter_repository.go",
-            "api-db-go:internal/domain/mocks/fake_bandwidth_repo.go",
-            "api-db-go:internal/application/handlers/messages_mock_test.go",
-            "api-db-go:internal/domain/dbtrack/dbtrack.go",
-            "api-db-go:internal/domain/dbgiveawaytemplate/dbgiveawaytemplate.go",
-            "api-db-go:cmd/purge-notifier-subs/main.go",
-            "api-db-go:internal/infrastructure/singleflight/group.go",
-            "api-db-go:internal/shared/config/config.go",
-            "api-db-go:internal/domain/dbtrackerror/dbtrackerror_test.go",
-            "api-db-go:internal/domain/mocks/fake_giveaways_repo.go",
-            "api-db-go:internal/domain/mocks/module_moderation_mock.go",
-            "api-db-go:internal/infrastructure/mongo/guilds_service_integration_test.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/infrastructure/postgres/track_metadata_repository.go",
             "api-db-go:internal/domain/dbguild/module_moderation_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_moderation_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/kpis_players_region_repository.go",
-            "api-db-go:internal/infrastructure/mongo/module_greeter_enabled_since_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/kpis_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/command_cache.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_stats_repository.go",
-            "api-db-go:internal/domain/validations/leveling_validations.go",
-            "api-db-go:internal/domain/mocks/fake_translation_repo.go",
-            "api-db-go:internal/infrastructure/mongo/global_repository_integration_test.go",
+            "api-db-go:internal/domain/validations/modmail_tickets_validations.go",
+            "api-db-go:internal/infrastructure/postgres/kpis_players_repository.go",
+            "api-db-go:internal/infrastructure/mongo/premium_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/postgres/messages_repository.go",
+            "api-db-go:internal/infrastructure/redis/redis_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_modmail_tickets_repo.go",
+            "api-db-go:internal/infrastructure/mongo/translation_repository_integration_test.go",
+            "api-db-go:cmd/migrate/main.go",
+            "api-db-go:internal/application/handlers/modules_mock_test.go",
+            "api-db-go:internal/infrastructure/locker/locker.go",
+            "api-db-go:internal/infrastructure/mongo/enabled_snapshot.go",
+            "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository_integration_test.go",
+            "api-db-go:internal/domain/dbguild/module_greeter_normalize_test.go",
+            "api-db-go:internal/application/handlers/deezer_arl_handler.go",
+            "api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go",
+            "api-db-go:internal/infrastructure/mongo/translation_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_modmail_repository.go",
+            "api-db-go:internal/infrastructure/postgres/tickets_repository_integration_test.go",
+            "api-db-go:internal/domain/validations/track_errors_validations.go",
+            "api-db-go:internal/infrastructure/postgres/track_counter_repository_integration_test.go",
+            "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
+            "api-db-go:internal/application/handlers/tracks_mock_test.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
+            "api-db-go:internal/infrastructure/mongo/module_moderation_repository.go",
+            "api-db-go:internal/infrastructure/postgres/modmail_stats_repository_integration_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/domain/mocks/module_giveaway_mock.go",
+            "api-db-go:internal/domain/dbgiveaway/dbgiveaway.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/domain/validations/tracks_validations.go",
+            "api-db-go:internal/domain/dbticket/dbticket.go",
+            "api-db-go:internal/infrastructure/singleflight/group.go",
+            "api-db-go:cmd/seed-bot-visibility/main.go",
             "api-db-go:internal/application/handlers/module_music_persistence_test.go",
+            "api-db-go:internal/domain/mocks/fake_bots_repo.go",
+            "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository.go",
+            "api-db-go:internal/infrastructure/mongo/command_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_logs_repository.go",
+            "api-db-go:internal/application/handlers/tempvoice_mock_test.go",
+            "api-db-go:internal/domain/dbnotifier/notifier_sub.go",
+            "api-db-go:internal/domain/mocks/fake_kpis_repos.go",
+            "api-db-go:internal/infrastructure/postgres/track_errors_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/guild_mock_test.go",
+            "api-db-go:internal/application/handlers/kpis_mock_test.go",
+            "api-db-go:internal/infrastructure/mongo/module_leveling_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_notifier_repository.go",
+            "api-db-go:internal/domain/mocks/fake_premium_repo.go",
+            "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository.go",
+            "api-db-go:internal/infrastructure/postgres/partition_health.go",
+            "api-db-go:internal/domain/mocks/fake_modmail_repo.go",
+            "api-db-go:internal/infrastructure/mongo/module_giveaway_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/redis_search_init.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-db-go:internal/infrastructure/postgres/retry_test.go",
+            "api-db-go:internal/domain/services/modmail_web_access.go",
+            "api-db-go:internal/domain/validations/bandwidth_validations.go",
+            "api-db-go:internal/domain/dbkpi/dbkpi_test.go",
+            "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository_integration_test.go",
+            "api-db-go:internal/application/handlers/module_music_handler.go",
+            "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
+            "api-db-go:internal/infrastructure/mongo/global_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository_test.go",
+            "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository.go",
+            "api-db-go:internal/infrastructure/mongo/dashboard_repository.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:cmd/purge-notifier-subs/main.go",
+            "api-db-go:internal/domain/dbinfraction/dbinfraction.go",
+            "api-db-go:internal/domain/dbtrackerror/dbtrackerror.go",
+            "api-db-go:internal/infrastructure/mongo/module_giveaway_repository.go",
+            "api-db-go:internal/infrastructure/postgres/platforms_repository.go",
+            "api-db-go:internal/infrastructure/locker/memcached.go",
+            "api-db-go:internal/domain/mocks/module_leveling_mock.go",
+            "api-db-go:internal/infrastructure/kpiscraper/scraper.go",
+            "api-db-go:cmd/backfill-enabled-since/main.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
             "api-db-go:internal/infrastructure/mongo/command_repository_integration_test.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/global_repository.go"
+            "api-db-go:internal/domain/dbtrackcounter/dbtrackcounter.go",
+            "api-db-go:internal/infrastructure/lavalinknodes/client.go",
+            "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
+            "api-db-go:internal/domain/mocks/fake_module_cache.go",
+            "api-db-go:internal/domain/mocks/fake_moderation_flow_runs_repo.go",
+            "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_command_repo.go",
+            "api-db-go:internal/domain/services/core_reader.go",
+            "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_logs_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_dashboard_repo.go",
+            "api-db-go:internal/infrastructure/mongorepo/repos_test.go",
+            "api-db-go:internal/infrastructure/glitchtip/glitchtip.go",
+            "api-db-go:internal/infrastructure/locker/locker_test.go",
+            "api-db-go:internal/infrastructure/postgres/tracks_repository_integration_test.go",
+            "api-db-go:internal/domain/dbmodmailstats/dbmodmailstats.go",
+            "api-db-go:internal/infrastructure/redis/client.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_modmail_stats_repo.go",
+            "api-db-go:internal/infrastructure/postgres/playlists_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/postgres/recordings_repository.go",
+            "api-db-go:internal/domain/dbleveling/curve.go",
+            "api-db-go:internal/domain/dbguild/jsondate.go",
+            "api-db-go:internal/infrastructure/mongo/module_greeter_enabled_since_integration_test.go",
+            "api-db-go:internal/domain/dbguild/jsondate_test.go",
+            "api-db-go:internal/application/handlers/core_handler.go",
+            "api-db-go:internal/domain/mocks/fake_tempvoice_repo.go",
+            "api-db-go:internal/domain/mocks/fake_deezer_repo.go",
+            "api-db-go:internal/infrastructure/mongo/deezer_repository.go",
+            "api-db-go:internal/infrastructure/redis/bot_cache.go",
+            "api-db-go:cmd/server/main.go",
+            "api-db-go:internal/domain/dbtts/user_pref.go",
+            "api-db-go:internal/infrastructure/postgres/leveling_repository.go",
+            "api-db-go:internal/infrastructure/postgres/track_metadata_repository.go",
+            "api-db-go:internal/infrastructure/kpiscraper/scraper_test.go",
+            "api-db-go:internal/infrastructure/redis/bot_core_cache.go",
+            "api-db-go:internal/domain/validations/playlists_validations.go",
+            "api-db-go:internal/infrastructure/mongorepo/repos.go",
+            "api-db-go:internal/domain/mocks/fake_playlists_repo.go",
+            "api-db-go:internal/infrastructure/redis/translations_cache.go",
+            "api-db-go:internal/domain/validations/moderation_infractions_validations.go",
+            "api-db-go:internal/infrastructure/redis/serialization.go",
+            "api-db-go:internal/domain/mocks/fake_guild_repo.go",
+            "api-db-go:internal/infrastructure/postgres/leveling_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/glitchtip/glitchtip_test.go",
+            "api-db-go:internal/application/handlers/moderation_mock_test.go",
+            "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository_integration_test.go",
+            "api-db-go:internal/application/handlers/kpis_handler.go",
+            "api-db-go:internal/application/handlers/track_counter_mock_test.go",
+            "api-db-go:internal/domain/mocks/fake_track_errors_repo.go",
+            "api-db-go:internal/domain/dbmodmailticket/dbmodmailticket.go",
+            "api-db-go:internal/infrastructure/postgres/client.go",
+            "api-db-go:internal/domain/services/modmail_web_access_test.go",
+            "api-db-go:internal/domain/mocks/fake_tracks_repos.go",
+            "api-db-go:internal/infrastructure/mongo/audit_log_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_automation_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_music_legacy_migration_integration_test.go",
+            "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
+            "api-db-go:internal/testutil/integration.go",
+            "api-db-go:internal/domain/validations/leveling_validations.go",
+            "api-db-go:internal/infrastructure/mongo/module_tickets_repository.go",
+            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "api-db-go:internal/infrastructure/redis/giveaway_stream.go",
+            "api-db-go:internal/infrastructure/redis/premium_cache.go",
+            "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository_integration_test.go",
+            "api-db-go:internal/domain/validations/modmail_stats_validations.go",
+            "api-db-go:cmd/clone-db/main.go",
+            "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
+            "api-db-go:internal/infrastructure/redis/module_cache_test.go",
+            "api-db-go:internal/application/handlers/tracks_handler.go",
+            "api-db-go:internal/domain/mocks/module_tts_mock.go",
+            "api-db-go:internal/infrastructure/mongo/module_tts_repository.go",
+            "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
+            "api-db-go:internal/infrastructure/mongo/merge_deep_test.go",
+            "api-db-go:internal/infrastructure/postgres/kpis_players_region_repository.go",
+            "api-db-go:internal/domain/dbguild/dbguild_test.go",
+            "api-db-go:internal/domain/errors/custom_error.go",
+            "api-db-go:internal/infrastructure/redis/serialization_bench_test.go",
+            "api-db-go:internal/domain/dbtranslation/dbtranslation.go",
+            "api-db-go:internal/infrastructure/redis/core_cache_integration_test.go",
+            "api-db-go:internal/domain/validations/giveaways_validations.go",
+            "api-db-go:internal/domain/dbgiveawaytemplate/dbgiveawaytemplate.go",
+            "api-db-go:internal/infrastructure/mongo/premium_repository.go",
+            "api-db-go:internal/infrastructure/mongo/module_moderation_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/rediscache/cache_test.go",
+            "api-db-go:internal/domain/mocks/fake_core_reader.go",
+            "api-db-go:internal/infrastructure/mongo/guild_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/postgres/tts_user_prefs_repository.go",
+            "api-db-go:internal/infrastructure/mongo/global_repository_test.go",
+            "api-db-go:internal/domain/dbguild/module_tempvoice_test.go",
+            "api-db-go:internal/domain/mocks/fake_moderation_repo.go",
+            "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository.go",
+            "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
+            "api-db-go:internal/domain/mocks/fake_audit_log_repo.go",
+            "api-db-go:internal/domain/dbmessage/dbmessage.go",
+            "api-db-go:internal/infrastructure/mongo/dashboard_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository.go",
+            "api-db-go:internal/domain/mocks/fake_bot_repo.go",
+            "api-db-go:internal/infrastructure/mongo/module_greeter_repository.go",
+            "api-db-go:internal/infrastructure/postgres/tracks_repository.go",
+            "api-db-go:internal/domain/dbguild/module_music_test.go",
+            "api-db-go:internal/infrastructure/postgres/track_errors_repository.go",
+            "api-db-go:internal/infrastructure/redis/command_cache.go",
+            "api-db-go:internal/application/handlers/giveaways_handler.go",
+            "api-db-go:internal/domain/dbleveling/dbleveling.go",
+            "api-db-go:internal/domain/mocks/fake_track_counter_repo.go",
+            "api-db-go:internal/application/handlers/music_http_integration_test.go",
+            "api-db-go:scripts/coverage-viewer/main.go",
+            "api-db-go:internal/domain/dbguild/module_greeter.go",
+            "api-db-go:internal/domain/dbflowrun/dbflowrun.go",
+            "api-db-go:internal/domain/validations/modmail_stats_validations_test.go",
+            "api-db-go:internal/infrastructure/mongo/client.go",
+            "api-db-go:internal/infrastructure/singleflight/group_test.go",
+            "api-db-go:internal/domain/validations/messages_validations.go",
+            "api-db-go:internal/infrastructure/mongo/guild_repository.go",
+            "api-db-go:internal/domain/dbtrackerror/dbtrackerror_test.go",
+            "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
+            "api-db-go:internal/infrastructure/postgres/modmail_stats_repository.go",
+            "api-db-go:internal/infrastructure/postgres/playlists_repository.go",
+            "api-db-go:internal/infrastructure/rediscache/cache.go",
+            "api-db-go:internal/application/handlers/enabled_handler.go",
+            "api-db-go:internal/domain/mocks/fake_giveaway_repo.go",
+            "api-db-go:internal/application/handlers/messages_mock_test.go",
+            "api-db-go:internal/infrastructure/postgres/tickets_repository.go",
+            "api-db-go:internal/domain/dbkpi/dbkpi.go",
+            "api-db-go:internal/infrastructure/postgres/migrate.go",
+            "api-db-go:internal/infrastructure/mongo/module_greeter_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_giveaway_templates_repo.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/user_cache.go",
+            "api-db-go:internal/application/handlers/playlists_handler.go",
+            "api-db-go:internal/infrastructure/mongo/module_modmail_repository_integration_test.go",
+            "api-db-go:internal/domain/validations/core_query_validations.go",
+            "api-db-go:internal/application/middlewares/logger.go",
+            "api-db-go:internal/infrastructure/redis/lavalink_persistence_integration_test.go",
+            "api-db-go:internal/infrastructure/postgres/track_counter_repository.go",
+            "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
+            "api-db-go:internal/infrastructure/mongo/guilds_service_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_translation_repo.go",
+            "api-db-go:internal/domain/mocks/fake_global_repo.go",
+            "api-db-go:internal/infrastructure/postgres/giveaways_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/global_cache.go",
+            "api-db-go:internal/domain/dbtrack/dbtrack.go",
+            "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
+            "api-db-go:internal/domain/mocks/module_notifier_mock.go",
+            "api-db-go:internal/infrastructure/postgres/postgres_integration_test.go",
+            "api-db-go:internal/domain/mocks/fake_bandwidth_repo.go",
+            "api-db-go:internal/infrastructure/postgres/kpis_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/adapter.go",
+            "api-db-go:internal/infrastructure/redis/serialization_test.go",
+            "api-db-go:internal/domain/mocks/module_moderation_mock.go",
+            "api-db-go:internal/domain/validations/deezer_validations.go",
+            "api-db-go:internal/infrastructure/lavalinknodes/client_test.go",
+            "api-db-go:internal/domain/mocks/fake_giveaways_repo.go",
+            "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
+            "api-db-go:internal/infrastructure/postgres/client_test.go",
+            "api-db-go:internal/infrastructure/postgres/giveaways_repository.go",
+            "api-db-go:internal/domain/dbplaylist/dbplaylist.go",
+            "api-db-go:internal/domain/mocks/fake_tts_repo.go",
+            "api-db-go:internal/application/handlers/global_mock_test.go",
+            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go",
+            "api-db-go:internal/infrastructure/postgres/messages_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/module_tempvoice_mock.go",
+            "api-db-go:internal/infrastructure/mongo/deezer_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/module_cache.go",
+            "api-db-go:internal/infrastructure/mongo/module_music_repository.go",
+            "api-db-go:internal/shared/config/config.go",
+            "api-db-go:internal/infrastructure/redis/lavalink_cache.go",
+            "api-db-go:internal/domain/mocks/module_automation_mock.go",
+            "api-db-go:internal/application/handlers/premium_handler.go",
+            "api-db-go:internal/infrastructure/pgrepo/repos.go",
+            "api-db-go:internal/infrastructure/mongo/global_repository_integration_test.go",
+            "api-db-go:internal/domain/mocks/module_greeter_mock.go",
+            "api-db-go:internal/domain/mocks/fake_moderation_infractions_repo.go"
           ],
           "score": {
             "claimed_set": [
@@ -2227,26 +2228,26 @@
             {
               "tool": "search_graph",
               "tokens": 1064,
-              "ms": 19.273
+              "ms": 11.57
             },
             {
               "tool": "search_graph",
               "tokens": 547,
-              "ms": 13.729
+              "ms": 10.829
             },
             {
               "tool": "trace_path",
               "tokens": 623,
-              "ms": 1.518
+              "ms": 0.562
             },
             {
               "tool": "query_graph",
               "tokens": 98,
-              "ms": 3542.481
+              "ms": 3109.125
             }
           ],
           "tokens": 2332,
-          "ms": 3577.001,
+          "ms": 3132.086,
           "call_count": 4,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/client.go",
@@ -2283,11 +2284,11 @@
             {
               "tool": "graft --dir",
               "tokens": 371,
-              "ms": 313.309
+              "ms": 259.358
             }
           ],
           "tokens": 371,
-          "ms": 313.309,
+          "ms": 259.358,
           "call_count": 1,
           "claimed": [
             "library-shared:src/utils/retry.ts"
@@ -2314,16 +2315,16 @@
             {
               "tool": "graphify affected",
               "tokens": 11,
-              "ms": 152.007
+              "ms": 142.065
             },
             {
               "tool": "graphify affected",
               "tokens": 46,
-              "ms": 192.684
+              "ms": 141.943
             }
           ],
           "tokens": 57,
-          "ms": 344.69100000000003,
+          "ms": 284.00800000000004,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -2342,12 +2343,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2362,
-              "ms": 1.095
+              "tokens": 2342,
+              "ms": 1.226
             }
           ],
-          "tokens": 2362,
-          "ms": 1.095,
+          "tokens": 2342,
+          "ms": 1.226,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/retry_test.go",
@@ -2434,11 +2435,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 2324,
-              "ms": 129.799
+              "ms": 118.152
             }
           ],
           "tokens": 2324,
-          "ms": 129.799,
+          "ms": 118.152,
           "call_count": 1,
           "claimed": [
             "sendResponse",
@@ -2491,11 +2492,11 @@
             {
               "tool": "search_graph",
               "tokens": 9019,
-              "ms": 31.534
+              "ms": 31.609
             }
           ],
           "tokens": 9019,
-          "ms": 31.534,
+          "ms": 31.609,
           "call_count": 1,
           "claimed": [
             "createErrorResponse",
@@ -2547,11 +2548,11 @@
             {
               "tool": "graft --dir",
               "tokens": 648,
-              "ms": 280.422
+              "ms": 243.58
             }
           ],
           "tokens": 648,
-          "ms": 280.422,
+          "ms": 243.58,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2584,11 +2585,11 @@
             {
               "tool": "graphify explain",
               "tokens": 328,
-              "ms": 118.642
+              "ms": 114.749
             }
           ],
           "tokens": 328,
-          "ms": 118.642,
+          "ms": 114.749,
           "call_count": 1,
           "claimed": [
             "handleChannelIPC",
@@ -2631,11 +2632,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 1106,
-              "ms": 1.079
+              "ms": 1.047
             }
           ],
           "tokens": 1106,
-          "ms": 1.079,
+          "ms": 1.047,
           "call_count": 1,
           "claimed": [
             "inFlightChannelFetches",
@@ -2755,11 +2756,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 633,
-              "ms": 117.677
+              "ms": 121.291
             }
           ],
           "tokens": 633,
-          "ms": 117.677,
+          "ms": 121.291,
           "call_count": 1,
           "claimed": [
             "retryInfo",
@@ -2784,11 +2785,11 @@
             {
               "tool": "search_graph",
               "tokens": 1406,
-              "ms": 38.836
+              "ms": 33.669
             }
           ],
           "tokens": 1406,
-          "ms": 38.836,
+          "ms": 33.669,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -2812,11 +2813,11 @@
             {
               "tool": "graft --dir",
               "tokens": 187,
-              "ms": 263.064
+              "ms": 262.479
             }
           ],
           "tokens": 187,
-          "ms": 263.064,
+          "ms": 262.479,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2835,11 +2836,11 @@
             {
               "tool": "graphify explain",
               "tokens": 91,
-              "ms": 158.781
+              "ms": 150.44
             }
           ],
           "tokens": 91,
-          "ms": 158.781,
+          "ms": 150.44,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -2864,11 +2865,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 110,
-              "ms": 0.928
+              "ms": 0.869
             }
           ],
           "tokens": 110,
-          "ms": 0.928,
+          "ms": 0.869,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -2922,7 +2923,7 @@
     "code-review-graph": {
       "tokens_total": 109298,
       "calls_total": 10,
-      "ms_total": 1329.5169999999998,
+      "ms_total": 1257.885,
       "precision_mean": 0.6677871148459383,
       "recall_mean": 0.8487394957983193,
       "exact_answers": 3,
@@ -2930,9 +2931,9 @@
       "of": 7
     },
     "codebase-memory": {
-      "tokens_total": 26688,
+      "tokens_total": 27427,
       "calls_total": 21,
-      "ms_total": 5791.714,
+      "ms_total": 5196.732,
       "precision_mean": 0.6666666666666666,
       "recall_mean": 0.8095238095238094,
       "exact_answers": 3,
@@ -2942,7 +2943,7 @@
     "graft": {
       "tokens_total": 8942,
       "calls_total": 7,
-      "ms_total": 2027.627,
+      "ms_total": 1851.967,
       "precision_mean": 0.14285714285714285,
       "recall_mean": 0.14285714285714285,
       "exact_answers": 1,
@@ -2952,7 +2953,7 @@
     "graphify": {
       "tokens_total": 2469,
       "calls_total": 9,
-      "ms_total": 1295.358,
+      "ms_total": 1196.593,
       "precision_mean": 0.5396825396825397,
       "recall_mean": 0.3520074696545285,
       "exact_answers": 1,
@@ -2960,9 +2961,9 @@
       "of": 7
     },
     "kivgraph": {
-      "tokens_total": 6200,
+      "tokens_total": 6180,
       "calls_total": 11,
-      "ms_total": 5.446,
+      "ms_total": 5.353999999999999,
       "precision_mean": 1,
       "recall_mean": 1,
       "exact_answers": 7,
@@ -2985,7 +2986,7 @@
       "code-review-graph": {
         "tokens_total": 82057,
         "calls_total": 1,
-        "ms_total": 190.742,
+        "ms_total": 171.724,
         "precision_mean": 0.00784313725490196,
         "recall_mean": 1,
         "exact_answers": 0,
@@ -2995,7 +2996,7 @@
       "codebase-memory": {
         "tokens_total": 2332,
         "calls_total": 4,
-        "ms_total": 3577.001,
+        "ms_total": 3132.086,
         "precision_mean": 0.3333333333333333,
         "recall_mean": 1,
         "exact_answers": 0,
@@ -3005,7 +3006,7 @@
       "graft": {
         "tokens_total": 371,
         "calls_total": 1,
-        "ms_total": 313.309,
+        "ms_total": 259.358,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -3015,7 +3016,7 @@
       "graphify": {
         "tokens_total": 57,
         "calls_total": 2,
-        "ms_total": 344.69100000000003,
+        "ms_total": 284.00800000000004,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -3023,9 +3024,9 @@
         "of": 1
       },
       "kivgraph": {
-        "tokens_total": 2362,
+        "tokens_total": 2342,
         "calls_total": 1,
-        "ms_total": 1.095,
+        "ms_total": 1.226,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -3047,7 +3048,7 @@
       "code-review-graph": {
         "tokens_total": 2957,
         "calls_total": 2,
-        "ms_total": 247.476,
+        "ms_total": 239.44299999999998,
         "precision_mean": 1,
         "recall_mean": 0.9705882352941176,
         "exact_answers": 1,
@@ -3057,7 +3058,7 @@
       "codebase-memory": {
         "tokens_total": 10425,
         "calls_total": 2,
-        "ms_total": 70.37,
+        "ms_total": 65.27799999999999,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -3067,7 +3068,7 @@
       "graft": {
         "tokens_total": 835,
         "calls_total": 2,
-        "ms_total": 543.4860000000001,
+        "ms_total": 506.05899999999997,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -3077,7 +3078,7 @@
       "graphify": {
         "tokens_total": 419,
         "calls_total": 2,
-        "ms_total": 277.423,
+        "ms_total": 265.18899999999996,
         "precision_mean": 1,
         "recall_mean": 0.6764705882352942,
         "exact_answers": 1,
@@ -3087,7 +3088,7 @@
       "kivgraph": {
         "tokens_total": 1216,
         "calls_total": 2,
-        "ms_total": 2.007,
+        "ms_total": 1.916,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -3109,7 +3110,7 @@
       "code-review-graph": {
         "tokens_total": 24284,
         "calls_total": 7,
-        "ms_total": 891.299,
+        "ms_total": 846.7180000000001,
         "precision_mean": 0.6666666666666666,
         "recall_mean": 0.75,
         "exact_answers": 2,
@@ -3117,9 +3118,9 @@
         "of": 4
       },
       "codebase-memory": {
-        "tokens_total": 13931,
+        "tokens_total": 14670,
         "calls_total": 15,
-        "ms_total": 2144.343,
+        "ms_total": 1999.368,
         "precision_mean": 0.5833333333333333,
         "recall_mean": 0.6666666666666666,
         "exact_answers": 1,
@@ -3129,7 +3130,7 @@
       "graft": {
         "tokens_total": 7736,
         "calls_total": 4,
-        "ms_total": 1170.8319999999999,
+        "ms_total": 1086.5500000000002,
         "precision_mean": 0.25,
         "recall_mean": 0.25,
         "exact_answers": 1,
@@ -3139,7 +3140,7 @@
       "graphify": {
         "tokens_total": 1993,
         "calls_total": 5,
-        "ms_total": 673.2439999999999,
+        "ms_total": 647.396,
         "precision_mean": 0.4444444444444444,
         "recall_mean": 0.2777777777777778,
         "exact_answers": 0,
@@ -3149,7 +3150,7 @@
       "kivgraph": {
         "tokens_total": 2622,
         "calls_total": 8,
-        "ms_total": 2.344,
+        "ms_total": 2.2119999999999997,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 4,

@@ -88,6 +88,10 @@ type ReferenceSummary struct {
 	EdgeKind      string `json:"edge_kind"`
 	Confidence    string `json:"confidence"`
 	Provenance    string `json:"provenance"`
+	// Via is the interface method this reference reached the subject through,
+	// set only when the subject is the one implementation of it. Empty means
+	// the row is a direct reference to the subject itself.
+	Via string `json:"via,omitempty"`
 
 	EvidenceKind  string `json:"evidence_kind,omitempty"`
 	StableKey     string `json:"stable_key,omitempty"`
@@ -105,7 +109,11 @@ type ReferenceResult struct {
 	// left out. Present in every view, because a count that does not say it
 	// was filtered understates the references to a symbol.
 	EdgeKindsExcluded []string `json:"edge_kinds_default_excluded,omitempty"`
-	View              string   `json:"-"`
+	// DispatchThrough names the interface methods whose references this answer
+	// also holds, because the subject is their one implementation. Present only
+	// when a row came that way, and every such row repeats it in `via`.
+	DispatchThrough []string `json:"dispatch_through,omitempty"`
+	View            string   `json:"-"`
 }
 
 // MarshalJSON writes the page under the view the caller asked for. The compact
@@ -118,6 +126,7 @@ func (result ReferenceResult) MarshalJSON() ([]byte, error) {
 		Direction         string             `json:"direction"`
 		References        []ReferenceSummary `json:"references"`
 		EdgeKindsExcluded []string           `json:"edge_kinds_default_excluded,omitempty"`
+		DispatchThrough   []string           `json:"dispatch_through,omitempty"`
 	}
 	switch result.View {
 	case ViewCompact:
@@ -130,6 +139,7 @@ func (result ReferenceResult) MarshalJSON() ([]byte, error) {
 			Direction:         result.Direction,
 			References:        result.References,
 			EdgeKindsExcluded: result.EdgeKindsExcluded,
+			DispatchThrough:   result.DispatchThrough,
 		})
 	}
 }
@@ -157,8 +167,10 @@ func (result ReferenceResult) compact() compactReferenceResult {
 		EdgeKind:   hoistString(count, func(index int) string { return rows[index].EdgeKind }),
 		Confidence: hoistString(count, func(index int) string { return rows[index].Confidence }),
 		Provenance: hoistString(count, func(index int) string { return rows[index].Provenance }),
+		Via:        hoistString(count, func(index int) string { return rows[index].Via }),
 
 		EdgeKindsExcluded: result.EdgeKindsExcluded,
+		DispatchThrough:   result.DispatchThrough,
 	}
 
 	residual := func(row ReferenceSummary) []string {
@@ -167,6 +179,7 @@ func (result ReferenceResult) compact() compactReferenceResult {
 			blankWhenHoisted(row.EdgeKind, compact.EdgeKind),
 			blankWhenHoisted(row.Confidence, compact.Confidence),
 			blankWhenHoisted(row.Provenance, compact.Provenance),
+			blankWhenHoisted(row.Via, compact.Via),
 		}
 	}
 	flatFiles := referenceFileGroups(rows, compact.Repository, compact.Kind, compact.EdgeKind, compact.Confidence, compact.Provenance)
@@ -183,6 +196,7 @@ func (result ReferenceResult) compact() compactReferenceResult {
 			EdgeKind:   blankWhenHoisted(first.EdgeKind, compact.EdgeKind),
 			Confidence: blankWhenHoisted(first.Confidence, compact.Confidence),
 			Provenance: blankWhenHoisted(first.Provenance, compact.Provenance),
+			Via:        blankWhenHoisted(first.Via, compact.Via),
 		}
 		// Every column left is now uniform inside the bucket, so a row inside
 		// it carries nothing beyond its own declaration.
@@ -277,9 +291,16 @@ type compactReferenceResult struct {
 	EdgeKind   string `json:"edge_kind,omitempty"`
 	Confidence string `json:"confidence,omitempty"`
 	Provenance string `json:"provenance,omitempty"`
+	// Via is the interface method every row of this page came through. It
+	// hoists and groups like the others so a bridged row is never read as a
+	// direct call, whatever the page agreed on.
+	Via string `json:"via,omitempty"`
 
 	// EdgeKindsExcluded is what a filter the caller never asked for left out.
 	EdgeKindsExcluded []string `json:"edge_kinds_default_excluded,omitempty"`
+	// DispatchThrough names the interface methods this answer also holds the
+	// references to, because the subject is their one implementation.
+	DispatchThrough []string `json:"dispatch_through,omitempty"`
 
 	Files  []compactReferenceFile  `json:"files,omitempty"`
 	Groups []compactReferenceGroup `json:"groups,omitempty"`
@@ -294,6 +315,7 @@ type compactReferenceGroup struct {
 	EdgeKind   string `json:"edge_kind,omitempty"`
 	Confidence string `json:"confidence,omitempty"`
 	Provenance string `json:"provenance,omitempty"`
+	Via        string `json:"via,omitempty"`
 
 	Files []compactReferenceFile `json:"files"`
 }
@@ -506,14 +528,15 @@ func findReferences(
 		offset = cursor.Offset
 	}
 
-	edges := snapshot.Incoming(startID)
-	if options.Direction == FindReferencesDirectionOutgoing {
-		edges = snapshot.Outgoing(startID)
+	candidates, dispatchThrough, err := referenceCandidates(snapshot, startID, options)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
 	}
-	results := make([]ReferenceSummary, 0, minReferenceInt(options.Limit, len(edges)))
+	results := make([]ReferenceSummary, 0, minReferenceInt(options.Limit, len(candidates)))
 	coverage := Coverage{}
 	total := 0
-	for _, edge := range edges {
+	for _, candidate := range candidates {
+		edge := candidate.edge
 		decoded, relevant, err := decodeReferenceEdge(edge)
 		if err != nil {
 			return nil, Response[ReferenceResult]{}, WrapToolError(
@@ -550,6 +573,7 @@ func findReferences(
 					err,
 				)
 			}
+			reference.Via = candidate.via
 			results = append(results, reference)
 		}
 		total++
@@ -584,6 +608,7 @@ func findReferences(
 		Results: ReferenceResult{
 			Subject: subject, Direction: options.Direction, References: results, View: options.View,
 			EdgeKindsExcluded: options.EdgeKinds.defaultExcluded(),
+			DispatchThrough:   dispatchThrough,
 		},
 	}, nil
 }
@@ -1096,4 +1121,100 @@ func minReferenceInt(left, right int) int {
 		return left
 	}
 	return right
+}
+
+// referenceCandidate is one edge the page may report, and the interface method
+// it arrived through when it is not a direct reference to the subject.
+type referenceCandidate struct {
+	edge hotsnapshot.PackedEdge
+	via  string
+}
+
+// referenceCandidates is every edge an answer may hold, direct references
+// first. It is assembled before the page is walked so `total`, the rows and
+// `coverage` describe one set, and its order is stable, which is what a cursor
+// addresses.
+//
+// A method reached only through the interface that declares it used to answer
+// that nothing referenced it: the call site names the interface method, the
+// checker resolves it there, and the implementation carried no incoming edge at
+// all. That absence was reported in the same words as a real one.
+//
+// So an incoming answer about a method also holds the references to the
+// interface methods it implements -- but only where it is the ONLY
+// implementation, which is the case where a call through the interface can
+// reach nothing else. With two implementations a call reaches one of them and
+// naming both as called would trade a false absence for a false presence; those
+// stay out and get_blast_radius, which is the tool for what a change reaches,
+// still crosses IMPLEMENTS in either direction. Each bridged row says which
+// interface method it came through, so nothing is passed off as a direct call.
+func referenceCandidates(
+	snapshot *hotsnapshot.GraphSnapshot, startID hotsnapshot.SymbolID, options findReferencesOptions,
+) ([]referenceCandidate, []string, error) {
+	direct := snapshot.Incoming(startID)
+	if options.Direction == FindReferencesDirectionOutgoing {
+		direct = snapshot.Outgoing(startID)
+	}
+	candidates := make([]referenceCandidate, 0, len(direct))
+	for _, edge := range direct {
+		candidates = append(candidates, referenceCandidate{edge: edge})
+	}
+	if options.Direction == FindReferencesDirectionOutgoing {
+		return candidates, nil, nil
+	}
+	implemented, implementsCode, err := solelyImplementedMethods(snapshot, startID)
+	if err != nil {
+		return nil, nil, err
+	}
+	dispatch := make([]string, 0, len(implemented))
+	for _, method := range implemented {
+		subject, err := referenceSubject(snapshot, method)
+		if err != nil {
+			return nil, nil, WrapToolError(
+				CodeSnapshotUnavailable, "active snapshot contains invalid symbol metadata", err,
+			)
+		}
+		label := subject.QualifiedName
+		dispatch = append(dispatch, label)
+		for _, edge := range snapshot.Incoming(method) {
+			// An IMPLEMENTS edge into the interface method states that
+			// something implements it, which is never a use of it. The one
+			// there is here is the subject's own, and reporting it would have
+			// the subject referencing itself.
+			if edge.Kind == implementsCode {
+				continue
+			}
+			candidates = append(candidates, referenceCandidate{edge: edge, via: label})
+		}
+	}
+	return candidates, dispatch, nil
+}
+
+// solelyImplementedMethods returns the interface methods this symbol is the one
+// implementation of, in snapshot order so a cursor keeps addressing the same
+// page. A symbol that implements nothing returns nothing, which is every
+// symbol that is not a method.
+func solelyImplementedMethods(
+	snapshot *hotsnapshot.GraphSnapshot, startID hotsnapshot.SymbolID,
+) ([]hotsnapshot.SymbolID, uint8, error) {
+	implementsCode, err := facts.Implements.Code()
+	if err != nil {
+		return nil, 0, WrapToolError(CodeSnapshotUnavailable, "IMPLEMENTS has no edge code", err)
+	}
+	out := []hotsnapshot.SymbolID{}
+	for _, edge := range snapshot.Outgoing(startID) {
+		if edge.Kind != implementsCode {
+			continue
+		}
+		implementations := 0
+		for _, incoming := range snapshot.Incoming(edge.Target) {
+			if incoming.Kind == implementsCode {
+				implementations++
+			}
+		}
+		if implementations == 1 {
+			out = append(out, edge.Target)
+		}
+	}
+	return out, implementsCode, nil
 }
