@@ -32,7 +32,7 @@ LadybugDB directamente.
 | `TYPESCRIPT_CROSS_REPO_PASS` | `PASS` | `benchmarks/typescript-cross-repo/report.md`: 11/11 true positives, 0 false exact edges, 4/4 unresolved. |
 | `GO_SEMANTIC_PASS` | `PASS` | `benchmarks/go-semantic/report.md`: 16/16 true positives, 0 false exact edges, 2/2 unresolved. |
 | `CANONICAL_GRAPH_PASS` | `PASS` | `docs/decisions/canonical-graph-qualification.md` y `doctor graph` con invariantes a cero. |
-| `INCREMENTAL_INDEXING_PASS` | `PASS` | `benchmarks/ladybug-incremental/report.md`: p95 de 571,6 ms, 617,8 ms y 845,3 ms; 0 ghost edges. |
+| `INCREMENTAL_INDEXING_PASS` | `PASS`, **obsoleto** | `benchmarks/ladybug-incremental/report.md`: p95 de 571,6 ms, 617,8 ms y 845,3 ms; 0 ghost edges. El camino incremental se retiró en el [ADR 0057](../adr/0057-el-camino-incremental-se-retira.md) y el benchmark se borró con él: el gate se emitió sobre código que ya no existe y no describe nada del producto actual, donde todo indexado es completo. El harness está en el historial de git. |
 | `MCP_SURFACE_PASS` | `PASS` | Superficie read-only de nueve tools y rechazo de tools prohibidas documentados en `TASKS.md`. |
 | `RESILIENCE_PASS` | `PASS` | Ocho escenarios de recuperación con `all_passed: true` en `benchmarks/ladybug-recovery/results.json`. |
 | `PERFORMANCE_PASS` | `PASS` | Benchmark MCP de 32 clientes y regresión semántica posterior a la optimización. |
@@ -90,8 +90,10 @@ nativos `graph.db` no lo fueron: `432.570.368` frente a `433.037.312` bytes.
 La garantía es de reproducibilidad lógica, no de bytes físicos de LadybugDB.
 
 LadybugDB y el binding Go están fijados conjuntamente en `v0.13.1`. La carga
-full usa `COPY`; las mutaciones incrementales validan extremos y duplicados en
-transacciones, con staging `COPY` para lotes grandes. La publicación usa
+full usa `COPY`. Las mutaciones incrementales que esta calificación describía
+-- validación de extremos y duplicados en transacción, con staging `COPY` para
+lotes grandes-- **ya no existen**: se retiraron con el camino del delta en el
+[ADR 0057](../adr/0057-el-camino-incremental-se-retira.md). La publicación usa
 candidatas privadas, valida antes de cambiar `CURRENT`, conserva backups y
 rechaza rollback ante digest ausente o divergente.
 
@@ -215,8 +217,9 @@ cd ts-worker && pnpm check
 cd ts-worker && pnpm build
 ```
 
-También pasaron los benchmarks semánticos, incrementales, de recuperación,
-HotSnapshot, MCP, STDIO, observabilidad y el build reproducible. Las
+También pasaron los benchmarks semánticos, de recuperación, HotSnapshot, MCP,
+STDIO, observabilidad y el build reproducible. El benchmark incremental pasó
+entonces y se borró después con el código que medía (ADR 0057). Las
 limitaciones anteriores forman parte de la decisión y no son warnings ocultos.
 
 **Siguiente acción:** sockets y red no están configurados por el servidor

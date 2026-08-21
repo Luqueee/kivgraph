@@ -45,6 +45,14 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 
 ## La pasada de indexación
 
+- **Toda pasada es una reconstrucción completa.** No hay camino incremental:
+  `indexer.Full` es la única entrada, `kivgraph index` acepta sólo `--full`, y
+  cada pasada publica una generación nueva en vez de mutar la vigente. El delta
+  -- `Update`, `Diff`, el enrutado por planes de invalidación, las clases de
+  cambio semántico y la mutación canónica incremental -- se retiró en el ADR
+  0057: no lo llamaba nadie, su techo medido era `1,67x` sobre un pase de
+  `9,17 s`, y publicaba sin correr `integrity` ni `golden probes`. Lo que hace
+  barata una reindexación es la caché de hechos, no un delta.
 - El análisis de la pasada es concurrente: cada módulo Go y cada paquete
   TypeScript es una unidad independiente. El merge sigue el orden de las
   unidades, nunca el de finalización, así que el grafo publicado no depende de
@@ -66,8 +74,9 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   (`facts.MergeAll`), no una unidad contra el acumulado: una fusión par a par
   vuelve a deduplicar, copiar y reordenar el grafo entero en cada paso, que es
   cuadrático en su tamaño. La identidad con la que se deduplica es una tupla
-  comparable, no una cadena unida por separadores, y es la misma que usa
-  `Diff` para detectar un duplicado.
+  comparable, no una cadena unida por separadores: una cadena hace ambiguo un
+  nombre que contenga el separador, y aquí la deduplicación es lo único que
+  decide si dos hechos son el mismo.
 - Una petición de indexación se construye en un solo sitio,
   `indexing.OptionsFromConfig`: el llamador sólo añade lo que la configuración
   no decide -repositorios, directorio de trabajo, versión del resolver y los
@@ -206,13 +215,13 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   puerta, y las tres rutas que instalan una generación -el arranque de `serve`,
   el seguidor y el padre de una pasada- pasan por ella. Lo que prueba que el
   fichero pertenece a esa generación es su propio `snapshot.sha256`, repetido en
-  la cabecera: un delta incremental muta la generación en sitio y refresca ese
-  digest, así que un snapshot del grafo anterior deja de cuadrar sin que nadie
-  tenga que acordarse de borrarlo. Escribirlo es una economía y nunca una
-  precondición -- un fichero ausente, ajeno, rancio o corrupto cuesta una
-  derivación, se declara en el informe y jamás una respuesta. Medido en
-  `devlabs`: 253-255 MB de RSS y 787-836 MB de pico derivando, contra 150-152 MB
-  y 264-269 MB leyendo. Ver ADR 0045.
+  la cabecera: ninguna pasada muta una generación en sitio, así que un digest que
+  no cuadra significa que el fichero es ajeno, rancio o corrupto, y es también el
+  guardia que sostendría a cualquier ruta futura que sí mutara. Escribirlo es una
+  economía y nunca una precondición -- un fichero ausente, ajeno, rancio o
+  corrupto cuesta una derivación, se declara en el informe y jamás una respuesta.
+  Medido en `devlabs`: 253-255 MB de RSS y 787-836 MB de pico derivando, contra
+  150-152 MB y 264-269 MB leyendo. Ver ADR 0045.
 - `doctor` deriva el snapshot y nunca lee el publicado. No es un descuido que
   optimizar: informa de si **este grafo** todavía puede convertirse en snapshot,
   y leer un fichero escrito cuando el grafo estaba sano contestaría otra

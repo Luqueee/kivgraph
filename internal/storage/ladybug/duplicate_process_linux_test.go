@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 const duplicateHolderEnv = "KIVGRAPH_DUPLICATE_HOLDER"
@@ -54,12 +52,15 @@ func TestSecondProcessIsRefusedWithALockedError(t *testing.T) {
 		t.Fatalf("Open() error = %v, want it to name the holding pids", err)
 	}
 
-	// Safety: the refusal must be immediate and must not have touched the
-	// database the other process is using.
-	if _, err := ApplyCanonicalDelta(context.Background(), path, facts.Delta{
-		RemovedFiles: []string{"file:repository:acme/widgets:widgets.go"},
-	}, CanonicalLoadOptions{SnapshotID: 2, ResolverVersion: "duplicate-test"}); !errors.Is(err, ErrDatabaseLocked) {
-		t.Fatalf("ApplyCanonicalDelta() error = %v, want ErrDatabaseLocked", err)
+	// Safety: the live write path must be refused too, and must not touch the
+	// database the other process is using. LoadCanonical is that path, and it
+	// only ever writes a graph it creates itself: it refuses an existing
+	// database before opening it, so its refusal is ErrAlreadyExists and the
+	// holder's file is never opened for writing at all. The lock classification
+	// itself is the assertion above, on the open every writer goes through.
+	if _, err := LoadCanonical(context.Background(), path, canonicalFixtureSet(t),
+		CanonicalLoadOptions{SnapshotID: 2, ResolverVersion: "duplicate-test"}); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("LoadCanonical() error = %v, want ErrAlreadyExists", err)
 	}
 
 	stopDuplicateHolder(t, holder)

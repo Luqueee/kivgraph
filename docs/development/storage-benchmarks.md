@@ -66,16 +66,7 @@ go run -tags ladybug ./benchmarks/ladybug-queries \
 
 The benchmark runs golden probes before measuring. Its results characterize LadybugDB as the canonical source; they do not qualify the HotSnapshot SLOs.
 
-The incremental update uses a single logical writer, validates the complete delta before mutating, and applies symbols and relationships in one transaction. The benchmark copies an already-loaded database, so it never modifies the input artifact:
-
-```bash
-go run -tags ladybug ./benchmarks/ladybug-incremental \
-  --database /tmp/kivgraph-copy.db \
-  --corpus testdata/generated/synthetic \
-  --output benchmarks/ladybug-incremental
-```
-
-The sequence measures individual and batched inserts, edge additions and removals, property changes, outgoing relationship replacement, and symbol deletion. It then checks duplicate rejection, the absence of ghost edges, and rollback after a late failure. The timings cover only transactional LadybugDB mutation; HotSnapshot construction and publication belong to later phases.
+The incremental update benchmark, `benchmarks/ladybug-incremental`, was **deleted** along with the delta path itself ([ADR 0057](../adr/0057-el-camino-incremental-se-retira.md)). It measured `ApplyCanonicalDelta` -- individual and batched inserts, edge additions and removals, property changes, outgoing relationship replacement, symbol deletion, duplicate rejection, absence of ghost edges, and rollback after a late failure -- and that code no longer exists. Its recorded numbers survive in `docs/decisions/ladybugdb-qualification.md` (`LADYBUG_INCREMENTAL_PASS`, `LADYBUG_DELTA_PERFORMANCE_PASS`) and the harness in git history. There is no incremental indexing path to benchmark: every pass is a full rebuild.
 
 Recovery is tested with isolated workers, `SIGKILL`, corruption, permissions, and a Linux `ENOSPC` injector. Each scenario modifies only a private copy:
 

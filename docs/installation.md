@@ -631,9 +631,11 @@ no cero; corrige el repositorio o su registro y repite la operación.
 - La configuración se valida sintácticamente y por permisos durante `doctor`;
   comprobaciones adicionales de políticas de repositorio pertenecen a la
   indexación.
-- El primer índice es una operación completa. El watcher incremental y las
-  actualizaciones posteriores deben seguir la configuración y los gates del
-  proyecto; no sustituyen la validación de una generación canónica.
+- **Todo índice es una operación completa.** No hay actualización incremental:
+  `kivgraph index` acepta sólo `--full` y cada pasada publica una generación
+  nueva, validada, en vez de mutar la vigente. El camino del delta se retiró en
+  el [ADR 0057](adr/0057-el-camino-incremental-se-retira.md). Lo que abarata una
+  reindexación es la caché de hechos, que sólo reanaliza lo que cambió.
 - El bundle generado desde un árbol modificado conserva `source.dirty: true` en
   `manifest.json`; para distribuir una versión reproducible usa un checkout
   limpio y conserva `SHA256SUMS` junto al artefacto.

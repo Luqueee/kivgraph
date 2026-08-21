@@ -161,17 +161,27 @@ no una fila medida.
 - El schema LadybugDB es versionado. Un cambio incompatible requiere full
   rebuild o migración documentada; nunca se modifica una base existente en
   silencio.
-- En un delta incremental, todo hecho afirmado por un archivo se retira y se
-  vuelve a afirmar junto con ese archivo. Lo que un archivo afirma son las
-  aristas que **salen** de sus símbolos: una arista que otro archivo le apunta la
-  afirmó ese otro, y retirar este no la toca. Un símbolo que el `Upsert` vuelve a
-  afirmar conserva su nodo por eso mismo; uno que no, se va con sus aristas,
-  entrantes incluidas. Las aristas de paquete también se retiran por su
-  evidencia aunque sobrevivan sus dos extremos. Ver ADR 0056.
-- Un grafo incremental **no es idéntico byte a byte** a una reconstrucción
-  limpia: una fila que nadie restableció conserva el `source_snapshot` y el
-  `resolver_version` de la generación que la observó. Es procedencia y ninguna
-  consulta filtra por ella; lo que sí debe coincidir es el contenido.
+- **El único camino de indexado es la reconstrucción completa.** No existe un
+  camino incremental: se retiró en el ADR 0057, medido a `1,67x` de un pase
+  completo y sin ningún llamante en producción. `kivgraph index` acepta sólo
+  `--full`, y eso es el diseño, no una limitación de la superficie.
+- Si alguna vez vuelve un camino incremental, el contrato de retirada del ADR
+  0056 es el punto de partida y **no se puede relajar**: todo hecho afirmado por
+  un archivo se retira y se vuelve a afirmar junto con ese archivo, y lo que un
+  archivo afirma son las aristas que **salen** de sus símbolos -- una arista que
+  otro archivo le apunta la afirmó ese otro, y retirar este no la toca. Un
+  símbolo que el `Upsert` vuelve a afirmar conserva su nodo por eso mismo; uno
+  que no, se va con sus aristas, entrantes incluidas. Las aristas de paquete
+  también se retiran por su evidencia aunque sobrevivan sus dos extremos.
+  Relajarlo es el defecto `LUQUE-2002`: un fichero editado perdiendo en silencio
+  toda arista entrante desde otro fichero.
+- Un camino incremental tampoco puede publicar sin verificar. La ruta retirada
+  hacía cero llamadas a `integrity` y a `golden probes`, y parte de su ventaja
+  medida era esa verificación ausente. Y no produciría un grafo idéntico byte a
+  byte a una reconstrucción limpia: una fila que nadie restableció conservaría el
+  `source_snapshot` y el `resolver_version` de la generación que la observó. Eso
+  es procedencia y ninguna consulta filtra por ella; lo que sí debe coincidir es
+  el contenido. Ver ADR 0056 y ADR 0057.
 - Cada `UNRESOLVED` conserva motivo, repositorio y lenguaje; cuando existe una
   ocurrencia concreta conserva su archivo, posición y detalle observados.
   Los fallos de módulo a nivel de repositorio pueden no tener archivo y nunca

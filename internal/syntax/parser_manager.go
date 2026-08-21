@@ -36,8 +36,6 @@ const (
 	ParserErrorUnsupportedLanguage ParserErrorKind = "UNSUPPORTED_LANGUAGE"
 	ParserErrorInitialization      ParserErrorKind = "PARSER_INITIALIZATION"
 	ParserErrorParse               ParserErrorKind = "PARSE"
-	ParserErrorInvalidInput        ParserErrorKind = "INVALID_INPUT"
-	ParserErrorTreeClosed          ParserErrorKind = "TREE_CLOSED"
 )
 
 var (
@@ -83,47 +81,8 @@ type InputPoint struct {
 	Column uint
 }
 
-// InputEdit describes one source edit for incremental parsing.
-type InputEdit struct {
-	StartByte   uint
-	OldEndByte  uint
-	NewEndByte  uint
-	StartPoint  InputPoint
-	OldEndPoint InputPoint
-	NewEndPoint InputPoint
-}
-
-func (edit InputEdit) validate() error {
-	if edit.StartByte > edit.OldEndByte {
-		return errors.New("start byte is after old end byte")
-	}
-	if edit.StartByte > edit.NewEndByte {
-		return errors.New("start byte is after new end byte")
-	}
-	return nil
-}
-
-func (edit InputEdit) toTreeSitter() tree_sitter.InputEdit {
-	return tree_sitter.InputEdit{
-		StartByte:      edit.StartByte,
-		OldEndByte:     edit.OldEndByte,
-		NewEndByte:     edit.NewEndByte,
-		StartPosition:  tree_sitter.Point{Row: edit.StartPoint.Row, Column: edit.StartPoint.Column},
-		OldEndPosition: tree_sitter.Point{Row: edit.OldEndPoint.Row, Column: edit.OldEndPoint.Column},
-		NewEndPosition: tree_sitter.Point{Row: edit.NewEndPoint.Row, Column: edit.NewEndPoint.Column},
-	}
-}
-
-// SyntaxRange is a changed structural range returned by incremental parsing.
-type SyntaxRange struct {
-	StartByte  uint
-	EndByte    uint
-	StartPoint InputPoint
-	EndPoint   InputPoint
-}
-
 // SyntaxTree owns one Tree-sitter tree. Call Close when the tree is no longer
-// needed; a closed tree cannot be used for inventory or incremental parsing.
+// needed; a closed tree cannot be used to build an inventory.
 type SyntaxTree struct {
 	language Language
 	tree     *tree_sitter.Tree
@@ -169,56 +128,6 @@ func (tree *SyntaxTree) SExpression() (string, error) {
 		return "", ErrSyntaxTreeClosed
 	}
 	return tree.tree.RootNode().ToSexp(), nil
-}
-
-// Edit updates this tree's byte and point coordinates for a later parse.
-func (tree *SyntaxTree) Edit(edit InputEdit) error {
-	if err := edit.validate(); err != nil {
-		return newParserError(ParserErrorInvalidInput, tree.Language(), err)
-	}
-	if tree == nil || tree.tree == nil {
-		return newParserError(ParserErrorTreeClosed, "", ErrSyntaxTreeClosed)
-	}
-	native := edit.toTreeSitter()
-	tree.tree.Edit(&native)
-	return nil
-}
-
-// ChangedRanges compares this tree as the old tree against other.
-func (tree *SyntaxTree) ChangedRanges(other *SyntaxTree) ([]SyntaxRange, error) {
-	if tree == nil || tree.tree == nil || other == nil || other.tree == nil {
-		return nil, ErrSyntaxTreeClosed
-	}
-	if tree.language != other.language {
-		return nil, newParserError(ParserErrorInvalidInput, other.language, fmt.Errorf("trees use languages %q and %q", tree.language, other.language))
-	}
-	return convertRanges(tree.tree.ChangedRanges(other.tree)), nil
-}
-
-func convertRanges(ranges []tree_sitter.Range) []SyntaxRange {
-	result := make([]SyntaxRange, len(ranges))
-	for index, changed := range ranges {
-		result[index] = SyntaxRange{
-			StartByte:  changed.StartByte,
-			EndByte:    changed.EndByte,
-			StartPoint: pointFromTreeSitter(changed.StartPoint),
-			EndPoint:   pointFromTreeSitter(changed.EndPoint),
-		}
-	}
-	return result
-}
-
-func (tree *SyntaxTree) cloneAndEdit(edit InputEdit) (*tree_sitter.Tree, error) {
-	if tree == nil || tree.tree == nil {
-		return nil, newParserError(ParserErrorTreeClosed, "", ErrSyntaxTreeClosed)
-	}
-	if err := edit.validate(); err != nil {
-		return nil, newParserError(ParserErrorInvalidInput, tree.language, err)
-	}
-	clone := tree.tree.Clone()
-	native := edit.toTreeSitter()
-	clone.Edit(&native)
-	return clone, nil
 }
 
 // ParserManager owns reusable parsers and bounds native parser concurrency.
@@ -276,7 +185,7 @@ func (manager *ParserManager) Parse(ctx context.Context, language Language, sour
 	}
 	defer lease.release()
 
-	nativeTree := parseWithContext(ctx, lease.parser, source, nil)
+	nativeTree := parseWithContext(ctx, lease.parser, source)
 	if err := ctx.Err(); err != nil {
 		if nativeTree != nil {
 			nativeTree.Close()
@@ -287,56 +196,6 @@ func (manager *ParserManager) Parse(ctx context.Context, language Language, sour
 		return nil, newParserError(ParserErrorParse, language, errors.New("tree-sitter returned no tree"))
 	}
 	return &SyntaxTree{language: language, tree: nativeTree}, nil
-}
-
-// ParseIncremental applies edit to a private clone of previous and parses the
-// new source. The caller's previous tree remains usable and unchanged.
-func (manager *ParserManager) ParseIncremental(ctx context.Context, language Language, source []byte, previous *SyntaxTree, edit InputEdit) (*SyntaxTree, error) {
-	tree, _, err := manager.ParseIncrementalWithRanges(ctx, language, source, previous, edit)
-	return tree, err
-}
-
-// ParseIncrementalWithRanges is ParseIncremental plus the structural ranges
-// that Tree-sitter changed between the previous and new trees.
-func (manager *ParserManager) ParseIncrementalWithRanges(ctx context.Context, language Language, source []byte, previous *SyntaxTree, edit InputEdit) (*SyntaxTree, []SyntaxRange, error) {
-	ctx = normalizeContext(ctx)
-	if err := ctx.Err(); err != nil {
-		return nil, nil, newParserError(ParserErrorCanceled, language, err)
-	}
-	if previous == nil {
-		tree, err := manager.Parse(ctx, language, source)
-		return tree, nil, err
-	}
-	if previous.Language() != language {
-		return nil, nil, newParserError(ParserErrorInvalidInput, language, fmt.Errorf("previous tree uses language %q", previous.Language()))
-	}
-	clone, err := previous.cloneAndEdit(edit)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	lease, err := manager.acquire(ctx, language)
-	if err != nil {
-		clone.Close()
-		return nil, nil, err
-	}
-	defer lease.release()
-
-	nativeTree := parseWithContext(ctx, lease.parser, source, clone)
-	if err := ctx.Err(); err != nil {
-		clone.Close()
-		if nativeTree != nil {
-			nativeTree.Close()
-		}
-		return nil, nil, newParserError(ParserErrorCanceled, language, err)
-	}
-	if nativeTree == nil {
-		clone.Close()
-		return nil, nil, newParserError(ParserErrorParse, language, errors.New("tree-sitter returned no tree"))
-	}
-	ranges := convertRanges(clone.ChangedRanges(nativeTree))
-	clone.Close()
-	return &SyntaxTree{language: language, tree: nativeTree}, ranges, nil
 }
 
 // Stats reports parser reuse and concurrency state.
@@ -391,14 +250,15 @@ func normalizeContext(ctx context.Context) context.Context {
 	}
 	return ctx
 }
-func parseWithContext(ctx context.Context, parser *tree_sitter.Parser, source []byte, oldTree *tree_sitter.Tree) *tree_sitter.Tree {
+
+func parseWithContext(ctx context.Context, parser *tree_sitter.Parser, source []byte) *tree_sitter.Tree {
 	length := len(source)
 	return parser.ParseWithOptions(func(offset int, _ tree_sitter.Point) []byte {
 		if offset < length {
 			return source[offset:]
 		}
 		return []byte{}
-	}, oldTree, &tree_sitter.ParseOptions{
+	}, nil, &tree_sitter.ParseOptions{
 		ProgressCallback: func(tree_sitter.ParseState) bool {
 			return ctx.Err() != nil
 		},

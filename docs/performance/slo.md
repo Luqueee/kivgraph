@@ -43,22 +43,28 @@ Una operación que alcance `TRAVERSAL_LIMIT_REACHED` por superar sus límites
 configurados no se considera una violación de latencia por sí misma, pero el
 resultado debe declarar `truncated` y el código de error correspondiente.
 
-## SLO de actualización incremental
+## SLO de reindexación
 
-| Cambio | Disponibilidad visible |
+No hay SLO de actualización incremental porque no hay camino incremental: el
+delta se retiró en el [ADR 0057](../adr/0057-el-camino-incremental-se-retira.md).
+Toda reindexación es una pasada completa que publica una generación nueva.
+
+| Operación | Disponibilidad visible |
 | --- | ---: |
-| Archivo sin modificar exports | p95 ≤ 750 ms |
-| Cambio en exports o imports | p95 ≤ 2 s |
-| Cambio en `package.json`, `tsconfig` o `go.mod` | p95 ≤ 5 s |
-| Actualización de un repositorio completo | objetivo ≤ 15 s |
-| Reconstrucción inicial | objetivo ≤ 60 s; límite provisional ≤ 120 s |
+| Reindexación con caché de hechos caliente | objetivo ≤ 15 s |
+| Reconstrucción inicial, caché en frío | objetivo ≤ 60 s; límite provisional ≤ 120 s |
 
-El tiempo de indexación incluye detección, análisis, actualización del grafo,
-construcción y validación del snapshot hasta que este queda visible. El tiempo
-de consulta se mide por separado.
-Durante una actualización válida, las consultas existentes continúan leyendo el
-snapshot anterior. No se publica un snapshot parcial aunque una fase del delta
-falle.
+El tiempo de indexación incluye detección, análisis, escritura del grafo
+canónico, integridad, construcción y validación del snapshot hasta que este
+queda visible. El tiempo de consulta se mide por separado.
+Durante una pasada válida, las consultas existentes continúan leyendo el
+snapshot anterior. No se publica un snapshot parcial aunque una fase falle: la
+generación candidata sólo pasa a `CURRENT` si supera integridad y validación.
+
+Lo que abarata una reindexación es la caché de hechos, no un delta: medido sobre
+el corpus `kena` (`4.683` ficheros, `477.027` aristas) los motores de lenguaje
+con caché caliente son `0,57 s` de un pase de `9,17 s`. Las cifras están en
+`benchmarks/incremental-cost/report.md`.
 
 ## Memoria y almacenamiento
 

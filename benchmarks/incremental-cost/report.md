@@ -1,5 +1,10 @@
 # Lo que el camino incremental podría ahorrar
 
+> **Resultado.** Esta medición decidió `LUQUE-2003`: el camino incremental se
+> **retiró** ([ADR 0057](../../docs/adr/0057-el-camino-incremental-se-retira.md)).
+> Lo que sigue describe en presente un código que ya se borró; se conserva
+> intacto porque es la evidencia que sostiene la decisión.
+
 `LUQUE-2003` pregunta si el camino del delta se cablea o se retira. Este
 benchmark mide la única cifra que decide eso: **el techo**. No mide un delta
 -nada lo llama, así que no hay tal medición que tomar-, mide qué pasos de un

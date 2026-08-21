@@ -585,9 +585,9 @@ func MergeAll(sets []Set) Set {
 }
 
 // edgeIdentity and unresolvedIdentity are what makes two facts the same fact:
-// the tuple Merge deduplicates on, and the one Delta checks for duplicates
-// against. They are comparable structs rather than joined strings because a
-// separator has to be allocated and hashed for every edge in the graph.
+// the tuple Merge and MergeAll deduplicate on. They are comparable structs
+// rather than joined strings because a separator has to be allocated and
+// hashed for every edge in the graph.
 func edgeIdentityOf(edge Edge) edgeIdentity {
 	return edgeIdentity{
 		kind: edge.Kind, source: edge.SourceKey,

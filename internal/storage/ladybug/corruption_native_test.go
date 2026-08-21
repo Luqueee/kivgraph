@@ -4,10 +4,9 @@ package ladybug
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
-
-	"github.com/Luqueee/kivgraph/internal/facts"
 )
 
 // A corrupt database is not a database with a wrong schema: that case is
@@ -46,38 +45,44 @@ func TestDiagnoseStorageDetectsADamagedDatabaseFile(t *testing.T) {
 }
 
 // TestCorruptDatabaseRefusesWrites is the blocking half: a damaged database must
-// reject every write path with a classified error instead of appending to the
+// reject the write path with a classified error instead of appending to the
+// damage.
+//
+// LoadCanonical is the only canonical write there is, and it writes a graph it
+// creates itself: it refuses a path that already exists before opening it, so a
+// damaged database is never opened for writing and never appended to. That
+// existence refusal holds for an intact database too, so on its own it is no
+// evidence about damage; the evidence is the engine level refusal, asserted on
+// the open every writer goes through, against a control that opens the same
+// database while it is still intact. Without that control a broken open would
+// pass this test. The file hash proves neither refusal added damage to the
 // damage.
 func TestCorruptDatabaseRefusesWrites(t *testing.T) {
 	set := canonicalFixtureSet(t)
 	options := CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "corruption-test"}
 
-	t.Run("bulk load", func(t *testing.T) {
-		path := buildCleanCanonicalGraph(t)
-		overwriteDatabase(t, path)
-		before := testFileHash(t, path)
+	path := buildCleanCanonicalGraph(t)
+	intact, err := Open(context.Background(), path, DefaultConfig())
+	if err != nil {
+		t.Fatalf("Open() on an intact database error = %v, want it to open", err)
+	}
+	if err := intact.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
 
-		if _, err := LoadCanonical(context.Background(), path, set, options); err == nil {
-			t.Fatal("LoadCanonical() error = nil, want a refused load")
-		}
-		if after := testFileHash(t, path); after != before {
-			t.Fatal("a refused load still wrote to the damaged database")
-		}
-	})
+	overwriteDatabase(t, path)
+	before := testFileHash(t, path)
 
-	t.Run("delta", func(t *testing.T) {
-		path := buildCleanCanonicalGraph(t)
-		overwriteDatabase(t, path)
-		before := testFileHash(t, path)
-
-		delta := facts.Delta{ReplacedFiles: []string{"file:repository:acme/widgets:widgets.go"}}
-		if _, err := ApplyCanonicalDelta(context.Background(), path, delta, options); err == nil {
-			t.Fatal("ApplyCanonicalDelta() error = nil, want a refused mutation")
-		}
-		if after := testFileHash(t, path); after != before {
-			t.Fatal("a refused delta still wrote to the damaged database")
-		}
-	})
+	if _, err := LoadCanonical(context.Background(), path, set, options); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("LoadCanonical() error = %v, want the load refused with ErrAlreadyExists", err)
+	}
+	if database, err := Open(context.Background(), path, DefaultConfig()); err == nil {
+		_ = database.Close()
+		t.Fatal("Open() for writing succeeded on a damaged database")
+	}
+	if after := testFileHash(t, path); after != before {
+		t.Fatal("a refused write still touched the damaged database")
+	}
 }
 
 // TestCorruptDatabaseRefusesReads keeps the read side honest too: a damaged

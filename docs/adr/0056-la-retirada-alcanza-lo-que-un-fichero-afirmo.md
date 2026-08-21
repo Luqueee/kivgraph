@@ -2,6 +2,11 @@
 
 - **Estado:** aceptada
 - **Fecha:** 2026-08-21
+- **Nota posterior:** el camino incremental que este ADR corrige **ya no
+  existe**: se retiró en el [ADR 0057](0057-el-camino-incremental-se-retira.md).
+  Lo que sigue describe código borrado. El contrato que fija -- lo que un fichero
+  afirma son las aristas que **salen** de sus símbolos -- se conserva como la
+  condición de partida, no relajable, de cualquier incremental futuro.
 
 ## Contexto
 

@@ -3,7 +3,6 @@ package syntax
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 )
 
@@ -134,82 +133,6 @@ func TestParserManagerCloseRejectsNewWorkAndIsIdempotent(t *testing.T) {
 	var parserErr *ParserError
 	if !errors.As(err, &parserErr) || parserErr.Kind != ParserErrorManagerClosed || !errors.Is(err, ErrParserManagerClosed) {
 		t.Fatalf("closed manager error = %v", err)
-	}
-}
-
-func TestParserManagerIncrementalParseKeepsPreviousTreeUsable(t *testing.T) {
-	manager, err := NewParserManager(1)
-	if err != nil {
-		t.Fatalf("NewParserManager() error = %v", err)
-	}
-	defer manager.Close()
-
-	oldSource := []byte("const value = 1;\n")
-	previous, err := manager.Parse(context.Background(), LanguageJavaScript, oldSource)
-	if err != nil {
-		t.Fatalf("initial Parse() error = %v", err)
-	}
-	defer previous.Close()
-	newSource := []byte("const value = 2;\n")
-	updated, err := manager.ParseIncremental(context.Background(), LanguageJavaScript, newSource, previous, InputEdit{
-		StartByte:   14,
-		OldEndByte:  15,
-		NewEndByte:  15,
-		StartPoint:  InputPoint{Row: 0, Column: 14},
-		OldEndPoint: InputPoint{Row: 0, Column: 15},
-		NewEndPoint: InputPoint{Row: 0, Column: 15},
-	})
-	if err != nil {
-		t.Fatalf("ParseIncremental() error = %v", err)
-	}
-	defer updated.Close()
-	oldRoot, err := previous.RootNode()
-	if err != nil {
-		t.Fatalf("previous RootNode() error = %v", err)
-	}
-	newRoot, err := updated.RootNode()
-	if err != nil {
-		t.Fatalf("updated RootNode() error = %v", err)
-	}
-	oldText := oldRoot.Utf8Text(oldSource)
-	newText := newRoot.Utf8Text(newSource)
-	if oldText == newText || !strings.Contains(newText, "2") {
-		t.Fatalf("incremental trees old=%q new=%q", oldText, newText)
-	}
-}
-func TestParserManagerIncrementalParseReturnsChangedRanges(t *testing.T) {
-	manager, err := NewParserManager(1)
-	if err != nil {
-		t.Fatalf("NewParserManager() error = %v", err)
-	}
-	defer manager.Close()
-
-	oldSource := []byte("const value = 1;\n")
-	previous, err := manager.Parse(context.Background(), LanguageJavaScript, oldSource)
-	if err != nil {
-		t.Fatalf("initial Parse() error = %v", err)
-	}
-	defer previous.Close()
-	newSource := []byte("const value = foo(1);\n")
-	updated, ranges, err := manager.ParseIncrementalWithRanges(context.Background(), LanguageJavaScript, newSource, previous, InputEdit{
-		StartByte:   14,
-		OldEndByte:  15,
-		NewEndByte:  20,
-		StartPoint:  InputPoint{Row: 0, Column: 14},
-		OldEndPoint: InputPoint{Row: 0, Column: 15},
-		NewEndPoint: InputPoint{Row: 0, Column: 20},
-	})
-	if err != nil {
-		t.Fatalf("ParseIncrementalWithRanges() error = %v", err)
-	}
-	defer updated.Close()
-	if len(ranges) == 0 {
-		t.Fatal("ParseIncrementalWithRanges() returned no changed ranges")
-	}
-	for _, changed := range ranges {
-		if changed.EndByte <= changed.StartByte || changed.EndByte > uint(len(newSource)) {
-			t.Fatalf("invalid changed range = %#v", changed)
-		}
 	}
 }
 

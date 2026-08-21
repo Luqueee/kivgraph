@@ -98,6 +98,13 @@ margen de `53,401 ms` exige repetir la medición en el hardware objetivo.
 
 ### Actualización incremental
 
+**Registro histórico.** El camino incremental se retiró en el
+[ADR 0057](../adr/0057-el-camino-incremental-se-retira.md): nunca tuvo llamante
+en producción y hoy no existe. Las cifras de abajo son lo que se midió entonces
+sobre `Writer.Apply` y se conservan como el registro del gate, no como una
+propiedad vigente del producto. Lo que sigue en pie de esta sección es la regla
+de que ninguna mutación in-place toca la generación activa.
+
 LUQUE-0214 perfiló `BEGIN`, lookup de extremos, borrado, creación, integridad,
 `COMMIT` y cierre sobre cinco copias del corpus completo. También registró
 throughput, RSS y allocations por batch. El gate mide `Writer.Apply`; `Close`
@@ -182,8 +189,12 @@ desbloquea LUQUE-0301.
 - [`benchmarks/ladybug-bulk/full-scale/report.md`](../../benchmarks/ladybug-bulk/full-scale/report.md)
 - [`benchmarks/ladybug-queries/results.json`](../../benchmarks/ladybug-queries/results.json)
 - [`benchmarks/ladybug-queries/report.md`](../../benchmarks/ladybug-queries/report.md)
-- [`benchmarks/ladybug-incremental/results.json`](../../benchmarks/ladybug-incremental/results.json)
-- [`benchmarks/ladybug-incremental/report.md`](../../benchmarks/ladybug-incremental/report.md)
+- `benchmarks/ladybug-incremental/results.json` y
+  `benchmarks/ladybug-incremental/report.md` -- **borrados** con el camino
+  incremental ([ADR 0057](../adr/0057-el-camino-incremental-se-retira.md)).
+  Quedan en el historial de git; las cifras que sostienen
+  `LADYBUG_INCREMENTAL_PASS` y `LADYBUG_DELTA_PERFORMANCE_PASS` están transcritas
+  en este documento.
 - [`benchmarks/ladybug-delta-profile/results.json`](../../benchmarks/ladybug-delta-profile/results.json)
 - [`benchmarks/ladybug-delta-profile/report.md`](../../benchmarks/ladybug-delta-profile/report.md)
 - [`benchmarks/ladybug-recovery/results.json`](../../benchmarks/ladybug-recovery/results.json)

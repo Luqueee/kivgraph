@@ -87,10 +87,10 @@ func TestBuildInventorySupportsGoAndJavaScript(t *testing.T) {
 }
 
 // TestBuildInventoryClassifiesRustDeclarationsAndUses defends what the
-// incremental classifier reads from a Rust file: a declaration whose
-// signature stops at its body -- so editing the body is not a signature
-// change -- and a `use`, which is Rust's import and matches none of the
-// substring rules the other grammars rely on.
+// inventory extracts from a Rust file: a declaration whose signature stops
+// at its body -- so editing the body leaves the signature untouched -- and a
+// `use`, which is Rust's import and matches none of the substring rules the
+// other grammars rely on.
 func TestBuildInventoryClassifiesRustDeclarationsAndUses(t *testing.T) {
 	manager, err := NewParserManager(1)
 	if err != nil {

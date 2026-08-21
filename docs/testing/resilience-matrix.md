@@ -15,10 +15,10 @@ cobertura ausente.
 | Tarea | Fallo inyectado | Invariante exigido | Evidencia ejecutable | Estado |
 | --- | --- | --- | --- | --- |
 | LUQUE-1202 | Fallo en cada etapa de un full rebuild y cancelación durante la ejecución | `CURRENT`, bytes de la generación activa, snapshot servido y probes permanecen iguales; no se publica candidato ni queda una generación incompleta | `internal/rebuild/failure_test.go`: `TestRunFailureAtAnyStageLeavesCurrentGenerationUntouched`, `TestRunCancellationLeavesCurrentGenerationUntouched`, `TestRepeatedFailuresDoNotErodeTheActiveGeneration`; `internal/resilience/rebuild_test.go`: `TestFailedFullRebuildDoesNotChangeTheServedGraph` | PASS |
-| LUQUE-1203 | Error de validación, fallo de aplicación del delta, fallo posterior al commit y cancelación | Un delta fallido no publica snapshot ni digest; la transacción real revierte las mutaciones; el siguiente delta válido puede aplicarse | `internal/indexer/delta_failure_test.go`: `TestUpdateNeverPublishesAfterAFailedStep`, `TestUpdateLeavesAStaleDigestWhenTheMutationOutlivesTheUpdate`, `TestUpdateHonoursCancellationBeforeTouchingTheGraph`; `internal/indexer/delta_rollback_native_test.go`: `TestUpdateDeltaRouteRollsBackOnRealStorage`, `TestUpdateDeltaRouteSucceedsAfterARollback` | PASS |
+| LUQUE-1203 | Error de validación, fallo de aplicación del delta, fallo posterior al commit y cancelación | **Escenario retirado.** Cubría el camino incremental, que se borró en el [ADR 0057](../adr/0057-el-camino-incremental-se-retira.md) junto con sus tests. Lo que queda de este invariante -- una pasada fallida no publica snapshot ni digest, y la generación activa no se erosiona-- lo sostiene LUQUE-1202 sobre la reconstrucción completa, que es el único camino. | Ninguna: `internal/indexer/delta_failure_test.go` y `delta_rollback_native_test.go` ya no existen. | RETIRADO |
 | LUQUE-1204 | Digest de snapshot ausente o corrupto y grafo no convertible | Un digest inválido no activa una generación no verificada; el snapshot se reconstruye desde el grafo válido; un grafo no convertible falla de forma explícita y no se publica | `internal/rebuild/snapshot_corruption_test.go`: `TestSnapshotGenerationRebuildsDespiteACorruptDigest`, `TestCorruptDigestBlocksRollbackUntilItIsRestored`, `TestSnapshotGenerationFailsLoudlyOnAnUnconvertibleGraph`; `internal/resilience/snapshot_test.go`: `TestCorruptSnapshotDigestDoesNotDisturbReaders`, `TestServiceRecoversByRebuildingAfterCorruption`, `TestUnbuildableGraphLeavesTheServiceHonest` | PASS |
 | LUQUE-1205 | Base LadybugDB truncada o sobrescrita mientras existe un snapshot servido | El doctor detecta el daño sin repararlo; las lecturas y escrituras contra la base dañada fallan sin crear una base encima ni devolver un grafo parcial; el snapshot en memoria sigue sirviéndose sin cambios | `internal/storage/ladybug/corruption_native_test.go`: `TestDiagnoseStorageDetectsADamagedDatabaseFile`, `TestCorruptDatabaseRefusesWrites`, `TestCorruptDatabaseRefusesReads`, `TestHealthyDatabasePassesTheSameChecks`; `internal/resilience/database_native_test.go`: `TestCorruptDatabaseKeepsReadersServedAndIsReportedByDoctor` | PASS |
-| LUQUE-1206 | Segundo proceso abre o muta la misma base | La segunda apertura falla antes de escribir con `ErrDatabaseLocked` y, en Linux, nombra los PIDs retenedores; una base dañada no se etiqueta como lock; al terminar el proceso retenedor la base vuelve a ser utilizable | `internal/storage/ladybug/duplicate_process_linux_test.go`: `TestSecondProcessIsRefusedWithALockedError`, `TestDamagedDatabaseIsNotReportedAsLocked` | PASS |
+| LUQUE-1206 | Segundo proceso retiene la misma base | La apertura falla antes de escribir con `ErrDatabaseLocked` y, en Linux, nombra los PIDs retenedores; `LoadCanonical` se niega antes de abrir con `ErrAlreadyExists`; una base dañada no se etiqueta como lock; al terminar el proceso retenedor la base vuelve a ser utilizable | `internal/storage/ladybug/duplicate_process_linux_test.go`: `TestSecondProcessIsRefusedWithALockedError`, `TestDamagedDatabaseIsNotReportedAsLocked` | PASS |
 | LUQUE-1207 | Señal de apagado y cierre de MCP, watcher, worker, conexiones, snapshot y LadybugDB | Se cancela el contexto compartido; se cierran los recursos en orden `MCP → snapshot → watcher → worker → conexiones → LadybugDB`; se ejecutan todos los cierres aunque uno falle; los runners terminan y `serve` sale con código 0 | `internal/app/lifecycle_test.go`: `TestLifecycleShutdownCancelsRunnersClosesEveryResourceInOrderAndIsIdempotent`, `TestLifecycleClosesResourcesBeforeWaitingForDependentRunner`, `TestLifecycleShutdownContinuesAfterCloseFailure`; `internal/resilience/shutdown_test.go`: `TestLifecycleClosesMCPWatcherWorkerAndSnapshot`; `internal/app/shutdown_native_test.go`; `cmd/kivgraph/main_test.go`; smoke real de `serve` con `SIGTERM` | PASS |
 
 ## Controles positivos
@@ -32,8 +32,11 @@ matriz exige estos controles:
 - `internal/resilience/snapshot_test.go`:
   `TestServiceRecoversByRebuildingAfterCorruption` y
   `TestUnbuildableGraphLeavesTheServiceHonest`.
-- `internal/indexer/delta_rollback_native_test.go`:
-  `TestUpdateDeltaRouteSucceedsAfterARollback`.
+- El control positivo del delta,
+  `internal/indexer/delta_rollback_native_test.go`:
+  `TestUpdateDeltaRouteSucceedsAfterARollback`, se fue con el camino incremental
+  ([ADR 0057](../adr/0057-el-camino-incremental-se-retira.md)). No se sustituye:
+  el escenario que lo exigía está retirado.
 
 ## Ejecución reproducible
 
@@ -49,7 +52,7 @@ make build
 ```
 
 `make test-ladybug` ejecuta la suite completa con `-tags ladybug`, incluyendo
-las pruebas nativas de almacenamiento, delta, recuperación y apagado. La suite
+las pruebas nativas de almacenamiento, recuperación y apagado. La suite
 sin tag cubre los contratos que no dependen del motor nativo; `go vet`, race y
 el build verifican que la matriz no se apoya en una ejecución parcial.
 

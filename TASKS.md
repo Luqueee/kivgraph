@@ -895,7 +895,7 @@ Las consultas deben devolver resultados correctos sobre el corpus sintético.
 * Las pruebas y el probe final confirman rechazo de símbolos y relaciones duplicados, ausencia de ghost edges, atomicidad y rollback.
 * La base de entrada conservó el checksum SHA-256 `ada9dc0b704046c8b019e17efe3d443de58102b7a316964b9e105822ffc99191`.
 * No hay gate propio en esta tarea. Las mediciones excluyen la construcción y publicación del HotSnapshot, aplazadas a fases posteriores.
-* Artefactos: `benchmarks/ladybug-incremental/results.json` y `benchmarks/ladybug-incremental/report.md`.
+* Artefactos: `benchmarks/ladybug-incremental/results.json` y `benchmarks/ladybug-incremental/report.md`. **Borrados por LUQUE-2003 / ADR 0057** al retirarse el camino incremental; medían código que ya no existe. Quedan en el historial de git, y las cifras de arriba son el registro.
 
 ---
 
@@ -8838,14 +8838,19 @@ puntos contra el motor real:
 ```text
 detectar          DiagnoseStorage devuelve Healthy=false y nombra el check caído,
                   sin tocar el archivo que inspecciona
-bloquear escrituras LoadCanonical y ApplyCanonicalDelta fallan, y el hash del
-                  archivo no cambia: un rechazo no añade daño al daño
+bloquear escrituras LoadCanonical se niega antes de abrir -ErrAlreadyExists sobre
+                  una base que ya existe- y una apertura de escritura sobre el
+                  archivo dañado falla; el hash del archivo no cambia: un rechazo
+                  no añade daño al daño
 bloquear lecturas ScanCanonical falla y no devuelve un grafo parcial junto al error
 ```
 
 La comprobación de que el hash no cambia es la que importa: un `LoadCanonical`
 contra una ruta que ya no es una base podría haber creado una base nueva encima
-y destruido la evidencia. No lo hace.
+y destruido la evidencia. No lo hace -- ni siquiera llega al motor: la guarda de
+`os.Stat` la detiene antes. (Este punto lo cubría `ApplyCanonicalDelta` hasta
+que el ADR 0057 retiró el camino incremental; el vehículo de escritura es ahora
+`LoadCanonical` más una apertura de escritura, que es la ruta viva.)
 
 `internal/resilience/database_native_test.go` junta los cuatro puntos en una
 sola historia: con un servidor MCP sirviendo y una base canónica real, se
@@ -8942,10 +8947,13 @@ La distinción viene de fuera del motor porque el motor no la da. La causa
 original se conserva envuelta: no se sustituye un diagnóstico por otro.
 
 **Pruebas:** `internal/storage/ladybug/duplicate_process_linux_test.go` levanta
-un segundo proceso real que retiene la base y comprueba que `Open` y
-`ApplyCanonicalDelta` se rechazan con `ErrDatabaseLocked`, que el error nombra
-los PIDs, y que al morir el proceso la base vuelve a ser utilizable —el cerrojo
-es del kernel, no un archivo obsoleto que Kivgraph deje atrás—.
+un segundo proceso real que retiene la base y comprueba que `Open` se rechaza
+con `ErrDatabaseLocked` -- es donde vive `classifyOpenFailure`, la única puerta
+de escritura--, que el error nombra los PIDs, y que al morir el proceso la base
+vuelve a ser utilizable —el cerrojo es del kernel, no un archivo obsoleto que
+Kivgraph deje atrás—. Su cláusula de seguridad asserta que `LoadCanonical` se
+niega con `ErrAlreadyExists`, que es lo que hace antes de tocar el motor. La
+prueba usaba `ApplyCanonicalDelta` hasta que el ADR 0057 lo retiró.
 
 **Control:** `TestDamagedDatabaseIsNotReportedAsLocked` — una base destruida
 conserva su propio error. Sin él, clasificar todo como «locked» también pasaría.
@@ -15060,6 +15068,8 @@ apuntar la pasada a un árbol que puede editar.
 
 ## LUQUE-2003 — Decidir la suerte del camino incremental
 
+**Estado:** cerrada por el ADR 0057 -- **retirado**.
+
 **Dependencias:** LUQUE-2002.
 
 **El hecho:** el subsistema de delta está construido y probado, y **no lo llama
@@ -15118,5 +15128,37 @@ son `0,57 s` de los `9,17 s`. Un incremental que de verdad pagara necesita un
 `HotSnapshot` actualizable y un set `Next` acotado, que es otro diseño y otro
 ADR, no este código.
 
-La retirada es borrar un subsistema entero, así que espera consentimiento
-explícito.
+**Resultado registrado:** se eligió **retirarlo**, con consentimiento explícito.
+El ADR 0057 (`docs/adr/0057-el-camino-incremental-se-retira.md`) es la decisión.
+
+**Qué se midió:** `benchmarks/incremental-cost`, que sigue en el árbol y es la
+medición que decidió esto. El pase completo son `9,174 s`; la fase `staging` es
+`3,529 s` -- el `38 %`, y lo único que el delta evitaba--; los costes fijos que
+`applyDeltaRoute` pagaba en cada delta contra la base real de `318 MB` son
+`1,818 s` (`CanonicalTableCounts` `0,030 s`, `RefreshSnapshotDigest` `0,000 s`,
+`BuildSnapshot` completo `1,788 s`). Techo: `2,41x` tal como estaba escrito,
+`1,67x` si además verificara. Nunca se midió un delta de extremo a extremo,
+porque no había llamante que medir.
+
+**Qué se decidió:** el único camino de indexado es la reconstrucción completa.
+`kivgraph index` acepta sólo `--full` y eso es el diseño. El contrato de retirada
+del ADR 0056 deja de describir código existente y pasa a ser la condición de
+partida -- no relajable-- de cualquier incremental futuro, que además necesitaría
+un `HotSnapshot` actualizable, un set `Next` acotado y la verificación
+(`integrity`, `golden probes`) que esta ruta se saltaba.
+
+**Qué se borró:** `2.732` líneas de producción -- `internal/indexer/delta.go`,
+`invalidation.go`, `go.go`, `typescript.go`, `rust.go`, `semantic_changes.go`,
+`internal/facts/delta.go`, `internal/syntax/changes.go` y los tres
+`internal/storage/ladybug/canonical_mutation*.go`--, `3.976` de test y el
+benchmark `benchmarks/ladybug-incremental` (`953`). `corruption_native_test.go` y
+`duplicate_process_linux_test.go` conservan sus invariantes con otro vehículo:
+`LoadCanonical` se niega antes de abrir (`ErrAlreadyExists` por una guarda de
+`os.Stat`) y sostiene «rechaza escribir sin tocar el archivo»; `Open` sostiene
+`ErrDatabaseLocked` con los PIDs, que es donde vive `classifyOpenFailure`. Se
+conservan `rust_unit.go` y `semantic.go`, que el pase completo usa.
+
+**Qué se pierde:** el benchmark `ladybug-incremental` -- su evidencia
+(`LADYBUG_INCREMENTAL_PASS`, `LADYBUG_DELTA_PERFORMANCE_PASS`) sigue en
+`docs/decisions/ladybugdb-qualification.md` y su harness en el historial de git --
+y la posibilidad de un delta sin rediseñarlo.
