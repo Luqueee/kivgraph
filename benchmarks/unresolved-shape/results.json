@@ -335,9 +335,9 @@
       "what": "occurrences asking for kena's own packages rather than third-party ones",
       "corpus_state": "verified: none of sdk-module-ts, library-web or library-shared has a dist/",
       "what_a_build_would_fix": {
-        "@kena/sdk": "workspace package with no dist: building points its maps at src inside its own registered repository, which is what the bridge needs",
-        "@kena/shared": "same as @kena/sdk",
-        "@kena/web": "not a workspace member. dash.kena.bot declares \"0.0.1\", a registry range, so pnpm serves an installed copy from .pnpm with no .d.ts.map and no src. Building it locally changed nothing -- measured, 5998 to 5997 -- and publishing would not either, since files is [\"dist\"] and an installed copy under node_modules belongs to no registered repository. What fixes it is resolving the workspace package: add libraries/library-web to pnpm-workspace.yaml and depend on workspace:*"
+        "answer": "nothing. Every internal package is a workspace member, all 105 @kena/* declarations across 28 package.json files pin 0.0.1 rather than workspace:*, and pnpm 11 defaults link-workspace-packages to false. So every consumer resolves its own monorepo's packages from published tarballs in the store, which carry no src and no .d.ts.map, and the loader excludes installed copies by design",
+        "measured": "library-web was pulled, built with nine .d.ts.map files, and the corpus went from 5998 unresolved to 5997",
+        "what_would_fix_it": "consumers resolving the workspace copy: link-workspace-packages=true, or the 105 ranges as workspace:*. Both are decisions about their dependency tree"
       }
     }
   },
@@ -347,6 +347,12 @@
       "why_it_was_wrong": "library-web builds with tsdown, not tsc, and its tsdown.config.ts carries dts: { sourcemap: true }",
       "how_it_was_caught": "the user said the library should have a map; pulling and building it produced nine .d.ts.map files, and re-measuring showed the unresolved count did not move",
       "what_replaced_it": "the measured explanation: consumers resolve @kena/web from a published tarball, and the loader excludes installed copies by design"
+    },
+    {
+      "what": "this report then claimed library-web was absent from pnpm-workspace.yaml",
+      "why_it_was_wrong": "the file has 43 entries and library-web is line 24; the claim came from reading it through head -3",
+      "how_it_was_caught": "editing the file to add the entry produced a duplicate, which showed the original was already there",
+      "what_replaced_it": "one cause for the whole internal bucket: workspace members consumed as published tarballs because nothing links them"
     }
   ]
 }

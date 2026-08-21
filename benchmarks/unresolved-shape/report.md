@@ -153,33 +153,34 @@ arista de símbolo». Buscar una clave en el fichero equivocado es la misma clas
 error que la verdad construida por patrón del conjunto `reach`.
 
 Se construyó la librería y se volvió a medir. **No cambió nada**: `5.998` no
-resueltos antes, `5.997` después. El motivo es estructural y no es el mapa:
+resueltos antes, `5.997` después. Y la causa no es el mapa ni el build.
 
-|paquete|¿en `pnpm-workspace.yaml`?|cómo lo resuelve el consumidor|
-|---|---|---|
-|`@kena/sdk`|sí|paquete del workspace, sin `dist/`|
-|`@kena/shared`|sí|paquete del workspace, sin `dist/`|
-|`@kena/web`|**no**|un tarball publicado, desde `.pnpm/@kena+web@0.0.1_...`|
+**Segunda corrección, del mismo tipo que la primera.** Esta sección dijo después
+que `library-web` no estaba en `pnpm-workspace.yaml`. También falso: está, en la
+línea `24` de `43`, y se afirmó lo contrario tras mirar el fichero con un `head`.
+Dos conclusiones seguidas sacadas de una salida truncada.
 
-`dash.kena.bot` declara `"@kena/web": "0.0.1"` -- un rango de registro, no
-`workspace:*` -- así que `pnpm` le sirve una copia instalada cuyo `dist` no lleva
-ningún `.d.ts.map` y que no trae `src/`. Y `PROVIDER_SOURCE_UNAVAILABLE` salta
-exactamente donde el worker dice: cuando el dueño de la declaración **no declara
-proyecto propio**. Una copia bajo `node_modules` no pertenece a ningún
-repositorio registrado, y el cargador las excluye por diseño.
+Lo que el fichero completo y el `readlink` dicen juntos es una causa **única** para
+todo el cuarto interno:
 
-De modo que las dos mitades del cuarto interno se arreglan de formas distintas:
+|hecho|evidencia|
+|---|---|
+|los paquetes internos **son** miembros del workspace|`pnpm-workspace.yaml`, 43 entradas, `library-web` incluido|
+|sus consumidores los piden por rango de registro|`105` declaraciones `@kena/*` en `28` `package.json`, **todas** `0.0.1`, ninguna `workspace:*`|
+|`pnpm 11` no enlaza por defecto|`link-workspace-packages` sin configurar; el default es `false` desde `pnpm 10`|
+|así que se resuelven desde el store|`node_modules/@kena/shared -> .pnpm/@kena+shared@0.0.1_.../node_modules/@kena/shared`|
+|y esa copia no tiene con qué mapear|`0` `.d.ts.map`, sin `src/`|
 
-* `@kena/sdk` y `@kena/shared` son paquetes del workspace sin construir.
-  Construirlos apunta sus mapas a `src/` **dentro de su propio repositorio
-  registrado**, que es lo que el puente necesita. Son `67` de las `80` etiquetas
-  distintas del grupo grande.
-* `@kena/web` no se arregla construyéndolo ni publicándolo: su `package.json`
-  lleva `files: ["dist"]`, así que el tarball no incluiría los `src/` a los que
-  apuntan sus nueve mapas. Y aunque los incluyera, seguirían viviendo bajo
-  `node_modules`. Lo que lo arreglaría es que el consumidor resuelva el paquete
-  **del workspace** -- añadir `libraries/library-web` a `pnpm-workspace.yaml` y
-  pedirlo como `workspace:*`.
+Y `PROVIDER_SOURCE_UNAVAILABLE` salta exactamente donde el worker dice: cuando el
+dueño de la declaración **no declara proyecto propio**. Una copia bajo
+`node_modules` no pertenece a ningún repositorio registrado, y el cargador las
+excluye por diseño.
+
+De modo que el monorepo consume **tarballs publicados de su propio código**, y
+ninguna cantidad de `pnpm build` lo cambia. Lo que lo cambiaría es que los
+consumidores resuelvan la copia del workspace: `link-workspace-packages=true` en
+el `.npmrc`, o los `105` rangos como `workspace:*`. Las dos son decisiones sobre
+su árbol de dependencias, no sobre este grafo, y ninguna se tomó aquí.
 
 Nada de esto es un defecto de Kivgraph: es lo que un grafo puede saber de un
 paquete que llega como artefacto sin fuente. Pero decir «construye el workspace y
