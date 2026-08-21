@@ -1,0 +1,11 @@
+Node: retry.go
+  ID:        postgres_retry
+  Source:    internal/infrastructure/postgres/retry.go L1
+  Type:      code
+  Community: 201
+  Degree:    3
+
+Connections (3):
+  --> expBackoffJitter() [contains] [EXTRACTED]
+  --> withRetry() [contains] [EXTRACTED]
+  --> retryInfo [contains] [EXTRACTED]

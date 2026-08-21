@@ -1,0 +1,255 @@
+{
+  "status": "ok",
+  "pattern": "callers_of",
+  "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry.go::withRetry",
+  "description": "Find all functions that call a given function",
+  "summary": "Found 11 result(s) for callers_of('/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry.go::withRetry')",
+  "result_count": 11,
+  "results_omitted": 0,
+  "results": [
+    {
+      "id": 4453,
+      "kind": "Function",
+      "name": "Connect",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/client.go::Connect",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/client.go",
+      "line_start": 104,
+      "line_end": 144,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 4919,
+      "kind": "Test",
+      "name": "TestWithRetrySucceedsFirstTry",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetrySucceedsFirstTry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line_start": 10,
+      "line_end": 22,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 4920,
+      "kind": "Test",
+      "name": "TestWithRetryRetriesThenSucceeds",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryRetriesThenSucceeds",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line_start": 24,
+      "line_end": 43,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 4921,
+      "kind": "Test",
+      "name": "TestWithRetryExhaustsAndReturnsLastError",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryExhaustsAndReturnsLastError",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line_start": 45,
+      "line_end": 58,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 4922,
+      "kind": "Test",
+      "name": "TestWithRetryPreCancelledContext",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryPreCancelledContext",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line_start": 60,
+      "line_end": 74,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 4923,
+      "kind": "Test",
+      "name": "TestWithRetryContextExpiresDuringBackoff",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryContextExpiresDuringBackoff",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line_start": 76,
+      "line_end": 92,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 5458,
+      "kind": "Test",
+      "name": "TestWithRetry_SuccessFirstAttempt",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_SuccessFirstAttempt",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line_start": 207,
+      "line_end": 219,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 5459,
+      "kind": "Test",
+      "name": "TestWithRetry_RetriesAndSucceeds",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_RetriesAndSucceeds",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line_start": 221,
+      "line_end": 239,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 5460,
+      "kind": "Test",
+      "name": "TestWithRetry_NonRetryableFailsFast",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_NonRetryableFailsFast",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line_start": 241,
+      "line_end": 256,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 5461,
+      "kind": "Test",
+      "name": "TestWithRetry_ExhaustsBudget",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_ExhaustsBudget",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line_start": 258,
+      "line_end": 276,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    },
+    {
+      "id": 5462,
+      "kind": "Test",
+      "name": "TestWithRetry_ContextCanceled",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_ContextCanceled",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line_start": 278,
+      "line_end": 300,
+      "language": "go",
+      "parent_name": null,
+      "is_test": true
+    }
+  ],
+  "edges": [
+    {
+      "id": 42264,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/client.go::Connect",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/client.go",
+      "line": 126,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 46917,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetrySucceedsFirstTry",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line": 12,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 46922,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryRetriesThenSucceeds",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line": 27,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 46930,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryExhaustsAndReturnsLastError",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line": 48,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 46939,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryPreCancelledContext",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line": 64,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 46948,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go::TestWithRetryContextExpiresDuringBackoff",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+      "line": 82,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 51604,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_SuccessFirstAttempt",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line": 209,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 51611,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_RetriesAndSucceeds",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line": 226,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 51617,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_NonRetryableFailsFast",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line": 243,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 51628,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_ExhaustsBudget",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line": 263,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 51639,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go::TestWithRetry_ContextCanceled",
+      "target": "withRetry",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/shared/infisical/infisical_test.go",
+      "line": 290,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    }
+  ]
+}

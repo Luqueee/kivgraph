@@ -1,0 +1,18 @@
+Affected nodes for now_ms()
+Relations: calls, references, imports, imports_from, re_exports, inherits, extends, implements, uses, mixes_in, embeds
+Depth: 2
+- patch_player() [calls] src/api_rest/routes_players.rs:L71
+- to_rest() [calls] src/api_rest/routes_players.rs:L545
+- handle_socket() [calls] src/api_ws/mod.rs:L58
+- State [references] src/api_rest/routes_players.rs:L18
+- AppState [references] src/api_rest/routes_players.rs:L18
+- Json [references] src/api_rest/routes_players.rs:L18
+- Path [references] src/api_rest/routes_players.rs:L35
+- String [references] src/api_rest/routes_players.rs:L35
+- Result [references] src/api_rest/routes_players.rs:L35
+- PlayerRest [references] src/api_rest/routes_players.rs:L35
+- ApiError [references] src/api_rest/routes_players.rs:L35
+- get_player() [calls] src/api_rest/routes_players.rs:L52
+- list_players() [calls] src/api_rest/routes_players.rs:L35
+- ws_handler() [calls] src/api_ws/mod.rs:L24
+- AppState [references] src/api_ws/mod.rs:L24

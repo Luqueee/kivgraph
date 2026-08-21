@@ -130,6 +130,7 @@ export default defineConfig({
             { label: "Resolution vocabulary", slug: "reference/resolution" },
           ],
         },
+        { label: "Compared", slug: "comparison" },
         { label: "Limits", slug: "limits" },
       ],
     }),
