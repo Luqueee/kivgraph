@@ -15165,6 +15165,8 @@ y la posibilidad de un delta sin rediseñarlo.
 
 ## LUQUE-2004 — `trace_dependencies` no baja a los miembros de un contenedor
 
+**Estado:** cerrada por el ADR 0058 -- declarado, no descendido.
+
 **Dependencias:** ninguna.
 
 **El defecto:** preguntar el alcance de una clase devuelve sólo lo que la
@@ -15204,6 +15206,22 @@ silencio. Es la misma forma que el `H2` del conjunto duro, cerrado por el ADR
 
 **Lo que no vale:** dejar que una pregunta sobre una clase devuelva la mitad de
 su alcance sin decirlo.
+
+**Resultado.** Se eligió declararlo. `trace_dependencies` no cambia su travesía y
+nombra, en `members_not_followed` y en la `guidance`, los miembros cuyas aristas
+salientes la respuesta no ha caminado. Un miembro entra sólo si está en el span de
+la raíz, alcanza algo fuera de él y es de la capa más externa -- sin esa última
+condición la respuesta nombraba un parámetro. Tope de `12` nombres, y el campo
+viaja en las dos vistas porque la compacta es la de por defecto.
+
+La exhaustividad medida no se mueve: `X4` sigue en `R=0,50` sobre ficheros
+alcanzados. Lo que se va es el silencio, y cuesta `70` tokens en la respuesta que
+lo necesita (`163` -> `233`); las otras tres preguntas del conjunto no se movieron
+ni un token. Verificado sobre `kena` con el binario real, no sólo en fixture.
+
+Descender sigue abierto y ya se puede medir contra un borde declarado. Y queda
+dicho lo que no se tocó: `get_blast_radius` tiene el mismo borde en la dirección
+entrante.
 
 ## LUQUE-2005 — Cobertura de las tools servidas por el conjunto de preguntas
 

@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T21:21:15.072814Z",
-  "commit": "132ce20",
+  "generated_at": "2026-08-21T21:38:34.979493Z",
+  "commit": "fb90064",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -25,51 +25,10 @@
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/reachhome; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/memhome; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
-  "indexing": {
-    "code-review-graph": {
-      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 4957.525,
-      "scope": "one graph per repository; built the 2 the questions name, not all 37",
-      "state_bytes": 129966364,
-      "needs": "nothing beyond the binary"
-    },
-    "codebase-memory": {
-      "command": "codebase-memory-mcp cli index_repository",
-      "ms": 5272.931,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220594176,
-      "needs": "nothing beyond the binary"
-    },
-    "graft": {
-      "command": "graft build",
-      "ms": 25192.397,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180660370,
-      "needs": "nothing: the structural tier needs no key and no toolchain"
-    },
-    "graphify": {
-      "command": "graphify update \u003cr\u003e",
-      "ms": 7735.339,
-      "scope": "one graph per repository; built the 2 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
-      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
-    },
-    "kivgraph": {
-      "command": "kivgraph index --full",
-      "ms": 47470.712,
-      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
-      "state_bytes": 1608649449,
-      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
-    },
-    "native": {
-      "command": "none",
-      "ms": 0,
-      "scope": "nothing is indexed",
-      "needs": "nothing"
-    }
-  },
+  "indexing": {},
   "question_set": "reach",
   "questions": [
     {
@@ -119,11 +78,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 566,
-              "ms": 1.16
+              "ms": 0.979
             }
           ],
           "tokens": 566,
-          "ms": 1.16,
+          "ms": 0.979,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/index.ts",
@@ -247,11 +206,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 112,
-              "ms": 1.247
+              "ms": 0.885
             }
           ],
           "tokens": 112,
-          "ms": 1.247,
+          "ms": 0.885,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -338,11 +297,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 305,
-              "ms": 0.54
+              "ms": 0.808
             }
           ],
           "tokens": 305,
-          "ms": 0.54,
+          "ms": 0.808,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go",
@@ -482,12 +441,12 @@
           "calls": [
             {
               "tool": "trace_dependencies",
-              "tokens": 163,
-              "ms": 0.45
+              "tokens": 233,
+              "ms": 0.702
             }
           ],
-          "tokens": 163,
-          "ms": 0.45,
+          "tokens": 233,
+          "ms": 0.702,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/base-cache.ts"
@@ -586,9 +545,9 @@
       "of": 4
     },
     "kivgraph": {
-      "tokens_total": 1146,
+      "tokens_total": 1216,
       "calls_total": 4,
-      "ms_total": 3.3970000000000002,
+      "ms_total": 3.3739999999999997,
       "precision_mean": 1,
       "recall_mean": 0.875,
       "exact_answers": 3,
@@ -651,7 +610,7 @@
       "kivgraph": {
         "tokens_total": 678,
         "calls_total": 2,
-        "ms_total": 2.407,
+        "ms_total": 1.8639999999999999,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -711,9 +670,9 @@
         "of": 2
       },
       "kivgraph": {
-        "tokens_total": 468,
+        "tokens_total": 538,
         "calls_total": 2,
-        "ms_total": 0.99,
+        "ms_total": 1.51,
         "precision_mean": 1,
         "recall_mean": 0.75,
         "exact_answers": 1,

@@ -44,9 +44,9 @@ texto puede alcanzar, y por eso está dentro.
 |`X1` consumidores, TS, enum con cinco rivales|`3`|`566` tok, `P=1,00` `R=1,00`|`12.200` tok, `P=1,00` **`R=0,67`**|
 |`X2` consumidores, Go, la respuesta es nada|`0`|`112` tok, `P=1,00` `R=1,00`|`4.271` tok, `P=1,00` `R=1,00`|
 |`X3` alcance, Go, nueve declaraciones|`1`|`305` tok, `P=1,00` `R=1,00`|`26.481` tok, `P=1,00` `R=1,00`|
-|`X4` alcance, TS, herencia + tipo puro|`2`|`163` tok, `P=1,00` **`R=0,50`**|`4.185` tok, `P=1,00` `R=1,00`|
+|`X4` alcance, TS, herencia + tipo puro|`2`|`233` tok, `P=1,00` **`R=0,50`**|`4.185` tok, `P=1,00` `R=1,00`|
 
-Coste: entre `21,6x` y `86,8x` más barato que la búsqueda más la lectura. La
+Coste: entre `18,0x` y `86,8x` más barato que la búsqueda más la lectura. La
 comparación de exactitud queda `3/4` a `3/4`, y **no en las mismas preguntas** --
 que es lo interesante.
 
@@ -75,9 +75,19 @@ consecuencia sí es un defecto: preguntar por una clase **subestima su alcance a
 cualquier profundidad y no avisa de que se ha parado**. Un lector que pregunta
 «de qué depende esta clase» quiere las dos aristas.
 
-Es la misma forma que el `H2` del conjunto duro: una respuesta coherente con su
+Era la misma forma que el `H2` del conjunto duro: una respuesta coherente con su
 propio modelo que contesta una pregunta distinta de la que se hizo, y devuelve un
 conjunto más pequeño sin decirlo.
+
+**Cerrado por el ADR 0058, y la fila no se movió.** La travesía no cambió -- sigue
+alcanzando `base-cache.ts` y `R` sigue en `0,50`, porque la exhaustividad se mide
+sobre ficheros alcanzados y ésos son los mismos. Lo que se fue es el silencio: la
+respuesta nombra ahora los miembros cuyas dependencias no forman parte de ella
+-`RecommendationsCache.getResults` y `setResults`- y dice cómo preguntarlas. El
+`R=0,50` de esta tabla ya no mide una respuesta que se creía completa, sino una
+que declara su borde, y eso cuesta `70` tokens: `163` antes, `233` ahora. Ninguna
+de las otras tres preguntas se movió ni un token, que es la comprobación de que
+el aviso no aparece donde no hace falta.
 
 ## Los cuatro rivales no están medidos aquí, y no es un cero
 

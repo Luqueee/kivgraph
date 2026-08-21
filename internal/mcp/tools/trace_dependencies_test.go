@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -410,4 +411,96 @@ func TestTraceDependenciesRejectsAViewItCannotAnswer(t *testing.T) {
 			t.Fatalf("view %q error code = %q, want %q", view, ErrorCode(err), CodeInvalidArgument)
 		}
 	}
+}
+
+// TestTraceDependenciesNamesMembersItCannotFollow defends LUQUE-2004.
+//
+// A class reaches its base class, and the type its method names is reached only
+// from the method: containment is not an edge, so a traversal rooted on the
+// class cannot walk it. The defect was never the missing edge -- it is that the
+// answer looked complete. So the contract is that the answer names the member,
+// in the compact view a caller gets by default, and does not name a member whose
+// reach the root already contains.
+func TestTraceDependenciesNamesMembersItCannotFollow(t *testing.T) {
+	store := containerMemberStore(t, 41)
+
+	_, response, err := traceDependencies(context.Background(), nil,
+		TraceDependenciesInput{StableKey: "sym-class"}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	// The traversal itself is unchanged: it still reaches only the base class.
+	if response.Total != 1 || response.Results.Nodes[0].QualifiedName != "shared.BaseCache" {
+		t.Fatalf("nodes = %#v, want only the base class", response.Results.Nodes)
+	}
+	want := []string{"shared.Cache.getResults"}
+	if !reflect.DeepEqual(response.Results.MembersNotFollowed, want) {
+		t.Fatalf("members not followed = %#v, want %#v", response.Results.MembersNotFollowed, want)
+	}
+	if !strings.Contains(response.Guidance, "shared.Cache.getResults") {
+		t.Fatalf("guidance = %q, want it to name the member", response.Guidance)
+	}
+	// Compact is the default view, so a note only the full view carries is a
+	// note nobody reads.
+	encoded, err := json.Marshal(response.Results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"members_not_followed":["shared.Cache.getResults"]`) {
+		t.Fatalf("compact payload = %s, want the member named in it", encoded)
+	}
+
+	// Asking the member answers what the class could not: the type is one hop
+	// away from it. That is the instruction the guidance gives, and it works.
+	_, member, err := traceDependencies(context.Background(), nil,
+		TraceDependenciesInput{StableKey: "sym-method"}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if member.Total != 1 || member.Results.Nodes[0].QualifiedName != "shared.Payload" {
+		t.Fatalf("member trace = %#v, want the type it names", member.Results.Nodes)
+	}
+	// The method declares nothing, so there is nothing to warn about. A note on
+	// every answer would be noise, and noise is what gets filtered out.
+	if len(member.Results.MembersNotFollowed) != 0 {
+		t.Fatalf("member members = %#v, want none", member.Results.MembersNotFollowed)
+	}
+}
+
+// containerMemberStore is the shape of the kena finding: a class spanning its
+// method, the method reaching a type in another file, and a field inside the
+// class whose only edge stays inside it.
+func containerMemberStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "shared", Languages: "ts"}},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "pkg", RepositoryKey: "repo", Language: "ts", Name: "shared", ModulePath: "@kena/shared"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-cache", RepositoryKey: "repo", PackageKey: "pkg", Path: "cache.ts", Language: "ts"},
+			{Key: "file-types", RepositoryKey: "repo", PackageKey: "pkg", Path: "types.ts", Language: "ts"},
+			{Key: "file-base", RepositoryKey: "repo", PackageKey: "pkg", Path: "base.ts", Language: "ts"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-class", CanonicalIdentity: "ts:shared.Cache", FileKey: "file-cache", Language: "ts", Name: "Cache", QualifiedName: "shared.Cache", Kind: "class", StartLine: 6, EndLine: 18},
+			{StableKey: "sym-method", CanonicalIdentity: "ts:shared.Cache.getResults", FileKey: "file-cache", Language: "ts", Name: "getResults", QualifiedName: "shared.Cache.getResults", Kind: "method", StartLine: 11, EndLine: 13},
+			{StableKey: "sym-field", CanonicalIdentity: "ts:shared.Cache.ttl", FileKey: "file-cache", Language: "ts", Name: "ttl", QualifiedName: "shared.Cache.ttl", Kind: "property", StartLine: 7, EndLine: 7},
+			{StableKey: "sym-payload", CanonicalIdentity: "ts:shared.Payload", FileKey: "file-types", Language: "ts", Name: "Payload", QualifiedName: "shared.Payload", Kind: "interface", StartLine: 31, EndLine: 34},
+			{StableKey: "sym-base", CanonicalIdentity: "ts:shared.BaseCache", FileKey: "file-base", Language: "ts", Name: "BaseCache", QualifiedName: "shared.BaseCache", Kind: "class", StartLine: 4, EndLine: 40},
+		},
+		Edges: []hotsnapshot.EdgeRow{
+			// What the class itself reaches.
+			{SourceKey: "sym-class", TargetKey: "sym-base", Kind: facts.CodeTypeUses, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeTypeScriptChecker, EvidenceKind: "checker", EvidenceSourceFileKey: "file-cache", EvidenceTargetFileKey: "file-base"},
+			// What only the method reaches -- the type-only import.
+			{SourceKey: "sym-method", TargetKey: "sym-payload", Kind: facts.CodeTypeUses, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeTypeScriptChecker, EvidenceKind: "checker", EvidenceSourceFileKey: "file-cache", EvidenceTargetFileKey: "file-types"},
+			// A member whose only edge stays inside the class: no new reach, so
+			// naming it would tell the caller nothing.
+			{SourceKey: "sym-field", TargetKey: "sym-method", Kind: facts.CodeReferences, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeTypeScriptChecker, EvidenceKind: "checker", EvidenceSourceFileKey: "file-cache", EvidenceTargetFileKey: "file-cache"},
+		},
+	}, id, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
 }
