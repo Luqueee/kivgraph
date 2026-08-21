@@ -233,6 +233,57 @@ var questions = []question{
 // across receivers, a call through an interface, a type rather than a function,
 // a renamed re-export, a trait object, an absence in each language, and a Rust
 // outline.
+// impactQuestions are the impact family, which had exactly one question in the
+// other two sets while being the question this tool is sold on. Both ask about
+// the same subject and differ only in depth, so what they isolate is the depth
+// itself rather than two unrelated subjects.
+//
+// The truth is the same at two hops and at three, and that is the point: the
+// frontier at hop two is `main`, two `Test*` functions and a file-local test
+// helper, and nothing calls any of them. An answer that grows there is inventing
+// reach. `main` alone is declared eight times in this repository and named in
+// fifty places, nearly all of them prose.
+var impactQuestions = []question{
+	{
+		ID:       "I2_go_depth2",
+		Family:   familyImpact,
+		Ask:      "Which files hold something that reaches the AutomationScheduledGuildIDs of GuildsHandler within two hops?",
+		Language: "go",
+		Depth:    2,
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/application/handlers/guilds_handler.go",
+			Name: "GuildsHandler.AutomationScheduledGuildIDs", Symbol: "AutomationScheduledGuildIDs",
+		},
+		Truth: []string{
+			"services/api-db-go/cmd/server/main.go",
+			"services/api-db-go/internal/application/handlers/guilds_mock_test.go",
+			"services/api-db-go/internal/application/routers/guilds_router.go",
+			"services/api-db-go/internal/application/routers/routers_test.go",
+		},
+		Declarations: []string{"services/api-db-go/internal/application/handlers/guilds_handler.go"},
+	},
+	{
+		ID:       "I3_go_depth3",
+		Family:   familyImpact,
+		Ask:      "Which files hold something that reaches the AutomationScheduledGuildIDs of GuildsHandler within three hops?",
+		Language: "go, the frontier is entry points",
+		Depth:    3,
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/application/handlers/guilds_handler.go",
+			Name: "GuildsHandler.AutomationScheduledGuildIDs", Symbol: "AutomationScheduledGuildIDs",
+		},
+		Truth: []string{
+			"services/api-db-go/cmd/server/main.go",
+			"services/api-db-go/internal/application/handlers/guilds_mock_test.go",
+			"services/api-db-go/internal/application/routers/guilds_router.go",
+			"services/api-db-go/internal/application/routers/routers_test.go",
+		},
+		Declarations: []string{"services/api-db-go/internal/application/handlers/guilds_handler.go"},
+	},
+}
+
 var hardQuestions = []question{
 	{
 		ID:       "H1_go_method",
@@ -381,9 +432,13 @@ func questionSet(name string) []question {
 		return questions
 	case "hard":
 		return hardQuestions
+	case "impact":
+		return impactQuestions
 	case "all":
-		return append(append([]question{}, questions...), hardQuestions...)
+		out := append([]question{}, questions...)
+		out = append(out, hardQuestions...)
+		return append(out, impactQuestions...)
 	default:
-		panic("unknown question set " + name + `: use "measured", "hard" or "all"`)
+		panic("unknown question set " + name + `: use "measured", "hard", "impact" or "all"`)
 	}
 }

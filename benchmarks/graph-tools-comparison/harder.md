@@ -302,10 +302,11 @@ set. There was no test for `include_members` at all, which is why it shipped.
 
 ## What this set does not measure
 
-- **Impact.** The family has one question, `I1_go_depth2`, in the other set.
-  Establishing transitive truth at depth two by hand across TypeScript was
-  judged more likely to produce a wrong truth than a useful question, so it is
-  absent rather than guessed.
+- **Impact.** Two questions were added after this set, in `impact.md`, which
+  takes the family from one to three. TypeScript impact is still absent and now
+  has a measured reason rather than an estimate: of 675 candidates, 670 use the
+  symbol outside any top-level exported function, and the heuristic that reads an
+  enclosing declaration in Go is unsound in TypeScript.
 - **`find_cross_repo_consumers`.** No question asks it.
 - **Python and Dart.** Not in this corpus.
 - **Two of these questions share a convention with a shipped decision.** `H3`
