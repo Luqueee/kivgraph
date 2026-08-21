@@ -29,6 +29,13 @@ integridad, auditoría y recuperación. En el camino incremental se medirá si
 LadybugDB y HotSnapshot deben construirse en paralelo desde los mismos facts
 normalizados para evitar una lectura completa innecesaria.
 
+> **Nota de 2026-08-21.** La medición que este párrafo planificaba no se hará:
+> el camino incremental se retiró en el
+> [ADR 0057](0057-el-camino-incremental-se-retira.md) sin haber tenido nunca un
+> llamante en producción. El grafo persistente sigue siendo lo que dice la
+> primera frase, y es la única fuente que hay, porque toda pasada es una
+> reconstrucción completa.
+
 ## Alternatives
 
 - **SQLite:** queda descartado porque el modelo requerido es un grafo y el plan
