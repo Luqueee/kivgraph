@@ -73,6 +73,15 @@ declarado en la raíz.
   pertenece al repositorio de su símbolo origen, que es el lado que observó- y
   `list_repositories` marca la fila. Sin ese desglose, un repositorio de diez
   símbolos responde `24.704`.
+- Las aristas de reenvío -`EXPORTS` y `REEXPORTS`- se retiran por defecto de
+  `find_references`, y lo anula `edge_kinds`, con `["*"]` para desactivar el
+  filtro entero. Es la misma decisión de página que la anterior: la arista sigue
+  publicada con su confianza exacta, `get_blast_radius` no la retira -un
+  renombrado sí rompe el barrel- y `trace_dependencies` tampoco, porque recorre
+  hacia fuera y truncaría un alcance real. No se pierde ningún consumidor: el
+  checker resuelve un import a través de cuantos barrels haya, así que cada uno
+  trae su propia `IMPORTS_SYMBOL`. Se declara en `edge_kinds_default_excluded`
+  y el `total` cuenta lo que la respuesta tiene. Ver ADR 0053.
 
 ## `index_project`
 

@@ -101,7 +101,11 @@ type ReferenceResult struct {
 	Subject    ReferenceSubject   `json:"subject"`
 	Direction  string             `json:"direction"`
 	References []ReferenceSummary `json:"references"`
-	View       string             `json:"-"`
+	// EdgeKindsExcluded names the kinds a filter the caller never asked for
+	// left out. Present in every view, because a count that does not say it
+	// was filtered understates the references to a symbol.
+	EdgeKindsExcluded []string `json:"edge_kinds_default_excluded,omitempty"`
+	View              string   `json:"-"`
 }
 
 // MarshalJSON writes the page under the view the caller asked for. The compact
@@ -110,9 +114,10 @@ type ReferenceResult struct {
 // are always readable in one of the two places.
 func (result ReferenceResult) MarshalJSON() ([]byte, error) {
 	type fullResult struct {
-		Subject    ReferenceSubject   `json:"subject"`
-		Direction  string             `json:"direction"`
-		References []ReferenceSummary `json:"references"`
+		Subject           ReferenceSubject   `json:"subject"`
+		Direction         string             `json:"direction"`
+		References        []ReferenceSummary `json:"references"`
+		EdgeKindsExcluded []string           `json:"edge_kinds_default_excluded,omitempty"`
 	}
 	switch result.View {
 	case ViewCompact:
@@ -121,9 +126,10 @@ func (result ReferenceResult) MarshalJSON() ([]byte, error) {
 		return json.Marshal(result.files())
 	default:
 		return json.Marshal(fullResult{
-			Subject:    result.Subject,
-			Direction:  result.Direction,
-			References: result.References,
+			Subject:           result.Subject,
+			Direction:         result.Direction,
+			References:        result.References,
+			EdgeKindsExcluded: result.EdgeKindsExcluded,
 		})
 	}
 }
@@ -151,6 +157,8 @@ func (result ReferenceResult) compact() compactReferenceResult {
 		EdgeKind:   hoistString(count, func(index int) string { return rows[index].EdgeKind }),
 		Confidence: hoistString(count, func(index int) string { return rows[index].Confidence }),
 		Provenance: hoistString(count, func(index int) string { return rows[index].Provenance }),
+
+		EdgeKindsExcluded: result.EdgeKindsExcluded,
 	}
 
 	residual := func(row ReferenceSummary) []string {
@@ -229,10 +237,11 @@ func referenceFileGroups(rows []ReferenceSummary, hoistedRepository, kind, edgeK
 // to open, so a repeated caller in one file is a count and not a row.
 func (result ReferenceResult) files() referenceFilesResult {
 	files := referenceFilesResult{
-		Subject:   result.subjectLabel(),
-		QN:        result.Subject.QualifiedName,
-		Direction: result.Direction,
-		Files:     make([]referenceFileCount, 0, len(result.References)),
+		Subject:           result.subjectLabel(),
+		QN:                result.Subject.QualifiedName,
+		Direction:         result.Direction,
+		Files:             make([]referenceFileCount, 0, len(result.References)),
+		EdgeKindsExcluded: result.EdgeKindsExcluded,
 	}
 	index := make(map[string]int, len(result.References))
 	for _, row := range result.References {
@@ -269,6 +278,9 @@ type compactReferenceResult struct {
 	Confidence string `json:"confidence,omitempty"`
 	Provenance string `json:"provenance,omitempty"`
 
+	// EdgeKindsExcluded is what a filter the caller never asked for left out.
+	EdgeKindsExcluded []string `json:"edge_kinds_default_excluded,omitempty"`
+
 	Files  []compactReferenceFile  `json:"files,omitempty"`
 	Groups []compactReferenceGroup `json:"groups,omitempty"`
 }
@@ -299,10 +311,12 @@ type compactReferenceFile struct {
 // holds. It is the shape of the question "which files call this", which is what
 // an agent asks before deciding what to open.
 type referenceFilesResult struct {
-	Subject   string               `json:"subject"`
-	QN        string               `json:"qn"`
-	Direction string               `json:"direction"`
-	Files     []referenceFileCount `json:"files"`
+	Subject   string `json:"subject"`
+	QN        string `json:"qn"`
+	Direction string `json:"direction"`
+	// EdgeKindsExcluded is what a filter the caller never asked for left out.
+	EdgeKindsExcluded []string             `json:"edge_kinds_default_excluded,omitempty"`
+	Files             []referenceFileCount `json:"files"`
 }
 
 type referenceFileCount struct {
@@ -321,7 +335,7 @@ type findReferencesOptions struct {
 	Direction  string
 	Repo       string
 	Language   string
-	EdgeKinds  []string
+	EdgeKinds  referenceEdgeKindFilter
 	Confidence string
 	Derived    derivedFilter
 	Limit      int
@@ -455,7 +469,7 @@ func findReferences(
 		Tool: findReferencesToolName, StableKey: options.Selector.StableKey,
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
 		Path: options.Selector.Path, Direction: options.Direction,
-		Repo: options.Repo, Language: options.Language, EdgeKinds: options.EdgeKinds,
+		Repo: options.Repo, Language: options.Language, EdgeKinds: options.EdgeKinds.applied,
 		Confidence: options.Confidence,
 	})
 	if err != nil {
@@ -569,6 +583,7 @@ func findReferences(
 		View:          options.View,
 		Results: ReferenceResult{
 			Subject: subject, Direction: options.Direction, References: results, View: options.View,
+			EdgeKindsExcluded: options.EdgeKinds.defaultExcluded(),
 		},
 	}, nil
 }
@@ -628,7 +643,7 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 	if err != nil {
 		return findReferencesOptions{}, err
 	}
-	edgeKinds, err := normalizeReferenceEdgeKinds(arguments.EdgeKinds)
+	edgeKinds, err := normalizeReferenceEdgeKindFilter(arguments.EdgeKinds)
 	if err != nil {
 		return findReferencesOptions{}, err
 	}
@@ -667,6 +682,91 @@ func normalizeReferenceFilter(value, field string) (string, error) {
 		return "", NewToolError(CodeInvalidArgument, fmt.Sprintf("%s must not have surrounding whitespace", field))
 	}
 	return value, nil
+}
+
+// referenceDefaultExcludedEdgeKinds are the forwarding bindings an unasked-for
+// reference answer leaves out. An `export { x }` or `export { x } from "./y"`
+// names a path to the declaration, not a use of it, and this tool already
+// refuses one as a subject -- "only imported or re-exported here, never
+// declared" -- so answering with one contradicted its own error message.
+//
+// Nothing becomes unreachable. The checker resolves an import through however
+// many barrels stand in the way and names the declaration, so every consumer
+// that reaches the symbol through one carries its own IMPORTS_SYMBOL edge and
+// is listed whether the barrel is or not: on `kena`, `withRetry` has five
+// consumers behind four barrels and all five are in the answer without them.
+// `edge_kinds` selects them back for the question they do answer -- a rename
+// has to edit the barrel -- and get_blast_radius, which is the tool for what
+// breaks, never excluded them.
+var referenceDefaultExcludedEdgeKinds = []string{string(facts.Exports), string(facts.Reexports)}
+
+// referenceEdgeKindAll is the wildcard that turns the filter off, spelled the
+// way get_blast_radius spells its own.
+const referenceEdgeKindAll = "*"
+
+// referenceEdgeKindFilter decides which edges the answer reports. It gates the
+// one place a candidate edge is admitted, so `total`, the page and the coverage
+// counts all describe the same set: a filtered total that did not say it was
+// filtered would understate the references to a symbol.
+type referenceEdgeKindFilter struct {
+	// selected is the caller's explicit list, nil when it asked for nothing.
+	selected map[string]struct{}
+	// all is `edge_kinds: ["*"]`.
+	all bool
+	// applied is the canonical spelling of the selection, sorted, and `["*"]`
+	// for the wildcard. It is what the cursor's query hash covers, so no two
+	// filters share a page.
+	applied []string
+}
+
+// keeps answers whether an edge of this kind belongs in the answer.
+func (filter referenceEdgeKindFilter) keeps(kind string) bool {
+	if filter.all {
+		return true
+	}
+	if filter.selected != nil {
+		_, selected := filter.selected[kind]
+		return selected
+	}
+	return !containsString(referenceDefaultExcludedEdgeKinds, kind)
+}
+
+// defaultExcluded is what the response must declare: the kinds left out by a
+// filter the caller never asked for. An explicit selection declares nothing,
+// because the caller wrote it.
+func (filter referenceEdgeKindFilter) defaultExcluded() []string {
+	if filter.all || filter.selected != nil {
+		return nil
+	}
+	return referenceDefaultExcludedEdgeKinds
+}
+
+// normalizeReferenceEdgeKindFilter validates the requested kinds. The wildcard
+// stands alone: mixing it with names asks for a filter and for no filter at
+// once.
+func normalizeReferenceEdgeKindFilter(values []string) (referenceEdgeKindFilter, error) {
+	if len(values) == 0 {
+		return referenceEdgeKindFilter{}, nil
+	}
+	for _, value := range values {
+		if value != referenceEdgeKindAll {
+			continue
+		}
+		if len(values) != 1 {
+			return referenceEdgeKindFilter{}, NewToolError(CodeInvalidArgument,
+				"edge_kinds must be \"*\" alone or a list of canonical kinds")
+		}
+		return referenceEdgeKindFilter{all: true, applied: []string{referenceEdgeKindAll}}, nil
+	}
+	normalized, err := normalizeReferenceEdgeKinds(values)
+	if err != nil {
+		return referenceEdgeKindFilter{}, err
+	}
+	selected := make(map[string]struct{}, len(normalized))
+	for _, kind := range normalized {
+		selected[kind] = struct{}{}
+	}
+	return referenceEdgeKindFilter{selected: selected, applied: normalized}, nil
 }
 
 func normalizeReferenceEdgeKinds(values []string) ([]string, error) {
@@ -743,7 +843,7 @@ func referenceMatches(
 	decoded decodedReferenceEdge,
 	options findReferencesOptions,
 ) (bool, error) {
-	if len(options.EdgeKinds) > 0 && !containsString(options.EdgeKinds, string(decoded.Kind)) {
+	if !options.EdgeKinds.keeps(string(decoded.Kind)) {
 		return false, nil
 	}
 	if options.Confidence != "" && options.Confidence != string(decoded.Confidence) {

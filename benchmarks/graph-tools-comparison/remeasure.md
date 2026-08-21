@@ -276,3 +276,67 @@ before, for `126.720` symbols against `122.583`. And `codebase-memory-mcp`
 reports `4/7` here against `3/7` in the previous pass -- that is its own
 measured variance, `3` to `4` exact answers across three passes, recorded in
 `report.md`, and not something this change caused.
+
+## Forwarding is not a use: `R1` closed, and grep matched
+
+The fourth defect is fixed. ADR 0053 has the decision; this is what it measured.
+`results-0.3.6.json` and `raw-0.3.6/` hold this pass, on commit `71e6c57`.
+
+`find_references` was answering with the `EXPORTS` and `REEXPORTS` edges beside
+the ones that use the symbol, so four re-export barrels ranked next to the five
+real call sites of `withRetry`. Those four were **every** false positive Kivgraph
+had: four of the forty-eight files it claimed across the seven questions, and
+the only reason its precision was not `1,00`.
+
+|question|`0.3.2`|+ module symbol|+ forwarding excluded|
+|---|---|---|---|
+|`R1_ts_xrepo`|`0,00` / `0,00`|`0,56` / `1,00`|**`1,00` / `1,00`**|
+|`R2_go`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`R3_ts_intra`|`1,00` / `0,89`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`R4_rust`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`I1_go_depth2`|`0,67` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`O1_ts_large`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`O2_go_small`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|**aggregate**|`0,81` / `0,84`, `4/7`|`0,94` / `1,00`, `6/7`|**`1,00` / `1,00`, `7/7`**|
+
+Counted in files rather than in means: `44` claimed, `0` false, `0` missed of
+`44` true. That is the same score `grep` plus reading gets, for `6.200` tokens
+against `63.531` -- `10,2x` -- and `886` tokens per correct answer.
+
+Being right for the first time on all seven is the moment to be most careful
+about the denominator. **Seven questions on one corpus is a small set**, chosen
+for what it could discriminate, and three of them were written blind and
+re-scored only after. A tool that answers seven of seven here is not a tool that
+answers everything; it is a tool with no known miss on this set. The set is in
+`questions.go` and adding a question that fails is the useful contribution.
+
+### It also got cheaper, and not only by four rows
+
+`6.381` to `6.200` tokens overall, and `R1` itself from `526` to `332`. Both
+passes spent the same two calls on it -- one ambiguous-name refusal, one answer
+-- so this is not a page saved: the answer call went from `397` tokens to `203`.
+
+The captures say why. Before, the page carried **four groups and an empty
+header**: the five `IMPORTS_SYMBOL` rows and the four forwarding rows disagreed
+on `kind`, `edge_kind`, `confidence` and `provenance`, so none of the four could
+hoist and every group restated its tuple. After, the five rows that remain agree
+on all four, the header hoists all of them and there are no groups at all.
+Removing rows that dissent makes the rows that stay cheaper to state, which is
+more than the cost of the rows themselves.
+
+### What did not change, and why
+
+`get_blast_radius` still reports the barrels. It answers "what breaks if I
+change this", and a rename does break an `export { withRetry } from …`. So does
+`trace_dependencies`, which walks outward and would truncate a real reach.
+`I1_go_depth2`, the impact question, is unmoved at `1,00` / `1,00`, which is the
+evidence that the change stayed inside the tool it was aimed at.
+
+### Machine load, not a regression
+
+Every arm indexed slower on this pass -- kivgraph `52,0` to `63,1 s`, graft
+`26,4` to `29,1`, graphify `11,7` to `13,8`, codebase-memory `5,1` to `6,1`,
+code-review-graph `7,7` to `9,2`. Five out of five moving together by about a
+fifth is the machine, not five regressions; the symbol count is identical at
+`126.720`. `codebase-memory-mcp` reports `3/7` again after `4/7` last pass,
+which is the `3`-to-`4` variance already recorded in `report.md`.

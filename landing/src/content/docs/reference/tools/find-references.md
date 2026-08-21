@@ -12,7 +12,7 @@ description: Type-checked incoming or outgoing references for one symbol, with t
 | `confidence` | string | none | Keeps only edges carrying exactly this confidence. Accepted: `EXACT_TYPECHECKED`, `EXACT_DECLARATION_MAPPED`, `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE`, `UNRESOLVED`. One value, not a list. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `direction` | string | `incoming` | `incoming` returns the symbols that reference this one. `outgoing` returns the ones it reaches. Any other value is rejected with `INVALID_ARGUMENT`. |
-| `edge_kinds` | array of string | none, meaning every reference kind | Restricts rows to these relations. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `edge_kinds` | array of string | none, meaning every reference kind except `EXPORTS` and `REEXPORTS` | Restricts rows to these relations. The default leaves out the forwarding bindings: an `export { x }` or `export { x } from "./y"` names a path to the declaration rather than a use of it, and the response says so under `edge_kinds_default_excluded`. Nothing becomes unreachable -- the checker resolves an import through however many barrels stand in the way, so every consumer behind one carries its own `IMPORTS_SYMBOL` edge and is listed without them. A list replaces that default; `["*"]` reports every reference kind, and the wildcard stands alone since mixing it with names asks for a filter and for no filter at once. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
 | `language` | string | none | Keeps rows whose symbol carries this language: `go`, `typescript` or `rust`. Compared exactly; surrounding whitespace is rejected. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
@@ -393,6 +393,15 @@ symbol you meant. The compact view spells it as the `repository:path:line`
 triple in one string, with the resolved qualified name beside it in `qn`; the
 full view spells the same facts as an object of fields. `direction` echoes which
 question was answered, so a cached response cannot be misread later.
+
+`edge_kinds_default_excluded` is present only when a filter you did not ask for
+ran. Its value, `["EXPORTS", "REEXPORTS"]`, is what the answer left out: the
+export bindings that forward the name rather than use it. It is on the page and
+not on a row because it describes the query, and `total` counts what the answer
+holds, so a filtered page never reports a larger number than it can show. Pass
+`edge_kinds: ["*"]` to turn the filter off, or name `REEXPORTS` to ask only for
+the barrels -- which is the question a rename has, since a rename must edit
+them.
 
 ### Reading a compact row
 

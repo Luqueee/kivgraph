@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -235,7 +236,10 @@ func referenceSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 		Edges: []hotsnapshot.EdgeRow{
 			{SourceKey: "symbol-caller-a", TargetKey: "symbol-target", Kind: code(mustFactsEdgeCode(t, facts.References)), Confidence: code(mustFactsConfidenceCode(t, facts.ExactTypechecked)), Provenance: code(mustFactsProvenanceCode(t, facts.GoTypesUse)), EvidenceKind: "checker", EvidenceSourceFileKey: "file-a", EvidenceTargetFileKey: "file-a"},
 			{SourceKey: "symbol-caller-b", TargetKey: "symbol-target", Kind: code(mustFactsEdgeCode(t, facts.CallsDirect)), Confidence: code(mustFactsConfidenceCode(t, facts.Candidate)), Provenance: code(mustFactsProvenanceCode(t, facts.GoASTCall)), EvidenceKind: "checker", EvidenceSourceFileKey: "file-b", EvidenceTargetFileKey: "file-a"},
-			{SourceKey: "symbol-target", TargetKey: "symbol-result", Kind: code(mustFactsEdgeCode(t, facts.Exports)), Confidence: code(mustFactsConfidenceCode(t, facts.ExactDeclarationMapped)), Provenance: code(mustFactsProvenanceCode(t, facts.GoTypesDefinition)), EvidenceKind: "declaration", EvidenceSourceFileKey: "file-a", EvidenceTargetFileKey: "file-result"},
+			// An outgoing edge from a function is a call, not an export: a real
+			// EXPORTS names an export binding as its source and the declaration
+			// as its target, so it only ever reaches a declaration from outside.
+			{SourceKey: "symbol-target", TargetKey: "symbol-result", Kind: code(mustFactsEdgeCode(t, facts.CallsDirect)), Confidence: code(mustFactsConfidenceCode(t, facts.ExactTypechecked)), Provenance: code(mustFactsProvenanceCode(t, facts.GoTypesUse)), EvidenceKind: "checker", EvidenceSourceFileKey: "file-a", EvidenceTargetFileKey: "file-result"},
 		},
 	}
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000+int64(id), 0).UTC(), 1)
@@ -600,7 +604,10 @@ func TestFindReferencesFilesViewAnswersWhichFiles(t *testing.T) {
 			t.Fatalf("files row = %#v", file)
 		}
 	}
-	if strings.Contains(wire, "edge_kind") {
+	// The guard is the per-row column, spelled as its own key. A page-level
+	// `edge_kinds_default_excluded` is about the query, not about one edge, and
+	// a substring match would have caught it.
+	if strings.Contains(wire, `"edge_kind"`) {
 		t.Fatalf("files view carries per-edge fields: %s", wire)
 	}
 
@@ -681,5 +688,132 @@ func TestFindReferencesNamesTheRepoFilterWhenItWasMeantAsTheSubject(t *testing.T
 	}
 	if strings.Contains(err.Error(), "repo only filters") {
 		t.Fatalf("error = %q, want no correction when repo was not passed", err)
+	}
+}
+
+// forwardingSnapshot is the real cross-package shape the `kena` measurement
+// found: a declaration, its own export binding, a barrel re-exporting it from
+// another file, and one consumer that imports it and calls it. The consumer
+// resolves to the declaration and not to the barrel, which is why dropping the
+// forwarding bindings loses no caller.
+func forwardingSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	code := func(value uint8) uint8 { return value }
+	symbols := []hotsnapshot.SymbolRow{
+		{StableKey: "symbol-decl", CanonicalIdentity: "ts:decl", FileKey: "file-decl", Language: "typescript", Name: "withRetry", QualifiedName: "withRetry", Kind: "function", StartLine: 135, EndLine: 163},
+		{StableKey: "symbol-own-export", CanonicalIdentity: "ts:own-export", FileKey: "file-decl", Language: "typescript", Name: "withRetry", QualifiedName: "withRetry", Kind: "export", StartLine: 135, EndLine: 135},
+		{StableKey: "symbol-barrel", CanonicalIdentity: "ts:barrel", FileKey: "file-barrel", Language: "typescript", Name: "withRetry", QualifiedName: "withRetry", Kind: "export", StartLine: 7, EndLine: 7},
+		{StableKey: "symbol-import", CanonicalIdentity: "ts:import", FileKey: "file-consumer", Language: "typescript", Name: "withRetry", QualifiedName: "withRetry", Kind: "import", StartLine: 3, EndLine: 3},
+		{StableKey: "symbol-caller", CanonicalIdentity: "ts:caller", FileKey: "file-consumer", Language: "typescript", Name: "run", QualifiedName: "BotWorker.run", Kind: "method", StartLine: 40, EndLine: 58},
+	}
+	edge := func(source hotsnapshot.StableKey, kind facts.EdgeKind, sourceFile string) hotsnapshot.EdgeRow {
+		return hotsnapshot.EdgeRow{
+			SourceKey: source, TargetKey: "symbol-decl",
+			Kind:         code(mustFactsEdgeCode(t, kind)),
+			Confidence:   code(mustFactsConfidenceCode(t, facts.ExactTypechecked)),
+			Provenance:   code(mustFactsProvenanceCode(t, facts.TypeScriptChecker)),
+			EvidenceKind: "checker", EvidenceSourceFileKey: sourceFile, EvidenceTargetFileKey: "file-decl",
+		}
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repository:provider", Name: "provider", Path: "/provider", Languages: "typescript"},
+			{Key: "repository:consumer", Name: "consumer", Path: "/consumer", Languages: "typescript"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "package-provider", RepositoryKey: "repository:provider", Name: "@fixture/shared", ModulePath: "@fixture/shared"},
+			{Key: "package-consumer", RepositoryKey: "repository:consumer", Name: "@fixture/core", ModulePath: "@fixture/core"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-decl", RepositoryKey: "repository:provider", PackageKey: "package-provider", Path: "src/utils/retry.ts", Language: "typescript"},
+			{Key: "file-barrel", RepositoryKey: "repository:provider", PackageKey: "package-provider", Path: "src/index.ts", Language: "typescript"},
+			{Key: "file-consumer", RepositoryKey: "repository:consumer", PackageKey: "package-consumer", Path: "src/BotWorker.ts", Language: "typescript"},
+		},
+		Symbols: symbols,
+		Edges: []hotsnapshot.EdgeRow{
+			edge("symbol-own-export", facts.Exports, "file-decl"),
+			edge("symbol-barrel", facts.Reexports, "file-barrel"),
+			edge("symbol-import", facts.ImportsSymbol, "file-consumer"),
+			edge("symbol-caller", facts.CallsDirect, "file-consumer"),
+		},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000+int64(id), 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestFindReferencesExcludesForwardingBindingsUnlessAsked defends the default:
+// an unasked-for reference answer names the code that uses the symbol, not the
+// export bindings that name a path to it, and it says so rather than returning
+// a quietly filtered count.
+func TestFindReferencesExcludesForwardingBindingsUnlessAsked(t *testing.T) {
+	client := newFindReferencesToolClient(t, forwardingSnapshot(t, 71))
+
+	byDefault := callFindReferences(t, client, map[string]any{
+		"name": "withRetry", "repository": "provider", "path": "src/utils/retry.ts",
+		"direction": FindReferencesDirectionIncoming, "view": ViewFull,
+	})
+	kinds := map[string]string{}
+	for _, row := range byDefault.Results.References {
+		kinds[row.EdgeKind] = row.Repository + ":" + row.FilePath
+	}
+	want := map[string]string{
+		string(facts.ImportsSymbol): "consumer:src/BotWorker.ts",
+		string(facts.CallsDirect):   "consumer:src/BotWorker.ts",
+	}
+	if !reflect.DeepEqual(want, kinds) {
+		t.Fatalf("default answer = %#v, want %#v", kinds, want)
+	}
+	// The total counts what the answer holds: a filtered total that did not
+	// say it was filtered would understate the references to the symbol.
+	if byDefault.Total != 2 || byDefault.Returned != 2 {
+		t.Fatalf("default totals = total %d returned %d, want 2 and 2", byDefault.Total, byDefault.Returned)
+	}
+	if !reflect.DeepEqual([]string{"EXPORTS", "REEXPORTS"}, byDefault.Results.EdgeKindsExcluded) {
+		t.Fatalf("declared exclusion = %#v", byDefault.Results.EdgeKindsExcluded)
+	}
+
+	barrel := callFindReferences(t, client, map[string]any{
+		"name": "withRetry", "repository": "provider", "path": "src/utils/retry.ts",
+		"direction": FindReferencesDirectionIncoming, "view": ViewFull,
+		"edge_kinds": []string{string(facts.Reexports)},
+	})
+	if barrel.Total != 1 || barrel.Results.References[0].FilePath != "src/index.ts" {
+		t.Fatalf("opt-in answer = %#v", barrel.Results.References)
+	}
+	// An explicit selection declares nothing: the caller wrote the filter.
+	if barrel.Results.EdgeKindsExcluded != nil {
+		t.Fatalf("explicit selection declared an exclusion: %#v", barrel.Results.EdgeKindsExcluded)
+	}
+
+	everything := callFindReferences(t, client, map[string]any{
+		"name": "withRetry", "repository": "provider", "path": "src/utils/retry.ts",
+		"direction": FindReferencesDirectionIncoming, "view": ViewFull,
+		"edge_kinds": []string{referenceEdgeKindAll},
+	})
+	if everything.Total != 4 || everything.Results.EdgeKindsExcluded != nil {
+		t.Fatalf("wildcard answer = total %d excluded %#v", everything.Total, everything.Results.EdgeKindsExcluded)
+	}
+}
+
+// TestFindReferencesRejectsWildcardMixedWithEdgeKinds keeps the wildcard alone:
+// asking for everything and for a filter at once has no answer, and picking one
+// of the two silently would report a set the caller did not ask for.
+func TestFindReferencesRejectsWildcardMixedWithEdgeKinds(t *testing.T) {
+	client := newFindReferencesToolClient(t, forwardingSnapshot(t, 72))
+	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: findReferencesToolName,
+		Arguments: map[string]any{
+			"name": "withRetry", "repository": "provider", "path": "src/utils/retry.ts",
+			"edge_kinds": []string{referenceEdgeKindAll, string(facts.Reexports)},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(contentText(result), CodeInvalidArgument) {
+		t.Fatalf("mixed wildcard = %s", contentText(result))
 	}
 }
