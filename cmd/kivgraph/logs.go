@@ -22,24 +22,38 @@ const defaultLogLines = 200
 // file, so a poll costs a read of what has been appended since the last one.
 const followInterval = 500 * time.Millisecond
 
-func runLogs(args []string, stdout, stderr io.Writer) int {
+// logsOptions carries the flags of `kivgraph logs`.
+type logsOptions struct {
+	ConfigPath string
+	Kind       string
+	Tool       string
+	Since      time.Duration
+	Limit      int
+	Follow     bool
+	Failures   bool
+	JSONOutput bool
+}
+
+// logsFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func logsFlagSet(options *logsOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("logs", flag.ContinueOnError)
-	configPath := ""
-	kinds := ""
-	tool := ""
-	since := time.Duration(0)
-	limit := defaultLogLines
-	follow := false
-	failures := false
-	jsonOutput := false
-	flags.StringVar(&configPath, "config", "", "read this configuration instead of the default one")
-	flags.StringVar(&kinds, "kind", "", "keep only these comma-separated kinds: serve, tool, index")
-	flags.StringVar(&tool, "tool", "", "keep only the calls of this tool")
-	flags.DurationVar(&since, "since", 0, "keep only what happened within this duration")
-	flags.IntVar(&limit, "limit", defaultLogLines, "show at most this many of the newest records")
-	flags.BoolVar(&follow, "follow", false, "keep printing records as they arrive")
-	flags.BoolVar(&failures, "failures", false, "keep only what did not answer")
-	flags.BoolVar(&jsonOutput, "json", false, "write the records as JSON instead of rendering them")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "read this configuration instead of the default one")
+	flags.StringVar(&options.Kind, "kind", "", "keep only these comma-separated kinds: serve, tool, index")
+	flags.StringVar(&options.Tool, "tool", "", "keep only the calls of this tool")
+	flags.DurationVar(&options.Since, "since", 0, "keep only what happened within this duration")
+	flags.IntVar(&options.Limit, "limit", defaultLogLines, "show at most this many of the newest records")
+	flags.BoolVar(&options.Follow, "follow", false, "keep printing records as they arrive")
+	flags.BoolVar(&options.Failures, "failures", false, "keep only what did not answer")
+	flags.BoolVar(&options.JSONOutput, "json", false, "write the records as JSON instead of rendering them")
+	return flags
+}
+
+func runLogs(args []string, stdout, stderr io.Writer) int {
+	var options logsOptions
+	flags := logsFlagSet(&options)
 	if parsed, code := parseCommandFlags("logs", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -47,45 +61,45 @@ func runLogs(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "logs: unexpected arguments: %v", flags.Args())
 		return 2
 	}
-	selected, err := parseLogKinds(kinds)
+	selected, err := parseLogKinds(options.Kind)
 	if err != nil {
 		writeCommandError(stderr, "logs: %v", err)
 		return 2
 	}
-	if limit < 0 {
-		writeCommandError(stderr, "logs: --limit must not be negative, got %d", limit)
+	if options.Limit < 0 {
+		writeCommandError(stderr, "logs: --limit must not be negative, got %d", options.Limit)
 		return 2
 	}
-	if since < 0 {
-		writeCommandError(stderr, "logs: --since must not be negative, got %s", since)
+	if options.Since < 0 {
+		writeCommandError(stderr, "logs: --since must not be negative, got %s", options.Since)
 		return 2
 	}
 
-	configuration, err := config.LoadConfig(configPath)
+	configuration, err := config.LoadConfig(options.ConfigPath)
 	if err != nil {
 		writeCommandError(stderr, "logs: load configuration: %v", err)
 		return 1
 	}
 	path := configuration.Logging.EventLogPath
-	options := eventlog.ReadOptions{
+	readOptions := eventlog.ReadOptions{
 		Kinds:        selected,
-		Tool:         tool,
-		FailuresOnly: failures,
-		Limit:        limit,
+		Tool:         options.Tool,
+		FailuresOnly: options.Failures,
+		Limit:        options.Limit,
 	}
-	if since > 0 {
-		options.Since = time.Now().Add(-since)
+	if options.Since > 0 {
+		readOptions.Since = time.Now().Add(-options.Since)
 	}
 
-	events, err := eventlog.Read(path, options)
+	events, err := eventlog.Read(path, readOptions)
 	if err != nil {
 		writeCommandError(stderr, "logs: %v", err)
 		return 1
 	}
-	if jsonOutput {
+	if options.JSONOutput {
 		// A follower emitting a JSON array could never close it, so the
 		// two flags describe different documents and cannot be combined.
-		if follow {
+		if options.Follow {
 			writeCommandError(stderr, "logs: --json and --follow cannot be combined")
 			return 2
 		}
@@ -99,15 +113,15 @@ func runLogs(args []string, stdout, stderr io.Writer) int {
 	}
 
 	styles := newLogStyles(stdout)
-	if len(events) == 0 && !follow {
+	if len(events) == 0 && !options.Follow {
 		writeInfo(stdout, "logs: nothing recorded yet in %s", path)
 		return 0
 	}
 	writeLogLines(stdout, styles, collapseLogEvents(events))
-	if !follow {
+	if !options.Follow {
 		return 0
 	}
-	return followLogs(stdout, stderr, styles, path, options, events)
+	return followLogs(stdout, stderr, styles, path, readOptions, events)
 }
 
 // followLogs prints records as they are appended. It keeps the newest instant

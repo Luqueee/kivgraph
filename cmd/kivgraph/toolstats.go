@@ -12,6 +12,27 @@ import (
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 )
 
+// toolStatsOptions carries the flags of `kivgraph tool-stats`.
+type toolStatsOptions struct {
+	ConfigPath string
+	Tool       string
+	Since      time.Duration
+	JSONOutput bool
+}
+
+// toolStatsFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func toolStatsFlagSet(options *toolStatsOptions) *flag.FlagSet {
+	flags := flag.NewFlagSet("tool-stats", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "read this configuration instead of the default one")
+	flags.StringVar(&options.Tool, "tool", "", "report only this tool")
+	flags.DurationVar(&options.Since, "since", 0, "report only what happened within this duration")
+	flags.BoolVar(&options.JSONOutput, "json", false, "write the summary as JSON")
+	return flags
+}
+
 // runToolStats answers what every tool cost and whether it answered.
 //
 // It reads the durable store rather than asking a server, and that is the whole
@@ -21,15 +42,8 @@ import (
 // registry. Reading the file also makes the answer span every server that ever
 // ran, which is the span the question implies.
 func runToolStats(args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("tool-stats", flag.ContinueOnError)
-	configPath := ""
-	tool := ""
-	since := time.Duration(0)
-	jsonOutput := false
-	flags.StringVar(&configPath, "config", "", "read this configuration instead of the default one")
-	flags.StringVar(&tool, "tool", "", "report only this tool")
-	flags.DurationVar(&since, "since", 0, "report only what happened within this duration")
-	flags.BoolVar(&jsonOutput, "json", false, "write the summary as JSON")
+	var options toolStatsOptions
+	flags := toolStatsFlagSet(&options)
 	if parsed, code := parseCommandFlags("tool-stats", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -37,28 +51,28 @@ func runToolStats(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "tool-stats: unexpected arguments: %v", flags.Args())
 		return 2
 	}
-	if since < 0 {
-		writeCommandError(stderr, "tool-stats: --since must not be negative, got %s", since)
+	if options.Since < 0 {
+		writeCommandError(stderr, "tool-stats: --since must not be negative, got %s", options.Since)
 		return 2
 	}
 
-	configuration, err := config.LoadConfig(configPath)
+	configuration, err := config.LoadConfig(options.ConfigPath)
 	if err != nil {
 		writeCommandError(stderr, "tool-stats: load configuration: %v", err)
 		return 1
 	}
-	options := eventlog.ReadOptions{Kinds: []eventlog.Kind{eventlog.KindTool}, Tool: tool}
-	if since > 0 {
-		options.Since = time.Now().Add(-since)
+	readOptions := eventlog.ReadOptions{Kinds: []eventlog.Kind{eventlog.KindTool}, Tool: options.Tool}
+	if options.Since > 0 {
+		readOptions.Since = time.Now().Add(-options.Since)
 	}
-	events, err := eventlog.Read(configuration.Logging.EventLogPath, options)
+	events, err := eventlog.Read(configuration.Logging.EventLogPath, readOptions)
 	if err != nil {
 		writeCommandError(stderr, "tool-stats: %v", err)
 		return 1
 	}
 	summary := eventlog.Summarize(events)
 
-	if jsonOutput {
+	if options.JSONOutput {
 		encoded, err := json.MarshalIndent(summary, "", "  ")
 		if err != nil {
 			writeCommandError(stderr, "tool-stats: encode summary: %v", err)
