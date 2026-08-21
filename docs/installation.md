@@ -108,7 +108,7 @@ curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.3.2 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.3.5 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
