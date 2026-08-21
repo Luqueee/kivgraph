@@ -3,6 +3,15 @@
 - **Estado:** aceptada
 - **Fecha:** 2026-08-21
 
+> **Corrección de 2026-08-21.** Las cifras de este ADR se midieron sobre un
+> `kena` **sin Rust**: al harness le faltaba `cargo` en el `PATH`, así que
+> `rust-analyzer` rechazó los dos workspaces Cargo y el pase publicó el resto --
+> declarándolo como `not_loaded=2`, que el harness no leyó. Con los tres lenguajes
+> cargados el corpus es `4.768` ficheros y `123.524` símbolos, el pase completo
+> `10,036 s`, `staging` el `37,1 %`, y el techo del delta **`1,63x`** en vez de
+> `1,67x`. La decisión no cambia: se refuerza. Las cifras corregidas y el detalle
+> de lo que se movió están en `benchmarks/incremental-cost/report.md`.
+
 ## Contexto
 
 El camino del delta estaba construido y probado -- `facts.Diff`,

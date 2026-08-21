@@ -15,7 +15,7 @@ Las métricas crudas están en `results-chain.json` y las respuestas literales e
 |---|---|
 |fecha|2026-08-21|
 |commit|`559e1bf`|
-|corpus|`kena`, 37 repositorios git, `4.683` ficheros, `120.461` símbolos|
+|corpus|`kena`, 37 repositorios git, `4.683` ficheros, `120.461` símbolos -- **sin Rust**, ver abajo|
 |kivgraph|`0.3.6`|
 |tokenizador|`tiktoken` `o200k_base`|
 
@@ -116,6 +116,19 @@ go run ./benchmarks/graph-tools-comparison --set chain \
   --dir /private/tmp/bench-chain --state-root /private/tmp/5way-chain \
   --kivgraph-home /private/tmp/chainhome --skip-indexing
 ```
+
+## El corpus medido no llevaba Rust
+
+El índice de estas preguntas se construyó sin `cargo` en el `PATH` del harness,
+así que `rust-analyzer` rechazó los dos workspaces Cargo de `kena` y el pase
+publicó el resto, declarándolo como `rust_workspaces_not_loaded=2`. El corpus
+real son `4.768` ficheros y `123.524` símbolos; el medido aquí, `4.683` y
+`120.461`.
+
+No afecta a ninguna cifra de esta tabla: las preguntas son de Go y TypeScript, y
+sus verdades se construyeron leyendo los ficheros, no consultando el índice. Lo
+que sí queda dicho es que **ninguna de estas preguntas es de Rust**, y que no
+podría haberlo sido con este índice.
 
 ## Limitaciones
 

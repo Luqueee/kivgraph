@@ -2,7 +2,7 @@
   "benchmark": "incremental-cost",
   "question": "what is the ceiling on what the delta route could save, and does it pay for itself",
   "date": "2026-08-21",
-  "commit": "e78490e",
+  "commit": "2808ea9",
   "environment": {
     "os": "macOS 26.6",
     "machine": "Mac17,2 (Apple M5)",
@@ -16,33 +16,38 @@
     "git_repositories": 37,
     "indexed_repositories": 35,
     "packages": 114,
-    "files": 4683,
-    "symbols": 120461,
+    "files": 4768,
+    "symbols": 123524,
     "evidence": 344845,
-    "edges": 477027,
+    "edges": 493521,
     "unresolved": 12052,
     "fact_cache": "warm -- this is the cost of reindexing after an edit, not a cold build",
-    "database_bytes": 234479616
+    "database_bytes": 241750016,
+    "rust_workspaces": 2,
+    "rust_symbols": 3063,
+    "rust_references": 13223,
+    "rust_workspaces_not_loaded": 0,
+    "languages": "go, typescript and rust -- all three loaded, which the first run of this benchmark did not achieve"
   },
   "full_pass_seconds": {
-    "startup_to_first_event": 0.717,
-    "typescript": 0.36,
-    "go": 0.16,
-    "rust": 0.05,
-    "merge": 0.488,
-    "facts": 0.218,
-    "staging": 3.529,
-    "snapshot": 1.909,
-    "integrity": 1.696,
-    "golden_probes": 0.047,
-    "total": 9.174
+    "startup_to_first_event": 0.87,
+    "typescript": 0.337,
+    "go": 0.228,
+    "rust": 0.06,
+    "merge": 0.611,
+    "facts": 0.259,
+    "staging": 3.719,
+    "snapshot": 2.048,
+    "integrity": 1.853,
+    "golden_probes": 0.051,
+    "total": 10.036
   },
   "delta_route_fixed_costs_seconds": {
-    "CanonicalTableCounts": 0.029777917,
-    "RefreshSnapshotDigest": 5.6125e-05,
-    "BuildSnapshot": 1.788439041
+    "CanonicalTableCounts": 0.033709334,
+    "RefreshSnapshotDigest": 4.1833e-05,
+    "BuildSnapshot": 1.912871667
   },
-  "delta_route_fixed_total_seconds": 1.818273083,
+  "delta_route_fixed_total_seconds": 1.946622834,
   "delta_route": {
     "pays": [
       "startup",
@@ -64,16 +69,34 @@
     "production_callers": 0
   },
   "projection": {
-    "delta_as_written_seconds": 3.811,
-    "delta_if_it_also_verified_seconds": 5.507,
-    "speedup_as_written": 2.41,
-    "speedup_if_verifying": 1.67,
+    "delta_as_written_seconds": 4.312,
+    "delta_if_it_also_verified_seconds": 6.165,
+    "speedup_as_written": 2.33,
+    "speedup_if_verifying": 1.63,
     "note": "the mutation itself is excluded: it scales with the edit, and CanonicalTableCounts reading all eighteen relationship tables in 0.030 s bounds per-table work on this database at about 2 ms"
   },
   "limitations": [
     "the delta route has no production caller, so its cost is projected from the steps applyDeltaRoute provably runs, never measured end to end",
     "ApplyCanonicalDelta is not timed here: building a kena-scale delta needs real loader output for kena, and the fixed costs already decide the question",
     "one corpus, one machine, one warm cache; a cold cache moves the language engines from 0.57 s to minutes and makes every ratio here look better than it is",
-    "the full pass numbers come from one run with per-event timestamps, not from a distribution"
-  ]
+    "the full pass numbers come from one run with per-event timestamps, not from a distribution",
+    "the first run of this benchmark measured a corpus with no Rust in it, because cargo was missing from the harness PATH; the figures here replace those and the correction block records what moved"
+  ],
+  "correction": {
+    "what": "the first run of this benchmark indexed kena without Rust",
+    "why": "the harness PATH carried CARGO_HOME but not cargo itself, so rust-analyzer refused both Cargo workspaces and the pass published the rest -- which kivgraph reported as rust_workspaces_not_loaded=2 in both its JSON and its human output, and the harness ignored",
+    "previous_corpus": {
+      "files": 4683,
+      "symbols": 120461,
+      "edges": 477027
+    },
+    "previous_full_pass_seconds": 9.174,
+    "previous_projection": {
+      "delta_as_written_seconds": 3.811,
+      "speedup_as_written": 2.41,
+      "delta_if_it_also_verified_seconds": 5.507,
+      "speedup_if_verifying": 1.67
+    },
+    "effect_on_the_conclusion": "none in direction. Rust facts are cached like every other language, so a warm pass grows by 0.861 s and every phase share stays within a point: staging is 37.1 % where it was 38.5 %, and it remains the only step a delta avoids"
+  }
 }

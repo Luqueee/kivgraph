@@ -15274,3 +15274,35 @@ no de la herramienta.
 batching debería separarse de leer ficheros; `graph_status`, `list_repositories` e
 `index_project` quedan fuera por decisión declarada -- estado y mutación, no
 preguntas sobre el código.
+
+## LUQUE-2006 — Una pregunta de Rust sobre el corpus real
+
+**Dependencias:** ninguna.
+
+**El hueco, y de quién es la culpa:** los tres conjuntos medidos sobre `kena`
+-`reach`, `chain` y el desglose de `incremental-cost`- se construyeron sobre un
+índice **sin Rust**. Al `PATH` del harness le faltaba `cargo`, así que
+`rust-analyzer` rechazó los dos workspaces Cargo y el pase publicó el resto.
+Kivgraph lo declaró -- `rust_workspaces_not_loaded=2` en el JSON y en la salida
+humana, que es su contrato con una ausencia-- y el harness no lo leyó.
+
+Con `cargo` en el `PATH`: `2` workspaces, `3.063` símbolos, `13.223` referencias,
+`0` no cargados, en `35 s` sobre los dos repositorios Rust solos. El corpus
+completo pasa de `4.683`/`120.461`/`477.027` a `4.768`/`123.524`/`493.521`.
+
+**Lo ya corregido:** `benchmarks/incremental-cost` re-medido entero, con su
+sección de corrección y la nota en el ADR 0057 -- el techo del delta era `1,63x`,
+no `1,67x`, así que la retirada se refuerza. `reach.md` y `chain.md` llevan la
+nota de que su corpus no tenía Rust; sus cifras no cambian, porque sus preguntas
+son de Go y TypeScript y sus verdades se leyeron de los ficheros.
+
+**Lo que falta:** una pregunta de Rust sobre `kena`, no sobre un fixture. Hoy la
+única dimensión Rust medida es `H5_rs_trait`, y vive en `benchmarks/graph-tools-comparison`
+sobre un fixture sintético. Con `3.063` símbolos reales indexados hay corpus para
+preguntar de verdad: un trait object, un `impl` entre crates del workspace, o un
+consumidor cross-repo entre `kenalink-rs` y `api-music-nodo`.
+
+**Y una regla para el harness:** una medición que registra un contador de
+`not_loaded` distinto de cero y sigue adelante está midiendo otro corpus del que
+dice. El harness debería fallar cerrado ante eso, como ya hace el del visor con
+una métrica fuera de límite.
