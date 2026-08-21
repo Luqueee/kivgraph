@@ -119,6 +119,13 @@ func measureCodebaseMemory(ctx context.Context, tokens *counter, repos repositor
 	case familyDependencies:
 		return &armResult{Unsupported: true, Note: "`search_graph` answers callers; the outward direction is not " +
 			"a query it exposes"}, nil
+	case familyLocate:
+		return &armResult{Unsupported: true, Note: "`search_graph` matches names but does not separate a " +
+			"declaration from a use; not implemented rather than absent"}, nil
+	case familyBodies:
+		return &armResult{Unsupported: true, Note: "it returns graph nodes, not source text"}, nil
+	case familyFacts:
+		return &armResult{Unsupported: true, Note: "its nodes carry no kind and span per declaration"}, nil
 	}
 	srv, err := dial(ctx, "codebase-memory-mcp", binary, nil, map[string]string{"HOME": home})
 	if err != nil {

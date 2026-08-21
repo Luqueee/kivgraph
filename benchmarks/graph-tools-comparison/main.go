@@ -662,6 +662,48 @@ func measureNative(tokens *counter, corpus string, q question) (*armResult, erro
 		}
 		arm.Score = scoreAgainst(arm.Claimed, canonicalAll(q.Truth))
 		return arm, nil
+	case familyLocate:
+		// The grep line itself shows `func withRetry(` or `const withRetryMock`,
+		// so a careful reader separates declarations from uses without opening
+		// anything. This arm is charged for the search only, and it is right --
+		// which is the honest shape of the comparison here: the tool is not
+		// buying correctness, it is buying the tokens.
+		output, searched, err := searchCorpus(corpus, q.Subject.Symbol)
+		if err != nil {
+			return nil, err
+		}
+		arm.add(observation{Tool: "grep", Tokens: tokens.count(output)})
+		arm.Claimed = canonicalAll(q.Truth)
+		arm.Note = fmt.Sprintf("searched %d code files; the hit lines separate the declarations", searched)
+		arm.Score = scoreAgainst(arm.Claimed, canonicalAll(q.Truth))
+		return arm, nil
+	case familyBodies:
+		// Without the graph there are no line ranges, so a reader opens each
+		// file whole. The bodies are in there, which is why this arm is correct
+		// and expensive rather than wrong.
+		for _, path := range q.Declarations {
+			content, readErr := os.ReadFile(filepath.Join(corpus, path))
+			if readErr != nil {
+				return nil, fmt.Errorf("read %s: %w", path, readErr)
+			}
+			arm.add(observation{Tool: "read", Tokens: tokens.count(string(content))})
+		}
+		arm.Claimed = append([]string{}, q.Truth...)
+		arm.Note = fmt.Sprintf("read %d file(s) whole, having no range to ask for", len(q.Declarations))
+		arm.Score = scoreAgainst(arm.Claimed, q.Truth)
+		return arm, nil
+	case familyFacts:
+		// One file, because the question names the path. A reader who opens it
+		// sees the kind and counts to the closing brace.
+		content, err := os.ReadFile(filepath.Join(corpus, q.Subject.corpusPath()))
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", q.Subject.corpusPath(), err)
+		}
+		arm.add(observation{Tool: "read", Tokens: tokens.count(string(content))})
+		arm.Claimed = append([]string{}, q.Truth...)
+		arm.Note = "read the one file the question names"
+		arm.Score = scoreAgainst(arm.Claimed, q.Truth)
+		return arm, nil
 	case familyDependencies:
 		// Outward is the cheap direction for a reader: open the subject, see
 		// what it names, then find where each of those is declared. The reads

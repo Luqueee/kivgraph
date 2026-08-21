@@ -15225,6 +15225,8 @@ entrante.
 
 ## LUQUE-2005 — Cobertura de las tools servidas por el conjunto de preguntas
 
+**Estado:** cerrada -- conjunto `chain` en `benchmarks/graph-tools-comparison/chain.md`.
+
 **Dependencias:** ninguna.
 
 **El hueco:** el servidor sirve `11` tools y el conjunto de preguntas -- los
@@ -15241,3 +15243,34 @@ agente encadena después de cualquier respuesta.
 
 **Objetivo:** una pregunta por cada una de esas tres, con verdad construida
 leyendo, y la cobertura declarada en el informe en vez de deducida.
+
+**Resultado.** Conjunto `chain`, tres preguntas, `25` preguntas ya en cinco
+conjuntos y `8` de las `11` tools ejercitadas. La tabla de cobertura está escrita
+en `chain.md` y verificada por script contra los cinco `results-*.json`, uno por
+conjunto, sin contar re-mediciones.
+
+|pregunta|kivgraph|nativo|razón|
+|---|---|---|---|
+|`X5` dónde se declara `withRetry` (7 de 22)|`744` tok `P=R=1,00`|`1.699` tok `P=R=1,00`|**`2,3x`**|
+|`X6` tres cuerpos en una llamada|`674` tok `P=R=1,00`|`2.071` tok|`3,1x`|
+|`X7` qué es un símbolo entre 6 homónimos|`176` tok `P=R=1,00`|`1.516` tok|`8,6x`|
+
+**Lo que hay que decir de esto, y no está a nuestro favor:** el nativo acierta
+las tres. Estas tres tools no compran exactitud, compran tokens. Y `X5` es el
+margen más estrecho medido en todo el proyecto -- `2,3x` sobre un nombre **común**
+en un corpus **grande**, que es el caso donde el `AGENTS.md` promete ventaja.
+Además la razón es la más favorable al `grep` que el conjunto puede producir: sus
+líneas de resultado bastan para separar declaración de uso, así que al brazo
+nativo se le cobra sólo la búsqueda.
+
+**Hallazgo de diseño.** El grafo tiene `22` símbolos llamados `withRetry` y sólo
+`7` declaran: los otros `15` son bindings de `export`/`import` de barrels de
+TypeScript. La verdad los excluye y el brazo los aparta **contándolos** en la
+nota, que es la misma decisión del ADR 0046 para las aristas de reenvío. Sin esa
+regla la precisión habría salido `0,32` y el defecto habría sido de la pregunta,
+no de la herramienta.
+
+**Sigue abierto:** una pregunta de `X6` con treinta símbolos, que es donde el
+batching debería separarse de leer ficheros; `graph_status`, `list_repositories` e
+`index_project` quedan fuera por decisión declarada -- estado y mutación, no
+preguntas sobre el código.

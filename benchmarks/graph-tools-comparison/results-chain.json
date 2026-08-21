@@ -1,0 +1,609 @@
+{
+  "benchmark": "graph-tools-comparison",
+  "generated_at": "2026-08-21T21:54:44.988391Z",
+  "commit": "559e1bf",
+  "tokenizer": "o200k_base",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "Darwin"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "code_files": 0
+  },
+  "versions": {
+    "code-review-graph": "code-review-graph 2.3.7",
+    "codebase-memory": "codebase-memory-mcp 0.8.1",
+    "graft": "0.10.1",
+    "graphify": "graphify 0.8.31",
+    "kivgraph": "0.3.6"
+  },
+  "isolation": {
+    "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
+    "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
+    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "kivgraph": "isolated HOME at /private/tmp/chainhome; the published generation and the registry live there",
+    "native": "reads only; nothing is written"
+  },
+  "indexing": {},
+  "question_set": "chain",
+  "questions": [
+    {
+      "id": "X5_locate_homonym",
+      "family": "locate",
+      "question": "Which files declare withRetry?",
+      "ground_truth": [
+        "libraries/library-env/src/retry.ts",
+        "libraries/library-shared/src/utils/retry.ts",
+        "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+        "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
+        "services/api-db-go/internal/infrastructure/postgres/retry.go",
+        "services/api-db-go/internal/shared/infisical/infisical.go",
+        "services/api-music/internal/shared/infisical/infisical.go"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`callers_of` is its only symbol entry point and it answers callers"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`search_graph` matches names but does not separate a declaration from a use; not implemented rather than absent"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`graft grep` and `graft skeleton` are the closest calls and neither enumerates the declarations of one name; not implemented rather than absent"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "reachable through its natural language `query`; not implemented rather than absent"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_symbol",
+              "tokens": 744,
+              "ms": 0.647
+            }
+          ],
+          "tokens": 744,
+          "ms": 0.647,
+          "call_count": 1,
+          "claimed": [
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
+            "api-music:internal/shared/infisical/infisical.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/infrastructure/postgres/retry.go",
+              "api-db-go:internal/shared/infisical/infisical.go",
+              "api-music:internal/shared/infisical/infisical.go",
+              "library-env:src/retry.ts",
+              "library-shared:src/utils/retry.ts",
+              "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+              "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "15 forwarding symbol(s) -- barrels that republish the name -- set aside, not counted as declarations"
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 1699,
+              "ms": 0
+            }
+          ],
+          "tokens": 1699,
+          "ms": 0,
+          "call_count": 1,
+          "claimed": [
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/infrastructure/postgres/retry.go",
+              "api-db-go:internal/shared/infisical/infisical.go",
+              "api-music:internal/shared/infisical/infisical.go",
+              "library-env:src/retry.ts",
+              "library-shared:src/utils/retry.ts",
+              "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+              "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files; the hit lines separate the declarations"
+        }
+      }
+    },
+    {
+      "id": "X6_bodies_two_languages",
+      "family": "bodies",
+      "question": "Give me the complete source of these three declarations, in one call",
+      "ground_truth": [
+        "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+        "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+        "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "code-review-graph returns impacted files, not source"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "it returns graph nodes, not source text"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`graft show` returns a card, not a declaration body keyed by qualified name"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "graphify returns nodes and edges, not source text"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "get_source",
+              "tokens": 674,
+              "ms": 0.603
+            }
+          ],
+          "tokens": 674,
+          "ms": 0.603,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+            "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+            "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+              "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+              "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 1367,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 537,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 167,
+              "ms": 0
+            }
+          ],
+          "tokens": 2071,
+          "ms": 0,
+          "call_count": 3,
+          "claimed": [
+            "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+            "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+            "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+              "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+              "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "read 3 file(s) whole, having no range to ask for"
+        }
+      }
+    },
+    {
+      "id": "X7_facts_homonym",
+      "family": "facts",
+      "question": "What kind of declaration is the HttpStatus in library-shared, and where does it end?",
+      "ground_truth": [
+        "enum@29-36"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "it reports impact, not a declaration record"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "its nodes carry no kind and span per declaration"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "graft reports symbols inside a card, without a kind and span per declaration"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "its nodes carry no per-declaration kind and span to report"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "get_symbol",
+              "tokens": 176,
+              "ms": 0.411
+            }
+          ],
+          "tokens": 176,
+          "ms": 0.411,
+          "call_count": 1,
+          "claimed": [
+            "enum@29-36"
+          ],
+          "score": {
+            "claimed_set": [
+              "enum@29-36"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 1516,
+              "ms": 0
+            }
+          ],
+          "tokens": 1516,
+          "ms": 0,
+          "call_count": 1,
+          "claimed": [
+            "enum@29-36"
+          ],
+          "score": {
+            "claimed_set": [
+              "enum@29-36"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "read the one file the question names"
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "code-review-graph": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 3
+    },
+    "codebase-memory": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 3
+    },
+    "graft": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 3
+    },
+    "graphify": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 3
+    },
+    "kivgraph": {
+      "tokens_total": 1594,
+      "calls_total": 3,
+      "ms_total": 1.661,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 3,
+      "answered": 3,
+      "of": 3
+    },
+    "native": {
+      "tokens_total": 5286,
+      "calls_total": 5,
+      "ms_total": 0,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 3,
+      "answered": 3,
+      "of": 3
+    }
+  },
+  "aggregate_by_family": {
+    "bodies": {
+      "code-review-graph": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "codebase-memory": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "graft": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "graphify": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "kivgraph": {
+        "tokens_total": 674,
+        "calls_total": 1,
+        "ms_total": 0.603,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      },
+      "native": {
+        "tokens_total": 2071,
+        "calls_total": 3,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      }
+    },
+    "facts": {
+      "code-review-graph": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "codebase-memory": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "graft": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "graphify": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "kivgraph": {
+        "tokens_total": 176,
+        "calls_total": 1,
+        "ms_total": 0.411,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      },
+      "native": {
+        "tokens_total": 1516,
+        "calls_total": 1,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      }
+    },
+    "locate": {
+      "code-review-graph": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "codebase-memory": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "graft": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "graphify": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 1
+      },
+      "kivgraph": {
+        "tokens_total": 744,
+        "calls_total": 1,
+        "ms_total": 0.647,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      },
+      "native": {
+        "tokens_total": 1699,
+        "calls_total": 1,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      }
+    }
+  }
+}

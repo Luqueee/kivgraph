@@ -102,6 +102,12 @@ func measureCRG(ctx context.Context, tokens *counter, repos repositories, captur
 		return &armResult{Unsupported: true, Note: "built with `--repo`, one repository per graph, so it has no cross-repository dimension to report"}, nil
 	case familyDependencies:
 		return &armResult{Unsupported: true, Note: "its graph is built around blast radius, which is the incoming direction"}, nil
+	case familyLocate:
+		return &armResult{Unsupported: true, Note: "`callers_of` is its only symbol entry point and it answers callers"}, nil
+	case familyBodies:
+		return &armResult{Unsupported: true, Note: "code-review-graph returns impacted files, not source"}, nil
+	case familyFacts:
+		return &armResult{Unsupported: true, Note: "it reports impact, not a declaration record"}, nil
 	}
 	return nil, fmt.Errorf("unknown family %q", q.Family)
 }

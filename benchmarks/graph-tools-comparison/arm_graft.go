@@ -31,6 +31,12 @@ func measureGraft(
 			"a distinction it can draw"}, nil
 	case familyDependencies:
 		return &armResult{Unsupported: true, Note: "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"}, nil
+	case familyLocate:
+		return &armResult{Unsupported: true, Note: "`graft grep` and `graft skeleton` are the closest calls and neither enumerates the declarations of one name; not implemented rather than absent"}, nil
+	case familyBodies:
+		return &armResult{Unsupported: true, Note: "`graft show` returns a card, not a declaration body keyed by qualified name"}, nil
+	case familyFacts:
+		return &armResult{Unsupported: true, Note: "graft reports symbols inside a card, without a kind and span per declaration"}, nil
 	}
 	return nil, fmt.Errorf("unknown family %q", q.Family)
 }

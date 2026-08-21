@@ -51,6 +51,12 @@ func measureGraphify(ctx context.Context, tokens *counter, repos repositories, c
 		return &armResult{Unsupported: true, Note: "a graphify graph is built per repository path and its answers do not carry one, so the boundary this family asks about is not in the data"}, nil
 	case familyDependencies:
 		return &armResult{Unsupported: true, Note: "reachable through its natural language `query`, which is direction agnostic; not implemented rather than absent"}, nil
+	case familyLocate:
+		return &armResult{Unsupported: true, Note: "reachable through its natural language `query`; not implemented rather than absent"}, nil
+	case familyBodies:
+		return &armResult{Unsupported: true, Note: "graphify returns nodes and edges, not source text"}, nil
+	case familyFacts:
+		return &armResult{Unsupported: true, Note: "its nodes carry no per-declaration kind and span to report"}, nil
 	}
 	return nil, fmt.Errorf("unknown family %q", q.Family)
 }

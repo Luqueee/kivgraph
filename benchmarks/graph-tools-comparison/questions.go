@@ -34,6 +34,17 @@ const (
 	// declare something this reaches", at a declared depth. Third-party and
 	// standard library are out of scope -- the question is about this corpus.
 	familyDependencies = "dependencies"
+	// familyLocate is "where is this declared". Truth is a set of files, and
+	// the axis is precision: a name is mentioned in far more files than declare
+	// it, so the work is telling a declaration from a use.
+	familyLocate = "locate"
+	// familyBodies is "hand me the code of these declarations". Truth is the
+	// set of addresses whose **complete** declaration came back: a body that
+	// stops early is the failure this family exists to catch.
+	familyBodies = "bodies"
+	// familyFacts is "what is this symbol", asked where the name is ambiguous.
+	// Truth is one string, `kind@start-end`, because that is the whole answer.
+	familyFacts = "facts"
 )
 
 // subject is one declaration, in the addressing every tool here accepts.
@@ -49,6 +60,11 @@ type subject struct {
 	Name string `json:"name"`
 	// Symbol is the bare name a caller-tracing tool takes.
 	Symbol string `json:"symbol"`
+	// First and Last are the declaration's opening and closing source lines,
+	// copied from the file. They exist for the bodies family, which cannot
+	// check a body is complete without knowing where it ends.
+	First string `json:"first_line,omitempty"`
+	Last  string `json:"last_line,omitempty"`
 }
 
 // corpusPath is the subject's path relative to the corpus root.
@@ -76,6 +92,10 @@ type question struct {
 	// tracing outward reads the subject, then has to find where each name it
 	// saw is declared, and that search is part of what the answer cost.
 	Reached []string `json:"reached_names,omitempty"`
+	// Also carries the extra subjects of a question that asks about several at
+	// once. It exists because "one call across files and repositories" is a
+	// claim about batching, and a question with one subject cannot test it.
+	Also []subject `json:"also,omitempty"`
 }
 
 // The reference truth is the manual classification recorded in
@@ -573,6 +593,106 @@ var reachQuestions = []question{
 	},
 }
 
+// chainQuestions are the three tools an agent reaches for **after** an answer:
+// where is this declared, hand me its code, what is it. The routing table names
+// all three and no question in any set had ever called one of them.
+//
+// Their truths are the cheapest to state and the easiest to get wrong by
+// trusting a pattern. `withRetry` is named in 22 files and declared in 7, and
+// the eighth candidate a regex offers -- `const withRetryMock = vi.fn()` -- is a
+// different identifier that matched for want of a closing word boundary. The
+// spans were read out of the files, line by line, not taken from any tool.
+var httpStatusDeclarations = []string{
+	"libraries/library-shared/src/result/custom-error.ts",
+	"libraries/library-web/src/shared/CustomError.ts",
+	"services/api-gateway/src/domain/result/custom-error.ts",
+	"services/api-metrics/src/domain/result/custom-error.ts",
+	"services/api-premium/src/domain/result/custom-error.ts",
+	"services/api-translations/src/domain/result/custom-error.ts",
+}
+
+var chainQuestions = []question{
+	{
+		ID:       "X5_locate_homonym",
+		Family:   familyLocate,
+		Ask:      "Which files declare withRetry?",
+		Language: "go and typescript, seven declarations of one name",
+		Subject: subject{
+			Repo: "library-shared", Dir: "libraries/library-shared",
+			Path: "src/utils/retry.ts", Name: "withRetry", Symbol: "withRetry",
+		},
+		// The seven declarations of the function: two Go copies of one file, a
+		// third Go one in another package, three exported TypeScript functions
+		// and a private method on a class. 22 files name it.
+		//
+		// The graph also holds 15 symbols named withRetry that declare nothing:
+		// every TypeScript barrel that re-publishes the name gets one, of kind
+		// `export` or `import`. They are not in this truth, and the arm that
+		// reports them says how many it set aside. That is the same call ADR
+		// 0046 made for find_references, where forwarding edges are withheld
+		// unless asked for.
+		Truth:        withRetryDeclarations,
+		Declarations: withRetryDeclarations,
+	},
+	{
+		ID:       "X6_bodies_two_languages",
+		Family:   familyBodies,
+		Ask:      "Give me the complete source of these three declarations, in one call",
+		Language: "go and typescript, two repositories",
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/shared/infisical/infisical.go",
+			Name: "LoadSecrets", Symbol: "LoadSecrets",
+			First: "func LoadSecrets() (configured bool, err error) {",
+			Last:  "}",
+		},
+		Also: []subject{
+			{
+				Repo: "api-db-go", Dir: "services/api-db-go",
+				Path: "internal/application/routers/guilds_router.go",
+				Name: "RegisterGuilds", Symbol: "RegisterGuilds",
+				First: "func RegisterGuilds(app *fiber.App, h *handlers.GuildsHandler) {",
+				Last:  "}",
+			},
+			{
+				Repo: "library-shared", Dir: "libraries/library-shared",
+				Path: "src/redis/cache/music/recommendations-cache.ts",
+				Name: "RecommendationsCache", Symbol: "RecommendationsCache",
+				First: "export class RecommendationsCache extends BaseCache {",
+				Last:  "}",
+			},
+		},
+		// One address per declaration whose whole body came back. Spans read
+		// from the files: 72-102, 34-48 and 6-18.
+		Truth: []string{
+			"api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+			"api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+			"library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache",
+		},
+		Declarations: []string{
+			"services/api-db-go/internal/shared/infisical/infisical.go",
+			"services/api-db-go/internal/application/routers/guilds_router.go",
+			"libraries/library-shared/src/redis/cache/music/recommendations-cache.ts",
+		},
+	},
+	{
+		ID:       "X7_facts_homonym",
+		Family:   familyFacts,
+		Ask:      "What kind of declaration is the HttpStatus in library-shared, and where does it end?",
+		Language: "typescript, six declarations share the name",
+		Subject: subject{
+			Repo: "library-shared", Dir: "libraries/library-shared",
+			Path: "src/result/custom-error.ts",
+			Name: "HttpStatus", Symbol: "HttpStatus",
+		},
+		// Read from the file: `export enum HttpStatus {` on 29, its closing
+		// brace on 36. Five other files declare the same name, so an answer that
+		// resolves by name alone can land on any of them.
+		Truth:        []string{"enum@29-36"},
+		Declarations: httpStatusDeclarations,
+	},
+}
+
 // questionSet resolves the name a run was asked for. An unknown name is a
 // failure rather than a fallback: silently measuring the wrong set would
 // publish a number under the wrong label.
@@ -586,13 +706,16 @@ func questionSet(name string) []question {
 		return impactQuestions
 	case "reach":
 		return reachQuestions
+	case "chain":
+		return chainQuestions
 	case "all":
 		out := append([]question{}, questions...)
 		out = append(out, hardQuestions...)
 		out = append(out, impactQuestions...)
-		return append(out, reachQuestions...)
+		out = append(out, reachQuestions...)
+		return append(out, chainQuestions...)
 	default:
 		panic("unknown question set " + name +
-			`: use "measured", "hard", "impact", "reach" or "all"`)
+			`: use "measured", "hard", "impact", "reach", "chain" or "all"`)
 	}
 }
