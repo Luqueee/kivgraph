@@ -1,0 +1,4 @@
+Affected nodes for .delete_session()
+Relations: calls, references, imports, imports_from, re_exports, inherits, extends, implements, uses, mixes_in, embeds
+Depth: 2
+No affected nodes found.

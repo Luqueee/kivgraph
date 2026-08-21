@@ -15306,3 +15306,24 @@ consumidor cross-repo entre `kenalink-rs` y `api-music-nodo`.
 `not_loaded` distinto de cero y sigue adelante está midiendo otro corpus del que
 dice. El harness debería fallar cerrado ante eso, como ya hace el del visor con
 una métrica fuera de límite.
+
+## LUQUE-2007 — La proporción de no resueltos de Rust no tiene pregunta
+
+**Dependencias:** LUQUE-2006.
+
+**El número:** el índice de `kena` publica `3.063` símbolos Rust y `1.969`
+referencias no resueltas. Ninguna pregunta de ningún conjunto pregunta nada sobre
+esa proporción, y es la más alta de los tres lenguajes -- `go_unresolved` es
+`9.581` sobre `114.741` referencias, `typescript_unresolved` `5.998` sobre
+`278.601`.
+
+**Por qué importa:** un no resuelto conserva motivo, repositorio y lenguaje por
+contrato, así que la pregunta es contestable con el grafo publicado y sin leer
+código: **¿de qué son esos `1.969`?** Si son macros, `cfg` no compilados o
+dependencias externas, es una limitación declarada del cargador. Si son llamadas
+normales dentro del workspace, es un defecto de resolución escondido detrás de un
+contador agregado.
+
+**Objetivo:** agrupar los no resueltos de Rust por motivo, publicarlo con la
+convención de `benchmarks/`, y decidir a partir del desglose si hay defecto o
+límite. Hoy nadie lo sabe, y el número está a la vista desde que Rust carga.

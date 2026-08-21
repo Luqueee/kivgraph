@@ -693,6 +693,46 @@ var chainQuestions = []question{
 	},
 }
 
+// rustQuestions is the first question this project has ever asked about Rust in
+// a real corpus. Every earlier Rust dimension -- `H5_rs_trait` -- lived on a
+// synthetic fixture, and the three sets measured over kena were measured with no
+// Rust in the index at all, because the harness ran without cargo on its PATH
+// and never read the counter that said so.
+//
+// The subject is the shape ADR 0054 was written for, now on code somebody
+// shipped. `StateStore` has exactly one implementation, `MemoryStateStore`, and
+// the only caller of its delete_session reaches it through `Arc<dyn StateStore>`
+// -- dynamic dispatch, so a name-based or a strictly structural answer says
+// nothing references it. That was the failure the bridge closed on a fixture;
+// this asks it for real.
+var rustQuestions = []question{
+	{
+		ID:       "R1_rs_sole_impl_dyn",
+		Family:   familyReferences,
+		Ask:      "Which files reference the delete_session declared on MemoryStateStore?",
+		Language: "rust, the only caller goes through a trait object",
+		Subject: subject{
+			Repo: "kenalink-rs", Dir: "services/kenalink-rs",
+			Path: "src/state/memory.rs",
+			Name: "MemoryStateStore.delete_session", Symbol: "delete_session",
+		},
+		// One file. `src/api_ws/mod.rs:436` calls it as
+		// `state.store.delete_session(session_id)`, and `state.store` is
+		// `Arc<dyn StateStore>` -- declared in `src/app_state.rs:25`, which is
+		// what a reader has to open to know the receiver's type.
+		//
+		// The other two mentions of the name are not references to this method:
+		// `src/state/mod.rs:15` declares it on the trait, and the call at
+		// `src/state/memory.rs:546` is inside the declaring file, which this
+		// benchmark never counts.
+		Truth: []string{"services/kenalink-rs/src/api_ws/mod.rs"},
+		Declarations: []string{
+			"services/kenalink-rs/src/state/memory.rs",
+			"services/kenalink-rs/src/state/mod.rs",
+		},
+	},
+}
+
 // questionSet resolves the name a run was asked for. An unknown name is a
 // failure rather than a fallback: silently measuring the wrong set would
 // publish a number under the wrong label.
@@ -708,14 +748,17 @@ func questionSet(name string) []question {
 		return reachQuestions
 	case "chain":
 		return chainQuestions
+	case "rust":
+		return rustQuestions
 	case "all":
 		out := append([]question{}, questions...)
 		out = append(out, hardQuestions...)
 		out = append(out, impactQuestions...)
 		out = append(out, reachQuestions...)
-		return append(out, chainQuestions...)
+		out = append(out, chainQuestions...)
+		return append(out, rustQuestions...)
 	default:
 		panic("unknown question set " + name +
-			`: use "measured", "hard", "impact", "reach", "chain" or "all"`)
+			`: use "measured", "hard", "impact", "reach", "chain", "rust" or "all"`)
 	}
 }

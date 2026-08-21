@@ -176,8 +176,27 @@ func crgClaimReferences(arm *armResult, repos repositories, q question, answer c
 	case answer.Status != crgStatusOK:
 		arm.Note = "callers_of answered " + answer.Status + " for " + q.Subject.Symbol
 	case len(arm.Claimed) == 0:
-		arm.Note = "answered zero callers: `build` keeps one graph per repository, so a call site outside " +
-			q.Subject.Repo + " was never in the graph this query read"
+		// A zero has two very different causes and this note used to assert the
+		// flattering one unconditionally. `build` keeps one graph per
+		// repository, so a caller in another repository was genuinely never
+		// readable -- but when every file the answer misses is inside the
+		// subject's own repository, that graph did contain it and the zero is
+		// the tool's, not the scope's. Saying otherwise excuses a miss with a
+		// cause that does not apply.
+		outside := []string{}
+		for _, item := range q.Truth {
+			if !strings.HasPrefix(item, q.Subject.Dir+"/") {
+				outside = append(outside, item)
+			}
+		}
+		if len(outside) > 0 {
+			arm.Note = fmt.Sprintf("answered zero callers: `build` keeps one graph per repository, and %d of the "+
+				"%d file(s) the answer needs live outside %s, so they were never in the graph this query read",
+				len(outside), len(q.Truth), q.Subject.Repo)
+			break
+		}
+		arm.Note = "answered zero callers, and every file the answer needs is inside " + q.Subject.Repo +
+			", which is exactly the repository this graph was built over"
 	}
 	return arm
 }

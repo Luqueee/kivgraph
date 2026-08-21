@@ -1,0 +1,57 @@
+{
+  "status": "ambiguous",
+  "summary": "'delete_session' matches 2 node(s). Re-run with a qualified_name from disambiguation.",
+  "candidates": [
+    {
+      "id": 545,
+      "kind": "Function",
+      "name": "delete_session",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/memory.rs::MemoryStateStore.delete_session",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/memory.rs",
+      "line_start": 38,
+      "line_end": 40,
+      "language": "rust",
+      "parent_name": "MemoryStateStore",
+      "is_test": false
+    },
+    {
+      "id": 583,
+      "kind": "Function",
+      "name": "delete_session",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/mod.rs::StateStore.delete_session",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/mod.rs",
+      "line_start": 15,
+      "line_end": 15,
+      "language": "rust",
+      "parent_name": "StateStore",
+      "is_test": false
+    }
+  ],
+  "disambiguation": [
+    {
+      "id": 545,
+      "kind": "Function",
+      "name": "delete_session",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/memory.rs::MemoryStateStore.delete_session",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/memory.rs",
+      "line_start": 38,
+      "line_end": 40,
+      "language": "rust",
+      "parent_name": "MemoryStateStore",
+      "is_test": false
+    },
+    {
+      "id": 583,
+      "kind": "Function",
+      "name": "delete_session",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/mod.rs::StateStore.delete_session",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/kenalink-rs/src/state/mod.rs",
+      "line_start": 15,
+      "line_end": 15,
+      "language": "rust",
+      "parent_name": "StateStore",
+      "is_test": false
+    }
+  ],
+  "hint": "Use a qualified_name from disambiguation as the target parameter."
+}

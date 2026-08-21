@@ -118,6 +118,9 @@ type indexCost struct {
 	Scope   string  `json:"scope"`
 	Bytes   int64   `json:"state_bytes,omitempty"`
 	Needs   string  `json:"needs,omitempty"`
+	// Languages records what each language contributed, so the results file
+	// states the corpus it measured instead of leaving a reader to assume it.
+	Languages map[string]int `json:"languages,omitempty"`
 }
 
 type questionResult struct {
@@ -322,16 +325,27 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 	// benchmark that measured the second as if it were the first would price a
 	// graph that was never built. A half-second full index over 37 repositories
 	// is the shape of that mistake.
-	symbols, err := publishedSymbols(string(output))
+	load, err := publishedCorpus(string(output))
 	if err != nil {
+		return fmt.Errorf("kivgraph index: %w", err)
+	}
+	// The `Needs` line below has always said that a load without its toolchain
+	// leaves its symbols absent. It was true and unchecked, and a whole language
+	// went missing behind it: three published sets measured kena with no Rust in
+	// it, because cargo was not on the PATH and nothing read the counter that
+	// said so. A measurement that names a corpus it did not measure is worse
+	// than one that refuses to run.
+	if err := load.complete(); err != nil {
 		return fmt.Errorf("kivgraph index: %w", err)
 	}
 	out.Indexing["kivgraph"] = indexCost{
 		Command: "kivgraph index --full", MS: sinceMS(started),
-		Scope: kivgraphScope(symbols),
-		Bytes: directorySize(filepath.Join(cfg.KivgraphHome, ".local/state/kivgraph")),
-		Needs: "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent",
+		Scope:     kivgraphScope(load.Symbols),
+		Bytes:     directorySize(filepath.Join(cfg.KivgraphHome, ".local/state/kivgraph")),
+		Needs:     "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent",
+		Languages: load.Languages,
 	}
+	symbols := load.Symbols
 	fmt.Printf("  %-18s %6.1f s  %d symbols\n", "kivgraph", sinceMS(started)/1000, symbols)
 
 	started = time.Now()
@@ -384,8 +398,9 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 	return nil
 }
 
-// publishedSymbols reads the last result line of `index --full --json`. It
-// insists the run passed, and reports the symbol count when the run rebuilt.
+// publishedCorpus reads the last result line of `index --full --json`. It
+// insists the run passed, and reports what each language contributed so a
+// caller can refuse a corpus with a language missing from it.
 //
 // A count of zero is not a failure here: an index over an unchanged tree
 // republishes the generation it already had and says so with empty counters, in
@@ -393,7 +408,44 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 // readable afterwards, and that is asserted where it is observable -- on the
 // server's tool list, in assertCorpusIsPublished -- rather than guessed from a
 // counter that legitimately reads zero.
-func publishedSymbols(output string) (int, error) {
+// corpusLoad is what the index published, per language, and what it could not
+// read. It exists so a run can refuse to measure a corpus that is missing one.
+type corpusLoad struct {
+	Symbols   int            `json:"symbols"`
+	Languages map[string]int `json:"languages"`
+	NotLoaded map[string]int `json:"not_loaded,omitempty"`
+}
+
+// complete refuses a corpus with a hole in it.
+//
+// Two shapes of hole. A language that reports a load failure names its own
+// problem. A language that reports zero symbols does not, and it is the one that
+// actually happened: rust_symbols read 0 for three published sets and every
+// figure in them described a corpus without Rust. Both fail here.
+//
+// A republished generation reports empty counters by design, so this only judges
+// a run that rebuilt.
+func (load corpusLoad) complete() error {
+	if load.Symbols == 0 {
+		return nil
+	}
+	for language, count := range load.NotLoaded {
+		if count > 0 {
+			return fmt.Errorf("the index could not load %d %s unit(s), so this corpus is missing that language: "+
+				"put its toolchain on the PATH -- cargo for Rust -- and index again", count, language)
+		}
+	}
+	for language, count := range load.Languages {
+		if count == 0 {
+			return fmt.Errorf("the index published no %s symbols at all: either the corpus has no %s, "+
+				"or its toolchain was missing and the pass published the rest. Measuring this would name a "+
+				"corpus that was not measured", language, language)
+		}
+	}
+	return nil
+}
+
+func publishedCorpus(output string) (corpusLoad, error) {
 	report := struct {
 		Result struct {
 			Passed       bool   `json:"passed"`
@@ -402,6 +454,12 @@ func publishedSymbols(output string) (int, error) {
 			Counts       struct {
 				Symbols int `json:"symbols"`
 			} `json:"counts"`
+			Index struct {
+				GoDefinitions           int `json:"go_definitions"`
+				TypeScriptSymbols       int `json:"typescript_symbols"`
+				RustSymbols             int `json:"rust_symbols"`
+				RustWorkspacesNotLoaded int `json:"rust_workspaces_not_loaded"`
+			} `json:"index"`
 		} `json:"result"`
 	}{}
 	found := false
@@ -410,21 +468,29 @@ func publishedSymbols(output string) (int, error) {
 			continue
 		}
 		if err := json.Unmarshal([]byte(line), &report); err != nil {
-			return 0, fmt.Errorf("parse index report: %w", err)
+			return corpusLoad{}, fmt.Errorf("parse index report: %w", err)
 		}
 		found = true
 	}
 	if !found {
-		return 0, fmt.Errorf("index produced no result event")
+		return corpusLoad{}, fmt.Errorf("index produced no result event")
 	}
 	if !report.Result.Passed {
 		reason := report.Result.Error
 		if reason == "" {
 			reason = "no reason given"
 		}
-		return 0, fmt.Errorf("index did not publish: %s", reason)
+		return corpusLoad{}, fmt.Errorf("index did not publish: %s", reason)
 	}
-	return report.Result.Counts.Symbols, nil
+	return corpusLoad{
+		Symbols: report.Result.Counts.Symbols,
+		Languages: map[string]int{
+			"go":         report.Result.Index.GoDefinitions,
+			"typescript": report.Result.Index.TypeScriptSymbols,
+			"rust":       report.Result.Index.RustSymbols,
+		},
+		NotLoaded: map[string]int{"rust workspace": report.Result.Index.RustWorkspacesNotLoaded},
+	}, nil
 }
 
 // assertCorpusIsPublished is the check that matters, and the weaker one it
