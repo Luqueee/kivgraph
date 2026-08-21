@@ -15345,6 +15345,8 @@ de esto un defecto.
 
 ## LUQUE-2008 — Un bloque `impl` de Rust no se publica y su rama existe
 
+**Estado:** cerrada -- ramas retiradas; no publicar el bloque ya era contrato probado.
+
 **Dependencias:** LUQUE-2007.
 
 **El hecho:** `internal/rustloader/kinds.go` tiene dos ramas para los bloques
@@ -15376,6 +15378,28 @@ para siempre**.
 
 **Lo que no vale:** dejar código que renderiza un caso que no ocurre mientras
 `56` referencias lo citan sin poder resolverlo.
+
+**Resultado: retiradas.** Se eligió retirar, y al buscar cobertura apareció el
+dato que cambia la justificación: **no publicar un bloque `impl` ya era contrato
+probado, anterior a este cambio.**
+`TestAnalyzeDeclaresTheImplementationBlockItCannotDefine` afirma dos cosas sobre
+salida real de `rust-analyzer` -- que `shapes::impl::Circle` cae en `Unresolved`
+con `DEFINITION_NOT_INDEXED`, y que **ninguna** referencia intra-repositorio
+nombra una clave que la pasada no publique--. Así que una rama que da nombre y
+kind a un símbolo que el cargador nunca crea era inalcanzable **por
+construcción**, no sólo no observada. Nada cubría la rama en sí.
+
+Retirado: la rama de `PublishedKind`, la de `PublishedName`,
+`isImplementationBlock` y `implementationSubject`. `implementedTrait` se queda --
+lo usa `relations.go:224` para emparejar el método de un trait con su
+implementación--. Sin cambio de comportamiento: los `31` tests de
+`internal/rustloader` pasan **con toolchain real**, no saltados, que es la única
+forma de comprobar esto -- y sin `cargo` en el `PATH` nueve de ellos se saltan y no
+verifican nada.
+
+La consecuencia queda escrita donde vive el código: una referencia cuyo destino es
+la cabecera de un `impl` sigue `UNRESOLVED` porque no hay símbolo al que apuntar --
+`56` de las `1.969` de `kena`, la misma forma que una referencia al sysroot.
 
 ## LUQUE-2009 — Un contador de no resueltos cuenta observaciones, no hechos
 

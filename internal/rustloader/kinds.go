@@ -63,61 +63,37 @@ var scipKindNames = map[int32]string{
 // a consumer and its provider. This one is finer -- a struct, an enum and a
 // type alias all carry the `#` suffix -- and it exists because `type Value` is
 // a useless answer to "what is this".
+//
+// It used to answer "implementation" for an `impl` block, and that branch could
+// not run. Not publishing an impl block is a tested contract, older than this
+// change: TestAnalyzeDeclaresTheImplementationBlockItCannotDefine asserts that
+// `shapes::impl::Circle` lands in Unresolved with DEFINITION_NOT_INDEXED, and
+// that no in-repository reference names a key the pass does not publish. So a
+// kind for a symbol the loader never creates was unreachable by construction,
+// not merely unobserved -- and nothing covered the branch itself. On kena, with
+// 3063 Rust symbols across two workspaces, `find_symbol` with
+// `kind=implementation` answers zero. LUQUE-2008.
+//
+// The consequence is declared rather than hidden: a reference whose target is an
+// impl header stays UNRESOLVED, because there is no symbol to point it at. That
+// is 56 of the 1969 unresolved Rust references on kena, the same shape as a
+// reference into the sysroot -- the declaration lives outside what this graph
+// publishes. Members of those blocks are indexed normally, which is why
+// `error::impl::ApiError::with_context_header` is a row and `error::impl::ApiError`
+// is not.
 func PublishedKind(identity SymbolIdentity, scipKind int32) string {
-	if isImplementationBlock(identity) {
-		return "implementation"
-	}
 	if name, known := scipKindNames[scipKind]; known {
 		return name
 	}
 	return string(identity.Kind())
 }
 
-// PublishedName answers the name a reader sees. An implementation block has no
-// name of its own, and reporting the bare type parameter it carries would name
-// it after the type it implements for.
+// PublishedName answers the name a reader sees.
 func PublishedName(identity SymbolIdentity, displayName string) string {
 	if trimmed := strings.TrimSpace(displayName); trimmed != "" {
 		return trimmed
 	}
-	if isImplementationBlock(identity) {
-		return "impl " + implementationSubject(identity)
-	}
 	return identity.Name()
-}
-
-// isImplementationBlock reports whether a symbol is an `impl` block rather
-// than a declaration. rust-analyzer spells one as the descriptor `impl#`
-// followed by the type parameters it applies to.
-func isImplementationBlock(identity SymbolIdentity) bool {
-	for index, descriptor := range identity.Descriptors {
-		if descriptor.Suffix != SuffixType || descriptor.Name != "impl" {
-			continue
-		}
-		// `impl#[Type]` and `impl#[Type][Trait]` are blocks; anything with a
-		// further named step is a member of one.
-		for _, rest := range identity.Descriptors[index+1:] {
-			if rest.Suffix != SuffixTypeParameter {
-				return false
-			}
-		}
-		return index+1 < len(identity.Descriptors)
-	}
-	return false
-}
-
-// implementationSubject renders the type and trait of an implementation block.
-func implementationSubject(identity SymbolIdentity) string {
-	parts := make([]string, 0, 2)
-	for _, descriptor := range identity.Descriptors {
-		if descriptor.Suffix == SuffixTypeParameter {
-			parts = append(parts, descriptor.Name)
-		}
-	}
-	if len(parts) == 2 {
-		return parts[1] + " for " + parts[0]
-	}
-	return strings.Join(parts, " ")
 }
 
 // implementedTrait answers the trait an implementation member belongs to, when
