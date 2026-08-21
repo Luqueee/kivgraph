@@ -148,6 +148,8 @@ jobs:
           test "$("$bundle/bin/kivgraph" version)" = "$EXPECTED_VERSION"
           version_json=$("$bundle/bin/kivgraph" version --json)
           test "$(jq -r .kivgraph <<<"$version_json")" = "$EXPECTED_VERSION"
+          test "$(jq -r .schema <<<"$version_json")" = "$(jq -r .schema.canonical "$bundle/manifest.json")"
+          test "$(jq -r .snapshot_row_format <<<"$version_json")" = "$(jq -r .schema.snapshot_row_format "$bundle/manifest.json")"
           # The Rust engine has to be in the payload, has to run on this
           # platform, and has to be the pinned one: an installation that falls
           # back to whatever the PATH holds indexes a different graph.
