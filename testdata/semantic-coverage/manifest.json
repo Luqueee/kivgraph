@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "purpose": "Every semantic capability must have a deterministic fixture and an executable regression test.",
+  "languages": {
+    "go": {
+      "analyzer": "go/packages + go/types",
+      "fixture": "testdata/go/coverage",
+      "test": "internal/goloader/coverage_test.go",
+      "capabilities": [
+        "files", "modules", "imports", "types", "aliases", "structs", "interfaces",
+        "fields", "functions", "methods", "generics", "type-relations", "calls",
+        "callbacks", "function-values", "build-variants", "unresolved-diagnostics"
+      ]
+    },
+    "typescript": {
+      "analyzer": "TypeScript Program + TypeChecker",
+      "fixture": "ts-worker/src/local-suite.test.ts",
+      "test": "ts-worker/src/local-suite.test.ts",
+      "capabilities": [
+        "files", "modules", "imports", "exports", "reexports", "classes", "interfaces",
+        "functions", "methods", "parameters", "type-parameters", "enums", "enum-members",
+        "overloads", "generics", "type-uses", "calls", "callbacks", "project-resolution",
+        "unresolved-diagnostics"
+      ]
+    },
+    "python": {
+      "analyzer": "Pyright/BasedPyright LSP (exact) + AST fallback",
+      "fixture": "testdata/python/coverage",
+      "test": "internal/pythonloader/loader_test.go",
+      "capabilities": [
+        "files", "modules", "imports", "packages", "classes", "inheritance", "functions",
+        "methods", "async-functions", "type-uses", "calls", "callbacks", "function-values",
+        "stubs", "typing", "unresolved-diagnostics"
+      ]
+    },
+    "dart": {
+      "analyzer": "Dart analysis server",
+      "fixture": "testdata/dart/advanced",
+      "test": "internal/dartloader/loader_test.go",
+      "capabilities": [
+        "files", "pub-package", "imports", "exports", "parts", "classes", "interfaces",
+        "mixins", "extensions", "functions", "methods", "constructors", "generics",
+        "conditional-imports", "calls", "callbacks", "flutter-acceptance"
+      ]
+    }
+  }
+}

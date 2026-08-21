@@ -300,6 +300,7 @@ install -m 0644 "$root/ts-worker/pnpm-lock.yaml" "$output_dir/worker/pnpm-lock.y
 cp -a "$root/ts-worker/dist" "$output_dir/worker/dist"
 mkdir -p "$output_dir/worker/python-worker"
 install -m 0644 "$root/python-worker/index.py" "$output_dir/worker/python-worker/index.py"
+install -m 0644 "$root/python-worker/pyright_index.py" "$output_dir/worker/python-worker/pyright_index.py"
 
 cat > "$output_dir/bin/kivgraph-ts-worker" <<'EOF'
 #!/usr/bin/env bash

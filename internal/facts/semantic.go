@@ -18,16 +18,31 @@ type SemanticPayload struct {
 	// Authoritative is true only when the producer resolved references with a
 	// language type analyzer. Syntax-only fallbacks may still provide useful
 	// candidate edges, but they must never be published as exact knowledge.
-	Authoritative bool                 `json:"authoritative,omitempty"`
-	Repository    string               `json:"repository"`
-	Language      Language             `json:"language"`
-	Package       SemanticPackage      `json:"package"`
-	Files         []SemanticFile       `json:"files"`
-	Symbols       []SemanticSymbol     `json:"symbols"`
-	References    []SemanticReference  `json:"references"`
-	Imports       []SemanticImport     `json:"imports"`
-	Parts         []SemanticPart       `json:"parts,omitempty"`
-	Unresolved    []SemanticUnresolved `json:"unresolved"`
+	Authoritative   bool                 `json:"authoritative,omitempty"`
+	Analyzer        string               `json:"analyzer,omitempty"`
+	AnalyzerVersion string               `json:"analyzerVersion,omitempty"`
+	Variant         string               `json:"variant,omitempty"`
+	Repository      string               `json:"repository"`
+	Language        Language             `json:"language"`
+	Package         SemanticPackage      `json:"package"`
+	Files           []SemanticFile       `json:"files"`
+	Symbols         []SemanticSymbol     `json:"symbols"`
+	References      []SemanticReference  `json:"references"`
+	Imports         []SemanticImport     `json:"imports"`
+	Parts           []SemanticPart       `json:"parts,omitempty"`
+	Unresolved      []SemanticUnresolved `json:"unresolved"`
+	Diagnostics     []SemanticDiagnostic `json:"diagnostics,omitempty"`
+}
+
+// SemanticDiagnostic records a limitation observed by an external producer.
+// Diagnostics are facts about coverage, not graph edges, and are preserved in
+// payload tooling even when the canonical graph only stores unresolved rows.
+type SemanticDiagnostic struct {
+	File        string `json:"file,omitempty"`
+	Reason      string `json:"reason"`
+	Detail      string `json:"detail,omitempty"`
+	StartLine   int    `json:"startLine,omitempty"`
+	StartColumn int    `json:"startColumn,omitempty"`
 }
 
 type SemanticPackage struct {

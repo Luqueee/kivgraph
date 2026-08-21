@@ -47,13 +47,21 @@ def exported(name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
+    parser.add_argument("--include-tests", action="store_true")
+    parser.add_argument("--include-generated", action="store_true")
+    parser.add_argument("--include-external", action="store_true")
     args = parser.parse_args()
     root = pathlib.Path(args.root).resolve()
     paths = []
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix not in (".py", ".pyi"):
             continue
-        if any(part in {".git", ".venv", "venv", "__pycache__", "build", "dist", ".tox"} for part in path.parts):
+        relative_parts = path.relative_to(root).parts
+        if not args.include_tests and any(part in {"test", "tests", "integration_test"} for part in relative_parts):
+            continue
+        if not args.include_generated and any(part.endswith(("_generated.py", ".generated.py", ".pyc")) or part in {"__pycache__", "build", "dist", ".tox"} for part in relative_parts):
+            continue
+        if any(part in {".git", ".venv", "venv", "__pycache__", ".tox"} for part in relative_parts):
             continue
         paths.append(path)
 
@@ -68,6 +76,9 @@ def main():
         payload_files.append({"path": relative})
         try:
             tree = ast.parse(text, filename=str(path))
+            for parent in ast.walk(tree):
+                for child in ast.iter_child_nodes(parent):
+                    child.parent = parent
         except SyntaxError as error:
             parsed[path] = (text, None, str(error))
             continue
@@ -89,21 +100,21 @@ def main():
         module = module_name(root, path)
         starts = offsets(text)
 
-        def visit(node, qualified_prefix, parent_id):
+        def visit(node, qualified_prefix, class_id=None):
             name = None
             kind = None
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                name, kind = node.name, "method" if parent_id else "function"
+                name, kind = node.name, "method" if class_id else "function"
             elif isinstance(node, ast.ClassDef):
                 name, kind = node.name, "class"
-            elif isinstance(node, (ast.Assign, ast.AnnAssign)) and parent_id is None:
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)) and class_id is None and qualified_prefix == module:
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
                     if isinstance(target, ast.Name):
                         name, kind = target.id, "variable"
                         break
             next_prefix = qualified_prefix
-            next_parent = parent_id
+            next_class = class_id
             if name:
                 qualified = qualified_prefix + "." + name
                 symbol_id = f"{relative}\x00{qualified}\x00{kind}"
@@ -114,10 +125,10 @@ def main():
                 symbol.update(point(node, starts, text))
                 symbols.append(symbol)
                 symbol_by_module_name[(module, qualified[len(module) + 1:])] = symbol_id
-                next_prefix = qualified if isinstance(node, ast.ClassDef) else qualified_prefix
-                next_parent = symbol_id if isinstance(node, ast.ClassDef) else parent_id
+                next_prefix = qualified
+                next_class = symbol_id if isinstance(node, ast.ClassDef) else None
             for child in ast.iter_child_nodes(node):
-                visit(child, next_prefix, next_parent)
+                visit(child, next_prefix, next_class)
 
         visit(tree, module, None)
 
@@ -130,6 +141,7 @@ def main():
         unique_symbols.setdefault(symbol["id"], symbol)
     symbols = list(unique_symbols.values())
     symbols_by_id = {symbol["id"]: symbol for symbol in symbols}
+    function_symbol_ids = {symbol["id"] for symbol in symbols if symbol["kind"] in {"function", "method"}}
     symbols_by_short = {}
     for symbol in symbols:
         module = symbol["qualifiedName"].split(".")
@@ -190,24 +202,34 @@ def main():
                     unresolved.append({"file": relative, "sourceId": source_id, "requestedSymbol": node.id,
                                        "reason": "NAME_NOT_RESOLVED", **point(node, starts, text)})
                     continue
-                parent_call = any(isinstance(parent, ast.Call) and node in ast.iter_child_nodes(parent) for parent in [])
+                parent = getattr(node, "parent", None)
                 if id(node) in base_nodes:
                     kind = "EXTENDS"
+                elif isinstance(parent, ast.Call) and parent.func is node:
+                    kind = "CALLS_DIRECT"
+                elif isinstance(parent, ast.Return):
+                    kind = "RETURNS_FUNCTION" if target in function_symbol_ids else "REFERENCES"
+                elif is_type_position(node):
+                    kind = "TYPE_USES"
+                elif isinstance(parent, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+                    kind = "ASSIGNS_FUNCTION" if target in function_symbol_ids else "REFERENCES"
+                elif isinstance(parent, ast.Call) and node in parent.args:
+                    kind = "PASSES_AS_CALLBACK" if target in function_symbol_ids else "REFERENCES"
                 else:
-                    kind = "CALLS_DIRECT" if isinstance(getattr(node, "parent", None), ast.Call) else "REFERENCES"
+                    kind = "REFERENCES"
                 references.append({"file": relative, "sourceId": source_id, "targetId": target, "kind": kind, **point(node, starts, text), "text": node.id})
 
-    # ast does not retain parent pointers; reclassify identifier spans that are
-    # direct call function expressions using source text after collection.
+    # Keep a source-text fallback for call expressions whose AST parent is a
+    # selector or a wrapped expression.
     for reference in references:
         end = reference["end"]
         suffix = text_at(parsed, reference["file"], root, end)
         if suffix.lstrip().startswith("("):
             reference["kind"] = "CALLS_DIRECT"
 
-    result = {"version": 1, "repository": root.name, "language": "python",
+    result = {"version": 1, "authoritative": False, "analyzer": "python-ast-fallback", "repository": root.name, "language": "python",
               "package": {"name": root.name, "rootPath": str(root)},
-              "files": payload_files, "symbols": list(symbols),
+            "files": payload_files, "symbols": list(symbols),
               "references": references, "imports": imports, "unresolved": unresolved}
     json.dump(result, sys.stdout, separators=(",", ":"))
     sys.stdout.write("\n")
@@ -217,6 +239,19 @@ def text_at(parsed, relative, root, offset):
     path = root / relative
     text, _, _ = parsed[path]
     return text[offset:offset + 4]
+
+
+def is_type_position(node):
+    parent = getattr(node, "parent", None)
+    if isinstance(parent, (ast.AnnAssign, ast.arg)) and getattr(parent, "annotation", None) is node:
+        return True
+    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+        getattr(parent, "returns", None) is node or any(getattr(arg, "annotation", None) is node for arg in parent.args.args)
+    ):
+        return True
+    if isinstance(parent, ast.ClassDef) and node in parent.bases:
+        return True
+    return False
 
 
 if __name__ == "__main__":

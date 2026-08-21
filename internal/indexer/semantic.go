@@ -53,7 +53,15 @@ func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) 
 	var err error
 	switch unit.language {
 	case facts.LanguagePython:
-		payload, err = pythonloader.Run(ctx, options.PythonIndexer, options.PythonPath, unit.repository, options.WorkingDirectory)
+		payload, err = pythonloader.RunWithOptions(ctx, pythonloader.Options{
+			IndexerCommand:   options.PythonIndexer,
+			AnalyzerCommand:  options.PythonAnalyzer,
+			AnalyzerMode:     options.PythonAnalyzerMode,
+			PythonPath:       options.PythonPath,
+			IncludeTests:     options.PythonIncludeTests,
+			IncludeGenerated: options.PythonIncludeGenerated,
+			IncludeExternal:  options.PythonIncludeExternal,
+		}, unit.repository, options.WorkingDirectory)
 	case facts.LanguageDart:
 		payload, err = dartloader.RunWithOptions(ctx, dartloader.Options{
 			Command:             options.DartAnalyzer,

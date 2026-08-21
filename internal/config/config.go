@@ -139,6 +139,11 @@ type TypeScriptConfig struct {
 type GoConfig struct {
 	SyntheticWorkFile string `yaml:"synthetic_work_file"`
 	IncludeTests      bool   `yaml:"include_tests"`
+	// GOOS and GOARCH select the build platform. Empty values use the
+	// platform of the configured Go toolchain.
+	GOOS       string `yaml:"goos"`
+	GOARCH     string `yaml:"goarch"`
+	CGOEnabled *bool  `yaml:"cgo_enabled"`
 	// BuildTags are the build constraints every Go load satisfies. A
 	// package guarded by a tag that is absent here contributes no symbol to
 	// the graph and is reported as unresolved.
@@ -216,8 +221,16 @@ type RustConfig struct {
 // emit Kivgraph's versioned Python facts payload.
 type PythonConfig struct {
 	IndexerCommand string `yaml:"indexer_command"`
-	MaximumWorkers int    `yaml:"maximum_workers"`
-	PythonPath     string `yaml:"python_path"`
+	// AnalyzerCommand is an optional type-aware producer. It must emit the
+	// versioned semantic payload understood by Kivgraph. The bundled AST
+	// worker remains the fallback when AnalyzerMode is `fallback`.
+	AnalyzerCommand  string `yaml:"analyzer_command"`
+	AnalyzerMode     string `yaml:"analyzer_mode"`
+	MaximumWorkers   int    `yaml:"maximum_workers"`
+	PythonPath       string `yaml:"python_path"`
+	IncludeTests     bool   `yaml:"include_tests"`
+	IncludeGenerated bool   `yaml:"include_generated"`
+	IncludeExternal  bool   `yaml:"include_external_packages"`
 }
 
 // DartConfig controls the Dart analysis-server based indexer.
@@ -336,6 +349,9 @@ func DefaultConfig() Config {
 		Go: GoConfig{
 			SyntheticWorkFile: defaultSyntheticWork,
 			IncludeTests:      false,
+			GOOS:              "",
+			GOARCH:            "",
+			CGOEnabled:        nil,
 		},
 		Rust: RustConfig{
 			AnalyzerCommand: "rust-analyzer",
@@ -346,9 +362,14 @@ func DefaultConfig() Config {
 			Sysroot:         "discover",
 		},
 		Python: PythonConfig{
-			IndexerCommand: "kivgraph-python-worker",
-			MaximumWorkers: 3,
-			PythonPath:     "python3",
+			IndexerCommand:   "kivgraph-python-worker",
+			AnalyzerCommand:  "kivgraph-python-pyright",
+			AnalyzerMode:     "fallback",
+			MaximumWorkers:   3,
+			PythonPath:       "python3",
+			IncludeTests:     false,
+			IncludeGenerated: false,
+			IncludeExternal:  false,
 		},
 		Dart: DartConfig{
 			AnalyzerCommand:     "dart",
@@ -916,6 +937,14 @@ func validateConfig(configuration Config) error {
 	}
 	if strings.TrimSpace(configuration.Python.IndexerCommand) == "" {
 		return errors.New("config.python.indexer_command: must not be empty")
+	}
+	if strings.TrimSpace(configuration.Python.AnalyzerCommand) == "" {
+		return errors.New("config.python.analyzer_command: must not be empty")
+	}
+	switch strings.ToLower(strings.TrimSpace(configuration.Python.AnalyzerMode)) {
+	case "fallback", "exact":
+	default:
+		return fmt.Errorf("config.python.analyzer_mode: unsupported mode %q, want fallback or exact", configuration.Python.AnalyzerMode)
 	}
 	if configuration.Python.MaximumWorkers < 1 {
 		return fmt.Errorf("config.python.maximum_workers: must be positive, got %d", configuration.Python.MaximumWorkers)

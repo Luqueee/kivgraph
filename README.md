@@ -46,9 +46,10 @@ Released and in use. `kivgraph version` reports the published release; the
 backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 
 - **Languages:** Go, TypeScript, Rust, Python and Dart. Python uses the
-  bundled AST worker when no semantic indexer is configured; those inferred
-  references are `CANDIDATE`, never `EXACT`. Dart uses the Dart Analysis
-  Server supplied by the Dart or Flutter SDK.
+  bundled AST worker in fallback mode; those inferred references are
+  `CANDIDATE`, never `EXACT`. Exact Python mode uses the bundled Pyright LSP
+  adapter with an installed Pyright/BasedPyright server. Dart uses the Dart
+  Analysis Server supplied by the Dart or Flutter SDK.
 - **Semantic dependencies:** Python and Dart imports can publish a package
   dependency when exactly one registered provider owns the requested package;
   symbol-level cross-repository edges require an explicit provider identity.
@@ -70,7 +71,8 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
   the analyzer; it does not carry a Rust toolchain.
 - Indexing TypeScript needs Node.js 22 or later for the worker.
 - Indexing Python needs Python 3.10 or later for the bundled worker. It is a
-  syntax-aware fallback and reports dynamic or unresolved names explicitly.
+  syntax-aware fallback and reports dynamic or unresolved names explicitly;
+  exact mode additionally requires a Pyright-compatible language server.
 - Indexing Dart needs the `dart` executable; a Flutter installation supplies
   it. The loader uses the Analysis Server protocol and does not modify the
   Flutter project.
@@ -261,12 +263,20 @@ search for `Clone` would answer with `core`. `include_derived` asks for them, an
 ```bash
 make build
 make test
+make semantic-coverage
 make test-ladybug
 ```
 
 `make test-ladybug` is the only supported way to run the tag that links the
 pinned native library. Contributing conventions are in
 [AGENTS.md](AGENTS.md), which `CLAUDE.md` links to.
+
+`make semantic-coverage` is the release gate for Go, TypeScript, Python and
+Dart. It validates the machine-readable matrix in
+`testdata/semantic-coverage/manifest.json`, runs the exact TypeScript, Go and
+Dart suites, and requires a Pyright-compatible language server for the exact
+Python suite. A language is not considered complete when a capability has a
+fixture but no executable regression test.
 
 ### Storage and graph benchmarks
 

@@ -324,6 +324,25 @@ kivgraph init \
   --languages go,typescript
 ```
 
+La sección `go` permite seleccionar el contexto de compilación que resolverá
+`go/packages`. `goos`, `goarch` y `cgo_enabled` vacíos conservan los valores del
+toolchain; los tags y los tests forman parte del mismo contexto:
+
+```yaml
+go:
+  synthetic_work_file: ~/.local/state/kivgraph/go.work
+  include_tests: false
+  goos: linux
+  goarch: amd64
+  cgo_enabled: false
+  build_tags: [integration]
+  allow_network: false
+```
+
+El grafo describe esa variante, no todos los binarios posibles. Para cubrir
+varias plataformas hay que ejecutar una pasada por variante y conservar la
+configuración de cada generación.
+
 
 ### Monorepos y exclusiones
 
@@ -358,8 +377,13 @@ Python y Dart se activan igual que los demás lenguajes:
 ```yaml
 python:
   indexer_command: kivgraph-python-worker
+  analyzer_command: kivgraph-python-pyright
+  analyzer_mode: fallback
   python_path: python3
   maximum_workers: 3
+  include_tests: false
+  include_generated: false
+  include_external_packages: false
 dart:
   analyzer_command: dart
   sdk_path: dart
@@ -375,7 +399,10 @@ dart:
 
 El worker Python incluido recorre `.py` y `.pyi`, conserva símbolos e imports
 y clasifica sus inferencias como `CANDIDATE`; no inventa aristas exactas para
-código dinámico. Dart se resuelve con el Analysis Server del SDK y sus
+código dinámico. Para exactitud semántica configura `analyzer_mode: exact` y
+un productor compatible con el payload de hechos. `kivgraph-python-pyright`
+usa un servidor Pyright/BasedPyright LSP instalado en el sistema y falla de
+forma explícita si no está disponible. Dart se resuelve con el Analysis Server del SDK y sus
 referencias resueltas se publican como `EXACT_TYPECHECKED`. `package_config`
 usa `.dart_tool/package_config.json` cuando vale `auto`; si se habilita
 `include_external_packages`, sus raíces se entregan al Analysis Server para
@@ -394,6 +421,18 @@ otro repositorio registrado, la pasada añade `PACKAGE_DEPENDS_ON`. Esa arista
 demuestra dependencia de paquete, no uso de un símbolo concreto. Para una
 arista de símbolo cross-repository el proveedor semántico debe entregar una
 identidad explícita del destino.
+
+La matriz verificable de capacidades está en
+`testdata/semantic-coverage/manifest.json`. Para validar que las cuatro rutas
+semánticas tienen fixtures y tests ejecutables usa:
+
+```bash
+make semantic-coverage
+```
+
+Este gate exige el servidor `pyright-langserver` para Python exacto y el SDK
+`dart` para Dart. El fallback de Python se mantiene para desarrollo, pero no
+puede declarar compatibilidad semántica completa.
 
 ## Validar e indexar
 

@@ -58,7 +58,7 @@ repositories:
 	if loaded.Config.Web.Address != "0.0.0.0:7777" {
 		t.Fatalf("web address default = %q, want 0.0.0.0:7777", loaded.Config.Web.Address)
 	}
-	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 {
+	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.AnalyzerCommand != "kivgraph-python-pyright" || loaded.Config.Python.AnalyzerMode != "fallback" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 || loaded.Config.Python.IncludeTests || loaded.Config.Python.IncludeGenerated || loaded.Config.Python.IncludeExternal {
 		t.Fatalf("Python defaults = %#v", loaded.Config.Python)
 	}
 	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {

@@ -656,12 +656,16 @@ func lockfilePaths(root string) []string {
 func analyzerFingerprint(options FullOptions) string {
 	hash := sha256.New()
 	fmt.Fprintf(hash, "entry=%d\x00", cacheEntryVersion)
-	fmt.Fprintf(hash, "tests=%t\x00network=%t\x00", options.IncludeTests, options.GoAllowNetwork)
+	cgo := "default"
+	if options.GoCGOEnabled != nil {
+		cgo = fmt.Sprintf("%t", *options.GoCGOEnabled)
+	}
+	fmt.Fprintf(hash, "tests=%t\x00network=%t\x00goos=%s\x00goarch=%s\x00cgo=%s\x00", options.IncludeTests, options.GoAllowNetwork, strings.TrimSpace(options.GoOS), strings.TrimSpace(options.GoARCH), cgo)
 	tags := append([]string(nil), options.GoBuildTags...)
 	sort.Strings(tags)
 	fmt.Fprintf(hash, "tags=%s\x00", strings.Join(tags, ","))
 	fmt.Fprintf(hash, "worker=%s\x00", strings.TrimSpace(options.TypeScriptWorker))
-	fmt.Fprintf(hash, "python=%s\x00python-path=%s\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonPath))
+	fmt.Fprintf(hash, "python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
 	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
 	pythonWorker := filepath.Join(options.WorkingDirectory, "python-worker", "index.py")
 	if _, err := os.Stat(pythonWorker); err == nil {

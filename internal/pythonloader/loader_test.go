@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -37,6 +38,31 @@ func TestRunConfiguredSemanticProviderIsAuthoritative(t *testing.T) {
 		if edge.Kind == facts.CallsDirect && edge.Confidence != facts.ExactTypechecked {
 			t.Fatalf("configured provider call confidence = %q, want exact", edge.Confidence)
 		}
+	}
+}
+
+func TestRunExactModeUsesConfiguredAnalyzer(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	provider := filepath.Join(t.TempDir(), "python-exact-provider")
+	payload := `{"version":1,"repository":"exact","language":"python","package":{"name":"exact","rootPath":"PROJECT"},"files":[{"path":"main.py"}],"symbols":[],"references":[],"imports":[],"unresolved":[]}`
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '%s'", payload)
+	if err := os.WriteFile(provider, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	result, err := RunWithOptions(context.Background(), Options{
+		IndexerCommand:  "missing-fallback",
+		AnalyzerCommand: provider,
+		AnalyzerMode:    "exact",
+		PythonPath:      "python3",
+	}, workspace.Repository{Name: "exact", Path: root, RealPath: root}, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Authoritative || result.Analyzer != provider {
+		t.Fatalf("exact result = authoritative=%v analyzer=%q", result.Authoritative, result.Analyzer)
 	}
 }
 
@@ -99,5 +125,135 @@ func TestRunFixtureResolvesPythonDeclarationsAndCalls(t *testing.T) {
 	}
 	if _, err := facts.NormalizeSemantic(context.Background(), repository, payload); err != nil {
 		t.Fatalf("NormalizeSemantic() error = %v", err)
+	}
+}
+
+func TestRunExactPyrightFixture(t *testing.T) {
+	analyzer := os.Getenv("KIVGRAPH_PYRIGHT_LANGSERVER")
+	if analyzer == "" {
+		analyzer, _ = exec.LookPath("pyright-langserver")
+	}
+	if analyzer == "" {
+		t.Skip("set KIVGRAPH_PYRIGHT_LANGSERVER or install pyright-langserver")
+	}
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "python", "coverage"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository := workspace.Repository{Name: "python-basic-exact", Path: root, RealPath: root}
+	payload, err := RunWithOptions(context.Background(), Options{
+		AnalyzerCommand: "kivgraph-python-pyright --analyzer " + analyzer,
+		AnalyzerMode:    "exact",
+		PythonPath:      "python3",
+	}, repository, filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !payload.Authoritative || payload.Analyzer == "" {
+		t.Fatalf("exact payload = authoritative=%v analyzer=%q", payload.Authoritative, payload.Analyzer)
+	}
+	if len(payload.Symbols) == 0 || len(payload.References) == 0 {
+		t.Fatalf("exact payload = symbols=%d references=%d", len(payload.Symbols), len(payload.References))
+	}
+	hasResolvedImport := false
+	for _, importFact := range payload.Imports {
+		hasResolvedImport = hasResolvedImport || importFact.TargetID != ""
+	}
+	if !hasResolvedImport {
+		t.Fatalf("exact imports have no resolved local target: %#v", payload.Imports)
+	}
+	for _, reference := range payload.References {
+		if reference.Kind == "CALLS_DIRECT" && reference.TargetID == "" {
+			t.Fatalf("exact call has no target: %#v", reference)
+		}
+	}
+}
+
+func TestRunExactPyrightClassifiesTypedEdges(t *testing.T) {
+	analyzer := os.Getenv("KIVGRAPH_PYRIGHT_LANGSERVER")
+	if analyzer == "" {
+		analyzer, _ = exec.LookPath("pyright-langserver")
+	}
+	if analyzer == "" {
+		t.Skip("set KIVGRAPH_PYRIGHT_LANGSERVER or install pyright-langserver")
+	}
+	root := filepath.Join(t.TempDir(), "typed")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	source := `from typing import Callable
+
+class Vehicle:
+    pass
+
+class Car(Vehicle):
+    pass
+
+def handler() -> int:
+    return 1
+
+def run(callback: Callable[[], int]) -> Callable[[], int]:
+    value: Vehicle = Vehicle()
+    assigned = handler
+    callback(handler)
+    return handler
+`
+	if err := os.WriteFile(filepath.Join(root, "main.py"), []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	repository := workspace.Repository{Name: "python-typed-exact", Path: root, RealPath: root}
+	payload, err := RunWithOptions(context.Background(), Options{
+		AnalyzerCommand: "kivgraph-python-pyright --analyzer " + analyzer,
+		AnalyzerMode:    "exact",
+		PythonPath:      "python3",
+	}, repository, filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, reference := range payload.References {
+		kinds[reference.Kind] = true
+	}
+	for _, want := range []string{"EXTENDS", "CALLS_DIRECT", "TYPE_USES", "ASSIGNS_FUNCTION", "PASSES_AS_CALLBACK", "RETURNS_FUNCTION"} {
+		if !kinds[want] {
+			t.Fatalf("exact references = %#v, missing %s", payload.References, want)
+		}
+	}
+}
+
+func TestRunFallbackClassifiesPythonValueAndTypeUses(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "python-values")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	source := `from typing import Callable
+
+class Vehicle:
+    pass
+
+def handler() -> int:
+    return 1
+
+def run(callback: Callable[[], int]) -> Callable[[], int]:
+    value: Vehicle = Vehicle()
+    assigned = handler
+    callback(handler)
+    return handler
+`
+	if err := os.WriteFile(filepath.Join(root, "main.py"), []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := Run(context.Background(), "missing-scippython", "python3", workspace.Repository{Name: "python-values", Path: root, RealPath: root}, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, reference := range payload.References {
+		kinds[reference.Kind] = true
+	}
+	for _, want := range []string{"TYPE_USES", "ASSIGNS_FUNCTION", "PASSES_AS_CALLBACK", "RETURNS_FUNCTION", "CALLS_DIRECT"} {
+		if !kinds[want] {
+			t.Fatalf("references = %#v, missing %s", payload.References, want)
+		}
 	}
 }

@@ -106,14 +106,18 @@ export default defaultValue;
     const names = extraction.symbols.map((symbol) => symbol.name);
     expect(names).toEqual([
       "greet",
+      "name",
       "Box",
       "value",
       "current",
       "current",
+      "value",
       "method",
       "Shape",
       "Alias",
       "Color",
+      "Red",
+      "Blue",
       "Nested",
       "value",
       "hidden",
@@ -123,14 +127,18 @@ export default defaultValue;
 
     expect(extraction.symbols.map((symbol) => symbol.kind)).toEqual([
       "function",
+      "parameter",
       "class",
       "property",
       "method",
       "method",
+      "parameter",
       "method",
       "interface",
       "type",
       "enum",
+      "enum_member",
+      "enum_member",
       "namespace",
       "variable",
       "variable",
@@ -326,11 +334,18 @@ export function overloaded(value: string | number): string | number {
     );
     expect(extraction.symbols.map((symbol) => symbol.name)).toEqual([
       "overloaded",
+      "value",
       "overloaded",
+      "value",
       "overloaded",
+      "value",
     ]);
     expect(
-      new Set(extraction.symbols.map((symbol) => symbol.symbolId)).size,
+      new Set(
+        extraction.symbols
+          .filter((symbol) => symbol.name === "overloaded")
+          .map((symbol) => symbol.symbolId),
+      ).size,
     ).toBe(1);
     expect(extraction.exports).toHaveLength(3);
   });

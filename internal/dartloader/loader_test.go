@@ -193,6 +193,17 @@ func TestRunFixtureCapturesDartPartsAndExports(t *testing.T) {
 	if !hasConditionalImport {
 		t.Fatalf("conditional imports = %#v", payload.Imports)
 	}
+	wantedSymbols := map[string]bool{"VehicleKind": false, "Success": false, "Mapper": false, "UserId": false, "describe": false}
+	for _, symbol := range payload.Symbols {
+		if _, wanted := wantedSymbols[symbol.Name]; wanted {
+			wantedSymbols[symbol.Name] = true
+		}
+	}
+	for name, found := range wantedSymbols {
+		if !found {
+			t.Fatalf("Dart advanced symbol %q missing from %#v", name, payload.Symbols)
+		}
+	}
 	set, err := facts.NormalizeSemantic(context.Background(), repository, payload)
 	if err != nil {
 		t.Fatal(err)

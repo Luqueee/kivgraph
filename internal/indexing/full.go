@@ -23,6 +23,9 @@ type FullOptions struct {
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
+	GoOS              string
+	GoARCH            string
+	GoCGOEnabled      *bool
 	// GoBuildTags are the build constraints every Go load satisfies.
 	GoBuildTags []string
 	// GoAllowNetwork lets the Go loads reach a module proxy.
@@ -49,8 +52,13 @@ type FullOptions struct {
 	// RustIndexSysroot asks for the standard library in the graph.
 	RustIndexSysroot        bool
 	PythonIndexer           string
+	PythonAnalyzer          string
+	PythonAnalyzerMode      string
 	PythonPath              string
 	PythonMaximumWorkers    int
+	PythonIncludeTests      bool
+	PythonIncludeGenerated  bool
+	PythonIncludeExternal   bool
 	DartAnalyzer            string
 	DartSDKPath             string
 	DartMaximumWorkers      int
@@ -89,6 +97,9 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 	return FullOptions{
 		SyntheticWorkFile:        configuration.Go.SyntheticWorkFile,
 		IncludeTests:             configuration.Go.IncludeTests,
+		GoOS:                     configuration.Go.GOOS,
+		GoARCH:                   configuration.Go.GOARCH,
+		GoCGOEnabled:             configuration.Go.CGOEnabled,
 		GoBuildTags:              configuration.Go.BuildTags,
 		GoAllowNetwork:           configuration.Go.AllowNetwork,
 		GoMaximumLoads:           configuration.Go.MaximumLoads,
@@ -108,8 +119,13 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 		RustSysroot:              configuration.Rust.Sysroot,
 		RustIndexSysroot:         configuration.Rust.IndexSysroot,
 		PythonIndexer:            configuration.Python.IndexerCommand,
+		PythonAnalyzer:           configuration.Python.AnalyzerCommand,
+		PythonAnalyzerMode:       configuration.Python.AnalyzerMode,
 		PythonPath:               configuration.Python.PythonPath,
 		PythonMaximumWorkers:     configuration.Python.MaximumWorkers,
+		PythonIncludeTests:       configuration.Python.IncludeTests,
+		PythonIncludeGenerated:   configuration.Python.IncludeGenerated,
+		PythonIncludeExternal:    configuration.Python.IncludeExternal,
 		DartAnalyzer:             configuration.Dart.AnalyzerCommand,
 		DartSDKPath:              configuration.Dart.SDKPath,
 		DartMaximumWorkers:       configuration.Dart.MaximumWorkers,
@@ -164,6 +180,9 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		Repositories:             options.Repositories,
 		SyntheticWorkFile:        options.SyntheticWorkFile,
 		IncludeTests:             options.IncludeTests,
+		GoOS:                     options.GoOS,
+		GoARCH:                   options.GoARCH,
+		GoCGOEnabled:             options.GoCGOEnabled,
 		GoBuildTags:              options.GoBuildTags,
 		GoAllowNetwork:           options.GoAllowNetwork,
 		GoMaximumLoads:           options.GoMaximumLoads,
@@ -183,8 +202,13 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		RustSysroot:              options.RustSysroot,
 		RustIndexSysroot:         options.RustIndexSysroot,
 		PythonIndexer:            options.PythonIndexer,
+		PythonAnalyzer:           options.PythonAnalyzer,
+		PythonAnalyzerMode:       options.PythonAnalyzerMode,
 		PythonPath:               options.PythonPath,
 		PythonMaximumWorkers:     options.PythonMaximumWorkers,
+		PythonIncludeTests:       options.PythonIncludeTests,
+		PythonIncludeGenerated:   options.PythonIncludeGenerated,
+		PythonIncludeExternal:    options.PythonIncludeExternal,
 		DartAnalyzer:             options.DartAnalyzer,
 		DartSDKPath:              options.DartSDKPath,
 		DartMaximumWorkers:       options.DartMaximumWorkers,

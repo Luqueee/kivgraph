@@ -76,6 +76,9 @@ type FullOptions struct {
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
+	GoOS              string
+	GoARCH            string
+	GoCGOEnabled      *bool
 	// GoBuildTags are the build constraints the Go loads satisfy. A package
 	// guarded by a tag that is absent here declares no file to read and is
 	// reported as unresolved instead of indexed.
@@ -116,8 +119,13 @@ type FullOptions struct {
 	// graph exactly as it was, declaring what it lost.
 	RustIndexSysroot        bool
 	PythonIndexer           string
+	PythonAnalyzer          string
+	PythonAnalyzerMode      string
 	PythonPath              string
 	PythonMaximumWorkers    int
+	PythonIncludeTests      bool
+	PythonIncludeGenerated  bool
+	PythonIncludeExternal   bool
 	DartAnalyzer            string
 	DartSDKPath             string
 	DartMaximumWorkers      int
@@ -1124,6 +1132,9 @@ func indexGoModule(
 		WorkFile:     unit.workFile,
 		Patterns:     append([]string(nil), module.PackagePatterns...),
 		IncludeTests: options.IncludeTests,
+		GOOS:         options.GoOS,
+		GOARCH:       options.GoARCH,
+		CGOEnabled:   options.GoCGOEnabled,
 		BuildTags:    append([]string(nil), options.GoBuildTags...),
 		AllowNetwork: options.GoAllowNetwork,
 	})
