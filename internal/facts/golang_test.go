@@ -3,7 +3,10 @@ package facts
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/goloader"
@@ -120,6 +123,7 @@ func normalizeFixture(t *testing.T, repositoryName string) (Set, GoReport) {
 		total.EdgesWithoutSource += report.EdgesWithoutSource
 		total.EdgesWithoutTarget += report.EdgesWithoutTarget
 		total.UnresolvedWithoutFile += report.UnresolvedWithoutFile
+		total.FactsOutsideRepository += report.FactsOutsideRepository
 	}
 	return merged, total
 }
@@ -269,9 +273,9 @@ func TestNormalizeGoRejectsAnIncompleteRequest(t *testing.T) {
 // IMPLEMENTS, EMBEDS and OVERRIDES tests: it needs no synthetic go.work.
 var typeRelationsFixtureRoot = filepath.Join("..", "..", "testdata", "go", "type-relations")
 
-// normalizeTypeRelationsFixture indexes the type-relations fixture end to
-// end, including its IMPLEMENTS, EMBEDS and OVERRIDES structural relations.
-func normalizeTypeRelationsFixture(t *testing.T) (Set, GoReport) {
+// typeRelationsInput assembles the loader facts of the type-relations fixture,
+// which is the input a caller hands to NormalizeGo.
+func typeRelationsInput(t *testing.T) GoInput {
 	t.Helper()
 	root, err := filepath.Abs(typeRelationsFixtureRoot)
 	if err != nil {
@@ -310,16 +314,115 @@ func normalizeTypeRelationsFixture(t *testing.T) (Set, GoReport) {
 		t.Fatalf("ResolvePackageDependencies() error = %v", err)
 	}
 
-	set, report, err := NormalizeGo(context.Background(), GoInput{
+	return GoInput{
 		Repository:          repository,
 		Definitions:         keyed,
 		TypeRelations:       relations,
 		PackageDependencies: packageDependencies,
-	})
+	}
+}
+
+// normalizeTypeRelationsFixture indexes the type-relations fixture end to
+// end, including its IMPLEMENTS, EMBEDS and OVERRIDES structural relations.
+func normalizeTypeRelationsFixture(t *testing.T) (Set, GoReport) {
+	t.Helper()
+	set, report, err := NormalizeGo(context.Background(), typeRelationsInput(t))
 	if err != nil {
 		t.Fatalf("NormalizeGo() error = %v", err)
 	}
 	return set, report
+}
+
+// TestNormalizeGoRefusesFactsFromOutsideTheRepository defends the invariant
+// that a fact is evidence for the repository holding its file and for no
+// other. Asking the loader for compiled files means a package built with cgo
+// or from generated sources reports positions inside the build cache; a graph
+// that accepted them would key a File by an absolute path, naming the machine
+// that produced it, and would answer a blast radius with a cache entry.
+func TestNormalizeGoRefusesFactsFromOutsideTheRepository(t *testing.T) {
+	input := typeRelationsInput(t)
+	clean, cleanReport, err := NormalizeGo(context.Background(), input)
+	if err != nil {
+		t.Fatalf("NormalizeGo() error = %v", err)
+	}
+	if len(input.Definitions) == 0 || len(input.TypeRelations) == 0 {
+		t.Fatalf("fixture carries no facts to displace")
+	}
+
+	// The shape observed in a published generation: $GOCACHE/<xx>/<hash>-d.
+	cache := filepath.Join(t.TempDir(), "go-build", "27",
+		"27bf728258fd9290eefce3c1972e594f6c46a1b2c552e6caf61374702bf0ecc3-d")
+	declaration := input.Definitions[0]
+	declaration.FileName = cache
+	relation := input.TypeRelations[0]
+	relation.FileName = cache
+
+	poisoned := input
+	poisoned.Definitions = append(append([]goloader.KeyedDefinition{}, input.Definitions...), declaration)
+	poisoned.TypeRelations = append(append([]goloader.TypeRelation{}, input.TypeRelations...), relation)
+
+	got, report, err := NormalizeGo(context.Background(), poisoned)
+	if err != nil {
+		t.Fatalf("NormalizeGo() error = %v", err)
+	}
+
+	// The graph is the one the repository can account for, unchanged.
+	if diff := diffSets(clean, got); diff != "" {
+		t.Fatalf("out-of-repository facts changed the graph:\n%s", diff)
+	}
+	for _, file := range got.Files {
+		if filepath.IsAbs(file.Path) || strings.Contains(file.Path, "go-build") {
+			t.Fatalf("file path is not repository-relative: %q", file.Path)
+		}
+	}
+
+	// The loss is counted and retained with its reason, never hidden.
+	if got, want := report.FactsOutsideRepository, 2; got != want {
+		t.Fatalf("FactsOutsideRepository = %d, want %d", got, want)
+	}
+	if cleanReport.FactsOutsideRepository != 0 {
+		t.Fatalf("clean pass reported %d facts outside the repository",
+			cleanReport.FactsOutsideRepository)
+	}
+	var retained []UnresolvedReference
+	for _, entry := range got.Unresolved {
+		if entry.Reason == string(goloader.UnresolvedDeclarationOutsideRepository) {
+			retained = append(retained, entry)
+		}
+	}
+	if len(retained) != 1 {
+		t.Fatalf("retained %d out-of-repository declarations, want 1: %#v", len(retained), retained)
+	}
+	if retained[0].Detail != cache {
+		t.Fatalf("Detail = %q, want the observed path %q", retained[0].Detail, cache)
+	}
+	if retained[0].FileKey != "" {
+		t.Fatalf("FileKey = %q, want none: the file is not in this repository", retained[0].FileKey)
+	}
+	if retained[0].RequestedSymbol != declaration.QualifiedName {
+		t.Fatalf("RequestedSymbol = %q, want %q", retained[0].RequestedSymbol, declaration.QualifiedName)
+	}
+}
+
+// diffSets reports the first structural difference between two fact sets,
+// ignoring the unresolved rows a caller compares on their own.
+func diffSets(want, got Set) string {
+	if len(want.Files) != len(got.Files) {
+		return fmt.Sprintf("files: %d != %d", len(want.Files), len(got.Files))
+	}
+	if len(want.Symbols) != len(got.Symbols) {
+		return fmt.Sprintf("symbols: %d != %d", len(want.Symbols), len(got.Symbols))
+	}
+	if len(want.Packages) != len(got.Packages) {
+		return fmt.Sprintf("packages: %d != %d", len(want.Packages), len(got.Packages))
+	}
+	if !reflect.DeepEqual(want.Evidence, got.Evidence) {
+		return fmt.Sprintf("evidence:\n want %#v\n got  %#v", want.Evidence, got.Evidence)
+	}
+	if !reflect.DeepEqual(want.Edges, got.Edges) {
+		return fmt.Sprintf("edges:\n want %#v\n got  %#v", want.Edges, got.Edges)
+	}
+	return ""
 }
 
 func TestNormalizeGoEmitsTypeRelationEdges(t *testing.T) {

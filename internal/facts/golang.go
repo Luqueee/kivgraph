@@ -46,6 +46,12 @@ type GoReport struct {
 	EdgesWithoutTarget int
 	// UnresolvedWithoutFile counts module-level failures with no file.
 	UnresolvedWithoutFile int
+	// FactsOutsideRepository counts facts dropped because the file holding
+	// them is not inside the repository being indexed. Asking the Go loader
+	// for compiled files means a cgo or generated package reports positions
+	// inside the build cache; those are retained as unresolved, never as
+	// evidence.
+	FactsOutsideRepository int
 }
 
 // NormalizeGo converts the facts of one Go load into the canonical model.
@@ -82,10 +88,34 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 	symbolsByKey := make(map[string]Symbol)
 	// symbolsByQualifiedName resolves an edge endpoint declared in this pass.
 	symbolsByQualifiedName := make(map[string]string)
+	report := GoReport{}
 
 	for _, definition := range input.Definitions {
 		if err := ctx.Err(); err != nil {
 			return Set{}, GoReport{}, err
+		}
+		relative, inside := repositoryRelativePath(root, definition.FileName)
+		if !inside {
+			// The declaration is real but its file is not in this
+			// repository, so nothing here can carry it: a package
+			// rooted at a cache entry, a file keyed by an absolute
+			// path and a symbol attributed to both would each name
+			// this machine. Retain the loss with its reason.
+			report.FactsOutsideRepository++
+			set.Unresolved = append(set.Unresolved, UnresolvedReference{
+				RepositoryKey:    repositoryKey,
+				Language:         LanguageGo,
+				RequestedPackage: definition.PackagePath,
+				RequestedSymbol:  definition.QualifiedName,
+				Reason:           string(goloader.UnresolvedDeclarationOutsideRepository),
+				Detail:           definition.FileName,
+				Start: Position{
+					Line:   definition.StartLine,
+					Column: definition.StartColumn,
+					Offset: definition.NameOffset,
+				},
+			})
+			continue
 		}
 		packageKey := PackageKey(LanguageGo, name, definition.PackagePath)
 		if _, exists := packages[packageKey]; !exists {
@@ -98,7 +128,6 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 				Container:     definition.ModulePath,
 			}
 		}
-		relative := repositoryRelativePath(root, definition.FileName)
 		fileKey := FileKey(name, relative)
 		if _, exists := files[fileKey]; !exists {
 			files[fileKey] = File{
@@ -158,7 +187,6 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		})
 	}
 
-	report := GoReport{}
 	crossByLocation := make(map[string]goloader.CrossRepositoryReference, len(input.CrossRepository))
 	for _, reference := range input.CrossRepository {
 		crossByLocation[locationKey(reference.FileName, reference.Offset)] = reference
@@ -179,7 +207,11 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			report.EdgesWithoutTarget++
 			continue
 		}
-		relative := repositoryRelativePath(root, reference.FileName)
+		relative, inside := repositoryRelativePath(root, reference.FileName)
+		if !inside {
+			report.FactsOutsideRepository++
+			continue
+		}
 		fileKey := FileKey(name, relative)
 		if _, exists := files[fileKey]; !exists {
 			// A reference always lives in a file this pass already indexed.
@@ -231,7 +263,11 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			report.EdgesWithoutTarget++
 			continue
 		}
-		relative := repositoryRelativePath(root, relation.FileName)
+		relative, inside := repositoryRelativePath(root, relation.FileName)
+		if !inside {
+			report.FactsOutsideRepository++
+			continue
+		}
 		fileKey := FileKey(name, relative)
 		if _, exists := files[fileKey]; !exists {
 			// A relation always lives in a file this pass already indexed.
@@ -275,7 +311,11 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			report.EdgesWithoutTarget++
 			continue
 		}
-		relative := repositoryRelativePath(root, dependency.FileName)
+		relative, inside := repositoryRelativePath(root, dependency.FileName)
+		if !inside {
+			report.FactsOutsideRepository++
+			continue
+		}
 		fileKey := FileKey(name, relative)
 		if _, exists := files[fileKey]; !exists {
 			// A dependency always lives in a file this pass already indexed.
@@ -347,9 +387,11 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			}
 		}
 		if entry.FileName != "" {
-			fileKey := FileKey(name, repositoryRelativePath(root, entry.FileName))
-			if _, exists := files[fileKey]; exists {
-				unresolved.FileKey = fileKey
+			if relative, inside := repositoryRelativePath(root, entry.FileName); inside {
+				fileKey := FileKey(name, relative)
+				if _, exists := files[fileKey]; exists {
+					unresolved.FileKey = fileKey
+				}
 			}
 		}
 		if unresolved.FileKey == "" {
@@ -508,13 +550,15 @@ func locationKey(fileName string, offset int) string {
 }
 
 // repositoryRelativePath keeps paths portable: a key must not embed the
-// machine that produced it.
-func repositoryRelativePath(root, path string) string {
+// machine that produced it. A path outside the root is reported rather than
+// returned absolute, because a fact is evidence for the repository that holds
+// its file and for no other.
+func repositoryRelativePath(root, path string) (string, bool) {
 	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
-	if err != nil || strings.HasPrefix(relative, "..") {
-		return filepath.ToSlash(filepath.Clean(path))
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", false
 	}
-	return filepath.ToSlash(relative)
+	return filepath.ToSlash(relative), true
 }
 
 func deduplicateEvidence(entries []Evidence) []Evidence {

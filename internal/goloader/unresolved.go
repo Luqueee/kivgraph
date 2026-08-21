@@ -39,6 +39,13 @@ const (
 	// no fact at all. Its symbols are absent from the graph by construction,
 	// not by failure.
 	UnresolvedPackageNotBuildable UnresolvedReason = "PACKAGE_NOT_BUILDABLE"
+	// UnresolvedDeclarationOutsideRepository means the file holding a
+	// declaration is not inside the repository the pass is indexing. The Go
+	// loader asks for compiled files, so a package built with cgo or from
+	// generated sources reports positions inside the build cache. Such a
+	// path is not evidence for this repository: it names a machine and a
+	// cache entry, not source anybody can read at that path later.
+	UnresolvedDeclarationOutsideRepository UnresolvedReason = "DECLARATION_OUTSIDE_REPOSITORY"
 )
 
 // UnresolvedReference is one classified failure with its evidence.
