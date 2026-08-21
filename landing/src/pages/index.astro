@@ -2,6 +2,7 @@
 import Footer from "../components/landing/Footer.astro";
 import Hero from "../components/landing/Hero.astro";
 import Languages from "../components/landing/Languages.astro";
+import Measured from "../components/landing/Measured.astro";
 import Layout from "../components/landing/Layout.astro";
 import NotGrep from "../components/landing/NotGrep.astro";
 import Quickstart from "../components/landing/Quickstart.astro";
@@ -24,23 +25,26 @@ export const prerender = true;
   <TopBar />
   <main id="main">
     <Hero />
-    <Section index="01" title="what it answers" id="answers">
+    <Section index="01" title="measured against four rivals" id="measured">
+      <Measured />
+    </Section>
+    <Section index="02" title="what it answers" id="answers">
       <Routing />
       <Session />
     </Section>
-    <Section index="02" title="not grep" id="not-grep">
+    <Section index="03" title="not grep" id="not-grep">
       <NotGrep />
     </Section>
-    <Section index="03" title="where it loses" id="tradeoffs">
+    <Section index="04" title="where it loses" id="tradeoffs">
       <Tradeoffs />
     </Section>
-    <Section index="04" title="languages" id="languages">
+    <Section index="05" title="languages" id="languages">
       <Languages />
     </Section>
-    <Section index="05" title="the published snapshot" id="snapshot">
+    <Section index="06" title="the published snapshot" id="snapshot">
       <Snapshot />
     </Section>
-    <Section index="06" title="quickstart" id="quickstart">
+    <Section index="07" title="quickstart" id="quickstart">
       <Quickstart />
     </Section>
   </main>
