@@ -338,6 +338,32 @@
         "answer": "nothing. Every internal package is a workspace member, all 105 @kena/* declarations across 28 package.json files pin 0.0.1 rather than workspace:*, and pnpm 11 defaults link-workspace-packages to false. So every consumer resolves its own monorepo's packages from published tarballs in the store, which carry no src and no .d.ts.map, and the loader excludes installed copies by design",
         "measured": "library-web was pulled, built with nine .d.ts.map files, and the corpus went from 5998 unresolved to 5997",
         "what_would_fix_it": "consumers resolving the workspace copy: link-workspace-packages=true, or the 105 ranges as workspace:*. Both are decisions about their dependency tree"
+      },
+      "resolved_after_linking": {
+        "change": "linkWorkspacePackages: true in pnpm-workspace.yaml -- not .npmrc, where pnpm 10+ no longer reads its own settings -- then reinstall and build the five internal packages",
+        "measured": {
+          "unresolved_before": 5998,
+          "unresolved_after": 4969,
+          "delta": -1029,
+          "PROVIDER_SOURCE_UNAVAILABLE": {
+            "before": 1220,
+            "after": 226
+          },
+          "DECLARATION_SOURCE_NOT_MAPPED": {
+            "before": 272,
+            "after": 237
+          },
+          "typescript_symbols": {
+            "before": 123829,
+            "after": 124371
+          },
+          "graph_edges": {
+            "before": 493544,
+            "after": 495814,
+            "delta": 2270
+          }
+        },
+        "what_remains": "463, still naming @kena/sdk, and inherent: the sdk re-exports SlashCommandBuilder and Collection from @discordjs/builders and @discordjs/collection, so the declaring source leaves the corpus. Same class as the Rust sysroot"
       }
     }
   },

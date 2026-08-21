@@ -176,11 +176,43 @@ dueño de la declaración **no declara proyecto propio**. Una copia bajo
 `node_modules` no pertenece a ningún repositorio registrado, y el cargador las
 excluye por diseño.
 
-De modo que el monorepo consume **tarballs publicados de su propio código**, y
-ninguna cantidad de `pnpm build` lo cambia. Lo que lo cambiaría es que los
-consumidores resuelvan la copia del workspace: `link-workspace-packages=true` en
-el `.npmrc`, o los `105` rangos como `workspace:*`. Las dos son decisiones sobre
-su árbol de dependencias, no sobre este grafo, y ninguna se tomó aquí.
+De modo que el monorepo consumía **tarballs publicados de su propio código**, y
+ninguna cantidad de `pnpm build` lo cambiaba.
+
+## Se arregló, y se midió
+
+Se puso `linkWorkspacePackages: true` en `pnpm-workspace.yaml` -- **no** en el
+`.npmrc`, donde no surte efecto: `pnpm 10` movió sus propios ajustes al fichero
+del workspace y los escribe en camelCase, como sus vecinos `allowBuilds` y
+`minimumReleaseAgeExclude`. Después se reinstaló y se construyeron los cinco
+paquetes internos.
+
+|medida|antes|después|delta|
+|---|---|---|---|
+|no resueltos TypeScript|`5.998`|**`4.969`**|`-1.029`|
+|`PROVIDER_SOURCE_UNAVAILABLE`|`1.220`|`226`|`-994`|
+|`DECLARATION_SOURCE_NOT_MAPPED`|`272`|`237`|`-35`|
+|símbolos TypeScript|`123.829`|`124.371`|`+542`|
+|**aristas del grafo**|`493.544`|**`495.814`**|**`+2.270`**|
+
+Las aristas **subieron** más de lo que bajaron los no resueltos: cada referencia
+que resolvió se convirtió en arista de símbolo, y algunas en más de una. El cuarto
+interno pasó de `1.492` a `463`.
+
+## Y los `463` que quedan tampoco son un defecto
+
+Siguen nombrando `@kena/sdk`: `SlashCommandBuilder`, `ContainerBuilder`,
+`Collection`. Pero `src/discord.ts` del sdk dice qué son:
+
+```ts
+export { SlashCommandBuilder } from "@discordjs/builders";
+export { Collection } from "@discordjs/collection";
+```
+
+Son reexportaciones de **terceros**. La cadena llega del consumidor al sdk -- que
+ahora sí mapea a su `src/`-- y de ahí sale del corpus hacia `@discordjs/*`, que no
+tiene fuente en el grafo. Es la misma clase que el sysroot de Rust: el dueño de la
+declaración está fuera, y ninguna construcción propia lo trae dentro.
 
 Nada de esto es un defecto de Kivgraph: es lo que un grafo puede saber de un
 paquete que llega como artefacto sin fuente. Pero decir «construye el workspace y
