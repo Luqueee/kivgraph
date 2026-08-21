@@ -1,0 +1,266 @@
+{
+  "benchmark": "unresolved-shape",
+  "question": "what are the unresolved references a corpus reports, and is any of them a resolution defect",
+  "date": "2026-08-21",
+  "commit": "9cad2d3",
+  "environment": {
+    "os": "macOS 26.6",
+    "machine": "Mac17,2 (Apple M5)",
+    "go": "go1.26.4 darwin/arm64",
+    "ladybug": "v0.13.1",
+    "rust_analyzer": "pinned, cargo on PATH"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "note": "symbols and unresolved counted off the published canonical graph, not off the index event"
+  },
+  "unresolved_per_language": {
+    "go": 6059,
+    "rust": 1969,
+    "typescript": 5991
+  },
+  "symbols_per_language": {
+    "go": 11731,
+    "rust": 3063,
+    "typescript": 108730
+  },
+  "groups": [
+    {
+      "language": "go",
+      "reason": "MODULE_PROVIDER_NOT_FOUND",
+      "count": 5768,
+      "share_of_language": 0.9519722726522528,
+      "examples": [
+        "go.mongodb.org/mongo-driver/v2 go.mongodb.org/mongo-driver/v2/bson::M",
+        "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::Ctx",
+        "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::Ctx.Context",
+        "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::Ctx.Params",
+        "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::Ctx.Query",
+        "github.com/rs/zerolog github.com/rs/zerolog::Event.Msg",
+        "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::App.Use",
+        "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::App"
+      ],
+      "top_files": [
+        "file:api-db-go:internal/infrastructure/mongo/translation_repository.go",
+        "file:api-db-go:internal/infrastructure/redis/client.go",
+        "file:api-db-go:cmd/server/main.go",
+        "file:api-music:internal/infrastructure/redis/client.go",
+        "file:api-db-go:internal/infrastructure/mongo/module_music_repository.go"
+      ]
+    },
+    {
+      "language": "typescript",
+      "reason": "PACKAGE_PROVIDER_NOT_FOUND",
+      "count": 4389,
+      "share_of_language": 0.7325988983475212,
+      "examples": [
+        "react::",
+        "vitest::",
+        "~::",
+        "lucide-react::",
+        "discord-api-types::",
+        "react-router::",
+        "@storybook/react-vite::",
+        "zod::"
+      ],
+      "top_files": [
+        "file:tasks-pilot:app/components/board/TaskDialog.tsx",
+        "file:proxy-ui:app/components/charts/chart-dialog.tsx",
+        "file:proxy-ui:app/routes/metrics.tsx",
+        "file:proxy-ui:app/components/charts/services-tab.tsx",
+        "file:proxy-ui:app/routes/_layout.tsx"
+      ]
+    },
+    {
+      "language": "rust",
+      "reason": "CRATE_PROVIDER_NOT_FOUND",
+      "count": 1857,
+      "share_of_language": 0.9431183341797867,
+      "examples": [
+        "alloc::boxed::Box",
+        "alloc::boxed::impl::Box<T>::new",
+        "alloc::collections::vec_deque::VecDeque",
+        "alloc::macros::format",
+        "alloc::macros::vec",
+        "alloc::slice::impl::[T]::join",
+        "alloc::slice::impl::[T]::sort_by",
+        "alloc::str::impl::str::to_ascii_lowercase"
+      ],
+      "top_files": [
+        "file:kenalink-rs:src/audio/songbird_engine.rs",
+        "file:kenalink-rs:src/main.rs",
+        "file:api-music-nodo:src/audio/deezer_download.rs",
+        "file:api-music-nodo:tests/http_surface.rs",
+        "file:api-music-nodo:tests/redis_parity.rs"
+      ]
+    },
+    {
+      "language": "typescript",
+      "reason": "PROVIDER_SOURCE_UNAVAILABLE",
+      "count": 1220,
+      "share_of_language": 0.20363879152061426,
+      "examples": [
+        "@kena/sdk::CommandContext",
+        "@kena/sdk::MessageContainerBuilder",
+        "@kena/sdk::SlashCommandBuilder",
+        "@kena/sdk::ArgsHandler",
+        "@kena/web::Translations",
+        "@kena/web::CommonTranslations",
+        "@kena/sdk::ContainerBuilder",
+        "@kena/sdk::TextDisplayBuilder"
+      ],
+      "top_files": [
+        "file:moderation-module:src/events/interactions/InteractionCreate.ts",
+        "file:music-module:src/events/interactions/InteractionCreate.ts",
+        "file:tempVoice-module:src/events/interactions/InteractionCreate.ts",
+        "file:template-module:src/events/interactions/InteractionCreate.ts",
+        "file:tickets-module:src/events/interactions/InteractionCreate.ts"
+      ]
+    },
+    {
+      "language": "go",
+      "reason": "DECLARATION_OUTSIDE_REPOSITORY",
+      "count": 288,
+      "share_of_language": 0.047532596137976564,
+      "examples": [
+        "kena.bot/api-db-go/cmd/clone-db.test::benchmarks",
+        "kena.bot/api-db-go/cmd/clone-db.test::examples",
+        "kena.bot/api-db-go/cmd/clone-db.test::fuzzTargets",
+        "kena.bot/api-db-go/cmd/clone-db.test::init",
+        "kena.bot/api-db-go/cmd/clone-db.test::main",
+        "kena.bot/api-db-go/cmd/clone-db.test::tests",
+        "kena.bot/api-db-go/cmd/server.test::benchmarks",
+        "kena.bot/api-db-go/cmd/server.test::examples"
+      ]
+    },
+    {
+      "language": "typescript",
+      "reason": "DECLARATION_SOURCE_NOT_MAPPED",
+      "count": 272,
+      "share_of_language": 0.045401435486563176,
+      "examples": [
+        "@kena/sdk::SlashCommandBuilder",
+        "@kena/sdk::ContainerBuilder",
+        "@kena/sdk::TextDisplayBuilder",
+        "@kena/sdk::ActionRowBuilder",
+        "@kena/web::userImage",
+        "@kena/sdk::Collection",
+        "@kena/sdk::SeparatorBuilder",
+        "@kena/sdk::SectionBuilder"
+      ],
+      "top_files": [
+        "file:tickets-module:src/test/e2e/ticket-e2e.test.ts",
+        "file:tickets-module:src/shared/ticket-lifecycle.ts",
+        "file:dash.kena.bot:app/i18n/types.ts",
+        "file:logs-module:src/builders/ExampleBuilder.ts",
+        "file:logs.kena.bot:app/i18n/types.ts"
+      ]
+    },
+    {
+      "language": "rust",
+      "reason": "DEFINITION_NOT_INDEXED",
+      "count": 112,
+      "share_of_language": 0.056881665820213305,
+      "examples": [
+        "api-music-nodo::audio::deezer_download::impl::TrackId3Metadata::Default::default",
+        "api-music-nodo::audio::disk::impl::DiskPaths",
+        "api-music-nodo::audio::disk::impl::DiskPaths::Clone::clone",
+        "api-music-nodo::audio::range::impl::RangeOutcome",
+        "api-music-nodo::cache::health::impl::HealthCheckStore",
+        "api-music-nodo::cache::health::impl::System",
+        "api-music-nodo::cache::health::impl::System::PartialEq<Self>::eq",
+        "api-music-nodo::cache::impl::MusicNodoRedis"
+      ],
+      "top_files": [
+        "file:api-music-nodo:src/telemetry/bandwidth.rs",
+        "file:api-music-nodo:tests/http_surface.rs",
+        "file:api-music-nodo:src/providers/deezer.rs",
+        "file:api-music-nodo:src/providers/spotify.rs",
+        "file:api-music-nodo:src/error.rs"
+      ]
+    },
+    {
+      "language": "typescript",
+      "reason": "DECLARATION_NOT_RESOLVED",
+      "count": 109,
+      "share_of_language": 0.018193957603071274,
+      "examples": [
+        "@kena/shared::Client",
+        "@kena/shared::UntypedServiceImplementation",
+        "gateway-api::Error",
+        "@kena/sdk::Error",
+        "@kena/sdk::EventEmitter",
+        "@kena/shared::Error",
+        "dash.kena.bot::Error",
+        "dash.kena.bot::Response"
+      ],
+      "top_files": [
+        "file:dash.kena.bot:app/features/custom-bots/custom-bots.server.ts",
+        "file:dash.kena.bot:vitest.setup.ts",
+        "file:admin.kena.lan:app/features/tasks/components/ui/button.tsx",
+        "file:admin.kena.lan:vitest.setup.ts",
+        "file:api-translations:src/mcp/confirm.ts"
+      ]
+    },
+    {
+      "language": "go",
+      "reason": "PACKAGE_NOT_BUILDABLE",
+      "count": 3,
+      "share_of_language": 0.0004951312097705892,
+      "examples": [
+        "kena.bot/api-db-go/internal/testutil::",
+        "kena.bot/api-db-go::",
+        "kena.bot/api-music/internal/infrastructure/redis/testutil::"
+      ]
+    },
+    {
+      "language": "typescript",
+      "reason": "MODULE_NOT_RESOLVED",
+      "count": 1,
+      "share_of_language": 0.00016691704223001168,
+      "examples": [
+        "@fortawesome/fontawesome-free::"
+      ],
+      "top_files": [
+        "file:kena.bot:src/app/layout.tsx"
+      ]
+    }
+  ],
+  "rust_breakdown": {
+    "CRATE_PROVIDER_NOT_FOUND": {
+      "count": 1857,
+      "share": 0.943,
+      "what": "the sysroot and external crates -- alloc, core, std and dependencies the local cache did not fetch",
+      "verdict": "declared limitation: Rust indexing is hermetic by default"
+    },
+    "DEFINITION_NOT_INDEXED": {
+      "count": 112,
+      "share": 0.057,
+      "split": {
+        "impl_blocks": {
+          "count": 56,
+          "what": "inherent and trait impl blocks -- `impl::Type` and `impl::Type::Trait` -- which the loader never publishes as symbols",
+          "evidence": "find_symbol with kind=implementation over api-music-nodo answers total 0, while the members of those same blocks are indexed and appear in get_file_outline",
+          "verdict": "a reference that can never resolve, against a kind the loader has code to render and never creates"
+        },
+        "derived_trait_members": {
+          "count": 53,
+          "what": "compiler-generated members -- Default::default, Clone::clone, PartialEq<Self>::eq",
+          "verdict": "inherent absence: there is no source occurrence to index"
+        },
+        "tail": {
+          "count": 3,
+          "what": "two tuple fields spelled `::0` and one bare test function name"
+        }
+      }
+    },
+    "workspace_calls_that_failed_to_resolve": 0
+  },
+  "limitations": [
+    "one corpus, one machine, one toolchain. A different sysroot or a fetched dependency moves the 94.3 % bucket",
+    "the classification of the 112 is by symbol shape, read label by label; every label is quoted in the report so a reader can disagree with the reading",
+    "Go and TypeScript are counted but not classified. Their ratios against references are 8.4 % and 2.2 %, and nothing here asks what they are",
+    "the probe reads the canonical graph, so its per-language symbol counts are the graph's, which do not match the index event's go_definitions -- one counts published symbols and the other counts definitions the loader saw"
+  ]
+}

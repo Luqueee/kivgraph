@@ -15309,6 +15309,8 @@ una métrica fuera de límite.
 
 ## LUQUE-2007 — La proporción de no resueltos de Rust no tiene pregunta
 
+**Estado:** cerrada -- `benchmarks/unresolved-shape`. No hay defecto de resolución; hay una rama muerta, LUQUE-2008.
+
 **Dependencias:** LUQUE-2006.
 
 **El número:** el índice de `kena` publica `3.063` símbolos Rust y `1.969`
@@ -15327,3 +15329,50 @@ contador agregado.
 **Objetivo:** agrupar los no resueltos de Rust por motivo, publicarlo con la
 convención de `benchmarks/`, y decidir a partir del desglose si hay defecto o
 límite. Hoy nadie lo sabe, y el número está a la vista desde que Rust carga.
+
+**Resultado.** De las `1.969` referencias Rust no resueltas de `kena`:
+
+|grupo|cuenta|parte|qué es|
+|---|---|---|---|
+|`CRATE_PROVIDER_NOT_FOUND`|`1.857`|`94,3 %`|el sysroot y dependencias externas -- `alloc::*`, límite declarado|
+|`DEFINITION_NOT_INDEXED`|`112`|`5,7 %`|definiciones sin ocurrencia en fuente|
+|**llamadas del workspace que fallaron al resolver**|**`0`**|`0 %`|--|
+
+Las `112` se leyeron **etiqueta por etiqueta** -- hay `112` distintas--: `56` son
+bloques `impl`, `53` son miembros generados por `derive` y `3` son cola. Ninguna
+es una llamada normal dentro del workspace, que era la hipótesis que habría hecho
+de esto un defecto.
+
+## LUQUE-2008 — Un bloque `impl` de Rust no se publica y su rama existe
+
+**Dependencias:** LUQUE-2007.
+
+**El hecho:** `internal/rustloader/kinds.go` tiene dos ramas para los bloques
+`impl` -- `PublishedKind` devuelve `"implementation"` y `PublishedName` renderiza
+`impl X for Y`, con un comentario que explica por qué un bloque no tiene nombre
+propio-- y **ninguna se ejecuta**. Evidencia directa sobre `kena`:
+
+```
+find_symbol { name: "impl", kind: "implementation", repo: "api-music-nodo" }
+  -> total: 0
+```
+
+Los **miembros** de esos mismos bloques sí se indexan: `get_file_outline` sobre
+`src/error.rs` lista `error::impl::ApiError::with_context_header@174-177`. Así que
+el cargador indexa el contenido de un `impl` y no su cabecera, y las `56`
+referencias que `rust-analyzer` emite hacia esa cabecera quedan **sin resolver
+para siempre**.
+
+**Las dos salidas:**
+
+* **Publicar el bloque.** Las `56` resuelven, las ramas se vuelven vivas y
+  `kind: "implementation"` empieza a aparecer en respuestas -- que es un cambio de
+  superficie MCP y necesita decidir si un bloque `impl` es una respuesta útil a
+  «dónde está declarado esto», cuando las aristas `IMPLEMENTS` ya llevan la
+  relación.
+* **Retirar las ramas** y declarar que una referencia a una cabecera `impl` no
+  resuelve por diseño, como el sysroot. Más barato y honesto, y deja el contador
+  diciendo la verdad sobre algo que nadie va a arreglar.
+
+**Lo que no vale:** dejar código que renderiza un caso que no ocurre mientras
+`56` referencias lo citan sin poder resolverlo.
