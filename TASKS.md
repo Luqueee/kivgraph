@@ -15089,3 +15089,34 @@ cualquier documento cite son proyecciones, no mediciones.
 
 **Lo que no vale:** dejarlo como está y seguir citando el incremental como una
 propiedad del producto.
+
+**Medido** (`benchmarks/incremental-cost`, commit `e78490e`, corpus `kena` con
+`4.683` ficheros y `477.027` aristas, caché de hechos caliente):
+
+|ruta|segundos|contra el full|
+|---|---|---|
+|pase completo|`9,174`|`1,00x`|
+|delta tal como está escrito|`3,811`|`2,41x`|
+|delta si también verificara integridad|`5,507`|`1,67x`|
+
+Dos hechos de diseño fijan ese techo: `Update` exige el set `Next` **completo**
+-`Plans` sólo elige ruta-, así que `2,00 s` de arranque, motores, `merge` y
+`facts` los paga igual; y reconstruye el `HotSnapshot` **entero**, otro `1,79 s`.
+Lo único que ahorra de verdad es `staging`, el `38 %` del pase. El resto de su
+ventaja aparente es que **no verifica**: `applyDeltaRoute` hace cero llamadas a
+`integrity` y a `golden probes`, que la ruta completa sí corre.
+
+Y no mejora con la escala: `staging`, `merge`, `snapshot` e `integrity` escalan
+todos con el corpus, y sólo la mutación escala con la edición, así que la razón
+se queda en `1,67x` en cualquier tamaño.
+
+**Recomendación:** retirarlo. `1,67x` sobre nueve segundos no paga un subsistema
+con un modo de fallo de corrupción silenciosa -- ya cobrado una vez en
+`LUQUE-2002` -- ni una ruta de publicación que no verifica. La caché de hechos ya
+entrega lo que el incremental prometía: con ella caliente los motores de lenguaje
+son `0,57 s` de los `9,17 s`. Un incremental que de verdad pagara necesita un
+`HotSnapshot` actualizable y un set `Next` acotado, que es otro diseño y otro
+ADR, no este código.
+
+La retirada es borrar un subsistema entero, así que espera consentimiento
+explícito.

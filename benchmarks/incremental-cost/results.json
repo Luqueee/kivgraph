@@ -1,0 +1,79 @@
+{
+  "benchmark": "incremental-cost",
+  "question": "what is the ceiling on what the delta route could save, and does it pay for itself",
+  "date": "2026-08-21",
+  "commit": "e78490e",
+  "environment": {
+    "os": "macOS 26.6",
+    "machine": "Mac17,2 (Apple M5)",
+    "cpus": 10,
+    "go": "go1.26.4 darwin/arm64",
+    "ladybug": "v0.13.1",
+    "node": "v25.2.1"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "indexed_repositories": 35,
+    "packages": 114,
+    "files": 4683,
+    "symbols": 120461,
+    "evidence": 344845,
+    "edges": 477027,
+    "unresolved": 12052,
+    "fact_cache": "warm -- this is the cost of reindexing after an edit, not a cold build",
+    "database_bytes": 234479616
+  },
+  "full_pass_seconds": {
+    "startup_to_first_event": 0.717,
+    "typescript": 0.36,
+    "go": 0.16,
+    "rust": 0.05,
+    "merge": 0.488,
+    "facts": 0.218,
+    "staging": 3.529,
+    "snapshot": 1.909,
+    "integrity": 1.696,
+    "golden_probes": 0.047,
+    "total": 9.174
+  },
+  "delta_route_fixed_costs_seconds": {
+    "CanonicalTableCounts": 0.029777917,
+    "RefreshSnapshotDigest": 5.6125e-05,
+    "BuildSnapshot": 1.788439041
+  },
+  "delta_route_fixed_total_seconds": 1.818273083,
+  "delta_route": {
+    "pays": [
+      "startup",
+      "language engines",
+      "merge",
+      "facts",
+      "ApplyCanonicalDelta (scales with the edit)",
+      "CanonicalTableCounts",
+      "RefreshSnapshotDigest",
+      "BuildSnapshot (whole corpus)"
+    ],
+    "skips": [
+      "staging (writing the canonical graph from scratch)",
+      "integrity",
+      "golden probes"
+    ],
+    "requires_complete_next_set": true,
+    "verifies_integrity": false,
+    "production_callers": 0
+  },
+  "projection": {
+    "delta_as_written_seconds": 3.811,
+    "delta_if_it_also_verified_seconds": 5.507,
+    "speedup_as_written": 2.41,
+    "speedup_if_verifying": 1.67,
+    "note": "the mutation itself is excluded: it scales with the edit, and CanonicalTableCounts reading all eighteen relationship tables in 0.030 s bounds per-table work on this database at about 2 ms"
+  },
+  "limitations": [
+    "the delta route has no production caller, so its cost is projected from the steps applyDeltaRoute provably runs, never measured end to end",
+    "ApplyCanonicalDelta is not timed here: building a kena-scale delta needs real loader output for kena, and the fixed costs already decide the question",
+    "one corpus, one machine, one warm cache; a cold cache moves the language engines from 0.57 s to minutes and makes every ratio here look better than it is",
+    "the full pass numbers come from one run with per-event timestamps, not from a distribution"
+  ]
+}
