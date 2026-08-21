@@ -15005,3 +15005,51 @@ make build                       0.5.1
 ```
 
 **Siguiente tarea:** LUQUE-2001, que abre la fase 20.
+
+## LUQUE-2002 — Un fichero reemplazado no debe perder lo que otros le apuntan
+
+**Dependencias:** LUQUE-1007.
+
+**Objetivo:** que un delta incremental produzca el mismo grafo que una
+reconstrucción limpia cuando el fichero editado tiene llamantes en otros
+ficheros. Hoy no lo produce.
+
+**El defecto, reproducido:** `internal/facts/delta_reindex_test.go`,
+`TestDiffRestatesEdgesIntoAReplacedFile`, hoy con `t.Skip`. Sobre el fixture
+`type-relations`, hacer crecer un cuerpo de método en `geometry.go` en una línea
+reemplaza ese fichero y ninguno más. Las seis aristas que entran desde `units/`
+están ancladas en ficheros de `units/`, cuyos hechos no cambiaron, así que `Diff`
+no las restablece -- y la retirada withdraws «every edge anchored on any of
+those, **incoming and outgoing**» (`ApplyCanonicalDelta`), así que el aplicador
+las borra y nadie las repone. **Cada llamante de otro paquete deja de apuntar al
+fichero que se editó.**
+
+Producción toma esa ruta: `internal/indexer/delta.go:222` llama a `facts.Diff`
+con los dos sets completos, que es exactamente la forma del test.
+
+**Por qué el arreglo no va en `Diff`:** restablecer esas aristas desde ahí
+arrastra el fichero que las ancla entero, porque `Delta.Validate` exige un
+fragmento autoconsistente -- una arista necesita su evidencia, la evidencia su
+fichero, el fichero su paquete--. Y entonces las aristas que entran a *ese*
+fichero también se retiran, y la restitución cascadea sin cota visible. Se
+probó; se revirtió.
+
+**Alcance propuesto:** acotar la retirada a los símbolos que **desaparecieron**,
+no a todos los símbolos de un fichero reemplazado. Un símbolo que sobrevive con
+la misma clave estable conserva sus aristas entrantes; uno que se fue se las
+lleva. Eso mantiene la unidad del delta en el fichero, que es lo que declara
+`AGENTS.md`: un hecho pertenece al fichero que lo **afirmó**, y esta arista la
+afirmó `units/handlers.go`.
+
+**Qué exige:** un ADR sobre el alcance de la retirada, porque cambia el contrato
+de mutación canónica; y un test end-to-end con el tag `ladybug` que compare
+`ScanCanonical` tras aplicar el delta contra `ScanCanonical` de una carga limpia
+del estado final, sobre sets producidos por el cargador real -- no construidos a
+mano, que es lo que ya cubre
+`TestApplyCanonicalDeltaMatchesFreshLoadOfFinalState`.
+
+**Lo que ya está hecho:** `TestDiffOverARealEditReproducesACleanLoad` cubre las
+dos formas que hoy sí se sostienen -- un fichero nuevo en un paquete existente y
+un fichero que desaparece-- con el cargador real sobre una copia de trabajo
+editable, y `normalizeRepositories` quedó extraído para que cualquier test pueda
+apuntar la pasada a un árbol que puede editar.

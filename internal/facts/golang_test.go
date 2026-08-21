@@ -33,7 +33,15 @@ func fixtureRepositories(t *testing.T) []workspace.Repository {
 // normalizeFixture indexes one repository of the fixture end to end.
 func normalizeFixture(t *testing.T, repositoryName string) (Set, GoReport) {
 	t.Helper()
-	repositories := fixtureRepositories(t)
+	return normalizeRepositories(t, fixtureRepositories(t), repositoryName)
+}
+
+// normalizeRepositories runs the whole Go pipeline over an arbitrary set of
+// repositories and returns the canonical facts of one of them. It is
+// normalizeFixture's body, extracted so a test can point the same pipeline at a
+// working copy it is allowed to edit.
+func normalizeRepositories(t *testing.T, repositories []workspace.Repository, repositoryName string) (Set, GoReport) {
+	t.Helper()
 	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
 	if err != nil {
 		t.Fatalf("BuildPlan() error = %v", err)
