@@ -17,13 +17,23 @@ import (
 type RelationKind string
 
 const (
-	// RelationImplements is `impl Trait for Type`.
+	// RelationImplements is `impl Trait for Type`, and the pairing of each
+	// member of that block with the trait declaration it answers for. Both
+	// granularities are the same relation -- this is the implementation of
+	// that -- and the member one is what makes a call through `dyn Trait`
+	// answerable, because the analyzer resolves such a call to the trait
+	// method and nothing else would say which body it arrives at.
+	//
+	// The member pairing used to be reported as OVERRIDES, which named a
+	// different relation from the one Go reports under that kind: there, a
+	// method that HIDES a promoted one, which a call never reaches. One
+	// canonical kind cannot mean both. A trait method carrying a default body
+	// is genuinely overridden by an impl that replaces it, and SCIP does not
+	// say whether a default exists, so that case is reported as IMPLEMENTS
+	// too: it is true of both, and it is the statement a caller needs.
 	RelationImplements RelationKind = "implements"
 	// RelationExtends is the supertrait of `trait A: B`.
 	RelationExtends RelationKind = "extends"
-	// RelationOverrides is a method of a trait implementation and the trait
-	// method it answers for.
-	RelationOverrides RelationKind = "overrides"
 )
 
 // Relation is one structural relation with the occurrence that proves it.
@@ -149,7 +159,7 @@ func collectRelations(
 			Text:                document.source.Text(traitEntry.start, traitEntry.end),
 		})
 		relations = append(relations,
-			overridesOfImplementation(document, index, resolver, observed, header, traitEntry)...)
+			implementedMembers(document, index, resolver, observed, header, traitEntry)...)
 	}
 
 	for _, bound := range document.source.TraitBounds() {
@@ -190,7 +200,7 @@ func collectRelations(
 // member descriptor of `impl#[Type][Trait]name().` to the trait's symbol
 // yields exactly what the trait's own document publishes. A composition the
 // index never observed is dropped rather than published.
-func overridesOfImplementation(
+func implementedMembers(
 	document *documentAnalysis,
 	index occurrenceIndex,
 	resolver *targetResolver,
@@ -228,7 +238,7 @@ func overridesOfImplementation(
 			continue
 		}
 		relations = append(relations, Relation{
-			Kind:                RelationOverrides,
+			Kind:                RelationImplements,
 			SourceKey:           string(definition.StableKey),
 			TargetKey:           target.key,
 			TargetRepository:    target.repository,

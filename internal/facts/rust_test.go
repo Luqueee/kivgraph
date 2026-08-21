@@ -306,7 +306,7 @@ func TestNormalizeRustPublishesStructuralRelations(t *testing.T) {
 			Text: "Shared",
 		},
 		{
-			Kind: rustloader.RelationOverrides, SourceKey: "engine-run", TargetKey: "engine-trait",
+			Kind: rustloader.RelationImplements, SourceKey: "engine-run", TargetKey: "engine-trait",
 			File: "crates/engine/src/lib.rs", StartLine: 12, StartOffset: 240, EndOffset: 244,
 			Text: "name",
 		},
@@ -319,13 +319,23 @@ func TestNormalizeRustPublishesStructuralRelations(t *testing.T) {
 	if report.EdgesWithoutSource != 0 || report.EdgesWithoutTarget != 0 {
 		t.Fatalf("report = %#v", report)
 	}
+	// IMPLEMENTS carries both granularities the loader derives: the header and
+	// the member paired with the trait declaration it answers for. Rust
+	// publishes no OVERRIDES at all -- that kind names a hidden promoted
+	// method, which is a Go relation with no Rust counterpart, and reporting
+	// the member pairing under it made one canonical kind mean two things.
+	if got := len(edgesOfKind(set, Implements)); got != 2 {
+		t.Fatalf("IMPLEMENTS edges = %d, want the header and the member: %#v", got, set.Edges)
+	}
+	if got := edgesOfKind(set, Overrides); len(got) != 0 {
+		t.Fatalf("Rust published OVERRIDES: %#v", got)
+	}
 	for kind, want := range map[EdgeKind]Confidence{
 		Implements: ExactTypechecked,
 		Extends:    ExactPackageMapped,
-		Overrides:  ExactTypechecked,
 	} {
 		edges := edgesOfKind(set, kind)
-		if len(edges) != 1 {
+		if len(edges) == 0 {
 			t.Fatalf("%s edges = %#v", kind, set.Edges)
 		}
 		if edges[0].Confidence != want || edges[0].Provenance != RustSyntaxImplementation {

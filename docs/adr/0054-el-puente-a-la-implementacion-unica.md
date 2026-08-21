@@ -85,11 +85,21 @@ alcanzar otra cosa.
 
 - `H2_go_iface` pasa de `0,00`/`0,00` a exacta. Las cifras medidas están en
   `benchmarks/graph-tools-comparison/harder.md`.
-- **Rust queda abierto.** Su `IMPLEMENTS` sale de `impl Trait for Type` en
-  `internal/rustloader/relations.go` y sigue siendo tipo con trait, así que
-  `H5_rs_trait` no se mueve. Es la etapa dos, con este ADR como precedente: el
-  contrato de consulta ya está escrito y probado, y lo que falta es que el
-  cargador de Rust empareje los métodos como lo hace el de Go.
+- `H5_rs_trait` pasa también de `0,00`/`0,00` a exacta. Rust ya tenía el
+  emparejamiento -- compone el símbolo del trait con el descriptor del miembro y
+  exige que ese símbolo esté **observado** en la salida SCIP, así que los dos
+  extremos son del analizador -- pero lo publicaba como `OVERRIDES`.
+- **`OVERRIDES` significaba dos cosas y ahora significa una.** En Go es un método
+  que **oculta** uno promovido, que una llamada nunca alcanza; en Rust era el
+  miembro de una implementación de trait, que es justo lo contrario. Una clase
+  canónica no puede nombrar las dos, así que Rust publica su emparejamiento como
+  `IMPLEMENTS` y ya no publica `OVERRIDES`. Un método de trait con cuerpo por
+  defecto sí es un override genuino cuando la implementación lo reemplaza, y SCIP
+  no dice si existe ese cuerpo: se reporta como `IMPLEMENTS`, que es cierto de
+  los dos casos y es la afirmación que necesita quien pregunta.
+- La precisión de `H5` es la parte que importa: `routes_players.rs` declara
+  además un `delete_player` libre propio, y los llamantes de **ése** se quedaron
+  fuera.
 - **Es un cambio de superficie MCP.** La respuesta gana `via` por fila y
   `dispatch_through` por página, y una pregunta que antes devolvía cero filas
   puede devolver filas. Ningún cliente pierde nada.

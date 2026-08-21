@@ -402,15 +402,17 @@ func rustEdgeKind(reference rustloader.Reference) EdgeKind {
 	}
 }
 
-// rustRelationKind maps a structural relation onto the graph vocabulary.
+// rustRelationKind maps a structural relation onto the graph vocabulary. The
+// loader derives two, and IMPLEMENTS covers both granularities it reports: the
+// `impl Trait for Type` header and each member of that block paired with the
+// trait declaration it answers for. Rust publishes no OVERRIDES; the kind means
+// a hidden promoted method, which is a Go relation with no Rust counterpart.
 func rustRelationKind(kind rustloader.RelationKind) EdgeKind {
 	switch kind {
-	case rustloader.RelationImplements:
-		return Implements
 	case rustloader.RelationExtends:
 		return Extends
 	default:
-		return Overrides
+		return Implements
 	}
 }
 

@@ -5,11 +5,11 @@ point at which they stop being useful: a set you answer completely cannot tell
 you where you are wrong. This set exists to find that out, and it did -- three
 of its nine were failures, two of them total.
 
-One is now closed. `H2_go_iface` found that a Go method reached only through the
-interface that declares it answered that **nothing** referenced it, in the same
-words a real absence gets, and that `code-review-graph` answered it exactly. ADR
-0054 fixed it and the row below is the measurement. Two remain: its Rust twin
-`H5_rs_trait`, open by declared scope, and `H3_ts_type`.
+**Two are closed.** `H2_go_iface` found that a Go method reached only through the
+interface that declares it answered that *nothing* referenced it, in the words a
+real absence gets, and that `code-review-graph` answered it exactly. ADR 0054
+fixed it and its Rust twin `H5_rs_trait` on the same contract. One remains,
+`H3_ts_type`, and the diagnosis is below.
 
 Raw numbers in `results-hard.json`, every Kivgraph answer in `raw-hard/`, and
 the run is `--set hard`. No verdict is emitted: this measures six tools on one
@@ -20,7 +20,7 @@ corpus in one state of it.
 |fact|value|
 |---|---|
 |date|2026-08-21|
-|commit|`8ba145a`, measured with the ADR 0054 bridge applied|
+|commit|`6c7a789`|
 |corpus|`/Users/adria/Documents/programacion/projects/kena`, 37 git repositories|
 |corpus files under the rule|`610` Go, `3.247` TypeScript, `85` Rust|
 |tokenizer|`tiktoken` `o200k_base`|
@@ -37,34 +37,166 @@ choice.
 
 |id|rule|selected|
 |---|---|---|
-|`H1_go_method`|**`1.00`/`1.00`**|`0.10`/`1.00`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
+|`H1_go_method`|a Go method name declared on `>= 3` receiver types, absent from every `interface` block, `>= 5` chars, in 4-10 files; first receiver alphabetically|`BotsHandler.GetAll`, 8 candidates|
+|`H2_go_iface`|a method name declared inside an `interface` block with **exactly one** concrete implementation, in 4-10 files|`NotifierSubRepository.FindPendingGuilds`, 2 candidates|
+|`H3_ts_type`|`export interface Name` declared exactly once, in 4-8 files|`ApiRuntimeState`, 200 candidates|
+|`H4_ts_alias`|`export { X as Y } from` where `X` has one declaration and one alias|`CommandManager as SlashCommandManager`, 4 of 16|
+|`H5_rs_trait`|a `fn` inside an `impl Trait for Type` block, unique among trait impls, in 4-10 files|`MemoryStateStore::delete_player`, 17 candidates|
+|`A1`,`A2`,`A3`|a declaration no **other** file names, one per language|`BenchmarkDeserializeValueDate`, `addMockedSongsToQueue`, `build_all_image_sizes`|
+|`O3_rs_outline`|a `.rs` file with 5-15 top-level declarations, first path alphabetically|`api-music-nodo/src/audio/range.rs`, 39 candidates|
+
+### Where the rule had to look wider, and why it mattered
+
+An occurrence window is a filter; an **absence is a truth claim**. Verifying one
+over `.go`, `.ts` and `.rs` alone would have been wrong, because this corpus has
+`1.159` `.tsx` files the narrow index never opened. Widening the verification to
+`.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.json`, `.md`, `.yaml`, `.yml`, `.sql`
+and `.toml` **discarded 219 of the 287 TypeScript candidates**, the first pick
+among them: `addGiveawayEntry` is referenced from a `.tsx` file. Trusting the
+narrow index would have published a failure that was the benchmark's own bug.
+
+Go lost 1 candidate of 1.752 to the wider check and Rust 2 of 21.
+
+## The ground truth
+
+Every occurrence was read and attributed by hand before the run.
+
+### `H1_go_method` -- `BotsHandler.GetAll`
+
+Declared at `internal/application/handlers/bots_handler.go:47`. Six files hold
+the name, and **one** is a reference to this declaration.
+
+|file|line|what it is|
+|---|---|---|
+|`handlers/bots_handler.go`|`43`, `47`|doc comment and the declaration|
+|`handlers/command_handler.go`|`30`, `33`|a **homonym** on `CommandHandler`, and its comment|
+|`handlers/premium_handler.go`|`43`, `47`|a **homonym** on `PremiumHandler`, and its comment|
+|`routers/bots_router.go`|`32`|`g.Get("/", h.GetAll)` where `h` is `*handlers.BotsHandler` -- **the answer**|
+|`routers/command_router.go`|`24`|the same line on `*handlers.CommandHandler`|
+|`routers/premium_router.go`|`30`|the same line on `*handlers.PremiumHandler`|
+
+Truth: `services/api-db-go/internal/application/routers/bots_router.go`.
+
+Five of the six files are wrong answers, and the reference is a **method value**
+passed to a route, never a call. A name-matching tool scores `P=0.17`.
+
+### `H2_go_iface` -- `NotifierSubRepository.FindPendingGuilds`
+
+Declared at `internal/infrastructure/postgres/notifier_sub_repository.go:182`,
+the only implementation of the method `pgrepo/repos.go:329` declares on an
+interface.
+
+|file|line|what it is|
+|---|---|---|
+|`postgres/notifier_sub_repository.go`|`171`, `182`|comment and the declaration|
+|`handlers/guilds_handler.go`|`349`|`h.Notifier.FindPendingGuilds(...)` -- **the answer**|
+|`pgrepo/repos.go`|`320`, `329`|a comment, and the **interface** method declaration|
+|`dbnotifier/notifier_sub.go`|`11`|a comment|
+|`postgres/migrations/...notifier-subs-schema.up.sql`|`27`|a SQL comment|
+|`api-gateway/src/application/controllers/notifier-controller.ts`|`296`|a TypeScript comment -- the name crosses languages|
+
+Truth: `services/api-db-go/internal/application/handlers/guilds_handler.go`.
+
+The call site names the **interface**, so `go/types` resolves it there and not
+to the implementation the question is about. The interface declaration is not an
+answer: it declares, it does not call.
+
+### `H3_ts_type` -- `ApiRuntimeState`
+
+Declared at `libraries/library-shared/src/types/gateway-registry.ts:51`.
+
+|file|what it is|
+|---|---|
+|`library-shared/src/types/gateway-registry.ts`|the declaration, and a use at `60` -- declaring file|
+|`library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts`|imports it and annotates six positions -- **an answer**|
+|`gateway/src/grpc/manager/RegistryGrpcManager.ts`|imports it, annotates four positions, and re-exports it -- **an answer**, in another repository|
+|`gateway/src/types/registry.ts`|`export type { ApiRuntimeState, ... }` and nothing else -- a barrel|
+
+Truth: the two that use it.
+
+### `H4_ts_alias` -- `CommandManager`
+
+Declared at `modules/sdk-module-ts/src/sdk/managers/CommandManager.ts:8`.
+
+|file|what it is|
+|---|---|
+|`src/sdk/client/ModuleActions.ts`|imports it, annotates a field, and calls `new CommandManager(grpc)` -- **the answer**|
+|`src/index.ts`|`export { CommandManager as SlashCommandManager }` -- a renamed barrel|
+|`src/sdk/managers/index.ts`|`export * from "./CommandManager.js"` -- a barrel|
+|`AGENTS.md`|prose|
+
+Truth: `modules/sdk-module-ts/src/sdk/client/ModuleActions.ts`.
+
+### `H5_rs_trait` -- `MemoryStateStore::delete_player`
+
+Declared at `services/kenalink-rs/src/state/memory.rs:84`, the single `impl
+StateStore` in the crate. Every call goes through `Arc<dyn StateStore>`.
+
+|file|what it is|
+|---|---|
+|`src/state/memory.rs`|the declaration -- declaring file|
+|`src/api_rest/routes_players.rs`|`state.store.delete_player(&key)` at `436` -- **an answer**. Also declares a **homonym** free `pub async fn delete_player` at `393`, whose own callers are at `1463`, `1641`, `1688`|
+|`src/api_ws/mod.rs`|`state.store.delete_player(&fresh.key)` at `420` -- **an answer**|
+|`src/main.rs`|the same call at `218` and `345` -- **an answer**|
+|`src/state/mod.rs`|the **trait** method declaration at `42`, plus comments|
+|`src/api_rest/mod.rs`|`routes_players::delete_player` at `38` -- the homonym|
+|`src/audio/songbird_engine.rs`|a comment|
+|three `.md` audit files|prose|
+
+Truth: `routes_players.rs`, `api_ws/mod.rs`, `main.rs`.
+
+### The absences
+
+Truth is the empty set for all three: no other file in the corpus names them.
+
+Scoring one required stating a convention the harness only implied. Precision
+and recall are both undefined against an empty truth, and leaving them at zero
+marked the only correct answer -- claiming nothing -- as a total failure, which
+is why the set had no absence question until now. `scoreAgainst` now says it:
+claiming nothing against an empty truth is exact, and claiming anything against
+it is precision zero with nothing left to miss.
+
+### `O3_rs_outline`
+
+The seven column-0 declarations of `src/audio/range.rs`: `RangeOutcome`,
+`build_response`, `file_response`, `insert_header`, `parse_decimal`,
+`parse_range`, `tests`. The `impl RangeOutcome` block is not a name the file
+declares and is not in the truth; `mod tests` is, and it is `#[cfg(test)]`, so
+this question also asks whether a tool reads test code.
+
+## The result
+
+|question|kivgraph|graphify|graft|codebase-memory|code-review-graph|`grep`|
+|---|---|---|---|---|---|---|
+|`H1_go_method`|`1.00`/`1.00`|`0.10`/`1.00`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
 |`H2_go_iface`|**`1.00`/`1.00`**|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|`1.00`/`1.00`|
 |`H3_ts_type`|**`1.00`/`0.50`**|`0.50`/`0.50`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
 |`H4_ts_alias`|`1.00`/`1.00`|`0.25`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`0.00`/`0.00`|`1.00`/`1.00`|
-|`H5_rs_trait`|**`0.00`/`0.00`**|`0.50`/`0.33`|`1.00`/`0.33`|`1.00`/`0.67`|`1.00`/`0.33`|`1.00`/`1.00`|
+|`H5_rs_trait`|**`1.00`/`1.00`**|`0.50`/`0.33`|`1.00`/`0.33`|`1.00`/`0.67`|`1.00`/`0.33`|`1.00`/`1.00`|
 |`A1_go_absent`|`1.00`/`1.00`|`0.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
 |`A2_ts_absent`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
 |`A3_rs_absent`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
 |`O3_rs_outline`|`1.00`/`1.00`|`0.75`/`0.86`|`0.00`/`0.00`|`0.60`/`0.86`|`0.75`/`0.86`|`1.00`/`1.00`|
-|**aggregate**|**`0.89`/`0.83`, `7/9`**|`0.46`/`0.74`, `2/9`|`0.56`/`0.48`, `4/9`|`0.62`/`0.61`, `4/9`|`0.64`/`0.58`, `4/9`|`1.00`/`1.00`, `9/9`|
-|**tokens**|**`1,598`**|`4,425`|`5,562`|`16,449`|`8,669`|`74,783`|
+|**aggregate**|**`1.00`/`0.94`, `8/9`**|`0.46`/`0.74`, `2/9`|`0.56`/`0.48`, `4/9`|`0.62`/`0.61`, `4/9`|`0.64`/`0.58`, `4/9`|`1.00`/`1.00`, `9/9`|
+|**tokens**|**`1,689`**|`4,436`|`5,562`|`16,557`|`8,669`|`74,783`|
 |**calls**|`12`|`13`|`9`|`28`|`12`|`22`|
 
-`7/9` against `7/7` on the easier set, and `grep` plus reading answers all nine
-again. Kivgraph is the cheapest of the five at `1,598` tokens, `47x` under the
-reading baseline, which is worth exactly as much as its accuracy on the two it
-still gets wrong. The bridge that closed `H2` cost `43` tokens across the set
-and moved nothing else: `H1`, the homonym question, is the one a careless bridge
-would have polluted, and it holds at `1.00`/`1.00`.
+`8/9` against `7/7` on the easier set, and `grep` plus reading answers all nine
+again. Kivgraph is the cheapest of the five at `1,689` tokens, `44x` under the
+reading baseline, which is worth exactly as much as its accuracy on the one it
+still gets wrong.
 
-The published seven were re-run on the same binary to check the same thing from
-the other side, and stay at `7/7`, `1.00`/`1.00`, in `results-0.3.6.json`.
+The two bridges cost `134` tokens across the set and moved nothing else. `H1` is
+the question a careless bridge would have polluted -- three receivers, one name
+-- and it holds at `1.00`/`1.00`. The published seven were re-run on the same
+binary to check the same thing from the other side and stay at `7/7`,
+`1.00`/`1.00`, in `results-0.3.6.json`.
 
 ## What it found
 
-### 1. A call through an interface reached nothing -- Go closed, Rust open
+### 1. A call through an interface reached nothing, in both languages
 
-Both `H2` and `H5` answered `0.00`/`0.00`, with a sentence that is **false**:
+Both are `0.00`/`0.00`, and both answer with a sentence that is **false**:
 
 ```
 "nothing references this symbol in the published graph; the edges are
@@ -74,23 +206,29 @@ Both `H2` and `H5` answered `0.00`/`0.00`, with a sentence that is **false**:
 There is a caller. It calls through `Notifier` in Go and through
 `Arc<dyn StateStore>` in Rust, and in both cases the implementation asked about
 is the only one there is. This is the worst failure shape available -- a
-confident absence -- and it contradicted the claim the front page makes, that an
-empty reference list means nobody calls it. That claim held for a static call
-and did not hold for a dynamic one. `code-review-graph` answered `H2` exactly:
-it was not a boundary of the problem, it was ours.
+confident absence -- and it contradicts the claim the front page makes, that an
+empty reference list means nobody calls it. That claim holds for a static call
+and does not hold for a dynamic one.
+
+`code-review-graph` answered `H2` exactly: this was not a boundary of the
+problem, it was ours.
 
 The cause was not in the query. `IMPLEMENTS` related a type to an interface,
-which is what `types.Implements` decides, and **nothing related the concrete
-method to the interface method** -- the only fact that says which declaration a
-call arrives at.
+which is what `types.Implements` and `impl Trait for Type` decide, and **nothing
+related the concrete method to the interface method** -- the only fact that says
+which declaration a call arrives at. Rust had the pairing already but published
+it as `OVERRIDES`, which is a different relation from the one Go reports under
+that kind: there, a method that *hides* a promoted one, which a call never
+reaches. One canonical kind cannot mean both.
 
-ADR 0054 closed the Go half. The loader now pairs each interface method with
-the method `types.LookupFieldOrMethod` selects, which is the checker's own
-answer and not a name match, and `find_references` crosses that pairing **only
-where the subject is the one implementation**. With two, a call reaches one of
-them and naming both would trade a false absence for a false presence, so it is
-refused. Every bridged row carries `via` and the page declares
-`dispatch_through`, so nothing is passed off as a direct call:
+ADR 0054 closed both. Go pairs each interface method with the method
+`types.LookupFieldOrMethod` selects, which is the checker's own answer and not a
+name match; Rust reports its member pairing as `IMPLEMENTS`, where it belongs.
+`find_references` crosses the pairing **only where the subject is the one
+implementation**, which is where a call through the interface can reach nothing
+else. With two it refuses: a call reaches one of them and naming both would
+trade a false absence for a false presence. Every bridged row carries `via` and
+the page declares `dispatch_through`, so nothing is passed off as a direct call:
 
 ```json
 "edge_kind":"CALLS_DIRECT","provenance":"GO_AST_CALL",
@@ -98,10 +236,9 @@ refused. Every bridged row carries `via` and the page declares
 "dispatch_through":["NotifierSubRepo.FindPendingGuilds"]
 ```
 
-`H5` is unchanged at `0.00`/`0.00` and open by declared scope: Rust's
-`IMPLEMENTS` comes from `impl Trait for Type` and is still type-to-trait, so
-there is no pairing to cross. The query contract is written and tested; what is
-missing is the Rust loader doing what the Go one now does.
+`H5` closed at `1.00`/`1.00` with `via: state::StateStore::delete_player`, and
+its precision is the part worth reading: `routes_players.rs` also declares a
+free `delete_player` of its own, and the callers of *that* stayed out.
 
 ### 2. A cross-package type-only import is invisible (`H3`)
 

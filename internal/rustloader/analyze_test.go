@@ -252,7 +252,7 @@ func TestAnalyzeDerivesStructuralRelations(t *testing.T) {
 			relation.SourceKey == string(drawable.StableKey) &&
 			relation.TargetKey == string(named.StableKey):
 			extendsNamed = true
-		case relation.Kind == RelationOverrides &&
+		case relation.Kind == RelationImplements &&
 			relation.TargetKey == string(traitMethod.StableKey):
 			overridesName = true
 		}
@@ -272,12 +272,14 @@ func TestAnalyzeDerivesStructuralRelations(t *testing.T) {
 		}
 	}
 
-	// An inherent implementation relates a type to no trait, so `new` must
-	// not override anything.
+	// An inherent implementation relates a type to no trait, so `new`
+	// implements nothing: the member pairing exists only inside a block that
+	// names one, which is what keeps a call on Circle::new out of an answer
+	// about a trait method spelled the same.
 	inherent := definitionNamed(t, analysis, "shapes::impl::Circle::new")
 	for _, relation := range analysis.Relations {
-		if relation.Kind == RelationOverrides && relation.SourceKey == string(inherent.StableKey) {
-			t.Fatalf("an inherent method overrides nothing: %#v", relation)
+		if relation.Kind == RelationImplements && relation.SourceKey == string(inherent.StableKey) {
+			t.Fatalf("an inherent method implements nothing: %#v", relation)
 		}
 	}
 }
