@@ -220,6 +220,35 @@ func buildTypeScriptPackage(repository Repository, discovery TypeScriptDiscovery
 	if err != nil {
 		return TypeScriptPackage{}, false, err
 	}
+	// Solution tsconfigs used by Vite/React Router often contain only
+	// references to the real application and node projects. The worker indexes
+	// one project per package, so selecting that empty solution would produce a
+	// successful but empty package. Prefer the first referenced project with
+	// source inputs; ordinary single-project packages keep their current path.
+	if project != nil && !typeScriptMetadataHasSources(metadata) {
+		for _, reference := range project.References {
+			for index := range discovery.Projects {
+				candidate := &discovery.Projects[index]
+				if filepath.Clean(candidate.ConfigPath) != filepath.Clean(reference) {
+					continue
+				}
+				candidateMetadata, metadataErr := packageTypeScriptConfigMetadata(candidate)
+				if metadataErr != nil {
+					return TypeScriptPackage{}, false, metadataErr
+				}
+				if !typeScriptMetadataHasSources(candidateMetadata) {
+					continue
+				}
+				project = candidate
+				packageValue.ProjectPath = project.ConfigPath
+				metadata = candidateMetadata
+				break
+			}
+			if typeScriptMetadataHasSources(metadata) {
+				break
+			}
+		}
+	}
 	packageValue.SourceRoots, packageValue.DeclarationRoots, err = resolveTypeScriptRoots(packageRoot, packageValue.TypesPath, metadata)
 	if err != nil {
 		return TypeScriptPackage{}, false, err
@@ -236,6 +265,12 @@ func buildTypeScriptPackage(repository Repository, discovery TypeScriptDiscovery
 		packageValue.SourceRoots = appendUniqueTypeScriptPath(packageValue.SourceRoots, sourceRoot)
 	}
 	return packageValue, true, nil
+}
+
+func typeScriptMetadataHasSources(metadata typeScriptConfigMetadata) bool {
+	return len(metadata.Include) > 0 || len(metadata.Files) > 0 ||
+		len(metadata.CompilerOptions.RootDirs) > 0 ||
+		strings.TrimSpace(metadata.CompilerOptions.RootDir) != ""
 }
 
 func validateTypeScriptPackageName(name string) error {

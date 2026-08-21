@@ -37,6 +37,22 @@ func TestDartReferenceKindClassifiesResolvedUses(t *testing.T) {
 	}
 }
 
+func TestDartAnalyzerOutlinesIgnoreExternalConstructorInvocations(t *testing.T) {
+	root := filepath.FromSlash("/workspace/app")
+	if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: "/sdk/flutter/widgets.dart"}}}, root) {
+		t.Fatal("external constructor invocation should not become a declaration")
+	}
+	if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR_INVOCATION", Location: &analyzerLocation{File: "/workspace/app/lib/widgets.dart"}}}, root) {
+		t.Fatal("constructor invocation should not become a declaration")
+	}
+	if isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: "/workspace/app/lib/widgets.dart"}}}, root) {
+		t.Fatal("constructor declaration in the repository should remain available")
+	}
+	if isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "METHOD"}}, root) {
+		t.Fatal("methods are declarations")
+	}
+}
+
 func TestRunAgainstConfiguredDartProject(t *testing.T) {
 	root := os.Getenv("KIVGRAPH_DART_ROOT")
 	if root == "" {

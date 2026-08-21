@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -150,11 +151,16 @@ type SemanticUnresolved struct {
 // receive when its own payload is normalised. It is shared by the consumer
 // normaliser and the merge bridge so cross-repository edges cannot drift.
 func SemanticTargetKey(language Language, target SemanticTarget) (string, error) {
+	module := ""
+	if language == LanguageDart {
+		module = filepath.ToSlash(filepath.Clean(strings.TrimSpace(target.File)))
+	}
 	identity := hotsnapshot.StableKeyIdentity{
 		FormatVersion: hotsnapshot.StableKeyFormatVersion,
 		Language:      string(language),
 		Repository:    strings.TrimSpace(target.Repository),
 		Package:       strings.TrimSpace(target.Package),
+		Module:        module,
 		QualifiedName: strings.TrimSpace(target.QualifiedName),
 		Kind:          strings.TrimSpace(target.Kind),
 		Discriminator: target.Signature,
@@ -200,6 +206,7 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 	packageKey := PackageKey(payload.Language, name, packageName)
 	set := Set{Repositories: []Repository{{Key: repositoryKey, Name: name, RootPath: root, Languages: []Language{payload.Language}}}}
 	set.Packages = append(set.Packages, Package{Key: packageKey, RepositoryKey: repositoryKey, Language: payload.Language, Name: packageName, RootPath: filepath.Clean(packageRoot), ManifestPath: payload.Package.ManifestPath})
+	set.Edges = append(set.Edges, Edge{Kind: ContainsPackage, SourceKey: repositoryKey, TargetKey: packageKey, Confidence: StructuralCertain, Provenance: PackageManifest})
 
 	fileKeys := make(map[string]string, len(payload.Files))
 	for _, file := range payload.Files {
@@ -217,12 +224,27 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 	}
 	symbolKeys := make(map[string]string, len(payload.Symbols))
 	moduleKeys := make(map[string]string)
+	dartIdentityCounts := make(map[string]int)
+	if payload.Language == LanguageDart {
+		for _, symbol := range payload.Symbols {
+			identity := strings.Join([]string{symbol.QualifiedName, symbol.Kind, symbol.Signature, filepath.ToSlash(filepath.Clean(symbol.File))}, "\x00")
+			dartIdentityCounts[identity]++
+		}
+	}
 	for _, symbol := range payload.Symbols {
 		fileKey, ok := fileKeys[filepath.ToSlash(filepath.Clean(symbol.File))]
 		if !ok {
 			return Set{}, fmt.Errorf("%w: symbol %q references unreported file %q", ErrInvalidFacts, symbol.Name, symbol.File)
 		}
 		identity := hotsnapshot.StableKeyIdentity{FormatVersion: hotsnapshot.StableKeyFormatVersion, Language: string(payload.Language), Repository: name, Package: packageName, QualifiedName: symbol.QualifiedName, Kind: symbol.Kind, Discriminator: symbol.Signature}
+		if payload.Language == LanguageDart {
+			module := filepath.ToSlash(filepath.Clean(symbol.File))
+			collision := strings.Join([]string{symbol.QualifiedName, symbol.Kind, symbol.Signature, module}, "\x00")
+			if dartIdentityCounts[collision] > 1 {
+				module += "#" + strconv.Itoa(symbol.Start)
+			}
+			identity.Module = module
+		}
 		canonical, err := identity.Canonical()
 		if err != nil {
 			return Set{}, fmt.Errorf("semantic symbol %q identity: %w", symbol.QualifiedName, err)
@@ -305,6 +327,9 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 		}
 		sourceKey := symbolKeys[importFact.SourceID]
 		sourceSymbolKey := sourceKey
+		if sourceKey == "" {
+			sourceKey = moduleKeys[filepath.ToSlash(filepath.Clean(importFact.File))]
+		}
 		if sourceKey == "" {
 			sourceKey = fileKey
 		}
