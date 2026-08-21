@@ -142,8 +142,11 @@ at their own repository gets a new directory inside it.
   any of the five.
 - `o200k_base` is a proxy for the Claude tokenizer: the ratios between rows are
   the claim, the absolute values are not.
-- One pass per measurement. graft varies by up to `9%` in tokens between builds
-  of an unchanged tree; the others were not tested for non-determinism.
+- Three full cold passes, and the spread was measured rather than assumed:
+  kivgraph, graft, graphify and `grep` returned **the same number all three
+  times**; code-review-graph moved by `0.1%`; codebase-memory-mcp by `1.8%` in
+  tokens **and between `3` and `4` exact answers out of seven**, so it is the one
+  row whose accuracy depends on the pass. The figures above are the first pass.
 - Only the free, model-free tiers. `graft --deep`, graphify's semantic pass and
   code-review-graph's embeddings need a provider key and were not measured.
 - code-review-graph and graphify indexed the four repositories the questions name

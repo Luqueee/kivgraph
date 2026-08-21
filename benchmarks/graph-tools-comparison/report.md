@@ -232,9 +232,13 @@ invisible, que es el cero de `R1` para las dos.
   general de ninguna de las cinco.
 - El tokenizador es `o200k_base`, un proxy del de Claude: los cocientes entre
   filas son la afirmación, los valores absolutos no.
-- Una sola pasada por medición. graft varía hasta un `9 %` en tokens entre
-  builds del mismo árbol, medido en `benchmarks/graft-comparison`; las demás no
-  se probaron para no-determinismo.
+- Tres pasadas completas en frío, y la variación se midió en vez de suponerse:
+  kivgraph, graft, graphify y `grep` dieron **el mismo número las tres veces**;
+  code-review-graph varió un `0,1 %`; codebase-memory-mcp un `1,8 %` en tokens
+  **y entre `3` y `4` respuestas exactas de siete**, así que su fila es la única
+  cuya exactitud depende de la pasada. Las cifras de este informe son las de la
+  primera. graft varía hasta un `9 %` en el harness de dos vías, donde su grafo
+  se reconstruye por pasada; aquí, con el mismo protocolo en frío, no se movió.
 - Sólo los tiers gratuitos y sin modelo. `graft --deep`, la pasada semántica de
   graphify y los embeddings de crg necesitan clave de proveedor y no se midieron.
   Es la ausencia declarada de este informe.
