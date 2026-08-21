@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/app"
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -109,8 +111,8 @@ func main() {
 		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		if err := runConfiguredServe(ctx, os.Args[2:], func(ctx context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer) error {
-			return mcpserver.RunWithSnapshotStoreAndIndexer(ctx, store, indexer)
+		if err := runConfiguredServe(ctx, os.Args[2:], func(ctx context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
+			return mcpserver.RunWithMetricsAndSnapshotStoreAndIndexer(ctx, toolMetricsRegistry(events), store, indexer)
 		}); err != nil {
 			logger.Error("MCP server stopped with error", "command", "serve", "error", err)
 			os.Exit(1)
@@ -179,7 +181,7 @@ func runServe(ctx context.Context, runMCP mcpRunner) error {
 type storageDiagnoser func(context.Context, string) (ladybug.StorageDiagnosis, error)
 
 type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, error)
-type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer) error
+type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
 type configuredWebRunner func(context.Context, string, http.Handler) error
 
 // ensureConfiguration writes the default configuration when there is none.
@@ -362,12 +364,29 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	}
 	defer store.Close()
 	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
+	events := openEventLog(loaded.Config, os.Stderr)
+	defer events.Close()
+	// The started/stopped pair is what makes the tool lines between them
+	// readable: without it a reader cannot tell one server's calls from the
+	// calls of the server that replaced it after an update.
+	started := time.Now()
+	events.Append(eventlog.Event{
+		Kind:       eventlog.KindServe,
+		Message:    "MCP server started",
+		Generation: publishedGenerationID(store),
+	})
+	defer func() {
+		events.Append(eventlog.Event{
+			Kind:    eventlog.KindServe,
+			Message: "MCP server stopped",
+		}.WithDuration(time.Since(started)))
+	}()
 	stopFollower := followPublishedGeneration(ctx, loaded, store, "serve", indexing.FollowOptions{})
 	defer stopFollower()
 	stopResync := resyncOnBranchChange(ctx, loaded, store, projectIndexer, "serve")
 	defer stopResync()
 	return runServe(ctx, func(ctx context.Context) error {
-		return runMCP(ctx, store, projectIndexer)
+		return runMCP(ctx, store, projectIndexer, events)
 	})
 }
 
@@ -620,6 +639,12 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if len(args) >= 2 && args[1] == "stats" {
 		return runStats(args[2:], stdout, stderr, procstat.List)
 	}
+	if len(args) >= 2 && args[1] == "logs" {
+		return runLogs(args[2:], stdout, stderr)
+	}
+	if len(args) >= 2 && args[1] == "tool-stats" {
+		return runToolStats(args[2:], stdout, stderr)
+	}
 	if len(args) >= 2 && args[1] == "rebuild" {
 		return runRebuild(args[2:], stdout, stderr, rebuilder)
 	}
@@ -650,13 +675,22 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, stdout, stderr, update.Run)
+	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess)
 }
 
-func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateRunner) int {
+func runUpdateWithRunner(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+) int {
 	flags := flag.NewFlagSet("update", flag.ContinueOnError)
 	checkOnly := false
+	stopStale := false
 	flags.BoolVar(&checkOnly, "check", false, "check for a newer release without installing it")
+	flags.BoolVar(&stopStale, "stop", false, "stop the processes still running the previous release without asking")
 	if parsed, code := parseCommandFlags("update", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -687,7 +721,84 @@ func runUpdateWithRunner(args []string, stdout, stderr io.Writer, runner updateR
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
+	return stopStaleProcesses(stdin, stdout, stderr, list, signal, stopStale, result.LatestVersion)
+}
+
+// stopStaleProcesses offers to end the servers that outlived the bundle they
+// were started from.
+//
+// The update replaced the installation directory, so a `serve` or `ui` that was
+// already running keeps answering from the image that was swapped out -- with
+// the old tools, the old descriptions and the old bugs -- and nothing in its
+// output says so. A client spawned it and will not restart it on its own.
+//
+// Refusing to stop anything is the default whenever the answer cannot be asked
+// for: these are processes a client owns, and ending one silently would look to
+// that client exactly like a crash.
+func stopStaleProcesses(
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	list processLister,
+	signal processSignaller,
+	stopStale bool,
+	release string,
+) int {
+	processes, err := list()
+	if err != nil {
+		// The update itself succeeded. Failing the command now would say
+		// the release did not install, which is false.
+		writeWarning(stderr, "update: could not list the processes still running the previous release: %v", err)
+		return 0
+	}
+	targets := stoppableProcesses(processes, os.Getpid())
+	if len(targets) == 0 {
+		return 0
+	}
+	writeWarning(stdout, "update: %d process(es) still run the release this update replaced", len(targets))
+	for _, target := range targets {
+		writeInfo(stdout, "update.stale: pid=%d %s", target.PID, target.Command())
+	}
+	if !stopStale {
+		if !promptYes(stdin, stdout, fmt.Sprintf("stop them now so they answer from %s?", release)) {
+			writeInfo(stdout, "update: nothing was stopped; run \"kivgraph stop\" when the clients can reconnect")
+			return 0
+		}
+	}
+	killed, failed := stopTargets(targets, stdout, stderr, list, signal)
+	if failed != 0 {
+		writeResult(stdout, false, "update.stop: FAIL (%d of %d)", failed, len(targets))
+		return 1
+	}
+	writeSuccess(stdout, "update.stop: %d process(es) stopped, %d killed", len(targets)-killed, killed)
 	return 0
+}
+
+// promptYes asks a yes-or-no question and defaults to no.
+//
+// A destination that is not a terminal is not asked at all: `kivgraph update`
+// runs from scripts and from other agents, and a prompt written into a pipe
+// would block on an answer that is never coming.
+func promptYes(stdin io.Reader, stdout io.Writer, question string) bool {
+	if stdin == nil || !integrationTUIIsInteractive(stdout) {
+		return false
+	}
+	if file, ok := stdin.(*os.File); ok && !isTerminal(file) {
+		return false
+	}
+	styles := styleFor(stdout)
+	fmt.Fprintf(stdout, "%s%s%s [y/N] ", styles.accent, question, styles.reset)
+	reader := bufio.NewReader(stdin)
+	answer, err := reader.ReadString('\n')
+	if err != nil && answer == "" {
+		fmt.Fprintln(stdout, "")
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 type stringList []string
@@ -846,13 +957,19 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	progressStart := time.Now()
+	events := openEventLog(loaded.Config, stderr)
+	defer events.Close()
 	options := indexing.OptionsFromConfig(loaded.Config)
 	options.Repositories = registry.List()
 	options.WorkingDirectory = workingDirectory
 	options.ResolverVersion = resolverVersion
 	if jsonOutput {
-		return runIndexFullEvents(ctx, options, stdout, stderr)
+		return runIndexFullEvents(ctx, options, events, progressStart, stdout, stderr)
 	}
+	events.Append(eventlog.Event{
+		Kind:    eventlog.KindIndex,
+		Message: fmt.Sprintf("index --full started over %d repository(ies)", len(options.Repositories)),
+	})
 	options.Progress = func(event indexer.ProgressEvent) {
 		writeIndexProgress(stderr, progressStart, event)
 	}
@@ -860,6 +977,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		writeInfo(stderr, "[%6.1fs] rebuild %s", time.Since(progressStart).Seconds(), stage)
 	}
 	fullResult, err := indexing.RunFull(ctx, options)
+	recordIndexRun(events, fullResult.RebuildReport, int64(fullResult.Counts.Symbols), time.Since(progressStart), err)
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
@@ -946,8 +1064,14 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 func runIndexFullEvents(
 	ctx context.Context,
 	options indexing.FullOptions,
+	events *eventlog.Writer,
+	started time.Time,
 	stdout, stderr io.Writer,
 ) int {
+	events.Append(eventlog.Event{
+		Kind:    eventlog.KindIndex,
+		Message: fmt.Sprintf("index --full started over %d repository(ies)", len(options.Repositories)),
+	})
 	encoder := json.NewEncoder(stdout)
 	emit := func(event indexing.FullEvent) {
 		// A caller that stopped reading is not a reason to abandon a pass
@@ -965,6 +1089,7 @@ func runIndexFullEvents(
 	}
 
 	result, err := indexing.RunFull(ctx, options)
+	recordIndexRun(events, result.RebuildReport, int64(result.Counts.Symbols), time.Since(started), err)
 	document := indexing.DocumentFromResult(result)
 	if err != nil {
 		document.Passed = false
@@ -2059,8 +2184,30 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 		return 0
 	}
 
-	failed := 0
-	killed := 0
+	killed, failed := stopTargets(targets, stdout, stderr, list, signal)
+	if failed != 0 {
+		writeResult(stdout, false, "stop: FAIL (%d of %d)", failed, len(targets))
+		return 1
+	}
+	writeSuccess(stdout, "stop: %d process(es) stopped, %d killed", len(targets)-killed, killed)
+	return 0
+}
+
+// stopTargets ends each target and reports how many had to be killed and how
+// many could not be ended at all.
+//
+// It is shared with `update`, which faces the same processes for a different
+// reason: after a bundle is replaced they are still running the image that was
+// swapped out. The escalation must be the one `stop` uses -- SIGTERM, a bounded
+// wait, and a second identity check before SIGKILL, because a pid freed during
+// that wait can already belong to something else -- so there is exactly one
+// copy of it.
+func stopTargets(
+	targets []procstat.Process,
+	stdout, stderr io.Writer,
+	list processLister,
+	signal processSignaller,
+) (killed, failed int) {
 	for _, target := range targets {
 		if err := signal(target.PID, syscall.SIGTERM); err != nil {
 			writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
@@ -2071,8 +2218,6 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
 			continue
 		}
-		// The identity is checked again before escalating: a pid freed
-		// during the grace period can already belong to something else.
 		if !stillRunning(target, list) {
 			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
 			continue
@@ -2085,12 +2230,7 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 		writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
 		killed++
 	}
-	if failed != 0 {
-		writeResult(stdout, false, "stop: FAIL (%d of %d)", failed, len(targets))
-		return 1
-	}
-	writeSuccess(stdout, "stop: %d process(es) stopped, %d killed", len(targets)-killed, killed)
-	return 0
+	return killed, failed
 }
 
 // stoppableProcesses selects the long-running commands: a server and a

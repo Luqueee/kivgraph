@@ -51,6 +51,25 @@ func observe[T any](
 	}
 }
 
+// observeCall times a tool whose result is not a paginated Response, which is
+// every mutating tool. Without it index_project would be the one call a client
+// can make that no counter and no log ever sees -- and it is the slowest one.
+func observeCall(
+	observer Observer,
+	callObserver CallObserver,
+	toolName string,
+	start time.Time,
+	err error,
+) {
+	elapsed := time.Since(start)
+	if observer != nil {
+		observer(toolName, elapsed)
+	}
+	if callObserver != nil {
+		callObserver(CallObservation{ToolName: toolName, Elapsed: elapsed, Err: err})
+	}
+}
+
 func firstCallObserver(observers []CallObserver) CallObserver {
 	if len(observers) == 0 {
 		return nil

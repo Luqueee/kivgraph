@@ -209,6 +209,8 @@ Day to day:
 kivgraph graph status      # what is published, and whether a tree has moved
 kivgraph doctor            # toolchains, storage, and the type-checking ceiling
 kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
+kivgraph logs --follow     # what it indexed, served and answered, as it happens
+kivgraph tool-stats        # per-tool cost, calls, and failures
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
 ```
@@ -216,6 +218,11 @@ kivgraph clean --keep-active
 `kivgraph ui` binds a non-loopback address by default, because the graph is
 indexed where the repositories are and looked at from elsewhere; there is no
 authentication, so it logs exactly what it exposes and `--addr` restricts it.
+
+`logs` and `tool-stats` read an append-only record in the state directory
+rather than asking a server, which is why they can answer at all: the per-tool
+counters a `serve` keeps are minted when it starts and gone when it stops.
+Reading the file also makes the answer span every server that ever ran.
 
 Configure any MCP client to start the server over STDIO:
 

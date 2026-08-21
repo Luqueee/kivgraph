@@ -56,6 +56,36 @@ superficie observable.
 - `doctor` informa del techo de versión con el que este binario comprueba
   tipos, no solo del `go` del PATH: son números distintos y el que decide si un
   repositorio se puede indexar es el primero.
+- `logs` y `tool-stats` leen el registro durable de `internal/eventlog`, no
+  preguntan a un servidor, y ese es el motivo de que puedan responder: los
+  contadores por tool que un `serve` mantiene se acuñan al arrancar y se
+  descartan al salir, así que una pregunta hecha desde otro proceso -- que es lo
+  que es un comando -- encontraría siempre un registro vacío. Leer el fichero
+  hace además que la respuesta abarque todos los servidores que corrieron, que
+  es el intervalo que la pregunta implica. Ver ADR 0049.
+- La insignia de `logs` nombra **qué** pasó, no sólo lo mal que fue: un fallo es
+  `ERROR` y una respuesta degradada es `WARN`, pero una llamada que contestó es
+  `TOOL` y una pasada es `INDEX`. Un registro donde toda línea rutinaria dijera
+  `INFO` dejaría al lector haciendo la clasificación que el escritor ya sabía.
+  Es la única superficie con fondo sólido: el resto de la salida no-TUI sólo
+  tiene color de primer plano, y un `styleFor` que devuelve el estilo vacío
+  sigue siendo lo que mantiene la vista redirigida en texto plano.
+- La duración queda **fuera** de la identidad que colapsa líneas repetidas.
+  Cada llamada tiene su tiempo propio, así que incluirla significaría que nada
+  con duración se colapsa nunca -- y doce `find_references` seguidos son
+  exactamente lo que un lector quiere ver como una fila con su media, no como
+  doce filas que pasar. La fila lleva el instante de la ocurrencia más reciente,
+  porque la pregunta que una línea repetida plantea es si sigue pasando.
+- Un campo renderizado se pliega a una línea y se acota. Un fallo del cargador
+  de Go llega con saltos de línea y una transcripción de `stderr` dentro:
+  imprimirlo tal cual rompe el contrato de un registro por línea del que
+  dependen todos los filtros y todo lector de esta salida. Observado en la
+  primera pasada que falló de verdad, no supuesto.
+- Los percentiles viven en el lector. `internal/metrics` retiene la latencia
+  como cuenta, suma y máximo a propósito; el fichero guarda cada llamada, así
+  que `tool-stats` puede contestar lo que una media esconde -- una tool cuya
+  mediana es rápida y cuya cola no -- y sólo colorea la fila que falló, porque
+  una tabla donde toda línea está pintada no dice qué línea leer.
 
 ## Protocolo de `index --full --json`
 
@@ -80,6 +110,16 @@ superficie observable.
   sólo entonces `SIGKILL`, y antes de escalar vuelve a comprobar que el pid
   sigue siendo la misma invocación: un pid liberado durante la espera puede ya
   pertenecer a otro proceso. `--dry-run` enumera sin señalar.
+- `kivgraph update` ofrece parar lo que sobrevivió al bundle que reemplazó. Un
+  `serve` o un `ui` que ya estaba corriendo sigue respondiendo desde la imagen
+  que se intercambió -- con las tools viejas, las descripciones viejas y los
+  bugs viejos -- y nada en su salida lo dice; el cliente que lo lanzó no lo
+  reinicia por su cuenta. **No parar nada es el valor por defecto** siempre que
+  la respuesta no se pueda preguntar: son procesos que un cliente posee, y
+  terminar uno en silencio se le parece exactamente a una caída. `--stop` es la
+  respuesta scriptable, y la escalada es la de `stop` -- una sola copia, en
+  `stopTargets` -- no una segunda parecida. Una instalación que funcionó nunca
+  se reporta como fallo porque la lista de procesos no se pudiera leer.
 
 ## `kivgraph ui`
 

@@ -150,6 +150,15 @@ by default and the configured provider belongs to the caller.
 | --- | --- | --- |
 | `format` | `json` | `json` or `text`. |
 | `level` | `info` | `debug`, `info`, `warn` or `error`. |
+| `event_log_path` | `~/.local/state/kivgraph/events.jsonl` | The append-only record `kivgraph logs` and `kivgraph tool-stats` read. |
+
+`event_log_path` is state, not configuration: it holds one JSON object per line
+describing an indexing pass, a tool call or a server's lifecycle. It rotates at
+8 MiB and keeps one rotation, so the history costs at most 16 MiB and a store
+that outgrows that drops its oldest records. Deleting it loses history and
+nothing else. An empty value is refused rather than defaulted, because the
+default lives in the shared state directory and substituting it would make an
+isolated configuration write into the real installation.
 
 ## The repository registry
 
