@@ -140,7 +140,7 @@ func newServerWithIndexer(
 	if !published {
 		// index_project is the exception: it is how a client without a graph
 		// builds one, and it needs no graph to run.
-		tools.RegisterIndexProject(server, indexer)
+		tools.RegisterIndexProject(server, indexer, callObserver)
 		return server
 	}
 	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
@@ -153,7 +153,7 @@ func newServerWithIndexer(
 	tools.RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterTraceDependenciesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetBlastRadiusWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
-	tools.RegisterIndexProject(server, indexer)
+	tools.RegisterIndexProject(server, indexer, callObserver)
 	return server
 }
 

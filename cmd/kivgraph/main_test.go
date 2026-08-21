@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
@@ -94,7 +95,7 @@ func TestRunUpdateCheckUsesReleaseRunner(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner([]string{"--check"}, &stdout, &stderr, runner); got != 0 {
+	if got := runUpdateWithRunner([]string{"--check"}, nil, &stdout, &stderr, runner, noProcesses, nil); got != 0 {
 		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if !called {
@@ -122,7 +123,7 @@ func TestRunUpdateReportsInstalledRelease(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner(nil, &stdout, &stderr, runner); got != 0 {
+	if got := runUpdateWithRunner(nil, nil, &stdout, &stderr, runner, noProcesses, nil); got != 0 {
 		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if got, want := stdout.String(), "kivgraph updated: "+version.Value+" -> 0.1.1\n"; got != want {
@@ -262,7 +263,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 
 	var gotStore *hotsnapshot.SnapshotStore
 	if err := runConfiguredServe(context.Background(), nil,
-		func(_ context.Context, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer) error {
+		func(_ context.Context, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			return nil
 		}); err != nil {
@@ -295,7 +296,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := runConfiguredServe(context.Background(), []string{"--config", configPath},
-		func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer) error {
+		func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
 			t.Fatal("serve ran with a configuration it could not read")
 			return nil
 		})
@@ -417,7 +418,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 	var gotStore *hotsnapshot.SnapshotStore
 	var gotIndexer indexing.ProjectIndexer
 	err := runConfiguredServe(context.Background(), []string{"--config", configPath},
-		func(_ context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer) error {
+		func(_ context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			gotIndexer = indexer
 			return nil
@@ -1759,6 +1760,8 @@ func TestRunIndexFullEventsWritesOnlyTheEventStream(t *testing.T) {
 	if code := runIndexFullEvents(
 		context.Background(),
 		indexing.FullOptions{ResolverVersion: "test"},
+		nil,
+		time.Now(),
 		&stdout,
 		&stderr,
 	); code != 1 {

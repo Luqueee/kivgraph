@@ -25,6 +25,9 @@ invocation with no command, or with an unknown one, writes a single line to
 | `doctor storage --database PATH` | Inspect one LadybugDB database file |
 | `doctor graph --database PATH` | Validate the canonical graph of a database |
 | `graph status --root PATH` | Report the active and backup generations |
+| `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
+| `logs [--follow] [--kind K] [--tool NAME] [--since D] [--limit N] [--failures] [--json]` | Read what this machine indexed, served and answered |
+| `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |
 | `version [--json]` | Print the release, with --json for full provenance |
 
 ## Maintenance
@@ -35,7 +38,7 @@ invocation with no command, or with an unknown one, writes a single line to
 | `clean [--keep-active] [--yes]` | Remove published graph generations |
 | `rollback --root PATH [--generation ID]` | Return to the previous generation |
 | `snapshot --root PATH [--generation ID]` | Rebuild the hot snapshot of a generation |
-| `update [--check]` | Install the latest published release |
+| `update [--check] [--stop]` | Install the latest published release |
 
 ## Integrations
 

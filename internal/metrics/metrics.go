@@ -38,15 +38,33 @@ const (
 // observations and reports. Query observations are lock-free after a tool name
 // has been seen once.
 type Registry struct {
-	mu      sync.RWMutex
-	queries map[string]*queryCounter
-	state   lifecycleState
-	otel    *OpenTelemetry
+	mu       sync.RWMutex
+	queries  map[string]*queryCounter
+	state    lifecycleState
+	otel     *OpenTelemetry
+	recorder QueryRecorder
 }
+
+// QueryRecorder receives every observed query. It is how an observation
+// outlives the process that made it: the counters in this registry are minted
+// fresh by each server and discarded when it exits, so a reader running as its
+// own process can only see what a recorder wrote down.
+//
+// It runs on the calling goroutine, inside the hot path of a tool call, so an
+// implementation must not block.
+type QueryRecorder func(QueryObservation)
 
 // NewRegistry creates an empty metrics registry.
 func NewRegistry() *Registry {
 	return &Registry{queries: make(map[string]*queryCounter)}
+}
+
+// NewRegistryWithRecorder creates a registry that also hands every query
+// observation to recorder. A nil recorder yields a plain registry.
+func NewRegistryWithRecorder(recorder QueryRecorder) *Registry {
+	registry := NewRegistry()
+	registry.recorder = recorder
+	return registry
 }
 
 // QueryObservation is the completed result of one MCP query handler.
@@ -215,6 +233,9 @@ func (r *Registry) ObserveQuery(observation QueryObservation) {
 	}
 	if r.otel != nil {
 		r.otel.observeQuery(observation)
+	}
+	if r.recorder != nil {
+		r.recorder(observation)
 	}
 }
 

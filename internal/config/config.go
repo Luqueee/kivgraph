@@ -28,6 +28,7 @@ const (
 	defaultFactCachePath = "~/.local/state/kivgraph/factcache"
 	defaultSyntheticWork = "~/.local/state/kivgraph/go.work"
 	defaultRustTargetDir = "~/.local/state/kivgraph/rust-target"
+	defaultEventLogPath  = "~/.local/state/kivgraph/events.jsonl"
 
 	maximumConfiguredDepth = 5
 )
@@ -257,6 +258,12 @@ type TelemetryConfig struct {
 type LoggingConfig struct {
 	Format string `yaml:"format"`
 	Level  string `yaml:"level"`
+	// EventLogPath is the append-only record of indexing passes, tool calls
+	// and server lifecycle that `kivgraph logs` and `kivgraph tool-stats`
+	// read. It lives in the state directory rather than beside the
+	// configuration because it is derived data: losing it costs history, not
+	// a working installation.
+	EventLogPath string `yaml:"event_log_path"`
 }
 
 // RepositoriesFile is the repository registry document referenced by Config.
@@ -388,8 +395,9 @@ func DefaultConfig() Config {
 			Traces:  false,
 		},
 		Logging: LoggingConfig{
-			Format: "json",
-			Level:  "info",
+			Format:       "json",
+			Level:        "info",
+			EventLogPath: defaultEventLogPath,
 		},
 	}
 }
@@ -417,6 +425,7 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
 	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
 	configuration.Rust.TargetDirectory = filepath.Join(state, "rust-target")
+	configuration.Logging.EventLogPath = filepath.Join(state, "events.jsonl")
 	if ownRegistry {
 		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
 	}
@@ -505,6 +514,7 @@ func Initialize(options InitOptions) (InitResult, error) {
 		expandedConfiguration.Storage.SnapshotsPath,
 		expandedConfiguration.Storage.BackupsPath,
 		filepath.Dir(expandedConfiguration.Go.SyntheticWorkFile),
+		filepath.Dir(expandedConfiguration.Logging.EventLogPath),
 	} {
 		if err := ensureDirectory(directory); err != nil {
 			return InitResult{}, err
@@ -782,6 +792,9 @@ func hasMappingField(root *yaml.Node, field string) bool {
 	return false
 }
 
+// An empty event_log_path is refused rather than defaulted: the default lives
+// in the shared state directory, so silently substituting it would make an
+// isolated configuration write its history into the real installation.
 func expandConfigPaths(configuration *Config, base string) error {
 	paths := []struct {
 		name  string
@@ -794,6 +807,10 @@ func expandConfigPaths(configuration *Config, base string) error {
 		{"go.synthetic_work_file", &configuration.Go.SyntheticWorkFile},
 		{"rust.target_directory", &configuration.Rust.TargetDirectory},
 		{"indexing.fact_cache_path", &configuration.Indexing.FactCachePath},
+		{"logging.event_log_path", &configuration.Logging.EventLogPath},
+	}
+	if strings.TrimSpace(configuration.Logging.EventLogPath) == "" {
+		return errors.New("config.logging.event_log_path: must not be empty")
 	}
 	for _, path := range paths {
 		expanded, err := expandPath(*path.value, base)
@@ -824,6 +841,7 @@ func validateConfig(configuration Config) error {
 		"storage.backups_path":        configuration.Storage.BackupsPath,
 		"go.synthetic_work_file":      configuration.Go.SyntheticWorkFile,
 		"rust.target_directory":       configuration.Rust.TargetDirectory,
+		"logging.event_log_path":      configuration.Logging.EventLogPath,
 	} {
 		if !filepath.IsAbs(value) {
 			return fmt.Errorf("config.%s: path must be absolute after expansion, got %q", field, value)

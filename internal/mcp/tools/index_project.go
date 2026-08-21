@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -74,10 +75,20 @@ func (input IndexProjectInput) projects() ([]indexing.Project, error) {
 // RegisterIndexProject adds the mutating project-indexing tool. The tool is
 // absent when no configured indexer is supplied, so the empty/read-only MCP
 // server cannot accidentally gain filesystem or storage access.
-func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer) {
+//
+// The observers are variadic because every other Register* in this package
+// takes them that way, and because this tool acquired them late: it is the one
+// call that costs minutes, so leaving it untimed made the log quietest exactly
+// where a reader most needs it.
+func RegisterIndexProject(
+	server *sdkmcp.Server,
+	indexer indexing.ProjectIndexer,
+	callObservers ...CallObserver,
+) {
 	if server == nil || indexer == nil {
 		return
 	}
+	callObserver := firstCallObserver(callObservers)
 	confirmed := true
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        indexProjectToolName,
@@ -93,11 +104,14 @@ func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer
 		request *sdkmcp.CallToolRequest,
 		arguments IndexProjectInput,
 	) (*sdkmcp.CallToolResult, indexing.ProjectResult, error) {
+		start := time.Now()
 		batch, err := arguments.projects()
 		if err != nil {
+			observeCall(nil, callObserver, indexProjectToolName, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
 		if err := requireIndexConsent(ctx, request, batch, arguments.Confirmed); err != nil {
+			observeCall(nil, callObserver, indexProjectToolName, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
 		result, err := indexer.IndexProjects(ctx, batch, progressReporter(ctx, request))
@@ -110,12 +124,15 @@ func RegisterIndexProject(server *sdkmcp.Server, indexer indexing.ProjectIndexer
 			// the error as text, so anything left in a side channel
 			// forces an operator to reproduce the whole run on the
 			// CLI to read one line.
-			return nil, indexing.ProjectResult{}, WrapToolError(
+			failure := WrapToolError(
 				CodeIndexingFailed,
 				"project indexing failed: "+err.Error(),
 				err,
 			)
+			observeCall(nil, callObserver, indexProjectToolName, start, failure)
+			return nil, indexing.ProjectResult{}, failure
 		}
+		observeCall(nil, callObserver, indexProjectToolName, start, nil)
 		return nil, result, nil
 	})
 }

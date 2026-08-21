@@ -270,6 +270,10 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   identificador, nunca un componente de ruta, y las stable keys que lo llevan
   distinguen mayúsculas: dos repositorios que sólo difieren en el caso son dos
   repositorios y tienen que poder registrarse con su nombre real.
+- Toda ruta de estado nueva se reubica en `stateBesideConfig`, no sólo se añade
+  a `DefaultConfig`. Es lo que hace autocontenida la regla de arriba: una ruta
+  que se olvide ahí manda su contenido a la instalación real desde una prueba
+  bajo `/tmp`. `logging.event_log_path` es la última que entró.
 
 ## Servidores HTTP, assets y procesos
 
@@ -292,6 +296,33 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   los procesos de este usuario, que son exactamente los que se podrían señalar;
   una plataforma que no sabe enumerar devuelve error, no una lista vacía, y `0`
   significa desconocido.
+
+- `internal/eventlog` es el registro durable de lo que pasó: una pasada, una
+  llamada de tool, el ciclo de vida de un servidor. Es un fichero JSON-lines de
+  solo-añadir, y esa forma es la que lo hace seguro para los varios procesos que
+  lo escriben a la vez: un registro es una sola escritura de mucho menos que un
+  buffer de tubería sobre un descriptor `O_APPEND`, que POSIX mantiene entera.
+  No hay cerrojo entre procesos y no se lee antes de escribir; añadir cualquiera
+  de las dos cosas no compraría nada. Ver ADR 0049.
+- **No es una API.** Es estado derivado y no lleva versión de esquema: borrarlo
+  pierde historia y nada más. Un lector salta una línea que no parsea en vez de
+  fallar la lectura, porque el fichero lo escriben varios procesos y uno puede
+  ser de una versión que conoce campos que otra no.
+- Un sumidero que no se puede abrir **degrada con un aviso**, nunca falla el
+  trabajo que describe. Un `*eventlog.Writer` nulo descarta, así que ningún
+  productor lleva una rama para ese caso; y `Append` no devuelve error por la
+  misma razón.
+- La medición por tool ya existía y sigue donde estaba: `tools.observe` es el
+  único punto por el que pasan las nueve tools de consulta, y `metrics.Registry`
+  acumula sus atómicos para que `graph_status` los lea de vuelta. Lo que se
+  añadió es un segundo canal lateral, `metrics.QueryRecorder`, simétrico con el
+  puente OpenTelemetry: el registro no puede ser la fuente de un comando porque
+  muere con el proceso. `QueryRecorder` corre dentro del camino caliente de una
+  llamada, así que no puede bloquear.
+- `index_project` recibe observadores variádicos como todo `Register*` de
+  `internal/mcp/tools`. Los tuvo tarde, y mientras no los tuvo era la única
+  llamada que un cliente podía hacer que ningún contador veía -- justo la que
+  cuesta minutos.
 
 ## Plataforma
 
