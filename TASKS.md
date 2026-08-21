@@ -15026,8 +15026,10 @@ those, **incoming and outgoing**» (`ApplyCanonicalDelta`), así que el aplicado
 las borra y nadie las repone. **Cada llamante de otro paquete deja de apuntar al
 fichero que se editó.**
 
-Producción toma esa ruta: `internal/indexer/delta.go:222` llama a `facts.Diff`
-con los dos sets completos, que es exactamente la forma del test.
+**No alcanzable todavía:** `facts.Diff` lo llama `indexer.Update`, y `Update` no
+tiene llamante en producción -- los consumidores del paquete usan `indexer.Full` y
+el CLI responde `index: only --full is supported`. El defecto era código real y
+se arregló; ningún usuario podía verlo. Ver LUQUE-2003.
 
 **Por qué el arreglo no va en `Diff`:** restablecer esas aristas desde ahí
 arrastra el fichero que las ancla entero, porque `Delta.Validate` exige un
@@ -15055,3 +15057,35 @@ dos formas que hoy sí se sostienen -- un fichero nuevo en un paquete existente 
 un fichero que desaparece-- con el cargador real sobre una copia de trabajo
 editable, y `normalizeRepositories` quedó extraído para que cualquier test pueda
 apuntar la pasada a un árbol que puede editar.
+
+## LUQUE-2003 — Decidir la suerte del camino incremental
+
+**Dependencias:** LUQUE-2002.
+
+**El hecho:** el subsistema de delta está construido y probado, y **no lo llama
+nadie**. `facts.Diff`, `indexer.Decide`, `indexer.Update`,
+`ladybug.ApplyCanonicalDelta`, los planes de invalidación y las clases de cambio
+existen, tienen tests -- incluidos nativos con el tag `ladybug` -- y ninguna ruta
+de producción los alcanza: los consumidores de `internal/indexer` usan `Full`, el
+servicio reconstruye completo, y `kivgraph index` responde `only --full is
+supported`.
+
+**Por qué importa más que el propio código:** un subsistema inalcanzable da
+confianza falsa. Al arreglar LUQUE-2002 se estuvo a punto de publicar que
+«producción pierde aristas en cada edición», que era falso, y sólo se descubrió
+al buscar el llamante. También significa que las cifras de coste incremental que
+cualquier documento cite son proyecciones, no mediciones.
+
+**Las dos salidas, y hay que elegir una:**
+
+* **Cablearlo.** Un `kivgraph index` sin `--full` que tome la ruta, más un test
+  end-to-end que indexe, edite, reindexe y compare contra una reconstrucción
+  limpia -- que es la única forma de saber si el resto de la maquinaria (planes de
+  invalidación, decisión de ruta, republicación por ratio) hace lo que sus tests
+  con dobles dicen que hace.
+* **Retirarlo.** Si el diseño es «siempre completo», el delta es código muerto con
+  su propio ADR, y borrarlo es más honesto que mantenerlo. La retirada tendría que
+  decir qué se pierde y por qué el coste de un full es aceptable.
+
+**Lo que no vale:** dejarlo como está y seguir citando el incremental como una
+propiedad del producto.

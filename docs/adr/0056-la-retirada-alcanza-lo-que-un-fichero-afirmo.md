@@ -34,8 +34,14 @@ nodo -- pero **el nodo no hacía falta borrarlo**: `Circle.Area` sigue existiend
 después de la edición, con la misma clave estable. Se borraba y se recreaba, y
 las entrantes morían en el hueco.
 
-Producción toma esa ruta: `internal/indexer/delta.go` llama a `facts.Diff` con
-los dos sets completos, que es exactamente la forma del test.
+**Corrección de alcance.** Al escribir este ADR se afirmó que producción tomaba
+esa ruta, y no la toma. `facts.Diff` lo llama `indexer.Update`, y `Update` no
+tiene ningún llamante fuera de los tests: los consumidores del paquete usan
+`indexer.Full`, y el CLI responde `index: only --full is supported`. Cada
+indexado de hoy es una reconstrucción completa, y la retirada sólo corre en un
+delta. Así que el defecto era código real, arreglado de verdad, y **no alcanzable
+por ningún usuario todavía**. Esa es también la razón por la que nadie lo notó, y
+la razón por la que el primer test que miró ahí lo encontró de inmediato.
 
 Esto contradecía el invariante que `AGENTS.md` ya declaraba: «todo hecho afirmado
 por **un archivo** se retira y se vuelve a afirmar junto con ese archivo». La
