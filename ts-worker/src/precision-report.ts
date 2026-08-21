@@ -132,9 +132,13 @@ const cases: readonly PrecisionCase[] = [
       "src/barrel.ts#helper -> @kivgraph-fixture/shared:aliasedHelper -> cross-repository/shared-library/dist/helper.d.ts",
       "src/barrel.ts#compute -> @kivgraph-fixture/shared:compute -> cross-repository/shared-library/dist/value.d.ts",
       "src/barrel.ts#republished -> @kivgraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
+      // The same declaration, bound in a file whose own text names no package:
+      // `through-barrel.ts` imports it from "./barrel.js", and the provider is
+      // the one that barrel already resolved.
+      "src/through-barrel.ts#republished -> @kivgraph-fixture/shared:value -> cross-repository/shared-library/dist/value.d.ts",
     ],
     expectedUnresolved: [],
-    expectedSourcePositions: 3,
+    expectedSourcePositions: 4,
   },
   {
     name: "consumer-negative",

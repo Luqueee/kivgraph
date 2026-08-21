@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T17:40:34.940498Z",
-  "commit": "d274731",
+  "generated_at": "2026-08-21T18:10:40.284138Z",
+  "commit": "540607e",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -25,42 +25,42 @@
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/kivhome-rust; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/kivhome-final9; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
   "indexing": {
     "code-review-graph": {
       "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 10016.787,
+      "ms": 9128.224,
       "scope": "one graph per repository; built the 6 the questions name, not all 37",
       "state_bytes": 230200148,
       "needs": "nothing beyond the binary"
     },
     "codebase-memory": {
       "command": "codebase-memory-mcp cli index_repository",
-      "ms": 5770.739,
+      "ms": 4989.649,
       "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220463104,
+      "state_bytes": 220790784,
       "needs": "nothing beyond the binary"
     },
     "graft": {
       "command": "graft build",
-      "ms": 26481.253,
+      "ms": 24978.466,
       "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180632858,
+      "state_bytes": 180825401,
       "needs": "nothing: the structural tier needs no key and no toolchain"
     },
     "graphify": {
       "command": "graphify update \u003cr\u003e",
-      "ms": 14785.165,
+      "ms": 13179.41,
       "scope": "one graph per repository; built the 6 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
       "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
     },
     "kivgraph": {
       "command": "kivgraph index --full",
-      "ms": 54859.042,
-      "scope": "the whole corpus, 37 repositories, 126720 symbols published",
-      "state_bytes": 1607385885,
+      "ms": 47505.095,
+      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
+      "state_bytes": 1608677720,
       "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
     },
     "native": {
@@ -85,16 +85,16 @@
             {
               "tool": "code-review-graph query",
               "tokens": 852,
-              "ms": 131.649
+              "ms": 116.943
             },
             {
               "tool": "code-review-graph query",
               "tokens": 139,
-              "ms": 128.965
+              "ms": 115.805
             }
           ],
           "tokens": 991,
-          "ms": 260.61400000000003,
+          "ms": 232.748,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -113,26 +113,26 @@
             {
               "tool": "search_graph",
               "tokens": 6828,
-              "ms": 10.249
+              "ms": 9.715
             },
             {
               "tool": "search_graph",
               "tokens": 580,
-              "ms": 10.548
+              "ms": 10.611
             },
             {
               "tool": "trace_path",
               "tokens": 19,
-              "ms": 0.164
+              "ms": 0.19
             },
             {
               "tool": "query_graph",
               "tokens": 34,
-              "ms": 488.038
+              "ms": 492.907
             }
           ],
           "tokens": 7461,
-          "ms": 508.999,
+          "ms": 513.423,
           "call_count": 4,
           "score": {
             "claimed_set": [],
@@ -151,11 +151,11 @@
             {
               "tool": "graft --dir",
               "tokens": 3176,
-              "ms": 355.961
+              "ms": 306.314
             }
           ],
           "tokens": 3176,
-          "ms": 355.961,
+          "ms": 306.314,
           "call_count": 1,
           "claimed": [
             "library-lavalink:src/player/Queue.ts",
@@ -199,21 +199,21 @@
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 167.45
+              "ms": 139.53
             },
             {
               "tool": "graphify affected",
               "tokens": 12,
-              "ms": 155.41
+              "ms": 139.306
             },
             {
               "tool": "graphify query",
-              "tokens": 1631,
-              "ms": 184.736
+              "tokens": 1629,
+              "ms": 166.015
             }
           ],
-          "tokens": 1651,
-          "ms": 507.596,
+          "tokens": 1649,
+          "ms": 444.851,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -224,8 +224,8 @@
             "api-db-go:internal/application/handlers/bots_mock_test.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/bot_validations.go",
-            "api-db-go:internal/domain/errors/unknown_error.go",
             "api-db-go:internal/application/routers/bots_router.go",
+            "api-db-go:internal/domain/errors/unknown_error.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/bot_validations.go",
             "api-db-go:internal/application/routers/bots_router.go",
@@ -268,18 +268,18 @@
             {
               "tool": "find_references",
               "tokens": 72,
-              "ms": 0.545,
+              "ms": 0.208,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"GetAll\" declares 3 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/application/handlers/premium_handler.go:47, api-db-go:internal/application/handlers/bots_handler.go:47, api-db-go:internal/application/handlers/command_handler.go:33"
             },
             {
               "tool": "find_references",
               "tokens": 124,
-              "ms": 0.343
+              "ms": 0.163
             }
           ],
           "tokens": 196,
-          "ms": 0.8880000000000001,
+          "ms": 0.371,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/application/routers/bots_router.go"
@@ -350,11 +350,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 419,
-              "ms": 121.158
+              "ms": 114.362
             }
           ],
           "tokens": 419,
-          "ms": 121.158,
+          "ms": 114.362,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go"
@@ -374,26 +374,26 @@
             {
               "tool": "search_graph",
               "tokens": 1031,
-              "ms": 8.986
+              "ms": 8.306
             },
             {
               "tool": "search_graph",
               "tokens": 613,
-              "ms": 12.146
+              "ms": 9.232
             },
             {
               "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.179
+              "tokens": 65,
+              "ms": 0.249
             },
             {
               "tool": "query_graph",
               "tokens": 34,
-              "ms": 481.984
+              "ms": 433.729
             }
           ],
-          "tokens": 1699,
-          "ms": 503.29499999999996,
+          "tokens": 1743,
+          "ms": 451.51599999999996,
           "call_count": 4,
           "score": {
             "claimed_set": [],
@@ -404,7 +404,7 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS.",
+          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
           "ambiguous_declarations": 3
         },
         "graft": {
@@ -412,11 +412,11 @@
             {
               "tool": "graft --dir",
               "tokens": 199,
-              "ms": 254.199
+              "ms": 242.281
             }
           ],
           "tokens": 199,
-          "ms": 254.199,
+          "ms": 242.281,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -433,11 +433,11 @@
             {
               "tool": "graphify affected",
               "tokens": 98,
-              "ms": 148.953
+              "ms": 144.667
             }
           ],
           "tokens": 98,
-          "ms": 148.953,
+          "ms": 144.667,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -455,18 +455,18 @@
             {
               "tool": "find_references",
               "tokens": 61,
-              "ms": 0.307,
+              "ms": 0.287,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"FindPendingGuilds\" declares 2 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go:182, api-db-go:internal/infrastructure/pgrepo/repos.go:329"
             },
             {
               "tool": "find_references",
               "tokens": 158,
-              "ms": 0.172
+              "ms": 0.149
             }
           ],
           "tokens": 219,
-          "ms": 0.479,
+          "ms": 0.43599999999999994,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go"
@@ -533,11 +533,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 1235,
-              "ms": 121.367
+              "ms": 116.558
             }
           ],
           "tokens": 1235,
-          "ms": 121.367,
+          "ms": 116.558,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -557,21 +557,21 @@
             {
               "tool": "search_graph",
               "tokens": 105,
-              "ms": 10.554
+              "ms": 10.201
             },
             {
               "tool": "trace_path",
               "tokens": 20,
-              "ms": 0.156
+              "ms": 0.148
             },
             {
               "tool": "query_graph",
               "tokens": 34,
-              "ms": 488.326
+              "ms": 433.985
             }
           ],
           "tokens": 159,
-          "ms": 499.036,
+          "ms": 444.334,
           "call_count": 3,
           "score": {
             "claimed_set": [],
@@ -590,11 +590,11 @@
             {
               "tool": "graft --dir",
               "tokens": 186,
-              "ms": 254.076
+              "ms": 238.029
             }
           ],
           "tokens": 186,
-          "ms": 254.076,
+          "ms": 238.029,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -612,11 +612,11 @@
             {
               "tool": "graphify affected",
               "tokens": 262,
-              "ms": 121.364
+              "ms": 110.862
             }
           ],
           "tokens": 262,
-          "ms": 121.364,
+          "ms": 110.862,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
@@ -650,12 +650,12 @@
           "calls": [
             {
               "tool": "find_references",
-              "tokens": 220,
-              "ms": 0.374
+              "tokens": 358,
+              "ms": 0.359
             }
           ],
-          "tokens": 220,
-          "ms": 0.374,
+          "tokens": 358,
+          "ms": 0.359,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
@@ -663,17 +663,17 @@
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "gateway:src/grpc/manager/RegistryGrpcManager.ts"
           ],
           "score": {
             "claimed_set": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts",
               "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
             ],
             "precision": 1,
-            "recall": 0.5,
-            "missing": [
-              "gateway:src/grpc/manager/RegistryGrpcManager.ts"
-            ],
+            "recall": 1,
+            "missing": [],
             "spurious": []
           }
         },
@@ -724,16 +724,16 @@
             {
               "tool": "code-review-graph query",
               "tokens": 2174,
-              "ms": 119.365
+              "ms": 111.497
             },
             {
               "tool": "code-review-graph query",
               "tokens": 135,
-              "ms": 116.814
+              "ms": 110.959
             }
           ],
           "tokens": 2309,
-          "ms": 236.17899999999997,
+          "ms": 222.45600000000002,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -752,21 +752,21 @@
             {
               "tool": "search_graph",
               "tokens": 104,
-              "ms": 9.669
+              "ms": 9.512
             },
             {
               "tool": "trace_path",
               "tokens": 57,
-              "ms": 0.24
+              "ms": 0.231
             },
             {
               "tool": "query_graph",
               "tokens": 26,
-              "ms": 490.947
+              "ms": 432.517
             }
           ],
           "tokens": 187,
-          "ms": 500.856,
+          "ms": 442.26,
           "call_count": 3,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts"
@@ -787,11 +787,11 @@
             {
               "tool": "graft --dir",
               "tokens": 202,
-              "ms": 249.43
+              "ms": 234.207
             }
           ],
           "tokens": 202,
-          "ms": 249.43,
+          "ms": 234.207,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts"
@@ -811,11 +811,11 @@
             {
               "tool": "graphify affected",
               "tokens": 179,
-              "ms": 100.526
+              "ms": 93.625
             }
           ],
           "tokens": 179,
-          "ms": 100.526,
+          "ms": 93.625,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts",
@@ -850,11 +850,11 @@
             {
               "tool": "find_references",
               "tokens": 132,
-              "ms": 0.297
+              "ms": 0.248
             }
           ],
           "tokens": 132,
-          "ms": 0.297,
+          "ms": 0.248,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts",
@@ -917,16 +917,16 @@
             {
               "tool": "code-review-graph query",
               "tokens": 1118,
-              "ms": 123.102
+              "ms": 112.366
             },
             {
               "tool": "code-review-graph query",
               "tokens": 385,
-              "ms": 118.773
+              "ms": 110.604
             }
           ],
           "tokens": 1503,
-          "ms": 241.875,
+          "ms": 222.97,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs"
@@ -950,26 +950,26 @@
             {
               "tool": "search_graph",
               "tokens": 1000,
-              "ms": 10.115
+              "ms": 9.719
             },
             {
               "tool": "search_graph",
               "tokens": 215,
-              "ms": 9.881
+              "ms": 9.571
             },
             {
               "tool": "trace_path",
               "tokens": 171,
-              "ms": 0.373
+              "ms": 0.298
             },
             {
               "tool": "query_graph",
               "tokens": 37,
-              "ms": 478.25
+              "ms": 441.936
             }
           ],
           "tokens": 1423,
-          "ms": 498.619,
+          "ms": 461.524,
           "call_count": 4,
           "claimed": [
             "kenalink-rs:src/main.rs",
@@ -995,11 +995,11 @@
             {
               "tool": "graft --dir",
               "tokens": 834,
-              "ms": 275.135
+              "ms": 252.3
             }
           ],
           "tokens": 834,
-          "ms": 275.135,
+          "ms": 252.3,
           "call_count": 1,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs",
@@ -1027,21 +1027,21 @@
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 102.367
+              "ms": 98.767
             },
             {
               "tool": "graphify affected",
               "tokens": 10,
-              "ms": 101.942
+              "ms": 97.784
             },
             {
               "tool": "graphify query",
               "tokens": 1341,
-              "ms": 123.502
+              "ms": 112.432
             }
           ],
           "tokens": 1359,
-          "ms": 327.811,
+          "ms": 308.983,
           "call_count": 3,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs",
@@ -1094,18 +1094,18 @@
             {
               "tool": "find_references",
               "tokens": 54,
-              "ms": 0.245,
+              "ms": 0.253,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"delete_player\" declares 2 symbols; repeat with the repository and path of the one you mean: kenalink-rs:src/api_rest/routes_players.rs:393, kenalink-rs:src/state/memory.rs:84"
             },
             {
               "tool": "find_references",
               "tokens": 210,
-              "ms": 0.189
+              "ms": 0.153
             }
           ],
           "tokens": 264,
-          "ms": 0.434,
+          "ms": 0.406,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_ws/mod.rs",
@@ -1183,11 +1183,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 145,
-              "ms": 118.095
+              "ms": 111.439
             }
           ],
           "tokens": 145,
-          "ms": 118.095,
+          "ms": 111.439,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1203,21 +1203,21 @@
             {
               "tool": "search_graph",
               "tokens": 537,
-              "ms": 9.102
+              "ms": 8.665
             },
             {
               "tool": "trace_path",
               "tokens": 21,
-              "ms": 0.211
+              "ms": 0.6
             },
             {
               "tool": "query_graph",
               "tokens": 34,
-              "ms": 478.948
+              "ms": 438.287
             }
           ],
           "tokens": 592,
-          "ms": 488.26099999999997,
+          "ms": 447.55199999999996,
           "call_count": 3,
           "score": {
             "claimed_set": [],
@@ -1233,11 +1233,11 @@
             {
               "tool": "graft --dir",
               "tokens": 198,
-              "ms": 250.425
+              "ms": 238.029
             }
           ],
           "tokens": 198,
-          "ms": 250.425,
+          "ms": 238.029,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1252,11 +1252,11 @@
             {
               "tool": "graphify affected",
               "tokens": 515,
-              "ms": 152.632
+              "ms": 143.006
             }
           ],
           "tokens": 515,
-          "ms": 152.632,
+          "ms": 143.006,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/redis/serialization.go",
@@ -1321,11 +1321,11 @@
             {
               "tool": "find_references",
               "tokens": 113,
-              "ms": 0.354
+              "ms": 0.238
             }
           ],
           "tokens": 113,
-          "ms": 0.354,
+          "ms": 0.238,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1373,11 +1373,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 139,
-              "ms": 121.729
+              "ms": 111.904
             }
           ],
           "tokens": 139,
-          "ms": 121.729,
+          "ms": 111.904,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1393,21 +1393,21 @@
             {
               "tool": "search_graph",
               "tokens": 564,
-              "ms": 10.265
+              "ms": 10.191
             },
             {
               "tool": "trace_path",
               "tokens": 23,
-              "ms": 0.158
+              "ms": 0.161
             },
             {
               "tool": "query_graph",
               "tokens": 34,
-              "ms": 480.399
+              "ms": 431.828
             }
           ],
           "tokens": 621,
-          "ms": 490.822,
+          "ms": 442.17999999999995,
           "call_count": 3,
           "score": {
             "claimed_set": [],
@@ -1423,11 +1423,11 @@
             {
               "tool": "graft --dir",
               "tokens": 196,
-              "ms": 254.101
+              "ms": 234.885
             }
           ],
           "tokens": 196,
-          "ms": 254.101,
+          "ms": 234.885,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1442,11 +1442,11 @@
             {
               "tool": "graphify affected",
               "tokens": 80,
-              "ms": 97.745
+              "ms": 92.241
             }
           ],
           "tokens": 80,
-          "ms": 97.745,
+          "ms": 92.241,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1462,11 +1462,11 @@
             {
               "tool": "find_references",
               "tokens": 110,
-              "ms": 1.868
+              "ms": 0.236
             }
           ],
           "tokens": 110,
-          "ms": 1.868,
+          "ms": 0.236,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1514,11 +1514,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 432,
-              "ms": 126.64
+              "ms": 115.03
             }
           ],
           "tokens": 432,
-          "ms": 126.64,
+          "ms": 115.03,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1534,21 +1534,21 @@
             {
               "tool": "search_graph",
               "tokens": 216,
-              "ms": 8.964
+              "ms": 8.659
             },
             {
               "tool": "trace_path",
               "tokens": 75,
-              "ms": 0.25
+              "ms": 0.288
             },
             {
               "tool": "query_graph",
               "tokens": 26,
-              "ms": 482.836
+              "ms": 599.529
             }
           ],
           "tokens": 317,
-          "ms": 492.05,
+          "ms": 608.476,
           "call_count": 3,
           "score": {
             "claimed_set": [],
@@ -1564,11 +1564,11 @@
             {
               "tool": "graft --dir",
               "tokens": 226,
-              "ms": 271.514
+              "ms": 241.815
             }
           ],
           "tokens": 226,
-          "ms": 271.514,
+          "ms": 241.815,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1583,11 +1583,11 @@
             {
               "tool": "graphify affected",
               "tokens": 99,
-              "ms": 98.173
+              "ms": 97.693
             }
           ],
           "tokens": 99,
-          "ms": 98.173,
+          "ms": 97.693,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1603,11 +1603,11 @@
             {
               "tool": "find_references",
               "tokens": 145,
-              "ms": 0.256
+              "ms": 0.241
             }
           ],
           "tokens": 145,
-          "ms": 0.256,
+          "ms": 0.241,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1663,11 +1663,11 @@
             {
               "tool": "code-review-graph query",
               "tokens": 1496,
-              "ms": 126.958
+              "ms": 173.402
             }
           ],
           "tokens": 1496,
-          "ms": 126.958,
+          "ms": 173.402,
           "call_count": 1,
           "claimed": [
             "RangeOutcome",
@@ -1707,11 +1707,11 @@
             {
               "tool": "search_graph",
               "tokens": 4098,
-              "ms": 37.541
+              "ms": 34.249
             }
           ],
           "tokens": 4098,
-          "ms": 37.541,
+          "ms": 34.249,
           "call_count": 1,
           "claimed": [
             "RangeOutcome",
@@ -1756,11 +1756,11 @@
             {
               "tool": "graft --dir",
               "tokens": 345,
-              "ms": 258.381
+              "ms": 275.933
             }
           ],
           "tokens": 345,
-          "ms": 258.381,
+          "ms": 275.933,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1783,11 +1783,11 @@
             {
               "tool": "graphify explain",
               "tokens": 193,
-              "ms": 114.157
+              "ms": 130.536
             }
           ],
           "tokens": 193,
-          "ms": 114.157,
+          "ms": 130.536,
           "call_count": 1,
           "claimed": [
             "file_response",
@@ -1827,11 +1827,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 290,
-              "ms": 1.117
+              "ms": 1.395
             }
           ],
           "tokens": 290,
-          "ms": 1.117,
+          "ms": 1.395,
           "call_count": 1,
           "claimed": [
             "build_response",
@@ -1901,7 +1901,7 @@
     "code-review-graph": {
       "tokens_total": 8669,
       "calls_total": 12,
-      "ms_total": 1474.6150000000002,
+      "ms_total": 1420.869,
       "precision_mean": 0.6388888888888888,
       "recall_mean": 0.5767195767195766,
       "exact_answers": 4,
@@ -1909,9 +1909,9 @@
       "of": 9
     },
     "codebase-memory": {
-      "tokens_total": 16557,
+      "tokens_total": 16601,
       "calls_total": 28,
-      "ms_total": 4019.4790000000003,
+      "ms_total": 3845.5139999999997,
       "precision_mean": 0.6222222222222222,
       "recall_mean": 0.6137566137566136,
       "exact_answers": 4,
@@ -1921,7 +1921,7 @@
     "graft": {
       "tokens_total": 5562,
       "calls_total": 9,
-      "ms_total": 2423.222,
+      "ms_total": 2263.793,
       "precision_mean": 0.5555555555555556,
       "recall_mean": 0.48148148148148145,
       "exact_answers": 4,
@@ -1929,9 +1929,9 @@
       "of": 9
     },
     "graphify": {
-      "tokens_total": 4436,
+      "tokens_total": 4434,
       "calls_total": 13,
-      "ms_total": 1668.9569999999999,
+      "ms_total": 1566.4640000000002,
       "precision_mean": 0.4555555555555555,
       "recall_mean": 0.7433862433862434,
       "exact_answers": 2,
@@ -1939,12 +1939,12 @@
       "of": 9
     },
     "kivgraph": {
-      "tokens_total": 1689,
+      "tokens_total": 1827,
       "calls_total": 12,
-      "ms_total": 6.067000000000001,
+      "ms_total": 3.9299999999999997,
       "precision_mean": 1,
-      "recall_mean": 0.9444444444444444,
-      "exact_answers": 8,
+      "recall_mean": 1,
+      "exact_answers": 9,
       "answered": 9,
       "of": 9
     },
@@ -1964,7 +1964,7 @@
       "code-review-graph": {
         "tokens_total": 1496,
         "calls_total": 1,
-        "ms_total": 126.958,
+        "ms_total": 173.402,
         "precision_mean": 0.75,
         "recall_mean": 0.8571428571428571,
         "exact_answers": 0,
@@ -1974,7 +1974,7 @@
       "codebase-memory": {
         "tokens_total": 4098,
         "calls_total": 1,
-        "ms_total": 37.541,
+        "ms_total": 34.249,
         "precision_mean": 0.6,
         "recall_mean": 0.8571428571428571,
         "exact_answers": 0,
@@ -1984,7 +1984,7 @@
       "graft": {
         "tokens_total": 345,
         "calls_total": 1,
-        "ms_total": 258.381,
+        "ms_total": 275.933,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -1994,7 +1994,7 @@
       "graphify": {
         "tokens_total": 193,
         "calls_total": 1,
-        "ms_total": 114.157,
+        "ms_total": 130.536,
         "precision_mean": 0.75,
         "recall_mean": 0.8571428571428571,
         "exact_answers": 0,
@@ -2004,7 +2004,7 @@
       "kivgraph": {
         "tokens_total": 290,
         "calls_total": 1,
-        "ms_total": 1.117,
+        "ms_total": 1.395,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -2026,7 +2026,7 @@
       "code-review-graph": {
         "tokens_total": 7173,
         "calls_total": 11,
-        "ms_total": 1347.6570000000002,
+        "ms_total": 1247.4669999999999,
         "precision_mean": 0.625,
         "recall_mean": 0.5416666666666666,
         "exact_answers": 4,
@@ -2034,9 +2034,9 @@
         "of": 8
       },
       "codebase-memory": {
-        "tokens_total": 12459,
+        "tokens_total": 12503,
         "calls_total": 27,
-        "ms_total": 3981.938,
+        "ms_total": 3811.265,
         "precision_mean": 0.625,
         "recall_mean": 0.5833333333333333,
         "exact_answers": 4,
@@ -2046,7 +2046,7 @@
       "graft": {
         "tokens_total": 5217,
         "calls_total": 8,
-        "ms_total": 2164.8410000000003,
+        "ms_total": 1987.8600000000001,
         "precision_mean": 0.625,
         "recall_mean": 0.5416666666666666,
         "exact_answers": 4,
@@ -2054,9 +2054,9 @@
         "of": 8
       },
       "graphify": {
-        "tokens_total": 4243,
+        "tokens_total": 4241,
         "calls_total": 12,
-        "ms_total": 1554.8,
+        "ms_total": 1435.928,
         "precision_mean": 0.41875,
         "recall_mean": 0.7291666666666667,
         "exact_answers": 2,
@@ -2064,12 +2064,12 @@
         "of": 8
       },
       "kivgraph": {
-        "tokens_total": 1399,
+        "tokens_total": 1537,
         "calls_total": 11,
-        "ms_total": 4.950000000000001,
+        "ms_total": 2.5349999999999997,
         "precision_mean": 1,
-        "recall_mean": 0.9375,
-        "exact_answers": 7,
+        "recall_mean": 1,
+        "exact_answers": 8,
         "answered": 8,
         "of": 8
       },

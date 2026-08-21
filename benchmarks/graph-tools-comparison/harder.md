@@ -5,11 +5,10 @@ point at which they stop being useful: a set you answer completely cannot tell
 you where you are wrong. This set exists to find that out, and it did -- three
 of its nine were failures, two of them total.
 
-**Two are closed.** `H2_go_iface` found that a Go method reached only through the
-interface that declares it answered that *nothing* referenced it, in the words a
-real absence gets, and that `code-review-graph` answered it exactly. ADR 0054
-fixed it and its Rust twin `H5_rs_trait` on the same contract. One remains,
-`H3_ts_type`, and the diagnosis is below.
+**All three are closed**, by ADR 0054 for the two dynamic-dispatch ones and ADR
+0055 for the cross-package type. The set now reads `9/9` at `1.00`/`1.00`, which
+means it has stopped being able to tell us where we are wrong: the next useful
+contribution to this file is a question that fails.
 
 Raw numbers in `results-hard.json`, every Kivgraph answer in `raw-hard/`, and
 the run is `--set hard`. No verdict is emitted: this measures six tools on one
@@ -168,29 +167,34 @@ this question also asks whether a tool reads test code.
 
 |question|kivgraph|graphify|graft|codebase-memory|code-review-graph|`grep`|
 |---|---|---|---|---|---|---|
-|`H1_go_method`|`1.00`/`1.00`|`0.10`/`1.00`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
+|`H1_go_method`|**`1.00`/`1.00`**|`0.10`/`1.00`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
 |`H2_go_iface`|**`1.00`/`1.00`**|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|`1.00`/`1.00`|
-|`H3_ts_type`|**`1.00`/`0.50`**|`0.50`/`0.50`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
-|`H4_ts_alias`|`1.00`/`1.00`|`0.25`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`0.00`/`0.00`|`1.00`/`1.00`|
+|`H3_ts_type`|**`1.00`/`1.00`**|`0.50`/`0.50`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
+|`H4_ts_alias`|**`1.00`/`1.00`**|`0.25`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`0.00`/`0.00`|`1.00`/`1.00`|
 |`H5_rs_trait`|**`1.00`/`1.00`**|`0.50`/`0.33`|`1.00`/`0.33`|`1.00`/`0.67`|`1.00`/`0.33`|`1.00`/`1.00`|
-|`A1_go_absent`|`1.00`/`1.00`|`0.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
-|`A2_ts_absent`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
-|`A3_rs_absent`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
-|`O3_rs_outline`|`1.00`/`1.00`|`0.75`/`0.86`|`0.00`/`0.00`|`0.60`/`0.86`|`0.75`/`0.86`|`1.00`/`1.00`|
-|**aggregate**|**`1.00`/`0.94`, `8/9`**|`0.46`/`0.74`, `2/9`|`0.56`/`0.48`, `4/9`|`0.62`/`0.61`, `4/9`|`0.64`/`0.58`, `4/9`|`1.00`/`1.00`, `9/9`|
-|**tokens**|**`1,689`**|`4,436`|`5,562`|`16,557`|`8,669`|`74,783`|
+|`A1_go_absent`|**`1.00`/`1.00`**|`0.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
+|`A2_ts_absent`|**`1.00`/`1.00`**|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
+|`A3_rs_absent`|**`1.00`/`1.00`**|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
+|`O3_rs_outline`|**`1.00`/`1.00`**|`0.75`/`0.86`|`0.00`/`0.00`|`0.60`/`0.86`|`0.75`/`0.86`|`1.00`/`1.00`|
+|**aggregate**|**`1.00`/`1.00`, `9/9`**|`0.46`/`0.74`, `2/9`|`0.56`/`0.48`, `4/9`|`0.62`/`0.61`, `4/9`|`0.64`/`0.58`, `4/9`|`1.00`/`1.00`, `9/9`|
+|**tokens**|**`1,827`**|`4,434`|`5,562`|`16,601`|`8,669`|`74,783`|
 |**calls**|`12`|`13`|`9`|`28`|`12`|`22`|
 
-`8/9` against `7/7` on the easier set, and `grep` plus reading answers all nine
-again. Kivgraph is the cheapest of the five at `1,689` tokens, `44x` under the
-reading baseline, which is worth exactly as much as its accuracy on the one it
-still gets wrong.
+`9/9`, and counted in files rather than in means: `15` claimed, `0` false, `0`
+missed of `15` true. `grep` plus reading gets the same score for `74,783` tokens
+against `1,827` -- `41x` -- and no other tool here is above `4/9`.
 
-The two bridges cost `134` tokens across the set and moved nothing else. `H1` is
-the question a careless bridge would have polluted -- three receivers, one name
--- and it holds at `1.00`/`1.00`. The published seven were re-run on the same
-binary to check the same thing from the other side and stay at `7/7`,
-`1.00`/`1.00`, in `results-0.3.6.json`.
+The three fixes cost `272` tokens across the set, and `H1` is the evidence they
+stayed where they were aimed: three receiver types share one method name, it is
+the question a careless bridge pollutes first, and it holds at `1.00`/`1.00`. The
+published seven were re-run on the same binary and stay at `7/7`, `1.00`/`1.00`,
+in `results-0.3.6.json`.
+
+**Nine questions on one corpus is a small set.** Being right on all of them is
+not evidence of being right in general; it is the absence of a known miss on
+nine questions, three of which were written blind. The rules are above and every
+subject is mechanical, so anyone can add a tenth -- and that is worth more than
+this table.
 
 ## What it found
 
@@ -240,15 +244,38 @@ the page declares `dispatch_through`, so nothing is passed off as a direct call:
 its precision is the part worth reading: `routes_players.rs` also declares a
 free `delete_player` of its own, and the callers of *that* stayed out.
 
-### 2. A cross-package type-only import is invisible (`H3`)
+### 2. A cross-package type reached through a local barrel was invisible (`H3`)
 
-`P=1.00`, `R=0.50`. The answer holds seven `TYPE_USES` rows and the whole page
-hoists `repository: library-shared`: there is not one cross-repository type use
-in it. `RegistryGrpcManager.ts` in `gateway` does
-`import type { ApiRuntimeState } from "@kena/shared"` and annotates four
-positions with it, and we do not have it. A function crossing the same boundary
-resolves -- that is `R1` in the other set -- so this is the type-level half of
-a bridge whose value half already works.
+`P=1.00`, `R=0.50`: the answer held seven `TYPE_USES` rows, the whole page
+hoisted `repository: library-shared`, and there was not one cross-repository
+type use in it. `RegistryGrpcManager.ts` in `gateway` annotates four positions
+with `ApiRuntimeState` and was absent.
+
+The diagnosis was not the one the symptom suggested. It is not about types --
+the same file's `import type { RedisAdapter } from "@kena/shared"` resolves
+fine. It is about the **path**: the manager imports the type from
+`"../../types/registry.js"`, a local barrel whose entire content is
+`export type { ApiRuntimeState, ... } from "@kena/shared"`. Bindings were made
+only for imports that named a package, so this file bound nothing, and its four
+uses were dropped whole for having no target. Measured in the payload:
+
+|name|imports|references|
+|---|---|---|
+|`RedisAdapter`, package import|`2`|`3`|
+|`ApiRuntimeState`, relative import|`0`|**`0`**|
+
+ADR 0055 closed it. A relative import that lands on a declaration some local
+barrel already resolved inherits that barrel's provider, so the consumer carries
+its own `IMPORTS_SYMBOL` and is one hop away -- the same shape `R1`'s five
+consumers have. The match is on the identity of the declaration the checker
+resolved to, never on a name.
+
+It also cost a precision regression on the way, which the set caught: widening
+the walk to every file of the program pulled in the `.d.ts` of every dependency,
+and binding those named the installed copy of `@kena/shared` as a consumer of a
+type `@kena/shared` declares -- in two repositories at once. `H3` read
+`0.50`/`1.00` for one pass. Files under a `node_modules` are the provider's own
+source and are not walked.
 
 ### 3. Two failures that were the benchmark's, not the tool's
 

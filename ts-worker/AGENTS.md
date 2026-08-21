@@ -28,6 +28,18 @@ El orquestador Go que invoca este worker está en `internal/`.
   artefacto a fuente lo afirma la configuración de compilación del proveedor y
   no un mapa que emitiera. Sin fuente nombrada no se pregunta nada: la
   referencia queda `UNRESOLVED`. Ver ADR 0038.
+- La identidad de un símbolo importado por **ruta relativa** puede seguir siendo
+  de otro repositorio: un barrel local -`export { x } from "pkg"`- pone una
+  declaración ajena detrás de una ruta que no nombra ningún paquete. Ese import
+  crea vinculación con el proveedor que el barrel ya resolvió, y la
+  correspondencia es por identidad de la declaración -el checker colapsa la
+  cadena de alias de una vez y aterriza en ella, no en la vinculación
+  intermedia-, nunca por nombre. Ver ADR 0055.
+- El recorrido de vinculaciones cubre todos los ficheros del proyecto **menos los
+  que están bajo un `node_modules`**: el programa contiene el `.d.ts` de cada
+  dependencia, y eso es fuente del proveedor, no uso que este repositorio haga
+  de ella. Vincularlos nombró la copia instalada de un paquete como consumidora
+  de un tipo que ese mismo paquete declara, en dos repositorios a la vez.
 - Un fixture cross-repository que resuelve al proveedor con `paths` no prueba
   nada sobre la forma que instala un gestor de paquetes. El consumidor llega
   al proveedor por un symlink de `node_modules` y el motor devuelve la ruta

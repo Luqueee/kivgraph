@@ -41,7 +41,7 @@
  */
 
 import path from "node:path";
-
+import type { Node, SourceFile } from "typescript/unstable/ast";
 import {
   isExportDeclaration,
   isIdentifier,
@@ -52,13 +52,12 @@ import {
   isPropertyAccessExpression,
   isStringLiteral,
 } from "typescript/unstable/ast/is";
-import { SymbolFlags } from "typescript/unstable/async";
-import type { Node, SourceFile } from "typescript/unstable/ast";
 import type {
   Checker,
   NodeHandle,
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
+import { SymbolFlags } from "typescript/unstable/async";
 
 import {
   classifyDeclarationAt,
@@ -66,7 +65,6 @@ import {
   type LocalSymbolKind,
 } from "./declaration-classifier.js";
 import { declarationName } from "./declaration-name.js";
-import { enginePath } from "./engine-path.js";
 import {
   DeclarationPositionMapper,
   type SourcePosition,
@@ -76,6 +74,7 @@ import type {
   DeclarationSourceStatus,
 } from "./declaration-source-resolver.js";
 import { resolveDeclarationSources } from "./declaration-source-resolver.js";
+import { enginePath } from "./engine-path.js";
 import { LanguageService, type ProjectView } from "./language-service.js";
 import type {
   PackageImport,
@@ -83,8 +82,8 @@ import type {
   PackageProvider,
   PackageProviderRegistry,
 } from "./package-import-resolver.js";
-import { resolveProviderExports } from "./provider-export-resolver.js";
 import type { ProviderExport } from "./provider-export-resolver.js";
+import { resolveProviderExports } from "./provider-export-resolver.js";
 import { locateProviderExport } from "./provider-source-position-resolver.js";
 
 /** The import binding that consumes a provider symbol. */
@@ -219,6 +218,25 @@ interface BindingRequest {
   packageImport: PackageImport;
 }
 
+/**
+ * A named import taken from a relative path, which is a candidate only because
+ * the path says nothing about where the name is declared.
+ *
+ * A local barrel that re-exports a package -- `export type { X } from "pkg"` --
+ * puts a foreign declaration behind a relative specifier, and this file then
+ * binds a name whose provider no textual import of its own names. Measured on
+ * the `kena` monorepo, that is how a consumer of `@kena/shared` disappeared
+ * from an answer about the type it annotates four positions with: nothing bound
+ * the name, so its uses had no target and were dropped whole.
+ */
+interface RelativeBindingCandidate {
+  readonly file: SourceFile;
+  readonly nameNode: Node;
+  readonly localName: string;
+  readonly exportedName: string;
+  readonly text: string;
+}
+
 /** A namespace import binding (`import * as ns from "pkg"`) in one file. */
 interface NamespaceImportBinding {
   file: SourceFile;
@@ -247,6 +265,12 @@ interface StarReexportRequest {
 /** A resolved edge, still missing the provider identity of its target. */
 interface PendingSymbol {
   origin: "import" | "export";
+  /**
+   * The package import that resolved this binding. Kept so a relative import
+   * landing on the same declaration can inherit the provider a barrel already
+   * named, instead of a second resolution inferring one.
+   */
+  packageImport: PackageImport;
   packageName: string;
   specifier: string;
   provider: PackageProvider;
@@ -315,13 +339,20 @@ export async function resolveImportedSymbols(
   const namespaceBindings: NamespaceImportBinding[] = [];
   const memberCandidates: NamespaceMemberCandidate[] = [];
   const starRequests: StarReexportRequest[] = [];
-  for (const fileName of [
-    ...new Set(
-      providerExports.imports
-        .filter((packageImport) => packageImport.status === "RESOLVED")
-        .map((packageImport) => packageImport.fileName),
-    ),
-  ].sort()) {
+  const relativeCandidates: RelativeBindingCandidate[] = [];
+  // Every file of the project, not only the ones with a package import of
+  // their own: a consumer can reach a foreign declaration entirely through
+  // local barrels, and such a file names no package anywhere in its own text.
+  // The walk is one AST pass and the checker is asked once, in a batch, for
+  // every relative name it found.
+  // An installed copy is not one of this repository's files. A program holds
+  // the `.d.ts` of every dependency, and those are the provider's own source
+  // rather than this repository's use of it: binding them named the installed
+  // copy of a package as a consumer of a type that same package declares, in
+  // two repositories at once, which is a fact about nobody's code.
+  for (const fileName of [...new Set(await view.program.getSourceFileNames())]
+    .filter((candidate) => !candidate.includes(INSTALLED_DIRECTORY))
+    .sort()) {
     const sourceFile = await view.program.getSourceFile(fileName);
     if (sourceFile === undefined) {
       continue;
@@ -333,6 +364,7 @@ export async function resolveImportedSymbols(
       namespaceBindings,
       memberCandidates,
       starRequests,
+      relativeCandidates,
     );
   }
 
@@ -462,6 +494,62 @@ export async function resolveImportedSymbols(
     }
   }
 
+  // A relative import can bind a foreign declaration, because a local barrel
+  // can put one behind a relative path: `export { x } from "pkg"` in one file
+  // and `import { x } from "./that-file.js"` in the next. Nothing in the second
+  // file's own text names a package, so no binding was made for it and every
+  // use of the name was dropped for having no target -- measured on `kena`,
+  // where a consumer vanished from an answer about a type it annotates four
+  // positions with.
+  //
+  // The barrels are the re-exports this pass already resolved, keyed by the
+  // declaration they resolved TO, because the checker collapses an alias chain
+  // in one step and lands on that declaration rather than on the binding in
+  // between. So the match is on the identity of the declaration, never on a
+  // name, and the provider is the one the barrel named rather than one
+  // inferred here.
+  const barrels = new Map<number, BarrelBinding>();
+  for (const entry of pending) {
+    if (entry.origin !== "export") {
+      continue;
+    }
+    barrels.set(entry.targetSymbolId, {
+      packageImport: entry.packageImport,
+      exportedName: entry.exportedName,
+    });
+  }
+  const relativeSymbols =
+    relativeCandidates.length === 0 || barrels.size === 0
+      ? []
+      : await view.checker.getSymbolAtLocation(
+          relativeCandidates.map((candidate) => candidate.nameNode),
+        );
+  for (const [index, candidate] of relativeCandidates.entries()) {
+    const symbol = relativeSymbols[index];
+    if (symbol === undefined) {
+      continue;
+    }
+    const resolved = await resolveAliasTarget(view.checker, symbol);
+    const barrel =
+      resolved === undefined ? undefined : barrels.get(resolved.id);
+    if (barrel === undefined) {
+      continue;
+    }
+    const entry = await buildPendingSymbol(view, mappingsByFile, mappers, {
+      origin: "import",
+      packageImport: barrel.packageImport,
+      exportedName: barrel.exportedName,
+      file: candidate.file,
+      node: candidate.nameNode,
+      localName: candidate.localName,
+      text: candidate.text,
+      alias: symbol,
+    });
+    if (entry !== undefined) {
+      pending.push(entry);
+    }
+  }
+
   const identities = await resolveTargetIdentities(pending, registry);
   const symbols: ImportedSymbol[] = [];
   const reexports: ReexportedSymbol[] = [];
@@ -516,6 +604,7 @@ function collectBindings(
   namespaceBindings: NamespaceImportBinding[],
   memberCandidates: NamespaceMemberCandidate[],
   starRequests: StarReexportRequest[],
+  relativeCandidates: RelativeBindingCandidate[],
 ): void {
   const visit = (node: Node): void => {
     if (isImportDeclaration(node)) {
@@ -525,6 +614,13 @@ function collectBindings(
         importsByLocation,
       );
       const clause = node.importClause;
+      if (packageImport === undefined && clause !== undefined) {
+        collectRelativeCandidates(
+          file,
+          clause.namedBindings,
+          relativeCandidates,
+        );
+      }
       if (packageImport !== undefined && clause !== undefined) {
         if (clause.name !== undefined) {
           requests.push({
@@ -613,6 +709,39 @@ function collectBindings(
   file.forEachChild(visit);
 }
 
+/**
+ * Record the named bindings of an import whose specifier is relative. Only the
+ * names are recorded: whether any of them leads out of this repository is a
+ * question for the checker, asked once for all of them in a batch.
+ */
+function collectRelativeCandidates(
+  file: SourceFile,
+  named: Node | undefined,
+  candidates: RelativeBindingCandidate[],
+): void {
+  if (named === undefined || !isNamedImports(named)) {
+    return;
+  }
+  for (const element of named.elements) {
+    candidates.push({
+      file,
+      nameNode: element.name,
+      localName: bindingName(element.name),
+      exportedName: bindingName(element.propertyName ?? element.name),
+      text: element.getText(file),
+    });
+  }
+}
+
+/** Files of a dependency rather than of the repository being indexed. */
+const INSTALLED_DIRECTORY = `${path.sep}node_modules${path.sep}`;
+
+/** A re-export of a package this pass resolved, keyed by what it resolved to. */
+interface BarrelBinding {
+  readonly packageImport: PackageImport;
+  readonly exportedName: string;
+}
+
 function importFor(
   file: SourceFile,
   moduleSpecifier: Node,
@@ -691,6 +820,7 @@ async function buildPendingSymbol(
   const end = request.node.getEnd();
   return {
     origin: request.origin,
+    packageImport: request.packageImport,
     packageName: request.packageImport.packageName,
     specifier: request.packageImport.specifier,
     provider,

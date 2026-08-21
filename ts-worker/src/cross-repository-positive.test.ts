@@ -180,6 +180,18 @@ describe("cross-repository positive fixture", () => {
         path.join(SHARED_ROOT, "dist/value.d.ts"),
         path.join(SHARED_ROOT, "src/value.ts"),
       ],
+      // "republished" is the one nothing in its own file names a package for:
+      // `through-barrel.ts` imports it from "./barrel.js", and only that
+      // barrel says the declaration is shared-library's `value`. Without the
+      // barrel being followed there is no binding here at all, and every use
+      // of the name is dropped for having nothing to target.
+      [
+        "republished",
+        "value",
+        "value",
+        path.join(SHARED_ROOT, "dist/value.d.ts"),
+        path.join(SHARED_ROOT, "src/value.ts"),
+      ],
     ]);
     expect(
       resolution.symbols.map(
@@ -196,15 +208,26 @@ describe("cross-repository positive fixture", () => {
         line: 7,
         character: 16,
       },
+      // The barrel-bound name lands on the same declaration `compute` reaches,
+      // which is the point: one declaration, whichever path arrived at it.
+      {
+        fileName: path.join(SHARED_ROOT, "src/value.ts"),
+        line: 1,
+        character: 13,
+      },
     ]);
     expect(
       resolution.imports.some((entry) => entry.exportMode === "NAMESPACE"),
     ).toBe(true);
-    expect(
-      resolution.symbols.every(
-        (entry) => entry.consumer.fileName === path.join(root, "src/barrel.ts"),
-      ),
-    ).toBe(true);
+    // Two files bind a foreign name here, and only one of them says so in its
+    // own text: `barrel.ts` names the package, `through-barrel.ts` names a
+    // relative path and reaches the same declaration through it.
+    expect([
+      ...new Set(resolution.symbols.map((entry) => entry.consumer.fileName)),
+    ]).toEqual([
+      path.join(root, "src/barrel.ts"),
+      path.join(root, "src/through-barrel.ts"),
+    ]);
 
     // `export { value as republished } from "@kivgraph-fixture/shared"` is a
     // re-export, not an import: it reaches the provider's "value" through
