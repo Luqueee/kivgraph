@@ -339,6 +339,11 @@ release_version=$("$output_dir/bin/kivgraph" version)
 if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; then
   fail "built release version $release_version does not match requested $requested_version"
 fi
+version_json=$("$output_dir/bin/kivgraph" version --json)
+canonical_schema=$(jq -er '.schema' <<<"$version_json") ||
+  fail "built binary reported no canonical schema version"
+snapshot_row_format=$(jq -er '.snapshot_row_format' <<<"$version_json") ||
+  fail "built binary reported no snapshot row format version"
 grammar_sha256=$(sha256_of "$output_dir/grammars/manifest.json")
 rust_analyzer_version=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .version' "$root/tools/manifest.json")
 rust_analyzer_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' "$root/tools/manifest.json")
@@ -395,8 +400,8 @@ cat > "$output_dir/manifest.json" <<EOF
     "library_sha256": "$ladybug_sha256"
   },
   "schema": {
-    "canonical": 2,
-    "snapshot_row_format": 3
+    "canonical": $canonical_schema,
+    "snapshot_row_format": $snapshot_row_format
   },
   "resolver_version": null,
   "grammars": {
