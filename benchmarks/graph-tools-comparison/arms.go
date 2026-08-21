@@ -130,11 +130,24 @@ func scoreAgainst(claimed, truth []string) *score {
 		}
 	}
 	out := &score{Claimed: sortedKeys(claimedSet), Missing: sorted(missing), Spurious: sorted(spurious)}
-	if len(claimedSet) > 0 {
-		out.Precision = float64(hit) / float64(len(claimedSet))
-	}
-	if len(truthSet) > 0 {
+	// An empty truth is a question whose correct answer is "nothing", and it
+	// has to be scorable: the ratios below are both undefined there, and
+	// leaving them at zero would mark the only correct answer -- claiming
+	// nothing -- as a total failure, which is why the set had no absence
+	// question until now. So the conventions are stated rather than implied:
+	// claiming nothing against an empty truth is exact, and claiming anything
+	// against it is precision zero with nothing left to miss.
+	switch {
+	case len(truthSet) == 0:
+		out.Recall = 1
+		if len(claimedSet) == 0 {
+			out.Precision = 1
+		}
+	default:
 		out.Recall = float64(hit) / float64(len(truthSet))
+		if len(claimedSet) > 0 {
+			out.Precision = float64(hit) / float64(len(claimedSet))
+		}
 	}
 	return out
 }

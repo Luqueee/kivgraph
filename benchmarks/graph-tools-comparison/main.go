@@ -46,6 +46,10 @@ type config struct {
 	CorpusCopy string
 	Directory  string
 	StateRoot  string
+	// Set names which question set runs. The seven stay addressable on their
+	// own because every published pass measured them, and mixing a new set
+	// into the same aggregate would silently change the denominator.
+	Set string
 	// KivgraphHome is the isolated HOME holding kivgraph's configuration and its
 	// published generation over the whole corpus.
 	KivgraphHome string
@@ -68,6 +72,7 @@ func main() {
 	flag.StringVar(&cfg.StateRoot, "state-root", "/private/tmp/5way", "directory holding each arm's isolated state")
 	flag.StringVar(&cfg.KivgraphHome, "kivgraph-home", "/tmp/kivbench-graft-home", "isolated HOME for kivgraph")
 	flag.StringVar(&cfg.GraftContext, "graft-context", "/private/tmp/5way/graft-ctx", "graft context directory")
+	flag.StringVar(&cfg.Set, "set", "measured", "question set: `measured` for the seven published, `hard` for the dimensions they never touched")
 	flag.BoolVar(&cfg.SkipIndexing, "skip-indexing", false, "reuse every existing index instead of rebuilding")
 	flag.Parse()
 
@@ -83,15 +88,18 @@ func main() {
 var arms = []string{"kivgraph", "graft", "code-review-graph", "graphify", "codebase-memory", "native"}
 
 type results struct {
-	Benchmark   string                    `json:"benchmark"`
-	GeneratedAt time.Time                 `json:"generated_at"`
-	Commit      string                    `json:"commit"`
-	Tokenizer   string                    `json:"tokenizer"`
-	Environment map[string]string         `json:"environment"`
-	Corpus      corpusFacts               `json:"corpus"`
-	Versions    map[string]string         `json:"versions"`
-	Isolation   map[string]string         `json:"isolation"`
-	Indexing    map[string]indexCost      `json:"indexing"`
+	Benchmark   string               `json:"benchmark"`
+	GeneratedAt time.Time            `json:"generated_at"`
+	Commit      string               `json:"commit"`
+	Tokenizer   string               `json:"tokenizer"`
+	Environment map[string]string    `json:"environment"`
+	Corpus      corpusFacts          `json:"corpus"`
+	Versions    map[string]string    `json:"versions"`
+	Isolation   map[string]string    `json:"isolation"`
+	Indexing    map[string]indexCost `json:"indexing"`
+	// QuestionSet is which set these numbers are about. Two sets share every
+	// other field, so a file without it could be read under the wrong label.
+	QuestionSet string                    `json:"question_set"`
 	Questions   []questionResult          `json:"questions"`
 	Aggregate   map[string]agg            `json:"aggregate"`
 	Families    map[string]map[string]agg `json:"aggregate_by_family"`
@@ -146,7 +154,8 @@ func run(ctx context.Context, cfg config) error {
 	}
 	out := results{
 		Benchmark: benchmarkName, GeneratedAt: time.Now().UTC(), Commit: commit,
-		Tokenizer: encodingName,
+		QuestionSet: cfg.Set,
+		Tokenizer:   encodingName,
 		Environment: map[string]string{
 			"os": osName(), "arch": archName(), "go": goVersion(),
 		},
@@ -186,11 +195,11 @@ func run(ctx context.Context, cfg config) error {
 		return err
 	}
 	defer kiv.close()
-	if err := assertCorpusIsPublished(ctx, tokens, kiv); err != nil {
+	if err := assertCorpusIsPublished(ctx, tokens, kiv, cfg.Set); err != nil {
 		return err
 	}
 
-	for _, q := range questions {
+	for _, q := range questionSet(cfg.Set) {
 		result := questionResult{
 			ID: q.ID, Family: q.Family, Ask: q.Ask,
 			Truth: q.Truth, Arms: map[string]*armResult{},
@@ -251,10 +260,10 @@ func cmmHome(cfg config) string      { return filepath.Join(cfg.StateRoot, "cmm-
 // index nine tenths of which no question reads. What each arm indexed is
 // recorded in `indexing[...].scope`, so the cost is never compared across two
 // different scopes without saying so.
-func subjectRepositories() []string {
+func subjectRepositories(set string) []string {
 	seen := map[string]bool{}
 	out := []string{}
-	for _, q := range questions {
+	for _, q := range questionSet(set) {
 		if !seen[q.Subject.Dir] {
 			seen[q.Subject.Dir] = true
 			out = append(out, q.Subject.Dir)
@@ -290,7 +299,7 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 			return fmt.Errorf("clear %s: %w", derived, err)
 		}
 	}
-	for _, dir := range subjectRepositories() {
+	for _, dir := range subjectRepositories(cfg.Set) {
 		if err := os.RemoveAll(filepath.Join(cfg.CorpusCopy, dir, "graphify-out")); err != nil {
 			return fmt.Errorf("clear graphify output for %s: %w", dir, err)
 		}
@@ -348,7 +357,7 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 	fmt.Printf("  %-18s %6.1f s\n", "codebase-memory", sinceMS(started)/1000)
 
 	crgTotal, graphifyTotal := 0.0, 0.0
-	for _, dir := range subjectRepositories() {
+	for _, dir := range subjectRepositories(cfg.Set) {
 		elapsed, err := buildCRG(ctx, cfg.CRG, filepath.Join(cfg.Corpus, dir), crgData(cfg), crgHome(cfg))
 		if err != nil {
 			return fmt.Errorf("code-review-graph build %s: %w", dir, err)
@@ -360,7 +369,7 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 		}
 		graphifyTotal += elapsed
 	}
-	scope := fmt.Sprintf("one graph per repository; built the %d the questions name, not all 37", len(subjectRepositories()))
+	scope := fmt.Sprintf("one graph per repository; built the %d the questions name, not all 37", len(subjectRepositories(cfg.Set)))
 	out.Indexing["code-review-graph"] = indexCost{
 		Command: "code-review-graph build --repo <r> --data-dir <d>", MS: crgTotal, Scope: scope,
 		Bytes: directorySize(crgData(cfg)), Needs: "nothing beyond the binary",
@@ -430,7 +439,7 @@ func publishedSymbols(output string) (int, error) {
 // 37 git repositories and the graph reports 35, because two carry no Go,
 // TypeScript or Rust for it to index, and a benchmark that demanded 37 would
 // fail on a perfectly good generation.
-func assertCorpusIsPublished(ctx context.Context, tokens *counter, srv *server) error {
+func assertCorpusIsPublished(ctx context.Context, tokens *counter, srv *server, set string) error {
 	answer := srv.call(ctx, tokens, "setup-list_repositories", "list_repositories", map[string]any{})
 	if answer.Failed {
 		return fmt.Errorf("kivgraph list_repositories: %s", answer.Error)
@@ -447,7 +456,7 @@ func assertCorpusIsPublished(ctx context.Context, tokens *counter, srv *server) 
 	for _, repository := range decoded.Results {
 		published = append(published, repository.Name)
 	}
-	for _, q := range questions {
+	for _, q := range questionSet(set) {
 		if !slices.Contains(published, q.Subject.Repo) {
 			return fmt.Errorf("kivgraph published %d repositories but not %q, which %s is about",
 				len(published), q.Subject.Repo, q.ID)

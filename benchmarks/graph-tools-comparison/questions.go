@@ -226,3 +226,164 @@ var questions = []question{
 		Truth: []string{"expBackoffJitter", "retryInfo", "withRetry"},
 	},
 }
+
+// The hard set, selected blind by the rules in `harder.md` and with every
+// occurrence read and attributed before any tool was run against it. Each
+// question names a dimension the first ten never touched: a method homonym
+// across receivers, a call through an interface, a type rather than a function,
+// a renamed re-export, a trait object, an absence in each language, and a Rust
+// outline.
+var hardQuestions = []question{
+	{
+		ID:       "H1_go_method",
+		Family:   familyReferences,
+		Ask:      "Which files reference the GetAll declared on BotsHandler in services/api-db-go?",
+		Language: "go, method homonym",
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/application/handlers/bots_handler.go",
+			Name: "BotsHandler.GetAll", Symbol: "GetAll",
+		},
+		Truth: []string{"services/api-db-go/internal/application/routers/bots_router.go"},
+		Declarations: []string{
+			"services/api-db-go/internal/application/handlers/bots_handler.go",
+			"services/api-db-go/internal/application/handlers/command_handler.go",
+			"services/api-db-go/internal/application/handlers/premium_handler.go",
+		},
+	},
+	{
+		ID:       "H2_go_iface",
+		Family:   familyReferences,
+		Ask:      "Which files call the FindPendingGuilds implemented by NotifierSubRepository in services/api-db-go?",
+		Language: "go, called through an interface",
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/infrastructure/postgres/notifier_sub_repository.go",
+			Name: "NotifierSubRepository.FindPendingGuilds", Symbol: "FindPendingGuilds",
+		},
+		Truth: []string{"services/api-db-go/internal/application/handlers/guilds_handler.go"},
+		Declarations: []string{
+			"services/api-db-go/internal/infrastructure/pgrepo/repos.go",
+			"services/api-db-go/internal/infrastructure/postgres/notifier_sub_repository.go",
+		},
+	},
+	{
+		ID:       "H3_ts_type",
+		Family:   familyReferences,
+		Ask:      "Which files use the ApiRuntimeState declared in libraries/library-shared/src/types/gateway-registry.ts?",
+		Language: "typescript, a type not a function",
+		Subject: subject{
+			Repo: "library-shared", Dir: "libraries/library-shared",
+			Path: "src/types/gateway-registry.ts",
+			Name: "ApiRuntimeState", Symbol: "ApiRuntimeState",
+		},
+		Truth: []string{
+			"libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+			"packages/gateway/src/grpc/manager/RegistryGrpcManager.ts",
+		},
+		Declarations: []string{"libraries/library-shared/src/types/gateway-registry.ts"},
+	},
+	{
+		ID:       "H4_ts_alias",
+		Family:   familyReferences,
+		Ask:      "Which files use the CommandManager declared in modules/sdk-module-ts/src/sdk/managers/CommandManager.ts?",
+		Language: "typescript, re-exported under another name",
+		Subject: subject{
+			Repo: "sdk-module-ts", Dir: "modules/sdk-module-ts",
+			Path: "src/sdk/managers/CommandManager.ts",
+			Name: "CommandManager", Symbol: "CommandManager",
+		},
+		Truth:        []string{"modules/sdk-module-ts/src/sdk/client/ModuleActions.ts"},
+		Declarations: []string{"modules/sdk-module-ts/src/sdk/managers/CommandManager.ts"},
+	},
+	{
+		ID:       "H5_rs_trait",
+		Family:   familyReferences,
+		Ask:      "Which files call the delete_player implemented by MemoryStateStore in services/kenalink-rs?",
+		Language: "rust, called through a trait object",
+		Subject: subject{
+			Repo: "kenalink-rs", Dir: "services/kenalink-rs",
+			Path: "src/state/memory.rs",
+			Name: "state::memory::impl::MemoryStateStore::StateStore::delete_player", Symbol: "delete_player",
+		},
+		Truth: []string{
+			"services/kenalink-rs/src/api_rest/routes_players.rs",
+			"services/kenalink-rs/src/api_ws/mod.rs",
+			"services/kenalink-rs/src/main.rs",
+		},
+		Declarations: []string{
+			"services/kenalink-rs/src/api_rest/routes_players.rs",
+			"services/kenalink-rs/src/state/memory.rs",
+			"services/kenalink-rs/src/state/mod.rs",
+		},
+	},
+	{
+		ID:       "A1_go_absent",
+		Family:   familyReferences,
+		Ask:      "Which files reference the BenchmarkDeserializeValueDate declared in services/api-db-go?",
+		Language: "go, absence",
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/infrastructure/redis/serialization_bench_test.go",
+			Name: "BenchmarkDeserializeValueDate", Symbol: "BenchmarkDeserializeValueDate",
+		},
+		Truth:        []string{},
+		Declarations: []string{"services/api-db-go/internal/infrastructure/redis/serialization_bench_test.go"},
+	},
+	{
+		ID:       "A2_ts_absent",
+		Family:   familyReferences,
+		Ask:      "Which files use the addMockedSongsToQueue declared in modules/music-module/src/mocks/music-mocks.ts?",
+		Language: "typescript, absence",
+		Subject: subject{
+			Repo: "music-module", Dir: "modules/music-module",
+			Path: "src/mocks/music-mocks.ts",
+			Name: "addMockedSongsToQueue", Symbol: "addMockedSongsToQueue",
+		},
+		Truth:        []string{},
+		Declarations: []string{"modules/music-module/src/mocks/music-mocks.ts"},
+	},
+	{
+		ID:       "A3_rs_absent",
+		Family:   familyReferences,
+		Ask:      "Which files call the build_all_image_sizes declared in services/api-music-nodo?",
+		Language: "rust, absence",
+		Subject: subject{
+			Repo: "api-music-nodo", Dir: "services/api-music-nodo",
+			Path: "src/providers/spotify.rs",
+			Name: "providers::spotify::build_all_image_sizes", Symbol: "build_all_image_sizes",
+		},
+		Truth:        []string{},
+		Declarations: []string{"services/api-music-nodo/src/providers/spotify.rs"},
+	},
+	{
+		ID:       "O3_rs_outline",
+		Family:   familyOutline,
+		Ask:      "What is declared at the top level of api-music-nodo audio/range.rs?",
+		Language: "rust",
+		Subject: subject{
+			Repo: "api-music-nodo", Dir: "services/api-music-nodo",
+			Path: "src/audio/range.rs",
+		},
+		Truth: []string{
+			"RangeOutcome", "build_response", "file_response", "insert_header",
+			"parse_decimal", "parse_range", "tests",
+		},
+	},
+}
+
+// questionSet resolves the name a run was asked for. An unknown name is a
+// failure rather than a fallback: silently measuring the wrong set would
+// publish a number under the wrong label.
+func questionSet(name string) []question {
+	switch name {
+	case "", "measured":
+		return questions
+	case "hard":
+		return hardQuestions
+	case "all":
+		return append(append([]question{}, questions...), hardQuestions...)
+	default:
+		panic("unknown question set " + name + `: use "measured", "hard" or "all"`)
+	}
+}
