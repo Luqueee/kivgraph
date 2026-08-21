@@ -260,7 +260,85 @@
   "limitations": [
     "one corpus, one machine, one toolchain. A different sysroot or a fetched dependency moves the 94.3 % bucket",
     "the classification of the 112 is by symbol shape, read label by label; every label is quoted in the report so a reader can disagree with the reading",
-    "Go and TypeScript are counted but not classified. Their ratios against references are 8.4 % and 2.2 %, and nothing here asks what they are",
-    "the probe reads the canonical graph, so its per-language symbol counts are the graph's, which do not match the index event's go_definitions -- one counts published symbols and the other counts definitions the loader saw"
-  ]
+    "the probe reads the canonical graph, so its per-language symbol counts are the graph's, which do not match the index event's go_definitions -- one counts published symbols and the other counts definitions the loader saw",
+    "all three languages are classified now, each over one corpus and one toolchain; another sysroot, other cached dependencies or a built workspace moves all three splits"
+  ],
+  "observations_versus_facts": {
+    "what": "the per-language counters in the index event count observations; the canonical graph stores distinct facts, keyed by file, reason, requested package, requested symbol and start offset",
+    "measured": {
+      "include_tests_true": {
+        "index_says": 9581,
+        "graph_holds": 6059,
+        "language": "go"
+      },
+      "include_tests_false": {
+        "index_says": 4397,
+        "graph_holds": 4397,
+        "language": "go"
+      }
+    },
+    "why": "with tests on, go/packages loads pkg and pkg.test and both observe the same position in the same file",
+    "verdict": "no row is lost; the number a user reads overstates distinct facts by 1.58x on this corpus. LUQUE-2009"
+  },
+  "go_breakdown": {
+    "MODULE_PROVIDER_NOT_FOUND": {
+      "count": 5768,
+      "share": 0.952,
+      "what": "third-party modules",
+      "verdict": "declared limitation"
+    },
+    "DECLARATION_OUTSIDE_REPOSITORY": {
+      "count": 288,
+      "share": 0.048,
+      "what": "the *.test packages the Go toolchain synthesises inside the build cache",
+      "evidence": "every detail is a path under Library/Caches/go-build/",
+      "verdict": "inherent to include_tests: true"
+    },
+    "PACKAGE_NOT_BUILDABLE": {
+      "count": 3,
+      "share": 0.0005,
+      "what": "directories whose Go files are all behind build tags",
+      "evidence": "detail reads `build constraints exclude all Go files in ...`",
+      "verdict": "honest record, not broken code"
+    },
+    "workspace_calls_that_failed_to_resolve": 0
+  },
+  "typescript_breakdown": {
+    "PACKAGE_PROVIDER_NOT_FOUND": {
+      "count": 4389,
+      "share": 0.733,
+      "what": "external packages",
+      "verdict": "declared limitation"
+    },
+    "PROVIDER_SOURCE_UNAVAILABLE": {
+      "count": 1220,
+      "share": 0.204,
+      "what": "kena's own packages, none of which has a dist/"
+    },
+    "DECLARATION_SOURCE_NOT_MAPPED": {
+      "count": 272,
+      "share": 0.045,
+      "what": "a declaration without declarationMap"
+    },
+    "DECLARATION_NOT_RESOLVED": {
+      "count": 109,
+      "share": 0.018,
+      "what": "a name the provider does not declare"
+    },
+    "MODULE_NOT_RESOLVED": {
+      "count": 1,
+      "share": 0.0
+    },
+    "internal_share": {
+      "count": 1492,
+      "share": 0.249,
+      "what": "occurrences asking for kena's own packages rather than third-party ones",
+      "corpus_state": "verified: none of sdk-module-ts, library-web or library-shared has a dist/",
+      "what_a_build_would_fix": {
+        "@kena/sdk": "declaration and declarationMap both true -- would resolve",
+        "@kena/shared": "declaration and declarationMap both true -- would resolve",
+        "@kena/web": "declaration true, declarationMap absent -- would stay unmapped"
+      }
+    }
+  }
 }

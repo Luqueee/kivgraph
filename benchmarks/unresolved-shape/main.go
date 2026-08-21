@@ -39,6 +39,11 @@ type group struct {
 	Examples []string `json:"examples,omitempty"`
 	// Files are where the occurrences sit, most first.
 	Files []string `json:"top_files,omitempty"`
+	// Details are the loader's own explanation, verbatim. A reason names a
+	// class of failure and a detail names the instance, which is the
+	// difference between "a package would not build" and knowing which one
+	// and why.
+	Details []string `json:"details,omitempty"`
 }
 
 type results struct {
@@ -88,6 +93,7 @@ func run(ctx context.Context, database, only string, examples int) error {
 		count    int
 		examples map[string]int
 		files    map[string]int
+		details  map[string]int
 	}
 	buckets := map[string]*bucket{}
 	for _, reference := range graph.Unresolved {
@@ -98,7 +104,7 @@ func run(ctx context.Context, database, only string, examples int) error {
 		key := reference.Language + "\x00" + reference.Reason
 		entry, found := buckets[key]
 		if !found {
-			entry = &bucket{examples: map[string]int{}, files: map[string]int{}}
+			entry = &bucket{examples: map[string]int{}, files: map[string]int{}, details: map[string]int{}}
 			buckets[key] = entry
 		}
 		entry.count++
@@ -114,6 +120,9 @@ func run(ctx context.Context, database, only string, examples int) error {
 		if reference.FileKey != "" {
 			entry.files[reference.FileKey]++
 		}
+		if detail := reference.Detail; detail != "" {
+			entry.details[detail]++
+		}
 	}
 
 	for key, entry := range buckets {
@@ -128,6 +137,7 @@ func run(ctx context.Context, database, only string, examples int) error {
 			Share:    share,
 			Examples: topKeys(entry.examples, examples),
 			Files:    topKeys(entry.files, 5),
+			Details:  topKeys(entry.details, 3),
 		})
 	}
 	sort.Slice(out.Groups, func(i, j int) bool {

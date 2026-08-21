@@ -15376,3 +15376,36 @@ para siempre**.
 
 **Lo que no vale:** dejar código que renderiza un caso que no ocurre mientras
 `56` referencias lo citan sin poder resolverlo.
+
+## LUQUE-2009 — Un contador de no resueltos cuenta observaciones, no hechos
+
+**Dependencias:** LUQUE-2007.
+
+**El hecho, medido:** `go_unresolved` declara `9.581` sobre `kena` y el grafo
+canónico guarda `6.059` filas. La clave de un no resuelto incluye el **offset**,
+así que sólo colapsan dos observaciones de la misma posición -- y con
+`include_tests: true` eso ocurre por diseño: `go/packages` carga `pkg` y
+`pkg.test`, y las dos observan el mismo punto del mismo fichero.
+
+|`include_tests`|el índice declara|el grafo guarda|
+|---|---|---|
+|`true`|`9.581`|`6.059`|
+|`false`|`4.397`|`4.397`|
+
+Sin tests coinciden exactamente. Con tests, la cifra que un usuario lee
+sobreestima los hechos distintos en `1,58x`. **No se pierde ninguna fila**: lo que
+sobra son observaciones repetidas de lo mismo.
+
+**Por qué importa:** ese número es lo que alguien mira para decidir si confía en
+el grafo, y el resto de contadores del mismo bloque -- símbolos, referencias-- sí
+son hechos distintos. Uno de los dos está midiendo otra cosa que sus vecinos.
+
+**Las dos salidas:**
+
+* **Contar hechos.** Deduplicar por la clave antes de contar, que es lo que el
+  grafo hace después. La cifra baja y empieza a coincidir con el grafo.
+* **Declararlo.** Renombrar lo que se informa, u añadir el recuento distinto al
+  lado, y decir en la documentación que uno cuenta observaciones.
+
+**Lo que no vale:** dejar dos números que se llaman igual, se leen igual y miden
+cosas distintas según un flag de configuración.

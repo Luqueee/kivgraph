@@ -1,7 +1,8 @@
 # De qué son los no resueltos
 
-`LUQUE-2007`. El índice de `kena` publica `1.969` referencias Rust no resueltas y
-ningún conjunto de preguntas había preguntado nunca **qué son**. Un contador
+`LUQUE-2007`. El índice de `kena` publica `9.581` referencias Go, `5.998`
+TypeScript y `1.969` Rust sin resolver, y ningún conjunto de preguntas había
+preguntado nunca **qué son**. Un contador
 agregado no distingue una limitación declarada de un defecto escondido, y ésa era
 toda la información disponible.
 
@@ -88,6 +89,72 @@ que existe para un caso que no ocurre. Aquí es más pequeño y tiene una segund
 mitad -- referencias que no pueden resolver nunca-- que inflan una métrica que
 alguien lee para decidir si confiar en el grafo.
 
+## Go: `95 %` terceros, y ni una llamada del workspace
+
+|grupo|cuenta|parte|qué es|
+|---|---|---|---|
+|`MODULE_PROVIDER_NOT_FOUND`|`5.768`|`95,2 %`|módulos de terceros: `fiber/v3::Ctx`, `mongo-driver/v2/bson::M`, `zerolog::Event.Msg`|
+|`DECLARATION_OUTSIDE_REPOSITORY`|`288`|`4,8 %`|declaraciones que `go test` sintetiza **dentro del caché de build**|
+|`PACKAGE_NOT_BUILDABLE`|`3`|`0,05 %`|directorios cuyos ficheros están todos detrás de build tags|
+|**llamadas del workspace que fallaron al resolver**|**`0`**|`0 %`|--|
+
+Los `288` se identifican por su propio `detail`, que es una ruta dentro de
+`Library/Caches/go-build/`: son los paquetes `*.test` que el toolchain genera --
+`::main`, `::init`, `::tests`, `::benchmarks`, `::fuzzTargets` -- y que no existen
+en ningún fichero del repositorio. Desaparecen con `include_tests: false`.
+
+Y los `3` no son código roto. Su `detail` lo dice: `build constraints exclude all
+Go files in ...`, sobre la raíz de `api-db-go` y dos directorios `testutil`. Un
+directorio sin ficheros Go compilables para la plataforma actual no es un fallo,
+y el cargador lo registra en vez de callarlo.
+
+## Un contador cuenta observaciones, no hechos
+
+`go_unresolved` dice `9.581`. El grafo guarda `6.059` filas. La clave de un no
+resuelto incluye el **offset**, así que sólo colapsan dos observaciones de la
+**misma** posición -- y con `include_tests: true` eso pasa a propósito: `go/packages`
+carga `pkg` y `pkg.test`, y las dos observan el mismo punto del mismo fichero.
+
+Medido, no supuesto:
+
+|`include_tests`|el índice declara|el grafo guarda|
+|---|---|---|
+|`true`|`9.581`|`6.059`|
+|`false`|`4.397`|`4.397`|
+
+Sin tests las dos cifras **coinciden exactamente**. Con tests, el número que un
+usuario lee sobreestima los hechos distintos en `1,58x`. Ni una fila se pierde:
+lo que sobra son observaciones repetidas. Queda en `LUQUE-2009`.
+
+## TypeScript: un cuarto apunta al propio código de `kena`
+
+|grupo|cuenta|parte|qué es|
+|---|---|---|---|
+|`PACKAGE_PROVIDER_NOT_FOUND`|`4.389`|`73,3 %`|paquetes externos: `react`, `vitest`, `zod`, `fastify`|
+|`PROVIDER_SOURCE_UNAVAILABLE`|`1.220`|`20,4 %`|**paquetes propios sin salida construida**|
+|`DECLARATION_SOURCE_NOT_MAPPED`|`272`|`4,5 %`|declaración sin `declarationMap`|
+|`DECLARATION_NOT_RESOLVED`|`109`|`1,8 %`|nombre que el proveedor no declara|
+|`MODULE_NOT_RESOLVED`|`1`|`0,0 %`|un paquete que no resuelve|
+
+**`1.492` ocurrencias -- el `24,9 %` -- piden código de `kena`**, no de terceros:
+`@kena/sdk::CommandContext`, `@kena/sdk::SlashCommandBuilder`,
+`@kena/web::Translations`. La causa es el estado del corpus, verificado:
+**ninguno** de los tres paquetes internos tiene `dist/`.
+
+Y aquí la parte accionable, con la condición que fija el ADR 0038:
+
+|paquete|`declaration`|`declarationMap`|qué pasaría al construirlo|
+|---|---|---|---|
+|`@kena/sdk`|sí|**sí**|resolvería|
+|`@kena/shared`|sí|**sí**|resolvería|
+|`@kena/web`|sí|**no**|seguiría en `DECLARATION_SOURCE_NOT_MAPPED`|
+
+Así que construir el workspace recupera la mayor parte de ese cuarto -- `@kena/sdk`
+son `67` de las `80` etiquetas distintas del grupo grande-- y `@kena/web` no,
+hasta que su `tsconfig.json` emita el mapa. Eso no es un defecto de Kivgraph: es
+lo que el grafo puede saber de un paquete que no publica de dónde viene su
+declaración.
+
 ## Reproducir
 
 ```bash
@@ -105,9 +172,9 @@ go run -tags ladybug ./benchmarks/unresolved-shape \
 - La clasificación de las `112` es **por forma del símbolo**, leída etiqueta a
   etiqueta. Las formas están citadas para que quien lea pueda discrepar de la
   lectura.
-- **Go y TypeScript se cuentan y no se clasifican.** `6.059` y `5.991` no
-  resueltos siguen sin explicación, y el mismo método los explicaría. Este
-  informe no lo hace y no debe leerse como si dijera algo sobre ellos.
+- Los tres lenguajes están clasificados, pero **cada uno sobre un corpus y un
+  toolchain**. Otro sysroot, otras dependencias en caché o un workspace
+  construido mueven los tres repartos.
 - El sondeo lee el grafo canónico, así que sus símbolos por lenguaje son los del
   grafo y no coinciden con `go_definitions` del evento de índice: uno cuenta
   símbolos publicados y el otro definiciones que el cargador vio.
