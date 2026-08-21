@@ -209,6 +209,9 @@ Per question, ours:
 file. `R1` went from naming none of the five call sites to naming all five, and
 its four remaining false positives are the re-export barrels. Nothing regressed.
 
+That pass is superseded by the one at the end of this file, which adds the
+module symbol and closes `R3`.
+
 **The answer got dearer, not cheaper: `4.449` -> `6.295` tokens.** `R1` now
 returns ten rows where it used to return three, and `I1` names a real second
 hop instead of a cache entry. That is the trade, and it is the honest direction
@@ -228,3 +231,48 @@ the parser -- which never read that field -- scored an empty set.
 A benchmark that under-reports its own subject is still a broken benchmark, so
 the row parser now prefers the row's repository and falls back to the header.
 The numbers above are from the corrected parser, against captures on disk.
+
+## The module symbol: `R3` closed
+
+The third defect above is fixed. ADR 0052 has the decision; this is what it
+measured. `results-0.3.6.json` and `raw-0.3.6/` now hold this pass.
+
+|question|`0.3.2`|+ the two fixes|+ the module symbol|
+|---|---|---|---|
+|`R1_ts_xrepo`|`0,00` / `0,00`|`0,56` / `1,00`|`0,56` / `1,00`|
+|`R2_go`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`R3_ts_intra`|`1,00` / `0,89`|`1,00` / `0,89`|**`1,00` / `1,00`, exact**|
+|`R4_rust`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`I1_go_depth2`|`0,67` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`O1_ts_large`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|`O2_go_small`|`1,00` / `1,00`|`1,00` / `1,00`|`1,00` / `1,00`|
+|**aggregate**|`0,81` / `0,84`, `4/7`|`0,94` / `0,98`, `5/7`|**`0,94` / `1,00`, `6/7`**|
+
+Recall `1,00` is the sentence worth reading: across the seven questions no
+caller is missed any more. The one question that is not exact is `R1`, and its
+four false positives are the re-export barrels -- a separate defect, named in
+the losses table and not fixed here.
+
+Of the three blind questions, `N2_ts` also went from `0,00` / `0,00` to exact,
+measured on the same index. `N1_go` and `N3_rust` were exact before and after.
+
+### The harness had to change with it
+
+`R3` did not move on the first run with the module symbol, and the reason was
+the harness, not the graph: it enabled `go.include_tests` but not
+`typescript.include_unclaimed_sources`, so the test file was never indexed and
+the module symbol had nothing to own. Both levers are off by default and both
+are what make our arm see the file set the four tree-sitter arms see on disk, so
+`prepareKivgraphHome` now enables both and fails loudly if the key is absent.
+
+The two are a pair, and that is worth stating plainly: **the unclaimed-sources
+work alone bought nothing measurable.** It indexed the file; without an owner
+for a call in an anonymous callback, every call it made was still dropped.
+
+### Two numbers that moved the wrong way
+
+`52,0 s` to index and `1.607 MB` on disk, against `50,3 s` and `1.542 MB`
+before, for `126.720` symbols against `122.583`. And `codebase-memory-mcp`
+reports `4/7` here against `3/7` in the previous pass -- that is its own
+measured variance, `3` to `4` exact answers across three passes, recorded in
+`report.md`, and not something this change caused.

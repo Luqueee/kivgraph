@@ -594,6 +594,148 @@ func TestNormalizeTypeScriptImportWithoutTargetIsUnresolved(t *testing.T) {
 	}
 }
 
+// TestNormalizeTypeScriptOwnsAnUnownedUseByItsModule defends the calls a test
+// file makes. The `vitest` and `jest` idiom puts every call inside an anonymous
+// function handed to `it` or `beforeEach`, and an anonymous function is not a
+// declaration, so the worker reports the use with no enclosing symbol. Dropping
+// it erased 38 of 38 uses in one real test file and 98 uses in ordinary
+// bootstrap code of the same package: the file's own scope is the owner.
+func TestNormalizeTypeScriptOwnsAnUnownedUseByItsModule(t *testing.T) {
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "core"},
+		Package: &TypeScriptPackage{
+			Name: "@kivgraph-fixture/core", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/case.ts", "tests/case.test.ts"},
+		Symbols: []TypeScriptSymbol{{
+			File: "src/case.ts", Name: "getRequiredField", QualifiedName: "getRequiredField",
+			Kind: "function", Signature: "(data: unknown, key: string) => unknown",
+			Exported: true, StartLine: 3, EndLine: 9, Start: 40, End: 220,
+		}},
+		References: []TypeScriptReference{{
+			File: "tests/case.test.ts", Kind: "CALLS_DIRECT",
+			// The use inside `it("...", () => { ... })`: no enclosing
+			// declaration, which the worker reports as an empty source.
+			SourceQualifiedName: "",
+			TargetFile:          "src/case.ts",
+			TargetQualifiedName: "getRequiredField",
+			Start:               120, End: 136, StartLine: 8,
+			Text: "getRequiredField",
+		}},
+	}
+
+	set, report, err := NormalizeTypeScript(context.Background(), payload,
+		workspace.Repository{RealPath: "/repositories/core"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.EdgesWithoutSource != 0 {
+		t.Fatalf("EdgesWithoutSource = %d, want 0: the use has an owner", report.EdgesWithoutSource)
+	}
+	if report.EdgesOwnedByModule != 1 {
+		t.Fatalf("EdgesOwnedByModule = %d, want 1", report.EdgesOwnedByModule)
+	}
+
+	var module Symbol
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == ModuleSymbolKind {
+			module = symbol
+		}
+	}
+	if module.Key == "" {
+		t.Fatalf("no module symbol was created; symbols = %#v", set.Symbols)
+	}
+	want := Symbol{
+		Key:               module.Key,
+		CanonicalIdentity: module.CanonicalIdentity,
+		RepositoryKey:     set.Repositories[0].Key,
+		PackageKey:        set.Packages[0].Key,
+		FileKey:           FileKey("core", "tests/case.test.ts"),
+		Language:          LanguageTypeScript,
+		Name:              "case.test.ts",
+		QualifiedName:     "tests.case.test",
+		Kind:              ModuleSymbolKind,
+		Start:             Position{Line: 1},
+	}
+	if module != want {
+		t.Fatalf("module symbol =\n %#v\nwant\n %#v", module, want)
+	}
+	// The module symbol exists only where a use needed it: the declaring file
+	// has one of its own for every use, so it gets none.
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == ModuleSymbolKind && symbol.FileKey != want.FileKey {
+			t.Fatalf("a file with no unowned use got a module symbol: %#v", symbol)
+		}
+	}
+
+	var calls []Edge
+	for _, edge := range set.Edges {
+		if edge.Kind == CallsDirect {
+			calls = append(calls, edge)
+		}
+	}
+	if len(calls) != 1 {
+		t.Fatalf("CALLS_DIRECT edges = %#v, want exactly one", calls)
+	}
+	if calls[0].SourceKey != module.Key {
+		t.Fatalf("SourceKey = %q, want the module symbol %q", calls[0].SourceKey, module.Key)
+	}
+	if calls[0].Confidence != ExactTypechecked || calls[0].Provenance != TypeScriptChecker {
+		t.Fatalf("the checker resolved the target, so the edge keeps its grade: %#v", calls[0])
+	}
+}
+
+// TestNormalizeTypeScriptStillRejectsAnUnknownNamedOwner keeps the two cases
+// apart. An empty source means the use has no enclosing declaration and its
+// module owns it; a named source that this payload does not declare is an
+// inconsistency, and inventing a module owner for it would hide a real loss.
+func TestNormalizeTypeScriptStillRejectsAnUnknownNamedOwner(t *testing.T) {
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "core"},
+		Package: &TypeScriptPackage{
+			Name: "@kivgraph-fixture/core", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/case.ts"},
+		Symbols: []TypeScriptSymbol{{
+			File: "src/case.ts", Name: "getRequiredField", QualifiedName: "getRequiredField",
+			Kind: "function", Signature: "(data: unknown) => unknown",
+			Exported: true, StartLine: 3, EndLine: 9, Start: 40, End: 220,
+		}},
+		References: []TypeScriptReference{{
+			File: "src/case.ts", Kind: "CALLS_DIRECT",
+			SourceQualifiedName: "aFunctionNobodyDeclared",
+			TargetFile:          "src/case.ts",
+			TargetQualifiedName: "getRequiredField",
+			Start:               120, End: 136, StartLine: 8,
+			Text: "getRequiredField",
+		}},
+	}
+
+	set, report, err := NormalizeTypeScript(context.Background(), payload,
+		workspace.Repository{RealPath: "/repositories/core"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if report.EdgesWithoutSource != 1 {
+		t.Fatalf("EdgesWithoutSource = %d, want 1", report.EdgesWithoutSource)
+	}
+	if report.EdgesOwnedByModule != 0 {
+		t.Fatalf("EdgesOwnedByModule = %d, want 0", report.EdgesOwnedByModule)
+	}
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == ModuleSymbolKind {
+			t.Fatalf("an unknown named owner must not create a module symbol: %#v", symbol)
+		}
+	}
+}
+
 // TestNormalizeTypeScriptImportWithIncompleteTargetIsUnresolved covers a
 // target that is present but missing its module, its class or its signature:
 // without all three, the provider's stable key cannot be derived, so it must

@@ -234,8 +234,15 @@ type TypeScriptUnresolved struct {
 
 // TypeScriptReport records what normalisation could not keep.
 type TypeScriptReport struct {
-	// EdgesWithoutSource counts uses at file scope, with no enclosing symbol.
+	// EdgesWithoutSource counts uses whose enclosing symbol is named but not
+	// in this payload. A use with no enclosing declaration at all is owned by
+	// its module instead, and counted below.
 	EdgesWithoutSource int
+	// EdgesOwnedByModule counts uses whose owner is the file's own scope: a
+	// top level statement, or a call inside an anonymous function passed as an
+	// argument. Before the module symbol existed these were dropped, which
+	// erased every call a test file makes.
+	EdgesOwnedByModule int
 	// EdgesWithoutTarget counts uses whose target is not in this payload.
 	EdgesWithoutTarget int
 	// ImportsWithoutTarget counts import bindings whose provider declaration
@@ -388,12 +395,76 @@ func NormalizeTypeScript(
 		})
 	}
 
+	// moduleSymbolKeys holds the synthetic module symbol of a file, created the
+	// first time a use needs it. Creating one per file up front would add a
+	// symbol to every file in the corpus to serve the few that have a use with
+	// no narrower owner; the payload's order is fixed, so creating them lazily
+	// is just as deterministic.
+	moduleSymbolKeys := make(map[string]string, 0)
+	moduleSymbolFor := func(file string) (string, error) {
+		if existing, ok := moduleSymbolKeys[file]; ok {
+			return existing, nil
+		}
+		fileKey := FileKey(name, file)
+		if _, known := files[fileKey]; !known {
+			return "", nil
+		}
+		qualifiedName := moduleQualifiedName(file)
+		identity := typeScriptSymbolIdentity(name, payload.Package.Name, file,
+			qualifiedName, ModuleSymbolKind, "")
+		canonical, err := identity.Canonical()
+		if err != nil {
+			return "", fmt.Errorf("module symbol %q identity: %w", file, err)
+		}
+		key, err := identity.Key()
+		if err != nil {
+			return "", fmt.Errorf("module symbol %q key: %w", file, err)
+		}
+		set.Symbols = append(set.Symbols, Symbol{
+			Key:               string(key),
+			CanonicalIdentity: canonical,
+			RepositoryKey:     repositoryKey,
+			PackageKey:        packageKey,
+			FileKey:           fileKey,
+			Language:          LanguageTypeScript,
+			Name:              moduleSymbolName(file),
+			QualifiedName:     qualifiedName,
+			Kind:              ModuleSymbolKind,
+			Exported:          false,
+			Start:             Position{Line: 1},
+		})
+		set.Edges = append(set.Edges, Edge{
+			Kind:      Defines,
+			SourceKey: fileKey,
+			TargetKey: string(key),
+			// The scope exists because the file does; the checker declared
+			// nothing here, so it is not credited.
+			Confidence: StructuralCertain,
+			Provenance: PackageManifest,
+		})
+		moduleSymbolKeys[file] = string(key)
+		return string(key), nil
+	}
+
 	report := TypeScriptReport{}
 	for _, reference := range payload.References {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
 		}
 		sourceKey, hasSource := symbolKeys[reference.File+"\x00"+reference.SourceQualifiedName]
+		if !hasSource && reference.SourceQualifiedName == "" {
+			// The use has no enclosing declaration, not an unknown one: the
+			// worker reports an empty source exactly then. Its owner is the
+			// file's own scope.
+			moduleKey, err := moduleSymbolFor(reference.File)
+			if err != nil {
+				return Set{}, TypeScriptReport{}, err
+			}
+			if moduleKey != "" {
+				sourceKey, hasSource = moduleKey, true
+				report.EdgesOwnedByModule++
+			}
+		}
 		if !hasSource {
 			report.EdgesWithoutSource++
 			continue

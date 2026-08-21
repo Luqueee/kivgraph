@@ -790,12 +790,21 @@ func prepareKivgraphHome(ctx context.Context, cfg config, repositories []string)
 		return fmt.Errorf("kivgraph init: %w (%s)", err, lastLine(string(output)))
 	}
 	// Go and TypeScript tests are part of the corpus every other arm parses, so
-	// leaving them out of one index would compare two different corpora.
+	// leaving them out of one index would compare two different corpora. The
+	// four rivals parse with tree-sitter and see every file on disk; two of
+	// Kivgraph's levers are what make it see the same set, and both are off by
+	// default because they widen what a graph asserts. A test file that no
+	// tsconfig claims needs `include_unclaimed_sources` to be indexed at all,
+	// so without it one arm is answering about a smaller corpus than the rest.
 	configPath := filepath.Join(cfg.KivgraphHome, ".config/kivgraph/config.yaml")
 	blob, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", configPath, err)
 	}
 	patched := strings.ReplaceAll(string(blob), "include_tests: false", "include_tests: true")
+	patched = strings.ReplaceAll(patched, "include_unclaimed_sources: false", "include_unclaimed_sources: true")
+	if !strings.Contains(patched, "include_unclaimed_sources: true") {
+		return fmt.Errorf("%s declares no include_unclaimed_sources to enable", configPath)
+	}
 	return os.WriteFile(configPath, []byte(patched), 0o644)
 }

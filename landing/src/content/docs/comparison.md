@@ -18,10 +18,10 @@ found, is in `remeasure.md`.
 
 | tool | version | tokens | calls | precision | recall | exact |
 | --- | --- | --- | --- | --- | --- | --- |
-| **kivgraph** | `0.3.6` | `6,295` | 11 | **`0.94`** | **`0.98`** | **`5/7`** |
+| **kivgraph** | `0.3.6` | `6,381` | 11 | **`0.94`** | **`1.00`** | **`6/7`** |
 | graphify | `0.8.31` | **`2,469`** | 9 | `0.54` | `0.35` | `1/7` |
-| graft | `0.10.1` | `8,770` | 7 | `0.14` | `0.14` | `1/7` |
-| codebase-memory-mcp | `0.8.1` | `26,599` | 21 | `0.67` | `0.81` | `3/7` |
+| graft | `0.10.1` | `9,027` | 7 | `0.14` | `0.14` | `1/7` |
+| codebase-memory-mcp | `0.8.1` | `26,439` | 21 | `0.67` | `0.86` | `4/7` |
 | code-review-graph | `2.3.7` | `109,298` | 10 | `0.67` | `0.85` | `3/7` |
 | `grep` + reading | — | `63,531` | 27 | `1.00` | `1.00` | `7/7` |
 
@@ -32,8 +32,8 @@ alternative to these tools is not being wrong, it is spending `63,531` tokens.
 None of the five matches its accuracy, ours included.
 
 **Among the five, the cheapest is not the most accurate.** graphify costs `2,469`
-tokens and answers one of seven; Kivgraph costs `6,295` and answers five. Per
-correct answer that is `1,259` tokens against `2,469` and against code-review-
+tokens and answers one of seven; Kivgraph costs `6,381` and answers six. Per
+correct answer that is `1,064` tokens against `2,469` and against code-review-
 graph's `36,433`.
 
 ## Why three families of question
@@ -102,27 +102,27 @@ edges, and the same command in another repository returns 43 genuine callers.
 
 | | |
 | --- | --- |
-| indexing | `50.3 s` cold, the slowest of the five, against graphify's `12.1 s` and codebase-memory's `5.3 s` |
-| disk | `1,542 MB`, `7x` the next |
+| indexing | `52.0 s` cold, the slowest of the five, against graphify's `11.7 s` and codebase-memory's `5.1 s` |
+| disk | `1,607 MB`, `8x` the next |
 | dependencies | the only one that needs a toolchain: without the Go module cache or `cargo`, a load fails and those symbols are absent |
-| the TypeScript question | recall `0.89`: the missing caller's only calls sit inside an `it(...)` callback, and a use with no enclosing named declaration has no source symbol for an edge to start from, so it is dropped. The file itself is indexed |
 | re-export barrels | precision `0.56` on the cross-package question: an incoming-references answer mixes `REEXPORTS` with `CALLS_DIRECT`, so a barrel forwarding a name ranks beside the five sites that use it |
-| accuracy overall | `5/7` against `grep`'s `7/7` |
+| the compact label of a module-owned use | `at` names the declaration holding the reference, and a use with no enclosing declaration is held by its module: four calls in one test file produce four identical `module@1` labels instead of four call lines |
+| accuracy overall | `6/7` against `grep`'s `7/7` |
 
 ## Entry cost
 
 Every index was timed cold, with the derived state deleted first, because "cold"
 has to mean the same thing in every row: graft took `2.6 s` over a context it had
-already built and `26.1 s` over none. Every arm was a little slower this pass
+already built and `26.4 s` over none. Every arm was a little slower this pass
 than the one `report.md` records; the machine, not the code.
 
 | tool | cold | disk | scope | needs |
 | --- | --- | --- | --- | --- |
-| codebase-memory-mcp | `5.3 s` | `221 MB` | whole corpus | nothing |
-| code-review-graph | `8.0 s` | `201 MB` | one graph per repository | nothing |
-| graphify | `12.1 s` | — | one graph per repository | nothing for the structural pass |
-| graft | `26.1 s` | `181 MB` | whole corpus | nothing for the structural tier |
-| kivgraph | `50.3 s` | `1,542 MB` | whole corpus, `122,583` symbols | Go module cache, `cargo` |
+| codebase-memory-mcp | `5.1 s` | `220 MB` | whole corpus | nothing |
+| code-review-graph | `7.7 s` | `201 MB` | one graph per repository | nothing |
+| graphify | `11.7 s` | — | one graph per repository | nothing for the structural pass |
+| graft | `26.4 s` | `181 MB` | whole corpus | nothing for the structural tier |
+| kivgraph | `52.0 s` | `1,607 MB` | whole corpus, `126,720` symbols | Go module cache, `cargo` |
 
 A per-repository graph has a consequence beyond cost: a cross-package reference
 is structurally invisible to it, which is why code-review-graph and graphify both

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/goloader"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -52,6 +53,10 @@ type GoReport struct {
 	// inside the build cache; those are retained as unresolved, never as
 	// evidence.
 	FactsOutsideRepository int
+	// EdgesOwnedByModule counts uses whose owner is the file's own scope: a
+	// use at file level, with no declaration enclosing it. They were dropped
+	// before the module symbol gave them a source.
+	EdgesOwnedByModule int
 }
 
 // NormalizeGo converts the facts of one Go load into the canonical model.
@@ -192,21 +197,66 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		crossByLocation[locationKey(reference.FileName, reference.Offset)] = reference
 	}
 
+	// moduleSymbolFor returns the synthetic module symbol of a file, created on
+	// first use: the owner of a use that no declaration encloses.
+	moduleSymbolKeys := make(map[string]string)
+	moduleSymbolFor := func(packagePath, relative, fileKey string) (string, error) {
+		if existing, ok := moduleSymbolKeys[relative]; ok {
+			return existing, nil
+		}
+		packageKey := PackageKey(LanguageGo, name, packagePath)
+		container := packages[packageKey].Container
+		qualifiedName := moduleQualifiedName(relative)
+		identity := hotsnapshot.StableKeyIdentity{
+			FormatVersion: hotsnapshot.StableKeyFormatVersion,
+			Language:      string(LanguageGo),
+			Repository:    name,
+			Package:       container + " " + packagePath,
+			Module:        relative,
+			QualifiedName: qualifiedName,
+			Kind:          ModuleSymbolKind,
+		}
+		canonical, err := identity.Canonical()
+		if err != nil {
+			return "", fmt.Errorf("module symbol %q identity: %w", relative, err)
+		}
+		key, err := identity.Key()
+		if err != nil {
+			return "", fmt.Errorf("module symbol %q key: %w", relative, err)
+		}
+		set.Symbols = append(set.Symbols, Symbol{
+			Key:               string(key),
+			CanonicalIdentity: canonical,
+			RepositoryKey:     repositoryKey,
+			PackageKey:        packageKey,
+			FileKey:           fileKey,
+			Language:          LanguageGo,
+			Name:              moduleSymbolName(relative),
+			QualifiedName:     qualifiedName,
+			Kind:              ModuleSymbolKind,
+			Start:             Position{Line: 1},
+		})
+		set.Edges = append(set.Edges, Edge{
+			Kind:      Defines,
+			SourceKey: fileKey,
+			TargetKey: string(key),
+			// The scope exists because the file does, which is what
+			// ContainsFile already asserts from the same evidence. No checker
+			// declared this symbol, so none is credited for it.
+			Confidence: StructuralCertain,
+			Provenance: PackageManifest,
+		})
+		moduleSymbolKeys[relative] = string(key)
+		return string(key), nil
+	}
+
 	for _, reference := range input.References {
 		if err := ctx.Err(); err != nil {
 			return Set{}, GoReport{}, err
 		}
-		sourceKey, hasSource := symbolsByQualifiedName[reference.PackagePath+"\x00"+reference.SourceQualifiedName]
-		if !hasSource {
-			report.EdgesWithoutSource++
-			continue
-		}
-		targetKey, confidence, provenance, resolved := resolveGoTarget(
-			reference, crossByLocation, symbolsByQualifiedName)
-		if !resolved {
-			report.EdgesWithoutTarget++
-			continue
-		}
+		// Containment first: a fact whose file is not in this repository has
+		// no owner to look for, and the module fallback below needs the
+		// repository-relative path the file is keyed by.
 		relative, inside := repositoryRelativePath(root, reference.FileName)
 		if !inside {
 			report.FactsOutsideRepository++
@@ -216,6 +266,28 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		if _, exists := files[fileKey]; !exists {
 			// A reference always lives in a file this pass already indexed.
 			report.EdgesWithoutSource++
+			continue
+		}
+		sourceKey, hasSource := symbolsByQualifiedName[reference.PackagePath+"\x00"+reference.SourceQualifiedName]
+		if !hasSource && reference.SourceQualifiedName == "" {
+			// The loader reports an empty source exactly when the use sits at
+			// file level, with no declaration enclosing it -- a package
+			// variable's initialiser, say. Its owner is the file's own scope.
+			moduleKey, err := moduleSymbolFor(reference.PackagePath, relative, fileKey)
+			if err != nil {
+				return Set{}, GoReport{}, err
+			}
+			sourceKey, hasSource = moduleKey, true
+			report.EdgesOwnedByModule++
+		}
+		if !hasSource {
+			report.EdgesWithoutSource++
+			continue
+		}
+		targetKey, confidence, provenance, resolved := resolveGoTarget(
+			reference, crossByLocation, symbolsByQualifiedName)
+		if !resolved {
+			report.EdgesWithoutTarget++
 			continue
 		}
 		evidence := Evidence{
