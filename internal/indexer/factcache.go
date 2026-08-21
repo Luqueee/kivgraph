@@ -457,6 +457,12 @@ func (cache *factCache) describeInputs(
 	for _, root := range packageValue.SourceRoots {
 		add(inputTree, root)
 	}
+	// An unclaimed file is outside every source root the package declares --
+	// that is what made it unclaimed -- so nothing above fingerprints it and
+	// editing one would be served from a stale entry.
+	for _, source := range unit.pkg.unclaimed {
+		add(inputFile, source)
+	}
 	for _, path := range []string{packageValue.ManifestPath, packageValue.ProjectPath} {
 		if strings.TrimSpace(path) != "" {
 			add(inputFile, path)
@@ -664,7 +670,10 @@ func analyzerFingerprint(options FullOptions) string {
 	tags := append([]string(nil), options.GoBuildTags...)
 	sort.Strings(tags)
 	fmt.Fprintf(hash, "tags=%s\x00", strings.Join(tags, ","))
-	fmt.Fprintf(hash, "worker=%s\x00", strings.TrimSpace(options.TypeScriptWorker))
+	// A pass with unclaimed sources on reads files a pass with it off never
+	// looked at, so an entry from one analyser is not the other's.
+	fmt.Fprintf(hash, "worker=%s\x00ts-unclaimed=%t\x00",
+		strings.TrimSpace(options.TypeScriptWorker), options.TypeScriptIncludeUnclaimedSources)
 	fmt.Fprintf(hash, "python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
 	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
 	pythonWorker := filepath.Join(options.WorkingDirectory, "python-worker", "index.py")

@@ -42,7 +42,8 @@
  * Usage:
  *
  *   pnpm facts <repository-name> <repository-root> <output.json> \
- *     [--project <path>] [--provider <name>=<path>]...
+ *     [--project <path>] [--provider <name>=<path>]... \
+ *     [--unclaimed <absolute path>]...
  *
  * `--project <path>` selects the project relative to the repository root.
  * Without it the CLI uses `<repository-root>/tsconfig.json`.
@@ -53,6 +54,19 @@
  * `--provider-project <name>=<path>` selects the provider's project relative to
  * that provider root. The CLI derives package identity and source/declaration
  * roots from the selected `package.json` and `tsconfig`.
+ *
+ * `--unclaimed <absolute path>` names one source file that no project of this
+ * repository claims — a file outside every `files`/`include` of every
+ * tsconfig, which therefore belongs to no program and is invisible to the
+ * configured pass. Repeatable. Each path must be absolute and inside the
+ * repository root, the same containment rule `--project` obeys. Those files
+ * are indexed through TypeScript's *inferred* project, so their symbols and
+ * references carry the same confidence and provenance a configured file's do
+ * while resting on compiler options Kivgraph chose rather than ones the
+ * project declared. Nothing else is collected from them: imports, exports,
+ * `extends` and package dependencies all grade their identity by a
+ * provider's configuration, and an inferred project has none. The Go side
+ * only passes this when `typescript.include_unclaimed_sources` is on.
  *
  * Regenerate the `ts-facts-v4` goldens, from `ts-worker/`:
  *
@@ -69,6 +83,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { isEntryPoint } from "./entry-point.js";
 import { type ExtendsEdge, resolveExtends } from "./extends-resolver.js";
 import type {
   ImportedSymbol,
@@ -284,9 +299,11 @@ export async function collectFacts(
   repositoryRoot: string,
   registry: PackageProviderRegistry,
   projectPath?: string,
+  unclaimedPaths: readonly string[] = [],
 ): Promise<FactsPayload> {
   const root = path.resolve(repositoryRoot);
   const configFileName = resolveProjectPath(root, projectPath);
+  const unclaimed = resolveUnclaimedPaths(root, unclaimedPaths);
   const service = LanguageService.create({ cwd: root });
   try {
     await service.openProject(configFileName);
@@ -369,7 +386,7 @@ export async function collectFacts(
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)
       .filter((fileName): fileName is string => fileName !== undefined);
-    const files = [
+    const configuredFiles = [
       ...new Set([
         ...symbols.symbols.map((symbol) => symbol.fileName),
         ...symbols.exports.map((entry) => entry.fileName),
@@ -378,6 +395,17 @@ export async function collectFacts(
         ...dependencyEvidenceFiles,
       ]),
     ].sort();
+
+    // Last, because it rolls the snapshot: every handle above belongs to the
+    // previous generation, so nothing after this point may read one. The
+    // plain values already read out of them are unaffected.
+    const unclaimedFacts = await collectUnclaimedFacts(
+      service,
+      root,
+      unclaimed,
+      new Set(configuredFiles),
+    );
+    const files = [...configuredFiles, ...unclaimedFacts.files].sort();
 
     const unresolved = [
       ...resolution.unresolved.map(
@@ -408,6 +436,7 @@ export async function collectFacts(
         ),
       ...exportSymbols.unresolved,
       ...extendsFacts.unresolved,
+      ...unclaimedFacts.unresolved,
     ].sort(compareUnresolved);
 
     return {
@@ -432,20 +461,24 @@ export async function collectFacts(
         ),
         ...importSymbols.symbols,
         ...exportSymbols.symbols,
+        ...unclaimedFacts.symbols,
       ],
-      references: references.references.map(
-        (reference): FactReference => ({
-          file: relative(root, reference.fileName),
-          kind: reference.kind,
-          sourceQualifiedName: reference.source?.qualifiedName ?? null,
-          targetQualifiedName: reference.target.qualifiedName,
-          targetFile: relative(root, reference.target.fileName),
-          startLine: reference.startLine,
-          start: reference.start,
-          end: reference.end,
-          text: reference.text,
-        }),
-      ),
+      references: [
+        ...references.references.map(
+          (reference): FactReference => ({
+            file: relative(root, reference.fileName),
+            kind: reference.kind,
+            sourceQualifiedName: reference.source?.qualifiedName ?? null,
+            targetQualifiedName: reference.target.qualifiedName,
+            targetFile: relative(root, reference.target.fileName),
+            startLine: reference.startLine,
+            start: reference.start,
+            end: reference.end,
+            text: reference.text,
+          }),
+        ),
+        ...unclaimedFacts.references,
+      ],
       imports: resolution.symbols.map((entry): FactImport => {
         const identity = entry.target.identity;
         return {
@@ -483,6 +516,148 @@ export async function collectFacts(
   } finally {
     await service.close();
   }
+}
+
+/**
+ * The facts of the files no TypeScript project claims.
+ *
+ * A file no project's `files`/`include` reaches belongs to no program, so the
+ * configured pass above cannot see it: nothing type-checks it and nothing
+ * reports it absent. Opening those files loads them into TypeScript's
+ * inferred project, whose compiler options are the engine's defaults and not
+ * a declaration of the project that would have owned them -- there is none.
+ *
+ * Only `symbols` and `references` are collected. An unclaimed file is
+ * indexed so its uses of the repository's own code become edges; import,
+ * export, `extends` and package-dependency identity all rest on the
+ * *provider's* configuration, which the inferred project does not have.
+ */
+interface UnclaimedFacts {
+  /** Absolute paths of the unclaimed files that produced a symbol. */
+  readonly files: readonly string[];
+  readonly symbols: readonly FactSymbol[];
+  readonly references: readonly FactReference[];
+  readonly unresolved: readonly FactUnresolved[];
+}
+
+const NO_UNCLAIMED_FACTS: UnclaimedFacts = {
+  files: [],
+  symbols: [],
+  references: [],
+  unresolved: [],
+};
+
+async function collectUnclaimedFacts(
+  service: LanguageService,
+  root: string,
+  unclaimedPaths: readonly string[],
+  configuredFiles: ReadonlySet<string>,
+): Promise<UnclaimedFacts> {
+  if (unclaimedPaths.length === 0) {
+    return NO_UNCLAIMED_FACTS;
+  }
+  const opened = await service.openFiles(unclaimedPaths, root);
+
+  const files = new Set<string>();
+  const symbols: FactSymbol[] = [];
+  const references: FactReference[] = [];
+  const unresolved: FactUnresolved[] = opened.unowned.map(
+    (fileName): FactUnresolved => ({
+      file: relative(root, fileName),
+      reason: "UNCLAIMED_FILE_WITHOUT_PROJECT",
+      requestedPackage: "",
+      requestedSymbol: null,
+      detail:
+        "the engine resolved no project for this file, not even the inferred one, so nothing it declares or uses is in the graph",
+      start: 0,
+    }),
+  );
+
+  for (const owner of opened.owners) {
+    // The symbol table spans the whole owning program, and only the opened
+    // files are emitted from it. Both halves are load-bearing: an unclaimed
+    // file's whole point is that it calls the repository's own code, and a
+    // reference resolves only against a declaration this extraction saw --
+    // restricting the table to the opened files would drop exactly the edge
+    // the feature exists to produce. Restricting what is *emitted* is what
+    // keeps the inferred program's copy of a claimed file from being
+    // declared a second time.
+    const owned = new Set(
+      owner.files.filter((fileName) => !configuredFiles.has(fileName)),
+    );
+    const extraction = await extractLocalSymbols(service, owner.view);
+    const owning = await extractLocalReferences(
+      service,
+      owner.view,
+      extraction,
+      { files: [...owned] },
+    );
+    for (const symbol of extraction.symbols) {
+      if (!owned.has(symbol.fileName)) {
+        continue;
+      }
+      files.add(symbol.fileName);
+      symbols.push({
+        file: relative(root, symbol.fileName),
+        name: symbol.name,
+        qualifiedName: symbol.qualifiedName,
+        kind: symbol.kind,
+        exported: symbol.exported,
+        signature: symbol.signature,
+        startLine: symbol.startLine,
+        endLine: symbol.endLine,
+        start: symbol.start,
+        end: symbol.end,
+      });
+    }
+    for (const reference of owning.references) {
+      references.push({
+        file: relative(root, reference.fileName),
+        kind: reference.kind,
+        sourceQualifiedName: reference.source?.qualifiedName ?? null,
+        targetQualifiedName: reference.target.qualifiedName,
+        targetFile: relative(root, reference.target.fileName),
+        startLine: reference.startLine,
+        start: reference.start,
+        end: reference.end,
+        text: reference.text,
+      });
+    }
+  }
+
+  return {
+    files: [...files].sort(),
+    symbols,
+    references,
+    unresolved,
+  };
+}
+
+/**
+ * Validate the `--unclaimed` paths: each one must be absolute and inside the
+ * repository root, which is the containment rule `resolveProjectPath` already
+ * applies to a project. A relative path would resolve against whatever
+ * directory the worker happened to run in, and a path outside the root names
+ * a file this repository does not own.
+ */
+function resolveUnclaimedPaths(
+  root: string,
+  unclaimedPaths: readonly string[],
+): readonly string[] {
+  const resolved = new Set<string>();
+  for (const unclaimedPath of unclaimedPaths) {
+    if (!path.isAbsolute(unclaimedPath)) {
+      throw new Error(`unclaimed path ${unclaimedPath} must be absolute`);
+    }
+    const candidate = path.resolve(unclaimedPath);
+    if (!isWithin(root, candidate)) {
+      throw new Error(
+        `unclaimed path ${unclaimedPath} escapes repository root ${root}`,
+      );
+    }
+    resolved.add(candidate);
+  }
+  return [...resolved].sort();
 }
 
 /**
@@ -1038,9 +1213,10 @@ interface CliArgs {
   readonly output: string;
   readonly projectPath: string | undefined;
   readonly providers: readonly ProviderArg[];
+  readonly unclaimed: readonly string[];
 }
 
-const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]...
+const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]... [--unclaimed <absolute path>]...
 
 Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
 
@@ -1052,6 +1228,10 @@ Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
                               TypeScript project for the matching provider
                               occurrence, relative to that provider repository.
                               Repeatable; useful for nested workspaces.
+  --unclaimed <absolute path> A source file no TypeScript project claims, to be
+                              indexed through the inferred project. Must be
+                              absolute and inside the repository root.
+                              Repeatable.
 
 Example — regenerate the ts-facts-v4 goldens, from ts-worker/:
 
@@ -1074,6 +1254,7 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
   let projectPath: string | undefined;
   const providers: ProviderArg[] = [];
   const providerProjectPaths = new Map<string, string[]>();
+  const unclaimed: string[] = [];
   for (let index = 0; index < rest.length; index += 1) {
     const option = rest[index];
     const value = rest[index + 1];
@@ -1118,6 +1299,14 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
       index += 1;
       continue;
     }
+    if (option === "--unclaimed") {
+      if (value === undefined || value === "") {
+        return undefined;
+      }
+      unclaimed.push(value);
+      index += 1;
+      continue;
+    }
     return undefined;
   }
 
@@ -1139,44 +1328,55 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
     output,
     projectPath,
     providers: assignedProviders,
+    unclaimed,
   };
 }
 
-const cliArgv = process.argv.slice(2);
-if (cliArgv.includes("--help") || cliArgv.includes("-h")) {
-  process.stdout.write(USAGE);
-} else {
-  const args = parseArgs(cliArgv);
-  if (args === undefined) {
-    process.stderr.write(USAGE);
-    process.exitCode = 1;
+// Only when started as a program. This module also exports `collectFacts`,
+// which the worker's own tests call directly, and an unguarded argument block
+// parsed the test runner's argv, printed the usage text and set a failing
+// exit code from inside a passing run. The guard is the one `index.ts` uses,
+// realpath comparison included: the bundle's launcher execs
+// `node <bundle>/worker/dist/facts-cli.js`, and an install root reached
+// through a symlink must still count as an entry point.
+if (isEntryPoint(process.argv[1], import.meta.url)) {
+  const cliArgv = process.argv.slice(2);
+  if (cliArgv.includes("--help") || cliArgv.includes("-h")) {
+    process.stdout.write(USAGE);
   } else {
-    try {
-      const registry = await buildRegistry(args.providers);
-      const payload = await collectFacts(
-        args.repositoryName,
-        args.repositoryRoot,
-        registry,
-        args.projectPath,
-      );
-      await mkdir(path.dirname(path.resolve(args.output)), {
-        recursive: true,
-      });
-      await writeFile(
-        path.resolve(args.output),
-        `${JSON.stringify(payload, null, 2)}\n`,
-        "utf8",
-      );
-      process.stdout.write(
-        `${payload.symbols.length} symbols, ${payload.references.length} references, ` +
-          `${payload.imports.length} imports, ${payload.exports.length} exports, ` +
-          `${payload.extends.length} extends, ${payload.dependencies.length} dependencies\n`,
-      );
-    } catch (error) {
-      process.stderr.write(
-        `${error instanceof Error ? error.message : String(error)}\n`,
-      );
+    const args = parseArgs(cliArgv);
+    if (args === undefined) {
+      process.stderr.write(USAGE);
       process.exitCode = 1;
+    } else {
+      try {
+        const registry = await buildRegistry(args.providers);
+        const payload = await collectFacts(
+          args.repositoryName,
+          args.repositoryRoot,
+          registry,
+          args.projectPath,
+          args.unclaimed,
+        );
+        await mkdir(path.dirname(path.resolve(args.output)), {
+          recursive: true,
+        });
+        await writeFile(
+          path.resolve(args.output),
+          `${JSON.stringify(payload, null, 2)}\n`,
+          "utf8",
+        );
+        process.stdout.write(
+          `${payload.symbols.length} symbols, ${payload.references.length} references, ` +
+            `${payload.imports.length} imports, ${payload.exports.length} exports, ` +
+            `${payload.extends.length} extends, ${payload.dependencies.length} dependencies\n`,
+        );
+      } catch (error) {
+        process.stderr.write(
+          `${error instanceof Error ? error.message : String(error)}\n`,
+        );
+        process.exitCode = 1;
+      }
     }
   }
 }

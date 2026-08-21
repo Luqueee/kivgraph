@@ -6,6 +6,7 @@ import type { LanguageService, ProjectView } from "./language-service.js";
 import type {
   PackageImport,
   PackageProvider,
+  PackageProviderRegistry,
 } from "./package-import-resolver.js";
 import type { ProviderExportResolution } from "./provider-export-resolver.js";
 
@@ -14,6 +15,7 @@ export type DeclarationSourceStatus =
   | "PROJECT_REFERENCE"
   | "PROVIDER_REGISTRY"
   | "ROOT_DIR_OUT_DIR"
+  | "INSTALLED_PACKAGE"
   | "UNRESOLVED";
 
 /** File-level mapping from a declaration artifact to its source files. */
@@ -40,6 +42,7 @@ export async function resolveDeclarationSources(
   service: LanguageService,
   view: ProjectView,
   resolution: ProviderExportResolution,
+  registry: PackageProviderRegistry,
 ): Promise<DeclarationSourceResolution> {
   service.assertFresh(view);
   if (resolution.generation !== view.generation) {
@@ -67,7 +70,7 @@ export async function resolveDeclarationSources(
   const mappings = await Promise.all(
     [...providersByDeclaration.entries()].map(
       async ([declarationFile, provider]) =>
-        mapDeclarationFile(declarationFile, provider),
+        mapDeclarationFile(declarationFile, provider, registry),
     ),
   );
   service.assertFresh(view);
@@ -110,6 +113,7 @@ function providerForPackage(
 async function mapDeclarationFile(
   declarationFile: string,
   provider: PackageProvider | undefined,
+  registry: PackageProviderRegistry,
 ): Promise<DeclarationSourceMapping> {
   const declarationMap = await mapWithDeclarationMap(declarationFile);
   if (declarationMap.length > 0) {
@@ -175,6 +179,15 @@ async function mapDeclarationFile(
         status: "ROOT_DIR_OUT_DIR",
       };
     }
+  }
+
+  const installedSources = await mapInstalledPackage(declarationFile, registry);
+  if (installedSources.length > 0) {
+    return {
+      declarationFile,
+      sourceFiles: installedSources,
+      status: "INSTALLED_PACKAGE",
+    };
   }
 
   return {
@@ -268,6 +281,168 @@ async function mapWithRoots(
     }
   }
   return uniqueSorted(sources);
+}
+
+/**
+ * Bridge an installed copy of a package back to the workspace repository
+ * that declares it.
+ *
+ * A consumer that writes `import { x } from "pkg"` gets the copy its package
+ * manager installed, and that copy is a different File from the source that
+ * produced it: a published tarball ships `dist` without `src`, without a
+ * `tsconfig.json` and -- because publishing a map whose `sources` name files
+ * the tarball omits is worse than useless -- usually without a `.d.ts.map`.
+ * None of the provider-rooted transforms above can relate the two paths,
+ * because the artifact does not live under the provider's root at all.
+ *
+ * The nearest enclosing `package.json` of the artifact names which package
+ * this copy *is*, and that name is what the registry is asked about -- never
+ * the name the consumer imported, which for a transitive dependency belongs
+ * to a different repository. When a registered repository declares that
+ * exact name, its own build configuration says where inside itself the
+ * artifact came from, and the same `rootDir`/`outDir` transform runs with the
+ * declaration root re-rooted onto the installed copy.
+ *
+ * That step is an assertion of the provider's build configuration, not of a
+ * map it emitted: the caller grades the resulting identity
+ * `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, never
+ * `EXACT_TYPECHECKED`. A name no registered repository declares, or a source
+ * tree that no longer holds the file, names nothing and stays `UNRESOLVED`.
+ */
+async function mapInstalledPackage(
+  declarationFile: string,
+  registry: PackageProviderRegistry,
+): Promise<string[]> {
+  const installed = await installedPackage(declarationFile);
+  if (installed === undefined) {
+    return [];
+  }
+  const provider = registry.get(installed.name);
+  if (provider === undefined) {
+    return [];
+  }
+  const rootPath = path.resolve(provider.rootPath);
+  // An artifact already inside the provider's own root is not an installed
+  // copy of it -- a workspace link resolves there, and the transforms above
+  // own that case. Re-rooting would only rediscover what they answered.
+  if (isRelativePath(path.relative(rootPath, path.resolve(declarationFile)))) {
+    return [];
+  }
+  const hints =
+    provider.projectPath === undefined
+      ? undefined
+      : await readProjectHints(provider.projectPath);
+  const installedDeclarationRoots = uniqueSorted([
+    ...reroot(rootPath, installed.root, [
+      ...declarationRoots(provider),
+      ...(hints?.declarationRoots ?? []),
+      ...(provider.declarationDir === undefined
+        ? []
+        : [providerPath(rootPath, provider.declarationDir)]),
+      ...(provider.outDir === undefined
+        ? []
+        : [providerPath(rootPath, provider.outDir)]),
+    ]),
+    // The copy's own manifest is the one statement about its layout that
+    // travels with it, and it is what a provider that declares no tsconfig
+    // path options leaves to go on.
+    ...(installed.typesPath === undefined
+      ? []
+      : [path.dirname(providerPath(installed.root, installed.typesPath))]),
+  ]);
+  const sourceRoots = uniqueSorted([
+    ...(provider.sourceRoots ?? []).map((sourceRoot) =>
+      providerPath(rootPath, sourceRoot),
+    ),
+    ...(hints?.sourceRoots ?? []),
+    ...(provider.rootDir === undefined
+      ? []
+      : [providerPath(rootPath, provider.rootDir)]),
+  ]);
+  return mapWithRoots(declarationFile, installedDeclarationRoots, sourceRoots);
+}
+
+/**
+ * Re-root every declaration root of `rootPath` onto `installedRoot`.
+ *
+ * A root the provider places outside its own tree says nothing about the
+ * layout of a copy of that tree, so it is dropped rather than joined.
+ */
+function reroot(
+  rootPath: string,
+  installedRoot: string,
+  roots: readonly string[],
+): string[] {
+  const rerooted: string[] = [];
+  for (const root of roots) {
+    const relative = path.relative(rootPath, path.resolve(root));
+    if (!isRelativePath(relative)) {
+      continue;
+    }
+    rerooted.push(
+      relative === "" ? installedRoot : path.join(installedRoot, relative),
+    );
+  }
+  return rerooted;
+}
+
+/** The installed package a declaration artifact belongs to. */
+interface InstalledPackage {
+  /** Directory holding the manifest that names the package. */
+  readonly root: string;
+  readonly name: string;
+  /** `types`/`typings` exactly as the manifest spells it, when present. */
+  readonly typesPath?: string;
+}
+
+/**
+ * Name the installed package an artifact under a `node_modules` belongs to.
+ *
+ * The search stops at the `node_modules` the copy was installed into: the
+ * first manifest above that directory belongs to whoever ran the install, and
+ * that repository declares none of the code underneath it. Nobody owns
+ * anything inside a `node_modules`, which is exactly why the owner has to be
+ * found by name instead of by path.
+ */
+async function installedPackage(
+  declarationFile: string,
+): Promise<InstalledPackage | undefined> {
+  const resolved = path.resolve(declarationFile);
+  const segments = resolved.split(path.sep);
+  const depth = segments.lastIndexOf("node_modules");
+  if (depth < 0) {
+    return undefined;
+  }
+  const ceiling = segments.slice(0, depth + 1).join(path.sep) + path.sep;
+  let directory = path.dirname(resolved);
+  while (directory.startsWith(ceiling)) {
+    const contents = await readText(path.join(directory, "package.json"));
+    const manifest =
+      contents === undefined ? undefined : parsePackageManifest(contents);
+    if (manifest !== undefined) {
+      return { root: directory, ...manifest };
+    }
+    directory = path.dirname(directory);
+  }
+  return undefined;
+}
+
+function parsePackageManifest(
+  contents: string,
+): Omit<InstalledPackage, "root"> | undefined {
+  const parsed = parseJson(contents);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return undefined;
+  }
+  const manifest = parsed as { name?: unknown; types?: unknown };
+  const name = manifest.name;
+  if (typeof name !== "string" || name.trim() === "") {
+    return undefined;
+  }
+  const types = manifest.types;
+  return typeof types === "string" && types.trim() !== ""
+    ? { name, typesPath: types }
+    : { name };
 }
 
 function declarationRoots(provider: PackageProvider): readonly string[] {

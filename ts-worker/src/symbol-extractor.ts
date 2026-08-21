@@ -7,7 +7,7 @@
  */
 
 import path from "node:path";
-
+import type { Node, SourceFile } from "typescript/unstable/ast";
 import { ModifierFlags } from "typescript/unstable/ast";
 import {
   isExportAssignment,
@@ -19,18 +19,17 @@ import {
   isVariableDeclarationList,
   isVariableStatement,
 } from "typescript/unstable/ast/is";
-import type { Node, SourceFile } from "typescript/unstable/ast";
 import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
 
 import {
   bindingIdentifiers,
   compactSignature,
+  type DeclarationCandidate,
   declarationCandidate,
   declarationScope,
   displayName,
-  modifierFlags,
-  type DeclarationCandidate,
   type LocalSymbolKind,
+  modifierFlags,
 } from "./declaration-classifier.js";
 import type { LanguageService, ProjectView } from "./language-service.js";
 import { resolveLocalSymbols } from "./symbol-resolution.js";
@@ -140,7 +139,7 @@ export async function extractLocalSymbols(
   const selected = selectLocalFiles(
     sourceFileNames,
     options.files,
-    view.configFileName,
+    view.localRoot,
   );
   const collected: CollectedFile[] = [];
 
@@ -337,9 +336,8 @@ export async function extractLocalSymbols(
 function selectLocalFiles(
   sourceFileNames: readonly string[],
   requested: readonly string[] | undefined,
-  configFileName: string,
+  projectRoot: string,
 ): string[] {
-  const projectRoot = pathDirectory(configFileName);
   const requestedSet =
     requested === undefined
       ? undefined
@@ -547,10 +545,6 @@ function compareExports(left: LocalExport, right: LocalExport): number {
 
 function resolvePath(fileName: string): string {
   return path.resolve(fileName);
-}
-
-function pathDirectory(fileName: string): string {
-  return path.dirname(resolvePath(fileName));
 }
 
 function isWithin(fileName: string, root: string): boolean {

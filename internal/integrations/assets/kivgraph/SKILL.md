@@ -128,15 +128,26 @@ Report the reason rather than concluding that coverage is broken:
   exist yet.
 - `PROVIDER_SOURCE_UNAVAILABLE`, `DECLARATION_SOURCE_NOT_MAPPED`: the provider
   is known but nothing names the source behind its declaration artifact —
-  neither a declaration map nor its own project roots. A package that ships
-  `dist` without sources and without a map looks like this. A provider that
-  merely lacks the map does not: its own checker places the export, and the
-  edge is graded `EXACT_PACKAGE_MAPPED` rather than `EXACT_TYPECHECKED`.
+  neither a declaration map, nor its own project roots, nor a registered
+  repository declaring the package name of the installed copy. A package that
+  ships `dist` without sources and without a map, and that no indexed
+  repository declares, looks like this. A provider that merely lacks the map
+  does not: its own checker places the export, and the edge is graded
+  `EXACT_PACKAGE_MAPPED` rather than `EXACT_TYPECHECKED`. Neither does an
+  installed copy whose package name a registered repository declares — the
+  source is reached by name, and the edge is graded the same way. A version
+  skew shows up here: when the workspace source no longer exports the name the
+  installed artifact does, the reference stays unresolved rather than falling
+  back to the artifact.
 - `MODULE_NOT_LOADED`: the Go loader could not read that module, usually
   because its dependencies were never downloaded. The repository's facts are
   absent on purpose. `go mod download` in it and reindexing is the fix.
 - `PACKAGE_NOT_BUILDABLE`: build constraints selected no file. A tag the index
   does not set is a configuration answer, not a missing symbol.
+- `UNCLAIMED_FILE_WITHOUT_PROJECT`: a TypeScript file no project claims was
+  offered to the engine and it resolved no project for it at all, not even the
+  inferred one. Nothing it declares or uses is in the graph. Only a pass with
+  `typescript.include_unclaimed_sources` on can produce it.
 - `PYTHON_ANALYZER_UNAVAILABLE`: exact Python mode was requested but the
   configured Pyright-compatible server or semantic producer was unavailable;
   switch to fallback mode only when candidate facts are acceptable.

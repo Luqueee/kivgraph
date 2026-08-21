@@ -285,6 +285,7 @@ export async function resolveImportedSymbols(
     service,
     view,
     providerExports,
+    registry,
   );
   // Both sides of this index are normalised to the casing on disk: the
   // mappings come from provider metadata the worker resolved itself, the
@@ -837,10 +838,11 @@ interface IdentityRequest {
   /**
    * The package that declares the code, and is credited with it.
    *
-   * These differ whenever a package re-exports another's symbol: the
-   * declaration map names a file in the owner's repository, and only the
-   * owner's project can parse it. Crediting the importing package would
-   * compose an identity against a repository that publishes no such symbol.
+   * These differ whenever a package re-exports another's symbol, and again
+   * whenever the artifact is an installed copy: the bridge names a file in
+   * the owner's repository, and only the owner's project can parse it.
+   * Crediting the importing package would compose an identity against a
+   * repository that publishes no such symbol.
    */
   readonly owner: PackageProvider;
   readonly declaration: ImportedSymbolDeclaration;
@@ -888,11 +890,17 @@ async function resolveTargetIdentities(
     if (declaration === undefined) {
       continue;
     }
-    const mappedFile = mapped?.sourcePosition?.fileName;
+    // Ownership is read off the file the bridge named, whichever bridge
+    // named it. An installed copy is not owned by the consumer that
+    // installed it nor by the package the import spelled: the source it was
+    // re-rooted onto belongs to the repository that declares the package,
+    // and only that repository publishes a key for the symbol.
+    const ownedFile =
+      mapped?.sourcePosition?.fileName ?? declaration.sourceFiles[0];
     const owner =
-      mappedFile === undefined
+      ownedFile === undefined
         ? entry.provider
-        : (registry.owning(mappedFile) ?? entry.provider);
+        : (registry.owning(ownedFile) ?? entry.provider);
     if (owner.projectPath === undefined) {
       outcomes[index] = identityUnresolved(
         "PROVIDER_SOURCE_UNAVAILABLE",

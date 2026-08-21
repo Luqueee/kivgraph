@@ -134,6 +134,16 @@ type TypeScriptConfig struct {
 	WorkerCommand      string   `yaml:"worker_command"`
 	MaximumWorkers     int      `yaml:"maximum_workers"`
 	ProjectIdleTimeout Duration `yaml:"project_idle_timeout"`
+	// IncludeUnclaimedSources indexes the repository's TypeScript files that
+	// no tsconfig claims. A file no project's "files"/"include" reaches
+	// belongs to no program, so it is invisible by construction: nothing
+	// type-checks it and nothing reports it absent. Enabling this loads
+	// those files into TypeScript's inferred project, whose compiler
+	// options are Kivgraph's choice and not the ones the project declaring
+	// them would have applied -- there is no project declaring them. It is
+	// off by default: what it adds is real, and what it adds it under an
+	// authority weaker than a configured project's.
+	IncludeUnclaimedSources bool `yaml:"include_unclaimed_sources"`
 }
 
 // GoConfig controls Go-specific synthetic workspace behavior.
@@ -349,9 +359,10 @@ func DefaultConfig() Config {
 			ReconciliationInterval:   Duration(10 * time.Minute),
 		},
 		TypeScript: TypeScriptConfig{
-			WorkerCommand:      "kivgraph-ts-worker",
-			MaximumWorkers:     3,
-			ProjectIdleTimeout: Duration(30 * time.Minute),
+			WorkerCommand:           "kivgraph-ts-worker",
+			MaximumWorkers:          3,
+			ProjectIdleTimeout:      Duration(30 * time.Minute),
+			IncludeUnclaimedSources: false,
 		},
 		Go: GoConfig{
 			SyntheticWorkFile: defaultSyntheticWork,

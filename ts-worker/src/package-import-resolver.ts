@@ -1,5 +1,11 @@
 import path from "node:path";
-
+import type {
+  ImportClause,
+  NamedExportBindings,
+  Node,
+  SourceFile,
+} from "typescript/unstable/ast";
+import { SyntaxKind } from "typescript/unstable/ast";
 import {
   isCallExpression,
   isExportDeclaration,
@@ -14,21 +20,13 @@ import {
   isNamespaceImport,
   isStringLiteral,
 } from "typescript/unstable/ast/is";
-import { SyntaxKind } from "typescript/unstable/ast";
-import { SymbolFlags } from "typescript/unstable/async";
-import type {
-  ImportClause,
-  NamedExportBindings,
-  Node,
-  SourceFile,
-} from "typescript/unstable/ast";
 import type {
   Checker,
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
-
-import type { LanguageService, ProjectView } from "./language-service.js";
+import { SymbolFlags } from "typescript/unstable/async";
 import { enginePath } from "./engine-path.js";
+import type { LanguageService, ProjectView } from "./language-service.js";
 
 /** Metadata supplied by the Go package registry for one provider package. */
 export interface PackageProvider {
@@ -265,7 +263,7 @@ async function selectProjectFiles(
   view: ProjectView,
   requested: readonly string[] | undefined,
 ): Promise<string[]> {
-  const projectRoot = path.dirname(path.resolve(view.configFileName));
+  const projectRoot = view.localRoot;
   const sourceFileNames = await view.program.getSourceFileNames();
   const requestedSet =
     requested === undefined

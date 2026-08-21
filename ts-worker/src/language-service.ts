@@ -16,14 +16,13 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-
-import { API } from "typescript/unstable/async";
 import type {
   Checker,
   Program,
   Project,
   Snapshot,
 } from "typescript/unstable/async";
+import { API } from "typescript/unstable/async";
 
 /** Classified failures of the Language Service. */
 export type LanguageServiceErrorCode =
@@ -98,9 +97,43 @@ export interface OpenProjectResult {
 export interface ProjectView {
   generation: number;
   configFileName: string;
+  /**
+   * The directory that bounds the files this project owns. For a configured
+   * project it is the directory of its tsconfig. An inferred project has no
+   * tsconfig at all -- TypeScript names it `/dev/null/inferred` -- so the
+   * bound is the repository root whoever opened the files declared, and
+   * deriving it from `configFileName` would bound the project by `/dev/null`
+   * and select no file at all.
+   */
+  localRoot: string;
   project: Project;
   program: Program;
   checker: Checker;
+}
+
+/** One project TypeScript resolved as the owner of some opened files. */
+export interface FileOwner {
+  view: ProjectView;
+  /** The opened files this project owns, sorted. */
+  files: string[];
+}
+
+export interface OpenFilesResult {
+  generation: number;
+  /**
+   * One entry per project TypeScript resolved as an owner. A file inside a
+   * configured project resolves to that project; a file no tsconfig contains
+   * resolves to the inferred project, which the engine builds from its own
+   * default compiler options.
+   */
+  owners: FileOwner[];
+  /**
+   * Files the engine resolved no project for at all. They are reported
+   * instead of dropped: the caller asked for them by name.
+   */
+  unowned: string[];
+  /** Tracked files of every owning project, that is, those inside the workspace. */
+  trackedFiles: number;
 }
 
 export interface LanguageServiceStatus {
@@ -215,6 +248,87 @@ export class LanguageService {
   }
 
   /**
+   * openFiles keeps files open for this client, mirroring LSP's
+   * `textDocument/didOpen`, and returns the projects TypeScript resolved as
+   * their owners. For each file the engine searches its ancestor directories
+   * for a tsconfig that contains it; when none does, the file is loaded into
+   * the inferred project, whose compiler options are the engine's defaults
+   * and not any project's declaration.
+   *
+   * `localRoot` bounds what the returned views call their own files: an
+   * inferred project has no directory of its own, so the caller has to say
+   * which tree it opened these files from.
+   *
+   * Opens are reference counted and persist across snapshots, exactly like a
+   * project open, so this rolls the snapshot and invalidates every view
+   * captured before it.
+   */
+  async openFiles(
+    files: readonly string[],
+    localRoot: string,
+  ): Promise<OpenFilesResult> {
+    this.#assertOpen();
+    const root = this.#resolveAgainstCwd(localRoot, "localRoot");
+    const resolved = files.map((file) => this.#resolveAgainstCwd(file, "file"));
+    if (resolved.length === 0) {
+      throw new LanguageServiceError(
+        "INVALID_ARGUMENT",
+        "openFiles requires at least one file",
+      );
+    }
+
+    await this.#roll({ openFiles: resolved });
+    const snapshot = this.#snapshot;
+    if (snapshot === undefined || snapshot.isDisposed()) {
+      throw new LanguageServiceError(
+        "STALE_GENERATION",
+        "the snapshot was disposed while opening files",
+      );
+    }
+
+    const owners = new Map<string, FileOwner>();
+    const unowned: string[] = [];
+    for (const file of resolved) {
+      const project = await snapshot.getDefaultProjectForFile(file);
+      if (project === undefined) {
+        unowned.push(file);
+        continue;
+      }
+      const owner = owners.get(project.id);
+      if (owner === undefined) {
+        owners.set(project.id, {
+          view: {
+            generation: this.#generation,
+            configFileName: project.configFileName,
+            localRoot: root,
+            project,
+            program: project.program,
+            checker: project.checker,
+          },
+          files: [file],
+        });
+        continue;
+      }
+      owner.files.push(file);
+    }
+
+    let tracked = 0;
+    for (const owner of owners.values()) {
+      owner.files.sort();
+      tracked += await this.#trackFiles(
+        await owner.view.program.getSourceFileNames(),
+      );
+    }
+
+    return {
+      generation: this.#generation,
+      owners: [...owners.values()],
+      unowned: unowned.sort(),
+      trackedFiles: tracked,
+    };
+  }
+
+  /**
    * project returns the handles of one project, bound to the current
    * generation. The returned view is only valid until the next snapshot roll.
    */
@@ -238,6 +352,7 @@ export class LanguageService {
     return {
       generation: this.#generation,
       configFileName: resolved,
+      localRoot: path.dirname(resolved),
       project,
       program: project.program,
       checker: project.checker,

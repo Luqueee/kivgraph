@@ -372,6 +372,22 @@ Si un repositorio registrado como TypeScript no tiene ningún provider nombrado
 con proyecto aplicable, `index --full` termina con error explícito; no publica
 una generación vacía.
 
+Un fichero `.ts` al que no llega el `files`/`include` de ningún `tsconfig` no
+pertenece a ningún programa: el compilador no lo comprueba, el grafo no puede
+verlo y nada lo declara ausente. Un árbol `tests/` junto a un proyecto que
+declara `include: ["src/**/*.ts"]` es el caso típico. Para indexarlos:
+
+```yaml
+typescript:
+  include_unclaimed_sources: true
+```
+
+Está apagado por defecto. Esos ficheros se cargan en el proyecto **inferido**
+de TypeScript, cuyas opciones de compilación las elige Kivgraph y no el
+proyecto que los habría declarado -- no hay ninguno --, y de ellos se recogen
+sólo sus declaraciones y sus usos: un uso cuyo destino vive en otro paquete no
+produce arista. Las condiciones exactas están en el ADR 0050.
+
 Python y Dart se activan igual que los demás lenguajes:
 
 ```yaml

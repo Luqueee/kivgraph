@@ -12,7 +12,8 @@ import { pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { handleCommand, isEntryPoint, run } from "./index.js";
+import { isEntryPoint } from "./entry-point.js";
+import { handleCommand, run } from "./index.js";
 
 describe("worker commands", () => {
   it("accepts hello with surrounding whitespace", () => {

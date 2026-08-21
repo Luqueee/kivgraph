@@ -8,9 +8,10 @@ import {
   resolveDeclarationSources,
   type DeclarationSourceMapping,
 } from "./declaration-source-resolver.js";
-import type {
-  PackageImport,
-  PackageProvider,
+import {
+  createPackageProviderRegistry,
+  type PackageImport,
+  type PackageProvider,
 } from "./package-import-resolver.js";
 import type { ProviderExportResolution } from "./provider-export-resolver.js";
 import { temporaryRoot } from "./temporary-root.js";
@@ -198,6 +199,13 @@ describe("declaration source resolution", () => {
           workspace.file("unresolved/dist/index.d.ts"),
         ),
       ]),
+      createPackageProviderRegistry([
+        mapProvider,
+        projectProvider,
+        registryProvider,
+        rootOutProvider,
+        unresolvedProvider,
+      ]),
     );
 
     expect(result).toMatchObject({
@@ -259,6 +267,7 @@ describe("declaration source resolution", () => {
           workspace.file("broken/index.d.ts"),
         ),
       ]),
+      createPackageProviderRegistry([brokenProvider]),
     );
 
     expect(result.mappings).toEqual([

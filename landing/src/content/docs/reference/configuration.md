@@ -80,6 +80,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | `worker_command` | `kivgraph-ts-worker` | Must not be empty. |
 | `maximum_workers` | `3` | Must be positive. Bounds concurrent worker processes. |
 | `project_idle_timeout` | `30m` | Must be positive. |
+| `include_unclaimed_sources` | `false` | Indexes the `.ts`/`.tsx` files no `tsconfig` claims, through TypeScript's inferred project. Those files belong to no program, so they are invisible by construction; enabling this checks them under compiler options Kivgraph chose rather than any the project declared. See ADR 0050. |
 
 ## `go`
 

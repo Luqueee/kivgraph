@@ -93,6 +93,12 @@ type FullOptions struct {
 	// uses the documented default.
 	TypeScriptMaximumWorkers int
 	TypeScriptWorker         string
+	// TypeScriptIncludeUnclaimedSources indexes the TypeScript files no
+	// project of a repository claims, through the engine's inferred project.
+	// It is off by default: those files are real code with real callers, and
+	// the compiler options they are checked under are Kivgraph's choice
+	// rather than a declaration of the project that would have owned them.
+	TypeScriptIncludeUnclaimedSources bool
 	// RustAnalyzer is the command line of the external Rust indexer.
 	RustAnalyzer string
 	// RustTargetDirectory is where cargo writes the artifacts of the Rust
@@ -190,12 +196,22 @@ type FullReport struct {
 	// TypeScriptAmbiguous counts the package names several manifests of one
 	// repository declare. No manifest provides them.
 	TypeScriptAmbiguous int
-	RustRepositories    int
-	RustWorkspaces      int
-	RustCrates          int
-	RustSymbols         int
-	RustReferences      int
-	RustUnresolved      int
+	// TypeScriptUnclaimedSources counts the source files no project of a
+	// repository claims and that this pass indexed anyway, through the
+	// inferred project. It is zero unless
+	// TypeScriptIncludeUnclaimedSources is on.
+	TypeScriptUnclaimedSources int
+	// TypeScriptUnclaimedWithoutPackage names the unclaimed files that no
+	// package unit encloses. Nothing can index them -- a file needs a
+	// package to belong to and a project to be analysed beside -- so the
+	// pass names them instead of dropping them in silence.
+	TypeScriptUnclaimedWithoutPackage []string
+	RustRepositories                  int
+	RustWorkspaces                    int
+	RustCrates                        int
+	RustSymbols                       int
+	RustReferences                    int
+	RustUnresolved                    int
 	// RustWorkspacesNotLoaded counts the workspaces the analyzer could not
 	// read. Their facts are absent and declared; the pass publishes the rest.
 	RustWorkspacesNotLoaded int
@@ -297,16 +313,22 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		PythonRepositories:     len(pythonRepositories),
 		DartRepositories:       len(dartRepositories),
 	}
-	typeScriptPackages, typeScriptConflicts, withoutPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
+	typeScriptDiscovered, err := discoverTypeScriptPackages(
+		ctx, typeScriptRepositories, options.TypeScriptIncludeUnclaimedSources)
 	if err != nil {
 		return facts.Set{}, report, err
 	}
-	report.TypeScriptWithoutPackages = withoutPackages
+	typeScriptPackages := typeScriptDiscovered.packages
+	report.TypeScriptWithoutPackages = typeScriptDiscovered.withoutPackages
+	report.TypeScriptUnclaimedWithoutPackage = typeScriptDiscovered.unclaimedWithoutPackage
+	for _, unit := range typeScriptPackages {
+		report.TypeScriptUnclaimedSources += len(unit.unclaimed)
+	}
 	// Every unit's facts are merged in one pass at the end of the pass, not
 	// one at a time: a pairwise merge pays for the whole accumulated graph
 	// on every step.
-	sets := make([]facts.Set, 0, len(typeScriptConflicts))
-	for _, entry := range typeScriptConflicts {
+	sets := make([]facts.Set, 0, len(typeScriptDiscovered.conflicts))
+	for _, entry := range typeScriptDiscovered.conflicts {
 		sets = append(sets, ambiguousPackageFacts(entry))
 		report.TypeScriptAmbiguous++
 	}
@@ -522,6 +544,10 @@ type typeScriptPackageUnit struct {
 	// files is how many source files the worker will read. It orders the
 	// queue; it is never a fact about the graph.
 	files int
+	// unclaimed are the absolute source files this package encloses that no
+	// project of the repository claims, sorted. It is empty unless
+	// FullOptions.TypeScriptIncludeUnclaimedSources is on.
+	unclaimed []string
 }
 
 // countSourceFiles walks the roots a package declares. The walk stats files
@@ -551,6 +577,20 @@ func countSourceFiles(roots []string) int {
 	return total
 }
 
+// typeScriptDiscovery is what one discovery pass over the TypeScript
+// repositories found.
+type typeScriptDiscovery struct {
+	packages  []typeScriptPackageUnit
+	conflicts []typeScriptConflict
+	// withoutPackages names the repositories that declare no named package
+	// with an applicable project.
+	withoutPackages []string
+	// unclaimedWithoutPackage names the unclaimed files that no package unit
+	// encloses. Nothing can index them, so they are named rather than
+	// dropped in silence.
+	unclaimedWithoutPackage []string
+}
+
 // discoverTypeScriptPackages finds the packages of every TypeScript
 // repository, and names the ones that declare none.
 //
@@ -558,44 +598,63 @@ func countSourceFiles(roots []string) int {
 // with a project contributes nothing: the pipeline discovers packages, and a
 // directory of loose .mjs files is not one. That used to be silent, so a
 // registry entry suggested coverage the graph never had.
+//
+// includeUnclaimed additionally asks for the source files no project of a
+// repository claims. They are found once per repository and then attributed
+// to the package unit that encloses each one, because a file belongs to a
+// package and is analysed beside a project, and the enclosing package is the
+// only one whose project can see it at all.
 func discoverTypeScriptPackages(
 	ctx context.Context,
 	repositories []workspace.Repository,
-) ([]typeScriptPackageUnit, []typeScriptConflict, []string, error) {
-	packages := make([]typeScriptPackageUnit, 0)
-	conflicts := make([]typeScriptConflict, 0)
-	withoutPackages := make([]string, 0)
+	includeUnclaimed bool,
+) (typeScriptDiscovery, error) {
+	result := typeScriptDiscovery{
+		packages:                make([]typeScriptPackageUnit, 0),
+		conflicts:               make([]typeScriptConflict, 0),
+		withoutPackages:         make([]string, 0),
+		unclaimedWithoutPackage: make([]string, 0),
+	}
 	for _, repository := range repositories {
 		discovered := 0
 		registry, err := workspace.NewTypeScriptPackageRegistry(ctx, repository)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
+			return typeScriptDiscovery{}, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
 		}
+		first := len(result.packages)
 		for _, packageValue := range registry.List() {
 			if strings.TrimSpace(packageValue.ProjectPath) == "" {
 				continue
 			}
-			packages = append(packages, typeScriptPackageUnit{
+			result.packages = append(result.packages, typeScriptPackageUnit{
 				repository:   repository,
 				packageValue: packageValue,
 				files:        countSourceFiles(packageValue.SourceRoots),
 			})
 			discovered++
 		}
+		if includeUnclaimed {
+			orphans, err := attributeUnclaimedSources(ctx, repository, result.packages[first:])
+			if err != nil {
+				return typeScriptDiscovery{}, err
+			}
+			result.unclaimedWithoutPackage = append(result.unclaimedWithoutPackage, orphans...)
+		}
 		for _, conflict := range registry.Conflicts() {
-			conflicts = append(conflicts, typeScriptConflict{
+			result.conflicts = append(result.conflicts, typeScriptConflict{
 				repository: repository,
 				conflict:   conflict,
 			})
 			discovered++
 		}
 		if discovered == 0 {
-			withoutPackages = append(withoutPackages, repository.Name)
+			result.withoutPackages = append(result.withoutPackages, repository.Name)
 		}
 	}
-	if len(packages) == 0 && len(conflicts) == 0 && len(repositories) != 0 {
-		return nil, nil, nil, fmt.Errorf("TypeScript repositories have no named package with a project")
+	if len(result.packages) == 0 && len(result.conflicts) == 0 && len(repositories) != 0 {
+		return typeScriptDiscovery{}, fmt.Errorf("TypeScript repositories have no named package with a project")
 	}
+	packages := result.packages
 	sort.Slice(packages, func(left, right int) bool {
 		if packages[left].repository.Name != packages[right].repository.Name {
 			return packages[left].repository.Name < packages[right].repository.Name
@@ -605,13 +664,75 @@ func discoverTypeScriptPackages(
 		}
 		return packages[left].packageValue.ManifestPath < packages[right].packageValue.ManifestPath
 	})
+	conflicts := result.conflicts
 	sort.Slice(conflicts, func(left, right int) bool {
 		if conflicts[left].repository.Name != conflicts[right].repository.Name {
 			return conflicts[left].repository.Name < conflicts[right].repository.Name
 		}
 		return conflicts[left].conflict.Name < conflicts[right].conflict.Name
 	})
-	return packages, conflicts, withoutPackages, nil
+	sort.Strings(result.unclaimedWithoutPackage)
+	return result, nil
+}
+
+// attributeUnclaimedSources gives every source file no project of the
+// repository claims to the unit whose package encloses it, and returns the
+// files no unit encloses.
+//
+// The enclosing package is the one with the longest root path containing the
+// file: in a monorepo the root manifest encloses every package, so the
+// deepest match is the only attribution that puts a file in the package a
+// reader would name. A file no unit encloses cannot be indexed at all -- the
+// payload of a unit declares its package, and there is none -- so it is
+// returned to be reported.
+func attributeUnclaimedSources(
+	ctx context.Context,
+	repository workspace.Repository,
+	units []typeScriptPackageUnit,
+) ([]string, error) {
+	discovery, err := workspace.DiscoverTypeScript(ctx, repository)
+	if err != nil {
+		return nil, fmt.Errorf("discover TypeScript projects for %q: %w", repository.Name, err)
+	}
+	unclaimed, err := workspace.UnclaimedTypeScriptSources(ctx, repository, discovery)
+	if err != nil {
+		return nil, fmt.Errorf("resolve unclaimed TypeScript sources for %q: %w", repository.Name, err)
+	}
+	orphans := make([]string, 0)
+	for _, source := range unclaimed {
+		owner := -1
+		for index := range units {
+			root := units[index].packageValue.RootPath
+			if !pathWithin(root, source) {
+				continue
+			}
+			if owner == -1 || len(root) > len(units[owner].packageValue.RootPath) {
+				owner = index
+			}
+		}
+		if owner == -1 {
+			orphans = append(orphans, source)
+			continue
+		}
+		units[owner].unclaimed = append(units[owner].unclaimed, source)
+	}
+	return orphans, nil
+}
+
+// pathWithin reports whether root contains candidate. It is the containment
+// rule `internal/workspace` and `internal/watcher` already apply, kept local
+// like theirs.
+func pathWithin(root, candidate string) bool {
+	if strings.TrimSpace(root) == "" {
+		return false
+	}
+	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if err != nil {
+		return false
+	}
+	return relative != ".." &&
+		!strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
+		!filepath.IsAbs(relative)
 }
 
 // typeScriptConflict is one ambiguous package name and the repository that
@@ -965,6 +1086,13 @@ func collectTypeScriptFacts(
 			"--provider", provider.repository.Name+"="+provider.repository.RealPath,
 			"--provider-project", provider.repository.Name+"="+provider.packageValue.ProjectPath,
 		)
+	}
+	// One argument per file, absolute and inside the repository root: the
+	// worker rejects anything else. The list is empty unless
+	// FullOptions.TypeScriptIncludeUnclaimedSources is on, so a pass with the
+	// key off invokes the worker with byte-identical arguments.
+	for _, source := range consumer.unclaimed {
+		arguments = append(arguments, "--unclaimed", source)
 	}
 	command, commandArguments, err := factsCommand(options, arguments)
 	if err != nil {

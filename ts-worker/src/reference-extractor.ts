@@ -7,7 +7,12 @@
  */
 
 import path from "node:path";
-
+import type {
+  BindingName,
+  Identifier,
+  Node,
+  SourceFile,
+} from "typescript/unstable/ast";
 import {
   isArrayBindingPattern,
   isArrowFunction,
@@ -44,15 +49,9 @@ import {
   isTypeParameterDeclaration,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
-import type {
-  BindingName,
-  Identifier,
-  Node,
-  SourceFile,
-} from "typescript/unstable/ast";
 import {
-  LanguageServiceError,
   type LanguageService,
+  LanguageServiceError,
   type ProjectView,
 } from "./language-service.js";
 import type { LocalSymbol, LocalSymbolExtraction } from "./symbol-extractor.js";
@@ -272,7 +271,7 @@ async function selectLocalFiles(
   view: ProjectView,
   requested: readonly string[] | undefined,
 ): Promise<string[]> {
-  const projectRoot = path.dirname(path.resolve(view.configFileName));
+  const projectRoot = view.localRoot;
   const requestedSet =
     requested === undefined
       ? undefined

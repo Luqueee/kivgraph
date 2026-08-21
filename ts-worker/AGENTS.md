@@ -33,6 +33,17 @@ El orquestador Go que invoca este worker está en `internal/`.
   al proveedor por un symlink de `node_modules` y el motor devuelve la ruta
   del destino del enlace, así que `consumer-linked` es el fixture que defiende
   el caso real; exigir `declarationMap` en el proveedor no lo arregla.
+- Una copia instalada por un gestor de paquetes es un `File` distinto de la
+  fuente que la produjo, y el tarball publicado no trae ni `src` ni
+  `.d.ts.map`: ninguna transformada anclada en la raíz del proveedor relaciona
+  las dos rutas, porque el artefacto no está bajo esa raíz. La fuente se
+  nombra por el `name` del `package.json` más cercano al artefacto, buscado en
+  el registro de proveedores; nunca por el nombre que escribió el consumidor,
+  que en una dependencia transitiva pertenece a otro repositorio. La arista es
+  `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, y si la fuente del
+  workspace no exporta el nombre pedido -deriva de versión- **no se cae hacia
+  el artefacto**: la referencia queda `UNRESOLVED`. Ver ADR 0051 y el fixture
+  `installed-package`.
 - El proyecto que resuelve la identidad de un símbolo importado es el que
   **posee el fichero** que nombra el mapa de declaraciones, no el paquete del
   que se importó. Un paquete fachada existe para reexportar los de su

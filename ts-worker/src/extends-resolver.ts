@@ -273,7 +273,7 @@ export async function resolveExtends(
 }
 
 async function selectLocalFiles(view: ProjectView): Promise<string[]> {
-  const projectRoot = path.dirname(path.resolve(view.configFileName));
+  const projectRoot = view.localRoot;
   const sourceFileNames = await view.program.getSourceFileNames();
   return sourceFileNames
     .map((fileName) => path.resolve(fileName))

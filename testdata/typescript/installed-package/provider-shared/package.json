@@ -1,0 +1,16 @@
+{
+  "name": "@kivgraph-fixture/installed",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@kivgraph-fixture/vendored": "2.0.0"
+  }
+}

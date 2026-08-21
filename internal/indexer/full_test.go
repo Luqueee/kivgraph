@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -543,12 +545,13 @@ func TestFullDeclaresAmbiguousTypeScriptPackages(t *testing.T) {
 		writeFullFixture(t, filepath.Join(packageRoot, "src", "index.ts"), "export const value = 1;\n")
 	}
 
-	packages, conflicts, _, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
+	discovered, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
 		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
-	}})
+	}}, false)
 	if err != nil {
 		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
 	}
+	packages, conflicts := discovered.packages, discovered.conflicts
 	if len(conflicts) != 1 || conflicts[0].conflict.Name != "@fixture/same" {
 		t.Fatalf("conflicts = %#v, want the duplicated name", conflicts)
 	}
@@ -602,14 +605,15 @@ func TestDiscoverTypeScriptPackagesUsesEachProjectAndSkipsUnconfiguredPackages(t
 		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
 	}
 
-	packages, conflicts, _, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
+	discovered, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{{
 		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
-	}})
+	}}, false)
 	if err != nil {
 		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
 	}
-	if len(conflicts) != 0 {
-		t.Fatalf("conflicts = %#v, want none", conflicts)
+	packages := discovered.packages
+	if len(discovered.conflicts) != 0 {
+		t.Fatalf("conflicts = %#v, want none", discovered.conflicts)
 	}
 	if len(packages) != 2 {
 		t.Fatalf("packages = %#v, want only configured package projects", packages)
@@ -721,18 +725,99 @@ func TestDiscoverTypeScriptPackagesNamesARepositoryWithoutPackages(t *testing.T)
 	writeFullFixture(t, filepath.Join(named, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
 	writeFullFixture(t, filepath.Join(named, "src", "index.ts"), "export const named = 1\n")
 
-	packages, _, withoutPackages, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{
+	discovered, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{
 		{Name: "loose", Path: loose, RealPath: loose, Languages: []string{"javascript"}},
 		{Name: "named", Path: named, RealPath: named, Languages: []string{"typescript"}},
-	})
+	}, false)
 	if err != nil {
 		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
 	}
-	if len(packages) != 1 {
-		t.Fatalf("packages = %d, want only the repository that declares one", len(packages))
+	if len(discovered.packages) != 1 {
+		t.Fatalf("packages = %d, want only the repository that declares one", len(discovered.packages))
 	}
-	if len(withoutPackages) != 1 || withoutPackages[0] != "loose" {
-		t.Fatalf("withoutPackages = %v, want the repository that declares none named", withoutPackages)
+	if len(discovered.withoutPackages) != 1 || discovered.withoutPackages[0] != "loose" {
+		t.Fatalf("withoutPackages = %v, want the repository that declares none named",
+			discovered.withoutPackages)
+	}
+}
+
+// unclaimedMonorepo is a workspace whose two packages each own only `src`, so
+// `packages/core/tests` and the repository's own `scripts` belong to no
+// TypeScript program. There is deliberately no root manifest: the enclosing
+// package of `scripts/tool.ts` is then nothing at all, which is the case that
+// has to be named rather than dropped.
+func unclaimedMonorepo(t *testing.T) workspace.Repository {
+	t.Helper()
+	root := testsupport.TempDir(t)
+	for _, name := range []string{"core", "util"} {
+		packageRoot := filepath.Join(root, "packages", name)
+		writeFullFixture(t, filepath.Join(packageRoot, "package.json"),
+			fmt.Sprintf(`{"name":"@fixture/%s","version":"1.0.0"}`, name))
+		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"),
+			`{"compilerOptions":{"strict":true},"include":["src/**/*.ts"]}`)
+		writeFullFixture(t, filepath.Join(packageRoot, "src", "index.ts"), "export const value = 1\n")
+	}
+	writeFullFixture(t, filepath.Join(root, "packages", "core", "tests", "index.test.ts"),
+		"export const covered = 1\n")
+	writeFullFixture(t, filepath.Join(root, "scripts", "tool.ts"), "export const tool = 1\n")
+	return workspace.Repository{
+		Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"},
+	}
+}
+
+// TestDiscoverTypeScriptPackagesLeavesUnclaimedSourcesAloneByDefault is the
+// half of the contract that says the key changes nothing when it is off: no
+// unit carries a file, so no worker invocation carries an argument.
+func TestDiscoverTypeScriptPackagesLeavesUnclaimedSourcesAloneByDefault(t *testing.T) {
+	repository := unclaimedMonorepo(t)
+
+	discovered, err := discoverTypeScriptPackages(
+		context.Background(), []workspace.Repository{repository}, false)
+	if err != nil {
+		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
+	}
+	for _, unit := range discovered.packages {
+		if len(unit.unclaimed) != 0 {
+			t.Fatalf("package %q carries %v with the key off",
+				unit.packageValue.Name, unit.unclaimed)
+		}
+	}
+	if len(discovered.unclaimedWithoutPackage) != 0 {
+		t.Fatalf("unclaimedWithoutPackage = %v with the key off",
+			discovered.unclaimedWithoutPackage)
+	}
+}
+
+// TestDiscoverTypeScriptPackagesAttributesUnclaimedSourcesToTheEnclosingPackage
+// defends the attribution: a file is analysed beside the project of the
+// package that encloses it, so `packages/core/tests` belongs to `@fixture/core`
+// and to nothing else, and a file no package encloses is named instead of
+// being quietly attributed to whichever unit happened to come first.
+func TestDiscoverTypeScriptPackagesAttributesUnclaimedSourcesToTheEnclosingPackage(t *testing.T) {
+	repository := unclaimedMonorepo(t)
+
+	discovered, err := discoverTypeScriptPackages(
+		context.Background(), []workspace.Repository{repository}, true)
+	if err != nil {
+		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
+	}
+	attributed := make(map[string][]string, len(discovered.packages))
+	for _, unit := range discovered.packages {
+		attributed[unit.packageValue.Name] = unit.unclaimed
+	}
+	want := map[string][]string{
+		"@fixture/core": {
+			filepath.Join(repository.RealPath, "packages", "core", "tests", "index.test.ts"),
+		},
+		"@fixture/util": nil,
+	}
+	if !reflect.DeepEqual(attributed, want) {
+		t.Fatalf("attributed = %#v, want %#v", attributed, want)
+	}
+	orphans := []string{filepath.Join(repository.RealPath, "scripts", "tool.ts")}
+	if !slices.Equal(discovered.unclaimedWithoutPackage, orphans) {
+		t.Fatalf("unclaimedWithoutPackage = %v, want %v",
+			discovered.unclaimedWithoutPackage, orphans)
 	}
 }
 

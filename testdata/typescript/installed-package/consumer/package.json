@@ -1,0 +1,9 @@
+{
+  "name": "@kivgraph-fixture/installed-consumer",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@kivgraph-fixture/drifted": "1.0.0",
+    "@kivgraph-fixture/installed": "1.0.0"
+  }
+}
