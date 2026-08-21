@@ -41,6 +41,13 @@ const (
 	KindIndex Kind = "index"
 )
 
+// Kinds is the whole vocabulary, in the order a reader meets it. A caller that
+// validates or completes a --kind reads it here rather than restating the three
+// constants, which is how the CLI and this package stay in step.
+func Kinds() []string {
+	return []string{string(KindServe), string(KindTool), string(KindIndex)}
+}
+
 // Level is the severity of an event, kept as a string so the file stays
 // readable without this package.
 type Level string

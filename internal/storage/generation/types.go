@@ -145,13 +145,20 @@ func newStore(root string, config Config, enforceMinimums bool) (*Store, error) 
 	}
 	return &Store{
 		root:        absolute,
-		generations: filepath.Join(absolute, "generations"),
+		generations: GenerationsDir(absolute),
 		current:     filepath.Join(absolute, "CURRENT"),
 		backup:      filepath.Join(absolute, "BACKUP"),
 		reserve:     filepath.Join(absolute, "space-reserve"),
 		failure:     filepath.Join(absolute, "LAST_FAILURE.json"),
 		config:      config,
 	}, nil
+}
+
+// GenerationsDir answers where a store keeps its generations. Three callers
+// joined the literal themselves before this existed, which is two too many for
+// a path that names an on-disk layout.
+func GenerationsDir(root string) string {
+	return filepath.Join(root, "generations")
 }
 
 func validateGenerationID(id string) error {

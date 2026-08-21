@@ -20,33 +20,6 @@ import (
 
 const helpTagline = "A canonical polyglot code graph, served over MCP."
 
-type commandEntry struct {
-	invocation string
-	summary    string
-}
-
-type commandGroup struct {
-	title    string
-	commands []commandEntry
-}
-
-// unavailableCommands answers why a build cannot run a command, keyed by the
-// invocation the table above declares. TestHelpMarksEveryUnavailableCommand
-// keeps the keys naming commands that exist.
-var unavailableCommands = map[string]func() string{
-	"ui [--addr HOST:PORT]": webBundleAbsence,
-}
-
-// commandAbsence answers why this build cannot run the command, and the empty
-// string when nothing stands in the way.
-func commandAbsence(invocation string) string {
-	produce, exists := unavailableCommands[invocation]
-	if !exists {
-		return ""
-	}
-	return produce()
-}
-
 // webBundleAbsence is why `ui` cannot run: the published MCP bundle is built
 // without web assets on purpose, so a binary that advertises a viewer it
 // cannot serve is lying to the only person who reads the help.
@@ -55,63 +28,6 @@ func webBundleAbsence() string {
 		return ""
 	}
 	return "this build carries no web bundle"
-}
-
-// commandGroups is the whole surface of the command line, in the order an
-// operator meets it: set up a graph, look at it, keep it, and the two commands
-// that only a rebuild pipeline needs.
-var commandGroups = []commandGroup{
-	{
-		title: "Getting started",
-		commands: []commandEntry{
-			{"init [--repository NAME=PATH] [--languages LIST]", "Write the configuration and register repositories"},
-			{"index --full [--json]", "Index every registered repository and publish a generation"},
-			{"serve", "Run the MCP server over stdio"},
-			{"ui [--addr HOST:PORT]", "Serve the read-only graph viewer, every interface by default"},
-			{"stop [--dry-run]", "Stop every running serve and ui of this user"},
-		},
-	},
-	{
-		title: "Diagnostics",
-		commands: []commandEntry{
-			{"doctor", "Check configuration, toolchains and the published graph"},
-			{"doctor storage --database PATH", "Inspect one LadybugDB database file"},
-			{"doctor graph --database PATH", "Validate the canonical graph of a database"},
-			{"graph status --root PATH", "Report the active and backup generations"},
-			{"stats [--interval D] [--once] [--json]", "Watch what every kivgraph process on this machine costs"},
-			{"logs [--follow] [--kind K] [--since D] [--json]", "Read what this machine indexed, served and answered"},
-			{"tool-stats [--tool NAME] [--since D] [--json]", "Report the cost and the failures of every tool"},
-			{"version [--json]", "Print the release, with --json for full provenance"},
-		},
-	},
-	{
-		title: "Maintenance",
-		commands: []commandEntry{
-			{"upgrade", "Rebuild the graph after a schema change"},
-			{"clean [--keep-active] [--yes]", "Remove published graph generations"},
-			{"rollback --root PATH [--generation ID]", "Return to the previous generation"},
-			{"snapshot --root PATH [--generation ID]", "Rebuild the hot snapshot of a generation"},
-			{"update [--check] [--stop]", "Install the latest published release"},
-		},
-	},
-	{
-		title: "Integrations",
-		commands: []commandEntry{
-			{"mcp install [--scope user|project]", "Detect and register one or more MCP clients"},
-			{"mcp status --target TARGET [--scope user|project]", "Inspect a client MCP registration"},
-			{"mcp remove --target TARGET [--scope user|project]", "Remove only Kivgraph's MCP registration"},
-			{"skill install [--scope user|project]", "Detect and install the Agent Skill in one or more clients"},
-			{"skill status --target TARGET [--scope user|project]", "Inspect the installed Agent Skill"},
-			{"skill remove --target TARGET [--scope user|project]", "Remove only Kivgraph's Agent Skill"},
-		},
-	},
-	{
-		title: "Pipeline",
-		commands: []commandEntry{
-			{"rebuild --facts PATH --root PATH ...", "Publish a generation from a fact set"},
-			{"benchmark generate-graph", "Generate a synthetic corpus"},
-		},
-	},
 }
 
 // style carries the escape sequences to use, empty when the destination is not
@@ -155,28 +71,49 @@ func isTerminal(file *os.File) bool {
 // across every group, not per group, so the eye can run straight down it.
 func writeHelp(writer io.Writer, program string) {
 	paint := styleFor(writer)
+	specs := allCommands()
 	width := 0
-	for _, group := range commandGroups {
-		for _, command := range group.commands {
-			width = max(width, len(command.invocation))
+	for _, spec := range specs {
+		if spec.hidden {
+			continue
 		}
+		width = max(width, len(spec.usage))
 	}
 
 	fmt.Fprintf(writer, "%skivgraph%s %s\n", paint.bold, paint.reset, version.Value)
 	fmt.Fprintf(writer, "%s%s%s\n\n", paint.dim, helpTagline, paint.reset)
 	fmt.Fprintf(writer, "%sUsage%s\n  %s <command> [flags]\n", paint.bold, paint.reset, program)
-	for _, group := range commandGroups {
-		fmt.Fprintf(writer, "\n%s%s%s\n", paint.bold, group.title, paint.reset)
-		for _, command := range group.commands {
-			fmt.Fprintf(writer, "  %-*s  %s", width, command.invocation, command.summary)
-			if reason := commandAbsence(command.invocation); reason != "" {
-				fmt.Fprintf(writer, " %s(unavailable: %s)%s", paint.dim, reason, paint.reset)
+	for _, title := range commandGroupOrder {
+		fmt.Fprintf(writer, "\n%s%s%s\n", paint.bold, title, paint.reset)
+		// The table is ordered longest-invocation-first for dispatch, so
+		// the help restores the declared order of each group here rather
+		// than printing `doctor storage` above `doctor`.
+		for _, spec := range helpOrder(title) {
+			fmt.Fprintf(writer, "  %-*s  %s", width, spec.usage, spec.summary)
+			if spec.absence != nil {
+				if reason := spec.absence(); reason != "" {
+					fmt.Fprintf(writer, " %s(unavailable: %s)%s", paint.dim, reason, paint.reset)
+				}
 			}
 			fmt.Fprintln(writer)
 		}
 	}
 	fmt.Fprintf(writer, "\n%sRun \"%s <command> --help\" for the flags of one command.%s\n",
 		paint.dim, program, paint.reset)
+}
+
+// helpOrder answers one group's commands in declaration order.
+func helpOrder(group string) []commandSpec {
+	declared := commandTable()
+	declared = append(declared, integrationCommands()...)
+	ordered := make([]commandSpec, 0, len(declared))
+	for _, spec := range declared {
+		if spec.hidden || spec.group != group {
+			continue
+		}
+		ordered = append(ordered, spec)
+	}
+	return ordered
 }
 
 // writeUsageError states the mistake in one line and points at the help,
@@ -296,14 +233,14 @@ func writeFlagList(writer io.Writer, flags *flag.FlagSet, paint style) {
 	}
 }
 
-// summaryFor finds the one-line description of a command by the first word of
-// its invocation, so the per-command help and the list cannot drift apart.
+// summaryFor finds the one-line description of a command, so the per-command
+// help and the list cannot drift apart. The name is the invocation as the
+// command's own flag set spells it, which is not always how the table spells it
+// -- `benchmark generate-graph` names its flag set "generate-graph".
 func summaryFor(name string) string {
-	for _, group := range commandGroups {
-		for _, command := range group.commands {
-			if strings.HasPrefix(command.invocation, name+" ") || command.invocation == name {
-				return command.summary
-			}
+	for _, spec := range allCommands() {
+		if spec.name() == name || strings.HasSuffix(spec.name(), " "+name) {
+			return spec.summary
 		}
 	}
 	return ""

@@ -50,6 +50,23 @@ invocation with no command, or with an unknown one, writes a single line to
 | `skill install [--scope user\|project]` | Detect and install the Agent Skill in one or more clients |
 | `skill status --target TARGET [--scope user\|project]` | Inspect the installed Agent Skill |
 | `skill remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's Agent Skill |
+| `completion bash\|zsh\|fish` | Print the shell completion script for one shell |
+
+### Shell completion
+
+```bash
+kivgraph completion bash > /usr/local/etc/bash_completion.d/kivgraph   # bash 3.2 and newer
+kivgraph completion zsh  > "${fpath[1]}/_kivgraph"
+kivgraph completion fish > ~/.config/fish/completions/kivgraph.fish
+```
+
+The script is a fixed stub: it carries no command name, no flag and no
+vocabulary, and forwards the words typed so far to `kivgraph __complete`. That
+is what keeps it from going out of date when a flag is added, and it is what
+lets completion answer the questions a static script cannot: `--generation`
+completes the generations on disk, `--target` the clients this machine has, and
+`--tool` the tools this installation has actually been called with. A flag that
+takes a path defers to the shell's own file completion.
 
 ## Pipeline
 

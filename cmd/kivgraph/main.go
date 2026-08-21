@@ -586,89 +586,39 @@ func runWithGraphRollback(args []string, stdout, stderr io.Writer, diagnose stor
 	return runWithSnapshotBuilder(args, stdout, stderr, diagnose, rebuilder, verify, roles, rollback, rebuild.SnapshotGeneration)
 }
 
+// runWithSnapshotBuilder is the dispatch. It walks the one table in
+// commands.go, longest invocation first, so `doctor storage` is never read as
+// `doctor` with a stray argument and `index --full` is never read as `index`.
 func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser, rebuilder graphRebuilder, verify graphVerifier, roles graphRoleResolver, rollback graphRollbacker, build snapshotBuilder) int {
-	if len(args) >= 2 && args[1] == "version" {
-		if len(args) == 2 {
-			fmt.Fprintln(stdout, version.Value)
-			return 0
-		}
-		if len(args) == 3 && args[2] == "--json" {
-			return runVersionJSON(stdout, stderr)
-		}
+	deps := dependencies{
+		diagnose:  diagnose,
+		rebuilder: rebuilder,
+		verify:    verify,
+		roles:     roles,
+		rollback:  rollback,
+		build:     build,
 	}
-	if len(args) >= 2 && args[1] == "update" {
-		return runUpdate(args[2:], stdout, stderr)
+	program := filepath.Base(args[0])
+	if len(args) < 2 {
+		writeUsageError(stderr, program, "no command given")
+		return 2
 	}
-	if len(args) >= 2 && args[1] == "mcp" {
-		return runMCPCommand(args[2:], stdout, stderr)
+	switch args[1] {
+	case "--help", "-h", "help":
+		writeHelp(stdout, program)
+		return 0
 	}
-	if len(args) >= 2 && args[1] == "skill" {
-		return runSkillCommand(args[2:], stdout, stderr)
+	if spec, consumed, found := findCommand(args[1:]); found && spec.run != nil {
+		return spec.run(deps, args[1+consumed:], stdout, stderr)
 	}
-	if len(args) >= 2 && args[1] == "init" {
-		return runInit(args[2:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "doctor" && (len(args) == 2 || (len(args) >= 3 && strings.HasPrefix(args[2], "--"))) {
-		return runDoctor(args[2:], stdout, stderr)
-	}
-	if len(args) >= 3 && args[1] == "index" && args[2] == "--full" {
-		return runIndexFull(args[3:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "index" {
+	// `index` on its own is the one near-miss worth naming: the pass has
+	// always required --full, and reporting an unknown command would send the
+	// reader to the help to find a command that is there.
+	if args[1] == "index" {
 		writeCommandError(stderr, "index: only --full is supported")
 		return 2
 	}
-	if len(args) >= 3 && args[1] == "doctor" && args[2] == "storage" {
-		return runDoctorStorage(args[3:], stdout, stderr, diagnose)
-	}
-	if len(args) >= 3 && args[1] == "doctor" && args[2] == "graph" {
-		return runDoctorGraph(args[3:], stdout, stderr, verify)
-	}
-	if len(args) >= 3 && args[1] == "benchmark" && args[2] == "generate-graph" {
-		return runGenerateGraph(args[3:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "upgrade" {
-		return runUpgrade(args[2:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "clean" {
-		return runClean(args[2:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "stop" {
-		return runStop(args[2:], stdout, stderr, procstat.List, signalProcess)
-	}
-	if len(args) >= 2 && args[1] == "stats" {
-		return runStats(args[2:], stdout, stderr, procstat.List)
-	}
-	if len(args) >= 2 && args[1] == "logs" {
-		return runLogs(args[2:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "tool-stats" {
-		return runToolStats(args[2:], stdout, stderr)
-	}
-	if len(args) >= 2 && args[1] == "rebuild" {
-		return runRebuild(args[2:], stdout, stderr, rebuilder)
-	}
-	if len(args) >= 3 && args[1] == "graph" && args[2] == "status" {
-		return runGraphStatus(args[3:], stdout, stderr, roles)
-	}
-	if len(args) >= 2 && args[1] == "rollback" {
-		return runRollback(args[2:], stdout, stderr, rollback)
-	}
-	if len(args) >= 2 && args[1] == "snapshot" {
-		return runSnapshot(args[2:], stdout, stderr, build)
-	}
-
-	program := filepath.Base(args[0])
-	if len(args) >= 2 {
-		switch args[1] {
-		case "--help", "-h", "help":
-			writeHelp(stdout, program)
-			return 0
-		}
-		writeUsageError(stderr, program, fmt.Sprintf("unknown command %q", args[1]))
-		return 2
-	}
-	writeUsageError(stderr, program, "no command given")
+	writeUsageError(stderr, program, fmt.Sprintf("unknown command %q", args[1]))
 	return 2
 }
 
@@ -676,6 +626,23 @@ type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
 	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess)
+}
+
+// updateOptions carries the flags of `kivgraph update`.
+type updateOptions struct {
+	CheckOnly bool
+	StopStale bool
+}
+
+// updateFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func updateFlagSet(options *updateOptions) *flag.FlagSet {
+	flags := flag.NewFlagSet("update", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.BoolVar(&options.CheckOnly, "check", false, "check for a newer release without installing it")
+	flags.BoolVar(&options.StopStale, "stop", false, "stop the processes still running the previous release without asking")
+	return flags
 }
 
 func runUpdateWithRunner(
@@ -686,11 +653,8 @@ func runUpdateWithRunner(
 	list processLister,
 	signal processSignaller,
 ) int {
-	flags := flag.NewFlagSet("update", flag.ContinueOnError)
-	checkOnly := false
-	stopStale := false
-	flags.BoolVar(&checkOnly, "check", false, "check for a newer release without installing it")
-	flags.BoolVar(&stopStale, "stop", false, "stop the processes still running the previous release without asking")
+	var options updateOptions
+	flags := updateFlagSet(&options)
 	if parsed, code := parseCommandFlags("update", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -702,7 +666,7 @@ func runUpdateWithRunner(
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
-		CheckOnly:      checkOnly,
+		CheckOnly:      options.CheckOnly,
 	})
 	if err != nil {
 		writeCommandError(stderr, "update: %v", err)
@@ -712,7 +676,7 @@ func runUpdateWithRunner(
 		writeSuccess(stdout, "kivgraph is up to date (%s)", result.CurrentVersion)
 		return 0
 	}
-	if checkOnly {
+	if options.CheckOnly {
 		writeInfo(stdout, "kivgraph update available: %s -> %s", result.CurrentVersion, result.LatestVersion)
 		return 0
 	}
@@ -721,7 +685,7 @@ func runUpdateWithRunner(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, stopStale, result.LatestVersion)
+	return stopStaleProcesses(stdin, stdout, stderr, list, signal, options.StopStale, result.LatestVersion)
 }
 
 // stopStaleProcesses offers to end the servers that outlived the bundle they
@@ -816,18 +780,32 @@ func (values *stringList) Set(value string) error {
 	return nil
 }
 
-func runInit(args []string, stdout, stderr io.Writer) int {
+// initOptions carries the flags of `kivgraph init`.
+type initOptions struct {
+	ConfigPath       string
+	RepositoriesPath string
+	Force            bool
+	Languages        string
+	Repository       stringList
+}
+
+// initFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func initFlagSet(options *initOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
-	configPath := ""
-	repositoriesPath := ""
-	force := false
-	languages := "go"
-	var repositorySpecs stringList
-	flags.StringVar(&configPath, "config", "", "configuration file")
-	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file")
-	flags.BoolVar(&force, "force", false, "replace existing configuration files")
-	flags.StringVar(&languages, "languages", languages, "comma-separated repository languages")
-	flags.Var(&repositorySpecs, "repository", "register NAME=PATH (repeatable)")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
+	flags.StringVar(&options.RepositoriesPath, "repositories", "", "repository registry file")
+	flags.BoolVar(&options.Force, "force", false, "replace existing configuration files")
+	flags.StringVar(&options.Languages, "languages", "go", "comma-separated repository languages")
+	flags.Var(&options.Repository, "repository", "register NAME=PATH (repeatable)")
+	return flags
+}
+
+func runInit(args []string, stdout, stderr io.Writer) int {
+	var options initOptions
+	flags := initFlagSet(&options)
 	if parsed, code := parseCommandFlags("init", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -837,9 +815,9 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	}
 
 	result, err := config.Initialize(config.InitOptions{
-		ConfigPath:       configPath,
-		RepositoriesPath: repositoriesPath,
-		Force:            force,
+		ConfigPath:       options.ConfigPath,
+		RepositoriesPath: options.RepositoriesPath,
+		Force:            options.Force,
 	})
 	if err != nil {
 		writeCommandError(stderr, "init: %v", err)
@@ -848,16 +826,16 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	writeInfo(stdout, "config: %s (%s)", initFileState(result.ConfigCreated), result.ConfigPath)
 	writeInfo(stdout, "repositories: %s (%s)", initFileState(result.RepositoriesCreated), result.RepositoriesPath)
 
-	if len(repositorySpecs) == 0 {
+	if len(options.Repository) == 0 {
 		return 0
 	}
-	parsedLanguages, err := parseLanguages(languages)
+	parsedLanguages, err := parseLanguages(options.Languages)
 	if err != nil {
 		writeCommandError(stderr, "init: %v", err)
 		return 2
 	}
-	additions := make([]config.Repository, 0, len(repositorySpecs))
-	for _, specification := range repositorySpecs {
+	additions := make([]config.Repository, 0, len(options.Repository))
+	for _, specification := range options.Repository {
 		repository, err := parseRepositorySpec(specification, parsedLanguages)
 		if err != nil {
 			writeCommandError(stderr, "init: %v", err)
@@ -915,16 +893,30 @@ func parseRepositorySpec(specification string, languages []string) (config.Repos
 	}, nil
 }
 
-func runIndexFull(args []string, stdout, stderr io.Writer) int {
+// indexFullOptions carries the flags of `kivgraph index --full`.
+type indexFullOptions struct {
+	ConfigPath       string
+	RepositoriesPath string
+	ResolverVersion  string
+	JSONOutput       bool
+}
+
+// indexFullFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("index --full", flag.ContinueOnError)
-	configPath := ""
-	repositoriesPath := ""
-	resolverVersion := version.Value
-	flags.StringVar(&configPath, "config", "", "configuration file")
-	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file override")
-	flags.StringVar(&resolverVersion, "resolver-version", resolverVersion, "resolver version recorded in the graph")
-	jsonOutput := false
-	flags.BoolVar(&jsonOutput, "json", false, "write the pass as a JSON event stream on stdout")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
+	flags.StringVar(&options.RepositoriesPath, "repositories", "", "repository registry file override")
+	flags.StringVar(&options.ResolverVersion, "resolver-version", version.Value, "resolver version recorded in the graph")
+	flags.BoolVar(&options.JSONOutput, "json", false, "write the pass as a JSON event stream on stdout")
+	return flags
+}
+
+func runIndexFull(args []string, stdout, stderr io.Writer) int {
+	var options indexFullOptions
+	flags := indexFullFlagSet(&options)
 	if parsed, code := parseCommandFlags("index --full", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -934,13 +926,13 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 
 	ctx := context.Background()
-	loaded, err := config.Load(configPath)
+	loaded, err := config.Load(options.ConfigPath)
 	if err != nil {
 		writeCommandError(stderr, "index --full: load configuration: %v", err)
 		return 1
 	}
-	if repositoriesPath != "" {
-		loaded.Repositories, err = config.LoadRepositories(repositoriesPath)
+	if options.RepositoriesPath != "" {
+		loaded.Repositories, err = config.LoadRepositories(options.RepositoriesPath)
 		if err != nil {
 			writeCommandError(stderr, "index --full: load repositories: %v", err)
 			return 1
@@ -959,24 +951,24 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	progressStart := time.Now()
 	events := openEventLog(loaded.Config, stderr)
 	defer events.Close()
-	options := indexing.OptionsFromConfig(loaded.Config)
-	options.Repositories = registry.List()
-	options.WorkingDirectory = workingDirectory
-	options.ResolverVersion = resolverVersion
-	if jsonOutput {
-		return runIndexFullEvents(ctx, options, events, progressStart, stdout, stderr)
+	indexOptions := indexing.OptionsFromConfig(loaded.Config)
+	indexOptions.Repositories = registry.List()
+	indexOptions.WorkingDirectory = workingDirectory
+	indexOptions.ResolverVersion = options.ResolverVersion
+	if options.JSONOutput {
+		return runIndexFullEvents(ctx, indexOptions, events, progressStart, stdout, stderr)
 	}
 	events.Append(eventlog.Event{
 		Kind:    eventlog.KindIndex,
-		Message: fmt.Sprintf("index --full started over %d repository(ies)", len(options.Repositories)),
+		Message: fmt.Sprintf("index --full started over %d repository(ies)", len(indexOptions.Repositories)),
 	})
-	options.Progress = func(event indexer.ProgressEvent) {
+	indexOptions.Progress = func(event indexer.ProgressEvent) {
 		writeIndexProgress(stderr, progressStart, event)
 	}
-	options.RebuildProgress = func(stage rebuild.StageName) {
+	indexOptions.RebuildProgress = func(stage rebuild.StageName) {
 		writeInfo(stderr, "[%6.1fs] rebuild %s", time.Since(progressStart).Seconds(), stage)
 	}
-	fullResult, err := indexing.RunFull(ctx, options)
+	fullResult, err := indexing.RunFull(ctx, indexOptions)
 	recordIndexRun(events, fullResult.RebuildReport, int64(fullResult.Counts.Symbols), time.Since(progressStart), err)
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
@@ -1128,14 +1120,28 @@ func writeIndexProgress(stderr io.Writer, start time.Time, event indexer.Progres
 	writeInfo(stderr, "[%6.1fs]%s %s %s (%s)", elapsed, position, subject, state, event.Detail)
 }
 
-func runUpgrade(args []string, stdout, stderr io.Writer) int {
+// upgradeOptions carries the flags of `kivgraph upgrade`.
+type upgradeOptions struct {
+	ConfigPath       string
+	RepositoriesPath string
+	ResolverVersion  string
+}
+
+// upgradeFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func upgradeFlagSet(options *upgradeOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("upgrade", flag.ContinueOnError)
-	configPath := ""
-	repositoriesPath := ""
-	resolverVersion := version.Value
-	flags.StringVar(&configPath, "config", "", "configuration file")
-	flags.StringVar(&repositoriesPath, "repositories", "", "repository registry file override")
-	flags.StringVar(&resolverVersion, "resolver-version", resolverVersion, "resolver version recorded in the graph")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
+	flags.StringVar(&options.RepositoriesPath, "repositories", "", "repository registry file override")
+	flags.StringVar(&options.ResolverVersion, "resolver-version", version.Value, "resolver version recorded in the graph")
+	return flags
+}
+
+func runUpgrade(args []string, stdout, stderr io.Writer) int {
+	var options upgradeOptions
+	flags := upgradeFlagSet(&options)
 	if parsed, code := parseCommandFlags("upgrade", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1145,13 +1151,13 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	}
 
 	ctx := context.Background()
-	loaded, err := config.Load(configPath)
+	loaded, err := config.Load(options.ConfigPath)
 	if err != nil {
 		writeCommandError(stderr, "upgrade: load configuration: %v", err)
 		return 1
 	}
-	if repositoriesPath != "" {
-		loaded.Repositories, err = config.LoadRepositories(repositoriesPath)
+	if options.RepositoriesPath != "" {
+		loaded.Repositories, err = config.LoadRepositories(options.RepositoriesPath)
 		if err != nil {
 			writeCommandError(stderr, "upgrade: load repositories: %v", err)
 			return 1
@@ -1171,7 +1177,7 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	report, err := upgrade.Run(ctx, upgrade.Options{
 		Root:            root,
 		BackupRoot:      loaded.Config.Storage.BackupsPath,
-		ResolverVersion: resolverVersion,
+		ResolverVersion: options.ResolverVersion,
 		Full: indexer.FullOptions{
 			Repositories:             registry.List(),
 			SyntheticWorkFile:        loaded.Config.Go.SyntheticWorkFile,
@@ -1207,19 +1213,33 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// cleanOptions carries the flags of `kivgraph clean`.
+type cleanOptions struct {
+	ConfigPath string
+	KeepActive bool
+	Confirmed  bool
+}
+
+// cleanFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func cleanFlagSet(options *cleanOptions) *flag.FlagSet {
+	flags := flag.NewFlagSet("clean", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
+	flags.BoolVar(&options.KeepActive, "keep-active", false, "keep the generation currently published")
+	flags.BoolVar(&options.Confirmed, "yes", false, "remove the generations instead of listing them")
+	return flags
+}
+
 // runClean removes published graph generations.
 //
 // It reports what it would remove and changes nothing until --yes, because a
 // typo here costs a full reindex and there is no undo: rollback restores a
 // backup generation, and this command is what removes those too.
 func runClean(args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("clean", flag.ContinueOnError)
-	configPath := ""
-	keepActive := false
-	confirmed := false
-	flags.StringVar(&configPath, "config", "", "configuration file")
-	flags.BoolVar(&keepActive, "keep-active", false, "keep the generation currently published")
-	flags.BoolVar(&confirmed, "yes", false, "remove the generations instead of listing them")
+	var options cleanOptions
+	flags := cleanFlagSet(&options)
 	if parsed, code := parseCommandFlags("clean", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1229,7 +1249,7 @@ func runClean(args []string, stdout, stderr io.Writer) int {
 	}
 
 	ctx := context.Background()
-	loaded, err := config.Load(configPath)
+	loaded, err := config.Load(options.ConfigPath)
 	if err != nil {
 		writeCommandError(stderr, "clean: load configuration: %v", err)
 		return 1
@@ -1251,13 +1271,13 @@ func runClean(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	if keepActive && active.ID == "" {
+	if options.KeepActive && active.ID == "" {
 		writeCommandError(stderr, "clean: --keep-active: no generation is published; run clean without it to remove everything")
 		return 1
 	}
 	doomed := make([]string, 0, len(generations))
 	for _, candidate := range generations {
-		if keepActive && candidate.ID == active.ID {
+		if options.KeepActive && candidate.ID == active.ID {
 			continue
 		}
 		doomed = append(doomed, candidate.ID)
@@ -1266,22 +1286,22 @@ func runClean(args []string, stdout, stderr io.Writer) int {
 		writeInfo(stdout, "clean: nothing to remove (%d generation(s) kept)", len(generations))
 		return 0
 	}
-	if !confirmed {
+	if !options.Confirmed {
 		writeInfo(stdout, "clean: would remove generation(s) %s from %s", strings.Join(doomed, ", "), root)
-		if !keepActive {
+		if !options.KeepActive {
 			writeInfo(stdout, "clean: the graph would be unpublished; every query fails until the next index --full")
 		}
 		writeInfo(stdout, "clean: nothing was removed; pass --yes to proceed")
 		return 0
 	}
 
-	removed, err := cleanGenerations(ctx, store, keepActive, active.ID)
+	removed, err := cleanGenerations(ctx, store, options.KeepActive, active.ID)
 	if err != nil {
 		writeCommandError(stderr, "clean: %v", err)
 		return 1
 	}
 	writeResult(stdout, true, "clean: removed generation(s) %s", strings.Join(removed, ", "))
-	if keepActive {
+	if options.KeepActive {
 		writeInfo(stdout, "clean: generation %s is still published; rollback has nothing to restore", active.ID)
 		return 0
 	}
@@ -1319,10 +1339,24 @@ func passFail(passed bool) string {
 	return "FAIL"
 }
 
-func runDoctor(args []string, stdout, stderr io.Writer) int {
+// doctorOptions carries the flags of `kivgraph doctor`.
+type doctorOptions struct {
+	ConfigPath string
+}
+
+// doctorFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func doctorFlagSet(options *doctorOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	configPath := ""
-	flags.StringVar(&configPath, "config", "", "configuration file")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
+	return flags
+}
+
+func runDoctor(args []string, stdout, stderr io.Writer) int {
+	var options doctorOptions
+	flags := doctorFlagSet(&options)
 	if parsed, code := parseCommandFlags("doctor", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1331,7 +1365,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	loaded, err := config.Load(configPath)
+	loaded, err := config.Load(options.ConfigPath)
 	if err != nil {
 		writeResult(stdout, false, "config: FAIL (%v)", err)
 		writeResult(stdout, false, "doctor: FAIL")
@@ -1660,10 +1694,24 @@ func snapshotReportID(id string) (uint64, error) {
 	return value, nil
 }
 
-func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser) int {
+// doctorStorageOptions carries the flags of `kivgraph doctor storage`.
+type doctorStorageOptions struct {
+	Database string
+}
+
+// doctorStorageFlagSet declares them in one place, so the parser that runs
+// the command and the help and completion that describe it read the same
+// definitions.
+func doctorStorageFlagSet(options *doctorStorageOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("doctor storage", flag.ContinueOnError)
-	var databasePath string
-	flags.StringVar(&databasePath, "database", "", "existing LadybugDB database path")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.Database, "database", "", "existing LadybugDB database path")
+	return flags
+}
+
+func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageDiagnoser) int {
+	var options doctorStorageOptions
+	flags := doctorStorageFlagSet(&options)
 	if parsed, code := parseCommandFlags("doctor storage", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1671,12 +1719,12 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 		fmt.Fprintf(stderr, "doctor storage: unexpected arguments: %v\n", flags.Args())
 		return 2
 	}
-	if databasePath == "" {
+	if options.Database == "" {
 		fmt.Fprintln(stderr, "doctor storage: --database is required")
 		return 2
 	}
 
-	diagnosis, err := diagnose(context.Background(), databasePath)
+	diagnosis, err := diagnose(context.Background(), options.Database)
 	if err != nil {
 		fmt.Fprintf(stderr, "doctor storage: %v\n", err)
 		return 1
@@ -1703,10 +1751,24 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 	return 1
 }
 
-func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifier) int {
+// doctorGraphOptions carries the flags of `kivgraph doctor graph`.
+type doctorGraphOptions struct {
+	Database string
+}
+
+// doctorGraphFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func doctorGraphFlagSet(options *doctorGraphOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("doctor graph", flag.ContinueOnError)
-	var databasePath string
-	flags.StringVar(&databasePath, "database", "", "published canonical LadybugDB database path")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.Database, "database", "", "published canonical LadybugDB database path")
+	return flags
+}
+
+func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifier) int {
+	var options doctorGraphOptions
+	flags := doctorGraphFlagSet(&options)
 	if parsed, code := parseCommandFlags("doctor graph", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1714,17 +1776,17 @@ func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifie
 		fmt.Fprintf(stderr, "doctor graph: unexpected arguments: %v\n", flags.Args())
 		return 2
 	}
-	if databasePath == "" {
+	if options.Database == "" {
 		fmt.Fprintln(stderr, "doctor graph: --database is required")
 		return 2
 	}
 
-	report, err := verify(context.Background(), databasePath)
+	report, err := verify(context.Background(), options.Database)
 	if err != nil {
 		fmt.Fprintf(stderr, "doctor graph: %v\n", err)
 		return 1
 	}
-	writeIntegrityReport(stdout, databasePath, report)
+	writeIntegrityReport(stdout, options.Database, report)
 	if report.Passed {
 		return 0
 	}
@@ -1765,15 +1827,30 @@ func writeIntegrityFindings(stdout io.Writer, findings []ladybug.IntegrityFindin
 	}
 }
 
-func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
-	config := synthetic.DefaultConfig()
+// generateGraphOptions carries the flags of `kivgraph generate-graph`.
+type generateGraphOptions struct {
+	Config synthetic.Config
+}
+
+// generateGraphFlagSet declares them in one place, so the parser that runs
+// the command and the help and completion that describe it read the same
+// definitions.
+func generateGraphFlagSet(options *generateGraphOptions) *flag.FlagSet {
+	options.Config = synthetic.DefaultConfig()
 	flags := flag.NewFlagSet("generate-graph", flag.ContinueOnError)
-	flags.IntVar(&config.Repositories, "repositories", config.Repositories, "number of repositories")
-	flags.IntVar(&config.Files, "files", config.Files, "number of files")
-	flags.IntVar(&config.Symbols, "symbols", config.Symbols, "number of symbols")
-	flags.IntVar(&config.Edges, "edges", config.Edges, "number of total edges")
-	flags.Int64Var(&config.Seed, "seed", config.Seed, "deterministic corpus seed")
-	flags.StringVar(&config.OutputDir, "output", config.OutputDir, "output directory")
+	flags.SetOutput(io.Discard)
+	flags.IntVar(&options.Config.Repositories, "repositories", options.Config.Repositories, "number of repositories")
+	flags.IntVar(&options.Config.Files, "files", options.Config.Files, "number of files")
+	flags.IntVar(&options.Config.Symbols, "symbols", options.Config.Symbols, "number of symbols")
+	flags.IntVar(&options.Config.Edges, "edges", options.Config.Edges, "number of total edges")
+	flags.Int64Var(&options.Config.Seed, "seed", options.Config.Seed, "deterministic corpus seed")
+	flags.StringVar(&options.Config.OutputDir, "output", options.Config.OutputDir, "output directory")
+	return flags
+}
+
+func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
+	var options generateGraphOptions
+	flags := generateGraphFlagSet(&options)
 	if parsed, code := parseCommandFlags("generate-graph", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1782,7 +1859,7 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	manifest, err := synthetic.Generate(context.Background(), config)
+	manifest, err := synthetic.Generate(context.Background(), options.Config)
 	if err != nil {
 		fmt.Fprintf(stderr, "generate-graph: %v\n", err)
 		return 1
@@ -1792,26 +1869,38 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 		manifest.Files,
 		manifest.Symbols,
 		manifest.Edges,
-		config.OutputDir,
+		options.Config.OutputDir,
 		manifest.Seed,
 	)
 	return 0
 }
 
-func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilder) int {
+// rebuildOptions carries the flags of `kivgraph rebuild`.
+type rebuildOptions struct {
+	Facts           string
+	Root            string
+	Generation      string
+	ResolverVersion string
+	SnapshotID      int64
+}
+
+// rebuildFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func rebuildFlagSet(options *rebuildOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("rebuild", flag.ContinueOnError)
-	var (
-		factsPath       string
-		root            string
-		generationID    string
-		resolverVersion string
-		snapshotID      int64
-	)
-	flags.StringVar(&factsPath, "facts", "", "JSON file with a serialized facts.Set")
-	flags.StringVar(&root, "root", "", "generation store root directory")
-	flags.StringVar(&generationID, "generation", "", "six digit generation id to publish")
-	flags.StringVar(&resolverVersion, "resolver-version", "", "resolver version stamped on every semantic edge")
-	flags.Int64Var(&snapshotID, "snapshot-id", 0, "snapshot id stamped on every semantic edge")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.Facts, "facts", "", "JSON file with a serialized facts.Set")
+	flags.StringVar(&options.Root, "root", "", "generation store root directory")
+	flags.StringVar(&options.Generation, "generation", "", "six digit generation id to publish")
+	flags.StringVar(&options.ResolverVersion, "resolver-version", "", "resolver version stamped on every semantic edge")
+	flags.Int64Var(&options.SnapshotID, "snapshot-id", 0, "snapshot id stamped on every semantic edge")
+	return flags
+}
+
+func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilder) int {
+	var options rebuildOptions
+	flags := rebuildFlagSet(&options)
 	if parsed, code := parseCommandFlags("rebuild", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1820,21 +1909,21 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 		return 2
 	}
 	switch {
-	case factsPath == "":
+	case options.Facts == "":
 		fmt.Fprintln(stderr, "rebuild: --facts is required")
 		return 2
-	case root == "":
+	case options.Root == "":
 		fmt.Fprintln(stderr, "rebuild: --root is required")
 		return 2
-	case generationID == "":
+	case options.Generation == "":
 		fmt.Fprintln(stderr, "rebuild: --generation is required")
 		return 2
-	case resolverVersion == "":
+	case options.ResolverVersion == "":
 		fmt.Fprintln(stderr, "rebuild: --resolver-version is required")
 		return 2
 	}
 
-	factsData, err := os.ReadFile(factsPath)
+	factsData, err := os.ReadFile(options.Facts)
 	if err != nil {
 		fmt.Fprintf(stderr, "rebuild: read facts: %v\n", err)
 		return 1
@@ -1846,11 +1935,11 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 	}
 
 	report, err := rebuilder(context.Background(), rebuild.Options{
-		Root:            root,
-		GenerationID:    generationID,
+		Root:            options.Root,
+		GenerationID:    options.Generation,
 		Facts:           set,
-		ResolverVersion: resolverVersion,
-		SnapshotID:      snapshotID,
+		ResolverVersion: options.ResolverVersion,
+		SnapshotID:      options.SnapshotID,
 		Store:           generation.DefaultConfig(),
 	})
 	writeRebuildReport(stdout, report)
@@ -1947,10 +2036,24 @@ func rebuildState(passed bool) string {
 	return "FAIL"
 }
 
-func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleResolver) int {
+// graphStatusOptions carries the flags of `kivgraph graph status`.
+type graphStatusOptions struct {
+	Root string
+}
+
+// graphStatusFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func graphStatusFlagSet(options *graphStatusOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("graph status", flag.ContinueOnError)
-	var root string
-	flags.StringVar(&root, "root", "", "generation store root directory")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.Root, "root", "", "generation store root directory")
+	return flags
+}
+
+func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleResolver) int {
+	var options graphStatusOptions
+	flags := graphStatusFlagSet(&options)
 	if parsed, code := parseCommandFlags("graph status", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -1958,17 +2061,17 @@ func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleReso
 		fmt.Fprintf(stderr, "graph status: unexpected arguments: %v\n", flags.Args())
 		return 2
 	}
-	if root == "" {
+	if options.Root == "" {
 		fmt.Fprintln(stderr, "graph status: --root is required")
 		return 2
 	}
 
-	layout, err := roles(context.Background(), rebuild.LayoutOptions{Root: root, Store: generation.DefaultConfig()})
+	layout, err := roles(context.Background(), rebuild.LayoutOptions{Root: options.Root, Store: generation.DefaultConfig()})
 	if err != nil {
 		fmt.Fprintf(stderr, "graph status: %v\n", err)
 		return 1
 	}
-	writeGraphStatus(stdout, root, layout)
+	writeGraphStatus(stdout, options.Root, layout)
 	return 0
 }
 
@@ -1989,9 +2092,9 @@ func writeGraphStatus(stdout io.Writer, root string, layout rebuild.Layout) {
 	// graph.next never exists on disk until a rebuild actually publishes:
 	// this is where generation.Store.Publish would build it, following the
 	// documented <root>/generations/<id>.tmp layout.
-	generationsDir := filepath.Join(root, "generations")
+	generationsDir := generation.GenerationsDir(root)
 	if absRoot, err := filepath.Abs(root); err == nil {
-		generationsDir = filepath.Join(absRoot, "generations")
+		generationsDir = generation.GenerationsDir(absRoot)
 	}
 	fmt.Fprintf(stdout, "%s: %s\n", rebuild.RoleNext, filepath.Join(generationsDir, layout.NextID+".tmp"))
 
@@ -2009,11 +2112,26 @@ func writeGraphStatus(stdout io.Writer, root string, layout rebuild.Layout) {
 	fmt.Fprintf(stdout, "retained: %s\n", strings.Join(layout.Retained, ", "))
 }
 
-func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollbacker) int {
+// rollbackOptions carries the flags of `kivgraph rollback`.
+type rollbackOptions struct {
+	Root       string
+	Generation string
+}
+
+// rollbackFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func rollbackFlagSet(options *rollbackOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("rollback", flag.ContinueOnError)
-	var root, generationID string
-	flags.StringVar(&root, "root", "", "generation store root directory")
-	flags.StringVar(&generationID, "generation", "", "six digit generation id to roll back to; defaults to the registered graph.backup")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.Root, "root", "", "generation store root directory")
+	flags.StringVar(&options.Generation, "generation", "", "six digit generation id to roll back to; defaults to the registered graph.backup")
+	return flags
+}
+
+func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollbacker) int {
+	var options rollbackOptions
+	flags := rollbackFlagSet(&options)
 	if parsed, code := parseCommandFlags("rollback", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -2021,15 +2139,15 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 		fmt.Fprintf(stderr, "rollback: unexpected arguments: %v\n", flags.Args())
 		return 2
 	}
-	if root == "" {
+	if options.Root == "" {
 		fmt.Fprintln(stderr, "rollback: --root is required")
 		return 2
 	}
 
 	report, err := rollback(context.Background(), rebuild.RollbackOptions{
-		Root:         root,
+		Root:         options.Root,
 		Store:        generation.DefaultConfig(),
-		GenerationID: generationID,
+		GenerationID: options.Generation,
 	})
 	writeRollbackReport(stdout, report)
 	if err != nil {
@@ -2072,13 +2190,28 @@ func orNone(value string) string {
 	return value
 }
 
-func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder) int {
+// snapshotOptions carries the flags of `kivgraph snapshot`.
+type snapshotOptions struct {
+	Root       string
+	Generation string
+	SnapshotID int64
+}
+
+// snapshotFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func snapshotFlagSet(options *snapshotOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("snapshot", flag.ContinueOnError)
-	var root, generationID string
-	var snapshotID int64
-	flags.StringVar(&root, "root", "", "generation store root directory")
-	flags.StringVar(&generationID, "generation", "", "six digit generation id to snapshot; defaults to the registered graph.active")
-	flags.Int64Var(&snapshotID, "snapshot-id", 0, "snapshot id stamped on the built HotSnapshot")
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&options.Root, "root", "", "generation store root directory")
+	flags.StringVar(&options.Generation, "generation", "", "six digit generation id to snapshot; defaults to the registered graph.active")
+	flags.Int64Var(&options.SnapshotID, "snapshot-id", 0, "snapshot id stamped on the built HotSnapshot")
+	return flags
+}
+
+func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder) int {
+	var options snapshotOptions
+	flags := snapshotFlagSet(&options)
 	if parsed, code := parseCommandFlags("snapshot", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -2086,16 +2219,16 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 		fmt.Fprintf(stderr, "snapshot: unexpected arguments: %v\n", flags.Args())
 		return 2
 	}
-	if root == "" {
+	if options.Root == "" {
 		fmt.Fprintln(stderr, "snapshot: --root is required")
 		return 2
 	}
 
 	_, report, err := build(context.Background(), rebuild.GenerationSnapshotOptions{
-		Root:         root,
+		Root:         options.Root,
 		Store:        generation.DefaultConfig(),
-		GenerationID: generationID,
-		SnapshotID:   uint64(snapshotID),
+		GenerationID: options.Generation,
+		SnapshotID:   uint64(options.SnapshotID),
 	})
 	writeSnapshotReport(stdout, report)
 	if err != nil {
@@ -2148,6 +2281,21 @@ func signalProcess(pid int, signal syscall.Signal) error {
 	return process.Signal(signal)
 }
 
+// stopOptions carries the flags of `kivgraph stop`.
+type stopOptions struct {
+	DryRun bool
+}
+
+// stopFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func stopFlagSet(options *stopOptions) *flag.FlagSet {
+	flags := flag.NewFlagSet("stop", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.BoolVar(&options.DryRun, "dry-run", false, "report what would be stopped and stop nothing")
+	return flags
+}
+
 // runStop ends every `kivgraph serve` and `kivgraph ui` of this user.
 //
 // It matches on the invocation, not on the executable: an index in flight is
@@ -2155,9 +2303,8 @@ func signalProcess(pid int, signal syscall.Signal) error {
 // stop command does not stop itself. Nothing else running on the machine can
 // match, since the first argument has to be a kivgraph binary.
 func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller) int {
-	flags := flag.NewFlagSet("stop", flag.ContinueOnError)
-	dryRun := false
-	flags.BoolVar(&dryRun, "dry-run", false, "report what would be stopped and stop nothing")
+	var options stopOptions
+	flags := stopFlagSet(&options)
 	if parsed, code := parseCommandFlags("stop", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -2176,7 +2323,7 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 		writeInfo(stdout, "stop: no kivgraph serve or ui process is running")
 		return 0
 	}
-	if dryRun {
+	if options.DryRun {
 		for _, target := range targets {
 			writeInfo(stdout, "stop.would: pid=%d %s", target.PID, target.Command())
 		}

@@ -205,19 +205,35 @@ func runSkillStatus(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func parseIntegrationFlags(name string, args []string, stdout, stderr io.Writer, changes bool) (string, string, bool, bool, bool) {
+// integrationOptions carries the flags of the mcp and skill operations.
+type integrationOptions struct {
+	Target string
+	Scope  string
+	DryRun bool
+	Force  bool
+}
+
+// integrationFlagSet declares them in one place. The changes flag is what
+// separates an operation that writes from one that only reports: only the
+// writers accept --dry-run and --force.
+//
+// The output writer is a parameter because these flag sets report parse errors
+// themselves rather than discarding them, and the destination is the caller's.
+func integrationFlagSet(name string, options *integrationOptions, output io.Writer, changes bool) *flag.FlagSet {
 	flags := flag.NewFlagSet(name, flag.ContinueOnError)
-	target := ""
-	scope := integrations.ScopeUser
-	dryRun := false
-	force := false
-	flags.SetOutput(stderr)
-	flags.StringVar(&target, "target", "", "client target (optional for interactive install)")
-	flags.StringVar(&scope, "scope", integrations.ScopeUser, "configuration scope: user or project")
+	flags.SetOutput(output)
+	flags.StringVar(&options.Target, "target", "", "client target (optional for interactive install)")
+	flags.StringVar(&options.Scope, "scope", integrations.ScopeUser, "configuration scope: user or project")
 	if changes {
-		flags.BoolVar(&dryRun, "dry-run", false, "show the change without writing")
-		flags.BoolVar(&force, "force", false, "replace or remove an incompatible entry")
+		flags.BoolVar(&options.DryRun, "dry-run", false, "show the change without writing")
+		flags.BoolVar(&options.Force, "force", false, "replace or remove an incompatible entry")
 	}
+	return flags
+}
+
+func parseIntegrationFlags(name string, args []string, stdout, stderr io.Writer, changes bool) (string, string, bool, bool, bool) {
+	options := integrationOptions{Scope: integrations.ScopeUser}
+	flags := integrationFlagSet(name, &options, stderr, changes)
 	if parsed, code := parseCommandFlags(name, flags, args, stdout, stderr); !parsed {
 		return "", "", false, false, false
 	} else if code != 0 {
@@ -227,7 +243,7 @@ func parseIntegrationFlags(name string, args []string, stdout, stderr io.Writer,
 		writeCommandError(stderr, "%s: unexpected arguments", name)
 		return "", "", false, false, false
 	}
-	return target, scope, dryRun, force, true
+	return options.Target, options.Scope, options.DryRun, options.Force, true
 }
 
 func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integrations.Manager, kind string, scope integrations.Scope) ([]integrations.Target, error) {

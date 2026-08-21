@@ -119,14 +119,28 @@ func statsDetail(args []string) string {
 	return detail
 }
 
-func runStats(args []string, stdout, stderr io.Writer, list processLister) int {
+// statsOptions carries the flags of `kivgraph stats`.
+type statsOptions struct {
+	Interval   time.Duration
+	Once       bool
+	JSONOutput bool
+}
+
+// statsFlagSet declares them in one place, so the parser that runs the
+// command and the help and completion that describe it read the same
+// definitions.
+func statsFlagSet(options *statsOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("stats", flag.ContinueOnError)
-	interval := time.Second
-	once := false
-	asJSON := false
-	flags.DurationVar(&interval, "interval", time.Second, "refresh interval for the live view")
-	flags.BoolVar(&once, "once", false, "print one observation and exit")
-	flags.BoolVar(&asJSON, "json", false, "print one observation as JSON and exit")
+	flags.SetOutput(io.Discard)
+	flags.DurationVar(&options.Interval, "interval", time.Second, "refresh interval for the live view")
+	flags.BoolVar(&options.Once, "once", false, "print one observation and exit")
+	flags.BoolVar(&options.JSONOutput, "json", false, "print one observation as JSON and exit")
+	return flags
+}
+
+func runStats(args []string, stdout, stderr io.Writer, list processLister) int {
+	var options statsOptions
+	flags := statsFlagSet(&options)
 	if parsed, code := parseCommandFlags("stats", flags, args, stdout, stderr); !parsed {
 		return code
 	}
@@ -134,7 +148,7 @@ func runStats(args []string, stdout, stderr io.Writer, list processLister) int {
 		writeCommandError(stderr, "stats: unexpected arguments: %v", flags.Args())
 		return 2
 	}
-	if interval < 100*time.Millisecond {
+	if options.Interval < 100*time.Millisecond {
 		writeCommandError(stderr, "stats: --interval must be at least 100ms")
 		return 2
 	}
@@ -143,7 +157,7 @@ func runStats(args []string, stdout, stderr io.Writer, list processLister) int {
 		writeCommandError(stderr, "stats: %v", err)
 		return 1
 	}
-	if asJSON {
+	if options.JSONOutput {
 		encoded, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
 			writeCommandError(stderr, "stats: %v", err)
@@ -154,11 +168,11 @@ func runStats(args []string, stdout, stderr io.Writer, list processLister) int {
 	}
 	// A live view that nobody is watching is a command that never ends, so a
 	// redirected stats stream is one observation and an exit.
-	if once || !integrationTUIIsInteractive(stdout) {
+	if options.Once || !integrationTUIIsInteractive(stdout) {
 		fmt.Fprint(stdout, renderStatsPlain(report))
 		return 0
 	}
-	if err := runStatsTUI(stdout, list, interval); err != nil {
+	if err := runStatsTUI(stdout, list, options.Interval); err != nil {
 		writeCommandError(stderr, "stats: %v", err)
 		return 1
 	}

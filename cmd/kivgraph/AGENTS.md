@@ -8,6 +8,55 @@ declarado en la raíz.
 Lo que estos comandos ejecutan vive en `internal/`; aquí sólo está su
 superficie observable.
 
+## La tabla de comandos
+
+- La línea de comandos se declara **una vez**, en `cmd/kivgraph/commands.go`, y
+  se lee tres veces: el despacho que ejecuta, la ayuda que lista y el
+  completado que sugiere. Antes se declaraba dos veces -- una cadena `if` para
+  despachar y una tabla aparte para la ayuda -- y las dos ya habían divergido:
+  diez comandos llevaban flags que la ayuda no nombraba nunca. Una tercera
+  copia para el completado habría divergido igual, y un completado que omite un
+  tercio de la superficie es peor que ninguno, porque el lector se lo cree.
+- **Los flags no se repiten en la tabla.** Cada comando tiene un constructor
+  `<nombre>FlagSet` y ese es el único sitio donde un flag se escribe;
+  `writeFlagList` ya recorre un `flag.FlagSet` real. Un comando nuevo añade su
+  `<nombre>Options` y su `<nombre>FlagSet` junto a su `runX`, como ya hacían
+  `uiFlagSet` y `serveFlagSet`, y una entrada en la tabla.
+- El campo `usage` es un **resumen curado para una persona**: puede nombrar
+  menos flags de los que el comando acepta -- listar los ocho de `logs` en una
+  línea de ayuda la empeora -- pero nunca uno que no exista, y
+  `TestUsageNamesOnlyRealFlags` lo comprueba. El completado no depende de él:
+  lee el `FlagSet`, así que es exhaustivo.
+- Las palabras se emparejan **de más larga a más corta**, que es lo que impide
+  leer `doctor storage` como `doctor` con un argumento suelto, o `index --full`
+  como `index`.
+- `serve` y `ui` están en la tabla con `run: nil`. `main` los intercepta antes
+  de `run` porque son los dos que poseen un manejador de señales y registran
+  estructuradamente toda su vida; están declarados para que la ayuda y el
+  completado los describan igual.
+
+## Completado
+
+- El script de cada shell es un **stub fijo**: sin nombres de comando, sin
+  flags y sin vocabularios. Reenvía las palabras a `kivgraph __complete` y todo
+  candidato sale de la tabla. Un script que hay que regenerar al añadir un flag
+  es un script que estará desactualizado, y `TestCompletionScriptEmitsOnePerShell`
+  falla si un stub codifica un nombre.
+- El stub de bash está escrito para **bash 3.2**, que es el que trae macOS: sin
+  `mapfile` y sin `compopt`. Verificado ejecutándolo ahí, no supuesto -- la
+  primera versión usaba `mapfile` y fallaba en toda invocación.
+- `COMP_WORDBREAKS` de bash contiene `=`, así que entrega `--kind=s` como tres
+  palabras donde zsh y fish entregan una. El motor reconoce las dos formas, lo
+  que mantiene los stubs idénticos y sin reensamblado propio de cada shell.
+- Un flag que toma una ruta responde `:file` y el shell usa su propio
+  completado: el entrecomillado, los enlaces y `~` son su trabajo, y una lista
+  generada aquí los haría mal.
+- Los candidatos que un script estático no podría dar son los que justifican el
+  diseño: `--generation` lee las generaciones en disco, `--target` los clientes
+  de esta máquina y `--tool` las tools que esta instalación ha recibido de
+  verdad, desde el registro durable. Un comando que esta build no puede
+  ejecutar no se ofrece.
+
 ## Ayuda, salidas y registro
 
 - La ayuda no es un error: `--help`, `-h` y `help` escriben en `stdout` y

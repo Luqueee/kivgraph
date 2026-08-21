@@ -192,17 +192,24 @@ func (manager Manager) DetectSkillTargets(scope Scope) ([]TargetDetection, error
 	return manager.detectTargets(scope, true)
 }
 
-func (manager Manager) detectTargets(scope Scope, skill bool) ([]TargetDetection, error) {
-	if err := validateScope(scope); err != nil {
-		return nil, err
-	}
-	targets := []Target{
+// KnownTargets is the vocabulary of clients this package can register, in the
+// order detection reports them. It is a function rather than a slice so no
+// caller can reorder or truncate the list for the next one.
+func KnownTargets() []Target {
+	return []Target{
 		TargetClaudeCode,
 		TargetClaudeDesktop,
 		TargetCodex,
 		TargetOpenCode,
 		TargetOhMyPi,
 	}
+}
+
+func (manager Manager) detectTargets(scope Scope, skill bool) ([]TargetDetection, error) {
+	if err := validateScope(scope); err != nil {
+		return nil, err
+	}
+	targets := KnownTargets()
 	detections := make([]TargetDetection, 0, len(targets))
 	for _, target := range targets {
 		if target == TargetClaudeDesktop && (skill || scope == ScopeProject) {

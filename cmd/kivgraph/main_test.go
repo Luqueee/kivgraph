@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1498,21 +1499,44 @@ func TestHelpMarksACommandThisBuildCannotRun(t *testing.T) {
 	}
 }
 
-// TestUnavailableCommandsNameRealCommands keeps the table of what a build
-// cannot do from drifting away from the table of what it offers: a key that
-// no longer matches an invocation would silently stop marking anything.
-func TestUnavailableCommandsNameRealCommands(t *testing.T) {
-	invocations := make(map[string]bool)
-	for _, group := range commandGroups {
-		for _, command := range group.commands {
-			invocations[command.invocation] = true
+// TestUsageNamesOnlyRealFlags is what replaced the old check that the
+// unavailable-command map named a real command: absence is a field on the spec
+// now, so that drift cannot happen. This is the drift that still can. The usage
+// line is a curated summary -- naming all eight flags of `logs` would make the
+// help worse -- so it may name fewer flags than the command has, but never one
+// the command does not accept.
+func TestUsageNamesOnlyRealFlags(t *testing.T) {
+	for _, spec := range allCommands() {
+		if spec.hidden {
+			continue
+		}
+		// `index --full` spells part of its invocation with dashes, so
+		// the words themselves are not flags to look up.
+		declared := map[string]bool{"help": true}
+		for _, word := range spec.words {
+			declared[strings.TrimPrefix(word, "--")] = true
+		}
+		forEachFlag(spec, func(entry *flag.Flag) { declared[entry.Name] = true })
+		for _, named := range flagNamesIn(spec.usage) {
+			if !declared[named] {
+				t.Fatalf("the usage of %q names --%s, which its flag set does not declare",
+					spec.name(), named)
+			}
 		}
 	}
-	for invocation := range unavailableCommands {
-		if !invocations[invocation] {
-			t.Fatalf("unavailableCommands names %q, which no command group declares", invocation)
+}
+
+// flagNamesIn answers the long flag names a usage line spells.
+func flagNamesIn(usage string) []string {
+	names := make([]string, 0, 4)
+	for _, field := range strings.Fields(usage) {
+		trimmed := strings.Trim(field, "[]|")
+		if !strings.HasPrefix(trimmed, "--") {
+			continue
 		}
+		names = append(names, strings.TrimPrefix(trimmed, "--"))
 	}
+	return names
 }
 
 // TestUIWarnsWhenTheBindIsReachable keeps the only guard the viewer has. It
