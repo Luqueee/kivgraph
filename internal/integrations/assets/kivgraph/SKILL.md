@@ -8,7 +8,7 @@ compatibility: Requires the Kivgraph MCP server registered as `kivgraph`.
 # Kivgraph
 
 Use the `kivgraph` MCP server when the task needs evidence from the indexed
-Go, TypeScript or Rust repositories rather than a text-only search.
+Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search.
 
 ## Workflow
 
@@ -40,6 +40,16 @@ Go, TypeScript or Rust repositories rather than a text-only search.
 7. Read `completeness` before concluding. A verdict of `LOWER_BOUND` means the
    answer is a floor: `invisible_scopes` names what could not be seen, and
    `fallback` names the paths and the pattern to grep instead.
+
+Python and Dart notes:
+
+- Python facts from the bundled AST worker are `CANDIDATE`; do not upgrade them
+  to `EXACT` from a matching name. `analyzer_mode: exact` requires the
+  Pyright-compatible LSP adapter or another configured producer that emits the
+  versioned semantic payload; only that producer may provide exact facts.
+- Dart facts come from the Dart Analysis Server. Local project navigation is
+  authoritative, while imports outside the indexed project may be
+  `UNRESOLVED`.
 
 ## Choosing a view
 
@@ -127,6 +137,9 @@ Report the reason rather than concluding that coverage is broken:
   absent on purpose. `go mod download` in it and reindexing is the fix.
 - `PACKAGE_NOT_BUILDABLE`: build constraints selected no file. A tag the index
   does not set is a configuration answer, not a missing symbol.
+- `PYTHON_ANALYZER_UNAVAILABLE`: exact Python mode was requested but the
+  configured Pyright-compatible server or semantic producer was unavailable;
+  switch to fallback mode only when candidate facts are acceptable.
 
 A repository registered as TypeScript that declares no package contributes
 nothing to the graph; the index reports it by name.

@@ -23,6 +23,18 @@ const languages = [
     body: "The authority is rust-analyzer, invoked once per Cargo workspace. Tree-sitter contributes the syntactic class of a use and the declared visibility, never identity.",
     note: "core, std and alloc are not indexed, so derive, operator overloading, ? and standard-library calls produce no edges.",
   },
+  {
+    name: "Python",
+    engine: "the configured semantic worker or bundled AST worker",
+    body: "A configured semantic provider can publish exact declarations and references. The bundled worker covers Python and stub files without guessing dynamic names; its inferred edges remain CANDIDATE.",
+    note: "Dynamic imports, monkey patching and unresolved runtime attributes remain explicit candidates or unresolved facts.",
+  },
+  {
+    name: "Dart",
+    engine: "the Dart or Flutter Analysis Server",
+    body: "Dart and Flutter source is indexed through the SDK analysis server. Local declarations, navigation references and calls are published with analyzer evidence, while external packages are reported as unresolved unless their source is indexed.",
+    note: "Tests and generated files are excluded by default and can be enabled in configuration.",
+  },
 ];
 ---
 

@@ -1,6 +1,6 @@
 # Esquema canónico de LadybugDB
 
-Versión del esquema: `002`. DDL versionado: `schemas/ladybug/002-canonical.cypher`.
+Versión del esquema: `003`. DDL versionado: `schemas/ladybug/003-canonical.cypher`.
 
 Este documento se genera desde `internal/storage/ladybug.CanonicalSchemaDocumentation`; no se edita a mano.
 
@@ -147,6 +147,7 @@ a fact that could not become an exact edge, with its reason.
 | `EXTENDS` | Symbol | Symbol | `MANY_MANY` | `confidence`, `provenance`, `evidence_key`, `source_snapshot`, `resolver_version` |
 | `EMBEDS` | Symbol | Symbol | `MANY_MANY` | `confidence`, `provenance`, `evidence_key`, `source_snapshot`, `resolver_version` |
 | `OVERRIDES` | Symbol | Symbol | `MANY_MANY` | `confidence`, `provenance`, `evidence_key`, `source_snapshot`, `resolver_version` |
+| `PART_OF` | Symbol | Symbol | `MANY_MANY` | `confidence`, `provenance`, `evidence_key`, `source_snapshot`, `resolver_version` |
 
 ## Restricciones
 

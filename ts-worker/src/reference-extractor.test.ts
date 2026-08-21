@@ -115,12 +115,15 @@ target(2);
     expect(
       references.map((reference) => `${reference.kind}:${reference.text}`),
     ).toEqual([
+      "REFERENCES:value",
       "TYPE_USES:Shape",
       "TYPE_USES:target",
       "ASSIGNS_FUNCTION:target",
       "REFERENCES:target",
+      "REFERENCES:items",
       "PASSES_AS_CALLBACK:target",
       "CALLS_DIRECT:target",
+      "REFERENCES:items",
       "RETURNS_FUNCTION:target",
       "TYPE_USES:target",
       "RETURNS_FUNCTION:target",
@@ -144,7 +147,9 @@ target(2);
       references.every(
         (reference) =>
           reference.target.name === "target" ||
-          reference.target.name === "Shape",
+          reference.target.name === "Shape" ||
+          reference.target.name === "items" ||
+          reference.target.name === "value",
       ),
     ).toBe(true);
   });
@@ -223,6 +228,7 @@ export function use(
       ["TYPE_USES", "ImportedShape", "Shape", "definitions.ts"],
       ["TYPE_USES", "importedTarget", "target", "definitions.ts"],
       ["CALLS_DIRECT", "importedTarget", "target", "definitions.ts"],
+      ["REFERENCES", "items", "items", "consumer.ts"],
       ["PASSES_AS_CALLBACK", "importedTarget", "target", "definitions.ts"],
       ["RETURNS_FUNCTION", "importedTarget", "target", "definitions.ts"],
     ]);
@@ -252,8 +258,10 @@ export function use(items: number[]): typeof callback {
         reference.target.name,
       ]),
     ).toEqual([
+      ["REFERENCES", "value"],
       ["TYPE_USES", "callback"],
       ["ASSIGNS_FUNCTION", "callback"],
+      ["REFERENCES", "items"],
       ["PASSES_AS_CALLBACK", "callback"],
       ["RETURNS_FUNCTION", "callback"],
     ]);

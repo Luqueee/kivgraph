@@ -151,6 +151,11 @@ type Options struct {
 	Patterns []string
 	// IncludeTests loads test packages as well.
 	IncludeTests bool
+	// GOOS and GOARCH select the target platform for the go command. Empty
+	// values preserve the toolchain defaults.
+	GOOS       string
+	GOARCH     string
+	CGOEnabled *bool
 	// BuildTags are the build constraints the load satisfies, passed to the
 	// go command as -tags. A package guarded by a tag that is absent here
 	// declares no file to select and contributes nothing to the graph.
@@ -258,6 +263,19 @@ func resolveDirectory(directory string) (string, error) {
 // caller opts into network access.
 func loadEnvironment(options Options) ([]string, error) {
 	environment := os.Environ()
+	if value := strings.TrimSpace(options.GOOS); value != "" {
+		environment = append(environment, "GOOS="+value)
+	}
+	if value := strings.TrimSpace(options.GOARCH); value != "" {
+		environment = append(environment, "GOARCH="+value)
+	}
+	if options.CGOEnabled != nil {
+		value := "0"
+		if *options.CGOEnabled {
+			value = "1"
+		}
+		environment = append(environment, "CGO_ENABLED="+value)
+	}
 	if workFile := strings.TrimSpace(options.WorkFile); workFile != "" {
 		absolute, err := filepath.Abs(workFile)
 		if err != nil {

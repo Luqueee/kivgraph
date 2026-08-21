@@ -340,6 +340,17 @@ func TestLoadEnvironmentIsHermeticUnlessNetworkIsAllowed(t *testing.T) {
 	}
 }
 
+func TestLoadEnvironmentHonoursBuildPlatform(t *testing.T) {
+	cgo := false
+	environment, err := loadEnvironment(Options{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgo})
+	if err != nil {
+		t.Fatalf("loadEnvironment() error = %v", err)
+	}
+	if !containsAll(environment, []string{"GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0"}) {
+		t.Fatalf("build platform missing from environment: %v", environment)
+	}
+}
+
 func buildWorkspace(t *testing.T, root string, directories ...string) string {
 	t.Helper()
 	repositories := make([]workspace.Repository, 0, len(directories))

@@ -21,8 +21,8 @@ import {
 import {
   isArrayBindingPattern,
   isClassDeclaration,
-  isConstructorDeclaration,
   isEnumDeclaration,
+  isEnumMember,
   isFunctionDeclaration,
   isGetAccessorDeclaration,
   isIdentifier,
@@ -31,8 +31,10 @@ import {
   isModuleDeclaration,
   isObjectBindingPattern,
   isPropertyDeclaration,
+  isParameterDeclaration,
   isSetAccessorDeclaration,
   isTypeAliasDeclaration,
+  isTypeParameterDeclaration,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
 import type {
@@ -52,7 +54,10 @@ export type LocalSymbolKind =
   | "property"
   | "type"
   | "enum"
-  | "namespace";
+  | "namespace"
+  | "enum_member"
+  | "parameter"
+  | "type_parameter";
 
 /** One classified declaration site: its syntax kind, name and scope chain. */
 export interface DeclarationCandidate {
@@ -114,8 +119,15 @@ export function declarationCandidate(
   ) {
     nameNode = node.name;
     kind = "method";
-  } else if (isConstructorDeclaration(node)) {
-    return undefined;
+  } else if (isEnumMember(node)) {
+    nameNode = node.name;
+    kind = "enum_member";
+  } else if (isParameterDeclaration(node)) {
+    nameNode = node.name;
+    kind = "parameter";
+  } else if (isTypeParameterDeclaration(node)) {
+    nameNode = node.name;
+    kind = "type_parameter";
   } else if (isEnumDeclaration(node)) {
     nameNode = node.name;
     kind = "enum";

@@ -18,9 +18,9 @@ package mcp
 // The last paragraph is the part most servers omit: where this one loses. A tool
 // that claims to win everywhere gets called where it does not and spends the
 // call twice.
-const serverInstructions = `Kivgraph answers "what breaks if I change this" from an exact, published code graph over Go, TypeScript and Rust. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
+const serverInstructions = `Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python and Dart. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python uses exact semantic facts when a configured analyzer provides them and CANDIDATE facts in its bundled AST fallback. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
 
-Its edges are resolved by go/types, the TypeScript checker and rust-analyzer, not by matching names, so a reference list is complete for those languages and an empty one means nobody calls it. Grep cannot tell you that.
+Its edges are resolved by language analyzers or explicitly marked as CANDIDATE/UNRESOLVED; they are never created by matching names. Read confidence and completeness before treating an empty or partial answer as proof of absence. Grep cannot provide that distinction.
 
 Rows are addressable: every one carries a repository, a repository-relative path, a qualified name and a line range, and every tool accepts that triple instead of a stable key.
 

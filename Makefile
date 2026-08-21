@@ -1,10 +1,13 @@
-.PHONY: build test version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
+.PHONY: build test semantic-coverage version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
 
 build: test version
 	go build ./cmd/kivgraph
 
 test:
 	go test ./...
+
+semantic-coverage:
+	scripts/verify-semantic-coverage.sh
 
 version:
 	go run ./cmd/kivgraph version

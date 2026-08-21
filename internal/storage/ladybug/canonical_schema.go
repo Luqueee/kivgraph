@@ -7,10 +7,10 @@ import (
 
 // CanonicalSchemaVersion is the version of the definitive graph schema. It is
 // stored in the database so a rebuild can detect an incompatible layout.
-const CanonicalSchemaVersion = 2
+const CanonicalSchemaVersion = 3
 
 // CanonicalSchemaFile is the versioned DDL generated from this metadata.
-const CanonicalSchemaFile = "schemas/ladybug/002-canonical.cypher"
+const CanonicalSchemaFile = "schemas/ladybug/003-canonical.cypher"
 
 // SchemaProperty is one column of a node or relationship table.
 type SchemaProperty struct {
@@ -241,6 +241,7 @@ func CanonicalRelationshipTables() []SchemaRelationshipTable {
 		symbolRelation("EXTENDS", "a type extends another type"),
 		symbolRelation("EMBEDS", "a type embeds another type"),
 		symbolRelation("OVERRIDES", "a member overrides an inherited one"),
+		symbolRelation("PART_OF", "a Dart part contributes declarations to its library"),
 	}
 }
 

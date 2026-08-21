@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/dartloader"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goloader"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -34,6 +35,8 @@ import (
 const (
 	defaultGoLoadLimit           = 8
 	defaultTypeScriptWorkerLimit = 3
+	defaultPythonWorkerLimit     = 3
+	defaultDartWorkerLimit       = 2
 )
 
 // ProgressPhase names the unit of work a progress event belongs to.
@@ -46,6 +49,10 @@ const (
 	PhaseTypeScript ProgressPhase = "typescript"
 	// PhaseRust is one Cargo workspace.
 	PhaseRust ProgressPhase = "rust"
+	// PhasePython is one Python repository.
+	PhasePython ProgressPhase = "python"
+	// PhaseDart is one Dart package repository.
+	PhaseDart ProgressPhase = "dart"
 	// PhaseMerge is the final sort and validation of the merged fact set.
 	PhaseMerge ProgressPhase = "merge"
 )
@@ -69,6 +76,9 @@ type FullOptions struct {
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
+	GoOS              string
+	GoARCH            string
+	GoCGOEnabled      *bool
 	// GoBuildTags are the build constraints the Go loads satisfy. A package
 	// guarded by a tag that is absent here declares no file to read and is
 	// reported as unresolved instead of indexed.
@@ -107,8 +117,26 @@ type FullOptions struct {
 	// graph as a synthetic provider. It is off by default: it multiplies the
 	// symbol count by an order of magnitude, and its absence leaves the
 	// graph exactly as it was, declaring what it lost.
-	RustIndexSysroot bool
-	WorkingDirectory string
+	RustIndexSysroot        bool
+	PythonIndexer           string
+	PythonAnalyzer          string
+	PythonAnalyzerMode      string
+	PythonPath              string
+	PythonMaximumWorkers    int
+	PythonIncludeTests      bool
+	PythonIncludeGenerated  bool
+	PythonIncludeExternal   bool
+	DartAnalyzer            string
+	DartSDKPath             string
+	DartMaximumWorkers      int
+	DartIncludeTests        bool
+	DartIncludeGenerated    bool
+	DartIncludeExternal     bool
+	DartIncludeSDK          bool
+	DartPackageConfig       string
+	DartWaitForAnalysis     bool
+	DartMaximumAnalysisTime time.Duration
+	WorkingDirectory        string
 	// CacheMode selects whether a unit may be served from its stored
 	// facts. Empty is CacheOff.
 	CacheMode CacheMode
@@ -178,6 +206,14 @@ type FullReport struct {
 	// declare no Cargo manifest. They contribute nothing, and a registry
 	// entry that contributes nothing looks like coverage.
 	RustWithoutWorkspaces []string
+	PythonRepositories    int
+	PythonSymbols         int
+	PythonReferences      int
+	PythonUnresolved      int
+	DartRepositories      int
+	DartSymbols           int
+	DartReferences        int
+	DartUnresolved        int
 	// EdgesWithoutProvider counts the edges the merge dropped because the
 	// repository that provides the target does not publish its declaration.
 	// Each one is declared as an unresolved reference with the position that
@@ -218,14 +254,48 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	if err := validateLanguages(repositories); err != nil {
 		return facts.Set{}, FullReport{}, err
 	}
+	configuredDartRepositories := repositoriesForLanguage(repositories, "dart")
+	if options.DartIncludeExternal {
+		for _, repository := range configuredDartRepositories {
+			root := repository.RealPath
+			if root == "" {
+				root = repository.Path
+			}
+			providers := dartloader.ExternalPackageRepositories(root, options.DartPackageConfig)
+			for _, provider := range providers {
+				if _, exists := repositoryByName(repositories, provider.Name); exists {
+					continue
+				}
+				repositories = append(repositories, provider)
+				options.Repositories = append(options.Repositories, provider)
+			}
+		}
+	}
 
 	goRepositories := repositoriesForLanguage(repositories, "go")
 	typeScriptRepositories := repositoriesForTypeScript(repositories)
 	rustRepositories := repositoriesForRust(repositories)
+	pythonRepositories := repositoriesForPython(repositories)
+	dartRepositories := repositoriesForLanguage(repositories, "dart")
+	if options.DartIncludeSDK {
+		sdkRoot, sdkErr := dartloader.SDKRoot(options.DartSDKPath)
+		if sdkErr != nil {
+			return facts.Set{}, FullReport{}, fmt.Errorf("discover Dart SDK provider: %w", sdkErr)
+		}
+		const sdkRepositoryName = "dart-sdk"
+		if _, exists := repositoryByName(repositories, sdkRepositoryName); !exists {
+			sdkRepository := workspace.Repository{Name: sdkRepositoryName, Path: sdkRoot, RealPath: sdkRoot, Languages: []string{"dart"}, Roots: []string{"lib"}}
+			repositories = append(repositories, sdkRepository)
+			options.Repositories = append(options.Repositories, sdkRepository)
+			dartRepositories = append(dartRepositories, sdkRepository)
+		}
+	}
 	report := FullReport{
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),
 		RustRepositories:       len(rustRepositories),
+		PythonRepositories:     len(pythonRepositories),
+		DartRepositories:       len(dartRepositories),
 	}
 	typeScriptPackages, typeScriptConflicts, withoutPackages, err := discoverTypeScriptPackages(ctx, typeScriptRepositories)
 	if err != nil {
@@ -294,6 +364,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 
 	units := append(goUnits, typeScriptUnits(typeScriptPackages)...)
 	units = append(units, rustAnalysisUnits(rustUnits)...)
+	units = append(units, semanticUnits(pythonRepositories, facts.LanguagePython)...)
+	units = append(units, semanticUnits(dartRepositories, facts.LanguageDart)...)
 	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
 		moduleRegistry:     moduleRegistry,
 		conflictingModules: conflictingModules,
@@ -341,6 +413,14 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.RustSymbols += result.symbols
 			report.RustReferences += result.references
 			report.RustUnresolved += result.unresolved
+		case unit.isPython:
+			report.PythonSymbols += result.symbols
+			report.PythonReferences += result.references
+			report.PythonUnresolved += result.unresolved
+		case unit.isDart:
+			report.DartSymbols += result.symbols
+			report.DartReferences += result.references
+			report.DartUnresolved += result.unresolved
 		default:
 			report.TypeScriptSymbols += result.symbols
 			report.TypeScriptReferences += result.references
@@ -351,6 +431,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	emitProgress(options.Progress, ProgressEvent{Phase: PhaseMerge, Started: true})
 	merged := mergeSets(sets, options.Repositories)
 	merged, withoutProvider := closeCrossRepositoryEdges(merged, composed)
+	merged = resolveSemanticPackageDependencies(merged)
 	report.EdgesWithoutProvider = withoutProvider
 	if err := merged.Validate(); err != nil {
 		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
@@ -398,6 +479,15 @@ func repositoriesForLanguage(repositories []workspace.Repository, language strin
 	return result
 }
 
+func repositoryByName(repositories []workspace.Repository, name string) (workspace.Repository, bool) {
+	for _, repository := range repositories {
+		if repository.Name == name {
+			return repository, true
+		}
+	}
+	return workspace.Repository{}, false
+}
+
 func repositoriesForTypeScript(repositories []workspace.Repository) []workspace.Repository {
 	result := make([]workspace.Repository, 0)
 	for _, repository := range repositories {
@@ -409,6 +499,19 @@ func repositoriesForTypeScript(repositories []workspace.Repository) []workspace.
 			}
 		}
 	nextRepository:
+	}
+	return result
+}
+
+func repositoriesForPython(repositories []workspace.Repository) []workspace.Repository {
+	result := make([]workspace.Repository, 0)
+	for _, repository := range repositories {
+		for _, candidate := range repository.Languages {
+			if strings.EqualFold(strings.TrimSpace(candidate), "python") || strings.EqualFold(strings.TrimSpace(candidate), "py") {
+				result = append(result, repository)
+				break
+			}
+		}
 	}
 	return result
 }
@@ -909,6 +1012,9 @@ type analysisUnit struct {
 	workFile   string
 	isGo       bool
 	isRust     bool
+	isPython   bool
+	isDart     bool
+	language   facts.Language
 }
 
 // weight estimates how long a unit will take, so the long poles start first.
@@ -925,6 +1031,8 @@ func (unit analysisUnit) weight() int {
 		return len(unit.module.PackagePatterns)
 	case unit.isRust:
 		return unit.rust.files
+	case unit.isPython, unit.isDart:
+		return countSemanticFiles(unit.repository, unit.language)
 	default:
 		return len(unit.pkg.packageValue.SourceRoots) + unit.pkg.files
 	}
@@ -936,6 +1044,8 @@ func (unit analysisUnit) detail() string {
 		return unit.module.ModulePath
 	case unit.isRust:
 		return rustUnitDetail(unit.rust)
+	case unit.isPython, unit.isDart:
+		return string(unit.language)
 	default:
 		return unit.pkg.packageValue.Name
 	}
@@ -1022,6 +1132,9 @@ func indexGoModule(
 		WorkFile:     unit.workFile,
 		Patterns:     append([]string(nil), module.PackagePatterns...),
 		IncludeTests: options.IncludeTests,
+		GOOS:         options.GoOS,
+		GOARCH:       options.GoARCH,
+		CGOEnabled:   options.GoCGOEnabled,
 		BuildTags:    append([]string(nil), options.GoBuildTags...),
 		AllowNetwork: options.GoAllowNetwork,
 	})
@@ -1314,14 +1427,18 @@ func analyse(
 		return nil, CacheReport{Mode: CacheOff}, err
 	}
 	cache.trees.withProviders(inputs.typeScriptPackages)
-	cache.withRegistry(inputs)
-	var goQueue, typeScriptQueue, rustQueue []int
+	cache.withRegistry(inputs, options.Repositories)
+	var goQueue, typeScriptQueue, rustQueue, pythonQueue, dartQueue []int
 	for index, unit := range units {
 		switch {
 		case unit.isGo:
 			goQueue = append(goQueue, index)
 		case unit.isRust:
 			rustQueue = append(rustQueue, index)
+		case unit.isPython:
+			pythonQueue = append(pythonQueue, index)
+		case unit.isDart:
+			dartQueue = append(dartQueue, index)
 		default:
 			typeScriptQueue = append(typeScriptQueue, index)
 		}
@@ -1334,6 +1451,8 @@ func analyse(
 	byWeight(goQueue)
 	byWeight(rustQueue)
 	byWeight(typeScriptQueue)
+	byWeight(pythonQueue)
+	byWeight(dartQueue)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	report := serializedProgress(options.Progress)
@@ -1380,6 +1499,8 @@ func analyse(
 	run(goQueue, goLoadLimit(options), PhaseGo)
 	run(rustQueue, rustWorkspaceLimit(options), PhaseRust)
 	run(typeScriptQueue, typeScriptWorkerLimit(options), PhaseTypeScript)
+	run(pythonQueue, pythonWorkerLimit(options), PhasePython)
+	run(dartQueue, dartWorkerLimit(options), PhaseDart)
 
 	if err := group.Wait(); err != nil {
 		return nil, cache.report(), err
@@ -1402,6 +1523,8 @@ func analyseUnit(
 			inputs.moduleRegistry, inputs.conflictingModules, inputs.planConflicts)
 	case unit.isRust:
 		return indexRustWorkspace(ctx, options, unit, inputs.crateRegistry, inputs.parsers)
+	case unit.isPython, unit.isDart:
+		return indexSemantic(ctx, options, unit)
 	default:
 		return indexTypeScriptPackage(ctx, options, unit, inputs.typeScriptPackages)
 	}
@@ -1444,4 +1567,18 @@ func typeScriptWorkerLimit(options FullOptions) int {
 		return options.TypeScriptMaximumWorkers
 	}
 	return defaultTypeScriptWorkerLimit
+}
+
+func pythonWorkerLimit(options FullOptions) int {
+	if options.PythonMaximumWorkers > 0 {
+		return options.PythonMaximumWorkers
+	}
+	return defaultPythonWorkerLimit
+}
+
+func dartWorkerLimit(options FullOptions) int {
+	if options.DartMaximumWorkers > 0 {
+		return options.DartMaximumWorkers
+	}
+	return defaultDartWorkerLimit
 }

@@ -18,14 +18,14 @@ export const PROJECT_NAME = "Kivgraph";
  * passed to the Starlight integration so the two never disagree.
  */
 export const PROJECT_TAGLINE =
-  "A canonical code graph for Go, TypeScript and Rust, served over MCP.";
+  "A canonical code graph for Go, TypeScript, Rust, Python and Dart, served over MCP.";
 
 /**
  * The paragraph an agent needs before it reads anything else: what the thing is,
  * and the one property that separates it from a grep.
  */
 export const PROJECT_SUMMARY =
-  'Kivgraph is a local MCP server. It indexes Go, TypeScript and Rust repositories into a canonical code graph and answers "what breaks if I change this" from that graph. Edges are resolved by go/types, the TypeScript checker and rust-analyzer, never by matching names, so a homonym is not a caller and an empty answer means nobody calls it.';
+  'Kivgraph is a local MCP server. It indexes Go, TypeScript, Rust, Python and Dart repositories into a canonical code graph and answers "what breaks if I change this" from that graph. Edges come from language analyzers or are marked CANDIDATE/UNRESOLVED; they are never invented from matching names.';
 
 export const REPOSITORY_URL = "https://github.com/Luqueee/kivgraph";
 

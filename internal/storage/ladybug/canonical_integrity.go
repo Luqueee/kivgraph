@@ -136,6 +136,12 @@ var canonicalProvenanceValues = []facts.Provenance{
 	facts.RustSyntaxType,
 	facts.RustSyntaxImplementation,
 	facts.RustSyntaxCallback,
+	facts.PythonIndexerDefinition,
+	facts.PythonIndexerUse,
+	facts.PythonSyntaxCall,
+	facts.DartAnalyzerDefinition,
+	facts.DartAnalyzerUse,
+	facts.DartSyntaxCall,
 }
 
 // exactConfidenceValues is the subset of canonicalConfidenceValues that

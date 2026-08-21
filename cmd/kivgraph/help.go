@@ -18,7 +18,7 @@ import (
 // record. Structured stderr belongs to the long-running commands, where a
 // client reads it.
 
-const helpTagline = "A canonical code graph for Go and TypeScript, served over MCP."
+const helpTagline = "A canonical polyglot code graph, served over MCP."
 
 type commandEntry struct {
 	invocation string
