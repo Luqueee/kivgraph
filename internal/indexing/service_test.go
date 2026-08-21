@@ -143,7 +143,7 @@ func TestNormalizeProjectLanguagesFollowsTheOneVocabulary(t *testing.T) {
 	if len(languages) != 2 || languages[0] != "rust" || languages[1] != "go" {
 		t.Fatalf("languages = %#v", languages)
 	}
-	for _, invalid := range [][]string{{"python"}, {"rust", "rust"}, {""}, nil} {
+	for _, invalid := range [][]string{{"brainfuck"}, {"rust", "rust"}, {""}, nil} {
 		if _, err := normalizeProjectLanguages(invalid); err == nil {
 			t.Fatalf("normalizeProjectLanguages(%#v) accepted the input", invalid)
 		}
@@ -162,6 +162,14 @@ func TestOptionsFromConfigCarriesEveryConfiguredLanguage(t *testing.T) {
 	configuration.Rust.AnalyzerCommand = "/opt/bin/rust-analyzer"
 	configuration.Rust.TargetDirectory = "/state/rust-target"
 	configuration.Rust.Features = []string{"tokio"}
+	configuration.Python.IndexerCommand = "python-indexer"
+	configuration.Python.PythonPath = "/opt/python"
+	configuration.Python.MaximumWorkers = 4
+	configuration.Dart.AnalyzerCommand = "dart-analyzer"
+	configuration.Dart.SDKPath = "/opt/dart"
+	configuration.Dart.MaximumWorkers = 5
+	configuration.Dart.IncludeTests = true
+	configuration.Dart.IncludeGenerated = true
 
 	options := OptionsFromConfig(configuration)
 
@@ -179,6 +187,12 @@ func TestOptionsFromConfigCarriesEveryConfiguredLanguage(t *testing.T) {
 	}
 	if !options.RustBuildScripts || !options.RustProcMacros || !options.RustIncludeTests {
 		t.Fatalf("rust expansion defaults = %+v", options)
+	}
+	if options.PythonIndexer != "python-indexer" || options.PythonPath != "/opt/python" || options.PythonMaximumWorkers != 4 {
+		t.Fatalf("python options = %+v", options)
+	}
+	if options.DartAnalyzer != "dart-analyzer" || options.DartSDKPath != "/opt/dart" || options.DartMaximumWorkers != 5 || !options.DartIncludeTests || !options.DartIncludeGenerated {
+		t.Fatalf("dart options = %+v", options)
 	}
 	if options.Root == "" || options.CacheDirectory == "" {
 		t.Fatalf("storage options = %+v", options)

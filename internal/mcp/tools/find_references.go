@@ -711,7 +711,7 @@ func isReferenceEdgeKind(kind facts.EdgeKind) bool {
 	case facts.ImportsSymbol, facts.Exports, facts.Reexports,
 		facts.References, facts.CallsDirect, facts.PassesAsCallback,
 		facts.AssignsFunction, facts.ReturnsFunction, facts.TypeUses,
-		facts.Implements, facts.Extends, facts.Embeds, facts.Overrides:
+		facts.Implements, facts.Extends, facts.Embeds, facts.Overrides, facts.PartOf:
 		return true
 	default:
 		return false

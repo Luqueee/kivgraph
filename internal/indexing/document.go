@@ -76,6 +76,14 @@ func SummaryFromReport(report indexer.FullReport) IndexSummary {
 		RustReferences:          report.RustReferences,
 		RustUnresolved:          report.RustUnresolved,
 		RustWorkspacesNotLoaded: report.RustWorkspacesNotLoaded,
+		PythonRepositories:      report.PythonRepositories,
+		PythonSymbols:           report.PythonSymbols,
+		PythonReferences:        report.PythonReferences,
+		PythonUnresolved:        report.PythonUnresolved,
+		DartRepositories:        report.DartRepositories,
+		DartSymbols:             report.DartSymbols,
+		DartReferences:          report.DartReferences,
+		DartUnresolved:          report.DartUnresolved,
 	}
 }
 

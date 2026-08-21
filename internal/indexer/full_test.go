@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -54,6 +55,61 @@ func Greeting() string { return "hello" }
 	}
 	if _, err := os.Stat(filepath.Join(root, "go.work")); !os.IsNotExist(err) {
 		t.Fatalf("repository go.work error = %v, want absent", err)
+	}
+}
+
+func TestFullBuildsPythonSemanticFacts(t *testing.T) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "python", "basic"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories:     []workspace.Repository{{Name: "python-basic", Path: root, RealPath: root, Languages: []string{"python"}}},
+		PythonIndexer:    "missing-scippython",
+		PythonPath:       "python3",
+		WorkingDirectory: workingDirectory,
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.PythonRepositories != 1 || report.PythonSymbols == 0 || report.PythonReferences == 0 {
+		t.Fatalf("full report = %+v, want Python repository, symbols and references", report)
+	}
+}
+
+func TestFullBuildsDartSemanticFacts(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "dart", "basic"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories:     []workspace.Repository{{Name: "dart-basic", Path: root, RealPath: root, Languages: []string{"dart"}}},
+		DartAnalyzer:     "dart",
+		DartSDKPath:      "dart",
+		WorkingDirectory: workingDirectory,
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.DartRepositories != 1 || report.DartSymbols == 0 || report.DartReferences == 0 {
+		t.Fatalf("full report = %+v, want Dart repository, symbols and references", report)
 	}
 }
 
@@ -593,10 +649,10 @@ func TestFullRejectsUnsupportedLanguageBeforeIndexing(t *testing.T) {
 			Name:      "fixture",
 			Path:      "/does/not/matter",
 			RealPath:  "/does/not/matter",
-			Languages: []string{"python"},
+			Languages: []string{"brainfuck"},
 		}},
 	})
-	if err == nil || !strings.Contains(err.Error(), `unsupported language "python"`) {
+	if err == nil || !strings.Contains(err.Error(), `unsupported language "brainfuck"`) {
 		t.Fatalf("Full() error = %v, want unsupported language", err)
 	}
 	if report.GoRepositories != 0 || report.TypeScriptRepositories != 0 || report.RustRepositories != 0 {

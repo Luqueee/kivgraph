@@ -26,6 +26,10 @@ const (
 	// LanguageRust marks facts produced by the Rust loader over the index
 	// rust-analyzer emits.
 	LanguageRust Language = "rust"
+	// LanguagePython marks facts produced by the configured Python semantic indexer.
+	LanguagePython Language = "python"
+	// LanguageDart marks facts produced by the Dart analysis-server loader.
+	LanguageDart Language = "dart"
 )
 
 // Confidence is the trust level of an edge, as defined by the plan.
@@ -94,6 +98,13 @@ const (
 	// edge kind and the target came from the analyzer, as Go does.
 	RustSyntaxCallback Provenance = "RUST_SYNTAX_CALLBACK"
 
+	PythonIndexerDefinition Provenance = "PYTHON_INDEXER_DEF"
+	PythonIndexerUse        Provenance = "PYTHON_INDEXER_USE"
+	PythonSyntaxCall        Provenance = "PYTHON_SYNTAX_CALL"
+	DartAnalyzerDefinition  Provenance = "DART_ANALYZER_DEF"
+	DartAnalyzerUse         Provenance = "DART_ANALYZER_USE"
+	DartSyntaxCall          Provenance = "DART_SYNTAX_CALL"
+
 	TreeSitterSyntax Provenance = "TREE_SITTER_SYNTAX"
 	PackageManifest  Provenance = "PACKAGE_MANIFEST"
 )
@@ -129,6 +140,10 @@ const (
 	Extends    EdgeKind = "EXTENDS"
 	Embeds     EdgeKind = "EMBEDS"
 	Overrides  EdgeKind = "OVERRIDES"
+	// PartOf links the synthetic module symbol for a Dart part to the
+	// synthetic module symbol for its library. It is a Symbol relation so it
+	// remains available through the compact snapshot and normal graph queries.
+	PartOf EdgeKind = "PART_OF"
 )
 
 var edgeKinds = map[EdgeKind]struct{}{
@@ -138,6 +153,7 @@ var edgeKinds = map[EdgeKind]struct{}{
 	References: {}, CallsDirect: {}, PassesAsCallback: {},
 	AssignsFunction: {}, ReturnsFunction: {},
 	TypeUses: {}, Implements: {}, Extends: {}, Embeds: {}, Overrides: {},
+	PartOf: {},
 }
 
 // Valid reports whether the kind belongs to the graph vocabulary.

@@ -41,8 +41,8 @@ func TestCollectReadsBundleManifest(t *testing.T) {
 	if provenance.Ladybug != "v0.13.1" || provenance.GoLadybug != "v0.13.1" {
 		t.Fatalf("LadybugDB versions = %q/%q", provenance.Ladybug, provenance.GoLadybug)
 	}
-	if provenance.Schema != 2 || provenance.SnapshotRowFormat != 3 {
-		t.Fatalf("schema = %d/%d, want 2/3", provenance.Schema, provenance.SnapshotRowFormat)
+	if provenance.Schema != 3 || provenance.SnapshotRowFormat != 3 {
+		t.Fatalf("schema = %d/%d, want 3/3", provenance.Schema, provenance.SnapshotRowFormat)
 	}
 	if provenance.Resolver == nil || *provenance.Resolver != "resolver-v9" {
 		t.Fatalf("resolver = %v", provenance.Resolver)
@@ -91,8 +91,8 @@ func TestCollectFallsBackWithoutBundleManifest(t *testing.T) {
 	if provenance.Ladybug != "v0.13.1" || provenance.GoLadybug != "v0.13.1" {
 		t.Fatalf("LadybugDB versions = %q/%q", provenance.Ladybug, provenance.GoLadybug)
 	}
-	if provenance.Schema != 2 || provenance.SnapshotRowFormat != 3 {
-		t.Fatalf("schema = %d/%d, want 2/3", provenance.Schema, provenance.SnapshotRowFormat)
+	if provenance.Schema != 3 || provenance.SnapshotRowFormat != 3 {
+		t.Fatalf("schema = %d/%d, want 3/3", provenance.Schema, provenance.SnapshotRowFormat)
 	}
 	if provenance.Node != nil || provenance.TypeScript != nil || provenance.Resolver != nil {
 		t.Fatalf("unavailable fallback values = node %v/typescript %v/resolver %v", provenance.Node, provenance.TypeScript, provenance.Resolver)
@@ -220,7 +220,7 @@ func writeBundleFixture(t *testing.T, root string) string {
   "source": {"commit": "%s", "dirty": false},
   "toolchain": {"go": "go1.24.4", "node": "v25.9.0", "pnpm": "11.5.1", "typescript": "7.0.2"},
   "ladybugdb": {"core": "v0.13.1", "binding": "v0.13.1", "archive_sha256": "%s", "library_sha256": "%s"},
-  "schema": {"canonical": 2, "snapshot_row_format": 3},
+  "schema": {"canonical": 3, "snapshot_row_format": 3},
   "resolver_version": "resolver-v9",
   "tools": {
     "manifest": "tools/manifest.json",

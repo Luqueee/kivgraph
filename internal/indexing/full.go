@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
@@ -46,8 +47,21 @@ type FullOptions struct {
 	RustAllowNetwork      bool
 	RustSysroot           string
 	// RustIndexSysroot asks for the standard library in the graph.
-	RustIndexSysroot bool
-	WorkingDirectory string
+	RustIndexSysroot        bool
+	PythonIndexer           string
+	PythonPath              string
+	PythonMaximumWorkers    int
+	DartAnalyzer            string
+	DartSDKPath             string
+	DartMaximumWorkers      int
+	DartIncludeTests        bool
+	DartIncludeGenerated    bool
+	DartIncludeExternal     bool
+	DartIncludeSDK          bool
+	DartPackageConfig       string
+	DartWaitForAnalysis     bool
+	DartMaximumAnalysisTime time.Duration
+	WorkingDirectory        string
 	// CacheMode and CacheDirectory configure the fact cache: whether a
 	// unit may be served from the facts a previous pass stored, and where
 	// those entries live.
@@ -93,6 +107,19 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 		RustAllowNetwork:         configuration.Rust.AllowNetwork,
 		RustSysroot:              configuration.Rust.Sysroot,
 		RustIndexSysroot:         configuration.Rust.IndexSysroot,
+		PythonIndexer:            configuration.Python.IndexerCommand,
+		PythonPath:               configuration.Python.PythonPath,
+		PythonMaximumWorkers:     configuration.Python.MaximumWorkers,
+		DartAnalyzer:             configuration.Dart.AnalyzerCommand,
+		DartSDKPath:              configuration.Dart.SDKPath,
+		DartMaximumWorkers:       configuration.Dart.MaximumWorkers,
+		DartIncludeTests:         configuration.Dart.IncludeTests,
+		DartIncludeGenerated:     configuration.Dart.IncludeGenerated,
+		DartIncludeExternal:      configuration.Dart.IncludeExternal,
+		DartIncludeSDK:           configuration.Dart.IncludeSDK,
+		DartPackageConfig:        configuration.Dart.PackageConfig,
+		DartWaitForAnalysis:      configuration.Dart.WaitForAnalysis,
+		DartMaximumAnalysisTime:  time.Duration(configuration.Dart.MaximumAnalysisTime),
 		CacheMode:                indexer.CacheMode(configuration.Indexing.FactCache),
 		CacheDirectory:           configuration.Indexing.FactCachePath,
 		Root:                     filepath.Dir(configuration.Storage.DatabasePath),
@@ -155,6 +182,19 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		RustAllowNetwork:         options.RustAllowNetwork,
 		RustSysroot:              options.RustSysroot,
 		RustIndexSysroot:         options.RustIndexSysroot,
+		PythonIndexer:            options.PythonIndexer,
+		PythonPath:               options.PythonPath,
+		PythonMaximumWorkers:     options.PythonMaximumWorkers,
+		DartAnalyzer:             options.DartAnalyzer,
+		DartSDKPath:              options.DartSDKPath,
+		DartMaximumWorkers:       options.DartMaximumWorkers,
+		DartIncludeTests:         options.DartIncludeTests,
+		DartIncludeGenerated:     options.DartIncludeGenerated,
+		DartIncludeExternal:      options.DartIncludeExternal,
+		DartIncludeSDK:           options.DartIncludeSDK,
+		DartPackageConfig:        options.DartPackageConfig,
+		DartWaitForAnalysis:      options.DartWaitForAnalysis,
+		DartMaximumAnalysisTime:  options.DartMaximumAnalysisTime,
 		WorkingDirectory:         options.WorkingDirectory,
 		CacheMode:                options.CacheMode,
 		CacheDirectory:           options.CacheDirectory,

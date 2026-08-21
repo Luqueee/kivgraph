@@ -54,6 +54,14 @@ type IndexSummary struct {
 	RustSymbols            int `json:"rust_symbols"`
 	RustReferences         int `json:"rust_references"`
 	RustUnresolved         int `json:"rust_unresolved"`
+	PythonRepositories     int `json:"python_repositories"`
+	PythonSymbols          int `json:"python_symbols"`
+	PythonReferences       int `json:"python_references"`
+	PythonUnresolved       int `json:"python_unresolved"`
+	DartRepositories       int `json:"dart_repositories"`
+	DartSymbols            int `json:"dart_symbols"`
+	DartReferences         int `json:"dart_references"`
+	DartUnresolved         int `json:"dart_unresolved"`
 	// RustWorkspacesNotLoaded counts the Cargo workspaces the analyzer
 	// could not read. Their facts are absent and declared, so a caller that
 	// only saw the symbol count would read silence as coverage.

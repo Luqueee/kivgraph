@@ -70,6 +70,8 @@ type Config struct {
 	TypeScript TypeScriptConfig `yaml:"typescript"`
 	Go         GoConfig         `yaml:"go"`
 	Rust       RustConfig       `yaml:"rust"`
+	Python     PythonConfig     `yaml:"python"`
+	Dart       DartConfig       `yaml:"dart"`
 	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 	Logging    LoggingConfig    `yaml:"logging"`
 }
@@ -207,6 +209,31 @@ type RustConfig struct {
 	IndexSysroot bool `yaml:"index_sysroot"`
 }
 
+// PythonConfig controls the external Python semantic indexer.
+//
+// The command is deliberately configurable: Python projects may use different
+// interpreters, environments and Pyright-derived indexers. The indexer must
+// emit Kivgraph's versioned Python facts payload.
+type PythonConfig struct {
+	IndexerCommand string `yaml:"indexer_command"`
+	MaximumWorkers int    `yaml:"maximum_workers"`
+	PythonPath     string `yaml:"python_path"`
+}
+
+// DartConfig controls the Dart analysis-server based indexer.
+type DartConfig struct {
+	AnalyzerCommand     string   `yaml:"analyzer_command"`
+	MaximumWorkers      int      `yaml:"maximum_workers"`
+	SDKPath             string   `yaml:"sdk_path"`
+	IncludeTests        bool     `yaml:"include_tests"`
+	IncludeGenerated    bool     `yaml:"include_generated"`
+	IncludeExternal     bool     `yaml:"include_external_packages"`
+	IncludeSDK          bool     `yaml:"include_sdk"`
+	PackageConfig       string   `yaml:"package_config"`
+	WaitForAnalysis     bool     `yaml:"wait_for_analysis"`
+	MaximumAnalysisTime Duration `yaml:"maximum_analysis_time"`
+}
+
 // TelemetryConfig controls metrics and tracing.
 type TelemetryConfig struct {
 	Metrics bool `yaml:"metrics"`
@@ -317,6 +344,23 @@ func DefaultConfig() Config {
 			IncludeTests:    true,
 			TargetDirectory: defaultRustTargetDir,
 			Sysroot:         "discover",
+		},
+		Python: PythonConfig{
+			IndexerCommand: "kivgraph-python-worker",
+			MaximumWorkers: 3,
+			PythonPath:     "python3",
+		},
+		Dart: DartConfig{
+			AnalyzerCommand:     "dart",
+			MaximumWorkers:      2,
+			SDKPath:             "dart",
+			IncludeTests:        false,
+			IncludeGenerated:    false,
+			IncludeExternal:     false,
+			IncludeSDK:          false,
+			PackageConfig:       "auto",
+			WaitForAnalysis:     true,
+			MaximumAnalysisTime: Duration(5 * time.Minute),
 		},
 		Telemetry: TelemetryConfig{
 			Metrics: true,
@@ -870,6 +914,30 @@ func validateConfig(configuration Config) error {
 	if strings.TrimSpace(configuration.Rust.Sysroot) == "" {
 		return errors.New("config.rust.sysroot: must not be empty, want discover, none, or a path")
 	}
+	if strings.TrimSpace(configuration.Python.IndexerCommand) == "" {
+		return errors.New("config.python.indexer_command: must not be empty")
+	}
+	if configuration.Python.MaximumWorkers < 1 {
+		return fmt.Errorf("config.python.maximum_workers: must be positive, got %d", configuration.Python.MaximumWorkers)
+	}
+	if strings.TrimSpace(configuration.Python.PythonPath) == "" {
+		return errors.New("config.python.python_path: must not be empty")
+	}
+	if strings.TrimSpace(configuration.Dart.AnalyzerCommand) == "" {
+		return errors.New("config.dart.analyzer_command: must not be empty")
+	}
+	if configuration.Dart.MaximumWorkers < 1 {
+		return fmt.Errorf("config.dart.maximum_workers: must be positive, got %d", configuration.Dart.MaximumWorkers)
+	}
+	if strings.TrimSpace(configuration.Dart.SDKPath) == "" {
+		return errors.New("config.dart.sdk_path: must not be empty")
+	}
+	if strings.TrimSpace(configuration.Dart.PackageConfig) == "" {
+		return errors.New("config.dart.package_config: must not be empty")
+	}
+	if configuration.Dart.MaximumAnalysisTime <= 0 {
+		return errors.New("config.dart.maximum_analysis_time: must be positive")
+	}
 	if configuration.Logging.Format != "json" && configuration.Logging.Format != "text" {
 		return fmt.Errorf("config.logging.format: unsupported format %q, want json or text", configuration.Logging.Format)
 	}
@@ -935,7 +1003,7 @@ func validateRepositories(repositories RepositoriesFile) error {
 // used to be accepted by `init` and only rejected by the rebuild, hours later
 // and in another process.
 func SupportedLanguages() []string {
-	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs"}
+	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "python", "py", "dart"}
 }
 
 // SupportedLanguage reports whether the indexer can analyse a repository that

@@ -267,7 +267,7 @@ ORDER BY key`, left, right)
 
 // evaluateUnknownConfidence implements RuleUnknownConfidence: an edge whose
 // confidence is not one of the six facts.Confidence values, whose
-// provenance is not one of the twelve facts.Provenance values, or which
+// provenance is not one of the canonical facts.Provenance values, or which
 // claims exactness (an exact confidence) from a provenance that cannot back
 // it — the same rule facts.Set.Validate applies to facts before they are
 // written, reverified here against what is actually stored. Spans every

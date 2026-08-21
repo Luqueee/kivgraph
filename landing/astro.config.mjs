@@ -31,7 +31,7 @@ export default defineConfig({
     starlight({
       title: "Kivgraph",
       description:
-        "A canonical code graph for Go, TypeScript and Rust, served over MCP.",
+        "A canonical code graph for Go, TypeScript, Rust, Python and Dart, served over MCP.",
       // The mark is a raster: there is no favicon.svg to prefer. Starlight
       // emits this one, and Head adds the 16px and the Apple tile.
       favicon: "/favicon-32.png",

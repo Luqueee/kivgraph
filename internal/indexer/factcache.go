@@ -21,6 +21,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // CacheMode selects what the fact cache does during a pass.
@@ -63,7 +64,7 @@ func ValidCacheMode(mode CacheMode) bool {
 // provider published them, and it can only describe the ones it can name: a
 // served entry without them left the pass unable to close an edge it had
 // composed, which aborted a warm pass that a cold one had published.
-const cacheEntryVersion = 3
+const cacheEntryVersion = 4
 
 // ErrCacheDiverged reports that a cached entry did not match the facts the
 // analysis produced for the same unit. It aborts the pass on purpose: a cache
@@ -94,8 +95,9 @@ const (
 
 	// goRegistryInput and rustRegistryInput name the two provider maps a
 	// unit can depend on.
-	goRegistryInput   = "go"
-	rustRegistryInput = "rust"
+	goRegistryInput       = "go"
+	rustRegistryInput     = "rust"
+	semanticRegistryInput = "semantic"
 )
 
 // cacheInput is one thing a unit read, and what it looked like.
@@ -169,8 +171,9 @@ type factCache struct {
 	trees *fingerprintMemo
 	// goRegistry and rustRegistry are this pass's answer to "who provides
 	// which module" and "who provides which crate".
-	goRegistry   string
-	rustRegistry string
+	goRegistry       string
+	rustRegistry     string
+	semanticRegistry string
 
 	hits     atomic.Int64
 	misses   atomic.Int64
@@ -376,6 +379,9 @@ func unitIdentity(unit analysisUnit) string {
 	if unit.isGo {
 		return "go\x00" + unit.repository.Name + "\x00" + unit.module.ModulePath
 	}
+	if unit.isPython || unit.isDart {
+		return string(unit.language) + "\x00" + unit.repository.Name + "\x00" + unit.repository.RealPath
+	}
 	return "typescript\x00" + unit.repository.Name + "\x00" + unit.pkg.packageValue.Name
 }
 
@@ -427,6 +433,25 @@ func (cache *factCache) describeInputs(
 		add(inputRegistry, rustRegistryInput)
 		return described
 	}
+	if unit.isPython || unit.isDart {
+		root := unit.repository.RealPath
+		if root == "" {
+			root = unit.repository.Path
+		}
+		add(inputTree, root)
+		for _, name := range []string{"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock", "pubspec.yaml", "pubspec.lock", "analysis_options.yaml", filepath.Join(".dart_tool", "package_config.json")} {
+			add(inputFile, filepath.Join(root, name))
+		}
+		if unit.isDart && strings.TrimSpace(options.DartPackageConfig) != "" && options.DartPackageConfig != "auto" {
+			packageConfig := options.DartPackageConfig
+			if !filepath.IsAbs(packageConfig) {
+				packageConfig = filepath.Join(root, packageConfig)
+			}
+			add(inputFile, packageConfig)
+		}
+		add(inputRegistry, semanticRegistryInput)
+		return described
+	}
 
 	packageValue := unit.pkg.packageValue
 	for _, root := range packageValue.SourceRoots {
@@ -463,6 +488,8 @@ func (cache *factCache) fingerprint(kind inputKind, name string) string {
 			return cache.goRegistry
 		case rustRegistryInput:
 			return cache.rustRegistry
+		case semanticRegistryInput:
+			return cache.semanticRegistry
 		default:
 			return "absent"
 		}
@@ -493,7 +520,7 @@ func goWorkspaceGroup(unit analysisUnit, inputs analysisInputs) []goworkspace.Mo
 
 // withRegistry records this pass's provider maps, so an entry taken while one
 // repository provided a module or a crate is not served once another one does.
-func (cache *factCache) withRegistry(inputs analysisInputs) {
+func (cache *factCache) withRegistry(inputs analysisInputs, repositories []workspace.Repository) {
 	if cache == nil {
 		return
 	}
@@ -501,6 +528,31 @@ func (cache *factCache) withRegistry(inputs analysisInputs) {
 	cache.goRegistry = hex.EncodeToString(sum[:])
 	crateSum := sha256.Sum256([]byte(crateRegistryName(inputs)))
 	cache.rustRegistry = hex.EncodeToString(crateSum[:])
+	semanticSum := sha256.Sum256([]byte(semanticRegistryName(cache.trees, repositories)))
+	cache.semanticRegistry = hex.EncodeToString(semanticSum[:])
+}
+
+func semanticRegistryName(trees *fingerprintMemo, repositories []workspace.Repository) string {
+	entries := make([]string, 0)
+	for _, repository := range repositories {
+		semantic := false
+		for _, language := range repository.Languages {
+			if strings.EqualFold(strings.TrimSpace(language), string(facts.LanguagePython)) || strings.EqualFold(strings.TrimSpace(language), string(facts.LanguageDart)) {
+				semantic = true
+				break
+			}
+		}
+		if !semantic {
+			continue
+		}
+		root := repository.RealPath
+		if root == "" {
+			root = repository.Path
+		}
+		entries = append(entries, repository.Name+"="+root+"@"+trees.tree(root))
+	}
+	sort.Strings(entries)
+	return strings.Join(entries, "\x00")
 }
 
 // crateRegistryName renders which repository provides which crate, at which
@@ -609,6 +661,12 @@ func analyzerFingerprint(options FullOptions) string {
 	sort.Strings(tags)
 	fmt.Fprintf(hash, "tags=%s\x00", strings.Join(tags, ","))
 	fmt.Fprintf(hash, "worker=%s\x00", strings.TrimSpace(options.TypeScriptWorker))
+	fmt.Fprintf(hash, "python=%s\x00python-path=%s\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonPath))
+	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
+	pythonWorker := filepath.Join(options.WorkingDirectory, "python-worker", "index.py")
+	if _, err := os.Stat(pythonWorker); err == nil {
+		fmt.Fprintf(hash, "python-worker=%s\x00", fileFingerprint(pythonWorker))
+	}
 	if executable, err := os.Executable(); err == nil {
 		fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
 	} else {
@@ -801,11 +859,15 @@ func fileFingerprint(path string) string {
 // analyses, plus the manifests that decide how they are built.
 func isFingerprintedSource(name string) bool {
 	switch name {
-	case "go.mod", "go.sum", "go.work", "go.work.sum", "package.json", "tsconfig.json":
+	case "go.mod", "go.sum", "go.work", "go.work.sum", "package.json", "tsconfig.json", "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock", "pubspec.yaml", "pubspec.lock", "analysis_options.yaml":
+		return true
+	}
+	base := filepath.Base(name)
+	if strings.HasPrefix(base, "requirements-") && strings.HasSuffix(base, ".txt") {
 		return true
 	}
 	switch strings.ToLower(filepath.Ext(name)) {
-	case ".go", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs":
+	case ".go", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".py", ".pyi", ".dart":
 		return true
 	default:
 		return false

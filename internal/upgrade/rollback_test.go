@@ -75,7 +75,7 @@ func TestRunValidationFailureRestoresPreviousGenerationThroughStore(t *testing.T
 	if err := VerifyBackup(context.Background(), report.BackupPath, BackupRequest{
 		GenerationID:      previous.ID,
 		FromSchemaVersion: 1,
-		ToSchemaVersion:   2,
+		ToSchemaVersion:   ladybug.CanonicalSchemaVersion,
 	}); err != nil {
 		t.Fatalf("VerifyBackup() after rollback: %v", err)
 	}

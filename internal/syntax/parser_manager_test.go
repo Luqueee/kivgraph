@@ -14,13 +14,14 @@ func TestNewParserManagerParsesAllPinnedLanguagesAndReusesParsers(t *testing.T) 
 	}
 	defer manager.Close()
 
-	sources := map[Language][]byte{
+		sources := map[Language][]byte{
 		LanguageTypeScript: []byte("const answer: number = 42;\n"),
 		LanguageTSX:        []byte("const view = <main>answer</main>;\n"),
 		LanguageJavaScript: []byte("const answer = 42;\n"),
 		LanguageGo:         []byte("package example\n\nfunc Answer() int { return 42 }\n"),
+		LanguagePython:     []byte("class Answer:\n    pass\n"),
 	}
-	for _, language := range []Language{LanguageTypeScript, LanguageTSX, LanguageJavaScript, LanguageGo} {
+	for _, language := range []Language{LanguageTypeScript, LanguageTSX, LanguageJavaScript, LanguageGo, LanguagePython} {
 		tree, err := manager.Parse(context.Background(), language, sources[language])
 		if err != nil {
 			t.Fatalf("Parse(%s) error = %v", language, err)
@@ -46,7 +47,7 @@ func TestNewParserManagerParsesAllPinnedLanguagesAndReusesParsers(t *testing.T) 
 		tree.Close()
 	}
 	stats := manager.Stats()
-	if stats.TotalParsers != 4 || stats.IdleParsers != 4 || stats.ActiveParsers != 0 {
+	if stats.TotalParsers != 5 || stats.IdleParsers != 5 || stats.ActiveParsers != 0 {
 		t.Fatalf("manager stats = %#v, want one reusable parser per language", stats)
 	}
 }
@@ -87,7 +88,7 @@ func TestParserManagerClassifiesCancellationAndUnsupportedLanguage(t *testing.T)
 		t.Fatalf("canceled parse error = %v, want classified context cancellation", err)
 	}
 
-	_, err = manager.Parse(context.Background(), Language("python"), []byte("def main(): pass"))
+	_, err = manager.Parse(context.Background(), Language("dart"), []byte("void main() {}"))
 	if !errors.As(err, &parserErr) || parserErr.Kind != ParserErrorUnsupportedLanguage || !errors.Is(err, ErrUnsupportedLanguage) {
 		t.Fatalf("unsupported language error = %v", err)
 	}

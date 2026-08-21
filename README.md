@@ -1,7 +1,7 @@
 # Kivgraph
 
 A local MCP server that answers questions about code across repositories, for
-Go, TypeScript and Rust.
+Go, TypeScript, Rust, Python and Dart.
 
 It indexes a corpus once and serves an immutable graph: the edges are resolved
 by `go/types`, the TypeScript checker and `rust-analyzer`, not by matching
@@ -45,8 +45,13 @@ output captured verbatim.
 Released and in use. `kivgraph version` reports the published release; the
 backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 
-- **Languages:** Go, TypeScript, Rust. The Rust standard library enters the
-  graph as a synthetic provider with `rust.index_sysroot`, off by default.
+- **Languages:** Go, TypeScript, Rust, Python and Dart. Python uses the
+  bundled AST worker when no semantic indexer is configured; those inferred
+  references are `CANDIDATE`, never `EXACT`. Dart uses the Dart Analysis
+  Server supplied by the Dart or Flutter SDK.
+- **Semantic dependencies:** Python and Dart imports can publish a package
+  dependency when exactly one registered provider owns the requested package;
+  symbol-level cross-repository edges require an explicit provider identity.
 - **Surface:** ten read-only tools over STDIO, plus one consent-gated
   mutation (`index_project`). The contract is
   [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
@@ -64,6 +69,11 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - Indexing Rust needs `cargo` and `rust-analyzer`. The release bundle carries
   the analyzer; it does not carry a Rust toolchain.
 - Indexing TypeScript needs Node.js 22 or later for the worker.
+- Indexing Python needs Python 3.10 or later for the bundled worker. It is a
+  syntax-aware fallback and reports dynamic or unresolved names explicitly.
+- Indexing Dart needs the `dart` executable; a Flutter installation supplies
+  it. The loader uses the Analysis Server protocol and does not modify the
+  Flutter project.
 
 ## Installation
 
@@ -71,17 +81,17 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 
 The installer detects the platform, downloads the latest published MCP release
 for it, verifies both the release archive and the bundle checksums, and
-installs it without requiring Go, Node.js, or pnpm. The release contains the Go
-server, the pinned LadybugDB library, the TypeScript worker, the pinned
-`rust-analyzer`, and the grammar manifest; the web viewer is intentionally
-omitted.
+installs it without requiring Go or pnpm. The release contains the Go server,
+the pinned LadybugDB library, the TypeScript worker, the bundled Python AST
+worker, the pinned `rust-analyzer`, and the grammar manifest; the web viewer is
+intentionally omitted.
 
 Published bundles: Linux `amd64` and macOS `arm64`.
 
-Runtime requirements: Bash, Node.js `22` or later, `curl`, `tar`, and
-`sha256sum` or `shasum`. The bundle carries its own `rust-analyzer`; indexing
-Rust repositories additionally needs `cargo` on the `PATH`, because the
-analyzer cannot load a Cargo workspace without it.
+Runtime requirements: Bash, Node.js `22` or later, Python 3.10 or later when
+indexing Python, `curl`, `tar`, and `sha256sum` or `shasum`. The bundle carries
+its own `rust-analyzer`; indexing Rust repositories additionally needs `cargo`
+on the `PATH`, and indexing Dart needs the Dart or Flutter SDK.
 
 On macOS the binaries are not notarized. A release downloaded with `curl` is
 not quarantined and runs; a copy downloaded with a browser needs `xattr -dr

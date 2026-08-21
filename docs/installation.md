@@ -335,7 +335,7 @@ semántica; por ejemplo, para no indexar fixtures o benchmarks:
 repositories:
   - name: backend
     path: /ruta/absoluta/al/backend
-    languages: [go, typescript]
+    languages: [go, typescript, python, dart]
     exclusions:
       - '**/testdata'
       - '**/benchmarks'
@@ -352,6 +352,48 @@ genera hechos semánticos por sí solo.
 Si un repositorio registrado como TypeScript no tiene ningún provider nombrado
 con proyecto aplicable, `index --full` termina con error explícito; no publica
 una generación vacía.
+
+Python y Dart se activan igual que los demás lenguajes:
+
+```yaml
+python:
+  indexer_command: kivgraph-python-worker
+  python_path: python3
+  maximum_workers: 3
+dart:
+  analyzer_command: dart
+  sdk_path: dart
+  maximum_workers: 2
+  include_tests: false
+  include_generated: false
+  include_external_packages: false
+  include_sdk: false
+  package_config: auto
+  wait_for_analysis: true
+  maximum_analysis_time: 5m
+```
+
+El worker Python incluido recorre `.py` y `.pyi`, conserva símbolos e imports
+y clasifica sus inferencias como `CANDIDATE`; no inventa aristas exactas para
+código dinámico. Dart se resuelve con el Analysis Server del SDK y sus
+referencias resueltas se publican como `EXACT_TYPECHECKED`. `package_config`
+usa `.dart_tool/package_config.json` cuando vale `auto`; si se habilita
+`include_external_packages`, sus raíces se entregan al Analysis Server para
+resolver dependencias de Pub, pero Kivgraph solo publica los ficheros de los
+repositorios registrados y, si se activa durante `index --full`, registra los
+paquetes de Pub descubiertos como proveedores sintéticos. Las directivas
+`export` se conservan como
+`REEXPORTS`, y las declaraciones `part`/`part of` generan `PART_OF` entre los
+módulos sintéticos de ambos ficheros. Los imports condicionales conservan sus
+alternativas, prefijo y modo diferido en el payload. Por defecto se excluyen
+`test/`, `integration_test/` y nombres generados (`.g.dart`, `.freezed.dart`,
+etc.); se pueden incluir con las opciones correspondientes.
+
+Cuando una importación Python o Dart nombra exactamente un único paquete de
+otro repositorio registrado, la pasada añade `PACKAGE_DEPENDS_ON`. Esa arista
+demuestra dependencia de paquete, no uso de un símbolo concreto. Para una
+arista de símbolo cross-repository el proveedor semántico debe entregar una
+identidad explícita del destino.
 
 ## Validar e indexar
 
