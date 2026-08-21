@@ -623,6 +623,68 @@ func measureNative(tokens *counter, corpus string, q question) (*armResult, erro
 		arm.Claimed = append([]string{}, q.Truth...)
 		arm.Score = scoreAgainst(arm.Claimed, q.Truth)
 		return arm, nil
+	case familyConsumers:
+		// A text search plus a full read of every declaration is the whole of
+		// what this arm can do, and here that is provably not enough: a file
+		// that star re-exports the package carries the symbol across a
+		// repository boundary without ever spelling it. So this arm claims the
+		// truth it could have reached -- the rows whose file text names the
+		// symbol -- and misses the rest. That gap is the measurement, not a
+		// handicap applied to it.
+		output, searched, err := searchCorpus(corpus, q.Subject.Symbol)
+		if err != nil {
+			return nil, err
+		}
+		arm.add(observation{Tool: "grep", Tokens: tokens.count(output)})
+		for _, declaration := range q.Declarations {
+			content, readErr := os.ReadFile(filepath.Join(corpus, declaration))
+			if readErr != nil {
+				return nil, fmt.Errorf("read %s: %w", declaration, readErr)
+			}
+			arm.add(observation{Tool: "read", Tokens: tokens.count(string(content))})
+		}
+		reachable, blind := []string{}, 0
+		for _, item := range q.Truth {
+			content, readErr := os.ReadFile(filepath.Join(corpus, item))
+			if readErr != nil {
+				return nil, fmt.Errorf("read %s: %w", item, readErr)
+			}
+			if strings.Contains(string(content), q.Subject.Symbol) {
+				reachable = append(reachable, canonicalOf(item))
+				continue
+			}
+			blind++
+		}
+		arm.Claimed = reachable
+		arm.Note = fmt.Sprintf("searched %d code files, read %d declaring file(s)", searched, len(q.Declarations))
+		if blind > 0 {
+			arm.Note += fmt.Sprintf("; %d true consumer(s) never spell the symbol, so no text search reaches them", blind)
+		}
+		arm.Score = scoreAgainst(arm.Claimed, canonicalAll(q.Truth))
+		return arm, nil
+	case familyDependencies:
+		// Outward is the cheap direction for a reader: open the subject, see
+		// what it names, then find where each of those is declared. The reads
+		// and the searches are both priced, because both happened.
+		content, err := os.ReadFile(filepath.Join(corpus, q.Subject.corpusPath()))
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", q.Subject.corpusPath(), err)
+		}
+		arm.add(observation{Tool: "read", Tokens: tokens.count(string(content))})
+		searchedTotal := 0
+		for _, name := range q.Reached {
+			output, searched, searchErr := searchCorpus(corpus, name)
+			if searchErr != nil {
+				return nil, searchErr
+			}
+			searchedTotal += searched
+			arm.add(observation{Tool: "grep", Tokens: tokens.count(output)})
+		}
+		arm.Claimed = canonicalAll(q.Truth)
+		arm.Note = fmt.Sprintf("read the subject, then searched %d name(s) it reaches across %d code files",
+			len(q.Reached), searchedTotal)
+		arm.Score = scoreAgainst(arm.Claimed, canonicalAll(q.Truth))
+		return arm, nil
 	default:
 		output, searched, err := searchCorpus(corpus, q.Subject.Symbol)
 		if err != nil {

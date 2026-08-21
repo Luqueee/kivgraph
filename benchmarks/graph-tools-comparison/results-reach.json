@@ -1,0 +1,735 @@
+{
+  "benchmark": "graph-tools-comparison",
+  "generated_at": "2026-08-21T21:21:15.072814Z",
+  "commit": "132ce20",
+  "tokenizer": "o200k_base",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "Darwin"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "code_files": 0
+  },
+  "versions": {
+    "code-review-graph": "code-review-graph 2.3.7",
+    "codebase-memory": "codebase-memory-mcp 0.8.1",
+    "graft": "0.10.1",
+    "graphify": "graphify 0.8.31",
+    "kivgraph": "0.3.6"
+  },
+  "isolation": {
+    "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
+    "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
+    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "kivgraph": "isolated HOME at /private/tmp/reachhome; the published generation and the registry live there",
+    "native": "reads only; nothing is written"
+  },
+  "indexing": {
+    "code-review-graph": {
+      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
+      "ms": 4957.525,
+      "scope": "one graph per repository; built the 2 the questions name, not all 37",
+      "state_bytes": 129966364,
+      "needs": "nothing beyond the binary"
+    },
+    "codebase-memory": {
+      "command": "codebase-memory-mcp cli index_repository",
+      "ms": 5272.931,
+      "scope": "the whole corpus, 37 repositories",
+      "state_bytes": 220594176,
+      "needs": "nothing beyond the binary"
+    },
+    "graft": {
+      "command": "graft build",
+      "ms": 25192.397,
+      "scope": "the whole corpus, 37 repositories",
+      "state_bytes": 180660370,
+      "needs": "nothing: the structural tier needs no key and no toolchain"
+    },
+    "graphify": {
+      "command": "graphify update \u003cr\u003e",
+      "ms": 7735.339,
+      "scope": "one graph per repository; built the 2 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
+      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
+    },
+    "kivgraph": {
+      "command": "kivgraph index --full",
+      "ms": 47470.712,
+      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
+      "state_bytes": 1608649449,
+      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
+    },
+    "native": {
+      "command": "none",
+      "ms": 0,
+      "scope": "nothing is indexed",
+      "needs": "nothing"
+    }
+  },
+  "question_set": "reach",
+  "questions": [
+    {
+      "id": "X1_ts_shared_enum",
+      "family": "consumers",
+      "question": "Which files outside library-shared consume the HttpStatus it declares?",
+      "ground_truth": [
+        "modules/sdk-module-ts/src/index.ts",
+        "services/api-cdn/src/application/middlewares/session-middleware.ts",
+        "services/api-gateway/src/application/controllers/cluster-controller.ts"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "built with `--repo`, one repository per graph, so it has no cross-repository dimension to report"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "codebase-memory-mcp indexes one repository per call to index_repository and its rows carry no repository, so it cannot say which side of a boundary a use is on"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "a graft context is one tree: `--dir` builds a graph per directory and no answer of it carries a repository, so the boundary this family asks about is not a distinction it can draw"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "a graphify graph is built per repository path and its answers do not carry one, so the boundary this family asks about is not in the data"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_cross_repo_consumers",
+              "tokens": 566,
+              "ms": 1.16
+            }
+          ],
+          "tokens": 566,
+          "ms": 1.16,
+          "call_count": 1,
+          "claimed": [
+            "sdk-module-ts:src/index.ts",
+            "api-cdn:src/application/middlewares/session-middleware.ts",
+            "api-gateway:src/application/controllers/cluster-controller.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-cdn:src/application/middlewares/session-middleware.ts",
+              "api-gateway:src/application/controllers/cluster-controller.ts",
+              "sdk-module-ts:src/index.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "22 package level row(s) reported separately and not counted as uses"
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 3328,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1516,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1453,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1500,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1447,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1437,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1519,
+              "ms": 0
+            }
+          ],
+          "tokens": 12200,
+          "ms": 0,
+          "call_count": 7,
+          "claimed": [
+            "api-cdn:src/application/middlewares/session-middleware.ts",
+            "api-gateway:src/application/controllers/cluster-controller.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-cdn:src/application/middlewares/session-middleware.ts",
+              "api-gateway:src/application/controllers/cluster-controller.ts"
+            ],
+            "precision": 1,
+            "recall": 0.6666666666666666,
+            "missing": [
+              "sdk-module-ts:src/index.ts"
+            ],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, read 6 declaring file(s); 1 true consumer(s) never spell the symbol, so no text search reaches them"
+        }
+      }
+    },
+    {
+      "id": "X2_go_absent_consumers",
+      "family": "consumers",
+      "question": "Which files outside api-db-go consume the LoadSecrets it declares?",
+      "ground_truth": [],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "built with `--repo`, one repository per graph, so it has no cross-repository dimension to report"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "codebase-memory-mcp indexes one repository per call to index_repository and its rows carry no repository, so it cannot say which side of a boundary a use is on"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "a graft context is one tree: `--dir` builds a graph per directory and no answer of it carries a repository, so the boundary this family asks about is not a distinction it can draw"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "a graphify graph is built per repository path and its answers do not carry one, so the boundary this family asks about is not in the data"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_cross_repo_consumers",
+              "tokens": 112,
+              "ms": 1.247
+            }
+          ],
+          "tokens": 112,
+          "ms": 1.247,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 498,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1367,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 2406,
+              "ms": 0
+            }
+          ],
+          "tokens": 4271,
+          "ms": 0,
+          "call_count": 3,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, read 2 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "X3_go_reach_depth1",
+      "family": "dependencies",
+      "question": "Which files declare something RegisterGuilds reaches outward in one hop?",
+      "ground_truth": [
+        "services/api-db-go/internal/application/handlers/guilds_handler.go"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "its graph is built around blast radius, which is the incoming direction"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`search_graph` answers callers; the outward direction is not a query it exposes"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "reachable through its natural language `query`, which is direction agnostic; not implemented rather than absent"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "trace_dependencies",
+              "tokens": 305,
+              "ms": 0.54
+            }
+          ],
+          "tokens": 305,
+          "ms": 0.54,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 537,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 603,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 100,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 99,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 96,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 94,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 99,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 102,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 86,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 24665,
+              "ms": 0
+            }
+          ],
+          "tokens": 26481,
+          "ms": 0,
+          "call_count": 10,
+          "claimed": [
+            "api-db-go:internal/application/handlers/guilds_handler.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "read the subject, then searched 9 name(s) it reaches across 47970 code files"
+        }
+      }
+    },
+    {
+      "id": "X4_ts_reach_depth1",
+      "family": "dependencies",
+      "question": "Which files declare something RecommendationsCache reaches outward in one hop?",
+      "ground_truth": [
+        "libraries/library-shared/src/redis/cache/base-cache.ts",
+        "libraries/library-shared/src/redis/cache/music/types.ts"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "its graph is built around blast radius, which is the incoming direction"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`search_graph` answers callers; the outward direction is not a query it exposes"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "reachable through its natural language `query`, which is direction agnostic; not implemented rather than absent"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "trace_dependencies",
+              "tokens": 163,
+              "ms": 0.45
+            }
+          ],
+          "tokens": 163,
+          "ms": 0.45,
+          "call_count": 1,
+          "claimed": [
+            "library-shared:src/redis/cache/base-cache.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "library-shared:src/redis/cache/base-cache.ts"
+            ],
+            "precision": 1,
+            "recall": 0.5,
+            "missing": [
+              "library-shared:src/redis/cache/music/types.ts"
+            ],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 167,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 3855,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 163,
+              "ms": 0
+            }
+          ],
+          "tokens": 4185,
+          "ms": 0,
+          "call_count": 3,
+          "claimed": [
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/cache/music/types.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "library-shared:src/redis/cache/base-cache.ts",
+              "library-shared:src/redis/cache/music/types.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "read the subject, then searched 2 name(s) it reaches across 10660 code files"
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "code-review-graph": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 4
+    },
+    "codebase-memory": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 4
+    },
+    "graft": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 4
+    },
+    "graphify": {
+      "tokens_total": 0,
+      "calls_total": 0,
+      "ms_total": 0,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 0,
+      "of": 4
+    },
+    "kivgraph": {
+      "tokens_total": 1146,
+      "calls_total": 4,
+      "ms_total": 3.3970000000000002,
+      "precision_mean": 1,
+      "recall_mean": 0.875,
+      "exact_answers": 3,
+      "answered": 4,
+      "of": 4
+    },
+    "native": {
+      "tokens_total": 47137,
+      "calls_total": 23,
+      "ms_total": 0,
+      "precision_mean": 1,
+      "recall_mean": 0.9166666666666666,
+      "exact_answers": 3,
+      "answered": 4,
+      "of": 4
+    }
+  },
+  "aggregate_by_family": {
+    "consumers": {
+      "code-review-graph": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "codebase-memory": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "graft": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "graphify": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "kivgraph": {
+        "tokens_total": 678,
+        "calls_total": 2,
+        "ms_total": 2.407,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 2,
+        "answered": 2,
+        "of": 2
+      },
+      "native": {
+        "tokens_total": 16471,
+        "calls_total": 10,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 0.8333333333333333,
+        "exact_answers": 1,
+        "answered": 2,
+        "of": 2
+      }
+    },
+    "dependencies": {
+      "code-review-graph": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "codebase-memory": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "graft": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "graphify": {
+        "tokens_total": 0,
+        "calls_total": 0,
+        "ms_total": 0,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 0,
+        "of": 2
+      },
+      "kivgraph": {
+        "tokens_total": 468,
+        "calls_total": 2,
+        "ms_total": 0.99,
+        "precision_mean": 1,
+        "recall_mean": 0.75,
+        "exact_answers": 1,
+        "answered": 2,
+        "of": 2
+      },
+      "native": {
+        "tokens_total": 30666,
+        "calls_total": 13,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 2,
+        "answered": 2,
+        "of": 2
+      }
+    }
+  }
+}

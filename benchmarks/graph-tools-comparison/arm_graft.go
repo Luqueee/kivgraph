@@ -25,6 +25,12 @@ func measureGraft(
 		return graftCallers(ctx, tokens, repos, captures, binary, contextDir, corpusRoot, q, q.Depth)
 	case familyOutline:
 		return graftSkeleton(ctx, tokens, captures, binary, contextDir, corpusRoot, q)
+	case familyConsumers:
+		return &armResult{Unsupported: true, Note: "a graft context is one tree: `--dir` builds a graph per " +
+			"directory and no answer of it carries a repository, so the boundary this family asks about is not " +
+			"a distinction it can draw"}, nil
+	case familyDependencies:
+		return &armResult{Unsupported: true, Note: "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"}, nil
 	}
 	return nil, fmt.Errorf("unknown family %q", q.Family)
 }

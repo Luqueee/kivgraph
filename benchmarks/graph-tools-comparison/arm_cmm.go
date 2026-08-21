@@ -112,6 +112,14 @@ func indexCodebaseMemory(ctx context.Context, binary, repoPath, home string) (fl
 // measureCodebaseMemory answers one question and prices every call it took.
 func measureCodebaseMemory(ctx context.Context, tokens *counter, repos repositories, captures map[string]string,
 	binary, corpusRoot, home string, q question) (*armResult, error) {
+	switch q.Family {
+	case familyConsumers:
+		return &armResult{Unsupported: true, Note: "codebase-memory-mcp indexes one repository per call to " +
+			"index_repository and its rows carry no repository, so it cannot say which side of a boundary a use is on"}, nil
+	case familyDependencies:
+		return &armResult{Unsupported: true, Note: "`search_graph` answers callers; the outward direction is not " +
+			"a query it exposes"}, nil
+	}
 	srv, err := dial(ctx, "codebase-memory-mcp", binary, nil, map[string]string{"HOME": home})
 	if err != nil {
 		return nil, err

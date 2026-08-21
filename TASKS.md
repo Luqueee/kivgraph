@@ -15162,3 +15162,64 @@ conservan `rust_unit.go` y `semantic.go`, que el pase completo usa.
 (`LADYBUG_INCREMENTAL_PASS`, `LADYBUG_DELTA_PERFORMANCE_PASS`) sigue en
 `docs/decisions/ladybugdb-qualification.md` y su harness en el historial de git --
 y la posibilidad de un delta sin rediseñarlo.
+
+## LUQUE-2004 — `trace_dependencies` no baja a los miembros de un contenedor
+
+**Dependencias:** ninguna.
+
+**El defecto:** preguntar el alcance de una clase devuelve sólo lo que la
+declaración de la clase referencia directamente -- sus supertipos y sus usos de
+tipo-- y **no** lo que sus propios métodos alcanzan. La respuesta no dice que se
+ha parado ahí, así que un conjunto más pequeño pasa por un conjunto completo.
+
+Medido en `benchmarks/graph-tools-comparison/reach.md`, pregunta `X4`, sobre
+`RecommendationsCache` en `library-shared`:
+
+|pregunta|alcanza|
+|---|---|
+|la clase, profundidad `1`|sólo `src/redis/cache/base-cache.ts`|
+|la clase, profundidad `2`|miembros de `BaseCache` y `RedisCacheClient.ts`, nunca el tipo|
+|el método `getResults`, profundidad `1`|`src/redis/cache/music/types.ts`, vía `TYPE_USES`|
+
+`P=1,00`, `R=0,50`. La arista existe y está bien puesta: cuelga del método,
+porque es el método quien nombra `ChipbotRecommendationsResponse`. Lo que no hay
+es arista clase -> método: la contención no es una dependencia en este grafo, y
+`get_blast_radius` en la dirección entrante tiene el mismo borde.
+
+**Por qué es un defecto y no una decisión defendible tal cual:** la respuesta es
+coherente con su modelo y contesta una pregunta distinta de la que se hizo, en
+silencio. Es la misma forma que el `H2` del conjunto duro, cerrado por el ADR
+0054, y que el `H3`, cerrado por el ADR 0055.
+
+**Las dos salidas, y hay que elegir una:**
+
+* **Descender.** Cuando la raíz es un contenedor -- clase, interfaz, struct con
+  métodos-- la travesía incluye lo que alcanzan sus miembros declarados. Cambia
+  respuestas publicadas y necesita ADR: hay que decidir si el miembro cuenta como
+  un salto de profundidad o como parte de la raíz, y qué pasa con una clase de
+  trescientos métodos.
+* **Declararlo.** La respuesta dice que la raíz es un contenedor y que sus
+  miembros se responden aparte, nombrándolos. Más barato, y convierte un silencio
+  en una instrucción -- que es lo que el ADR 0046 hizo con la ambigüedad.
+
+**Lo que no vale:** dejar que una pregunta sobre una clase devuelva la mitad de
+su alcance sin decirlo.
+
+## LUQUE-2005 — Cobertura de las tools servidas por el conjunto de preguntas
+
+**Dependencias:** ninguna.
+
+**El hueco:** el servidor sirve `11` tools y el conjunto de preguntas -- los
+cuatro conjuntos juntos-- ejercita `5`. Tras `reach`, las llamadas por tool son
+`find_references` `19`, `get_file_outline` `3`, `get_blast_radius` `3`,
+`find_cross_repo_consumers` `2` y `trace_dependencies` `2`. Siguen a cero
+`find_symbol`, `get_source`, `get_symbol`, `graph_status`, `list_repositories`
+e `index_project`.
+
+Las cinco a cero no son iguales: `graph_status` y `list_repositories` responden
+estado y no una pregunta sobre el código, y `index_project` muta. Las que
+importan son `find_symbol`, `get_source` y `get_symbol`, que son las que un
+agente encadena después de cualquier respuesta.
+
+**Objetivo:** una pregunta por cada una de esas tres, con verdad construida
+leyendo, y la cobertura declarada en el informe en vez de deducida.

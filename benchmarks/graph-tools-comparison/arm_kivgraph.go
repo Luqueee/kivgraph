@@ -26,6 +26,10 @@ func measureKivgraph(
 		return kivgraphImpact(ctx, tokens, repos, kiv, q)
 	case familyOutline:
 		return kivgraphOutline(ctx, tokens, kiv, q)
+	case familyConsumers:
+		return kivgraphConsumers(ctx, tokens, repos, kiv, q)
+	case familyDependencies:
+		return kivgraphDependencies(ctx, tokens, repos, kiv, q)
 	}
 	return nil, fmt.Errorf("unknown family %q", q.Family)
 }
@@ -389,4 +393,118 @@ func declarationsNamed(message string) int {
 		count = count*10 + int(char-'0')
 	}
 	return count
+}
+
+// consumerPage is what find_cross_repo_consumers answers. The subject is stated
+// once and consumers are grouped by everything they share, so a row carries only
+// its repository, its package and where it is -- `at` being `path:line`, since a
+// consumer in another repository has no hoisted path to inherit.
+//
+// The page also splits its own coverage: an exact symbol consumer is a resolved
+// use, and a package level one is a repository that depends on the package
+// without a resolved symbol behind it. Only the first answers this question, and
+// the second is reported rather than folded in.
+type consumerPage struct {
+	NextCursor *string `json:"next_cursor"`
+	Coverage   struct {
+		Exact        int `json:"exact"`
+		PackageLevel int `json:"package_level"`
+	} `json:"coverage"`
+	Results struct {
+		Groups []struct {
+			Category  string `json:"category"`
+			EdgeKind  string `json:"edge_kind"`
+			Consumers []struct {
+				Repo string `json:"repo"`
+				At   string `json:"at"`
+			} `json:"consumers"`
+		} `json:"groups"`
+	} `json:"results"`
+}
+
+// kivgraphConsumers asks which repositories other than the declaring one use the
+// subject. It counts the exact symbol rows: a package level row says a
+// repository depends on the package, which is a true fact about a dependency and
+// not a use of this declaration.
+func kivgraphConsumers(
+	ctx context.Context, tokens *counter, repos repositories, kiv *server, q question,
+) (*armResult, error) {
+	arm := &armResult{}
+	arguments := map[string]any{
+		"qualified_name": q.Subject.Name, "repository": q.Subject.Repo, "path": q.Subject.Path,
+	}
+	claimed, packageLevel := []string{}, 0
+	for page := 1; ; page++ {
+		answer := kiv.call(ctx, tokens,
+			fmt.Sprintf("%s-kivgraph-consumers-p%d", q.ID, page), "find_cross_repo_consumers", arguments)
+		arm.add(answer)
+		if answer.Failed {
+			arm.Note = "refused: " + answer.Error
+			arm.Score = scoreAgainst(nil, repos.canonicalAll(q.Truth))
+			return arm, nil
+		}
+		var decoded consumerPage
+		if err := json.Unmarshal([]byte(answer.Text), &decoded); err != nil {
+			return nil, fmt.Errorf("%s: decode consumers: %w", q.ID, err)
+		}
+		packageLevel += decoded.Coverage.PackageLevel
+		for _, group := range decoded.Results.Groups {
+			if group.Category != "exact_symbol" {
+				continue
+			}
+			for _, consumer := range group.Consumers {
+				path := consumer.At
+				if cut := strings.LastIndex(path, ":"); cut > 0 {
+					path = path[:cut]
+				}
+				claimed = append(claimed, repos.canonical(consumer.Repo+"/"+path))
+			}
+		}
+		if decoded.NextCursor == nil {
+			break
+		}
+		arguments["cursor"] = *decoded.NextCursor
+	}
+	arm.Claimed = claimed
+	arm.Score = scoreAgainst(claimed, repos.canonicalAll(q.Truth))
+	if packageLevel > 0 {
+		arm.Note = fmt.Sprintf("%d package level row(s) reported separately and not counted as uses", packageLevel)
+	}
+	return arm, nil
+}
+
+// kivgraphDependencies asks what the subject reaches outward at the question's
+// depth. The answer groups reached symbols by file under one hoisted repository,
+// which is the same shape a reference page uses.
+func kivgraphDependencies(
+	ctx context.Context, tokens *counter, repos repositories, kiv *server, q question,
+) (*armResult, error) {
+	arm := &armResult{}
+	arguments := map[string]any{
+		"qualified_name": q.Subject.Name, "repository": q.Subject.Repo,
+		"path": q.Subject.Path, "depth": q.Depth,
+	}
+	claimed := []string{}
+	for page := 1; ; page++ {
+		answer := kiv.call(ctx, tokens,
+			fmt.Sprintf("%s-kivgraph-deps-p%d", q.ID, page), "trace_dependencies", arguments)
+		arm.add(answer)
+		if answer.Failed {
+			arm.Note = "refused: " + answer.Error
+			arm.Score = scoreAgainst(nil, repos.canonicalAll(q.Truth))
+			return arm, nil
+		}
+		files, cursor, err := kivgraphReferenceFiles(answer.Text)
+		if err != nil {
+			return nil, err
+		}
+		claimed = append(claimed, files...)
+		if cursor == "" {
+			break
+		}
+		arguments["cursor"] = cursor
+	}
+	arm.Claimed = withoutDeclaring(repos.canonicalAll(claimed), repos.canonical(q.Subject.corpusPath()))
+	arm.Score = scoreAgainst(arm.Claimed, repos.canonicalAll(q.Truth))
+	return arm, nil
 }

@@ -26,6 +26,14 @@ const (
 	// familyOutline is "what is declared in this file". Truth is a set of
 	// declaration names, because that is the answer's unit here.
 	familyOutline = "outline"
+	// familyConsumers is "which files outside the repository that declares this
+	// use it". Truth is a set of files, and it excludes the declaring
+	// repository entirely: a use next door is not the question.
+	familyConsumers = "consumers"
+	// familyDependencies is the outward direction of impact: "which files
+	// declare something this reaches", at a declared depth. Third-party and
+	// standard library are out of scope -- the question is about this corpus.
+	familyDependencies = "dependencies"
 )
 
 // subject is one declaration, in the addressing every tool here accepts.
@@ -63,6 +71,11 @@ type question struct {
 	// corpus. The native arm reads all of them: that is the minimum a reader
 	// needs to tell homonyms apart, and it is why `grep` alone cannot answer.
 	Declarations []string `json:"declaration_sites,omitempty"`
+	// Reached is what the subject's own source names outward, for the
+	// dependencies family. It exists to price the native arm honestly: a reader
+	// tracing outward reads the subject, then has to find where each name it
+	// saw is declared, and that search is part of what the answer cost.
+	Reached []string `json:"reached_names,omitempty"`
 }
 
 // The reference truth is the manual classification recorded in
@@ -423,6 +436,143 @@ var hardQuestions = []question{
 	},
 }
 
+// reachQuestions are the two families nothing measured before: which repository
+// other than the declaring one consumes a symbol, and what a symbol reaches
+// outward. They are the two calls the routing table in AGENTS.md recommends and
+// that no question in the other three sets ever made.
+//
+// The truths were built by reading, not by pattern matching, and one of them was
+// wrong the first time in both directions. For every file the corpus mentions the
+// name in, the import that binds it was resolved -- multiline import clauses
+// included, which a single-line grep misses and which cost this set a true
+// consumer. A name a file declares itself, or imports from a repository-local
+// copy, is not a consumer of the subject.
+//
+// And a consumer can name nothing at all: `modules/sdk-module-ts/src/index.ts`
+// re-exports the subject through `export * from "@kena/shared"`, so the symbol
+// crosses a repository boundary in a file whose text never spells it. No text
+// search can reach that row. It was found by the graph, then verified
+// independently by enumerating every star re-export of the package in the
+// corpus -- there is exactly one, and no named re-export.
+//
+// Two of the four have an empty or single-file answer on purpose. Proving that
+// nothing reaches across a boundary is what the routing table sells and what
+// `grep` structurally cannot do: kena holds two independent Go modules that do
+// not import each other, and the same file duplicated in both.
+var reachQuestions = []question{
+	{
+		ID:       "X1_ts_shared_enum",
+		Family:   familyConsumers,
+		Ask:      "Which files outside library-shared consume the HttpStatus it declares?",
+		Language: "typescript, five rival declarations of the same name",
+		Subject: subject{
+			Repo: "library-shared", Dir: "libraries/library-shared",
+			Path: "src/result/custom-error.ts",
+			Name: "HttpStatus", Symbol: "HttpStatus",
+		},
+		// Twenty-four files outside library-shared name HttpStatus. Five declare
+		// their own enum, seventeen import a repository-local one by relative
+		// path, and two import it from "@kena/shared". api-gateway does both: one
+		// of its files imports the shared enum while nine import its own, so a
+		// tool that decides per repository cannot be right here. The third file
+		// names nothing: it star re-exports the package.
+		Truth: []string{
+			"modules/sdk-module-ts/src/index.ts",
+			"services/api-cdn/src/application/middlewares/session-middleware.ts",
+			"services/api-gateway/src/application/controllers/cluster-controller.ts",
+		},
+		Declarations: []string{
+			"libraries/library-shared/src/result/custom-error.ts",
+			"libraries/library-web/src/shared/CustomError.ts",
+			"services/api-gateway/src/domain/result/custom-error.ts",
+			"services/api-metrics/src/domain/result/custom-error.ts",
+			"services/api-premium/src/domain/result/custom-error.ts",
+			"services/api-translations/src/domain/result/custom-error.ts",
+		},
+	},
+	{
+		ID:       "X2_go_absent_consumers",
+		Family:   familyConsumers,
+		Ask:      "Which files outside api-db-go consume the LoadSecrets it declares?",
+		Language: "go, the answer is nothing and the corpus looks otherwise",
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/shared/infisical/infisical.go",
+			Name: "LoadSecrets", Symbol: "LoadSecrets",
+		},
+		// Nothing. kena holds two Go modules, kena.bot/api-db-go and
+		// kena.bot/api-music, and neither imports the other -- verified by
+		// grepping both module paths across every .go file. api-music carries its
+		// own copy of infisical.go, so three of its files name LoadSecrets and
+		// mean their own. A name-based answer claims those three.
+		Truth: []string{},
+		Declarations: []string{
+			"services/api-db-go/internal/shared/infisical/infisical.go",
+			"services/api-music/internal/shared/infisical/infisical.go",
+		},
+	},
+	{
+		ID:       "X3_go_reach_depth1",
+		Family:   familyDependencies,
+		Ask:      "Which files declare something RegisterGuilds reaches outward in one hop?",
+		Language: "go, nine reached declarations in one file",
+		Depth:    1,
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/application/routers/guilds_router.go",
+			Name: "RegisterGuilds", Symbol: "RegisterGuilds",
+		},
+		// It reaches the GuildsHandler type and the eight methods it routes to.
+		// All nine are declared in one file, checked one by one against its
+		// receiver. Everything else it touches is fiber, which is not this
+		// project's code.
+		Truth: []string{
+			"services/api-db-go/internal/application/handlers/guilds_handler.go",
+		},
+		Declarations: []string{
+			"services/api-db-go/internal/application/routers/guilds_router.go",
+		},
+		Reached: []string{
+			"GuildsHandler", "ModmailWebAccessList", "ModmailEnabledGuildIDs",
+			"ModmailEnabledList", "AutomationScheduledGuildIDs",
+			"NotifierPendingGuildIDs", "ModmailWebAccessCheck", "GetPermissions", "Get",
+		},
+	},
+	{
+		ID:       "X4_ts_reach_depth1",
+		Family:   familyDependencies,
+		Ask:      "Which files declare something RecommendationsCache reaches outward in one hop?",
+		Language: "typescript, one edge is inheritance and one is a type-only import",
+		Depth:    1,
+		Subject: subject{
+			Repo: "library-shared", Dir: "libraries/library-shared",
+			Path: "src/redis/cache/music/recommendations-cache.ts",
+			Name: "RecommendationsCache", Symbol: "RecommendationsCache",
+		},
+		// Two files, and the two edges do not look alike: the class extends
+		// BaseCache, and its two methods name ChipbotRecommendationsResponse
+		// through an `import type` that erases at runtime.
+		//
+		// The unit is what the declaration's own source names, its methods
+		// included: the class spans lines 6-18 and the type appears inside that
+		// span, so a reader asking what this class depends on is told both. That
+		// definition is the question, not a tool's model of it -- and the two
+		// disagree here. Asking about the method reaches the type; asking about
+		// the class does not, at depth one or at any depth, because containment
+		// is not a dependency edge in this graph. A traversal that will not
+		// descend into a class understates what the class reaches, and says
+		// nothing about having stopped.
+		Truth: []string{
+			"libraries/library-shared/src/redis/cache/base-cache.ts",
+			"libraries/library-shared/src/redis/cache/music/types.ts",
+		},
+		Declarations: []string{
+			"libraries/library-shared/src/redis/cache/music/recommendations-cache.ts",
+		},
+		Reached: []string{"BaseCache", "ChipbotRecommendationsResponse"},
+	},
+}
+
 // questionSet resolves the name a run was asked for. An unknown name is a
 // failure rather than a fallback: silently measuring the wrong set would
 // publish a number under the wrong label.
@@ -434,11 +584,15 @@ func questionSet(name string) []question {
 		return hardQuestions
 	case "impact":
 		return impactQuestions
+	case "reach":
+		return reachQuestions
 	case "all":
 		out := append([]question{}, questions...)
 		out = append(out, hardQuestions...)
-		return append(out, impactQuestions...)
+		out = append(out, impactQuestions...)
+		return append(out, reachQuestions...)
 	default:
-		panic("unknown question set " + name + `: use "measured", "hard", "impact" or "all"`)
+		panic("unknown question set " + name +
+			`: use "measured", "hard", "impact", "reach" or "all"`)
 	}
 }

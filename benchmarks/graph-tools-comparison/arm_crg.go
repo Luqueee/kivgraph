@@ -98,6 +98,10 @@ func measureCRG(ctx context.Context, tokens *counter, repos repositories, captur
 		return crgImpact(ctx, tokens, repos, captures, binary, repoPath, home, q)
 	case familyOutline:
 		return crgOutline(ctx, tokens, captures, binary, repoPath, home, q)
+	case familyConsumers:
+		return &armResult{Unsupported: true, Note: "built with `--repo`, one repository per graph, so it has no cross-repository dimension to report"}, nil
+	case familyDependencies:
+		return &armResult{Unsupported: true, Note: "its graph is built around blast radius, which is the incoming direction"}, nil
 	}
 	return nil, fmt.Errorf("unknown family %q", q.Family)
 }
