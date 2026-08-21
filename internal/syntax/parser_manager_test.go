@@ -14,7 +14,7 @@ func TestNewParserManagerParsesAllPinnedLanguagesAndReusesParsers(t *testing.T) 
 	}
 	defer manager.Close()
 
-		sources := map[Language][]byte{
+	sources := map[Language][]byte{
 		LanguageTypeScript: []byte("const answer: number = 42;\n"),
 		LanguageTSX:        []byte("const view = <main>answer</main>;\n"),
 		LanguageJavaScript: []byte("const answer = 42;\n"),
