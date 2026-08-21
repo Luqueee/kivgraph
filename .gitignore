@@ -30,3 +30,6 @@ testdata/generated/
 # Downloaded toolchain artifacts
 .tooling/
 /dist/
+
+# graphify writes its graph beside the code it reads; ours is never an input.
+/graphify-out/
