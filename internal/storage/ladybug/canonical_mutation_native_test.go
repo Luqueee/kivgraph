@@ -638,3 +638,140 @@ func scanSymbolByKey(ctx context.Context, path, key string) (CanonicalSymbol, bo
 	}
 	return CanonicalSymbol{}, false, nil
 }
+
+// TestApplyCanonicalDeltaKeepsEdgesIntoASurvivingSymbol is the LUQUE-2002
+// regression at the level the defect lived on.
+//
+// A file is replaced and its declaration survives under the same stable key --
+// what an ordinary edit is: a body changes, the symbol does not. Another file
+// calls it and was not touched, so nothing restates its call. Retirement used to
+// delete every edge touching a replaced file's symbols, incoming ones included,
+// and the caller's edge went with them: after editing one file, every caller in
+// another file stopped pointing at it.
+//
+// The assertion is the whole graph against a fresh load of the final state, so
+// a retirement that keeps too much fails it as loudly as one that keeps too
+// little.
+func TestApplyCanonicalDeltaKeepsEdgesIntoASurvivingSymbol(t *testing.T) {
+	ctx := context.Background()
+	editedFile := mutationFixtureFile("edited.go", "edited-h1")
+	callerFile := mutationFixtureFile("caller.go", "caller-h1")
+	survivorKey := "symbol:repoM:edited.go:Survivor"
+	callerKey := "symbol:repoM:caller.go:Caller"
+	callEvidence := facts.Evidence{
+		Key: facts.EvidenceKey(callerFile.Key, 10, 18), FileKey: callerFile.Key,
+		Start: facts.Position{Line: 4, Offset: 10}, End: facts.Position{Line: 4, Offset: 18},
+	}
+
+	base := facts.Set{
+		Repositories: []facts.Repository{mutationFixtureRepository()},
+		Packages:     []facts.Package{mutationFixturePackage()},
+		Files:        []facts.File{editedFile, callerFile},
+		Symbols: []facts.Symbol{
+			mutationFixtureSymbol(survivorKey, editedFile, "Survivor"),
+			mutationFixtureSymbol(callerKey, callerFile, "Caller"),
+		},
+		Evidence: []facts.Evidence{callEvidence},
+		Edges: append(mutationContainmentEdges(editedFile, callerFile),
+			mutationDefinesEdge(editedFile, survivorKey),
+			mutationDefinesEdge(callerFile, callerKey),
+			facts.Edge{
+				Kind: facts.CallsDirect, SourceKey: callerKey, TargetKey: survivorKey,
+				Confidence: facts.ExactTypechecked, Provenance: facts.GoTypesUse, EvidenceKey: callEvidence.Key,
+			},
+		),
+	}
+	loadOptions := CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "v1"}
+	path := loadMutationFixture(t, ctx, base, loadOptions)
+
+	// The edit: same file, same symbol key, new content hash. caller.go is not
+	// named anywhere in the delta, because its own facts did not change.
+	editedFileV2 := mutationFixtureFile("edited.go", "edited-h2")
+	delta := facts.Delta{
+		ReplacedFiles: []string{editedFile.Key},
+		Upsert: facts.Set{
+			Repositories: []facts.Repository{mutationFixtureRepository()},
+			Packages:     []facts.Package{mutationFixturePackage()},
+			Files:        []facts.File{editedFileV2},
+			Symbols:      []facts.Symbol{mutationFixtureSymbol(survivorKey, editedFileV2, "Survivor")},
+			Edges:        []facts.Edge{mutationDefinesEdge(editedFileV2, survivorKey)},
+		},
+	}
+	applyOptions := CanonicalLoadOptions{SnapshotID: 2, ResolverVersion: "v2"}
+	if _, err := ApplyCanonicalDelta(ctx, path, delta, applyOptions); err != nil {
+		t.Fatalf("ApplyCanonicalDelta() error = %v", err)
+	}
+	requireCleanIntegrity(t, ctx, path)
+
+	final := base
+	final.Files = []facts.File{editedFileV2, callerFile}
+	freshPath := loadMutationFixture(t, ctx, final, applyOptions)
+
+	applied, err := ScanCanonical(ctx, path)
+	if err != nil {
+		t.Fatalf("ScanCanonical(applied) error = %v", err)
+	}
+	fresh, err := ScanCanonical(ctx, freshPath)
+	if err != nil {
+		t.Fatalf("ScanCanonical(fresh) error = %v", err)
+	}
+	// The graphs agree on content and disagree on one thing: a row nothing
+	// restated keeps the stamp of the snapshot that wrote it, while a clean
+	// load stamps everything with the new one. That is the honest record --
+	// the call really was observed in generation 1 and nothing re-observed it
+	// -- and nothing filters on the column: it is provenance, not identity.
+	// So an incremental graph is not byte-identical to a rebuild, and the
+	// difference is exactly this.
+	if diff := canonicalEdgeContent(applied); !reflect.DeepEqual(canonicalEdgeContent(fresh), diff) {
+		t.Fatalf("edge content differs from a fresh load:\napplied = %#v\nfresh   = %#v", diff, canonicalEdgeContent(fresh))
+	}
+	applied.Edges, fresh.Edges = nil, nil
+	if !reflect.DeepEqual(fresh, applied) {
+		t.Fatalf("the applied graph differs from a fresh load outside its edges:\napplied = %#v\nfresh   = %#v", applied, fresh)
+	}
+
+	surviving := canonicalEdge(t, path, "CALLS_DIRECT", callerKey, survivorKey)
+	if surviving.SourceSnapshot != 1 || surviving.ResolverVersion != "v1" {
+		t.Fatalf("the surviving call was re-stamped: %#v", surviving)
+	}
+	// A restated row is stamped exactly as a clean load stamps it, whatever
+	// that is for its table: the divergence above is confined to the rows
+	// nothing restated.
+	restated := canonicalEdge(t, path, "DEFINES", editedFileV2.Key, survivorKey)
+	if want := canonicalEdge(t, freshPath, "DEFINES", editedFileV2.Key, survivorKey); restated != want {
+		t.Fatalf("the restated definition differs from a clean load:\n applied = %#v\n fresh   = %#v", restated, want)
+	}
+}
+
+// canonicalEdgeContent is every edge without the per-row provenance stamp, so
+// two graphs can be compared on what they assert rather than on which pass
+// wrote each row.
+func canonicalEdgeContent(graph CanonicalGraph) []CanonicalEdge {
+	out := make([]CanonicalEdge, 0, len(graph.Edges))
+	for _, edge := range graph.Edges {
+		edge.SourceSnapshot = 0
+		edge.ResolverVersion = ""
+		out = append(out, edge)
+	}
+	return out
+}
+
+// canonicalEdge finds one edge by table and endpoints, and fails if the graph
+// does not hold exactly one.
+func canonicalEdge(t *testing.T, path, table, sourceKey, targetKey string) CanonicalEdge {
+	t.Helper()
+	graph, err := ScanCanonical(context.Background(), path)
+	if err != nil {
+		t.Fatalf("ScanCanonical() error = %v", err)
+	}
+	var found []CanonicalEdge
+	for _, edge := range graph.Edges {
+		if edge.Table == table && edge.SourceKey == sourceKey && edge.TargetKey == targetKey {
+			found = append(found, edge)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("%s %s -> %s: %d edges, want 1", table, sourceKey, targetKey, len(found))
+	}
+	return found[0]
+}

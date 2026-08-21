@@ -203,51 +203,83 @@ func removeFileAndItsFacts(set Set, fileKey string) Set {
 // independent implementation from Diff/edgeAnchor: it exists to catch a
 // Diff that computes the wrong thing, so it must not share Diff's
 // machinery.
+// applyDelta models retireCanonicalFiles followed by the upsert, which is what
+// ApplyCanonicalDelta does in one transaction. The model is only worth having if
+// it is exact about the one distinction the unit of a delta rests on: a fact
+// belongs to the file that ASSERTED it.
+//
+//   - The edges a retired file asserted are the ones leaving its symbols. They
+//     go, and the Upsert restates the ones that still exist.
+//   - A symbol the Upsert restates keeps its node, so the edges other files
+//     point at it are untouched. One it does not restate is deleted, and its
+//     edges have to go first, incoming ones included.
+//   - A REMOVED file loses its own node too, so the edges pointing at it go. A
+//     REPLACED file keeps it: the upsert writes over it.
+//   - An edge whose evidence is retired goes with it even when both endpoints
+//     survive. That is the package-dependency case: its ends are packages, so
+//     no symbol clause reaches it, and the observation is what a file asserted.
+//
+// Dropping an edge merely because its target sat in a replaced file is what
+// LUQUE-2002 was: editing one file deleted every edge pointing into it.
 func applyDelta(t *testing.T, previous Set, delta Delta) Set {
 	t.Helper()
-	retractedFiles := make(map[string]struct{}, len(delta.ReplacedFiles)+len(delta.RemovedFiles))
-	for _, key := range delta.ReplacedFiles {
-		retractedFiles[key] = struct{}{}
-	}
+	removedFiles := make(map[string]struct{}, len(delta.RemovedFiles))
 	for _, key := range delta.RemovedFiles {
-		retractedFiles[key] = struct{}{}
+		removedFiles[key] = struct{}{}
+	}
+	retiredFiles := make(map[string]struct{}, len(delta.ReplacedFiles)+len(delta.RemovedFiles))
+	for _, key := range delta.ReplacedFiles {
+		retiredFiles[key] = struct{}{}
+	}
+	for key := range removedFiles {
+		retiredFiles[key] = struct{}{}
+	}
+	restated := make(map[string]struct{}, len(delta.Upsert.Symbols))
+	for _, symbol := range delta.Upsert.Symbols {
+		restated[symbol.Key] = struct{}{}
 	}
 
-	retractedSymbols := make(map[string]struct{})
+	retiredSymbols := make(map[string]struct{})
+	doomedSymbols := make(map[string]struct{})
+	retiredEvidence := make(map[string]struct{})
 	result := Set{
 		Repositories: append([]Repository(nil), previous.Repositories...),
 		Packages:     append([]Package(nil), previous.Packages...),
 	}
 	for _, file := range previous.Files {
-		if _, gone := retractedFiles[file.Key]; !gone {
+		if _, gone := retiredFiles[file.Key]; !gone {
 			result.Files = append(result.Files, file)
 		}
 	}
 	for _, symbol := range previous.Symbols {
-		if _, gone := retractedFiles[symbol.FileKey]; gone {
-			retractedSymbols[symbol.Key] = struct{}{}
+		if _, gone := retiredFiles[symbol.FileKey]; !gone {
+			result.Symbols = append(result.Symbols, symbol)
 			continue
 		}
-		result.Symbols = append(result.Symbols, symbol)
+		retiredSymbols[symbol.Key] = struct{}{}
+		if _, survives := restated[symbol.Key]; !survives {
+			doomedSymbols[symbol.Key] = struct{}{}
+		}
+		// Either way the previous copy is dropped here: a survivor comes back
+		// from the Upsert with its current values, which is what an upsert
+		// writing over the node means.
 	}
 	for _, entry := range previous.Evidence {
-		if _, gone := retractedFiles[entry.FileKey]; !gone {
-			result.Evidence = append(result.Evidence, entry)
+		if _, gone := retiredFiles[entry.FileKey]; gone {
+			retiredEvidence[entry.Key] = struct{}{}
+			continue
 		}
+		result.Evidence = append(result.Evidence, entry)
 	}
 	for _, edge := range previous.Edges {
-		_, sourceFileGone := retractedFiles[edge.SourceKey]
-		_, targetFileGone := retractedFiles[edge.TargetKey]
-		_, sourceSymbolGone := retractedSymbols[edge.SourceKey]
-		_, targetSymbolGone := retractedSymbols[edge.TargetKey]
-		if sourceFileGone || targetFileGone || sourceSymbolGone || targetSymbolGone {
+		if edgeRetired(edge, removedFiles, retiredSymbols, doomedSymbols, retiredEvidence) {
 			continue
 		}
 		result.Edges = append(result.Edges, edge)
 	}
 	for _, entry := range previous.Unresolved {
 		if entry.FileKey != "" {
-			if _, gone := retractedFiles[entry.FileKey]; gone {
+			if _, gone := retiredFiles[entry.FileKey]; gone {
 				continue
 			}
 		}
@@ -256,6 +288,28 @@ func applyDelta(t *testing.T, previous Set, delta Delta) Set {
 
 	result.Merge(delta.Upsert)
 	return result
+}
+
+// edgeRetired reports whether retirement withdraws edge. See applyDelta for the
+// four clauses and why they are not one.
+func edgeRetired(edge Edge, removedFiles, retiredSymbols, doomedSymbols, retiredEvidence map[string]struct{}) bool {
+	if _, asserted := retiredSymbols[edge.SourceKey]; asserted {
+		return true
+	}
+	if edge.EvidenceKey != "" {
+		if _, observed := retiredEvidence[edge.EvidenceKey]; observed {
+			return true
+		}
+	}
+	for _, key := range [2]string{edge.SourceKey, edge.TargetKey} {
+		if _, gone := removedFiles[key]; gone {
+			return true
+		}
+		if _, gone := doomedSymbols[key]; gone {
+			return true
+		}
+	}
+	return false
 }
 
 // assertSetsEqual compares two sets field by field, treating an empty

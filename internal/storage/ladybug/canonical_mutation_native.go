@@ -125,7 +125,7 @@ func ApplyCanonicalDelta(ctx context.Context, path string, delta facts.Delta, op
 		}
 	}()
 
-	retirement, err := retireCanonicalFiles(ctx, native, delta.ReplacedFiles, delta.RemovedFiles)
+	retirement, err := retireCanonicalFiles(ctx, native, delta.ReplacedFiles, delta.RemovedFiles, restatedSymbolKeys(delta.Upsert))
 	if err != nil {
 		return CanonicalMutationResult{}, wrapCanonicalMutationError("apply canonical delta", err)
 	}
@@ -181,7 +181,24 @@ func requireCanonicalSchemaVersion(metadata map[string]string) error {
 // the single CONTAINS_FILE edge it already had, and applyCanonicalUpsert's
 // generic node upsert rewrites the File row in place if Upsert.Files brings
 // one for the same key, leaving it untouched otherwise.
-func retireCanonicalFiles(ctx context.Context, native *lbug.Connection, replacedFiles, removedFiles []string) (CanonicalMutationResult, error) {
+// retireCanonicalFiles withdraws what the retired files asserted, and only
+// that. The distinction the unit of a delta rests on is which file ASSERTED a
+// fact, not which files a fact happens to touch: an edge from another file into
+// a symbol here belongs to that other file, and retiring this one must leave it
+// alone.
+//
+// restated names the symbols the Upsert asserts again. A symbol on that list
+// survives the retirement -- the upsert updates it in place -- so every edge
+// pointing at it survives too. A symbol absent from it is gone for good, and its
+// edges have to go before the node can be deleted at all.
+//
+// Deleting every symbol of a replaced file was what lost them. Growing one
+// method body by a line replaced its file, deleted its symbols to recreate them
+// under the same stable keys, and took every incoming edge with them: on the
+// `type-relations` fixture, all six from another package. See LUQUE-2002.
+func retireCanonicalFiles(
+	ctx context.Context, native *lbug.Connection, replacedFiles, removedFiles []string, restated map[string]struct{},
+) (CanonicalMutationResult, error) {
 	var result CanonicalMutationResult
 	retired := make([]string, 0, len(replacedFiles)+len(removedFiles))
 	retired = append(retired, replacedFiles...)
@@ -203,11 +220,28 @@ func retireCanonicalFiles(ctx context.Context, native *lbug.Connection, replaced
 		return CanonicalMutationResult{}, fmt.Errorf("find retired unresolved references: %w", err)
 	}
 
-	// Every edge touching a withdrawn symbol/evidence/unresolved reference
-	// is removed before the node itself: LadybugDB, like the old synthetic
-	// schema's writer, requires a node's edges gone before the node can be
-	// deleted.
-	for _, keys := range [][]string{symbolKeys, evidenceKeys, unresolvedKeys} {
+	// A symbol the Upsert restates keeps its node and therefore its incoming
+	// edges; one it does not is deleted, and LadybugDB requires a node's
+	// edges gone before the node can be deleted at all.
+	doomedSymbols := make([]string, 0, len(symbolKeys))
+	for _, key := range symbolKeys {
+		if _, survives := restated[key]; !survives {
+			doomedSymbols = append(doomedSymbols, key)
+		}
+	}
+
+	// What the retired files asserted: the edges leaving their symbols. The
+	// upsert restates the ones that still exist.
+	assertedCount, err := deleteCanonicalEdgesAssertedBy(ctx, native, symbolKeys)
+	if err != nil {
+		return CanonicalMutationResult{}, fmt.Errorf("retire asserted edges: %w", err)
+	}
+	result.RemovedEdges += assertedCount
+
+	// What has to go so a node can be deleted, which is only the doomed ones.
+	// Evidence and unresolved references are always deleted -- an evidence key
+	// embeds its offsets, so every one of them moves when a file changes.
+	for _, keys := range [][]string{doomedSymbols, evidenceKeys, unresolvedKeys} {
 		count, err := deleteCanonicalEdgesTouching(ctx, native, keys)
 		if err != nil {
 			return CanonicalMutationResult{}, fmt.Errorf("retire anchored edges: %w", err)
@@ -223,8 +257,8 @@ func retireCanonicalFiles(ctx context.Context, native *lbug.Connection, replaced
 	}
 	result.RemovedEdges += evidencedCount
 
-	if len(symbolKeys) > 0 {
-		count, err := canonicalMutationCount(ctx, native, deleteCanonicalSymbolsQuery, map[string]any{"keys": symbolKeys})
+	if len(doomedSymbols) > 0 {
+		count, err := canonicalMutationCount(ctx, native, deleteCanonicalSymbolsQuery, map[string]any{"keys": doomedSymbols})
 		if err != nil {
 			return CanonicalMutationResult{}, fmt.Errorf("delete retired symbols: %w", err)
 		}
@@ -663,4 +697,37 @@ func wrapCanonicalMutationError(op string, err error) error {
 		return err
 	}
 	return &Error{Op: op, Err: err}
+}
+
+// deleteCanonicalEdgesAssertedBy removes the edges whose source is one of keys.
+// It is deleteCanonicalEdgesTouching without the target half, and the two are
+// separate because they answer different questions: what a file asserted, and
+// what has to be cleared before a node can be deleted.
+func deleteCanonicalEdgesAssertedBy(ctx context.Context, native *lbug.Connection, keys []string) (int64, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	var total int64
+	for _, table := range CanonicalRelationshipTables() {
+		query := fmt.Sprintf(`MATCH (source:%s)-[edge:%s]->(target:%s)
+WHERE source.stable_key IN $keys
+DELETE edge
+RETURN count(*)`, table.From, table.Name, table.To)
+		count, err := canonicalMutationCount(ctx, native, query, map[string]any{"keys": keys})
+		if err != nil {
+			return 0, fmt.Errorf("delete %s: %w", table.Name, err)
+		}
+		total += count
+	}
+	return total, nil
+}
+
+// restatedSymbolKeys is the set of symbols an Upsert asserts, which is what
+// tells a replaced file's surviving declarations from its withdrawn ones.
+func restatedSymbolKeys(upsert facts.Set) map[string]struct{} {
+	keys := make(map[string]struct{}, len(upsert.Symbols))
+	for _, symbol := range upsert.Symbols {
+		keys[symbol.Key] = struct{}{}
+	}
+	return keys
 }

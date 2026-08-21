@@ -15008,6 +15008,8 @@ make build                       0.5.1
 
 ## LUQUE-2002 — Un fichero reemplazado no debe perder lo que otros le apuntan
 
+**Estado:** cerrada por el ADR 0056.
+
 **Dependencias:** LUQUE-1007.
 
 **Objetivo:** que un delta incremental produzca el mismo grafo que una

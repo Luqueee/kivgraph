@@ -26,6 +26,32 @@ import (
 // fails it as loudly as one that leaves a stale fact behind.
 func TestDiffOverARealEditReproducesACleanLoad(t *testing.T) {
 	for name, edit := range map[string]func(t *testing.T, root string){
+		// The subject keeps its identity and its body changes, so every
+		// evidence key in the file moves while every stable key must not.
+		//
+		// This is the LUQUE-2002 regression. Growing this body replaces
+		// geometry.go and nothing else, and the six edges from `units/` into
+		// it are anchored on `units/` files whose own facts did not change --
+		// so nothing restates them. Retirement used to delete every edge
+		// touching a replaced file's symbols, incoming ones included, and all
+		// six went. ADR 0056 narrowed it: a symbol the Upsert restates keeps
+		// its node, so those edges are never deleted to begin with.
+		"a body grows a line": func(t *testing.T, root string) {
+			rewrite(t, filepath.Join(root, "geometry.go"),
+				"func (circle Circle) Area() float64 { return 3.14159 * circle.Radius * circle.Radius }",
+				"func (circle Circle) Area() float64 {\n\treturn 3.14159 * circle.Radius * circle.Radius\n}")
+		},
+		// The other direction: a symbol really does disappear, so the edges
+		// into it must go -- and the files that used it are replaced too,
+		// because their own fact sets shrank.
+		"a function other packages use disappears": func(t *testing.T, root string) {
+			rewrite(t, filepath.Join(root, "geometry.go"),
+				"func Measure(shape Shape) float64 { return shape.Area() }", "")
+			rewrite(t, filepath.Join(root, "units", "handlers.go"),
+				"var measurer = geometry.Measure", "var measurer = func(geometry.Shape) float64 { return 0 }")
+			rewrite(t, filepath.Join(root, "units", "handlers.go"),
+				"\treturn geometry.Measure\n", "\treturn measurer\n")
+		},
 		// A file appears, in a package that already exists.
 		"a new file joins an existing package": func(t *testing.T, root string) {
 			write(t, filepath.Join(root, "extra.go"),
@@ -114,50 +140,4 @@ func write(t *testing.T, path, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
-}
-
-// TestDiffRestatesEdgesIntoAReplacedFile is a known defect, reproduced rather
-// than described. It is skipped because it fails, and it will pass the moment
-// the defect is fixed -- on whichever side the fix lands.
-//
-// Editing one file loses every edge pointing into it from another file.
-//
-// Growing one method body in `geometry.go` by a line replaces that file and
-// nothing else: the six edges from `units/` into it are anchored on `units/`
-// files, whose own facts did not change, so Diff does not restate them. But
-// retirement withdraws "every edge anchored on any of those, incoming and
-// outgoing" (ApplyCanonicalDelta), so the applier deletes all six and nothing
-// puts them back. Every caller in another package stops pointing at the file
-// that was edited.
-//
-// Diff's own comment reasons about the neighbouring case -- a target that
-// vanished, where the source file's fragment shrinks and is therefore restated
-// -- and stops one short of a target that merely moved inside a replaced file.
-//
-// The fix does not belong here. Restating those edges from Diff pulls their
-// whole anchor file into the delta, because Delta.Validate requires a
-// self-consistent fragment; that file's own incoming edges are then retracted
-// too, and the restatement cascades with no bound in sight. Narrowing
-// retirement to the symbols that actually disappeared -- rather than to every
-// symbol of a replaced file -- keeps the unit of a delta the file, which is what
-// AGENTS.md says it is: a fact belongs to the file that ASSERTED it, and
-// `units/handlers.go` asserted this one. That is a change to the canonical
-// mutation contract and wants an ADR.
-func TestDiffRestatesEdgesIntoAReplacedFile(t *testing.T) {
-	t.Skip("known defect: a replaced file loses the edges other files point into it; needs an ADR on retirement scope")
-
-	root := workingCopy(t, filepath.Join("..", "..", "testdata", "go", "type-relations"))
-	repositories := []workspace.Repository{{Name: "type-relations", Path: root, RealPath: root}}
-
-	before, _ := normalizeRepositories(t, repositories, "type-relations")
-	rewrite(t, filepath.Join(root, "geometry.go"),
-		"func (circle Circle) Area() float64 { return 3.14159 * circle.Radius * circle.Radius }",
-		"func (circle Circle) Area() float64 {\n\treturn 3.14159 * circle.Radius * circle.Radius\n}")
-	after, _ := normalizeRepositories(t, repositories, "type-relations")
-
-	delta, err := Diff(before, after)
-	if err != nil {
-		t.Fatalf("Diff() error = %v", err)
-	}
-	assertSetsEqual(t, applyDelta(t, before, delta), after)
 }

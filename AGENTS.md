@@ -162,8 +162,16 @@ no una fila medida.
   rebuild o migración documentada; nunca se modifica una base existente en
   silencio.
 - En un delta incremental, todo hecho afirmado por un archivo se retira y se
-  vuelve a afirmar junto con ese archivo. Las aristas de paquete también se
-  retiran por su evidencia aunque sobrevivan sus dos extremos.
+  vuelve a afirmar junto con ese archivo. Lo que un archivo afirma son las
+  aristas que **salen** de sus símbolos: una arista que otro archivo le apunta la
+  afirmó ese otro, y retirar este no la toca. Un símbolo que el `Upsert` vuelve a
+  afirmar conserva su nodo por eso mismo; uno que no, se va con sus aristas,
+  entrantes incluidas. Las aristas de paquete también se retiran por su
+  evidencia aunque sobrevivan sus dos extremos. Ver ADR 0056.
+- Un grafo incremental **no es idéntico byte a byte** a una reconstrucción
+  limpia: una fila que nadie restableció conserva el `source_snapshot` y el
+  `resolver_version` de la generación que la observó. Es procedencia y ninguna
+  consulta filtra por ella; lo que sí debe coincidir es el contenido.
 - Cada `UNRESOLVED` conserva motivo, repositorio y lenguaje; cuando existe una
   ocurrencia concreta conserva su archivo, posición y detalle observados.
   Los fallos de módulo a nivel de repositorio pueden no tener archivo y nunca
