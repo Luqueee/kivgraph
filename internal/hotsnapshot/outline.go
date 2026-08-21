@@ -60,11 +60,22 @@ func (snapshot *GraphSnapshot) internedPath(path string) InternedString {
 	return id
 }
 
+// SymbolKindFilter decides which symbols a page is about. Nil keeps every one.
+type SymbolKindFilter func(kind string) bool
+
 // SearchSymbolsInFiles returns the symbols declared in any of files, in
 // snapshot order. It is one walk over the symbol table, the same cost as a
 // name search, so an outline of a whole directory costs no more than an
 // outline of one file.
-func (snapshot *GraphSnapshot) SearchSymbolsInFiles(files []FileID, offset, limit int) (SymbolPage, error) {
+//
+// keep is applied on that same walk, before paging, so the page's Total and
+// its rows describe one set. Filtering after paging instead reported a file as
+// twice its size -- every enum variant and struct field counted in the total
+// and then dropped from the answer -- with Truncated false and no cursor, so
+// the half a reader went looking for had never existed.
+func (snapshot *GraphSnapshot) SearchSymbolsInFiles(
+	files []FileID, offset, limit int, keep SymbolKindFilter,
+) (SymbolPage, error) {
 	if offset < 0 {
 		return SymbolPage{}, ErrInvalidExactOffset
 	}
@@ -80,9 +91,16 @@ func (snapshot *GraphSnapshot) SearchSymbolsInFiles(files []FileID, offset, limi
 	}
 	ids := make([]SymbolID, 0)
 	for index, symbol := range snapshot.symbols {
-		if _, found := wanted[symbol.File]; found {
-			ids = append(ids, SymbolID(index))
+		if _, found := wanted[symbol.File]; !found {
+			continue
 		}
+		if keep != nil {
+			kind, ok := snapshot.strings.String(symbol.Kind)
+			if !ok || !keep(kind) {
+				continue
+			}
+		}
+		ids = append(ids, SymbolID(index))
 	}
 	return exactSymbolPage(ids, offset, limit)
 }

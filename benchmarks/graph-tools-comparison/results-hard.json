@@ -1,0 +1,2079 @@
+{
+  "benchmark": "graph-tools-comparison",
+  "generated_at": "2026-08-21T17:04:48.306903Z",
+  "commit": "6c7a789",
+  "tokenizer": "o200k_base",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "Darwin"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "code_files": 0
+  },
+  "versions": {
+    "code-review-graph": "code-review-graph 2.3.7",
+    "codebase-memory": "codebase-memory-mcp 0.8.1",
+    "graft": "0.10.1",
+    "graphify": "graphify 0.8.31",
+    "kivgraph": "0.3.6"
+  },
+  "isolation": {
+    "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
+    "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
+    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "kivgraph": "isolated HOME at /private/tmp/kivhome-hard; the published generation and the registry live there",
+    "native": "reads only; nothing is written"
+  },
+  "indexing": {
+    "code-review-graph": {
+      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
+      "ms": 11217.891,
+      "scope": "one graph per repository; built the 6 the questions name, not all 37",
+      "state_bytes": 230200148,
+      "needs": "nothing beyond the binary"
+    },
+    "codebase-memory": {
+      "command": "codebase-memory-mcp cli index_repository",
+      "ms": 5729.532,
+      "scope": "the whole corpus, 37 repositories",
+      "state_bytes": 220659712,
+      "needs": "nothing beyond the binary"
+    },
+    "graft": {
+      "command": "graft build",
+      "ms": 27671.658,
+      "scope": "the whole corpus, 37 repositories",
+      "state_bytes": 180543394,
+      "needs": "nothing: the structural tier needs no key and no toolchain"
+    },
+    "graphify": {
+      "command": "graphify update \u003cr\u003e",
+      "ms": 15137.626,
+      "scope": "one graph per repository; built the 6 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
+      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
+    },
+    "kivgraph": {
+      "command": "kivgraph index --full",
+      "ms": 63983.402,
+      "scope": "the whole corpus, 37 repositories, 126720 symbols published",
+      "state_bytes": 1606799425,
+      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
+    },
+    "native": {
+      "command": "none",
+      "ms": 0,
+      "scope": "nothing is indexed",
+      "needs": "nothing"
+    }
+  },
+  "question_set": "hard",
+  "questions": [
+    {
+      "id": "H1_go_method",
+      "family": "references",
+      "question": "Which files reference the GetAll declared on BotsHandler in services/api-db-go?",
+      "ground_truth": [
+        "services/api-db-go/internal/application/routers/bots_router.go"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 852,
+              "ms": 124.512
+            },
+            {
+              "tool": "code-review-graph query",
+              "tokens": 139,
+              "ms": 125.315
+            }
+          ],
+          "tokens": 991,
+          "ms": 249.827,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/routers/bots_router.go"
+            ],
+            "spurious": []
+          },
+          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside api-db-go was never in the graph this query read",
+          "ambiguous_declarations": 3
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 6828,
+              "ms": 10.393
+            },
+            {
+              "tool": "search_graph",
+              "tokens": 580,
+              "ms": 10.02
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 19,
+              "ms": 0.386
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 34,
+              "ms": 536.278
+            }
+          ],
+          "tokens": 7461,
+          "ms": 557.077,
+          "call_count": 4,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/routers/bots_router.go"
+            ],
+            "spurious": []
+          },
+          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS.",
+          "ambiguous_declarations": 15
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 3176,
+              "ms": 346.211
+            }
+          ],
+          "tokens": 3176,
+          "ms": 346.211,
+          "call_count": 1,
+          "claimed": [
+            "library-lavalink:src/player/Queue.ts",
+            "library-lavalink:src/player/Queue.ts",
+            "library-lavalink:src/player/Queue.ts",
+            "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts",
+            "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
+            "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
+            "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
+            "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
+            "gateway:src/grpc/manager/command/SlashCommandRegistry.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
+              "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
+              "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
+              "gateway:src/grpc/manager/command/SlashCommandRegistry.ts",
+              "library-lavalink:src/player/Queue.ts",
+              "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts"
+            ],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/routers/bots_router.go"
+            ],
+            "spurious": [
+              "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
+              "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
+              "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
+              "gateway:src/grpc/manager/command/SlashCommandRegistry.ts",
+              "library-lavalink:src/player/Queue.ts",
+              "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts"
+            ]
+          },
+          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
+          "ambiguous_declarations": 15
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 8,
+              "ms": 159.272
+            },
+            {
+              "tool": "graphify affected",
+              "tokens": 12,
+              "ms": 165.874
+            },
+            {
+              "tool": "graphify query",
+              "tokens": 1630,
+              "ms": 177.443
+            }
+          ],
+          "tokens": 1650,
+          "ms": 502.58899999999994,
+          "call_count": 3,
+          "claimed": [
+            "api-db-go:cmd/server/main.go",
+            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
+            "api-db-go:internal/application/handlers/capture_errors.go",
+            "api-db-go:internal/domain/errors/mongo_error.go",
+            "api-db-go:internal/domain/errors/not_found.go",
+            "api-db-go:internal/application/handlers/bots_mock_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/domain/validations/bot_validations.go",
+            "api-db-go:internal/application/routers/bots_router.go",
+            "api-db-go:internal/domain/errors/unknown_error.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/domain/validations/bot_validations.go",
+            "api-db-go:internal/application/routers/bots_router.go",
+            "api-db-go:internal/application/routers/bots_router.go",
+            "api-db-go:internal/application/routers/bots_router.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
+              "api-db-go:internal/application/handlers/bots_mock_test.go",
+              "api-db-go:internal/application/handlers/capture_errors.go",
+              "api-db-go:internal/application/routers/bots_router.go",
+              "api-db-go:internal/application/routers/routers_test.go",
+              "api-db-go:internal/domain/errors/mongo_error.go",
+              "api-db-go:internal/domain/errors/not_found.go",
+              "api-db-go:internal/domain/errors/unknown_error.go",
+              "api-db-go:internal/domain/validations/bot_validations.go"
+            ],
+            "precision": 0.1,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
+              "api-db-go:internal/application/handlers/bots_mock_test.go",
+              "api-db-go:internal/application/handlers/capture_errors.go",
+              "api-db-go:internal/application/routers/routers_test.go",
+              "api-db-go:internal/domain/errors/mongo_error.go",
+              "api-db-go:internal/domain/errors/not_found.go",
+              "api-db-go:internal/domain/errors/unknown_error.go",
+              "api-db-go:internal/domain/validations/bot_validations.go"
+            ]
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"GetAll\"` refused with `No unique node match`, naming none of the 46 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `handlers_bots_handler_getall`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood seeded by label matching that crosses homonyms and mixes callers with callees",
+          "ambiguous_declarations": 46
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 72,
+              "ms": 0.258,
+              "failed": true,
+              "error": "AMBIGUOUS_SYMBOL: name \"GetAll\" declares 3 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/application/handlers/premium_handler.go:47, api-db-go:internal/application/handlers/bots_handler.go:47, api-db-go:internal/application/handlers/command_handler.go:33"
+            },
+            {
+              "tool": "find_references",
+              "tokens": 124,
+              "ms": 0.159
+            }
+          ],
+          "tokens": 196,
+          "ms": 0.41700000000000004,
+          "call_count": 2,
+          "claimed": [
+            "api-db-go:internal/application/routers/bots_router.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/routers/bots_router.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "ambiguous_declarations": 3
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 262,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 2405,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1836,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 4680,
+              "ms": 0
+            }
+          ],
+          "tokens": 9183,
+          "ms": 0,
+          "call_count": 4,
+          "claimed": [
+            "api-db-go:internal/application/routers/bots_router.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/routers/bots_router.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 3 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "H2_go_iface",
+      "family": "references",
+      "question": "Which files call the FindPendingGuilds implemented by NotifierSubRepository in services/api-db-go?",
+      "ground_truth": [
+        "services/api-db-go/internal/application/handlers/guilds_handler.go"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 419,
+              "ms": 117.405
+            }
+          ],
+          "tokens": 419,
+          "ms": 117.405,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/application/handlers/guilds_handler.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 1031,
+              "ms": 8.706
+            },
+            {
+              "tool": "search_graph",
+              "tokens": 613,
+              "ms": 9.852
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 65,
+              "ms": 0.284
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 34,
+              "ms": 477.529
+            }
+          ],
+          "tokens": 1743,
+          "ms": 496.371,
+          "call_count": 4,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          },
+          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
+          "ambiguous_declarations": 3
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 199,
+              "ms": 254.127
+            }
+          ],
+          "tokens": 199,
+          "ms": 254.127,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 98,
+              "ms": 147.014
+            }
+          ],
+          "tokens": 98,
+          "ms": 147.014,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 61,
+              "ms": 0.359,
+              "failed": true,
+              "error": "AMBIGUOUS_SYMBOL: name \"FindPendingGuilds\" declares 2 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go:182, api-db-go:internal/infrastructure/pgrepo/repos.go:329"
+            },
+            {
+              "tool": "find_references",
+              "tokens": 115,
+              "ms": 0.142
+            }
+          ],
+          "tokens": 176,
+          "ms": 0.501,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          },
+          "ambiguous_declarations": 2
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 254,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 5693,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 2432,
+              "ms": 0
+            }
+          ],
+          "tokens": 8379,
+          "ms": 0,
+          "call_count": 3,
+          "claimed": [
+            "api-db-go:internal/application/handlers/guilds_handler.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 2 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "H3_ts_type",
+      "family": "references",
+      "question": "Which files use the ApiRuntimeState declared in libraries/library-shared/src/types/gateway-registry.ts?",
+      "ground_truth": [
+        "libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+        "packages/gateway/src/grpc/manager/RegistryGrpcManager.ts"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 1235,
+              "ms": 130.184
+            }
+          ],
+          "tokens": 1235,
+          "ms": 130.184,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts",
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            ],
+            "spurious": []
+          },
+          "note": "refused between 4 declarations and named none in src/types/gateway-registry.ts",
+          "ambiguous_declarations": 4
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 105,
+              "ms": 10.507
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 20,
+              "ms": 0.183
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 34,
+              "ms": 469.957
+            }
+          ],
+          "tokens": 159,
+          "ms": 480.647,
+          "call_count": 3,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts",
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            ],
+            "spurious": []
+          },
+          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 186,
+              "ms": 266.764
+            }
+          ],
+          "tokens": 186,
+          "ms": 266.764,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts",
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            ],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 262,
+              "ms": 118.601
+            }
+          ],
+          "tokens": 262,
+          "ms": 118.601,
+          "call_count": 1,
+          "claimed": [
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "library-shared:src/redis/cache/base-cache.ts",
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            ],
+            "precision": 0.5,
+            "recall": 0.5,
+            "missing": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts"
+            ],
+            "spurious": [
+              "library-shared:src/redis/cache/base-cache.ts"
+            ]
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; 1 of 2 truth files are outside library-shared and no per-repository graph can hold them; graphify's cross-repository path is `global add`/`merge-graphs`, which this arm does not build"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 220,
+              "ms": 0.302
+            }
+          ],
+          "tokens": 220,
+          "ms": 0.302,
+          "call_count": 1,
+          "claimed": [
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            ],
+            "precision": 1,
+            "recall": 0.5,
+            "missing": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts"
+            ],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 455,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 281,
+              "ms": 0
+            }
+          ],
+          "tokens": 736,
+          "ms": 0,
+          "call_count": 2,
+          "claimed": [
+            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "gateway:src/grpc/manager/RegistryGrpcManager.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "gateway:src/grpc/manager/RegistryGrpcManager.ts",
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 1 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "H4_ts_alias",
+      "family": "references",
+      "question": "Which files use the CommandManager declared in modules/sdk-module-ts/src/sdk/managers/CommandManager.ts?",
+      "ground_truth": [
+        "modules/sdk-module-ts/src/sdk/client/ModuleActions.ts"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 2174,
+              "ms": 117.545
+            },
+            {
+              "tool": "code-review-graph query",
+              "tokens": 135,
+              "ms": 117.899
+            }
+          ],
+          "tokens": 2309,
+          "ms": 235.44400000000002,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+            ],
+            "spurious": []
+          },
+          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside sdk-module-ts was never in the graph this query read",
+          "ambiguous_declarations": 8
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 104,
+              "ms": 9.962
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 57,
+              "ms": 0.285
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 26,
+              "ms": 482.072
+            }
+          ],
+          "tokens": 187,
+          "ms": 492.319,
+          "call_count": 3,
+          "claimed": [
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 202,
+              "ms": 251.496
+            }
+          ],
+          "tokens": 202,
+          "ms": 251.496,
+          "call_count": 1,
+          "claimed": [
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 179,
+              "ms": 103.068
+            }
+          ],
+          "tokens": 179,
+          "ms": 103.068,
+          "call_count": 1,
+          "claimed": [
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts",
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts",
+            "sdk-module-ts:src/__tests__/structures/Interaction.test.ts",
+            "sdk-module-ts:src/sdk/client/EntityFactory.ts",
+            "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "sdk-module-ts:src/sdk/client/EntityFactory.ts",
+            "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "sdk-module-ts:src/sdk/client/KenaModule.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "sdk-module-ts:src/__tests__/structures/Interaction.test.ts",
+              "sdk-module-ts:src/sdk/client/EntityFactory.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts",
+              "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+            ],
+            "precision": 0.25,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              "sdk-module-ts:src/__tests__/structures/Interaction.test.ts",
+              "sdk-module-ts:src/sdk/client/EntityFactory.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+            ]
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 132,
+              "ms": 0.262
+            }
+          ],
+          "tokens": 132,
+          "ms": 0.262,
+          "call_count": 1,
+          "claimed": [
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts",
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 138,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 395,
+              "ms": 0
+            }
+          ],
+          "tokens": 533,
+          "ms": 0,
+          "call_count": 2,
+          "claimed": [
+            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "sdk-module-ts:src/sdk/client/ModuleActions.ts"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 1 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "H5_rs_trait",
+      "family": "references",
+      "question": "Which files call the delete_player implemented by MemoryStateStore in services/kenalink-rs?",
+      "ground_truth": [
+        "services/kenalink-rs/src/api_rest/routes_players.rs",
+        "services/kenalink-rs/src/api_ws/mod.rs",
+        "services/kenalink-rs/src/main.rs"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 1118,
+              "ms": 119.041
+            },
+            {
+              "tool": "code-review-graph query",
+              "tokens": 385,
+              "ms": 117.846
+            }
+          ],
+          "tokens": 1503,
+          "ms": 236.887,
+          "call_count": 2,
+          "claimed": [
+            "kenalink-rs:src/api_rest/routes_players.rs"
+          ],
+          "score": {
+            "claimed_set": [
+              "kenalink-rs:src/api_rest/routes_players.rs"
+            ],
+            "precision": 1,
+            "recall": 0.3333333333333333,
+            "missing": [
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": []
+          },
+          "ambiguous_declarations": 4
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 1000,
+              "ms": 10.031
+            },
+            {
+              "tool": "search_graph",
+              "tokens": 215,
+              "ms": 9.632
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 98,
+              "ms": 0.316
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 37,
+              "ms": 481.353
+            }
+          ],
+          "tokens": 1350,
+          "ms": 501.332,
+          "call_count": 4,
+          "claimed": [
+            "kenalink-rs:src/main.rs",
+            "kenalink-rs:src/api_ws/mod.rs"
+          ],
+          "score": {
+            "claimed_set": [
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "precision": 1,
+            "recall": 0.6666666666666666,
+            "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs"
+            ],
+            "spurious": []
+          },
+          "note": "trace_path named 2 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
+          "ambiguous_declarations": 3
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 834,
+              "ms": 258.756
+            }
+          ],
+          "tokens": 834,
+          "ms": 258.756,
+          "call_count": 1,
+          "claimed": [
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs"
+          ],
+          "score": {
+            "claimed_set": [
+              "kenalink-rs:src/api_rest/routes_players.rs"
+            ],
+            "precision": 1,
+            "recall": 0.3333333333333333,
+            "missing": [
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": []
+          },
+          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
+          "ambiguous_declarations": 3
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 8,
+              "ms": 103.204
+            },
+            {
+              "tool": "graphify affected",
+              "tokens": 10,
+              "ms": 101.099
+            },
+            {
+              "tool": "graphify query",
+              "tokens": 1341,
+              "ms": 117.299
+            }
+          ],
+          "tokens": 1359,
+          "ms": 321.602,
+          "call_count": 3,
+          "claimed": [
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:vendor/songbird/src/handler.rs"
+          ],
+          "score": {
+            "claimed_set": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:vendor/songbird/src/handler.rs"
+            ],
+            "precision": 0.5,
+            "recall": 0.3333333333333333,
+            "missing": [
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": [
+              "kenalink-rs:vendor/songbird/src/handler.rs"
+            ]
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"delete_player\"` refused with `No unique node match`, naming none of the 3 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `state_memory_delete_player`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood seeded by label matching that crosses homonyms and mixes callers with callees",
+          "ambiguous_declarations": 3
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 54,
+              "ms": 0.236,
+              "failed": true,
+              "error": "AMBIGUOUS_SYMBOL: name \"delete_player\" declares 2 symbols; repeat with the repository and path of the one you mean: kenalink-rs:src/api_rest/routes_players.rs:393, kenalink-rs:src/state/memory.rs:84"
+            },
+            {
+              "tool": "find_references",
+              "tokens": 119,
+              "ms": 0.151
+            }
+          ],
+          "tokens": 173,
+          "ms": 0.387,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": []
+          },
+          "ambiguous_declarations": 2
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 534,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 15575,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 4963,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 944,
+              "ms": 0
+            }
+          ],
+          "tokens": 22016,
+          "ms": 0,
+          "call_count": 4,
+          "claimed": [
+            "kenalink-rs:src/api_rest/routes_players.rs",
+            "kenalink-rs:src/api_ws/mod.rs",
+            "kenalink-rs:src/main.rs"
+          ],
+          "score": {
+            "claimed_set": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 3 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "A1_go_absent",
+      "family": "references",
+      "question": "Which files reference the BenchmarkDeserializeValueDate declared in services/api-db-go?",
+      "ground_truth": [],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 145,
+              "ms": 117.519
+            }
+          ],
+          "tokens": 145,
+          "ms": 117.519,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside api-db-go was never in the graph this query read"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 537,
+              "ms": 9.123
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 21,
+              "ms": 0.206
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 34,
+              "ms": 473.804
+            }
+          ],
+          "tokens": 592,
+          "ms": 483.133,
+          "call_count": 3,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 198,
+              "ms": 251.926
+            }
+          ],
+          "tokens": 198,
+          "ms": 251.926,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 515,
+              "ms": 148.928
+            }
+          ],
+          "tokens": 515,
+          "ms": 148.928,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/infrastructure/redis/serialization.go",
+            "api-db-go:internal/domain/dbguild/config_override.go",
+            "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
+            "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
+            "api-db-go:internal/infrastructure/redis/bot_cache.go",
+            "api-db-go:internal/infrastructure/redis/command_cache.go",
+            "api-db-go:internal/infrastructure/redis/global_cache.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
+            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
+            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
+            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
+            "api-db-go:internal/infrastructure/redis/module_cache.go",
+            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "api-db-go:internal/infrastructure/redis/premium_cache.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/domain/dbguild/config_override.go",
+              "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
+              "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
+              "api-db-go:internal/infrastructure/redis/bot_cache.go",
+              "api-db-go:internal/infrastructure/redis/command_cache.go",
+              "api-db-go:internal/infrastructure/redis/global_cache.go",
+              "api-db-go:internal/infrastructure/redis/guild_cache.go",
+              "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
+              "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
+              "api-db-go:internal/infrastructure/redis/module_cache.go",
+              "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
+              "api-db-go:internal/infrastructure/redis/premium_cache.go",
+              "api-db-go:internal/infrastructure/redis/serialization.go"
+            ],
+            "precision": 0,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              "api-db-go:internal/domain/dbguild/config_override.go",
+              "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
+              "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
+              "api-db-go:internal/infrastructure/redis/bot_cache.go",
+              "api-db-go:internal/infrastructure/redis/command_cache.go",
+              "api-db-go:internal/infrastructure/redis/global_cache.go",
+              "api-db-go:internal/infrastructure/redis/guild_cache.go",
+              "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
+              "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
+              "api-db-go:internal/infrastructure/redis/module_cache.go",
+              "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
+              "api-db-go:internal/infrastructure/redis/premium_cache.go",
+              "api-db-go:internal/infrastructure/redis/serialization.go"
+            ]
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 113,
+              "ms": 0.235
+            }
+          ],
+          "tokens": 113,
+          "ms": 0.235,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 29,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 529,
+              "ms": 0
+            }
+          ],
+          "tokens": 558,
+          "ms": 0,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 1 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "A2_ts_absent",
+      "family": "references",
+      "question": "Which files use the addMockedSongsToQueue declared in modules/music-module/src/mocks/music-mocks.ts?",
+      "ground_truth": [],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 139,
+              "ms": 119.759
+            }
+          ],
+          "tokens": 139,
+          "ms": 119.759,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside music-module was never in the graph this query read"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 564,
+              "ms": 10.253
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 23,
+              "ms": 0.16
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 34,
+              "ms": 473.774
+            }
+          ],
+          "tokens": 621,
+          "ms": 484.187,
+          "call_count": 3,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 196,
+              "ms": 356.756
+            }
+          ],
+          "tokens": 196,
+          "ms": 356.756,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 80,
+              "ms": 96.827
+            }
+          ],
+          "tokens": 80,
+          "ms": 96.827,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 110,
+              "ms": 0.601
+            }
+          ],
+          "tokens": 110,
+          "ms": 0.601,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 42,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 6323,
+              "ms": 0
+            }
+          ],
+          "tokens": 6365,
+          "ms": 0,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 1 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "A3_rs_absent",
+      "family": "references",
+      "question": "Which files call the build_all_image_sizes declared in services/api-music-nodo?",
+      "ground_truth": [],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 432,
+              "ms": 120.371
+            }
+          ],
+          "tokens": 432,
+          "ms": 120.371,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside api-music-nodo was never in the graph this query read"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 216,
+              "ms": 8.864
+            },
+            {
+              "tool": "trace_path",
+              "tokens": 75,
+              "ms": 0.254
+            },
+            {
+              "tool": "query_graph",
+              "tokens": 26,
+              "ms": 475.404
+            }
+          ],
+          "tokens": 317,
+          "ms": 484.522,
+          "call_count": 3,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 226,
+              "ms": 252.23
+            }
+          ],
+          "tokens": 226,
+          "ms": 252.23,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 99,
+              "ms": 100.314
+            }
+          ],
+          "tokens": 99,
+          "ms": 100.314,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 145,
+              "ms": 0.285
+            }
+          ],
+          "tokens": 145,
+          "ms": 0.285,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 68,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 24557,
+              "ms": 0
+            }
+          ],
+          "tokens": 24625,
+          "ms": 0,
+          "call_count": 2,
+          "score": {
+            "claimed_set": [],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files, then read 1 declaring file(s)"
+        }
+      }
+    },
+    {
+      "id": "O3_rs_outline",
+      "family": "outline",
+      "question": "What is declared at the top level of api-music-nodo audio/range.rs?",
+      "ground_truth": [
+        "RangeOutcome",
+        "build_response",
+        "file_response",
+        "insert_header",
+        "parse_decimal",
+        "parse_range",
+        "tests"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 1496,
+              "ms": 120.822
+            }
+          ],
+          "tokens": 1496,
+          "ms": 120.822,
+          "call_count": 1,
+          "claimed": [
+            "RangeOutcome",
+            "parse_range",
+            "parse_decimal",
+            "file_response",
+            "insert_header",
+            "build_response",
+            "parses_send_file_matrix",
+            "streams_exact_send_file_headers_and_bytes"
+          ],
+          "score": {
+            "claimed_set": [
+              "RangeOutcome",
+              "build_response",
+              "file_response",
+              "insert_header",
+              "parse_decimal",
+              "parse_range",
+              "parses_send_file_matrix",
+              "streams_exact_send_file_headers_and_bytes"
+            ],
+            "precision": 0.75,
+            "recall": 0.8571428571428571,
+            "missing": [
+              "tests"
+            ],
+            "spurious": [
+              "parses_send_file_matrix",
+              "streams_exact_send_file_headers_and_bytes"
+            ]
+          },
+          "note": "file_summary returns the file's own node beside its declarations; only the declarations are claimed"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 4098,
+              "ms": 32.265
+            }
+          ],
+          "tokens": 4098,
+          "ms": 32.265,
+          "call_count": 1,
+          "claimed": [
+            "RangeOutcome",
+            "build_response",
+            "file_response",
+            "insert_header",
+            "parse_decimal",
+            "parse_range",
+            "parses_send_file_matrix",
+            "span",
+            "status",
+            "streams_exact_send_file_headers_and_bytes"
+          ],
+          "score": {
+            "claimed_set": [
+              "RangeOutcome",
+              "build_response",
+              "file_response",
+              "insert_header",
+              "parse_decimal",
+              "parse_range",
+              "parses_send_file_matrix",
+              "span",
+              "status",
+              "streams_exact_send_file_headers_and_bytes"
+            ],
+            "precision": 0.6,
+            "recall": 0.8571428571428571,
+            "missing": [
+              "tests"
+            ],
+            "spurious": [
+              "parses_send_file_matrix",
+              "span",
+              "status",
+              "streams_exact_send_file_headers_and_bytes"
+            ]
+          }
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 345,
+              "ms": 241.039
+            }
+          ],
+          "tokens": 345,
+          "ms": 241.039,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "RangeOutcome",
+              "build_response",
+              "file_response",
+              "insert_header",
+              "parse_decimal",
+              "parse_range",
+              "tests"
+            ],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify explain",
+              "tokens": 193,
+              "ms": 106.576
+            }
+          ],
+          "tokens": 193,
+          "ms": 106.576,
+          "call_count": 1,
+          "claimed": [
+            "file_response",
+            "parse_range",
+            "build_response",
+            "insert_header",
+            "RangeOutcome",
+            "parse_decimal",
+            "streams_exact_send_file_headers_and_bytes",
+            "parses_send_file_matrix"
+          ],
+          "score": {
+            "claimed_set": [
+              "RangeOutcome",
+              "build_response",
+              "file_response",
+              "insert_header",
+              "parse_decimal",
+              "parse_range",
+              "parses_send_file_matrix",
+              "streams_exact_send_file_headers_and_bytes"
+            ],
+            "precision": 0.75,
+            "recall": 0.8571428571428571,
+            "missing": [
+              "tests"
+            ],
+            "spurious": [
+              "parses_send_file_matrix",
+              "streams_exact_send_file_headers_and_bytes"
+            ]
+          },
+          "note": "`explain \u003cfile node id\u003e` reads the file node's `contains` edges, because no graphify command takes a file path; the id is `{parent_dir}_{stem}`"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "get_file_outline",
+              "tokens": 290,
+              "ms": 0.922
+            }
+          ],
+          "tokens": 290,
+          "ms": 0.922,
+          "call_count": 1,
+          "claimed": [
+            "build_response",
+            "file_response",
+            "insert_header",
+            "RangeOutcome",
+            "parse_range",
+            "parse_decimal",
+            "tests"
+          ],
+          "score": {
+            "claimed_set": [
+              "RangeOutcome",
+              "build_response",
+              "file_response",
+              "insert_header",
+              "parse_decimal",
+              "parse_range",
+              "tests"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 2388,
+              "ms": 0
+            }
+          ],
+          "tokens": 2388,
+          "ms": 0,
+          "call_count": 1,
+          "claimed": [
+            "RangeOutcome",
+            "build_response",
+            "file_response",
+            "insert_header",
+            "parse_decimal",
+            "parse_range",
+            "tests"
+          ],
+          "score": {
+            "claimed_set": [
+              "RangeOutcome",
+              "build_response",
+              "file_response",
+              "insert_header",
+              "parse_decimal",
+              "parse_range",
+              "tests"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "code-review-graph": {
+      "tokens_total": 8669,
+      "calls_total": 12,
+      "ms_total": 1448.2179999999998,
+      "precision_mean": 0.6388888888888888,
+      "recall_mean": 0.5767195767195766,
+      "exact_answers": 4,
+      "answered": 9,
+      "of": 9
+    },
+    "codebase-memory": {
+      "tokens_total": 16528,
+      "calls_total": 28,
+      "ms_total": 4011.852999999999,
+      "precision_mean": 0.6222222222222222,
+      "recall_mean": 0.6137566137566136,
+      "exact_answers": 4,
+      "answered": 9,
+      "of": 9
+    },
+    "graft": {
+      "tokens_total": 5562,
+      "calls_total": 9,
+      "ms_total": 2479.3049999999994,
+      "precision_mean": 0.5555555555555556,
+      "recall_mean": 0.48148148148148145,
+      "exact_answers": 4,
+      "answered": 9,
+      "of": 9
+    },
+    "graphify": {
+      "tokens_total": 4435,
+      "calls_total": 13,
+      "ms_total": 1645.5189999999998,
+      "precision_mean": 0.4555555555555555,
+      "recall_mean": 0.7433862433862434,
+      "exact_answers": 2,
+      "answered": 9,
+      "of": 9
+    },
+    "kivgraph": {
+      "tokens_total": 1555,
+      "calls_total": 12,
+      "ms_total": 3.9120000000000004,
+      "precision_mean": 0.7777777777777778,
+      "recall_mean": 0.7222222222222222,
+      "exact_answers": 6,
+      "answered": 9,
+      "of": 9
+    },
+    "native": {
+      "tokens_total": 74783,
+      "calls_total": 22,
+      "ms_total": 0,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 9,
+      "answered": 9,
+      "of": 9
+    }
+  },
+  "aggregate_by_family": {
+    "outline": {
+      "code-review-graph": {
+        "tokens_total": 1496,
+        "calls_total": 1,
+        "ms_total": 120.822,
+        "precision_mean": 0.75,
+        "recall_mean": 0.8571428571428571,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "codebase-memory": {
+        "tokens_total": 4098,
+        "calls_total": 1,
+        "ms_total": 32.265,
+        "precision_mean": 0.6,
+        "recall_mean": 0.8571428571428571,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "graft": {
+        "tokens_total": 345,
+        "calls_total": 1,
+        "ms_total": 241.039,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "graphify": {
+        "tokens_total": 193,
+        "calls_total": 1,
+        "ms_total": 106.576,
+        "precision_mean": 0.75,
+        "recall_mean": 0.8571428571428571,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "kivgraph": {
+        "tokens_total": 290,
+        "calls_total": 1,
+        "ms_total": 0.922,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      },
+      "native": {
+        "tokens_total": 2388,
+        "calls_total": 1,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      }
+    },
+    "references": {
+      "code-review-graph": {
+        "tokens_total": 7173,
+        "calls_total": 11,
+        "ms_total": 1327.396,
+        "precision_mean": 0.625,
+        "recall_mean": 0.5416666666666666,
+        "exact_answers": 4,
+        "answered": 8,
+        "of": 8
+      },
+      "codebase-memory": {
+        "tokens_total": 12430,
+        "calls_total": 27,
+        "ms_total": 3979.5879999999993,
+        "precision_mean": 0.625,
+        "recall_mean": 0.5833333333333333,
+        "exact_answers": 4,
+        "answered": 8,
+        "of": 8
+      },
+      "graft": {
+        "tokens_total": 5217,
+        "calls_total": 8,
+        "ms_total": 2238.2659999999996,
+        "precision_mean": 0.625,
+        "recall_mean": 0.5416666666666666,
+        "exact_answers": 4,
+        "answered": 8,
+        "of": 8
+      },
+      "graphify": {
+        "tokens_total": 4242,
+        "calls_total": 12,
+        "ms_total": 1538.9429999999998,
+        "precision_mean": 0.41875,
+        "recall_mean": 0.7291666666666667,
+        "exact_answers": 2,
+        "answered": 8,
+        "of": 8
+      },
+      "kivgraph": {
+        "tokens_total": 1265,
+        "calls_total": 11,
+        "ms_total": 2.99,
+        "precision_mean": 0.75,
+        "recall_mean": 0.6875,
+        "exact_answers": 5,
+        "answered": 8,
+        "of": 8
+      },
+      "native": {
+        "tokens_total": 72395,
+        "calls_total": 21,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 8,
+        "answered": 8,
+        "of": 8
+      }
+    }
+  }
+}

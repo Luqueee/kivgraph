@@ -1,0 +1,1 @@
+AMBIGUOUS_SYMBOL: name "delete_player" declares 2 symbols; repeat with the repository and path of the one you mean: kenalink-rs:src/api_rest/routes_players.rs:393, kenalink-rs:src/state/memory.rs:84

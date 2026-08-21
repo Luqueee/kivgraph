@@ -465,7 +465,17 @@ func getFileOutline(
 		))
 	}
 
-	page, err := snapshot.SearchSymbolsInFiles(files, offset, limit)
+	// The kind gate lives on the walk that builds the page, so `total`, the
+	// rows and `coverage` describe one set. It ran per row below until a Rust
+	// outline reported 24 declarations for a file holding 12.
+	keep := func(kind string) bool {
+		if arguments.Kind != "" && kind != arguments.Kind {
+			return false
+		}
+		_, member := outlineMemberKinds[kind]
+		return !member || arguments.IncludeMembers
+	}
+	page, err := snapshot.SearchSymbolsInFiles(files, offset, limit, keep)
 	if err != nil {
 		return nil, Response[FileOutline]{}, WrapToolError(CodeInvalidArgument, "outline pagination is invalid", err)
 	}
@@ -493,12 +503,6 @@ func getFileOutline(
 				"active snapshot contains invalid symbol metadata",
 				err,
 			)
-		}
-		if arguments.Kind != "" && row.Kind != arguments.Kind {
-			continue
-		}
-		if _, member := outlineMemberKinds[row.Kind]; member && !arguments.IncludeMembers {
-			continue
 		}
 		packages[location.PackageName] = struct{}{}
 		index, exists := groups[location.FilePath]

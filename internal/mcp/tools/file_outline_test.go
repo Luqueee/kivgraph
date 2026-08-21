@@ -504,11 +504,13 @@ func TestGetFileOutlineCompactViewHoistsAndDropsSignatures(t *testing.T) {
 		t.Fatalf("compact payload =\n%s\nwant\n%s", compact, wantCompact)
 	}
 
-	// A page whose declarations agree on their kind states it once.
+	// A page whose declarations agree on their kind states it once, and its
+	// total counts what it returned: `total` and the rows describe one set, so
+	// a filtered page cannot report a file as larger than what it can show.
 	methods := fileOutlineText(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts", "kind": "method",
 	})
-	wantMethods := `{"snapshot_id":46,"total":3,"returned":1,"coverage":{"exact":1},` +
+	wantMethods := `{"snapshot_id":46,"total":1,"returned":1,"coverage":{"exact":1},` +
 		`"results":{"repository":"alpha-repo","path":"internal/facts","package":"facts",` +
 		`"kind":"method","exported":true,` +
 		`"files":[{"file":"internal/facts/facts.go","at":["facts.Set.Merge@10-20"]}]}}`
@@ -560,4 +562,77 @@ func TestGetFileOutlineFilesViewAnswersWhereWithoutWhat(t *testing.T) {
 	}, fileOutlineSnapshot(t, 48)); ErrorCode(err) != CodeInvalidArgument {
 		t.Fatalf("unsupported view error code = %q, want %q", ErrorCode(err), CodeInvalidArgument)
 	}
+}
+
+// TestGetFileOutlineCountsOnlyWhatItReturns defends the count against the shape
+// that broke it: a Rust enum's variants are member kinds an outline leaves out
+// by default, and they were counted before they were dropped, so a file holding
+// twelve declarations answered `total: 24` with `truncated` false and no cursor.
+// A reader who trusts the count then goes looking for a half that never was.
+func TestGetFileOutlineCountsOnlyWhatItReturns(t *testing.T) {
+	store := memberKindSnapshot(t, 61)
+	client := newFileOutlineToolClient(t, store)
+
+	byDefault := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "src/range.rs",
+	})
+	wantDefault := `{"snapshot_id":61,"total":1,"returned":1,"coverage":{"exact":1},` +
+		`"results":{"repository":"alpha-repo","path":"src/range.rs","package":"audio",` +
+		`"kind":"enum","exported":true,"files":[{"file":"src/range.rs","at":["RangeOutcome@1-9"]}]}}`
+	if byDefault != wantDefault {
+		t.Fatalf("default payload =\n%s\nwant\n%s", byDefault, wantDefault)
+	}
+
+	withMembers := fileOutlineText(t, client, map[string]any{
+		"repository": "alpha-repo", "path": "src/range.rs", "include_members": true,
+	})
+	wantMembers := `{"snapshot_id":61,"total":3,"returned":3,"coverage":{"exact":3},` +
+		`"results":{"repository":"alpha-repo","path":"src/range.rs","package":"audio",` +
+		`"exported":true,"files":[{"file":"src/range.rs","at":[` +
+		`["RangeOutcome@1-9","enum"],["Range@3","variant"],["SendFile@5","variant"]]}]}}`
+	if withMembers != wantMembers {
+		t.Fatalf("include_members payload =\n%s\nwant\n%s", withMembers, wantMembers)
+	}
+}
+
+// memberKindSnapshot is one enum and the two variants that belong to it.
+func memberKindSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(
+		hotsnapshot.LadybugSnapshotRows{
+			Repositories: []hotsnapshot.RepositoryRow{
+				{Key: "repo-a", Name: "alpha-repo", Path: "/repo-a", Languages: "rust"},
+			},
+			Packages: []hotsnapshot.PackageRow{
+				{Key: "package-a", RepositoryKey: "repo-a", Language: "rust", Name: "audio", ModulePath: "audio"},
+			},
+			Files: []hotsnapshot.FileRow{
+				{Key: "file-range", RepositoryKey: "repo-a", PackageKey: "package-a", Path: "src/range.rs", Language: "rust"},
+			},
+			Symbols: []hotsnapshot.SymbolRow{
+				{
+					StableKey: "symbol-outcome", CanonicalIdentity: "rust:RangeOutcome", FileKey: "file-range",
+					Language: "rust", Name: "RangeOutcome", QualifiedName: "RangeOutcome", Kind: "enum",
+					Signature: "enum RangeOutcome", Exported: true, StartLine: 1, EndLine: 9,
+				},
+				{
+					StableKey: "symbol-variant-range", CanonicalIdentity: "rust:RangeOutcome::Range", FileKey: "file-range",
+					Language: "rust", Name: "Range", QualifiedName: "Range", Kind: "variant",
+					Signature: "Range(u64)", Exported: true, StartLine: 3, EndLine: 3,
+				},
+				{
+					StableKey: "symbol-variant-send", CanonicalIdentity: "rust:RangeOutcome::SendFile", FileKey: "file-range",
+					Language: "rust", Name: "SendFile", QualifiedName: "SendFile", Kind: "variant",
+					Signature: "SendFile", Exported: true, StartLine: 5, EndLine: 5,
+				},
+			},
+		},
+		id,
+		time.Unix(1_700_000_000+int64(id), 0).UTC(),
+		1,
+	)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
 }

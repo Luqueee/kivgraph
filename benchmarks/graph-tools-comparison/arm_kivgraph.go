@@ -104,19 +104,31 @@ func kivgraphImpact(
 // top-level set is the undotted one.
 func kivgraphOutline(ctx context.Context, tokens *counter, kiv *server, q question) (*armResult, error) {
 	arm := &armResult{}
-	answer := kiv.call(ctx, tokens, q.ID+"-kivgraph-outline", "get_file_outline", map[string]any{
-		"repository": q.Subject.Repo, "path": q.Subject.Path,
-	})
-	arm.add(answer)
-	if answer.Failed {
-		arm.Note = "refused: " + answer.Error
-		arm.Score = scoreAgainst(nil, q.Truth)
-		return arm, nil
+	// An outline pages like every other answer, and a file with more
+	// declarations than one page holds is exactly where an outline is worth
+	// asking for: reading only the first page capped recall at the page size
+	// and blamed the tool for the harness stopping early.
+	arguments := map[string]any{"repository": q.Subject.Repo, "path": q.Subject.Path}
+	labels := []string{}
+	for page := 1; ; page++ {
+		answer := kiv.call(ctx, tokens, fmt.Sprintf("%s-kivgraph-outline-p%d", q.ID, page), "get_file_outline", arguments)
+		arm.add(answer)
+		if answer.Failed {
+			arm.Note = "refused: " + answer.Error
+			arm.Score = scoreAgainst(nil, q.Truth)
+			return arm, nil
+		}
+		pageLabels, cursor, err := kivgraphOutlineLabels(answer.Text)
+		if err != nil {
+			return nil, err
+		}
+		labels = append(labels, pageLabels...)
+		if cursor == nil {
+			break
+		}
+		arguments["cursor"] = *cursor
 	}
-	names, err := kivgraphOutlineNames(answer.Text)
-	if err != nil {
-		return nil, err
-	}
+	names := declarationNames(labels)
 	arm.Claimed = names
 	arm.Score = scoreAgainst(names, q.Truth)
 	return arm, nil
@@ -215,7 +227,8 @@ func excludedKinds(text string) string {
 // `["withRetry@49-78", "func"]`. Reading only one of those four combinations is
 // how this arm first scored zero on a file it had answered perfectly.
 type outlinePage struct {
-	Results struct {
+	NextCursor *string `json:"next_cursor"`
+	Results    struct {
 		Kind   string        `json:"kind"`
 		Files  []outlineFile `json:"files"`
 		Groups []struct {
@@ -237,15 +250,14 @@ type outlineFile struct {
 	At []json.RawMessage `json:"at"`
 }
 
-// kivgraphOutlineNames reads the declaration names. A nested label --
-// `handleCreate.mentionable` -- is a local inside a declaration rather than a
-// declaration of the file, so the top-level set is the undotted one.
-func kivgraphOutlineNames(text string) ([]string, error) {
+// kivgraphOutlineLabels returns one page of raw labels and its cursor. The
+// labels are not names yet: see declarationNames for why turning one into the
+// other is the harness's job and not the tool's.
+func kivgraphOutlineLabels(text string) ([]string, *string, error) {
 	page := outlinePage{}
 	if err := json.Unmarshal([]byte(text), &page); err != nil {
-		return nil, fmt.Errorf("parse kivgraph outline: %w", err)
+		return nil, nil, fmt.Errorf("parse kivgraph outline: %w", err)
 	}
-	seen := map[string]bool{}
 	out := []string{}
 	collect := func(kind string, files []outlineFile) {
 		if outlineBindingKinds[kind] {
@@ -253,13 +265,10 @@ func kivgraphOutlineNames(text string) ([]string, error) {
 		}
 		for _, file := range files {
 			for _, entry := range file.At {
-				label := outlineLabel(entry)
-				name, _, _ := strings.Cut(label, "@")
-				if name == "" || strings.Contains(name, ".") || seen[name] {
-					continue
+				if label := outlineLabel(entry); label != "" {
+					name, _, _ := strings.Cut(label, "@")
+					out = append(out, name)
 				}
-				seen[name] = true
-				out = append(out, name)
 			}
 		}
 	}
@@ -271,7 +280,71 @@ func kivgraphOutlineNames(text string) ([]string, error) {
 		}
 		collect(kind, group.Files)
 	}
-	return out, nil
+	return out, page.NextCursor, nil
+}
+
+// declarationNames reduces qualified labels to the unit an outline is compared
+// in. This is the harness honouring its own rule -- the answer is compared,
+// never the spelling -- and it did not before: the `.`-nesting rule alone read
+// a Go or TypeScript answer correctly, where a top-level name is already bare,
+// and scored a Rust one at zero because every label there carries its module
+// path, so `audio::range::parse_range` never equalled `parse_range`.
+//
+// The prefix is derived rather than assumed: whatever `::` segments every label
+// shares is the enclosing scope the file itself is, so stripping it leaves the
+// declaration. A label that is exactly that prefix is the file's own module,
+// which is not something the file declares, and a label with a separator left
+// after stripping is nested inside another declaration -- an `impl` block, a
+// `mod tests`, a local -- and so is not top level either.
+func declarationNames(labels []string) []string {
+	prefix := enclosingScope(labels)
+	seen := map[string]bool{}
+	out := []string{}
+	for _, label := range labels {
+		name := label
+		if prefix != "" {
+			if name == prefix {
+				continue
+			}
+			name = strings.TrimPrefix(name, prefix+"::")
+		}
+		if name == "" || strings.Contains(name, "::") || strings.Contains(name, ".") || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out
+}
+
+// enclosingScope is the label that names the scope the file itself is: the one
+// every other label hangs under. It is found rather than assumed -- the label
+// that is a `::` prefix of all the others -- so an answer whose labels are
+// already bare, which is every Go and TypeScript answer here, reports no scope
+// and reaches the nesting rule unchanged.
+//
+// The longest common prefix cannot be used for this. The file's own module row
+// is one segment shorter than everything under it, so the common prefix of
+// `audio::range` and `audio::range::parse_range` is `audio`, which left every
+// real declaration looking nested and scored a correct answer at zero.
+func enclosingScope(labels []string) string {
+	for _, candidate := range labels {
+		if !strings.Contains(candidate, "::") {
+			continue
+		}
+		prefixes := true
+		for _, other := range labels {
+			if other == candidate || strings.HasPrefix(other, candidate+"::") {
+				continue
+			}
+			prefixes = false
+			break
+		}
+		if prefixes {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // outlineLabel reads the declaration label out of an entry in either spelling.
