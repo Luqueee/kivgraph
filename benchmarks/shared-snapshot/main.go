@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -294,7 +295,11 @@ func startServer(ctx context.Context, cfg config) (*server, error) {
 		arguments = append(arguments, "--config", cfg.ConfigPath)
 	}
 	command := exec.Command(cfg.Server, arguments...)
-	command.Stderr = os.NewFile(0, os.DevNull)
+	// The server's own diagnostics, kept so a failure names its cause. Writing
+	// this to os.NewFile(0, os.DevNull) would alias standard input, which is a
+	// different file descriptor with the same name.
+	stderr := &bytes.Buffer{}
+	command.Stderr = stderr
 	transport := &sdkmcp.CommandTransport{Command: command, TerminateDuration: 5 * time.Second}
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
 	callContext, cancel := context.WithCancel(ctx)
@@ -303,12 +308,12 @@ func startServer(ctx context.Context, cfg config) (*server, error) {
 	session, err := client.Connect(callContext, transport, nil)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("connect: %w", err)
+		return nil, fmt.Errorf("connect: %w (server said: %s)", err, clip(strings.TrimSpace(stderr.String()), 400))
 	}
 	live := &server{command: command, session: session, cancel: cancel}
 	if _, err := callTool(ctx, session, "graph_status", map[string]any{}); err != nil {
 		live.stop()
-		return nil, err
+		return nil, fmt.Errorf("%w (server said: %s)", err, clip(strings.TrimSpace(stderr.String()), 400))
 	}
 	live.firstAnswerMS = float64(time.Since(started).Microseconds()) / 1000
 	return live, nil
