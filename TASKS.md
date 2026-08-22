@@ -16733,3 +16733,114 @@ directiva -- `part of 'library.dart';` en el archivo parte.
 `PART_OF` y filas de payload, y `git log -L` sobre el bloque de deduplicación.
 
 **Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 32. Fase 25 — Lo que la fase 23 rompió al publicar el veredicto
+
+La fase 23 dio a seis tools un `completeness`. Al medir la documentación que le
+faltaba salió algo peor: el mismo commit cambió en silencio lo que cuenta un
+contador ya publicado, y las cuatro puertas seguían en verde.
+
+## LUQUE-2212 — Un contador publicado que cambió de significado
+
+**Dependencias:** `LUQUE-2206`.
+
+**Objetivo:** que `coverage.unresolved_related` vuelva a contar lo que dice
+contar.
+
+**Alcance:** `internal/mcp/tools/completeness.go` y los cinco llamantes.
+
+**Criterios de aceptación:**
+
+- Medido con el binario real: `find_symbol` de un nombre que nadie referencia
+  informaba de `unresolved_related: 29`, y los `29` eran ámbitos ilegibles del
+  repositorio que no nombran nada parecido. `usage.md` documenta los cuatro
+  contadores como **disjuntos** y sobre la consulta.
+- El origen, localizado con `git show 308e802^`: antes era
+  `snapshot.UnresolvedNamingSymbol(name, 0)`; después,
+  `namingTotal + scopeTotal`. En `find_symbol` es una rotura de compatibilidad
+  -el campo existía-; en las otras cuatro tools el campo era nuevo con un
+  significado que no cuadraba. `find_cross_repo_consumers` ya lo descartaba a
+  propósito, con su comentario: ya había visto el problema en una tool y no en
+  las demás.
+- `completenessScopes` no devuelve contador: todo lo que encuentra es ámbito, y
+  un ámbito no es una de las cuatro cosas que `coverage` cuenta. `get_file_outline`
+  vuelve a `Coverage{Exact: kept}`, que es lo que publicaba antes.
+- Nada se pierde: los `29` aparecen donde corresponde -`20` listados más `9` en
+  `more_invisible_scopes`.
+- Cambiar lo que un contador cuenta es un cambio de esquema aunque el campo no
+  cambie de nombre ni de tipo, y el compilador no lo ve. Queda escrito en
+  `internal/mcp/AGENTS.md`.
+
+**Verificación:** `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`
+extendido con la aserción del contador -falsificado volviendo a sumar los
+ámbitos, y falla-; y el binario real por MCP sobre este repositorio.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2213 — La documentación del veredicto, y tres frases falsas
+
+**Dependencias:** `LUQUE-2206`.
+
+**Objetivo:** que las once páginas de tools digan lo que su tool hace hoy.
+
+**Alcance:** `landing/src/content/docs`.
+
+**Criterios de aceptación:**
+
+- Medido antes de escribir: de las seis tools que emiten el veredicto, sólo
+  `get_blast_radius` lo documentaba. Tres lo mencionaban sin nombrarlo y dos
+  callaban.
+- Tres afirmaciones eran **falsas**, no incompletas: `find-references.md` y
+  `trace-dependencies.md` decían «No `completeness` object appears on this
+  tool», `find-symbol.md` decía «`find_symbol` never emits `guidance`» y
+  `get-blast-radius.md` seguía siendo «the one tool that states how far its
+  answer reaches». Una página que afirma lo contrario de lo que hace el código
+  es peor que una que calla.
+- La semántica compartida vive en un solo sitio -`mcp/usage.md`- con una tabla
+  de qué acota a cada tool; las páginas enlazan en vez de copiar el bloque de
+  cuarenta líneas, que es lo que se queda rancio.
+- Dos filas de esa tabla las corrigieron los agentes que las consumieron:
+  `direction` no ramifica el veredicto de `find_references` -un solo call site,
+  sin dirección- y `trace_dependencies` también incluye los ámbitos de su
+  repositorio. Escribí las dos mal.
+- La frase de `usage.md` sobre una respuesta vacía de `find_references` era
+  condicional desde la fase 23 y se leía como incondicional: es la frase que un
+  agente usa para borrar código vivo.
+
+**Verificación:** `make landing-check` en cero errores, y cada afirmación
+contrastada contra `internal/mcp/tools`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2214 — La versión documentada vive en cuatro sitios
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que la documentación no pueda quedarse por detrás del binario sin
+que algo falle.
+
+**Alcance:** `internal/version`, la landing y la skill `publishing-releases`.
+
+**Criterios de aceptación:**
+
+- El defecto: `landing/src/content/docs/install.md` documentaba
+  `KIVGRAPH_VERSION=v0.3.0` con la `v0.5.0` publicada -dos minors de retraso, y
+  el ejemplo que un lector copia.
+- La causa: la skill decía «tres sitios» y su `grep` sólo miraba `README.md` y
+  `docs/installation.md`. Una lista escrita a mano se queda corta en cuanto una
+  página nueva lleve el comando.
+- `TestDocumentedInstallVersionMatchesTheBinary` **descubre** cada comando de
+  instalación fijado del repositorio y falla nombrando archivo y línea. No
+  enumera nada.
+- Un registro histórico queda fuera: esta misma ficha cita el
+  `v0.3.0` del defecto y tumbó el test al escribirla. Un backlog no instruye a
+  nadie a instalar nada, y sostenerlo a la versión de hoy haría imposible
+  describir un defecto de versión. Comprobado que la exclusión no lo desarma:
+  con `install.md` revertido a mano vuelve a fallar nombrándolo.
+
+**Verificación:** el test falla nombrando los tres ficheros al subir
+`version.Value` sin tocar la documentación, y pasa con ellos al día.
+
+**Estado:** cerrada el `2026-08-23`.
