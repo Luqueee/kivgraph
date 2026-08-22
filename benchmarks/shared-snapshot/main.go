@@ -127,7 +127,7 @@ func run(ctx context.Context, cfg config) error {
 		return fmt.Errorf("mapped arm: %w", err)
 	}
 	out.Arms = append(out.Arms, mapped)
-	out.GenerationID = mapped.GenerationID
+	out.SnapshotID = mapped.SnapshotID
 
 	derived, err := withHiddenSnapshot(snapshotPath, func() (arm, error) {
 		return measureArm(ctx, cfg, "derived")

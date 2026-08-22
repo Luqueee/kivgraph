@@ -20,7 +20,7 @@ type results struct {
 	SchemaVersion string       `json:"schema_version"`
 	Commit        string       `json:"commit"`
 	Digest        string       `json:"digest"`
-	GenerationID  string       `json:"generation_id"`
+	SnapshotID    uint64       `json:"snapshot_id"`
 	Clients       int          `json:"clients"`
 	Calls         int          `json:"calls"`
 	Seed          int64        `json:"seed"`
@@ -88,7 +88,7 @@ type latency struct {
 
 type arm struct {
 	Name           string          `json:"name"`
-	GenerationID   string          `json:"generation_id"`
+	SnapshotID     uint64          `json:"snapshot_id"`
 	Symbols        int             `json:"symbols"`
 	ServedFromFile bool            `json:"served_from_file"`
 	Processes      []processSample `json:"processes"`
@@ -301,7 +301,7 @@ func decide(out results) gate {
 func computeDigest(out results) (string, error) {
 	identity := struct {
 		Schema     string       `json:"schema"`
-		Generation string       `json:"generation"`
+		SnapshotID uint64       `json:"snapshot_id"`
 		Snapshot   snapshotFile `json:"snapshot"`
 		Clients    int          `json:"clients"`
 		Calls      int          `json:"calls"`
@@ -312,7 +312,7 @@ func computeDigest(out results) (string, error) {
 		Thresholds thresholds   `json:"thresholds"`
 	}{
 		Schema:     out.SchemaVersion,
-		Generation: out.GenerationID,
+		SnapshotID: out.SnapshotID,
 		Snapshot:   out.Snapshot,
 		Clients:    out.Clients,
 		Calls:      out.Calls,
@@ -349,8 +349,8 @@ func writeResults(directory string, out results) error {
 }
 
 func printSummary(out results) {
-	fmt.Printf("generation %s, %d clients, %d calls, seed %d\n",
-		out.GenerationID, out.Clients, out.Calls, out.Seed)
+	fmt.Printf("snapshot %d, %d clients, %d calls, seed %d\n",
+		out.SnapshotID, out.Clients, out.Calls, out.Seed)
 	for _, item := range out.Arms {
 		fmt.Printf("  %-8s served_from_file=%-5v  resident %s  proportional %s  shared_clean %s  private_dirty %s  p99 %.2f ms  first answer %.0f ms\n",
 			item.Name, item.ServedFromFile,
