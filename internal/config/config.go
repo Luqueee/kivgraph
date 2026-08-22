@@ -82,12 +82,118 @@ type WorkspaceConfig struct {
 	RepositoriesFile string `yaml:"repositories_file"`
 }
 
-// StorageConfig controls persistent graph and snapshot locations.
+// StorageConfig controls persistent graph locations.
+//
+// It used to carry snapshots_path and retain_snapshots. Neither did anything:
+// nothing was ever written to the first, and nothing read the second. They are
+// accepted and reported rather than rejected, because a configuration that was
+// valid yesterday must not stop a server today. See ADR 0062.
 type StorageConfig struct {
-	DatabasePath    string `yaml:"database_path"`
-	SnapshotsPath   string `yaml:"snapshots_path"`
-	BackupsPath     string `yaml:"backups_path"`
-	RetainSnapshots int    `yaml:"retain_snapshots"`
+	DatabasePath string `yaml:"database_path"`
+	BackupsPath  string `yaml:"backups_path"`
+}
+
+// retiredKey is a configuration key this build no longer implements.
+//
+// The decoder rejects unknown fields, which is what keeps a typo from being
+// silently ignored, and that is exactly why a removed key needs naming: without
+// this list, deleting a field from the struct would turn every configuration
+// written by an older `kivgraph init` into a hard load failure over a key that
+// never did anything. Punishing a user for our mistake is not a migration.
+type retiredKey struct {
+	Section string
+	Field   string
+	Reason  string
+}
+
+// retiredConfigKeys are accepted, ignored and reported. See ADR 0062.
+var retiredConfigKeys = []retiredKey{
+	{
+		Section: "storage",
+		Field:   "snapshots_path",
+		Reason: "nothing was ever written there: a published snapshot lives inside " +
+			"its own generation directory, which is what makes Prune delete it with " +
+			"the generation and keeps it from being orphaned",
+	},
+	{
+		Section: "storage",
+		Field:   "retain_snapshots",
+		Reason: "nothing read it: Prune keeps the current generation and its backup, " +
+			"which is what a rollback needs",
+	},
+}
+
+// Name is the dotted key a report and a doctor line name it by.
+func (key retiredKey) Name() string { return key.Section + "." + key.Field }
+
+// stripRetiredKeys removes the retired keys a document carries and reports
+// which ones were there.
+//
+// It rewrites the document rather than relaxing the decoder, so a key that is
+// neither known nor retired still fails: strictness is what this preserves.
+// The result is only ever decoded, never written back, so losing comments and
+// key order in the round trip costs nothing.
+func stripRetiredKeys(data []byte) ([]byte, []string, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		// A document this cannot parse is one the decoder below will report on
+		// with a better message than anything invented here.
+		return data, nil, nil
+	}
+	document := &root
+	if document.Kind == yaml.DocumentNode {
+		if len(document.Content) != 1 {
+			return data, nil, nil
+		}
+		document = document.Content[0]
+	}
+	found := make([]string, 0, len(retiredConfigKeys))
+	for _, key := range retiredConfigKeys {
+		section := mappingValue(document, key.Section)
+		if section == nil {
+			continue
+		}
+		if removeMappingField(section, key.Field) {
+			found = append(found, key.Name())
+		}
+	}
+	if len(found) == 0 {
+		return data, nil, nil
+	}
+	rewritten, err := yaml.Marshal(&root)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rewrite configuration without retired keys: %w", err)
+	}
+	return rewritten, found, nil
+}
+
+// mappingValue returns the value node of field in a mapping, or nil.
+func mappingValue(mapping *yaml.Node, field string) *yaml.Node {
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return nil
+	}
+	for index := 0; index+1 < len(mapping.Content); index += 2 {
+		if mapping.Content[index].Value == field {
+			return mapping.Content[index+1]
+		}
+	}
+	return nil
+}
+
+// removeMappingField drops one key and its value from a mapping, reporting
+// whether it was there. Keys come in pairs, so both halves go together.
+func removeMappingField(mapping *yaml.Node, field string) bool {
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return false
+	}
+	for index := 0; index+1 < len(mapping.Content); index += 2 {
+		if mapping.Content[index].Value != field {
+			continue
+		}
+		mapping.Content = append(mapping.Content[:index], mapping.Content[index+2:]...)
+		return true
+	}
+	return false
 }
 
 // WebConfig controls the explicit local HTTP viewer command.
@@ -298,6 +404,10 @@ type Loaded struct {
 	Repositories     RepositoriesFile
 	ConfigPath       string
 	RepositoriesPath string
+	// RetiredKeys are the dotted names of keys the file carries that this
+	// build no longer implements. They are reported rather than rejected, so
+	// something has to be able to say they were there. See ADR 0062.
+	RetiredKeys []string
 }
 
 // InitOptions controls creation of the local configuration files.
@@ -324,10 +434,8 @@ func DefaultConfig() Config {
 			RepositoriesFile: defaultRepositoriesFile,
 		},
 		Storage: StorageConfig{
-			DatabasePath:    defaultDatabasePath,
-			SnapshotsPath:   defaultSnapshotsPath,
-			BackupsPath:     defaultBackupsPath,
-			RetainSnapshots: 3,
+			DatabasePath: defaultDatabasePath,
+			BackupsPath:  defaultBackupsPath,
 		},
 		Web: WebConfig{
 			// The viewer listens on every interface. It is unauthenticated
@@ -431,7 +539,6 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	state := filepath.Join(directory, "state")
 	configuration := DefaultConfig()
 	configuration.Storage.DatabasePath = filepath.Join(state, "graph.lbdb")
-	configuration.Storage.SnapshotsPath = filepath.Join(state, "snapshots")
 	configuration.Storage.BackupsPath = filepath.Join(state, "backups")
 	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
 	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
@@ -486,7 +593,7 @@ func Initialize(options InitOptions) (InitResult, error) {
 	}
 	configuration.Workspace.RepositoriesFile = repositoriesPath
 	if _, statErr := os.Stat(configPath); statErr == nil && !options.Force {
-		configuration, err = loadConfigFile(configPath)
+		configuration, _, err = loadConfigFile(configPath)
 		if err != nil {
 			return InitResult{}, fmt.Errorf("load existing config %q: %w", configPath, err)
 		}
@@ -522,7 +629,6 @@ func Initialize(options InitOptions) (InitResult, error) {
 		filepath.Dir(configPath),
 		filepath.Dir(repositoriesPath),
 		filepath.Dir(expandedConfiguration.Storage.DatabasePath),
-		expandedConfiguration.Storage.SnapshotsPath,
 		expandedConfiguration.Storage.BackupsPath,
 		filepath.Dir(expandedConfiguration.Go.SyntheticWorkFile),
 		filepath.Dir(expandedConfiguration.Logging.EventLogPath),
@@ -665,7 +771,7 @@ func Load(path string) (Loaded, error) {
 	if err != nil {
 		return Loaded{}, fmt.Errorf("resolve config path: %w", err)
 	}
-	configuration, err := loadConfigFile(configPath)
+	configuration, retired, err := loadConfigFile(configPath)
 	if err != nil {
 		return Loaded{}, fmt.Errorf("load config %q: %w", configPath, err)
 	}
@@ -684,6 +790,7 @@ func Load(path string) (Loaded, error) {
 		Repositories:     repositories,
 		ConfigPath:       configPath,
 		RepositoriesPath: repositoriesPath,
+		RetiredKeys:      retired,
 	}, nil
 }
 
@@ -693,7 +800,7 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("resolve config path: %w", err)
 	}
-	configuration, err := loadConfigFile(configPath)
+	configuration, _, err := loadConfigFile(configPath)
 	if err != nil {
 		return Config{}, fmt.Errorf("load config %q: %w", configPath, err)
 	}
@@ -714,23 +821,31 @@ func LoadRepositories(path string) (RepositoriesFile, error) {
 	return repositories, nil
 }
 
-func loadConfigFile(path string) (Config, error) {
-	configuration := DefaultConfig()
-	versionPresent, err := decodeYAML(path, &configuration)
+func loadConfigFile(path string) (Config, []string, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return Config{}, err
+		return Config{}, nil, fmt.Errorf("read YAML: %w", err)
+	}
+	stripped, retired, err := stripRetiredKeys(data)
+	if err != nil {
+		return Config{}, nil, err
+	}
+	configuration := DefaultConfig()
+	versionPresent, err := decodeYAMLBytes(stripped, &configuration)
+	if err != nil {
+		return Config{}, nil, err
 	}
 	if !versionPresent {
-		return Config{}, errors.New("config.version: field is required")
+		return Config{}, nil, errors.New("config.version: field is required")
 	}
 	base := filepath.Dir(path)
 	if err := expandConfigPaths(&configuration, base); err != nil {
-		return Config{}, err
+		return Config{}, nil, err
 	}
 	if err := validateConfig(configuration); err != nil {
-		return Config{}, err
+		return Config{}, nil, err
 	}
-	return configuration, nil
+	return configuration, retired, nil
 }
 
 func loadRepositoriesFile(path string) (RepositoriesFile, error) {
@@ -760,6 +875,13 @@ func decodeYAML(path string, destination any) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("read YAML: %w", err)
 	}
+	return decodeYAMLBytes(data, destination)
+}
+
+// decodeYAMLBytes is the strict decode both documents share. Unknown fields
+// are an error here, which is what makes a retired key something that has to be
+// removed from the bytes before this runs rather than tolerated inside it.
+func decodeYAMLBytes(data []byte, destination any) (bool, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(destination); err != nil {
@@ -813,7 +935,6 @@ func expandConfigPaths(configuration *Config, base string) error {
 	}{
 		{"workspace.repositories_file", &configuration.Workspace.RepositoriesFile},
 		{"storage.database_path", &configuration.Storage.DatabasePath},
-		{"storage.snapshots_path", &configuration.Storage.SnapshotsPath},
 		{"storage.backups_path", &configuration.Storage.BackupsPath},
 		{"go.synthetic_work_file", &configuration.Go.SyntheticWorkFile},
 		{"rust.target_directory", &configuration.Rust.TargetDirectory},
@@ -848,7 +969,6 @@ func validateConfig(configuration Config) error {
 	for field, value := range map[string]string{
 		"workspace.repositories_file": configuration.Workspace.RepositoriesFile,
 		"storage.database_path":       configuration.Storage.DatabasePath,
-		"storage.snapshots_path":      configuration.Storage.SnapshotsPath,
 		"storage.backups_path":        configuration.Storage.BackupsPath,
 		"go.synthetic_work_file":      configuration.Go.SyntheticWorkFile,
 		"rust.target_directory":       configuration.Rust.TargetDirectory,
@@ -857,9 +977,6 @@ func validateConfig(configuration Config) error {
 		if !filepath.IsAbs(value) {
 			return fmt.Errorf("config.%s: path must be absolute after expansion, got %q", field, value)
 		}
-	}
-	if configuration.Storage.RetainSnapshots < 1 {
-		return fmt.Errorf("config.storage.retain_snapshots: must be positive, got %d", configuration.Storage.RetainSnapshots)
 	}
 	if configuration.Web.Address == "" {
 		return errors.New("config.web.address: must not be empty")

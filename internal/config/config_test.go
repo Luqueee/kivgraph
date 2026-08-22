@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -52,8 +53,8 @@ repositories:
 	if got, want := loaded.Config.Storage.DatabasePath, filepath.Join(root, "state", "graph.lbdb"); got != want {
 		t.Fatalf("database_path = %q, want %q", got, want)
 	}
-	if !filepath.IsAbs(loaded.Config.Storage.SnapshotsPath) || !filepath.IsAbs(loaded.Config.Storage.BackupsPath) || !filepath.IsAbs(loaded.Config.Go.SyntheticWorkFile) {
-		t.Fatalf("default paths were not expanded: snapshots=%q backups=%q work=%q", loaded.Config.Storage.SnapshotsPath, loaded.Config.Storage.BackupsPath, loaded.Config.Go.SyntheticWorkFile)
+	if !filepath.IsAbs(loaded.Config.Storage.BackupsPath) || !filepath.IsAbs(loaded.Config.Go.SyntheticWorkFile) {
+		t.Fatalf("default paths were not expanded: backups=%q work=%q", loaded.Config.Storage.BackupsPath, loaded.Config.Go.SyntheticWorkFile)
 	}
 	if loaded.Config.Web.Address != "0.0.0.0:7777" {
 		t.Fatalf("web address default = %q, want 0.0.0.0:7777", loaded.Config.Web.Address)
@@ -64,7 +65,7 @@ repositories:
 	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {
 		t.Fatalf("Dart defaults = %#v", loaded.Config.Dart)
 	}
-	if loaded.Config.Storage.RetainSnapshots != 3 || loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
+	if loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
 		t.Fatalf("core defaults = storage=%#v indexing=%#v", loaded.Config.Storage, loaded.Config.Indexing)
 	}
 	if loaded.Config.Watcher.ReconciliationInterval != Duration(10*time.Minute) || loaded.Config.TypeScript.ProjectIdleTimeout != Duration(30*time.Minute) {
@@ -136,7 +137,7 @@ func TestLoadConfigRejectsInvalidDocuments(t *testing.T) {
 	}{
 		{
 			name:      "missing schema version",
-			contents:  "storage:\n  retain_snapshots: 3\n",
+			contents:  "storage:\n  backups_path: /tmp/backups\n",
 			wantError: "config.version: field is required",
 		},
 		{
@@ -151,6 +152,18 @@ func TestLoadConfigRejectsInvalidDocuments(t *testing.T) {
 unknown: true
 `,
 			wantError: "unknown",
+		},
+		{
+			// Retiring two keys must not turn the section into a place where
+			// anything is accepted: a typo inside storage still has to fail, or
+			// the compatibility path would have cost the strictness that makes
+			// a misspelled key visible.
+			name: "unknown field inside a section that has retired keys",
+			contents: `version: 1
+storage:
+  snapshot_path: /tmp/typo
+`,
+			wantError: "snapshot_path",
 		},
 		{
 			name: "invalid limit relationship",
@@ -272,6 +285,56 @@ indexing:
 				t.Fatalf("LoadConfig() error = %q, want substring %q", err, test.wantError)
 			}
 		})
+	}
+}
+
+// TestARetiredKeyLoadsAndIsReported is the migration ADR 0062 promises.
+//
+// Every configuration written by an older `kivgraph init` carries both keys,
+// and the decoder rejects unknown fields. Deleting the struct fields without
+// this path would turn every one of those files into a hard load failure over a
+// key that never did anything -- the same shape as the doctor that went red on
+// an upgrade, and the same reason it is wrong.
+func TestARetiredKeyLoadsAndIsReported(t *testing.T) {
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "config.yaml")
+	repositoriesPath := filepath.Join(directory, "repositories.yaml")
+	writeConfigFixture(t, configPath, `version: 1
+workspace:
+  repositories_file: `+repositoriesPath+`
+storage:
+  snapshots_path: /tmp/nowhere
+  retain_snapshots: 7
+  backups_path: `+filepath.Join(directory, "backups")+`
+`)
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
+
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v, want a configuration with retired keys to load", err)
+	}
+	want := []string{"storage.snapshots_path", "storage.retain_snapshots"}
+	if !slices.Equal(loaded.RetiredKeys, want) {
+		t.Fatalf("RetiredKeys = %v, want %v", loaded.RetiredKeys, want)
+	}
+	// The value is ignored, not honoured: nothing may act on 7.
+	if loaded.Config.Storage.BackupsPath != filepath.Join(directory, "backups") {
+		t.Fatalf("backups_path = %q, want the value beside the retired keys to still apply",
+			loaded.Config.Storage.BackupsPath)
+	}
+
+	// A file with none of them reports none, so the report cannot be a constant.
+	clean := filepath.Join(directory, "clean.yaml")
+	writeConfigFixture(t, clean, `version: 1
+workspace:
+  repositories_file: `+repositoriesPath+`
+`)
+	quiet, err := Load(clean)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(quiet.RetiredKeys) != 0 {
+		t.Fatalf("RetiredKeys = %v, want none", quiet.RetiredKeys)
 	}
 }
 
@@ -416,7 +479,6 @@ func TestInitializeCreatesSecureStateAndRegistersRepositories(t *testing.T) {
 	}
 	for _, path := range []string{
 		filepath.Dir(loaded.Config.Storage.DatabasePath),
-		loaded.Config.Storage.SnapshotsPath,
 		loaded.Config.Storage.BackupsPath,
 		filepath.Dir(loaded.Config.Go.SyntheticWorkFile),
 	} {
@@ -476,7 +538,6 @@ func TestInitializeKeepsACustomLocationSelfContained(t *testing.T) {
 	state := filepath.Join(directory, "state")
 	for name, path := range map[string]string{
 		"storage.database_path":       loaded.Config.Storage.DatabasePath,
-		"storage.snapshots_path":      loaded.Config.Storage.SnapshotsPath,
 		"storage.backups_path":        loaded.Config.Storage.BackupsPath,
 		"indexing.fact_cache_path":    loaded.Config.Indexing.FactCachePath,
 		"go.synthetic_work_file":      loaded.Config.Go.SyntheticWorkFile,

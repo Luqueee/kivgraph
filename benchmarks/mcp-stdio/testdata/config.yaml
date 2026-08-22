@@ -3,7 +3,6 @@ workspace:
   repositories_file: repositories.yaml
 storage:
   database_path: state/graph.lbdb
-  snapshots_path: state/snapshots
   backups_path: state/backups
 mcp:
   transport: stdio

@@ -27,10 +27,18 @@ state, its cache and its registry hang from its own directory. A `--config` in
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. |
-| `snapshots_path` | `~/.local/state/kivgraph/snapshots` | Published generations. |
+| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. A published generation lives in its own directory beside it, and carries the graph, the snapshot and the digests that prove they belong together. |
 | `backups_path` | `~/.local/state/kivgraph/backups` | What `rollback` restores from. |
-| `retain_snapshots` | `3` | Must be positive. |
+
+### Retired keys
+
+`snapshots_path` and `retain_snapshots` no longer exist. Neither ever did
+anything: nothing was written to the first, and nothing read the second.
+
+A configuration that still carries them **loads normally** — they are accepted,
+ignored, and named by `kivgraph doctor` as `config.retired` so you can delete
+them. Rejecting a file that was valid when it was written would be a worse
+answer than the keys were a mistake.
 
 ## `web`
 

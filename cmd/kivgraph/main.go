@@ -1384,13 +1384,19 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	doctorResult("config", true, fmt.Sprintf("schema=%d", loaded.Config.Version))
+	// A retired key is not a defect in the store and not a reason to fail: the
+	// file was valid when it was written and the key never did anything. Saying
+	// so is what lets someone delete it; silence would leave it there forever.
+	if len(loaded.RetiredKeys) > 0 {
+		doctorResult("config.retired", true, fmt.Sprintf(
+			"%s: accepted and ignored, safe to delete", strings.Join(loaded.RetiredKeys, ", ")))
+	}
 
 	for _, stateDirectory := range []struct {
 		name string
 		path string
 	}{
 		{name: "state.database_parent", path: filepath.Dir(loaded.Config.Storage.DatabasePath)},
-		{name: "state.snapshots", path: loaded.Config.Storage.SnapshotsPath},
 		{name: "state.backups", path: loaded.Config.Storage.BackupsPath},
 		{name: "state.synthetic_parent", path: filepath.Dir(loaded.Config.Go.SyntheticWorkFile)},
 		{name: "state.fact_cache_parent", path: factCacheStateParent(loaded.Config)},

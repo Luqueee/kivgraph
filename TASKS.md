@@ -16058,39 +16058,43 @@ en la cabecera -- procedencia, exactamente lo que `LUQUE-2004` fijó por test.
 **Objetivo:** que `storage.snapshots_path` y `storage.retain_snapshots` describan
 lo que el código hace, o que dejen de existir.
 
-**Lo que hay hoy, medido al cerrar LUQUE-2004:**
+**Lo que había, medido al cerrar LUQUE-2004:** `snapshots_path` se declaraba,
+tenía valor por defecto, `Initialize` le escribía una ruta y **creaba el
+directorio**, y `doctor` comprobaba que se podía escribir en él. Nadie escribía
+nunca nada ahí. `retain_snapshots` valía `3` y se validaba como «must be
+positive»; ningún consumidor la leía. Y la referencia de configuración decía que
+`snapshots_path` contenía «Published generations», que era falso.
 
-* `storage.snapshots_path` se declara -`internal/config/config.go:88`-, tiene
-  valor por defecto, se crea en `Initialize` y `doctor` comprueba que se puede
-  escribir en él. **Nadie escribe nunca nada ahí.** El snapshot publicado vive
-  dentro del directorio de su generación, bajo `dir(storage.database_path)`, y
-  ése es el sitio correcto: es lo que hace que `Prune` lo borre con la generación
-  y que no pueda quedar un fichero huérfano.
-* `storage.retain_snapshots` se declara -`config.go:90`-, vale `3` por defecto y
-  se valida como «must be positive». **Ningún consumidor la lee.** `Prune`
-  conserva `current` y `backup`, que es lo que el rollback necesita, y nada más.
+**La decisión, en el ADR 0062: retirarlas.** De las tres salidas era la única que
+mejora el producto. Darle significado a `snapshots_path` es *activamente peor*:
+que el fichero viva dentro de su generación es lo que hace que `Prune` lo borre
+con ella y que no pueda quedar huérfano, así que sacarlo crearía el problema que
+la clave parecía resolver. Y `retain_snapshots` exigiría inventar una política de
+retención sin consumidor cuando el rollback usa exactamente dos generaciones.
 
-**Por qué es una tarea y no un arreglo:** las claves de configuración son
-superficie de compatibilidad declarada en el `AGENTS.md` de la raíz. Retirarlas
-rompe una configuración que hoy las escribe sin error; darles significado cambia
-la política de poda, que es la que sostiene el rollback. Las dos salidas piden
-ADR.
+**La migración, que es la mitad del trabajo.** El decodificador usa
+`KnownFields(true)`, así que borrar los campos habría convertido en **fallo de
+carga duro** cada `config.yaml` escrito por un `init` anterior -- y las escribía
+las dos-- por una clave que nunca hizo nada. Es la misma forma que el `doctor` en
+rojo de `LUQUE-2004`, y se rechaza por el mismo motivo. Hay una lista explícita,
+`retiredConfigKeys`, y el documento se reescribe sin ellas antes del decodificado
+estricto: **la estrictez no se relaja**, sólo se nombran las que se retiran.
 
-**Las tres salidas, para decidir con lo que se sepa entonces:**
+**Verificación con el binario**, que es donde el defecto de `2004` se vio:
 
-1. **Retirarlas.** Es lo más honesto si nada las va a usar: una clave que promete
-   una ubicación que nadie usa es peor que ninguna clave, porque alguien la
-   configura y no pasa nada.
-2. **Darles significado.** `snapshots_path` como destino exige resolver la
-   atomicidad -- hoy la generación se publica con un `rename` de su directorio-- y
-   la orfandad. `retain_snapshots` exige decidir qué significa retener más de dos
-   cuando el rollback sólo usa una.
-3. **Documentarlas como reservadas**, si se quieren para la fase 20 -- un fichero
-   compartido entre clientes podría querer vivir fuera de la generación.
+```text
+init          : no escribe ninguna de las dos, ni crea state/snapshots
+config vieja  : doctor exit=0
+                config.retired: PASS (storage.snapshots_path,
+                storage.retain_snapshots: accepted and ignored, safe to delete)
+typo `snapshot_path` : config: FAIL -- la estrictez sigue viva
+```
 
-**Criterios de aceptación:** ninguna clave de la configuración promete una
-ubicación o una política que el código no implemente, y la decisión queda en un
-ADR con su migración si retira alguna.
+* `TestARetiredKeyLoadsAndIsReported`: carga, las reporta en orden, la clave viva
+  de al lado sigue aplicándose, y un documento sin ellas no reporta ninguna --
+  para que el informe no pueda ser una constante.
+* `TestLoadConfigRejectsInvalidDocuments/unknown_field_inside_a_section_that_has_retired_keys`.
+* Gates en verde por código de salida: `gofmt`, `vet`, `test`, `test-ladybug`,
+  `build`, `landing-check`.
 
-**Estado:** abierta.
-
+**Estado:** cerrada el `2026-08-22`.
