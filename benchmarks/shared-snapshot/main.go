@@ -38,7 +38,11 @@ const (
 	defaultDirectory = "benchmarks/shared-snapshot"
 	defaultClients   = 4
 	defaultCalls     = 2_000
-	callTimeout      = 60 * time.Second
+	// defaultWarmup is discarded work. A mapped snapshot answers its first
+	// queries by faulting pages in, and a heap one never does, so a measured
+	// window that includes those faults reports the transient as the cost.
+	defaultWarmup = 4_000
+	callTimeout   = 60 * time.Second
 	// probeCount is how many real symbols the workload draws from. The
 	// workload's distribution is what makes the latency comparable between
 	// arms, so the probes have to come from the snapshot under test and not
@@ -62,6 +66,7 @@ type config struct {
 	GenerationDir string
 	Clients       int
 	Calls         int
+	Warmup        int
 	Seed          int64
 	Directory     string
 }
@@ -73,6 +78,7 @@ func main() {
 	flag.StringVar(&cfg.GenerationDir, "generation-dir", "", "published generation directory holding snapshot.kvsnap")
 	flag.IntVar(&cfg.Clients, "clients", defaultClients, "server processes to run at once")
 	flag.IntVar(&cfg.Calls, "calls", defaultCalls, "tool calls per arm, split across the servers")
+	flag.IntVar(&cfg.Warmup, "warmup", defaultWarmup, "tool calls per arm to discard before measuring, so a mapped page is faulted in before its latency counts")
 	flag.Int64Var(&cfg.Seed, "seed", mcpworkload.DefaultSeed, "workload seed")
 	flag.StringVar(&cfg.Directory, "output", defaultDirectory, "directory for results.json and report.md")
 	flag.Parse()
@@ -105,6 +111,7 @@ func run(ctx context.Context, cfg config) error {
 		SchemaVersion: "shared-snapshot-v1",
 		Clients:       cfg.Clients,
 		Calls:         cfg.Calls,
+		Warmup:        cfg.Warmup,
 		Seed:          cfg.Seed,
 		Environment:   observeEnvironment(cfg.Server),
 		Snapshot: snapshotFile{
@@ -229,6 +236,25 @@ func measureArm(ctx context.Context, cfg config, name string) (arm, error) {
 	})
 	if err != nil {
 		return arm{}, fmt.Errorf("generate workload: %w", err)
+	}
+
+	// A warmup whose latencies are thrown away, because the first touch of a
+	// mapped page is a fault and the first touch of a heap page is not. Without
+	// it the two arms are compared over different amounts of work: at 2000
+	// calls the mapped arm's p99 came out 1.42x the derived one's and at 8000
+	// calls 1.27x, which measures the length of the run and not the design.
+	if cfg.Warmup > 0 {
+		warmup, err := mcpworkload.Generate(ctx, mcpworkload.Config{
+			Calls:  cfg.Warmup,
+			Seed:   cfg.Seed + 1,
+			Corpus: mcpworkload.Corpus{Probes: probes},
+		})
+		if err != nil {
+			return arm{}, fmt.Errorf("generate warmup: %w", err)
+		}
+		if _, _, err := driveAll(ctx, servers, warmup.Requests); err != nil {
+			return arm{}, fmt.Errorf("warmup: %w", err)
+		}
 	}
 
 	latencies, callErrors, err := driveAll(ctx, servers, workload.Requests)

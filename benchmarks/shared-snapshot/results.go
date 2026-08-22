@@ -23,6 +23,7 @@ type results struct {
 	SnapshotID    uint64       `json:"snapshot_id"`
 	Clients       int          `json:"clients"`
 	Calls         int          `json:"calls"`
+	Warmup        int          `json:"warmup"`
 	Seed          int64        `json:"seed"`
 	Environment   environment  `json:"environment"`
 	Snapshot      snapshotFile `json:"snapshot"`
@@ -305,6 +306,7 @@ func computeDigest(out results) (string, error) {
 		Snapshot   snapshotFile `json:"snapshot"`
 		Clients    int          `json:"clients"`
 		Calls      int          `json:"calls"`
+		Warmup     int          `json:"warmup"`
 		Seed       int64        `json:"seed"`
 		Symbols    int          `json:"symbols"`
 		OS         string       `json:"os"`
@@ -316,6 +318,7 @@ func computeDigest(out results) (string, error) {
 		Snapshot:   out.Snapshot,
 		Clients:    out.Clients,
 		Calls:      out.Calls,
+		Warmup:     out.Warmup,
 		Seed:       out.Seed,
 		OS:         out.Environment.OS,
 		Arch:       out.Environment.Arch,
