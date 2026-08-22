@@ -245,10 +245,20 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   compartir, un `39,3 %`. Lo que sigue siendo privado son las tablas
   decodificadas; lo compartido es el arena de cadenas, que es la parte grande.
   `internal/procstat` reparte `Pss` y `Shared_Clean` en Linux y **declara** que
-  darwin no puede: ahí el reparto sale de `footprint`. Las cifras equivalentes
-  en Linux, con `Pss` real y tres servidores, están en la fase 2b del ADR 0045 y
-  concuerdan. Los dos umbrales de `LUQUE-2006` ya se cumplen, el de residente
-  por siete décimas, así que mapear también las tablas no lo pide ningún número.
+  darwin no puede: ahí el reparto sale de `footprint`, que no es la misma
+  cantidad, así que las dos cifras no se comparan entre sí. En Linux, medido por
+  `benchmarks/shared-snapshot` sobre `161.819` símbolos: la cuota de `Pss` del
+  brazo mapeado sobre el derivado es `0,498` con dos servidores, `0,416` con
+  cuatro y `0,372` con ocho -- **cae en cada paso, que es la propiedad**, porque
+  la parte compartida se reparte entre más procesos. Lo privado sale plano en
+  `614 B` por símbolo, `~95 MB` por proceso en ese corpus.
+
+  Los dos umbrales originales de `LUQUE-2006` **no** se cumplían -- `0,416`
+  contra `≤0,40` y `95 MB` contra `≤60 MB`--, y lo que la medición mostró es que
+  el problema eran los umbrales: uno era una propiedad del número de clientes y
+  el otro un número de un corpus más pequeño. Están reescritos como propiedades.
+  Mapear también las tablas sigue sin pedirlo ningún número: lo que ahorraría son
+  esos `614 B` por símbolo, y el arranque -- `13x`-- ya lo da el mapeo del arena.
 - El fichero publicado se **mapea y el mapeo se conserva**, porque la tabla de
   cadenas lee sus valores en sitio en vez de copiarlos -- unos cincuenta megas
   sobre el corpus real. Las demás tablas se decodifican a structs y sí se copian.

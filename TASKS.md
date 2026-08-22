@@ -15021,8 +15021,19 @@ de arriba:
   medida.
 * Daba como pendiente la condición `SymbolRecord` sin `string`, que `LUQUE-2002`
   cumplió, y los cuatro mapas «no persistibles», que `LUQUE-2003` sustituyó por
-  arrays planos. Lo que bloqueaba mapear las tablas está hecho -- y ahora ningún
-  número lo pide, porque los dos umbrales de `LUQUE-2006` ya se cumplen.
+  arrays planos. Lo que bloqueaba mapear las tablas está hecho.
+
+**Corrección del `2026-08-22`, después de medir en Linux:** esta tarea afirmaba
+que «los dos umbrales de `LUQUE-2006` ya se cumplen». **No se cumplían.** El
+arnés de `LUQUE-2006` midió `0,416` de cuota contra el `≤0,40` declarado y
+`94,7 MB` sucios por proceso contra el `≤60 MB`, y los dos umbrales resultaron
+ser el problema: uno valoraba el número de clientes y el otro un corpus de
+`123.531` símbolos. Están reescritos como propiedades, y con ellos el gate pasa.
+La afirmación se escribió con las cifras de darwin y de la fase 2b del ADR 0045,
+antes de que existiera la medición que la contradijo -- que es exactamente lo que
+esta tarea existía para cazar.
+
+Lo que no cambia: mapear también las tablas sigue sin pedirlo ningún número.
 
 **Lo que encontró la auditoría de `internal/AGENTS.md`:** cuatro afirmaciones
 falsas, y una llevaba tiempo contradiciendo a su propio ADR.
@@ -15062,6 +15073,14 @@ de claves retiradas está publicada.
 `Private_Dirty` por proceso por encima de **100 MB**, o un corpus donde el
 fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace: su
 ahorro sería de decenas de megabytes y su coste es un demonio.
+
+**Medido el `2026-08-22`, y queda cerca:** `94,3`–`98,1 MB` por proceso sobre
+`kena-workspace`, `161.819` símbolos. La condición no se cumple, pero por poco,
+y lo que la decide no es el número de clientes -- sale plano en `614 B` por
+símbolo en los tres puntos del barrido-- sino el tamaño del grafo. Un corpus de
+unos `170.000` símbolos la cruza. Por eso el criterio de `LUQUE-2006` se declara
+ahora por símbolo: es la magnitud que escala, y `100 MB` sobre este corpus son
+`648 B` por símbolo.
 
 **Diseño, si llega el caso:** socket unix bajo el directorio de estado, un
 `kivgraph daemon` que sostiene un `SnapshotStore`, un seguidor, un bucle de

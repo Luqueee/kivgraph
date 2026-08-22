@@ -65,22 +65,31 @@ A generation carries its snapshot as a file, and a server maps it read-only
 instead of deriving the graph. So the largest part of it — the string arena — is
 one copy in physical memory however many servers read the same generation.
 
-Measured with two servers on one generation of a 37-repository corpus,
-`123,531` symbols in a `98.8 MB` file:
+Measured on Linux with `benchmarks/shared-snapshot`, one generation of a
+51-repository corpus — `161,819` symbols in a `129 MB` file — against the same
+binary made to derive the graph instead, `Pss` summed over every server:
 
-| | per server |
-| --- | --- |
-| mapped file, clean | `94 MB`, **one copy, shared** |
-| dirty, private | `44.5 MB` |
+| servers | mapping the file | deriving the graph | share |
+| --- | --- | --- | --- |
+| 2 | `326 MB` | `654 MB` | `50%` |
+| 4 | `514 MB` | `1,234 MB` | `42%` |
+| 8 | `888 MB` | `2,385 MB` | `37%` |
 
-What stays private is the decoded tables; what is shared is the arena. Projected
-to four clients that is `272 MB` against the `692 MB` a private copy each would
-cost — `39%`.
+The share falls as servers are added, which is the whole point: a mapped page is
+paid for once by the machine however many processes hold it, so each new server
+adds only what it decodes for itself — `614 B` per symbol, flat across all three
+counts. At eight servers the machine keeps `1.5 GB` it would otherwise spend.
 
-On Linux, `Pss` and `Shared_Clean` in `/proc/<pid>/smaps_rollup` split it
-directly. macOS reports a footprint per process and no such split, so the
-figures above come from `footprint`, which separates dirty from clean and names
-the mapped region.
+The other half is startup. A server that maps the file answers its first query
+in `261 ms`; one that derives the graph takes `3,394 ms`, and that ratio does
+not improve with more servers because each one starts alone.
+
+On Linux, `Pss` and `Shared_Clean` in `/proc/<pid>/smaps_rollup` split shared
+from private directly. macOS reports a footprint per process and no such split,
+so there the numbers come from `footprint`, which separates dirty from clean and
+names the mapped region — a different quantity, not comparable to the table
+above. Measured that way with two servers on `123,531` symbols: `94 MB` of clean
+mapped file in one shared copy, `44.5 MB` dirty per process.
 
 If the file is absent, foreign, stale or corrupt, the server derives the graph
 from the canonical store exactly as it always did, says so, and answers. It is
