@@ -15860,6 +15860,84 @@ Más un ADR: cambia a qué repositorio pertenece un símbolo, que es identidad.
 lado Go y emitir la fila sin paquete. Eso es exactamente lo que `LUQUE-2011`
 descartó, y reintroduce el first-wins silencioso.
 
+## LUQUE-2014 — El digest que prueba la pertenencia de un fichero es de contadores, no de contenido
+
+**Dependencias:** LUQUE-2004.
+
+**Objetivo:** que la prueba de que un snapshot publicado pertenece a su
+generación distinga dos grafos que difieren.
+
+**Lo que hay hoy, medido:** `snapshot.sha256` lo escribe
+`writeSnapshotDigest(candidatePath, result.Tables)` -`internal/rebuild/rebuild.go:284`-
+sobre los **contadores por tabla** que reportó el cargador. Ese valor es el que
+viaja en la cabecera del fichero publicado como `contentDigest`
+-`hotsnapshot/file.go`, offset 40- y el que `loadPublishedSnapshot` compara para
+rechazar un fichero que no pertenece a la generación.
+
+El proyecto ya calcula un digest **de contenido** más fuerte:
+`snapshotContentDigest(rows)` -`internal/rebuild/snapshot.go:112`-, que hashea
+repositorios, paquetes, ficheros, símbolos, aristas de paquete, no resueltos
+-- incluido su `detail`-- y aristas. Se guarda en `SnapshotReport.Digest` y **no se
+persiste para esta comprobación**.
+
+**La medición.** El mismo corpus `kena` indexado en dos `HOME` distintos produce:
+
+* `snapshot.sha256` **idéntico**: `e80c6d46d3a6956c3f4c5c87321ccad67a1d8072b7ec6d22e12f3bd09a96f5fe`.
+* Grafos que **difieren**: `288` filas de no resueltos con la misma clave y
+  `Detail` distinto, y un arena de strings de `63.914.142` contra `63.914.190`
+  bytes.
+
+O sea: un fichero derivado de un grafo se aceptaría como perteneciente a otro.
+
+**Lo que hay que decidir:** persistir el digest de contenido en vez del de
+contadores es superficie de compatibilidad -- las generaciones existentes dejan de
+validar y se rederivan, que es el camino autocurativo que ya existe-- así que pide
+ADR. La alternativa es declarar por escrito que la comprobación es de contadores
+y qué protege realmente, que es un fichero dejado atrás por otra pasada.
+
+**Criterio de aceptación:** dos grafos que difieren en cualquier fila que el
+snapshot guarda no comparten digest, o el contrato dice explícitamente qué
+distingue y qué no.
+
+**Estado:** abierta.
+
+---
+
+## LUQUE-2015 — El grafo publica 288 rutas absolutas de la máquina que lo indexó
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que un grafo del mismo corpus sea el mismo en dos máquinas.
+
+**Lo que hay hoy, medido:** `288` filas de `UnresolvedReferenceRecord` llevan en
+su `Detail` una ruta absoluta de la caché de build de Go, de la forma
+`$HOME/Library/Caches/go-build/90/9038...-d`. Se internan como `48` cadenas
+distintas del `StringTable`, y son la única diferencia entre dos indexados del
+mismo corpus con dos `HOME` distintos.
+
+**Por qué importa, y no es sólo estética:**
+
+* **Rompe el determinismo** que la fase 20 quiere del artefacto: el mismo corpus
+  en dos máquinas no da el mismo grafo ni el mismo fichero.
+* **Filtra una ruta local** en un artefacto que se publica y se comparte.
+* Como `detail` es lo que un lector ve al preguntar por un no resuelto, una ruta
+  de la caché de otra máquina no le dice nada: no existe en la suya.
+
+**Lo que hay que averiguar antes de arreglar:** de dónde sale. Es el cargador de
+Go, que informa de un fallo de paquete con la ruta que `go/packages` le dio, y esa
+ruta apunta al caché porque el paquete es un `.test` sintético. La pregunta de
+diseño es qué `detail` sirve a quien lee: el motivo -- que ya está en `reason`-- y
+el paquete pedido -- que ya está en `requested_package`--, o una ruta que sólo
+existe en la máquina que indexó.
+
+**Criterio de aceptación:** dos indexados del mismo corpus en dos `HOME` distintos
+producen el mismo conjunto de filas, y ninguna cadena internada contiene una ruta
+que dependa de la máquina. La regresión más barata es exactamente ésa.
+
+**Estado:** abierta.
+
+---
+
 ## LUQUE-2013 — Dos claves de configuración que no implementan lo que prometen
 
 **Dependencias:** LUQUE-2004.
