@@ -16631,3 +16631,105 @@ pasada se niega al reparar el fixture Rust. `TestWorkspaceNotLoadedFacts...`
 falla al darle un archivo a la fila.
 
 **Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 31. Fase 24 — Los tres defectos que la fase 22 dejó nombrados
+
+La fase 22 cerró declarando tres defectos sin arreglar. Al medirlos, **dos de
+las tres razones para aplazarlos eran falsas**, y una de las tres cosas
+declaradas no era un defecto.
+
+## LUQUE-2209 — Una comparación no es un argumento
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que `dartReferenceKind` distinga un argumento de un operando.
+
+**Alcance:** `internal/dartloader/loader.go`, `testdata/dart/advanced`,
+`benchmarks/dart-semantic`.
+
+**Criterios de aceptación:**
+
+- Son **dos** defectos ortogonales y ninguno arregla al otro: en
+  `if (other == handler)` el paréntesis lo abre un keyword y no un callee; en
+  `register(other == handler)` el paréntesis sí abre una llamada, pero la
+  ocurrencia es operando de la comparación. Dos reglas: `comparedInDartPrefix`
+  y `opensDartArgument`, que busca el corchete sin cerrar más interno y mira
+  qué identificador lo precede.
+- El fixture lo ejercita, que es lo que faltaba para no arreglarlo a ciegas.
+  Escribirlo destapó un tercer caso que nadie había nombrado:
+  `final same = (other == handler)` salía `ASSIGNS_FUNCTION`.
+- El caso positivo no se rompe, incluido el callee alcanzado por acceso a
+  miembro (`registry.add(handler)`).
+
+**Verificación:** `19` casos en `TestDartReferenceKindClassifiesResolvedUses`,
+cuatro de ellos fallando antes del arreglo; `go run ./benchmarks/dart-semantic`
+con `31/31` aciertos, `0` falsas exactas; y el binario real, donde
+`find_references fallback` devuelve tres filas con su clase cada una --
+`REFERENCES` en la comparación, `CALLS_DIRECT` y `PASSES_AS_CALLBACK` en el
+argumento.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2210 — Una arista de directiva nombra la evidencia que la justifica
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que `IMPORTS_SYMBOL`, `REEXPORTS` y `PART_OF` lleven
+`evidence_key`, que es lo que `AGENTS.md` exige de una arista canónica.
+
+**Alcance:** `internal/facts/semantic.go`, `internal/dartloader/loader.go`.
+
+**Criterios de aceptación:**
+
+- Las dos razones del aplazamiento eran falsas, y medirlas es lo primero: el
+  payload lo comparten **dos** lenguajes, no cinco -- Go, TypeScript y Rust
+  tienen su propio normalizador--, y los dos productores de Python **ya
+  enviaban el fin** de cada import en `point()`. No hubo cambio de protocolo ni
+  ADR: el decodificador Go no tenía campos donde ponerlo.
+- La evidencia va en el **origen** de la arista, que es la convención del resto
+  del paquete. Para un `part`, eso es la directiva del archivo parte, aunque el
+  otro extremo se observe primero.
+- Sin vano observado no hay evidencia. Inventarlo colisiona: `EvidenceKey` sale
+  de los desplazamientos, así que dos directivas del mismo archivo compartirían
+  clave y cada una sobrescribiría a la anterior.
+- **Lo que no cambia se declara.** La respuesta servida es idéntica byte a
+  byte antes y después: `hotsnapshot.EvidenceRecord` no proyecta la posición,
+  así que ninguna tool puede abrir el vano de una evidencia en ninguno de los
+  cinco lenguajes. Proyectarlo sube la versión del formato de filas del
+  snapshot y ningún consumidor lo pide. Anotado en `internal/AGENTS.md`.
+
+**Verificación:** `directive_edges_without_evidence` de `4` a `0`,
+`imports_without_evidence` de Python de `7`/`12` a `0`; tres tests en
+`internal/facts/semantic_test.go`, cada uno falsificado por separado; y una
+sonda que abre cada evidencia publicada y comprueba que el texto es la
+directiva -- `part of 'library.dart';` en el archivo parte.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2211 — El `part` duplicado no existía
+
+**Dependencias:** ninguna.
+
+**Objetivo:** comprobar el tercer defecto declarado antes de arreglarlo.
+
+**Alcance:** el hallazgo de `benchmarks/dart-semantic`.
+
+**Criterios de aceptación:**
+
+- Medido: el payload lleva `2` filas y el grafo publica `1` arista.
+  `NormalizeSemantic` deduplicaba por identidad desde el commit que trajo Dart
+  -- `fe8308b`, antes de la fase 22--, así que el hallazgo describía un defecto
+  que nunca ocurrió.
+- Lo que sí faltaba, y salió al medirlo, es que `SemanticPart` no dice **en qué
+  archivo** se observó la directiva: `LibraryFile` y `PartFile` nombran los
+  extremos de la relación, no dónde está el texto. Se arregla en `LUQUE-2210`,
+  que es quien necesita esa respuesta.
+- Una limitación que no existe es ruido que tapa las que sí: el hallazgo se
+  reescribe con la medición en la mano.
+
+**Verificación:** una sonda sobre `testdata/dart/advanced` contando aristas
+`PART_OF` y filas de payload, y `git log -L` sobre el bloque de deduplicación.
+
+**Estado:** cerrada el `2026-08-22`.

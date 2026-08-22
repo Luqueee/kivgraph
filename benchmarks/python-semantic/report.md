@@ -49,7 +49,7 @@ número escondería la mitad interesante.
 - propiedad cumplida: `true` (0 aristas exactas, 25 candidatas)
 - cobertura como `CANDIDATE`: 22 de 41 relaciones del fuente
 - usos atribuidos al módulo: 0; a una función o clase: 18
-- `IMPORTS_SYMBOL` sin evidencia: 7
+- `IMPORTS_SYMBOL` sin evidencia: 0
 - relaciones con clase distinta a la del fuente: 3; pares ausentes del fuente por debajo de exacta: 0
 
 #### Casos
@@ -100,7 +100,7 @@ número escondería la mitad interesante.
 - propiedad cumplida: `true` (0 falsas exactas de 35 exactas)
 - cobertura exacta: 32 de 41 relaciones del fuente
 - usos atribuidos al módulo: 0; a una función o clase: 23
-- `IMPORTS_SYMBOL` sin evidencia: 12
+- `IMPORTS_SYMBOL` sin evidencia: 0
 - relaciones con clase distinta a la del fuente: 3; pares ausentes del fuente por debajo de exacta: 0
 
 #### Casos
@@ -215,10 +215,8 @@ esta pasada no se lea sin su historia; los que no, dicen por qué.
 - La medición del brazo `exact` depende de la versión de Pyright instalada y de la typeshed que trae; la del brazo `fallback` sólo del `python3` del PATH.
 - El brazo `fallback` no publicó 19 de 41 relaciones del fuente; están enumeradas por nombre en la sección del brazo.
 - El brazo `fallback` publicó 3 relaciones existentes con otra clase que la que dice el fuente.
-- El brazo `fallback` publicó 7 aristas `IMPORTS_SYMBOL` sin clave de evidencia (`internal/facts/semantic.go:362`).
 - El brazo `exact` no publicó 9 de 41 relaciones del fuente; están enumeradas por nombre en la sección del brazo.
 - El brazo `exact` publicó 3 relaciones existentes con otra clase que la que dice el fuente.
-- El brazo `exact` publicó 12 aristas `IMPORTS_SYMBOL` sin clave de evidencia (`internal/facts/semantic.go:362`).
 
 ## Gate
 

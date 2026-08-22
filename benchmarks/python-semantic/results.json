@@ -38,7 +38,7 @@
             "expected_unresolved": 0,
             "unresolved_matched": 0,
             "unresolved_declared": 1,
-            "imports_without_evidence": 1
+            "imports_without_evidence": 0
           },
           "index_error": "",
           "missing_edges": [
@@ -79,7 +79,7 @@
             "expected_unresolved": 6,
             "unresolved_matched": 6,
             "unresolved_declared": 53,
-            "imports_without_evidence": 6
+            "imports_without_evidence": 0
           },
           "index_error": "",
           "missing_edges": [
@@ -146,7 +146,7 @@
         "expected_unresolved": 6,
         "unresolved_matched": 6,
         "unresolved_declared": 54,
-        "imports_without_evidence": 7
+        "imports_without_evidence": 0
       }
     },
     {
@@ -178,7 +178,7 @@
             "expected_unresolved": 0,
             "unresolved_matched": 0,
             "unresolved_declared": 0,
-            "imports_without_evidence": 2
+            "imports_without_evidence": 0
           },
           "index_error": "",
           "missing_edges": [
@@ -211,7 +211,7 @@
             "expected_unresolved": 6,
             "unresolved_matched": 6,
             "unresolved_declared": 35,
-            "imports_without_evidence": 10
+            "imports_without_evidence": 0
           },
           "index_error": "",
           "missing_edges": [
@@ -267,7 +267,7 @@
         "expected_unresolved": 6,
         "unresolved_matched": 6,
         "unresolved_declared": 35,
-        "imports_without_evidence": 12
+        "imports_without_evidence": 0
       }
     }
   ],
@@ -283,9 +283,7 @@
     "La medición del brazo `exact` depende de la versión de Pyright instalada y de la typeshed que trae; la del brazo `fallback` sólo del `python3` del PATH.",
     "El brazo `fallback` no publicó 19 de 41 relaciones del fuente; están enumeradas por nombre en la sección del brazo.",
     "El brazo `fallback` publicó 3 relaciones existentes con otra clase que la que dice el fuente.",
-    "El brazo `fallback` publicó 7 aristas `IMPORTS_SYMBOL` sin clave de evidencia (`internal/facts/semantic.go:362`).",
     "El brazo `exact` no publicó 9 de 41 relaciones del fuente; están enumeradas por nombre en la sección del brazo.",
-    "El brazo `exact` publicó 3 relaciones existentes con otra clase que la que dice el fuente.",
-    "El brazo `exact` publicó 12 aristas `IMPORTS_SYMBOL` sin clave de evidencia (`internal/facts/semantic.go:362`)."
+    "El brazo `exact` publicó 3 relaciones existentes con otra clase que la que dice el fuente."
   ]
 }

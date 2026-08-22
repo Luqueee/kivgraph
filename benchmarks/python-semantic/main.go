@@ -146,8 +146,12 @@ type caseMetrics struct {
 	UnresolvedMatched   int `json:"unresolved_matched"`
 	UnresolvedDeclared  int `json:"unresolved_declared"`
 	// ImportsWithoutEvidence counts IMPORTS_SYMBOL edges published with no
-	// evidence key. The canonical set allows it, and the Rust audit does not
-	// have to: it is recorded so the difference is visible.
+	// evidence key. It used to measure a normaliser that discarded the span its
+	// producer had observed; that is fixed, and what it measures now is a
+	// producer that observed none. Both bundled workers always do -- `point()`
+	// carries the end -- so this is `0`, and it stays a count rather than an
+	// invariant because an external producer is allowed to send no span and
+	// `Set.Validate` accepts an absent key while rejecting a dangling one.
 	ImportsWithoutEvidence int `json:"imports_without_evidence"`
 }
 
@@ -638,13 +642,13 @@ func measureCase(ctx context.Context, spec armSpec, testCase auditCase) (caseRes
 // truth: an exact edge needs an exact provenance, an evidence key must resolve
 // inside the set, and an unresolved entry needs a subject.
 //
-// It deliberately does not require every reference edge to carry evidence, the
-// way the Rust audit does. The Python normaliser publishes IMPORTS_SYMBOL with
-// no evidence key at `internal/facts/semantic.go:362`, and the canonical
-// `Set.Validate` allows an absent key while rejecting a dangling one. Turning
-// that into an invariant failure would report a design decision as corruption,
-// so it is counted in `imports_without_evidence` instead and named as a
-// limitation.
+// It deliberately does not require a directive edge to carry evidence, the way
+// it requires one of a reference. It used to say the normaliser discarded the
+// span, which is no longer true: `NormalizeSemantic` now publishes the span its
+// producer observed. What remains is that a producer may observe none, and
+// `Set.Validate` accepts an absent key while rejecting a dangling one. Turning
+// that into an invariant failure would report an allowed payload as corruption,
+// so it is counted in `imports_without_evidence` instead.
 func checkInvariants(set facts.Set) []string {
 	failures := make([]string, 0)
 	evidence := make(map[string]struct{}, len(set.Evidence))
@@ -823,7 +827,7 @@ func verdict(measured report) (string, []string) {
 		}
 		if arm.Totals.ImportsWithoutEvidence != 0 {
 			observed = append(observed, fmt.Sprintf(
-				"El brazo `%s` publicó %d aristas `IMPORTS_SYMBOL` sin clave de evidencia (`internal/facts/semantic.go:362`).",
+				"El brazo `%s` publicó %d aristas `IMPORTS_SYMBOL` sin clave de evidencia, así que su productor no observó el vano de esas directivas: los dos workers incluidos lo mandan siempre en `point()`.",
 				arm.Name, arm.Totals.ImportsWithoutEvidence))
 		}
 	}

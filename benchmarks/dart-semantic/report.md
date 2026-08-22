@@ -5,7 +5,7 @@ de LUQUE-1816: verdad de referencia escrita a mano leyendo los fuentes.
 Se regenera con `go run ./benchmarks/dart-semantic`.
 
 Resultado: `DART_SEMANTIC_PASS_WITH_LIMITS` -- 0 falsas exactas, 0 relaciones esperadas ausentes
-sobre 27 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
+sobre 31 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
 
 ## Fixtures
 
@@ -14,14 +14,14 @@ sobre 27 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
 
 ## Totales
 
-- ocurrencias de arista exacta entre símbolos: 32
-- aristas esperadas: 27
-- true positives: 27
+- ocurrencias de arista exacta entre símbolos: 36
+- aristas esperadas: 31
+- true positives: 31
 - false negatives: 0
 - false exact edges: 0
-- símbolos publicados: 37
-- no resueltas declaradas: 6/6 esperadas, 27 filas publicadas
-- aristas de directiva sin `evidence_key`: 4
+- símbolos publicados: 41
+- no resueltas declaradas: 6/6 esperadas, 41 filas publicadas
+- aristas de directiva sin `evidence_key`: 0
 - referencias cuyo origen es el módulo del archivo y no una declaración: 0
 - aristas con los dos extremos en el mismo símbolo: 0
 - declaraciones cuyo rango cubre sólo su nombre: 5
@@ -31,7 +31,7 @@ sobre 27 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
 | Caso | Esperadas | TP | FN | Falsas exactas | Exactas | Símbolos | No resueltas |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | basic | 8 | 8 | 0 | 0 | 9 | 12 | 1/1 |
-| advanced | 19 | 19 | 0 | 0 | 23 | 25 | 5/5 |
+| advanced | 23 | 23 | 0 | 0 | 27 | 29 | 5/5 |
 
 ## No resueltas observadas
 
@@ -47,9 +47,9 @@ silencio es el defecto que esta auditoría existe para no repetir.
 ### advanced
 
 - DART_TARGET_NOT_INDEXED lib/conditional.dart PREFIX x3
-- DART_TARGET_NOT_INDEXED lib/language_features.dart CLASS x4
-- DART_TARGET_NOT_INDEXED lib/language_features.dart METHOD x1
-- DART_TARGET_NOT_INDEXED lib/language_features.dart PARAMETER x3
+- DART_TARGET_NOT_INDEXED lib/language_features.dart CLASS x11
+- DART_TARGET_NOT_INDEXED lib/language_features.dart METHOD x2
+- DART_TARGET_NOT_INDEXED lib/language_features.dart PARAMETER x9
 - DART_TARGET_NOT_INDEXED lib/language_features.dart TYPE_PARAMETER x8
 - DART_TARGET_NOT_INDEXED lib/library.dart CLASS x1
 - DART_TARGET_NOT_INDEXED lib/models.dart CLASS x1
@@ -69,10 +69,11 @@ no, dicen por qué no se tocaron.
 - El campo de representación de un `extension type` se publica. Ninguna de las dos fuentes de declaraciones lo lista y el Analysis Server resuelve su uso a un `PARAMETER`, así que todo uso apuntaba fuera del grafo aunque el campo es nameable como `id.value`; `appendExtensionTypeRepresentations` lo lee de la cabecera de la propia declaración.
 - Un `extension type` ya no compite con su archivo por la identidad de módulo. El LSP lo reporta como `SymbolKind.Namespace` (3) y `dartKind` mapeaba 2, 3 y 4 a `module`; `NormalizeSemantic` indexa `moduleKeys` por ese kind y gana el último del orden por `ID`, así que en un archivo cuya ruta ordene después de `module` la declaración le quitaba al archivo su identidad. Reproducido en un paquete temporal con `src/feature.dart` -- una biblioteca con `part 'piece.dart';` y un `extension type UserId(int value)` --, donde la arista publicada era `PART_OF src.piece -> UserId`; con el mapeo corregido apunta al módulo del archivo.
 - Una declaración observada por las dos fuentes se publicaba dos veces. Una fila del outline del analizador sin localización de elemento caía en el inicio de la declaración mientras la del LSP caía en el identificador, así que la deduplicación por posición no las unía; ahora la fila sin localización resuelve el desplazamiento de su propio nombre, y las filas que comparten identidad se colapsan.
-- Las aristas de directiva (`IMPORTS_SYMBOL`, `REEXPORTS`, `PART_OF`) se publican sin `evidence_key` aunque el productor observó su posición: `facts.SemanticImport` y `facts.SemanticPart` llevan `Start` y `StartLine`, y `NormalizeSemantic` los descarta al construir la arista (`internal/facts/semantic.go:289` y `:362`). No se arregló aquí: darles un extremo obliga a llevar el fin en el payload, que es la versión que comparten los cinco lenguajes. Lo mide `directive_edges_without_evidence`.
-- Una relación `part` se observa desde sus dos extremos -- `part 'piece.dart';` y `part of 'feature.dart';` -- y cada directiva es evidencia genuina, así que el payload lleva dos filas idénticas y `NormalizeSemantic` construye dos aristas iguales. Queda nombrado, sin medición propia todavía.
-- Una comparación dentro de un paréntesis se clasifica como `PASSES_AS_CALLBACK`: `if (other == handler)` tiene un `(` en el prefijo y un `)` en el sufijo, que es la firma de un argumento. Ningún fixture lo ejercita y distinguirlo pide saber si el paréntesis abre una llamada, así que se declara y no se arregla a ciegas.
-- Las `32` aristas exactas publicadas caen en `27` identidades: la identidad de una arista es `clase nombre -> nombre`, así que dos relaciones de la misma clase entre homónimos -- el `OVERRIDES drive -> drive` que cubre a la vez la superclase y la interfaz -- colapsan en una fila. No hay ninguna identidad observada que la verdad no espere.
+- Las aristas de directiva (`IMPORTS_SYMBOL`, `REEXPORTS`, `PART_OF`) ya llevan `evidence_key`, que es lo que `AGENTS.md` exige de una arista canónica. La pasada anterior las publicó sin él y aplazó el arreglo por dos razones que resultaron falsas al medirlas: el payload no lo comparten los cinco lenguajes sino **dos** -- `facts.SemanticPayload` sólo lo usan `pythonloader` y `dartloader`; Go, TypeScript y Rust tienen su propio normalizador--, y los dos productores de Python **ya enviaban el fin** de cada import en su helper `point()`. No hubo cambio de protocolo: el decodificador Go no tenía campos donde ponerlo y lo tiraba. `directive_edges_without_evidence` pasa de `4` a `0`, y `imports_without_evidence` de Python de `7`/`12` a `0`.
+- Lo que el `evidence_key` **no** cambia hoy es la respuesta servida, y conviene no venderlo de más: comparadas las dos versiones del binario sobre el mismo fixture, la fila de `find_references` para un `PART_OF` es idéntica byte a byte. La causa es que `hotsnapshot.EvidenceRecord` no proyecta la posición -- lleva clave, los dos ficheros, clase y procedencia--, así que ninguna tool puede abrir el vano de una evidencia en ninguno de los cinco lenguajes; la fila usa el rango del símbolo y `evidence_kind` sale de la procedencia. Queda declarado y no se arregla aquí: proyectarlo sube la versión del formato de filas del snapshot y ningún consumidor lo pide.
+- Una relación `part` se observa desde sus dos extremos -- `part 'piece.dart';` y `part of 'feature.dart';` --, y **no** producía dos aristas: `NormalizeSemantic` ya deduplicaba por identidad desde el commit que trajo Dart, así que el hallazgo anterior era falso y se midió para comprobarlo (`PART_OF` = `1` arista con `2` filas de payload). Lo que sí faltaba era decidir *cuál* de las dos observaciones lleva la evidencia. Una arista, porque dos directivas declaran una relación -- a diferencia de dos llamadas, que son dos sitios que un agente tiene que visitar--, y la evidencia va en el archivo parte, que es el origen de la arista, aunque el otro extremo se observe primero. `SemanticPart` gana `File`: `LibraryFile` y `PartFile` nombran los extremos de la relación, no dónde está el texto.
+- Una comparación ya no se clasifica como `PASSES_AS_CALLBACK`. Eran dos defectos ortogonales y ninguno arreglaba al otro: en `if (other == handler)` el `(` lo abre un keyword y no un callee, y en `register(other == handler)` el `(` sí abre una llamada pero la ocurrencia es operando de la comparación. Se arreglan con dos reglas -- `comparedInDartPrefix` y `opensDartArgument`, que busca el corchete sin cerrar más interno y mira qué identificador lo precede--, y el fixture las ejercita: `lib/language_features.dart` publica `REFERENCES prefersFallback -> fallback` y `PASSES_AS_CALLBACK choose -> fallback` desde las dos formas. Escribir el fixture destapó un tercer caso que nadie había nombrado: `final same = (other == handler)` salía `ASSIGNS_FUNCTION`, porque asignar el resultado de una comparación no es asignar la función.
+- Las `36` aristas exactas publicadas caen en `31` identidades: la identidad de una arista es `clase nombre -> nombre`, así que dos relaciones de la misma clase entre homónimos -- el `OVERRIDES drive -> drive` que cubre a la vez la superclase y la interfaz -- colapsan en una fila. No hay ninguna identidad observada que la verdad no espere.
 
 ## Limitaciones
 
