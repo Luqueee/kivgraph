@@ -15139,6 +15139,7 @@ MCP_TOKEN_COST_PASS
 SHARED_SNAPSHOT_PASS
 DART_SEMANTIC_PASS_WITH_LIMITS
 PYTHON_SEMANTIC_PASS_WITH_LIMITS
+TOOL_HONESTY_PASS_WITH_LIMITS
 ```
 
 No se puede aprobar Kivgraph sin todos ellos.
@@ -16485,5 +16486,103 @@ es la regla que ese mismo fichero ya aplicaba al binario.
 falla contra la huella escrita a mano; y el binario real, donde un cambio de
 contenido en `pyright_index.py` pasa la pasada de `hits=4 misses=0` a
 `hits=0 misses=4`, y un `touch` no -- la huella es de contenido, no de fecha.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 30. Fase 23 — Ninguna tool afirma una ausencia sin comprobarla
+
+La fase 22 cerró midiendo aristas, y encontró un defecto que ninguna medición
+de aristas puede ver: `find_references` contestaba una lista vacía con «las
+aristas están comprobadas por tipos, así que esto es una ausencia y no un
+fallo» **mientras el índice guardaba una fila de fallo que nombraba ese mismo
+símbolo**. Las aristas estaban bien. Lo que estaba mal era la frase.
+
+Es el defecto más caro de la superficie porque es el producto: un agente
+compra «¿quién llama a esto?» y la respuesta vacía es la que le hace borrar
+código. `internal/mcp/instructions.go:23` ya se lo decía a todo agente --
+«read confidence and completeness before treating an empty or partial answer
+as proof of absence»-- y sólo dos de las seis tools cuya respuesta vacía se
+lee como prueba publicaban `completeness`.
+
+El objetivo de la fase es un invariante, no una cifra: **ninguna tool afirma
+una ausencia que el grafo no sostiene**, y toda respuesta que sí es una
+ausencia lo dice. Lo segundo es la mitad que se olvida: un veredicto que
+nunca dice `COMPLETE` no informa de nada.
+
+## LUQUE-2206 — El veredicto se emite donde una respuesta se puede leer como prueba
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que las seis tools cuya respuesta vacía o parcial se lee como
+prueba publiquen `completeness`, y que las dos que rechazan un símbolo que no
+encuentran sigan rechazándolo.
+
+**Alcance:** `internal/mcp/tools/`. Seis tools relacionales y de búsqueda;
+`get_symbol` y `get_source` quedan fuera **por su forma**: no devuelven lista
+vacía, devuelven error.
+
+**Criterios de aceptación:**
+
+- La pregunta hacia fuera no se comprueba con los fallos de la pregunta hacia
+  dentro. «¿Quién llama a esto?» está acotada por los fallos que **pidieron el
+  nombre**; «¿qué alcanza esto?» por los que **el símbolo mismo** provocó. Una
+  sola de las dos comprobaciones habría dejado la otra sin acotar, así que
+  `UnresolvedFromSymbol` existe para esa dirección.
+- El ámbito de la comprobación sigue al ámbito de la pregunta. Una búsqueda de
+  todo el grafo está acotada por cada paquete ilegible que contenga; una
+  acotada a un repositorio, sólo por los de ese repositorio. Sin esta regla el
+  veredicto es una constante: un paquete malo en cualquier sitio pintaría
+  `LOWER_BOUND` en toda respuesta del corpus.
+- `find_cross_repo_consumers` es deliberadamente la excepción: su ámbito ciego
+  es **global**, porque un paquete ilegible en cualquier repositorio puede
+  esconder justo al consumidor que se pregunta. Es la tool sin competidor
+  nativo, así que su respuesta vacía se vende como hallazgo -- `grep` no puede
+  seguir un reexport con `*` que cruza de repositorio-- y por eso es la que
+  más necesita el respaldo.
+- El coste se mide, no se supone. `"completeness":{"verdict":"COMPLETE"}` son
+  `10` tokens (`cl100k_base`): `16 %` de una respuesta de una fila de
+  `find_symbol` y `50 %` de una vacía. Así que una búsqueda lo gasta donde la
+  respuesta se puede confundir con una prueba -- vacía, truncada-- y en todo
+  límite inferior, mientras las cuatro relacionales lo llevan siempre: ahí
+  `COMPLETE` sobre una respuesta con filas **es** la afirmación que se compra.
+- Cada arreglo tiene un test que falla sin él.
+
+**Verificación:** `go test ./internal/mcp/...`, y el arnés de la tarea
+siguiente contra el binario real.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2207 — Un arnés que prueba el invariante con el binario
+
+**Dependencias:** LUQUE-2206.
+
+**Objetivo:** que el invariante sea comprobable y no una promesa. Los cuatro
+arneses semánticos comparan un índice contra una verdad escrita y contestan
+«¿están bien las aristas?». Ninguno pregunta lo que pregunta una sesión, que
+es «¿usa alguien esto?», ni lee qué contesta la tool cuando no.
+
+**Alcance:** `benchmarks/tool-honesty/`, `testdata/honesty/`.
+
+**Criterios de aceptación:**
+
+- Corre el binario real por MCP sobre `stdio`, indexando en un `HOME` aislado.
+  Un arnés que construyera el snapshot a mano no probaría el camino que un
+  usuario recorre.
+- Dos repositorios, y el limpio es imprescindible: `pure` no tiene nada que el
+  índice no pueda leer, así que **toda** respuesta sobre él debe ser
+  `COMPLETE`. Sin ese brazo el veredicto podría ser una constante y las
+  comprobaciones de `LOWER_BOUND` pasarían igual.
+- El ámbito ciego se lee del **servidor**, no del fixture: un fixture es una
+  afirmación hasta que la pasada registra el fallo que se escribió para
+  producir. Si `unresolved_by_reason` no trae `PACKAGE_NOT_BUILDABLE`, el
+  arnés falla en vez de dar por buenas trece comprobaciones.
+- Falla ante el defecto que existe para cazar. Comprobado revirtiendo tres:
+  la frase de `find_references`, y el veredicto de `trace_dependencies` en sus
+  dos brazos.
+
+**Verificación:** `go run ./benchmarks/tool-honesty --kivgraph <binario>`;
+`13` comprobaciones, `13` pasan, y `3` fallan al revertir los arreglos.
 
 **Estado:** cerrada el `2026-08-22`.
