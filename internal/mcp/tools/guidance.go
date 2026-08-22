@@ -33,13 +33,33 @@ func referenceGuidance(direction string, total, returned int, truncated bool, ve
 }
 
 // traversalGuidance says the same thing for a bounded walk, where an empty
-// answer more often means the bound rather than the graph.
-func traversalGuidance(tool string, total, returned int, truncated bool) string {
+// answer more often means the bound rather than the graph -- and sometimes
+// neither, because the resolver could not read what the walk would have
+// crossed.
+func traversalGuidance(tool string, total, returned int, truncated bool, verdict string) string {
 	switch {
+	case total == 0 && verdict == VerdictLowerBound:
+		return "the traversal reached nothing, and the index recorded places it could not read that bound this answer: read completeness.blind_spots before concluding this reaches nothing"
 	case total == 0:
 		return "the traversal reached nothing within its bounds; raise depth, or call find_references for the direct relations only"
 	case truncated:
 		return truncatedGuidance(returned, total, "depth, max_nodes, edge_kinds or confidence")
+	default:
+		return ""
+	}
+}
+
+// symbolGuidance answers for a declaration lookup. "No such name" is the
+// cheapest wrong answer in the whole surface: it is what sends an agent to
+// invent the symbol it was looking for.
+func symbolGuidance(total, returned int, truncated bool, verdict string) string {
+	switch {
+	case total == 0 && verdict == VerdictLowerBound:
+		return "nothing declares this name in the published graph, but the index recorded places it could not read: read completeness.invisible_scopes, or widen with mode=substring, before concluding the name does not exist"
+	case total == 0:
+		return "nothing declares this name in the published graph. Widen with mode=prefix or mode=substring, or check graph_status if the tree moved since it was indexed"
+	case truncated:
+		return truncatedGuidance(returned, total, "kind, repo or path_prefix")
 	default:
 		return ""
 	}

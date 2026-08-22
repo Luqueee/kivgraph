@@ -565,13 +565,30 @@ func traceDependencies(
 		nextCursor = &encoded
 	}
 
+	// A bounded walk that reached nothing is either an absence or a bound, and
+	// the guidance already names the bound. What it could not say is the third
+	// case: the resolver recorded references this root makes that go nowhere the
+	// graph holds, which makes any answer here a minimum.
+	rootName, _ := snapshot.Strings().String(root.Name)
+	rootRepositoryID := hotsnapshot.InvalidRepositoryID
+	if file, found := snapshot.File(root.File); found {
+		rootRepositoryID = file.Repository
+	}
+	completeness, unresolvedRelated, err := completenessOutwardFor(snapshot, rootID, rootName, rootRepositoryID)
+	if err != nil {
+		return nil, Response[DependencyTrace]{}, WrapToolError(
+			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
+	}
+	coverage.UnresolvedRelated += unresolvedRelated
+
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[DependencyTrace]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
-		Coverage: coverage,
-		Guidance: traversalGuidance(traceDependenciesToolName, total, len(page), hasMore),
+		Coverage:     coverage,
+		Completeness: &completeness,
+		Guidance:     traversalGuidance(traceDependenciesToolName, total, len(page), hasMore, completeness.Verdict),
 		Results: DependencyTrace{
 			RootKey: symbolStableKey(snapshot, root), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,

@@ -393,14 +393,31 @@ func findCrossRepoConsumers(
 		nextCursor = &encoded
 	}
 
+	// This tool is the one with no native competitor, and its empty answer is
+	// sold as a finding: nobody outside uses this. A finding needs the check
+	// behind it. The scope half is deliberately global -- InvalidRepositoryID --
+	// because a package the index could not read in *any* repository is exactly
+	// what would hide a consumer, and the target's own repository is the one
+	// place a consumer cannot be.
+	//
+	// Its count does not go into coverage: the cross-repository failures are
+	// already listed as UNRESOLVED rows of this answer and counted there, and
+	// adding them twice would inflate the only number a caller can audit.
+	completeness, _, err := completenessFor(snapshot, target.SymbolName, hotsnapshot.InvalidRepositoryID)
+	if err != nil {
+		return nil, Response[CrossRepoConsumers]{}, WrapToolError(
+			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
+	}
+
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[CrossRepoConsumers]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
-		Coverage: coverage,
-		Guidance: crossRepoGuidance(total, len(page), hasMore),
-		View:     options.View,
+		Coverage:     coverage,
+		Completeness: &completeness,
+		Guidance:     crossRepoGuidance(total, len(page), hasMore, completeness.Verdict),
+		View:         options.View,
 		Results: CrossRepoConsumers{
 			Subject: crossRepoSubject(target, options.Format), Consumers: page, View: options.View,
 		},
@@ -1129,10 +1146,13 @@ func crossRepoNameTail(qualifiedName string) string {
 }
 
 // crossRepoGuidance reads an empty answer for what it is. This tool is the one
-// with no native competitor, so "nobody outside uses it" is a finding rather than
-// a miss -- and the two ways it can be wrong are worth naming.
-func crossRepoGuidance(total, returned int, truncated bool) string {
+// with no native competitor, so "nobody outside uses it" is a finding rather
+// than a miss -- which is exactly why it may only be said when the graph can
+// support it.
+func crossRepoGuidance(total, returned int, truncated bool, verdict string) string {
 	switch {
+	case total == 0 && verdict == VerdictLowerBound:
+		return "no repository in the published graph resolves a use of this symbol, but the index recorded places it could not read: read completeness.blind_spots and invisible_scopes before reporting that nothing outside uses it"
 	case total == 0:
 		return "no repository in the published graph consumes this symbol. Check graph_status if a consumer is registered but was not indexed, and find_references for uses inside its own repository"
 	case truncated:

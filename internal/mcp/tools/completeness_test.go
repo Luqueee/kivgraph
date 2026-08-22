@@ -174,6 +174,41 @@ func TestFindSymbolReportsWhatItCouldNotResolve(t *testing.T) {
 	}
 }
 
+// TestFindSymbolScopesTheVerdictToTheRepositoryAsked is what keeps the verdict
+// from becoming a constant. A search of the whole graph is bounded by every
+// unreadable package in it; one narrowed to a repository is bounded only by
+// that repository's. Without the scope, a single bad package anywhere would
+// print LOWER_BOUND on every lookup in the corpus, and a verdict that never
+// says COMPLETE carries no information at all.
+func TestFindSymbolScopesTheVerdictToTheRepositoryAsked(t *testing.T) {
+	store := completenessSnapshot(t, 55, hotsnapshot.UnresolvedReferenceRow{
+		Key: "unresolved-scope", RepositoryKey: "repo-core", Language: "go",
+		RequestedPackage: "example.com/core/hidden", Reason: "PACKAGE_NOT_BUILDABLE",
+		Detail: "build constraints exclude all Go files in /repo-core/hidden",
+	})
+
+	_, wide, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "Absent"}, store)
+	if err != nil {
+		t.Fatalf("find_symbol error = %v", err)
+	}
+	if wide.Completeness.Verdict != VerdictLowerBound {
+		t.Fatalf("unscoped verdict = %q, want %s", wide.Completeness.Verdict, VerdictLowerBound)
+	}
+
+	// repo-app has nothing the index could not read, so the same empty answer
+	// asked of it is an absence and not a minimum.
+	_, narrow, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "Absent", Repo: "app"}, store)
+	if err != nil {
+		t.Fatalf("find_symbol error = %v", err)
+	}
+	if narrow.Completeness.Verdict != VerdictComplete {
+		t.Fatalf("scoped verdict = %q, want %s: the blind spot belongs to another repository", narrow.Completeness.Verdict, VerdictComplete)
+	}
+	if len(narrow.Completeness.InvisibleScopes) != 0 {
+		t.Fatalf("scoped answer inherited another repository's scopes: %#v", narrow.Completeness.InvisibleScopes)
+	}
+}
+
 func TestRegexpQuoteWordEscapesWhatANameMayContain(t *testing.T) {
 	if got := regexpQuoteWord("Set.Merge"); got != `Set\.Merge` {
 		t.Fatalf("regexpQuoteWord() = %q", got)

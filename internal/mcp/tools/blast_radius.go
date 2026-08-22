@@ -528,7 +528,7 @@ func getBlastRadius(
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(radius.Symbols), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage, Completeness: &completeness,
-		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore),
+		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore, completeness.Verdict),
 		Results:  radius, View: options.View,
 	}, nil
 }

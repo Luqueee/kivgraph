@@ -312,6 +312,7 @@ func TestTraceDependenciesFullViewKeepsTodaysPayload(t *testing.T) {
 			"exact": float64(2), "candidate": float64(1),
 			"unresolved_related": float64(0), "package_level": float64(0),
 		},
+		"completeness": map[string]any{"verdict": VerdictComplete},
 		"results": map[string]any{
 			"root_key": "sym-root", "root_repository": "root",
 			"depth": float64(DefaultDependencyDepth), "max_nodes": float64(DefaultDependencyMaxNodes),
@@ -349,7 +350,11 @@ func TestTraceDependenciesCompactViewHoistsWhatEveryRowShares(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Marshal response: %v", err)
 	}
+	// The verdict travels with the answer, exactly as it does for
+	// find_references and get_blast_radius: a reader has to be able to tell an
+	// absence from a minimum without a second call.
 	wantSingle := `{"snapshot_id":37,"total":1,"returned":1,"coverage":{"exact":1},` +
+		`"completeness":{"verdict":"COMPLETE"},` +
 		`"results":{"root_key":"sym-root","root_repository":"root","depth":1,"max_nodes":5000,` +
 		`"reached":1,"deepest_depth":1,"repository":"root","kind":"func","hop_depth":1,` +
 		`"reached_from":"root.Root","via_kind":"CALLS_DIRECT","via_confidence":"EXACT_TYPECHECKED",` +
@@ -369,6 +374,7 @@ func TestTraceDependenciesCompactViewHoistsWhatEveryRowShares(t *testing.T) {
 		t.Fatalf("Marshal response: %v", err)
 	}
 	wantCompact := `{"snapshot_id":37,"total":3,"returned":3,"coverage":{"exact":2,"candidate":1},` +
+		`"completeness":{"verdict":"COMPLETE"},` +
 		`"results":{"root_key":"sym-root","root_repository":"root","depth":3,"max_nodes":5000,` +
 		`"reached":3,"deepest_depth":3,"files":[` +
 		`{"file":"root.go","repo":"root","at":[` +

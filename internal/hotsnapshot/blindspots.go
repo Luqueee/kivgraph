@@ -50,6 +50,31 @@ func requestedNames(requested, name string) bool {
 	return strings.HasSuffix(requested, "."+name)
 }
 
+// UnresolvedFromSymbol returns the failures the resolver recorded while reading
+// one symbol: references it makes that go nowhere the graph holds.
+//
+// This is the outward direction, and it is a different question from
+// UnresolvedNamingSymbol. "Who calls X" is bounded by failures that asked for
+// X; "what does X reach" is bounded by failures X itself made. A traversal that
+// answers nothing while its root has these is a lower bound, not an absence.
+func (snapshot *GraphSnapshot) UnresolvedFromSymbol(symbol SymbolID, limit int) ([]UnresolvedReferenceRecord, int) {
+	if snapshot == nil || symbol == InvalidSymbolID || limit < 0 {
+		return nil, 0
+	}
+	matched := make([]UnresolvedReferenceRecord, 0)
+	total := 0
+	for _, reference := range snapshot.unresolved {
+		if reference.Source != symbol {
+			continue
+		}
+		total++
+		if len(matched) < limit {
+			matched = append(matched, reference)
+		}
+	}
+	return matched, total
+}
+
 // UnresolvedScopes returns the failures that describe something the index
 // could not read at all, rather than one reference. Passing
 // InvalidRepositoryID returns them for every repository.
