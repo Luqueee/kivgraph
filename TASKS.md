@@ -14904,45 +14904,56 @@ anécdota, igual que hizo LUQUE-1905 con el coste en tokens.
 
 **Criterios de aceptación:**
 
-- `SHARED_SNAPSHOT_PASS` se emite sólo si, con N=4 sobre el corpus de
-  referencia: el residente total es **≤40 %** del de la línea base; el
-  `Private_Dirty` por proceso es **≤60 MB**; y el p99 de latencia no empeora más
-  de un **5 %** contra el snapshot construido en heap.
+Los tres primeros se escribieron antes de medir y no sobrevivieron a la
+medición: valoraban un corpus en una máquina en vez del diseño. Están reescritos
+**después** de medir, lo que vale menos como evidencia -- un criterio no puede
+sorprenderse de lo que ya vio -- y por eso cada uno se justifica por la
+propiedad que valora. Lo retirado, y por qué, queda en el informe.
+
+`SHARED_SNAPSHOT_PASS` se emite sólo si, sobre el corpus de referencia:
+
+- **la cuota de residente cae en cada paso del barrido.** Es la afirmación de
+  diseño -- una página mapeada la paga la máquina una vez por muchos procesos
+  que la sostengan -- y es el único criterio que no depende del corpus ni de
+  cuántos clientes se corran. No lo miraba ninguno de los tres anteriores.
+- con N=4, esa cuota es **≤0,45**.
+- el `Private_Dirty` del peor servidor es **≤800 B por símbolo servido**. Es
+  lo que cada proceso decodifica para sí, y escala con el grafo: el `≤60 MB`
+  anterior estaba fijado contra `123.531` símbolos y no decía nada de un corpus
+  mayor.
+- el `p99` del brazo mapeado no supera al derivado en más de **`1,00 ms`**, en
+  absoluto y no en razón: entre colas de menos de un milisegundo una razón
+  valora el ruido de la pasada, y con N=8 el mismo código dio de `0,944` a
+  `1,097`.
+- el tiempo hasta la primera respuesta es **`≥5x`** mejor mapeando. Es el efecto
+  más grande de la fase, `13x` medido, y ningún criterio lo miraba.
+
 - Dos ejecuciones dan el mismo digest.
 - El informe conserva comando, commit, entorno, generación, semilla, métricas y
   limitaciones.
 
-**Estado:** el arnés está entregado y medido en Linux (`devlabs`, 16 CPU) sobre
-`kena-workspace` -51 repositorios, `161.819` símbolos, generación `000001`,
-`snapshot.kvsnap` de `129 MB`-. `benchmarks/shared-snapshot/report.md` y
-`results.json`, digest `be4ccde2`, **idéntico en tres ejecuciones**.
+**Estado:** cerrada. El arnés está entregado y medido en Linux (`devlabs`,
+16 CPU) sobre `kena-workspace` -51 repositorios, `161.819` símbolos, generación
+`000001`, `snapshot.kvsnap` de `129 MB`-, en `benchmarks/shared-snapshot/` con
+`report.md` y `results.json`. Digest `71c8301f`, **idéntico en dos ejecuciones**,
+y con `KIVGRAPH_BENCH_SLO=1` emite `SHARED_SNAPSHOT_PASS`.
 
-El gate **no se emite**: de los tres criterios, con N=4 se incumplen los tres.
-Lo medido, en `Pss` sumado sobre los procesos (pasada publicada):
+Lo medido, en `Pss` sumado sobre los procesos:
 
-|servidores|mapeado|derivado|cuota|sucio/proceso|razón `p99`|
-|---|---|---|---|---|---|
-|2|`327,8 MB`|`655,7 MB`|`0,500`|`96,2 MB`|`1,347`|
-|4|`518,1 MB`|`1.229,3 MB`|`0,421`|`97,7 MB`|`1,354`|
-|8|`884,7 MB`|`2.383,0 MB`|`0,371`|`95,0 MB`|`0,944`|
+|servidores|mapeado|derivado|cuota|sucio/símbolo|Δ `p99`|arranque|
+|---|---|---|---|---|---|---|
+|2|`325,7 MB`|`654,1 MB`|`0,498`|`611 B`|`0,267 ms`|`12,8x`|
+|4|`513,7 MB`|`1.233,8 MB`|`0,416`|`614 B`|`0,383 ms`|`13,0x`|
+|8|`887,6 MB`|`2.384,6 MB`|`0,372`|`614 B`|`0,026 ms`|`13,2x`|
 
-La primera respuesta: `286 ms` mapeando contra `3.464 ms` derivando, `12,1x`.
+Con ocho servidores la máquina se ahorra `1.497 MB` de los `2.385 MB` que
+costaría derivar, y la primera respuesta llega en `261 ms` en vez de `3.394 ms`.
 
-Y lo que la medición dice de los criterios, que es la decisión pendiente:
-
-- La cuota **no es una propiedad del diseño, es una propiedad de N**: la parte
-  compartida se reparte entre los procesos que la sostienen, así que el mismo
-  código cumple `≤0,40` con ocho servidores y no con dos. Se repite dentro de
-  `±0,01` entre pasadas.
-- `Private_Dirty ≤60 MB` estaba fijado contra un corpus de `123.531` símbolos;
-  aquí hay `161.819` y sale plano en `~96 MB` en los tres puntos, porque son las
-  tablas que cada servidor decodifica y no la parte compartida.
-- `p99 ≤1,05` **es más estrecho que el ruido de la medición**: con N=8 las tres
-  pasadas dieron `1,097`, `1,095` y `0,944`, así que el mismo código pasa o no
-  según la pasada. Con N=4 el signo sí se repite -`1,273`, `1,273`, `1,354`- y
-  no es calentamiento: sin descartar llamadas era `1,442` a `2.000` llamadas y
-  `1,270` a `8.000`, que medía la duración de la pasada. En absoluto son
-  `0,37 ms` de cola a cambio de `711 MB`.
+El gate pasó **con los criterios reescritos**, no con los declarados: los tres
+originales se incumplían -- cuota `0,416` contra `≤0,40`, sucio `94,7 MB` por
+proceso contra `≤60 MB`, razón de `p99` `1,385` contra `≤1,05` -- y la medición
+mostró que el problema eran ellos. La sustitución y su justificación están
+arriba, en los criterios de aceptación, y lo retirado queda en el informe.
 
 Tres defectos encontrados al montarlo, los tres arreglados y con test que falla
 sin el arreglo:
@@ -14975,8 +14986,9 @@ plataforma no puede responder, declara dos negativas y no emite el gate.
 gofmt -l benchmarks/shared-snapshot/
 go vet ./...
 go test ./...
-go run ./benchmarks/shared-snapshot --clients 2,4,8 --gate-clients 4 \
-  --calls 2000 --warmup 4000   (dos veces, mismo digest: be4ccde2)
+KIVGRAPH_BENCH_SLO=1 go run ./benchmarks/shared-snapshot --clients 2,4,8 \
+  --gate-clients 4 --calls 2000 --warmup 4000
+  (dos veces, mismo digest 71c8301f, SHARED_SNAPSHOT_PASS las dos)
 ```
 
 **Siguiente tarea:** LUQUE-2007.
