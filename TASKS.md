@@ -14915,44 +14915,59 @@ anécdota, igual que hizo LUQUE-1905 con el coste en tokens.
 **Estado:** el arnés está entregado y medido en Linux (`devlabs`, 16 CPU) sobre
 `kena-workspace` -51 repositorios, `161.819` símbolos, generación `000001`,
 `snapshot.kvsnap` de `129 MB`-. `benchmarks/shared-snapshot/report.md` y
-`results.json`, digest `be4ccde2`, **idéntico en dos ejecuciones**.
+`results.json`, digest `be4ccde2`, **idéntico en tres ejecuciones**.
 
 El gate **no se emite**: de los tres criterios, con N=4 se incumplen los tres.
-Lo medido, en `Pss` sumado sobre los procesos:
+Lo medido, en `Pss` sumado sobre los procesos (pasada publicada):
 
 |servidores|mapeado|derivado|cuota|sucio/proceso|razón `p99`|
 |---|---|---|---|---|---|
-|2|`329,1 MB`|`647,0 MB`|`0,509`|`96,9 MB`|`1,442`|
-|4|`520,0 MB`|`1.238,0 MB`|`0,420`|`98,1 MB`|`1,273`|
-|8|`881,3 MB`|`2.415,4 MB`|`0,365`|`95,9 MB`|`1,097`|
+|2|`327,8 MB`|`655,7 MB`|`0,500`|`96,2 MB`|`1,347`|
+|4|`518,1 MB`|`1.229,3 MB`|`0,421`|`97,7 MB`|`1,354`|
+|8|`884,7 MB`|`2.383,0 MB`|`0,371`|`95,0 MB`|`0,944`|
 
-La primera respuesta: `265 ms` mapeando contra `3.478 ms` derivando, `13,1x`.
+La primera respuesta: `286 ms` mapeando contra `3.464 ms` derivando, `12,1x`.
 
 Y lo que la medición dice de los criterios, que es la decisión pendiente:
 
 - La cuota **no es una propiedad del diseño, es una propiedad de N**: la parte
   compartida se reparte entre los procesos que la sostienen, así que el mismo
-  código cumple `≤0,40` con ocho servidores y no con dos.
+  código cumple `≤0,40` con ocho servidores y no con dos. Se repite dentro de
+  `±0,01` entre pasadas.
 - `Private_Dirty ≤60 MB` estaba fijado contra un corpus de `123.531` símbolos;
-  aquí hay `161.819` y sale plano en `~97 MB` en los tres puntos, porque son las
+  aquí hay `161.819` y sale plano en `~96 MB` en los tres puntos, porque son las
   tablas que cada servidor decodifica y no la parte compartida.
-- `p99 ≤1,05` es más estrecho que lo que compra: con N=4 son `0,29 ms` de cola
-  a cambio de `718 MB`. Y no es calentamiento: sin descartar llamadas la razón
-  era `1,442` a `2.000` llamadas y `1,270` a `8.000` -- medía la duración de la
-  pasada-, y con `4.000` descartadas se queda en `1,273`.
+- `p99 ≤1,05` **es más estrecho que el ruido de la medición**: con N=8 las tres
+  pasadas dieron `1,097`, `1,095` y `0,944`, así que el mismo código pasa o no
+  según la pasada. Con N=4 el signo sí se repite -`1,273`, `1,273`, `1,354`- y
+  no es calentamiento: sin descartar llamadas era `1,442` a `2.000` llamadas y
+  `1,270` a `8.000`, que medía la duración de la pasada. En absoluto son
+  `0,37 ms` de cola a cambio de `711 MB`.
 
-Dos defectos encontrados al montarlo, los dos arreglados y con test:
+Tres defectos encontrados al montarlo, los tres arreglados y con test que falla
+sin el arreglo:
 
 - `graph_status` fallaba **entero** con `SNAPSHOT_UNAVAILABLE` en todo corpus
   posterior al ADR 0060: el desglose `edges_by_kind` exigía que cada arista
   saliente fuese de las que contesta `find_references`, y `METHOD_OF` no lo es.
   Son `9.169` de `482.478` aristas en este corpus. La fixture sólo llevaba
   aristas de referencia, así que pasaba con la herramienta rota.
+- `index --full` se negaba a indexar **este repositorio**: el normalizador de Go
+  y el de Rust declaran cada uno un `type methodOwner struct { methodKey ... }`
+  dentro de una función, y la ruta del campo se enraizaba en el nombre del tipo,
+  así que los dos derivaban una clave estando en dos ficheros. Un tipo local no
+  alcanza el ámbito de paquete, así que ahora la ruta lleva delante la función
+  que lo encierra. Ningún grafo publicado puede llevar la identidad antigua,
+  porque ninguno que la tuviera podía publicarse.
 - El arnés medía la instalación real creyendo medir una aislada: una
   configuración escrita por `init` guarda sus rutas con `~`, que se expande
   contra el `HOME` de quien ejecuta `serve`, no contra el del `init`. Ahora
   compara el snapshot servido con el directorio cuyo fichero esconde y se niega
   si difieren.
+
+La ruta darwin está ejercitada sobre una generación aislada: publica el
+residente, **marca como no evaluada** -no falla- la comprobación que la
+plataforma no puede responder, declara dos negativas y no emite el gate.
 
 **Verificación:**
 

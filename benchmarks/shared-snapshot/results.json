@@ -2,7 +2,7 @@
   "benchmark": "shared-snapshot",
   "date": "2026-08-22",
   "schema_version": "shared-snapshot-v1",
-  "commit": "2713fe5",
+  "commit": "f2b2363",
   "digest": "be4ccde29d04588f36efb5fbade5bb90219f29722cd2e6507fa34f68e883770a",
   "snapshot_id": 1,
   "gate_clients": 4,
@@ -40,38 +40,38 @@
           "processes": [
             {
               "index": 1,
-              "pid": 1073613,
-              "resident_bytes": 248266752,
-              "proportional_bytes": 173763584,
-              "shared_clean_bytes": 3223552,
-              "private_dirty_bytes": 101560320,
-              "peak_bytes": 260263936,
-              "first_answer_ms": 234.288
+              "pid": 1116083,
+              "resident_bytes": 247660544,
+              "proportional_bytes": 172832768,
+              "shared_clean_bytes": 3289088,
+              "private_dirty_bytes": 100892672,
+              "peak_bytes": 259563520,
+              "first_answer_ms": 238.578
             },
             {
               "index": 2,
-              "pid": 1073647,
-              "resident_bytes": 245936128,
-              "proportional_bytes": 171338752,
+              "pid": 1116116,
+              "resident_bytes": 245739520,
+              "proportional_bytes": 170893312,
               "shared_clean_bytes": 3305472,
-              "private_dirty_bytes": 99147776,
-              "peak_bytes": 258674688,
-              "first_answer_ms": 249.968
+              "private_dirty_bytes": 98955264,
+              "peak_bytes": 258019328,
+              "first_answer_ms": 258.622
             }
           ],
           "totals": {
-            "resident_bytes": 494202880,
-            "proportional_bytes": 345102336,
-            "shared_clean_bytes": 6529024,
-            "private_dirty_bytes": 200708096,
-            "worst_private_dirty_bytes": 101560320,
-            "worst_first_answer_ms": 249.968
+            "resident_bytes": 493400064,
+            "proportional_bytes": 343726080,
+            "shared_clean_bytes": 6594560,
+            "private_dirty_bytes": 199847936,
+            "worst_private_dirty_bytes": 100892672,
+            "worst_first_answer_ms": 258.622
           },
           "latency": {
             "calls": 2000,
-            "p50_ms": 0.540321,
-            "p95_ms": 1.003242,
-            "p99_ms": 1.238742
+            "p50_ms": 0.533621,
+            "p95_ms": 0.931452,
+            "p99_ms": 1.150662
           },
           "call_errors": 0
         },
@@ -83,71 +83,74 @@
           "processes": [
             {
               "index": 1,
-              "pid": 1074107,
-              "resident_bytes": 349700096,
-              "proportional_bytes": 336192512,
-              "shared_clean_bytes": 3973120,
-              "private_dirty_bytes": 325492736,
-              "peak_bytes": 1367793664,
-              "first_answer_ms": 3258.57
+              "pid": 1116536,
+              "resident_bytes": 354336768,
+              "proportional_bytes": 340649984,
+              "shared_clean_bytes": 3911680,
+              "private_dirty_bytes": 330248192,
+              "peak_bytes": 1338597376,
+              "first_answer_ms": 3469.415
             },
             {
               "index": 2,
-              "pid": 1074268,
-              "resident_bytes": 355745792,
-              "proportional_bytes": 342205440,
-              "shared_clean_bytes": 4001792,
-              "private_dirty_bytes": 331509760,
-              "peak_bytes": 1339699200,
-              "first_answer_ms": 3481.901
+              "pid": 1116717,
+              "resident_bytes": 360673280,
+              "proportional_bytes": 346947584,
+              "shared_clean_bytes": 3952640,
+              "private_dirty_bytes": 336543744,
+              "peak_bytes": 1327783936,
+              "first_answer_ms": 3550.741
             }
           ],
           "totals": {
-            "resident_bytes": 705445888,
-            "proportional_bytes": 678397952,
-            "shared_clean_bytes": 7974912,
-            "private_dirty_bytes": 657002496,
-            "worst_private_dirty_bytes": 331509760,
-            "worst_first_answer_ms": 3481.901
+            "resident_bytes": 715010048,
+            "proportional_bytes": 687597568,
+            "shared_clean_bytes": 7864320,
+            "private_dirty_bytes": 666791936,
+            "worst_private_dirty_bytes": 336543744,
+            "worst_first_answer_ms": 3550.741
           },
           "latency": {
             "calls": 2000,
-            "p50_ms": 0.382291,
-            "p95_ms": 0.673091,
-            "p99_ms": 0.859282
+            "p50_ms": 0.379791,
+            "p95_ms": 0.691251,
+            "p99_ms": 0.854271
           },
           "call_errors": 0
         }
       ],
       "comparison": {
-        "resident_share": 0.5087019130623791,
+        "resident_share": 0.4998942637330561,
         "resident_measure": "proportional",
-        "private_dirty_share": 0.3054906141482909,
-        "p99_ratio": 1.4416012438291503,
+        "private_dirty_share": 0.2997155862424827,
+        "p99_ratio": 1.3469519625505255,
         "worst_first_answer_ms": {
-          "mapped": 249.968,
-          "derived": 3481.901
+          "mapped": 258.622,
+          "derived": 3550.741
         }
       },
       "checks": [
         {
           "name": "resident_share",
           "passed": false,
-          "got": 0.5087019130623791,
+          "skipped": false,
+          "got": 0.4998942637330561,
           "want": 0.4,
           "detail": "total proportional of the mapped arm over the derived arm"
         },
         {
           "name": "private_dirty_per_process",
           "passed": false,
-          "got": 101560320,
+          "skipped": false,
+          "got": 100892672,
           "want": 62914560,
           "detail": "the worst single server of the mapped arm"
         },
         {
           "name": "p99_not_worse",
           "passed": false,
-          "got": 1.4416012438291503,
+          "skipped": false,
+          "got": 1.3469519625505255,
           "want": 1.05,
           "detail": "mapped p99 over derived p99"
         }
@@ -164,58 +167,58 @@
           "processes": [
             {
               "index": 1,
-              "pid": 1074780,
-              "resident_bytes": 249675776,
-              "proportional_bytes": 139026432,
-              "shared_clean_bytes": 3264512,
-              "private_dirty_bytes": 102887424,
-              "peak_bytes": 261996544,
-              "first_answer_ms": 241.436
+              "pid": 1117205,
+              "resident_bytes": 249290752,
+              "proportional_bytes": 138501120,
+              "shared_clean_bytes": 3260416,
+              "private_dirty_bytes": 102408192,
+              "peak_bytes": 260415488,
+              "first_answer_ms": 244.221
             },
             {
               "index": 2,
-              "pid": 1074811,
-              "resident_bytes": 245370880,
-              "proportional_bytes": 134711296,
-              "shared_clean_bytes": 3268608,
-              "private_dirty_bytes": 98553856,
-              "peak_bytes": 258457600,
-              "first_answer_ms": 265.131
+              "pid": 1117244,
+              "resident_bytes": 246185984,
+              "proportional_bytes": 135318528,
+              "shared_clean_bytes": 3387392,
+              "private_dirty_bytes": 99246080,
+              "peak_bytes": 258953216,
+              "first_answer_ms": 262.704
             },
             {
               "index": 3,
-              "pid": 1074994,
-              "resident_bytes": 245747712,
-              "proportional_bytes": 135098368,
-              "shared_clean_bytes": 3264512,
-              "private_dirty_bytes": 98959360,
-              "peak_bytes": 258281472,
-              "first_answer_ms": 260.906
+              "pid": 1117427,
+              "resident_bytes": 244858880,
+              "proportional_bytes": 133997568,
+              "shared_clean_bytes": 3354624,
+              "private_dirty_bytes": 97910784,
+              "peak_bytes": 258842624,
+              "first_answer_ms": 272.226
             },
             {
               "index": 4,
-              "pid": 1075208,
-              "resident_bytes": 246980608,
-              "proportional_bytes": 136403968,
+              "pid": 1117646,
+              "resident_bytes": 246194176,
+              "proportional_bytes": 135406592,
               "shared_clean_bytes": 3260416,
-              "private_dirty_bytes": 100265984,
-              "peak_bytes": 260022272,
-              "first_answer_ms": 264.574
+              "private_dirty_bytes": 99315712,
+              "peak_bytes": 258342912,
+              "first_answer_ms": 286.066
             }
           ],
           "totals": {
-            "resident_bytes": 987774976,
-            "proportional_bytes": 545240064,
-            "shared_clean_bytes": 13058048,
-            "private_dirty_bytes": 400666624,
-            "worst_private_dirty_bytes": 102887424,
-            "worst_first_answer_ms": 265.131
+            "resident_bytes": 986529792,
+            "proportional_bytes": 543223808,
+            "shared_clean_bytes": 13262848,
+            "private_dirty_bytes": 398880768,
+            "worst_private_dirty_bytes": 102408192,
+            "worst_first_answer_ms": 286.066
           },
           "latency": {
             "calls": 2000,
-            "p50_ms": 0.590921,
-            "p95_ms": 1.101263,
-            "p99_ms": 1.372853
+            "p50_ms": 0.595671,
+            "p95_ms": 1.135471,
+            "p99_ms": 1.413663
           },
           "call_errors": 0
         },
@@ -227,91 +230,94 @@
           "processes": [
             {
               "index": 1,
-              "pid": 1075645,
-              "resident_bytes": 338280448,
-              "proportional_bytes": 319509504,
-              "shared_clean_bytes": 3854336,
-              "private_dirty_bytes": 314109952,
-              "peak_bytes": 1367343104,
-              "first_answer_ms": 3332.153
+              "pid": 1118065,
+              "resident_bytes": 336846848,
+              "proportional_bytes": 317910016,
+              "shared_clean_bytes": 3948544,
+              "private_dirty_bytes": 312606720,
+              "peak_bytes": 1352527872,
+              "first_answer_ms": 3365.047
             },
             {
               "index": 2,
-              "pid": 1075762,
-              "resident_bytes": 345923584,
-              "proportional_bytes": 327108608,
-              "shared_clean_bytes": 3854336,
-              "private_dirty_bytes": 321687552,
-              "peak_bytes": 1337630720,
-              "first_answer_ms": 3477.559
+              "pid": 1118188,
+              "resident_bytes": 345395200,
+              "proportional_bytes": 326421504,
+              "shared_clean_bytes": 3973120,
+              "private_dirty_bytes": 321093632,
+              "peak_bytes": 1358954496,
+              "first_answer_ms": 3348.022
             },
             {
               "index": 3,
-              "pid": 1076108,
-              "resident_bytes": 346042368,
-              "proportional_bytes": 327135232,
-              "shared_clean_bytes": 3973120,
-              "private_dirty_bytes": 321687552,
-              "peak_bytes": 1346666496,
-              "first_answer_ms": 3313.953
+              "pid": 1118537,
+              "resident_bytes": 344264704,
+              "proportional_bytes": 325299200,
+              "shared_clean_bytes": 3944448,
+              "private_dirty_bytes": 319963136,
+              "peak_bytes": 1347424256,
+              "first_answer_ms": 3406.532
             },
             {
               "index": 4,
-              "pid": 1076400,
-              "resident_bytes": 343150592,
-              "proportional_bytes": 324392960,
-              "shared_clean_bytes": 3907584,
-              "private_dirty_bytes": 319008768,
-              "peak_bytes": 1341661184,
-              "first_answer_ms": 3469.78
+              "pid": 1118849,
+              "resident_bytes": 338423808,
+              "proportional_bytes": 319422464,
+              "shared_clean_bytes": 3973120,
+              "private_dirty_bytes": 314064896,
+              "peak_bytes": 1337708544,
+              "first_answer_ms": 3464.009
             }
           ],
           "totals": {
-            "resident_bytes": 1373396992,
-            "proportional_bytes": 1298146304,
-            "shared_clean_bytes": 15589376,
-            "private_dirty_bytes": 1276493824,
-            "worst_private_dirty_bytes": 321687552,
-            "worst_first_answer_ms": 3477.559
+            "resident_bytes": 1364930560,
+            "proportional_bytes": 1289053184,
+            "shared_clean_bytes": 15839232,
+            "private_dirty_bytes": 1267728384,
+            "worst_private_dirty_bytes": 321093632,
+            "worst_first_answer_ms": 3464.009
           },
           "latency": {
             "calls": 2000,
-            "p50_ms": 0.436091,
-            "p95_ms": 0.845021,
-            "p99_ms": 1.078122
+            "p50_ms": 0.43283,
+            "p95_ms": 0.829362,
+            "p99_ms": 1.043991
           },
           "call_errors": 0
         }
       ],
       "comparison": {
-        "resident_share": 0.42001434069483745,
+        "resident_share": 0.4214130299219679,
         "resident_measure": "proportional",
-        "private_dirty_share": 0.3138805816893635,
-        "p99_ratio": 1.2733744418535193,
+        "private_dirty_share": 0.3146421370967742,
+        "p99_ratio": 1.3540950065661486,
         "worst_first_answer_ms": {
-          "mapped": 265.131,
-          "derived": 3477.559
+          "mapped": 286.066,
+          "derived": 3464.009
         }
       },
       "checks": [
         {
           "name": "resident_share",
           "passed": false,
-          "got": 0.42001434069483745,
+          "skipped": false,
+          "got": 0.4214130299219679,
           "want": 0.4,
           "detail": "total proportional of the mapped arm over the derived arm"
         },
         {
           "name": "private_dirty_per_process",
           "passed": false,
-          "got": 102887424,
+          "skipped": false,
+          "got": 102408192,
           "want": 62914560,
           "detail": "the worst single server of the mapped arm"
         },
         {
           "name": "p99_not_worse",
           "passed": false,
-          "got": 1.2733744418535193,
+          "skipped": false,
+          "got": 1.3540950065661486,
           "want": 1.05,
           "detail": "mapped p99 over derived p99"
         }
@@ -328,98 +334,98 @@
           "processes": [
             {
               "index": 1,
-              "pid": 1076955,
-              "resident_bytes": 244690944,
-              "proportional_bytes": 115861504,
-              "shared_clean_bytes": 3297280,
-              "private_dirty_bytes": 97767424,
-              "peak_bytes": 260157440,
-              "first_answer_ms": 238.605
+              "pid": 1119362,
+              "resident_bytes": 245342208,
+              "proportional_bytes": 116457472,
+              "shared_clean_bytes": 3334144,
+              "private_dirty_bytes": 98369536,
+              "peak_bytes": 260628480,
+              "first_answer_ms": 273.091
             },
             {
               "index": 2,
-              "pid": 1077009,
-              "resident_bytes": 243654656,
-              "proportional_bytes": 114823168,
-              "shared_clean_bytes": 3280896,
-              "private_dirty_bytes": 96718848,
-              "peak_bytes": 259629056,
-              "first_answer_ms": 256.397
+              "pid": 1119409,
+              "resident_bytes": 244826112,
+              "proportional_bytes": 115929088,
+              "shared_clean_bytes": 3354624,
+              "private_dirty_bytes": 97857536,
+              "peak_bytes": 257998848,
+              "first_answer_ms": 252.335
             },
             {
               "index": 3,
-              "pid": 1077190,
-              "resident_bytes": 242475008,
-              "proportional_bytes": 113642496,
-              "shared_clean_bytes": 3395584,
-              "private_dirty_bytes": 95551488,
-              "peak_bytes": 257679360,
-              "first_answer_ms": 267.881
+              "pid": 1119591,
+              "resident_bytes": 245772288,
+              "proportional_bytes": 116849664,
+              "shared_clean_bytes": 3362816,
+              "private_dirty_bytes": 98762752,
+              "peak_bytes": 258531328,
+              "first_answer_ms": 269.107
             },
             {
               "index": 4,
-              "pid": 1077391,
-              "resident_bytes": 243007488,
-              "proportional_bytes": 114258944,
-              "shared_clean_bytes": 3264512,
-              "private_dirty_bytes": 96153600,
-              "peak_bytes": 257687552,
-              "first_answer_ms": 270.106
+              "pid": 1119789,
+              "resident_bytes": 243761152,
+              "proportional_bytes": 114888704,
+              "shared_clean_bytes": 3280896,
+              "private_dirty_bytes": 96768000,
+              "peak_bytes": 259756032,
+              "first_answer_ms": 261.739
             },
             {
               "index": 5,
-              "pid": 1077594,
-              "resident_bytes": 247521280,
-              "proportional_bytes": 118643712,
-              "shared_clean_bytes": 3280896,
-              "private_dirty_bytes": 100524032,
-              "peak_bytes": 260083712,
-              "first_answer_ms": 258.149
+              "pid": 1119988,
+              "resident_bytes": 243777536,
+              "proportional_bytes": 114929664,
+              "shared_clean_bytes": 3305472,
+              "private_dirty_bytes": 96854016,
+              "peak_bytes": 258076672,
+              "first_answer_ms": 275.546
             },
             {
               "index": 6,
-              "pid": 1077792,
-              "resident_bytes": 243970048,
-              "proportional_bytes": 115055616,
-              "shared_clean_bytes": 3297280,
-              "private_dirty_bytes": 96911360,
-              "peak_bytes": 257949696,
-              "first_answer_ms": 263.499
+              "pid": 1120207,
+              "resident_bytes": 246558720,
+              "proportional_bytes": 117688320,
+              "shared_clean_bytes": 3239936,
+              "private_dirty_bytes": 99569664,
+              "peak_bytes": 258338816,
+              "first_answer_ms": 262.427
             },
             {
               "index": 7,
-              "pid": 1077987,
-              "resident_bytes": 245243904,
-              "proportional_bytes": 116323328,
-              "shared_clean_bytes": 3338240,
-              "private_dirty_bytes": 98185216,
-              "peak_bytes": 258404352,
-              "first_answer_ms": 283.147
+              "pid": 1120446,
+              "resident_bytes": 243879936,
+              "proportional_bytes": 115119104,
+              "shared_clean_bytes": 3170304,
+              "private_dirty_bytes": 97026048,
+              "peak_bytes": 258076672,
+              "first_answer_ms": 266.837
             },
             {
               "index": 8,
-              "pid": 1078216,
-              "resident_bytes": 244346880,
-              "proportional_bytes": 115468288,
-              "shared_clean_bytes": 3297280,
-              "private_dirty_bytes": 97357824,
-              "peak_bytes": 258469888,
-              "first_answer_ms": 257.117
+              "pid": 1120652,
+              "resident_bytes": 244662272,
+              "proportional_bytes": 115846144,
+              "shared_clean_bytes": 3239936,
+              "private_dirty_bytes": 97738752,
+              "peak_bytes": 258863104,
+              "first_answer_ms": 262.113
             }
           ],
           "totals": {
-            "resident_bytes": 1954910208,
-            "proportional_bytes": 924077056,
-            "shared_clean_bytes": 26451968,
-            "private_dirty_bytes": 779169792,
-            "worst_private_dirty_bytes": 100524032,
-            "worst_first_answer_ms": 283.147
+            "resident_bytes": 1958580224,
+            "proportional_bytes": 927708160,
+            "shared_clean_bytes": 26288128,
+            "private_dirty_bytes": 782946304,
+            "worst_private_dirty_bytes": 99569664,
+            "worst_first_answer_ms": 275.546
           },
           "latency": {
             "calls": 2000,
-            "p50_ms": 0.793592,
-            "p95_ms": 1.464703,
-            "p99_ms": 2.019795
+            "p50_ms": 0.768971,
+            "p95_ms": 1.419152,
+            "p99_ms": 1.983173
           },
           "call_errors": 0
         },
@@ -431,131 +437,134 @@
           "processes": [
             {
               "index": 1,
-              "pid": 1078605,
-              "resident_bytes": 343138304,
-              "proportional_bytes": 321577984,
-              "shared_clean_bytes": 3948544,
-              "private_dirty_bytes": 318832640,
-              "peak_bytes": 1347698688,
-              "first_answer_ms": 3293.697
+              "pid": 1121054,
+              "resident_bytes": 341094400,
+              "proportional_bytes": 319613952,
+              "shared_clean_bytes": 3854336,
+              "private_dirty_bytes": 316923904,
+              "peak_bytes": 1398833152,
+              "first_answer_ms": 3489.049
             },
             {
               "index": 2,
-              "pid": 1078733,
-              "resident_bytes": 336158720,
-              "proportional_bytes": 314723328,
-              "shared_clean_bytes": 3866624,
-              "private_dirty_bytes": 311992320,
-              "peak_bytes": 1359933440,
-              "first_answer_ms": 3372.101
+              "pid": 1121219,
+              "resident_bytes": 334581760,
+              "proportional_bytes": 312974336,
+              "shared_clean_bytes": 4018176,
+              "private_dirty_bytes": 310263808,
+              "peak_bytes": 1377492992,
+              "first_answer_ms": 3453.406
             },
             {
               "index": 3,
-              "pid": 1079046,
-              "resident_bytes": 344137728,
-              "proportional_bytes": 322752512,
-              "shared_clean_bytes": 3850240,
-              "private_dirty_bytes": 320020480,
-              "peak_bytes": 1341644800,
-              "first_answer_ms": 3248.237
+              "pid": 1121520,
+              "resident_bytes": 339374080,
+              "proportional_bytes": 317841408,
+              "shared_clean_bytes": 3907584,
+              "private_dirty_bytes": 315150336,
+              "peak_bytes": 1324482560,
+              "first_answer_ms": 3461.408
             },
             {
               "index": 4,
-              "pid": 1079380,
-              "resident_bytes": 343293952,
-              "proportional_bytes": 321859584,
-              "shared_clean_bytes": 3850240,
-              "private_dirty_bytes": 319111168,
-              "peak_bytes": 1344589824,
-              "first_answer_ms": 3434.113
+              "pid": 1121844,
+              "resident_bytes": 334237696,
+              "proportional_bytes": 312632320,
+              "shared_clean_bytes": 3964928,
+              "private_dirty_bytes": 309923840,
+              "peak_bytes": 1323728896,
+              "first_answer_ms": 3483.148
             },
             {
               "index": 5,
-              "pid": 1079702,
-              "resident_bytes": 331313152,
-              "proportional_bytes": 309648384,
-              "shared_clean_bytes": 4022272,
-              "private_dirty_bytes": 306880512,
-              "peak_bytes": 1362157568,
-              "first_answer_ms": 3385.577
+              "pid": 1122174,
+              "resident_bytes": 321495040,
+              "proportional_bytes": 299931648,
+              "shared_clean_bytes": 3936256,
+              "private_dirty_bytes": 297193472,
+              "peak_bytes": 1337110528,
+              "first_answer_ms": 3531.586
             },
             {
               "index": 6,
-              "pid": 1079988,
-              "resident_bytes": 338837504,
-              "proportional_bytes": 317257728,
-              "shared_clean_bytes": 3973120,
-              "private_dirty_bytes": 314490880,
-              "peak_bytes": 1359151104,
-              "first_answer_ms": 3423.436
+              "pid": 1122428,
+              "resident_bytes": 337608704,
+              "proportional_bytes": 316128256,
+              "shared_clean_bytes": 3854336,
+              "private_dirty_bytes": 313438208,
+              "peak_bytes": 1328545792,
+              "first_answer_ms": 3424.207
             },
             {
               "index": 7,
-              "pid": 1080344,
-              "resident_bytes": 343851008,
-              "proportional_bytes": 322332672,
-              "shared_clean_bytes": 3936256,
-              "private_dirty_bytes": 319586304,
-              "peak_bytes": 1318551552,
-              "first_answer_ms": 3425.592
+              "pid": 1122778,
+              "resident_bytes": 335294464,
+              "proportional_bytes": 313699328,
+              "shared_clean_bytes": 4001792,
+              "private_dirty_bytes": 310992896,
+              "peak_bytes": 1391144960,
+              "first_answer_ms": 3439.685
             },
             {
               "index": 8,
-              "pid": 1080672,
-              "resident_bytes": 324009984,
-              "proportional_bytes": 302572544,
-              "shared_clean_bytes": 3883008,
-              "private_dirty_bytes": 299831296,
-              "peak_bytes": 1328287744,
-              "first_answer_ms": 3467.079
+              "pid": 1123166,
+              "resident_bytes": 327356416,
+              "proportional_bytes": 305883136,
+              "shared_clean_bytes": 3874816,
+              "private_dirty_bytes": 303157248,
+              "peak_bytes": 1329283072,
+              "first_answer_ms": 3420.787
             }
           ],
           "totals": {
-            "resident_bytes": 2704740352,
-            "proportional_bytes": 2532724736,
-            "shared_clean_bytes": 31330304,
-            "private_dirty_bytes": 2510745600,
-            "worst_private_dirty_bytes": 320020480,
-            "worst_first_answer_ms": 3467.079
+            "resident_bytes": 2671042560,
+            "proportional_bytes": 2498704384,
+            "shared_clean_bytes": 31412224,
+            "private_dirty_bytes": 2477043712,
+            "worst_private_dirty_bytes": 316923904,
+            "worst_first_answer_ms": 3531.586
           },
           "latency": {
             "calls": 2000,
-            "p50_ms": 0.607511,
-            "p95_ms": 1.335912,
-            "p99_ms": 1.841044
+            "p50_ms": 0.644761,
+            "p95_ms": 1.466142,
+            "p99_ms": 2.101783
           },
           "call_errors": 0
         }
       ],
       "comparison": {
-        "resident_share": 0.3648549101547528,
+        "resident_share": 0.371275676282641,
         "resident_measure": "proportional",
-        "private_dirty_share": 0.3103340266731922,
-        "p99_ratio": 1.097092193342473,
+        "private_dirty_share": 0.3160809396326067,
+        "p99_ratio": 0.9435669619556347,
         "worst_first_answer_ms": {
-          "mapped": 283.147,
-          "derived": 3467.079
+          "mapped": 275.546,
+          "derived": 3531.586
         }
       },
       "checks": [
         {
           "name": "resident_share",
           "passed": true,
-          "got": 0.3648549101547528,
+          "skipped": false,
+          "got": 0.371275676282641,
           "want": 0.4,
           "detail": "total proportional of the mapped arm over the derived arm"
         },
         {
           "name": "private_dirty_per_process",
           "passed": false,
-          "got": 100524032,
+          "skipped": false,
+          "got": 99569664,
           "want": 62914560,
           "detail": "the worst single server of the mapped arm"
         },
         {
           "name": "p99_not_worse",
-          "passed": false,
-          "got": 1.097092193342473,
+          "passed": true,
+          "skipped": false,
+          "got": 0.9435669619556347,
           "want": 1.05,
           "detail": "mapped p99 over derived p99"
         }
@@ -570,21 +579,24 @@
       {
         "name": "resident_share",
         "passed": false,
-        "got": 0.42001434069483745,
+        "skipped": false,
+        "got": 0.4214130299219679,
         "want": 0.4,
         "detail": "total proportional of the mapped arm over the derived arm"
       },
       {
         "name": "private_dirty_per_process",
         "passed": false,
-        "got": 102887424,
+        "skipped": false,
+        "got": 102408192,
         "want": 62914560,
         "detail": "the worst single server of the mapped arm"
       },
       {
         "name": "p99_not_worse",
         "passed": false,
-        "got": 1.2733744418535193,
+        "skipped": false,
+        "got": 1.3540950065661486,
         "want": 1.05,
         "detail": "mapped p99 over derived p99"
       }
