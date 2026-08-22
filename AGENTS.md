@@ -48,7 +48,7 @@ El campo `instructions` del servidor dice lo mismo, y Zed no lo lee.
 | quién lo usa desde otro repositorio | `find_cross_repo_consumers` |
 | dónde está declarado | `find_symbol` |
 | qué hay declarado en este paquete | `get_file_outline` |
-| dame el código de estos símbolos | `get_source` |
+| dame el código de estos símbolos -- hasta `20` por llamada | `get_source` |
 | ¿está el grafo al día? | `graph_status` |
 
 Las aristas las resuelven `go/types`, el checker de TypeScript y

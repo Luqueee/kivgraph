@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T21:54:44.988391Z",
-  "commit": "559e1bf",
+  "generated_at": "2026-08-22T00:21:42.756372Z",
+  "commit": "92d726e",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,7 +14,7 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "code-review-graph 2.3.7",
+    "code-review-graph": "unavailable",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
@@ -25,7 +25,7 @@
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/chainhome; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/chome; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
   "indexing": {},
@@ -82,11 +82,11 @@
             {
               "tool": "find_symbol",
               "tokens": 744,
-              "ms": 0.647
+              "ms": 0.735
             }
           ],
           "tokens": 744,
-          "ms": 0.647,
+          "ms": 0.735,
           "call_count": 1,
           "claimed": [
             "library-env:src/retry.ts",
@@ -200,11 +200,11 @@
             {
               "tool": "get_source",
               "tokens": 674,
-              "ms": 0.603
+              "ms": 0.574
             }
           ],
           "tokens": 674,
-          "ms": 0.603,
+          "ms": 0.574,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
@@ -309,11 +309,11 @@
             {
               "tool": "get_symbol",
               "tokens": 176,
-              "ms": 0.411
+              "ms": 0.261
             }
           ],
           "tokens": 176,
-          "ms": 0.411,
+          "ms": 0.261,
           "call_count": 1,
           "claimed": [
             "enum@29-36"
@@ -354,6 +354,277 @@
           "note": "read the one file the question names"
         }
       }
+    },
+    {
+      "id": "X8_bodies_twenty",
+      "family": "bodies",
+      "question": "Give me the complete source of these twenty declarations, in one call",
+      "ground_truth": [
+        "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+        "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+        "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+        "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+        "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+        "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+        "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+        "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+        "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+        "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+        "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+        "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
+        "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+        "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+        "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+        "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+        "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+        "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+        "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+        "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "code-review-graph returns impacted files, not source"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "it returns graph nodes, not source text"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`graft show` returns a card, not a declaration body keyed by qualified name"
+        },
+        "graphify": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "graphify returns nodes and edges, not source text"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "get_source",
+              "tokens": 19328,
+              "ms": 3.038
+            }
+          ],
+          "tokens": 19328,
+          "ms": 3.038,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+            "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+            "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+            "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+            "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+            "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+            "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+            "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+            "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+            "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+            "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+            "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
+            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+            "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+            "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+            "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+            "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+            "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+              "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+              "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+              "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+              "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+              "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+              "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+              "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+              "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+              "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+              "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+              "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
+              "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+              "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+              "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+              "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+              "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+              "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 1428,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 16720,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 13047,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1156,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 3228,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1692,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 998,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 3901,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 2717,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 8801,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 4173,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 3153,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 5827,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 4994,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 3059,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 2720,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 2007,
+              "ms": 0
+            },
+            {
+              "tool": "read",
+              "tokens": 1167,
+              "ms": 0
+            }
+          ],
+          "tokens": 80788,
+          "ms": 0,
+          "call_count": 18,
+          "claimed": [
+            "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+            "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+            "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+            "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+            "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+            "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+            "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+            "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+            "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+            "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+            "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+            "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
+            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+            "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+            "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+            "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+            "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+            "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+              "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+              "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+              "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+              "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+              "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+              "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+              "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+              "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+              "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+              "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+              "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
+              "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+              "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+              "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+              "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+              "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+              "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "read 18 file(s) whole, having no range to ask for"
+        }
+      }
     }
   ],
   "aggregate": {
@@ -365,7 +636,7 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 3
+      "of": 4
     },
     "codebase-memory": {
       "tokens_total": 0,
@@ -375,7 +646,7 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 3
+      "of": 4
     },
     "graft": {
       "tokens_total": 0,
@@ -385,7 +656,7 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 3
+      "of": 4
     },
     "graphify": {
       "tokens_total": 0,
@@ -395,27 +666,27 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 3
+      "of": 4
     },
     "kivgraph": {
-      "tokens_total": 1594,
-      "calls_total": 3,
-      "ms_total": 1.661,
+      "tokens_total": 20922,
+      "calls_total": 4,
+      "ms_total": 4.608,
       "precision_mean": 1,
       "recall_mean": 1,
-      "exact_answers": 3,
-      "answered": 3,
-      "of": 3
+      "exact_answers": 4,
+      "answered": 4,
+      "of": 4
     },
     "native": {
-      "tokens_total": 5286,
-      "calls_total": 5,
+      "tokens_total": 86074,
+      "calls_total": 23,
       "ms_total": 0,
       "precision_mean": 1,
       "recall_mean": 1,
-      "exact_answers": 3,
-      "answered": 3,
-      "of": 3
+      "exact_answers": 4,
+      "answered": 4,
+      "of": 4
     }
   },
   "aggregate_by_family": {
@@ -428,7 +699,7 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 1
+        "of": 2
       },
       "codebase-memory": {
         "tokens_total": 0,
@@ -438,7 +709,7 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 1
+        "of": 2
       },
       "graft": {
         "tokens_total": 0,
@@ -448,7 +719,7 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 1
+        "of": 2
       },
       "graphify": {
         "tokens_total": 0,
@@ -458,27 +729,27 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 1
+        "of": 2
       },
       "kivgraph": {
-        "tokens_total": 674,
-        "calls_total": 1,
-        "ms_total": 0.603,
+        "tokens_total": 20002,
+        "calls_total": 2,
+        "ms_total": 3.6119999999999997,
         "precision_mean": 1,
         "recall_mean": 1,
-        "exact_answers": 1,
-        "answered": 1,
-        "of": 1
+        "exact_answers": 2,
+        "answered": 2,
+        "of": 2
       },
       "native": {
-        "tokens_total": 2071,
-        "calls_total": 3,
+        "tokens_total": 82859,
+        "calls_total": 21,
         "ms_total": 0,
         "precision_mean": 1,
         "recall_mean": 1,
-        "exact_answers": 1,
-        "answered": 1,
-        "of": 1
+        "exact_answers": 2,
+        "answered": 2,
+        "of": 2
       }
     },
     "facts": {
@@ -525,7 +796,7 @@
       "kivgraph": {
         "tokens_total": 176,
         "calls_total": 1,
-        "ms_total": 0.411,
+        "ms_total": 0.261,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -587,7 +858,7 @@
       "kivgraph": {
         "tokens_total": 744,
         "calls_total": 1,
-        "ms_total": 0.647,
+        "ms_total": 0.735,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,

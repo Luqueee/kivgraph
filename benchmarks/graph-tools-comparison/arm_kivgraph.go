@@ -685,7 +685,7 @@ func kivgraphBodies(ctx context.Context, tokens *counter, kiv *server, q questio
 		if body.Code == "" {
 			continue
 		}
-		expectation, found := subjectFor(wanted, body.Repository, body.Path)
+		expectation, found := subjectFor(wanted, body.Repository, body.Path, body.Name)
 		if !found {
 			continue
 		}
@@ -704,9 +704,15 @@ func kivgraphBodies(ctx context.Context, tokens *counter, kiv *server, q questio
 }
 
 // subjectFor finds which of the asked subjects a returned body belongs to.
-func subjectFor(wanted []subject, repository, path string) (subject, bool) {
+//
+// The name is part of the match, not decoration. Matching on repository and path
+// alone was wrong the moment a question asked for two declarations from one file:
+// the second body was checked against the first one's expected lines and counted
+// as truncated. Two of twenty on the first run, and the arm was about to report a
+// tool that returns whole bodies as one that does not.
+func subjectFor(wanted []subject, repository, path, name string) (subject, bool) {
 	for _, item := range wanted {
-		if item.Repo == repository && item.Path == path {
+		if item.Repo == repository && item.Path == path && item.Name == name {
 			return item, true
 		}
 	}

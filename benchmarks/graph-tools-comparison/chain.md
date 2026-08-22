@@ -26,6 +26,7 @@ Las métricas crudas están en `results-chain.json` y las respuestas literales e
 |`X5` dónde se declara `withRetry`|`7` ficheros|`744` tok, `P=1,00` `R=1,00`|`1.699` tok, `P=1,00` `R=1,00`|**`2,3x`**|
 |`X6` el código de tres declaraciones, en una llamada|`3`|`674` tok, `P=1,00` `R=1,00`|`2.071` tok, 3 lecturas|`3,1x`|
 |`X7` qué es el `HttpStatus` de `library-shared`|`1`|`176` tok, `P=1,00` `R=1,00`|`1.516` tok|`8,6x`|
+|`X8` el código de **veinte** declaraciones, en una llamada|`20`|`19.328` tok, `P=1,00` `R=1,00`|`80.788` tok, `18` lecturas|`4,2x`|
 
 **El nativo acierta las tres.** A diferencia de la familia de consumidores -donde
 una búsqueda de texto es estructuralmente ciega ante un reexport por estrella-,
@@ -69,6 +70,47 @@ fichero. Contar líneas habría dado por bueno un cuerpo de la longitud correcta
 el contenido equivocado. Un cuerpo que se corta es exactamente el fallo que esta
 familia existe para cazar, y en una página parece un acierto.
 
+## `X8`: la ganancia es el **rango**, no el lote
+
+La tabla de enrutado dice «dame el código de estos símbolos» y añade que se
+prefiera a leer cada rango: «sin números de línea, una llamada entre ficheros y
+repositorios». Con tres sujetos eso no se puede separar de leer tres ficheros.
+Con veinte sí, y el resultado no es el que la frase sugiere.
+
+|medida|una llamada|leer y buscar|
+|---|---|---|
+|llamadas|`1`|`18`|
+|tokens|`19.328`|`80.788`|
+
+`4,2x`, contra `3,1x` con tres sujetos. Siete veces más cuerpos mueven la razón
+`1,1x`: **el lote apenas contribuye**. Lo que ahorra es devolver la declaración y
+no el fichero -- de `80.788` a `19.328`--, y de esos `19.328` la mayoría es el
+código en sí, que se paga igual por cualquier vía. Lo que el lote sí compra es el
+número de llamadas, `18` a `1`, que es latencia y no tokens.
+
+Y la frase tiene un techo que no menciona: **`MaximumSourceSymbols = 20`**. La
+primera versión de esta pregunta pidió treinta y la tool se negó, correctamente y
+en once tokens -- `INVALID_ARGUMENT: symbols must name at most 20 symbols`--. La
+cota está en el código y no estaba en la tabla que hace la promesa; ahora sí.
+
+**Y un defecto de este harness, que casi publicó una acusación falsa.** En la
+primera pasada `X8` marcó `R=0,90` con la nota «2 cuerpos llegaron sin su línea de
+cierre». Los veinte llegaban enteros: `subjectFor` emparejaba el cuerpo devuelto
+con su expectativa por **repositorio y ruta**, y veinte declaraciones caen en
+dieciocho ficheros -- dos ficheros tienen dos--, así que el segundo cuerpo de esos
+dos se comparaba contra las líneas del primero. El nombre entra ahora en el
+emparejamiento. Sin ese arreglo, este informe habría dicho que la tool trunca
+cuerpos.
+
+## La verdad de `X8` no se copió a mano
+
+Veinte declaraciones con su primera y su última línea son cuarenta líneas de
+verdad. Copiarlas a mano invita al error que este proyecto ya cometió tres veces
+hoy, y preguntárselas al grafo haría la verdad circular. Salen de un oráculo
+aparte: `go/parser` recorriendo el repositorio y quedándose con las funciones de
+nivel superior más largas -- `1.780` líneas en dieciocho ficheros--. Es la misma
+biblioteca que usa el cargador, y aquí sólo lee spans de fichero.
+
 ## Los cuatro rivales, otra vez no medidos y otra vez no un cero
 
 |herramienta|localizar|cuerpos|hechos|
@@ -85,7 +127,7 @@ victoria que no se ha disputado.
 ## Cobertura, ahora declarada en vez de deducida
 
 El servidor sirve `11` tools. Con este conjunto, las ejercitadas por preguntas
-son `8`:
+son `8`, y `X8` añade una segunda llamada a `get_source`:
 
 |tool|llamadas en preguntas|
 |---|---|
@@ -95,7 +137,7 @@ son `8`:
 |`find_cross_repo_consumers`|`2`|
 |`trace_dependencies`|`2`|
 |`find_symbol`|`1`|
-|`get_source`|`1`|
+|`get_source`|`2`|
 |`get_symbol`|`1`|
 |`graph_status`|`0`|
 |`list_repositories`|`0` en preguntas; el harness la llama una vez al arrancar|

@@ -1,0 +1,1801 @@
+snapshot 1  20 bodies  context 0
+@ api-db-go internal/application/handlers/openapi_handler.go:77-194 func buildOpenAPIDoc [file changed, re-anchored +0]
+func buildOpenAPIDoc(app *fiber.App) map[string]any {
+	type opKey struct {
+		method string
+		path   string
+	}
+	type candidate struct {
+		method string
+		path   string
+		params []string
+	}
+	var candidates []candidate
+	seen := map[opKey]struct{}{}
+	hasGET := map[string]bool{}
+
+	var routes []fiber.Route
+	if app != nil {
+		routes = app.GetRoutes(true)
+	}
+
+	for _, r := range routes {
+		method := strings.ToUpper(r.Method)
+		if _, ok := httpMethods[method]; !ok {
+			continue
+		}
+		if r.Path == "" || r.Path == "/*" || r.Path == "*" {
+			continue
+		}
+		if len(r.Handlers) == 0 {
+			continue
+		}
+
+		oaPath, params := fiberPathToOpenAPI(r.Path)
+		if oaPath == "" {
+			continue
+		}
+		key := opKey{method: method, path: oaPath}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		if method == fiber.MethodGet {
+			hasGET[oaPath] = true
+		}
+		candidates = append(candidates, candidate{method: method, path: oaPath, params: params})
+	}
+
+	paths := map[string]map[string]any{}
+	for _, c := range candidates {
+		// Drop Fiber auto-HEAD clones of GET routes. Keep HEAD-only paths.
+		if c.method == fiber.MethodHead {
+			if hasGET[c.path] {
+				continue
+			}
+		}
+
+		op := map[string]any{}
+		if len(c.params) > 0 {
+			plist := make([]map[string]any, 0, len(c.params))
+			for _, name := range c.params {
+				plist = append(plist, map[string]any{
+					"name":     name,
+					"in":       "path",
+					"required": true,
+					"schema":   map[string]any{"type": "string"},
+				})
+			}
+			op["parameters"] = plist
+		}
+		if openAPIPublicPath.MatchString(c.path) {
+			op["security"] = []map[string][]string{}
+		}
+		op["responses"] = map[string]any{
+			"200": map[string]any{"description": "OK"},
+		}
+
+		methods, ok := paths[c.path]
+		if !ok {
+			methods = map[string]any{}
+			paths[c.path] = methods
+		}
+		methods[strings.ToLower(c.method)] = op
+	}
+
+	ordered := make([]string, 0, len(paths))
+	for p := range paths {
+		ordered = append(ordered, p)
+	}
+	sort.Strings(ordered)
+	sortedPaths := make(map[string]any, len(paths))
+	for _, p := range ordered {
+		sortedPaths[p] = paths[p]
+	}
+
+	title := "api-db-go"
+	if app != nil && app.Config().AppName != "" {
+		title = app.Config().AppName
+	}
+
+	return map[string]any{
+		"openapi": "3.1.0",
+		"info": map[string]any{
+			"title":   title,
+			"version": "0.1.0",
+		},
+		"paths": sortedPaths,
+		"components": map[string]any{
+			"securitySchemes": map[string]any{
+				"bearerAuth": map[string]any{
+					"type":   "http",
+					"scheme": "bearer",
+				},
+			},
+		},
+		"security": []map[string][]string{
+			{"bearerAuth": {}},
+		},
+	}
+}
+@ api-db-go internal/domain/dbguild/module_moderation.go:1040-1179 func NormalizeModeration [file changed, re-anchored +0]
+func NormalizeModeration(m *ModuleModeration) {
+	if m == nil {
+		return
+	}
+
+	// Ver el párrafo "Enums vacíos con significado real" de la cabecera.
+	if m.Mute.Mode == "" {
+		m.Mute.Mode = ModerationMuteModeAuto
+	}
+	m.Automod.Mentions.Action = normalizeAutomodAction(m.Automod.Mentions.Action)
+	m.Automod.Words.Action = normalizeAutomodAction(m.Automod.Words.Action)
+	m.Automod.Invites.Action = normalizeAutomodAction(m.Automod.Invites.Action)
+	m.Automod.Spam.Action = normalizeAutomodAction(m.Automod.Spam.Action)
+	m.Automod.Duplicates.Action = normalizeAutomodAction(m.Automod.Duplicates.Action)
+	m.Automod.Caps.Action = normalizeAutomodAction(m.Automod.Caps.Action)
+	m.Automod.Links.Action = normalizeAutomodAction(m.Automod.Links.Action)
+	m.Automod.Emojis.Action = normalizeAutomodAction(m.Automod.Emojis.Action)
+	m.Automod.Attachments.Action = normalizeAutomodAction(m.Automod.Attachments.Action)
+
+	normalizeModerationAccess(&m.CommandsGlobal)
+
+	if m.Commands == nil {
+		m.Commands = map[string]ModerationCommand{}
+	} else {
+		for k, v := range m.Commands {
+			normalizeModerationAccess(&v.Access)
+			v.Aliases = ensureModerationStrSlice(v.Aliases)
+			m.Commands[k] = v
+		}
+	}
+
+	m.Automod.Mentions.ExemptRoles = ensureModerationStrSlice(m.Automod.Mentions.ExemptRoles)
+	m.Automod.Mentions.ExemptChannels = ensureModerationStrSlice(m.Automod.Mentions.ExemptChannels)
+	m.Automod.Mentions.BlockedUsers = ensureModerationStrSlice(m.Automod.Mentions.BlockedUsers)
+	m.Automod.Mentions.BlockedRoles = ensureModerationStrSlice(m.Automod.Mentions.BlockedRoles)
+
+	m.Automod.Words.ExemptRoles = ensureModerationStrSlice(m.Automod.Words.ExemptRoles)
+	m.Automod.Words.ExemptChannels = ensureModerationStrSlice(m.Automod.Words.ExemptChannels)
+	m.Automod.Words.Words = ensureModerationStrSlice(m.Automod.Words.Words)
+
+	m.Automod.Invites.ExemptRoles = ensureModerationStrSlice(m.Automod.Invites.ExemptRoles)
+	m.Automod.Invites.ExemptChannels = ensureModerationStrSlice(m.Automod.Invites.ExemptChannels)
+	m.Automod.Invites.AllowedCodes = ensureModerationStrSlice(m.Automod.Invites.AllowedCodes)
+
+	// v3: las seis reglas nuevas.
+	m.Automod.Spam.ExemptRoles = ensureModerationStrSlice(m.Automod.Spam.ExemptRoles)
+	m.Automod.Spam.ExemptChannels = ensureModerationStrSlice(m.Automod.Spam.ExemptChannels)
+
+	m.Automod.Duplicates.ExemptRoles = ensureModerationStrSlice(m.Automod.Duplicates.ExemptRoles)
+	m.Automod.Duplicates.ExemptChannels = ensureModerationStrSlice(m.Automod.Duplicates.ExemptChannels)
+
+	m.Automod.Caps.ExemptRoles = ensureModerationStrSlice(m.Automod.Caps.ExemptRoles)
+	m.Automod.Caps.ExemptChannels = ensureModerationStrSlice(m.Automod.Caps.ExemptChannels)
+
+	m.Automod.Links.ExemptRoles = ensureModerationStrSlice(m.Automod.Links.ExemptRoles)
+	m.Automod.Links.ExemptChannels = ensureModerationStrSlice(m.Automod.Links.ExemptChannels)
+	m.Automod.Links.AllowedDomains = ensureModerationStrSlice(m.Automod.Links.AllowedDomains)
+	m.Automod.Links.BlockedDomains = ensureModerationStrSlice(m.Automod.Links.BlockedDomains)
+
+	m.Automod.Emojis.ExemptRoles = ensureModerationStrSlice(m.Automod.Emojis.ExemptRoles)
+	m.Automod.Emojis.ExemptChannels = ensureModerationStrSlice(m.Automod.Emojis.ExemptChannels)
+
+	m.Automod.Attachments.ExemptRoles = ensureModerationStrSlice(m.Automod.Attachments.ExemptRoles)
+	m.Automod.Attachments.ExemptChannels = ensureModerationStrSlice(m.Automod.Attachments.ExemptChannels)
+	m.Automod.Attachments.BlockedExtensions = ensureModerationStrSlice(m.Automod.Attachments.BlockedExtensions)
+
+	// v3: bloques nuevos de nivel superior.
+	m.Protection.ImmuneRoles = ensureModerationStrSlice(m.Protection.ImmuneRoles)
+	m.Protection.ImmuneUsers = ensureModerationStrSlice(m.Protection.ImmuneUsers)
+	m.Protection.HierarchyBypassRoles = ensureModerationStrSlice(m.Protection.HierarchyBypassRoles)
+
+	if m.Escalation.CountTypes == nil {
+		m.Escalation.CountTypes = []InfractionCountableType{}
+	}
+	if m.Escalation.Rules == nil {
+		m.Escalation.Rules = []ModerationEscalationRule{}
+	}
+
+	m.Raid.LockdownChannels = ensureModerationStrSlice(m.Raid.LockdownChannels)
+
+	m.Gate.BlockedNamePatterns = ensureModerationStrSlice(m.Gate.BlockedNamePatterns)
+
+	m.Antinuke.TrustedUsers = ensureModerationStrSlice(m.Antinuke.TrustedUsers)
+	m.Antinuke.TrustedRoles = ensureModerationStrSlice(m.Antinuke.TrustedRoles)
+	if m.Antinuke.Limits == nil {
+		m.Antinuke.Limits = map[string]ModerationNukeLimit{}
+	}
+
+	m.Lockdown.BypassRoles = ensureModerationStrSlice(m.Lockdown.BypassRoles)
+	m.Lockdown.ServerChannels = ensureModerationStrSlice(m.Lockdown.ServerChannels)
+
+	// v4: `flows` — mismo patrón que NormalizeAutomation: la colección nil → [],
+	// y aplanado de bson.D/M/A dentro de los `params` libres del trigger, las
+	// condiciones y los pasos (setup/steps/branch.steps). `Branches` es la
+	// única excepción de colección: ausente (nil) es un estado legítimo («sin
+	// ramas»), igual que en Automation — nunca se fuerza a `[]`.
+	if m.Flows == nil {
+		m.Flows = []ModerationFlow{}
+	}
+	for i := range m.Flows {
+		f := &m.Flows[i]
+		if f.Setup == nil {
+			f.Setup = []ModerationFlowStep{}
+		}
+		if f.Conditions == nil {
+			f.Conditions = []ModerationFlowCondition{}
+		}
+		if f.Steps == nil {
+			f.Steps = []ModerationFlowStep{}
+		}
+		f.Scope.Channels.IDs = ensureModerationStrSlice(f.Scope.Channels.IDs)
+		f.Scope.Categories.IDs = ensureModerationStrSlice(f.Scope.Categories.IDs)
+		f.Scope.Roles.IDs = ensureModerationStrSlice(f.Scope.Roles.IDs)
+		f.Trigger.Params = normalizeParams(f.Trigger.Params)
+		for j := range f.Setup {
+			f.Setup[j].Params = normalizeParams(f.Setup[j].Params)
+		}
+		for j := range f.Conditions {
+			f.Conditions[j].Params = normalizeParams(f.Conditions[j].Params)
+		}
+		for j := range f.Steps {
+			f.Steps[j].Params = normalizeParams(f.Steps[j].Params)
+		}
+		for j := range f.Branches {
+			b := &f.Branches[j]
+			if b.Conditions == nil {
+				b.Conditions = []ModerationFlowCondition{}
+			}
+			if b.Steps == nil {
+				b.Steps = []ModerationFlowStep{}
+			}
+			for k := range b.Conditions {
+				b.Conditions[k].Params = normalizeParams(b.Conditions[k].Params)
+			}
+			for k := range b.Steps {
+				b.Steps[k].Params = normalizeParams(b.Steps[k].Params)
+			}
+		}
+	}
+}
+@ api-db-go internal/domain/dbguild/module_modmail.go:643-843 func NormalizeModmail [file changed, re-anchored +0]
+func NormalizeModmail(m *ModuleModmail) {
+	if m == nil {
+		return
+	}
+	// CommandMode: a diferencia de `LogAutoPublish`/`TicketTypeEmojis` (bool,
+	// cuyo cero `false` YA es el default de fábrica), el cero de un string es
+	// `""` y esa cadena vacía NO es un modo de invocación válido. Un documento
+	// sin el campo — o una entrada de caché anterior a que existiera — cae en
+	// "both", igual que tempvoice/moderación. Presente no se toca.
+	if m.CommandMode == "" {
+		m.CommandMode = "both"
+	}
+
+	// Identidad de la plantilla base: el id del tipo por defecto es un valor
+	// FIJO, así que un documento guardado antes del campo (o una entrada de caché
+	// vieja) llega con la cadena vacía en vez de con el reservado. Sin este
+	// backfill, `base_ticket.id` saldría `""` en la respuesta y el módulo no
+	// tendría de dónde leer el centinela. Se repone al LEER, así que el documento
+	// se autorrepara solo y sin migración. Mismo patrón (y mismo criterio "sólo
+	// si viene en blanco") que el `dm_ack_reaction` de unas líneas más abajo: un
+	// valor presente se respeta, aquí no se pisa nada. El `TrimSpace` es a
+	// propósito — " " es tan inservible como "" y la columna de Postgres lleva un
+	// CHECK de `btrim(...) <> ''` desde la 028.
+	if strings.TrimSpace(m.BaseTicket.ID) == "" {
+		m.BaseTicket.ID = dbmodmailticket.NoTicketTypeID
+	}
+
+	m.BaseTicket.StaffRoleIDs = ensureStrSlice(m.BaseTicket.StaffRoleIDs)
+	m.BaseTicket.MentionRoleIDs = ensureStrSlice(m.BaseTicket.MentionRoleIDs)
+
+	if m.MessageColors == nil {
+		m.MessageColors = map[string]*string{}
+	}
+	if m.MessageImages == nil {
+		m.MessageImages = map[string]*string{}
+	}
+	if m.MessageFooters == nil {
+		m.MessageFooters = map[string]*string{}
+	}
+	if m.MessageFooterIcons == nil {
+		m.MessageFooterIcons = map[string]*string{}
+	}
+	if m.Messages == nil {
+		m.Messages = map[string]string{}
+	}
+
+	m.CommandTriggers.Reply = ensureStrSlice(m.CommandTriggers.Reply)
+	m.CommandTriggers.AnonymousReply = ensureStrSlice(m.CommandTriggers.AnonymousReply)
+	m.CommandTriggers.Close = ensureStrSlice(m.CommandTriggers.Close)
+	m.CommandTriggers.History = ensureStrSlice(m.CommandTriggers.History)
+	m.CommandTriggers.User = ensureStrSlice(m.CommandTriggers.User)
+	m.CommandTriggers.Contact = ensureStrSlice(m.CommandTriggers.Contact)
+
+	m.CustomCommands.Commands = ensureCommandSlice(m.CustomCommands.Commands)
+	m.Aliases.Commands = ensureCommandSlice(m.Aliases.Commands)
+
+	// migrateInheritance decide si, para ESTE documento, hay que traducir el
+	// `[]`/ausente/`nil` que `mention_role_ids`/`user_card`/`auto_close_minutes`
+	// tenían bajo el contrato ANTERIOR a v14 ("hereda"/"apagado") al valor
+	// que significa EXACTAMENTE LO MISMO bajo el contrato NUEVO de herencia
+	// explícita. Se mira la versión DEL DOCUMENTO (`m.SchemaVersion`, ya con
+	// el valor leído de Mongo/caché — nunca la del código) contra una
+	// constante APARTE de `SchemaVersionModmail`: mismo mecanismo que
+	// `migrateRadius` en `NormalizeGreeter` con
+	// `SchemaVersionGreeterRadiusPercent`, y por el mismo motivo — si se
+	// mirase `SchemaVersionModmail` directamente, la migración volvería a
+	// dispararse en cuanto la constante subiera por encima de 14 por
+	// cualquier otro motivo, y un `[]` explícito que un admin guardara en
+	// v14 ("no menciones a nadie") se convertiría de vuelta en `nil`
+	// ("hereda") sin que nadie lo pidiera. Ver el historial de
+	// `SchemaVersionModmail` en dbguild.go.
+	migrateInheritance := m.SchemaVersion < SchemaVersionModmailInheritance
+
+	if m.TicketTypes == nil {
+		m.TicketTypes = []ModmailTicketType{}
+	} else {
+		for i := range m.TicketTypes {
+			m.TicketTypes[i].StaffRoleIDs = ensureStrSlice(m.TicketTypes[i].StaffRoleIDs)
+			// MentionRoleIDs (v14) ya NO pasa por ensureStrSlice: a diferencia
+			// de StaffRoleIDs, un puntero nil aquí es un valor con significado
+			// propio ("hereda de base_ticket"), no un hueco que rellenar. Sólo
+			// se garantiza, cuando SÍ hay puntero, que el slice apuntado no
+			// sea nil — para que el JSON emita `[]` (lista propia vacía) y no
+			// `null` (que se leería como herencia) — mismo criterio que
+			// ensureStrSlice, aplicado al valor apuntado en vez de al slice.
+			if m.TicketTypes[i].MentionRoleIDs != nil {
+				*m.TicketTypes[i].MentionRoleIDs = ensureStrSlice(*m.TicketTypes[i].MentionRoleIDs)
+			}
+			// Mensaje de confirmación de apertura: ausente (todo documento
+			// anterior a que el campo viajara en el PATCH) → ENCENDIDO, que es
+			// lo que el módulo ha hecho siempre. Sin este backfill el valor
+			// cero del puntero se leería como "apagado" y `createThreadChannel`
+			// (`skipAck`, en `shared/thread-lifecycle.ts`) dejaría de mandar el
+			// ack de apertura a los tipos ya configurados.
+			if m.TicketTypes[i].ConfirmationEnabled == nil {
+				m.TicketTypes[i].ConfirmationEnabled = modmailBoolPtr(true)
+			}
+			// StaffMessageActions (v12) NO se normaliza a propósito: a
+			// diferencia de ConfirmationEnabled (arriba), aquí el valor
+			// ausente/nil YA ES el comportamiento previo — los botones ✏️/🗑️
+			// no existían — así que un documento pre-v12 se queda tal cual y
+			// no hace falta backfill. CloseOnLeave (v13) va en el mismo saco:
+			// nil = apagado = el comportamiento previo (avisar y que cierre un
+			// empleado), así que tampoco se repone.
+			//
+			// mention_role_ids/user_card/auto_close_minutes (v14) SÍ migran,
+			// pero sólo cuando `migrateInheritance`: a diferencia de
+			// StaffMessageActions/CloseOnLeave, el valor legacy de ESTOS tres
+			// campos NO significa lo mismo bajo el contrato nuevo (antes el
+			// `nil`/`[]`/ausente significaba "hereda"/"apagado"; en v14+ el
+			// `nil` pasa a significar "hereda" y hace falta el valor propio
+			// explícito para conservar el comportamiento), así que dejarlos
+			// tal cual SÍ le cambiaría la config efectiva a todo el mundo. Ver
+			// `migrateModmailTicketTypeInheritance` más abajo.
+			if migrateInheritance {
+				migrateModmailTicketTypeInheritance(&m.TicketTypes[i])
+			}
+			if m.TicketTypes[i].SpecialFlow.Questions == nil {
+				m.TicketTypes[i].SpecialFlow.Questions = []ModmailQuestion{}
+			} else {
+				for j := range m.TicketTypes[i].SpecialFlow.Questions {
+					m.TicketTypes[i].SpecialFlow.Questions[j].Choices = ensureStrSlice(m.TicketTypes[i].SpecialFlow.Questions[j].Choices)
+				}
+			}
+		}
+	}
+
+	if m.StaffCommands == nil {
+		m.StaffCommands = map[string]ModmailCommandAccess{}
+	} else {
+		for k, v := range m.StaffCommands {
+			v.Roles.IDs = ensureStrSlice(v.Roles.IDs)
+			v.Channels.IDs = ensureStrSlice(v.Channels.IDs)
+			v.Categories.IDs = ensureStrSlice(v.Categories.IDs)
+			m.StaffCommands[k] = v
+		}
+	}
+
+	// Apertura directa: el valor CERO del bloque (dos botones con la etiqueta
+	// vacía) NO es el comportamiento previo, igual que pasaba con
+	// `dm_ack_reaction`. Un documento anterior al campo decodifica a ese cero y la
+	// respuesta salía con `label: ""` y sin `style` — o sea, con un botón que
+	// Discord rechaza por no tener texto y que el schema del dashboard tampoco
+	// acepta (su `label` es un `nonBlankText` y su `style` es un enum
+	// OBLIGATORIO). Cada consumidor se lo estaba tapando por su cuenta.
+	//
+	// El criterio es el que ya usa `NormalizeTickets` para los `close_buttons`
+	// hermanos (mismo tipo `ModmailButton`): etiqueta EN BLANCO = botón que nadie
+	// ha configurado nunca — el dashboard no deja guardar una vacía — así que se
+	// repone el botón ENTERO de fábrica. Con etiqueta puesta no se toca nada: un
+	// `emoji` a null es "el admin le quitó el emoji", no una ausencia, y un
+	// `style` ausente sigue significando "el default histórico del consumidor",
+	// que es justo lo que documenta el campo.
+	normalizeModmailButton(&m.DirectOpen.Confirm, ModmailDefaultDirectOpenConfirmLabel,
+		ModmailDefaultDirectOpenConfirmEmoji, ModmailDefaultDirectOpenConfirmStyle)
+	normalizeModmailButton(&m.DirectOpen.Deny, ModmailDefaultDirectOpenDenyLabel,
+		ModmailDefaultDirectOpenDenyEmoji, ModmailDefaultDirectOpenDenyStyle)
+
+	// Colocación de los botones: ausente (documento anterior al v10) → "inside",
+	// que es donde el módulo los ha puesto siempre. Presente no se toca.
+	if m.DirectOpen.ButtonsPlacement == nil {
+		m.DirectOpen.ButtonsPlacement = modmailStrPtr(ModmailButtonsInside)
+	}
+
+	m.WebAccess.Users = ensureStrSlice(m.WebAccess.Users)
+	m.WebAccess.Roles = ensureStrSlice(m.WebAccess.Roles)
+	if m.Blacklist == nil {
+		m.Blacklist = []ModmailBlacklistEntry{}
+	}
+
+	// Icono del server en respuestas anónimas: ausente (documento anterior al
+	// campo) → ENCENDIDO, que es lo que el módulo ha hecho siempre desde que la
+	// rama anónima pinta el author line con foto. Presente (true o false) no se
+	// toca: `false` es "el admin lo apagó".
+	if m.AnonymousIcon == nil {
+		m.AnonymousIcon = modmailBoolPtr(true)
+	}
+
+	// Icono del EMPLEADO en respuestas no anónimas (v13): mismo criterio que su
+	// gemelo anónimo — ausente → ENCENDIDO (la identidad real siempre llevó foto).
+	if m.IdentifiedIcon == nil {
+		m.IdentifiedIcon = modmailBoolPtr(true)
+	}
+
+	// Acuse de recibo: ausente (documento anterior al campo) → default de fábrica
+	// ENCENDIDO. Presente pero sin emoji → se repone el tick, porque una reacción
+	// con emoji vacío es una llamada a Discord que siempre falla.
+	if m.DmAckReaction == nil {
+		def := NewModmailDmAckReaction()
+		m.DmAckReaction = &def
+	} else if strings.TrimSpace(m.DmAckReaction.Emoji) == "" {
+		m.DmAckReaction.Emoji = ModmailDefaultDmAckEmoji
+	}
+
+	// StaffMessageActionEmojis (F4) NO se normaliza a propósito, mismo criterio
+	// que `TicketTypes[].StaffMessageActions`: el valor CERO (los dos punteros
+	// internos a nil) YA es "sin override" — el comportamiento de un documento
+	// anterior al campo — así que no hay nada que backfillear aquí.
+
+	NormalizeSupportSchedule(&m.SupportSchedule)
+}
+@ api-db-go internal/domain/mocks/module_greeter_mock.go:9-80 func newGreeterMessageConfig [file changed, re-anchored +0]
+func newGreeterMessageConfig(welcomeContent string) dbguild.GreeterMessageConfig {
+	return dbguild.GreeterMessageConfig{
+		Enabled:   false,
+		ChannelID: nil,
+		Message: dbguild.GreeterMessage{
+			Content: welcomeContent,
+			Mode:    dbguild.GreeterModePlain,
+		},
+		Embed: dbguild.GreeterEmbed{
+			Enabled:      false,
+			Title:        nil,
+			Description:  nil,
+			Color:        nil,
+			ImageURL:     nil,
+			ThumbnailURL: nil,
+			Footer:       nil,
+		},
+		Image: dbguild.GreeterImage{
+			Enabled:       false,
+			TemplateID:    nil,
+			BackgroundURL: nil,
+			Avatar:        true,
+			Mode:          dbguild.GreeterImageBasic,
+			Canvas: dbguild.GreeterImageCanvas{
+				Width:           1024,
+				Height:          500,
+				BackgroundColor: nil,
+				BackgroundURL:   nil,
+				BackgroundFit:   func() *string { s := "cover"; return &s }(),
+				Elements:        []dbguild.GreeterImageElement{},
+			},
+		},
+		Behavior: dbguild.GreeterBehavior{
+			DeleteAfterSeconds: nil,
+		},
+		// El bloque `dm.image` (v14) arranca con los MISMOS defaults que el de
+		// canal -misma struct GreeterImage, dato aparte-: si se dejara a su
+		// valor cero, un guild que activa greeter por primera vez guardaría
+		// `dm.image.canvas.elements: null` en Mongo, y eso revienta el
+		// `.map()` del dashboard en cuanto abre el editor del privado, sin
+		// haber pasado nunca por NormalizeGreeter (este mock se usa tal cual
+		// para SchemaVersion == 0, no como base a migrar).
+		DM: dbguild.GreeterDM{
+			Enabled: false,
+			Message: dbguild.GreeterMessage{Content: "", Mode: dbguild.GreeterModePlain},
+			Image: dbguild.GreeterImage{
+				Enabled:       false,
+				TemplateID:    nil,
+				BackgroundURL: nil,
+				Avatar:        true,
+				Mode:          dbguild.GreeterImageBasic,
+				Canvas: dbguild.GreeterImageCanvas{
+					Width:           1024,
+					Height:          500,
+					BackgroundColor: nil,
+					BackgroundURL:   nil,
+					BackgroundFit:   func() *string { s := "cover"; return &s }(),
+					Elements:        []dbguild.GreeterImageElement{},
+				},
+			},
+			Embed: dbguild.GreeterEmbed{
+				Enabled:      false,
+				Title:        nil,
+				Description:  nil,
+				Color:        nil,
+				ImageURL:     nil,
+				ThumbnailURL: nil,
+				Footer:       nil,
+			},
+		},
+	}
+}
+@ api-db-go internal/domain/mocks/module_leveling_mock.go:186-284 func defaultLevelingCardCanvas [file changed, re-anchored +0]
+func defaultLevelingCardCanvas() dbguild.GreeterImageCanvas {
+	return dbguild.GreeterImageCanvas{
+		Width:           934,
+		Height:          282,
+		BackgroundColor: levelingStr("#1e1f22"),
+		BackgroundURL:   nil,
+		BackgroundFit:   nil,
+		Elements: []dbguild.GreeterImageElement{
+			{
+				ID:      "avatar",
+				Type:    "avatar",
+				Name:    "Avatar",
+				X:       41,
+				Y:       41,
+				Width:   200,
+				Height:  200,
+				Opacity: 1,
+				URL:     nil,
+				Radius:  levelingFloat(100),
+				Fit:     levelingStr("cover"),
+			},
+			{
+				ID:         "username",
+				Type:       "text",
+				Name:       "Usuario",
+				X:          281,
+				Y:          44,
+				Width:      500,
+				Height:     50,
+				Opacity:    1,
+				Content:    levelingStr("{user}"),
+				Color:      levelingStr("#ffffff"),
+				FontSize:   levelingFloat(40),
+				FontWeight: levelingInt(700),
+				TextAlign:  levelingStr("left"),
+			},
+			{
+				ID:         "level",
+				Type:       "text",
+				Name:       "Nivel",
+				X:          281,
+				Y:          104,
+				Width:      300,
+				Height:     36,
+				Opacity:    1,
+				Content:    levelingStr("NIVEL {level}"),
+				Color:      levelingStr("#5865F2"),
+				FontSize:   levelingFloat(26),
+				FontWeight: levelingInt(600),
+				TextAlign:  levelingStr("left"),
+			},
+			{
+				ID:         "rank",
+				Type:       "text",
+				Name:       "Puesto",
+				X:          700,
+				Y:          104,
+				Width:      180,
+				Height:     36,
+				Opacity:    1,
+				Content:    levelingStr("#{rank}"),
+				Color:      levelingStr("#ffffff"),
+				FontSize:   levelingFloat(26),
+				FontWeight: levelingInt(600),
+				TextAlign:  levelingStr("right"),
+			},
+			{
+				ID:       "progress-bar",
+				Type:     "bar",
+				Name:     "Barra de progreso",
+				X:        281,
+				Y:        168,
+				Width:    599,
+				Height:   26,
+				Opacity:  1,
+				Fill:     levelingStr("#5865F2"),
+				Color:    levelingStr("#3a3c42"),
+				Radius:   levelingFloat(100),
+				BarToken: levelingStr("progress"),
+				BarValue: levelingFloat(45),
+			},
+			{
+				ID:         "xp-text",
+				Type:       "text",
+				Name:       "XP",
+				X:          281,
+				Y:          204,
+				Width:      599,
+				Height:     30,
+				Opacity:    1,
+				Content:    levelingStr("{xp} / {xp_needed}"),
+				Color:      levelingStr("#b5bac1"),
+				FontSize:   levelingFloat(18),
+				FontWeight: levelingInt(400),
+				TextAlign:  levelingStr("left"),
+			},
+		},
+	}
+}
+@ api-db-go internal/domain/mocks/module_modmail_mock.go:33-152 func NewModuleModmail [file changed, re-anchored +0]
+func NewModuleModmail() dbguild.ModuleModmail {
+	return dbguild.ModuleModmail{
+		SchemaVersion: dbguild.SchemaVersionModmail,
+		Enabled:       false,
+		EnabledSince:  nil,
+		GuildID:       "",
+		BaseTicket: dbguild.ModmailBaseTicket{
+			CategoryID:          "",
+			ChannelNameTemplate: "ticket-{ticket_id}",
+			OpenMessage:         nil,
+			OpenResponse:        nil,
+			StaffRoleIDs:        []string{},
+			MentionRoleIDs:      []string{},
+			UserCard: dbguild.ModmailUserCard{
+				Enabled:             false,
+				ShowName:            false,
+				ShowAvatar:          false,
+				ShowBanner:          false,
+				ShowRoles:           false,
+				ShowPreviousTickets: false,
+			},
+			// v11: auto-cierre apagado y ping en su posición histórica para los
+			// tickets sin tipo — el comportamiento de siempre.
+			AutoCloseMinutes: nil,
+			MentionPosition:  nil,
+			// v12: sin botones ✏️/🗑️ sobre las respuestas de staff — no
+			// existían antes de este campo, así que el mock (como cualquier
+			// documento pre-v12) los deja apagados.
+			StaffMessageActions: nil,
+			// v13: sin cierre automático al abandonar el servidor — el mock
+			// (como cualquier documento pre-v13) se queda en el comportamiento
+			// de siempre: avisar en el canal y que cierre un empleado.
+			CloseOnLeave: nil,
+		},
+		LogChannelID:   nil,
+		LogAutoPublish: false,
+		MainGuildID:    nil,
+		SpecialGuildID: nil,
+		Colors: dbguild.ModmailColors{
+			Default: nil,
+			Open:    nil,
+			Close:   nil,
+			Card:    nil,
+			Prompt:  nil,
+			Error:   nil,
+		},
+		MessageColors:      map[string]*string{},
+		MessageImages:      map[string]*string{},
+		MessageFooters:     map[string]*string{},
+		MessageFooterIcons: map[string]*string{},
+		Messages:           map[string]string{},
+		CommandMode:        "both",
+		// Alias de fábrica. Ninguna lista repite el nombre CANÓNICO del comando
+		// (`close`, `edit`, `history`, `user`, `contact`): el módulo lo reconoce
+		// siempre, así que sólo saldría como un alias de pega en el dashboard.
+		CommandTriggers: dbguild.ModmailCommandTriggers{
+			Prefix:         "!",
+			Reply:          []string{"responder"},
+			AnonymousReply: []string{"aresponder", "r"},
+			Close:          []string{"cerrar"},
+			Edit:           []string{"editar"},
+			History:        []string{"historial"},
+			User:           []string{},
+			Contact:        []string{"contactar"},
+		},
+		CustomCommands: dbguild.ModmailCommandsBlock{
+			Enabled:  false,
+			Prefix:   "!",
+			Commands: []dbguild.ModmailCustomCommand{},
+			// La consulta `!snippets` lista sólo los triggers de fábrica: el
+			// texto de una respuesta puede llevar datos internos.
+			ShowContent: false,
+		},
+		Aliases: dbguild.ModmailCommandsBlock{
+			Enabled:     false,
+			Prefix:      "!",
+			Commands:    []dbguild.ModmailCustomCommand{},
+			ShowContent: false,
+		},
+		TicketTypes: []dbguild.ModmailTicketType{},
+		// Los botones de fábrica salen del dominio (`NewModmailDirectOpen`), que es
+		// la MISMA fuente que usa el backfill de `NormalizeModmail`: si el mock los
+		// repitiera aquí, un guild sin documento y uno con documento viejo acabarían
+		// enseñando botones distintos.
+		DirectOpen:         dbguild.NewModmailDirectOpen(),
+		SpecialTypesInMain: false,
+		TicketTypeEmojis:   false,
+		// Mismo valor que el backfill de `NormalizeModmail` (nil → true): el icono
+		// del server en respuestas anónimas nace ENCENDIDO.
+		AnonymousIcon:  modmailMockBoolPtr(true),
+		IdentifiedIcon: modmailMockBoolPtr(true),
+		DmAckReaction:  modmailDmAck(),
+		// F4: sin overrides — el mock usa los emojis de fábrica del módulo
+		// (`STAFF_REPLY_EDIT_EMOJI`/`STAFF_REPLY_DELETE_EMOJI`).
+		StaffMessageActionEmojis: dbguild.ModmailStaffActionEmojis{Edit: nil, Delete: nil},
+		StaffCommands: map[string]dbguild.ModmailCommandAccess{
+			"reply":           modmailCommandAccessDefault(),
+			"anonymous_reply": modmailCommandAccessDefault(),
+			"close":           modmailCommandAccessDefault(),
+			"edit":            modmailCommandAccessDefault(),
+			"history":         modmailCommandAccessDefault(),
+			"contact":         modmailCommandAccessDefault(),
+			"user":            modmailCommandAccessDefault(),
+			"blacklist":       modmailCommandAccessDefault(),
+		},
+		ContactCategoryID:          nil,
+		ContactChannelNameTemplate: nil,
+		WebAccess: dbguild.ModmailWebAccess{
+			Users: []string{},
+			Roles: []string{},
+		},
+		// v10: sin vetados, sin cooldown, soporte abierto y typing apagado de
+		// fábrica.
+		Blacklist:             []dbguild.ModmailBlacklistEntry{},
+		TicketCooldownMinutes: nil,
+		SupportClosed:         dbguild.ModmailSupportClosed{Enabled: false, BlockCurrent: false},
+		TypingForward:         dbguild.ModmailTypingForward{User: false, Staff: false},
+		SupportSchedule:       dbguild.NewSupportSchedule(),
+	}
+}
+@ api-db-go internal/domain/mocks/module_tickets_mock.go:38-101 func NewModuleTickets [file changed, re-anchored +0]
+func NewModuleTickets() dbguild.ModuleTickets {
+	return dbguild.ModuleTickets{
+		SchemaVersion: dbguild.SchemaVersionTickets,
+		Enabled:       false,
+		EnabledSince:  nil,
+		BaseTicket: dbguild.TicketsBaseTicket{
+			CategoryID:          "",
+			ChannelNameTemplate: "ticket-{ticket_id}",
+			OpenMessage:         nil,
+			StaffRoleIDs:        []string{},
+			MentionRoleIDs:      []string{},
+			UserCard: dbguild.TicketsUserCard{
+				Enabled:             false,
+				ShowName:            false,
+				ShowAvatar:          false,
+				ShowBanner:          false,
+				ShowRoles:           false,
+				ShowPreviousTickets: false,
+			},
+			Modal: dbguild.TicketsModal{
+				Enabled:    false,
+				Title:      "",
+				Disclaimer: "",
+				Questions:  []dbguild.TicketsQuestion{},
+			},
+		},
+		LogChannelID: nil,
+		Colors: dbguild.TicketsColors{
+			Default: nil,
+			Open:    nil,
+			Close:   nil,
+			Card:    nil,
+			Panel:   nil,
+			Error:   nil,
+		},
+		MessageColors: map[string]*string{},
+		Messages:      map[string]string{},
+		CustomCommands: dbguild.TicketsCommandsBlock{
+			Enabled:  false,
+			Prefix:   "!",
+			Commands: []dbguild.TicketsCustomCommand{},
+		},
+		TicketTypes:      []dbguild.TicketsType{},
+		TicketTypeEmojis: false,
+		Panel: dbguild.TicketsPanel{
+			ChannelID:   nil,
+			MessageID:   nil,
+			Title:       "Soporte",
+			Description: "Pulsa el botón para abrir un ticket.",
+			ButtonLabel: "Abrir ticket",
+			ButtonEmoji: nil,
+			Image:       nil,
+		},
+		CloseButtons: dbguild.TicketsCloseButtons{
+			Close:   dbguild.ModmailButton{Label: "Cerrar ticket", Emoji: ticketsStr("🔒")},
+			Confirm: dbguild.ModmailButton{Label: "Confirmar cierre", Emoji: ticketsStr("🔒")},
+		},
+		StaffCommands: map[string]dbguild.ModmailCommandAccess{
+			"panel": ticketsPanelAccessDefault(),
+			"close": ticketsCloseAccessDefault(),
+		},
+		SupportSchedule: dbguild.NewSupportSchedule(),
+	}
+}
+@ api-db-go internal/domain/validations/bandwidth_validations.go:69-128 func ParseBandwidthIngest [file changed, re-anchored +0]
+func ParseBandwidthIngest(body []byte) (dbbandwidth.Batch, error) {
+	var raw struct {
+		Source          *string         `json:"source"`
+		InstanceID      *string         `json:"instanceId"`
+		BucketStartedAt *string         `json:"bucketStartedAt"`
+		BucketEndedAt   *string         `json:"bucketEndedAt"`
+		Entries         json.RawMessage `json:"entries"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return dbbandwidth.Batch{}, err
+	}
+
+	source, err := bwRequireStr(raw.Source, "source", 1, 64)
+	if err != nil {
+		return dbbandwidth.Batch{}, err
+	}
+	instanceID, err := bwRequireStr(raw.InstanceID, "instanceId", 1, 128)
+	if err != nil {
+		return dbbandwidth.Batch{}, err
+	}
+	startedAt, err := bwRequireDatetime(raw.BucketStartedAt, "bucketStartedAt")
+	if err != nil {
+		return dbbandwidth.Batch{}, err
+	}
+	endedAt, err := bwRequireDatetime(raw.BucketEndedAt, "bucketEndedAt")
+	if err != nil {
+		return dbbandwidth.Batch{}, err
+	}
+
+	if raw.Entries == nil {
+		return dbbandwidth.Batch{}, fmt.Errorf("Invalid input: 'entries' is required")
+	}
+	if jsonKind(raw.Entries) != "array" {
+		return dbbandwidth.Batch{}, fmt.Errorf("Invalid input: 'entries' must be an array")
+	}
+	var elems []json.RawMessage
+	if err := json.Unmarshal(raw.Entries, &elems); err != nil {
+		return dbbandwidth.Batch{}, err
+	}
+	if len(elems) > 10_000 {
+		return dbbandwidth.Batch{}, fmt.Errorf("Too big: 'entries' must have <=10000 items")
+	}
+
+	entries := make([]dbbandwidth.Entry, 0, len(elems))
+	for i, el := range elems {
+		e, err := parseBandwidthEntry(el, i)
+		if err != nil {
+			return dbbandwidth.Batch{}, err
+		}
+		entries = append(entries, e)
+	}
+
+	return dbbandwidth.Batch{
+		Source:          source,
+		InstanceID:      instanceID,
+		BucketStartedAt: startedAt,
+		BucketEndedAt:   endedAt,
+		Entries:         entries,
+	}, nil
+}
+@ api-db-go internal/domain/validations/bandwidth_validations.go:133-211 func parseBandwidthEntry [file changed, re-anchored +0]
+func parseBandwidthEntry(raw json.RawMessage, i int) (dbbandwidth.Entry, error) {
+	if jsonKind(raw) != "object" {
+		return dbbandwidth.Entry{}, fmt.Errorf("Invalid input for entries[%d]: expected object", i)
+	}
+	var e struct {
+		Method                json.RawMessage `json:"method"`
+		Route                 json.RawMessage `json:"route"`
+		StatusClass           json.RawMessage `json:"statusClass"`
+		Provider              json.RawMessage `json:"provider"`
+		CacheResult           json.RawMessage `json:"cacheResult"`
+		Format                json.RawMessage `json:"format"`
+		Requests              json.RawMessage `json:"requests"`
+		AbortedRequests       json.RawMessage `json:"abortedRequests"`
+		RequestBytes          json.RawMessage `json:"requestBytes"`
+		ResponseBytes         json.RawMessage `json:"responseBytes"`
+		UpstreamReceivedBytes json.RawMessage `json:"upstreamReceivedBytes"`
+		UpstreamSentBytes     json.RawMessage `json:"upstreamSentBytes"`
+		CacheHits             json.RawMessage `json:"cacheHits"`
+		CacheMisses           json.RawMessage `json:"cacheMisses"`
+		UpstreamRequests      json.RawMessage `json:"upstreamRequests"`
+		SocketMethod          json.RawMessage `json:"socketMethod"`
+	}
+	if err := json.Unmarshal(raw, &e); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+
+	p := func(name string) string { return fmt.Sprintf("entries[%d].%s", i, name) }
+	var out dbbandwidth.Entry
+	var err error
+	if out.Method, err = bwEnumStr(e.Method, p("method"), bwMethodEnum); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.Route, err = bwStrLen(e.Route, p("route"), 1, 500); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.StatusClass, err = bwEnumStr(e.StatusClass, p("statusClass"), bwStatusEnum); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.Provider, err = bwEnumStr(e.Provider, p("provider"), bwProviderEnum); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.CacheResult, err = bwEnumStr(e.CacheResult, p("cacheResult"), bwCacheEnum); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.Format, err = bwStrLenDefault(e.Format, p("format"), 1, 32, "none"); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.Requests, err = bwIntNonNeg(e.Requests, p("requests")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.AbortedRequests, err = bwIntNonNeg(e.AbortedRequests, p("abortedRequests")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.RequestBytes, err = bwIntNonNeg(e.RequestBytes, p("requestBytes")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.ResponseBytes, err = bwIntNonNeg(e.ResponseBytes, p("responseBytes")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.UpstreamReceivedBytes, err = bwIntNonNeg(e.UpstreamReceivedBytes, p("upstreamReceivedBytes")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.UpstreamSentBytes, err = bwIntNonNeg(e.UpstreamSentBytes, p("upstreamSentBytes")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.CacheHits, err = bwIntNonNeg(e.CacheHits, p("cacheHits")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.CacheMisses, err = bwIntNonNeg(e.CacheMisses, p("cacheMisses")); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.UpstreamRequests, err = bwIntNonNegDefault(e.UpstreamRequests, p("upstreamRequests"), 0); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	if out.SocketMethod, err = bwEnumStr(e.SocketMethod, p("socketMethod"), bwSocketEnum); err != nil {
+		return dbbandwidth.Entry{}, err
+	}
+	return out, nil
+}
+@ api-db-go internal/domain/validations/deezer_validations.go:112-195 func ParseUpdateArlBody [file changed, re-anchored +0]
+func ParseUpdateArlBody(raw []byte) (ArlUpdate, *apierrors.CustomError) {
+	set := map[string]any{}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return ArlUpdate{Set: set}, nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &fields); err != nil {
+		return ArlUpdate{}, deezerValidationError("Invalid input")
+	}
+
+	// status?: z.enum(["active","ratelimited","dead"])
+	if v, ok := fields["status"]; ok {
+		s, cerr := deezerJSONString(v, "status")
+		if cerr != nil {
+			return ArlUpdate{}, cerr
+		}
+		if !dbdeezer.IsStatus(s) {
+			return ArlUpdate{}, deezerValidationError(`Invalid enum value for status: expected one of "active"|"ratelimited"|"dead"`)
+		}
+		set["status"] = s
+	}
+
+	// note?: z.string().optional().nullable()
+	if v, ok := fields["note"]; ok {
+		if isJSONNull(v) {
+			set["note"] = nil
+		} else {
+			s, cerr := deezerJSONString(v, "note")
+			if cerr != nil {
+				return ArlUpdate{}, cerr
+			}
+			set["note"] = s
+		}
+	}
+
+	// ratelimited?: z.boolean()
+	if v, ok := fields["ratelimited"]; ok {
+		b, cerr := deezerJSONBool(v, "ratelimited")
+		if cerr != nil {
+			return ArlUpdate{}, cerr
+		}
+		set["ratelimited"] = b
+	}
+
+	// {rate_expires_at,last_valid_at,account_expires_at,last_rate_limited_at}?:
+	//   z.string().datetime().optional().nullable()
+	for _, key := range []string{"rate_expires_at", "last_valid_at", "account_expires_at", "last_rate_limited_at"} {
+		v, ok := fields[key]
+		if !ok {
+			continue
+		}
+		if isJSONNull(v) {
+			set[key] = nil
+			continue
+		}
+		tm, cerr := deezerJSONDatetime(v, key)
+		if cerr != nil {
+			return ArlUpdate{}, cerr
+		}
+		set[key] = tm
+	}
+
+	// rate_limit_count?: z.number().int().min(0)
+	if v, ok := fields["rate_limit_count"]; ok {
+		n, cerr := deezerJSONIntMin0(v, "rate_limit_count")
+		if cerr != nil {
+			return ArlUpdate{}, cerr
+		}
+		set["rate_limit_count"] = n
+	}
+
+	// rate_limit_history_push?: { at: datetime, duration_ms: int min 0 }
+	var push *dbdeezer.HistoryEntry
+	if v, ok := fields["rate_limit_history_push"]; ok {
+		entry, cerr := deezerHistoryPush(v)
+		if cerr != nil {
+			return ArlUpdate{}, cerr
+		}
+		push = entry
+	}
+
+	return ArlUpdate{Set: set, HistoryPush: push}, nil
+}
+@ api-db-go internal/domain/validations/giveaways_validations.go:143-258 func parseGiveawayBaseFields [file changed, re-anchored +0]
+func parseGiveawayBaseFields(set map[string]any, raw map[string]json.RawMessage, updateMode bool) *apierrors.CustomError {
+	// channel_id: z.string().min(1) — required on create, optional on update.
+	if updateMode {
+		if verr := addOptionalStringField(set, "channel_id", raw["channel_id"], "channel_id", 1, 0); verr != nil {
+			return verr
+		}
+	} else if verr := addRequiredStringField(set, "channel_id", raw["channel_id"], "channel_id", 1, 0); verr != nil {
+		return verr
+	}
+	// title: z.string().max(256).nullable().optional()
+	if verr := addNullableStringField(set, "title", raw["title"], "title", 0, 256); verr != nil {
+		return verr
+	}
+	// prize: z.string().min(1).max(256) — required on create, optional on update.
+	if updateMode {
+		if verr := addOptionalStringField(set, "prize", raw["prize"], "prize", 1, 256); verr != nil {
+			return verr
+		}
+	} else if verr := addRequiredStringField(set, "prize", raw["prize"], "prize", 1, 256); verr != nil {
+		return verr
+	}
+	// end_at: z.string().datetime() — required on create, optional (non-nullable) on update.
+	if updateMode {
+		if verr := addOptionalDatetimeField(set, "end_at", raw["end_at"], "end_at"); verr != nil {
+			return verr
+		}
+	} else if verr := addRequiredDatetimeField(set, "end_at", raw["end_at"], "end_at"); verr != nil {
+		return verr
+	}
+	// winners_count: z.number().int().min(1).max(100).optional()
+	if verr := addOptionalIntField(set, "winners_count", raw["winners_count"], "winners_count", 1, 100); verr != nil {
+		return verr
+	}
+	// description: z.string().max(2000).nullable().optional()
+	if verr := addNullableStringField(set, "description", raw["description"], "description", 0, 2000); verr != nil {
+		return verr
+	}
+	// body: z.string().max(4000).nullable().optional()
+	if verr := addNullableStringField(set, "body", raw["body"], "body", 0, 4000); verr != nil {
+		return verr
+	}
+	// host_id: z.string().nullable().optional()
+	if verr := addNullableStringField(set, "host_id", raw["host_id"], "host_id", 0, 0); verr != nil {
+		return verr
+	}
+	// image_url: z.string().url().max(1024).nullable().optional()
+	if verr := addNullableURLField(set, "image_url", raw["image_url"], "image_url", 1024); verr != nil {
+		return verr
+	}
+	// color: z.number().int().min(0).max(0xffffff).nullable().optional()
+	if verr := addNullableIntField(set, "color", raw["color"], "color", 0, 0xffffff); verr != nil {
+		return verr
+	}
+	// emoji: z.string().max(64).nullable().optional()
+	if verr := addNullableStringField(set, "emoji", raw["emoji"], "emoji", 0, 64); verr != nil {
+		return verr
+	}
+	// button_label: z.string().max(80).nullable().optional()
+	if verr := addNullableStringField(set, "button_label", raw["button_label"], "button_label", 0, 80); verr != nil {
+		return verr
+	}
+	// required_role_ids: z.array(z.string()).max(25).optional()
+	if verr := addStringArrayField(set, "required_role_ids", raw["required_role_ids"], "required_role_ids", 25); verr != nil {
+		return verr
+	}
+	// blocked_role_ids: z.array(z.string()).max(25).optional()
+	if verr := addStringArrayField(set, "blocked_role_ids", raw["blocked_role_ids"], "blocked_role_ids", 25); verr != nil {
+		return verr
+	}
+	// required_roles_mode: z.enum(["any","all"]).optional()
+	if verr := addOptionalEnumField(set, "required_roles_mode", raw["required_roles_mode"], giveawayRolesModeSet, giveawayRolesModeMsg, "required_roles_mode"); verr != nil {
+		return verr
+	}
+	// min_account_age_days: z.number().int().min(0).max(3650).nullable().optional()
+	if verr := addNullableIntField(set, "min_account_age_days", raw["min_account_age_days"], "min_account_age_days", 0, 3650); verr != nil {
+		return verr
+	}
+	// min_member_age_days: z.number().int().min(0).max(3650).nullable().optional()
+	if verr := addNullableIntField(set, "min_member_age_days", raw["min_member_age_days"], "min_member_age_days", 0, 3650); verr != nil {
+		return verr
+	}
+	// bonus_entries: z.array({ role_id, entries }).max(25).optional()
+	if verr := addBonusEntriesField(set, "bonus_entries", raw["bonus_entries"], "bonus_entries", 25); verr != nil {
+		return verr
+	}
+	// ping_role_id: z.string().nullable().optional()
+	if verr := addNullableStringField(set, "ping_role_id", raw["ping_role_id"], "ping_role_id", 0, 0); verr != nil {
+		return verr
+	}
+	// dm_winners: z.boolean().optional()
+	if verr := addPlaylistBoolField(set, "dm_winners", raw["dm_winners"], "dm_winners"); verr != nil {
+		return verr
+	}
+	// winner_message: z.string().max(2000).nullable().optional()
+	if verr := addNullableStringField(set, "winner_message", raw["winner_message"], "winner_message", 0, 2000); verr != nil {
+		return verr
+	}
+	// show_winners / show_entries / show_end / show_host: z.boolean().optional()
+	if verr := addPlaylistBoolField(set, "show_winners", raw["show_winners"], "show_winners"); verr != nil {
+		return verr
+	}
+	if verr := addPlaylistBoolField(set, "show_entries", raw["show_entries"], "show_entries"); verr != nil {
+		return verr
+	}
+	if verr := addPlaylistBoolField(set, "show_end", raw["show_end"], "show_end"); verr != nil {
+		return verr
+	}
+	if verr := addPlaylistBoolField(set, "show_host", raw["show_host"], "show_host"); verr != nil {
+		return verr
+	}
+	// start_at: z.string().datetime().nullable().optional()
+	if verr := addNullableDatetimeField(set, "start_at", raw["start_at"], "start_at"); verr != nil {
+		return verr
+	}
+	return nil
+}
+@ api-db-go internal/domain/validations/messages_validations.go:138-201 func parseMessageRow [file changed, re-anchored +0]
+func parseMessageRow(m messageWriteJSON, prefix string) (dbmessage.WriteData, *apierrors.CustomError) {
+	row := dbmessage.WriteData{}
+	var verr *apierrors.CustomError
+
+	if row.ID, verr = parseSnowflakeField(m.ID, prefix+"id"); verr != nil {
+		return row, verr
+	}
+	if row.BotID, verr = parseSnowflakeField(m.BotID, prefix+"bot_id"); verr != nil {
+		return row, verr
+	}
+	if row.ChannelID, verr = parseSnowflakeField(m.ChannelID, prefix+"channel_id"); verr != nil {
+		return row, verr
+	}
+	if row.AuthorID, verr = parseSnowflakeField(m.AuthorID, prefix+"author_id"); verr != nil {
+		return row, verr
+	}
+	if m.GuildID != nil {
+		gid, gerr := parseSnowflakeField(*m.GuildID, prefix+"guild_id")
+		if gerr != nil {
+			return row, gerr
+		}
+		row.GuildID = &gid
+	}
+	if m.ChannelType == nil {
+		return row, zodItemError("Invalid input: expected number, received undefined", prefix+"channel_type")
+	}
+	row.ChannelType = *m.ChannelType
+
+	if m.Content != nil && utf8.RuneCountInString(*m.Content) > maxContentLen {
+		return row, zodItemError("Too big: expected string to have <="+strconv.Itoa(maxContentLen)+" characters", prefix+"content")
+	}
+
+	if row.Mentions, verr = parseSnowflakeList(m.Mentions, prefix+"mentions"); verr != nil {
+		return row, verr
+	}
+	if row.MentionRoles, verr = parseSnowflakeList(m.MentionRoles, prefix+"mention_roles"); verr != nil {
+		return row, verr
+	}
+	if row.EditedAt, verr = parseOptionalTimestamp(m.EditedAt, prefix+"edited_at"); verr != nil {
+		return row, verr
+	}
+
+	isEdit := row.EditedAt != nil
+
+	row.AuthorName = stripNULPtr(m.AuthorName)
+	row.AuthorAvatar = stripNULPtr(m.AuthorAvatar)
+	row.AuthorBot = boolOrFalse(m.AuthorBot)
+	row.MemberNick = stripNULPtr(m.MemberNick)
+	row.Content = stripNULPtr(m.Content)
+	row.Type = int16OrZero(m.Type)
+	row.Flags = m.Flags
+	row.TTS = boolOrFalse(m.TTS)
+	row.MentionEveryone = boolOrFalse(m.MentionEveryone)
+	row.Pinned = m.Pinned
+
+	if row.Attachments, verr = jsonArrayForRow(m.Attachments, isEdit, prefix+"attachments"); verr != nil {
+		return row, verr
+	}
+	if row.Embeds, verr = jsonArrayForRow(m.Embeds, isEdit, prefix+"embeds"); verr != nil {
+		return row, verr
+	}
+
+	return row, nil
+}
+@ api-db-go internal/domain/validations/moderation_flow_runs_validations.go:95-156 func ParseFlowRunCreate [file changed, re-anchored +0]
+func ParseFlowRunCreate(body []byte) (dbflowrun.CreateData, *apierrors.CustomError) {
+	var raw struct {
+		BotID         json.RawMessage `json:"bot_id"`
+		GuildID       json.RawMessage `json:"guild_id"`
+		FlowID        json.RawMessage `json:"flow_id"`
+		Status        json.RawMessage `json:"status"`
+		BlockedReason json.RawMessage `json:"blocked_reason"`
+		BranchID      json.RawMessage `json:"branch_id"`
+		StepsTotal    json.RawMessage `json:"steps_total"`
+		StepsRun      json.RawMessage `json:"steps_run"`
+		DurationMs    json.RawMessage `json:"duration_ms"`
+		ErrorCode     json.RawMessage `json:"error_code"`
+		UserID        json.RawMessage `json:"user_id"`
+		ChannelID     json.RawMessage `json:"channel_id"`
+		Metadata      json.RawMessage `json:"metadata"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return dbflowrun.CreateData{}, bodyBindError(err)
+	}
+	var d dbflowrun.CreateData
+	var verr *apierrors.CustomError
+	if d.BotID, verr = parseRequiredString(raw.BotID, "bot_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.GuildID, verr = parseRequiredString(raw.GuildID, "guild_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.FlowID, verr = parseRequiredString(raw.FlowID, "flow_id", 1, 64); verr != nil {
+		return d, verr
+	}
+	if d.Status, verr = parseEnumRequired(raw.Status, flowRunStatusSet, flowRunStatusMsg, "status"); verr != nil {
+		return d, verr
+	}
+	if d.BlockedReason, verr = parseNullableEnum(raw.BlockedReason, flowRunBlockReasonSet, flowRunBlockReasonMsg, "blocked_reason"); verr != nil {
+		return d, verr
+	}
+	if d.BranchID, verr = parseNullableBoundedString(raw.BranchID, "branch_id", 1, 64); verr != nil {
+		return d, verr
+	}
+	if d.StepsTotal, verr = parseOptionalNonNegInt(raw.StepsTotal, "steps_total"); verr != nil {
+		return d, verr
+	}
+	if d.StepsRun, verr = parseOptionalNonNegInt(raw.StepsRun, "steps_run"); verr != nil {
+		return d, verr
+	}
+	if d.DurationMs, verr = parseOptionalNonNegInt(raw.DurationMs, "duration_ms"); verr != nil {
+		return d, verr
+	}
+	if d.ErrorCode, verr = parseNullableBoundedString(raw.ErrorCode, "error_code", 1, 128); verr != nil {
+		return d, verr
+	}
+	if d.UserID, verr = parseNullableBoundedString(raw.UserID, "user_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.ChannelID, verr = parseNullableBoundedString(raw.ChannelID, "channel_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.Metadata, verr = parseNullableRecord(raw.Metadata, "metadata"); verr != nil {
+		return d, verr
+	}
+	return d, nil
+}
+@ api-db-go internal/domain/validations/moderation_infractions_validations.go:85-170 func ParseInfractionCreate [file changed, re-anchored +0]
+func ParseInfractionCreate(body []byte) (dbinfraction.CreateData, *apierrors.CustomError) {
+	var raw struct {
+		BotID          json.RawMessage `json:"bot_id"`
+		GuildID        json.RawMessage `json:"guild_id"`
+		UserID         json.RawMessage `json:"user_id"`
+		Type           json.RawMessage `json:"type"`
+		UserLabel      json.RawMessage `json:"user_label"`
+		ModeratorID    json.RawMessage `json:"moderator_id"`
+		ModeratorLabel json.RawMessage `json:"moderator_label"`
+		Status         json.RawMessage `json:"status"`
+		Source         json.RawMessage `json:"source"`
+		SourceDetail   json.RawMessage `json:"source_detail"`
+		Reason         json.RawMessage `json:"reason"`
+		Mechanism      json.RawMessage `json:"mechanism"`
+		DurationMs     json.RawMessage `json:"duration_ms"`
+		ExpiresAt      json.RawMessage `json:"expires_at"`
+		AppliedAt      json.RawMessage `json:"applied_at"`
+		RuleID         json.RawMessage `json:"rule_id"`
+		ChannelID      json.RawMessage `json:"channel_id"`
+		MessageID      json.RawMessage `json:"message_id"`
+		Metadata       json.RawMessage `json:"metadata"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return dbinfraction.CreateData{}, bodyBindError(err)
+	}
+	var d dbinfraction.CreateData
+	var verr *apierrors.CustomError
+	if d.BotID, verr = parseRequiredString(raw.BotID, "bot_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.GuildID, verr = parseRequiredString(raw.GuildID, "guild_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.UserID, verr = parseRequiredString(raw.UserID, "user_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.Type, verr = parseEnumRequired(raw.Type, infractionTypeSet, infractionTypeMsg, "type"); verr != nil {
+		return d, verr
+	}
+	if d.UserLabel, verr = parseNullableBoundedString(raw.UserLabel, "user_label", 0, 128); verr != nil {
+		return d, verr
+	}
+	if d.ModeratorID, verr = parseNullableBoundedString(raw.ModeratorID, "moderator_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.ModeratorLabel, verr = parseNullableBoundedString(raw.ModeratorLabel, "moderator_label", 0, 128); verr != nil {
+		return d, verr
+	}
+	if d.Status, verr = parseOptionalEnum(raw.Status, infractionStatusSet, infractionStatusMsg, "status"); verr != nil {
+		return d, verr
+	}
+	if d.Source, verr = parseOptionalEnum(raw.Source, infractionSourceSet, infractionSourceMsg, "source"); verr != nil {
+		return d, verr
+	}
+	if d.SourceDetail, verr = parseNullableBoundedString(raw.SourceDetail, "source_detail", 0, 256); verr != nil {
+		return d, verr
+	}
+	if d.Reason, verr = parseNullableBoundedString(raw.Reason, "reason", 0, 2000); verr != nil {
+		return d, verr
+	}
+	if d.Mechanism, verr = parseNullableEnum(raw.Mechanism, infractionMechanismSet, infractionMechanismMsg, "mechanism"); verr != nil {
+		return d, verr
+	}
+	if d.DurationMs, verr = parseNullableInt64NonNeg(raw.DurationMs, "duration_ms"); verr != nil {
+		return d, verr
+	}
+	if d.ExpiresAt, verr = parseNullableOffsetDatetime(raw.ExpiresAt, "expires_at"); verr != nil {
+		return d, verr
+	}
+	if d.AppliedAt, verr = parseNullableOffsetDatetime(raw.AppliedAt, "applied_at"); verr != nil {
+		return d, verr
+	}
+	if d.RuleID, verr = parseNullableBoundedString(raw.RuleID, "rule_id", 0, 64); verr != nil {
+		return d, verr
+	}
+	if d.ChannelID, verr = parseNullableBoundedString(raw.ChannelID, "channel_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.MessageID, verr = parseNullableBoundedString(raw.MessageID, "message_id", 1, 32); verr != nil {
+		return d, verr
+	}
+	if d.Metadata, verr = parseNullableRecord(raw.Metadata, "metadata"); verr != nil {
+		return d, verr
+	}
+	return d, nil
+}
+@ api-db-go internal/domain/validations/moderation_infractions_validations.go:187-267 func ParseInfractionListQuery [file changed, re-anchored +0]
+func ParseInfractionListQuery(limitRaw, offsetRaw, botID, guildID, userID, moderatorID, typ, status, source, caseNumberRaw, expiresBefore, createdAfter, typesRaw, statusesRaw string) (dbinfraction.ListParams, *apierrors.CustomError) {
+	var p dbinfraction.ListParams
+	limitPtr, verr := coerceTrackErrorLimit(limitRaw)
+	if verr != nil {
+		return p, verr
+	}
+	p.Limit = limitPtr
+	offsetPtr, verr := coerceOffset(offsetRaw)
+	if verr != nil {
+		return p, verr
+	}
+	p.Offset = offsetPtr
+	if botID != "" {
+		v := botID
+		p.BotID = &v
+	}
+	if guildID != "" {
+		v := guildID
+		p.GuildID = &v
+	}
+	if userID != "" {
+		v := userID
+		p.UserID = &v
+	}
+	if moderatorID != "" {
+		v := moderatorID
+		p.ModeratorID = &v
+	}
+	if typ != "" {
+		if !infractionTypeSet[typ] {
+			return p, zodItemError(infractionTypeMsg, "type")
+		}
+		v := typ
+		p.Type = &v
+	}
+	if status != "" {
+		if !infractionStatusSet[status] {
+			return p, zodItemError(infractionStatusMsg, "status")
+		}
+		v := status
+		p.Status = &v
+	}
+	if source != "" {
+		if !infractionSourceSet[source] {
+			return p, zodItemError(infractionSourceMsg, "source")
+		}
+		v := source
+		p.Source = &v
+	}
+	caseNumberPtr, verr := coercePositive(caseNumberRaw, "case_number")
+	if verr != nil {
+		return p, verr
+	}
+	p.CaseNumber = caseNumberPtr
+	if expiresBefore != "" {
+		if !infractionOffsetDateTimeRe.MatchString(expiresBefore) {
+			return p, zodItemError("Invalid ISO datetime", "expires_before")
+		}
+		v := expiresBefore
+		p.ExpiresBefore = &v
+	}
+	// created_after: mismo formato y misma regex que expires_before.
+	if createdAfter != "" {
+		if !infractionOffsetDateTimeRe.MatchString(createdAfter) {
+			return p, zodItemError("Invalid ISO datetime", "created_after")
+		}
+		v := createdAfter
+		p.CreatedAfter = &v
+	}
+	types, verr := parseInfractionEnumCSV(typesRaw, infractionTypeSet, infractionTypeMsg, "types")
+	if verr != nil {
+		return p, verr
+	}
+	p.Types = types
+	statuses, verr := parseInfractionEnumCSV(statusesRaw, infractionStatusSet, infractionStatusMsg, "statuses")
+	if verr != nil {
+		return p, verr
+	}
+	p.Statuses = statuses
+	return p, nil
+}
+@ api-db-go internal/domain/validations/track_errors_validations.go:72-151 func ParseTrackErrorCreate [file changed, re-anchored +0]
+func ParseTrackErrorCreate(body []byte) (dbtrackerror.CreateData, *apierrors.CustomError) {
+	var raw struct {
+		ErrorType    json.RawMessage `json:"error_type"`
+		ErrorMessage json.RawMessage `json:"error_message"`
+		Cause        json.RawMessage `json:"cause"`
+		Severity     json.RawMessage `json:"severity"`
+		BotID        json.RawMessage `json:"bot_id"`
+		GuildID      json.RawMessage `json:"guild_id"`
+		VoiceID      json.RawMessage `json:"voice_id"`
+		TextID       json.RawMessage `json:"text_id"`
+		EntryID      json.RawMessage `json:"entry_id"`
+		Title        json.RawMessage `json:"title"`
+		Author       json.RawMessage `json:"author"`
+		ISRC         json.RawMessage `json:"isrc"`
+		SourceName   json.RawMessage `json:"source_name"`
+		URI          json.RawMessage `json:"uri"`
+		Thumbnail    json.RawMessage `json:"thumbnail"`
+		NodeName     json.RawMessage `json:"node_name"`
+		MusicNode    json.RawMessage `json:"music_node"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return dbtrackerror.CreateData{}, bodyBindError(err)
+	}
+	var d dbtrackerror.CreateData
+	var verr *apierrors.CustomError
+
+	if d.ErrorType, verr = parseEnumRequired(raw.ErrorType, trackErrorTypeSet, trackErrorTypeEnumMsg, "error_type"); verr != nil {
+		return d, verr
+	}
+	if d.ErrorMessage, verr = parseOptionalString(raw.ErrorMessage, "error_message"); verr != nil {
+		return d, verr
+	}
+	if d.Cause, verr = parseOptionalString(raw.Cause, "cause"); verr != nil {
+		return d, verr
+	}
+	if d.Severity, verr = parseOptionalString(raw.Severity, "severity"); verr != nil {
+		return d, verr
+	}
+	if d.BotID, verr = parseRequiredString(raw.BotID, "bot_id", 0, 0); verr != nil {
+		return d, verr
+	}
+	if d.GuildID, verr = parseRequiredString(raw.GuildID, "guild_id", 0, 0); verr != nil {
+		return d, verr
+	}
+	// voice_id … music_node: z.string().nullable().optional() (present null → SQL NULL).
+	if d.VoiceID, verr = parseMetaString(raw.VoiceID, false, "voice_id", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.TextID, verr = parseMetaString(raw.TextID, false, "text_id", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.EntryID, verr = parseMetaString(raw.EntryID, false, "entry_id", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.Title, verr = parseMetaString(raw.Title, false, "title", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.Author, verr = parseMetaString(raw.Author, false, "author", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.ISRC, verr = parseMetaString(raw.ISRC, false, "isrc", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.SourceName, verr = parseMetaString(raw.SourceName, false, "source_name", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.URI, verr = parseMetaString(raw.URI, false, "uri", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.Thumbnail, verr = parseMetaString(raw.Thumbnail, false, "thumbnail", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.NodeName, verr = parseMetaString(raw.NodeName, false, "node_name", 0, false); verr != nil {
+		return d, verr
+	}
+	if d.MusicNode, verr = parseMetaString(raw.MusicNode, false, "music_node", 0, false); verr != nil {
+		return d, verr
+	}
+	return d, nil
+}
+@ api-db-go internal/infrastructure/kpiscraper/scraper.go:226-284 func aggregate [file changed, re-anchored +0]
+func aggregate(samples []sample) tickResult {
+	var playing, paused, stopped int
+	regions := map[string]int{}
+	pingSum := map[string]float64{}
+	pingCount := map[string]int{}
+
+	for _, sm := range samples {
+		p := sm.player
+		switch {
+		case p.Paused:
+			paused++
+		case p.Playing:
+			playing++
+		default:
+			stopped++
+		}
+
+		if sm.endpoint == "" {
+			continue
+		}
+		region := dbkpi.ExtractRegion(sm.endpoint)
+		if region == "" {
+			region = "unknown"
+		}
+		regions[region]++
+
+		// Ping sólo de los que están sonando de verdad (un pausado o un detenido
+		// reportan un RTT viejo) y sólo si es positivo: Lavalink usa -1 para «sin
+		// conexión» y 0 para «aún sin ack del heartbeat».
+		if !p.Playing || p.Paused {
+			continue
+		}
+		if p.Ping == nil || *p.Ping <= 0 {
+			continue
+		}
+		pingSum[region] += *p.Ping
+		pingCount[region]++
+	}
+
+	pingByRegion := map[string]dbkpi.PingAgg{}
+	for region, sum := range pingSum {
+		count := pingCount[region]
+		if count == 0 {
+			continue
+		}
+		pingByRegion[region] = dbkpi.PingAgg{
+			AvgMs:       math.Round((sum/float64(count))*10) / 10,
+			SampleCount: count,
+		}
+	}
+
+	return tickResult{
+		Playing:      playing,
+		Paused:       paused,
+		Stopped:      stopped,
+		Regions:      regions,
+		PingByRegion: pingByRegion,
+	}
+}
+@ api-db-go internal/infrastructure/postgres/migrate.go:92-153 func cutoverGuard [file changed, re-anchored +0]
+func cutoverGuard(ctx context.Context, cfg config.Postgres) error {
+	conn, err := pgx.Connect(ctx, cfg.DSN())
+	if err != nil {
+		return fmt.Errorf("cutover guard: connect: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	var hasSchemaMigrations bool
+	if err := conn.QueryRow(ctx,
+		`SELECT to_regclass('public.schema_migrations') IS NOT NULL`,
+	).Scan(&hasSchemaMigrations); err != nil {
+		return fmt.Errorf("cutover guard: probe schema_migrations: %w", err)
+	}
+	if hasSchemaMigrations {
+		return nil // golang-migrate already owns this database
+	}
+
+	var schemaPopulated bool
+	if err := conn.QueryRow(ctx,
+		`SELECT to_regclass('public.recordings') IS NOT NULL`,
+	).Scan(&schemaPopulated); err != nil {
+		return fmt.Errorf("cutover guard: probe schema: %w", err)
+	}
+	if !schemaPopulated {
+		return nil // truly fresh database — safe to run from scratch
+	}
+
+	// Populated but untracked → cutover. Enrich the message: note Node's
+	// tracker if present, and whether the schema looks complete through the
+	// final migration, so the operator can tell a full clone (safe to seal)
+	// from a partial snapshot (must reconcile before forcing).
+	origin := "outside golang-migrate"
+	var hasPgMigrations bool
+	if err := conn.QueryRow(ctx,
+		`SELECT to_regclass('public.pgmigrations') IS NOT NULL`,
+	).Scan(&hasPgMigrations); err == nil && hasPgMigrations {
+		var rows int
+		if conn.QueryRow(ctx, `SELECT count(*) FROM public.pgmigrations`).Scan(&rows) == nil {
+			origin = fmt.Sprintf("by the Node api-db (%d rows in public.pgmigrations)", rows)
+		} else {
+			origin = "by the Node api-db (public.pgmigrations present)"
+		}
+	}
+
+	var complete bool
+	_ = conn.QueryRow(ctx,
+		`SELECT to_regclass('music.track_counter') IS NOT NULL`,
+	).Scan(&complete)
+	remedy := "the schema looks INCOMPLETE (music.track_counter is missing) — likely a partial " +
+		"or older snapshot; do NOT force, reconcile it first"
+	if complete {
+		remedy = fmt.Sprintf("if it is fully migrated, seal the state ONCE with `make pg-force V=%d`, "+
+			"then re-run `make pg-migrate`", MaxMigrationVersion)
+	}
+
+	return fmt.Errorf(
+		"cutover guard: target schema is already populated (public.recordings exists) but has no "+
+			"schema_migrations table — this database was migrated %s. Running from scratch would "+
+			"re-execute the whole series against a populated schema. %s",
+		origin, remedy,
+	)
+}
+@ api-db-go internal/infrastructure/redis/guild_cache.go:115-188 func marshalGuildToHash [file changed, re-anchored +0]
+func marshalGuildToHash(g dbguild.DBGuildWithModules) (map[string]string, error) {
+	out := map[string]string{}
+
+	out["guild_id"] = g.GuildID
+	out["bot_id"] = g.BotID
+	out["prefix"] = g.Prefix
+	out["language"] = g.Language
+	out["embed_color"] = g.EmbedColor
+	out["enabled_embed_color"] = boolStr(g.EnabledEmbedColor)
+
+	if err := putJSON(out, "permissions", g.Permissions); err != nil {
+		return nil, err
+	}
+	// Only written when the document actually carries it, mirroring the
+	// `omitempty` on the Mongo side: an absent `commands` means "every general
+	// command enabled", and writing a `null` field the Node writers never
+	// produce would make this cache row diverge from theirs. Skipping it is
+	// safe for readers — a missing hash field reads exactly like a missing
+	// document field.
+	if g.Commands != nil {
+		if err := putJSON(out, "commands", g.Commands); err != nil {
+			return nil, err
+		}
+	}
+	// `profile` (the bot's per-guild bio override — see dbguild.GuildProfile
+	// for why avatar/banner don't live here, Discord does) is likewise only
+	// written when the document carries it: an absent subdocument means
+	// "never configured for this guild" (see dbguild.DBGuild.Profile), and a
+	// missing hash field reads back exactly like a missing document field —
+	// same reasoning as `commands` above. It rides as a JSON-object string
+	// like every other nested field here (`permissions`, the module_*
+	// subdocs) rather than as a flat `profile_bio` key, so DeserializeValue +
+	// decodeFromCacheMap's JSON round-trip reconstructs `*GuildProfile` the
+	// same way it reconstructs every other subdocument — one code path for
+	// "nested field", not one flat key per scalar. Payoff of that choice:
+	// `GuildProfile` shrank from three fields (avatar/banner/bio) down to
+	// one (bio) and needed ZERO changes here — json.Marshal(g.Profile) just
+	// emits fewer keys, unlike a flat-keys scheme which would have needed
+	// the `profile_avatar`/`profile_banner` lines deleted by hand.
+	if g.Profile != nil {
+		if err := putJSON(out, "profile", g.Profile); err != nil {
+			return nil, err
+		}
+	}
+	if err := putJSON(out, "module_music", g.ModuleMusic); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_greeter", g.ModuleGreeter); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_logs", g.ModuleLogs); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_modmail", g.ModuleModmail); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_tempvoice", g.ModuleTempvoice); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_giveaway", g.ModuleGiveaway); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_moderation", g.ModuleModeration); err != nil {
+		return nil, err
+	}
+	if err := putJSON(out, "module_automation", g.ModuleAutomation); err != nil {
+		return nil, err
+	}
+
+	out["createdAt"] = formatDate(g.CreatedAt.Time)
+	out["updatedAt"] = formatDate(g.UpdatedAt.Time)
+
+	return out, nil
+}
+@ api-db-go internal/infrastructure/redis/redis_search_init.go:41-99 func InitializeRedisSearch [file changed, re-anchored +0]
+func InitializeRedisSearch(ctx context.Context, client *Client) {
+	indexExists := false
+	if err := client.FtInfo(ctx, idxMembers); err != nil {
+		msg := err.Error()
+		// Redis Stack 7.x: `SEARCH_INDEX_NOT_FOUND Index not found: <name>`;
+		// older RediSearch: `Unknown Index name`. Match both so the create
+		// path runs on fresh deploys; anything else is a real failure.
+		if !isMissingIndexErr(msg) {
+			log.Error().Str("error", msg).
+				Msg("FT.INFO idx_members failed unexpectedly; paginated members will fall back to SMEMBERS")
+			return
+		}
+	} else {
+		indexExists = true
+		log.Info().Msg("FT idx_members ready")
+	}
+
+	if indexExists {
+		// Bring the live schema up to date in place. FT.ALTER is the only
+		// non-destructive path; FT.DROPINDEX would force a full reindex.
+		for _, f := range searchFields {
+			args := append([]string{idxMembers, "SCHEMA", "ADD", f.name}, f.args...)
+			if err := client.FtCommand(ctx, "FT.ALTER", args...); err != nil {
+				if strings.Contains(strings.ToLower(err.Error()), "duplicate field") {
+					continue
+				}
+				log.Error().Str("error", err.Error()).Str("field", f.name).
+					Msg("FT.ALTER idx_members field failed")
+				continue
+			}
+			log.Info().Str("field", f.name).Msg("FT.ALTER idx_members added field")
+		}
+		return
+	}
+
+	// Missing index → create it whole. Schema: guildId TAG SORTABLE, id TAG
+	// SORTABLE, then the three `_lc` TEXT NOSTEM fields. FILTER-scoped to
+	// `@_type=='member'` so channel/role hashes under the shared `guilds:`
+	// prefix are excluded.
+	schema := []string{"guildId", "TAG", "SORTABLE", "id", "TAG", "SORTABLE"}
+	for _, f := range searchFields {
+		schema = append(schema, f.name)
+		schema = append(schema, f.args...)
+	}
+	args := append([]string{idxMembers, "ON", "HASH", "PREFIX", "1", "guilds:", "FILTER", "@_type=='member'", "SCHEMA"}, schema...)
+	if err := client.FtCommand(ctx, "FT.CREATE", args...); err != nil {
+		// A racing writer (the Node service) may have created it between our
+		// FT.INFO and FT.CREATE — treat that as benign, matching the
+		// idempotency the boot probe promises.
+		if strings.Contains(strings.ToLower(err.Error()), "index already exists") {
+			log.Info().Msg("FT idx_members already created by a concurrent writer")
+			return
+		}
+		log.Error().Str("error", err.Error()).
+			Msg("FT.CREATE idx_members failed; paginated members will fall back to SMEMBERS")
+		return
+	}
+	log.Info().Msg("FT idx_members created")
+}
