@@ -15,6 +15,12 @@ declarado en la raíz.
   `benchmarks/web-viewer/`; el harness falla cerrado ante una métrica fuera de
   límite y no emite `WEB_VIEWER_PERFORMANCE_PASS` si el corpus o GPU no
   coinciden con la referencia declarada.
+- `benchmarks/tool-honesty/` no mide aristas: mide **qué afirma una tool cuando
+  su respuesta está vacía**, conduciendo el binario real por MCP contra un
+  corpus con un paquete ilegible a propósito. Sus dos repositorios son los dos
+  brazos: sin el limpio, un veredicto constante `LOWER_BOUND` pasaría todas las
+  comprobaciones. El ámbito ciego se lee de `graph_status`, no del fixture, y
+  el arnés falla si la pasada dejó de registrarlo.
 
 ## Corpus y auditorías
 
