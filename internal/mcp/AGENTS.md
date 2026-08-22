@@ -54,6 +54,17 @@ declarado en la raíz.
   cada símbolo que ese paquete exporta. Esa lista salió de la superficie del
   modelo en la fase 19 -es una pregunta sobre el índice, no sobre el código- y
   vive en el CLI.
+- Los cuatro contadores de `coverage` son **disjuntos y sobre la propia
+  consulta**. Un fallo que acota la respuesta sin ser evidencia sobre ella -un
+  ámbito ilegible del repositorio- no entra en ninguno: se informa en
+  `completeness.invisible_scopes` y en `more_invisible_scopes`, que existen
+  para eso. Cambiar lo que un contador cuenta es un cambio de esquema aunque
+  el campo no cambie de nombre ni de tipo, y el compilador no lo ve: al
+  publicar el veredicto sumé los ámbitos a `unresolved_related`, y
+  `find_symbol` de un nombre que nadie referencia pasó a informar de `29`
+  registros relacionados. Todas las puertas seguían en verde porque ningún
+  test fijaba el contador sobre un fallo que **sólo** fuese de ámbito; el que
+  lo fija ahora está en `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`.
 - Un diagnóstico del cargador que no tumba la pasada se imprime, no sólo se
   cuenta; un repositorio TypeScript que no declara ningún paquete se nombra.
   Un contador sin detalle y una entrada de registro que no aporta nada son

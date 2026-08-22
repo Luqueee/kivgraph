@@ -136,6 +136,14 @@ func TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope(t *testing.T
 	if len(scopes) != 1 || scopes[0].Reason != "PACKAGE_NOT_BUILDABLE" || scopes[0].FilePath != "" {
 		t.Fatalf("invisible scopes = %#v", scopes)
 	}
+	// And it must not be counted as one either. The four coverage counters are
+	// disjoint counts of what touches the query; a scope failure is why the
+	// answer may be short, not a record that names the symbol. Summing it here
+	// made find_symbol answer 29 related records for a name nothing referenced.
+	if response.Coverage.UnresolvedRelated != 0 {
+		t.Fatalf("unresolved_related = %d, want 0: a scope names no symbol",
+			response.Coverage.UnresolvedRelated)
+	}
 	// The directory the loader named is what the fallback has to search.
 	if response.Completeness.Fallback == nil ||
 		len(response.Completeness.Fallback.Paths) != 1 ||

@@ -544,7 +544,7 @@ func getFileOutline(
 	// and everything in the source, so the verdict is spent where the answer
 	// could be mistaken for that -- empty or partial -- and on every lower
 	// bound. A page of declarations claims no absence.
-	completeness, unresolvedRelated, err := completenessScopes(snapshot, repositoryID)
+	completeness, err := completenessScopes(snapshot, repositoryID)
 	if err != nil {
 		return nil, Response[FileOutline]{}, WrapToolError(
 			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
@@ -563,7 +563,7 @@ func getFileOutline(
 		Returned:      kept,
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
-		Coverage:      Coverage{Exact: kept, UnresolvedRelated: unresolvedRelated},
+		Coverage:      Coverage{Exact: kept},
 		Completeness:  verdict,
 		Results:       outline,
 		View:          view,

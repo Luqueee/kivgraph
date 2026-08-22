@@ -111,7 +111,13 @@ func completenessFor(
 		Pattern: `\b` + regexpQuoteWord(symbolName) + `\b`,
 		Paths:   sortedKeys(paths),
 	}
-	return result, namingTotal + scopeTotal, nil
+	// The second value is `coverage.unresolved_related`, and the four coverage
+	// counters are documented as disjoint counts of what touches this query. A
+	// scope failure does not: it is why the answer may be short, not evidence
+	// about the name asked for, and it is already reported in full by
+	// InvisibleScopes and MoreInvisibleScopes. Adding it here once made
+	// find_symbol report 29 related records for a name nothing referenced.
+	return result, namingTotal, nil
 }
 
 // completenessOutwardFor builds the verdict for an answer about what a symbol
@@ -161,7 +167,9 @@ func completenessOutwardFor(
 		Pattern: `\b` + regexpQuoteWord(symbolName) + `\b`,
 		Paths:   sortedKeys(paths),
 	}
-	return result, sourcedTotal + scopeTotal, nil
+	// Only the symbol's own unresolved references touch this query; the scopes
+	// bound the answer without being evidence about it. See completenessFor.
+	return result, sourcedTotal, nil
 }
 
 // completenessScopes builds the verdict for an answer about a place rather than
@@ -172,24 +180,28 @@ func completenessOutwardFor(
 //
 // No fallback pattern: without a symbol there is nothing to grep for, and
 // inventing one would be advice the caller cannot use.
+//
+// It reports no coverage counter. Every failure it finds is a scope, and a
+// scope is not one of the four disjoint things `coverage` counts about an
+// answer; a reader learns of it from InvisibleScopes.
 func completenessScopes(
 	snapshot *hotsnapshot.GraphSnapshot,
 	repository hotsnapshot.RepositoryID,
-) (Completeness, int, error) {
+) (Completeness, error) {
 	scopes, scopeTotal := snapshot.UnresolvedScopes(repository, MaximumBlindSpots)
 	if scopeTotal == 0 {
-		return Completeness{Verdict: VerdictComplete}, 0, nil
+		return Completeness{Verdict: VerdictComplete}, nil
 	}
 	result := Completeness{Verdict: VerdictLowerBound}
 	for _, reference := range scopes {
 		spot, err := blindSpot(snapshot, reference)
 		if err != nil {
-			return Completeness{}, 0, err
+			return Completeness{}, err
 		}
 		result.InvisibleScopes = append(result.InvisibleScopes, spot)
 	}
 	result.MoreInvisibleScopes = scopeTotal - len(result.InvisibleScopes)
-	return result, scopeTotal, nil
+	return result, nil
 }
 
 func blindSpot(
