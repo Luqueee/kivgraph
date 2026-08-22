@@ -44,29 +44,46 @@ type symbolLocation struct {
 	FilePath       string
 }
 
+// symbolStableKey resolves the key a symbol record names.
+//
+// A record carries its key as a dense index into the snapshot's key table, and
+// an index that does not resolve can only come from an inconsistent snapshot.
+// Every caller here wants the key for a row or a message rather than a second
+// error to thread, so a miss reads as no key at all.
+func symbolStableKey(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolRecord) string {
+	key, _ := snapshot.StableKey(symbol.StableKey)
+	return string(key)
+}
+
 func resolveSymbolLocation(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolRecord) (symbolLocation, error) {
 	file, fileOK := snapshot.File(symbol.File)
 	if !fileOK {
-		return symbolLocation{}, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return symbolLocation{}, fmt.Errorf("symbol %q references missing file %d", symbolStableKey(snapshot, symbol), symbol.File)
 	}
-	return resolveFileLocation(snapshot, file, string(symbol.StableKey))
+	location, err := resolveFileLocation(snapshot, file)
+	if err != nil {
+		return symbolLocation{}, fmt.Errorf("symbol %q: %w", symbolStableKey(snapshot, symbol), err)
+	}
+	return location, nil
 }
 
 // resolveFileLocation reads the repository and package a file belongs to.
-// owner names whatever asked, so a corrupt snapshot reports which row led
-// here instead of only which table was short.
+//
+// Which row led here is named by the caller instead of passed in: resolving a
+// symbol's key copies it out of the snapshot's key arena, and this runs once
+// per row of every page while the name is only ever read out of a message a
+// consistent snapshot never produces.
 func resolveFileLocation(
 	snapshot *hotsnapshot.GraphSnapshot,
 	file hotsnapshot.FileRecord,
-	owner string,
 ) (symbolLocation, error) {
 	pkg, packageOK := snapshot.Package(file.Package)
 	if !packageOK {
-		return symbolLocation{}, fmt.Errorf("%q references missing package %d", owner, file.Package)
+		return symbolLocation{}, fmt.Errorf("file references missing package %d", file.Package)
 	}
 	repository, repositoryOK := snapshot.Repository(file.Repository)
 	if !repositoryOK {
-		return symbolLocation{}, fmt.Errorf("%q references missing repository %d", owner, file.Repository)
+		return symbolLocation{}, fmt.Errorf("file references missing repository %d", file.Repository)
 	}
 
 	table := snapshot.Strings()
@@ -78,8 +95,8 @@ func resolveFileLocation(
 	filePath, filePathOK := table.String(file.Path)
 	if !repositoryKeyOK || !repositoryNameOK || !repositoryPathOK || !packageNameOK || !modulePathOK || !filePathOK {
 		return symbolLocation{}, fmt.Errorf(
-			"%q references invalid location strings (repository_key_ok=%t repository_name_ok=%t repository_path_ok=%t package_name_ok=%t module_path_ok=%t file_path_ok=%t)",
-			owner, repositoryKeyOK, repositoryNameOK, repositoryPathOK, packageNameOK, modulePathOK, filePathOK,
+			"file references invalid location strings (repository_key_ok=%t repository_name_ok=%t repository_path_ok=%t package_name_ok=%t module_path_ok=%t file_path_ok=%t)",
+			repositoryKeyOK, repositoryNameOK, repositoryPathOK, packageNameOK, modulePathOK, filePathOK,
 		)
 	}
 

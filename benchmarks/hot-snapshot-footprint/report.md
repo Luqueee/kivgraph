@@ -24,7 +24,44 @@ El arnés **se niega a publicar** si la generación que abre no es la que el
 llamante declaró: una huella etiquetada con la generación equivocada es peor que
 no tener huella.
 
-## El resultado, y el hallazgo
+## Después de `LUQUE-2002`: la huella medida hoy
+
+La medición de abajo es la que motivó `LUQUE-2002`, y sigue publicada porque es
+la evidencia que lo justificó. Ésta es la misma medición después del cambio,
+sobre el mismo corpus y la misma generación:
+
+|magnitud|antes|después|
+|---|---|---|
+|residente|`171,5 MB`|**`109,1 MB`**|
+|por símbolo|`1.389 B`|**`883 B`**|
+|cobertura del desglose|`64,6 %`|**`100,1 %`**|
+|estabilidad entre pasadas|`0,01 %`|`0,03 %`|
+
+**`62,4 MB` menos, un `36,4 %`**, y el desglose **cierra**: el residuo de
+`60,7 MB` que antes eran búferes de lectura retenidos hoy es `-0,1 %`, dentro
+del ruido de contar por tamaño de elemento.
+
+De dónde sale el ahorro, contra lo que este informe atribuyó a cada pieza:
+
+|pieza|bytes|
+|---|---|
+|búferes Arrow liberados|`+58.040.000`|
+|mapa `symbolByStableKey` retirado|`+6.990.144`|
+|registro más fino: cabecera de 16 → `uint32` de 4|`+1.482.372`|
+|coste nuevo de la tabla de claves|`-6.917.740`|
+|**atribuido**|**`59.594.776`**|
+|**medido**|**`62.400.640`** (`+4,7 %`)|
+
+El `1.482.372` es exacto: `123.531` símbolos × `12` bytes, y es lo que hace que
+la tabla de símbolos pase de `56,0` a `44,0` bytes por entrada. Los `52,0` bytes
+por clave del arena nuevo son la longitud real de una clave del corpus, que la
+tarea estimaba en `52` caracteres de base32 antes de medirla.
+
+La tabla de claves no aparecía antes porque sus bytes viajaban **dentro** del
+búfer fijado, contados como residuo. Hoy son almacenamiento que el snapshot
+posee, y por eso el desglose los nombra.
+
+## La medición que lo motivó
 
 **Residente: `171,5 MB`** de heap vivo, que confirma el «`173 MB`» que la fase
 citaba de otra máquina. Dos pasadas coinciden dentro del **`0,01 %`**, muy por
@@ -86,6 +123,13 @@ veces.
 Es evidencia directa para `LUQUE-2002` de la fase 20, cuyo título ya era **«que
 ninguna clave estable ocupe un puntero»**. Escrita antes de esta medición, y
 apuntando al sitio correcto.
+
+> **Cerrado por `LUQUE-2002`.** `SymbolRecord.StableKey` es ahora un `uint32`
+> denso en una `StableKeyTable` que copia sus bytes, así que ninguna clave apunta
+> a un búfer de lectura y no hay nada que fijar. La medición de arriba es la del
+> commit indicado en la cabecera; el binario de hoy ya no emite
+> `stable_key_characters_bytes`, y en su lugar cobra la tabla de claves como un
+> componente normal (arena + offsets).
 
 ## Los tres que dominan, y lo que cuestan por unidad
 

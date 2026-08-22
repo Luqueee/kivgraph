@@ -927,7 +927,7 @@ func referenceSummary(
 	if !nameOK || !qualifiedNameOK || !kindOK {
 		return ReferenceSummary{}, fmt.Errorf(
 			"symbol %q has invalid metadata (name_ok=%t qualified_name_ok=%t kind_ok=%t)",
-			other.StableKey, nameOK, qualifiedNameOK, kindOK,
+			symbolStableKey(snapshot, other), nameOK, qualifiedNameOK, kindOK,
 		)
 	}
 	location, err := resolveSymbolLocation(snapshot, other)
@@ -959,7 +959,7 @@ func referenceSummary(
 		return ReferenceSummary{}, fmt.Errorf("edge evidence %d has an invalid kind", edge.Evidence)
 	}
 	summary.EvidenceKind = evidenceKind
-	summary.StableKey = string(other.StableKey)
+	summary.StableKey = symbolStableKey(snapshot, other)
 	summary.FileKey = file.key
 	// The detailed format restores the derived identifiers, and a repository key
 	// is derived from its name by construction.
@@ -980,7 +980,7 @@ func referenceSubject(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.Symbol
 	if !nameOK || !qualifiedNameOK || !kindOK {
 		return ReferenceSubject{}, fmt.Errorf(
 			"symbol %q has invalid metadata (name_ok=%t qualified_name_ok=%t kind_ok=%t)",
-			symbol.StableKey, nameOK, qualifiedNameOK, kindOK,
+			symbolStableKey(snapshot, symbol), nameOK, qualifiedNameOK, kindOK,
 		)
 	}
 	location, err := resolveSymbolLocation(snapshot, symbol)
@@ -988,7 +988,7 @@ func referenceSubject(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.Symbol
 		return ReferenceSubject{}, err
 	}
 	return ReferenceSubject{
-		StableKey:     string(symbol.StableKey),
+		StableKey:     symbolStableKey(snapshot, symbol),
 		Name:          name,
 		QualifiedName: qualifiedName,
 		Kind:          kind,
@@ -1025,13 +1025,14 @@ func symbolReferenceLocation(
 	if !found {
 		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol index %d is missing", id)
 	}
+	stableKey := symbolStableKey(snapshot, symbol)
 	file, found := snapshot.File(symbol.File)
 	if !found {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references missing file %d", stableKey, symbol.File)
 	}
 	repository, found := snapshot.Repository(file.Repository)
 	if !found {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references missing repository %d", symbol.StableKey, file.Repository)
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references missing repository %d", stableKey, file.Repository)
 	}
 	table := snapshot.Strings()
 	fileKey, fileKeyOK := table.String(file.Key)
@@ -1039,7 +1040,7 @@ func symbolReferenceLocation(
 	repositoryName, repositoryNameOK := table.String(repository.Name)
 	repositoryKey, repositoryKeyOK := table.String(repository.Key)
 	if !fileKeyOK || !filePathOK || !repositoryNameOK || !repositoryKeyOK {
-		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references invalid file or repository strings", symbol.StableKey)
+		return hotsnapshot.SymbolRecord{}, symbolReferenceFile{}, symbolReferenceRepository{}, nil, fmt.Errorf("symbol %q references invalid file or repository strings", stableKey)
 	}
 	languages, err := symbolLanguages(snapshot, symbol, file, repository)
 	if err != nil {
@@ -1057,13 +1058,14 @@ func symbolRepositoryAndLanguages(
 	if !found {
 		return hotsnapshot.RepositoryRecord{}, nil, fmt.Errorf("symbol index %d is missing", id)
 	}
+	stableKey := symbolStableKey(snapshot, symbol)
 	file, found := snapshot.File(symbol.File)
 	if !found {
-		return hotsnapshot.RepositoryRecord{}, nil, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return hotsnapshot.RepositoryRecord{}, nil, fmt.Errorf("symbol %q references missing file %d", stableKey, symbol.File)
 	}
 	repository, found := snapshot.Repository(file.Repository)
 	if !found {
-		return hotsnapshot.RepositoryRecord{}, nil, fmt.Errorf("symbol %q references missing repository %d", symbol.StableKey, file.Repository)
+		return hotsnapshot.RepositoryRecord{}, nil, fmt.Errorf("symbol %q references missing repository %d", stableKey, file.Repository)
 	}
 	languages, err := symbolLanguages(snapshot, symbol, file, repository)
 	return repository, languages, err

@@ -573,7 +573,7 @@ func traceDependencies(
 		Coverage: coverage,
 		Guidance: traversalGuidance(traceDependenciesToolName, total, len(page), hasMore),
 		Results: DependencyTrace{
-			RootKey: string(root.StableKey), RootRepository: rootRepository.name,
+			RootKey: symbolStableKey(snapshot, root), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,
 			Reached: len(traversal.Visits) - 1, DeepestDepth: deepest,
 			TraversalTruncated: traversal.Truncated, Nodes: page,
@@ -725,11 +725,11 @@ func dependencyNodes(
 		qualifiedName, qualifiedOK := table.String(symbol.QualifiedName)
 		kind, kindOK := table.String(symbol.Kind)
 		if !nameOK || !qualifiedOK || !kindOK {
-			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
+			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has invalid display strings", symbolStableKey(snapshot, symbol))
 		}
 		reachedFrom, sourceOK := table.String(source.QualifiedName)
 		if !sourceOK {
-			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has an invalid qualified name", source.StableKey)
+			return nil, Coverage{}, 0, fmt.Errorf("symbol %q has an invalid qualified name", symbolStableKey(snapshot, source))
 		}
 		addReferenceCoverage(&coverage, decoded.Confidence)
 		row := ReachedSymbol{
@@ -740,9 +740,9 @@ func dependencyNodes(
 			ViaConfidence: string(decoded.Confidence), ViaProvenance: string(decoded.Provenance),
 		}
 		if options.Format == ResponseFormatDetailed {
-			row.StableKey = string(symbol.StableKey)
+			row.StableKey = symbolStableKey(snapshot, symbol)
 			row.FileKey = file.key
-			row.ReachedFromKey = string(source.StableKey)
+			row.ReachedFromKey = symbolStableKey(snapshot, source)
 		}
 		nodes = append(nodes, row)
 	}

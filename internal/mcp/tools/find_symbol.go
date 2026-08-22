@@ -593,7 +593,7 @@ func symbolSummary(
 		return SymbolSummary{}, err
 	}
 	summary := SymbolSummary{
-		StableKey:     string(symbol.StableKey),
+		StableKey:     symbolStableKey(snapshot, symbol),
 		Name:          name,
 		QualifiedName: qualifiedName,
 		Kind:          kind,

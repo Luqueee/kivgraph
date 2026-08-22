@@ -129,6 +129,10 @@ func decodeSymbols(data []byte, count uint64) []SymbolRecord {
 	for index := range records {
 		row := data[uint64(index)*symbolElemSize:]
 		records[index] = SymbolRecord{
+			// The key is the record's own position, and it is not on disk for
+			// that reason: storing a column that always equals the row index
+			// would be four bytes per symbol of nothing.
+			StableKey:         StableKeyID(index),
 			CanonicalIdentity: InternedString(binary.LittleEndian.Uint32(row[0:4])),
 			File:              FileID(binary.LittleEndian.Uint32(row[4:8])),
 			Language:          InternedString(binary.LittleEndian.Uint32(row[8:12])),
@@ -148,34 +152,35 @@ func decodeSymbols(data []byte, count uint64) []SymbolRecord {
 // key's bytes are a range rather than a length-prefixed record: the extra
 // trailing offset is what makes the last key's end explicit instead of implied
 // by the blob's size.
-func encodeSymbolKeys(records []SymbolRecord) ([]uint32, []byte) {
-	offsets := make([]uint32, 0, len(records)+1)
-	blob := make([]byte, 0, len(records)*32)
-	for _, record := range records {
-		offsets = append(offsets, uint32(len(blob)))
-		blob = append(blob, record.StableKey...)
+//
+// It is the table's own storage, handed over unchanged. The layout predates the
+// table and happens to be exactly its shape, which is why moving the keys off
+// the records did not change a single byte of this file's format.
+func encodeSymbolKeys(keys StableKeyTable) ([]uint32, []byte) {
+	arena, offsets := keys.Arena()
+	if len(offsets) == 0 {
+		return []uint32{0}, nil
 	}
-	offsets = append(offsets, uint32(len(blob)))
-	return offsets, blob
+	return offsets, arena
 }
 
-// restoreSymbolKeys puts the keys back on the records, rejecting offsets that
-// do not describe the blob they index. A key read from the wrong range is a
-// symbol answering to another symbol's identity, which no later validation can
-// catch: the index built from it would agree with it.
-func restoreSymbolKeys(records []SymbolRecord, offsets []uint32, blob []byte) error {
-	if len(offsets) != len(records)+1 {
-		return fmt.Errorf("%w: %d key offsets for %d symbols", ErrInvalidSnapshotFile, len(offsets), len(records))
+// restoreSymbolKeys rebuilds the key table, rejecting offsets that do not
+// describe the blob they index. A key read from the wrong range is a symbol
+// answering to another symbol's identity, which no later validation can catch:
+// the index built from it would agree with it.
+//
+// borrowed decides whether the table reads the mapped bytes in place or copies
+// them, which is the whole reason this path exists: a mapped snapshot that
+// copied its keys would pay for them twice.
+func restoreSymbolKeys(symbols int, offsets []uint32, blob []byte, borrowed bool) (StableKeyTable, error) {
+	if len(offsets) != symbols+1 {
+		return StableKeyTable{}, fmt.Errorf("%w: %d key offsets for %d symbols", ErrInvalidSnapshotFile, len(offsets), symbols)
 	}
-	for index := range records {
-		start, end := offsets[index], offsets[index+1]
-		if start > end || uint64(end) > uint64(len(blob)) {
-			return fmt.Errorf("%w: symbol %d claims key bytes %d..%d of %d",
-				ErrInvalidSnapshotFile, index, start, end, len(blob))
-		}
-		records[index].StableKey = StableKey(blob[start:end])
+	table, err := StableKeyTableFromArena(blob, offsets, borrowed)
+	if err != nil {
+		return StableKeyTable{}, fmt.Errorf("%w: %w", ErrInvalidSnapshotFile, err)
 	}
-	return nil
+	return table, nil
 }
 
 func encodeEvidence(records []EvidenceRecord) []byte {

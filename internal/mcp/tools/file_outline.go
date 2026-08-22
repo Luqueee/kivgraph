@@ -568,7 +568,7 @@ func outlineSymbol(
 	if !canonicalOK || !nameOK || !qualifiedNameOK || !kindOK || !signatureOK {
 		return OutlineSymbol{}, symbolLocation{}, fmt.Errorf(
 			"symbol %q references invalid strings (canonical_ok=%t name_ok=%t qualified_name_ok=%t kind_ok=%t signature_ok=%t)",
-			symbol.StableKey, canonicalOK, nameOK, qualifiedNameOK, kindOK, signatureOK,
+			symbolStableKey(snapshot, symbol), canonicalOK, nameOK, qualifiedNameOK, kindOK, signatureOK,
 		)
 	}
 	location, err := resolveSymbolLocation(snapshot, symbol)
@@ -587,7 +587,7 @@ func outlineSymbol(
 		row.QualifiedName = qualifiedName
 	}
 	if format == ResponseFormatDetailed {
-		row.StableKey = string(symbol.StableKey)
+		row.StableKey = symbolStableKey(snapshot, symbol)
 		row.Signature = signature
 		row.CanonicalIdentity = canonical
 	}

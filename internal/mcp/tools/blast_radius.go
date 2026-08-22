@@ -463,7 +463,7 @@ func getBlastRadius(
 	if err != nil {
 		return nil, Response[BlastRadius]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid impact metadata", err)
 	}
-	radius.RootKey = string(root.StableKey)
+	radius.RootKey = symbolStableKey(snapshot, root)
 	radius.RootRepository = rootRepository.name
 	radius.RootPath = rootLocation.path
 	radius.RootLine = root.StartLine
@@ -504,7 +504,7 @@ func getBlastRadius(
 		return nil, Response[BlastRadius]{}, WrapToolError(
 			CodeSnapshotUnavailable,
 			"active snapshot contains invalid impact metadata",
-			fmt.Errorf("symbol %q has an invalid name", root.StableKey),
+			fmt.Errorf("symbol %q has an invalid name", symbolStableKey(snapshot, root)),
 		)
 	}
 	rootFile, rootFileFound := snapshot.File(root.File)
@@ -646,7 +646,7 @@ func blastRadiusGroups(
 		table := snapshot.Strings()
 		kind, kindOK := table.String(symbol.Kind)
 		if !kindOK {
-			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
+			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbolStableKey(snapshot, symbol))
 		}
 		// Tested before the package and source lookups below: on the page this
 		// filter exists for, it discards most of the frontier.
@@ -671,7 +671,7 @@ func blastRadiusGroups(
 		name, nameOK := table.String(symbol.Name)
 		qualifiedName, qualifiedOK := table.String(symbol.QualifiedName)
 		if !nameOK || !qualifiedOK {
-			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey)
+			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has invalid display strings", symbolStableKey(snapshot, symbol))
 		}
 
 		radius.Affected++
@@ -692,7 +692,7 @@ func blastRadiusGroups(
 		addReferenceCoverage(&coverage, decoded.Confidence)
 		reachedFrom, sourceOK := table.String(source.QualifiedName)
 		if !sourceOK {
-			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has an invalid qualified name", source.StableKey)
+			return BlastRadius{}, Coverage{}, fmt.Errorf("symbol %q has an invalid qualified name", symbolStableKey(snapshot, source))
 		}
 		row := ReachedSymbol{
 			Name: name, QualifiedName: qualifiedName, Kind: kind,
@@ -702,9 +702,9 @@ func blastRadiusGroups(
 			ViaConfidence: string(decoded.Confidence), ViaProvenance: string(decoded.Provenance),
 		}
 		if format == ResponseFormatDetailed {
-			row.StableKey = string(symbol.StableKey)
+			row.StableKey = symbolStableKey(snapshot, symbol)
 			row.FileKey = file.key
-			row.ReachedFromKey = string(source.StableKey)
+			row.ReachedFromKey = symbolStableKey(snapshot, source)
 		}
 		radius.Symbols = append(radius.Symbols, row)
 	}
@@ -783,19 +783,20 @@ func traversalCodeAllowed(code uint8, allowed []uint8) bool {
 }
 
 func symbolPackageIdentity(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolRecord) (string, string, error) {
+	stableKey := symbolStableKey(snapshot, symbol)
 	file, found := snapshot.File(symbol.File)
 	if !found {
-		return "", "", fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return "", "", fmt.Errorf("symbol %q references missing file %d", stableKey, symbol.File)
 	}
 	pkg, found := snapshot.Package(file.Package)
 	if !found {
-		return "", "", fmt.Errorf("symbol %q references missing package %d", symbol.StableKey, file.Package)
+		return "", "", fmt.Errorf("symbol %q references missing package %d", stableKey, file.Package)
 	}
 	table := snapshot.Strings()
 	key, keyOK := table.String(pkg.Key)
 	name, nameOK := table.String(pkg.Name)
 	if !keyOK || !nameOK {
-		return "", "", fmt.Errorf("symbol %q references invalid package strings", symbol.StableKey)
+		return "", "", fmt.Errorf("symbol %q references invalid package strings", stableKey)
 	}
 	return key, name, nil
 }

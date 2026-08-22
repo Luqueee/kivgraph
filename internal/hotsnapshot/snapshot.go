@@ -55,8 +55,15 @@ type FileRecord struct {
 // SymbolRecord stores source-independent and display identities for a symbol.
 // Exported separates public API from a private helper: breaking the first can
 // reach another repository, breaking the second cannot leave its package.
+//
+// Every field is fixed size and none is a pointer, which is what makes this
+// table mappable: a reader can address record i without following anything. The
+// stable key is a dense ID into the snapshot's key table -- resolve it with
+// GraphSnapshot.StableKey -- and it is numerically the record's own SymbolID,
+// because symbols are sorted by key before any ID is allocated. It is stored
+// rather than derived so a helper holding only a record can still name it.
 type SymbolRecord struct {
-	StableKey          StableKey
+	StableKey          StableKeyID
 	CanonicalIdentity  InternedString
 	File               FileID
 	Language           InternedString
@@ -152,10 +159,13 @@ type GraphSnapshotInput struct {
 	ReverseOffsets []uint32
 	ReverseEdges   []PackedEdge
 
-	SymbolByStableKey map[StableKey]SymbolID
-	SymbolsByName     map[InternedString][]SymbolID
-	SymbolsByQName    map[InternedString][]SymbolID
-	FileByRepoPath    map[RepoPathKey]FileID
+	// StableKeys is the key table, and it replaces the map this input used to
+	// carry. Entry i is the key of SymbolID i, so the index that used to cost
+	// one hash entry per symbol is now the ordering of the table itself.
+	StableKeys     StableKeyTable
+	SymbolsByName  map[InternedString][]SymbolID
+	SymbolsByQName map[InternedString][]SymbolID
+	FileByRepoPath map[RepoPathKey]FileID
 }
 
 // SnapshotMetadata contains versioned, immutable snapshot metadata.
@@ -189,10 +199,10 @@ type GraphSnapshot struct {
 	reverseOffsets []uint32
 	reverseEdges   []PackedEdge
 
-	symbolByStableKey map[StableKey]SymbolID
-	symbolsByName     map[InternedString][]SymbolID
-	symbolsByQName    map[InternedString][]SymbolID
-	fileByRepoPath    map[RepoPathKey]FileID
+	stableKeys     StableKeyTable
+	symbolsByName  map[InternedString][]SymbolID
+	symbolsByQName map[InternedString][]SymbolID
+	fileByRepoPath map[RepoPathKey]FileID
 
 	// traversalWorkspacePool owns reusable per-call scratch buffers. It does not
 	// participate in the immutable graph state returned to readers.
@@ -253,14 +263,17 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		packageIncoming:     buildPackageIncoming(input.PackageDependencies),
 		unresolved:          append([]UnresolvedReferenceRecord(nil), input.Unresolved...),
 
-		forwardOffsets:    append([]uint32(nil), forwardOffsets...),
-		forwardEdges:      append([]PackedEdge(nil), input.ForwardEdges...),
-		reverseOffsets:    append([]uint32(nil), reverseOffsets...),
-		reverseEdges:      append([]PackedEdge(nil), input.ReverseEdges...),
-		symbolByStableKey: cloneStableKeyIndex(input.SymbolByStableKey),
-		symbolsByName:     cloneSymbolLists(input.SymbolsByName),
-		symbolsByQName:    cloneSymbolLists(input.SymbolsByQName),
-		fileByRepoPath:    cloneRepoPathIndex(input.FileByRepoPath),
+		forwardOffsets: append([]uint32(nil), forwardOffsets...),
+		forwardEdges:   append([]PackedEdge(nil), input.ForwardEdges...),
+		reverseOffsets: append([]uint32(nil), reverseOffsets...),
+		reverseEdges:   append([]PackedEdge(nil), input.ReverseEdges...),
+		// The table already owns its arena, so there is nothing to clone: it
+		// copied its bytes when it was built, which is what stops a snapshot
+		// from pinning the buffer its keys were read through.
+		stableKeys:     input.StableKeys,
+		symbolsByName:  cloneSymbolLists(input.SymbolsByName),
+		symbolsByQName: cloneSymbolLists(input.SymbolsByQName),
+		fileByRepoPath: cloneRepoPathIndex(input.FileByRepoPath),
 	}
 	if !snapshot.validExactIndexes() {
 		return nil, ErrInvalidGraphSnapshot
@@ -353,11 +366,26 @@ func (snapshot *GraphSnapshot) Incoming(target SymbolID) []PackedEdge {
 	return append([]PackedEdge(nil), snapshot.reverseEdges[start:end]...)
 }
 
-// SymbolByStableKey returns the symbol matching key through the exact index.
+// SymbolByStableKey returns the symbol matching key.
+//
+// The signature is the one callers already had; what changed underneath is that
+// the answer comes from a binary search over the key table instead of a hash
+// table holding one string per symbol.
 func (snapshot *GraphSnapshot) SymbolByStableKey(key StableKey) (SymbolID, bool) {
-	id, found := snapshot.symbolByStableKey[key]
-	return id, found
+	id, found := snapshot.stableKeys.Lookup(key)
+	if !found {
+		return 0, false
+	}
+	return SymbolID(id), true
 }
+
+// StableKey resolves the dense key a SymbolRecord carries.
+func (snapshot *GraphSnapshot) StableKey(id StableKeyID) (StableKey, bool) {
+	return snapshot.stableKeys.Key(id)
+}
+
+// StableKeys returns the immutable key table owned by the snapshot.
+func (snapshot *GraphSnapshot) StableKeys() StableKeyTable { return snapshot.stableKeys }
 
 // SymbolsByName returns a copy of the exact-name result IDs.
 func (snapshot *GraphSnapshot) SymbolsByName(name InternedString) []SymbolID {
@@ -376,11 +404,24 @@ func (snapshot *GraphSnapshot) FileByRepoPath(key RepoPathKey) (FileID, bool) {
 }
 
 func (snapshot *GraphSnapshot) validExactIndexes() bool {
-	if len(snapshot.symbolByStableKey) != len(snapshot.symbols) || len(snapshot.fileByRepoPath) != len(snapshot.files) {
+	if uint64(snapshot.stableKeys.Entries()) != uint64(len(snapshot.symbols)) ||
+		len(snapshot.fileByRepoPath) != len(snapshot.files) {
 		return false
 	}
+	// Entry i must be the key of symbol i, in both directions. The forward
+	// check is what makes the record's dense key trustworthy, and the reverse
+	// one is what makes the ordering trustworthy: a table sorted by bytes whose
+	// entries belonged to other symbols would answer every lookup with the
+	// wrong ID rather than failing.
 	for id, symbol := range snapshot.symbols {
-		if found, exists := snapshot.symbolByStableKey[symbol.StableKey]; !exists || found != SymbolID(id) {
+		if symbol.StableKey != StableKeyID(id) {
+			return false
+		}
+		key, found := snapshot.stableKeys.Key(StableKeyID(id))
+		if !found {
+			return false
+		}
+		if resolved, ok := snapshot.stableKeys.Lookup(key); !ok || resolved != StableKeyID(id) {
 			return false
 		}
 	}
@@ -493,14 +534,6 @@ func validReverseCounterpart(symbols int, forwardOffsets []uint32, forwardEdges 
 	return true
 }
 func fitsDenseTable[T any](records []T) bool { return uint64(len(records)) < math.MaxUint32 }
-
-func cloneStableKeyIndex(source map[StableKey]SymbolID) map[StableKey]SymbolID {
-	cloned := make(map[StableKey]SymbolID, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
-	return cloned
-}
 
 func cloneSymbolLists(source map[InternedString][]SymbolID) map[InternedString][]SymbolID {
 	cloned := make(map[InternedString][]SymbolID, len(source))

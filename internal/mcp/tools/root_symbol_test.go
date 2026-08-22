@@ -36,7 +36,7 @@ func TestSymbolSelectorNarrowsAnAmbiguousNameAndNeverGuesses(t *testing.T) {
 		t.Fatalf("resolveSymbolSelector(narrowed) error = %v", err)
 	}
 	symbol, found := snapshot.Symbol(id)
-	if !found || symbol.StableKey != "alpha-merge" {
+	if !found || symbolStableKey(snapshot, symbol) != "alpha-merge" {
 		t.Fatalf("narrowed selector resolved to %#v, want alpha-merge", symbol)
 	}
 

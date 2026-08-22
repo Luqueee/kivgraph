@@ -18,7 +18,7 @@ func TestVisitSymbolsUsesDenseRangeWithoutEscapingRecords(t *testing.T) {
 	err = snapshot.VisitSymbols(context.Background(), 0, 2, func(id SymbolID, record SymbolRecord) error {
 		ids = append(ids, id)
 		records = append(records, record)
-		record.StableKey = "mutated"
+		record.StableKey = InvalidStableKeyID
 		return nil
 	})
 	if err != nil {
@@ -27,10 +27,15 @@ func TestVisitSymbolsUsesDenseRangeWithoutEscapingRecords(t *testing.T) {
 	if !reflect.DeepEqual(ids, []SymbolID{0, 1}) {
 		t.Fatalf("visited IDs = %v", ids)
 	}
-	if len(records) != 2 || records[0].StableKey != "symbol-a" || records[1].StableKey != "symbol-b" {
+	if len(records) != 2 {
 		t.Fatalf("visited records = %#v", records)
 	}
-	if symbol, ok := snapshot.Symbol(0); !ok || symbol.StableKey != "symbol-a" {
+	for index, want := range []StableKey{"symbol-a", "symbol-b"} {
+		if key, ok := snapshot.StableKey(records[index].StableKey); !ok || key != want {
+			t.Fatalf("visited record %d stable key = %q (%t), want %q", index, key, ok, want)
+		}
+	}
+	if symbol, ok := snapshot.Symbol(0); !ok || symbol.StableKey != 0 {
 		t.Fatalf("snapshot record changed through visitor: %#v, %t", symbol, ok)
 	}
 

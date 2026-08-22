@@ -594,9 +594,13 @@ func makeSymbolView(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID
 	if !ok {
 		return symbolView{}, false
 	}
+	stableKey, ok := snapshot.StableKey(symbol.StableKey)
+	if !ok {
+		return symbolView{}, false
+	}
 	strings := snapshot.Strings()
 	return symbolView{
-		StableKey:         string(symbol.StableKey),
+		StableKey:         string(stableKey),
 		CanonicalIdentity: stringValue(strings, symbol.CanonicalIdentity),
 		Repository:        stringValue(strings, repository.Name),
 		RepositoryPath:    stringValue(strings, repository.Path),
@@ -622,9 +626,14 @@ func makeEdgeView(snapshot *hotsnapshot.GraphSnapshot, source hotsnapshot.Symbol
 	if !sourceOK || !targetOK || kindErr != nil || confidenceErr != nil || provenanceErr != nil {
 		return edgeView{}, false
 	}
+	sourceKey, sourceKeyOK := snapshot.StableKey(sourceRecord.StableKey)
+	targetKey, targetKeyOK := snapshot.StableKey(targetRecord.StableKey)
+	if !sourceKeyOK || !targetKeyOK {
+		return edgeView{}, false
+	}
 	view := edgeView{
-		Source:     string(sourceRecord.StableKey),
-		Target:     string(targetRecord.StableKey),
+		Source:     string(sourceKey),
+		Target:     string(targetKey),
 		Kind:       string(kind),
 		Confidence: string(confidence),
 		Provenance: string(provenance),

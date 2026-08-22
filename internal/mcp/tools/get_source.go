@@ -233,7 +233,7 @@ func sourceBody(
 	kind, kindOK := table.String(symbol.Kind)
 	if !qualifiedOK || !nameOK || !kindOK {
 		return SourceBody{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid symbol metadata",
-			fmt.Errorf("symbol %q has invalid display strings", symbol.StableKey))
+			fmt.Errorf("symbol %q has invalid display strings", symbolStableKey(snapshot, symbol)))
 	}
 	location, err := resolveSymbolLocation(snapshot, symbol)
 	if err != nil {
@@ -254,7 +254,7 @@ func sourceBody(
 		EndLine:       symbol.EndLine,
 	}
 	if format == ResponseFormatDetailed {
-		body.StableKey = string(symbol.StableKey)
+		body.StableKey = symbolStableKey(snapshot, symbol)
 	}
 	if symbol.StartLine == 0 || symbol.EndLine < symbol.StartLine {
 		body.Unavailable = "the generation records no line range for this symbol"

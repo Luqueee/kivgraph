@@ -59,9 +59,16 @@ func TestPublishedSnapshotMatchesADerivedOne(t *testing.T) {
 			t.Fatalf("symbol %d\n loaded %+v (%v)\nderived %+v (%v)", id, got, okGot, want, okWant)
 		}
 		// The stable key has to resolve to the same dense id in both, or a
-		// query would answer with another symbol's identity.
-		if resolved, found := loaded.SymbolByStableKey(want.StableKey); !found || resolved != id {
-			t.Fatalf("stable key %q resolves to %d in the loaded snapshot, want %d", want.StableKey, resolved, id)
+		// query would answer with another symbol's identity. It is resolved to
+		// its characters first and looked up as a string on the other side:
+		// comparing the two dense ids would compare an id against itself and
+		// stop proving that the published key still names this symbol.
+		key, okKey := derived.StableKey(want.StableKey)
+		if !okKey {
+			t.Fatalf("symbol %d has no stable key in the derived snapshot", id)
+		}
+		if resolved, found := loaded.SymbolByStableKey(key); !found || resolved != id {
+			t.Fatalf("stable key %q resolves to %d in the loaded snapshot, want %d", key, resolved, id)
 		}
 		if diff := compareEdges(derived.Outgoing(id), loaded.Outgoing(id)); diff != "" {
 			t.Fatalf("outgoing edges of symbol %d: %s", id, diff)

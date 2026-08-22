@@ -14381,7 +14381,72 @@ de menos: mientras haya un puntero en la tabla, la tabla no se puede mapear.
 - Ninguna clave publicada cambia: el digest de contenido del snapshot es idéntico
   antes y después.
 
-**Estado:** pendiente.
+**Estado:** cerrada el `2026-08-22`.
+
+**El resultado:** `171,5 MB` → **`109,1 MB`** residentes sobre `kena`, un
+**`36,4 %`** menos, y la cobertura del desglose pasa de `64,6 %` a **`100,1 %`**:
+cierra porque los búferes que las claves fijaban ya no están. Por símbolo,
+`1.389` → `883` bytes.
+
+|pieza|bytes|
+|---|---|
+|búferes Arrow liberados|`+58.040.000`|
+|mapa `symbolByStableKey` retirado|`+6.990.144`|
+|registro más fino: cabecera de 16 → `uint32` de 4|`+1.482.372`|
+|coste nuevo de la tabla de claves|`-6.917.740`|
+|**atribuido por LUQUE-2001**|**`59.594.776`**|
+|**medido**|**`62.400.640`** (`+4,7 %`, criterio `±10 %`)|
+
+El `1.482.372` es exacto: `123.531 × 12`. La estimación de la tarea -«unos 80
+bytes por símbolo»- era baja para el conjunto: entre el mapa, la cabecera y los
+búferes fijados son `540` bytes por símbolo.
+
+**El diseño salió más simple de lo planeado, y lo decidió un hecho del código.**
+`builder.go` ya ordenaba los símbolos por clave estable antes de asignar un solo
+ID. O sea que la entrada `i` de la tabla es la clave del `SymbolID i` sin
+permutación ninguna, y de ahí tres consecuencias:
+
+* El arena sale **ya ordenado por bytes**, que era la decisión 4 de esta tarea,
+  sin ordenar nada.
+* El mapa no se encoge: **desaparece**. Una búsqueda binaria sobre los offsets
+  responde con el `SymbolID` directamente, así que `LUQUE-2003` empieza con uno
+  de sus cinco mapas ya retirado.
+* La clave del registro es un `StableKeyID` denso, no una posición derivada. Se
+  guarda porque los ~30 helpers que la leen reciben `(snapshot, record)` y no el
+  ID: derivarla habría cambiado 30 firmas para ahorrar `494 KB`.
+
+**Lo que el compilador no protege, y hay que saberlo al leer este cambio:**
+`string(symbol.StableKey)` sobre el campo nuevo **compila** -es una conversión de
+rune- y devuelve basura. Igual `%q` sobre un entero. Los 41 sitios de
+`internal/mcp/tools`, los de `webapi` y los tests se migraron a mano por eso; dos
+sitios (`webapi.makeEdgeView`) no estaban en el inventario inicial y salieron al
+revisar fichero por fichero.
+
+**El formato de fichero no cambió un byte.** `KVSNAP` ya guardaba las claves como
+arena + offsets, que es exactamente la forma de la tabla, y la clave no está en la
+fila del símbolo porque siempre igualaría su propio índice. Verificado como
+compatibilidad y no como suposición: el `snapshot.kvsnap` que publicó el binario
+**anterior** al cambio se carga con el código nuevo y sus `123.531` claves
+resuelven al mismo `SymbolID`, comparadas símbolo a símbolo contra un snapshot
+derivado (`TestPublishedSnapshotMatchesADerivedOne`).
+
+**Criterios:**
+
+* `SymbolRecord` sin punteros: defendido por `TestMappableTablesHoldNoPointers`,
+  que cubre las ocho tablas densas por reflexión y no sólo la de símbolos.
+* Todas las claves del corpus resuelven al mismo `SymbolID`: el test oráculo
+  sobre `123.531` símbolos, contra el artefacto pre-cambio.
+* Ahorro dentro del `±10 %`: `+4,7 %`.
+* Digest de contenido idéntico: `e80c6d46…` antes y después, reindexando el mismo
+  corpus con los dos binarios.
+
+**Un hallazgo colateral, y no es nuestro:** los dos ficheros publicados difieren
+en `48` bytes, todos en el `stringArena`. Son `48` cadenas de detalle de
+`UNRESOLVED` que registran rutas de la caché de build de Go, y los dos `HOME`
+aislados del banco de pruebas se llamaban `h2002` y `h2002b` -- un carácter. El
+digest de contenido no lo ve porque no cubre esos detalles. Queda anotado: un
+detalle de no resuelto que incrusta una ruta dependiente de la máquina hace que
+dos indexados del mismo corpus no produzcan el mismo fichero.
 
 **Verificación:**
 

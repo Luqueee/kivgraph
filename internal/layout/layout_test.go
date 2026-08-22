@@ -207,16 +207,15 @@ func emptySnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	interner := hotsnapshot.NewStringInterner()
 	snapshot, err := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
-		ID:                2,
-		CreatedAt:         time.Unix(2, 0).UTC(),
-		Version:           1,
-		Strings:           interner.Freeze(),
-		ForwardOffsets:    []uint32{0},
-		ReverseOffsets:    []uint32{0},
-		SymbolByStableKey: map[hotsnapshot.StableKey]hotsnapshot.SymbolID{},
-		SymbolsByName:     map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		SymbolsByQName:    map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		FileByRepoPath:    map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{},
+		ID:             2,
+		CreatedAt:      time.Unix(2, 0).UTC(),
+		Version:        1,
+		Strings:        interner.Freeze(),
+		ForwardOffsets: []uint32{0},
+		ReverseOffsets: []uint32{0},
+		SymbolsByName:  map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
+		SymbolsByQName: map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
+		FileByRepoPath: map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{},
 	})
 	if err != nil {
 		t.Fatalf("NewGraphSnapshot() error = %v", err)
@@ -228,18 +227,17 @@ func TestBuildRejectsInvalidContainment(t *testing.T) {
 	interner := hotsnapshot.NewStringInterner()
 	strings := interner.Freeze()
 	snapshot, err := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
-		ID:                1,
-		CreatedAt:         time.Unix(1, 0).UTC(),
-		Version:           1,
-		Strings:           strings,
-		Repositories:      []hotsnapshot.RepositoryRecord{{}},
-		Packages:          []hotsnapshot.PackageRecord{{Repository: hotsnapshot.InvalidRepositoryID}},
-		ForwardOffsets:    []uint32{0},
-		ReverseOffsets:    []uint32{0},
-		SymbolByStableKey: map[hotsnapshot.StableKey]hotsnapshot.SymbolID{},
-		SymbolsByName:     map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		SymbolsByQName:    map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		FileByRepoPath:    map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{},
+		ID:             1,
+		CreatedAt:      time.Unix(1, 0).UTC(),
+		Version:        1,
+		Strings:        strings,
+		Repositories:   []hotsnapshot.RepositoryRecord{{}},
+		Packages:       []hotsnapshot.PackageRecord{{Repository: hotsnapshot.InvalidRepositoryID}},
+		ForwardOffsets: []uint32{0},
+		ReverseOffsets: []uint32{0},
+		SymbolsByName:  map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
+		SymbolsByQName: map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
+		FileByRepoPath: map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{},
 	})
 	if err != nil {
 		t.Fatalf("NewGraphSnapshot() error = %v", err)

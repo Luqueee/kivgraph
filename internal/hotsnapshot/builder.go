@@ -226,7 +226,10 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	}
 
 	symbolRecords := make([]SymbolRecord, len(symbols))
-	symbolByStableKey := make(map[StableKey]SymbolID, len(symbols))
+	// The keys are collected in row order, which is key order: the sort above
+	// put them there. NewStableKeyTable insists on that rather than sorting
+	// again, because reordering here would move the IDs allocated below.
+	stableKeys := make([]StableKey, 0, len(symbols))
 	symbolsByName := make(map[InternedString][]SymbolID)
 	symbolsByQName := make(map[InternedString][]SymbolID)
 	for index, row := range symbols {
@@ -259,10 +262,14 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 			return nil, err
 		}
 		symbolIDs[row.StableKey] = id
-		symbolByStableKey[row.StableKey] = id
+		stableKeys = append(stableKeys, row.StableKey)
 		symbolsByName[name] = append(symbolsByName[name], id)
 		symbolsByQName[qualifiedName] = append(symbolsByQName[qualifiedName], id)
-		symbolRecords[index] = SymbolRecord{StableKey: row.StableKey, CanonicalIdentity: canonical, File: fileID, Name: name, QualifiedName: qualifiedName, Kind: kind, Signature: signature, Exported: row.Exported, StartLine: row.StartLine, EndLine: row.EndLine}
+		symbolRecords[index] = SymbolRecord{StableKey: StableKeyID(id), CanonicalIdentity: canonical, File: fileID, Name: name, QualifiedName: qualifiedName, Kind: kind, Signature: signature, Exported: row.Exported, StartLine: row.StartLine, EndLine: row.EndLine}
+	}
+	stableKeyTable, err := NewStableKeyTable(stableKeys)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidSnapshotRows, err)
 	}
 
 	sourcedEdges := make([]SourcedEdge, len(edges))
@@ -447,7 +454,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		Repositories: repositoryRecords, Packages: packageRecords, Files: fileRecords, Symbols: symbolRecords, Evidence: evidenceRecords,
 		PackageDependencies: packageDependencyRecords, Unresolved: unresolvedRecords,
 		ForwardOffsets: forwardOffsets, ForwardEdges: forwardEdges, ReverseOffsets: reverseOffsets, ReverseEdges: reverseEdges,
-		SymbolByStableKey: symbolByStableKey, SymbolsByName: symbolsByName, SymbolsByQName: symbolsByQName, FileByRepoPath: fileIndex,
+		StableKeys: stableKeyTable, SymbolsByName: symbolsByName, SymbolsByQName: symbolsByQName, FileByRepoPath: fileIndex,
 	})
 }
 

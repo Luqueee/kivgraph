@@ -202,13 +202,14 @@ func TestALoadedSnapshotOutlivesTheMappedFile(t *testing.T) {
 			t.Fatalf("symbol %d vanished", id)
 		}
 		// Every string this record names is read after the mapping is gone,
-		// including its stable key, which is the one field the format carries
-		// as bytes rather than as an interned id.
-		if len(record.StableKey) == 0 {
-			t.Fatalf("symbol %d has no stable key", id)
+		// including its stable key, whose characters the format carries as bytes
+		// rather than as an interned id.
+		key, okKey := loaded.StableKey(record.StableKey)
+		if !okKey || key == "" {
+			t.Fatalf("symbol %d has no stable key (%v)", id, okKey)
 		}
-		if resolved, found := loaded.SymbolByStableKey(record.StableKey); !found || resolved != id {
-			t.Fatalf("stable key %q resolves to %d, want %d", record.StableKey, resolved, id)
+		if resolved, found := loaded.SymbolByStableKey(key); !found || resolved != id {
+			t.Fatalf("stable key %q resolves to %d, want %d", key, resolved, id)
 		}
 		for _, interned := range []hotsnapshot.InternedString{record.Name, record.QualifiedName, record.Kind} {
 			value, ok := loaded.Strings().String(interned)

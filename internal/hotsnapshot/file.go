@@ -112,7 +112,7 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 	if snapshot == nil {
 		return [sha256.Size]byte{}, fmt.Errorf("%w: no snapshot", ErrInvalidSnapshotFile)
 	}
-	keyOffsets, keyBytes := encodeSymbolKeys(snapshot.symbols)
+	keyOffsets, keyBytes := encodeSymbolKeys(snapshot.stableKeys)
 
 	payloads := []struct {
 		kind     uint32
@@ -283,9 +283,11 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 		return nil, err
 	}
 	input.Strings = table
-	if err := restoreSymbolKeys(input.Symbols, symbolKeyOffsets, symbolKeyBytes); err != nil {
+	keys, err := restoreSymbolKeys(len(input.Symbols), symbolKeyOffsets, symbolKeyBytes, borrowed)
+	if err != nil {
 		return nil, err
 	}
+	input.StableKeys = keys
 	if err := indexSnapshotInput(&input); err != nil {
 		return nil, err
 	}
@@ -296,23 +298,22 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 	return snapshot, nil
 }
 
-// indexSnapshotInput derives the four lookup indexes from the tables.
+// indexSnapshotInput derives the three remaining lookup indexes from the tables.
 //
 // It is the only place a reader builds them, and it builds them from the
-// records alone: a stable key or a repository/path pair that appears twice is
-// rejected here rather than silently keeping whichever row came last, because a
-// dense ID that two keys resolve to is a wrong answer a query cannot detect.
+// records alone: a repository/path pair that appears twice is rejected here
+// rather than silently keeping whichever row came last, because a dense ID that
+// two keys resolve to is a wrong answer a query cannot detect.
+//
+// Stable keys are no longer among them. A duplicate key used to be caught here;
+// it is now caught by the key table itself, which refuses entries that are not
+// in strict byte order -- and two equal keys are not.
 func indexSnapshotInput(input *GraphSnapshotInput) error {
-	input.SymbolByStableKey = make(map[StableKey]SymbolID, len(input.Symbols))
 	input.SymbolsByName = make(map[InternedString][]SymbolID)
 	input.SymbolsByQName = make(map[InternedString][]SymbolID)
 	input.FileByRepoPath = make(map[RepoPathKey]FileID, len(input.Files))
 	for index, record := range input.Symbols {
 		id := SymbolID(index)
-		if _, duplicated := input.SymbolByStableKey[record.StableKey]; duplicated {
-			return fmt.Errorf("%w: stable key %q appears twice", ErrInvalidSnapshotFile, record.StableKey)
-		}
-		input.SymbolByStableKey[record.StableKey] = id
 		input.SymbolsByName[record.Name] = append(input.SymbolsByName[record.Name], id)
 		input.SymbolsByQName[record.QualifiedName] = append(input.SymbolsByQName[record.QualifiedName], id)
 	}

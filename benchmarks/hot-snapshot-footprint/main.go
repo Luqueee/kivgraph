@@ -8,11 +8,12 @@
 // and a hash table are a preference until somebody weighs them.
 //
 // The breakdown is measured two ways on purpose, because neither alone is
-// honest. Flat tables and the two CSR arrays are computed analytically --
-// unsafe.Sizeof times the element count is exact and needs no instrumentation.
-// The four exact indexes and the string arena are observed on the heap, by
-// building each one on its own with a forced GC on both sides, because a Go map
-// costs what the runtime decides it costs and no arithmetic here can predict it.
+// honest. Flat tables, the two CSR arrays and the two arenas are computed
+// analytically -- unsafe.Sizeof times the element count, or the arena's own
+// reported size, is exact and needs no instrumentation. The three exact indexes
+// are observed on the heap, by building each one on its own with a forced GC on
+// both sides, because a Go map costs what the runtime decides it costs and no
+// arithmetic here can predict it.
 //
 // The report closes its own budget: the sum of the parts against HeapAlloc with
 // the snapshot alive, with the remainder named rather than spread across the
@@ -89,10 +90,7 @@ type pass struct {
 	AccountedFor  int64       `json:"accounted_for_bytes"`
 	Remainder     int64       `json:"remainder_bytes"`
 	CoveragePct   float64     `json:"coverage_percent"`
-	// PinningBytes is the stable key characters, which are not a component
-	// but are what keeps the remainder reachable.
-	PinningBytes int64 `json:"stable_key_characters_bytes"`
-	ElapsedMS    int64 `json:"elapsed_ms"`
+	ElapsedMS     int64       `json:"elapsed_ms"`
 }
 
 type results struct {
@@ -218,10 +216,10 @@ func measure(graph string) (pass, map[string]uint64, error) {
 	resident := int64(loaded.HeapAlloc) - int64(baseline.HeapAlloc)
 
 	counts := snapshot.Metadata().Counts
-	pinning := stableKeyCharacters(snapshot, counts)
 
 	components := analyticComponents(counts)
 	components = append(components, stringTableComponents(snapshot)...)
+	components = append(components, stableKeyComponents(snapshot)...)
 	components = append(components, indexComponents(snapshot, counts)...)
 
 	accounted := int64(0)
@@ -241,7 +239,6 @@ func measure(graph string) (pass, map[string]uint64, error) {
 		AccountedFor:  accounted,
 		Remainder:     resident - accounted,
 		CoveragePct:   coverage,
-		PinningBytes:  pinning,
 		ElapsedMS:     time.Since(started).Milliseconds(),
 	}, countsMap(counts), nil
 }
@@ -299,56 +296,54 @@ func stringTableComponents(snapshot *hotsnapshot.GraphSnapshot) []component {
 	}
 }
 
-// stableKeyCharacters is not a component, and finding out why was the point of
-// this benchmark.
+// stableKeyComponents prices the table every symbol's stable key lives in.
 //
-// StableKey is the one real Go string a record holds; every other string field
-// is an InternedString, a uint32 into the arena. So unsafe.Sizeof counts its
-// sixteen byte header and none of its 52 characters, and the obvious move is to
-// add those characters as a component. That would count them twice.
+// Until LUQUE-2002 this was not a component, and finding out why was the point
+// of this benchmark.
 //
-// The characters are not separately allocated. ScanCanonical hands out every
+// StableKey used to be the one real Go string a record held; every other string
+// field is an InternedString, a uint32 into the arena. So unsafe.Sizeof counted
+// its sixteen byte header and none of its 52 characters, and the obvious move --
+// adding those characters as a component -- would have counted them twice.
+//
+// The characters were not separately allocated. ScanCanonical hands out every
 // value as an unsafe.String over the Arrow chunk's own arena, and the adapter
-// converts it to a StableKey with a string-to-string type conversion, which does
-// not copy. So the characters live inside a buffer the loader read the database
-// into -- and holding one of them holds all of it.
+// converted it to a StableKey with a string-to-string type conversion, which
+// does not copy. So the characters lived inside a buffer the loader had read the
+// database into -- and holding one of them held all of it.
 //
-// That is what the remainder of this breakdown is, and the heap profile names
-// it: 58 MB parked in ladybug.newCanonicalArrowChunk, reachable after two forced
-// GCs, pinned by 6.4 MB of stable keys. It is direct evidence for the phase's
-// own LUQUE-2002, which is titled "que ninguna clave estable ocupe un puntero".
-func stableKeyCharacters(snapshot *hotsnapshot.GraphSnapshot, counts hotsnapshot.IDCounts) int64 {
-	total := hotsnapshot.SymbolID(counts.Symbols)
-	measured := int64(0)
-	for id := hotsnapshot.SymbolID(0); id < total; id++ {
-		record, found := snapshot.Symbol(id)
-		if !found {
-			continue
-		}
-		measured += int64(len(record.StableKey))
+// That was the remainder of this breakdown, and the heap profile named it: 58 MB
+// parked in ladybug.newCanonicalArrowChunk, reachable after two forced GCs,
+// pinned by 6.4 MB of stable keys. StableKeyTable closed it: a record carries a
+// dense uint32 into a table that copies its bytes, so the keys are storage the
+// snapshot owns and they pin nothing. That is why they can be priced like any
+// other table here instead of being reported as what held the remainder open.
+func stableKeyComponents(snapshot *hotsnapshot.GraphSnapshot) []component {
+	stats := snapshot.StableKeys().Stats()
+	entries := int64(stats.Entries)
+	const uint32Size = 4
+	// One offset per entry plus the terminator that bounds the last key.
+	offsets := (entries + 1) * uint32Size
+	return []component{
+		{
+			Name: "stable key arena (values)", Method: "analytic",
+			Bytes: int64(stats.Bytes), Entries: entries,
+			PerUnit: perUnit(int64(stats.Bytes), entries),
+		},
+		{
+			Name: "stable key offsets", Method: "analytic",
+			Bytes: offsets, Entries: entries, PerUnit: perUnit(offsets, entries),
+		},
 	}
-	return measured
 }
 
-// indexComponents observes what the four exact indexes cost, by building each
+// indexComponents observes what the three exact indexes cost, by building each
 // one on its own from the records the snapshot exposes and watching the heap
 // across a forced GC. A rebuilt index has the same key and value types and the
 // same cardinality as the one the snapshot holds, which is what makes it a
 // measurement of that index and not of an analogy.
 func indexComponents(snapshot *hotsnapshot.GraphSnapshot, counts hotsnapshot.IDCounts) []component {
 	total := hotsnapshot.SymbolID(counts.Symbols)
-
-	byStableKey := heapCost(func() any {
-		index := make(map[hotsnapshot.StableKey]hotsnapshot.SymbolID, counts.Symbols)
-		for id := hotsnapshot.SymbolID(0); id < total; id++ {
-			record, found := snapshot.Symbol(id)
-			if !found {
-				continue
-			}
-			index[record.StableKey] = id
-		}
-		return index
-	})
 
 	byName := heapCost(func() any {
 		index := make(map[hotsnapshot.InternedString][]hotsnapshot.SymbolID)
@@ -388,10 +383,6 @@ func indexComponents(snapshot *hotsnapshot.GraphSnapshot, counts hotsnapshot.IDC
 	})
 
 	return []component{
-		{
-			Name: "symbolByStableKey (map)", Method: "heap", Bytes: byStableKey,
-			Entries: int64(counts.Symbols), PerUnit: perUnit(byStableKey, int64(counts.Symbols)),
-		},
 		{
 			Name: "symbolsByName (map)", Method: "heap", Bytes: byName,
 			Entries: int64(counts.Symbols), PerUnit: perUnit(byName, int64(counts.Symbols)),
@@ -491,7 +482,7 @@ func limitations() []string {
 	return []string{
 		"One generation on one machine. A corpus with a Rust sysroot indexed " +
 			"would move the symbol and evidence tables and nothing else here predicts by how much.",
-		"The four indexes are priced by rebuilding an equivalent map, not by " +
+		"The three indexes are priced by rebuilding an equivalent map, not by " +
 			"reading the snapshot's own. Same key and value types and same cardinality, " +
 			"so the cost is the runtime's answer for that shape -- but a map the builder " +
 			"grew differently could occupy a different number of buckets.",

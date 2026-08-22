@@ -612,13 +612,14 @@ func crossRepoTargetLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot
 	if !found {
 		return targetLocation{}, fmt.Errorf("symbol index %d is missing", id)
 	}
+	stableKey := symbolStableKey(snapshot, symbol)
 	file, found := snapshot.File(symbol.File)
 	if !found {
-		return targetLocation{}, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return targetLocation{}, fmt.Errorf("symbol %q references missing file %d", stableKey, symbol.File)
 	}
 	pkg, found := snapshot.Package(file.Package)
 	if !found {
-		return targetLocation{}, fmt.Errorf("symbol %q references missing package %d", symbol.StableKey, file.Package)
+		return targetLocation{}, fmt.Errorf("symbol %q references missing package %d", stableKey, file.Package)
 	}
 	modulePath, ok := snapshot.Strings().String(pkg.ModulePath)
 	if !ok {
@@ -632,13 +633,14 @@ func crossRepoSymbolLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot
 	if err != nil {
 		return consumerLocation{}, err
 	}
+	stableKey := symbolStableKey(snapshot, symbol)
 	fileRecord, found := snapshot.File(symbol.File)
 	if !found {
-		return consumerLocation{}, fmt.Errorf("symbol %q references missing file %d", symbol.StableKey, symbol.File)
+		return consumerLocation{}, fmt.Errorf("symbol %q references missing file %d", stableKey, symbol.File)
 	}
 	pkg, found := snapshot.Package(fileRecord.Package)
 	if !found {
-		return consumerLocation{}, fmt.Errorf("symbol %q references missing package %d", symbol.StableKey, fileRecord.Package)
+		return consumerLocation{}, fmt.Errorf("symbol %q references missing package %d", stableKey, fileRecord.Package)
 	}
 	table := snapshot.Strings()
 	packageKey, packageOK := table.String(pkg.Key)
@@ -647,10 +649,10 @@ func crossRepoSymbolLocation(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot
 	qualifiedName, qualifiedNameOK := table.String(symbol.QualifiedName)
 	symbolKind, kindOK := table.String(symbol.Kind)
 	if !packageOK || !packageNameOK || !symbolNameOK || !qualifiedNameOK || !kindOK {
-		return consumerLocation{}, fmt.Errorf("symbol %q references invalid package or symbol strings", symbol.StableKey)
+		return consumerLocation{}, fmt.Errorf("symbol %q references invalid package or symbol strings", stableKey)
 	}
 	return consumerLocation{
-		SymbolKey: string(symbol.StableKey), SymbolName: symbolName, QualifiedName: qualifiedName,
+		SymbolKey: stableKey, SymbolName: symbolName, QualifiedName: qualifiedName,
 		SymbolKind: symbolKind, StartLine: symbol.StartLine, EndLine: symbol.EndLine,
 		RepositoryName: repository.name, RepositoryKey: repository.key,
 		PackageKey: packageKey, PackageName: packageName,

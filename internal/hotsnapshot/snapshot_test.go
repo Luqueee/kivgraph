@@ -21,8 +21,10 @@ func TestGraphSnapshotCopiesDataAndIndexes(t *testing.T) {
 	if metadata.Counts != (IDCounts{Repositories: 1, Packages: 1, Files: 1, Symbols: 2, Evidence: 1, Edges: 1}) {
 		t.Fatalf("Metadata().Counts = %#v", metadata.Counts)
 	}
-	if symbol, found := snapshot.Symbol(1); !found || symbol.StableKey != "symbol-b" {
+	if symbol, found := snapshot.Symbol(1); !found {
 		t.Fatalf("Symbol(1) = %#v, %t", symbol, found)
+	} else if key, ok := snapshot.StableKey(symbol.StableKey); !ok || key != "symbol-b" {
+		t.Fatalf("Symbol(1) stable key = %q, %t", key, ok)
 	}
 	if _, found := snapshot.Symbol(2); found {
 		t.Fatal("Symbol(2) found")
@@ -37,13 +39,15 @@ func TestGraphSnapshotCopiesDataAndIndexes(t *testing.T) {
 		t.Fatalf("SymbolsByName() = %v", got)
 	}
 
-	input.Symbols[0].StableKey = "mutated"
+	input.Symbols[0].StableKey = InvalidStableKeyID
 	input.ForwardEdges[0].Target = 1
-	input.SymbolByStableKey["symbol-a"] = 1
 	input.SymbolsByName[4][0] = 1
 	input.FileByRepoPath[RepoPathKey{Repository: 0, Path: 3}] = 1
 	if id, found := snapshot.SymbolByStableKey("symbol-a"); !found || id != 0 {
 		t.Fatalf("snapshot changed after input mutation: %d, %t", id, found)
+	}
+	if symbol, found := snapshot.Symbol(0); !found || symbol.StableKey != 0 {
+		t.Fatalf("snapshot record changed after input mutation: %#v, %t", symbol, found)
 	}
 	matches := snapshot.SymbolsByName(4)
 	matches[0] = 1
@@ -66,9 +70,21 @@ func TestGraphSnapshotRejectsInvalidEnvelopeAndIndexes(t *testing.T) {
 	}
 
 	input = graphSnapshotTestInput()
-	delete(input.SymbolByStableKey, "symbol-a")
+	shortKeys, err := NewStableKeyTable([]StableKey{"symbol-a"})
+	if err != nil {
+		t.Fatalf("NewStableKeyTable() error = %v", err)
+	}
+	input.StableKeys = shortKeys
 	if _, err := NewGraphSnapshot(input); !errors.Is(err, ErrInvalidGraphSnapshot) {
-		t.Fatalf("missing stable key index error = %v", err)
+		t.Fatalf("stable key table shorter than the symbol table error = %v", err)
+	}
+
+	// A record whose dense key is not its own position is the other half of
+	// the same index: the table would still answer, with another symbol's id.
+	input = graphSnapshotTestInput()
+	input.Symbols[1].StableKey = 0
+	if _, err := NewGraphSnapshot(input); !errors.Is(err, ErrInvalidGraphSnapshot) {
+		t.Fatalf("record naming another symbol's key error = %v", err)
 	}
 
 	input = graphSnapshotTestInput()
@@ -162,6 +178,12 @@ func graphSnapshotTestInput() GraphSnapshotInput {
 			panic(err)
 		}
 	}
+	// Entry i is the key of SymbolID i, so the keys are in strict byte order
+	// and record i names position i.
+	keys, err := NewStableKeyTable([]StableKey{"symbol-a", "symbol-b"})
+	if err != nil {
+		panic(err)
+	}
 	return GraphSnapshotInput{
 		ID:        42,
 		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
@@ -177,8 +199,8 @@ func graphSnapshotTestInput() GraphSnapshotInput {
 			{Repository: 0, Package: 0, Path: 3},
 		},
 		Symbols: []SymbolRecord{
-			{StableKey: "symbol-a", CanonicalIdentity: 4, File: 0, Name: 4, QualifiedName: 5, Kind: 6, Signature: 7},
-			{StableKey: "symbol-b", CanonicalIdentity: 4, File: 0, Name: 4, QualifiedName: 5, Kind: 6, Signature: 7},
+			{StableKey: 0, CanonicalIdentity: 4, File: 0, Name: 4, QualifiedName: 5, Kind: 6, Signature: 7},
+			{StableKey: 1, CanonicalIdentity: 4, File: 0, Name: 4, QualifiedName: 5, Kind: 6, Signature: 7},
 		},
 		Evidence: []EvidenceRecord{
 			{SourceFile: 0, TargetFile: 0, Kind: 8, Provenance: 9},
@@ -187,10 +209,7 @@ func graphSnapshotTestInput() GraphSnapshotInput {
 		ForwardEdges:   []PackedEdge{{Target: 1, Evidence: 0}},
 		ReverseOffsets: []uint32{0, 0, 1},
 		ReverseEdges:   []PackedEdge{{Target: 0, Evidence: 0}},
-		SymbolByStableKey: map[StableKey]SymbolID{
-			"symbol-a": 0,
-			"symbol-b": 1,
-		},
+		StableKeys:     keys,
 		SymbolsByName: map[InternedString][]SymbolID{
 			4: {0, 1},
 		},

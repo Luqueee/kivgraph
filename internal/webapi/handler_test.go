@@ -155,9 +155,10 @@ func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 		}
 		return id
 	}
-	stableA := hotsnapshot.StableKey("symbol-a")
-	stableB := hotsnapshot.StableKey("symbol-b")
-	stableC := hotsnapshot.StableKey("symbol-c")
+	stableKeys, err := hotsnapshot.NewStableKeyTable([]hotsnapshot.StableKey{"symbol-a", "symbol-b", "symbol-c"})
+	if err != nil {
+		t.Fatalf("NewStableKeyTable: %v", err)
+	}
 	repoKey := intern("repository:repo")
 	packageKey := intern("package:go:repo:example")
 	fileKey := intern("file:repo:src/index.go")
@@ -200,9 +201,9 @@ func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 			Key: fileKey, Repository: 0, Package: 0, Path: interned(strings, "src/index.go"), Language: language,
 		}},
 		Symbols: []hotsnapshot.SymbolRecord{
-			{StableKey: stableA, CanonicalIdentity: interned(strings, "identity-a"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameA, Kind: kindFunction, Signature: interned(strings, "func Load()"), StartLine: 1, EndLine: 2},
-			{StableKey: stableB, CanonicalIdentity: interned(strings, "identity-b"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameB, Kind: kindFunction, Signature: interned(strings, "func Loader()"), StartLine: 4, EndLine: 5},
-			{StableKey: stableC, CanonicalIdentity: interned(strings, "identity-c"), File: 0, Language: language, Name: nameOther, QualifiedName: qnameC, Kind: kindFunction, Signature: interned(strings, "func Other()"), StartLine: 7, EndLine: 8},
+			{StableKey: 0, CanonicalIdentity: interned(strings, "identity-a"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameA, Kind: kindFunction, Signature: interned(strings, "func Load()"), StartLine: 1, EndLine: 2},
+			{StableKey: 1, CanonicalIdentity: interned(strings, "identity-b"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameB, Kind: kindFunction, Signature: interned(strings, "func Loader()"), StartLine: 4, EndLine: 5},
+			{StableKey: 2, CanonicalIdentity: interned(strings, "identity-c"), File: 0, Language: language, Name: nameOther, QualifiedName: qnameC, Kind: kindFunction, Signature: interned(strings, "func Other()"), StartLine: 7, EndLine: 8},
 		},
 		Evidence:       []hotsnapshot.EvidenceRecord{{Key: evidenceKey, SourceFile: 0, TargetFile: 0, Kind: interned(strings, "call"), Provenance: interned(strings, "GoTypesUse")}},
 		ForwardOffsets: []uint32{0, 1, 2, 2},
@@ -215,10 +216,10 @@ func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 			{Target: 0, Evidence: 0, Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse},
 			{Target: 1, Evidence: 0, Kind: facts.CodeReferences, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse},
 		},
-		SymbolByStableKey: map[hotsnapshot.StableKey]hotsnapshot.SymbolID{stableA: 0, stableB: 1, stableC: 2},
-		SymbolsByName:     map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{nameLoad: {0, 1}, nameOther: {2}},
-		SymbolsByQName:    map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{qnameA: {0}, qnameB: {1}, qnameC: {2}},
-		FileByRepoPath:    map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{{Repository: 0, Path: interned(strings, "src/index.go")}: 0},
+		StableKeys:     stableKeys,
+		SymbolsByName:  map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{nameLoad: {0, 1}, nameOther: {2}},
+		SymbolsByQName: map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{qnameA: {0}, qnameB: {1}, qnameC: {2}},
+		FileByRepoPath: map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{{Repository: 0, Path: interned(strings, "src/index.go")}: 0},
 	})
 	if err != nil {
 		t.Fatalf("NewGraphSnapshot: %v", err)

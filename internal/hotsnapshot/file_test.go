@@ -73,7 +73,6 @@ func TestSnapshotFileRoundTripPreservesEveryField(t *testing.T) {
 		{"forwardEdges", loaded.forwardEdges, built.forwardEdges},
 		{"reverseOffsets", loaded.reverseOffsets, built.reverseOffsets},
 		{"reverseEdges", loaded.reverseEdges, built.reverseEdges},
-		{"symbolByStableKey", loaded.symbolByStableKey, built.symbolByStableKey},
 		{"symbolsByName", loaded.symbolsByName, built.symbolsByName},
 		{"symbolsByQName", loaded.symbolsByQName, built.symbolsByQName},
 		{"fileByRepoPath", loaded.fileByRepoPath, built.fileByRepoPath},
@@ -107,6 +106,24 @@ func TestSnapshotFileRoundTripPreservesEveryField(t *testing.T) {
 		got, found := loaded.strings.Lookup(value)
 		if !found || got != id {
 			t.Fatalf("Lookup(%q) = %d (%v), want %d", value, got, found, id)
+		}
+	}
+
+	// The key table is compared through its own surface for the same reason,
+	// and in both directions: an id resolving to the same key proves the arena
+	// survived, and that key resolving back to the same id proves the order
+	// did -- a reordered table keeps answering, with another symbol's id.
+	if loaded.StableKeys().Stats() != built.StableKeys().Stats() {
+		t.Errorf("stable key table stats\n got %+v\nwant %+v", loaded.StableKeys().Stats(), built.StableKeys().Stats())
+	}
+	for id := range StableKeyID(built.StableKeys().Entries()) {
+		want, _ := built.StableKey(id)
+		got, ok := loaded.StableKey(id)
+		if !ok || got != want {
+			t.Fatalf("stable key %d is %q (%v), expected %q", id, got, ok, want)
+		}
+		if resolved, found := loaded.SymbolByStableKey(want); !found || resolved != SymbolID(id) {
+			t.Fatalf("SymbolByStableKey(%q) = %d (%v), want %d", want, resolved, found, id)
 		}
 	}
 
@@ -185,16 +202,15 @@ func TestSnapshotFileFailsClosed(t *testing.T) {
 	})
 }
 
-// TestIndexSnapshotInputRejectsDuplicateIdentities defends the one class of
+// TestSnapshotLoadRejectsDuplicateIdentities defends the one class of
 // corruption that validation downstream cannot catch: an index built from
 // duplicated identities agrees with the tables it was built from, so the
 // snapshot would validate and answer one symbol's question with another's id.
-func TestIndexSnapshotInputRejectsDuplicateIdentities(t *testing.T) {
-	duplicateKeys := GraphSnapshotInput{Symbols: []SymbolRecord{
-		{StableKey: "s-a", Name: 1, QualifiedName: 2},
-		{StableKey: "s-a", Name: 3, QualifiedName: 4},
-	}}
-	if err := indexSnapshotInput(&duplicateKeys); !errors.Is(err, ErrInvalidSnapshotFile) {
+//
+// A duplicated stable key is refused by the key table rather than by
+// indexSnapshotInput, because two equal keys are not in strict byte order.
+func TestSnapshotLoadRejectsDuplicateIdentities(t *testing.T) {
+	if _, err := restoreSymbolKeys(2, []uint32{0, 3, 6}, []byte("s-as-a"), false); !errors.Is(err, ErrInvalidSnapshotFile) {
 		t.Fatalf("duplicate stable key: expected ErrInvalidSnapshotFile, got %v", err)
 	}
 	duplicatePaths := GraphSnapshotInput{Files: []FileRecord{
@@ -210,7 +226,7 @@ func TestIndexSnapshotInputRejectsDuplicateIdentities(t *testing.T) {
 // check cannot cover: the key blob is bytes, so only its offsets say where a
 // symbol's identity starts and ends.
 func TestRestoreSymbolKeysRejectsImpossibleRanges(t *testing.T) {
-	records := make([]SymbolRecord, 2)
+	const symbols = 2
 	for _, testCase := range []struct {
 		name    string
 		offsets []uint32
@@ -221,7 +237,7 @@ func TestRestoreSymbolKeysRejectsImpossibleRanges(t *testing.T) {
 		{"range past the blob", []uint32{0, 3, 99}, "abcdef"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			if err := restoreSymbolKeys(records, testCase.offsets, []byte(testCase.blob)); !errors.Is(err, ErrInvalidSnapshotFile) {
+			if _, err := restoreSymbolKeys(symbols, testCase.offsets, []byte(testCase.blob), false); !errors.Is(err, ErrInvalidSnapshotFile) {
 				t.Fatalf("expected ErrInvalidSnapshotFile, got %v", err)
 			}
 		})

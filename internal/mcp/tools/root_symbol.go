@@ -137,12 +137,12 @@ func errSelectorAmbiguous(
 			continue
 		}
 		if narrowed {
-			candidates = append(candidates, string(symbol.StableKey))
+			candidates = append(candidates, symbolStableKey(snapshot, symbol))
 			continue
 		}
 		location, err := resolveSymbolLocation(snapshot, symbol)
 		if err != nil {
-			candidates = append(candidates, string(symbol.StableKey))
+			candidates = append(candidates, symbolStableKey(snapshot, symbol))
 			continue
 		}
 		candidates = append(candidates, fmt.Sprintf("%s %s:%d-%d",
@@ -258,7 +258,7 @@ func errNameAmbiguous(
 		}
 		location, err := resolveSymbolLocation(snapshot, symbol)
 		if err != nil {
-			candidates = append(candidates, string(symbol.StableKey))
+			candidates = append(candidates, symbolStableKey(snapshot, symbol))
 			continue
 		}
 		candidates = append(candidates, locationLabel(location.RepositoryName, location.FilePath, symbol.StartLine))
