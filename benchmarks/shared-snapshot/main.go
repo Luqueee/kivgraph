@@ -192,6 +192,22 @@ func measureArm(ctx context.Context, cfg config, name string) (arm, error) {
 	if err != nil {
 		return arm{}, err
 	}
+	// The generation the servers actually serve has to be the one whose file
+	// this harness hides, or the two arms measure different graphs and the
+	// comparison is meaningless.
+	//
+	// This is not hypothetical. A configuration written by `init` stores its
+	// paths with a literal `~`, expanded against the HOME of whoever runs the
+	// server, so passing -config alone does not isolate anything: the first run
+	// of this harness pointed at an isolated generation and measured the real
+	// installation's, and nothing said so.
+	if want := filepath.Base(filepath.Clean(cfg.GenerationDir)); status.GenerationID != want {
+		return arm{}, fmt.Errorf(
+			"the servers serve generation %q but -generation-dir names %q: "+
+				"the environment given to the server resolves to another state directory "+
+				"(a configuration written by `init` stores `~` paths, so HOME decides)",
+			status.GenerationID, want)
+	}
 	loaded, err := readLoadedFromFile(cfg.GenerationDir)
 	if err != nil {
 		return arm{}, err
