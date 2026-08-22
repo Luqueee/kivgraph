@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 )
@@ -21,6 +22,19 @@ import (
 // file falls back to deriving the snapshot again, and says so. See ADR 0045.
 var ErrInvalidSnapshotFile = errors.New("invalid snapshot file")
 
+// ErrSnapshotFileVersion narrows ErrInvalidSnapshotFile to the one cause that is
+// not a defect: a file this build does not read because the layout moved.
+//
+// The distinction matters outside this package. A corrupt file of the current
+// format means something is wrong with the store and is worth waking up for; a
+// file written by an older build means somebody upgraded, and the next index
+// replaces it. Reporting both as a failure makes every upgrade look like
+// corruption, which is how a real one stops being noticed.
+//
+// It wraps ErrInvalidSnapshotFile, so every existing caller that asks the broad
+// question keeps getting the same answer.
+var ErrSnapshotFileVersion = fmt.Errorf("%w: unsupported format version", ErrInvalidSnapshotFile)
+
 // snapshotFileMagic identifies the format and carries its own generation byte,
 // so a file from a future layout is rejected by the magic rather than by a
 // version field a reader has to reach past the header to find.
@@ -30,7 +44,36 @@ var snapshotFileMagic = [8]byte{'K', 'V', 'S', 'N', 'A', 'P', 0x01, 0x00}
 // It is distinct from the snapshot's own Version -- which describes the row
 // shaping that produced it -- and from the canonical schema version. It changes
 // when this file's layout changes in a way an older reader would misread.
-const SnapshotFileFormatVersion uint32 = 1
+//
+// Version 2 aligns every section, which an older reader would in fact read
+// correctly: the padding is not named by any section and not digested, so its
+// offsets and its digest still describe the same bytes. The bump is for the
+// other direction. This reader enforces alignment, because a reader that only
+// hopes for it cannot take a view over a section, and a version mismatch is a
+// stable, self-healing refusal -- the caller derives the snapshot again -- while
+// an unaligned section rejected as "misaligned" would blame the wrong thing.
+const SnapshotFileFormatVersion uint32 = 2
+
+// sectionAlignment is where every section starts, counted from the payload.
+//
+// The task that introduced this said "aligned to the size of its element", and
+// that is not what this does, for a reason worth writing down: several elements
+// here are 25, 37, 15 and 52 bytes wide, and aligning to a number that is not a
+// power of two is not an alignment. What the decision protects is a view over a
+// section -- []uint32 today, []uint64 conceivably -- which on some architectures
+// is undefined at an arbitrary address. Eight covers every scalar this format
+// stores, so one rule replaces a table that could disagree with itself. The
+// payload itself starts 8-aligned in the file, because the header is 104 bytes
+// and every section entry is 32.
+const sectionAlignment = 8
+
+// padTo reports the bytes needed to reach the next multiple of alignment.
+func padTo(offset, alignment uint64) uint64 {
+	if remainder := offset % alignment; remainder != 0 {
+		return alignment - remainder
+	}
+	return 0
+}
 
 // Section kinds. They are explicit numbers rather than an iota over a Go slice
 // order, because the number is written to disk: reordering the constants must
@@ -84,6 +127,46 @@ const (
 	byteElemSize              = 1
 )
 
+// sectionElemSize is the one place a kind's element width is declared. The
+// writer stamps what it returns and the reader enforces it, so the two cannot
+// drift.
+//
+// Enforcing it is not redundant with the length check. A section that claims one
+// byte per record passes every other test -- its length divides by its own
+// declared element size, and it lies inside the payload -- and then the decoder
+// for that kind reads thirty-seven bytes per record out of a buffer that has
+// one. That is a panic, not a refusal, and a panic is not "never served".
+//
+// An unknown kind has no width here and none is required: the reader ignores
+// kinds it does not know, by design, so nothing decodes them.
+func sectionElemSize(kind uint32) (uint32, bool) {
+	switch kind {
+	case sectionStringArena, sectionSymbolKeyBytes, sectionResolverVersion, sectionStrings:
+		return byteElemSize, true
+	case sectionStringOffsets, sectionStringOrder, sectionSymbolKeyOffsets,
+		sectionForwardOffsets, sectionReverseOffsets:
+		return offsetElemSize, true
+	case sectionRepositories:
+		return repositoryElemSize, true
+	case sectionPackages:
+		return packageElemSize, true
+	case sectionFiles:
+		return fileElemSize, true
+	case sectionSymbols:
+		return symbolElemSize, true
+	case sectionEvidence:
+		return evidenceElemSize, true
+	case sectionPackageDependency:
+		return packageDependencyElemSize, true
+	case sectionUnresolved:
+		return unresolvedElemSize, true
+	case sectionForwardEdges, sectionReverseEdges:
+		return edgeElemSize, true
+	default:
+		return 0, false
+	}
+}
+
 const (
 	snapshotFileHeaderSize = 8 + 4 + 4 + 8 + 8 + 4 + 4 + sha256.Size + sha256.Size
 	sectionEntrySize       = 4 + 4 + 8 + 8 + 8
@@ -115,37 +198,46 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 	keyOffsets, keyBytes := encodeSymbolKeys(snapshot.stableKeys)
 
 	payloads := []struct {
-		kind     uint32
-		elemSize uint32
-		count    uint64
-		bytes    []byte
+		kind  uint32
+		count uint64
+		bytes []byte
 	}{
-		{sectionStringArena, byteElemSize, uint64(len(snapshot.strings.arena)), snapshot.strings.arena},
-		{sectionStringOffsets, offsetElemSize, uint64(len(snapshot.strings.offsets)), encodeOffsets(snapshot.strings.offsets)},
-		{sectionStringOrder, offsetElemSize, uint64(len(snapshot.strings.order)), encodeInterned(snapshot.strings.order)},
-		{sectionResolverVersion, byteElemSize, uint64(len(snapshot.metadata.ResolverVersion)), []byte(snapshot.metadata.ResolverVersion)},
-		{sectionRepositories, repositoryElemSize, uint64(len(snapshot.repositories)), encodeRepositories(snapshot.repositories)},
-		{sectionPackages, packageElemSize, uint64(len(snapshot.packages)), encodePackages(snapshot.packages)},
-		{sectionFiles, fileElemSize, uint64(len(snapshot.files)), encodeFiles(snapshot.files)},
-		{sectionSymbols, symbolElemSize, uint64(len(snapshot.symbols)), encodeSymbols(snapshot.symbols)},
-		{sectionSymbolKeyOffsets, offsetElemSize, uint64(len(keyOffsets)), encodeOffsets(keyOffsets)},
-		{sectionSymbolKeyBytes, byteElemSize, uint64(len(keyBytes)), keyBytes},
-		{sectionEvidence, evidenceElemSize, uint64(len(snapshot.evidence)), encodeEvidence(snapshot.evidence)},
-		{sectionPackageDependency, packageDependencyElemSize, uint64(len(snapshot.packageDependencies)), encodePackageDependencies(snapshot.packageDependencies)},
-		{sectionUnresolved, unresolvedElemSize, uint64(len(snapshot.unresolved)), encodeUnresolved(snapshot.unresolved)},
-		{sectionForwardOffsets, offsetElemSize, uint64(len(snapshot.forwardOffsets)), encodeOffsets(snapshot.forwardOffsets)},
-		{sectionForwardEdges, edgeElemSize, uint64(len(snapshot.forwardEdges)), encodeEdges(snapshot.forwardEdges)},
-		{sectionReverseOffsets, offsetElemSize, uint64(len(snapshot.reverseOffsets)), encodeOffsets(snapshot.reverseOffsets)},
-		{sectionReverseEdges, edgeElemSize, uint64(len(snapshot.reverseEdges)), encodeEdges(snapshot.reverseEdges)},
+		{sectionStringArena, uint64(len(snapshot.strings.arena)), snapshot.strings.arena},
+		{sectionStringOffsets, uint64(len(snapshot.strings.offsets)), encodeOffsets(snapshot.strings.offsets)},
+		{sectionStringOrder, uint64(len(snapshot.strings.order)), encodeInterned(snapshot.strings.order)},
+		{sectionResolverVersion, uint64(len(snapshot.metadata.ResolverVersion)), []byte(snapshot.metadata.ResolverVersion)},
+		{sectionRepositories, uint64(len(snapshot.repositories)), encodeRepositories(snapshot.repositories)},
+		{sectionPackages, uint64(len(snapshot.packages)), encodePackages(snapshot.packages)},
+		{sectionFiles, uint64(len(snapshot.files)), encodeFiles(snapshot.files)},
+		{sectionSymbols, uint64(len(snapshot.symbols)), encodeSymbols(snapshot.symbols)},
+		{sectionSymbolKeyOffsets, uint64(len(keyOffsets)), encodeOffsets(keyOffsets)},
+		{sectionSymbolKeyBytes, uint64(len(keyBytes)), keyBytes},
+		{sectionEvidence, uint64(len(snapshot.evidence)), encodeEvidence(snapshot.evidence)},
+		{sectionPackageDependency, uint64(len(snapshot.packageDependencies)), encodePackageDependencies(snapshot.packageDependencies)},
+		{sectionUnresolved, uint64(len(snapshot.unresolved)), encodeUnresolved(snapshot.unresolved)},
+		{sectionForwardOffsets, uint64(len(snapshot.forwardOffsets)), encodeOffsets(snapshot.forwardOffsets)},
+		{sectionForwardEdges, uint64(len(snapshot.forwardEdges)), encodeEdges(snapshot.forwardEdges)},
+		{sectionReverseOffsets, uint64(len(snapshot.reverseOffsets)), encodeOffsets(snapshot.reverseOffsets)},
+		{sectionReverseEdges, uint64(len(snapshot.reverseEdges)), encodeEdges(snapshot.reverseEdges)},
 	}
 
 	sections := make([]section, 0, len(payloads))
+	padded := make([][]byte, 0, len(payloads)*2)
 	offset := uint64(0)
 	for _, payload := range payloads {
+		if pad := padTo(offset, sectionAlignment); pad > 0 {
+			padded = append(padded, make([]byte, pad))
+			offset += pad
+		}
+		width, known := sectionElemSize(payload.kind)
+		if !known {
+			return [sha256.Size]byte{}, fmt.Errorf("%w: no element width declared for section %d", ErrInvalidSnapshotFile, payload.kind)
+		}
 		sections = append(sections, section{
-			kind: payload.kind, elemSize: payload.elemSize, count: payload.count,
+			kind: payload.kind, elemSize: width, count: payload.count,
 			offset: offset, length: uint64(len(payload.bytes)),
 		})
+		padded = append(padded, payload.bytes)
 		offset += uint64(len(payload.bytes))
 	}
 
@@ -171,9 +263,12 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 	if _, err := writer.Write(table); err != nil {
 		return payloadDigest, fmt.Errorf("write snapshot section table: %w", err)
 	}
-	for _, payload := range payloads {
-		if _, err := writer.Write(payload.bytes); err != nil {
-			return payloadDigest, fmt.Errorf("write snapshot section %d: %w", payload.kind, err)
+	// The padding runs are written but never digested and never named by a
+	// section, so a reader that ignores alignment still recomputes the same
+	// payload digest over exactly the same bytes.
+	for index, block := range padded {
+		if _, err := writer.Write(block); err != nil {
+			return payloadDigest, fmt.Errorf("write snapshot payload block %d: %w", index, err)
 		}
 	}
 	return payloadDigest, nil
@@ -365,7 +460,7 @@ func parseSnapshotFile(data []byte) (snapshotFileHeader, []section, []byte, erro
 	}
 	if formatVersion := binary.LittleEndian.Uint32(data[8:12]); formatVersion != SnapshotFileFormatVersion {
 		return header, nil, nil, fmt.Errorf("%w: format version %d, this build reads %d",
-			ErrInvalidSnapshotFile, formatVersion, SnapshotFileFormatVersion)
+			ErrSnapshotFileVersion, formatVersion, SnapshotFileFormatVersion)
 	}
 	sectionCount := binary.LittleEndian.Uint32(data[12:16])
 	header.id = binary.LittleEndian.Uint64(data[16:24])
@@ -382,6 +477,7 @@ func parseSnapshotFile(data []byte) (snapshotFileHeader, []section, []byte, erro
 	}
 	payload := data[uint64(snapshotFileHeaderSize)+tableSize:]
 	sections := make([]section, 0, sectionCount)
+	seen := make(map[uint32]struct{}, sectionCount)
 	for index := range sectionCount {
 		entryStart := uint64(snapshotFileHeaderSize) + uint64(index)*sectionEntrySize
 		entry := data[entryStart : entryStart+sectionEntrySize]
@@ -395,15 +491,46 @@ func parseSnapshotFile(data []byte) (snapshotFileHeader, []section, []byte, erro
 		if parsed.elemSize == 0 {
 			return header, nil, nil, fmt.Errorf("%w: section %d declares no element size", ErrInvalidSnapshotFile, parsed.kind)
 		}
+		// A repeated kind is not a harmless duplicate. The decoder below is a
+		// switch, so the last entry would silently win and the file would have
+		// two answers for one table.
+		if _, duplicated := seen[parsed.kind]; duplicated {
+			return header, nil, nil, fmt.Errorf("%w: section %d appears twice", ErrInvalidSnapshotFile, parsed.kind)
+		}
+		seen[parsed.kind] = struct{}{}
+		if expected, known := sectionElemSize(parsed.kind); known && parsed.elemSize != expected {
+			return header, nil, nil, fmt.Errorf("%w: section %d declares %d bytes per record, this build writes %d",
+				ErrInvalidSnapshotFile, parsed.kind, parsed.elemSize, expected)
+		}
+		if parsed.offset%sectionAlignment != 0 {
+			return header, nil, nil, fmt.Errorf("%w: section %d starts at %d, which is not a multiple of %d",
+				ErrInvalidSnapshotFile, parsed.kind, parsed.offset, sectionAlignment)
+		}
 		if parsed.offset > uint64(len(payload)) || parsed.length > uint64(len(payload))-parsed.offset {
 			return header, nil, nil, fmt.Errorf("%w: section %d spans %d..%d of %d payload bytes",
 				ErrInvalidSnapshotFile, parsed.kind, parsed.offset, parsed.offset+parsed.length, len(payload))
 		}
-		if parsed.count*uint64(parsed.elemSize) != parsed.length {
+		// Checked as a division rather than a multiplication, because the
+		// multiplication wraps: a count of 2^61 with eight bytes per record
+		// produces zero, which matches a zero length and lets a file through
+		// whose decoder would then loop 2^61 times over an empty slice.
+		if parsed.length%uint64(parsed.elemSize) != 0 || parsed.length/uint64(parsed.elemSize) != parsed.count {
 			return header, nil, nil, fmt.Errorf("%w: section %d holds %d bytes, not %d records of %d",
 				ErrInvalidSnapshotFile, parsed.kind, parsed.length, parsed.count, parsed.elemSize)
 		}
 		sections = append(sections, parsed)
+	}
+	// Overlap is checked across the whole table rather than per entry, because it
+	// is a relation between two of them: two sections sharing bytes would both
+	// decode, both validate, and disagree about what those bytes mean.
+	ordered := append([]section(nil), sections...)
+	sort.Slice(ordered, func(left, right int) bool { return ordered[left].offset < ordered[right].offset })
+	for position := 1; position < len(ordered); position++ {
+		previous := ordered[position-1]
+		if previous.offset+previous.length > ordered[position].offset {
+			return header, nil, nil, fmt.Errorf("%w: sections %d and %d overlap at %d",
+				ErrInvalidSnapshotFile, previous.kind, ordered[position].kind, ordered[position].offset)
+		}
 	}
 
 	digest := sha256.New()

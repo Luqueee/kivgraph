@@ -2,12 +2,14 @@ package rebuild
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
@@ -124,4 +126,117 @@ func corruptDigest(t *testing.T, root, generationID, content string) {
 
 func generationDatabase(root, generationID string) string {
 	return filepath.Join(root, "generations", generationID, "graph.db")
+}
+
+// TestAPublishedSnapshotIsNeverServedWhenItIsWrong covers the five ways a
+// published snapshot can be wrong, at the level a generation is actually read.
+//
+// Each one has to end the same way, and that is the point: the file is refused,
+// the reason is recorded where a server can say it out loud, and the graph is
+// derived from the database and answered anyway. A file that is wrong must cost
+// a rebuild, never an answer.
+//
+// The unit oracle in internal/hotsnapshot fixes what the parser rejects. This
+// one fixes what a caller gets when it does, which is a different contract: a
+// refusal that returned no graph would turn a corrupt cache into an outage.
+func TestAPublishedSnapshotIsNeverServedWhenItIsWrong(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		break_  func(t *testing.T, path string)
+		expects string
+	}{
+		// Caught by the section bounds rather than by the digest, which is the
+		// better of the two: the table still describes a payload that is no
+		// longer there, so the file is refused before a single byte is hashed.
+		"truncated": {
+			break_: func(t *testing.T, path string) {
+				data := readSnapshotFile(t, path)
+				writeSnapshotFile(t, path, data[:len(data)/2])
+			},
+			expects: "payload bytes",
+		},
+		"a foreign magic": {
+			break_: func(t *testing.T, path string) {
+				data := readSnapshotFile(t, path)
+				copy(data[0:8], []byte("NOTKIVSN"))
+				writeSnapshotFile(t, path, data)
+			},
+			expects: "foreign magic",
+		},
+		"another format version": {
+			break_: func(t *testing.T, path string) {
+				data := readSnapshotFile(t, path)
+				binary.LittleEndian.PutUint32(data[8:12], hotsnapshot.SnapshotFileFormatVersion+1)
+				writeSnapshotFile(t, path, data)
+			},
+			expects: "format version",
+		},
+		"another generation": {
+			// The header repeats the generation's own content digest, so a
+			// snapshot left behind by a different graph is caught even though
+			// its own bytes are intact.
+			break_: func(t *testing.T, path string) {
+				data := readSnapshotFile(t, path)
+				for index := 40; index < 72; index++ {
+					data[index] ^= 0xff
+				}
+				writeSnapshotFile(t, path, data)
+			},
+			expects: "content digest",
+		},
+		"another payload digest": {
+			break_: func(t *testing.T, path string) {
+				data := readSnapshotFile(t, path)
+				for index := 72; index < 104; index++ {
+					data[index] ^= 0xff
+				}
+				writeSnapshotFile(t, path, data)
+			},
+			expects: "payload digest",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			seedGeneration(t, root)
+			path := filepath.Join(root, "generations", "000001", PublishedSnapshotFileName)
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("the generation carries no published snapshot to break: %v", err)
+			}
+			testCase.break_(t, path)
+
+			snapshot, report, err := LoadOrBuildSnapshot(context.Background(), BuildSnapshotOptions{
+				DatabasePath: generationDatabase(root, "000001"), SnapshotID: 91, Scan: fakeScan,
+			})
+			if err != nil {
+				t.Fatalf("LoadOrBuildSnapshot() error = %v, want a derived graph", err)
+			}
+			if snapshot == nil || !report.Passed {
+				t.Fatalf("snapshot = %v, report = %+v, want a usable derived graph", snapshot, report)
+			}
+			if report.Loaded {
+				t.Fatal("a wrong file was served instead of refused")
+			}
+			if !strings.Contains(report.LoadRefused, testCase.expects) {
+				t.Fatalf("LoadRefused = %q, want it to name %q", report.LoadRefused, testCase.expects)
+			}
+			if snapshot.Metadata().Counts.Symbols == 0 {
+				t.Fatal("the derived graph carries no symbols, so this proves nothing")
+			}
+		})
+	}
+}
+
+func readSnapshotFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read published snapshot: %v", err)
+	}
+	return data
+}
+
+func writeSnapshotFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write published snapshot: %v", err)
+	}
 }

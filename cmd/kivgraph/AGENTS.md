@@ -72,12 +72,19 @@ superficie observable.
   `INFO` y sólo un fallo es `ERROR`, y el texto de la línea es el `msg` del
   registro, nunca un campo dentro de un mensaje fijo. Un registro que un
   lector no puede filtrar por nivel ni encontrar por texto no informa de nada.
-- `doctor` informa de `snapshot.published`, y las dos respuestas que no son un
-  fichero utilizable no valen lo mismo: **ausente es `PASS` y se declara** -- una
-  generación publicada antes de que el fichero existiera no lo lleva, y derivar
-  es lo que siempre se hizo-- mientras que **presente y no utilizable es `FAIL`**,
-  porque algo del store está mal. Una sola respuesta de «no disponible» las
-  contaría como lo mismo, y la segunda es la que merece despertar a alguien.
+- `doctor` informa de `snapshot.published`, y las respuestas que no son un
+  fichero utilizable **no valen lo mismo**. Son tres, no dos:
+  **ausente es `PASS` y se declara** -- una generación publicada antes de que el
+  fichero existiera no lo lleva, y derivar es lo que siempre se hizo--;
+  **escrito por un formato anterior es `PASS` y se declara**, porque no hay nada
+  mal en el store, se movió el layout, y el siguiente indexado lo sustituye;
+  y **presente, de este formato y no utilizable es `FAIL`**, porque entonces sí
+  algo del store está mal. Una sola respuesta de «no disponible» las contaría
+  como lo mismo, y sólo la tercera merece despertar a alguien. Contar la segunda
+  como fallo es peor que no informar: pone el `doctor` en rojo en cada
+  actualización, que es exactamente como un fallo de verdad deja de notarse.
+  Lo distingue `hotsnapshot.ErrSnapshotFileVersion`, que envuelve
+  `ErrInvalidSnapshotFile` para que el resto de llamantes no cambie.
 - `serve` dice al arrancar si leyó el snapshot publicado o lo derivó, y con qué
   razón. Nada más las distingue: un servidor que deriva contesta exactamente
   igual que uno que leyó, y cuesta un gigabyte más de pico al nacer. Mientras

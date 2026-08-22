@@ -3,6 +3,7 @@ package hotsnapshot
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"reflect"
 	"testing"
@@ -400,5 +401,143 @@ func TestAMappedTableCopiesWhatItHandsOut(t *testing.T) {
 	}
 	if inside(borrowedValue) {
 		t.Fatal("a borrowed arena handed out a view into memory the collector cannot see")
+	}
+}
+
+// TestSnapshotFileRefusesAMalformedSectionTable covers the entries in the table
+// rather than the bytes they point at.
+//
+// Every case here passed every check the reader had before this test existed, and
+// two of them did not produce a wrong answer -- they produced a panic, which is
+// worse than a wrong answer because it is not a refusal at all. A file that can
+// panic a reader is a file that gets served by nobody and crashes everybody.
+func TestSnapshotFileRefusesAMalformedSectionTable(t *testing.T) {
+	built, err := BuildGraphSnapshot(fileFixtureRows(), 7, time.Unix(1_700_000_123, 0).UTC(), 3)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	contentDigest := sha256.Sum256([]byte("content"))
+	var buffer bytes.Buffer
+	if _, err := WriteSnapshot(&buffer, built, contentDigest); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	original := buffer.Bytes()
+
+	// entryOf finds the table entry for a kind so a case can corrupt one field
+	// of one section without hand-computing an offset.
+	entryOf := func(data []byte, kind uint32) int {
+		count := int(binary.LittleEndian.Uint32(data[12:16]))
+		for index := range count {
+			at := snapshotFileHeaderSize + index*sectionEntrySize
+			if binary.LittleEndian.Uint32(data[at:at+4]) == kind {
+				return at
+			}
+		}
+		t.Fatalf("section %d not in the table", kind)
+		return 0
+	}
+
+	for name, corrupt := range map[string]func([]byte){
+		// Claiming one byte per symbol keeps count*elemSize == length, so the
+		// length check agrees. decodeSymbols then reads 37 bytes per record.
+		"symbol records one byte wide": func(data []byte) {
+			at := entryOf(data, sectionSymbols)
+			count := binary.LittleEndian.Uint64(data[at+8 : at+16])
+			length := binary.LittleEndian.Uint64(data[at+24 : at+32])
+			binary.LittleEndian.PutUint32(data[at+4:at+8], 1)
+			binary.LittleEndian.PutUint64(data[at+8:at+16], length)
+			_ = count
+		},
+		// 2^61 records of 8 bytes multiplies to exactly zero, which matches a
+		// zero length. The count survives into the decoder.
+		"record count that overflows its own product": func(data []byte) {
+			at := entryOf(data, sectionForwardOffsets)
+			binary.LittleEndian.PutUint32(data[at+4:at+8], 8)
+			binary.LittleEndian.PutUint64(data[at+8:at+16], 1<<61)
+			binary.LittleEndian.PutUint64(data[at+24:at+32], 0)
+		},
+		"a kind that appears twice": func(data []byte) {
+			source := entryOf(data, sectionEvidence)
+			target := entryOf(data, sectionUnresolved)
+			copy(data[target:target+sectionEntrySize], data[source:source+sectionEntrySize])
+		},
+		"two sections sharing bytes": func(data []byte) {
+			at := entryOf(data, sectionReverseEdges)
+			forward := entryOf(data, sectionForwardEdges)
+			copy(data[at+16:at+24], data[forward+16:forward+24])
+		},
+		"a section that does not start on its alignment": func(data []byte) {
+			at := entryOf(data, sectionSymbols)
+			offset := binary.LittleEndian.Uint64(data[at+16 : at+24])
+			binary.LittleEndian.PutUint64(data[at+16:at+24], offset+1)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			data := append([]byte(nil), original...)
+			corrupt(data)
+			snapshot, err := ReadSnapshot(data, contentDigest)
+			if !errors.Is(err, ErrInvalidSnapshotFile) {
+				t.Fatalf("ReadSnapshot() error = %v, want %v", err, ErrInvalidSnapshotFile)
+			}
+			if snapshot != nil {
+				t.Fatal("a malformed file produced a snapshot")
+			}
+		})
+	}
+}
+
+// TestSnapshotFileIsDeterministicApartFromItsProvenance is the cheapest
+// regression this format has, and it fixes the exact claim that is true.
+//
+// "Two publications of the same graph produce the same file" is false, and
+// measuring it said by how much: on a 98 MB file over kena, six bytes. They are
+// the snapshot id and the build timestamp, which identify *which* publication
+// this is -- a second publication is a different generation at a different time,
+// and recording that is provenance, not nondeterminism.
+//
+// So the assertion is the precise one: the payload is identical byte for byte,
+// and the header differs in nothing except those two fields. That is stronger
+// than comparing whole files, because it enumerates what is allowed to vary. A
+// new field fed by a map iteration, a pointer address or a clock fails here.
+func TestSnapshotFileIsDeterministicApartFromItsProvenance(t *testing.T) {
+	rows := fileFixtureRows()
+	contentDigest := sha256.Sum256([]byte("content"))
+
+	write := func(id uint64, at time.Time) []byte {
+		built, err := BuildGraphSnapshot(rows, id, at, 3)
+		if err != nil {
+			t.Fatalf("build: %v", err)
+		}
+		var buffer bytes.Buffer
+		if _, err := WriteSnapshot(&buffer, built, contentDigest); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		return buffer.Bytes()
+	}
+
+	first := write(7, time.Unix(1_700_000_123, 0).UTC())
+	again := write(7, time.Unix(1_700_000_123, 0).UTC())
+	if !bytes.Equal(first, again) {
+		t.Fatal("the same graph published under the same id and time produced different bytes")
+	}
+
+	// Same graph, different publication.
+	other := write(8, time.Unix(1_700_009_999, 0).UTC())
+	if len(other) != len(first) {
+		t.Fatalf("length changed with provenance: %d then %d", len(first), len(other))
+	}
+	const idAt, createdAt = 16, 24
+	for index := range first {
+		provenance := (index >= idAt && index < idAt+8) || (index >= createdAt && index < createdAt+8)
+		if provenance {
+			continue
+		}
+		if first[index] != other[index] {
+			t.Fatalf("byte %d differs between two publications of the same graph", index)
+		}
+	}
+	if bytes.Equal(first[idAt:idAt+8], other[idAt:idAt+8]) ||
+		bytes.Equal(first[createdAt:createdAt+8], other[createdAt:createdAt+8]) {
+		t.Fatal("the fixture did not actually change the provenance, so this proves nothing")
 	}
 }

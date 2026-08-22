@@ -2,6 +2,7 @@ package rebuild
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
@@ -260,6 +261,31 @@ func TestInspectPublishedSnapshotDistinguishesAbsentFromUnusable(t *testing.T) {
 		remove(t, directory, PublishedSnapshotFileName)
 		if _, err := InspectPublishedSnapshot(directory); !errors.Is(err, ErrNoPublishedSnapshot) {
 			t.Fatalf("error = %v, want ErrNoPublishedSnapshot", err)
+		}
+	})
+
+	// An older format is neither of the two the test above separates, and that
+	// is the point: nothing is wrong with the store, the layout moved. A caller
+	// that reported it as a defect would make every upgrade look like corruption.
+	t.Run("written by an older format", func(t *testing.T) {
+		directory := t.TempDir()
+		databasePath := filepath.Join(directory, "graph.lbdb")
+		seedPublishedGeneration(t, directory, databasePath)
+		path := filepath.Join(directory, PublishedSnapshotFileName)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read snapshot: %v", err)
+		}
+		binary.LittleEndian.PutUint32(data[8:12], hotsnapshot.SnapshotFileFormatVersion-1)
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatalf("write snapshot: %v", err)
+		}
+		_, err = InspectPublishedSnapshot(directory)
+		if !errors.Is(err, hotsnapshot.ErrSnapshotFileVersion) {
+			t.Fatalf("error = %v, want ErrSnapshotFileVersion", err)
+		}
+		if errors.Is(err, ErrNoPublishedSnapshot) {
+			t.Fatal("an older format was reported as an absent file")
 		}
 	})
 

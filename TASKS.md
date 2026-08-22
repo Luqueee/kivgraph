@@ -14637,7 +14637,96 @@ publica, que contenga exactamente lo que hoy se reconstruye.
 - Una configuración escrita fuera de la ubicación por defecto sigue siendo
   autocontenida: su fichero cuelga de su propio directorio.
 
-**Estado:** pendiente.
+**Estado:** cerrada el `2026-08-22`, con tres criterios deliberadamente no
+cumplidos y uno movido a `LUQUE-2013`.
+
+**El objetivo ya estaba hecho.** El fichero existe desde el ADR 0045, con magic
+`KVSNAP` -- no `LGHS`--, se escribe por generación con temporal + rename, lleva
+cabecera versionada con `snapshot_id`, `created_at`, `schema_version` y doble
+digest, y una tabla de secciones con `kind`, `elemSize`, `count`, `offset` y
+`length`. Todo little-endian. Auditado fichero a fichero antes de tocar nada.
+Así que esta tarea fue cerrar los huecos reales, no escribir el formato.
+
+**El hueco grave: un fichero mal formado provocaba un pánico, no un rechazo.** La
+tabla validaba que `count*elemSize == length`, pero nunca que `elemSize` fuese el
+ancho que el decodificador de ese `kind` espera. Un fichero que declara un byte
+por símbolo pasa todas las comprobaciones y luego `decodeSymbols` lee 37 bytes por
+registro de un búfer que tiene uno. Demostrado revirtiendo la guarda:
+`panic: runtime error: index out of range [28] with length 0`. **Un pánico no es
+«nunca se sirve»**: no se sirve a nadie y se cae todo el mundo.
+
+Y en la misma línea había un segundo agujero peor: `count*elemSize` **desborda**.
+Con `2^61` registros de 8 bytes el producto es exactamente `0`, que iguala un
+`length` de `0` y deja pasar el fichero; el decodificador itera `2^61` veces.
+Ahora se comprueba como división.
+
+**Lo demás que se cerró:**
+
+* Un `kind` repetido se rechaza. El decodificador es un `switch`, así que la
+  última entrada ganaba en silencio y el fichero tenía dos respuestas para una
+  tabla.
+* Dos secciones que comparten bytes se rechazan. Es una relación entre dos
+  entradas, así que se comprueba sobre la tabla ordenada, no por entrada.
+* **Alineación**, que es lo que `LUQUE-2005` necesita: cada sección arranca en
+  múltiplo de 8. El relleno no lo nombra ninguna sección ni entra en el digest,
+  así que un lector que la ignore recomputa el mismo digest sobre los mismos
+  bytes.
+
+**Sobre «cada sección alineada al tamaño de su elemento»:** no es lo que se hizo,
+y el motivo va escrito en el código. Varios elementos miden `25`, `37`, `15` y
+`52` bytes, y alinear a un número que no es potencia de dos no es alinear. Lo que
+la decisión protege es una vista sobre una sección -- `[]uint32` hoy--, que en
+algunas arquitecturas es indefinida en una dirección arbitraria. Ocho cubre todo
+escalar que este formato guarda, y es una regla en vez de una tabla que puede
+contradecirse.
+
+**Determinismo: el criterio era falso, y la medición dice por cuánto.** Dos
+publicaciones del mismo grafo -- digest de contenido idéntico-- dan ficheros que
+difieren en **6 bytes de 98.779.360**: `snapshot_id` y `created_at`. El payload es
+idéntico byte a byte, y el `payloadDigest` también. Esos dos campos identifican
+*qué* publicación es, y registrarlo es procedencia, no indeterminismo. Así que la
+regresión afirma lo preciso: el payload idéntico y la cabecera igual **salvo esos
+dos campos**. Es más fuerte que comparar ficheros enteros, porque enumera lo que
+puede variar: un campo nuevo alimentado por iteración de mapa, una dirección o un
+reloj falla ahí.
+
+**Los cinco rechazos existen**, en `snapshot_corruption_test.go` como pedía la
+tarea, y a nivel de generación: truncado, otro magic, otra versión de formato,
+otra generación y otro digest de payload. Los cinco acaban igual -- el fichero se
+rechaza, la razón queda en `LoadRefused` y el grafo se deriva de la base y se
+responde-- porque un fichero equivocado debe costar una reconstrucción, nunca una
+respuesta. El truncado lo atrapa el límite de sección, antes del digest, que es
+mejor: el fichero se rechaza sin llegar a hashear un byte.
+
+**Un defecto que sólo apareció al ejecutar el binario.** La subida de versión de
+formato hacía que `doctor` marcara `FAIL` y saliera con código `1` en cualquier
+instalación ya existente, con la línea siguiente diciendo `snapshot: PASS
+(symbols=123531)`. La regla documentada en `cmd/kivgraph/AGENTS.md` era binaria
+-- ausente `PASS`, presente-y-no-utilizable `FAIL`-- y le faltaba el tercer caso:
+un formato anterior no es un store dañado, es que alguien actualizó. Añadido
+`hotsnapshot.ErrSnapshotFileVersion`, que envuelve `ErrInvalidSnapshotFile` para
+no cambiar ningún llamante. Ninguna suite lo vio; lo vio `doctor`.
+
+**Criterios no cumplidos, con su razón:**
+
+1. **«Toda generación publicada tiene su fichero»** -- no. Sigue siendo
+   best-effort, y el código ya llevaba escrito el argumento: el fichero es una
+   economía, así que un disco lleno no debe tirar un índice de minutos cuyo grafo
+   es sano. Lo que sí está resuelto es la observabilidad de la otra mitad:
+   `LoadRefused` e `InspectPublishedSnapshot` distinguen ausente, formato viejo e
+   inutilizable.
+2. **«Nada se escribe fuera de `storage.snapshots_path`»** -- al contrario:
+   **nada se escribe nunca ahí**. El fichero vive dentro del directorio de la
+   generación, y eso es lo correcto, porque es lo que hace que `Prune` lo borre
+   con ella y que **no pueda quedar huérfano**. El criterio, aplicado, crearía el
+   problema que él mismo pide evitar.
+3. **«`retain_snapshots` conserva exactamente los que dice»** -- no lo lee nadie.
+   `Prune` conserva `current` y `backup` y nada más, que es lo que el rollback
+   necesita.
+
+Los puntos 2 y 3 son dos claves de configuración que prometen una ubicación y una
+política que el diseño no quiere. Tocarlas es superficie de compatibilidad y pide
+ADR, así que van en `LUQUE-2013` y no aquí.
 
 **Verificación:**
 
@@ -15770,4 +15859,47 @@ Más un ADR: cambia a qué repositorio pertenece un símbolo, que es identidad.
 **Lo que no vale:** la versión barata — resolver la ruta contra el registro en el
 lado Go y emitir la fila sin paquete. Eso es exactamente lo que `LUQUE-2011`
 descartó, y reintroduce el first-wins silencioso.
+
+## LUQUE-2013 — Dos claves de configuración que no implementan lo que prometen
+
+**Dependencias:** LUQUE-2004.
+
+**Objetivo:** que `storage.snapshots_path` y `storage.retain_snapshots` describan
+lo que el código hace, o que dejen de existir.
+
+**Lo que hay hoy, medido al cerrar LUQUE-2004:**
+
+* `storage.snapshots_path` se declara -`internal/config/config.go:88`-, tiene
+  valor por defecto, se crea en `Initialize` y `doctor` comprueba que se puede
+  escribir en él. **Nadie escribe nunca nada ahí.** El snapshot publicado vive
+  dentro del directorio de su generación, bajo `dir(storage.database_path)`, y
+  ése es el sitio correcto: es lo que hace que `Prune` lo borre con la generación
+  y que no pueda quedar un fichero huérfano.
+* `storage.retain_snapshots` se declara -`config.go:90`-, vale `3` por defecto y
+  se valida como «must be positive». **Ningún consumidor la lee.** `Prune`
+  conserva `current` y `backup`, que es lo que el rollback necesita, y nada más.
+
+**Por qué es una tarea y no un arreglo:** las claves de configuración son
+superficie de compatibilidad declarada en el `AGENTS.md` de la raíz. Retirarlas
+rompe una configuración que hoy las escribe sin error; darles significado cambia
+la política de poda, que es la que sostiene el rollback. Las dos salidas piden
+ADR.
+
+**Las tres salidas, para decidir con lo que se sepa entonces:**
+
+1. **Retirarlas.** Es lo más honesto si nada las va a usar: una clave que promete
+   una ubicación que nadie usa es peor que ninguna clave, porque alguien la
+   configura y no pasa nada.
+2. **Darles significado.** `snapshots_path` como destino exige resolver la
+   atomicidad -- hoy la generación se publica con un `rename` de su directorio-- y
+   la orfandad. `retain_snapshots` exige decidir qué significa retener más de dos
+   cuando el rollback sólo usa una.
+3. **Documentarlas como reservadas**, si se quieren para la fase 20 -- un fichero
+   compartido entre clientes podría querer vivir fuera de la generación.
+
+**Criterios de aceptación:** ninguna clave de la configuración promete una
+ubicación o una política que el código no implemente, y la decisión queda en un
+ADR con su migración si retira alguna.
+
+**Estado:** abierta.
 
