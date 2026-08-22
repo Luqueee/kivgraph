@@ -15257,11 +15257,22 @@ campos-- y `167` tokens.
 
 **Las dos salidas:**
 
-* **Emparejar por receptor.** El cargador Go ya sabe qué receptor tiene un método:
-  publica `GuildsHandler.Get` con ese nombre cualificado. Usar la relación del
-  receptor -- no el punto del nombre, que es convención-- daría las semillas que
-  faltan. En Rust el equivalente es el bloque `impl`, que hoy no se publica
-  (LUQUE-2008), así que Rust necesita antes esa decisión.
+* **Registrar el receptor como hecho.** Esta salida se escribió diciendo que «el
+  cargador Go ya sabe qué receptor tiene un método». **Es falso tal como estaba**:
+  lo sabe en una *llamada* -- `internal/goloader/methods.go` retiene
+  `ReceiverTypeName` y `ReceiverPackagePath` para el sitio de llamada-- y no lo
+  registra en la *declaración*. Comprobado: `facts.Symbol` no tiene campo de dueño
+  ni de receptor, y el vocabulario de aristas no tiene ninguna relación
+  método -> tipo. El único vínculo entre `GuildsHandler.Get` y `GuildsHandler` es
+  el **nombre punteado**, que es convención del generador de nombres y no un hecho
+  observado -- la misma base que el ADR 0059 rechazó.
+
+  Así que esta salida **no es pequeña**: exige añadir el hecho. Eso es un cambio de
+  vocabulario de aristas o un campo nuevo en `Symbol`, con lo que arrastra --
+  schema versionado, migración o full rebuild, ADR-- más trabajo por lenguaje: en
+  Go el cargador tiene el dato de `go/types` y no lo emite; en Rust el contenedor
+  natural es el bloque `impl`, que **no se publica** desde LUQUE-2008, así que
+  Rust necesita antes revertir esa decisión.
 * **Declararlo y no cubrirlo.** Es lo que el ADR 0059 hace hoy: dice que el
   alcance de un tipo Go excluye sus métodos. Barato y honesto, y deja media
   pregunta sin responder en dos de los tres lenguajes.
