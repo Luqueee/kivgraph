@@ -300,6 +300,7 @@ func ownerFor(kind DefinitionKind, object types.Object, stack []declarationConte
 func fieldOwner(stack []declarationContext) string {
 	parts := make([]string, 0, 4)
 	rooted := false
+	prefix := ""
 	innermost := -1
 	for index, entry := range stack {
 		if _, isField := entry.node.(*ast.Field); isField {
@@ -310,6 +311,17 @@ func fieldOwner(stack []declarationContext) string {
 		switch node := entry.node.(type) {
 		case *ast.TypeSpec:
 			parts = append(parts[:0], node.Name.Name)
+			// A type declared inside a function is not reachable from the
+			// package scope, so its own name does not separate it: two
+			// functions of one package may each declare `type owner struct {
+			// key string }`, and both fields would derive one key while
+			// sitting in two files. The enclosing functions are what tell
+			// them apart, and they are names, not positions.
+			//
+			// Measured on this repository: `methodOwner.methodKey`, declared
+			// inside the Go normaliser and again inside the Rust one, made
+			// `index --full` refuse the whole corpus.
+			prefix = enclosingFunctions(stack, index)
 			rooted = true
 		case *ast.Field:
 			if index != innermost && len(node.Names) != 0 {
@@ -320,7 +332,37 @@ func fieldOwner(stack []declarationContext) string {
 	if !rooted {
 		return ""
 	}
+	owner := strings.Join(parts, ".")
+	if prefix == "" {
+		return owner
+	}
+	return prefix + "." + owner
+}
+
+// enclosingFunctions names the functions that hold the node at index, outermost
+// first. A method is qualified by its receiver, so two same-named methods of
+// different types do not collapse.
+func enclosingFunctions(stack []declarationContext, index int) string {
+	parts := make([]string, 0, 2)
+	for _, entry := range stack[:index] {
+		switch node := entry.node.(type) {
+		case *ast.FuncDecl:
+			parts = append(parts, functionDeclarationName(node))
+		case *ast.FuncLit:
+			parts = append(parts, "func")
+		}
+	}
 	return strings.Join(parts, ".")
+}
+
+func functionDeclarationName(node *ast.FuncDecl) string {
+	name := node.Name.Name
+	if node.Recv != nil && len(node.Recv.List) != 0 {
+		if receiver := receiverTypeExpr(node.Recv.List[0].Type); receiver != "" {
+			name = receiver + "." + name
+		}
+	}
+	return name
 }
 
 // localContainer names the container of a field declared in an anonymous
@@ -337,13 +379,7 @@ func localContainer(stack []declarationContext) string {
 	for _, entry := range stack {
 		switch node := entry.node.(type) {
 		case *ast.FuncDecl:
-			name := node.Name.Name
-			if node.Recv != nil && len(node.Recv.List) != 0 {
-				if receiver := receiverTypeExpr(node.Recv.List[0].Type); receiver != "" {
-					name = receiver + "." + name
-				}
-			}
-			parts = append(parts, name)
+			parts = append(parts, functionDeclarationName(node))
 		case *ast.FuncLit:
 			parts = append(parts, "func")
 		case *ast.ValueSpec:

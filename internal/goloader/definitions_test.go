@@ -370,6 +370,78 @@ func ParseSecond() string {
 	}
 }
 
+// A named type declared inside a function is the case that made `index --full`
+// refuse this repository: the Go normaliser and the Rust one each declare
+// `type methodOwner struct { methodKey ... }` inside a function body, and the
+// owner path was rooted at the type's own name, so both fields derived one key
+// while sitting in two files.
+//
+// A local type's name does not reach the package scope, so what separates the
+// two is the function holding it.
+func TestExtractDefinitionsQualifiesFieldsOfFunctionLocalNamedTypes(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod": "module example.com/module\n\ngo 1.24\n",
+		"sample/first.go": `package sample
+
+func NormalizeFirst() string {
+	type methodOwner struct {
+		methodKey string
+	}
+	return methodOwner{methodKey: "a"}.methodKey
+}
+`,
+		"sample/second.go": `package sample
+
+func NormalizeSecond() string {
+	type methodOwner struct {
+		methodKey string
+	}
+	return methodOwner{methodKey: "b"}.methodKey
+}
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), result, DefinitionOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+
+	names := make(map[string]struct{})
+	for _, definition := range definitions {
+		if definition.Kind == KindField && definition.Name == "methodKey" {
+			names[definition.QualifiedName] = struct{}{}
+		}
+	}
+	for _, want := range []string{
+		"NormalizeFirst.methodOwner.methodKey",
+		"NormalizeSecond.methodOwner.methodKey",
+	} {
+		if _, found := names[want]; !found {
+			t.Fatalf("missing qualified name %q; got %v", want, sortedNames(names))
+		}
+	}
+	if len(names) != 2 {
+		t.Fatalf("methodKey fields = %v, want exactly the two qualified names", sortedNames(names))
+	}
+
+	keyed, err := AssignStableKeys(context.Background(), definitions)
+	if err != nil {
+		t.Fatalf("AssignStableKeys() error = %v", err)
+	}
+	keys := make(map[hotsnapshot.StableKey]string, len(keyed))
+	for _, definition := range keyed {
+		if previous, clash := keys[definition.StableKey]; clash {
+			t.Fatalf("%q and %q share one stable key", previous, definition.QualifiedName)
+		}
+		keys[definition.StableKey] = definition.QualifiedName
+	}
+}
+
 func sortedNames(set map[string]struct{}) []string {
 	out := make([]string, 0, len(set))
 	for name := range set {
