@@ -21,6 +21,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/pythonloader"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -676,9 +677,17 @@ func analyzerFingerprint(options FullOptions) string {
 		strings.TrimSpace(options.TypeScriptWorker), options.TypeScriptIncludeUnclaimedSources)
 	fmt.Fprintf(hash, "python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
 	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
-	pythonWorker := filepath.Join(options.WorkingDirectory, "python-worker", "index.py")
-	if _, err := os.Stat(pythonWorker); err == nil {
-		fmt.Fprintf(hash, "python-worker=%s\x00", fileFingerprint(pythonWorker))
+	// The producer this pass would actually run, resolved by the loader that
+	// runs it. Fingerprinting `python-worker/index.py` by hand left the exact
+	// adapter unwatched: editing it changed no key, so a rebuild reused the
+	// facts of the previous producer and published a generation the current
+	// code would not produce.
+	if producer := pythonloader.ProducerFile(options.PythonIndexer, options.PythonAnalyzer,
+		options.PythonAnalyzerMode, options.PythonPath, options.WorkingDirectory); producer != "" {
+		fmt.Fprintf(hash, "python-worker=%s\x00", fileFingerprint(producer))
+	} else {
+		// Unknown identity is not a licence to reuse anything.
+		fmt.Fprintf(hash, "python-worker=unknown-%d\x00", time.Now().UnixNano())
 	}
 	if executable, err := os.Executable(); err == nil {
 		fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
