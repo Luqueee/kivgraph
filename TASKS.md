@@ -15014,6 +15014,37 @@ make build                       0.5.1
 
 **Siguiente tarea:** LUQUE-2001, que abre la fase 20.
 
+# 28. Fase 21 — Cualificar el grafo publicado
+
+Esta fase no se planificó: cada tarea nació de una medición que salió mal. El
+orden en que están escritas es el orden en que se descubrieron, y varias
+corrigen una afirmación que este mismo repositorio publicaba.
+
+## Los números `2002`–`2008` están usados dos veces
+
+Estas tareas se numeraron sin ver que la fase 20 ya usaba ese rango, así que
+siete identificadores nombran dos cosas distintas:
+
+|número|en la fase 20|en esta fase|
+|---|---|---|
+|`LUQUE-2002`|que ninguna clave estable ocupe un puntero|un fichero reemplazado no debe perder lo que otros le apuntan|
+|`LUQUE-2003`|índices sin mapas|decidir la suerte del camino incremental|
+|`LUQUE-2004`|`LGHS`: el snapshot publicado se escribe|`trace_dependencies` no baja a los miembros de un contenedor|
+|`LUQUE-2005`|mapear en vez de reconstruir|cobertura de las tools servidas por el conjunto de preguntas|
+|`LUQUE-2006`|el arnés que declara el gate|una pregunta de Rust sobre el corpus real|
+|`LUQUE-2007`|ADR, contratos y cierre de fase|la proporción de no resueltos de Rust no tiene pregunta|
+|`LUQUE-2008`|un proceso para muchos clientes|un bloque `impl` de Rust no se publica y su rama existe|
+
+**No se renumeran, y el motivo es medible.** Los de la fase 20 los protege la
+regla de la raíz: los identificadores históricos no se renombran. Y los de esta
+fase los citan **dieciocho mensajes de commit**, que son inmutables: cambiarlos
+dejaría el historial de git apuntando a la tarea equivocada, que es peor que la
+ambigüedad que hay ahora. Los ADRs que los citan -- 0056, 0057, 0058 y 0059-- son
+todos de esta fase, y su propio contexto los desambigua.
+
+Los números a partir de `LUQUE-2009` son únicos. Una tarea nueva empieza en
+`LUQUE-2013`.
+
 ## LUQUE-2002 — Un fichero reemplazado no debe perder lo que otros le apuntan
 
 **Estado:** cerrada por el ADR 0056.
@@ -15332,6 +15363,8 @@ preguntas sobre el código.
 
 ## LUQUE-2006 — Una pregunta de Rust sobre el corpus real
 
+**Estado:** cerrada el `2026-08-22`. Las dos mitades están hechas y medidas.
+
 **Dependencias:** ninguna.
 
 **El hueco, y de quién es la culpa:** los tres conjuntos medidos sobre `kena`
@@ -15351,16 +15384,20 @@ no `1,67x`, así que la retirada se refuerza. `reach.md` y `chain.md` llevan la
 nota de que su corpus no tenía Rust; sus cifras no cambian, porque sus preguntas
 son de Go y TypeScript y sus verdades se leyeron de los ficheros.
 
-**Lo que falta:** una pregunta de Rust sobre `kena`, no sobre un fixture. Hoy la
-única dimensión Rust medida es `H5_rs_trait`, y vive en `benchmarks/graph-tools-comparison`
-sobre un fixture sintético. Con `3.063` símbolos reales indexados hay corpus para
-preguntar de verdad: un trait object, un `impl` entre crates del workspace, o un
-consumidor cross-repo entre `kenalink-rs` y `api-music-nodo`.
+**Lo que faltaba, y ya está:** una pregunta de Rust sobre `kena`, no sobre un
+fixture. Es `R1_rs_sole_impl_dyn`, en el conjunto `rust` con su informe
+`benchmarks/graph-tools-comparison/rust.md`: el único llamante de
+`StateStore::delete_session` llega por `Arc<dyn StateStore>`, o sea dispatch
+dinámico sobre código real. Y el resultado no nos favorece del todo, que es
+parte de su valor: `codebase-memory-mcp` **empata con nosotros** en exactitud a
+`788` tokens contra nuestros `186`, y el informe lo dice antes que nada.
 
-**Y una regla para el harness:** una medición que registra un contador de
-`not_loaded` distinto de cero y sigue adelante está midiendo otro corpus del que
-dice. El harness debería fallar cerrado ante eso, como ya hace el del visor con
-una métrica fuera de límite.
+**Y la regla del harness, cableada con test:** un conjunto publicado que registre
+un contador `not_loaded` distinto de cero, o un lenguaje registrado que produzca
+cero símbolos, **falla cerrado**. La defiende
+`TestPublishedCorpusRefusesAMissingLanguage`, porque una regla de harness sin
+test es una regla que se apagará sola. Salió de aquí: tres mediciones publicadas
+describían un corpus sin Rust y ningún contador las paró.
 
 ## LUQUE-2007 — La proporción de no resueltos de Rust no tiene pregunta
 

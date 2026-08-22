@@ -265,7 +265,8 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
 - La release publicada lleva el visor. `kivgraph ui` se anuncia en la ayuda de
   toda build, así que un binario publicado que responda «this build carries no
   web bundle» ofrece un comando que nadie puede ejecutar; los assets web son
-  `2.3 MB` de un bundle de `90 MB`. El workflow de release construye sin
+  `2.3 MB` y el bundle publicado de la `v0.5.0` pesa `43 MB` comprimido. El
+  workflow de release construye sin
   `--mcp-only` y verifica las dos mitades: que `web/index.html` está en el
   payload y que la ayuda del binario no marca `ui` como no disponible -- un
   bundle con assets enlazado sin el tag `webassets` serviría la página de
