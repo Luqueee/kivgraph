@@ -136,11 +136,16 @@ type gate struct {
 }
 
 type check struct {
-	Name   string  `json:"name"`
-	Passed bool    `json:"passed"`
-	Got    float64 `json:"got"`
-	Want   float64 `json:"want"`
-	Detail string  `json:"detail"`
+	Name   string `json:"name"`
+	Passed bool   `json:"passed"`
+	// Skipped says the platform could not observe what this check prices. It is
+	// not a failure: procstat answers zero for a field the platform cannot
+	// report, and calling that a missed threshold points at the code instead of
+	// at the absent measurement.
+	Skipped bool    `json:"skipped"`
+	Got     float64 `json:"got"`
+	Want    float64 `json:"want"`
+	Detail  string  `json:"detail"`
 }
 
 func observeEnvironment(server string) environment {
@@ -269,11 +274,14 @@ func checksFor(measured point) []check {
 			Detail: "total " + measured.Comparison.ResidentMeasure + " of the mapped arm over the derived arm",
 		},
 		{
-			Name:   "private_dirty_per_process",
-			Passed: mapped.Totals.WorstPrivateDirty > 0 && mapped.Totals.WorstPrivateDirty <= maximumPrivateDirty,
-			Got:    float64(mapped.Totals.WorstPrivateDirty),
-			Want:   float64(maximumPrivateDirty),
-			Detail: "the worst single server of the mapped arm",
+			Name: "private_dirty_per_process",
+			// procstat answers zero for a field this platform cannot report,
+			// so a zero here is an absent measurement and not a small one.
+			Skipped: mapped.Totals.WorstPrivateDirty == 0 && !procstat.ProportionalSupported(),
+			Passed:  mapped.Totals.WorstPrivateDirty > 0 && mapped.Totals.WorstPrivateDirty <= maximumPrivateDirty,
+			Got:     float64(mapped.Totals.WorstPrivateDirty),
+			Want:    float64(maximumPrivateDirty),
+			Detail:  "the worst single server of the mapped arm",
 		},
 		{
 			Name:   "p99_not_worse",
@@ -319,6 +327,12 @@ func decide(out results) gate {
 
 	passed := true
 	for _, item := range decision.Checks {
+		if item.Skipped {
+			// The check did not run, so it neither passes nor fails. The
+			// refusals above are what keep the gate from being emitted on a
+			// platform that cannot answer.
+			continue
+		}
 		if !item.Passed {
 			passed = false
 		}
@@ -408,7 +422,10 @@ func printSummary(out results) {
 			megabytes(worstPrivate(measured)), megabytes(maximumPrivateDirty), measured.Comparison.P99Ratio)
 		for _, item := range measured.Checks {
 			state := "FAIL"
-			if item.Passed {
+			switch {
+			case item.Skipped:
+				state = "skip"
+			case item.Passed:
 				state = "ok"
 			}
 			fmt.Printf("  check %-26s %-4s got %.3f want %.3f\n", item.Name, state, item.Got, item.Want)
