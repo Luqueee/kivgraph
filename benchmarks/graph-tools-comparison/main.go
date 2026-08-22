@@ -788,9 +788,46 @@ func measureNative(tokens *counter, corpus string, q question) (*armResult, erro
 			searchedTotal += searched
 			arm.add(observation{Tool: "grep", Tokens: tokens.count(output)})
 		}
-		arm.Claimed = canonicalAll(q.Truth)
+		// The same standard familyConsumers already applies: this arm claims
+		// the truth its own searches could have reached, and misses the rest.
+		// Reading the subject and searching the names it mentions is the whole
+		// of what a reader can do here, and on X9 that provably is not enough
+		// -- `UserCache.GetUser` implements `CoreReader`, and the subject's file
+		// never spells `CoreReader`, so no search over the names it mentions
+		// arrives at the file declaring it. Interface satisfaction is computed
+		// by `go/types`, not written down.
+		//
+		// Before this, every family but consumers handed the native arm the
+		// truth as its answer, which priced its work honestly and granted its
+		// accuracy. That is a defensible way to compare cost at equal
+		// correctness, and it is not what this harness says elsewhere: the
+		// consumers branch calls such a gap "the measurement, not a handicap".
+		reachable, blind := []string{}, 0
+		for _, item := range q.Truth {
+			content, readErr := os.ReadFile(filepath.Join(corpus, item))
+			if readErr != nil {
+				return nil, fmt.Errorf("read %s: %w", item, readErr)
+			}
+			text := string(content)
+			named := false
+			for _, name := range q.Reached {
+				if strings.Contains(text, name) {
+					named = true
+					break
+				}
+			}
+			if named {
+				reachable = append(reachable, canonicalOf(item))
+				continue
+			}
+			blind++
+		}
+		arm.Claimed = reachable
 		arm.Note = fmt.Sprintf("read the subject, then searched %d name(s) it reaches across %d code files",
 			len(q.Reached), searchedTotal)
+		if blind > 0 {
+			arm.Note += fmt.Sprintf("; %d reached file(s) are named by no identifier the subject spells, so no text search arrives", blind)
+		}
 		arm.Score = scoreAgainst(arm.Claimed, canonicalAll(q.Truth))
 		return arm, nil
 	default:
@@ -799,14 +836,42 @@ func measureNative(tokens *counter, corpus string, q question) (*armResult, erro
 			return nil, err
 		}
 		arm.add(observation{Tool: "grep", Tokens: tokens.count(output)})
-		for _, declaration := range q.Declarations {
-			content, readErr := os.ReadFile(filepath.Join(corpus, declaration))
-			if readErr != nil {
-				return nil, fmt.Errorf("read %s: %w", declaration, readErr)
+		// The declaring files are read to tell homonyms apart, and that is the
+		// only reason this harness gives for the charge: `Declarations` says so
+		// in its own doc, and it is why grep alone cannot answer a question
+		// like R1, where seven files declare `withRetry`.
+		//
+		// With exactly one declaration there is nothing to separate. The grep
+		// line itself shows `func newGMCClient(` against
+		// `l.mc = newGMCClient(...)`, so a reader is done at the search -- the
+		// same judgment familyLocate already makes when it charges for the
+		// search only. Charging a whole-file read here priced a rival for work
+		// no reader would do, and it inflated every ratio this set publishes
+		// against a single-declaration subject.
+		//
+		// It is scoped to references on purpose. familyImpact shares this
+		// branch and its reads are not about homonyms at all: a transitive
+		// question is answered by finding the declaration that **encloses**
+		// each hit and searching again, so the file has to be opened whatever
+		// its name collisions. Skipping it there undercharged a depth-3
+		// question down to a single grep -- 94 tokens for an answer no grep can
+		// produce -- which is the opposite error and just as dishonest.
+		read := 0
+		if q.Family != familyReferences || len(q.Declarations) > 1 {
+			for _, declaration := range q.Declarations {
+				content, readErr := os.ReadFile(filepath.Join(corpus, declaration))
+				if readErr != nil {
+					return nil, fmt.Errorf("read %s: %w", declaration, readErr)
+				}
+				arm.add(observation{Tool: "read", Tokens: tokens.count(string(content))})
+				read++
 			}
-			arm.add(observation{Tool: "read", Tokens: tokens.count(string(content))})
 		}
-		arm.Note = fmt.Sprintf("searched %d code files, then read %d declaring file(s)", searched, len(q.Declarations))
+		if read > 0 {
+			arm.Note = fmt.Sprintf("searched %d code files, then read %d declaring file(s)", searched, read)
+		} else {
+			arm.Note = fmt.Sprintf("searched %d code files; one declaration, so the hit lines answer without opening it", searched)
+		}
 		arm.Claimed = nil
 		for _, item := range q.Truth {
 			arm.Claimed = append(arm.Claimed, canonicalOf(item))

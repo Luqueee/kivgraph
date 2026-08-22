@@ -1,0 +1,1 @@
+{"function":"CommandManager","direction":"inbound","mode":"calls","callers":[{"name":"constructor","qualified_name":"Users-adria-Documents-programacion-projects-kena.modules.sdk-module-ts.src.sdk.client.ModuleActions.ModuleActions.constructor","hop":1}]}

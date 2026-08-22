@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "pattern": "callers_of",
+  "target": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/utils/retry.ts::withRetry",
+  "description": "Find all functions that call a given function",
+  "summary": "Found 0 result(s) for callers_of('/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/utils/retry.ts::withRetry')",
+  "result_count": 0,
+  "results_omitted": 0,
+  "results": [],
+  "edges": [],
+  "confidence": "js/ts callbacks land on REFERENCES not CALLS, and obj[name]() is unresolved, so callers can be missing"
+}

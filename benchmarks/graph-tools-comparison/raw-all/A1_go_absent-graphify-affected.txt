@@ -1,0 +1,24 @@
+Affected nodes for BenchmarkDeserializeValueDate()
+Relations: calls, references, imports, imports_from, re_exports, inherits, extends, implements, uses, mixes_in, embeds
+Depth: 2
+- DeserializeValue() [calls] internal/infrastructure/redis/serialization.go:L125
+- B [references] internal/infrastructure/redis/serialization_bench_test.go:L13
+- .HasPrefix() [calls] internal/domain/dbguild/config_override.go:L27
+- TestCommandDocumentCacheFields() [calls] internal/infrastructure/mongo/command_repository_test.go:L130
+- TestPremiumDocumentCacheFields() [calls] internal/infrastructure/mongo/premium_repository_test.go:L121
+- .GetBot() [calls] internal/infrastructure/redis/bot_cache.go:L69
+- .GetCommand() [calls] internal/infrastructure/redis/command_cache.go:L43
+- .GetGlobal() [calls] internal/infrastructure/redis/global_cache.go:L30
+- .Get() [calls] internal/infrastructure/redis/guild_cache.go:L43
+- .GetFields() [calls] internal/infrastructure/redis/guild_cache.go:L57
+- TestMarshalGuildToHashAllModulesRoundTrip() [calls] internal/infrastructure/redis/guild_cache_test.go:L149
+- TestMarshalGuildToHashProfileRoundTrip() [calls] internal/infrastructure/redis/guild_cache_test.go:L277
+- TestMarshalGuildToHashProfileNilRoundTrip() [calls] internal/infrastructure/redis/guild_cache_test.go:L316
+- .hgetallDeserialized() [calls] internal/infrastructure/redis/guild_core_cache.go:L69
+- deserializeMap() [calls] internal/infrastructure/redis/guild_core_cache.go:L112
+- .GetModule() [calls] internal/infrastructure/redis/module_cache.go:L99
+- TestMarshalModuleGreeter_EnabledSinceNil() [calls] internal/infrastructure/redis/module_greeter_marshal_test.go:L20
+- TestMarshalModuleGreeter_CaptchaNilRoundTrips() [calls] internal/infrastructure/redis/module_greeter_marshal_test.go:L51
+- TestMarshalModuleGreeter_EnabledSinceDate() [calls] internal/infrastructure/redis/module_greeter_marshal_test.go:L72
+- deserializeHash() [calls] internal/infrastructure/redis/premium_cache.go:L96
+- BenchmarkSerializeValueString() [references] internal/infrastructure/redis/serialization_bench_test.go:L13

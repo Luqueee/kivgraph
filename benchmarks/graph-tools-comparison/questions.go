@@ -591,6 +591,65 @@ var reachQuestions = []question{
 		},
 		Reached: []string{"BaseCache", "ChipbotRecommendationsResponse"},
 	},
+	{
+		ID:       "X9_go_reach_depth1",
+		Family:   familyDependencies,
+		Ask:      "Which files declare something UserCache reaches outward in one hop?",
+		Language: "go, one edge is a field type and one is named only by a method",
+		Depth:    1,
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/infrastructure/redis/user_cache.go",
+			Name: "UserCache", Symbol: "UserCache",
+		},
+		// The Go counterpart of X4, and the fifth question reach.md said this
+		// set would need. X4's subject is a TypeScript class, whose methods sit
+		// between its braces, so a line range reaches them. Here the struct
+		// spans lines 10-12 and its only method is declared at line 26, past
+		// the closing brace: no span contains it, which is why ADR 0060 made
+		// the receiver a fact.
+		//
+		// Three files, and no two of the edges look alike. The struct's own
+		// declaration names `*Client`, so client.go is reachable from the
+		// struct alone -- and client.go also declares the HGetAll the method
+		// calls. serialization.go is reachable **only** through the method,
+		// which names DeserializeValue. So an answer that cannot see past the
+		// span scores R=0.33 here and looks complete: it returns a real file,
+		// reached by a real edge, and says nothing about what it could not
+		// follow.
+		//
+		// **This truth was wrong when it was written, and the correction is the
+		// most useful thing in this question.** It listed two files, hand-read
+		// out of the source. The third, core_reader.go, is where `CoreReader`
+		// is declared, and its line 54 is exactly `UserCache.GetUser`'s
+		// signature: the method implements that interface. No identifier in the
+		// subject's file spells `CoreReader`, so no amount of reading it and
+		// searching the names it mentions arrives there -- which is why the
+		// native arm claims two of three and the first draft of this truth
+		// agreed with it. Interface satisfaction is computed by `go/types`, not
+		// spelled, and it is the same class of edge as X4's `extends`.
+		//
+		// Out of scope by the family's own definition: `context.Context` is the
+		// standard library, and `userMetaKey` is declared in the subject's own
+		// file, which is never part of a truth.
+		Truth: []string{
+			"services/api-db-go/internal/infrastructure/redis/client.go",
+			"services/api-db-go/internal/infrastructure/redis/serialization.go",
+			"services/api-db-go/internal/domain/services/core_reader.go",
+		},
+		// The bare name is declared three times in the corpus, and the other
+		// two are TypeScript classes the Go doc comment itself points at. A
+		// reader answering this by hand has to tell them apart first.
+		Declarations: []string{
+			"services/api-db-go/internal/infrastructure/redis/user_cache.go",
+			"libraries/library-shared/src/redis/cache/core/user-cache-core.ts",
+			"libraries/library-shared/src/redis/cache/sdk/user-cache-sdk.ts",
+		},
+		// Reached stays at the three names the source actually mentions. Adding
+		// `CoreReader` would hand the native arm a search it has no way to know
+		// it should run, and price a reader for knowledge it does not have.
+		Reached: []string{"Client", "HGetAll", "DeserializeValue"},
+	},
 }
 
 // chainQuestions are the three tools an agent reaches for **after** an answer:
@@ -936,6 +995,52 @@ var rustQuestions = []question{
 	},
 }
 
+// trivialQuestions is the case this project has been claiming to lose without
+// ever measuring it. The root AGENTS.md says a rare name in a single small
+// repository is cheaper to grep -- one call, no schema, no resolving a symbol
+// first -- and then admits the harness "no incluye todavía el caso genuinamente
+// trivial", so that advantage "sigue siendo estructural y no una fila medida".
+// This is the row.
+//
+// Choosing the subject is the whole question, and two candidates were rejected
+// for being our home turf wearing a small file's clothes. `userMetaKey` occurs
+// twice, both inside its own declaring file, so a references truth would be the
+// empty set and this would measure absence -- which A1 already does. Worse,
+// `jsonMarshal` looks ideal at nine lines and is a **homonym**: two unexported
+// functions of that name in two packages of two repositories, different
+// signatures, nine grep lines a reader has to separate. That is the case we win.
+//
+// `newGMCClient` is the real thing: two occurrences in the entire corpus, one
+// declaration and one call, same package, no homonym anywhere in five
+// languages. A single grep answers it completely and a reader is done. We have
+// to resolve a symbol and wrap rows in an envelope to say the same thing, and
+// whatever that costs is what this set exists to publish.
+var trivialQuestions = []question{
+	{
+		ID:       "T1_go_trivial",
+		Family:   familyReferences,
+		Ask:      "Which files call newGMCClient in services/api-db-go?",
+		Language: "go, a rare unexported name in one small package",
+		Subject: subject{
+			Repo: "api-db-go", Dir: "services/api-db-go",
+			Path: "internal/infrastructure/locker/memcached.go",
+			Name: "newGMCClient", Symbol: "newGMCClient",
+		},
+		// One call, at locker.go:90. The declaring file is never in a truth,
+		// and here that leaves exactly one row -- which is the point: there is
+		// nothing to disambiguate, nothing transitive, and nothing a second
+		// call could add.
+		Truth: []string{
+			"services/api-db-go/internal/infrastructure/locker/locker.go",
+		},
+		// One declaration, and the file is 53 lines. The native arm reads it
+		// once and has the whole answer.
+		Declarations: []string{
+			"services/api-db-go/internal/infrastructure/locker/memcached.go",
+		},
+	},
+}
+
 // questionSet resolves the name a run was asked for. An unknown name is a
 // failure rather than a fallback: silently measuring the wrong set would
 // publish a number under the wrong label.
@@ -953,15 +1058,18 @@ func questionSet(name string) []question {
 		return chainQuestions
 	case "rust":
 		return rustQuestions
+	case "trivial":
+		return trivialQuestions
 	case "all":
 		out := append([]question{}, questions...)
 		out = append(out, hardQuestions...)
 		out = append(out, impactQuestions...)
 		out = append(out, reachQuestions...)
 		out = append(out, chainQuestions...)
-		return append(out, rustQuestions...)
+		out = append(out, rustQuestions...)
+		return append(out, trivialQuestions...)
 	default:
 		panic("unknown question set " + name +
-			`: use "measured", "hard", "impact", "reach", "chain", "rust" or "all"`)
+			`: use "measured", "hard", "impact", "reach", "chain", "rust", "trivial" or "all"`)
 	}
 }

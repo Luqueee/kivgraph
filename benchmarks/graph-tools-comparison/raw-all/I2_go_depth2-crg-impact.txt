@@ -1,0 +1,648 @@
+{
+  "status": "ok",
+  "summary": "Blast radius for 1 changed file(s):\n  - 18 nodes directly changed\n  - 0 nodes impacted (within 2 hops)\n  - 0 additional files affected",
+  "changed_files": [
+    "internal/application/handlers/guilds_handler.go"
+  ],
+  "changed_nodes": [
+    {
+      "id": 641,
+      "kind": "File",
+      "name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 1,
+      "line_end": 360,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 642,
+      "kind": "Class",
+      "name": "GuildsHandler",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 23,
+      "line_end": 31,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 657,
+      "kind": "Function",
+      "name": "AutomationScheduledGuildIDs",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 301,
+      "line_end": 320,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 651,
+      "kind": "Function",
+      "name": "Get",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.Get",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 95,
+      "line_end": 113,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 652,
+      "kind": "Function",
+      "name": "GetPermissions",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.GetPermissions",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 132,
+      "line_end": 169,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 654,
+      "kind": "Function",
+      "name": "ModmailEnabledGuildIDs",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 208,
+      "line_end": 234,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 656,
+      "kind": "Function",
+      "name": "ModmailEnabledList",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledList",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 272,
+      "line_end": 293,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 653,
+      "kind": "Function",
+      "name": "ModmailWebAccessCheck",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 175,
+      "line_end": 202,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 655,
+      "kind": "Function",
+      "name": "ModmailWebAccessList",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 239,
+      "line_end": 266,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 658,
+      "kind": "Function",
+      "name": "NotifierPendingGuildIDs",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 330,
+      "line_end": 359,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 644,
+      "kind": "Function",
+      "name": "WithNotifier",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.WithNotifier",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 41,
+      "line_end": 44,
+      "language": "go",
+      "parent_name": "GuildsHandler",
+      "is_test": false
+    },
+    {
+      "id": 643,
+      "kind": "Function",
+      "name": "NewGuildsHandler",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::NewGuildsHandler",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 34,
+      "line_end": 36,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 647,
+      "kind": "Class",
+      "name": "automationScheduledIDs",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::automationScheduledIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 71,
+      "line_end": 73,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 649,
+      "kind": "Class",
+      "name": "modmailEnabledIDs",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::modmailEnabledIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 82,
+      "line_end": 84,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 650,
+      "kind": "Class",
+      "name": "modmailGuildList",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::modmailGuildList",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 87,
+      "line_end": 89,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 646,
+      "kind": "Class",
+      "name": "modmailWebAccessCheck",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::modmailWebAccessCheck",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 64,
+      "line_end": 67,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 648,
+      "kind": "Class",
+      "name": "notifierPendingGuildIDs",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::notifierPendingGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 77,
+      "line_end": 79,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 645,
+      "kind": "Function",
+      "name": "replyNoSource",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line_start": 53,
+      "line_end": 58,
+      "language": "go",
+      "parent_name": null,
+      "is_test": false
+    }
+  ],
+  "impacted_nodes": [],
+  "impacted_files": [],
+  "edges": [
+    {
+      "id": 8553,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 23,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8554,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::NewGuildsHandler",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 34,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8556,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 53,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8561,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::modmailWebAccessCheck",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 64,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8562,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::automationScheduledIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 71,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8563,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::notifierPendingGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 77,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8564,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::modmailEnabledIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 82,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8565,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::modmailGuildList",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 87,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8555,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.WithNotifier",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 41,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8566,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.Get",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 95,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8580,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.GetPermissions",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 132,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8605,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 175,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8624,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 208,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8638,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 239,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8655,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledList",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 272,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8668,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 301,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8679,
+      "kind": "CONTAINS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 330,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8672,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 307,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8676,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 313,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8678,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 319,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8629,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 215,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8632,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 221,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8637,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 233,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8659,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 279,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8665,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 289,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8667,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailEnabledList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 292,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8610,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 182,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8614,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 187,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8617,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 193,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8620,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 198,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8623,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessCheck",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 201,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8643,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 246,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8646,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 252,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8649,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 257,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8652,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 262,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8654,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.ModmailWebAccessList",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 265,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8683,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 336,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8687,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 341,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8689,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 346,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8693,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 352,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    },
+    {
+      "id": 8695,
+      "kind": "CALLS",
+      "source": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::GuildsHandler.NotifierPendingGuildIDs",
+      "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go::replyNoSource",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/guilds_handler.go",
+      "line": 358,
+      "confidence": 1.0,
+      "confidence_tier": "EXTRACTED"
+    }
+  ],
+  "truncated": false,
+  "total_impacted": 0,
+  "nodes_omitted": 0,
+  "confidence": "changed files are indexed and the graph is current, so this 0 is a real absence",
+  "context_savings": {
+    "estimated": true,
+    "saved_tokens": 0,
+    "saved_percent": 0
+  }
+}

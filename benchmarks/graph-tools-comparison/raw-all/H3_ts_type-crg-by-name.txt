@@ -1,0 +1,131 @@
+{
+  "status": "ambiguous",
+  "summary": "'ApiRuntimeState' matches 5 node(s). Re-run with a qualified_name from disambiguation.",
+  "candidates": [
+    {
+      "id": 5236,
+      "kind": "Class",
+      "name": "ApiRuntimeState",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/types/gateway-registry.ts::ApiRuntimeState",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/types/gateway-registry.ts",
+      "line_start": 51,
+      "line_end": 57,
+      "language": "typescript",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 4201,
+      "kind": "Function",
+      "name": "all",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.all",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 32,
+      "line_end": 37,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    },
+    {
+      "id": 4197,
+      "kind": "Function",
+      "name": "find",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.find",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 13,
+      "line_end": 15,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    },
+    {
+      "id": 4204,
+      "kind": "Function",
+      "name": "markDead",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.markDead",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 55,
+      "line_end": 61,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    },
+    {
+      "id": 4198,
+      "kind": "Function",
+      "name": "save",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.save",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 17,
+      "line_end": 20,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    }
+  ],
+  "disambiguation": [
+    {
+      "id": 5236,
+      "kind": "Class",
+      "name": "ApiRuntimeState",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/types/gateway-registry.ts::ApiRuntimeState",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/types/gateway-registry.ts",
+      "line_start": 51,
+      "line_end": 57,
+      "language": "typescript",
+      "parent_name": null,
+      "is_test": false
+    },
+    {
+      "id": 4201,
+      "kind": "Function",
+      "name": "all",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.all",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 32,
+      "line_end": 37,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    },
+    {
+      "id": 4197,
+      "kind": "Function",
+      "name": "find",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.find",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 13,
+      "line_end": 15,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    },
+    {
+      "id": 4204,
+      "kind": "Function",
+      "name": "markDead",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.markDead",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 55,
+      "line_end": 61,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    },
+    {
+      "id": 4198,
+      "kind": "Function",
+      "name": "save",
+      "qualified_name": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts::GatewayApiRegistryCache.save",
+      "file_path": "/Users/adria/Documents/programacion/projects/kena/libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+      "line_start": 17,
+      "line_end": 20,
+      "language": "typescript",
+      "parent_name": "GatewayApiRegistryCache",
+      "is_test": false
+    }
+  ],
+  "candidate_count": 5,
+  "candidates_truncated": false,
+  "hint": "Use a qualified_name from disambiguation as the target parameter."
+}

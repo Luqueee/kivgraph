@@ -83,9 +83,49 @@ bloques `impl`, de `2` a `18`. La verdad se construyó sin preguntar al
 contenedor: la unión de lo que alcanza cada método con el binario anterior son
 `53`, y la respuesta son esas `53`. Era `LUQUE-2010`.
 
-Ninguna de las cuatro preguntas de este conjunto tiene por sujeto un tipo Go o
-Rust, así que las cifras de arriba **no se mueven** y el hallazgo vive fuera de
-la tabla. Medirlo aquí pediría una quinta pregunta.
+## `X9`: la quinta pregunta, que esta tabla debía y ahora tiene
+
+Las cuatro preguntas de arriba no tenían por sujeto un tipo Go ni Rust, así que
+el hallazgo del ADR 0060 vivía fuera de la tabla y este informe cerraba diciendo
+que medirlo «pediría una quinta pregunta». Ésta es.
+
+`X9_go_reach_depth1` pregunta qué ficheros declaran algo que `UserCache` alcanza
+en un salto. Es el gemelo Go de `X4`: allí el sujeto es una clase de TypeScript
+cuyos métodos viven entre sus llaves, aquí el `struct` ocupa las líneas `10-12` y
+su único método se declara en la `26`, pasado el cierre. Ningún span lo contiene.
+
+|brazo|tokens|llamadas|`P`|`R`|
+|---|---|---|---|---|
+|**`kivgraph`**|**`284`**|**`1`**|`1,00`|`1,00`|
+|`graphify`|`1.534`|`1`|`0,20`|`0,33`|
+|`grep` nativo|`15.729`|`4`|`1,00`|`1,00`|
+|`graft`, `codebase-memory-mcp`, `code-review-graph`|—|—|—|—|
+
+`55,4x` más barato que leer, con la misma exhaustividad. Los tres ausentes no
+pueden formular la pregunta: los dos primeros sólo exponen la dirección
+entrante, y el tercero organiza su grafo alrededor del blast radius.
+
+**Y la verdad de esta pregunta estaba mal cuando la escribí, que es lo más útil
+que tiene.** Listaba dos ficheros, leídos a mano del código: `client.go`, que
+declara el `*Client` del campo y el `HGetAll` que llama el método, y
+`serialization.go`, que declara el `DeserializeValue` que **sólo** el método
+nombra. La respuesta traía un tercero, `core_reader.go`, y lo di por falso
+positivo antes de comprobarlo. No lo era: su línea `22` declara
+`interface CoreReader` y su línea `54` es exactamente la firma de
+`UserCache.GetUser`. El método **implementa** esa interfaz, y ningún
+identificador del fichero sujeto escribe `CoreReader`. La satisfacción de una
+interfaz la computa `go/types`; no se deletrea.
+
+Con la verdad corregida a tres ficheros, un brazo que no viera más allá del span
+sacaría `R=0,33` **y parecería completo**: devolvería un fichero real, alcanzado
+por una arista real, y no diría nada de los dos que no pudo seguir.
+
+El brazo nativo sí llega a los tres, y conviene decir cómo: la línea `11` de
+`core_reader.go` menciona `DeserializeValue` **en un comentario**. Es el único
+lugar de ese fichero donde aparece alguno de los tres nombres que el sujeto
+escribe — `Client` y `HGetAll` no están—, así que su `R=1,00` cuelga de una línea
+de prosa. Borrar ese comentario dejaría al lector en `0,67` sin tocar una sola
+línea de código, y nuestra respuesta no se movería.
 
 ## Los cuatro rivales no están medidos aquí, y no es un cero
 

@@ -1,0 +1,1 @@
+{"columns":["file"],"rows":[],"total":0,"hint":"Query returned no results. Use get_graph_schema() to see available labels and edge types."}

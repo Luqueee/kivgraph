@@ -1,0 +1,1 @@
+AMBIGUOUS_SYMBOL: name "FindPendingGuilds" declares 2 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go:182, api-db-go:internal/infrastructure/pgrepo/repos.go:329

@@ -86,10 +86,25 @@ commit `f8a952d6`): responder cuesta entre `3,29x` (`MergeAll`, nombre raro) y
 `11,95x` (`NewServer`, nombre común) menos que `grep` más la lectura; la sesión
 completa -incluidos los cuerpos que el agente abre después, que pagan igual en
 los dos lados- entre `1,26x` y `8,05x`, con un suelo de `2,41x` fijado por el
-coste de esos cuerpos y no por el de la respuesta. El harness no incluye
-todavía el caso genuinamente trivial -un nombre raro en una sola línea de un
-archivo pequeño-, así que la ventaja de `grep` ahí sigue siendo estructural y
-no una fila medida.
+coste de esos cuerpos y no por el de la respuesta.
+
+El caso genuinamente trivial **ya es una fila medida**, y confirma la
+desventaja: `benchmarks/graph-tools-comparison/trivial.md`, sobre
+`newGMCClient` -- dos apariciones en todo `kena`, una declaración y una llamada,
+sin homónimo en cinco lenguajes. Los seis brazos aciertan y `grep` es el más
+barato de todos: `65` tokens contra nuestros `123`, o sea que costamos `1,9x`.
+Los otros cuatro grafos también pierden contra esa línea de `grep`, y la razón
+es estructural: el sobre de una respuesta -- `snapshot_id`, `coverage`, `total`,
+la fila con repositorio y rango-- cuesta más que dos líneas de texto cuando la
+respuesta **son** dos líneas de texto.
+
+Sobre las `29` preguntas de los seis conjuntos, `grep` sale más barato en cinco
+y la mediana queda en `5,95x` a nuestro favor. Tres de esas cinco son preguntas
+de ausencia, y ahí el coste y la evidencia no dicen lo mismo: un `grep` sin
+resultados es barato y no es una prueba, porque no distingue «nadie lo llama» de
+«los llamantes lo escriben de otra forma». Medido en el mismo corpus por `X1`,
+donde un consumidor real nunca deletrea el símbolo -- un reexport con `*` que lo
+cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
 
 ## Herramientas MCP en Oh My Pi
 

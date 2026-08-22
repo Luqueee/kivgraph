@@ -1,0 +1,1 @@
+{"columns":["file"],"rows":[["services/api-db-go/internal/infrastructure/postgres/client.go"],["services/api-db-go/internal/infrastructure/postgres/retry_test.go"],["packages/core/src/cluster/master/index.ts"],["packages/core/src/shared/utils/sharding.ts"],["packages/core/src/cluster/worker/BotWorker.ts"],["packages/gateway/src/grpc/server.ts"]],"total":6}

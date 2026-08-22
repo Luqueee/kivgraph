@@ -1,0 +1,1 @@
+{"function":"newGMCClient","direction":"inbound","mode":"calls","callers":[{"name":"New","qualified_name":"Users-adria-Documents-programacion-projects-kena.services.api-db-go.internal.infrastructure.locker.locker.New","hop":1}]}

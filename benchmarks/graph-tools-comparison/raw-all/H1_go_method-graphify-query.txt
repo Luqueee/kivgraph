@@ -1,0 +1,81 @@
+Traversal: BFS depth=2 | Start: ['BotsHandler', 'BotsHandler'] | 29 nodes found
+
+NODE main() [src=cmd/server/main.go loc=L42 community=15]
+NODE reply() [src=internal/application/handlers/bots_guilds_handler.go loc=L39 community=12]
+NODE WriteError() [src=internal/application/handlers/capture_errors.go loc=L61 community=12]
+NODE MongoMessage() [src=internal/domain/errors/mongo_error.go loc=L6 community=25]
+NODE NotFound() [src=internal/domain/errors/not_found.go loc=L7 community=60]
+NODE newBotsMockApp() [src=internal/application/handlers/bots_mock_test.go loc=L21 community=69]
+NODE BotsHandler [src=internal/application/handlers/bots_handler.go loc=L20 community=12]
+NODE TestRegisterBots_DeveloperNotShadowed() [src=internal/application/routers/routers_test.go loc=L135 community=53]
+NODE ParseGetBotsQuery() [src=internal/domain/validations/bot_validations.go loc=L48 community=83]
+NODE Ctx [src=internal/application/handlers/bots_handler.go loc=L47 community=12]
+NODE NewBotsHandler() [src=internal/application/handlers/bots_handler.go loc=L26 community=12]
+NODE Unknown() [src=internal/domain/errors/unknown_error.go loc=L6 community=161]
+NODE RegisterBots() [src=internal/application/routers/bots_router.go loc=L30 community=317]
+NODE TestRegisterBots_RoutesMounted() [src=internal/application/routers/routers_test.go loc=L95 community=53]
+NODE .Create() [src=internal/application/handlers/bots_handler.go loc=L95 community=12]
+NODE .GetAll() [src=internal/application/handlers/bots_handler.go loc=L47 community=12]
+NODE .Update() [src=internal/application/handlers/bots_handler.go loc=L167 community=12]
+NODE .GetModmail() [src=internal/application/handlers/bots_handler.go loc=L235 community=12]
+NODE .Delete() [src=internal/application/handlers/bots_handler.go loc=L209 community=12]
+NODE .GetDeveloper() [src=internal/application/handlers/bots_handler.go loc=L71 community=12]
+NODE ValidateDeveloperID() [src=internal/domain/validations/bot_validations.go loc=L74 community=98]
+NODE .GetByID() [src=internal/application/handlers/bots_handler.go loc=L143 community=12]
+NODE .GetModmailActiveGuild() [src=internal/application/handlers/bots_handler.go loc=L258 community=12]
+NODE bots_handler.go [src=internal/application/handlers/bots_handler.go loc=L1 community=12]
+NODE BotsRepo [src=internal/application/handlers/bots_handler.go loc=L21 community=12]
+NODE bots_router.go [src=internal/application/routers/bots_router.go loc=L1 community=317]
+NODE App [src=internal/application/routers/bots_router.go loc=L30 community=317]
+NODE BotsHandler [src=internal/application/routers/bots_router.go loc=L30 community=317]
+NODE activeGuildPayload [src=internal/application/handlers/bots_handler.go loc=L39 community=12]
+EDGE BotsHandler --contains [EXTRACTED]--> bots_handler.go
+EDGE BotsHandler --references [EXTRACTED context=return_type]--> NewBotsHandler()
+EDGE BotsHandler --method [EXTRACTED]--> .Create()
+EDGE BotsHandler --method [EXTRACTED]--> .Delete()
+EDGE BotsHandler --method [EXTRACTED]--> .GetAll()
+EDGE BotsHandler --method [EXTRACTED]--> .GetByID()
+EDGE BotsHandler --method [EXTRACTED]--> .GetDeveloper()
+EDGE BotsHandler --method [EXTRACTED]--> .GetModmail()
+EDGE BotsHandler --method [EXTRACTED]--> .GetModmailActiveGuild()
+EDGE BotsHandler --method [EXTRACTED]--> .Update()
+EDGE BotsHandler --references [EXTRACTED context=field]--> BotsRepo
+EDGE BotsHandler --references [EXTRACTED context=parameter_type]--> RegisterBots()
+EDGE .Delete() --calls [INFERRED context=call]--> reply()
+EDGE .Delete() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .Delete() --calls [INFERRED context=call]--> NotFound()
+EDGE .Delete() --calls [INFERRED context=call]--> WriteError()
+EDGE RegisterBots() --calls [INFERRED context=call]--> main()
+EDGE RegisterBots() --calls [INFERRED context=call]--> newBotsMockApp()
+EDGE RegisterBots() --contains [EXTRACTED]--> bots_router.go
+EDGE RegisterBots() --references [EXTRACTED context=parameter_type]--> App
+EDGE RegisterBots() --calls [INFERRED context=call]--> TestRegisterBots_DeveloperNotShadowed()
+EDGE RegisterBots() --calls [INFERRED context=call]--> TestRegisterBots_RoutesMounted()
+EDGE NewBotsHandler() --calls [INFERRED context=call]--> main()
+EDGE NewBotsHandler() --calls [INFERRED context=call]--> newBotsMockApp()
+EDGE NewBotsHandler() --calls [INFERRED context=call]--> TestRegisterBots_DeveloperNotShadowed()
+EDGE NewBotsHandler() --calls [INFERRED context=call]--> TestRegisterBots_RoutesMounted()
+EDGE .Create() --calls [INFERRED context=call]--> reply()
+EDGE .Create() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .Create() --calls [INFERRED context=call]--> MongoMessage()
+EDGE .Create() --calls [INFERRED context=call]--> WriteError()
+EDGE bots_handler.go --contains [EXTRACTED]--> activeGuildPayload
+EDGE .GetAll() --calls [INFERRED context=call]--> reply()
+EDGE .GetAll() --calls [INFERRED context=call]--> WriteError()
+EDGE .GetAll() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .GetAll() --calls [INFERRED context=call]--> ParseGetBotsQuery()
+EDGE .GetDeveloper() --calls [INFERRED context=call]--> reply()
+EDGE .GetDeveloper() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .GetDeveloper() --calls [INFERRED context=call]--> WriteError()
+EDGE .GetDeveloper() --calls [INFERRED context=call]--> ValidateDeveloperID()
+EDGE .Update() --calls [INFERRED context=call]--> reply()
+EDGE .Update() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .Update() --calls [INFERRED context=call]--> Unknown()
+EDGE .Update() --calls [INFERRED context=call]--> WriteError()
+EDGE .GetModmailActiveGuild() --calls [INFERRED context=call]--> reply()
+EDGE .GetModmailActiveGuild() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .GetModmailActiveGuild() --calls [INFERRED context=call]--> WriteError()
+EDGE .GetModmail() --calls [INFERRED context=call]--> reply()
+EDGE .GetModmail() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .GetModmail() --calls [INFERRED context=call]--> MongoMessage()
+... (truncated — 0 more nodes cut by ~2000-token budget. Narrow with context_filter=['call'] or use get_node for a specific symbol)

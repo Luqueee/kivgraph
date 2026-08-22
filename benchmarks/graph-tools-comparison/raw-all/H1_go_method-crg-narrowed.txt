@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "pattern": "callers_of",
+  "target": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/bots_handler.go::BotsHandler.GetAll",
+  "description": "Find all functions that call a given function",
+  "summary": "Found 0 result(s) for callers_of('/Users/adria/Documents/programacion/projects/kena/services/api-db-go/internal/application/handlers/bots_handler.go::BotsHandler.GetAll')",
+  "result_count": 0,
+  "results_omitted": 0,
+  "results": [],
+  "edges": [],
+  "confidence": "'BotsHandler.GetAll' is indexed and the graph is current, so this 0 is a real absence"
+}

@@ -1,0 +1,29 @@
+{
+  "query": "newGMCClient",
+  "matches": [
+    {
+      "symbol": {
+        "id": "services/api-db-go/internal/infrastructure/locker/memcached.go#newGMCClient",
+        "name": "newGMCClient",
+        "kind": "function",
+        "path": "services/api-db-go/internal/infrastructure/locker/memcached.go",
+        "span": "L23-L28"
+      },
+      "hits": [
+        {
+          "id": "services/api-db-go/internal/infrastructure/locker/locker.go#New",
+          "relation": "calls",
+          "depth": 1,
+          "name": "New",
+          "kind": "function",
+          "path": "services/api-db-go/internal/infrastructure/locker/locker.go",
+          "span": "L78-L107"
+        }
+      ]
+    }
+  ],
+  "saved": {
+    "files": 2,
+    "baselineChars": 8649
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "query": "CommandManager",
+  "matches": [
+    {
+      "symbol": {
+        "id": "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts#CommandManager",
+        "name": "CommandManager",
+        "kind": "class",
+        "path": "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
+        "span": "L8-L46"
+      },
+      "hits": [
+        {
+          "id": "modules/sdk-module-ts/src/sdk/client/ModuleActions.ts#ModuleActions.constructor",
+          "relation": "references",
+          "depth": 1,
+          "name": "constructor",
+          "kind": "method",
+          "path": "modules/sdk-module-ts/src/sdk/client/ModuleActions.ts",
+          "span": "L19-L27"
+        }
+      ]
+    }
+  ],
+  "saved": {
+    "files": 2,
+    "baselineChars": 2793
+  }
+}

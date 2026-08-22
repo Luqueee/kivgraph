@@ -1,0 +1,1 @@
+{"function":"FindPendingGuilds","direction":"inbound","mode":"calls","callers":[{"name":"NotifierPendingGuildIDs","qualified_name":"Users-adria-Documents-programacion-projects-kena.services.api-db-go.internal.application.handlers.guilds_handler.NotifierPendingGuildIDs","hop":1}]}

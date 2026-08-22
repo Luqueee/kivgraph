@@ -165,30 +165,98 @@ this question also asks whether a tool reads test code.
 
 ## The result
 
+Re-measured on `2026-08-22` with `kivgraph 0.5.0` (commit `c1bde5d`). The
+previously published table is superseded, and two independent things moved --
+they are separated below rather than folded into one number.
+
 |question|kivgraph|graphify|graft|codebase-memory|code-review-graph|`grep`|
 |---|---|---|---|---|---|---|
 |`H1_go_method`|**`1.00`/`1.00`**|`0.10`/`1.00`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
 |`H2_go_iface`|**`1.00`/`1.00`**|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|`1.00`/`1.00`|
-|`H3_ts_type`|**`1.00`/`1.00`**|`0.50`/`0.50`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
-|`H4_ts_alias`|**`1.00`/`1.00`**|`0.25`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`0.00`/`0.00`|`1.00`/`1.00`|
-|`H5_rs_trait`|**`1.00`/`1.00`**|`0.50`/`0.33`|`1.00`/`0.33`|`1.00`/`0.67`|`1.00`/`0.33`|`1.00`/`1.00`|
+|`H3_ts_type`|`0.50`/`1.00`|`0.50`/`0.50`|`0.00`/`0.00`|`0.00`/`0.00`|`0.00`/`0.00`|`1.00`/`1.00`|
+|`H4_ts_alias`|**`1.00`/`1.00`**|`0.00`/`0.00`|`1.00`/`1.00`|`1.00`/`1.00`|`0.00`/`0.00`|`1.00`/`1.00`|
+|`H5_rs_trait`|**`1.00`/`1.00`**|`0.00`/`0.00`|`1.00`/`0.33`|`1.00`/`0.67`|`0.00`/`0.00`|`1.00`/`1.00`|
 |`A1_go_absent`|**`1.00`/`1.00`**|`0.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
 |`A2_ts_absent`|**`1.00`/`1.00`**|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
 |`A3_rs_absent`|**`1.00`/`1.00`**|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|`1.00`/`1.00`|
-|`O3_rs_outline`|**`1.00`/`1.00`**|`0.75`/`0.86`|`0.00`/`0.00`|`0.60`/`0.86`|`0.75`/`0.86`|`1.00`/`1.00`|
-|**aggregate**|**`1.00`/`1.00`, `9/9`**|`0.46`/`0.74`, `2/9`|`0.56`/`0.48`, `4/9`|`0.62`/`0.61`, `4/9`|`0.64`/`0.58`, `4/9`|`1.00`/`1.00`, `9/9`|
-|**tokens**|**`1,827`**|`4,434`|`5,562`|`16,601`|`8,669`|`74,783`|
-|**calls**|`12`|`13`|`9`|`28`|`12`|`22`|
+|`O3_rs_outline`|**`1.00`/`1.00`**|`0.00`/`0.00`|`0.00`/`0.00`|`0.60`/`0.86`|`0.00`/`0.00`|`1.00`/`1.00`|
+|**exact**|**`8/9`**|`2/9`|`4/9`|`4/9`|`4/9`|`9/9`|
+|**tokens**|**`1,835`**|`2,663`|`5,562`|`16,601`|`3,511`|`42,698`|
+|**calls**|`12`|`11`|`9`|`28`|`11`|`17`|
 
-`9/9`, and counted in files rather than in means: `15` claimed, `0` false, `0`
-missed of `15` true. `grep` plus reading gets the same score for `74,783` tokens
-against `1,827` -- `41x` -- and no other tool here is above `4/9`.
+`grep` plus reading now gets `9/9` for `42,698` tokens against `1,835` --
+**`23.3x`**, where this table used to publish `41x`. That drop is a correction to
+the harness, not a change in the product, and it is the larger of the two moves.
 
-The three fixes cost `272` tokens across the set, and `H1` is the evidence they
-stayed where they were aimed: three receiver types share one method name, it is
-the question a careless bridge pollutes first, and it holds at `1.00`/`1.00`. The
-published seven were re-run on the same binary and stay at `7/7`, `1.00`/`1.00`,
-in `results-0.3.6.json`.
+### The `grep` column was overcharged
+
+Five of these nine subjects have exactly **one** declaration, and the native arm
+was charged for reading that declaring file whole. The only justification this
+harness ever gave for the charge is in the `Declarations` field's own doc: the
+reads are "the minimum a reader needs to tell homonyms apart". With one
+declaration there is nothing to separate, and `familyLocate` already made
+exactly that call -- it charges for the search alone because "the `grep` line
+itself shows `func withRetry(`".
+
+So the read is now charged only when a references question has more than one
+declaration site. The five that stop paying it:
+
+Measured both ways on the same corpus and the same generation, changing only the
+rule. The old rule reproduces this table's published `74,783` exactly, which is
+what makes the pair comparable:
+
+|question|before|after|
+|---|---|---|
+|`H3_ts_type`|`736`|`455`|
+|`H4_ts_alias`|`533`|`138`|
+|`A1_go_absent`|`558`|`29`|
+|`A2_ts_absent`|`6,365`|`42`|
+|`A3_rs_absent`|`24,625`|`68`|
+|**sum**|**`32,817`**|**`732`**|
+
+`A3_rs_absent` was billed `24,625` tokens, and every one of them was a whole-file
+read of a Rust source that could not change the answer: the question is whether
+anything references `build_all_image_sizes`, the search returns the declaration
+and nothing else, and that **is** the answer. Two thirds of what this set
+charged `grep` came from five questions where a reader would never have opened a
+file.
+
+The rule is scoped to references on purpose. `familyImpact` shares that code
+path and its reads are not about homonyms at all: a transitive answer is built
+by finding the declaration that **encloses** each hit and searching again, so the
+file must be opened regardless. An unscoped version of this fix undercharged a
+depth-3 question to `94` tokens -- for an answer no `grep` produces -- which is
+the same dishonesty pointing the other way.
+
+### `H3` lost precision, and it is not the release
+
+`H3_ts_type` was `1.00`/`1.00` and is now `0.50`/`1.00`: two extra rows, both
+`.d.ts` files under `libraries/library-shared/dist`. The published run states its
+corpus as "TypeScript packages NOT built (no `dist/`)"; that `dist/` exists now,
+built during unrelated work on the workspace's package linking. `generated_files`
+accepts only `include`, so a built package is indexed, and a reference inside a
+generated declaration file is a real occurrence in a real indexed file. The truth
+for this question was written against source.
+
+So the corpus moved, not the resolver. But the two rows expose something that is
+ours, and it is worth more than the score:
+
+```
+gateway:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
+sdk-module-ts:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
+```
+
+One file, attributed to **two repositories, neither of which contains it**, by a
+path that escapes its own repository with `../..`. A row is supposed to be
+addressable -- repository, repository-relative path, qualified name, range -- and
+neither of these can be fed back to any tool. This is the same class of defect
+that `fix(indexing): refuse Go facts whose file is outside the repository` closed
+for Go; the TypeScript side still does it. Recorded, not papered over.
+
+The three earlier fixes cost `272` tokens across the set and `H1` remains the
+evidence they stayed where they were aimed: three receiver types share one method
+name, it is the question a careless bridge pollutes first, and it holds at
+`1.00`/`1.00`.
 
 **Nine questions on one corpus is a small set.** Being right on all of them is
 not evidence of being right in general; it is the absence of a known miss on

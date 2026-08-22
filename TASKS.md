@@ -15515,3 +15515,36 @@ donde se declaran los campos -- `IndexSummary` en `internal/indexing/service.go`
 y en el protocolo de `cmd/kivgraph/AGENTS.md`, con los ratios medidos y el caso
 que los explica: un fichero de `pkg` y `pkg.test` se observa dos veces y se guarda
 una. Rust coincide exacto porque carga una pasada por workspace.
+
+## LUQUE-2011 — Un fichero de TypeScript fuera del repositorio se atribuye a quien lo consume
+
+**Dependencias:** ninguna.
+
+**El hueco:** medido como efecto colateral de `X9`, en `benchmarks/graph-tools-comparison/harder.md`.
+La respuesta de `H3_ts_type` trae dos filas con esta forma:
+
+```
+gateway:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
+sdk-module-ts:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
+```
+
+Un fichero, atribuido a **dos repositorios, y ninguno lo contiene**, por una ruta
+que se sale de su propio repositorio con `../..`. Toda fila debe ser
+direccionable -- repositorio, ruta relativa al repositorio, nombre cualificado y
+rango-- y ninguna de estas dos se puede devolver a ninguna tool.
+
+Es la misma clase que cerró `fix(indexing): refuse Go facts whose file is
+outside the repository`, que cuenta la pérdida en `FactsOutsideRepository` y
+retiene un `UNRESOLVED` con su motivo. El lado TypeScript no lo hace.
+
+**Lo que hay que decidir antes de tocar nada:** si el hecho se retira -- como en
+Go, con su contador y su no resuelto-- o si se **reatribuye** al repositorio que
+sí declara el fichero, que aquí sería `library-shared`. La segunda es más útil
+para quien pregunta y es una decisión de identidad, no una corrección de bug:
+cambia a qué repositorio pertenece un símbolo.
+
+**Lo que no vale:** una fila cuya ruta escapa de su repositorio. No es
+direccionable y el `AGENTS.md` promete que lo es.
+
+**Cómo reproducirlo:** exige `libraries/library-shared` construido, porque el
+fichero es `dist/*.d.ts` y `generated_files` sólo acepta `include`.
