@@ -49,10 +49,14 @@ func readStatus(ctx context.Context, session *sdkmcp.ClientSession) (statusAnswe
 // actually has. These come from find_symbol, so they exist, and they are sorted
 // so two runs of the same generation drive the same workload.
 func harvestProbes(ctx context.Context, session *sdkmcp.ClientSession) ([]mcpworkload.Probe, error) {
+	// The full view, because the compact default hoists the fields every row
+	// shares onto the page: this needs a stable key per row, which is exactly
+	// what the compact shape is built to stop repeating.
 	text, err := callTool(ctx, session, "find_symbol", map[string]any{
 		"name":            "e",
 		"mode":            "substring",
 		"limit":           probeCount,
+		"view":            "full",
 		"response_format": "detailed",
 	})
 	if err != nil {
