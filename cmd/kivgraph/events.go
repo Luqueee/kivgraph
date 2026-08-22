@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
@@ -67,10 +69,35 @@ func toolMetricsRegistry(events *eventlog.Writer) *metrics.Registry {
 			// so the classification survives without a field of its own.
 			event.Level = eventlog.LevelError
 			event.Status = eventlog.StatusError
-			event.Error = observation.Err.Error()
+			event.Error = errorWithCause(observation.Err)
 		}
 		events.Append(event)
 	})
+}
+
+// errorWithCause renders a tool failure with the cause it wrapped.
+//
+// Forty-odd call sites build their failures with WrapToolError, whose doc says
+// the cause is "retained for server-side diagnostics" -- and nothing was
+// writing it anywhere. ToolError.Error() prints only `CODE: message`, on
+// purpose, because that string is what reaches the client. This is the other
+// side, the one that never leaves the machine, and it is the only place the
+// cause can land.
+//
+// It was not academic: graph_status answered SNAPSHOT_UNAVAILABLE on every
+// corpus indexed after ADR 0060, and neither the response, the log nor stderr
+// said which of its four helpers had failed.
+func errorWithCause(err error) string {
+	rendered := err.Error()
+	cause := errors.Unwrap(err)
+	if cause == nil {
+		return rendered
+	}
+	detail := cause.Error()
+	if detail == "" || strings.Contains(rendered, detail) {
+		return rendered
+	}
+	return rendered + ": " + detail
 }
 
 // recordIndexRun writes what one indexing pass did. Stages come from the report

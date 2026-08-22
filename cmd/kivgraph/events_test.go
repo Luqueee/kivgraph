@@ -10,6 +10,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 )
@@ -68,6 +69,55 @@ func TestToolMetricsRegistryRecordsThroughToTheStore(t *testing.T) {
 	}
 	if got := report.Queries["get_source"].Errors; got != 1 {
 		t.Fatalf("the registry counted %d errors on get_source, want 1", got)
+	}
+}
+
+// A classified failure keeps its cause out of the client's answer on purpose,
+// so the durable store is the only place it can land. This is the case that was
+// invisible: graph_status refused every corpus indexed after ADR 0060 and
+// nothing recorded which of its helpers had failed.
+func TestToolMetricsRegistryRecordsTheWrappedCause(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	writer, err := eventlog.Open(path)
+	if err != nil {
+		t.Fatalf("eventlog.Open() error = %v", err)
+	}
+	registry := toolMetricsRegistry(writer)
+	cause := errors.New("symbol edge from 41 has an unknown kind 12")
+	registry.ObserveQuery(metrics.QueryObservation{
+		ToolName: "graph_status",
+		Elapsed:  time.Millisecond,
+		Err: tools.WrapToolError(
+			tools.CodeSnapshotUnavailable,
+			"active snapshot contains invalid status metadata",
+			cause,
+		),
+	})
+	// A failure with nothing wrapped must read exactly as before.
+	registry.ObserveQuery(metrics.QueryObservation{
+		ToolName: "find_symbol",
+		Elapsed:  time.Millisecond,
+		Err:      tools.NewToolError(tools.CodeInvalidArgument, "mode \"fuzzy\" is unsupported"),
+	})
+	writer.Close()
+
+	events, err := eventlog.Read(path, eventlog.ReadOptions{})
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("the store holds %d events, want 2", len(events))
+	}
+	wrapped := events[0]
+	if !strings.HasPrefix(wrapped.Error, tools.CodeSnapshotUnavailable+": ") {
+		t.Fatalf("the failure lost its code: %q", wrapped.Error)
+	}
+	if !strings.Contains(wrapped.Error, cause.Error()) {
+		t.Fatalf("the failure lost the cause it wrapped: %q", wrapped.Error)
+	}
+	bare := events[1]
+	if bare.Error != tools.CodeInvalidArgument+": mode \"fuzzy\" is unsupported" {
+		t.Fatalf("an unwrapped failure changed shape: %q", bare.Error)
 	}
 }
 
