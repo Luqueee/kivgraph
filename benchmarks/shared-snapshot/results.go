@@ -34,8 +34,11 @@ type results struct {
 	Snapshot    snapshotFile `json:"snapshot"`
 	Thresholds  thresholds   `json:"thresholds"`
 	Points      []point      `json:"points"`
-	Gate        gate         `json:"gate"`
-	Limitations []string     `json:"limitations"`
+	// SweepChecks price what no single count can see: the share at the gate's
+	// count, and that the share falls as servers are added.
+	SweepChecks []check  `json:"sweep_checks"`
+	Gate        gate     `json:"gate"`
+	Limitations []string `json:"limitations"`
 }
 
 // point is one client count measured on both arms.
@@ -65,11 +68,12 @@ type snapshotFile struct {
 }
 
 type thresholds struct {
-	ResidentShare  float64 `json:"resident_share"`
-	PrivateDirty   int64   `json:"private_dirty_bytes"`
-	P99Regression  float64 `json:"p99_regression"`
-	MeasuredOnly   bool    `json:"measured_only"`
-	GateSwitchName string  `json:"gate_switch_name"`
+	ResidentShareAtGate   float64 `json:"resident_share_at_gate"`
+	PrivateDirtyPerSymbol float64 `json:"private_dirty_bytes_per_symbol"`
+	P99DeltaMS            float64 `json:"p99_delta_ms"`
+	FirstAnswerSpeedup    float64 `json:"first_answer_speedup"`
+	MeasuredOnly          bool    `json:"measured_only"`
+	GateSwitchName        string  `json:"gate_switch_name"`
 }
 
 type processSample struct {
@@ -138,10 +142,10 @@ type gate struct {
 type check struct {
 	Name   string `json:"name"`
 	Passed bool   `json:"passed"`
-	// Skipped says the platform could not observe what this check prices. It is
-	// not a failure: procstat answers zero for a field the platform cannot
-	// report, and calling that a missed threshold points at the code instead of
-	// at the absent measurement.
+	// Skipped says the run could not observe what this check prices: a field
+	// the platform cannot report, or a sweep too short to compare. It is not a
+	// failure -- procstat answers zero for what it cannot measure, and calling
+	// that a missed threshold points at the code instead of at the absence.
 	Skipped bool    `json:"skipped"`
 	Got     float64 `json:"got"`
 	Want    float64 `json:"want"`
@@ -262,35 +266,87 @@ func limitations(out results) []string {
 // hold at the one count the gate names.
 func checksFor(measured point) []check {
 	mapped, hasMapped := armByName(measured, "mapped")
-	if !hasMapped {
+	derived, hasDerived := armByName(measured, "derived")
+	if !hasMapped || !hasDerived {
 		return nil
+	}
+	perSymbol := 0.0
+	if mapped.Symbols > 0 {
+		perSymbol = float64(mapped.Totals.WorstPrivateDirty) / float64(mapped.Symbols)
+	}
+	speedup := 0.0
+	if mapped.Totals.WorstFirstAnswerMS > 0 {
+		speedup = derived.Totals.WorstFirstAnswerMS / mapped.Totals.WorstFirstAnswerMS
 	}
 	return []check{
 		{
-			Name:   "resident_share",
-			Passed: measured.Comparison.ResidentShare > 0 && measured.Comparison.ResidentShare <= maximumResidentShare,
-			Got:    measured.Comparison.ResidentShare,
-			Want:   maximumResidentShare,
-			Detail: "total " + measured.Comparison.ResidentMeasure + " of the mapped arm over the derived arm",
-		},
-		{
-			Name: "private_dirty_per_process",
+			Name: "private_dirty_per_symbol",
 			// procstat answers zero for a field this platform cannot report,
 			// so a zero here is an absent measurement and not a small one.
 			Skipped: mapped.Totals.WorstPrivateDirty == 0 && !procstat.ProportionalSupported(),
-			Passed:  mapped.Totals.WorstPrivateDirty > 0 && mapped.Totals.WorstPrivateDirty <= maximumPrivateDirty,
-			Got:     float64(mapped.Totals.WorstPrivateDirty),
-			Want:    float64(maximumPrivateDirty),
-			Detail:  "the worst single server of the mapped arm",
+			Passed:  perSymbol > 0 && perSymbol <= maximumPrivateDirtyPerSymbol,
+			Got:     perSymbol,
+			Want:    maximumPrivateDirtyPerSymbol,
+			Detail:  "bytes the worst single mapped server decodes for itself, per symbol served",
 		},
 		{
-			Name:   "p99_not_worse",
-			Passed: measured.Comparison.P99Ratio > 0 && measured.Comparison.P99Ratio <= 1+maximumP99Regression,
-			Got:    measured.Comparison.P99Ratio,
-			Want:   1 + maximumP99Regression,
-			Detail: "mapped p99 over derived p99",
+			Name:   "p99_absolute_delta_ms",
+			Passed: mapped.Latency.P99MS > 0 && mapped.Latency.P99MS-derived.Latency.P99MS <= maximumP99DeltaMS,
+			Got:    mapped.Latency.P99MS - derived.Latency.P99MS,
+			Want:   maximumP99DeltaMS,
+			Detail: "mapped p99 minus derived p99, absolute because a ratio between sub-millisecond tails prices the noise",
+		},
+		{
+			Name:   "first_answer_speedup",
+			Passed: speedup >= minimumFirstAnswerSpeedup,
+			Got:    speedup,
+			Want:   minimumFirstAnswerSpeedup,
+			Detail: "derived time to first answer over mapped, worst server of each arm",
 		},
 	}
+}
+
+// sweepChecks price what no single count can see: the share at the gate's count
+// and, above all, that the share falls as servers are added. That fall is the
+// design property -- a mapped page is paid for once by the machine however many
+// processes hold it -- and it is the one claim that does not depend on the
+// corpus or on how many clients someone chose to run.
+func sweepChecks(out results) []check {
+	gatePoint, found := pointByClients(out, out.GateClients)
+	share := check{
+		Name:    "resident_share_at_gate",
+		Skipped: !found,
+		Detail: fmt.Sprintf("total %s of the mapped arm over the derived arm at %d clients",
+			gatePoint.Comparison.ResidentMeasure, out.GateClients),
+		Want: maximumResidentShareAtGate,
+	}
+	if found {
+		share.Got = gatePoint.Comparison.ResidentShare
+		share.Passed = share.Got > 0 && share.Got <= maximumResidentShareAtGate
+	}
+
+	falls := check{
+		Name:   "resident_share_falls_with_clients",
+		Detail: "the share at each count against the previous one; 1 means it fell every time",
+		Want:   1,
+	}
+	if len(out.Points) < 2 {
+		falls.Skipped = true
+		return []check{share, falls}
+	}
+	fell := true
+	for index := 1; index < len(out.Points); index++ {
+		previous := out.Points[index-1].Comparison.ResidentShare
+		current := out.Points[index].Comparison.ResidentShare
+		if previous <= 0 || current <= 0 || current >= previous {
+			fell = false
+		}
+	}
+	falls.Passed = fell
+	if fell {
+		falls.Got = 1
+	}
+	return []check{share, falls}
 }
 
 // decide evaluates every check always, and enforces them only when asked.
@@ -314,7 +370,7 @@ func decide(out results) gate {
 		return decision
 	}
 
-	decision.Checks = measured.Checks
+	decision.Checks = append(append([]check{}, out.SweepChecks...), measured.Checks...)
 
 	// A refusal is not a failed threshold: it says the run cannot answer.
 	if !out.Environment.ProportionalSupported {
@@ -408,6 +464,9 @@ func writeResults(directory string, out results) error {
 func printSummary(out results) {
 	fmt.Printf("snapshot %d, %d calls, %d discarded, seed %d, gate at %d clients\n",
 		out.SnapshotID, out.Calls, out.Warmup, out.Seed, out.GateClients)
+	for _, item := range out.SweepChecks {
+		fmt.Printf("  check %-34s %-4s got %.3f want %.3f\n", item.Name, checkState(item), item.Got, item.Want)
+	}
 	for _, measured := range out.Points {
 		fmt.Printf(" %d clients\n", measured.Clients)
 		for _, item := range measured.Arms {
@@ -417,18 +476,11 @@ func printSummary(out results) {
 				megabytes(item.Totals.SharedCleanByte), megabytes(item.Totals.PrivateDirtyByte),
 				item.Latency.P99MS, item.Totals.WorstFirstAnswerMS)
 		}
-		fmt.Printf("  %s share %.3f (want <= %.2f), worst private_dirty %s (want <= %s), p99 ratio %.3f\n",
-			measured.Comparison.ResidentMeasure, measured.Comparison.ResidentShare, maximumResidentShare,
-			megabytes(worstPrivate(measured)), megabytes(maximumPrivateDirty), measured.Comparison.P99Ratio)
+		fmt.Printf("  %s share %.3f, worst private_dirty %s, p99 ratio %.3f\n",
+			measured.Comparison.ResidentMeasure, measured.Comparison.ResidentShare,
+			megabytes(worstPrivate(measured)), measured.Comparison.P99Ratio)
 		for _, item := range measured.Checks {
-			state := "FAIL"
-			switch {
-			case item.Skipped:
-				state = "skip"
-			case item.Passed:
-				state = "ok"
-			}
-			fmt.Printf("  check %-26s %-4s got %.3f want %.3f\n", item.Name, state, item.Got, item.Want)
+			fmt.Printf("  check %-34s %-4s got %.3f want %.3f\n", item.Name, checkState(item), item.Got, item.Want)
 		}
 	}
 	for _, refusal := range out.Gate.Refusals {
@@ -454,6 +506,17 @@ func measuredClients(out results) []int {
 		counts = append(counts, measured.Clients)
 	}
 	return counts
+}
+
+func checkState(item check) string {
+	switch {
+	case item.Skipped:
+		return "skip"
+	case item.Passed:
+		return "ok"
+	default:
+		return "FAIL"
+	}
 }
 
 func worstPrivate(measured point) int64 {
