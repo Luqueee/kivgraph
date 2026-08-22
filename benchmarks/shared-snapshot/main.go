@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -201,12 +202,16 @@ func measureArm(ctx context.Context, cfg config, name string) (arm, error) {
 	// server, so passing -config alone does not isolate anything: the first run
 	// of this harness pointed at an isolated generation and measured the real
 	// installation's, and nothing said so.
-	if want := filepath.Base(filepath.Clean(cfg.GenerationDir)); status.GenerationID != want {
+	want, parseErr := strconv.ParseUint(filepath.Base(filepath.Clean(cfg.GenerationDir)), 10, 64)
+	if parseErr != nil {
+		return arm{}, fmt.Errorf("-generation-dir must be named after its generation number: %w", parseErr)
+	}
+	if status.SnapshotID != want {
 		return arm{}, fmt.Errorf(
-			"the servers serve generation %q but -generation-dir names %q: "+
+			"the servers serve snapshot %d but -generation-dir names generation %d: "+
 				"the environment given to the server resolves to another state directory "+
 				"(a configuration written by `init` stores `~` paths, so HOME decides)",
-			status.GenerationID, want)
+			status.SnapshotID, want)
 	}
 	loaded, err := readLoadedFromFile(cfg.GenerationDir)
 	if err != nil {
@@ -250,7 +255,7 @@ func measureArm(ctx context.Context, cfg config, name string) (arm, error) {
 
 	return arm{
 		Name:           name,
-		GenerationID:   status.GenerationID,
+		SnapshotID:     status.SnapshotID,
 		Symbols:        status.Symbols,
 		ServedFromFile: loaded,
 		Processes:      samples,

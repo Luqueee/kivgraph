@@ -18,8 +18,8 @@ import (
 // these fields is deliberate: a benchmark that unmarshalled the whole response
 // would fail to compile every time an unrelated field moved.
 type statusAnswer struct {
-	GenerationID string
-	Symbols      int
+	SnapshotID uint64
+	Symbols    int
 }
 
 func readStatus(ctx context.Context, session *sdkmcp.ClientSession) (statusAnswer, error) {
@@ -28,18 +28,18 @@ func readStatus(ctx context.Context, session *sdkmcp.ClientSession) (statusAnswe
 		return statusAnswer{}, err
 	}
 	var decoded struct {
-		GenerationID string `json:"generation_id"`
-		Counts       struct {
+		SnapshotID *uint64 `json:"snapshot_id"`
+		Results    struct {
 			Symbols int `json:"symbols"`
-		} `json:"counts"`
+		} `json:"results"`
 	}
 	if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 		return statusAnswer{}, fmt.Errorf("decode graph_status: %w", err)
 	}
-	if decoded.GenerationID == "" || decoded.Counts.Symbols == 0 {
-		return statusAnswer{}, fmt.Errorf("graph_status named no generation or no symbols: %s", clip(text, 200))
+	if decoded.SnapshotID == nil || decoded.Results.Symbols == 0 {
+		return statusAnswer{}, fmt.Errorf("graph_status named no snapshot or no symbols: %s", clip(text, 200))
 	}
-	return statusAnswer{GenerationID: decoded.GenerationID, Symbols: decoded.Counts.Symbols}, nil
+	return statusAnswer{SnapshotID: *decoded.SnapshotID, Symbols: decoded.Results.Symbols}, nil
 }
 
 // harvestProbes draws the workload's subjects from the snapshot under test.
