@@ -155,6 +155,16 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 - Los iteradores `VisitRepositories`, `VisitPackages`, `VisitFiles`,
   `VisitSymbols`, `VisitEvidence` y `VisitEdges` entregan copias por valor y
   no exponen slices internas; sus rangos son half-open y cancelables.
+- La evidencia de una arista viaja al HotSnapshot **sin su posición**:
+  `hotsnapshot.EvidenceRecord` lleva clave, los dos ficheros, clase y
+  procedencia, y el vano observado se queda en el grafo canónico. Así que
+  ninguna tool puede abrir el texto que justifica una arista, en ninguno de los
+  cinco lenguajes: una fila de `find_references` usa el rango del símbolo y su
+  `evidence_kind` sale de la procedencia. Es un hueco declarado, no un defecto
+  a arreglar de paso: proyectarlo sube la versión del formato de filas del
+  snapshot -- una superficie de compatibilidad-- y hoy ningún consumidor lo
+  pide. Quien añada un `evidence_key` a un lenguaje debe saber que completa el
+  contrato canónico y no cambia ninguna respuesta.
 - `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
   así que las columnas de una tabla se resuelven una vez por tabla y nunca por
   fila. El grafo tiene una arista por referencia del corpus.
