@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -108,15 +109,25 @@ func TestGraphStatusReportsPublishedSnapshotProvenanceAndCounts(t *testing.T) {
 		t.Fatalf("snapshot_built_at = %q", status.SnapshotBuiltAt)
 	}
 	if status.Repositories != 2 || status.Packages != 2 || status.Files != 2 || status.Symbols != 3 ||
-		status.Edges != 2 || status.Unresolved != 2 {
+		status.Edges != 3 || status.Unresolved != 2 {
 		t.Fatalf("counts = %#v", status)
 	}
 	wantEdges := []GraphStatusCount{
 		{Key: string(facts.CallsDirect), Count: 1},
+		{Key: string(facts.MethodOf), Count: 1},
 		{Key: string(facts.References), Count: 1},
 	}
-	if len(status.EdgesByKind) != 2 || status.EdgesByKind[0] != wantEdges[0] || status.EdgesByKind[1] != wantEdges[1] {
+	if !reflect.DeepEqual(status.EdgesByKind, wantEdges) {
 		t.Fatalf("edges_by_kind = %#v, want %#v", status.EdgesByKind, wantEdges)
+	}
+	// The breakdown sits under the edge count and has to add up to it. A kind
+	// the walk refuses, or counts twice, is invisible to the assertion above.
+	summed := 0
+	for _, entry := range status.EdgesByKind {
+		summed += entry.Count
+	}
+	if summed != status.Edges {
+		t.Fatalf("edges_by_kind sums to %d, want the edge count %d", summed, status.Edges)
 	}
 	wantReasons := []GraphStatusCount{
 		{Key: "PACKAGE_PROVIDER_NOT_FOUND", Count: 1},
@@ -393,6 +404,10 @@ func graphStatusStore(t testing.TB, id uint64) *hotsnapshot.SnapshotStore {
 		Edges: []hotsnapshot.EdgeRow{
 			{SourceKey: "sym-a", TargetKey: "sym-b", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-go", EvidenceTargetFileKey: "file-go"},
 			{SourceKey: "sym-c", TargetKey: "sym-a", Kind: facts.CodeReferences, Confidence: facts.CodeCandidate, Provenance: facts.CodeTreeSitterSyntax, EvidenceKind: "syntax", EvidenceSourceFileKey: "file-ts", EvidenceTargetFileKey: "file-go"},
+			// A symbol edge that is not a reference. Without one, the
+			// breakdown could refuse a legitimate kind and every
+			// assertion here would still pass.
+			{SourceKey: "sym-b", TargetKey: "sym-a", Kind: facts.CodeMethodOf, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-go", EvidenceTargetFileKey: "file-go"},
 		},
 		Unresolved: []hotsnapshot.UnresolvedReferenceRow{
 			{Key: "unresolved-go", RepositoryKey: "repo-go", Language: "go", RequestedPackage: "example.com/missing", Reason: "package_not_found"},

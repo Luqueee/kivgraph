@@ -379,18 +379,21 @@ func snapshotRepositoryFreshness(snapshot *hotsnapshot.GraphSnapshot, repositori
 // snapshotEdgeKindCounts walks the forward CSR once. Every symbol edge is
 // counted exactly once because the forward adjacency holds each edge under its
 // source; the reverse CSR is the same multiset seen from the other end.
+//
+// Every kind is counted, not only the ones find_references answers with. This
+// breakdown sits under the `edges` count and has to add up to it: METHOD_OF is
+// a symbol edge the graph genuinely holds, and refusing it made graph_status
+// fail outright on every corpus indexed after ADR 0060. An unknown code is a
+// different thing -- a row this build cannot read -- and still fails.
 func snapshotEdgeKindCounts(snapshot *hotsnapshot.GraphSnapshot, symbols int) ([]GraphStatusCount, error) {
 	counts := make(map[string]int)
 	for id := 0; id < symbols; id++ {
 		for _, edge := range snapshot.Outgoing(hotsnapshot.SymbolID(id)) {
-			decoded, isReference, err := decodeReferenceEdge(edge)
+			kind, err := facts.EdgeKindFromCode(edge.Kind)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("symbol edge from %d: %w", id, err)
 			}
-			if !isReference {
-				return nil, fmt.Errorf("symbol edge from %d has non-reference kind %d", id, edge.Kind)
-			}
-			counts[string(decoded.Kind)]++
+			counts[string(kind)]++
 		}
 	}
 	return sortedStatusCounts(counts), nil
