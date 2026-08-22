@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-22T09:32:59.343931Z",
-  "commit": "c1bde5d",
+  "generated_at": "2026-08-22T10:18:32.177491Z",
+  "commit": "954b9eb",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -23,9 +23,9 @@
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/st-x9/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/home-x9; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
   "indexing": {},
@@ -47,12 +47,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 160,
-              "ms": 123.186
+              "tokens": 40,
+              "ms": 181.327,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 160,
-          "ms": 123.186,
+          "tokens": 40,
+          "ms": 181.327,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -67,34 +69,21 @@
             ],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, and 5 of the 5 file(s) the answer needs live outside library-shared, so they were never in the graph this query read"
+          "note": "callers_of withRetry exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 4392,
-              "ms": 8.497
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 563,
-              "ms": 8.117
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 346,
-              "ms": 0.361
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 421.495
+              "tokens": 23,
+              "ms": 0.131,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 5335,
-          "ms": 438.47,
-          "call_count": 4,
+          "tokens": 23,
+          "ms": 0.131,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -108,31 +97,23 @@
             ],
             "spurious": []
           },
-          "note": "trace_path named 6 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 10
+          "note": "search_graph failed to locate withRetry: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 1244,
-              "ms": 260.463
+              "tokens": 0,
+              "ms": 0.037,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 1244,
-          "ms": 260.463,
+          "tokens": 0,
+          "ms": 0.037,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go"
-          ],
           "score": {
-            "claimed_set": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
@@ -142,25 +123,19 @@
               "gateway:src/grpc/server.ts",
               "sdk-module-ts:src/sdk/client/KenaModule.ts"
             ],
-            "spurious": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ]
-          },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 7
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 52,
-              "ms": 106.936
+              "ms": 152.293
             }
           ],
           "tokens": 52,
-          "ms": 106.936,
+          "ms": 152.293,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -182,18 +157,18 @@
             {
               "tool": "find_references",
               "tokens": 129,
-              "ms": 0.164,
+              "ms": 0.188,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 203,
-              "ms": 0.176
+              "ms": 0.177
             }
           ],
           "tokens": 332,
-          "ms": 0.33999999999999997,
+          "ms": 0.365,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/BotWorker.ts",
@@ -300,154 +275,91 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 607,
-              "ms": 106.799
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 3183,
-              "ms": 102.242
+              "tokens": 39,
+              "ms": 104.494,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 3790,
-          "ms": 209.041,
-          "call_count": 2,
-          "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "api-db-go:internal/shared/infisical/infisical_test.go"
-            ],
-            "precision": 0.6666666666666666,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "api-db-go:internal/shared/infisical/infisical_test.go"
-            ]
-          },
-          "ambiguous_declarations": 2
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 4392,
-              "ms": 8.237
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 597,
-              "ms": 8.683
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 346,
-              "ms": 0.356
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 84,
-              "ms": 393.927
-            }
-          ],
-          "tokens": 5419,
-          "ms": 411.20300000000003,
-          "call_count": 4,
-          "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "core:src/cluster/master/index.ts",
-            "core:src/shared/utils/sharding.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "gateway:src/grpc/server.ts"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ],
-            "precision": 0.3333333333333333,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ]
-          },
-          "note": "trace_path named 6 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 10
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 1244,
-              "ms": 240.297
-            }
-          ],
-          "tokens": 1244,
-          "ms": 240.297,
+          "tokens": 39,
+          "ms": 104.494,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go"
-          ],
           "score": {
-            "claimed_set": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
               "api-db-go:internal/infrastructure/postgres/client.go",
               "api-db-go:internal/infrastructure/postgres/retry_test.go"
             ],
-            "spurious": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ]
+            "spurious": []
           },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 7
+          "note": "callers_of withRetry exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.148,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.148,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate withRetry: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.035,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.035,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 123.458
+              "ms": 133.844
             },
             {
               "tool": "graphify affected",
               "tokens": 76,
-              "ms": 131.299
+              "ms": 138.217
             }
           ],
           "tokens": 84,
-          "ms": 254.757,
+          "ms": 272.06100000000004,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -467,18 +379,18 @@
             {
               "tool": "find_references",
               "tokens": 129,
-              "ms": 0.304,
+              "ms": 0.301,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 197,
-              "ms": 0.174
+              "ms": 0.168
             }
           ],
           "tokens": 326,
-          "ms": 0.478,
+          "ms": 0.469,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/retry_test.go",
@@ -585,13 +497,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 37,
-              "ms": 97.776,
+              "ms": 100.752,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 37,
-          "ms": 97.776,
+          "ms": 100.752,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -616,36 +528,20 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 527,
-              "ms": 8.255
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 1602,
-              "ms": 1.011
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 153,
-              "ms": 393.492
+              "tokens": 23,
+              "ms": 0.138,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 2282,
-          "ms": 402.75800000000004,
-          "call_count": 3,
-          "claimed": [
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
-          ],
+          "tokens": 23,
+          "ms": 0.138,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
               "core:src/cluster/worker/ipc/client.ipc.ts",
               "core:src/cluster/worker/ipc/guild.ipc.ts",
@@ -656,70 +552,28 @@
               "core:src/cluster/worker/ipc/voice.ipc.ts",
               "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 39 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate getRequiredField: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 3731,
-              "ms": 223.256
+              "tokens": 0,
+              "ms": 0.047,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 3731,
-          "ms": 223.256,
+          "tokens": 0,
+          "ms": 0.047,
           "call_count": 1,
-          "claimed": [
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
               "core:src/cluster/worker/ipc/client.ipc.ts",
               "core:src/cluster/worker/ipc/guild.ipc.ts",
@@ -730,9 +584,6 @@
               "core:src/cluster/worker/ipc/voice.ipc.ts",
               "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -741,13 +592,13 @@
             {
               "tool": "graphify affected",
               "tokens": 27,
-              "ms": 71.048,
+              "ms": 74.938,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 27,
-          "ms": 71.048,
+          "ms": 74.938,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -772,17 +623,17 @@
           "calls": [
             {
               "tool": "find_references",
-              "tokens": 725,
-              "ms": 0.468
+              "tokens": 673,
+              "ms": 0.417
             },
             {
               "tool": "find_references",
-              "tokens": 365,
-              "ms": 0.171
+              "tokens": 333,
+              "ms": 0.173
             }
           ],
-          "tokens": 1090,
-          "ms": 0.639,
+          "tokens": 1006,
+          "ms": 0.59,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/ipc/role.ipc.ts",
@@ -791,6 +642,8 @@
             "core:src/cluster/worker/ipc/role.ipc.ts",
             "core:src/cluster/worker/ipc/role.ipc.ts",
             "core:src/cluster/worker/ipc/role.ipc.ts",
+            "core:src/cluster/worker/ipc/role.ipc.ts",
+            "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -803,6 +656,8 @@
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/thread.ipc.ts",
             "core:src/cluster/worker/ipc/thread.ipc.ts",
+            "core:src/cluster/worker/ipc/thread.ipc.ts",
+            "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
@@ -831,26 +686,18 @@
             "core:src/cluster/worker/ipc/guild.ipc.ts",
             "core:src/cluster/worker/ipc/guild.ipc.ts",
             "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
+            "core:src/cluster/worker/ipc/voice.ipc.ts",
+            "core:src/cluster/worker/ipc/voice.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
+            "core:src/cluster/worker/ipc/role.ipc.ts",
             "core:src/cluster/worker/ipc/user.ipc.ts",
             "core:src/cluster/worker/ipc/user.ipc.ts",
             "core:src/cluster/worker/ipc/user.ipc.ts"
@@ -864,12 +711,13 @@
               "core:src/cluster/worker/ipc/role.ipc.ts",
               "core:src/cluster/worker/ipc/thread.ipc.ts",
               "core:src/cluster/worker/ipc/user.ipc.ts",
-              "core:src/cluster/worker/ipc/voice.ipc.ts",
-              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+              "core:src/cluster/worker/ipc/voice.ipc.ts"
             ],
             "precision": 1,
-            "recall": 1,
-            "missing": [],
+            "recall": 0.8888888888888888,
+            "missing": [
+              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+            ],
             "spurious": []
           }
         },
@@ -934,13 +782,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 41,
-              "ms": 95.486,
+              "ms": 100.995,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 41,
-          "ms": 95.486,
+          "ms": 100.995,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -962,81 +810,17 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 690,
-              "ms": 9.192
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 178,
-              "ms": 9.127
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 453,
-              "ms": 0.429
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 65,
-              "ms": 419.441
+              "tokens": 23,
+              "ms": 0.133,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 1386,
-          "ms": 438.18899999999996,
-          "call_count": 4,
-          "claimed": [
-            "kenalink-rs:src/api_rest/error.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs"
-          ],
-          "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
-            ],
-            "precision": 1,
-            "recall": 0.6666666666666666,
-            "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs"
-            ],
-            "spurious": []
-          },
-          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 4
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 1345,
-              "ms": 229.802
-            }
-          ],
-          "tokens": 1345,
-          "ms": 229.802,
+          "tokens": 23,
+          "ms": 0.133,
           "call_count": 1,
-          "claimed": [
-            "api-music-nodo:src/providers/chipbot.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/system/chipbot_files.rs"
-          ],
           "score": {
-            "claimed_set": [
-              "api-music-nodo:src/providers/chipbot.rs",
-              "api-music-nodo:src/providers/deezer.rs",
-              "api-music-nodo:src/system/chipbot_files.rs"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
@@ -1047,27 +831,50 @@
               "kenalink-rs:src/audio/songbird_engine.rs",
               "kenalink-rs:src/main.rs"
             ],
-            "spurious": [
-              "api-music-nodo:src/providers/chipbot.rs",
-              "api-music-nodo:src/providers/deezer.rs",
-              "api-music-nodo:src/system/chipbot_files.rs"
-            ]
+            "spurious": []
           },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 4
+          "note": "search_graph failed to locate now_ms: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.035,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.035,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/audio/songbird_engine.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 31,
-              "ms": 71.078,
+              "ms": 74.82,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 31,
-          "ms": 71.078,
+          "ms": 74.82,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1090,18 +897,18 @@
             {
               "tool": "find_references",
               "tokens": 84,
-              "ms": 0.253,
+              "ms": 0.214,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
               "tokens": 790,
-              "ms": 0.271
+              "ms": 0.262
             }
           ],
           "tokens": 874,
-          "ms": 0.524,
+          "ms": 0.476,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs",
@@ -1225,12 +1032,14 @@
           "calls": [
             {
               "tool": "code-review-graph impact",
-              "tokens": 1279,
-              "ms": 162.975
+              "tokens": 39,
+              "ms": 102.04,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1279,
-          "ms": 162.975,
+          "tokens": 39,
+          "ms": 102.04,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1242,110 +1051,72 @@
             ],
             "spurious": []
           },
-          "note": "impact takes changed files, never a declaration -- `--files internal/infrastructure/postgres/retry.go::expBackoffJitter` reports zero changed nodes -- so this is the whole file's reachable set at the selectable --depth 2: 0 nodes over 0 files"
+          "note": "impact exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 1064,
-              "ms": 10.707
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 547,
-              "ms": 10.176
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 623,
-              "ms": 0.514
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 98,
-              "ms": 2827.519
+              "tokens": 23,
+              "ms": 0.132,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 2332,
-          "ms": 2848.9159999999997,
-          "call_count": 4,
-          "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "core:src/cluster/master/index.ts",
-            "core:src/shared/utils/sharding.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "gateway:src/grpc/server.ts"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ],
-            "precision": 0.3333333333333333,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ]
-          },
-          "note": "trace_path named 13 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 2
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 371,
-              "ms": 226.424
-            }
-          ],
-          "tokens": 371,
-          "ms": 226.424,
+          "tokens": 23,
+          "ms": 0.132,
           "call_count": 1,
-          "claimed": [
-            "library-shared:src/utils/retry.ts"
-          ],
           "score": {
-            "claimed_set": [
-              "library-shared:src/utils/retry.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
               "api-db-go:internal/infrastructure/postgres/client.go",
               "api-db-go:internal/infrastructure/postgres/retry_test.go"
             ],
-            "spurious": [
-              "library-shared:src/utils/retry.ts"
-            ]
+            "spurious": []
           },
-          "note": "answered about 2 declarations sharing the name",
-          "ambiguous_declarations": 2
+          "note": "search_graph failed to locate expBackoffJitter: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.035,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.035,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 11,
-              "ms": 124.436
+              "ms": 126.721
             },
             {
               "tool": "graphify affected",
               "tokens": 46,
-              "ms": 129.171
+              "ms": 131.213
             }
           ],
           "tokens": 57,
-          "ms": 253.607,
+          "ms": 257.93399999999997,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -1364,12 +1135,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2322,
-              "ms": 0.984
+              "tokens": 2380,
+              "ms": 1.074
             }
           ],
-          "tokens": 2322,
-          "ms": 0.984,
+          "tokens": 2380,
+          "ms": 1.074,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/retry_test.go",
@@ -1456,13 +1227,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 37,
-              "ms": 96.945,
+              "ms": 100.579,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 37,
-          "ms": 96.945,
+          "ms": 100.579,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1495,34 +1266,20 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 9019,
-              "ms": 26.181
+              "tokens": 23,
+              "ms": 0.132,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 9019,
-          "ms": 26.181,
+          "tokens": 23,
+          "ms": 0.132,
           "call_count": 1,
-          "claimed": [
-            "createErrorResponse",
-            "createSuccessResponse",
-            "handleAddFollower",
-            "handleBulkDeleteMessages",
-            "handleChannelIPC",
-            "handleCreate",
-            "handleCreateThread",
-            "handleDelete",
-            "handleEdit",
-            "handleEditPermissions",
-            "handleFetch",
-            "handleList",
-            "handleSetVoiceStatus",
-            "handleTriggerTyping",
-            "inFlightChannelFetches",
-            "resolveChannel",
-            "sendResponse"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "createErrorResponse",
               "createSuccessResponse",
               "handleAddFollower",
@@ -1541,9 +1298,6 @@
               "resolveChannel",
               "sendResponse"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -1551,12 +1305,14 @@
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 648,
-              "ms": 215.405
+              "tokens": 0,
+              "ms": 0.037,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 648,
-          "ms": 215.405,
+          "tokens": 0,
+          "ms": 0.037,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1589,13 +1345,13 @@
             {
               "tool": "graphify explain",
               "tokens": 27,
-              "ms": 77.659,
+              "ms": 89.321,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 27,
-          "ms": 77.659,
+          "ms": 89.321,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1629,11 +1385,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 1106,
-              "ms": 1.097
+              "ms": 1.026
             }
           ],
           "tokens": 1106,
-          "ms": 1.097,
+          "ms": 1.026,
           "call_count": 1,
           "claimed": [
             "inFlightChannelFetches",
@@ -1752,56 +1508,50 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 633,
-              "ms": 104.41
+              "tokens": 39,
+              "ms": 110.933,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 633,
-          "ms": 104.41,
+          "tokens": 39,
+          "ms": 110.933,
           "call_count": 1,
-          "claimed": [
-            "retryInfo",
-            "expBackoffJitter",
-            "withRetry"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "expBackoffJitter",
               "retryInfo",
               "withRetry"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "file_summary returns the file's own node beside its declarations; only the declarations are claimed"
+          "note": "file_summary exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 1406,
-              "ms": 28.603
+              "tokens": 23,
+              "ms": 0.127,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 1406,
-          "ms": 28.603,
+          "tokens": 23,
+          "ms": 0.127,
           "call_count": 1,
-          "claimed": [
-            "expBackoffJitter",
-            "retryInfo",
-            "withRetry"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "expBackoffJitter",
               "retryInfo",
               "withRetry"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -1809,12 +1559,14 @@
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 187,
-              "ms": 242.139
+              "tokens": 0,
+              "ms": 0.058,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 187,
-          "ms": 242.139,
+          "tokens": 0,
+          "ms": 0.058,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1833,11 +1585,11 @@
             {
               "tool": "graphify explain",
               "tokens": 91,
-              "ms": 132.922
+              "ms": 140.248
             }
           ],
           "tokens": 91,
-          "ms": 132.922,
+          "ms": 140.248,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -1862,11 +1614,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 110,
-              "ms": 3.364
+              "ms": 0.888
             }
           ],
           "tokens": 110,
-          "ms": 3.364,
+          "ms": 0.888,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -1927,18 +1679,15 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 869,
-              "ms": 106.817
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 166,
-              "ms": 115.856
+              "tokens": 39,
+              "ms": 107.49,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1035,
-          "ms": 222.673,
-          "call_count": 2,
+          "tokens": 39,
+          "ms": 107.49,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -1948,35 +1697,21 @@
             ],
             "spurious": []
           },
-          "note": "answered zero callers, and every file the answer needs is inside api-db-go, which is exactly the repository this graph was built over",
-          "ambiguous_declarations": 3
+          "note": "callers_of GetAll exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 6828,
-              "ms": 8.964
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 580,
-              "ms": 9.03
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 19,
-              "ms": 0.127
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 399.44
+              "tokens": 23,
+              "ms": 0.147,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 7461,
-          "ms": 417.561,
-          "call_count": 4,
+          "tokens": 23,
+          "ms": 0.147,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -1986,77 +1721,51 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS.",
-          "ambiguous_declarations": 15
+          "note": "search_graph failed to locate GetAll: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 3176,
-              "ms": 295.434
+              "tokens": 0,
+              "ms": 0.05,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 3176,
-          "ms": 295.434,
+          "tokens": 0,
+          "ms": 0.05,
           "call_count": 1,
-          "claimed": [
-            "library-lavalink:src/player/Queue.ts",
-            "library-lavalink:src/player/Queue.ts",
-            "library-lavalink:src/player/Queue.ts",
-            "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts",
-            "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-            "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-            "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
-            "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
-            "gateway:src/grpc/manager/command/SlashCommandRegistry.ts"
-          ],
           "score": {
-            "claimed_set": [
-              "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-              "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.ts",
-              "library-lavalink:src/player/Queue.ts",
-              "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
               "api-db-go:internal/application/routers/bots_router.go"
             ],
-            "spurious": [
-              "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-              "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.ts",
-              "library-lavalink:src/player/Queue.ts",
-              "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts"
-            ]
-          },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 15
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 124.111
+              "ms": 126.711
             },
             {
               "tool": "graphify affected",
               "tokens": 12,
-              "ms": 124.215
+              "ms": 126.813
             },
             {
               "tool": "graphify query",
-              "tokens": 1618,
-              "ms": 142.032
+              "tokens": 1634,
+              "ms": 146.659
             }
           ],
-          "tokens": 1638,
-          "ms": 390.35800000000006,
+          "tokens": 1654,
+          "ms": 400.183,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -2067,8 +1776,8 @@
             "api-db-go:internal/application/handlers/bots_mock_test.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/bot_validations.go",
-            "api-db-go:internal/domain/errors/unknown_error.go",
             "api-db-go:internal/application/routers/bots_router.go",
+            "api-db-go:internal/domain/errors/unknown_error.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/bot_validations.go",
             "api-db-go:internal/application/routers/bots_router.go",
@@ -2111,18 +1820,18 @@
             {
               "tool": "find_references",
               "tokens": 72,
-              "ms": 0.808,
+              "ms": 0.356,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"GetAll\" declares 3 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/application/handlers/premium_handler.go:47, api-db-go:internal/application/handlers/bots_handler.go:47, api-db-go:internal/application/handlers/command_handler.go:33"
             },
             {
               "tool": "find_references",
               "tokens": 124,
-              "ms": 0.485
+              "ms": 0.19
             }
           ],
           "tokens": 196,
-          "ms": 1.2930000000000001,
+          "ms": 0.546,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/application/routers/bots_router.go"
@@ -2192,52 +1901,15 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 428,
-              "ms": 106.301
+              "tokens": 39,
+              "ms": 104.803,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 428,
-          "ms": 106.301,
+          "tokens": 39,
+          "ms": 104.803,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
-            ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
-            "spurious": []
-          }
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 1031,
-              "ms": 8.097
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 613,
-              "ms": 8.729
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 65,
-              "ms": 0.256
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 394.95
-            }
-          ],
-          "tokens": 1743,
-          "ms": 412.032,
-          "call_count": 4,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -2247,19 +1919,44 @@
             ],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 3
+          "note": "callers_of FindPendingGuilds exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.122,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.122,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate FindPendingGuilds: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 199,
-              "ms": 220.74
+              "tokens": 0,
+              "ms": 0.036,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 199,
-          "ms": 220.74,
+          "tokens": 0,
+          "ms": 0.036,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2276,11 +1973,11 @@
             {
               "tool": "graphify affected",
               "tokens": 98,
-              "ms": 132.442
+              "ms": 139.253
             }
           ],
           "tokens": 98,
-          "ms": 132.442,
+          "ms": 139.253,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2298,18 +1995,18 @@
             {
               "tool": "find_references",
               "tokens": 61,
-              "ms": 0.218,
+              "ms": 0.215,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"FindPendingGuilds\" declares 2 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go:182, api-db-go:internal/infrastructure/pgrepo/repos.go:329"
             },
             {
               "tool": "find_references",
               "tokens": 158,
-              "ms": 0.135
+              "ms": 0.133
             }
           ],
           "tokens": 219,
-          "ms": 0.353,
+          "ms": 0.348,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go"
@@ -2375,18 +2072,15 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 1510,
-              "ms": 106.069
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 166,
-              "ms": 116.645
+              "tokens": 40,
+              "ms": 100.734,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1676,
-          "ms": 222.714,
-          "call_count": 2,
+          "tokens": 40,
+          "ms": 100.734,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -2397,30 +2091,21 @@
             ],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, and 1 of the 2 file(s) the answer needs live outside library-shared, so they were never in the graph this query read",
-          "ambiguous_declarations": 5
+          "note": "callers_of ApiRuntimeState exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 105,
-              "ms": 9.79
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 20,
-              "ms": 0.139
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 394.413
+              "tokens": 23,
+              "ms": 0.136,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 159,
-          "ms": 404.342,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.136,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -2431,18 +2116,20 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate ApiRuntimeState: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 186,
-              "ms": 219.491
+              "tokens": 0,
+              "ms": 0.036,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 186,
-          "ms": 219.491,
+          "tokens": 0,
+          "ms": 0.036,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2460,11 +2147,11 @@
             {
               "tool": "graphify affected",
               "tokens": 262,
-              "ms": 103.382
+              "ms": 104.993
             }
           ],
           "tokens": 262,
-          "ms": 103.382,
+          "ms": 104.993,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
@@ -2498,12 +2185,12 @@
           "calls": [
             {
               "tool": "find_references",
-              "tokens": 366,
-              "ms": 0.29
+              "tokens": 280,
+              "ms": 0.27
             }
           ],
-          "tokens": 366,
-          "ms": 0.29,
+          "tokens": 280,
+          "ms": 0.27,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
@@ -2512,24 +2199,17 @@
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "gateway:../../libraries/library-shared/dist/redis/cache/gateway/registry/api-registry-cache.d.ts",
-            "sdk-module-ts:../../libraries/library-shared/dist/redis/cache/gateway/registry/api-registry-cache.d.ts",
             "gateway:src/grpc/manager/RegistryGrpcManager.ts"
           ],
           "score": {
             "claimed_set": [
-              "gateway:../../libraries/library-shared/dist/redis/cache/gateway/registry/api-registry-cache.d.ts",
               "gateway:src/grpc/manager/RegistryGrpcManager.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-              "sdk-module-ts:../../libraries/library-shared/dist/redis/cache/gateway/registry/api-registry-cache.d.ts"
+              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
             ],
-            "precision": 0.5,
+            "precision": 1,
             "recall": 1,
             "missing": [],
-            "spurious": [
-              "gateway:../../libraries/library-shared/dist/redis/cache/gateway/registry/api-registry-cache.d.ts",
-              "sdk-module-ts:../../libraries/library-shared/dist/redis/cache/gateway/registry/api-registry-cache.d.ts"
-            ]
+            "spurious": []
           }
         },
         "native": {
@@ -2574,13 +2254,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 39,
-              "ms": 98.077,
+              "ms": 101.831,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 39,
-          "ms": 98.077,
+          "ms": 101.831,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2597,58 +2277,46 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 104,
-              "ms": 9.093
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 57,
-              "ms": 0.23
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 26,
-              "ms": 397.388
+              "tokens": 23,
+              "ms": 0.161,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 187,
-          "ms": 406.71099999999996,
-          "call_count": 3,
-          "claimed": [
-            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
-          ],
+          "tokens": 23,
+          "ms": 0.161,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "sdk-module-ts:src/sdk/client/ModuleActions.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate CommandManager: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 202,
-              "ms": 219.06
+              "tokens": 0,
+              "ms": 0.036,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 202,
-          "ms": 219.06,
+          "tokens": 0,
+          "ms": 0.036,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "sdk-module-ts:src/sdk/client/ModuleActions.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -2657,13 +2325,13 @@
             {
               "tool": "graphify affected",
               "tokens": 29,
-              "ms": 72.417,
+              "ms": 76.338,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 29,
-          "ms": 72.417,
+          "ms": 76.338,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2681,11 +2349,11 @@
             {
               "tool": "find_references",
               "tokens": 132,
-              "ms": 0.249
+              "ms": 0.255
             }
           ],
           "tokens": 132,
-          "ms": 0.249,
+          "ms": 0.255,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts",
@@ -2743,13 +2411,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 41,
-              "ms": 98.617,
+              "ms": 104.128,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 41,
-          "ms": 98.617,
+          "ms": 104.128,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2768,91 +2436,65 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 1000,
-              "ms": 9.184
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 215,
-              "ms": 9.119
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 171,
-              "ms": 0.335
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 37,
-              "ms": 398.316
+              "tokens": 23,
+              "ms": 0.112,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 1423,
-          "ms": 416.95399999999995,
-          "call_count": 4,
-          "claimed": [
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/api_ws/mod.rs"
-          ],
+          "tokens": 23,
+          "ms": 0.112,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/main.rs"
             ],
-            "precision": 1,
-            "recall": 0.6666666666666666,
-            "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs"
-            ],
             "spurious": []
           },
-          "note": "trace_path named 3 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 3
+          "note": "search_graph failed to locate delete_player: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 834,
-              "ms": 232.047
+              "tokens": 0,
+              "ms": 0.043,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 834,
-          "ms": 232.047,
+          "tokens": 0,
+          "ms": 0.043,
           "call_count": 1,
-          "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs"
-          ],
           "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs"
-            ],
-            "precision": 1,
-            "recall": 0.3333333333333333,
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
             "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/main.rs"
             ],
             "spurious": []
-          },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 3
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 31,
-              "ms": 71.911,
+              "ms": 76.325,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 31,
-          "ms": 71.911,
+          "ms": 76.325,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2872,18 +2514,18 @@
             {
               "tool": "find_references",
               "tokens": 54,
-              "ms": 0.198,
+              "ms": 0.22,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"delete_player\" declares 2 symbols; repeat with the repository and path of the one you mean: kenalink-rs:src/api_rest/routes_players.rs:393, kenalink-rs:src/state/memory.rs:84"
             },
             {
               "tool": "find_references",
               "tokens": 210,
-              "ms": 0.136
+              "ms": 0.139
             }
           ],
           "tokens": 264,
-          "ms": 0.334,
+          "ms": 0.359,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_ws/mod.rs",
@@ -2960,12 +2602,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 172,
-              "ms": 117.563
+              "tokens": 39,
+              "ms": 104.557,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 172,
-          "ms": 117.563,
+          "tokens": 39,
+          "ms": 104.557,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2974,29 +2618,21 @@
             "missing": [],
             "spurious": []
           },
-          "note": "answered zero callers, and every file the answer needs is inside api-db-go, which is exactly the repository this graph was built over"
+          "note": "callers_of BenchmarkDeserializeValueDate exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 537,
-              "ms": 8.145
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.139
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 400.781
+              "tokens": 23,
+              "ms": 0.142,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 592,
-          "ms": 409.065,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.142,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -3004,18 +2640,20 @@
             "missing": [],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate BenchmarkDeserializeValueDate: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 198,
-              "ms": 221.069
+              "tokens": 0,
+              "ms": 0.038,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 198,
-          "ms": 221.069,
+          "tokens": 0,
+          "ms": 0.038,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3030,11 +2668,11 @@
             {
               "tool": "graphify affected",
               "tokens": 515,
-              "ms": 132.13
+              "ms": 139.972
             }
           ],
           "tokens": 515,
-          "ms": 132.13,
+          "ms": 139.972,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/redis/serialization.go",
@@ -3099,11 +2737,11 @@
             {
               "tool": "find_references",
               "tokens": 113,
-              "ms": 0.231
+              "ms": 0.213
             }
           ],
           "tokens": 113,
-          "ms": 0.231,
+          "ms": 0.213,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3146,13 +2784,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 38,
-              "ms": 97.923,
+              "ms": 101.719,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 38,
-          "ms": 97.923,
+          "ms": 101.719,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3167,23 +2805,15 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 564,
-              "ms": 9.884
-            },
-            {
-              "tool": "trace_path",
               "tokens": 23,
-              "ms": 0.15
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 399.249
+              "ms": 0.117,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 621,
-          "ms": 409.283,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.117,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -3191,18 +2821,20 @@
             "missing": [],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate addMockedSongsToQueue: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 196,
-              "ms": 220.561
+              "tokens": 0,
+              "ms": 0.039,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 196,
-          "ms": 220.561,
+          "tokens": 0,
+          "ms": 0.039,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3217,13 +2849,13 @@
             {
               "tool": "graphify affected",
               "tokens": 28,
-              "ms": 71.537,
+              "ms": 75.446,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 28,
-          "ms": 71.537,
+          "ms": 75.446,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3239,11 +2871,11 @@
             {
               "tool": "find_references",
               "tokens": 110,
-              "ms": 0.214
+              "ms": 0.21
             }
           ],
           "tokens": 110,
-          "ms": 0.214,
+          "ms": 0.21,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3286,13 +2918,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 41,
-              "ms": 97.794,
+              "ms": 104.271,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 41,
-          "ms": 97.794,
+          "ms": 104.271,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3307,23 +2939,15 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 216,
-              "ms": 8.275
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 75,
-              "ms": 0.243
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 26,
-              "ms": 397.947
+              "tokens": 23,
+              "ms": 0.139,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 317,
-          "ms": 406.46500000000003,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.139,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -3331,18 +2955,20 @@
             "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate build_all_image_sizes: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 226,
-              "ms": 222.762
+              "tokens": 0,
+              "ms": 0.045,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 226,
-          "ms": 222.762,
+          "tokens": 0,
+          "ms": 0.045,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3357,13 +2983,13 @@
             {
               "tool": "graphify affected",
               "tokens": 31,
-              "ms": 71.501,
+              "ms": 75.83,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 31,
-          "ms": 71.501,
+          "ms": 75.83,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3379,11 +3005,11 @@
             {
               "tool": "find_references",
               "tokens": 145,
-              "ms": 0.212
+              "ms": 0.264
             }
           ],
           "tokens": 145,
-          "ms": 0.212,
+          "ms": 0.264,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3434,13 +3060,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 41,
-              "ms": 97.398,
+              "ms": 104.833,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 41,
-          "ms": 97.398,
+          "ms": 104.833,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3463,61 +3089,43 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 4098,
-              "ms": 28.692
+              "tokens": 23,
+              "ms": 0.158,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 4098,
-          "ms": 28.692,
+          "tokens": 23,
+          "ms": 0.158,
           "call_count": 1,
-          "claimed": [
-            "RangeOutcome",
-            "build_response",
-            "file_response",
-            "insert_header",
-            "parse_decimal",
-            "parse_range",
-            "parses_send_file_matrix",
-            "span",
-            "status",
-            "streams_exact_send_file_headers_and_bytes"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "RangeOutcome",
               "build_response",
               "file_response",
               "insert_header",
               "parse_decimal",
               "parse_range",
-              "parses_send_file_matrix",
-              "span",
-              "status",
-              "streams_exact_send_file_headers_and_bytes"
-            ],
-            "precision": 0.6,
-            "recall": 0.8571428571428571,
-            "missing": [
               "tests"
             ],
-            "spurious": [
-              "parses_send_file_matrix",
-              "span",
-              "status",
-              "streams_exact_send_file_headers_and_bytes"
-            ]
+            "spurious": []
           }
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 345,
-              "ms": 219.393
+              "tokens": 0,
+              "ms": 0.045,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 345,
-          "ms": 219.393,
+          "tokens": 0,
+          "ms": 0.045,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3540,13 +3148,13 @@
             {
               "tool": "graphify explain",
               "tokens": 31,
-              "ms": 78.847,
+              "ms": 84.891,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 31,
-          "ms": 78.847,
+          "ms": 84.891,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3570,11 +3178,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 290,
-              "ms": 0.632
+              "ms": 0.602
             }
           ],
           "tokens": 290,
-          "ms": 0.632,
+          "ms": 0.602,
           "call_count": 1,
           "claimed": [
             "build_response",
@@ -3654,12 +3262,14 @@
           "calls": [
             {
               "tool": "code-review-graph impact",
-              "tokens": 8750,
-              "ms": 127.578
+              "tokens": 39,
+              "ms": 118.085,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 8750,
-          "ms": 127.578,
+          "tokens": 39,
+          "ms": 118.085,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3673,29 +3283,21 @@
             ],
             "spurious": []
           },
-          "note": "impact takes changed files, never a declaration -- `--files internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs` reports zero changed nodes -- so this is the whole file's reachable set at the selectable --depth 2: 0 nodes over 0 files"
+          "note": "impact exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 597,
-              "ms": 9.755
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.144
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 2836.297
+              "tokens": 23,
+              "ms": 0.137,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 652,
-          "ms": 2846.196,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.137,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -3708,18 +3310,20 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate AutomationScheduledGuildIDs: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 198,
-              "ms": 254.841
+              "tokens": 0,
+              "ms": 0.047,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 198,
-          "ms": 254.841,
+          "tokens": 0,
+          "ms": 0.047,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3739,21 +3343,21 @@
             {
               "tool": "graphify affected",
               "tokens": 10,
-              "ms": 124.67
+              "ms": 133.943
             },
             {
               "tool": "graphify affected",
               "tokens": 17,
-              "ms": 124.903
+              "ms": 132.633
             },
             {
               "tool": "graphify query",
-              "tokens": 1550,
-              "ms": 145.029
+              "tokens": 1555,
+              "ms": 152.101
             }
           ],
-          "tokens": 1577,
-          "ms": 394.602,
+          "tokens": 1582,
+          "ms": 418.677,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -3811,12 +3415,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2346,
-              "ms": 3.198
+              "tokens": 2404,
+              "ms": 1
             }
           ],
-          "tokens": 2346,
-          "ms": 3.198,
+          "tokens": 2404,
+          "ms": 1,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/routers/guilds_router.go",
@@ -3892,12 +3496,14 @@
           "calls": [
             {
               "tool": "code-review-graph impact",
-              "tokens": 8750,
-              "ms": 129.34
+              "tokens": 39,
+              "ms": 106.615,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 8750,
-          "ms": 129.34,
+          "tokens": 39,
+          "ms": 106.615,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3911,29 +3517,21 @@
             ],
             "spurious": []
           },
-          "note": "impact takes changed files, never a declaration -- `--files internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs` reports zero changed nodes -- so this is the whole file's reachable set at the selectable --depth 3: 0 nodes over 0 files"
+          "note": "impact exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 597,
-              "ms": 9.692
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.169
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 4386.313
+              "tokens": 23,
+              "ms": 0.151,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 652,
-          "ms": 4396.174,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.151,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -3946,18 +3544,20 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate AutomationScheduledGuildIDs: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 198,
-              "ms": 228.189
+              "tokens": 0,
+              "ms": 0.045,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 198,
-          "ms": 228.189,
+          "tokens": 0,
+          "ms": 0.045,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -3977,21 +3577,21 @@
             {
               "tool": "graphify affected",
               "tokens": 10,
-              "ms": 125.359
+              "ms": 134.734
             },
             {
               "tool": "graphify affected",
               "tokens": 17,
-              "ms": 126.679
+              "ms": 132.672
             },
             {
               "tool": "graphify query",
-              "tokens": 1547,
-              "ms": 149.293
+              "tokens": 1557,
+              "ms": 162.413
             }
           ],
-          "tokens": 1574,
-          "ms": 401.331,
+          "tokens": 1584,
+          "ms": 429.819,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -3999,11 +3599,11 @@
             "api-db-go:internal/application/handlers/capture_errors.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
             "api-db-go:internal/domain/services/modmail_web_access.go",
+            "api-db-go:internal/domain/services/member_admin_guilds.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/module_notifier_validations.go",
             "api-db-go:internal/domain/services/member_admin_guilds.go",
             "api-db-go:internal/domain/validations/guild_query_validations.go",
@@ -4049,12 +3649,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2751,
-              "ms": 1.039
+              "tokens": 2809,
+              "ms": 0.99
             }
           ],
-          "tokens": 2751,
-          "ms": 1.039,
+          "tokens": 2809,
+          "ms": 0.99,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/routers/guilds_router.go",
@@ -4188,11 +3788,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 530,
-              "ms": 2.762
+              "ms": 1.138
             }
           ],
           "tokens": 530,
-          "ms": 2.762,
+          "ms": 1.138,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/index.ts",
@@ -4316,11 +3916,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 112,
-              "ms": 0.932
+              "ms": 0.865
             }
           ],
           "tokens": 112,
-          "ms": 0.932,
+          "ms": 0.865,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -4399,11 +3999,11 @@
             {
               "tool": "graphify query",
               "tokens": 1585,
-              "ms": 151.95
+              "ms": 149.927
             }
           ],
           "tokens": 1585,
-          "ms": 151.95,
+          "ms": 149.927,
           "call_count": 1,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -4416,7 +4016,6 @@
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
@@ -4426,6 +4025,7 @@
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
@@ -4475,11 +4075,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 305,
-              "ms": 0.653
+              "ms": 0.6
             }
           ],
           "tokens": 305,
-          "ms": 0.653,
+          "ms": 0.6,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go",
@@ -4612,11 +4212,11 @@
             {
               "tool": "graphify query",
               "tokens": 1360,
-              "ms": 110.726
+              "ms": 115.44
             }
           ],
           "tokens": 1360,
-          "ms": 110.726,
+          "ms": 115.44,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/base-cache.ts",
@@ -4636,13 +4236,13 @@
             "library-shared:src/redis/cache/music/autocomplete-cache.ts",
             "library-shared:biome.json",
             "library-shared:src/redis/cache/music/spotify-cache.ts",
-            "library-shared:src/redis/cache/music/seekable-cache.ts",
             "library-shared:src/redis/cache/music/types.ts",
+            "library-shared:src/redis/cache/music/seekable-cache.ts",
+            "library-shared:biome.json",
             "library-shared:biome.json",
             "library-shared:biome.json",
             "library-shared:biome.json",
             "library-shared:src/redis/cache/music/index.ts",
-            "library-shared:biome.json",
             "library-shared:biome.json",
             "library-shared:biome.json",
             "library-shared:biome.json"
@@ -4683,11 +4283,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 403,
-              "ms": 0.692
+              "ms": 0.657
             }
           ],
           "tokens": 403,
-          "ms": 0.692,
+          "ms": 0.657,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/base-cache.ts",
@@ -4784,11 +4384,11 @@
             {
               "tool": "graphify query",
               "tokens": 1534,
-              "ms": 146.55
+              "ms": 150.204
             }
           ],
           "tokens": 1534,
-          "ms": 146.55,
+          "ms": 150.204,
           "call_count": 1,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -4809,12 +4409,12 @@
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/mongo/bot_repository.go",
             "api-db-go:internal/infrastructure/redis/core_cache.go",
@@ -4850,11 +4450,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 284,
-              "ms": 0.578
+              "ms": 0.652
             }
           ],
           "tokens": 284,
-          "ms": 0.578,
+          "ms": 0.652,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/redis/client.go",
@@ -4946,46 +4546,29 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 762,
-              "ms": 18.554
+              "tokens": 23,
+              "ms": 0.147,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 762,
-          "ms": 18.554,
+          "tokens": 23,
+          "ms": 0.147,
           "call_count": 1,
-          "claimed": [
-            "library-env:src/retry.ts",
-            "library-shared:src/utils/retry.ts",
-            "core:tests/cluster/master/index.test.ts",
-            "core:tests/cluster/worker/BotWorker.test.ts",
-            "api-music:internal/shared/infisical/infisical.go",
-            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
-            "core:tests/cluster/worker/BotWorker.presence.test.ts",
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "api-db-go:internal/infrastructure/postgres/retry.go",
               "api-db-go:internal/shared/infisical/infisical.go",
               "api-music:internal/shared/infisical/infisical.go",
-              "core:tests/cluster/master/index.test.ts",
-              "core:tests/cluster/worker/BotWorker.presence.test.ts",
-              "core:tests/cluster/worker/BotWorker.test.ts",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
               "sdk-module-ts:src/sdk/types/ModuleResult.ts"
             ],
-            "precision": 0.7,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "core:tests/cluster/master/index.test.ts",
-              "core:tests/cluster/worker/BotWorker.presence.test.ts",
-              "core:tests/cluster/worker/BotWorker.test.ts"
-            ]
+            "spurious": []
           },
           "note": "`search_graph` matches a name and returns the nodes carrying it; it does not separate a declaration from a use, so a file that only calls the name is a hit"
         },
@@ -4993,115 +4576,29 @@
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 2766,
-              "ms": 1231.246
+              "tokens": 0,
+              "ms": 0.045,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 2766,
-          "ms": 1231.246,
+          "tokens": 0,
+          "ms": 0.045,
           "call_count": 1,
-          "claimed": [
-            "library-env:src/infisical/client.ts",
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
-            "core:src/cluster/master/index.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "core:tests/cluster/master/index.test.ts",
-            "gateway:src/grpc/server.ts",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go",
-            "library-env:src/infisical/client.ts",
-            ":\"../retry.js\";",
-            "library-env:src/retry.ts",
-            "library-shared:src/utils/retry.ts",
-            "library-shared:src/utils/retry.ts",
-            "sdk-module-ts:src/sdk/client/KenaModule.ts",
-            "sdk-module-ts:src/sdk/client/KenaModule.ts",
-            "sdk-module-ts:src/sdk/index.ts",
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
-            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
-            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
-            "core:src/cluster/master/index.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "core:src/shared/utils/sharding.ts",
-            "core:src/shared/utils/sharding.ts",
-            "core:tests/cluster/master/index.test.ts",
-            "core:tests/cluster/worker/BotWorker.presence.test.ts",
-            "core:tests/cluster/worker/BotWorker.test.ts",
-            "core:tests/shared/utils/sharding.test.ts",
-            "gateway:src/grpc/server.ts",
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical_test.go",
-            "api-music:internal/shared/infisical/infisical_test.go",
-            "api-music:internal/shared/infisical/infisical_test.go",
-            "api-music:internal/shared/infisical/infisical_test.go",
-            "api-music:internal/shared/infisical/infisical_test.go",
-            "api-music:internal/shared/infisical/infisical_test.go",
-            "api-music:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go"
-          ],
           "score": {
-            "claimed_set": [
-              ":\"../retry.js\";",
-              "api-db-go:internal/infrastructure/postgres/client.go",
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "api-db-go:internal/infrastructure/postgres/retry.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
               "api-db-go:internal/shared/infisical/infisical.go",
-              "api-db-go:internal/shared/infisical/infisical_test.go",
               "api-music:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical_test.go",
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "core:tests/cluster/master/index.test.ts",
-              "core:tests/cluster/worker/BotWorker.presence.test.ts",
-              "core:tests/cluster/worker/BotWorker.test.ts",
-              "core:tests/shared/utils/sharding.test.ts",
-              "gateway:src/grpc/server.ts",
-              "library-env:src/infisical/client.ts",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts",
-              "sdk-module-ts:src/sdk/index.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
               "sdk-module-ts:src/sdk/types/ModuleResult.ts"
             ],
-            "precision": 0.30434782608695654,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              ":\"../retry.js\";",
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "api-db-go:internal/shared/infisical/infisical_test.go",
-              "api-music:internal/shared/infisical/infisical_test.go",
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "core:tests/cluster/master/index.test.ts",
-              "core:tests/cluster/worker/BotWorker.presence.test.ts",
-              "core:tests/cluster/worker/BotWorker.test.ts",
-              "core:tests/shared/utils/sharding.test.ts",
-              "gateway:src/grpc/server.ts",
-              "library-env:src/infisical/client.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts",
-              "sdk-module-ts:src/sdk/index.ts"
-            ]
+            "spurious": []
           },
           "note": "`grep` searches the wiring cards for a name and cannot tell a declaration from a use, so every file that mentions it is a hit"
         },
@@ -5110,11 +4607,11 @@
             {
               "tool": "graphify query",
               "tokens": 611,
-              "ms": 108.789
+              "ms": 111.712
             }
           ],
           "tokens": 611,
-          "ms": 108.789,
+          "ms": 111.712,
           "call_count": 1,
           "claimed": [
             "library-shared:src/utils/index.ts",
@@ -5155,11 +4652,11 @@
             {
               "tool": "find_symbol",
               "tokens": 744,
-              "ms": 0.679
+              "ms": 0.771
             }
           ],
           "tokens": 744,
-          "ms": 0.679,
+          "ms": 0.771,
           "call_count": 1,
           "claimed": [
             "library-env:src/retry.ts",
@@ -5273,11 +4770,11 @@
             {
               "tool": "get_source",
               "tokens": 674,
-              "ms": 1.365
+              "ms": 0.492
             }
           ],
           "tokens": 674,
-          "ms": 1.365,
+          "ms": 0.492,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
@@ -5382,11 +4879,11 @@
             {
               "tool": "get_symbol",
               "tokens": 176,
-              "ms": 0.188
+              "ms": 0.159
             }
           ],
           "tokens": 176,
-          "ms": 0.188,
+          "ms": 0.159,
           "call_count": 1,
           "claimed": [
             "enum@29-36"
@@ -5492,11 +4989,11 @@
             {
               "tool": "get_source",
               "tokens": 19328,
-              "ms": 2.804
+              "ms": 4.15
             }
           ],
           "tokens": 19328,
-          "ms": 2.804,
+          "ms": 4.15,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
@@ -5712,13 +5209,13 @@
             {
               "tool": "code-review-graph query",
               "tokens": 41,
-              "ms": 106.281,
+              "ms": 104.544,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 41,
-          "ms": 106.281,
+          "ms": 104.544,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -5735,53 +5232,14 @@
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 413,
-              "ms": 9.342
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 215,
-              "ms": 9.247
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 121,
-              "ms": 0.317
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 39,
-              "ms": 401.041
+              "tokens": 23,
+              "ms": 0.158,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 788,
-          "ms": 419.947,
-          "call_count": 4,
-          "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs"
-          ],
-          "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_ws/mod.rs"
-            ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
-            "spurious": []
-          },
-          "note": "trace_path named 2 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 2
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 394,
-              "ms": 230.938
-            }
-          ],
-          "tokens": 394,
-          "ms": 230.938,
+          "tokens": 23,
+          "ms": 0.158,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -5792,21 +5250,43 @@
             ],
             "spurious": []
           },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 2
+          "note": "search_graph failed to locate delete_session: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.041,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.041,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_ws/mod.rs"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 31,
-              "ms": 72.78,
+              "ms": 77.512,
               "failed": true,
               "error": "exit status 1"
             }
           ],
           "tokens": 31,
-          "ms": 72.78,
+          "ms": 77.512,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -5824,11 +5304,11 @@
             {
               "tool": "find_references",
               "tokens": 186,
-              "ms": 0.241
+              "ms": 0.234
             }
           ],
           "tokens": 186,
-          "ms": 0.241,
+          "ms": 0.234,
           "call_count": 1,
           "claimed": [
             "kenalink-rs:src/api_ws/mod.rs"
@@ -5892,82 +5372,70 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 397,
-              "ms": 110.773
+              "tokens": 39,
+              "ms": 103.471,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 397,
-          "ms": 110.773,
+          "tokens": 39,
+          "ms": 103.471,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "api-db-go:internal/infrastructure/locker/locker.go"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
-          }
+          },
+          "note": "callers_of newGMCClient exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 197,
-              "ms": 8.996
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 58,
-              "ms": 0.247
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 27,
-              "ms": 402.686
+              "tokens": 23,
+              "ms": 0.152,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 282,
-          "ms": 411.929,
-          "call_count": 3,
-          "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
-          ],
+          "tokens": 23,
+          "ms": 0.152,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "api-db-go:internal/infrastructure/locker/locker.go"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate newGMCClient: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 210,
-              "ms": 224.044
+              "tokens": 0,
+              "ms": 0.038,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 210,
-          "ms": 224.044,
+          "tokens": 0,
+          "ms": 0.038,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "api-db-go:internal/infrastructure/locker/locker.go"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -5976,11 +5444,11 @@
             {
               "tool": "graphify affected",
               "tokens": 108,
-              "ms": 134.609
+              "ms": 140.164
             }
           ],
           "tokens": 108,
-          "ms": 134.609,
+          "ms": 140.164,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/locker/locker.go",
@@ -6003,11 +5471,11 @@
             {
               "tool": "find_references",
               "tokens": 123,
-              "ms": 0.247
+              "ms": 0.303
             }
           ],
           "tokens": 123,
-          "ms": 0.247,
+          "ms": 0.303,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/locker/locker.go"
@@ -6052,39 +5520,39 @@
   ],
   "aggregate": {
     "code-review-graph": {
-      "tokens_total": 27426,
-      "calls_total": 23,
-      "ms_total": 2522.8510000000006,
-      "precision_mean": 0.3333333333333333,
-      "recall_mean": 0.35,
-      "exact_answers": 6,
+      "tokens_total": 787,
+      "calls_total": 20,
+      "ms_total": 2168.201,
+      "precision_mean": 0.15,
+      "recall_mean": 0.15,
+      "exact_answers": 3,
       "answered": 20,
       "of": 29
     },
     "codebase-memory": {
-      "tokens_total": 46916,
-      "calls_total": 63,
-      "ms_total": 15998.224999999999,
-      "precision_mean": 0.6174603174603174,
-      "recall_mean": 0.6757369614512472,
-      "exact_answers": 9,
+      "tokens_total": 483,
+      "calls_total": 21,
+      "ms_total": 2.92,
+      "precision_mean": 0.14285714285714285,
+      "recall_mean": 0.14285714285714285,
+      "exact_answers": 3,
       "answered": 21,
       "of": 29
     },
     "graft": {
-      "tokens_total": 18098,
+      "tokens_total": 0,
       "calls_total": 21,
-      "ms_total": 5877.601000000001,
-      "precision_mean": 0.3478260869565218,
-      "recall_mean": 0.34920634920634924,
-      "exact_answers": 6,
+      "ms_total": 0.8680000000000002,
+      "precision_mean": 0.14285714285714285,
+      "recall_mean": 0.14285714285714285,
+      "exact_answers": 3,
       "answered": 21,
       "of": 29
     },
     "graphify": {
-      "tokens_total": 11412,
+      "tokens_total": 11443,
       "calls_total": 32,
-      "ms_total": 3613.8690000000006,
+      "ms_total": 3828.3010000000004,
       "precision_mean": 0.24785353535353538,
       "recall_mean": 0.4513888888888889,
       "exact_answers": 4,
@@ -6092,11 +5560,11 @@
       "of": 29
     },
     "kivgraph": {
-      "tokens_total": 35957,
+      "tokens_total": 35961,
       "calls_total": 36,
-      "ms_total": 26.611999999999988,
-      "precision_mean": 0.9827586206896551,
-      "recall_mean": 1,
+      "ms_total": 19.966000000000005,
+      "precision_mean": 1,
+      "recall_mean": 0.9961685823754789,
       "exact_answers": 28,
       "answered": 29,
       "of": 29
@@ -6157,7 +5625,7 @@
       "kivgraph": {
         "tokens_total": 20002,
         "calls_total": 2,
-        "ms_total": 4.169,
+        "ms_total": 4.642,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -6219,7 +5687,7 @@
       "kivgraph": {
         "tokens_total": 642,
         "calls_total": 2,
-        "ms_total": 3.694,
+        "ms_total": 2.003,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -6271,7 +5739,7 @@
       "graphify": {
         "tokens_total": 4479,
         "calls_total": 3,
-        "ms_total": 409.226,
+        "ms_total": 415.57099999999997,
         "precision_mean": 0.18282828282828287,
         "recall_mean": 0.7777777777777778,
         "exact_answers": 0,
@@ -6281,7 +5749,7 @@
       "kivgraph": {
         "tokens_total": 992,
         "calls_total": 3,
-        "ms_total": 1.923,
+        "ms_total": 1.9090000000000003,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 3,
@@ -6343,7 +5811,7 @@
       "kivgraph": {
         "tokens_total": 176,
         "calls_total": 1,
-        "ms_total": 0.188,
+        "ms_total": 0.159,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -6363,9 +5831,9 @@
     },
     "impact": {
       "code-review-graph": {
-        "tokens_total": 18779,
+        "tokens_total": 117,
         "calls_total": 3,
-        "ms_total": 419.89300000000003,
+        "ms_total": 326.74,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -6373,19 +5841,19 @@
         "of": 3
       },
       "codebase-memory": {
-        "tokens_total": 3636,
-        "calls_total": 10,
-        "ms_total": 10091.286,
-        "precision_mean": 0.1111111111111111,
-        "recall_mean": 0.3333333333333333,
+        "tokens_total": 69,
+        "calls_total": 3,
+        "ms_total": 0.42000000000000004,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 3,
         "of": 3
       },
       "graft": {
-        "tokens_total": 767,
+        "tokens_total": 0,
         "calls_total": 3,
-        "ms_total": 709.454,
+        "ms_total": 0.127,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -6393,9 +5861,9 @@
         "of": 3
       },
       "graphify": {
-        "tokens_total": 3208,
+        "tokens_total": 3223,
         "calls_total": 8,
-        "ms_total": 1049.54,
+        "ms_total": 1106.43,
         "precision_mean": 0.26666666666666666,
         "recall_mean": 0.6666666666666666,
         "exact_answers": 0,
@@ -6403,9 +5871,9 @@
         "of": 3
       },
       "kivgraph": {
-        "tokens_total": 7419,
+        "tokens_total": 7593,
         "calls_total": 3,
-        "ms_total": 5.221,
+        "ms_total": 3.064,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 3,
@@ -6435,21 +5903,21 @@
         "of": 1
       },
       "codebase-memory": {
-        "tokens_total": 762,
+        "tokens_total": 23,
         "calls_total": 1,
-        "ms_total": 18.554,
-        "precision_mean": 0.7,
-        "recall_mean": 1,
+        "ms_total": 0.147,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
       },
       "graft": {
-        "tokens_total": 2766,
+        "tokens_total": 0,
         "calls_total": 1,
-        "ms_total": 1231.246,
-        "precision_mean": 0.30434782608695654,
-        "recall_mean": 1,
+        "ms_total": 0.045,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
@@ -6457,7 +5925,7 @@
       "graphify": {
         "tokens_total": 611,
         "calls_total": 1,
-        "ms_total": 108.789,
+        "ms_total": 111.712,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -6467,7 +5935,7 @@
       "kivgraph": {
         "tokens_total": 744,
         "calls_total": 1,
-        "ms_total": 0.679,
+        "ms_total": 0.771,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -6487,29 +5955,29 @@
     },
     "outline": {
       "code-review-graph": {
-        "tokens_total": 711,
+        "tokens_total": 117,
         "calls_total": 3,
-        "ms_total": 298.753,
-        "precision_mean": 0.3333333333333333,
-        "recall_mean": 0.3333333333333333,
-        "exact_answers": 1,
+        "ms_total": 316.345,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 3,
         "of": 3
       },
       "codebase-memory": {
-        "tokens_total": 14523,
+        "tokens_total": 69,
         "calls_total": 3,
-        "ms_total": 83.476,
-        "precision_mean": 0.8666666666666667,
-        "recall_mean": 0.9523809523809524,
-        "exact_answers": 2,
+        "ms_total": 0.41700000000000004,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 3,
         "of": 3
       },
       "graft": {
-        "tokens_total": 1180,
+        "tokens_total": 0,
         "calls_total": 3,
-        "ms_total": 676.937,
+        "ms_total": 0.14,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -6519,7 +5987,7 @@
       "graphify": {
         "tokens_total": 149,
         "calls_total": 3,
-        "ms_total": 289.428,
+        "ms_total": 314.46,
         "precision_mean": 0.3333333333333333,
         "recall_mean": 0.3333333333333333,
         "exact_answers": 1,
@@ -6529,7 +5997,7 @@
       "kivgraph": {
         "tokens_total": 1506,
         "calls_total": 3,
-        "ms_total": 5.093,
+        "ms_total": 2.516,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 3,
@@ -6549,39 +6017,39 @@
     },
     "references": {
       "code-review-graph": {
-        "tokens_total": 7936,
-        "calls_total": 17,
-        "ms_total": 1804.2050000000002,
-        "precision_mean": 0.4047619047619047,
-        "recall_mean": 0.42857142857142855,
-        "exact_answers": 5,
+        "tokens_total": 553,
+        "calls_total": 14,
+        "ms_total": 1525.1160000000002,
+        "precision_mean": 0.21428571428571427,
+        "recall_mean": 0.21428571428571427,
+        "exact_answers": 3,
         "answered": 14,
         "of": 14
       },
       "codebase-memory": {
-        "tokens_total": 27995,
-        "calls_total": 49,
-        "ms_total": 5804.909000000001,
-        "precision_mean": 0.6666666666666666,
-        "recall_mean": 0.6666666666666666,
-        "exact_answers": 7,
+        "tokens_total": 322,
+        "calls_total": 14,
+        "ms_total": 1.936,
+        "precision_mean": 0.21428571428571427,
+        "recall_mean": 0.21428571428571427,
+        "exact_answers": 3,
         "answered": 14,
         "of": 14
       },
       "graft": {
-        "tokens_total": 13385,
+        "tokens_total": 0,
         "calls_total": 14,
-        "ms_total": 3259.964,
-        "precision_mean": 0.5,
-        "recall_mean": 0.45238095238095244,
-        "exact_answers": 6,
+        "ms_total": 0.5559999999999999,
+        "precision_mean": 0.21428571428571427,
+        "recall_mean": 0.21428571428571427,
+        "exact_answers": 3,
         "answered": 14,
         "of": 14
       },
       "graphify": {
-        "tokens_total": 2965,
+        "tokens_total": 2981,
         "calls_total": 17,
-        "ms_total": 1756.8860000000002,
+        "ms_total": 1880.1279999999997,
         "precision_mean": 0.2571428571428572,
         "recall_mean": 0.39285714285714285,
         "exact_answers": 3,
@@ -6589,11 +6057,11 @@
         "of": 14
       },
       "kivgraph": {
-        "tokens_total": 4476,
+        "tokens_total": 4306,
         "calls_total": 21,
-        "ms_total": 5.644999999999999,
-        "precision_mean": 0.9642857142857143,
-        "recall_mean": 1,
+        "ms_total": 4.902,
+        "precision_mean": 1,
+        "recall_mean": 0.9920634920634921,
         "exact_answers": 13,
         "answered": 14,
         "of": 14

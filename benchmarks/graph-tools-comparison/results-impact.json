@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T18:39:06.224382Z",
-  "commit": "5295901",
+  "generated_at": "2026-08-22T10:20:54.454759Z",
+  "commit": "954b9eb",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,62 +14,21 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "code-review-graph 2.3.7",
+    "code-review-graph": "code-review-graph 2.3.8",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
-    "kivgraph": "0.3.6"
+    "kivgraph": "0.5.0"
   },
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/kivhome-impact; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
-  "indexing": {
-    "code-review-graph": {
-      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 2714.694,
-      "scope": "one graph per repository; built the 1 the questions name, not all 37",
-      "state_bytes": 87007374,
-      "needs": "nothing beyond the binary"
-    },
-    "codebase-memory": {
-      "command": "codebase-memory-mcp cli index_repository",
-      "ms": 5597.516,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220921856,
-      "needs": "nothing beyond the binary"
-    },
-    "graft": {
-      "command": "graft build",
-      "ms": 26750.616,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180723799,
-      "needs": "nothing: the structural tier needs no key and no toolchain"
-    },
-    "graphify": {
-      "command": "graphify update \u003cr\u003e",
-      "ms": 4252.023,
-      "scope": "one graph per repository; built the 1 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
-      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
-    },
-    "kivgraph": {
-      "command": "kivgraph index --full",
-      "ms": 52247.937,
-      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
-      "state_bytes": 1608603996,
-      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
-    },
-    "native": {
-      "command": "none",
-      "ms": 0,
-      "scope": "nothing is indexed",
-      "needs": "nothing"
-    }
-  },
+  "indexing": {},
   "question_set": "impact",
   "questions": [
     {
@@ -87,255 +46,15 @@
           "calls": [
             {
               "tool": "code-review-graph impact",
-              "tokens": 226432,
-              "ms": 206.699
+              "tokens": 39,
+              "ms": 114.078,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 226432,
-          "ms": 206.699,
+          "tokens": 39,
+          "ms": 114.078,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:internal/application/handlers/messages_handler.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-            "api-db-go:cmd/migrate/main.go",
-            "api-db-go:internal/application/handlers/dashboard_handler.go",
-            "api-db-go:internal/application/handlers/handlers_extra_test.go",
-            "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-            "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_infractions_mock_test.go",
-            "api-db-go:internal/application/handlers/bots_handler.go",
-            "api-db-go:internal/application/handlers/audit_log_mock_test.go",
-            "api-db-go:internal/application/handlers/command_mock_test.go",
-            "api-db-go:cmd/clone-db/main.go",
-            "api-db-go:internal/application/handlers/kpis_mock_test.go",
-            "api-db-go:internal/application/handlers/module_music_handler.go",
-            "api-db-go:internal/application/handlers/modmail_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/module_logs_handler.go",
-            "api-db-go:internal/application/handlers/modmail_tickets_mock_test.go",
-            "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-            "api-db-go:internal/application/handlers/module_greeter_handler.go",
-            "api-db-go:internal/application/handlers/modmail_stats_handler.go",
-            "api-db-go:internal/application/handlers/modmail_tickets_handler.go",
-            "api-db-go:cmd/backfill-enabled-since/main.go",
-            "api-db-go:internal/application/handlers/global_handler.go",
-            "api-db-go:internal/application/handlers/leveling_handler.go",
-            "api-db-go:cmd/server/main_test.go",
-            "api-db-go:internal/application/handlers/global_mock_test.go",
-            "api-db-go:cmd/seed-bot-visibility/main.go",
-            "api-db-go:internal/application/handlers/capture_errors_test.go",
-            "api-db-go:internal/application/handlers/giveaways_mock_test.go",
-            "api-db-go:internal/application/handlers/bandwidth_mock_test.go",
-            "api-db-go:internal/application/handlers/headers.go",
-            "api-db-go:internal/application/handlers/moderation_flow_runs_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_mock_test.go",
-            "api-db-go:internal/application/handlers/module_automation_handler.go",
-            "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-            "api-db-go:internal/application/handlers/bandwidth_aggregates_handler.go",
-            "api-db-go:internal/application/handlers/core_mock_test.go",
-            "api-db-go:internal/application/handlers/module_moderation_handler.go",
-            "api-db-go:internal/application/handlers/kpis_handler.go",
-            "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-            "api-db-go:internal/application/handlers/core_handler.go",
-            "api-db-go:cmd/purge-notifier-subs/main.go",
-            "api-db-go:internal/application/handlers/enabled_handler.go",
-            "api-db-go:internal/application/handlers/headers_test.go",
-            "api-db-go:cmd/clone-db/config_test.go",
-            "api-db-go:internal/application/handlers/health_handler.go",
-            "api-db-go:internal/application/handlers/dashboard_mock_test.go",
-            "api-db-go:internal/application/handlers/module_leveling_handler.go",
-            "api-db-go:internal/application/handlers/command_handler.go",
-            "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/audit_log_handler.go",
-            "api-db-go:internal/application/handlers/messages_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_flow_runs_handler.go",
-            "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-            "api-db-go:internal/application/handlers/giveaways_handler.go",
-            "api-db-go:internal/application/handlers/module_modmail_handler.go",
-            "api-db-go:internal/application/handlers/bots_mock_test.go",
-            "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-            "api-db-go:internal/application/handlers/giveaway_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_infractions_handler.go",
-            "api-db-go:internal/application/handlers/auth_mock_test.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/giveaway_templates_handler.go",
-            "api-db-go:internal/application/handlers/giveaway_templates_mock_test.go",
-            "api-db-go:internal/application/handlers/module_giveaway_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/application/handlers/module_notifier_handler.go"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:cmd/backfill-enabled-since/main.go",
-              "api-db-go:cmd/clone-db/config_test.go",
-              "api-db-go:cmd/clone-db/main.go",
-              "api-db-go:cmd/migrate/main.go",
-              "api-db-go:cmd/purge-notifier-subs/main.go",
-              "api-db-go:cmd/seed-bot-visibility/main.go",
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:cmd/server/main_test.go",
-              "api-db-go:internal/application/handlers/audit_log_handler.go",
-              "api-db-go:internal/application/handlers/audit_log_mock_test.go",
-              "api-db-go:internal/application/handlers/auth_mock_test.go",
-              "api-db-go:internal/application/handlers/bandwidth_aggregates_handler.go",
-              "api-db-go:internal/application/handlers/bandwidth_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_handler.go",
-              "api-db-go:internal/application/handlers/bots_mock_test.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/capture_errors_test.go",
-              "api-db-go:internal/application/handlers/command_handler.go",
-              "api-db-go:internal/application/handlers/command_mock_test.go",
-              "api-db-go:internal/application/handlers/core_handler.go",
-              "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-              "api-db-go:internal/application/handlers/core_mock_test.go",
-              "api-db-go:internal/application/handlers/dashboard_handler.go",
-              "api-db-go:internal/application/handlers/dashboard_mock_test.go",
-              "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-              "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-              "api-db-go:internal/application/handlers/enabled_handler.go",
-              "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-              "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_handler.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaways_handler.go",
-              "api-db-go:internal/application/handlers/giveaways_mock_test.go",
-              "api-db-go:internal/application/handlers/global_handler.go",
-              "api-db-go:internal/application/handlers/global_mock_test.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/handlers_extra_test.go",
-              "api-db-go:internal/application/handlers/headers.go",
-              "api-db-go:internal/application/handlers/headers_test.go",
-              "api-db-go:internal/application/handlers/health_handler.go",
-              "api-db-go:internal/application/handlers/kpis_handler.go",
-              "api-db-go:internal/application/handlers/kpis_mock_test.go",
-              "api-db-go:internal/application/handlers/leveling_handler.go",
-              "api-db-go:internal/application/handlers/messages_handler.go",
-              "api-db-go:internal/application/handlers/messages_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_handler.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_handler.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_handler.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_mock_test.go",
-              "api-db-go:internal/application/handlers/module_automation_handler.go",
-              "api-db-go:internal/application/handlers/module_giveaway_handler.go",
-              "api-db-go:internal/application/handlers/module_greeter_handler.go",
-              "api-db-go:internal/application/handlers/module_leveling_handler.go",
-              "api-db-go:internal/application/handlers/module_logs_handler.go",
-              "api-db-go:internal/application/handlers/module_moderation_handler.go",
-              "api-db-go:internal/application/handlers/module_modmail_handler.go",
-              "api-db-go:internal/application/handlers/module_music_handler.go",
-              "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-              "api-db-go:internal/application/handlers/module_notifier_handler.go"
-            ],
-            "precision": 0.028985507246376812,
-            "recall": 0.5,
-            "missing": [
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
-            ],
-            "spurious": [
-              "api-db-go:cmd/backfill-enabled-since/main.go",
-              "api-db-go:cmd/clone-db/config_test.go",
-              "api-db-go:cmd/clone-db/main.go",
-              "api-db-go:cmd/migrate/main.go",
-              "api-db-go:cmd/purge-notifier-subs/main.go",
-              "api-db-go:cmd/seed-bot-visibility/main.go",
-              "api-db-go:cmd/server/main_test.go",
-              "api-db-go:internal/application/handlers/audit_log_handler.go",
-              "api-db-go:internal/application/handlers/audit_log_mock_test.go",
-              "api-db-go:internal/application/handlers/auth_mock_test.go",
-              "api-db-go:internal/application/handlers/bandwidth_aggregates_handler.go",
-              "api-db-go:internal/application/handlers/bandwidth_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_handler.go",
-              "api-db-go:internal/application/handlers/bots_mock_test.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/capture_errors_test.go",
-              "api-db-go:internal/application/handlers/command_handler.go",
-              "api-db-go:internal/application/handlers/command_mock_test.go",
-              "api-db-go:internal/application/handlers/core_handler.go",
-              "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-              "api-db-go:internal/application/handlers/core_mock_test.go",
-              "api-db-go:internal/application/handlers/dashboard_handler.go",
-              "api-db-go:internal/application/handlers/dashboard_mock_test.go",
-              "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-              "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-              "api-db-go:internal/application/handlers/enabled_handler.go",
-              "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-              "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_handler.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaways_handler.go",
-              "api-db-go:internal/application/handlers/giveaways_mock_test.go",
-              "api-db-go:internal/application/handlers/global_handler.go",
-              "api-db-go:internal/application/handlers/global_mock_test.go",
-              "api-db-go:internal/application/handlers/handlers_extra_test.go",
-              "api-db-go:internal/application/handlers/headers.go",
-              "api-db-go:internal/application/handlers/headers_test.go",
-              "api-db-go:internal/application/handlers/health_handler.go",
-              "api-db-go:internal/application/handlers/kpis_handler.go",
-              "api-db-go:internal/application/handlers/kpis_mock_test.go",
-              "api-db-go:internal/application/handlers/leveling_handler.go",
-              "api-db-go:internal/application/handlers/messages_handler.go",
-              "api-db-go:internal/application/handlers/messages_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_handler.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_handler.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_handler.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_mock_test.go",
-              "api-db-go:internal/application/handlers/module_automation_handler.go",
-              "api-db-go:internal/application/handlers/module_giveaway_handler.go",
-              "api-db-go:internal/application/handlers/module_greeter_handler.go",
-              "api-db-go:internal/application/handlers/module_leveling_handler.go",
-              "api-db-go:internal/application/handlers/module_logs_handler.go",
-              "api-db-go:internal/application/handlers/module_moderation_handler.go",
-              "api-db-go:internal/application/handlers/module_modmail_handler.go",
-              "api-db-go:internal/application/handlers/module_music_handler.go",
-              "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-              "api-db-go:internal/application/handlers/module_notifier_handler.go"
-            ]
-          },
-          "note": "impact takes changed files, never a declaration -- `--files internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs` reports zero changed nodes -- so this is the whole file's reachable set at the selectable --depth 2: 1835 nodes over 69 files; truncated, 1335 nodes omitted"
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 597,
-              "ms": 10.693
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.217
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 3143.204
-            }
-          ],
-          "tokens": 652,
-          "ms": 3154.114,
-          "call_count": 3,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -348,18 +67,47 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "impact exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.143,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.143,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/application/handlers/guilds_mock_test.go",
+              "api-db-go:internal/application/routers/guilds_router.go",
+              "api-db-go:internal/application/routers/routers_test.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate AutomationScheduledGuildIDs: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 198,
-              "ms": 276.185
+              "tokens": 0,
+              "ms": 0.04,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 198,
-          "ms": 276.185,
+          "tokens": 0,
+          "ms": 0.04,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -379,21 +127,21 @@
             {
               "tool": "graphify affected",
               "tokens": 10,
-              "ms": 172.637
+              "ms": 139.602
             },
             {
               "tool": "graphify affected",
               "tokens": 17,
-              "ms": 146.844
+              "ms": 137.093
             },
             {
               "tool": "graphify query",
-              "tokens": 1552,
-              "ms": 175.347
+              "tokens": 1561,
+              "ms": 160.799
             }
           ],
-          "tokens": 1579,
-          "ms": 494.828,
+          "tokens": 1588,
+          "ms": 437.494,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -401,13 +149,13 @@
             "api-db-go:internal/application/handlers/capture_errors.go",
             "api-db-go:internal/application/handlers/guilds_mock_test.go",
             "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
             "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/domain/services/modmail_web_access.go",
             "api-db-go:internal/application/routers/guilds_router.go",
             "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/validations/module_notifier_validations.go",
+            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/services/member_admin_guilds.go",
+            "api-db-go:internal/domain/validations/module_notifier_validations.go",
             "api-db-go:internal/domain/validations/guild_query_validations.go",
             "api-db-go:internal/domain/validations/guild_query_validations.go",
             "api-db-go:internal/domain/validations/guild_query_validations.go",
@@ -451,12 +199,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2366,
-              "ms": 1.036
+              "tokens": 2404,
+              "ms": 0.904
             }
           ],
-          "tokens": 2366,
-          "ms": 1.036,
+          "tokens": 2404,
+          "ms": 0.904,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/routers/guilds_router.go",
@@ -532,255 +280,15 @@
           "calls": [
             {
               "tool": "code-review-graph impact",
-              "tokens": 226432,
-              "ms": 240.456
+              "tokens": 39,
+              "ms": 101.982,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 226432,
-          "ms": 240.456,
+          "tokens": 39,
+          "ms": 101.982,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:cmd/seed-bot-visibility/main.go",
-            "api-db-go:internal/application/handlers/giveaway_mock_test.go",
-            "api-db-go:cmd/server/main_test.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/giveaways_handler.go",
-            "api-db-go:internal/application/handlers/module_moderation_handler.go",
-            "api-db-go:internal/application/handlers/leveling_handler.go",
-            "api-db-go:internal/application/handlers/moderation_infractions_handler.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:cmd/purge-notifier-subs/main.go",
-            "api-db-go:internal/application/handlers/audit_log_mock_test.go",
-            "api-db-go:internal/application/handlers/giveaway_templates_mock_test.go",
-            "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-            "api-db-go:internal/application/handlers/core_mock_test.go",
-            "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-            "api-db-go:internal/application/handlers/capture_errors_test.go",
-            "api-db-go:internal/application/handlers/bandwidth_aggregates_handler.go",
-            "api-db-go:internal/application/handlers/auth_mock_test.go",
-            "api-db-go:internal/application/handlers/kpis_handler.go",
-            "api-db-go:internal/application/handlers/handlers_extra_test.go",
-            "api-db-go:internal/application/handlers/giveaway_templates_handler.go",
-            "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-            "api-db-go:internal/application/handlers/modmail_tickets_handler.go",
-            "api-db-go:cmd/backfill-enabled-since/main.go",
-            "api-db-go:internal/application/handlers/moderation_mock_test.go",
-            "api-db-go:internal/application/handlers/module_automation_handler.go",
-            "api-db-go:internal/application/handlers/module_logs_handler.go",
-            "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-            "api-db-go:internal/application/handlers/dashboard_handler.go",
-            "api-db-go:cmd/migrate/main.go",
-            "api-db-go:internal/application/handlers/headers_test.go",
-            "api-db-go:internal/application/handlers/messages_mock_test.go",
-            "api-db-go:internal/application/handlers/audit_log_handler.go",
-            "api-db-go:internal/application/handlers/moderation_flow_runs_handler.go",
-            "api-db-go:internal/application/handlers/enabled_handler.go",
-            "api-db-go:internal/application/handlers/kpis_mock_test.go",
-            "api-db-go:internal/application/handlers/health_handler.go",
-            "api-db-go:internal/application/handlers/modmail_tickets_mock_test.go",
-            "api-db-go:internal/application/handlers/global_handler.go",
-            "api-db-go:internal/application/handlers/module_giveaway_handler.go",
-            "api-db-go:internal/application/handlers/module_notifier_handler.go",
-            "api-db-go:internal/application/handlers/modmail_stats_handler.go",
-            "api-db-go:internal/application/handlers/messages_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-            "api-db-go:internal/application/handlers/core_handler.go",
-            "api-db-go:internal/application/handlers/command_handler.go",
-            "api-db-go:internal/application/handlers/headers.go",
-            "api-db-go:internal/application/handlers/dashboard_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_flow_runs_mock_test.go",
-            "api-db-go:cmd/clone-db/main.go",
-            "api-db-go:internal/application/handlers/bots_mock_test.go",
-            "api-db-go:internal/application/handlers/command_mock_test.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-            "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_infractions_mock_test.go",
-            "api-db-go:cmd/clone-db/config_test.go",
-            "api-db-go:internal/application/handlers/global_mock_test.go",
-            "api-db-go:internal/application/handlers/bandwidth_mock_test.go",
-            "api-db-go:internal/application/handlers/giveaways_mock_test.go",
-            "api-db-go:internal/application/handlers/modmail_mock_test.go",
-            "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-            "api-db-go:internal/application/handlers/module_greeter_handler.go",
-            "api-db-go:internal/application/handlers/module_modmail_handler.go",
-            "api-db-go:internal/application/handlers/bots_handler.go",
-            "api-db-go:internal/application/handlers/module_leveling_handler.go",
-            "api-db-go:internal/application/handlers/module_music_handler.go"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:cmd/backfill-enabled-since/main.go",
-              "api-db-go:cmd/clone-db/config_test.go",
-              "api-db-go:cmd/clone-db/main.go",
-              "api-db-go:cmd/migrate/main.go",
-              "api-db-go:cmd/purge-notifier-subs/main.go",
-              "api-db-go:cmd/seed-bot-visibility/main.go",
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:cmd/server/main_test.go",
-              "api-db-go:internal/application/handlers/audit_log_handler.go",
-              "api-db-go:internal/application/handlers/audit_log_mock_test.go",
-              "api-db-go:internal/application/handlers/auth_mock_test.go",
-              "api-db-go:internal/application/handlers/bandwidth_aggregates_handler.go",
-              "api-db-go:internal/application/handlers/bandwidth_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_handler.go",
-              "api-db-go:internal/application/handlers/bots_mock_test.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/capture_errors_test.go",
-              "api-db-go:internal/application/handlers/command_handler.go",
-              "api-db-go:internal/application/handlers/command_mock_test.go",
-              "api-db-go:internal/application/handlers/core_handler.go",
-              "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-              "api-db-go:internal/application/handlers/core_mock_test.go",
-              "api-db-go:internal/application/handlers/dashboard_handler.go",
-              "api-db-go:internal/application/handlers/dashboard_mock_test.go",
-              "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-              "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-              "api-db-go:internal/application/handlers/enabled_handler.go",
-              "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-              "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_handler.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaways_handler.go",
-              "api-db-go:internal/application/handlers/giveaways_mock_test.go",
-              "api-db-go:internal/application/handlers/global_handler.go",
-              "api-db-go:internal/application/handlers/global_mock_test.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/handlers_extra_test.go",
-              "api-db-go:internal/application/handlers/headers.go",
-              "api-db-go:internal/application/handlers/headers_test.go",
-              "api-db-go:internal/application/handlers/health_handler.go",
-              "api-db-go:internal/application/handlers/kpis_handler.go",
-              "api-db-go:internal/application/handlers/kpis_mock_test.go",
-              "api-db-go:internal/application/handlers/leveling_handler.go",
-              "api-db-go:internal/application/handlers/messages_handler.go",
-              "api-db-go:internal/application/handlers/messages_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_handler.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_handler.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_handler.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_mock_test.go",
-              "api-db-go:internal/application/handlers/module_automation_handler.go",
-              "api-db-go:internal/application/handlers/module_giveaway_handler.go",
-              "api-db-go:internal/application/handlers/module_greeter_handler.go",
-              "api-db-go:internal/application/handlers/module_leveling_handler.go",
-              "api-db-go:internal/application/handlers/module_logs_handler.go",
-              "api-db-go:internal/application/handlers/module_moderation_handler.go",
-              "api-db-go:internal/application/handlers/module_modmail_handler.go",
-              "api-db-go:internal/application/handlers/module_music_handler.go",
-              "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-              "api-db-go:internal/application/handlers/module_notifier_handler.go"
-            ],
-            "precision": 0.028985507246376812,
-            "recall": 0.5,
-            "missing": [
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
-            ],
-            "spurious": [
-              "api-db-go:cmd/backfill-enabled-since/main.go",
-              "api-db-go:cmd/clone-db/config_test.go",
-              "api-db-go:cmd/clone-db/main.go",
-              "api-db-go:cmd/migrate/main.go",
-              "api-db-go:cmd/purge-notifier-subs/main.go",
-              "api-db-go:cmd/seed-bot-visibility/main.go",
-              "api-db-go:cmd/server/main_test.go",
-              "api-db-go:internal/application/handlers/audit_log_handler.go",
-              "api-db-go:internal/application/handlers/audit_log_mock_test.go",
-              "api-db-go:internal/application/handlers/auth_mock_test.go",
-              "api-db-go:internal/application/handlers/bandwidth_aggregates_handler.go",
-              "api-db-go:internal/application/handlers/bandwidth_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/bots_handler.go",
-              "api-db-go:internal/application/handlers/bots_mock_test.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/capture_errors_test.go",
-              "api-db-go:internal/application/handlers/command_handler.go",
-              "api-db-go:internal/application/handlers/command_mock_test.go",
-              "api-db-go:internal/application/handlers/core_handler.go",
-              "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-              "api-db-go:internal/application/handlers/core_mock_test.go",
-              "api-db-go:internal/application/handlers/dashboard_handler.go",
-              "api-db-go:internal/application/handlers/dashboard_mock_test.go",
-              "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-              "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-              "api-db-go:internal/application/handlers/enabled_handler.go",
-              "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-              "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_handler.go",
-              "api-db-go:internal/application/handlers/giveaway_templates_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaways_handler.go",
-              "api-db-go:internal/application/handlers/giveaways_mock_test.go",
-              "api-db-go:internal/application/handlers/global_handler.go",
-              "api-db-go:internal/application/handlers/global_mock_test.go",
-              "api-db-go:internal/application/handlers/handlers_extra_test.go",
-              "api-db-go:internal/application/handlers/headers.go",
-              "api-db-go:internal/application/handlers/headers_test.go",
-              "api-db-go:internal/application/handlers/health_handler.go",
-              "api-db-go:internal/application/handlers/kpis_handler.go",
-              "api-db-go:internal/application/handlers/kpis_mock_test.go",
-              "api-db-go:internal/application/handlers/leveling_handler.go",
-              "api-db-go:internal/application/handlers/messages_handler.go",
-              "api-db-go:internal/application/handlers/messages_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_handler.go",
-              "api-db-go:internal/application/handlers/moderation_flow_runs_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_handler.go",
-              "api-db-go:internal/application/handlers/moderation_infractions_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_handler.go",
-              "api-db-go:internal/application/handlers/modmail_tickets_mock_test.go",
-              "api-db-go:internal/application/handlers/module_automation_handler.go",
-              "api-db-go:internal/application/handlers/module_giveaway_handler.go",
-              "api-db-go:internal/application/handlers/module_greeter_handler.go",
-              "api-db-go:internal/application/handlers/module_leveling_handler.go",
-              "api-db-go:internal/application/handlers/module_logs_handler.go",
-              "api-db-go:internal/application/handlers/module_moderation_handler.go",
-              "api-db-go:internal/application/handlers/module_modmail_handler.go",
-              "api-db-go:internal/application/handlers/module_music_handler.go",
-              "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-              "api-db-go:internal/application/handlers/module_notifier_handler.go"
-            ]
-          },
-          "note": "impact takes changed files, never a declaration -- `--files internal/application/handlers/guilds_handler.go::GuildsHandler.AutomationScheduledGuildIDs` reports zero changed nodes -- so this is the whole file's reachable set at the selectable --depth 3: 2894 nodes over 69 files; truncated, 2394 nodes omitted"
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 597,
-              "ms": 10.939
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.182
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 4219.985
-            }
-          ],
-          "tokens": 652,
-          "ms": 4231.106,
-          "call_count": 3,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -793,18 +301,47 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "impact exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.144,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.144,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/application/handlers/guilds_mock_test.go",
+              "api-db-go:internal/application/routers/guilds_router.go",
+              "api-db-go:internal/application/routers/routers_test.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate AutomationScheduledGuildIDs: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 198,
-              "ms": 253.489
+              "tokens": 0,
+              "ms": 0.047,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 198,
-          "ms": 253.489,
+          "tokens": 0,
+          "ms": 0.047,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -824,21 +361,21 @@
             {
               "tool": "graphify affected",
               "tokens": 10,
-              "ms": 148.685
+              "ms": 133.093
             },
             {
               "tool": "graphify affected",
               "tokens": 17,
-              "ms": 151.886
+              "ms": 131.748
             },
             {
               "tool": "graphify query",
-              "tokens": 1548,
-              "ms": 160.919
+              "tokens": 1551,
+              "ms": 152.695
             }
           ],
-          "tokens": 1575,
-          "ms": 461.49,
+          "tokens": 1578,
+          "ms": 417.536,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -848,8 +385,8 @@
             "api-db-go:internal/domain/services/modmail_web_access.go",
             "api-db-go:internal/domain/services/modmail_web_access.go",
             "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/routers/guilds_router.go",
+            "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/services/member_admin_guilds.go",
             "api-db-go:internal/domain/validations/module_notifier_validations.go",
@@ -896,12 +433,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2771,
-              "ms": 1.313
+              "tokens": 2809,
+              "ms": 1.232
             }
           ],
-          "tokens": 2771,
-          "ms": 1.313,
+          "tokens": 2809,
+          "ms": 1.232,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/routers/guilds_router.go",
@@ -991,19 +528,19 @@
   ],
   "aggregate": {
     "code-review-graph": {
-      "tokens_total": 452864,
+      "tokens_total": 78,
       "calls_total": 2,
-      "ms_total": 447.155,
-      "precision_mean": 0.028985507246376812,
-      "recall_mean": 0.5,
+      "ms_total": 216.06,
+      "precision_mean": 0,
+      "recall_mean": 0,
       "exact_answers": 0,
       "answered": 2,
       "of": 2
     },
     "codebase-memory": {
-      "tokens_total": 1304,
-      "calls_total": 6,
-      "ms_total": 7385.219999999999,
+      "tokens_total": 46,
+      "calls_total": 2,
+      "ms_total": 0.287,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
@@ -1011,9 +548,9 @@
       "of": 2
     },
     "graft": {
-      "tokens_total": 396,
+      "tokens_total": 0,
       "calls_total": 2,
-      "ms_total": 529.674,
+      "ms_total": 0.087,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
@@ -1021,9 +558,9 @@
       "of": 2
     },
     "graphify": {
-      "tokens_total": 3154,
+      "tokens_total": 3166,
       "calls_total": 6,
-      "ms_total": 956.318,
+      "ms_total": 855.03,
       "precision_mean": 0.4,
       "recall_mean": 1,
       "exact_answers": 0,
@@ -1031,9 +568,9 @@
       "of": 2
     },
     "kivgraph": {
-      "tokens_total": 5137,
+      "tokens_total": 5213,
       "calls_total": 2,
-      "ms_total": 2.349,
+      "ms_total": 2.136,
       "precision_mean": 1,
       "recall_mean": 1,
       "exact_answers": 2,
@@ -1054,19 +591,19 @@
   "aggregate_by_family": {
     "impact": {
       "code-review-graph": {
-        "tokens_total": 452864,
+        "tokens_total": 78,
         "calls_total": 2,
-        "ms_total": 447.155,
-        "precision_mean": 0.028985507246376812,
-        "recall_mean": 0.5,
+        "ms_total": 216.06,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 2,
         "of": 2
       },
       "codebase-memory": {
-        "tokens_total": 1304,
-        "calls_total": 6,
-        "ms_total": 7385.219999999999,
+        "tokens_total": 46,
+        "calls_total": 2,
+        "ms_total": 0.287,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -1074,9 +611,9 @@
         "of": 2
       },
       "graft": {
-        "tokens_total": 396,
+        "tokens_total": 0,
         "calls_total": 2,
-        "ms_total": 529.674,
+        "ms_total": 0.087,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -1084,9 +621,9 @@
         "of": 2
       },
       "graphify": {
-        "tokens_total": 3154,
+        "tokens_total": 3166,
         "calls_total": 6,
-        "ms_total": 956.318,
+        "ms_total": 855.03,
         "precision_mean": 0.4,
         "recall_mean": 1,
         "exact_answers": 0,
@@ -1094,9 +631,9 @@
         "of": 2
       },
       "kivgraph": {
-        "tokens_total": 5137,
+        "tokens_total": 5213,
         "calls_total": 2,
-        "ms_total": 2.349,
+        "ms_total": 2.136,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,

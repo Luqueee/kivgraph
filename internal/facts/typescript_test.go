@@ -1237,3 +1237,117 @@ func TestNormalizeTypeScriptSeparatesHomonymsDeclaredInDifferentModules(t *testi
 		}
 	}
 }
+
+// TestNormalizeTypeScriptRetiresAFileOutsideTheRepository closes LUQUE-2011.
+//
+// A consumer resolving an import into a workspace sibling's built declarations
+// gets a repository-relative path that climbs out of its own tree. Keying such a
+// file under the consumer published a row whose path escapes its own repository,
+// and a row like that cannot be handed back to any tool -- on kena, one `.d.ts`
+// was claimed by two repositories, neither of which contained it.
+//
+// The fact is retired, not re-attributed: a File belongs to a Package and this
+// payload never names the provider's package, so a re-attributed row would be
+// package-less, and MergeAll keeps the first row for a key without comparing.
+//
+// The local file in the same payload is here to prove the refusal is narrow: a
+// blanket filter that also dropped the consumer's own facts would pass a test
+// that only looked at what disappeared.
+func TestNormalizeTypeScriptRetiresAFileOutsideTheRepository(t *testing.T) {
+	const foreign = "../../libraries/library-shared/dist/types/gateway-registry.d.ts"
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "gateway"},
+		Package: &TypeScriptPackage{
+			Name: "@kena/gateway", Version: "0.0.1",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/manager.ts", foreign},
+		Symbols: []TypeScriptSymbol{
+			{
+				File: "src/manager.ts", Name: "Manager", QualifiedName: "Manager",
+				Kind: "class", Exported: true, Signature: "class Manager",
+				StartLine: 3, EndLine: 9, Start: 40, End: 120,
+			},
+			{
+				File: foreign, Name: "ApiRuntimeState", QualifiedName: "ApiRuntimeState",
+				Kind: "interface", Exported: true, Signature: "interface ApiRuntimeState",
+				StartLine: 51, EndLine: 57, Start: 900, End: 980,
+			},
+		},
+		References: []TypeScriptReference{{
+			File: foreign, Kind: string(TypeUses),
+			SourceQualifiedName: "ApiRuntimeState", TargetQualifiedName: "ApiRuntimeState",
+			TargetFile: foreign, StartLine: 52, Start: 930, End: 945, Text: "ApiRuntimeState",
+		}},
+	}
+
+	set, report, err := NormalizeTypeScript(context.Background(), payload,
+		workspace.Repository{RealPath: "/repositories/gateway"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	// A dangling row would be caught here, which is the whole reason the
+	// retirement has to cover every fact the file held and not just the file.
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	for _, file := range set.Files {
+		if file.Path == foreign {
+			t.Fatalf("published a file whose path escapes its repository: %#v", file)
+		}
+	}
+	if len(set.Symbols) != 1 || set.Symbols[0].QualifiedName != "Manager" {
+		t.Fatalf("symbols = %#v, want only the consumer's own declaration", set.Symbols)
+	}
+
+	// One file refused, and the two facts it held counted one by one.
+	if report.FactsOutsideRepository != 2 {
+		t.Fatalf("FactsOutsideRepository = %d, want 2: the symbol and the reference",
+			report.FactsOutsideRepository)
+	}
+	var retained []UnresolvedReference
+	for _, entry := range set.Unresolved {
+		if entry.Reason == UnresolvedFileOutsideRepository {
+			retained = append(retained, entry)
+		}
+	}
+	if len(retained) != 1 {
+		t.Fatalf("retained %d gaps for the refused file, want 1: %#v", len(retained), retained)
+	}
+	if retained[0].Detail != foreign {
+		t.Fatalf("retained gap detail = %q, want the path that was refused", retained[0].Detail)
+	}
+}
+
+// TestEscapesRepositoryReadsThePathAndNotItsSpelling covers the shapes a worker
+// can produce for the same file. `src/../../x` and `../x` name the same place,
+// so cleaning has to happen before the answer, and an absolute path is outside
+// by definition: neither can be joined onto a repository root.
+func TestEscapesRepositoryReadsThePathAndNotItsSpelling(t *testing.T) {
+	outside := []string{
+		"../sibling/index.ts",
+		"../../libraries/library-shared/dist/index.d.ts",
+		"src/../../escaped.ts",
+		"/absolute/index.ts",
+		"..",
+	}
+	inside := []string{
+		"src/index.ts",
+		"index.ts",
+		"src/nested/../index.ts",
+		"./src/index.ts",
+		"dist/index.d.ts",
+	}
+	for _, file := range outside {
+		if !escapesRepository(file) {
+			t.Errorf("escapesRepository(%q) = false, want true", file)
+		}
+	}
+	for _, file := range inside {
+		if escapesRepository(file) {
+			t.Errorf("escapesRepository(%q) = true, want false", file)
+		}
+	}
+}

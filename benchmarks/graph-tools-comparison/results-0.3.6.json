@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T18:13:00.415131Z",
-  "commit": "540607e",
+  "generated_at": "2026-08-22T10:20:27.811209Z",
+  "commit": "954b9eb",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,62 +14,21 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "code-review-graph 2.3.7",
+    "code-review-graph": "code-review-graph 2.3.8",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
-    "kivgraph": "0.3.6"
+    "kivgraph": "0.5.0"
   },
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/kivhome-seven9; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
-  "indexing": {
-    "code-review-graph": {
-      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 7163.714,
-      "scope": "one graph per repository; built the 4 the questions name, not all 37",
-      "state_bytes": 201101880,
-      "needs": "nothing beyond the binary"
-    },
-    "codebase-memory": {
-      "command": "codebase-memory-mcp cli index_repository",
-      "ms": 4931.579,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220528640,
-      "needs": "nothing beyond the binary"
-    },
-    "graft": {
-      "command": "graft build",
-      "ms": 24595.102,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180837504,
-      "needs": "nothing: the structural tier needs no key and no toolchain"
-    },
-    "graphify": {
-      "command": "graphify update \u003cr\u003e",
-      "ms": 11316.942,
-      "scope": "one graph per repository; built the 4 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
-      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
-    },
-    "kivgraph": {
-      "command": "kivgraph index --full",
-      "ms": 46272.574,
-      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
-      "state_bytes": 1608591709,
-      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
-    },
-    "native": {
-      "command": "none",
-      "ms": 0,
-      "scope": "nothing is indexed",
-      "needs": "nothing"
-    }
-  },
+  "indexing": {},
   "question_set": "measured",
   "questions": [
     {
@@ -88,12 +47,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 131,
-              "ms": 115.691
+              "tokens": 40,
+              "ms": 112.984,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 131,
-          "ms": 115.691,
+          "tokens": 40,
+          "ms": 112.984,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -108,34 +69,21 @@
             ],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside library-shared was never in the graph this query read"
+          "note": "callers_of withRetry exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 4392,
-              "ms": 8.577
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 563,
-              "ms": 8.442
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 471,
-              "ms": 0.531
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 441.128
+              "tokens": 23,
+              "ms": 0.161,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 5460,
-          "ms": 458.678,
-          "call_count": 4,
+          "tokens": 23,
+          "ms": 0.161,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -149,31 +97,23 @@
             ],
             "spurious": []
           },
-          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 10
+          "note": "search_graph failed to locate withRetry: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 1244,
-              "ms": 270.225
+              "tokens": 0,
+              "ms": 0.033,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 1244,
-          "ms": 270.225,
+          "tokens": 0,
+          "ms": 0.033,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go"
-          ],
           "score": {
-            "claimed_set": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
@@ -183,25 +123,19 @@
               "gateway:src/grpc/server.ts",
               "sdk-module-ts:src/sdk/client/KenaModule.ts"
             ],
-            "spurious": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ]
-          },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 7
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 52,
-              "ms": 110.252
+              "ms": 110.63
             }
           ],
           "tokens": 52,
-          "ms": 110.252,
+          "ms": 110.63,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -223,18 +157,18 @@
             {
               "tool": "find_references",
               "tokens": 129,
-              "ms": 0.236,
+              "ms": 0.256,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 203,
-              "ms": 0.284
+              "ms": 0.26
             }
           ],
           "tokens": 332,
-          "ms": 0.52,
+          "ms": 0.516,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/BotWorker.ts",
@@ -341,154 +275,91 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 590,
-              "ms": 111.047
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 3084,
-              "ms": 110.345
+              "tokens": 39,
+              "ms": 106.933,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 3674,
-          "ms": 221.392,
-          "call_count": 2,
-          "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "api-db-go:internal/shared/infisical/infisical_test.go"
-            ],
-            "precision": 0.6666666666666666,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "api-db-go:internal/shared/infisical/infisical_test.go"
-            ]
-          },
-          "ambiguous_declarations": 2
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 4392,
-              "ms": 8.74
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 597,
-              "ms": 9.354
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 471,
-              "ms": 0.496
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 84,
-              "ms": 422.753
-            }
-          ],
-          "tokens": 5544,
-          "ms": 441.34299999999996,
-          "call_count": 4,
-          "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "core:src/cluster/master/index.ts",
-            "core:src/shared/utils/sharding.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "gateway:src/grpc/server.ts"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ],
-            "precision": 0.3333333333333333,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ]
-          },
-          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 10
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 1244,
-              "ms": 254.556
-            }
-          ],
-          "tokens": 1244,
-          "ms": 254.556,
+          "tokens": 39,
+          "ms": 106.933,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go"
-          ],
           "score": {
-            "claimed_set": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
               "api-db-go:internal/infrastructure/postgres/client.go",
               "api-db-go:internal/infrastructure/postgres/retry_test.go"
             ],
-            "spurious": [
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
-              "sdk-module-ts:src/sdk/managers/CommandManager.ts"
-            ]
+            "spurious": []
           },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 7
+          "note": "callers_of withRetry exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.124,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.124,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate withRetry: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.042,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.042,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 131.71
+              "ms": 133.442
             },
             {
               "tool": "graphify affected",
               "tokens": 76,
-              "ms": 138.598
+              "ms": 143.034
             }
           ],
           "tokens": 84,
-          "ms": 270.308,
+          "ms": 276.476,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -508,18 +379,18 @@
             {
               "tool": "find_references",
               "tokens": 129,
-              "ms": 0.312,
+              "ms": 0.344,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
               "tokens": 197,
-              "ms": 0.169
+              "ms": 0.206
             }
           ],
           "tokens": 326,
-          "ms": 0.481,
+          "ms": 0.5499999999999999,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/retry_test.go",
@@ -625,64 +496,20 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 621,
-              "ms": 110.655
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 11920,
-              "ms": 111.06
+              "tokens": 37,
+              "ms": 107.36,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 12541,
-          "ms": 221.715,
-          "call_count": 2,
-          "claimed": [
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
-          ],
+          "tokens": 37,
+          "ms": 107.36,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
               "core:src/cluster/worker/ipc/client.ipc.ts",
               "core:src/cluster/worker/ipc/guild.ipc.ts",
@@ -693,47 +520,28 @@
               "core:src/cluster/worker/ipc/voice.ipc.ts",
               "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "ambiguous_declarations": 2
+          "note": "callers_of getRequiredField exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 527,
-              "ms": 8.589
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 1602,
-              "ms": 1.018
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 153,
-              "ms": 422.259
+              "tokens": 23,
+              "ms": 0.144,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 2282,
-          "ms": 431.86600000000004,
-          "call_count": 3,
-          "claimed": [
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
-          ],
+          "tokens": 23,
+          "ms": 0.144,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
               "core:src/cluster/worker/ipc/client.ipc.ts",
               "core:src/cluster/worker/ipc/guild.ipc.ts",
@@ -744,69 +552,28 @@
               "core:src/cluster/worker/ipc/voice.ipc.ts",
               "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 39 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate getRequiredField: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 3645,
-              "ms": 230.76
+              "tokens": 0,
+              "ms": 0.056,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 3645,
-          "ms": 230.76,
+          "tokens": 0,
+          "ms": 0.056,
           "call_count": 1,
-          "claimed": [
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
               "core:src/cluster/worker/ipc/client.ipc.ts",
               "core:src/cluster/worker/ipc/guild.ipc.ts",
@@ -817,9 +584,6 @@
               "core:src/cluster/worker/ipc/voice.ipc.ts",
               "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -827,107 +591,31 @@
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 1596,
-              "ms": 124.459
+              "tokens": 27,
+              "ms": 77.645,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1596,
-          "ms": 124.459,
+          "tokens": 27,
+          "ms": 77.645,
           "call_count": 1,
-          "claimed": [
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/guild.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/router/ipcRouter.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/user.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:src/cluster/worker/ipc/client.ipc.ts"
-          ],
           "score": {
-            "claimed_set": [
-              "core:src/cluster/worker/BotWorker.ts",
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "core:src/cluster/worker/ipc/channel.ipc.ts",
               "core:src/cluster/worker/ipc/client.ipc.ts",
               "core:src/cluster/worker/ipc/guild.ipc.ts",
               "core:src/cluster/worker/ipc/member.ipc.ts",
               "core:src/cluster/worker/ipc/role.ipc.ts",
-              "core:src/cluster/worker/ipc/router/ipcRouter.ts",
               "core:src/cluster/worker/ipc/thread.ipc.ts",
-              "core:src/cluster/worker/ipc/user.ipc.ts"
-            ],
-            "precision": 0.7777777777777778,
-            "recall": 0.7777777777777778,
-            "missing": [
+              "core:src/cluster/worker/ipc/user.ipc.ts",
               "core:src/cluster/worker/ipc/voice.ipc.ts",
               "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
             ],
-            "spurious": [
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/cluster/worker/ipc/router/ipcRouter.ts"
-            ]
+            "spurious": []
           },
           "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
         },
@@ -935,17 +623,17 @@
           "calls": [
             {
               "tool": "find_references",
-              "tokens": 725,
-              "ms": 0.454
+              "tokens": 673,
+              "ms": 0.408
             },
             {
               "tool": "find_references",
-              "tokens": 365,
-              "ms": 0.188
+              "tokens": 333,
+              "ms": 0.171
             }
           ],
-          "tokens": 1090,
-          "ms": 0.642,
+          "tokens": 1006,
+          "ms": 0.579,
           "call_count": 2,
           "claimed": [
             "core:src/cluster/worker/ipc/role.ipc.ts",
@@ -954,6 +642,8 @@
             "core:src/cluster/worker/ipc/role.ipc.ts",
             "core:src/cluster/worker/ipc/role.ipc.ts",
             "core:src/cluster/worker/ipc/role.ipc.ts",
+            "core:src/cluster/worker/ipc/role.ipc.ts",
+            "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
@@ -966,6 +656,8 @@
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/thread.ipc.ts",
             "core:src/cluster/worker/ipc/thread.ipc.ts",
+            "core:src/cluster/worker/ipc/thread.ipc.ts",
+            "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
@@ -994,26 +686,18 @@
             "core:src/cluster/worker/ipc/guild.ipc.ts",
             "core:src/cluster/worker/ipc/guild.ipc.ts",
             "core:src/cluster/worker/ipc/client.ipc.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
-            "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/channel.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/role.ipc.ts",
-            "core:src/cluster/worker/ipc/member.ipc.ts",
+            "core:src/cluster/worker/ipc/voice.ipc.ts",
+            "core:src/cluster/worker/ipc/voice.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/member.ipc.ts",
             "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/thread.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
-            "core:src/cluster/worker/ipc/voice.ipc.ts",
+            "core:src/cluster/worker/ipc/role.ipc.ts",
             "core:src/cluster/worker/ipc/user.ipc.ts",
             "core:src/cluster/worker/ipc/user.ipc.ts",
             "core:src/cluster/worker/ipc/user.ipc.ts"
@@ -1027,12 +711,13 @@
               "core:src/cluster/worker/ipc/role.ipc.ts",
               "core:src/cluster/worker/ipc/thread.ipc.ts",
               "core:src/cluster/worker/ipc/user.ipc.ts",
-              "core:src/cluster/worker/ipc/voice.ipc.ts",
-              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+              "core:src/cluster/worker/ipc/voice.ipc.ts"
             ],
             "precision": 1,
-            "recall": 1,
-            "missing": [],
+            "recall": 0.8888888888888888,
+            "missing": [
+              "core:tests/cluster/worker/ipc/utils/ipcCase.test.ts"
+            ],
             "spurious": []
           }
         },
@@ -1042,16 +727,11 @@
               "tool": "grep",
               "tokens": 2825,
               "ms": 0
-            },
-            {
-              "tool": "read",
-              "tokens": 412,
-              "ms": 0
             }
           ],
-          "tokens": 3237,
+          "tokens": 2825,
           "ms": 0,
-          "call_count": 2,
+          "call_count": 1,
           "claimed": [
             "core:src/cluster/worker/ipc/channel.ipc.ts",
             "core:src/cluster/worker/ipc/client.ipc.ts",
@@ -1080,7 +760,7 @@
             "missing": [],
             "spurious": []
           },
-          "note": "searched 5330 code files, then read 1 declaring file(s)"
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
         }
       }
     },
@@ -1101,138 +781,17 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 1574,
-              "ms": 110.807
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 6364,
-              "ms": 110.615
+              "tokens": 41,
+              "ms": 108.612,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 7938,
-          "ms": 221.422,
-          "call_count": 2,
-          "claimed": [
-            "kenalink-rs:src/api_rest/error.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs"
-          ],
-          "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
-            ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
-            "spurious": []
-          },
-          "ambiguous_declarations": 6
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 690,
-              "ms": 9.758
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 178,
-              "ms": 9.526
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 451,
-              "ms": 0.449
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 65,
-              "ms": 421.291
-            }
-          ],
-          "tokens": 1384,
-          "ms": 441.024,
-          "call_count": 4,
-          "claimed": [
-            "kenalink-rs:src/api_rest/error.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs"
-          ],
-          "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
-            ],
-            "precision": 1,
-            "recall": 0.6666666666666666,
-            "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs"
-            ],
-            "spurious": []
-          },
-          "note": "trace_path named 10 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 4
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 1345,
-              "ms": 242.001
-            }
-          ],
-          "tokens": 1345,
-          "ms": 242.001,
+          "tokens": 41,
+          "ms": 108.612,
           "call_count": 1,
-          "claimed": [
-            "api-music-nodo:src/providers/chipbot.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/providers/deezer.rs",
-            "api-music-nodo:src/system/chipbot_files.rs"
-          ],
           "score": {
-            "claimed_set": [
-              "api-music-nodo:src/providers/chipbot.rs",
-              "api-music-nodo:src/providers/deezer.rs",
-              "api-music-nodo:src/system/chipbot_files.rs"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
@@ -1243,53 +802,89 @@
               "kenalink-rs:src/audio/songbird_engine.rs",
               "kenalink-rs:src/main.rs"
             ],
-            "spurious": [
-              "api-music-nodo:src/providers/chipbot.rs",
-              "api-music-nodo:src/providers/deezer.rs",
-              "api-music-nodo:src/system/chipbot_files.rs"
-            ]
+            "spurious": []
           },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 4
+          "note": "callers_of now_ms exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.129,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.129,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/audio/songbird_engine.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate now_ms: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.035,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.035,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
+              "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
+              "kenalink-rs:src/audio/songbird_engine.rs",
+              "kenalink-rs:src/main.rs"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 261,
-              "ms": 101.708
+              "tokens": 31,
+              "ms": 78.378,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 261,
-          "ms": 101.708,
+          "tokens": 31,
+          "ms": 78.378,
           "call_count": 1,
-          "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs"
-          ],
           "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs"
-            ],
-            "precision": 1,
-            "recall": 0.3333333333333333,
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
             "missing": [
               "kenalink-rs:src/api_rest/error.rs",
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_rest/routes_sessions.rs",
+              "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/audio/songbird_engine.rs",
               "kenalink-rs:src/main.rs"
             ],
@@ -1302,18 +897,18 @@
             {
               "tool": "find_references",
               "tokens": 84,
-              "ms": 0.232,
+              "ms": 0.204,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
               "tokens": 790,
-              "ms": 0.285
+              "ms": 0.287
             }
           ],
           "tokens": 874,
-          "ms": 0.517,
+          "ms": 0.491,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_rest/routes_players.rs",
@@ -1437,891 +1032,91 @@
           "calls": [
             {
               "tool": "code-review-graph impact",
-              "tokens": 82057,
-              "ms": 156.15
+              "tokens": 39,
+              "ms": 108.281,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 82057,
-          "ms": 156.15,
+          "tokens": 39,
+          "ms": 108.281,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:internal/infrastructure/mongo/module_greeter_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/domain/validations/core_query_validations.go",
-            "api-db-go:internal/infrastructure/locker/locker_test.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-            "api-db-go:internal/infrastructure/redis/user_cache.go",
-            "api-db-go:internal/domain/errors/custom_error.go",
-            "api-db-go:internal/domain/dbtrackerror/dbtrackerror.go",
-            "api-db-go:internal/domain/mocks/fake_modmail_stats_repo.go",
-            "api-db-go:internal/infrastructure/mongo/global_repository.go",
-            "api-db-go:internal/domain/mocks/module_moderation_mock.go",
-            "api-db-go:internal/application/handlers/kpis_mock_test.go",
-            "api-db-go:internal/infrastructure/locker/memcached.go",
-            "api-db-go:internal/domain/mocks/fake_kpis_repos.go",
-            "api-db-go:internal/infrastructure/postgres/tickets_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/lavalinknodes/client.go",
-            "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository.go",
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/domain/mocks/fake_deezer_repo.go",
-            "api-db-go:internal/domain/mocks/guild_mock_test.go",
-            "api-db-go:internal/infrastructure/postgres/track_counter_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-            "api-db-go:internal/domain/dbflowrun/dbflowrun.go",
-            "api-db-go:internal/infrastructure/mongo/dashboard_repository.go",
-            "api-db-go:cmd/seed-bot-visibility/main.go",
-            "api-db-go:internal/infrastructure/locker/locker.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_stats_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_playlists_repo.go",
-            "api-db-go:internal/infrastructure/postgres/tracks_repository.go",
-            "api-db-go:internal/domain/mocks/fake_translation_repo.go",
-            "api-db-go:internal/infrastructure/mongo/module_tts_repository.go",
-            "api-db-go:internal/infrastructure/mongo/enabled_snapshot.go",
-            "api-db-go:internal/infrastructure/mongo/module_modmail_repository_integration_test.go",
-            "api-db-go:internal/shared/infisical/infisical_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_logs_repository.go",
-            "api-db-go:internal/infrastructure/mongorepo/repos_test.go",
-            "api-db-go:internal/infrastructure/redis/module_cache.go",
-            "api-db-go:internal/domain/mocks/fake_tts_repo.go",
-            "api-db-go:internal/infrastructure/kpiscraper/scraper.go",
-            "api-db-go:internal/infrastructure/redis/redis_search_init.go",
-            "api-db-go:internal/domain/mocks/module_notifier_mock.go",
-            "api-db-go:internal/infrastructure/postgres/kpis_players_region_repository.go",
-            "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-db-go:internal/infrastructure/postgres/giveaways_repository.go",
-            "api-db-go:internal/domain/dbtts/user_pref.go",
-            "api-db-go:internal/infrastructure/mongo/module_leveling_repository.go",
-            "api-db-go:internal/domain/mocks/fake_moderation_infractions_repo.go",
-            "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/playlists_repository.go",
-            "api-db-go:internal/domain/mocks/fake_bandwidth_repo.go",
-            "api-db-go:internal/domain/dbkpi/dbkpi.go",
-            "api-db-go:internal/infrastructure/mongo/module_music_repository.go",
-            "api-db-go:internal/infrastructure/redis/module_cache_test.go",
-            "api-db-go:internal/domain/validations/track_errors_validations.go",
-            "api-db-go:internal/domain/validations/deezer_validations.go",
-            "api-db-go:internal/domain/dbmodmailstats/dbmodmailstats.go",
-            "api-db-go:internal/infrastructure/postgres/leveling_repository.go",
-            "api-db-go:internal/domain/dbgiveaway/dbgiveaway.go",
-            "api-db-go:scripts/coverage-viewer/main.go",
-            "api-db-go:internal/application/handlers/core_handler.go",
-            "api-db-go:internal/domain/dbguild/jsondate.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository.go",
-            "api-db-go:internal/application/handlers/playlists_handler.go",
-            "api-db-go:internal/infrastructure/mongo/module_modmail_repository.go",
-            "api-db-go:internal/infrastructure/mongo/module_tickets_repository.go",
-            "api-db-go:internal/infrastructure/mongorepo/repos.go",
-            "api-db-go:internal/application/handlers/kpis_handler.go",
-            "api-db-go:internal/infrastructure/redis/redis_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go",
-            "api-db-go:internal/infrastructure/rediscache/cache.go",
-            "api-db-go:internal/application/handlers/module_music_handler.go",
-            "api-db-go:internal/domain/dbmodmailticket/dbmodmailticket.go",
-            "api-db-go:internal/infrastructure/pgrepo/repos.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/enabled_handler.go",
-            "api-db-go:internal/infrastructure/redis/lavalink_cache.go",
-            "api-db-go:internal/infrastructure/redis/lavalink_persistence_integration_test.go",
-            "api-db-go:internal/domain/services/core_reader.go",
-            "api-db-go:cmd/clone-db/main.go",
-            "api-db-go:internal/application/handlers/premium_handler.go",
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-            "api-db-go:internal/infrastructure/lavalinknodes/client_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_giveaway_repository_integration_test.go",
-            "api-db-go:internal/domain/dbtrackerror/dbtrackerror_test.go",
-            "api-db-go:internal/infrastructure/mongo/guild_repository.go",
-            "api-db-go:internal/infrastructure/postgres/partition_health.go",
-            "api-db-go:internal/infrastructure/mongo/translation_repository.go",
-            "api-db-go:internal/domain/mocks/fake_modmail_repo.go",
-            "api-db-go:internal/application/handlers/track_counter_mock_test.go",
-            "api-db-go:internal/application/handlers/moderation_mock_test.go",
-            "api-db-go:internal/infrastructure/redis/serialization_test.go",
-            "api-db-go:internal/infrastructure/kpiscraper/scraper_test.go",
-            "api-db-go:internal/infrastructure/postgres/client_test.go",
-            "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-            "api-db-go:internal/domain/dbtrackcounter/dbtrackcounter.go",
-            "api-db-go:internal/shared/config/config.go",
-            "api-db-go:internal/domain/dbleveling/dbleveling.go",
-            "api-db-go:internal/infrastructure/postgres/migrate.go",
-            "api-db-go:internal/domain/validations/playlists_validations.go",
-            "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-            "api-db-go:internal/domain/dbguild/module_greeter_normalize_test.go",
-            "api-db-go:internal/domain/mocks/fake_global_repo.go",
-            "api-db-go:internal/domain/mocks/fake_module_cache.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/dbguild/module_tempvoice_test.go",
-            "api-db-go:internal/application/handlers/modules_mock_test.go",
-            "api-db-go:internal/infrastructure/mongo/guilds_service_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository.go",
-            "api-db-go:cmd/migrate/main.go",
-            "api-db-go:internal/domain/dbplaylist/dbplaylist.go",
-            "api-db-go:internal/infrastructure/mongo/module_greeter_enabled_since_integration_test.go",
-            "api-db-go:internal/domain/dbinfraction/dbinfraction.go",
-            "api-db-go:internal/domain/dbnotifier/notifier_sub.go",
-            "api-db-go:internal/infrastructure/redis/command_cache.go",
-            "api-db-go:internal/application/handlers/global_mock_test.go",
-            "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-            "api-db-go:internal/domain/mocks/fake_track_counter_repo.go",
-            "api-db-go:internal/infrastructure/mongo/dashboard_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/deezer_repository_integration_test.go",
-            "api-db-go:internal/domain/dbtranslation/dbtranslation.go",
-            "api-db-go:internal/domain/mocks/fake_bot_repo.go",
-            "api-db-go:internal/infrastructure/redis/global_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_greeter_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/track_errors_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/mongo/guild_repository_integration_test.go",
-            "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-            "api-db-go:internal/domain/dbtrack/dbtrack.go",
-            "api-db-go:internal/infrastructure/mongo/module_logs_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_moderation_flow_runs_repo.go",
-            "api-db-go:internal/infrastructure/mongo/module_moderation_repository.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository.go",
-            "api-db-go:internal/domain/dbguild/jsondate_test.go",
-            "api-db-go:internal/infrastructure/mongo/client.go",
-            "api-db-go:internal/domain/mocks/module_giveaway_mock.go",
-            "api-db-go:internal/domain/mocks/fake_tracks_repos.go",
-            "api-db-go:internal/infrastructure/mongo/module_notifier_repository.go",
-            "api-db-go:internal/domain/mocks/fake_audit_log_repo.go",
-            "api-db-go:internal/domain/validations/bandwidth_validations.go",
-            "api-db-go:internal/infrastructure/mongo/merge_deep_test.go",
-            "api-db-go:internal/domain/validations/moderation_infractions_validations.go",
-            "api-db-go:internal/infrastructure/postgres/track_counter_repository.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/playlists_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/track_metadata_repository.go",
-            "api-db-go:internal/infrastructure/mongo/module_music_legacy_migration_integration_test.go",
-            "api-db-go:internal/domain/validations/messages_validations.go",
-            "api-db-go:internal/application/handlers/messages_mock_test.go",
-            "api-db-go:internal/infrastructure/glitchtip/glitchtip.go",
-            "api-db-go:internal/application/handlers/tracks_handler.go",
-            "api-db-go:internal/domain/dbmessage/dbmessage.go",
-            "api-db-go:internal/infrastructure/postgres/leveling_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/adapter.go",
-            "api-db-go:internal/infrastructure/mongo/audit_log_repository.go",
-            "api-db-go:internal/domain/dbleveling/curve.go",
-            "api-db-go:internal/domain/dbkpi/dbkpi_test.go",
-            "api-db-go:internal/domain/mocks/module_automation_mock.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache.go",
-            "api-db-go:internal/infrastructure/singleflight/group_test.go",
-            "api-db-go:internal/infrastructure/redis/premium_cache.go",
-            "api-db-go:internal/infrastructure/mongo/global_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/bot_core_cache.go",
-            "api-db-go:internal/domain/mocks/fake_tempvoice_repo.go",
-            "api-db-go:internal/infrastructure/singleflight/group.go",
-            "api-db-go:internal/domain/dbticket/dbticket.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository_test.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/infrastructure/mongo/module_giveaway_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository_integration_test.go",
-            "api-db-go:internal/testutil/integration.go",
-            "api-db-go:internal/application/handlers/tempvoice_mock_test.go",
-            "api-db-go:internal/infrastructure/postgres/giveaways_repository_integration_test.go",
-            "api-db-go:internal/domain/dbguild/module_moderation_test.go",
-            "api-db-go:internal/application/handlers/music_http_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/serialization_bench_test.go",
-            "api-db-go:cmd/backfill-enabled-since/main.go",
-            "api-db-go:internal/domain/mocks/fake_giveaway_repo.go",
-            "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-            "api-db-go:internal/domain/mocks/fake_bots_repo.go",
-            "api-db-go:internal/infrastructure/mongo/command_repository_integration_test.go",
-            "api-db-go:cmd/purge-notifier-subs/main.go",
-            "api-db-go:internal/infrastructure/mongo/command_repository.go",
-            "api-db-go:internal/domain/mocks/fake_premium_repo.go",
-            "api-db-go:internal/infrastructure/mongo/deezer_repository.go",
-            "api-db-go:internal/domain/mocks/fake_dashboard_repo.go",
-            "api-db-go:internal/domain/mocks/fake_core_reader.go",
-            "api-db-go:internal/domain/mocks/fake_giveaways_repo.go",
-            "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-            "api-db-go:internal/infrastructure/postgres/postgres_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/modmail_stats_repository.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-            "api-db-go:internal/domain/validations/modmail_stats_validations_test.go",
-            "api-db-go:internal/domain/mocks/fake_giveaway_templates_repo.go",
-            "api-db-go:internal/infrastructure/mongo/module_music_repository_integration_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/infrastructure/postgres/platforms_repository.go",
-            "api-db-go:internal/domain/validations/giveaways_validations.go",
-            "api-db-go:internal/infrastructure/postgres/track_errors_repository.go",
-            "api-db-go:internal/infrastructure/redis/bot_cache.go",
-            "api-db-go:internal/domain/mocks/fake_moderation_repo.go",
-            "api-db-go:internal/infrastructure/postgres/kpis_players_repository.go",
-            "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/tickets_repository.go",
-            "api-db-go:internal/domain/validations/tracks_validations.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository_integration_test.go",
-            "api-db-go:internal/application/handlers/tracks_mock_test.go",
-            "api-db-go:internal/domain/validations/modmail_tickets_validations.go",
-            "api-db-go:internal/infrastructure/postgres/kpis_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository.go",
-            "api-db-go:internal/infrastructure/postgres/messages_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
-            "api-db-go:internal/domain/mocks/fake_modmail_tickets_repo.go",
-            "api-db-go:internal/domain/mocks/module_tempvoice_mock.go",
-            "api-db-go:internal/domain/dbguild/module_greeter.go",
-            "api-db-go:internal/infrastructure/mongo/module_moderation_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/fake_command_repo.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_integration_test.go",
-            "api-db-go:internal/domain/mocks/module_tts_mock.go",
-            "api-db-go:internal/domain/dbgiveawaytemplate/dbgiveawaytemplate.go",
-            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-            "api-db-go:internal/infrastructure/redis/giveaway_stream.go",
-            "api-db-go:internal/infrastructure/redis/translations_cache.go",
-            "api-db-go:internal/application/handlers/giveaways_handler.go",
-            "api-db-go:internal/infrastructure/glitchtip/glitchtip_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/mongo/module_automation_repository.go",
-            "api-db-go:internal/domain/mocks/fake_guild_repo.go",
-            "api-db-go:internal/infrastructure/postgres/recordings_repository.go",
-            "api-db-go:internal/infrastructure/rediscache/cache_test.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/domain/mocks/fake_track_errors_repo.go",
-            "api-db-go:internal/infrastructure/mongo/translation_repository_integration_test.go",
-            "api-db-go:internal/domain/mocks/module_greeter_mock.go",
-            "api-db-go:internal/infrastructure/postgres/tracks_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository.go",
-            "api-db-go:internal/domain/dbguild/module_music_test.go",
-            "api-db-go:internal/domain/validations/modmail_stats_validations.go",
-            "api-db-go:internal/application/middlewares/logger.go",
-            "api-db-go:internal/infrastructure/postgres/messages_repository.go",
-            "api-db-go:internal/infrastructure/mongo/global_repository_test.go",
-            "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository.go",
-            "api-db-go:internal/domain/dbguild/dbguild_test.go",
-            "api-db-go:internal/domain/mocks/module_leveling_mock.go",
-            "api-db-go:internal/domain/services/modmail_web_access_test.go",
-            "api-db-go:internal/infrastructure/postgres/tts_user_prefs_repository.go",
-            "api-db-go:internal/domain/validations/leveling_validations.go"
-          ],
           "score": {
-            "claimed_set": [
-              "api-db-go:cmd/backfill-enabled-since/main.go",
-              "api-db-go:cmd/clone-db/main.go",
-              "api-db-go:cmd/migrate/main.go",
-              "api-db-go:cmd/purge-notifier-subs/main.go",
-              "api-db-go:cmd/seed-bot-visibility/main.go",
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/core_handler.go",
-              "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-              "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-              "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-              "api-db-go:internal/application/handlers/enabled_handler.go",
-              "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-              "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaways_handler.go",
-              "api-db-go:internal/application/handlers/global_mock_test.go",
-              "api-db-go:internal/application/handlers/guilds_handler.go",
-              "api-db-go:internal/application/handlers/kpis_handler.go",
-              "api-db-go:internal/application/handlers/kpis_mock_test.go",
-              "api-db-go:internal/application/handlers/messages_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-              "api-db-go:internal/application/handlers/module_music_handler.go",
-              "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-              "api-db-go:internal/application/handlers/modules_mock_test.go",
-              "api-db-go:internal/application/handlers/music_http_integration_test.go",
-              "api-db-go:internal/application/handlers/playlists_handler.go",
-              "api-db-go:internal/application/handlers/premium_handler.go",
-              "api-db-go:internal/application/handlers/tempvoice_mock_test.go",
-              "api-db-go:internal/application/handlers/track_counter_mock_test.go",
-              "api-db-go:internal/application/handlers/tracks_handler.go",
-              "api-db-go:internal/application/handlers/tracks_mock_test.go",
-              "api-db-go:internal/application/middlewares/logger.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/dbflowrun/dbflowrun.go",
-              "api-db-go:internal/domain/dbgiveaway/dbgiveaway.go",
-              "api-db-go:internal/domain/dbgiveawaytemplate/dbgiveawaytemplate.go",
-              "api-db-go:internal/domain/dbguild/dbguild_test.go",
-              "api-db-go:internal/domain/dbguild/jsondate.go",
-              "api-db-go:internal/domain/dbguild/jsondate_test.go",
-              "api-db-go:internal/domain/dbguild/module_greeter.go",
-              "api-db-go:internal/domain/dbguild/module_greeter_normalize_test.go",
-              "api-db-go:internal/domain/dbguild/module_moderation_test.go",
-              "api-db-go:internal/domain/dbguild/module_music_test.go",
-              "api-db-go:internal/domain/dbguild/module_tempvoice_test.go",
-              "api-db-go:internal/domain/dbinfraction/dbinfraction.go",
-              "api-db-go:internal/domain/dbkpi/dbkpi.go",
-              "api-db-go:internal/domain/dbkpi/dbkpi_test.go",
-              "api-db-go:internal/domain/dbleveling/curve.go",
-              "api-db-go:internal/domain/dbleveling/dbleveling.go",
-              "api-db-go:internal/domain/dbmessage/dbmessage.go",
-              "api-db-go:internal/domain/dbmodmailstats/dbmodmailstats.go",
-              "api-db-go:internal/domain/dbmodmailticket/dbmodmailticket.go",
-              "api-db-go:internal/domain/dbnotifier/notifier_sub.go",
-              "api-db-go:internal/domain/dbplaylist/dbplaylist.go",
-              "api-db-go:internal/domain/dbticket/dbticket.go",
-              "api-db-go:internal/domain/dbtrack/dbtrack.go",
-              "api-db-go:internal/domain/dbtrackcounter/dbtrackcounter.go",
-              "api-db-go:internal/domain/dbtrackerror/dbtrackerror.go",
-              "api-db-go:internal/domain/dbtrackerror/dbtrackerror_test.go",
-              "api-db-go:internal/domain/dbtranslation/dbtranslation.go",
-              "api-db-go:internal/domain/dbtts/user_pref.go",
-              "api-db-go:internal/domain/errors/custom_error.go",
-              "api-db-go:internal/domain/mocks/fake_audit_log_repo.go",
-              "api-db-go:internal/domain/mocks/fake_bandwidth_repo.go",
-              "api-db-go:internal/domain/mocks/fake_bot_repo.go",
-              "api-db-go:internal/domain/mocks/fake_bots_repo.go",
-              "api-db-go:internal/domain/mocks/fake_command_repo.go",
-              "api-db-go:internal/domain/mocks/fake_core_reader.go",
-              "api-db-go:internal/domain/mocks/fake_dashboard_repo.go",
-              "api-db-go:internal/domain/mocks/fake_deezer_repo.go",
-              "api-db-go:internal/domain/mocks/fake_giveaway_repo.go",
-              "api-db-go:internal/domain/mocks/fake_giveaway_templates_repo.go",
-              "api-db-go:internal/domain/mocks/fake_giveaways_repo.go",
-              "api-db-go:internal/domain/mocks/fake_global_repo.go",
-              "api-db-go:internal/domain/mocks/fake_guild_repo.go",
-              "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
-              "api-db-go:internal/domain/mocks/fake_kpis_repos.go",
-              "api-db-go:internal/domain/mocks/fake_moderation_flow_runs_repo.go",
-              "api-db-go:internal/domain/mocks/fake_moderation_infractions_repo.go",
-              "api-db-go:internal/domain/mocks/fake_moderation_repo.go",
-              "api-db-go:internal/domain/mocks/fake_modmail_repo.go",
-              "api-db-go:internal/domain/mocks/fake_modmail_stats_repo.go",
-              "api-db-go:internal/domain/mocks/fake_modmail_tickets_repo.go",
-              "api-db-go:internal/domain/mocks/fake_module_cache.go",
-              "api-db-go:internal/domain/mocks/fake_playlists_repo.go",
-              "api-db-go:internal/domain/mocks/fake_premium_repo.go",
-              "api-db-go:internal/domain/mocks/fake_tempvoice_repo.go",
-              "api-db-go:internal/domain/mocks/fake_track_counter_repo.go",
-              "api-db-go:internal/domain/mocks/fake_track_errors_repo.go",
-              "api-db-go:internal/domain/mocks/fake_tracks_repos.go",
-              "api-db-go:internal/domain/mocks/fake_translation_repo.go",
-              "api-db-go:internal/domain/mocks/fake_tts_repo.go",
-              "api-db-go:internal/domain/mocks/guild_mock_test.go",
-              "api-db-go:internal/domain/mocks/module_automation_mock.go",
-              "api-db-go:internal/domain/mocks/module_giveaway_mock.go",
-              "api-db-go:internal/domain/mocks/module_greeter_mock.go",
-              "api-db-go:internal/domain/mocks/module_leveling_mock.go",
-              "api-db-go:internal/domain/mocks/module_moderation_mock.go",
-              "api-db-go:internal/domain/mocks/module_notifier_mock.go",
-              "api-db-go:internal/domain/mocks/module_tempvoice_mock.go",
-              "api-db-go:internal/domain/mocks/module_tts_mock.go",
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/services/modmail_web_access_test.go",
-              "api-db-go:internal/domain/validations/bandwidth_validations.go",
-              "api-db-go:internal/domain/validations/core_query_validations.go",
-              "api-db-go:internal/domain/validations/deezer_validations.go",
-              "api-db-go:internal/domain/validations/giveaways_validations.go",
-              "api-db-go:internal/domain/validations/leveling_validations.go",
-              "api-db-go:internal/domain/validations/messages_validations.go",
-              "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go",
-              "api-db-go:internal/domain/validations/moderation_infractions_validations.go",
-              "api-db-go:internal/domain/validations/modmail_stats_validations.go",
-              "api-db-go:internal/domain/validations/modmail_stats_validations_test.go",
-              "api-db-go:internal/domain/validations/modmail_tickets_validations.go",
-              "api-db-go:internal/domain/validations/playlists_validations.go",
-              "api-db-go:internal/domain/validations/track_errors_validations.go",
-              "api-db-go:internal/domain/validations/tracks_validations.go",
-              "api-db-go:internal/infrastructure/glitchtip/glitchtip.go",
-              "api-db-go:internal/infrastructure/glitchtip/glitchtip_test.go",
-              "api-db-go:internal/infrastructure/kpiscraper/scraper.go",
-              "api-db-go:internal/infrastructure/kpiscraper/scraper_test.go",
-              "api-db-go:internal/infrastructure/lavalinknodes/client.go",
-              "api-db-go:internal/infrastructure/lavalinknodes/client_test.go",
-              "api-db-go:internal/infrastructure/locker/locker.go",
-              "api-db-go:internal/infrastructure/locker/locker_test.go",
-              "api-db-go:internal/infrastructure/locker/memcached.go",
-              "api-db-go:internal/infrastructure/mongo/audit_log_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/client.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/dashboard_repository.go",
-              "api-db-go:internal/infrastructure/mongo/dashboard_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/deezer_repository.go",
-              "api-db-go:internal/infrastructure/mongo/deezer_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/enabled_snapshot.go",
-              "api-db-go:internal/infrastructure/mongo/global_repository.go",
-              "api-db-go:internal/infrastructure/mongo/global_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/global_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/guild_repository.go",
-              "api-db-go:internal/infrastructure/mongo/guild_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/guilds_service_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/merge_deep_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_automation_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_giveaway_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_giveaway_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_greeter_enabled_since_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_greeter_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_greeter_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_leveling_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_logs_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_logs_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_moderation_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_moderation_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_modmail_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_modmail_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_music_legacy_migration_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_music_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_music_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_notifier_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_tickets_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_tts_repository.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/translation_repository.go",
-              "api-db-go:internal/infrastructure/mongo/translation_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongorepo/repos.go",
-              "api-db-go:internal/infrastructure/mongorepo/repos_test.go",
-              "api-db-go:internal/infrastructure/pgrepo/repos.go",
-              "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository.go",
-              "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/client_test.go",
-              "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository.go",
-              "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/giveaways_repository.go",
-              "api-db-go:internal/infrastructure/postgres/giveaways_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/kpis_players_region_repository.go",
-              "api-db-go:internal/infrastructure/postgres/kpis_players_repository.go",
-              "api-db-go:internal/infrastructure/postgres/kpis_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/leveling_repository.go",
-              "api-db-go:internal/infrastructure/postgres/leveling_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/messages_repository.go",
-              "api-db-go:internal/infrastructure/postgres/messages_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/migrate.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_stats_repository.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_stats_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go",
-              "api-db-go:internal/infrastructure/postgres/partition_health.go",
-              "api-db-go:internal/infrastructure/postgres/platforms_repository.go",
-              "api-db-go:internal/infrastructure/postgres/playlists_repository.go",
-              "api-db-go:internal/infrastructure/postgres/playlists_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/postgres_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/recordings_repository.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "api-db-go:internal/infrastructure/postgres/tickets_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tickets_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/track_counter_repository.go",
-              "api-db-go:internal/infrastructure/postgres/track_counter_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/track_errors_repository.go",
-              "api-db-go:internal/infrastructure/postgres/track_errors_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/track_metadata_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tracks_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tracks_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/tts_user_prefs_repository.go",
-              "api-db-go:internal/infrastructure/redis/adapter.go",
-              "api-db-go:internal/infrastructure/redis/bot_cache.go",
-              "api-db-go:internal/infrastructure/redis/bot_core_cache.go",
-              "api-db-go:internal/infrastructure/redis/client.go",
-              "api-db-go:internal/infrastructure/redis/command_cache.go",
-              "api-db-go:internal/infrastructure/redis/core_cache.go",
-              "api-db-go:internal/infrastructure/redis/core_cache_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/giveaway_stream.go",
-              "api-db-go:internal/infrastructure/redis/global_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-              "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-              "api-db-go:internal/infrastructure/redis/lavalink_cache.go",
-              "api-db-go:internal/infrastructure/redis/lavalink_persistence_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/module_cache.go",
-              "api-db-go:internal/infrastructure/redis/module_cache_test.go",
-              "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-              "api-db-go:internal/infrastructure/redis/premium_cache.go",
-              "api-db-go:internal/infrastructure/redis/redis_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/redis_search_init.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go",
-              "api-db-go:internal/infrastructure/redis/serialization_bench_test.go",
-              "api-db-go:internal/infrastructure/redis/serialization_test.go",
-              "api-db-go:internal/infrastructure/redis/translations_cache.go",
-              "api-db-go:internal/infrastructure/redis/user_cache.go",
-              "api-db-go:internal/infrastructure/rediscache/cache.go",
-              "api-db-go:internal/infrastructure/rediscache/cache_test.go",
-              "api-db-go:internal/infrastructure/singleflight/group.go",
-              "api-db-go:internal/infrastructure/singleflight/group_test.go",
-              "api-db-go:internal/shared/config/config.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-db-go:internal/shared/infisical/infisical_test.go",
-              "api-db-go:internal/testutil/integration.go",
-              "api-db-go:scripts/coverage-viewer/main.go"
-            ],
-            "precision": 0.00784313725490196,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "api-db-go:cmd/backfill-enabled-since/main.go",
-              "api-db-go:cmd/clone-db/main.go",
-              "api-db-go:cmd/migrate/main.go",
-              "api-db-go:cmd/purge-notifier-subs/main.go",
-              "api-db-go:cmd/seed-bot-visibility/main.go",
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler_integration_test.go",
-              "api-db-go:internal/application/handlers/bots_guilds_mock_test.go",
-              "api-db-go:internal/application/handlers/core_handler.go",
-              "api-db-go:internal/application/handlers/core_member_permissions_mock_test.go",
-              "api-db-go:internal/application/handlers/deezer_arl_handler.go",
-              "api-db-go:internal/application/handlers/deezer_arl_mock_test.go",
-              "api-db-go:internal/application/handlers/enabled_handler.go",
-              "api-db-go:internal/application/handlers/enabled_set_mock_test.go",
-              "api-db-go:internal/application/handlers/failure_modes_mock_test.go",
-              "api-db-go:internal/application/handlers/giveaways_handler.go",
-              "api-db-go:internal/application/handlers/global_mock_test.go",
-              "api-db-go:internal/application/handlers/guilds_handler.go",
-              "api-db-go:internal/application/handlers/kpis_handler.go",
-              "api-db-go:internal/application/handlers/kpis_mock_test.go",
-              "api-db-go:internal/application/handlers/messages_mock_test.go",
-              "api-db-go:internal/application/handlers/moderation_mock_test.go",
-              "api-db-go:internal/application/handlers/modmail_stats_handler_test.go",
-              "api-db-go:internal/application/handlers/module_music_handler.go",
-              "api-db-go:internal/application/handlers/module_music_persistence_test.go",
-              "api-db-go:internal/application/handlers/modules_mock_test.go",
-              "api-db-go:internal/application/handlers/music_http_integration_test.go",
-              "api-db-go:internal/application/handlers/playlists_handler.go",
-              "api-db-go:internal/application/handlers/premium_handler.go",
-              "api-db-go:internal/application/handlers/tempvoice_mock_test.go",
-              "api-db-go:internal/application/handlers/track_counter_mock_test.go",
-              "api-db-go:internal/application/handlers/tracks_handler.go",
-              "api-db-go:internal/application/handlers/tracks_mock_test.go",
-              "api-db-go:internal/application/middlewares/logger.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/dbflowrun/dbflowrun.go",
-              "api-db-go:internal/domain/dbgiveaway/dbgiveaway.go",
-              "api-db-go:internal/domain/dbgiveawaytemplate/dbgiveawaytemplate.go",
-              "api-db-go:internal/domain/dbguild/dbguild_test.go",
-              "api-db-go:internal/domain/dbguild/jsondate.go",
-              "api-db-go:internal/domain/dbguild/jsondate_test.go",
-              "api-db-go:internal/domain/dbguild/module_greeter.go",
-              "api-db-go:internal/domain/dbguild/module_greeter_normalize_test.go",
-              "api-db-go:internal/domain/dbguild/module_moderation_test.go",
-              "api-db-go:internal/domain/dbguild/module_music_test.go",
-              "api-db-go:internal/domain/dbguild/module_tempvoice_test.go",
-              "api-db-go:internal/domain/dbinfraction/dbinfraction.go",
-              "api-db-go:internal/domain/dbkpi/dbkpi.go",
-              "api-db-go:internal/domain/dbkpi/dbkpi_test.go",
-              "api-db-go:internal/domain/dbleveling/curve.go",
-              "api-db-go:internal/domain/dbleveling/dbleveling.go",
-              "api-db-go:internal/domain/dbmessage/dbmessage.go",
-              "api-db-go:internal/domain/dbmodmailstats/dbmodmailstats.go",
-              "api-db-go:internal/domain/dbmodmailticket/dbmodmailticket.go",
-              "api-db-go:internal/domain/dbnotifier/notifier_sub.go",
-              "api-db-go:internal/domain/dbplaylist/dbplaylist.go",
-              "api-db-go:internal/domain/dbticket/dbticket.go",
-              "api-db-go:internal/domain/dbtrack/dbtrack.go",
-              "api-db-go:internal/domain/dbtrackcounter/dbtrackcounter.go",
-              "api-db-go:internal/domain/dbtrackerror/dbtrackerror.go",
-              "api-db-go:internal/domain/dbtrackerror/dbtrackerror_test.go",
-              "api-db-go:internal/domain/dbtranslation/dbtranslation.go",
-              "api-db-go:internal/domain/dbtts/user_pref.go",
-              "api-db-go:internal/domain/errors/custom_error.go",
-              "api-db-go:internal/domain/mocks/fake_audit_log_repo.go",
-              "api-db-go:internal/domain/mocks/fake_bandwidth_repo.go",
-              "api-db-go:internal/domain/mocks/fake_bot_repo.go",
-              "api-db-go:internal/domain/mocks/fake_bots_repo.go",
-              "api-db-go:internal/domain/mocks/fake_command_repo.go",
-              "api-db-go:internal/domain/mocks/fake_core_reader.go",
-              "api-db-go:internal/domain/mocks/fake_dashboard_repo.go",
-              "api-db-go:internal/domain/mocks/fake_deezer_repo.go",
-              "api-db-go:internal/domain/mocks/fake_giveaway_repo.go",
-              "api-db-go:internal/domain/mocks/fake_giveaway_templates_repo.go",
-              "api-db-go:internal/domain/mocks/fake_giveaways_repo.go",
-              "api-db-go:internal/domain/mocks/fake_global_repo.go",
-              "api-db-go:internal/domain/mocks/fake_guild_repo.go",
-              "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
-              "api-db-go:internal/domain/mocks/fake_kpis_repos.go",
-              "api-db-go:internal/domain/mocks/fake_moderation_flow_runs_repo.go",
-              "api-db-go:internal/domain/mocks/fake_moderation_infractions_repo.go",
-              "api-db-go:internal/domain/mocks/fake_moderation_repo.go",
-              "api-db-go:internal/domain/mocks/fake_modmail_repo.go",
-              "api-db-go:internal/domain/mocks/fake_modmail_stats_repo.go",
-              "api-db-go:internal/domain/mocks/fake_modmail_tickets_repo.go",
-              "api-db-go:internal/domain/mocks/fake_module_cache.go",
-              "api-db-go:internal/domain/mocks/fake_playlists_repo.go",
-              "api-db-go:internal/domain/mocks/fake_premium_repo.go",
-              "api-db-go:internal/domain/mocks/fake_tempvoice_repo.go",
-              "api-db-go:internal/domain/mocks/fake_track_counter_repo.go",
-              "api-db-go:internal/domain/mocks/fake_track_errors_repo.go",
-              "api-db-go:internal/domain/mocks/fake_tracks_repos.go",
-              "api-db-go:internal/domain/mocks/fake_translation_repo.go",
-              "api-db-go:internal/domain/mocks/fake_tts_repo.go",
-              "api-db-go:internal/domain/mocks/guild_mock_test.go",
-              "api-db-go:internal/domain/mocks/module_automation_mock.go",
-              "api-db-go:internal/domain/mocks/module_giveaway_mock.go",
-              "api-db-go:internal/domain/mocks/module_greeter_mock.go",
-              "api-db-go:internal/domain/mocks/module_leveling_mock.go",
-              "api-db-go:internal/domain/mocks/module_moderation_mock.go",
-              "api-db-go:internal/domain/mocks/module_notifier_mock.go",
-              "api-db-go:internal/domain/mocks/module_tempvoice_mock.go",
-              "api-db-go:internal/domain/mocks/module_tts_mock.go",
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/services/modmail_web_access_test.go",
-              "api-db-go:internal/domain/validations/bandwidth_validations.go",
-              "api-db-go:internal/domain/validations/core_query_validations.go",
-              "api-db-go:internal/domain/validations/deezer_validations.go",
-              "api-db-go:internal/domain/validations/giveaways_validations.go",
-              "api-db-go:internal/domain/validations/leveling_validations.go",
-              "api-db-go:internal/domain/validations/messages_validations.go",
-              "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go",
-              "api-db-go:internal/domain/validations/moderation_infractions_validations.go",
-              "api-db-go:internal/domain/validations/modmail_stats_validations.go",
-              "api-db-go:internal/domain/validations/modmail_stats_validations_test.go",
-              "api-db-go:internal/domain/validations/modmail_tickets_validations.go",
-              "api-db-go:internal/domain/validations/playlists_validations.go",
-              "api-db-go:internal/domain/validations/track_errors_validations.go",
-              "api-db-go:internal/domain/validations/tracks_validations.go",
-              "api-db-go:internal/infrastructure/glitchtip/glitchtip.go",
-              "api-db-go:internal/infrastructure/glitchtip/glitchtip_test.go",
-              "api-db-go:internal/infrastructure/kpiscraper/scraper.go",
-              "api-db-go:internal/infrastructure/kpiscraper/scraper_test.go",
-              "api-db-go:internal/infrastructure/lavalinknodes/client.go",
-              "api-db-go:internal/infrastructure/lavalinknodes/client_test.go",
-              "api-db-go:internal/infrastructure/locker/locker.go",
-              "api-db-go:internal/infrastructure/locker/locker_test.go",
-              "api-db-go:internal/infrastructure/locker/memcached.go",
-              "api-db-go:internal/infrastructure/mongo/audit_log_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/client.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/dashboard_repository.go",
-              "api-db-go:internal/infrastructure/mongo/dashboard_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/deezer_repository.go",
-              "api-db-go:internal/infrastructure/mongo/deezer_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/enabled_snapshot.go",
-              "api-db-go:internal/infrastructure/mongo/global_repository.go",
-              "api-db-go:internal/infrastructure/mongo/global_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/global_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/guild_repository.go",
-              "api-db-go:internal/infrastructure/mongo/guild_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/guilds_service_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/merge_deep_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_automation_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_giveaway_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_giveaway_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_greeter_enabled_since_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_greeter_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_greeter_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_leveling_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_logs_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_logs_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_moderation_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_moderation_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_modmail_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_modmail_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_music_legacy_migration_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_music_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_music_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_notifier_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_tempvoice_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/module_tickets_repository.go",
-              "api-db-go:internal/infrastructure/mongo/module_tts_repository.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/translation_repository.go",
-              "api-db-go:internal/infrastructure/mongo/translation_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/mongorepo/repos.go",
-              "api-db-go:internal/infrastructure/mongorepo/repos_test.go",
-              "api-db-go:internal/infrastructure/pgrepo/repos.go",
-              "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository.go",
-              "api-db-go:internal/infrastructure/postgres/bandwidth_aggregates_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/client_test.go",
-              "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository.go",
-              "api-db-go:internal/infrastructure/postgres/giveaway_templates_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/giveaways_repository.go",
-              "api-db-go:internal/infrastructure/postgres/giveaways_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/kpis_players_region_repository.go",
-              "api-db-go:internal/infrastructure/postgres/kpis_players_repository.go",
-              "api-db-go:internal/infrastructure/postgres/kpis_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/leveling_repository.go",
-              "api-db-go:internal/infrastructure/postgres/leveling_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/messages_repository.go",
-              "api-db-go:internal/infrastructure/postgres/messages_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/migrate.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_flow_runs_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository.go",
-              "api-db-go:internal/infrastructure/postgres/moderation_infractions_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_stats_repository.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_stats_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository.go",
-              "api-db-go:internal/infrastructure/postgres/modmail_tickets_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go",
-              "api-db-go:internal/infrastructure/postgres/partition_health.go",
-              "api-db-go:internal/infrastructure/postgres/platforms_repository.go",
-              "api-db-go:internal/infrastructure/postgres/playlists_repository.go",
-              "api-db-go:internal/infrastructure/postgres/playlists_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/postgres_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/recordings_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tickets_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tickets_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/track_counter_repository.go",
-              "api-db-go:internal/infrastructure/postgres/track_counter_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/track_errors_repository.go",
-              "api-db-go:internal/infrastructure/postgres/track_errors_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/track_metadata_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tracks_repository.go",
-              "api-db-go:internal/infrastructure/postgres/tracks_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/postgres/tts_user_prefs_repository.go",
-              "api-db-go:internal/infrastructure/redis/adapter.go",
-              "api-db-go:internal/infrastructure/redis/bot_cache.go",
-              "api-db-go:internal/infrastructure/redis/bot_core_cache.go",
-              "api-db-go:internal/infrastructure/redis/client.go",
-              "api-db-go:internal/infrastructure/redis/command_cache.go",
-              "api-db-go:internal/infrastructure/redis/core_cache.go",
-              "api-db-go:internal/infrastructure/redis/core_cache_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/giveaway_stream.go",
-              "api-db-go:internal/infrastructure/redis/global_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-              "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-              "api-db-go:internal/infrastructure/redis/lavalink_cache.go",
-              "api-db-go:internal/infrastructure/redis/lavalink_persistence_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/module_cache.go",
-              "api-db-go:internal/infrastructure/redis/module_cache_test.go",
-              "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-              "api-db-go:internal/infrastructure/redis/premium_cache.go",
-              "api-db-go:internal/infrastructure/redis/redis_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/redis_search_init.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go",
-              "api-db-go:internal/infrastructure/redis/serialization_bench_test.go",
-              "api-db-go:internal/infrastructure/redis/serialization_test.go",
-              "api-db-go:internal/infrastructure/redis/translations_cache.go",
-              "api-db-go:internal/infrastructure/redis/user_cache.go",
-              "api-db-go:internal/infrastructure/rediscache/cache.go",
-              "api-db-go:internal/infrastructure/rediscache/cache_test.go",
-              "api-db-go:internal/infrastructure/singleflight/group.go",
-              "api-db-go:internal/infrastructure/singleflight/group_test.go",
-              "api-db-go:internal/shared/config/config.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-db-go:internal/shared/infisical/infisical_test.go",
-              "api-db-go:internal/testutil/integration.go",
-              "api-db-go:scripts/coverage-viewer/main.go"
-            ]
-          },
-          "note": "impact takes changed files, never a declaration -- `--files internal/infrastructure/postgres/retry.go::expBackoffJitter` reports zero changed nodes -- so this is the whole file's reachable set at the selectable --depth 2: 390 nodes over 255 files"
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 1064,
-              "ms": 11.192
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 547,
-              "ms": 10.542
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 623,
-              "ms": 0.56
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 98,
-              "ms": 2957.777
-            }
-          ],
-          "tokens": 2332,
-          "ms": 2980.071,
-          "call_count": 4,
-          "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "core:src/cluster/master/index.ts",
-            "core:src/shared/utils/sharding.ts",
-            "core:src/cluster/worker/BotWorker.ts",
-            "gateway:src/grpc/server.ts"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go",
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ],
-            "precision": 0.3333333333333333,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "core:src/cluster/master/index.ts",
-              "core:src/cluster/worker/BotWorker.ts",
-              "core:src/shared/utils/sharding.ts",
-              "gateway:src/grpc/server.ts"
-            ]
-          },
-          "note": "trace_path named 13 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 2
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 371,
-              "ms": 245.573
-            }
-          ],
-          "tokens": 371,
-          "ms": 245.573,
-          "call_count": 1,
-          "claimed": [
-            "library-shared:src/utils/retry.ts"
-          ],
-          "score": {
-            "claimed_set": [
-              "library-shared:src/utils/retry.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
               "api-db-go:internal/infrastructure/postgres/client.go",
               "api-db-go:internal/infrastructure/postgres/retry_test.go"
             ],
-            "spurious": [
-              "library-shared:src/utils/retry.ts"
-            ]
+            "spurious": []
           },
-          "note": "answered about 2 declarations sharing the name",
-          "ambiguous_declarations": 2
+          "note": "impact exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.135,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.135,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate expBackoffJitter: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.042,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.042,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 11,
-              "ms": 133.297
+              "ms": 137.2
             },
             {
               "tool": "graphify affected",
               "tokens": 46,
-              "ms": 136.989
+              "ms": 136.46
             }
           ],
           "tokens": 57,
-          "ms": 270.286,
+          "ms": 273.65999999999997,
           "call_count": 2,
           "score": {
             "claimed_set": [],
@@ -2340,12 +1135,12 @@
           "calls": [
             {
               "tool": "get_blast_radius",
-              "tokens": 2362,
-              "ms": 1.092
+              "tokens": 2380,
+              "ms": 1.101
             }
           ],
-          "tokens": 2362,
-          "ms": 1.092,
+          "tokens": 2380,
+          "ms": 1.101,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/postgres/retry_test.go",
@@ -2431,91 +1226,20 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 2324,
-              "ms": 111.476
+              "tokens": 37,
+              "ms": 108.786,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 2324,
-          "ms": 111.476,
+          "tokens": 37,
+          "ms": 108.786,
           "call_count": 1,
-          "claimed": [
-            "sendResponse",
-            "createSuccessResponse",
-            "createErrorResponse",
-            "resolveChannel",
-            "handleFetch",
-            "handleList",
-            "handleCreate",
-            "handleAddFollower",
-            "handleSetVoiceStatus",
-            "handleTriggerTyping",
-            "handleEdit",
-            "handleDelete",
-            "handleBulkDeleteMessages",
-            "handleEditPermissions",
-            "handleCreateThread",
-            "handleChannelIPC"
-          ],
           "score": {
-            "claimed_set": [
-              "createErrorResponse",
-              "createSuccessResponse",
-              "handleAddFollower",
-              "handleBulkDeleteMessages",
-              "handleChannelIPC",
-              "handleCreate",
-              "handleCreateThread",
-              "handleDelete",
-              "handleEdit",
-              "handleEditPermissions",
-              "handleFetch",
-              "handleList",
-              "handleSetVoiceStatus",
-              "handleTriggerTyping",
-              "resolveChannel",
-              "sendResponse"
-            ],
-            "precision": 1,
-            "recall": 0.9411764705882353,
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
             "missing": [
-              "inFlightChannelFetches"
-            ],
-            "spurious": []
-          },
-          "note": "file_summary returns the file's own node beside its declarations; only the declarations are claimed"
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 9019,
-              "ms": 27.93
-            }
-          ],
-          "tokens": 9019,
-          "ms": 27.93,
-          "call_count": 1,
-          "claimed": [
-            "createErrorResponse",
-            "createSuccessResponse",
-            "handleAddFollower",
-            "handleBulkDeleteMessages",
-            "handleChannelIPC",
-            "handleCreate",
-            "handleCreateThread",
-            "handleDelete",
-            "handleEdit",
-            "handleEditPermissions",
-            "handleFetch",
-            "handleList",
-            "handleSetVoiceStatus",
-            "handleTriggerTyping",
-            "inFlightChannelFetches",
-            "resolveChannel",
-            "sendResponse"
-          ],
-          "score": {
-            "claimed_set": [
               "createErrorResponse",
               "createSuccessResponse",
               "handleAddFollower",
@@ -2534,9 +1258,46 @@
               "resolveChannel",
               "sendResponse"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
+            "spurious": []
+          },
+          "note": "file_summary exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.13,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.13,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "createErrorResponse",
+              "createSuccessResponse",
+              "handleAddFollower",
+              "handleBulkDeleteMessages",
+              "handleChannelIPC",
+              "handleCreate",
+              "handleCreateThread",
+              "handleDelete",
+              "handleEdit",
+              "handleEditPermissions",
+              "handleFetch",
+              "handleList",
+              "handleSetVoiceStatus",
+              "handleTriggerTyping",
+              "inFlightChannelFetches",
+              "resolveChannel",
+              "sendResponse"
+            ],
             "spurious": []
           }
         },
@@ -2544,12 +1305,14 @@
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 648,
-              "ms": 227.935
+              "tokens": 0,
+              "ms": 0.069,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 648,
-          "ms": 227.935,
+          "tokens": 0,
+          "ms": 0.069,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2581,59 +1344,52 @@
           "calls": [
             {
               "tool": "graphify explain",
-              "tokens": 328,
-              "ms": 108.159
+              "tokens": 27,
+              "ms": 85.836,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 328,
-          "ms": 108.159,
+          "tokens": 27,
+          "ms": 85.836,
           "call_count": 1,
-          "claimed": [
-            "handleChannelIPC",
-            "createErrorResponse",
-            "createSuccessResponse",
-            "sendResponse",
-            "handleFetch",
-            "handleAddFollower"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "createErrorResponse",
               "createSuccessResponse",
               "handleAddFollower",
-              "handleChannelIPC",
-              "handleFetch",
-              "sendResponse"
-            ],
-            "precision": 1,
-            "recall": 0.35294117647058826,
-            "missing": [
               "handleBulkDeleteMessages",
+              "handleChannelIPC",
               "handleCreate",
               "handleCreateThread",
               "handleDelete",
               "handleEdit",
               "handleEditPermissions",
+              "handleFetch",
               "handleList",
               "handleSetVoiceStatus",
               "handleTriggerTyping",
               "inFlightChannelFetches",
-              "resolveChannel"
+              "resolveChannel",
+              "sendResponse"
             ],
             "spurious": []
           },
-          "note": "`explain \u003cfile node id\u003e` reads the file node's `contains` edges, because no graphify command takes a file path; the id is `{parent_dir}_{stem}`; `explain` prints at most 20 connections sorted by neighbour degree and hid 11 more here, so imports crowd out the declarations on a large file"
+          "note": "`explain \u003cfile node id\u003e` reads the file node's `contains` edges, because no graphify command takes a file path; the id is `{parent_dir}_{stem}`"
         },
         "kivgraph": {
           "calls": [
             {
               "tool": "get_file_outline",
               "tokens": 1106,
-              "ms": 0.897
+              "ms": 1.097
             }
           ],
           "tokens": 1106,
-          "ms": 0.897,
+          "ms": 1.097,
           "call_count": 1,
           "claimed": [
             "inFlightChannelFetches",
@@ -2752,56 +1508,50 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 633,
-              "ms": 111.554
+              "tokens": 39,
+              "ms": 113.986,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 633,
-          "ms": 111.554,
+          "tokens": 39,
+          "ms": 113.986,
           "call_count": 1,
-          "claimed": [
-            "retryInfo",
-            "expBackoffJitter",
-            "withRetry"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "expBackoffJitter",
               "retryInfo",
               "withRetry"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "file_summary returns the file's own node beside its declarations; only the declarations are claimed"
+          "note": "file_summary exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 1406,
-              "ms": 35.786
+              "tokens": 23,
+              "ms": 0.145,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 1406,
-          "ms": 35.786,
+          "tokens": 23,
+          "ms": 0.145,
           "call_count": 1,
-          "claimed": [
-            "expBackoffJitter",
-            "retryInfo",
-            "withRetry"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "expBackoffJitter",
               "retryInfo",
               "withRetry"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -2809,12 +1559,14 @@
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 187,
-              "ms": 247.502
+              "tokens": 0,
+              "ms": 0.09,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 187,
-          "ms": 247.502,
+          "tokens": 0,
+          "ms": 0.09,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -2833,11 +1585,11 @@
             {
               "tool": "graphify explain",
               "tokens": 91,
-              "ms": 141.815
+              "ms": 143.787
             }
           ],
           "tokens": 91,
-          "ms": 141.815,
+          "ms": 143.787,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -2862,11 +1614,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 110,
-              "ms": 0.813
+              "ms": 1.097
             }
           ],
           "tokens": 110,
-          "ms": 0.813,
+          "ms": 1.097,
           "call_count": 1,
           "claimed": [
             "expBackoffJitter",
@@ -2918,58 +1670,58 @@
   ],
   "aggregate": {
     "code-review-graph": {
-      "tokens_total": 109298,
-      "calls_total": 10,
-      "ms_total": 1159.4,
-      "precision_mean": 0.6677871148459383,
-      "recall_mean": 0.8487394957983193,
-      "exact_answers": 3,
+      "tokens_total": 272,
+      "calls_total": 7,
+      "ms_total": 766.9420000000001,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
       "answered": 7,
       "of": 7
     },
     "codebase-memory": {
-      "tokens_total": 27427,
-      "calls_total": 21,
-      "ms_total": 4816.698,
-      "precision_mean": 0.6666666666666666,
-      "recall_mean": 0.8095238095238094,
-      "exact_answers": 3,
+      "tokens_total": 161,
+      "calls_total": 7,
+      "ms_total": 0.9680000000000001,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
       "answered": 7,
       "of": 7
     },
     "graft": {
-      "tokens_total": 8684,
+      "tokens_total": 0,
       "calls_total": 7,
-      "ms_total": 1718.552,
+      "ms_total": 0.367,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 7,
+      "of": 7
+    },
+    "graphify": {
+      "tokens_total": 369,
+      "calls_total": 9,
+      "ms_total": 1046.412,
       "precision_mean": 0.14285714285714285,
       "recall_mean": 0.14285714285714285,
       "exact_answers": 1,
       "answered": 7,
       "of": 7
     },
-    "graphify": {
-      "tokens_total": 2469,
-      "calls_total": 9,
-      "ms_total": 1126.9869999999999,
-      "precision_mean": 0.5396825396825397,
-      "recall_mean": 0.3520074696545285,
-      "exact_answers": 1,
-      "answered": 7,
-      "of": 7
-    },
     "kivgraph": {
-      "tokens_total": 6200,
+      "tokens_total": 6134,
       "calls_total": 11,
-      "ms_total": 4.962,
+      "ms_total": 5.430999999999999,
       "precision_mean": 1,
-      "recall_mean": 1,
-      "exact_answers": 7,
+      "recall_mean": 0.9841269841269842,
+      "exact_answers": 6,
       "answered": 7,
       "of": 7
     },
     "native": {
-      "tokens_total": 63531,
-      "calls_total": 27,
+      "tokens_total": 63119,
+      "calls_total": 26,
       "ms_total": 0,
       "precision_mean": 1,
       "recall_mean": 1,
@@ -2981,29 +1733,29 @@
   "aggregate_by_family": {
     "impact": {
       "code-review-graph": {
-        "tokens_total": 82057,
+        "tokens_total": 39,
         "calls_total": 1,
-        "ms_total": 156.15,
-        "precision_mean": 0.00784313725490196,
-        "recall_mean": 1,
+        "ms_total": 108.281,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
       },
       "codebase-memory": {
-        "tokens_total": 2332,
-        "calls_total": 4,
-        "ms_total": 2980.071,
-        "precision_mean": 0.3333333333333333,
-        "recall_mean": 1,
+        "tokens_total": 23,
+        "calls_total": 1,
+        "ms_total": 0.135,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
       },
       "graft": {
-        "tokens_total": 371,
+        "tokens_total": 0,
         "calls_total": 1,
-        "ms_total": 245.573,
+        "ms_total": 0.042,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -3013,7 +1765,7 @@
       "graphify": {
         "tokens_total": 57,
         "calls_total": 2,
-        "ms_total": 270.286,
+        "ms_total": 273.65999999999997,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -3021,9 +1773,9 @@
         "of": 1
       },
       "kivgraph": {
-        "tokens_total": 2362,
+        "tokens_total": 2380,
         "calls_total": 1,
-        "ms_total": 1.092,
+        "ms_total": 1.101,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -3043,29 +1795,29 @@
     },
     "outline": {
       "code-review-graph": {
-        "tokens_total": 2957,
+        "tokens_total": 76,
         "calls_total": 2,
-        "ms_total": 223.03,
-        "precision_mean": 1,
-        "recall_mean": 0.9705882352941176,
-        "exact_answers": 1,
+        "ms_total": 222.772,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 2,
         "of": 2
       },
       "codebase-memory": {
-        "tokens_total": 10425,
+        "tokens_total": 46,
         "calls_total": 2,
-        "ms_total": 63.716,
-        "precision_mean": 1,
-        "recall_mean": 1,
-        "exact_answers": 2,
+        "ms_total": 0.275,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 2,
         "of": 2
       },
       "graft": {
-        "tokens_total": 835,
+        "tokens_total": 0,
         "calls_total": 2,
-        "ms_total": 475.437,
+        "ms_total": 0.159,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -3073,11 +1825,11 @@
         "of": 2
       },
       "graphify": {
-        "tokens_total": 419,
+        "tokens_total": 118,
         "calls_total": 2,
-        "ms_total": 249.974,
-        "precision_mean": 1,
-        "recall_mean": 0.6764705882352942,
+        "ms_total": 229.623,
+        "precision_mean": 0.5,
+        "recall_mean": 0.5,
         "exact_answers": 1,
         "answered": 2,
         "of": 2
@@ -3085,7 +1837,7 @@
       "kivgraph": {
         "tokens_total": 1216,
         "calls_total": 2,
-        "ms_total": 1.71,
+        "ms_total": 2.194,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -3105,58 +1857,58 @@
     },
     "references": {
       "code-review-graph": {
-        "tokens_total": 24284,
-        "calls_total": 7,
-        "ms_total": 780.22,
-        "precision_mean": 0.6666666666666666,
-        "recall_mean": 0.75,
-        "exact_answers": 2,
+        "tokens_total": 157,
+        "calls_total": 4,
+        "ms_total": 435.889,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 4,
         "of": 4
       },
       "codebase-memory": {
-        "tokens_total": 14670,
-        "calls_total": 15,
-        "ms_total": 1772.911,
-        "precision_mean": 0.5833333333333333,
-        "recall_mean": 0.6666666666666666,
-        "exact_answers": 1,
+        "tokens_total": 92,
+        "calls_total": 4,
+        "ms_total": 0.558,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 4,
         "of": 4
       },
       "graft": {
-        "tokens_total": 7478,
+        "tokens_total": 0,
         "calls_total": 4,
-        "ms_total": 997.542,
-        "precision_mean": 0.25,
-        "recall_mean": 0.25,
-        "exact_answers": 1,
+        "ms_total": 0.166,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 4,
         "of": 4
       },
       "graphify": {
-        "tokens_total": 1993,
+        "tokens_total": 194,
         "calls_total": 5,
-        "ms_total": 606.727,
-        "precision_mean": 0.4444444444444444,
-        "recall_mean": 0.2777777777777778,
+        "ms_total": 543.129,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 4,
         "of": 4
       },
       "kivgraph": {
-        "tokens_total": 2622,
+        "tokens_total": 2538,
         "calls_total": 8,
-        "ms_total": 2.1599999999999997,
+        "ms_total": 2.1359999999999997,
         "precision_mean": 1,
-        "recall_mean": 1,
-        "exact_answers": 4,
+        "recall_mean": 0.9722222222222222,
+        "exact_answers": 3,
         "answered": 4,
         "of": 4
       },
       "native": {
-        "tokens_total": 57619,
-        "calls_total": 23,
+        "tokens_total": 57207,
+        "calls_total": 22,
         "ms_total": 0,
         "precision_mean": 1,
         "recall_mean": 1,

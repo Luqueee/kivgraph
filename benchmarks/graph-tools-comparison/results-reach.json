@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-22T00:29:45.216052Z",
-  "commit": "2b6f552",
+  "generated_at": "2026-08-22T10:20:58.919951Z",
+  "commit": "954b9eb",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -18,14 +18,14 @@
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
-    "kivgraph": "0.3.6"
+    "kivgraph": "0.5.0"
   },
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way-g/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/chome; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
   "indexing": {},
@@ -78,11 +78,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 530,
-              "ms": 1.031
+              "ms": 1.02
             }
           ],
           "tokens": 530,
-          "ms": 1.031,
+          "ms": 1.02,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/index.ts",
@@ -206,11 +206,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 112,
-              "ms": 0.983
+              "ms": 0.95
             }
           ],
           "tokens": 112,
-          "ms": 0.983,
+          "ms": 0.95,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -288,23 +288,75 @@
           "calls": [
             {
               "tool": "graphify query",
-              "tokens": 29,
-              "ms": 156.444,
-              "failed": true,
-              "error": "exit status 1"
+              "tokens": 1585,
+              "ms": 161.494
             }
           ],
-          "tokens": 29,
-          "ms": 156.444,
+          "tokens": 1585,
+          "ms": 161.494,
           "call_count": 1,
+          "claimed": [
+            "api-db-go:cmd/server/main.go",
+            "api-db-go:internal/application/middlewares/recover.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/application/handlers/guilds_handler.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/routers/routers_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go",
+            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+          ],
           "score": {
-            "claimed_set": [],
-            "precision": 0,
-            "recall": 0,
-            "missing": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+            "claimed_set": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/application/handlers/guilds_handler.go",
+              "api-db-go:internal/application/handlers/guilds_mock_test.go",
+              "api-db-go:internal/application/middlewares/recover.go",
+              "api-db-go:internal/application/routers/routers_test.go",
+              "api-db-go:internal/domain/mocks/fake_guilds_repo.go"
             ],
-            "spurious": []
+            "precision": 0.16666666666666666,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/application/handlers/guilds_mock_test.go",
+              "api-db-go:internal/application/middlewares/recover.go",
+              "api-db-go:internal/application/routers/routers_test.go",
+              "api-db-go:internal/domain/mocks/fake_guilds_repo.go"
+            ]
           },
           "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
         },
@@ -313,11 +365,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 305,
-              "ms": 0.942
+              "ms": 0.975
             }
           ],
           "tokens": 305,
-          "ms": 0.942,
+          "ms": 0.975,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go",
@@ -449,24 +501,70 @@
           "calls": [
             {
               "tool": "graphify query",
-              "tokens": 30,
-              "ms": 84.007,
-              "failed": true,
-              "error": "exit status 1"
+              "tokens": 1360,
+              "ms": 116.584
             }
           ],
-          "tokens": 30,
-          "ms": 84.007,
+          "tokens": 1360,
+          "ms": 116.584,
           "call_count": 1,
+          "claimed": [
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/RedisCacheClient.ts",
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/RedisCacheClient.ts",
+            "library-shared:src/redis/RedisCacheAdapter.ts",
+            "library-shared:src/redis/cache/index.ts",
+            "library-shared:src/redis/cache/music/index.ts",
+            "library-shared:src/redis/cache/file-manifest/file-manifest-cache.ts",
+            "library-shared:src/redis/cache/music/autocomplete-cache.ts",
+            "library-shared:src/redis/cache/index.ts",
+            "library-shared:src/redis/cache/music/spotify-cache.ts",
+            "library-shared:src/redis/cache/music/index.ts",
+            "library-shared:src/redis/cache/file-manifest/file-manifest-cache.ts",
+            "library-shared:src/redis/cache/music/seekable-cache.ts",
+            "library-shared:src/redis/cache/music/autocomplete-cache.ts",
+            "library-shared:biome.json",
+            "library-shared:src/redis/cache/music/spotify-cache.ts",
+            "library-shared:src/redis/cache/music/types.ts",
+            "library-shared:src/redis/cache/music/seekable-cache.ts",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:src/redis/cache/music/index.ts",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json"
+          ],
           "score": {
-            "claimed_set": [],
-            "precision": 0,
-            "recall": 0,
-            "missing": [
+            "claimed_set": [
+              "library-shared:biome.json",
+              "library-shared:src/redis/RedisCacheAdapter.ts",
+              "library-shared:src/redis/RedisCacheClient.ts",
               "library-shared:src/redis/cache/base-cache.ts",
+              "library-shared:src/redis/cache/file-manifest/file-manifest-cache.ts",
+              "library-shared:src/redis/cache/index.ts",
+              "library-shared:src/redis/cache/music/autocomplete-cache.ts",
+              "library-shared:src/redis/cache/music/index.ts",
+              "library-shared:src/redis/cache/music/seekable-cache.ts",
+              "library-shared:src/redis/cache/music/spotify-cache.ts",
               "library-shared:src/redis/cache/music/types.ts"
             ],
-            "spurious": []
+            "precision": 0.18181818181818182,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              "library-shared:biome.json",
+              "library-shared:src/redis/RedisCacheAdapter.ts",
+              "library-shared:src/redis/RedisCacheClient.ts",
+              "library-shared:src/redis/cache/file-manifest/file-manifest-cache.ts",
+              "library-shared:src/redis/cache/index.ts",
+              "library-shared:src/redis/cache/music/autocomplete-cache.ts",
+              "library-shared:src/redis/cache/music/index.ts",
+              "library-shared:src/redis/cache/music/seekable-cache.ts",
+              "library-shared:src/redis/cache/music/spotify-cache.ts"
+            ]
           },
           "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
         },
@@ -475,11 +573,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 403,
-              "ms": 0.954
+              "ms": 0.735
             }
           ],
           "tokens": 403,
-          "ms": 0.954,
+          "ms": 0.735,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/base-cache.ts",
@@ -536,6 +634,181 @@
           "note": "read the subject, then searched 2 name(s) it reaches across 10660 code files"
         }
       }
+    },
+    {
+      "id": "X9_go_reach_depth1",
+      "family": "dependencies",
+      "question": "Which files declare something UserCache reaches outward in one hop?",
+      "ground_truth": [
+        "services/api-db-go/internal/infrastructure/redis/client.go",
+        "services/api-db-go/internal/infrastructure/redis/serialization.go",
+        "services/api-db-go/internal/domain/services/core_reader.go"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "its graph is built around blast radius, which is the incoming direction"
+        },
+        "codebase-memory": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`search_graph` answers callers; the outward direction is not a query it exposes"
+        },
+        "graft": {
+          "calls": null,
+          "tokens": 0,
+          "ms": 0,
+          "call_count": 0,
+          "unsupported": true,
+          "note": "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify query",
+              "tokens": 1534,
+              "ms": 155.482
+            }
+          ],
+          "tokens": 1534,
+          "ms": 155.482,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:cmd/server/main.go",
+            "api-db-go:internal/infrastructure/redis/serialization.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go",
+            "api-db-go:internal/infrastructure/redis/core_cache.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
+              "api-db-go:internal/infrastructure/redis/core_cache.go",
+              "api-db-go:internal/infrastructure/redis/serialization.go"
+            ],
+            "precision": 0.2,
+            "recall": 0.3333333333333333,
+            "missing": [
+              "api-db-go:internal/domain/services/core_reader.go",
+              "api-db-go:internal/infrastructure/redis/client.go"
+            ],
+            "spurious": [
+              "api-db-go:cmd/server/main.go",
+              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
+              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
+              "api-db-go:internal/infrastructure/redis/core_cache.go"
+            ]
+          },
+          "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "trace_dependencies",
+              "tokens": 284,
+              "ms": 0.697
+            }
+          ],
+          "tokens": 284,
+          "ms": 0.697,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/infrastructure/redis/client.go",
+            "api-db-go:internal/infrastructure/redis/client.go",
+            "api-db-go:internal/infrastructure/redis/serialization.go",
+            "api-db-go:internal/domain/services/core_reader.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/domain/services/core_reader.go",
+              "api-db-go:internal/infrastructure/redis/client.go",
+              "api-db-go:internal/infrastructure/redis/serialization.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "read",
+              "tokens": 332,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 12517,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 575,
+              "ms": 0
+            },
+            {
+              "tool": "grep",
+              "tokens": 2305,
+              "ms": 0
+            }
+          ],
+          "tokens": 15729,
+          "ms": 0,
+          "call_count": 4,
+          "claimed": [
+            "api-db-go:internal/infrastructure/redis/client.go",
+            "api-db-go:internal/infrastructure/redis/serialization.go",
+            "api-db-go:internal/domain/services/core_reader.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/domain/services/core_reader.go",
+              "api-db-go:internal/infrastructure/redis/client.go",
+              "api-db-go:internal/infrastructure/redis/serialization.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "read the subject, then searched 3 name(s) it reaches across 15990 code files"
+        }
+      }
     }
   ],
   "aggregate": {
@@ -547,7 +820,7 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 4
+      "of": 5
     },
     "codebase-memory": {
       "tokens_total": 0,
@@ -557,7 +830,7 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 4
+      "of": 5
     },
     "graft": {
       "tokens_total": 0,
@@ -567,37 +840,37 @@
       "recall_mean": 0,
       "exact_answers": 0,
       "answered": 0,
-      "of": 4
+      "of": 5
     },
     "graphify": {
-      "tokens_total": 59,
-      "calls_total": 2,
-      "ms_total": 240.451,
-      "precision_mean": 0,
-      "recall_mean": 0,
+      "tokens_total": 4479,
+      "calls_total": 3,
+      "ms_total": 433.55999999999995,
+      "precision_mean": 0.18282828282828287,
+      "recall_mean": 0.7777777777777778,
       "exact_answers": 0,
-      "answered": 2,
-      "of": 4
+      "answered": 3,
+      "of": 5
     },
     "kivgraph": {
-      "tokens_total": 1350,
-      "calls_total": 4,
-      "ms_total": 3.9099999999999993,
+      "tokens_total": 1634,
+      "calls_total": 5,
+      "ms_total": 4.377,
       "precision_mean": 1,
       "recall_mean": 1,
-      "exact_answers": 4,
-      "answered": 4,
-      "of": 4
+      "exact_answers": 5,
+      "answered": 5,
+      "of": 5
     },
     "native": {
-      "tokens_total": 47137,
-      "calls_total": 23,
+      "tokens_total": 62866,
+      "calls_total": 27,
       "ms_total": 0,
       "precision_mean": 1,
-      "recall_mean": 0.9166666666666666,
-      "exact_answers": 3,
-      "answered": 4,
-      "of": 4
+      "recall_mean": 0.9333333333333332,
+      "exact_answers": 4,
+      "answered": 5,
+      "of": 5
     }
   },
   "aggregate_by_family": {
@@ -645,7 +918,7 @@
       "kivgraph": {
         "tokens_total": 642,
         "calls_total": 2,
-        "ms_total": 2.014,
+        "ms_total": 1.97,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -672,7 +945,7 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 2
+        "of": 3
       },
       "codebase-memory": {
         "tokens_total": 0,
@@ -682,7 +955,7 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 2
+        "of": 3
       },
       "graft": {
         "tokens_total": 0,
@@ -692,37 +965,37 @@
         "recall_mean": 0,
         "exact_answers": 0,
         "answered": 0,
-        "of": 2
+        "of": 3
       },
       "graphify": {
-        "tokens_total": 59,
-        "calls_total": 2,
-        "ms_total": 240.451,
-        "precision_mean": 0,
-        "recall_mean": 0,
+        "tokens_total": 4479,
+        "calls_total": 3,
+        "ms_total": 433.55999999999995,
+        "precision_mean": 0.18282828282828287,
+        "recall_mean": 0.7777777777777778,
         "exact_answers": 0,
-        "answered": 2,
-        "of": 2
+        "answered": 3,
+        "of": 3
       },
       "kivgraph": {
-        "tokens_total": 708,
-        "calls_total": 2,
-        "ms_total": 1.896,
+        "tokens_total": 992,
+        "calls_total": 3,
+        "ms_total": 2.407,
         "precision_mean": 1,
         "recall_mean": 1,
-        "exact_answers": 2,
-        "answered": 2,
-        "of": 2
+        "exact_answers": 3,
+        "answered": 3,
+        "of": 3
       },
       "native": {
-        "tokens_total": 30666,
-        "calls_total": 13,
+        "tokens_total": 46395,
+        "calls_total": 17,
         "ms_total": 0,
         "precision_mean": 1,
         "recall_mean": 1,
-        "exact_answers": 2,
-        "answered": 2,
-        "of": 2
+        "exact_answers": 3,
+        "answered": 3,
+        "of": 3
       }
     }
   }

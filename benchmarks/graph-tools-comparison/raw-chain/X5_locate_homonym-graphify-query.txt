@@ -1,28 +1,33 @@
 Traversal: BFS depth=2 | Start: ['withRetry()', 'files'] | 19 nodes found
 
-NODE index.ts [src=src/utils/index.ts loc=L1 community=134]
-NODE retry.ts [src=src/utils/retry.ts loc=L1 community=147]
-NODE biome.json [src=biome.json loc=L1 community=28]
-NODE linter [src=biome.json loc=L14 community=28]
-NODE formatter [src=biome.json loc=L3 community=28]
-NODE expBackoffJitter() [src=src/utils/retry.ts loc=L124 community=147]
-NODE files [src=biome.json loc=L47 community=28]
-NODE sleep() [src=src/utils/retry.ts loc=L60 community=147]
-NODE css [src=biome.json loc=L50 community=28]
-NODE assist [src=biome.json loc=L6 community=28]
-NODE withRetry() [src=src/utils/retry.ts loc=L135 community=147]
-NODE expBackoff() [src=src/utils/retry.ts loc=L112 community=147]
-NODE defaultIsRetryable() [src=src/utils/retry.ts loc=L99 community=147]
-NODE parseRetryAfterMs() [src=src/utils/retry.ts loc=L171 community=147]
-NODE RetryOptions [src=src/utils/retry.ts loc=L30 community=147]
-NODE $schema [src=biome.json loc=L2 community=28]
-NODE ignoreUnknown [src=biome.json loc=L48 community=28]
-NODE RETRYABLE_NET_CODES [src=src/utils/retry.ts loc=L78 community=147]
-NODE RetryInfo [src=src/utils/retry.ts loc=L21 community=147]
-EDGE withRetry() --contains [EXTRACTED]--> retry.ts
-EDGE withRetry() --calls [EXTRACTED context=call]--> sleep()
+NODE index.ts [src=src/utils/index.ts loc=L1 community=135]
+NODE retry.ts [src=src/utils/retry.ts loc=L1 community=149]
+NODE biome.json [src=biome.json loc=L1 community=27]
+NODE linter [src=biome.json loc=L14 community=27]
+NODE assist [src=biome.json loc=L6 community=27]
+NODE formatter [src=biome.json loc=L3 community=27]
+NODE sleep() [src=src/utils/retry.ts loc=L60 community=149]
+NODE css [src=biome.json loc=L50 community=27]
+NODE withRetry() [src=src/utils/retry.ts loc=L135 community=149]
+NODE expBackoffJitter() [src=src/utils/retry.ts loc=L124 community=149]
+NODE expBackoff() [src=src/utils/retry.ts loc=L112 community=149]
+NODE files [src=biome.json loc=L47 community=27]
+NODE RetryInfo [src=src/utils/retry.ts loc=L21 community=149]
+NODE defaultIsRetryable() [src=src/utils/retry.ts loc=L99 community=149]
+NODE ignoreUnknown [src=biome.json loc=L48 community=27]
+NODE RETRYABLE_NET_CODES [src=src/utils/retry.ts loc=L78 community=149]
+NODE parseRetryAfterMs() [src=src/utils/retry.ts loc=L171 community=149]
+NODE RetryOptions [src=src/utils/retry.ts loc=L30 community=149]
+NODE $schema [src=biome.json loc=L2 community=27]
 EDGE files --contains [EXTRACTED]--> biome.json
 EDGE files --contains [EXTRACTED]--> ignoreUnknown
+EDGE withRetry() --contains [EXTRACTED]--> retry.ts
+EDGE withRetry() --calls [EXTRACTED context=call]--> sleep()
+EDGE biome.json --contains [EXTRACTED]--> assist
+EDGE biome.json --contains [EXTRACTED]--> css
+EDGE biome.json --contains [EXTRACTED]--> formatter
+EDGE biome.json --contains [EXTRACTED]--> linter
+EDGE biome.json --contains [EXTRACTED]--> $schema
 EDGE retry.ts --re_exports [EXTRACTED context=export]--> index.ts
 EDGE retry.ts --contains [EXTRACTED]--> defaultIsRetryable()
 EDGE retry.ts --contains [EXTRACTED]--> expBackoff()
@@ -31,8 +36,3 @@ EDGE retry.ts --contains [EXTRACTED]--> parseRetryAfterMs()
 EDGE retry.ts --contains [EXTRACTED]--> RETRYABLE_NET_CODES
 EDGE retry.ts --contains [EXTRACTED]--> RetryInfo
 EDGE retry.ts --contains [EXTRACTED]--> RetryOptions
-EDGE biome.json --contains [EXTRACTED]--> assist
-EDGE biome.json --contains [EXTRACTED]--> css
-EDGE biome.json --contains [EXTRACTED]--> formatter
-EDGE biome.json --contains [EXTRACTED]--> linter
-EDGE biome.json --contains [EXTRACTED]--> $schema

@@ -13,37 +13,37 @@ NODE .GetPermissions() [src=internal/application/handlers/guilds_handler.go loc=
 NODE Ctx [src=internal/application/handlers/guilds_handler.go loc=L53 community=68]
 NODE NewGuildsHandler() [src=internal/application/handlers/guilds_handler.go loc=L34 community=68]
 NODE guilds_handler.go [src=internal/application/handlers/guilds_handler.go loc=L1 community=68]
-NODE .ModmailWebAccessList() [src=internal/application/handlers/guilds_handler.go loc=L239 community=208]
 NODE TestRegisterGuilds_RoutesMounted() [src=internal/application/routers/routers_test.go loc=L160 community=53]
 NODE RegisterGuilds() [src=internal/application/routers/guilds_router.go loc=L34 community=15]
-NODE TestRegisterGuilds_LiteralsNotShadowed() [src=internal/application/routers/routers_test.go loc=L192 community=53]
+NODE .ModmailWebAccessList() [src=internal/application/handlers/guilds_handler.go loc=L239 community=208]
 NODE .ModmailWebAccessCheck() [src=internal/application/handlers/guilds_handler.go loc=L175 community=68]
-NODE UnionRoles() [src=internal/domain/services/member_admin_guilds.go loc=L43 community=87]
+NODE TestRegisterGuilds_LiteralsNotShadowed() [src=internal/application/routers/routers_test.go loc=L192 community=53]
 NODE .NotifierPendingGuildIDs() [src=internal/application/handlers/guilds_handler.go loc=L330 community=68]
+NODE UnionRoles() [src=internal/domain/services/member_admin_guilds.go loc=L43 community=87]
 NODE ParseNotifierSource() [src=internal/domain/validations/module_notifier_validations.go loc=L18 community=295]
 NODE .AutomationScheduledGuildIDs() [src=internal/application/handlers/guilds_handler.go loc=L301 community=68]
-NODE ParseGuildIDParam() [src=internal/domain/validations/guild_query_validations.go loc=L51 community=68]
-NODE .Get() [src=internal/application/handlers/guilds_handler.go loc=L95 community=68]
-NODE ParsePermissionsQuery() [src=internal/domain/validations/guild_query_validations.go loc=L73 community=68]
-NODE ParseModmailUserID() [src=internal/domain/validations/guild_query_validations.go loc=L61 community=68]
-NODE ParseGuildIDsQuery() [src=internal/domain/validations/guild_query_validations.go loc=L40 community=68]
-NODE ParseBotIDQuery() [src=internal/domain/validations/guild_query_validations.go loc=L97 community=68]
-NODE .ModmailEnabledGuildIDs() [src=internal/application/handlers/guilds_handler.go loc=L208 community=68]
 NODE .ModmailEnabledList() [src=internal/application/handlers/guilds_handler.go loc=L272 community=68]
+NODE .Get() [src=internal/application/handlers/guilds_handler.go loc=L95 community=68]
+NODE ParseBotIDQuery() [src=internal/domain/validations/guild_query_validations.go loc=L97 community=68]
+NODE ParsePermissionsQuery() [src=internal/domain/validations/guild_query_validations.go loc=L73 community=68]
+NODE ParseGuildIDsQuery() [src=internal/domain/validations/guild_query_validations.go loc=L40 community=68]
+NODE .ModmailEnabledGuildIDs() [src=internal/application/handlers/guilds_handler.go loc=L208 community=68]
+NODE ParseModmailUserID() [src=internal/domain/validations/guild_query_validations.go loc=L61 community=68]
+NODE ParseGuildIDParam() [src=internal/domain/validations/guild_query_validations.go loc=L51 community=68]
 NODE RolesByGuild() [src=internal/domain/services/member_admin_guilds.go loc=L32 community=87]
 NODE NotifierSubRepo [src=internal/application/handlers/guilds_handler.go loc=L30 community=68]
-NODE GuildsRepo [src=internal/application/handlers/guilds_handler.go loc=L24 community=68]
-NODE GuildCoreReader [src=internal/application/handlers/guilds_handler.go loc=L25 community=68]
 NODE ParseResolveRolesQuery() [src=internal/domain/validations/guild_query_validations.go loc=L90 community=87]
-NODE .WithNotifier() [src=internal/application/handlers/guilds_handler.go loc=L41 community=68]
+NODE GuildsRepo [src=internal/application/handlers/guilds_handler.go loc=L24 community=68]
 NODE modmailGuildList [src=internal/application/handlers/guilds_handler.go loc=L87 community=68]
-NODE guilds_router.go [src=internal/application/routers/guilds_router.go loc=L1 community=15]
-NODE App [src=internal/application/routers/guilds_router.go loc=L34 community=15]
-NODE notifierPendingGuildIDs [src=internal/application/handlers/guilds_handler.go loc=L77 community=68]
-NODE GuildsHandler [src=internal/application/routers/guilds_router.go loc=L34 community=15]
-NODE automationScheduledIDs [src=internal/application/handlers/guilds_handler.go loc=L71 community=68]
+NODE GuildCoreReader [src=internal/application/handlers/guilds_handler.go loc=L25 community=68]
+NODE .WithNotifier() [src=internal/application/handlers/guilds_handler.go loc=L41 community=68]
 NODE modmailWebAccessCheck [src=internal/application/handlers/guilds_handler.go loc=L64 community=68]
 NODE modmailEnabledIDs [src=internal/application/handlers/guilds_handler.go loc=L82 community=68]
+NODE automationScheduledIDs [src=internal/application/handlers/guilds_handler.go loc=L71 community=68]
+NODE notifierPendingGuildIDs [src=internal/application/handlers/guilds_handler.go loc=L77 community=68]
+NODE GuildsHandler [src=internal/application/routers/guilds_router.go loc=L34 community=15]
+NODE App [src=internal/application/routers/guilds_router.go loc=L34 community=15]
+NODE guilds_router.go [src=internal/application/routers/guilds_router.go loc=L1 community=15]
 EDGE GuildsHandler --contains [EXTRACTED]--> guilds_handler.go
 EDGE GuildsHandler --references [EXTRACTED context=return_type]--> NewGuildsHandler()
 EDGE GuildsHandler --method [EXTRACTED]--> .AutomationScheduledGuildIDs()
@@ -59,10 +59,10 @@ EDGE GuildsHandler --references [EXTRACTED context=field]--> GuildCoreReader
 EDGE GuildsHandler --references [EXTRACTED context=field]--> GuildsRepo
 EDGE GuildsHandler --references [EXTRACTED context=field]--> NotifierSubRepo
 EDGE GuildsHandler --references [EXTRACTED context=parameter_type]--> RegisterGuilds()
+EDGE .ModmailEnabledGuildIDs() --calls [INFERRED context=call]--> WriteError()
+EDGE .ModmailEnabledGuildIDs() --calls [EXTRACTED context=call]--> replyNoSource()
+EDGE .ModmailEnabledGuildIDs() --references [EXTRACTED context=parameter_type]--> Ctx
+EDGE .ModmailEnabledGuildIDs() --calls [INFERRED context=call]--> ParseGuildIDsQuery()
 EDGE .AutomationScheduledGuildIDs() --calls [INFERRED context=call]--> WriteError()
 EDGE .AutomationScheduledGuildIDs() --calls [EXTRACTED context=call]--> replyNoSource()
-EDGE .AutomationScheduledGuildIDs() --references [EXTRACTED context=parameter_type]--> Ctx
-EDGE .AutomationScheduledGuildIDs() --calls [INFERRED context=call]--> ParseBotIDQuery()
-EDGE NewGuildsHandler() --calls [INFERRED context=call]--> main()
-EDGE NewGuildsHandler() --calls [INFERRED context=call]--> newGuildsMockApp()
 ... (truncated — 0 more nodes cut by ~2000-token budget. Narrow with context_filter=['call'] or use get_node for a specific symbol)

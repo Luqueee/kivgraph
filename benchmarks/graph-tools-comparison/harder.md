@@ -228,18 +228,13 @@ file must be opened regardless. An unscoped version of this fix undercharged a
 depth-3 question to `94` tokens -- for an answer no `grep` produces -- which is
 the same dishonesty pointing the other way.
 
-### `H3` lost precision, and it is not the release
+### `H3` found a defect, and closing it restored the row
 
-`H3_ts_type` was `1.00`/`1.00` and is now `0.50`/`1.00`: two extra rows, both
-`.d.ts` files under `libraries/library-shared/dist`. The published run states its
-corpus as "TypeScript packages NOT built (no `dist/`)"; that `dist/` exists now,
-built during unrelated work on the workspace's package linking. `generated_files`
-accepts only `include`, so a built package is indexed, and a reference inside a
-generated declaration file is a real occurrence in a real indexed file. The truth
-for this question was written against source.
-
-So the corpus moved, not the resolver. But the two rows expose something that is
-ours, and it is worth more than the score:
+`H3_ts_type` came back `0.50`/`1.00` on the first re-measurement, with two extra
+rows -- both `.d.ts` files under `libraries/library-shared/dist`. Part of that is
+corpus: the published run states "TypeScript packages NOT built (no `dist/`)",
+that `dist/` exists now, and `generated_files` accepts only `include`, so a built
+package is indexed. But the shape of the two rows was ours:
 
 ```
 gateway:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
@@ -247,11 +242,32 @@ sdk-module-ts:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
 ```
 
 One file, attributed to **two repositories, neither of which contains it**, by a
-path that escapes its own repository with `../..`. A row is supposed to be
-addressable -- repository, repository-relative path, qualified name, range -- and
-neither of these can be fed back to any tool. This is the same class of defect
-that `fix(indexing): refuse Go facts whose file is outside the repository` closed
-for Go; the TypeScript side still does it. Recorded, not papered over.
+path escaping its own repository with `../..`. A row is meant to be addressable
+-- repository, repository-relative path, qualified name, range -- and neither of
+those can be fed back to any tool. Same class as
+`fix(indexing): refuse Go facts whose file is outside the repository`, which
+closed it for Go; TypeScript still did it. That was `LUQUE-2011`, and it is
+closed: a consumer now retires a fact whose file leaves its own tree, counts it,
+and retains the gap with its reason instead of publishing an unaddressable row.
+
+Re-attributing the file to `library-shared` was considered and rejected on
+evidence. A `File` belongs to a `Package`, and a consumer payload never names the
+provider's package -- so the row would be package-less. Worse, `MergeAll` keeps
+the first row for a key and drops later ones **without comparing**, so a
+package-less row could silently beat a complete one: the shape of `LUQUE-2002`.
+
+What matters for anyone reading this table: the workspace relation does not
+depend on those rows and did not move. An import binding's target identity is
+built from the **provider's** own repository and package, byte identical to the
+key the provider assigns its own declaration, so `find_cross_repo_consumers` on
+`ApiRuntimeState` still answers `25` consumers at `EXACT_TYPECHECKED`. What was
+retired are uses whose *source* file is the provider's build output -- facts about
+the provider, for the provider's own pass to report.
+
+Measured after the fix: `H3` is `1.00`/`1.00` at `280` tokens, and **no row in any
+of the 29 questions has a path that escapes its repository**. Across the corpus
+the retirement drops `193` files, `542` symbols and `1,275` edges, and adds `173`
+retained gaps.
 
 The three earlier fixes cost `272` tokens across the set and `H1` remains the
 evidence they stayed where they were aimed: three receiver types share one method

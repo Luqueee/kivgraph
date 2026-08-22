@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T22:27:00.567454Z",
-  "commit": "11016ce",
+  "generated_at": "2026-08-22T10:21:08.091098Z",
+  "commit": "954b9eb",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,67 +14,21 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "code-review-graph 2.3.7",
+    "code-review-graph": "code-review-graph 2.3.8",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
-    "kivgraph": "0.3.6"
+    "kivgraph": "0.5.0"
   },
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way-rust5/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/rshome5; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
-  "indexing": {
-    "code-review-graph": {
-      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 708.75,
-      "scope": "one graph per repository; built the 1 the questions name, not all 37",
-      "state_bytes": 8622222,
-      "needs": "nothing beyond the binary"
-    },
-    "codebase-memory": {
-      "command": "codebase-memory-mcp cli index_repository",
-      "ms": 5286.022,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220659712,
-      "needs": "nothing beyond the binary"
-    },
-    "graft": {
-      "command": "graft build",
-      "ms": 25761.491,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180710112,
-      "needs": "nothing: the structural tier needs no key and no toolchain"
-    },
-    "graphify": {
-      "command": "graphify update \u003cr\u003e",
-      "ms": 1440.352,
-      "scope": "one graph per repository; built the 1 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
-      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
-    },
-    "kivgraph": {
-      "command": "kivgraph index --full",
-      "ms": 50539.985,
-      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
-      "state_bytes": 1608643971,
-      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent",
-      "languages": {
-        "go": 19166,
-        "rust": 3063,
-        "typescript": 128985
-      }
-    },
-    "native": {
-      "command": "none",
-      "ms": 0,
-      "scope": "nothing is indexed",
-      "needs": "nothing"
-    }
-  },
+  "indexing": {},
   "question_set": "rust",
   "questions": [
     {
@@ -89,81 +43,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 582,
-              "ms": 126.43
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 418,
-              "ms": 141.37
+              "tokens": 41,
+              "ms": 113.886,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1000,
-          "ms": 267.8,
-          "call_count": 2,
-          "score": {
-            "claimed_set": [],
-            "precision": 0,
-            "recall": 0,
-            "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
-            ],
-            "spurious": []
-          },
-          "note": "answered zero callers, and every file the answer needs is inside kenalink-rs, which is exactly the repository this graph was built over",
-          "ambiguous_declarations": 2
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 413,
-              "ms": 10.015
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 215,
-              "ms": 9.988
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 121,
-              "ms": 0.345
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 39,
-              "ms": 486.479
-            }
-          ],
-          "tokens": 788,
-          "ms": 506.827,
-          "call_count": 4,
-          "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs"
-          ],
-          "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_ws/mod.rs"
-            ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
-            "spurious": []
-          },
-          "note": "trace_path named 2 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 2
-        },
-        "graft": {
-          "calls": [
-            {
-              "tool": "graft --dir",
-              "tokens": 394,
-              "ms": 272.998
-            }
-          ],
-          "tokens": 394,
-          "ms": 272.998,
+          "tokens": 41,
+          "ms": 113.886,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -174,19 +61,67 @@
             ],
             "spurious": []
           },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 2
+          "note": "callers_of delete_session exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.126,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.126,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_ws/mod.rs"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate delete_session: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.042,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.042,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_ws/mod.rs"
+            ],
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 44,
-              "ms": 118.532
+              "tokens": 31,
+              "ms": 82.642,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 44,
-          "ms": 118.532,
+          "tokens": 31,
+          "ms": 82.642,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -204,11 +139,11 @@
             {
               "tool": "find_references",
               "tokens": 186,
-              "ms": 0.367
+              "ms": 0.368
             }
           ],
           "tokens": 186,
-          "ms": 0.367,
+          "ms": 0.368,
           "call_count": 1,
           "claimed": [
             "kenalink-rs:src/api_ws/mod.rs"
@@ -263,9 +198,9 @@
   ],
   "aggregate": {
     "code-review-graph": {
-      "tokens_total": 1000,
-      "calls_total": 2,
-      "ms_total": 267.8,
+      "tokens_total": 41,
+      "calls_total": 1,
+      "ms_total": 113.886,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
@@ -273,19 +208,19 @@
       "of": 1
     },
     "codebase-memory": {
-      "tokens_total": 788,
-      "calls_total": 4,
-      "ms_total": 506.827,
-      "precision_mean": 1,
-      "recall_mean": 1,
-      "exact_answers": 1,
+      "tokens_total": 23,
+      "calls_total": 1,
+      "ms_total": 0.126,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
       "answered": 1,
       "of": 1
     },
     "graft": {
-      "tokens_total": 394,
+      "tokens_total": 0,
       "calls_total": 1,
-      "ms_total": 272.998,
+      "ms_total": 0.042,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
@@ -293,9 +228,9 @@
       "of": 1
     },
     "graphify": {
-      "tokens_total": 44,
+      "tokens_total": 31,
       "calls_total": 1,
-      "ms_total": 118.532,
+      "ms_total": 82.642,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
@@ -305,7 +240,7 @@
     "kivgraph": {
       "tokens_total": 186,
       "calls_total": 1,
-      "ms_total": 0.367,
+      "ms_total": 0.368,
       "precision_mean": 1,
       "recall_mean": 1,
       "exact_answers": 1,
@@ -326,9 +261,9 @@
   "aggregate_by_family": {
     "references": {
       "code-review-graph": {
-        "tokens_total": 1000,
-        "calls_total": 2,
-        "ms_total": 267.8,
+        "tokens_total": 41,
+        "calls_total": 1,
+        "ms_total": 113.886,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -336,19 +271,19 @@
         "of": 1
       },
       "codebase-memory": {
-        "tokens_total": 788,
-        "calls_total": 4,
-        "ms_total": 506.827,
-        "precision_mean": 1,
-        "recall_mean": 1,
-        "exact_answers": 1,
+        "tokens_total": 23,
+        "calls_total": 1,
+        "ms_total": 0.126,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
         "answered": 1,
         "of": 1
       },
       "graft": {
-        "tokens_total": 394,
+        "tokens_total": 0,
         "calls_total": 1,
-        "ms_total": 272.998,
+        "ms_total": 0.042,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -356,9 +291,9 @@
         "of": 1
       },
       "graphify": {
-        "tokens_total": 44,
+        "tokens_total": 31,
         "calls_total": 1,
-        "ms_total": 118.532,
+        "ms_total": 82.642,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -368,7 +303,7 @@
       "kivgraph": {
         "tokens_total": 186,
         "calls_total": 1,
-        "ms_total": 0.367,
+        "ms_total": 0.368,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,

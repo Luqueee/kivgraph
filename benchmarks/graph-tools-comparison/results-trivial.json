@@ -1,0 +1,318 @@
+{
+  "benchmark": "graph-tools-comparison",
+  "generated_at": "2026-08-22T10:21:10.197254Z",
+  "commit": "954b9eb",
+  "tokenizer": "o200k_base",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "Darwin"
+  },
+  "corpus": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "git_repositories": 37,
+    "code_files": 0
+  },
+  "versions": {
+    "code-review-graph": "code-review-graph 2.3.8",
+    "codebase-memory": "codebase-memory-mcp 0.8.1",
+    "graft": "0.10.1",
+    "graphify": "graphify 0.8.31",
+    "kivgraph": "0.5.0"
+  },
+  "isolation": {
+    "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
+    "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
+    "native": "reads only; nothing is written"
+  },
+  "indexing": {},
+  "question_set": "trivial",
+  "questions": [
+    {
+      "id": "T1_go_trivial",
+      "family": "references",
+      "question": "Which files call newGMCClient in services/api-db-go?",
+      "ground_truth": [
+        "services/api-db-go/internal/infrastructure/locker/locker.go"
+      ],
+      "arms": {
+        "code-review-graph": {
+          "calls": [
+            {
+              "tool": "code-review-graph query",
+              "tokens": 39,
+              "ms": 111.087,
+              "failed": true,
+              "error": "exit status 1"
+            }
+          ],
+          "tokens": 39,
+          "ms": 111.087,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/locker/locker.go"
+            ],
+            "spurious": []
+          },
+          "note": "callers_of newGMCClient exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.155,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.155,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/locker/locker.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate newGMCClient: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+        },
+        "graft": {
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 0,
+              "ms": 0.041,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
+            }
+          ],
+          "tokens": 0,
+          "ms": 0.041,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/locker/locker.go"
+            ],
+            "spurious": []
+          }
+        },
+        "graphify": {
+          "calls": [
+            {
+              "tool": "graphify affected",
+              "tokens": 108,
+              "ms": 145.47
+            }
+          ],
+          "tokens": 108,
+          "ms": 145.47,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/infrastructure/locker/locker.go",
+            "api-db-go:internal/infrastructure/locker/locker.go",
+            "api-db-go:internal/infrastructure/locker/locker.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/infrastructure/locker/locker.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
+        },
+        "kivgraph": {
+          "calls": [
+            {
+              "tool": "find_references",
+              "tokens": 123,
+              "ms": 0.244
+            }
+          ],
+          "tokens": 123,
+          "ms": 0.244,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/infrastructure/locker/locker.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/infrastructure/locker/locker.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          }
+        },
+        "native": {
+          "calls": [
+            {
+              "tool": "grep",
+              "tokens": 65,
+              "ms": 0
+            }
+          ],
+          "tokens": 65,
+          "ms": 0,
+          "call_count": 1,
+          "claimed": [
+            "api-db-go:internal/infrastructure/locker/locker.go"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/infrastructure/locker/locker.go"
+            ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
+            "spurious": []
+          },
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "code-review-graph": {
+      "tokens_total": 39,
+      "calls_total": 1,
+      "ms_total": 111.087,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 1,
+      "of": 1
+    },
+    "codebase-memory": {
+      "tokens_total": 23,
+      "calls_total": 1,
+      "ms_total": 0.155,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 1,
+      "of": 1
+    },
+    "graft": {
+      "tokens_total": 0,
+      "calls_total": 1,
+      "ms_total": 0.041,
+      "precision_mean": 0,
+      "recall_mean": 0,
+      "exact_answers": 0,
+      "answered": 1,
+      "of": 1
+    },
+    "graphify": {
+      "tokens_total": 108,
+      "calls_total": 1,
+      "ms_total": 145.47,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 1,
+      "answered": 1,
+      "of": 1
+    },
+    "kivgraph": {
+      "tokens_total": 123,
+      "calls_total": 1,
+      "ms_total": 0.244,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 1,
+      "answered": 1,
+      "of": 1
+    },
+    "native": {
+      "tokens_total": 65,
+      "calls_total": 1,
+      "ms_total": 0,
+      "precision_mean": 1,
+      "recall_mean": 1,
+      "exact_answers": 1,
+      "answered": 1,
+      "of": 1
+    }
+  },
+  "aggregate_by_family": {
+    "references": {
+      "code-review-graph": {
+        "tokens_total": 39,
+        "calls_total": 1,
+        "ms_total": 111.087,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "codebase-memory": {
+        "tokens_total": 23,
+        "calls_total": 1,
+        "ms_total": 0.155,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "graft": {
+        "tokens_total": 0,
+        "calls_total": 1,
+        "ms_total": 0.041,
+        "precision_mean": 0,
+        "recall_mean": 0,
+        "exact_answers": 0,
+        "answered": 1,
+        "of": 1
+      },
+      "graphify": {
+        "tokens_total": 108,
+        "calls_total": 1,
+        "ms_total": 145.47,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      },
+      "kivgraph": {
+        "tokens_total": 123,
+        "calls_total": 1,
+        "ms_total": 0.244,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      },
+      "native": {
+        "tokens_total": 65,
+        "calls_total": 1,
+        "ms_total": 0,
+        "precision_mean": 1,
+        "recall_mean": 1,
+        "exact_answers": 1,
+        "answered": 1,
+        "of": 1
+      }
+    }
+  }
+}

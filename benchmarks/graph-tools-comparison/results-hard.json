@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T18:10:40.284138Z",
-  "commit": "540607e",
+  "generated_at": "2026-08-22T10:20:39.403927Z",
+  "commit": "954b9eb",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,62 +14,21 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "code-review-graph 2.3.7",
+    "code-review-graph": "code-review-graph 2.3.8",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
-    "kivgraph": "0.3.6"
+    "kivgraph": "0.5.0"
   },
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/kivhome-final9; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
-  "indexing": {
-    "code-review-graph": {
-      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
-      "ms": 9128.224,
-      "scope": "one graph per repository; built the 6 the questions name, not all 37",
-      "state_bytes": 230200148,
-      "needs": "nothing beyond the binary"
-    },
-    "codebase-memory": {
-      "command": "codebase-memory-mcp cli index_repository",
-      "ms": 4989.649,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 220790784,
-      "needs": "nothing beyond the binary"
-    },
-    "graft": {
-      "command": "graft build",
-      "ms": 24978.466,
-      "scope": "the whole corpus, 37 repositories",
-      "state_bytes": 180825401,
-      "needs": "nothing: the structural tier needs no key and no toolchain"
-    },
-    "graphify": {
-      "command": "graphify update \u003cr\u003e",
-      "ms": 13179.41,
-      "scope": "one graph per repository; built the 6 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
-      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
-    },
-    "kivgraph": {
-      "command": "kivgraph index --full",
-      "ms": 47505.095,
-      "scope": "the whole corpus, 37 repositories, 126934 symbols published",
-      "state_bytes": 1608677720,
-      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent"
-    },
-    "native": {
-      "command": "none",
-      "ms": 0,
-      "scope": "nothing is indexed",
-      "needs": "nothing"
-    }
-  },
+  "indexing": {},
   "question_set": "hard",
   "questions": [
     {
@@ -84,18 +43,15 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 852,
-              "ms": 116.943
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 139,
-              "ms": 115.805
+              "tokens": 39,
+              "ms": 112.506,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 991,
-          "ms": 232.748,
-          "call_count": 2,
+          "tokens": 39,
+          "ms": 112.506,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -105,35 +61,21 @@
             ],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside api-db-go was never in the graph this query read",
-          "ambiguous_declarations": 3
+          "note": "callers_of GetAll exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 6828,
-              "ms": 9.715
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 580,
-              "ms": 10.611
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 19,
-              "ms": 0.19
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 492.907
+              "tokens": 23,
+              "ms": 0.117,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 7461,
-          "ms": 513.423,
-          "call_count": 4,
+          "tokens": 23,
+          "ms": 0.117,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -143,77 +85,51 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS.",
-          "ambiguous_declarations": 15
+          "note": "search_graph failed to locate GetAll: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 3176,
-              "ms": 306.314
+              "tokens": 0,
+              "ms": 0.034,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 3176,
-          "ms": 306.314,
+          "tokens": 0,
+          "ms": 0.034,
           "call_count": 1,
-          "claimed": [
-            "library-lavalink:src/player/Queue.ts",
-            "library-lavalink:src/player/Queue.ts",
-            "library-lavalink:src/player/Queue.ts",
-            "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts",
-            "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-            "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-            "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
-            "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
-            "gateway:src/grpc/manager/command/SlashCommandRegistry.ts"
-          ],
           "score": {
-            "claimed_set": [
-              "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-              "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.ts",
-              "library-lavalink:src/player/Queue.ts",
-              "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts"
-            ],
+            "claimed_set": [],
             "precision": 0,
             "recall": 0,
             "missing": [
               "api-db-go:internal/application/routers/bots_router.go"
             ],
-            "spurious": [
-              "core:src/cluster/master/stores/commands/SlashCommandStore.ts",
-              "core:tests/cluster/master/stores/commands/SlashCommandStore.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.test.ts",
-              "gateway:src/grpc/manager/command/SlashCommandRegistry.ts",
-              "library-lavalink:src/player/Queue.ts",
-              "sdk-module-ts:src/__tests__/commands/CommandStore.test.ts"
-            ]
-          },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 15
+            "spurious": []
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
               "tokens": 8,
-              "ms": 139.53
+              "ms": 139.739
             },
             {
               "tool": "graphify affected",
               "tokens": 12,
-              "ms": 139.306
+              "ms": 140.569
             },
             {
               "tool": "graphify query",
-              "tokens": 1629,
-              "ms": 166.015
+              "tokens": 1631,
+              "ms": 161.482
             }
           ],
-          "tokens": 1649,
-          "ms": 444.851,
+          "tokens": 1651,
+          "ms": 441.78999999999996,
           "call_count": 3,
           "claimed": [
             "api-db-go:cmd/server/main.go",
@@ -224,8 +140,8 @@
             "api-db-go:internal/application/handlers/bots_mock_test.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/bot_validations.go",
-            "api-db-go:internal/application/routers/bots_router.go",
             "api-db-go:internal/domain/errors/unknown_error.go",
+            "api-db-go:internal/application/routers/bots_router.go",
             "api-db-go:internal/application/routers/routers_test.go",
             "api-db-go:internal/domain/validations/bot_validations.go",
             "api-db-go:internal/application/routers/bots_router.go",
@@ -268,18 +184,18 @@
             {
               "tool": "find_references",
               "tokens": 72,
-              "ms": 0.208,
+              "ms": 0.238,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"GetAll\" declares 3 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/application/handlers/premium_handler.go:47, api-db-go:internal/application/handlers/bots_handler.go:47, api-db-go:internal/application/handlers/command_handler.go:33"
             },
             {
               "tool": "find_references",
               "tokens": 124,
-              "ms": 0.163
+              "ms": 0.18
             }
           ],
           "tokens": 196,
-          "ms": 0.371,
+          "ms": 0.418,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/application/routers/bots_router.go"
@@ -349,52 +265,15 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 419,
-              "ms": 114.362
+              "tokens": 39,
+              "ms": 109.551,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 419,
-          "ms": 114.362,
+          "tokens": 39,
+          "ms": 109.551,
           "call_count": 1,
-          "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go"
-          ],
-          "score": {
-            "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
-            ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
-            "spurious": []
-          }
-        },
-        "codebase-memory": {
-          "calls": [
-            {
-              "tool": "search_graph",
-              "tokens": 1031,
-              "ms": 8.306
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 613,
-              "ms": 9.232
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 65,
-              "ms": 0.249
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 433.729
-            }
-          ],
-          "tokens": 1743,
-          "ms": 451.51599999999996,
-          "call_count": 4,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -404,19 +283,44 @@
             ],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 3
+          "note": "callers_of FindPendingGuilds exited non-zero: exit status 1"
+        },
+        "codebase-memory": {
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 23,
+              "ms": 0.164,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
+            }
+          ],
+          "tokens": 23,
+          "ms": 0.164,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          },
+          "note": "search_graph failed to locate FindPendingGuilds: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 199,
-              "ms": 242.281
+              "tokens": 0,
+              "ms": 0.038,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 199,
-          "ms": 242.281,
+          "tokens": 0,
+          "ms": 0.038,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -433,11 +337,11 @@
             {
               "tool": "graphify affected",
               "tokens": 98,
-              "ms": 144.667
+              "ms": 142.389
             }
           ],
           "tokens": 98,
-          "ms": 144.667,
+          "ms": 142.389,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -455,18 +359,18 @@
             {
               "tool": "find_references",
               "tokens": 61,
-              "ms": 0.287,
+              "ms": 0.337,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"FindPendingGuilds\" declares 2 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go:182, api-db-go:internal/infrastructure/pgrepo/repos.go:329"
             },
             {
               "tool": "find_references",
               "tokens": 158,
-              "ms": 0.149
+              "ms": 0.135
             }
           ],
           "tokens": 219,
-          "ms": 0.43599999999999994,
+          "ms": 0.47200000000000003,
           "call_count": 2,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go"
@@ -532,12 +436,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 1235,
-              "ms": 116.558
+              "tokens": 40,
+              "ms": 105.856,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1235,
-          "ms": 116.558,
+          "tokens": 40,
+          "ms": 105.856,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -549,30 +455,21 @@
             ],
             "spurious": []
           },
-          "note": "refused between 4 declarations and named none in src/types/gateway-registry.ts",
-          "ambiguous_declarations": 4
+          "note": "callers_of ApiRuntimeState exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 105,
-              "ms": 10.201
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 20,
-              "ms": 0.148
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 433.985
+              "tokens": 23,
+              "ms": 0.128,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 159,
-          "ms": 444.334,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.128,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -583,18 +480,20 @@
             ],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate ApiRuntimeState: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 186,
-              "ms": 238.029
+              "tokens": 0,
+              "ms": 0.042,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 186,
-          "ms": 238.029,
+          "tokens": 0,
+          "ms": 0.042,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -612,11 +511,11 @@
             {
               "tool": "graphify affected",
               "tokens": 262,
-              "ms": 110.862
+              "ms": 107.427
             }
           ],
           "tokens": 262,
-          "ms": 110.862,
+          "ms": 107.427,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
@@ -650,12 +549,12 @@
           "calls": [
             {
               "tool": "find_references",
-              "tokens": 358,
-              "ms": 0.359
+              "tokens": 280,
+              "ms": 0.318
             }
           ],
-          "tokens": 358,
-          "ms": 0.359,
+          "tokens": 280,
+          "ms": 0.318,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
@@ -683,16 +582,11 @@
               "tool": "grep",
               "tokens": 455,
               "ms": 0
-            },
-            {
-              "tool": "read",
-              "tokens": 281,
-              "ms": 0
             }
           ],
-          "tokens": 736,
+          "tokens": 455,
           "ms": 0,
-          "call_count": 2,
+          "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
             "gateway:src/grpc/manager/RegistryGrpcManager.ts"
@@ -707,7 +601,7 @@
             "missing": [],
             "spurious": []
           },
-          "note": "searched 5330 code files, then read 1 declaring file(s)"
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
         }
       }
     },
@@ -723,18 +617,15 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 2174,
-              "ms": 111.497
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 135,
-              "ms": 110.959
+              "tokens": 39,
+              "ms": 102.673,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 2309,
-          "ms": 222.45600000000002,
-          "call_count": 2,
+          "tokens": 39,
+          "ms": 102.673,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 0,
@@ -744,65 +635,52 @@
             ],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside sdk-module-ts was never in the graph this query read",
-          "ambiguous_declarations": 8
+          "note": "callers_of CommandManager exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 104,
-              "ms": 9.512
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 57,
-              "ms": 0.231
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 26,
-              "ms": 432.517
+              "tokens": 23,
+              "ms": 0.132,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 187,
-          "ms": 442.26,
-          "call_count": 3,
-          "claimed": [
-            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
-          ],
+          "tokens": 23,
+          "ms": 0.132,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "sdk-module-ts:src/sdk/client/ModuleActions.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate CommandManager: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 202,
-              "ms": 234.207
+              "tokens": 0,
+              "ms": 0.037,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 202,
-          "ms": 234.207,
+          "tokens": 0,
+          "ms": 0.037,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/client/ModuleActions.ts"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "sdk-module-ts:src/sdk/client/ModuleActions.ts"
             ],
-            "precision": 1,
-            "recall": 1,
-            "missing": [],
             "spurious": []
           }
         },
@@ -810,38 +688,23 @@
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 179,
-              "ms": 93.625
+              "tokens": 29,
+              "ms": 76.534,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 179,
-          "ms": 93.625,
+          "tokens": 29,
+          "ms": 76.534,
           "call_count": 1,
-          "claimed": [
-            "sdk-module-ts:src/sdk/client/ModuleActions.ts",
-            "sdk-module-ts:src/sdk/client/ModuleActions.ts",
-            "sdk-module-ts:src/__tests__/structures/Interaction.test.ts",
-            "sdk-module-ts:src/sdk/client/EntityFactory.ts",
-            "sdk-module-ts:src/sdk/client/KenaModule.ts",
-            "sdk-module-ts:src/sdk/client/EntityFactory.ts",
-            "sdk-module-ts:src/sdk/client/KenaModule.ts",
-            "sdk-module-ts:src/sdk/client/KenaModule.ts"
-          ],
           "score": {
-            "claimed_set": [
-              "sdk-module-ts:src/__tests__/structures/Interaction.test.ts",
-              "sdk-module-ts:src/sdk/client/EntityFactory.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "sdk-module-ts:src/sdk/client/ModuleActions.ts"
             ],
-            "precision": 0.25,
-            "recall": 1,
-            "missing": [],
-            "spurious": [
-              "sdk-module-ts:src/__tests__/structures/Interaction.test.ts",
-              "sdk-module-ts:src/sdk/client/EntityFactory.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
-            ]
+            "spurious": []
           },
           "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
         },
@@ -850,11 +713,11 @@
             {
               "tool": "find_references",
               "tokens": 132,
-              "ms": 0.248
+              "ms": 0.234
             }
           ],
           "tokens": 132,
-          "ms": 0.248,
+          "ms": 0.234,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts",
@@ -876,16 +739,11 @@
               "tool": "grep",
               "tokens": 138,
               "ms": 0
-            },
-            {
-              "tool": "read",
-              "tokens": 395,
-              "ms": 0
             }
           ],
-          "tokens": 533,
+          "tokens": 138,
           "ms": 0,
-          "call_count": 2,
+          "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/sdk/client/ModuleActions.ts"
           ],
@@ -898,7 +756,7 @@
             "missing": [],
             "spurious": []
           },
-          "note": "searched 5330 code files, then read 1 declaring file(s)"
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
         }
       }
     },
@@ -916,196 +774,122 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 1118,
-              "ms": 112.366
-            },
-            {
-              "tool": "code-review-graph query",
-              "tokens": 385,
-              "ms": 110.604
+              "tokens": 41,
+              "ms": 106.724,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1503,
-          "ms": 222.97,
-          "call_count": 2,
-          "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs"
-          ],
+          "tokens": 41,
+          "ms": 106.724,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs"
-            ],
-            "precision": 1,
-            "recall": 0.3333333333333333,
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
             "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/main.rs"
             ],
             "spurious": []
           },
-          "ambiguous_declarations": 4
+          "note": "callers_of delete_player exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 1000,
-              "ms": 9.719
-            },
-            {
-              "tool": "search_graph",
-              "tokens": 215,
-              "ms": 9.571
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 171,
-              "ms": 0.298
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 37,
-              "ms": 441.936
+              "tokens": 23,
+              "ms": 0.178,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 1423,
-          "ms": 461.524,
-          "call_count": 4,
-          "claimed": [
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/api_ws/mod.rs"
-          ],
+          "tokens": 23,
+          "ms": 0.178,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/main.rs"
             ],
-            "precision": 1,
-            "recall": 0.6666666666666666,
-            "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs"
-            ],
             "spurious": []
           },
-          "note": "trace_path named 3 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges.",
-          "ambiguous_declarations": 3
+          "note": "search_graph failed to locate delete_player: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 834,
-              "ms": 252.3
+              "tokens": 0,
+              "ms": 0.04,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 834,
-          "ms": 252.3,
+          "tokens": 0,
+          "ms": 0.04,
           "call_count": 1,
-          "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs"
-          ],
           "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs"
-            ],
-            "precision": 1,
-            "recall": 0.3333333333333333,
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
             "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/main.rs"
             ],
             "spurious": []
-          },
-          "note": "refused the cross-file callers of an ambiguous name and said it may undercount",
-          "ambiguous_declarations": 3
+          }
         },
         "graphify": {
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 8,
-              "ms": 98.767
-            },
-            {
-              "tool": "graphify affected",
-              "tokens": 10,
-              "ms": 97.784
-            },
-            {
-              "tool": "graphify query",
-              "tokens": 1341,
-              "ms": 112.432
+              "tokens": 31,
+              "ms": 75.792,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1359,
-          "ms": 308.983,
-          "call_count": 3,
-          "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:vendor/songbird/src/handler.rs"
-          ],
+          "tokens": 31,
+          "ms": 75.792,
+          "call_count": 1,
           "score": {
-            "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:vendor/songbird/src/handler.rs"
-            ],
-            "precision": 0.5,
-            "recall": 0.3333333333333333,
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
             "missing": [
+              "kenalink-rs:src/api_rest/routes_players.rs",
               "kenalink-rs:src/api_ws/mod.rs",
               "kenalink-rs:src/main.rs"
             ],
-            "spurious": [
-              "kenalink-rs:vendor/songbird/src/handler.rs"
-            ]
+            "spurious": []
           },
-          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"delete_player\"` refused with `No unique node match`, naming none of the 3 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `state_memory_delete_player`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood seeded by label matching that crosses homonyms and mixes callers with callees",
-          "ambiguous_declarations": 3
+          "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
         },
         "kivgraph": {
           "calls": [
             {
               "tool": "find_references",
               "tokens": 54,
-              "ms": 0.253,
+              "ms": 0.233,
               "failed": true,
               "error": "AMBIGUOUS_SYMBOL: name \"delete_player\" declares 2 symbols; repeat with the repository and path of the one you mean: kenalink-rs:src/api_rest/routes_players.rs:393, kenalink-rs:src/state/memory.rs:84"
             },
             {
               "tool": "find_references",
               "tokens": 210,
-              "ms": 0.153
+              "ms": 0.147
             }
           ],
           "tokens": 264,
-          "ms": 0.406,
+          "ms": 0.38,
           "call_count": 2,
           "claimed": [
             "kenalink-rs:src/api_ws/mod.rs",
@@ -1182,12 +966,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 145,
-              "ms": 111.439
+              "tokens": 39,
+              "ms": 103.484,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 145,
-          "ms": 111.439,
+          "tokens": 39,
+          "ms": 103.484,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1196,29 +982,21 @@
             "missing": [],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside api-db-go was never in the graph this query read"
+          "note": "callers_of BenchmarkDeserializeValueDate exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 537,
-              "ms": 8.665
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 21,
-              "ms": 0.6
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 438.287
+              "tokens": 23,
+              "ms": 0.127,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 592,
-          "ms": 447.55199999999996,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.127,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -1226,18 +1004,20 @@
             "missing": [],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate BenchmarkDeserializeValueDate: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 198,
-              "ms": 238.029
+              "tokens": 0,
+              "ms": 0.035,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 198,
-          "ms": 238.029,
+          "tokens": 0,
+          "ms": 0.035,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1252,11 +1032,11 @@
             {
               "tool": "graphify affected",
               "tokens": 515,
-              "ms": 143.006
+              "ms": 150.387
             }
           ],
           "tokens": 515,
-          "ms": 143.006,
+          "ms": 150.387,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/infrastructure/redis/serialization.go",
@@ -1321,11 +1101,11 @@
             {
               "tool": "find_references",
               "tokens": 113,
-              "ms": 0.238
+              "ms": 0.261
             }
           ],
           "tokens": 113,
-          "ms": 0.238,
+          "ms": 0.261,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1341,16 +1121,11 @@
               "tool": "grep",
               "tokens": 29,
               "ms": 0
-            },
-            {
-              "tool": "read",
-              "tokens": 529,
-              "ms": 0
             }
           ],
-          "tokens": 558,
+          "tokens": 29,
           "ms": 0,
-          "call_count": 2,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -1358,7 +1133,7 @@
             "missing": [],
             "spurious": []
           },
-          "note": "searched 5330 code files, then read 1 declaring file(s)"
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
         }
       }
     },
@@ -1372,12 +1147,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 139,
-              "ms": 111.904
+              "tokens": 38,
+              "ms": 104.71,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 139,
-          "ms": 111.904,
+          "tokens": 38,
+          "ms": 104.71,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1386,29 +1163,21 @@
             "missing": [],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside music-module was never in the graph this query read"
+          "note": "callers_of addMockedSongsToQueue exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 564,
-              "ms": 10.191
-            },
-            {
-              "tool": "trace_path",
               "tokens": 23,
-              "ms": 0.161
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 34,
-              "ms": 431.828
+              "ms": 0.165,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 621,
-          "ms": 442.17999999999995,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.165,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -1416,18 +1185,20 @@
             "missing": [],
             "spurious": []
           },
-          "note": "trace_path returned no callers; the answer is the query_graph Cypher fallback over CALLS."
+          "note": "search_graph failed to locate addMockedSongsToQueue: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 196,
-              "ms": 234.885
+              "tokens": 0,
+              "ms": 0.036,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 196,
-          "ms": 234.885,
+          "tokens": 0,
+          "ms": 0.036,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1441,12 +1212,14 @@
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 80,
-              "ms": 92.241
+              "tokens": 28,
+              "ms": 76.549,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 80,
-          "ms": 92.241,
+          "tokens": 28,
+          "ms": 76.549,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1482,16 +1255,11 @@
               "tool": "grep",
               "tokens": 42,
               "ms": 0
-            },
-            {
-              "tool": "read",
-              "tokens": 6323,
-              "ms": 0
             }
           ],
-          "tokens": 6365,
+          "tokens": 42,
           "ms": 0,
-          "call_count": 2,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -1499,7 +1267,7 @@
             "missing": [],
             "spurious": []
           },
-          "note": "searched 5330 code files, then read 1 declaring file(s)"
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
         }
       }
     },
@@ -1513,12 +1281,14 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 432,
-              "ms": 115.03
+              "tokens": 41,
+              "ms": 105.532,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 432,
-          "ms": 115.03,
+          "tokens": 41,
+          "ms": 105.532,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1527,29 +1297,21 @@
             "missing": [],
             "spurious": []
           },
-          "note": "answered zero callers: `build` keeps one graph per repository, so a call site outside api-music-nodo was never in the graph this query read"
+          "note": "callers_of build_all_image_sizes exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 216,
-              "ms": 8.659
-            },
-            {
-              "tool": "trace_path",
-              "tokens": 75,
-              "ms": 0.288
-            },
-            {
-              "tool": "query_graph",
-              "tokens": 26,
-              "ms": 599.529
+              "tokens": 23,
+              "ms": 0.125,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 317,
-          "ms": 608.476,
-          "call_count": 3,
+          "tokens": 23,
+          "ms": 0.125,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -1557,18 +1319,20 @@
             "missing": [],
             "spurious": []
           },
-          "note": "trace_path named 1 callers by qualified name only; the file set is the query_graph Cypher over the same CALLS edges."
+          "note": "search_graph failed to locate build_all_image_sizes: {\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 226,
-              "ms": 241.815
+              "tokens": 0,
+              "ms": 0.039,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 226,
-          "ms": 241.815,
+          "tokens": 0,
+          "ms": 0.039,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1582,12 +1346,14 @@
           "calls": [
             {
               "tool": "graphify affected",
-              "tokens": 99,
-              "ms": 97.693
+              "tokens": 31,
+              "ms": 75.984,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 99,
-          "ms": 97.693,
+          "tokens": 31,
+          "ms": 75.984,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1603,11 +1369,11 @@
             {
               "tool": "find_references",
               "tokens": 145,
-              "ms": 0.241
+              "ms": 0.229
             }
           ],
           "tokens": 145,
-          "ms": 0.241,
+          "ms": 0.229,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1623,16 +1389,11 @@
               "tool": "grep",
               "tokens": 68,
               "ms": 0
-            },
-            {
-              "tool": "read",
-              "tokens": 24557,
-              "ms": 0
             }
           ],
-          "tokens": 24625,
+          "tokens": 68,
           "ms": 0,
-          "call_count": 2,
+          "call_count": 1,
           "score": {
             "claimed_set": [],
             "precision": 1,
@@ -1640,7 +1401,7 @@
             "missing": [],
             "spurious": []
           },
-          "note": "searched 5330 code files, then read 1 declaring file(s)"
+          "note": "searched 5330 code files; one declaration, so the hit lines answer without opening it"
         }
       }
     },
@@ -1662,105 +1423,73 @@
           "calls": [
             {
               "tool": "code-review-graph query",
-              "tokens": 1496,
-              "ms": 173.402
+              "tokens": 41,
+              "ms": 105.964,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 1496,
-          "ms": 173.402,
+          "tokens": 41,
+          "ms": 105.964,
           "call_count": 1,
-          "claimed": [
-            "RangeOutcome",
-            "parse_range",
-            "parse_decimal",
-            "file_response",
-            "insert_header",
-            "build_response",
-            "parses_send_file_matrix",
-            "streams_exact_send_file_headers_and_bytes"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "RangeOutcome",
               "build_response",
               "file_response",
               "insert_header",
               "parse_decimal",
               "parse_range",
-              "parses_send_file_matrix",
-              "streams_exact_send_file_headers_and_bytes"
-            ],
-            "precision": 0.75,
-            "recall": 0.8571428571428571,
-            "missing": [
               "tests"
             ],
-            "spurious": [
-              "parses_send_file_matrix",
-              "streams_exact_send_file_headers_and_bytes"
-            ]
+            "spurious": []
           },
-          "note": "file_summary returns the file's own node beside its declarations; only the declarations are claimed"
+          "note": "file_summary exited non-zero: exit status 1"
         },
         "codebase-memory": {
           "calls": [
             {
               "tool": "search_graph",
-              "tokens": 4098,
-              "ms": 34.249
+              "tokens": 23,
+              "ms": 0.171,
+              "failed": true,
+              "error": "{\"error\":\"project not found or not indexed\",\"hint\":\"No projects indexed yet. Call index_repository first.\"}"
             }
           ],
-          "tokens": 4098,
-          "ms": 34.249,
+          "tokens": 23,
+          "ms": 0.171,
           "call_count": 1,
-          "claimed": [
-            "RangeOutcome",
-            "build_response",
-            "file_response",
-            "insert_header",
-            "parse_decimal",
-            "parse_range",
-            "parses_send_file_matrix",
-            "span",
-            "status",
-            "streams_exact_send_file_headers_and_bytes"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "RangeOutcome",
               "build_response",
               "file_response",
               "insert_header",
               "parse_decimal",
               "parse_range",
-              "parses_send_file_matrix",
-              "span",
-              "status",
-              "streams_exact_send_file_headers_and_bytes"
-            ],
-            "precision": 0.6,
-            "recall": 0.8571428571428571,
-            "missing": [
               "tests"
             ],
-            "spurious": [
-              "parses_send_file_matrix",
-              "span",
-              "status",
-              "streams_exact_send_file_headers_and_bytes"
-            ]
+            "spurious": []
           }
         },
         "graft": {
           "calls": [
             {
               "tool": "graft --dir",
-              "tokens": 345,
-              "ms": 275.933
+              "tokens": 0,
+              "ms": 0.055,
+              "failed": true,
+              "error": "chdir /private/tmp/st11/graft-ctx: no such file or directory"
             }
           ],
-          "tokens": 345,
-          "ms": 275.933,
+          "tokens": 0,
+          "ms": 0.055,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -1782,43 +1511,29 @@
           "calls": [
             {
               "tool": "graphify explain",
-              "tokens": 193,
-              "ms": 130.536
+              "tokens": 31,
+              "ms": 86.837,
+              "failed": true,
+              "error": "exit status 1"
             }
           ],
-          "tokens": 193,
-          "ms": 130.536,
+          "tokens": 31,
+          "ms": 86.837,
           "call_count": 1,
-          "claimed": [
-            "file_response",
-            "parse_range",
-            "build_response",
-            "insert_header",
-            "RangeOutcome",
-            "parse_decimal",
-            "streams_exact_send_file_headers_and_bytes",
-            "parses_send_file_matrix"
-          ],
           "score": {
-            "claimed_set": [
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
               "RangeOutcome",
               "build_response",
               "file_response",
               "insert_header",
               "parse_decimal",
               "parse_range",
-              "parses_send_file_matrix",
-              "streams_exact_send_file_headers_and_bytes"
-            ],
-            "precision": 0.75,
-            "recall": 0.8571428571428571,
-            "missing": [
               "tests"
             ],
-            "spurious": [
-              "parses_send_file_matrix",
-              "streams_exact_send_file_headers_and_bytes"
-            ]
+            "spurious": []
           },
           "note": "`explain \u003cfile node id\u003e` reads the file node's `contains` edges, because no graphify command takes a file path; the id is `{parent_dir}_{stem}`"
         },
@@ -1827,11 +1542,11 @@
             {
               "tool": "get_file_outline",
               "tokens": 290,
-              "ms": 1.395
+              "ms": 0.989
             }
           ],
           "tokens": 290,
-          "ms": 1.395,
+          "ms": 0.989,
           "call_count": 1,
           "claimed": [
             "build_response",
@@ -1899,49 +1614,49 @@
   ],
   "aggregate": {
     "code-review-graph": {
-      "tokens_total": 8669,
-      "calls_total": 12,
-      "ms_total": 1420.869,
-      "precision_mean": 0.6388888888888888,
-      "recall_mean": 0.5767195767195766,
-      "exact_answers": 4,
+      "tokens_total": 357,
+      "calls_total": 9,
+      "ms_total": 957.0000000000002,
+      "precision_mean": 0.3333333333333333,
+      "recall_mean": 0.3333333333333333,
+      "exact_answers": 3,
       "answered": 9,
       "of": 9
     },
     "codebase-memory": {
-      "tokens_total": 16601,
-      "calls_total": 28,
-      "ms_total": 3845.5139999999997,
-      "precision_mean": 0.6222222222222222,
-      "recall_mean": 0.6137566137566136,
-      "exact_answers": 4,
+      "tokens_total": 207,
+      "calls_total": 9,
+      "ms_total": 1.3070000000000002,
+      "precision_mean": 0.3333333333333333,
+      "recall_mean": 0.3333333333333333,
+      "exact_answers": 3,
       "answered": 9,
       "of": 9
     },
     "graft": {
-      "tokens_total": 5562,
+      "tokens_total": 0,
       "calls_total": 9,
-      "ms_total": 2263.793,
-      "precision_mean": 0.5555555555555556,
-      "recall_mean": 0.48148148148148145,
-      "exact_answers": 4,
+      "ms_total": 0.356,
+      "precision_mean": 0.3333333333333333,
+      "recall_mean": 0.3333333333333333,
+      "exact_answers": 3,
       "answered": 9,
       "of": 9
     },
     "graphify": {
-      "tokens_total": 4434,
-      "calls_total": 13,
-      "ms_total": 1566.4640000000002,
-      "precision_mean": 0.4555555555555555,
-      "recall_mean": 0.7433862433862434,
+      "tokens_total": 2676,
+      "calls_total": 11,
+      "ms_total": 1233.6889999999999,
+      "precision_mean": 0.2888888888888889,
+      "recall_mean": 0.5,
       "exact_answers": 2,
       "answered": 9,
       "of": 9
     },
     "kivgraph": {
-      "tokens_total": 1827,
+      "tokens_total": 1749,
       "calls_total": 12,
-      "ms_total": 3.9299999999999997,
+      "ms_total": 3.537,
       "precision_mean": 1,
       "recall_mean": 1,
       "exact_answers": 9,
@@ -1949,8 +1664,8 @@
       "of": 9
     },
     "native": {
-      "tokens_total": 74783,
-      "calls_total": 22,
+      "tokens_total": 42698,
+      "calls_total": 17,
       "ms_total": 0,
       "precision_mean": 1,
       "recall_mean": 1,
@@ -1962,29 +1677,29 @@
   "aggregate_by_family": {
     "outline": {
       "code-review-graph": {
-        "tokens_total": 1496,
+        "tokens_total": 41,
         "calls_total": 1,
-        "ms_total": 173.402,
-        "precision_mean": 0.75,
-        "recall_mean": 0.8571428571428571,
+        "ms_total": 105.964,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
       },
       "codebase-memory": {
-        "tokens_total": 4098,
+        "tokens_total": 23,
         "calls_total": 1,
-        "ms_total": 34.249,
-        "precision_mean": 0.6,
-        "recall_mean": 0.8571428571428571,
+        "ms_total": 0.171,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
       },
       "graft": {
-        "tokens_total": 345,
+        "tokens_total": 0,
         "calls_total": 1,
-        "ms_total": 275.933,
+        "ms_total": 0.055,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
@@ -1992,11 +1707,11 @@
         "of": 1
       },
       "graphify": {
-        "tokens_total": 193,
+        "tokens_total": 31,
         "calls_total": 1,
-        "ms_total": 130.536,
-        "precision_mean": 0.75,
-        "recall_mean": 0.8571428571428571,
+        "ms_total": 86.837,
+        "precision_mean": 0,
+        "recall_mean": 0,
         "exact_answers": 0,
         "answered": 1,
         "of": 1
@@ -2004,7 +1719,7 @@
       "kivgraph": {
         "tokens_total": 290,
         "calls_total": 1,
-        "ms_total": 1.395,
+        "ms_total": 0.989,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -2024,49 +1739,49 @@
     },
     "references": {
       "code-review-graph": {
-        "tokens_total": 7173,
-        "calls_total": 11,
-        "ms_total": 1247.4669999999999,
-        "precision_mean": 0.625,
-        "recall_mean": 0.5416666666666666,
-        "exact_answers": 4,
+        "tokens_total": 316,
+        "calls_total": 8,
+        "ms_total": 851.0360000000002,
+        "precision_mean": 0.375,
+        "recall_mean": 0.375,
+        "exact_answers": 3,
         "answered": 8,
         "of": 8
       },
       "codebase-memory": {
-        "tokens_total": 12503,
-        "calls_total": 27,
-        "ms_total": 3811.265,
-        "precision_mean": 0.625,
-        "recall_mean": 0.5833333333333333,
-        "exact_answers": 4,
+        "tokens_total": 184,
+        "calls_total": 8,
+        "ms_total": 1.1360000000000001,
+        "precision_mean": 0.375,
+        "recall_mean": 0.375,
+        "exact_answers": 3,
         "answered": 8,
         "of": 8
       },
       "graft": {
-        "tokens_total": 5217,
+        "tokens_total": 0,
         "calls_total": 8,
-        "ms_total": 1987.8600000000001,
-        "precision_mean": 0.625,
-        "recall_mean": 0.5416666666666666,
-        "exact_answers": 4,
+        "ms_total": 0.301,
+        "precision_mean": 0.375,
+        "recall_mean": 0.375,
+        "exact_answers": 3,
         "answered": 8,
         "of": 8
       },
       "graphify": {
-        "tokens_total": 4241,
-        "calls_total": 12,
-        "ms_total": 1435.928,
-        "precision_mean": 0.41875,
-        "recall_mean": 0.7291666666666667,
+        "tokens_total": 2645,
+        "calls_total": 10,
+        "ms_total": 1146.8519999999999,
+        "precision_mean": 0.325,
+        "recall_mean": 0.5625,
         "exact_answers": 2,
         "answered": 8,
         "of": 8
       },
       "kivgraph": {
-        "tokens_total": 1537,
+        "tokens_total": 1459,
         "calls_total": 11,
-        "ms_total": 2.5349999999999997,
+        "ms_total": 2.548,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 8,
@@ -2074,8 +1789,8 @@
         "of": 8
       },
       "native": {
-        "tokens_total": 72395,
-        "calls_total": 21,
+        "tokens_total": 40310,
+        "calls_total": 16,
         "ms_total": 0,
         "precision_mean": 1,
         "recall_mean": 1,

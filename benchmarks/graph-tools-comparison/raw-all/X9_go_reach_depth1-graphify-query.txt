@@ -7,58 +7,55 @@ NODE newBotRepoWithCaches() [src=internal/infrastructure/mongo/bot_repository_in
 NODE NewCoreCache() [src=internal/infrastructure/redis/core_cache.go loc=L31 community=51]
 NODE NewBotRepository() [src=internal/infrastructure/mongo/bot_repository.go loc=L121 community=122]
 NODE CoreCache [src=internal/infrastructure/redis/core_cache.go loc=L21 community=51]
-NODE NewUserCache() [src=internal/infrastructure/redis/user_cache.go loc=L15 community=51]
-NODE .findEnriched() [src=internal/infrastructure/mongo/bot_repository.go loc=L287 community=78]
 NODE .CreateBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L322 community=78]
-NODE .FindAllBots() [src=internal/infrastructure/mongo/bot_repository.go loc=L206 community=78]
+NODE .findEnriched() [src=internal/infrastructure/mongo/bot_repository.go loc=L287 community=78]
+NODE NewUserCache() [src=internal/infrastructure/redis/user_cache.go loc=L15 community=51]
 NODE bot_repository.go [src=internal/infrastructure/mongo/bot_repository.go loc=L1 community=78]
-NODE UserCache [src=internal/infrastructure/redis/user_cache.go loc=L10 community=51]
-NODE .GetUser() [src=internal/infrastructure/redis/user_cache.go loc=L26 community=51]
-NODE .FindBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L181 community=78]
+NODE .FindAllBots() [src=internal/infrastructure/mongo/bot_repository.go loc=L206 community=78]
 NODE .FindDeveloperBots() [src=internal/infrastructure/mongo/bot_repository.go loc=L255 community=78]
 NODE .WithCaches() [src=internal/infrastructure/mongo/bot_repository.go loc=L132 community=78]
 NODE .UpdateBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L346 community=78]
-NODE .FindModuleModmailForBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L423 community=78]
+NODE .FindBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L181 community=78]
+NODE UserCache [src=internal/infrastructure/redis/user_cache.go loc=L10 community=51]
+NODE .GetUser() [src=internal/infrastructure/redis/user_cache.go loc=L26 community=51]
 NODE .DeleteBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L373 community=78]
+NODE .FindModuleModmailForBot() [src=internal/infrastructure/mongo/bot_repository.go loc=L423 community=78]
 NODE user_cache.go [src=internal/infrastructure/redis/user_cache.go loc=L1 community=51]
 NODE .FindModmailActiveGuildID() [src=internal/infrastructure/mongo/bot_repository.go loc=L395 community=78]
-NODE Collection [src=internal/infrastructure/mongo/bot_repository.go loc=L110 community=78]
-NODE BotCoreCache [src=internal/infrastructure/mongo/bot_repository.go loc=L113 community=78]
-NODE .FindBotModuleSeed() [src=internal/infrastructure/mongo/bot_repository.go loc=L162 community=78]
-NODE Client [src=internal/infrastructure/redis/user_cache.go loc=L11 community=51]
-NODE userMetaKey() [src=internal/infrastructure/redis/user_cache.go loc=L19 community=51]
-NODE .CheckBotExists() [src=internal/infrastructure/mongo/bot_repository.go loc=L142 community=78]
-NODE core_cache.go [src=internal/infrastructure/redis/core_cache.go loc=L1 community=51]
-NODE .GetBotKeys() [src=internal/infrastructure/redis/core_cache.go loc=L45 community=51]
-NODE BotCache [src=internal/infrastructure/mongo/bot_repository.go loc=L112 community=78]
-NODE UserCache [src=internal/infrastructure/mongo/bot_repository.go loc=L114 community=78]
 NODE Client [src=internal/infrastructure/redis/core_cache.go loc=L26 community=51]
-NODE BotCoreCache [src=internal/infrastructure/redis/core_cache.go loc=L23 community=51]
-NODE GuildCoreCache [src=internal/infrastructure/redis/core_cache.go loc=L22 community=51]
+NODE UserCache [src=internal/infrastructure/mongo/bot_repository.go loc=L114 community=78]
+NODE Client [src=internal/infrastructure/redis/user_cache.go loc=L11 community=51]
+NODE BotCoreCache [src=internal/infrastructure/mongo/bot_repository.go loc=L113 community=78]
+NODE .GetBotKeys() [src=internal/infrastructure/redis/core_cache.go loc=L45 community=51]
+NODE Collection [src=internal/infrastructure/mongo/bot_repository.go loc=L110 community=78]
+NODE .CheckBotExists() [src=internal/infrastructure/mongo/bot_repository.go loc=L142 community=78]
+NODE BotCache [src=internal/infrastructure/mongo/bot_repository.go loc=L112 community=78]
+NODE .FindBotModuleSeed() [src=internal/infrastructure/mongo/bot_repository.go loc=L162 community=78]
+NODE core_cache.go [src=internal/infrastructure/redis/core_cache.go loc=L1 community=51]
+NODE userMetaKey() [src=internal/infrastructure/redis/user_cache.go loc=L19 community=51]
 NODE UserCache [src=internal/infrastructure/redis/core_cache.go loc=L24 community=51]
+NODE GuildCoreCache [src=internal/infrastructure/redis/core_cache.go loc=L22 community=51]
 NODE Context [src=internal/infrastructure/redis/user_cache.go loc=L26 community=51]
-EDGE UserCache --embeds [EXTRACTED]--> CoreCache
+NODE BotCoreCache [src=internal/infrastructure/redis/core_cache.go loc=L23 community=51]
 EDGE UserCache --references [EXTRACTED context=field]--> BotRepository
 EDGE UserCache --references [EXTRACTED context=parameter_type]--> .WithCaches()
 EDGE UserCache --contains [EXTRACTED]--> user_cache.go
 EDGE UserCache --references [EXTRACTED context=return_type]--> NewUserCache()
 EDGE UserCache --references [EXTRACTED context=field]--> Client
 EDGE UserCache --method [EXTRACTED]--> .GetUser()
-EDGE .WithCaches() --references [EXTRACTED context=parameter_type]--> BotCache
-EDGE .WithCaches() --references [EXTRACTED context=parameter_type]--> BotCoreCache
-EDGE NewUserCache() --calls [INFERRED context=call]--> main()
-EDGE NewUserCache() --calls [INFERRED context=call]--> newBotRepoWithCaches()
-EDGE NewUserCache() --calls [INFERRED context=call]--> NewCoreCache()
-EDGE user_cache.go --contains [EXTRACTED]--> userMetaKey()
-EDGE .GetUser() --calls [INFERRED context=call]--> DeserializeValue()
-EDGE .GetUser() --calls [EXTRACTED context=call]--> userMetaKey()
-EDGE .GetUser() --references [EXTRACTED context=parameter_type]--> Context
+EDGE UserCache --embeds [EXTRACTED]--> CoreCache
 EDGE CoreCache --contains [EXTRACTED]--> core_cache.go
 EDGE CoreCache --references [EXTRACTED context=return_type]--> NewCoreCache()
 EDGE CoreCache --embeds [EXTRACTED]--> BotCoreCache
 EDGE CoreCache --references [EXTRACTED context=field]--> Client
 EDGE CoreCache --embeds [EXTRACTED]--> GuildCoreCache
 EDGE CoreCache --method [EXTRACTED]--> .GetBotKeys()
+EDGE user_cache.go --contains [EXTRACTED]--> userMetaKey()
+EDGE NewUserCache() --calls [INFERRED context=call]--> main()
+EDGE NewUserCache() --calls [INFERRED context=call]--> newBotRepoWithCaches()
+EDGE NewUserCache() --calls [INFERRED context=call]--> NewCoreCache()
+EDGE .WithCaches() --references [EXTRACTED context=parameter_type]--> BotCache
+EDGE .WithCaches() --references [EXTRACTED context=parameter_type]--> BotCoreCache
 EDGE BotRepository --contains [EXTRACTED]--> bot_repository.go
 EDGE BotRepository --references [EXTRACTED context=return_type]--> NewBotRepository()
 EDGE BotRepository --references [EXTRACTED context=field]--> BotCache
@@ -75,3 +72,6 @@ EDGE BotRepository --method [EXTRACTED]--> .findEnriched()
 EDGE BotRepository --method [EXTRACTED]--> .FindModmailActiveGuildID()
 EDGE BotRepository --method [EXTRACTED]--> .FindModuleModmailForBot()
 EDGE BotRepository --method [EXTRACTED]--> .UpdateBot()
+EDGE .GetUser() --calls [INFERRED context=call]--> DeserializeValue()
+EDGE .GetUser() --calls [EXTRACTED context=call]--> userMetaKey()
+EDGE .GetUser() --references [EXTRACTED context=parameter_type]--> Context

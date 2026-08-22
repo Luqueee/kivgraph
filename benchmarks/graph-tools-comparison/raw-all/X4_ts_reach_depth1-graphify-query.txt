@@ -13,25 +13,25 @@ NODE RedisCache [src=src/redis/cache/index.ts loc=L18 community=41]
 NODE MusicSpotifyCache [src=src/redis/cache/music/spotify-cache.ts loc=L3 community=59]
 NODE RedisMusicCache [src=src/redis/cache/music/index.ts loc=L8 community=41]
 NODE file-manifest-cache.ts [src=src/redis/cache/file-manifest/file-manifest-cache.ts loc=L1 community=110]
-NODE RecommendationsCache [src=src/redis/cache/music/recommendations-cache.ts loc=L6 community=59]
 NODE SeekableProbeCache [src=src/redis/cache/music/seekable-cache.ts loc=L3 community=59]
+NODE RecommendationsCache [src=src/redis/cache/music/recommendations-cache.ts loc=L6 community=59]
 NODE autocomplete-cache.ts [src=src/redis/cache/music/autocomplete-cache.ts loc=L1 community=99]
 NODE biome.json [src=biome.json loc=L1 community=27]
 NODE recommendations-cache.ts [src=src/redis/cache/music/recommendations-cache.ts loc=L1 community=59]
 NODE spotify-cache.ts [src=src/redis/cache/music/spotify-cache.ts loc=L1 community=59]
-NODE seekable-cache.ts [src=src/redis/cache/music/seekable-cache.ts loc=L1 community=59]
 NODE ChipbotRecommendationsResponse [src=src/redis/cache/music/types.ts loc=L31 community=59]
+NODE seekable-cache.ts [src=src/redis/cache/music/seekable-cache.ts loc=L1 community=59]
+NODE .getResults() [src=src/redis/cache/music/recommendations-cache.ts loc=L11 community=59]
 NODE .setResults() [src=src/redis/cache/music/recommendations-cache.ts loc=L15 community=59]
 NODE linter [src=biome.json loc=L14 community=27]
-NODE .getResults() [src=src/redis/cache/music/recommendations-cache.ts loc=L11 community=59]
 NODE .cacheKey() [src=src/redis/cache/music/recommendations-cache.ts loc=L7 community=59]
-NODE assist [src=biome.json loc=L6 community=27]
-NODE files [src=biome.json loc=L47 community=27]
-NODE .constructor() [src=src/redis/cache/music/index.ts loc=L15 community=41]
 NODE formatter [src=biome.json loc=L3 community=27]
 NODE css [src=biome.json loc=L50 community=27]
-NODE $schema [src=biome.json loc=L2 community=27]
+NODE assist [src=biome.json loc=L6 community=27]
+NODE .constructor() [src=src/redis/cache/music/index.ts loc=L15 community=41]
+NODE files [src=biome.json loc=L47 community=27]
 NODE ignoreUnknown [src=biome.json loc=L48 community=27]
+NODE $schema [src=biome.json loc=L2 community=27]
 EDGE RecommendationsCache --inherits [EXTRACTED context=type]--> BaseCache
 EDGE RecommendationsCache --imports [EXTRACTED context=import]--> index.ts
 EDGE RecommendationsCache --references [EXTRACTED context=field]--> RedisMusicCache
@@ -41,23 +41,6 @@ EDGE RecommendationsCache --method [EXTRACTED]--> .getResults()
 EDGE RecommendationsCache --method [EXTRACTED]--> .setResults()
 EDGE files --contains [EXTRACTED]--> biome.json
 EDGE files --contains [EXTRACTED]--> ignoreUnknown
-EDGE .getResults() --references [EXTRACTED context=generic_arg]--> ChipbotRecommendationsResponse
-EDGE recommendations-cache.ts --imports_from [EXTRACTED context=import]--> base-cache.ts
-EDGE recommendations-cache.ts --imports [EXTRACTED context=import]--> ChipbotRecommendationsResponse
-EDGE .setResults() --references [EXTRACTED context=parameter_type]--> ChipbotRecommendationsResponse
-EDGE RedisMusicCache --imports [EXTRACTED context=import]--> RedisCacheAdapter.ts
-EDGE RedisMusicCache --references [EXTRACTED context=field]--> FileManifestCache
-EDGE RedisMusicCache --imports [EXTRACTED context=import]--> index.ts
-EDGE RedisMusicCache --references [EXTRACTED context=field]--> RedisCache
-EDGE RedisMusicCache --references [EXTRACTED context=field]--> AutocompleteCache
-EDGE RedisMusicCache --method [EXTRACTED]--> .constructor()
-EDGE RedisMusicCache --references [EXTRACTED context=field]--> SeekableProbeCache
-EDGE RedisMusicCache --references [EXTRACTED context=field]--> MusicSpotifyCache
-EDGE biome.json --contains [EXTRACTED]--> assist
-EDGE biome.json --contains [EXTRACTED]--> css
-EDGE biome.json --contains [EXTRACTED]--> formatter
-EDGE biome.json --contains [EXTRACTED]--> linter
-EDGE biome.json --contains [EXTRACTED]--> $schema
 EDGE index.ts --imports_from [EXTRACTED context=import]--> RedisCacheAdapter.ts
 EDGE index.ts --imports_from [EXTRACTED context=import]--> RedisCacheClient.ts
 EDGE index.ts --imports [EXTRACTED context=import]--> RedisCacheClient
@@ -70,3 +53,20 @@ EDGE index.ts --imports_from [EXTRACTED context=import]--> seekable-cache.ts
 EDGE index.ts --imports [EXTRACTED context=import]--> SeekableProbeCache
 EDGE index.ts --imports_from [EXTRACTED context=import]--> spotify-cache.ts
 EDGE index.ts --imports [EXTRACTED context=import]--> MusicSpotifyCache
+EDGE RedisMusicCache --imports [EXTRACTED context=import]--> RedisCacheAdapter.ts
+EDGE RedisMusicCache --references [EXTRACTED context=field]--> FileManifestCache
+EDGE RedisMusicCache --imports [EXTRACTED context=import]--> index.ts
+EDGE RedisMusicCache --references [EXTRACTED context=field]--> RedisCache
+EDGE RedisMusicCache --references [EXTRACTED context=field]--> AutocompleteCache
+EDGE RedisMusicCache --method [EXTRACTED]--> .constructor()
+EDGE RedisMusicCache --references [EXTRACTED context=field]--> SeekableProbeCache
+EDGE RedisMusicCache --references [EXTRACTED context=field]--> MusicSpotifyCache
+EDGE .getResults() --references [EXTRACTED context=generic_arg]--> ChipbotRecommendationsResponse
+EDGE .setResults() --references [EXTRACTED context=parameter_type]--> ChipbotRecommendationsResponse
+EDGE biome.json --contains [EXTRACTED]--> assist
+EDGE biome.json --contains [EXTRACTED]--> css
+EDGE biome.json --contains [EXTRACTED]--> formatter
+EDGE biome.json --contains [EXTRACTED]--> linter
+EDGE biome.json --contains [EXTRACTED]--> $schema
+EDGE recommendations-cache.ts --imports_from [EXTRACTED context=import]--> base-cache.ts
+EDGE recommendations-cache.ts --imports [EXTRACTED context=import]--> ChipbotRecommendationsResponse

@@ -257,6 +257,47 @@ type TypeScriptReport struct {
 	// exactly known: neither a local declaration in this payload nor a
 	// provider declaration reached with a class and a signature.
 	ExtendsWithoutTarget int
+	// FactsOutsideRepository counts facts dropped because the file holding
+	// them is not inside the repository being indexed. A consumer resolves an
+	// import to a provider's built declaration, so the worker reports a path
+	// that leaves the consumer's tree -- `../../libraries/library-shared/dist`
+	// and the like. Keying such a file under the consumer produced a row
+	// whose path escapes its own repository and which therefore cannot be
+	// handed back to any tool, which is LUQUE-2011.
+	//
+	// The fact is retired rather than re-attributed. Naming the owning
+	// repository is not enough to build a complete row: a File belongs to a
+	// Package, and this payload never says which package of the provider
+	// holds the file. An incomplete row would also be dangerous, because
+	// MergeAll keeps the first row for a key and drops later ones without
+	// comparing, so a package-less row could silently beat a complete one.
+	FactsOutsideRepository int
+}
+
+// UnresolvedFileOutsideRepository is retained when a payload reports a file
+// whose repository-relative path climbs out of its own repository. A consumer
+// resolving an import into a workspace sibling's built declarations gets
+// `../../libraries/library-shared/dist/...`, and that names a file the sibling
+// owns.
+//
+// The relation between the two repositories does not depend on this file and is
+// not affected: an import binding's target identity is built from the
+// provider's own repository and package, so the edge is byte identical to the
+// key the provider assigns its own declaration. What is retired here are the
+// uses whose **source** file is the provider's output -- facts about the
+// provider, which the provider's own pass is the one to report.
+const UnresolvedFileOutsideRepository = "FILE_OUTSIDE_REPOSITORY"
+
+// escapesRepository reports whether a repository-relative path leaves its own
+// repository. Cleaning first is what makes `src/../../x` and `../x` the same
+// answer, and an absolute path is outside by definition: neither can be joined
+// onto a repository root to give a path a reader could open.
+func escapesRepository(file string) bool {
+	if path.IsAbs(file) {
+		return true
+	}
+	cleaned := path.Clean(file)
+	return cleaned == ".." || strings.HasPrefix(cleaned, "../")
 }
 
 // DecodeTypeScriptPayload parses a `ts-facts-v4` document.
@@ -328,8 +369,39 @@ func NormalizeTypeScript(
 		}},
 	}
 
+	// outside holds the raw paths of files this pass refuses to claim. A
+	// repository-relative path that climbs out of its own tree names a file
+	// another repository owns, and keying it here would publish a row nobody
+	// can address. The loss is counted and retained with its reason, the way
+	// the Go loader already does it -- never hidden, and never re-attributed
+	// to a repository whose package this payload cannot name.
+	report := TypeScriptReport{}
 	files := make(map[string]struct{}, len(payload.Files))
+	outside := make(map[string]struct{})
 	for _, file := range payload.Files {
+		if escapesRepository(file) {
+			if _, seen := outside[file]; seen {
+				continue
+			}
+			outside[file] = struct{}{}
+			// The file is one retained gap; the facts it held are counted
+			// one by one where each is dropped, the way Go does it.
+			//
+			// RequestedPackage is the package that was being indexed when the
+			// path appeared, which is the only package this payload can name
+			// truthfully: the provider's own package is exactly what a
+			// consumer payload never says, and inventing it is what this
+			// retirement exists to avoid.
+			set.Unresolved = append(set.Unresolved, UnresolvedReference{
+				RepositoryKey:    repositoryKey,
+				Language:         LanguageTypeScript,
+				RequestedPackage: payload.Package.Name,
+				RequestedSymbol:  path.Base(file),
+				Reason:           string(UnresolvedFileOutsideRepository),
+				Detail:           file,
+			})
+			continue
+		}
 		fileKey := FileKey(name, file)
 		if _, exists := files[fileKey]; exists {
 			continue
@@ -355,6 +427,12 @@ func NormalizeTypeScript(
 	for _, symbol := range payload.Symbols {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
+		}
+		if _, retired := outside[symbol.File]; retired {
+			// Its file belongs to another repository's tree and was refused
+			// above, so this declaration is the provider's to publish.
+			report.FactsOutsideRepository++
+			continue
 		}
 		fileKey := FileKey(name, symbol.File)
 		if _, exists := files[fileKey]; !exists {
@@ -446,10 +524,13 @@ func NormalizeTypeScript(
 		return string(key), nil
 	}
 
-	report := TypeScriptReport{}
 	for _, reference := range payload.References {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
+		}
+		if _, retired := outside[reference.File]; retired {
+			report.FactsOutsideRepository++
+			continue
 		}
 		sourceKey, hasSource := symbolKeys[reference.File+"\x00"+reference.SourceQualifiedName]
 		if !hasSource && reference.SourceQualifiedName == "" {
@@ -497,6 +578,10 @@ func NormalizeTypeScript(
 	for _, imp := range payload.Imports {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
+		}
+		if _, retired := outside[imp.File]; retired {
+			report.FactsOutsideRepository++
+			continue
 		}
 		sourceKey, hasSource := symbolKeys[imp.File+"\x00"+imp.QualifiedName]
 		if !hasSource {
@@ -570,6 +655,10 @@ func NormalizeTypeScript(
 	for _, exp := range payload.Exports {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
+		}
+		if _, retired := outside[exp.File]; retired {
+			report.FactsOutsideRepository++
+			continue
 		}
 		kind := EdgeKind(exp.Kind)
 		if kind != Exports && kind != Reexports {
@@ -656,6 +745,10 @@ func NormalizeTypeScript(
 	for _, ext := range payload.Extends {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
+		}
+		if _, retired := outside[ext.File]; retired {
+			report.FactsOutsideRepository++
+			continue
 		}
 		sourceKey, hasSource := symbolKeys[ext.File+"\x00"+ext.QualifiedName]
 		if !hasSource {
@@ -745,6 +838,10 @@ func NormalizeTypeScript(
 			return Set{}, TypeScriptReport{}, err
 		}
 		targetPackageKey := PackageKey(LanguageTypeScript, dependency.Repository, dependency.Package)
+		if _, retired := outside[dependency.File]; retired {
+			report.FactsOutsideRepository++
+			continue
+		}
 		fileKey := FileKey(name, dependency.File)
 		evidence := Evidence{
 			Key:           EvidenceKey(fileKey, dependency.Start, dependency.End),

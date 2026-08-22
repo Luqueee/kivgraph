@@ -15518,33 +15518,66 @@ una. Rust coincide exacto porque carga una pasada por workspace.
 
 ## LUQUE-2011 — Un fichero de TypeScript fuera del repositorio se atribuye a quien lo consume
 
-**Dependencias:** ninguna.
+**Estado:** cerrada el `2026-08-22`. Se retira el hecho, no se reatribuye.
 
-**El hueco:** medido como efecto colateral de `X9`, en `benchmarks/graph-tools-comparison/harder.md`.
-La respuesta de `H3_ts_type` trae dos filas con esta forma:
+**Era:** la respuesta de `H3_ts_type` traía dos filas de esta forma:
 
 ```
 gateway:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
 sdk-module-ts:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
 ```
 
-Un fichero, atribuido a **dos repositorios, y ninguno lo contiene**, por una ruta
-que se sale de su propio repositorio con `../..`. Toda fila debe ser
-direccionable -- repositorio, ruta relativa al repositorio, nombre cualificado y
-rango-- y ninguna de estas dos se puede devolver a ninguna tool.
+Un fichero atribuido a dos repositorios, y ninguno lo contiene. El `AGENTS.md`
+promete que toda fila es direccionable y ésas no lo son.
 
-Es la misma clase que cerró `fix(indexing): refuse Go facts whose file is
-outside the repository`, que cuenta la pérdida en `FactsOutsideRepository` y
-retiene un `UNRESOLVED` con su motivo. El lado TypeScript no lo hace.
+**Reatribuirlo al dueño se descartó con evidencia, no por tamaño.** Un `File`
+pertenece a un `Package`, y un payload de consumidor **nunca nombra el paquete
+del proveedor** — `payload.Files` son rutas peladas. La fila saldría sin paquete.
+Y `MergeAll` se queda con la primera fila de una clave y descarta las siguientes
+**sin compararlas**, así que una fila sin paquete puede vencer en silencio a una
+completa: es la forma de `LUQUE-2002`. Además rompería la invariante en la que se
+apoya la corrección de Go — una pasada sólo afirma hechos de ficheros dentro del
+repositorio que indexa— y el contrato de retirada del ADR 0056, que no tiene
+dueño para un hecho escrito por otra pasada.
 
-**Lo que hay que decidir antes de tocar nada:** si el hecho se retira -- como en
-Go, con su contador y su no resuelto-- o si se **reatribuye** al repositorio que
-sí declara el fichero, que aquí sería `library-shared`. La segunda es más útil
-para quien pregunta y es una decisión de identidad, no una corrección de bug:
-cambia a qué repositorio pertenece un símbolo.
+**Lo que se hizo:** el consumidor retira el hecho, lo cuenta en
+`FactsOutsideRepository` y retiene el hueco con motivo `FILE_OUTSIDE_REPOSITORY`
+y la ruta en `detail`. Simétrico con Go.
 
-**Lo que no vale:** una fila cuya ruta escapa de su repositorio. No es
-direccionable y el `AGENTS.md` promete que lo es.
+**Lo que no se pierde, comprobado:** la relación del workspace no depende de esas
+filas. La identidad del destino de un import se construye con el repositorio y el
+paquete **del proveedor**, byte a byte idéntica a la clave que el proveedor da a
+su propia declaración, así que `find_cross_repo_consumers` sobre `ApiRuntimeState`
+sigue respondiendo `25` consumidores en `EXACT_TYPECHECKED`. Lo retirado son usos
+cuyo fichero **fuente** es la salida construida del proveedor: hechos del
+proveedor, que su propia pasada es quien debe publicar.
 
-**Cómo reproducirlo:** exige `libraries/library-shared` construido, porque el
-fichero es `dist/*.d.ts` y `generated_files` sólo acepta `include`.
+**Medido:** `H3` vuelve a `1,00`/`1,00` con `280` tokens, y **ninguna de las 29
+preguntas tiene ya una fila cuya ruta escape de su repositorio**. Sobre `kena` la
+retirada quita `193` ficheros, `542` símbolos y `1.275` aristas, y añade `173`
+huecos retenidos.
+
+## LUQUE-2012 — Una fila completa para un fichero de otro repositorio del workspace
+
+**Dependencias:** LUQUE-2011.
+
+**El hueco:** hoy un uso dentro de la salida construida de un paquete hermano se
+**retira**. Es correcto y es una pérdida declarada: nadie publica esos usos,
+porque el proveedor no indexa su propio `dist`. Si alguna pregunta demuestra que
+esa información hace falta, el camino completo tiene dos piezas y ninguna es
+pequeña:
+
+1. **Que el worker nombre al dueño.** El payload debe traer repositorio y paquete
+   por fichero, no sólo por dependencia. Eso sube `TypeScriptWireVersion`, que es
+   superficie de compatibilidad, y toca el worker y sus gates pnpm.
+2. **Que el merge desempate por completitud.** `mergeAllBy` es first-wins y
+   silencioso; con filas de la misma clave llegando de varias pasadas hay que
+   comparar y quedarse con la más completa, y eso está en el camino que comparten
+   los cinco lenguajes.
+
+Más un ADR: cambia a qué repositorio pertenece un símbolo, que es identidad.
+
+**Lo que no vale:** la versión barata — resolver la ruta contra el registro en el
+lado Go y emitir la fila sin paquete. Eso es exactamente lo que `LUQUE-2011`
+descartó, y reintroduce el first-wins silencioso.
+
