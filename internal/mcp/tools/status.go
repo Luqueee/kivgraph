@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 const (
@@ -48,6 +49,22 @@ type GraphStatus struct {
 	SnapshotRowFormat uint32  `json:"snapshot_row_format_version,omitempty"`
 	SchemaVersion     int     `json:"schema_version,omitempty"`
 	ResolverVersion   string  `json:"resolver_version,omitempty"`
+	// SchemaVersionExpected is the canonical schema this binary builds, and
+	// SchemaOutdated is the comparison against the one above, stated rather
+	// than left for the reader to make.
+	//
+	// A generation published by an older binary stays readable: the snapshot
+	// is a projection with its own row format, so nothing refuses to open it
+	// and every query answers. What it cannot do is carry facts its resolver
+	// never emitted -- after ADR 0060, the reach of a Go or Rust type built
+	// under schema 3 still excludes its methods. That answer looks complete
+	// and is not, which is the one thing this tool exists to catch.
+	//
+	// Reporting is deliberate and refusing is not the same decision: a graph
+	// one schema behind is stale, not corrupt, and cutting a session off from
+	// a usable answer needs its own measurement.
+	SchemaVersionExpected int  `json:"schema_version_expected,omitempty"`
+	SchemaOutdated        bool `json:"schema_outdated,omitempty"`
 
 	Repositories int `json:"repositories"`
 	Packages     int `json:"packages"`
@@ -293,6 +310,12 @@ func applySnapshotStatus(ctx context.Context, status *GraphStatus, snapshot *hot
 	status.SnapshotAgeMS = &age
 	status.SnapshotRowFormat = metadata.Version
 	status.SchemaVersion = metadata.SchemaVersion
+	status.SchemaVersionExpected = ladybug.CanonicalSchemaVersion
+	// Only older counts as outdated. A snapshot from a newer schema is a
+	// different problem -- an old binary reading a new graph -- and calling it
+	// "outdated" would point at the wrong side.
+	status.SchemaOutdated = metadata.SchemaVersion > 0 &&
+		metadata.SchemaVersion < ladybug.CanonicalSchemaVersion
 	status.ResolverVersion = metadata.ResolverVersion
 	status.Repositories = int(counts.Repositories)
 	status.Packages = int(counts.Packages)

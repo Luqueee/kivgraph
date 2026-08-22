@@ -63,9 +63,27 @@ construcción -- su lista de kinds es blanca, no negra.
 exactamente una tabla de relación, así que un kind nuevo es una tabla nueva. El
 DDL `schemas/ladybug/004-canonical.cypher` y `docs/storage/canonical-schema.md`
 se generan desde la misma metadata. El único camino de indexado es la
-reconstrucción completa (ADR 0057), así que no hay migración que escribir: una
-base con `schema_version=3` se rechaza al abrirse, que es el comportamiento ya
-documentado.
+reconstrucción completa (ADR 0057), así que no hay migración que escribir.
+
+**Corrección medida.** El borrador de este ADR decía que «una base con
+`schema_version=3` se rechaza al abrirse». Es falso, y comprobarlo fue el smoke
+test del binario: `ScanCanonical` sí valida la versión, pero ese es el camino de
+**reconstrucción**. `serve` carga el `HotSnapshot`, que es una proyección con su
+propio formato de fila -- sin cambiar aquí--, así que una generación publicada por
+el binario anterior **se abre y responde con normalidad**. Lo que no puede es
+llevar hechos que su resolver nunca emitió: el alcance de un tipo Go o Rust
+construido bajo el schema `3` sigue excluyendo el de sus métodos.
+
+Eso es una respuesta que parece completa y no lo está -- el defecto exacto que
+este ADR cierra-- así que se hace visible donde se pregunta: `graph_status` ya
+publicaba `schema_version`, y ahora publica también
+`schema_version_expected` y `schema_outdated`, que es la comparación hecha en vez
+de dejada al lector. Medido sobre una base del schema `3` leída por este binario:
+`ready`, `3`, `4`, `true`.
+
+Informar y **negarse no son la misma decisión**. Un grafo un schema por detrás
+está desactualizado, no corrupto, y cortarle la sesión a quien tiene una
+respuesta utilizable exige su propia medición. Se informa.
 
 `containedMembers` suma ahora las dos fuentes y deduplica. Las lee las dos
 siempre: un `type T struct{}` de una línea no tiene interior que buscar y sí

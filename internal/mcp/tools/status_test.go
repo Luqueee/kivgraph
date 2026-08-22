@@ -13,6 +13,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 func TestGraphStatusIsReadOnlyAndEmpty(t *testing.T) {
@@ -94,6 +95,14 @@ func TestGraphStatusReportsPublishedSnapshotProvenanceAndCounts(t *testing.T) {
 	}
 	if status.SchemaVersion != 2 || status.ResolverVersion != "resolver-v7" || status.SnapshotRowFormat != 1 {
 		t.Fatalf("provenance = %#v, want the schema and resolver behind the graph", status)
+	}
+	// The fixture is two schemas behind, which is the case the field exists
+	// for: such a graph opens and answers, and cannot carry facts its resolver
+	// never emitted. Reporting the comparison is what keeps that from reading
+	// as a complete answer.
+	if status.SchemaVersionExpected != ladybug.CanonicalSchemaVersion || !status.SchemaOutdated {
+		t.Fatalf("schema comparison = %d vs expected %d, outdated %v; want it called outdated",
+			status.SchemaVersion, status.SchemaVersionExpected, status.SchemaOutdated)
 	}
 	if status.SnapshotBuiltAt != "2023-11-14T22:13:20Z" {
 		t.Fatalf("snapshot_built_at = %q", status.SnapshotBuiltAt)
@@ -331,6 +340,31 @@ func BenchmarkGraphStatusWithMetrics(b *testing.B) {
 		if err != nil || response.Results.Metrics == nil {
 			b.Fatalf("graphStatus() error = %v, metrics = %#v", err, response.Results.Metrics)
 		}
+	}
+}
+
+// TestGraphStatusDoesNotCallACurrentGraphOutdated is the other half of the
+// comparison. A warning that never turns off is a warning nobody reads, so the
+// graph this binary just built must not be flagged.
+func TestGraphStatusDoesNotCallACurrentGraphOutdated(t *testing.T) {
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		SchemaVersion:   ladybug.CanonicalSchemaVersion,
+		ResolverVersion: "resolver-v7",
+		Repositories:    []hotsnapshot.RepositoryRow{{Key: "repo-go", Name: "go", Languages: "go"}},
+	}, 62, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+
+	_, response, err := graphStatus(context.Background(), nil, struct{}{},
+		hotsnapshot.NewSnapshotStore(snapshot), nil, nil)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	status := response.Results
+	if status.SchemaOutdated || status.SchemaVersionExpected != ladybug.CanonicalSchemaVersion {
+		t.Fatalf("schema comparison = %d vs expected %d, outdated %v; want a current graph left alone",
+			status.SchemaVersion, status.SchemaVersionExpected, status.SchemaOutdated)
 	}
 }
 
