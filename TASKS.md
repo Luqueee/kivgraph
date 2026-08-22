@@ -15876,39 +15876,56 @@ descartó, y reintroduce el first-wins silencioso.
 **Objetivo:** que la prueba de que un snapshot publicado pertenece a su
 generación distinga dos grafos que difieren.
 
-**Lo que hay hoy, medido:** `snapshot.sha256` lo escribe
-`writeSnapshotDigest(candidatePath, result.Tables)` -`internal/rebuild/rebuild.go:284`-
-sobre los **contadores por tabla** que reportó el cargador. Ese valor es el que
-viaja en la cabecera del fichero publicado como `contentDigest`
--`hotsnapshot/file.go`, offset 40- y el que `loadPublishedSnapshot` compara para
-rechazar un fichero que no pertenece a la generación.
+**El defecto.** `snapshot.sha256` lo escribe
+`writeSnapshotDigest(candidatePath, result.Tables)` -`rebuild.go:284`- sobre los
+**contadores por tabla**. Ese valor viajaba en la cabecera del fichero publicado
+como `contentDigest`, y es lo que `loadPublishedSnapshot` comparaba. Los
+contadores no distinguen dos grafos de la misma forma: el mismo corpus `kena` en
+dos `HOME` dio un `snapshot.sha256` **idéntico** sobre grafos que diferían en
+`288` filas y `48` bytes de arena.
 
-El proyecto ya calcula un digest **de contenido** más fuerte:
-`snapshotContentDigest(rows)` -`internal/rebuild/snapshot.go:112`-, que hashea
-repositorios, paquetes, ficheros, símbolos, aristas de paquete, no resueltos
--- incluido su `detail`-- y aristas. Se guarda en `SnapshotReport.Digest` y **no se
-persiste para esta comprobación**.
+Y el fichero **se mapea y se sirve** desde el ADR 0045, así que la prueba no era
+teórica.
 
-**La medición.** El mismo corpus `kena` indexado en dos `HOME` distintos produce:
+**Por qué no lo vio ningún test.** El fixture no modelaba producción:
+`seedPublishedGeneration` escribía `report.Digest` -- el digest de contenido, que
+ya se calculaba en cada build-- en `snapshot.sha256`, donde producción escribía el
+de contadores. Todas las pruebas del fichero ejercitaban un emparejamiento más
+fuerte que el real.
 
-* `snapshot.sha256` **idéntico**: `e80c6d46d3a6956c3f4c5c87321ccad67a1d8072b7ec6d22e12f3bd09a96f5fe`.
-* Grafos que **difieren**: `288` filas de no resueltos con la misma clave y
-  `Detail` distinto, y un arena de strings de `63.914.142` contra `63.914.190`
-  bytes.
+**La decisión, en el ADR 0061.** Separar las dos preguntas:
 
-O sea: un fichero derivado de un grafo se aceptaría como perteneciente a otro.
+* `snapshot.sha256` **se queda**: es la comprobación barata del `Rollback`, unos
+  `COUNT(*)` junto al escaneo de invariantes que ya corre. Ni una línea de ese
+  camino cambia.
+* `snapshot.content.sha256` **es nuevo**: registra `snapshotContentDigest(rows)`,
+  que ya se calculaba y se descartaba para este uso. Coste de cómputo: ninguno.
 
-**Lo que hay que decidir:** persistir el digest de contenido en vez del de
-contadores es superficie de compatibilidad -- las generaciones existentes dejan de
-validar y se rederivan, que es el camino autocurativo que ya existe-- así que pide
-ADR. La alternativa es declarar por escrito que la comprobación es de contadores
-y qué protege realmente, que es un fichero dejado atrás por otra pasada.
+Se descartó cambiar el significado de `snapshot.sha256`: los dos digests son 64
+hex indistinguibles, así que una generación anterior fallaría el rollback con
+«digest mismatch» -- corrupción para describir una actualización, la misma clase
+de defecto que el `doctor` en rojo de `LUQUE-2004`.
 
-**Criterio de aceptación:** dos grafos que difieren en cualquier fila que el
-snapshot guarda no comparten digest, o el contrato dice explícitamente qué
-distingue y qué no.
+**Verificación sobre el corpus real** (`kena`, 37 repositorios, 123.531 símbolos):
 
-**Estado:** abierta.
+|comprobación|resultado|
+|---|---|
+|los dos digests en la generación|`e80c6d46…` contadores, `2e116aff…` grafo|
+|la cabecera repite el del grafo|sí; **no** el de contadores|
+|`doctor` con el registro|`snapshot.published: PASS (… 123531 symbols, 98773720 bytes)`|
+|`doctor` sin el registro|`PASS`, «records no digest…; the next index replaces it»|
+|`serve`|`read the published snapshot generation=000001 symbols=123531` en `166 ms` -- cargado, no derivado|
+
+* `TestTableCountsCannotProveWhichGraphAFileHolds`: dos grafos de la misma forma
+  a una firma de distancia, contadores idénticos, digests de grafo distintos, y
+  el fichero del primero en la generación del segundo se rechaza.
+* `TestAGenerationWithoutTheRecordIsAnUpgradeNotAFailure`: clasifica sobre el
+  centinela `ErrNoRecordedGraphDigest`, no sobre el mensaje, y comprueba que no
+  se confunde con la ausencia.
+* Gates en verde por código de salida: `gofmt`, `vet`, `test`, `-race`,
+  `test-ladybug`, `build`.
+
+**Estado:** cerrada el `2026-08-22`.
 
 ---
 

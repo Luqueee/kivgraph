@@ -24,12 +24,34 @@ import (
 // per install, once per published generation, in every process. See ADR 0045.
 const PublishedSnapshotFileName = "snapshot.kvsnap"
 
-// writePublishedSnapshot writes the snapshot into a generation directory.
+// PublishedSnapshotDigestFileName records the digest of the graph the
+// published snapshot contains. It is what proves the file belongs to this
+// generation.
+//
+// It is deliberately not snapshot.sha256. That one digests the canonical table
+// counts, and counts cannot tell two graphs of the same shape apart: measured
+// on `kena`, two indexings whose graphs differed in 288 rows produced a
+// byte-identical snapshot.sha256. A file proven only against counts is a file
+// that can be accepted for a graph it does not contain. The counts digest
+// keeps its own job, which is Rollback's cheap check that a destination
+// database still holds what it recorded. See ADR 0061.
+//
+// A generation published before this file existed carries none, which is not a
+// defect: the reader cannot prove the snapshot and derives the graph from the
+// canonical store exactly as it always did.
+const PublishedSnapshotDigestFileName = "snapshot.content.sha256"
+
+// writePublishedSnapshot writes the snapshot into a generation directory,
+// together with the record that proves which graph it holds.
 //
 // It goes through a temporary file in the same directory and a rename, even
 // though a candidate directory is itself published by a rename: a reader that
 // finds this file trusts its header, and a half-written header is exactly what
 // a partially written file would offer.
+//
+// The record is written last, so its presence implies the file. The reverse
+// order would let a reader find a proof for a snapshot that is not there yet,
+// and the two failures are told apart on purpose.
 func writePublishedSnapshot(directory string, snapshot *hotsnapshot.GraphSnapshot, digestHex string) error {
 	contentDigest, err := decodeSnapshotDigest(digestHex)
 	if err != nil {
@@ -59,21 +81,36 @@ func writePublishedSnapshot(directory string, snapshot *hotsnapshot.GraphSnapsho
 	if err := os.Rename(temporaryPath, filepath.Join(directory, PublishedSnapshotFileName)); err != nil {
 		return fmt.Errorf("install snapshot file: %w", err)
 	}
+	record := filepath.Join(directory, PublishedSnapshotDigestFileName)
+	if err := os.WriteFile(record, []byte(digestHex+"\n"), 0o600); err != nil {
+		return fmt.Errorf("record the published snapshot digest: %w", err)
+	}
 	return nil
 }
 
 // loadPublishedSnapshot reads the snapshot a generation carries and proves it
 // belongs there.
 //
-// The proof is the generation's own snapshot.sha256: the file's header repeats
-// it, so a snapshot left behind by an earlier graph -- an incremental delta
-// mutates a published generation in place and refreshes that digest -- is
-// rejected rather than served. Every failure is one a caller can recover from
-// by deriving the snapshot again, so none of them is wrapped as fatal.
+// The proof is the digest of the graph the generation recorded: the file's
+// header repeats it, so a snapshot holding a different graph is rejected
+// rather than served. It is not snapshot.sha256, which digests table counts
+// and therefore cannot distinguish two graphs of the same shape -- the reason
+// this record exists at all.
+//
+// Every failure here is one a caller can recover from by deriving the snapshot
+// again, so none of them is wrapped as fatal, and a generation published
+// before the record existed simply has none.
 func loadPublishedSnapshot(directory string) (*hotsnapshot.GraphSnapshot, error) {
-	digestHex, err := os.ReadFile(filepath.Join(directory, snapshotFileName))
-	if err != nil {
-		return nil, fmt.Errorf("read generation digest: %w", err)
+	digestHex, err := os.ReadFile(filepath.Join(directory, PublishedSnapshotDigestFileName))
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		// A generation published before this record existed. Nothing is
+		// wrong with it: it carries the definitive graph, and a reader
+		// that cannot prove the snapshot derives it. Saying this is a
+		// failure would put doctor in red on every install that upgrades.
+		return nil, fmt.Errorf("%w: %s", ErrNoRecordedGraphDigest, PublishedSnapshotDigestFileName)
+	case err != nil:
+		return nil, fmt.Errorf("read the recorded graph digest: %w", err)
 	}
 	contentDigest, err := decodeSnapshotDigest(strings.TrimSpace(string(digestHex)))
 	if err != nil {
@@ -180,6 +217,17 @@ type PublishedSnapshotInfo struct {
 // derives the graph exactly as it always did. A file that is there and cannot be
 // used is a different answer, and gets a different error.
 var ErrNoPublishedSnapshot = errors.New("the generation carries no published snapshot")
+
+// ErrNoRecordedGraphDigest says a generation carries a snapshot but not the
+// digest of the graph it should hold, which is what every generation published
+// before ADR 0061 looks like.
+//
+// It is the same class of answer as absence, and for the same reason: nothing
+// is wrong, the definitive graph is there, and a reader that cannot prove the
+// file derives the snapshot instead. Counting it as a failure would mark
+// doctor red on every install the moment it upgrades, which is exactly how a
+// real failure stops being noticed.
+var ErrNoRecordedGraphDigest = errors.New("the generation records no digest for its published snapshot")
 
 // InspectPublishedSnapshot answers what a generation's published snapshot is, or
 // why a server would have to derive the graph instead of reading it.

@@ -305,8 +305,13 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		// could have skipped, which is a reason to say so and not a reason to
 		// refuse a generation whose graph is sound: the file is an economy, and
 		// a reader that does not find one derives the snapshot exactly as before.
+		//
+		// What it is written with is the digest of the graph it contains, not
+		// the table-count digest above: counts cannot tell two graphs of the
+		// same shape apart, so proving the file against them accepts a file for
+		// a graph it does not hold. See ADR 0061.
 		published := PublishedSnapshotFileName
-		if writeErr := writePublishedSnapshot(candidatePath, builtSnapshot, digest); writeErr != nil {
+		if writeErr := writePublishedSnapshot(candidatePath, builtSnapshot, hotSnapshotReport.Digest); writeErr != nil {
 			published = fmt.Sprintf("no %s (%v)", PublishedSnapshotFileName, writeErr)
 		}
 		snapshotStage = Stage{

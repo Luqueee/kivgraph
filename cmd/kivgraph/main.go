@@ -1444,7 +1444,8 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		case errors.Is(publishedErr, rebuild.ErrNoPublishedSnapshot):
 			doctorResult("snapshot.published", true,
 				"absent, so every server derives the graph from the canonical store")
-		case errors.Is(publishedErr, hotsnapshot.ErrSnapshotFileVersion):
+		case errors.Is(publishedErr, hotsnapshot.ErrSnapshotFileVersion),
+			errors.Is(publishedErr, rebuild.ErrNoRecordedGraphDigest):
 			// Same class as absent, and for the same reason: nothing is wrong
 			// with the store, the layout moved. Reporting an upgrade as a
 			// failure is how a real failure stops being noticed.

@@ -65,21 +65,33 @@ func TestLoadOrBuildSnapshotFallsBackAndSaysWhy(t *testing.T) {
 		{
 			name: "digest of another graph",
 			break_: func(t *testing.T, directory string) {
-				write(t, directory, snapshotFileName, strings.Repeat("ab", 32))
+				write(t, directory, PublishedSnapshotDigestFileName, strings.Repeat("ab", 32))
 			},
 			expects: "content digest",
 		},
 		{
-			name: "no generation digest",
+			name: "no recorded graph digest",
 			break_: func(t *testing.T, directory string) {
-				remove(t, directory, snapshotFileName)
+				remove(t, directory, PublishedSnapshotDigestFileName)
 			},
-			expects: "read generation digest",
+			expects: "records no digest for its published snapshot",
+		},
+		{
+			// The record holding what snapshot.sha256 holds is the shape
+			// production had before ADR 0061: a file proven against table
+			// counts. It must be refused, because the header now carries the
+			// digest of the graph and the two are different questions.
+			name: "a record holding the table-count digest instead of the graph's",
+			break_: func(t *testing.T, directory string) {
+				write(t, directory, PublishedSnapshotDigestFileName,
+					canonicalSnapshotDigest(map[string]int64{"Symbol": 2}))
+			},
+			expects: "content digest",
 		},
 		{
 			name: "digest that is not a digest",
 			break_: func(t *testing.T, directory string) {
-				write(t, directory, snapshotFileName, "not-hexadecimal")
+				write(t, directory, PublishedSnapshotDigestFileName, "not-hexadecimal")
 			},
 			expects: "not hexadecimal",
 		},
@@ -130,6 +142,121 @@ func TestLoadOrBuildSnapshotFallsBackAndSaysWhy(t *testing.T) {
 	}
 }
 
+// TestTableCountsCannotProveWhichGraphAFileHolds is the measurement that
+// motivated ADR 0061, as a test.
+//
+// Two graphs of the same shape -- same row count in every canonical table, one
+// symbol signature apart -- produce the same table-count digest and different
+// graph digests. So a snapshot file of the first, dropped into a generation of
+// the second, was provable against snapshot.sha256 and is not provable against
+// the record. On `kena` the same collision was two indexings whose graphs
+// differed in 288 rows and whose snapshot.sha256 was byte-identical.
+func TestTableCountsCannotProveWhichGraphAFileHolds(t *testing.T) {
+	counts := map[string]int64{"Repository": 1, "Package": 1, "File": 2, "Symbol": 2, "Edge": 6}
+
+	other := fakeCanonicalGraph()
+	other.Symbols[0].Signature = "func New() (*Widget, error)"
+
+	directory := t.TempDir()
+	databasePath := filepath.Join(directory, "graph.lbdb")
+	mine := seedPublishedGeneration(t, directory, databasePath)
+
+	foreign, foreignReport, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: databasePath,
+		SnapshotID:   42,
+		Scan:         fixedScan(other),
+	})
+	if err != nil {
+		t.Fatalf("build the foreign snapshot: %v", err)
+	}
+
+	// The premise: one digest separates the two graphs and the other does not.
+	mineDigest := snapshotContentDigest(rowsOf(t, fakeCanonicalGraph()))
+	if mineDigest == foreignReport.Digest {
+		t.Fatal("the two graphs must have different graph digests for this test to mean anything")
+	}
+	if got, want := canonicalSnapshotDigest(counts), canonicalSnapshotDigest(counts); got != want {
+		t.Fatal("the table-count digest must be a function of the counts alone")
+	}
+	if mine.Metadata().Counts != foreign.Metadata().Counts {
+		t.Fatalf("the two graphs must have identical counts:\n %+v\n %+v",
+			mine.Metadata().Counts, foreign.Metadata().Counts)
+	}
+
+	// Publish the foreign graph's file into this generation, recording the
+	// digest of the graph it actually holds -- the honest thing a writer of the
+	// other graph would do. The generation still records mine.
+	if err := writePublishedSnapshot(directory, foreign, foreignReport.Digest); err != nil {
+		t.Fatalf("write the foreign snapshot: %v", err)
+	}
+	write(t, directory, PublishedSnapshotDigestFileName, mineDigest)
+
+	_, report, err := LoadOrBuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: databasePath,
+		SnapshotID:   77,
+		Scan:         fixedScan(fakeCanonicalGraph()),
+	})
+	if err != nil {
+		t.Fatalf("LoadOrBuildSnapshot() error = %v", err)
+	}
+	if report.Loaded {
+		t.Fatal("a snapshot holding another graph was served")
+	}
+	if !strings.Contains(report.LoadRefused, "content digest") {
+		t.Fatalf("LoadRefused = %q, want it to name the content digest", report.LoadRefused)
+	}
+}
+
+// rowsOf converts a canonical graph into the rows a snapshot is built from,
+// which is what the graph digest is computed over.
+func rowsOf(t *testing.T, graph ladybug.CanonicalGraph) hotsnapshot.LadybugSnapshotRows {
+	t.Helper()
+	rows, _, err := convertCanonicalGraph(graph)
+	if err != nil {
+		t.Fatalf("convert the canonical graph: %v", err)
+	}
+	return rows
+}
+
+// TestAGenerationWithoutTheRecordIsAnUpgradeNotAFailure defends the
+// distinction that only the binary caught last time this file's format moved:
+// every generation published before ADR 0061 carries a snapshot and no record
+// of the graph it holds, and that is what an install looks like the moment it
+// upgrades -- not a broken store.
+//
+// The sentinel is the contract, not the message: doctor classifies on it, and
+// a string it matched by accident would keep passing while the classification
+// silently moved to the failure branch.
+func TestAGenerationWithoutTheRecordIsAnUpgradeNotAFailure(t *testing.T) {
+	directory := t.TempDir()
+	databasePath := filepath.Join(directory, "graph.lbdb")
+	seedPublishedGeneration(t, directory, databasePath)
+	remove(t, directory, PublishedSnapshotDigestFileName)
+
+	_, err := InspectPublishedSnapshot(directory)
+	if !errors.Is(err, ErrNoRecordedGraphDigest) {
+		t.Fatalf("error = %v, want it to be ErrNoRecordedGraphDigest", err)
+	}
+	// It is not absence: the file is there, and a tool that conflated the two
+	// could not tell an upgrade from a generation that never had a snapshot.
+	if errors.Is(err, ErrNoPublishedSnapshot) {
+		t.Fatal("a generation carrying a snapshot must not report it as absent")
+	}
+
+	// And the graph is still served, because it is still there.
+	snapshot, report, err := LoadOrBuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: databasePath,
+		SnapshotID:   77,
+		Scan:         fixedScan(fakeCanonicalGraph()),
+	})
+	if err != nil {
+		t.Fatalf("LoadOrBuildSnapshot() error = %v", err)
+	}
+	if snapshot == nil || !report.Passed || report.Loaded {
+		t.Fatalf("report = %+v, want a derived snapshot that passed", report)
+	}
+}
+
 // seedPublishedGeneration writes a generation directory that carries both its
 // digest and its snapshot, the way a rebuild leaves one behind.
 func seedPublishedGeneration(t *testing.T, directory, databasePath string) *hotsnapshot.GraphSnapshot {
@@ -146,7 +273,12 @@ func seedPublishedGeneration(t *testing.T, directory, databasePath string) *hots
 	if err := os.WriteFile(databasePath, []byte("graph"), 0o600); err != nil {
 		t.Fatalf("seed database file: %v", err)
 	}
-	write(t, directory, snapshotFileName, report.Digest)
+	// snapshot.sha256 is what a rebuild writes beside the database: the digest
+	// of the canonical table counts, which Rollback recomputes. The value here
+	// is deliberately unrelated to the graph, because the loader must not
+	// consult it -- proving a snapshot against counts is exactly the hole the
+	// recorded graph digest closes.
+	write(t, directory, snapshotFileName, canonicalSnapshotDigest(map[string]int64{"Symbol": 2}))
 	if err := writePublishedSnapshot(directory, built, report.Digest); err != nil {
 		t.Fatalf("write the published snapshot: %v", err)
 	}
@@ -293,7 +425,7 @@ func TestInspectPublishedSnapshotDistinguishesAbsentFromUnusable(t *testing.T) {
 		directory := t.TempDir()
 		databasePath := filepath.Join(directory, "graph.lbdb")
 		seedPublishedGeneration(t, directory, databasePath)
-		write(t, directory, snapshotFileName, strings.Repeat("cd", 32))
+		write(t, directory, PublishedSnapshotDigestFileName, strings.Repeat("cd", 32))
 		_, err := InspectPublishedSnapshot(directory)
 		if err == nil || errors.Is(err, ErrNoPublishedSnapshot) {
 			t.Fatalf("error = %v, want a refusal that is not absence", err)
