@@ -14796,7 +14796,70 @@ heap privado.
 - El test de publicación concurrente pasa con `-race`.
 - `ui` obtiene el mismo beneficio sin cambios en `webapi`: el store es el mismo.
 
-**Estado:** pendiente.
+**Lo medido y cubierto el `2026-08-22`**, antes de decidir si queda trabajo:
+
+Buena parte de esta tarea la hizo el ADR 0045, que se escribió después de
+redactarla: `loadPublishedSnapshot` ya mapea el fichero con
+`MAP_SHARED|PROT_READ` en `mapfile_unix.go`, la liberación ya está atada a la
+inalcanzabilidad con `runtime.AddCleanup`, el fallback ya tiene sus seis casos
+declarados, y desenlazar el fichero mapeado ya tiene test.
+
+**Reparto real, con dos `serve` sobre la misma generación de `kena`**
+(`123.531` símbolos, fichero de `98.773.720` bytes, `darwin/arm64`):
+
+|magnitud|por proceso|
+|---|---|
+|`RSS`|`193,9` y `190,6 MB`|
+|`mapped file`, limpio|`94 MB` -- **una sola copia**, compartida|
+|sucio (privado)|`45` y `44 MB`|
+
+Proyectado contra la línea base de la cabecera de la fase (`173 MB` por cliente,
+sin compartir nada):
+
+|N|antes|ahora|
+|---|---|---|
+|`1`|`173 MB`|`138,5 MB` (`80,1 %`)|
+|`2`|`346 MB`|`183,0 MB` (`52,9 %`)|
+|`4`|`692 MB`|`272,0 MB` (`39,3 %`)|
+
+Los dos umbrales que `LUQUE-2006` pone ya se cumplen: residente total `39,3 %`
+contra un `≤40 %`, y `Private_Dirty` de `44,5 MB` contra un `≤60 MB`. **El
+primero pasa por siete décimas**, así que quien lo convierta en gate tiene que
+medirlo en Linux con la línea base real y no dar el margen por bueno.
+
+`internal/procstat/observe_darwin.go` declara que esta plataforma no reparte
+páginas compartidas, y es cierto para `Pss`; el reparto de arriba sale de
+`footprint`, que sí separa sucio de limpio y nombra la región del fichero.
+
+**El riesgo agudo, ahora cubierto.** La tarea lo nombra: `Publish` deja el
+snapshot anterior como basura mientras alguien lo lee, y su mapeo se libera por
+inalcanzabilidad -- desmapear ahí no da un error, da un `SIGSEGV`. Cada mitad
+estaba defendida sola; la composición sobre un mapeo real no.
+
+`TestStringsSurviveTheMappingTheyWereReadFrom` la cubre, y **fue el segundo
+intento**. El primero dependía del recolector y pasaba con la copia de
+`strings.go` retirada a propósito: no demostraba nada. El segundo tenía un
+defecto más fino y más instructivo -- comparaba contra `append([]reading(nil),
+held...)`, que copia **cabeceras** de string, y Go compara dos strings que
+comparten puntero sin leer los bytes. También pasaba. Clonando los bytes antes
+de liberar, el test hace lo que dice:
+
+```text
+con la guarda   : ok
+sin la guarda   : signal SIGSEGV: segmentation violation
+```
+
+**Lo que queda:** el arnés reproducible es `LUQUE-2006`, y la decisión de fondo
+es si mapear también las tablas. Hoy sólo el arena se comparte -- `file.go:301`
+lo dice: «everything else is copied either way»--, y esos `44,5 MB` sucios por
+proceso son las tablas decodificadas. `LUQUE-2002`, `2003` y `2004` dejaron los
+registros sin punteros, sin mapas y con las secciones alineadas, que es lo que
+haría mapeables las tablas; falta pagar el relleno por registro en disco y
+declarar la dependencia de little-endian. **No se hace sin que el arnés diga que
+hace falta**, porque los dos umbrales ya se cumplen.
+
+**Estado:** abierta -- el mapeo, el fallback y el riesgo agudo están hechos y
+medidos; el arnés es `LUQUE-2006` y mapear las tablas espera su número.
 
 **Verificación:**
 

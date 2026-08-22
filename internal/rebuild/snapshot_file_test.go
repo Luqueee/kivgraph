@@ -6,7 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -362,6 +364,189 @@ func TestALoadedSnapshotOutlivesTheMappedFile(t *testing.T) {
 	if loaded.Metadata() != built.Metadata() {
 		t.Fatalf("metadata\n got %+v\nwant %+v", loaded.Metadata(), built.Metadata())
 	}
+}
+
+// TestStringsSurviveTheMappingTheyWereReadFrom is the composition LUQUE-2005
+// calls the sharpest risk of the phase, and it releases the mapping by hand
+// rather than waiting for the collector.
+//
+// Publish leaves the previous snapshot as garbage while a reader may still hold
+// what it read, and that snapshot's mapping is released when it becomes
+// unreachable. Nothing about that ordering is observable from outside, so a
+// test that dropped a reference and called runtime.GC() would pass whether or
+// not the release happened -- and it does: written that way, this test passed
+// with the copy in strings.go deliberately removed, which is to say it proved
+// nothing. Calling release directly is what makes the danger real: after it,
+// the pages are gone, and a string that pointed into them is a read of memory
+// this process no longer owns.
+//
+// The whole pipeline is exercised, not the table alone: mapFile, MapSnapshot,
+// the accessors a tool calls, and the release the cleanup would have run.
+func TestStringsSurviveTheMappingTheyWereReadFrom(t *testing.T) {
+	directory := t.TempDir()
+	databasePath := filepath.Join(directory, "graph.lbdb")
+	built := seedPublishedGeneration(t, directory, databasePath)
+	digest, err := decodeSnapshotDigest(readTrimmed(t, directory, PublishedSnapshotDigestFileName))
+	if err != nil {
+		t.Fatalf("decode the recorded digest: %v", err)
+	}
+
+	data, release, err := mapFile(filepath.Join(directory, PublishedSnapshotFileName))
+	if err != nil {
+		t.Fatalf("map the published snapshot: %v", err)
+	}
+	snapshot, err := hotsnapshot.MapSnapshot(data, digest)
+	if err != nil {
+		release()
+		t.Fatalf("MapSnapshot() error = %v", err)
+	}
+
+	counts := snapshot.Metadata().Counts
+	if counts.Symbols == 0 {
+		release()
+		t.Fatal("the fixture carries no symbols, so nothing here is exercised")
+	}
+	type reading struct{ name, qualified, signature string }
+	held := make([]reading, 0, counts.Symbols)
+	for id := range hotsnapshot.SymbolID(counts.Symbols) {
+		record, ok := snapshot.Symbol(id)
+		if !ok {
+			release()
+			t.Fatalf("symbol %d missing", id)
+		}
+		name, _ := snapshot.Strings().String(record.Name)
+		qualified, _ := snapshot.Strings().String(record.QualifiedName)
+		signature, _ := snapshot.Strings().String(record.Signature)
+		held = append(held, reading{name, qualified, signature})
+	}
+	// Cloned byte by byte into the Go heap while the mapping is still there.
+	// Copying the readings alone copies string headers, and comparing two
+	// headers that share a data pointer never reads the bytes -- which is
+	// exactly how an earlier version of this test passed with the copy in
+	// strings.go removed. The comparison has to be against memory that cannot
+	// go away.
+	want := make([]reading, 0, len(held))
+	for _, got := range held {
+		want = append(want, reading{
+			strings.Clone(got.name),
+			strings.Clone(got.qualified),
+			strings.Clone(got.signature),
+		})
+	}
+
+	// What the cleanup does when the snapshot becomes unreachable, done here so
+	// the test controls when. Everything read above now names pages this
+	// process has given back.
+	release()
+	runtime.GC()
+
+	if len(held) == 0 || len(held) != len(want) {
+		t.Fatalf("held %d readings, want %d", len(held), len(want))
+	}
+	for index, got := range held {
+		if got != want[index] {
+			t.Fatalf("reading %d changed after the mapping was released:\n got %+v\nwant %+v",
+				index, got, want[index])
+		}
+		if got.name == "" || got.qualified == "" {
+			t.Fatalf("reading %d is empty, so the comparison above proves nothing: %+v", index, got)
+		}
+	}
+	if built.Metadata().Counts.Symbols != counts.Symbols {
+		t.Fatalf("the mapped snapshot holds %d symbols, the built one %d",
+			counts.Symbols, built.Metadata().Counts.Symbols)
+	}
+}
+
+// TestPublishingWhileAReaderWalksAMappedGenerationIsSafe swaps a generation
+// under a reader that is walking the mapped one, with the collector running
+// against it.
+//
+// It defends a narrower claim than its name suggests, and the boundary is worth
+// writing down: it proves the store hands out a whole snapshot throughout a
+// publish and that the new one is served afterwards. It cannot prove the
+// release-versus-reader ordering, because when the cleanup runs is not
+// observable -- that is what the test above covers by releasing the mapping
+// itself.
+func TestPublishingWhileAReaderWalksAMappedGenerationIsSafe(t *testing.T) {
+	first := publishMappedGeneration(t, 1, fakeCanonicalGraph())
+	newer := fakeCanonicalGraph()
+	newer.Symbols[0].Signature = "func New() (*Widget, error)"
+	second := publishMappedGeneration(t, 2, newer)
+
+	store := hotsnapshot.NewSnapshotStore(first)
+	var group sync.WaitGroup
+	stop := make(chan struct{})
+
+	group.Add(1)
+	go func() {
+		defer group.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			snapshot := store.Load()
+			for id := range hotsnapshot.SymbolID(snapshot.Metadata().Counts.Symbols) {
+				record, ok := snapshot.Symbol(id)
+				if !ok {
+					panic("a served snapshot lost a symbol under a publish")
+				}
+				if value, ok := snapshot.Strings().String(record.Name); !ok || value == "" {
+					panic("a served snapshot lost a string under a publish")
+				}
+			}
+			runtime.GC()
+		}
+	}()
+
+	if err := store.Publish(second); err != nil {
+		t.Fatalf("publish the newer generation: %v", err)
+	}
+	for range 20 {
+		runtime.GC()
+	}
+	close(stop)
+	group.Wait()
+
+	if store.Load().Metadata().ID != second.Metadata().ID {
+		t.Fatalf("the store serves %d, want the published %d",
+			store.Load().Metadata().ID, second.Metadata().ID)
+	}
+}
+
+func readTrimmed(t *testing.T, directory, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(directory, name))
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// publishMappedGeneration writes a generation to its own directory and returns
+// the snapshot loaded back through the mapped path, so the caller holds the
+// same object a server holds.
+func publishMappedGeneration(t *testing.T, id uint64, graph ladybug.CanonicalGraph) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	directory := t.TempDir()
+	built, report, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: filepath.Join(directory, "graph.lbdb"),
+		SnapshotID:   id,
+		Scan:         fixedScan(graph),
+	})
+	if err != nil {
+		t.Fatalf("build generation %d: %v", id, err)
+	}
+	if err := writePublishedSnapshot(directory, built, report.Digest); err != nil {
+		t.Fatalf("publish generation %d: %v", id, err)
+	}
+	mapped, err := loadPublishedSnapshot(directory)
+	if err != nil {
+		t.Fatalf("map generation %d: %v", id, err)
+	}
+	return mapped
 }
 
 // TestInspectPublishedSnapshotDistinguishesAbsentFromUnusable is what makes the
