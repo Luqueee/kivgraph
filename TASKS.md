@@ -15165,7 +15165,7 @@ y la posibilidad de un delta sin rediseñarlo.
 
 ## LUQUE-2004 — `trace_dependencies` no baja a los miembros de un contenedor
 
-**Estado:** cerrada por el ADR 0058 -- declarado, no descendido.
+**Estado:** cerrada del todo por el ADR 0059 -- **descendido**. El 0058 lo declaró primero.
 
 **Dependencias:** ninguna.
 
@@ -15219,9 +15219,56 @@ alcanzados. Lo que se va es el silencio, y cuesta `70` tokens en la respuesta qu
 lo necesita (`163` -> `233`); las otras tres preguntas del conjunto no se movieron
 ni un token. Verificado sobre `kena` con el binario real, no sólo en fixture.
 
-Descender sigue abierto y ya se puede medir contra un borde declarado. Y queda
-dicho lo que no se tocó: `get_blast_radius` tiene el mismo borde en la dirección
-entrante.
+**Descendido (ADR 0059).** La travesía siembra el contenedor **y sus miembros a
+profundidad cero**, en un solo BFS -- `TraverseFrom`--, porque un miembro es
+contenido y no puede costar un salto; las semillas no salen como filas y sólo
+siembra la capa más externa, sin lo cual la respuesta sembraba un parámetro.
+`members_not_followed` se retira: la respuesta lleva ahora lo que antes nombraba.
+
+Medido con el mismo corpus y el mismo estado, cambiando sólo el binario:
+
+|pregunta|tokens|`R`|
+|---|---|---|
+|`X1`, `X2`, `X3`|sin cambio (`530`, `112`, `305`)|`1,00`|
+|`X4` alcance de una clase TS|`233` -> `403`|`0,50` -> **`1,00`**|
+
+`+170` tokens en la única que cambia, cero en las demás. `3/4` -> `4/4`.
+
+Y queda dicho lo que no se tocó: `get_blast_radius` tiene el mismo borde en la
+dirección entrante.
+
+## LUQUE-2010 — En Go y en Rust un método no cae dentro del span de su tipo
+
+**Dependencias:** LUQUE-2004.
+
+**El hueco:** el ADR 0059 deriva la contención del **rango de líneas**, que es un
+hecho estructural y por eso se eligió. Sólo cubre a los miembros que viven
+léxicamente dentro de la declaración:
+
+|forma|¿los miembros caen en el span?|
+|---|---|
+|clase de TypeScript|**sí** -- los métodos van entre sus llaves|
+|`struct` de Go|sus campos sí; sus métodos no -- `func (h *T) M()` se declara fuera|
+|`struct` de Rust|sus campos sí; sus métodos viven en un `impl`, que no se publica|
+
+Así que el alcance de un tipo Go o Rust **excluye el de sus métodos**. Medido:
+`GuildsHandler`, con nueve métodos, responde `3` nodos -- los tipos de sus tres
+campos-- y `167` tokens.
+
+**Las dos salidas:**
+
+* **Emparejar por receptor.** El cargador Go ya sabe qué receptor tiene un método:
+  publica `GuildsHandler.Get` con ese nombre cualificado. Usar la relación del
+  receptor -- no el punto del nombre, que es convención-- daría las semillas que
+  faltan. En Rust el equivalente es el bloque `impl`, que hoy no se publica
+  (LUQUE-2008), así que Rust necesita antes esa decisión.
+* **Declararlo y no cubrirlo.** Es lo que el ADR 0059 hace hoy: dice que el
+  alcance de un tipo Go excluye sus métodos. Barato y honesto, y deja media
+  pregunta sin responder en dos de los tres lenguajes.
+
+**Lo que no vale:** que la respuesta sobre una clase de TypeScript sea completa y
+la de un `struct` de Go parezca igual sin serlo. Hoy la diferencia está escrita en
+un ADR; no está en la respuesta.
 
 ## LUQUE-2005 — Cobertura de las tools servidas por el conjunto de preguntas
 

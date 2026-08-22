@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -65,11 +64,6 @@ type DependencyTrace struct {
 	DeepestDepth       int             `json:"deepest_depth"`
 	TraversalTruncated bool            `json:"traversal_truncated"`
 	Nodes              []ReachedSymbol `json:"nodes"`
-	// MembersNotFollowed names declarations inside the root whose own outward
-	// edges this traversal did not walk, because containment is not an edge.
-	// Empty for a root that declares no members with reach of their own, which
-	// is every function and every leaf.
-	MembersNotFollowed []string `json:"members_not_followed,omitempty"`
 
 	// View decides how MarshalJSON spells the page. It never travels in it:
 	// the caller already knows what it asked for.
@@ -385,10 +379,6 @@ func (trace DependencyTrace) MarshalJSON() ([]byte, error) {
 		Reached            int    `json:"reached"`
 		DeepestDepth       int    `json:"deepest_depth"`
 		TraversalTruncated bool   `json:"traversal_truncated,omitempty"`
-		// The compact view states everything the full one states about what the
-		// answer does not cover. Dropping it here would hide the note behind an
-		// argument nobody passes, since compact is the default.
-		MembersNotFollowed []string `json:"members_not_followed,omitempty"`
 		compactReachedHeader
 		Files  []compactSymbolGroup  `json:"files,omitempty"`
 		Groups []compactReachedGroup `json:"groups,omitempty"`
@@ -397,7 +387,6 @@ func (trace DependencyTrace) MarshalJSON() ([]byte, error) {
 		Depth: trace.Depth, MaxNodes: trace.MaxNodes,
 		Reached: trace.Reached, DeepestDepth: trace.DeepestDepth,
 		TraversalTruncated:   trace.TraversalTruncated,
-		MembersNotFollowed:   trace.MembersNotFollowed,
 		compactReachedHeader: header,
 		Files:                files,
 		Groups:               groups,
@@ -539,7 +528,12 @@ func traceDependencies(
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, err
 	}
-	traversal, err := snapshot.Traverse(rootID, traversalOptions)
+	// The root and what its own source declares start together, at depth zero:
+	// a member is content, not a dependency, so it must not cost a hop. Every
+	// seed is skipped from the rows by dependencyNodes, which drops a visit
+	// whose Source is InvalidSymbolID. ADR 0059.
+	seeds := append([]hotsnapshot.SymbolID{rootID}, containedMembers(snapshot, rootID, root)...)
+	traversal, err := snapshot.TraverseFrom(seeds, traversalOptions)
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, classifyTraversalError(err)
 	}
@@ -573,31 +567,17 @@ func traceDependencies(
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
-	// A short answer and a complete one look identical on the page, so when the
-	// root declares members this traversal could not follow, the answer says
-	// which. It is stated before the paging guidance because it is a fact about
-	// the question, not about this page of it.
-	members := unfollowedMembers(snapshot, rootID, root, traversal.Visits)
-	guidance := traversalGuidance(traceDependenciesToolName, total, len(page), hasMore)
-	if note := membersGuidance(members, len(members)); note != "" {
-		if guidance == "" {
-			guidance = note
-		} else {
-			guidance = note + ". " + guidance
-		}
-	}
 	return nil, Response[DependencyTrace]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage,
-		Guidance: guidance,
+		Guidance: traversalGuidance(traceDependenciesToolName, total, len(page), hasMore),
 		Results: DependencyTrace{
 			RootKey: string(root.StableKey), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,
 			Reached: len(traversal.Visits) - 1, DeepestDepth: deepest,
 			TraversalTruncated: traversal.Truncated, Nodes: page,
-			MembersNotFollowed: members,
-			View:               options.View,
+			View: options.View,
 		},
 		View: options.View,
 	}, nil
@@ -780,37 +760,31 @@ func classifyTraversalError(err error) error {
 	}
 }
 
-// maximumDeclaredMembers bounds what an answer will name. A class with three
-// hundred methods would otherwise turn a note into the largest thing on the
-// page, which is the opposite of the point.
-const maximumDeclaredMembers = 12
-
-// unfollowedMembers names the declarations inside the root's own span whose
-// outward edges this traversal did not follow.
+// containedMembers returns the declarations inside the root's own span, so a
+// traversal can start from them as well as from the root.
 //
 // A traversal walks edges, and containment is not one: there is no symbol to
-// symbol edge from a class to its methods -- DEFINES goes from a file, and
-// PART_OF is the Dart part relation. So the reach of a method is not the reach
-// of the class that declares it, and asking about the class answers a narrower
-// question than the caller asked. Measured on kena, a cache class reached its
-// base class and stopped, while the type its two methods name -- through an
-// `import type` -- was reached only by asking about a method (LUQUE-2004).
+// symbol edge from a class to its methods -- DEFINES goes from a file and
+// PART_OF is the Dart part relation. Rooting only on the class therefore
+// answered a narrower question than the caller asked. Measured on kena, a cache
+// class reached its base class and stopped, while the type its two methods name
+// through an `import type` was reached only by asking about a method.
 //
-// This does not change the traversal. It reports what the traversal could not
-// see, so the caller can ask the next question instead of reading a short answer
-// as a complete one. A member is named only when it has an outgoing edge leaving
-// the root's span that this answer does not already carry: a parameter that
-// references nothing outside contributes no reach and is not worth a line.
-func unfollowedMembers(
+// ADR 0058 answered that by naming the members it could not follow. ADR 0059
+// follows them instead: the reach of a declaration is the reach of what its own
+// source names, and a method's body is inside that source. Members seed the same
+// BFS at depth zero, so their targets land at depth one -- a member is content,
+// not a dependency, and must not cost a hop.
+//
+// Only the outermost layer seeds. A parameter sits inside its method and its
+// type is reach the method already accounts for, so seeding it would add nothing
+// and would let a parameter's own name shape the answer. On kena that is the
+// difference between two methods and two methods plus an argument.
+func containedMembers(
 	snapshot *hotsnapshot.GraphSnapshot, rootID hotsnapshot.SymbolID, root hotsnapshot.SymbolRecord,
-	visits []hotsnapshot.TraversalVisit,
-) []string {
+) []hotsnapshot.SymbolID {
 	if snapshot == nil || root.EndLine <= root.StartLine {
 		return nil
-	}
-	visited := make(map[hotsnapshot.SymbolID]struct{}, len(visits))
-	for _, visit := range visits {
-		visited[visit.ID] = struct{}{}
 	}
 	page, err := snapshot.SearchSymbolsInFiles(
 		[]hotsnapshot.FileID{root.File}, 0, hotsnapshot.MaxExactResults, nil)
@@ -818,16 +792,12 @@ func unfollowedMembers(
 		return nil
 	}
 	type candidate struct {
+		id     hotsnapshot.SymbolID
 		record hotsnapshot.SymbolRecord
-		name   string
 	}
-	table := snapshot.Strings()
-	candidates := make([]candidate, 0, maximumDeclaredMembers)
+	candidates := make([]candidate, 0, 16)
 	for _, id := range page.IDs {
 		if id == rootID {
-			continue
-		}
-		if _, seen := visited[id]; seen {
 			continue
 		}
 		member, found := snapshot.Symbol(id)
@@ -837,78 +807,23 @@ func unfollowedMembers(
 		if member.StartLine < root.StartLine || member.EndLine > root.EndLine {
 			continue
 		}
-		if !reachesBeyond(snapshot, id, root) {
-			continue
-		}
-		name, ok := table.String(member.QualifiedName)
-		if !ok || name == "" {
-			continue
-		}
-		candidates = append(candidates, candidate{record: member, name: name})
+		candidates = append(candidates, candidate{id: id, record: member})
 	}
-	// Only the outermost layer is worth naming. A parameter of a method sits
-	// inside the method, and its type is reach the method already accounts for:
-	// naming it would tell a caller to trace a parameter, which is not a
-	// question this tool answers. Measured on kena, this is the difference
-	// between naming two methods and naming two methods and an argument.
-	names := make([]string, 0, len(candidates))
+	seeds := make([]hotsnapshot.SymbolID, 0, len(candidates))
 	for _, member := range candidates {
 		nested := false
 		for _, other := range candidates {
-			if other.name == member.name || !spanContains(other.record, member.record) {
+			if other.id == member.id || !spanContains(other.record, member.record) {
 				continue
 			}
 			nested = true
 			break
 		}
 		if !nested {
-			names = append(names, member.name)
+			seeds = append(seeds, member.id)
 		}
 	}
-	sort.Strings(names)
-	if len(names) > maximumDeclaredMembers {
-		names = names[:maximumDeclaredMembers]
-	}
-	return names
-}
-
-// reachesBeyond reports whether a member has an outgoing edge to a symbol
-// outside the root's span. An edge that stays inside is reach the root already
-// contains, so naming the member for it would say nothing new.
-func reachesBeyond(
-	snapshot *hotsnapshot.GraphSnapshot, member hotsnapshot.SymbolID, root hotsnapshot.SymbolRecord,
-) bool {
-	for _, edge := range snapshot.Outgoing(member) {
-		target, found := snapshot.Symbol(edge.Target)
-		if !found {
-			continue
-		}
-		if target.File != root.File {
-			return true
-		}
-		if target.StartLine < root.StartLine || target.EndLine > root.EndLine {
-			return true
-		}
-	}
-	return false
-}
-
-// membersGuidance turns the names into the instruction they exist for. It says
-// what was not followed and how to follow it, in the shape ADR 0046 established
-// for the ambiguity refusal: name the candidates, and let the caller choose.
-func membersGuidance(names []string, total int) string {
-	if len(names) == 0 {
-		return ""
-	}
-	listed := strings.Join(names, ", ")
-	shown := len(names)
-	suffix := ""
-	if total > shown {
-		suffix = fmt.Sprintf(" and %d more", total-shown)
-	}
-	return fmt.Sprintf("this symbol declares members whose own dependencies are not part of this answer: "+
-		"%s%s. Containment is not an edge, so a member's reach is its own -- trace it by asking for the member's "+
-		"qualified name", listed, suffix)
+	return seeds
 }
 
 // spanContains reports whether outer strictly encloses inner, with an equal

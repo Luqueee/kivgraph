@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-21T21:38:34.979493Z",
-  "commit": "fb90064",
+  "generated_at": "2026-08-22T00:02:47.831326Z",
+  "commit": "d862705",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -25,7 +25,7 @@
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
-    "kivgraph": "isolated HOME at /private/tmp/memhome; the published generation and the registry live there",
+    "kivgraph": "isolated HOME at /private/tmp/chome; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
   "indexing": {},
@@ -77,12 +77,12 @@
           "calls": [
             {
               "tool": "find_cross_repo_consumers",
-              "tokens": 566,
-              "ms": 0.979
+              "tokens": 530,
+              "ms": 1.028
             }
           ],
-          "tokens": 566,
-          "ms": 0.979,
+          "tokens": 530,
+          "ms": 1.028,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/index.ts",
@@ -206,11 +206,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 112,
-              "ms": 0.885
+              "ms": 1.347
             }
           ],
           "tokens": 112,
-          "ms": 0.885,
+          "ms": 1.347,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -297,11 +297,11 @@
             {
               "tool": "trace_dependencies",
               "tokens": 305,
-              "ms": 0.808
+              "ms": 0.855
             }
           ],
           "tokens": 305,
-          "ms": 0.808,
+          "ms": 0.855,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go",
@@ -441,25 +441,27 @@
           "calls": [
             {
               "tool": "trace_dependencies",
-              "tokens": 233,
-              "ms": 0.702
+              "tokens": 403,
+              "ms": 0.668
             }
           ],
-          "tokens": 233,
-          "ms": 0.702,
+          "tokens": 403,
+          "ms": 0.668,
           "call_count": 1,
           "claimed": [
-            "library-shared:src/redis/cache/base-cache.ts"
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/cache/base-cache.ts",
+            "library-shared:src/redis/cache/music/types.ts"
           ],
           "score": {
             "claimed_set": [
-              "library-shared:src/redis/cache/base-cache.ts"
-            ],
-            "precision": 1,
-            "recall": 0.5,
-            "missing": [
+              "library-shared:src/redis/cache/base-cache.ts",
               "library-shared:src/redis/cache/music/types.ts"
             ],
+            "precision": 1,
+            "recall": 1,
+            "missing": [],
             "spurious": []
           }
         },
@@ -545,12 +547,12 @@
       "of": 4
     },
     "kivgraph": {
-      "tokens_total": 1216,
+      "tokens_total": 1350,
       "calls_total": 4,
-      "ms_total": 3.3739999999999997,
+      "ms_total": 3.898,
       "precision_mean": 1,
-      "recall_mean": 0.875,
-      "exact_answers": 3,
+      "recall_mean": 1,
+      "exact_answers": 4,
       "answered": 4,
       "of": 4
     },
@@ -608,9 +610,9 @@
         "of": 2
       },
       "kivgraph": {
-        "tokens_total": 678,
+        "tokens_total": 642,
         "calls_total": 2,
-        "ms_total": 1.8639999999999999,
+        "ms_total": 2.375,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -670,12 +672,12 @@
         "of": 2
       },
       "kivgraph": {
-        "tokens_total": 538,
+        "tokens_total": 708,
         "calls_total": 2,
-        "ms_total": 1.51,
+        "ms_total": 1.5230000000000001,
         "precision_mean": 1,
-        "recall_mean": 0.75,
-        "exact_answers": 1,
+        "recall_mean": 1,
+        "exact_answers": 2,
         "answered": 2,
         "of": 2
       },

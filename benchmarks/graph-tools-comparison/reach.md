@@ -15,8 +15,8 @@ Las métricas crudas están en `results-reach.json` y las respuestas literales e
 |dato|valor|
 |---|---|
 |fecha|2026-08-21|
-|commit|`132ce20`|
-|corpus|`kena`, 37 repositorios git, `4.683` ficheros, `120.461` símbolos -- **sin Rust**, ver abajo|
+|commit|`d862705`, más el descenso del ADR 0059|
+|corpus|`kena`, 37 repositorios git, `4.768` ficheros, `123.531` símbolos -- **con Rust**|
 |kivgraph|`0.3.6`|
 |tokenizador|`tiktoken` `o200k_base`|
 
@@ -41,14 +41,14 @@ texto puede alcanzar, y por eso está dentro.
 
 |pregunta|verdad|kivgraph|nativo|
 |---|---|---|---|
-|`X1` consumidores, TS, enum con cinco rivales|`3`|`566` tok, `P=1,00` `R=1,00`|`12.200` tok, `P=1,00` **`R=0,67`**|
+|`X1` consumidores, TS, enum con cinco rivales|`3`|`530` tok, `P=1,00` `R=1,00`|`12.200` tok, `P=1,00` **`R=0,67`**|
 |`X2` consumidores, Go, la respuesta es nada|`0`|`112` tok, `P=1,00` `R=1,00`|`4.271` tok, `P=1,00` `R=1,00`|
 |`X3` alcance, Go, nueve declaraciones|`1`|`305` tok, `P=1,00` `R=1,00`|`26.481` tok, `P=1,00` `R=1,00`|
-|`X4` alcance, TS, herencia + tipo puro|`2`|`233` tok, `P=1,00` **`R=0,50`**|`4.185` tok, `P=1,00` `R=1,00`|
+|`X4` alcance, TS, herencia + tipo puro|`2`|`403` tok, `P=1,00` `R=1,00`|`4.185` tok, `P=1,00` `R=1,00`|
 
-Coste: entre `18,0x` y `86,8x` más barato que la búsqueda más la lectura. La
-comparación de exactitud queda `3/4` a `3/4`, y **no en las mismas preguntas** --
-que es lo interesante.
+Coste: entre `10,4x` y `86,8x` más barato que la búsqueda más la lectura. La
+exactitud queda **`4/4`** contra `3/4`: la única que fallaba la cerró el ADR 0059,
+y la que el nativo falla no la puede ganar.
 
 ## Dónde pierde cada uno, y por qué
 
@@ -58,36 +58,26 @@ nombrar el reexport por estrella: no hay nada que buscar en ese fichero. Es el
 único sitio de este conjunto donde el brazo nativo no es correcto por
 construcción, y el harness lo dice en su nota en vez de regalarle la fila.
 
-**`trace_dependencies` pierde `X4`: no baja a los métodos de una clase.**
-`RecommendationsCache` extiende `BaseCache` y sus dos métodos nombran
-`ChipbotRecommendationsResponse` por un `import type`. La respuesta trae
-`BaseCache` y nada más. Diagnosticado, no supuesto:
+**`X4` la perdíamos, y el ADR 0059 la cerró.** `RecommendationsCache` extiende
+`BaseCache` y sus dos métodos nombran `ChipbotRecommendationsResponse` por un
+`import type`. La respuesta traía `BaseCache` y nada más, porque la contención no
+es una arista y una travesía enraizada sólo en la clase no tenía nada que caminar.
 
-|pregunta|alcanza|
-|---|---|
-|la clase, profundidad `1`|sólo `base-cache.ts`|
-|la clase, profundidad `2`|miembros de `BaseCache` y `RedisCacheClient.ts`, **nunca** el tipo|
-|el método `getResults`, profundidad `1`|**sí** `types.ts`, vía `TYPE_USES`|
+Ahora la travesía siembra el contenedor **y sus miembros a profundidad cero**, así
+que el tipo aparece a profundidad `1` -- es contenido, no cuesta un salto-- y los
+miembros no salen como filas. Medido con el mismo corpus y el mismo estado,
+cambiando sólo el binario: `X4` pasa de `233` a `403` tokens y de `R=0,50` a
+`R=1,00`, y las otras tres preguntas **no se mueven ni un token**, porque una
+función y un método no declaran miembros. El conjunto sube `14,4 %` y pasa de
+`3/4` a `4/4`.
 
-La arista existe y está bien: cuelga del **método**. Lo que no hay es arista
-clase -> método, porque la contención no es una dependencia en este grafo. La
-consecuencia sí es un defecto: preguntar por una clase **subestima su alcance a
-cualquier profundidad y no avisa de que se ha parado**. Un lector que pregunta
-«de qué depende esta clase» quiere las dos aristas.
-
-Era la misma forma que el `H2` del conjunto duro: una respuesta coherente con su
-propio modelo que contesta una pregunta distinta de la que se hizo, y devuelve un
-conjunto más pequeño sin decirlo.
-
-**Cerrado por el ADR 0058, y la fila no se movió.** La travesía no cambió -- sigue
-alcanzando `base-cache.ts` y `R` sigue en `0,50`, porque la exhaustividad se mide
-sobre ficheros alcanzados y ésos son los mismos. Lo que se fue es el silencio: la
-respuesta nombra ahora los miembros cuyas dependencias no forman parte de ella
--`RecommendationsCache.getResults` y `setResults`- y dice cómo preguntarlas. El
-`R=0,50` de esta tabla ya no mide una respuesta que se creía completa, sino una
-que declara su borde, y eso cuesta `70` tokens: `163` antes, `233` ahora. Ninguna
-de las otras tres preguntas se movió ni un token, que es la comprobación de que
-el aviso no aparece donde no hace falta.
+Queda una limitación que el ADR declara y que esta tabla no mide: la contención se
+deriva del **rango de líneas**, así que sólo cubre miembros que viven dentro de la
+declaración. En una clase de TypeScript los métodos van entre sus llaves; en Go
+`func (h *T) M()` se declara **fuera** del `struct`, y en Rust viven en un `impl`
+que además no se publica. El alcance de un tipo Go o Rust sigue excluyendo el de
+sus métodos: `GuildsHandler`, con nueve, responde `3` nodos -- los tipos de sus
+tres campos. Es `LUQUE-2010`.
 
 ## Los cuatro rivales no están medidos aquí, y no es un cero
 
@@ -115,19 +105,6 @@ go run ./benchmarks/graph-tools-comparison --set reach \
   --dir /private/tmp/bench-reach --state-root /private/tmp/5way-reach \
   --kivgraph-home /private/tmp/reachhome
 ```
-
-## El corpus medido no llevaba Rust
-
-El índice de estas preguntas se construyó sin `cargo` en el `PATH` del harness,
-así que `rust-analyzer` rechazó los dos workspaces Cargo de `kena` y el pase
-publicó el resto, declarándolo como `rust_workspaces_not_loaded=2`. El corpus
-real son `4.768` ficheros y `123.524` símbolos; el medido aquí, `4.683` y
-`120.461`.
-
-No afecta a ninguna cifra de esta tabla: las preguntas son de Go y TypeScript, y
-sus verdades se construyeron leyendo los ficheros, no consultando el índice. Lo
-que sí queda dicho es que **ninguna de estas preguntas es de Rust**, y que no
-podría haberlo sido con este índice.
 
 ## Limitaciones
 

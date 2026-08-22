@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -413,57 +412,51 @@ func TestTraceDependenciesRejectsAViewItCannotAnswer(t *testing.T) {
 	}
 }
 
-// TestTraceDependenciesNamesMembersItCannotFollow defends LUQUE-2004.
+// TestTraceDependenciesFollowsWhatItsMembersReach closes LUQUE-2004.
 //
-// A class reaches its base class, and the type its method names is reached only
-// from the method: containment is not an edge, so a traversal rooted on the
-// class cannot walk it. The defect was never the missing edge -- it is that the
-// answer looked complete. So the contract is that the answer names the member,
-// in the compact view a caller gets by default, and does not name a member whose
-// reach the root already contains.
-func TestTraceDependenciesNamesMembersItCannotFollow(t *testing.T) {
+// A class reaches its base class directly, and the type its method names is
+// reached only from the method: containment is not an edge, so a traversal
+// rooted on the class alone could not walk it, and the answer looked complete
+// while missing half the reach. ADR 0058 named the members it could not follow.
+// ADR 0059 follows them, because the reach of a declaration is the reach of what
+// its own source names.
+//
+// Two things have to hold together, and the second is what keeps the first
+// honest: the member's target is a row, and the member itself is not. A member
+// is content, so it also must not cost a hop -- the type sits at depth one from
+// the class, not two.
+func TestTraceDependenciesFollowsWhatItsMembersReach(t *testing.T) {
 	store := containerMemberStore(t, 41)
 
 	_, response, err := traceDependencies(context.Background(), nil,
-		TraceDependenciesInput{StableKey: "sym-class"}, store)
+		TraceDependenciesInput{StableKey: "sym-class", Depth: 1}, store)
 	if err != nil {
 		t.Fatalf("traceDependencies() error = %v", err)
 	}
-	// The traversal itself is unchanged: it still reaches only the base class.
-	if response.Total != 1 || response.Results.Nodes[0].QualifiedName != "shared.BaseCache" {
-		t.Fatalf("nodes = %#v, want only the base class", response.Results.Nodes)
+	reached := map[string]int{}
+	for _, node := range response.Results.Nodes {
+		reached[node.QualifiedName] = node.Depth
 	}
-	want := []string{"shared.Cache.getResults"}
-	if !reflect.DeepEqual(response.Results.MembersNotFollowed, want) {
-		t.Fatalf("members not followed = %#v, want %#v", response.Results.MembersNotFollowed, want)
+	want := map[string]int{"shared.BaseCache": 1, "shared.Payload": 1}
+	if !reflect.DeepEqual(reached, want) {
+		t.Fatalf("reached = %#v, want the base class and the type its method names, both at depth one", reached)
 	}
-	if !strings.Contains(response.Guidance, "shared.Cache.getResults") {
-		t.Fatalf("guidance = %q, want it to name the member", response.Guidance)
-	}
-	// Compact is the default view, so a note only the full view carries is a
-	// note nobody reads.
-	encoded, err := json.Marshal(response.Results)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(encoded), `"members_not_followed":["shared.Cache.getResults"]`) {
-		t.Fatalf("compact payload = %s, want the member named in it", encoded)
+	// The members seeded the walk; they are not dependencies of the thing that
+	// declares them, and reporting them would answer a different question.
+	for _, absent := range []string{"shared.Cache.getResults", "shared.Cache.ttl", "shared.Cache"} {
+		if _, present := reached[absent]; present {
+			t.Fatalf("reached %q, want the root and its own members left out of the rows", absent)
+		}
 	}
 
-	// Asking the member answers what the class could not: the type is one hop
-	// away from it. That is the instruction the guidance gives, and it works.
+	// Asking the member still answers about the member alone.
 	_, member, err := traceDependencies(context.Background(), nil,
-		TraceDependenciesInput{StableKey: "sym-method"}, store)
+		TraceDependenciesInput{StableKey: "sym-method", Depth: 1}, store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if member.Total != 1 || member.Results.Nodes[0].QualifiedName != "shared.Payload" {
 		t.Fatalf("member trace = %#v, want the type it names", member.Results.Nodes)
-	}
-	// The method declares nothing, so there is nothing to warn about. A note on
-	// every answer would be noise, and noise is what gets filtered out.
-	if len(member.Results.MembersNotFollowed) != 0 {
-		t.Fatalf("member members = %#v, want none", member.Results.MembersNotFollowed)
 	}
 }
 

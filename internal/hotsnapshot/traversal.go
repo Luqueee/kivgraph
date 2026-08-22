@@ -56,13 +56,36 @@ type TraversalResult struct {
 	Truncated    bool
 }
 
-// Traverse performs a bounded BFS over forward or reverse CSR. Visited state is
-// a dense generation array indexed by SymbolID; no per-node map is allocated.
+// Traverse walks outward or inward from one symbol.
 func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions) (TraversalResult, error) {
-	if uint64(start) >= uint64(len(snapshot.symbols)) ||
-		(options.Direction != TraversalOutgoing && options.Direction != TraversalIncoming) ||
+	return snapshot.TraverseFrom([]SymbolID{start}, options)
+}
+
+// TraverseFrom walks from several symbols at once, all of them at depth zero.
+//
+// It exists for a container: the reach of a class is the reach of what its own
+// source names, and the members are inside that source. Running one traversal
+// per member and merging the results would count a node shared by two members
+// twice and would report its depth from whichever member happened to run first.
+// One BFS over every seed reports each node once, at its true distance from the
+// nearest seed.
+//
+// Every seed is visited, so a caller that does not want the seeds themselves in
+// the answer filters them out; the visits carry InvalidSymbolID as their Source,
+// which is how a seed is told from a reached node.
+func (snapshot *GraphSnapshot) TraverseFrom(starts []SymbolID, options TraversalOptions) (TraversalResult, error) {
+	if len(starts) == 0 {
+		return TraversalResult{}, ErrInvalidTraversal
+	}
+	for _, start := range starts {
+		if uint64(start) >= uint64(len(snapshot.symbols)) {
+			return TraversalResult{}, ErrInvalidTraversal
+		}
+	}
+	if (options.Direction != TraversalOutgoing && options.Direction != TraversalIncoming) ||
 		options.MaxDepth < 0 || options.MaxDepth > MaxTraversalDepth ||
-		options.MaxNodes < 1 || options.MaxNodes > MaxTraversalNodes {
+		options.MaxNodes < 1 || options.MaxNodes > MaxTraversalNodes ||
+		len(starts) > options.MaxNodes {
 		return TraversalResult{}, ErrInvalidTraversal
 	}
 	if !options.Deadline.IsZero() && !time.Now().Before(options.Deadline) {
@@ -78,9 +101,15 @@ func (snapshot *GraphSnapshot) Traverse(start SymbolID, options TraversalOptions
 	defer snapshot.traversalWorkspacePool.Put(scratch)
 
 	result := TraversalResult{Visits: make([]TraversalVisit, 0, minInt(options.MaxNodes, 64))}
-	scratch.visited[start] = generation
-	scratch.queue = append(scratch.queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
-	discovered := 1
+	discovered := 0
+	for _, start := range starts {
+		if scratch.visited[start] == generation {
+			continue
+		}
+		scratch.visited[start] = generation
+		scratch.queue = append(scratch.queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
+		discovered++
+	}
 
 	edges := snapshot.forwardEdges
 	offsets := snapshot.forwardOffsets
