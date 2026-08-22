@@ -14912,7 +14912,47 @@ anécdota, igual que hizo LUQUE-1905 con el coste en tokens.
 - El informe conserva comando, commit, entorno, generación, semilla, métricas y
   limitaciones.
 
-**Estado:** pendiente.
+**Estado:** el arnés está entregado y medido en Linux (`devlabs`, 16 CPU) sobre
+`kena-workspace` -51 repositorios, `161.819` símbolos, generación `000001`,
+`snapshot.kvsnap` de `129 MB`-. `benchmarks/shared-snapshot/report.md` y
+`results.json`, digest `be4ccde2`, **idéntico en dos ejecuciones**.
+
+El gate **no se emite**: de los tres criterios, con N=4 se incumplen los tres.
+Lo medido, en `Pss` sumado sobre los procesos:
+
+|servidores|mapeado|derivado|cuota|sucio/proceso|razón `p99`|
+|---|---|---|---|---|---|
+|2|`329,1 MB`|`647,0 MB`|`0,509`|`96,9 MB`|`1,442`|
+|4|`520,0 MB`|`1.238,0 MB`|`0,420`|`98,1 MB`|`1,273`|
+|8|`881,3 MB`|`2.415,4 MB`|`0,365`|`95,9 MB`|`1,097`|
+
+La primera respuesta: `265 ms` mapeando contra `3.478 ms` derivando, `13,1x`.
+
+Y lo que la medición dice de los criterios, que es la decisión pendiente:
+
+- La cuota **no es una propiedad del diseño, es una propiedad de N**: la parte
+  compartida se reparte entre los procesos que la sostienen, así que el mismo
+  código cumple `≤0,40` con ocho servidores y no con dos.
+- `Private_Dirty ≤60 MB` estaba fijado contra un corpus de `123.531` símbolos;
+  aquí hay `161.819` y sale plano en `~97 MB` en los tres puntos, porque son las
+  tablas que cada servidor decodifica y no la parte compartida.
+- `p99 ≤1,05` es más estrecho que lo que compra: con N=4 son `0,29 ms` de cola
+  a cambio de `718 MB`. Y no es calentamiento: sin descartar llamadas la razón
+  era `1,442` a `2.000` llamadas y `1,270` a `8.000` -- medía la duración de la
+  pasada-, y con `4.000` descartadas se queda en `1,273`.
+
+Dos defectos encontrados al montarlo, los dos arreglados y con test:
+
+- `graph_status` fallaba **entero** con `SNAPSHOT_UNAVAILABLE` en todo corpus
+  posterior al ADR 0060: el desglose `edges_by_kind` exigía que cada arista
+  saliente fuese de las que contesta `find_references`, y `METHOD_OF` no lo es.
+  Son `9.169` de `482.478` aristas en este corpus. La fixture sólo llevaba
+  aristas de referencia, así que pasaba con la herramienta rota.
+- El arnés medía la instalación real creyendo medir una aislada: una
+  configuración escrita por `init` guarda sus rutas con `~`, que se expande
+  contra el `HOME` de quien ejecuta `serve`, no contra el del `init`. Ahora
+  compara el snapshot servido con el directorio cuyo fichero esconde y se niega
+  si difieren.
 
 **Verificación:**
 
@@ -14920,7 +14960,8 @@ anécdota, igual que hizo LUQUE-1905 con el coste en tokens.
 gofmt -l benchmarks/shared-snapshot/
 go vet ./...
 go test ./...
-go run ./benchmarks/shared-snapshot --clients 4   (dos veces, mismo digest)
+go run ./benchmarks/shared-snapshot --clients 2,4,8 --gate-clients 4 \
+  --calls 2000 --warmup 4000   (dos veces, mismo digest: be4ccde2)
 ```
 
 **Siguiente tarea:** LUQUE-2007.
