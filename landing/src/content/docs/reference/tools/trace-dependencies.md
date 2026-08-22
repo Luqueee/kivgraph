@@ -274,10 +274,20 @@ Only [`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/)
 fills it, because a package dependency proves a dependency on the provider and
 never a use of the symbol, and summing the two would report a use nobody saw.
 
-No `completeness` object appears on this tool. Absent means it did not check how
-far the answer reaches, which is not the same as checking and finding nothing.
-[`get_blast_radius`](/reference/tools/get-blast-radius/) is the tool that
-checks.
+`completeness` states how far the answer reaches, and its `verdict` is either
+`COMPLETE` -- nothing the index recorded could add to this walk -- or
+`LOWER_BOUND`, meaning the page is a floor. What bounds an outward answer is not
+what bounds an inward one: this verdict is charged with the failures the symbol
+itself made -- the references it makes that the resolver could not follow, in
+`blind_spots` -- and never with the failures that asked for its name. Somebody
+else's unreadable call to this symbol hides a caller, not a dependency. A scope
+of its own repository that the index could not read counts too, in
+`invisible_scopes`: a package nobody could open may hold anything this symbol
+reaches. The distinction matters because
+a walk bounded at `depth` or `max_nodes` that reached nothing reads exactly like
+a symbol that depends on nothing, and the verdict is what separates the bound
+from the graph. See [the completeness verdict](/mcp/usage/#read-the-answer) for
+the shared shape and what each tool is charged with.
 
 ### Reading a grouped page
 

@@ -58,6 +58,18 @@ page. See [when a page groups](/mcp/usage/#when-a-page-groups) for the
 mechanism shared by six tools, and the [grouped example](#example-grouped)
 below for a captured page.
 
+`completeness` states how far the page reaches, and the question names a place
+rather than a symbol, so no failed request for a name can bound it: the only
+failure that can is a scope of the repository asked for that the index could not
+read, named in `invisible_scopes`. There is no `fallback` pattern here --
+without a symbol there is nothing to grep for. An outline that lists nothing
+under a path is saying nothing is declared there, so the `verdict` is spent
+where the answer could be mistaken for that proof -- a page with no rows, a
+truncated one, and every `LOWER_BOUND` -- while a page of declarations claims no
+absence and carries no verdict at all. See
+[the completeness verdict](/mcp/usage/#read-the-answer) for the two values and
+the rest of the block.
+
 ## Example
 
 ```json

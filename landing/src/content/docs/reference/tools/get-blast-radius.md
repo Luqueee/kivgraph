@@ -31,8 +31,8 @@ What a change to one symbol reaches: the same bounded walk as
 incoming edges. The response is the affected symbols plus four aggregations a
 reviewer acts on, by repository, by package, by depth and by relation kind. The
 root is excluded everywhere, because a symbol is not affected by its own change.
-It is also the one tool that states how far its answer reaches, in a
-`completeness` object.
+It states how far its answer reaches in a `completeness` object, as the five
+other tools whose empty answer could be read as proof now do.
 
 Two things shape the answer before you read it. The kind filter decides what
 counts as affected, and the response always states which one ran. The `view`

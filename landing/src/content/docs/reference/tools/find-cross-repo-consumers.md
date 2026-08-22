@@ -220,10 +220,19 @@ So `package_level` is not a weaker `exact`. It answers a different question:
 A migration plan built on `exact` is a list of call sites; a migration plan built
 on `package_level` is a list of places to go and look.
 
-No `completeness` object appears on this tool. Absent means it did not check how
-far its answer reaches, which is not the same as checking and finding nothing.
-[`get_blast_radius`](/reference/tools/get-blast-radius/) is the tool that
-checks.
+Every answer carries a `completeness` object whose `verdict` is `COMPLETE` when
+nothing the index recorded could add to it and `LOWER_BOUND` when the answer is
+a floor, with `blind_spots` for the individual references the resolver could not
+follow and `invisible_scopes` for the packages it could not read at all. What
+bounds this tool is deliberately wider than the rest: the scope half of the
+check is global, so an unreadable package in any repository counts and not only
+in the one the question names, because a package nobody could read anywhere is
+exactly where an outside consumer hides. That matters most here, because this is
+the tool with no native `grep` competitor and its empty answer gets read as a
+finding -- "nobody outside uses this" -- so on `LOWER_BOUND` the zero-row
+`guidance` refuses that reading and sends you to those two lists first. See
+[the completeness verdict](/mcp/usage/#read-the-answer) for the shape shared by
+the six tools that check.
 
 ## Limits
 

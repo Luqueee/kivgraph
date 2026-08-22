@@ -48,6 +48,18 @@ drops `stable_key`. It was `885` of the `2.293` tokens of one 22-row page over
 `coverage.unresolved_related` counts unresolved references that name the same
 string.
 
+A search that found nothing and reports no uncertainty is claiming the name does
+not exist, when it may only mean that whatever declares it was never indexed. So
+the answer also carries a `completeness` object, whose `verdict` is `COMPLETE` or
+`LOWER_BOUND`; see [the completeness verdict](/mcp/usage/#read-the-answer). What
+bounds a declaration lookup is the scopes the index could not read, and the scope
+follows the question -- `repo` narrows it to that repository, because a lookup
+charged for one unreadable package anywhere in the graph would read `LOWER_BOUND`
+on every call of the corpus and the verdict would carry no information. This is
+the most frequent call in the surface, so the block is spent where the answer
+could be mistaken for proof -- an empty or a truncated page -- and on every lower
+bound; a full page of declarations claims no absence and does not carry it.
+
 When `kind` and `exported` do not both hoist to the header -- a page mixing
 methods, functions and variables in various combinations of visibility --
 `results.groups` replaces `symbols`: each entry states its own `kind` and
@@ -228,9 +240,11 @@ it indexed into no longer exist. All of them mean the same thing for a caller:
 restart the pagination. `view` is not part of the identity, so one cursor can
 continue a query in another view.
 
-`find_symbol` never emits `guidance`. That field belongs to the reference and
-traversal tools, where a zero count reads as an absence and needs a sentence to
-say so. Here the signal is `coverage.unresolved_related`: it counts unresolved
+`find_symbol` emits `guidance` where a count alone would mislead -- an empty
+page or a truncated one -- and stays silent on a full page of rows, because
+fifteen tokens of advice on the most frequent call of the surface is how a
+saving becomes a cost. The other signal is `coverage.unresolved_related`: it
+counts unresolved
 references naming the same string, so a zero-row answer with
 `unresolved_related` at zero means the published graph declares no symbol of
 that name inside your filters, and a non-zero value means something names it

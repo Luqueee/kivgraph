@@ -307,9 +307,14 @@ to `find_cross_repo_consumers` on `MergeAll`, `total` 0:
 no repository in the published graph consumes this symbol. Check graph_status if a consumer is registered but was not indexed, and find_references for uses inside its own repository
 ```
 
-An empty `find_references` page carries the same kind of sentence, saying that
-the edges are type-checked and this is an absence rather than a miss. Without
-that sentence, treat a zero only as far as the tool's own description takes you.
+An empty `find_references` page carries the same kind of sentence, and which one
+depends on its verdict: with `COMPLETE` it says the edges are type-checked and
+this is an absence rather than a miss, and with `LOWER_BOUND` it says the index
+recorded places it could not read that ask for this name, and sends you to
+`completeness.blind_spots` and the fallback pattern instead. The two are never
+interchangeable: the first is a claim about the code, the second about the index.
+Without either sentence, treat a zero only as far as the tool's own description
+takes you.
 
 **`guidance` stays silent when there are rows and no truncation.** It costs
 about fifteen tokens, and fifteen tokens of advice on every call is how a saving
@@ -324,6 +329,27 @@ read, `blind_spots` for individual references the resolver could not follow, and
 `fallback` for the recovery action, a regular expression and the paths to run it
 over. Absence of the whole block means the tool did not check, which is not the
 same as checking and finding nothing.
+
+Six tools check, and **what bounds an answer is not the same question for all of
+them**, so each one looks at a different set of recorded failures:
+
+| Tool | What can bound its answer |
+| --- | --- |
+| `find_references` | Failures that asked for this name, plus unreadable scopes of the subject's repository. `direction` does not change the verdict: it is charged with the naming question either way. |
+| `get_blast_radius` | The same pair, taken from the repository the walk starts in. |
+| `trace_dependencies` | Failures **this symbol itself** made, plus unreadable scopes of its repository. "What does this reach" is never bounded by who asked for its name -- somebody else's unreadable call hides a caller, not a dependency. |
+| `find_symbol` | Unreadable scopes. Narrowed with `repo`, only that repository's; unnarrowed, every one in the graph. |
+| `get_file_outline` | Unreadable scopes of the repository asked for. There is no symbol name here, so nothing else can bound it. |
+| `find_cross_repo_consumers` | Unreadable scopes **anywhere in the graph**, deliberately. A package nobody could read in any repository is exactly where an outside consumer hides. |
+
+The scope follows the question for a reason: a verdict charged for every blind
+spot in the graph would read `LOWER_BOUND` on every answer of a corpus with one
+bad package, and a verdict that never says `COMPLETE` carries no information.
+
+The other five tools do not check, and none of them claims an absence.
+`get_symbol` and `get_source` refuse a symbol they cannot find instead of
+answering an empty list; `graph_status`, `list_repositories` and `index_project`
+answer about the index itself.
 
 This is the `completeness` block captured from `get_blast_radius` on `MergeAll`
 at depth 2:
