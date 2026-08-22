@@ -14292,7 +14292,35 @@ publica entradas y bytes del arena, y es lo único que hoy se puede citar.
 - El arnés se niega a publicar cifras si la generación que abrió no es la
   declarada en `results.json`.
 
-**Estado:** pendiente.
+**Estado:** cerrada el `2026-08-22`. `benchmarks/hot-snapshot-footprint`.
+
+**El resultado:** `171,5 MB` residentes sobre `kena` -- que confirma el `173 MB`
+que esta fase citaba de otra máquina-- con dos pasadas dentro del `0,01 %`. Los
+tres que dominan: el arena de strings (`63,9 MB`, `37 %` del total), los tres
+mapas de símbolos (`16,5 MB`, que es **2,4 veces** la tabla de `6,9 MB` que
+indexan) y las evidencias (`7,4 MB`). Por unidad: `379` bytes por símbolo en
+tablas e índices sin el arena, y `44` por arista.
+
+**El criterio del `95 %` no se cumple, y por una razón que vale más que el
+criterio.** La cobertura es `64,6 %` y el residuo de `60,7 MB` está identificado
+con perfil de heap vivo: `58 MB` parados en `ladybug.newCanonicalArrowChunk`,
+alcanzables tras dos GC forzadas. **Un tercio de la huella no es el grafo: son los
+búferes con que se leyó la base de datos.**
+
+El mecanismo, probado de punta a punta: el chunk Arrow copia los bytes de texto a
+su propio arena, entrega cada valor como `unsafe.String` sobre ese arena, y el
+adaptador convierte el valor a `StableKey` con una conversión entre cadenas que
+**no copia**. `6,4 MB` de claves estables retienen `58 MB`.
+
+No se suma al desglose porque no se asigna aparte: contarlo sería contarlo dos
+veces y mentir sobre lo que el grafo pesa.
+
+**Lo que deja decidido para la fase:** hay `58 MB` gratis antes de escribir un
+solo byte de fichero -- copiar las claves cuesta `6,4 MB`-- y es evidencia directa
+para `LUQUE-2002`, cuyo título ya era «que ninguna clave estable ocupe un
+puntero». Un fichero mapeado ataca los `63,9 MB` del arena, y `StringTable` ya
+tiene el campo `borrowed` para eso. Los `16,5 MB` de mapas no se mapean gratis, y
+ahí es donde «índice ordenado o tabla hash» se decide con cifras.
 
 **Verificación:**
 

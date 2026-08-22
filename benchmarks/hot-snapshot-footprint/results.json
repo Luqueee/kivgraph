@@ -1,0 +1,297 @@
+{
+  "benchmark": "hot-snapshot-footprint",
+  "task": "LUQUE-2001",
+  "date": "2026-08-22",
+  "commit": "a754ab4",
+  "generation": "000001",
+  "graph_path": "/private/tmp/hfp/.local/state/kivgraph/generations/000001/graph.db",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "darwin"
+  },
+  "counts": {
+    "edges": 372320,
+    "evidence": 372320,
+    "files": 4768,
+    "package_edges": 389,
+    "packages": 116,
+    "repositories": 35,
+    "symbols": 123531,
+    "unresolved": 13163
+  },
+  "passes": [
+    {
+      "pass": 1,
+      "resident_bytes": 171529800,
+      "components": [
+        {
+          "name": "string arena (values)",
+          "method": "analytic",
+          "bytes": 63914190,
+          "entries": 639613,
+          "bytes_per_entry": 99.92634608739972
+        },
+        {
+          "name": "evidence table",
+          "method": "analytic",
+          "bytes": 7446400,
+          "entries": 372320,
+          "bytes_per_entry": 20
+        },
+        {
+          "name": "symbolByStableKey (map)",
+          "method": "heap",
+          "bytes": 6990144,
+          "entries": 123531,
+          "bytes_per_entry": 56.58615246375404
+        },
+        {
+          "name": "symbols table",
+          "method": "analytic",
+          "bytes": 6917736,
+          "entries": 123531,
+          "bytes_per_entry": 56
+        },
+        {
+          "name": "symbolsByQName (map)",
+          "method": "heap",
+          "bytes": 6114016,
+          "entries": 123531,
+          "bytes_per_entry": 49.493778889509514
+        },
+        {
+          "name": "string table offsets+order",
+          "method": "analytic",
+          "bytes": 5116904,
+          "entries": 639613,
+          "bytes_per_entry": 8
+        },
+        {
+          "name": "forward edges (CSR)",
+          "method": "analytic",
+          "bytes": 4467840,
+          "entries": 372320,
+          "bytes_per_entry": 12
+        },
+        {
+          "name": "reverse edges (CSR)",
+          "method": "analytic",
+          "bytes": 4467840,
+          "entries": 372320,
+          "bytes_per_entry": 12
+        },
+        {
+          "name": "symbolsByName (map)",
+          "method": "heap",
+          "bytes": 3369952,
+          "entries": 123531,
+          "bytes_per_entry": 27.280213063927274
+        },
+        {
+          "name": "unresolved table",
+          "method": "analytic",
+          "bytes": 631824,
+          "entries": 13163,
+          "bytes_per_entry": 48
+        },
+        {
+          "name": "forward offsets (CSR)",
+          "method": "analytic",
+          "bytes": 494128,
+          "entries": 123532,
+          "bytes_per_entry": 4
+        },
+        {
+          "name": "reverse offsets (CSR)",
+          "method": "analytic",
+          "bytes": 494128,
+          "entries": 123532,
+          "bytes_per_entry": 4
+        },
+        {
+          "name": "files table",
+          "method": "analytic",
+          "bytes": 247936,
+          "entries": 4768,
+          "bytes_per_entry": 52
+        },
+        {
+          "name": "fileByRepoPath (map)",
+          "method": "heap",
+          "bytes": 108912,
+          "entries": 4768,
+          "bytes_per_entry": 22.84228187919463
+        },
+        {
+          "name": "package dependencies table",
+          "method": "analytic",
+          "bytes": 6224,
+          "entries": 389,
+          "bytes_per_entry": 16
+        },
+        {
+          "name": "packages table",
+          "method": "analytic",
+          "bytes": 2320,
+          "entries": 116,
+          "bytes_per_entry": 20
+        },
+        {
+          "name": "repositories table",
+          "method": "analytic",
+          "bytes": 980,
+          "entries": 35,
+          "bytes_per_entry": 28
+        }
+      ],
+      "accounted_for_bytes": 110791474,
+      "remainder_bytes": 60738326,
+      "coverage_percent": 64.59021930883146,
+      "stable_key_characters_bytes": 6423612,
+      "elapsed_ms": 2047
+    },
+    {
+      "pass": 2,
+      "resident_bytes": 171507128,
+      "components": [
+        {
+          "name": "string arena (values)",
+          "method": "analytic",
+          "bytes": 63914190,
+          "entries": 639613,
+          "bytes_per_entry": 99.92634608739972
+        },
+        {
+          "name": "evidence table",
+          "method": "analytic",
+          "bytes": 7446400,
+          "entries": 372320,
+          "bytes_per_entry": 20
+        },
+        {
+          "name": "symbolByStableKey (map)",
+          "method": "heap",
+          "bytes": 6990128,
+          "entries": 123531,
+          "bytes_per_entry": 56.5860229416098
+        },
+        {
+          "name": "symbols table",
+          "method": "analytic",
+          "bytes": 6917736,
+          "entries": 123531,
+          "bytes_per_entry": 56
+        },
+        {
+          "name": "symbolsByQName (map)",
+          "method": "heap",
+          "bytes": 6114016,
+          "entries": 123531,
+          "bytes_per_entry": 49.493778889509514
+        },
+        {
+          "name": "string table offsets+order",
+          "method": "analytic",
+          "bytes": 5116904,
+          "entries": 639613,
+          "bytes_per_entry": 8
+        },
+        {
+          "name": "forward edges (CSR)",
+          "method": "analytic",
+          "bytes": 4467840,
+          "entries": 372320,
+          "bytes_per_entry": 12
+        },
+        {
+          "name": "reverse edges (CSR)",
+          "method": "analytic",
+          "bytes": 4467840,
+          "entries": 372320,
+          "bytes_per_entry": 12
+        },
+        {
+          "name": "symbolsByName (map)",
+          "method": "heap",
+          "bytes": 3369952,
+          "entries": 123531,
+          "bytes_per_entry": 27.280213063927274
+        },
+        {
+          "name": "unresolved table",
+          "method": "analytic",
+          "bytes": 631824,
+          "entries": 13163,
+          "bytes_per_entry": 48
+        },
+        {
+          "name": "forward offsets (CSR)",
+          "method": "analytic",
+          "bytes": 494128,
+          "entries": 123532,
+          "bytes_per_entry": 4
+        },
+        {
+          "name": "reverse offsets (CSR)",
+          "method": "analytic",
+          "bytes": 494128,
+          "entries": 123532,
+          "bytes_per_entry": 4
+        },
+        {
+          "name": "files table",
+          "method": "analytic",
+          "bytes": 247936,
+          "entries": 4768,
+          "bytes_per_entry": 52
+        },
+        {
+          "name": "fileByRepoPath (map)",
+          "method": "heap",
+          "bytes": 108912,
+          "entries": 4768,
+          "bytes_per_entry": 22.84228187919463
+        },
+        {
+          "name": "package dependencies table",
+          "method": "analytic",
+          "bytes": 6224,
+          "entries": 389,
+          "bytes_per_entry": 16
+        },
+        {
+          "name": "packages table",
+          "method": "analytic",
+          "bytes": 2320,
+          "entries": 116,
+          "bytes_per_entry": 20
+        },
+        {
+          "name": "repositories table",
+          "method": "analytic",
+          "bytes": 980,
+          "entries": 35,
+          "bytes_per_entry": 28
+        }
+      ],
+      "accounted_for_bytes": 110791458,
+      "remainder_bytes": 60715670,
+      "coverage_percent": 64.59874833890287,
+      "stable_key_characters_bytes": 6423612,
+      "elapsed_ms": 1960
+    }
+  ],
+  "stability_percent": 0.013217528382823276,
+  "dominant_components": [
+    "string arena (values)",
+    "evidence table",
+    "symbolByStableKey (map)"
+  ],
+  "limitations": [
+    "One generation on one machine. A corpus with a Rust sysroot indexed would move the symbol and evidence tables and nothing else here predicts by how much.",
+    "The four indexes are priced by rebuilding an equivalent map, not by reading the snapshot's own. Same key and value types and same cardinality, so the cost is the runtime's answer for that shape -- but a map the builder grew differently could occupy a different number of buckets.",
+    "The analytic figures are count times element size. A slice rounded up to a size class costs slightly more than that, and the difference is left in the remainder rather than spread across the tables.",
+    "HeapAlloc is live heap, not process RSS. The phase's own figures put RSS between 252 and 373 MB against 173 MB of live heap, and nothing here accounts for that gap."
+  ]
+}
