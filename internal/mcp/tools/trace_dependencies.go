@@ -760,21 +760,31 @@ func classifyTraversalError(err error) error {
 	}
 }
 
-// containedMembers returns the declarations inside the root's own span, so a
-// traversal can start from them as well as from the root.
+// containedMembers returns the declarations a root contains, so a traversal can
+// start from them as well as from the root.
 //
-// A traversal walks edges, and containment is not one: there is no symbol to
-// symbol edge from a class to its methods -- DEFINES goes from a file and
-// PART_OF is the Dart part relation. Rooting only on the class therefore
-// answered a narrower question than the caller asked. Measured on kena, a cache
-// class reached its base class and stopped, while the type its two methods name
-// through an `import type` was reached only by asking about a method.
+// A traversal walks edges, and containment was not one: DEFINES goes from a
+// file and PART_OF is the Dart part relation. Rooting only on the class
+// therefore answered a narrower question than the caller asked. Measured on
+// kena, a cache class reached its base class and stopped, while the type its two
+// methods name through an `import type` was reached only by asking about a
+// method.
 //
 // ADR 0058 answered that by naming the members it could not follow. ADR 0059
 // follows them instead: the reach of a declaration is the reach of what its own
 // source names, and a method's body is inside that source. Members seed the same
 // BFS at depth zero, so their targets land at depth one -- a member is content,
 // not a dependency, and must not cost a hop.
+//
+// Containment arrives two ways, and a language needs whichever its syntax
+// allows. The span covers what is written inside the declaration, which is a
+// TypeScript class and the fields of a Go or Rust struct. METHOD_OF covers what
+// is written outside it: a Go method is declared as `func (h *T) M()` past the
+// struct's closing brace, and a Rust one inside an `impl` block that is not
+// published. Before that edge existed the reach of a Go or Rust type excluded
+// its methods while a TypeScript answer looked identical and was complete --
+// LUQUE-2010. A one-line `type T struct{}` has no span to search and still has
+// methods, so the edges are read even when the span yields nothing.
 //
 // Only the outermost layer seeds. A parameter sits inside its method and its
 // type is reach the method already accounts for, so seeding it would add nothing
@@ -783,12 +793,7 @@ func classifyTraversalError(err error) error {
 func containedMembers(
 	snapshot *hotsnapshot.GraphSnapshot, rootID hotsnapshot.SymbolID, root hotsnapshot.SymbolRecord,
 ) []hotsnapshot.SymbolID {
-	if snapshot == nil || root.EndLine <= root.StartLine {
-		return nil
-	}
-	page, err := snapshot.SearchSymbolsInFiles(
-		[]hotsnapshot.FileID{root.File}, 0, hotsnapshot.MaxExactResults, nil)
-	if err != nil {
+	if snapshot == nil {
 		return nil
 	}
 	type candidate struct {
@@ -796,19 +801,50 @@ func containedMembers(
 		record hotsnapshot.SymbolRecord
 	}
 	candidates := make([]candidate, 0, 16)
-	for _, id := range page.IDs {
-		if id == rootID {
-			continue
+	seen := make(map[hotsnapshot.SymbolID]struct{}, 16)
+	admit := func(id hotsnapshot.SymbolID, record hotsnapshot.SymbolRecord) {
+		if _, already := seen[id]; already {
+			return
 		}
-		member, found := snapshot.Symbol(id)
-		if !found || member.File != root.File {
-			continue
-		}
-		if member.StartLine < root.StartLine || member.EndLine > root.EndLine {
-			continue
-		}
-		candidates = append(candidates, candidate{id: id, record: member})
+		seen[id] = struct{}{}
+		candidates = append(candidates, candidate{id: id, record: record})
 	}
+
+	if root.EndLine > root.StartLine {
+		page, err := snapshot.SearchSymbolsInFiles(
+			[]hotsnapshot.FileID{root.File}, 0, hotsnapshot.MaxExactResults, nil)
+		if err == nil {
+			for _, id := range page.IDs {
+				if id == rootID {
+					continue
+				}
+				member, found := snapshot.Symbol(id)
+				if !found || member.File != root.File {
+					continue
+				}
+				if member.StartLine < root.StartLine || member.EndLine > root.EndLine {
+					continue
+				}
+				admit(id, member)
+			}
+		}
+	}
+
+	methodOfCode, err := facts.MethodOf.Code()
+	if err != nil {
+		return nil
+	}
+	for _, edge := range snapshot.Incoming(rootID) {
+		if edge.Kind != methodOfCode || edge.Target == rootID {
+			continue
+		}
+		member, found := snapshot.Symbol(edge.Target)
+		if !found {
+			continue
+		}
+		admit(edge.Target, member)
+	}
+
 	seeds := make([]hotsnapshot.SymbolID, 0, len(candidates))
 	for _, member := range candidates {
 		nested := false

@@ -15239,47 +15239,44 @@ dirección entrante.
 
 ## LUQUE-2010 — En Go y en Rust un método no cae dentro del span de su tipo
 
+**Estado:** cerrada por el ADR 0060, en `2026-08-22`.
+
 **Dependencias:** LUQUE-2004.
 
-**El hueco:** el ADR 0059 deriva la contención del **rango de líneas**, que es un
-hecho estructural y por eso se eligió. Sólo cubre a los miembros que viven
-léxicamente dentro de la declaración:
+**El hueco era:** el ADR 0059 derivaba la contención del **rango de líneas**, que
+sólo cubre a los miembros que viven léxicamente dentro de la declaración. En Go
+`func (h *T) M()` se declara fuera del `struct`; en Rust el método vive en un
+`impl` que no se publica. Así que el alcance de un tipo Go o Rust **excluía el de
+sus métodos** mientras la respuesta de TypeScript parecía idéntica y sí era
+completa.
 
-|forma|¿los miembros caen en el span?|
-|---|---|
-|clase de TypeScript|**sí** -- los métodos van entre sus llaves|
-|`struct` de Go|sus campos sí; sus métodos no -- `func (h *T) M()` se declara fuera|
-|`struct` de Rust|sus campos sí; sus métodos viven en un `impl`, que no se publica|
+**La salida elegida fue registrar el receptor como hecho**, y salió más pequeña de
+lo que esta tarea temía por un error mío: la tarea afirmaba que el cargador Go
+«no lo registra en la declaración», y es falso. `goloader.Definition.Owner` ya
+llevaba el tipo receptor que resolvió `go/types`, y sus tests lo afirmaban desde
+siempre; nadie lo consumía. Mi comprobación anterior grepeó `ReceiverTypeName`
+-- el nombre que usa `methods.go` para un sitio de llamada-- y no vio el campo
+llano. Es el mismo grep estrecho que ya me costó cinco correcciones esta sesión.
 
-Así que el alcance de un tipo Go o Rust **excluye el de sus métodos**. Medido:
-`GuildsHandler`, con nueve métodos, responde `3` nodos -- los tipos de sus tres
-campos-- y `167` tokens.
+Lo que sí costó lo que decía la tarea fue el resto: `METHOD_OF` es una tabla de
+relación nueva, así que `CanonicalSchemaVersion` sube de `3` a `4` con su DDL y su
+documentación regenerados. Y Rust **no** necesitó revertir LUQUE-2008: el miembro
+se empareja con el tipo que nombra el bloque, saltándose el bloque.
 
-**Las dos salidas:**
+**Medido**, con `depth: 1` sobre `kena`:
 
-* **Registrar el receptor como hecho.** Esta salida se escribió diciendo que «el
-  cargador Go ya sabe qué receptor tiene un método». **Es falso tal como estaba**:
-  lo sabe en una *llamada* -- `internal/goloader/methods.go` retiene
-  `ReceiverTypeName` y `ReceiverPackagePath` para el sitio de llamada-- y no lo
-  registra en la *declaración*. Comprobado: `facts.Symbol` no tiene campo de dueño
-  ni de receptor, y el vocabulario de aristas no tiene ninguna relación
-  método -> tipo. El único vínculo entre `GuildsHandler.Get` y `GuildsHandler` es
-  el **nombre punteado**, que es convención del generador de nombres y no un hecho
-  observado -- la misma base que el ADR 0059 rechazó.
+|sujeto|antes|después|
+|---|---|---|
+|`GuildsHandler` (Go, 9 métodos)|`3` filas, `167` tok|`53` filas, `1.613` tok|
+|`MemoryStateStore` (Rust, dos `impl`)|`2` filas, `151` tok|`18` filas, `606` tok|
 
-  Así que esta salida **no es pequeña**: exige añadir el hecho. Eso es un cambio de
-  vocabulario de aristas o un campo nuevo en `Symbol`, con lo que arrastra --
-  schema versionado, migración o full rebuild, ADR-- más trabajo por lenguaje: en
-  Go el cargador tiene el dato de `go/types` y no lo emite; en Rust el contenedor
-  natural es el bloque `impl`, que **no se publica** desde LUQUE-2008, así que
-  Rust necesita antes revertir esa decisión.
-* **Declararlo y no cubrirlo.** Es lo que el ADR 0059 hace hoy: dice que el
-  alcance de un tipo Go excluye sus métodos. Barato y honesto, y deja media
-  pregunta sin responder en dos de los tres lenguajes.
+La verdad se construyó sin preguntar al contenedor -- la unión de lo que alcanza
+cada método con el binario anterior, menos la raíz y sus miembros-- y son `53`
+exactas: `P=1,00`, `R=1,00`.
 
-**Lo que no vale:** que la respuesta sobre una clase de TypeScript sea completa y
-la de un `struct` de Go parezca igual sin serlo. Hoy la diferencia está escrita en
-un ADR; no está en la respuesta.
+**Lo que queda declarado, no arreglado:** `get_blast_radius` no cambia. La
+pregunta entrante no se contesta con contención: los métodos de un tipo no son sus
+consumidores.
 
 ## LUQUE-2005 — Cobertura de las tools servidas por el conjunto de preguntas
 

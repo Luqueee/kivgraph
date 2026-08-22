@@ -42,6 +42,7 @@ const (
 	CodeEmbeds
 	CodeOverrides
 	CodePartOf
+	CodeMethodOf
 )
 
 // Confidence codes. Frozen: append only. The order matches the strength
@@ -108,6 +109,7 @@ var edgeKindCodes = map[EdgeKind]uint8{
 	Embeds:           CodeEmbeds,
 	Overrides:        CodeOverrides,
 	PartOf:           CodePartOf,
+	MethodOf:         CodeMethodOf,
 }
 
 var confidenceCodes = map[Confidence]uint8{

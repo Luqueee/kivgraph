@@ -93,6 +93,14 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 	symbolsByKey := make(map[string]Symbol)
 	// symbolsByQualifiedName resolves an edge endpoint declared in this pass.
 	symbolsByQualifiedName := make(map[string]string)
+	// methodOwners defers the METHOD_OF pairing to a second pass: the map
+	// above is filled by this same loop, so a method read before its
+	// receiver type would find nothing yet.
+	type methodOwner struct {
+		methodKey, fileKey, packagePath, owner string
+		definition                             goloader.KeyedDefinition
+	}
+	methodOwners := make([]methodOwner, 0, len(input.Definitions))
 	report := GoReport{}
 
 	for _, definition := range input.Definitions {
@@ -170,6 +178,55 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			TargetKey:  symbol.Key,
 			Confidence: StructuralCertain,
 			Provenance: GoTypesDefinition,
+		})
+		if definition.Owner != "" {
+			methodOwners = append(methodOwners, methodOwner{
+				methodKey:   symbol.Key,
+				fileKey:     fileKey,
+				packagePath: definition.PackagePath,
+				owner:       definition.Owner,
+				definition:  definition,
+			})
+		}
+	}
+
+	// A Go method's receiver type is declared in the method's own package,
+	// so this lookup is local and complete. Owner is the type name
+	// `go/types` resolved from the receiver, not a split of the dotted
+	// qualified name.
+	//
+	// The observation is the method's own declaration, which is where the
+	// receiver is written, so the evidence is that declared name and lands in
+	// the file that carries it.
+	for _, pairing := range methodOwners {
+		ownerKey, declared := symbolsByQualifiedName[pairing.packagePath+"\x00"+pairing.owner]
+		if !declared {
+			continue
+		}
+		evidence := Evidence{
+			Key: EvidenceKey(pairing.fileKey,
+				pairing.definition.NameOffset, pairing.definition.NameOffset+len(pairing.definition.Name)),
+			RepositoryKey: repositoryKey,
+			FileKey:       pairing.fileKey,
+			Start: Position{
+				Line:   pairing.definition.StartLine,
+				Column: pairing.definition.StartColumn,
+				Offset: pairing.definition.NameOffset,
+			},
+			End: Position{
+				Line:   pairing.definition.StartLine,
+				Offset: pairing.definition.NameOffset + len(pairing.definition.Name),
+			},
+			Text: pairing.definition.Name,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		set.Edges = append(set.Edges, Edge{
+			Kind:        MethodOf,
+			SourceKey:   pairing.methodKey,
+			TargetKey:   ownerKey,
+			Confidence:  StructuralCertain,
+			Provenance:  GoTypesDefinition,
+			EvidenceKey: evidence.Key,
 		})
 	}
 

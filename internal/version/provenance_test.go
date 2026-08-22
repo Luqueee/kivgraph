@@ -13,6 +13,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
 
 func TestCollectReadsBundleManifest(t *testing.T) {
@@ -91,8 +94,10 @@ func TestCollectFallsBackWithoutBundleManifest(t *testing.T) {
 	if provenance.Ladybug != "v0.13.1" || provenance.GoLadybug != "v0.13.1" {
 		t.Fatalf("LadybugDB versions = %q/%q", provenance.Ladybug, provenance.GoLadybug)
 	}
-	if provenance.Schema != 3 || provenance.SnapshotRowFormat != 3 {
-		t.Fatalf("schema = %d/%d, want 3/3", provenance.Schema, provenance.SnapshotRowFormat)
+	if provenance.Schema != ladybug.CanonicalSchemaVersion || provenance.SnapshotRowFormat != rebuild.SnapshotRowFormatVersion {
+		t.Fatalf("schema = %d/%d, want the compiled-in %d/%d",
+			provenance.Schema, provenance.SnapshotRowFormat,
+			ladybug.CanonicalSchemaVersion, rebuild.SnapshotRowFormatVersion)
 	}
 	if provenance.Node != nil || provenance.TypeScript != nil || provenance.Resolver != nil {
 		t.Fatalf("unavailable fallback values = node %v/typescript %v/resolver %v", provenance.Node, provenance.TypeScript, provenance.Resolver)

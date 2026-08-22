@@ -81,14 +81,18 @@ eso sólo cubre a los miembros que viven léxicamente dentro de la declaración:
 |`struct` de Go|sus **campos** sí; sus **métodos** no -- `func (h *T) M()` se declara fuera|
 |`struct`/`enum` de Rust|sus campos sí; sus métodos viven en un `impl`, que además no se publica (ADR 0058, LUQUE-2008)|
 
-Así que el alcance de un tipo Go o Rust **sigue excluyendo el de sus métodos**, y
-este ADR no lo arregla. `GuildsHandler` alcanza los tipos de sus tres campos y
-nada más. Cubrirlo exige otra cosa -- una arista de contención, o emparejar por
-receptor-- y es una decisión aparte con su propia medición: queda en
-`LUQUE-2010`.
+Así que el alcance de un tipo Go o Rust **excluía el de sus métodos**, y este ADR
+no lo arregló. `GuildsHandler` alcanzaba los tipos de sus tres campos y nada más.
+Cubrirlo exigía otra cosa -- una arista de contención, o emparejar por receptor--
+y era una decisión aparte con su propia medición: quedó en `LUQUE-2010`.
 
-Se declara aquí en vez de dejarlo implícito porque una respuesta que parece
+Se declaró aquí en vez de dejarlo implícito porque una respuesta que parece
 completa y no lo está es exactamente el defecto que este ADR viene a cerrar.
+
+**Cerrada por el [ADR 0060](0060-el-receptor-de-un-metodo-es-un-hecho-del-grafo.md).**
+El receptor pasó a ser un hecho -- `METHOD_OF`-- y `containedMembers` suma las dos
+fuentes: el span para lo que se escribe dentro, la arista para lo que se escribe
+fuera. `GuildsHandler` responde `53` filas donde respondía `3`.
 
 ## Alternativas descartadas
 

@@ -71,13 +71,21 @@ cambiando sólo el binario: `X4` pasa de `233` a `403` tokens y de `R=0,50` a
 función y un método no declaran miembros. El conjunto sube `14,4 %` y pasa de
 `3/4` a `4/4`.
 
-Queda una limitación que el ADR declara y que esta tabla no mide: la contención se
-deriva del **rango de líneas**, así que sólo cubre miembros que viven dentro de la
-declaración. En una clase de TypeScript los métodos van entre sus llaves; en Go
-`func (h *T) M()` se declara **fuera** del `struct`, y en Rust viven en un `impl`
-que además no se publica. El alcance de un tipo Go o Rust sigue excluyendo el de
-sus métodos: `GuildsHandler`, con nueve, responde `3` nodos -- los tipos de sus
-tres campos. Es `LUQUE-2010`.
+La limitación que el ADR 0059 declaraba **ya está cerrada**, y esta tabla sigue
+sin medirla. La contención se derivaba del **rango de líneas**, así que sólo
+cubría miembros que viven dentro de la declaración: en una clase de TypeScript
+los métodos van entre sus llaves; en Go `func (h *T) M()` se declara **fuera**
+del `struct`, y en Rust viven en un `impl` que además no se publica. El ADR 0060
+añadió `METHOD_OF` -- el receptor como hecho observado-- y ahora
+`containedMembers` lee las dos fuentes. `GuildsHandler`, con nueve métodos, pasa
+de `3` filas y `167` tokens a `53` filas y `1.613`; `MemoryStateStore`, con dos
+bloques `impl`, de `2` a `18`. La verdad se construyó sin preguntar al
+contenedor: la unión de lo que alcanza cada método con el binario anterior son
+`53`, y la respuesta son esas `53`. Era `LUQUE-2010`.
+
+Ninguna de las cuatro preguntas de este conjunto tiene por sujeto un tipo Go o
+Rust, así que las cifras de arriba **no se mueven** y el hallazgo vive fuera de
+la tabla. Medirlo aquí pediría una quinta pregunta.
 
 ## Los cuatro rivales no están medidos aquí, y no es un cero
 

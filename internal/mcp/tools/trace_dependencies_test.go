@@ -460,6 +460,81 @@ func TestTraceDependenciesFollowsWhatItsMembersReach(t *testing.T) {
 	}
 }
 
+// TestTraceDependenciesFollowsMethodsDeclaredOutsideTheType closes LUQUE-2010.
+//
+// ADR 0059 derived containment from the line range, which is a structural fact
+// and why it was chosen. It covers a TypeScript class, whose methods sit between
+// its braces, and it cannot cover a Go method: `func (h *T) M()` is declared
+// past the struct's closing brace, and a Rust one lives in an `impl` block that
+// is not published. So the reach of a Go or Rust type excluded the reach of its
+// methods, while the TypeScript answer above looked identical and was complete.
+//
+// The fixture is the shape that defeats the span twice over: `type T struct{}`
+// is one line, so there is no interior to search and the span path has nothing
+// to return. Only the observed receiver pairing can answer it.
+func TestTraceDependenciesFollowsMethodsDeclaredOutsideTheType(t *testing.T) {
+	store := receiverMemberStore(t, 43)
+
+	_, response, err := traceDependencies(context.Background(), nil,
+		TraceDependenciesInput{StableKey: "sym-struct", Depth: 1}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	reached := map[string]int{}
+	for _, node := range response.Results.Nodes {
+		reached[node.QualifiedName] = node.Depth
+	}
+	// The store is what the struct's own field names; the guild is reached only
+	// through a method declared outside it, and a member costs no hop.
+	want := map[string]int{"domain.Store": 1, "domain.Guild": 1}
+	if !reflect.DeepEqual(reached, want) {
+		t.Fatalf("reached = %#v, want the field type and what the method names, both at depth one", reached)
+	}
+	for _, absent := range []string{"handler.GuildsHandler.Get", "handler.GuildsHandler"} {
+		if _, present := reached[absent]; present {
+			t.Fatalf("reached %q, want the root and its own methods left out of the rows", absent)
+		}
+	}
+}
+
+// receiverMemberStore is the Go shape: a one-line struct, a method declared
+// after it in the same file, and the pairing between them carried by METHOD_OF
+// because no line range can express it.
+func receiverMemberStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "api", Languages: "go"}},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "pkg", RepositoryKey: "repo", Language: "go", Name: "handler", ModulePath: "example.com/api"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-handler", RepositoryKey: "repo", PackageKey: "pkg", Path: "guilds.go", Language: "go"},
+			{Key: "file-domain", RepositoryKey: "repo", PackageKey: "pkg", Path: "domain.go", Language: "go"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-struct", CanonicalIdentity: "go:handler.GuildsHandler", FileKey: "file-handler", Language: "go", Name: "GuildsHandler", QualifiedName: "handler.GuildsHandler", Kind: "struct", StartLine: 12, EndLine: 12},
+			{StableKey: "sym-method", CanonicalIdentity: "go:handler.GuildsHandler.Get", FileKey: "file-handler", Language: "go", Name: "Get", QualifiedName: "handler.GuildsHandler.Get", Kind: "method", StartLine: 20, EndLine: 30},
+			{StableKey: "sym-store", CanonicalIdentity: "go:domain.Store", FileKey: "file-domain", Language: "go", Name: "Store", QualifiedName: "domain.Store", Kind: "interface", StartLine: 4, EndLine: 9},
+			{StableKey: "sym-guild", CanonicalIdentity: "go:domain.Guild", FileKey: "file-domain", Language: "go", Name: "Guild", QualifiedName: "domain.Guild", Kind: "struct", StartLine: 15, EndLine: 22},
+		},
+		Edges: []hotsnapshot.EdgeRow{
+			// What the struct itself names: the type of its own field.
+			{SourceKey: "sym-struct", TargetKey: "sym-store", Kind: facts.CodeTypeUses, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesSelection, EvidenceKind: "types", EvidenceSourceFileKey: "file-handler", EvidenceTargetFileKey: "file-domain"},
+			// What only the method names.
+			{SourceKey: "sym-method", TargetKey: "sym-guild", Kind: facts.CodeTypeUses, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesSelection, EvidenceKind: "types", EvidenceSourceFileKey: "file-handler", EvidenceTargetFileKey: "file-domain"},
+			// The pairing itself. Structural, and evidenced at the method's own
+			// declaration, which is where the receiver is written: a snapshot
+			// edge without an observation in a File is refused, and this one has
+			// no excuse to be an exception.
+			{SourceKey: "sym-method", TargetKey: "sym-struct", Kind: facts.CodeMethodOf, Confidence: facts.CodeStructuralCertain, Provenance: facts.CodeGoTypesDefinition, EvidenceKind: "types", EvidenceSourceFileKey: "file-handler", EvidenceTargetFileKey: "file-handler"},
+		},
+	}, id, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
 // containerMemberStore is the shape of the kena finding: a class spanning its
 // method, the method reaching a type in another file, and a field inside the
 // class whose only edge stays inside it.

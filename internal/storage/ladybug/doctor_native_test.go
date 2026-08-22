@@ -198,8 +198,10 @@ func TestDiagnoseStorageValidatesCanonicalSchemaWithFullCounts(t *testing.T) {
 		}
 	}
 	names := CanonicalTableNames()
-	if len(names) != 28 {
-		t.Fatalf("CanonicalTableNames() = %d entries, want 28", len(names))
+	// Derived, not pinned: the diagnosis must count every table the schema
+	// metadata declares, so adding one is covered without editing a literal.
+	if want := len(CanonicalNodeTables()) + len(CanonicalRelationshipTables()); len(names) != want {
+		t.Fatalf("CanonicalTableNames() = %d entries, want the %d the metadata declares", len(names), want)
 	}
 	if len(diagnosis.Counts) != len(names) {
 		t.Fatalf("Counts has %d entries, want %d: %#v", len(diagnosis.Counts), len(names), diagnosis.Counts)

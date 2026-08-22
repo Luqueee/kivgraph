@@ -144,6 +144,24 @@ const (
 	// synthetic module symbol for its library. It is a Symbol relation so it
 	// remains available through the compact snapshot and normal graph queries.
 	PartOf EdgeKind = "PART_OF"
+	// MethodOf links a method to the type that declares it, and it exists
+	// because a line range cannot express that pairing in every language.
+	// ADR 0059 derives containment from the span, which covers a TypeScript
+	// class -- its methods sit between its braces -- and misses both a Go
+	// method, declared outside its struct as `func (h *T) M()`, and a Rust
+	// one, declared inside an `impl` block that LUQUE-2008 does not publish.
+	// Without this the reach of a Go or Rust type excluded the reach of its
+	// methods while a TypeScript answer looked identical and was complete.
+	//
+	// The pairing is observed, never spelled: Go reads the receiver
+	// `go/types` resolved, and Rust reads the type parameter of the `impl`
+	// descriptor rust-analyzer emits. The dotted qualified name is a
+	// convention of the name generator and is not evidence, which is the
+	// same ground ADR 0059 refused to build on.
+	//
+	// It is containment and not a use, so it stays out of the reference
+	// vocabulary: a type is not referenced by its own methods.
+	MethodOf EdgeKind = "METHOD_OF"
 )
 
 var edgeKinds = map[EdgeKind]struct{}{
@@ -153,7 +171,7 @@ var edgeKinds = map[EdgeKind]struct{}{
 	References: {}, CallsDirect: {}, PassesAsCallback: {},
 	AssignsFunction: {}, ReturnsFunction: {},
 	TypeUses: {}, Implements: {}, Extends: {}, Embeds: {}, Overrides: {},
-	PartOf: {},
+	PartOf: {}, MethodOf: {},
 }
 
 // Valid reports whether the kind belongs to the graph vocabulary.

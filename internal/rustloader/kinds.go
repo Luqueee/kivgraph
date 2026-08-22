@@ -115,3 +115,40 @@ func implementedTrait(identity SymbolIdentity) string {
 	}
 	return parameters[1]
 }
+
+// implementationReceiver answers the qualified name of the type an
+// implementation member is declared on. Both `impl#[Circle][Named]name().` and
+// `impl#[Circle]new().` are declared on `Circle`; the first also implements
+// `Named`, which is implementedTrait's question and not this one.
+//
+// The block between them is real Rust syntax and no graph node: LUQUE-2008
+// retired publishing it, because a member of a block is indexed on its own and
+// the block has no name of its own to report. So the member pairs with the
+// type, skipping a step that exists only in the text.
+//
+// The name is qualified here, where the descriptors are, and rendered the way
+// QualifiedName renders them. A consumer that instead cut `::impl::` out of the
+// member's own rendered name would be reading a convention of this renderer
+// rather than a fact of the index.
+func implementationReceiver(identity SymbolIdentity) string {
+	prefix := make([]string, 0, len(identity.Descriptors))
+	seenImpl := false
+	for _, descriptor := range identity.Descriptors {
+		if descriptor.Suffix == SuffixType && descriptor.Name == "impl" {
+			seenImpl = true
+			continue
+		}
+		if seenImpl {
+			if descriptor.Suffix != SuffixTypeParameter {
+				return ""
+			}
+			return strings.Join(append(prefix, descriptor.Name), "::")
+		}
+		name := descriptor.Name
+		if descriptor.Disambiguator != "" {
+			name += "(" + descriptor.Disambiguator + ")"
+		}
+		prefix = append(prefix, name)
+	}
+	return ""
+}

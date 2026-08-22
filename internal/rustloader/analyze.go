@@ -64,6 +64,11 @@ type Definition struct {
 	Kind          string
 	Exported      bool
 	Signature     string
+	// Owner is the type an `impl` block declares this member on, empty for
+	// anything declared outside one. It is the type parameter of the `impl`
+	// descriptor, so it names the type rather than the block: the block
+	// itself is not published, and the type is what a caller asks about.
+	Owner string
 
 	StartLine   int
 	StartColumn int
@@ -519,6 +524,7 @@ func collectDefinitions(
 			QualifiedName: identity.QualifiedName(),
 			Kind:          PublishedKind(identity, information.Kind),
 			Signature:     information.Signature,
+			Owner:         implementationReceiver(identity),
 			StartLine:     int(occurrence.Range.StartLine) + 1,
 			StartColumn:   int(occurrence.Range.StartCharacter),
 			StartOffset:   startOffset,

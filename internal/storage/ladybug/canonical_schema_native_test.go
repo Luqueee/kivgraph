@@ -14,7 +14,7 @@ import (
 // TestCanonicalSchemaLoadsIntoEmptyDatabase proves the generated DDL is what
 // LadybugDB really accepts, not just what the metadata claims.
 func TestCanonicalSchemaLoadsIntoEmptyDatabase(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "schemas", "ladybug", "003-canonical.cypher"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "schemas", "ladybug", "004-canonical.cypher"))
 	if err != nil {
 		t.Fatalf("read canonical schema: %v", err)
 	}

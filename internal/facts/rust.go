@@ -119,6 +119,16 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 	}
 
 	symbols := make(map[string]struct{}, len(input.Analysis.Definitions))
+	// keyByQualifiedName and methodOwners defer the METHOD_OF pairing to a
+	// second pass, because a member can be read before the type it is
+	// declared on. The crate is part of the key: two crates of one workspace
+	// may both declare the same path.
+	keyByQualifiedName := make(map[string]string, len(input.Analysis.Definitions))
+	type methodOwner struct {
+		methodKey, fileKey, crate, owner string
+		definition                       rustloader.Definition
+	}
+	methodOwners := make([]methodOwner, 0, len(input.Analysis.Definitions))
 	for _, definition := range input.Analysis.Definitions {
 		if err := ctx.Err(); err != nil {
 			return Set{}, RustReport{}, err
@@ -168,6 +178,51 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 			TargetKey:  key,
 			Confidence: StructuralCertain,
 			Provenance: RustAnalyzerDefinition,
+		})
+		keyByQualifiedName[definition.Crate.Name+"\x00"+definition.QualifiedName] = key
+		if definition.Owner != "" {
+			methodOwners = append(methodOwners, methodOwner{
+				methodKey:  key,
+				fileKey:    fileKey,
+				crate:      definition.Crate.Name,
+				owner:      definition.Owner,
+				definition: definition,
+			})
+		}
+	}
+
+	// An `impl` block lives in the crate of the type it names, so this
+	// lookup is local. A member whose type is not a published symbol -- an
+	// `impl` on a foreign type, or on one the index never declared -- pairs
+	// with nothing rather than with a guess.
+	//
+	// The observation is the member's own declaration, which is what sits
+	// inside the block naming the type.
+	for _, pairing := range methodOwners {
+		ownerKey, declared := keyByQualifiedName[pairing.crate+"\x00"+pairing.owner]
+		if !declared {
+			continue
+		}
+		evidence := Evidence{
+			Key:           EvidenceKey(pairing.fileKey, pairing.definition.StartOffset, pairing.definition.EndOffset),
+			RepositoryKey: repositoryKey,
+			FileKey:       pairing.fileKey,
+			Start: Position{
+				Line:   pairing.definition.StartLine,
+				Column: pairing.definition.StartColumn,
+				Offset: pairing.definition.StartOffset,
+			},
+			End:  Position{Line: pairing.definition.EndLine, Offset: pairing.definition.EndOffset},
+			Text: pairing.definition.Name,
+		}
+		set.Evidence = append(set.Evidence, evidence)
+		set.Edges = append(set.Edges, Edge{
+			Kind:        MethodOf,
+			SourceKey:   pairing.methodKey,
+			TargetKey:   ownerKey,
+			Confidence:  StructuralCertain,
+			Provenance:  RustAnalyzerDefinition,
+			EvidenceKey: evidence.Key,
 		})
 	}
 
