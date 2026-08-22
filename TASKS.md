@@ -16570,8 +16570,8 @@ es «¿usa alguien esto?», ni lee qué contesta la tool cuando no.
 - Corre el binario real por MCP sobre `stdio`, indexando en un `HOME` aislado.
   Un arnés que construyera el snapshot a mano no probaría el camino que un
   usuario recorre.
-- Dos repositorios, y el limpio es imprescindible: `pure` no tiene nada que el
-  índice no pueda leer, así que **toda** respuesta sobre él debe ser
+- Dos repositorios, y el limpio es imprescindible: `go-pure` no tiene nada que
+  el índice no pueda leer, así que **toda** respuesta sobre él debe ser
   `COMPLETE`. Sin ese brazo el veredicto podría ser una constante y las
   comprobaciones de `LOWER_BOUND` pasarían igual.
 - El ámbito ciego se lee del **servidor**, no del fixture: un fixture es una
@@ -16584,5 +16584,50 @@ es «¿usa alguien esto?», ni lee qué contesta la tool cuando no.
 
 **Verificación:** `go run ./benchmarks/tool-honesty --kivgraph <binario>`;
 `13` comprobaciones, `13` pasan, y `3` fallan al revertir los arreglos.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2208 — El invariante es sobre la forma de un fallo, no sobre un lenguaje
+
+**Dependencias:** LUQUE-2207.
+
+**Objetivo:** cerrar la limitación que la ficha anterior declaró. `LUQUE-2207`
+probó el invariante sobre **un** motivo de **un** lenguaje, y de los cinco que
+el servidor anuncia sólo Go y Rust registran un fallo de repositorio y siguen
+-- los otros tres abortan la pasada. El camino de Rust no tenía **ningún** test
+que nombrara sus motivos.
+
+**Alcance:** `benchmarks/tool-honesty/`, `testdata/honesty/rust-*`,
+`internal/indexer/rust_unit_test.go`.
+
+**Criterios de aceptación:**
+
+- Un solo corpus con los dos lenguajes, no dos pasadas. Es lo que permite la
+  comprobación que ninguno haría solo: una respuesta acotada a un repositorio
+  Go sigue siendo `COMPLETE` mientras un workspace Rust del mismo grafo es
+  ilegible, y al revés. Un veredicto que se contagiara entre lenguajes sería
+  una constante en cualquier monorepo políglota, que es el único tipo para el
+  que existe este producto.
+- El fallo de Rust es de **otro motivo** que el de Go: `WORKSPACE_NOT_LOADED`
+  contra `PACKAGE_NOT_BUILDABLE`. Lo que comparten es la forma -- fila sin
+  archivo--, que es exactamente lo que dice el invariante.
+- El fixture se elige midiendo, no suponiendo. Una dependencia irresoluble
+  **no** sirve: rust-analyzer carga el workspace igual y degrada -- medido,
+  `8` símbolos y cero fallos. Un miembro declarado que no existe es lo que
+  Cargo no puede resolver, con red o sin ella.
+- Cada brazo declara su propio ámbito, y la pasada se niega si alguno perdió
+  el suyo. Un contador compartido no distinguiría dos puntos ciegos de un
+  fixture haciendo todo el trabajo.
+- El brazo Rust se salta declarándose cuando falta su toolchain, nunca se
+  finge ni se convierte en `FAIL`.
+- Los dos motivos de ámbito de Rust tienen test, y falla si la fila gana un
+  archivo -- que es lo que la convertiría en una referencia y dejaría de
+  acotar su repositorio.
+
+**Verificación:** `go run ./benchmarks/tool-honesty --kivgraph <binario>`;
+`18` comprobaciones, `18` pasan. `4` fallan al hacer global el ámbito del
+veredicto de `find_references` -- incluidas las dos de no contagio--, y la
+pasada se niega al reparar el fixture Rust. `TestWorkspaceNotLoadedFacts...`
+falla al darle un archivo a la fila.
 
 **Estado:** cerrada el `2026-08-22`.

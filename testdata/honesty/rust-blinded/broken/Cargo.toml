@@ -1,0 +1,16 @@
+# A workspace that names a member directory which does not exist. Cargo cannot
+# resolve it, so `rust-analyzer scip` never produces a crate graph for it and
+# the pass records WORKSPACE_NOT_LOADED with no file.
+#
+# It is deterministic on purpose: a member that is not there can never resolve,
+# with or without network access. An unresolvable *dependency* would not do --
+# measured, rust-analyzer loads the workspace anyway and degrades, so the
+# fixture would produce no failure at all and the arm would pass for the wrong
+# reason.
+[package]
+name = "rust_broken"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = ["absent-member"]

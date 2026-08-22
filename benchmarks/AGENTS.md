@@ -17,10 +17,14 @@ declarado en la raíz.
   coinciden con la referencia declarada.
 - `benchmarks/tool-honesty/` no mide aristas: mide **qué afirma una tool cuando
   su respuesta está vacía**, conduciendo el binario real por MCP contra un
-  corpus con un paquete ilegible a propósito. Sus dos repositorios son los dos
-  brazos: sin el limpio, un veredicto constante `LOWER_BOUND` pasaría todas las
-  comprobaciones. El ámbito ciego se lee de `graph_status`, no del fixture, y
-  el arnés falla si la pasada dejó de registrarlo.
+  corpus con puntos ciegos a propósito. Los repositorios limpios son la mitad
+  del diseño: sin ellos, un veredicto constante `LOWER_BOUND` pasaría todas las
+  comprobaciones. Los dos lenguajes van en un solo corpus para poder comprobar
+  que el veredicto no se contagia entre ellos, y cada brazo declara su propio
+  ámbito ciego: la pasada se niega si alguno perdió el suyo. El ámbito se lee
+  de `graph_status`, no del fixture. El brazo Rust se salta declarándose
+  cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
+  deja a `rustup` sin toolchains.
 
 ## Corpus y auditorías
 
