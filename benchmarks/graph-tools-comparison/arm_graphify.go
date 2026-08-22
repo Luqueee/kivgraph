@@ -49,10 +49,8 @@ func measureGraphify(ctx context.Context, tokens *counter, repos repositories, c
 		return graphifyOutline(ctx, tokens, captures, binary, graph, home, q)
 	case familyConsumers:
 		return &armResult{Unsupported: true, Note: "a graphify graph is built per repository path and its answers do not carry one, so the boundary this family asks about is not in the data"}, nil
-	case familyDependencies:
-		return &armResult{Unsupported: true, Note: "reachable through its natural language `query`, which is direction agnostic; not implemented rather than absent"}, nil
-	case familyLocate:
-		return &armResult{Unsupported: true, Note: "reachable through its natural language `query`; not implemented rather than absent"}, nil
+	case familyDependencies, familyLocate:
+		return graphifyAsk(ctx, tokens, repos, captures, binary, graph, home, q)
 	case familyBodies:
 		return &armResult{Unsupported: true, Note: "graphify returns nodes and edges, not source text"}, nil
 	case familyFacts:
@@ -443,4 +441,38 @@ func graphifyID(parts ...string) string {
 	}
 	id := graphifyNonWord.ReplaceAllString(strings.Join(kept, "_"), "_")
 	return strings.ToLower(strings.Trim(graphifyRuns.ReplaceAllString(id, "_"), "_"))
+}
+
+// graphifyAsk answers the two families this arm owed the table.
+//
+// They were marked "not implemented rather than absent", which is a debt and not
+// a limit: `query` takes a sentence and answers whatever the sentence asks, so
+// there was no reason the outward direction and "where is this declared" could
+// not be put to it. This asks them in the question's own words.
+//
+// What comes back is what `query` always returns, and the note says so on every
+// row: a depth-2 BFS neighbourhood over an undirected graph, seeded by matching
+// labels. It has no direction to give, so an outward question and an inward one
+// reach the same neighbours; and it has no notion of a declaration, so "where is
+// this declared" is answered with wherever the name appears. Scoring it is fair
+// -- the files are compared like everyone else's -- and reading the score without
+// that sentence is not.
+func graphifyAsk(ctx context.Context, tokens *counter, repos repositories, captures map[string]string,
+	binary, graph, home string, q question) (*armResult, error) {
+	arm := &armResult{}
+	answer := graphifyRun(ctx, tokens, captures, q.ID+"-graphify-query", home, binary,
+		"query", q.Ask, "--graph", graph)
+	arm.add(answer)
+	arm.Claimed = graphifyClaimedFiles(repos, q, graphifyQueryFiles(answer.Text))
+	arm.Score = scoreAgainst(arm.Claimed, repos.canonicalAll(q.Truth))
+	notes := []string{
+		"`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: " +
+			"it has no direction, so an outward question reaches the same neighbours an inward one would, " +
+			"and no notion of a declaration, so a name is a name wherever it appears",
+	}
+	if note := graphifyPerRepositoryNote(q); note != "" {
+		notes = append(notes, note)
+	}
+	arm.Note = strings.Join(notes, "; ")
+	return arm, nil
 }

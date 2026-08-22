@@ -120,8 +120,7 @@ func measureCodebaseMemory(ctx context.Context, tokens *counter, repos repositor
 		return &armResult{Unsupported: true, Note: "`search_graph` answers callers; the outward direction is not " +
 			"a query it exposes"}, nil
 	case familyLocate:
-		return &armResult{Unsupported: true, Note: "`search_graph` matches names but does not separate a " +
-			"declaration from a use; not implemented rather than absent"}, nil
+		return cmmLocate(ctx, tokens, repos, captures, binary, corpusRoot, home, q)
 	case familyBodies:
 		return &armResult{Unsupported: true, Note: "it returns graph nodes, not source text"}, nil
 	case familyFacts:
@@ -316,4 +315,46 @@ func cmmPick(nodes []cmmNode, path string) *cmmNode {
 		return &nodes[0]
 	}
 	return nil
+}
+
+// cmmLocate answers "which files declare this name" with `search_graph`.
+//
+// The box read "not implemented rather than absent", which is a half promise:
+// search_graph takes a name and answers with nodes that carry a file, so it can
+// be asked. What it cannot do is separate a declaration from a use, so the note
+// says that on the row rather than leaving the number to be read as precision.
+func cmmLocate(ctx context.Context, tokens *counter, repos repositories, captures map[string]string,
+	binary, corpusRoot, home string, q question) (*armResult, error) {
+	srv, err := dial(ctx, "codebase-memory-mcp", binary, nil, map[string]string{"HOME": home})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		srv.close()
+		for key, value := range srv.captures {
+			captures[key] = value
+		}
+	}()
+	arm := &armResult{}
+	answer := srv.call(ctx, tokens, q.ID+"-cmm-search_graph", "search_graph", map[string]any{
+		"project": cmmProject(corpusRoot), "query": q.Subject.Symbol, "limit": 100,
+	})
+	arm.add(answer)
+	decoded := cmmSearch{}
+	claimed := []string{}
+	if json.Unmarshal([]byte(answer.Text), &decoded) == nil {
+		for _, node := range decoded.Results {
+			if node.FilePath == "" {
+				continue
+			}
+			if canonical := repos.canonical(node.FilePath); canonical != "" {
+				claimed = append(claimed, canonical)
+			}
+		}
+	}
+	arm.Claimed = claimed
+	arm.Score = scoreAgainst(claimed, repos.canonicalAll(q.Truth))
+	arm.Note = "`search_graph` matches a name and returns the nodes carrying it; it does not separate a " +
+		"declaration from a use, so a file that only calls the name is a hit"
+	return arm, nil
 }

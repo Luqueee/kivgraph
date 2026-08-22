@@ -111,18 +111,38 @@ aparte: `go/parser` recorriendo el repositorio y quedándose con las funciones d
 nivel superior más largas -- `1.780` líneas en dieciocho ficheros--. Es la misma
 biblioteca que usa el cargador, y aquí sólo lee spans de fichero.
 
-## Los cuatro rivales, otra vez no medidos y otra vez no un cero
+## Los rivales, ya sin casillas a medias
 
-|herramienta|localizar|cuerpos|hechos|
-|---|---|---|---|
-|`graft`|`grep` y `skeleton` son lo más cercano y ninguno enumera las declaraciones de un nombre: **no implementado**|`show` devuelve una tarjeta, no un cuerpo por nombre cualificado|informa símbolos dentro de una tarjeta, sin kind y span por declaración|
-|`graphify`|alcanzable por su `query`: **no implementado**|devuelve nodos y aristas, no texto fuente|sus nodos no llevan kind y span por declaración|
-|`codebase-memory-mcp`|`search_graph` casa nombres pero no separa declaración de uso: **no implementado**|devuelve nodos, no fuente|sus nodos no llevan kind y span|
-|`code-review-graph`|`callers_of` es su única entrada por símbolo|devuelve ficheros impactados, no fuente|informa impacto, no un registro de declaración|
+Tres casillas decían «no implementado, no ausente». Eso es una promesa a medias y
+se pagó: las tres se implementaron. `X5` es la única familia que las cuatro
+herramientas pueden formular, y con el estado de cada una construido responde así:
 
-Tres casillas dicen **no implementado** y no «ausente»: son deuda de este harness,
-no límite de la herramienta. Están marcadas para que nadie lea la tabla como una
-victoria que no se ha disputado.
+|herramienta|tokens|`P`|`R`|qué explica el número|
+|---|---|---|---|---|
+|**kivgraph**|`744`|**`1,00`**|**`1,00`**|aparta los `15` bindings de reenvío y los cuenta|
+|nativo|`1.699`|`1,00`|`1,00`|las líneas de `grep` separan declaración de uso|
+|`codebase-memory-mcp`|`762`|`0,70`|`1,00`|encuentra las siete y trae `3` de más|
+|`graft`|`2.766`|`0,30`|`1,00`|encuentra las siete y trae `16` de más|
+|`graphify`|`611`|`0,00`|`0,00`|vecindario BFS no dirigido sembrado por etiquetas|
+|`code-review-graph`|--|--|--|`callers_of` es su única entrada por símbolo|
+
+Lo interesante no es el `1,00` nuestro: es que **`codebase-memory-mcp` y `graft`
+encuentran las siete declaraciones**. Su exhaustividad es perfecta y su precisión
+no, porque ninguno separa una declaración de un uso -- `search_graph` casa un
+nombre y devuelve los nodos que lo llevan; `graft grep` busca en sus tarjetas de
+wiring. Para «dónde está declarado esto» eso significa `3` y `16` ficheros de más
+que el llamante tiene que descartar leyendo.
+
+Las dos familias restantes siguen fuera y por motivos reales, no por deuda:
+ninguna de las cuatro devuelve texto fuente para `X6` y `X8`, y sus nodos no
+llevan kind ni span para `X7`.
+
+**Y dos ceros que fueron míos antes de ser suyos.** La primera pasada dio `graft`
+a `0` tokens y `graphify` a `30`: con `--skip-indexing` sobre un `state-root`
+nuevo, el contexto de `graft` nunca se construyó -- `✗ no graph — run graft build
+first`-- y la copia privada del corpus no tenía el repositorio sujeto. Publicar
+eso habría sido medir mi montaje y llamarlo herramienta. Es el mismo error que la
+regla de corpus incompleto ya vigila en el otro sentido.
 
 ## Cobertura, ahora declarada en vez de deducida
 

@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-22T00:21:42.756372Z",
-  "commit": "92d726e",
+  "generated_at": "2026-08-22T00:35:53.288787Z",
+  "commit": "2b6f552",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,7 +14,7 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "unavailable",
+    "code-review-graph": "code-review-graph 2.3.8",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
@@ -23,12 +23,58 @@
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/5way-final/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
     "kivgraph": "isolated HOME at /private/tmp/chome; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
-  "indexing": {},
+  "indexing": {
+    "code-review-graph": {
+      "command": "code-review-graph build --repo \u003cr\u003e --data-dir \u003cd\u003e",
+      "ms": 6381.571,
+      "scope": "one graph per repository; built the 2 the questions name, not all 37",
+      "state_bytes": 148381980,
+      "needs": "nothing beyond the binary"
+    },
+    "codebase-memory": {
+      "command": "codebase-memory-mcp cli index_repository",
+      "ms": 4987.549,
+      "scope": "the whole corpus, 37 repositories",
+      "state_bytes": 219873280,
+      "needs": "nothing beyond the binary"
+    },
+    "graft": {
+      "command": "graft build",
+      "ms": 25127.013,
+      "scope": "the whole corpus, 37 repositories",
+      "state_bytes": 180676293,
+      "needs": "nothing: the structural tier needs no key and no toolchain"
+    },
+    "graphify": {
+      "command": "graphify update \u003cr\u003e",
+      "ms": 8306.301,
+      "scope": "one graph per repository; built the 2 the questions name, not all 37; run against the private copy, because it writes beside the code it reads",
+      "needs": "nothing for the structural pass; a provider key only for the semantic one, which was not measured"
+    },
+    "kivgraph": {
+      "command": "kivgraph index --full",
+      "ms": 52949.965,
+      "scope": "the whole corpus, 37 repositories, 127483 symbols published",
+      "state_bytes": 1610114847,
+      "needs": "the Go module cache per indexed module and cargo per Rust workspace; without them a load fails and its symbols are absent",
+      "languages": {
+        "go": 19166,
+        "rust": 3063,
+        "typescript": 129533
+      }
+    },
+    "native": {
+      "command": "none",
+      "ms": 0,
+      "scope": "nothing is indexed",
+      "needs": "nothing"
+    }
+  },
   "question_set": "chain",
   "questions": [
     {
@@ -54,39 +100,223 @@
           "note": "`callers_of` is its only symbol entry point and it answers callers"
         },
         "codebase-memory": {
-          "calls": null,
-          "tokens": 0,
-          "ms": 0,
-          "call_count": 0,
-          "unsupported": true,
-          "note": "`search_graph` matches names but does not separate a declaration from a use; not implemented rather than absent"
+          "calls": [
+            {
+              "tool": "search_graph",
+              "tokens": 762,
+              "ms": 19.008
+            }
+          ],
+          "tokens": 762,
+          "ms": 19.008,
+          "call_count": 1,
+          "claimed": [
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "core:tests/cluster/master/index.test.ts",
+            "core:tests/cluster/worker/BotWorker.test.ts",
+            "api-music:internal/shared/infisical/infisical.go",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
+            "core:tests/cluster/worker/BotWorker.presence.test.ts",
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts"
+          ],
+          "score": {
+            "claimed_set": [
+              "api-db-go:internal/infrastructure/postgres/retry.go",
+              "api-db-go:internal/shared/infisical/infisical.go",
+              "api-music:internal/shared/infisical/infisical.go",
+              "core:tests/cluster/master/index.test.ts",
+              "core:tests/cluster/worker/BotWorker.presence.test.ts",
+              "core:tests/cluster/worker/BotWorker.test.ts",
+              "library-env:src/retry.ts",
+              "library-shared:src/utils/retry.ts",
+              "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+              "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+            ],
+            "precision": 0.7,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              "core:tests/cluster/master/index.test.ts",
+              "core:tests/cluster/worker/BotWorker.presence.test.ts",
+              "core:tests/cluster/worker/BotWorker.test.ts"
+            ]
+          },
+          "note": "`search_graph` matches a name and returns the nodes carrying it; it does not separate a declaration from a use, so a file that only calls the name is a hit"
         },
         "graft": {
-          "calls": null,
-          "tokens": 0,
-          "ms": 0,
-          "call_count": 0,
-          "unsupported": true,
-          "note": "`graft grep` and `graft skeleton` are the closest calls and neither enumerates the declarations of one name; not implemented rather than absent"
+          "calls": [
+            {
+              "tool": "graft --dir",
+              "tokens": 2766,
+              "ms": 1729.823
+            }
+          ],
+          "tokens": 2766,
+          "ms": 1729.823,
+          "call_count": 1,
+          "claimed": [
+            "library-env:src/infisical/client.ts",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+            "core:src/cluster/master/index.ts",
+            "core:src/cluster/worker/BotWorker.ts",
+            "core:tests/cluster/master/index.test.ts",
+            "gateway:src/grpc/server.ts",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical.go",
+            "library-env:src/infisical/client.ts",
+            ":\"../retry.js\";",
+            "library-env:src/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "library-shared:src/utils/retry.ts",
+            "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "sdk-module-ts:src/sdk/index.ts",
+            "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
+            "sdk-module-ts:src/sdk/types/ModuleResult.ts",
+            "core:src/cluster/master/index.ts",
+            "core:src/cluster/worker/BotWorker.ts",
+            "core:src/shared/utils/sharding.ts",
+            "core:src/shared/utils/sharding.ts",
+            "core:tests/cluster/master/index.test.ts",
+            "core:tests/cluster/worker/BotWorker.presence.test.ts",
+            "core:tests/cluster/worker/BotWorker.test.ts",
+            "core:tests/shared/utils/sharding.test.ts",
+            "gateway:src/grpc/server.ts",
+            "api-db-go:internal/infrastructure/postgres/client.go",
+            "api-db-go:internal/infrastructure/postgres/client.go",
+            "api-db-go:internal/infrastructure/postgres/retry_test.go",
+            "api-db-go:internal/infrastructure/postgres/retry_test.go",
+            "api-db-go:internal/infrastructure/postgres/retry_test.go",
+            "api-db-go:internal/infrastructure/postgres/retry_test.go",
+            "api-db-go:internal/infrastructure/postgres/retry_test.go",
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
+            "api-db-go:internal/shared/infisical/infisical_test.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-db-go:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical_test.go",
+            "api-music:internal/shared/infisical/infisical_test.go",
+            "api-music:internal/shared/infisical/infisical_test.go",
+            "api-music:internal/shared/infisical/infisical_test.go",
+            "api-music:internal/shared/infisical/infisical_test.go",
+            "api-music:internal/shared/infisical/infisical_test.go",
+            "api-music:internal/shared/infisical/infisical.go",
+            "api-music:internal/shared/infisical/infisical.go"
+          ],
+          "score": {
+            "claimed_set": [
+              ":\"../retry.js\";",
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go",
+              "api-db-go:internal/shared/infisical/infisical.go",
+              "api-db-go:internal/shared/infisical/infisical_test.go",
+              "api-music:internal/shared/infisical/infisical.go",
+              "api-music:internal/shared/infisical/infisical_test.go",
+              "core:src/cluster/master/index.ts",
+              "core:src/cluster/worker/BotWorker.ts",
+              "core:src/shared/utils/sharding.ts",
+              "core:tests/cluster/master/index.test.ts",
+              "core:tests/cluster/worker/BotWorker.presence.test.ts",
+              "core:tests/cluster/worker/BotWorker.test.ts",
+              "core:tests/shared/utils/sharding.test.ts",
+              "gateway:src/grpc/server.ts",
+              "library-env:src/infisical/client.ts",
+              "library-env:src/retry.ts",
+              "library-shared:src/utils/retry.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts",
+              "sdk-module-ts:src/sdk/index.ts",
+              "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+              "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+            ],
+            "precision": 0.30434782608695654,
+            "recall": 1,
+            "missing": [],
+            "spurious": [
+              ":\"../retry.js\";",
+              "api-db-go:internal/infrastructure/postgres/client.go",
+              "api-db-go:internal/infrastructure/postgres/retry_test.go",
+              "api-db-go:internal/shared/infisical/infisical_test.go",
+              "api-music:internal/shared/infisical/infisical_test.go",
+              "core:src/cluster/master/index.ts",
+              "core:src/cluster/worker/BotWorker.ts",
+              "core:src/shared/utils/sharding.ts",
+              "core:tests/cluster/master/index.test.ts",
+              "core:tests/cluster/worker/BotWorker.presence.test.ts",
+              "core:tests/cluster/worker/BotWorker.test.ts",
+              "core:tests/shared/utils/sharding.test.ts",
+              "gateway:src/grpc/server.ts",
+              "library-env:src/infisical/client.ts",
+              "sdk-module-ts:src/sdk/client/KenaModule.ts",
+              "sdk-module-ts:src/sdk/index.ts"
+            ]
+          },
+          "note": "`grep` searches the wiring cards for a name and cannot tell a declaration from a use, so every file that mentions it is a hit"
         },
         "graphify": {
-          "calls": null,
-          "tokens": 0,
-          "ms": 0,
-          "call_count": 0,
-          "unsupported": true,
-          "note": "reachable through its natural language `query`; not implemented rather than absent"
+          "calls": [
+            {
+              "tool": "graphify query",
+              "tokens": 611,
+              "ms": 115.222
+            }
+          ],
+          "tokens": 611,
+          "ms": 115.222,
+          "call_count": 1,
+          "claimed": [
+            "library-shared:src/utils/index.ts",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json",
+            "library-shared:biome.json"
+          ],
+          "score": {
+            "claimed_set": [
+              "library-shared:biome.json",
+              "library-shared:src/utils/index.ts"
+            ],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/infrastructure/postgres/retry.go",
+              "api-db-go:internal/shared/infisical/infisical.go",
+              "api-music:internal/shared/infisical/infisical.go",
+              "library-env:src/retry.ts",
+              "library-shared:src/utils/retry.ts",
+              "sdk-module-ts:src/sdk/managers/CommandManager.ts",
+              "sdk-module-ts:src/sdk/types/ModuleResult.ts"
+            ],
+            "spurious": [
+              "library-shared:biome.json",
+              "library-shared:src/utils/index.ts"
+            ]
+          },
+          "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears; 6 of 7 truth files are outside library-shared and no per-repository graph can hold them; graphify's cross-repository path is `global add`/`merge-graphs`, which this arm does not build"
         },
         "kivgraph": {
           "calls": [
             {
               "tool": "find_symbol",
               "tokens": 744,
-              "ms": 0.735
+              "ms": 0.712
             }
           ],
           "tokens": 744,
-          "ms": 0.735,
+          "ms": 0.712,
           "call_count": 1,
           "claimed": [
             "library-env:src/retry.ts",
@@ -200,11 +430,11 @@
             {
               "tool": "get_source",
               "tokens": 674,
-              "ms": 0.574
+              "ms": 0.634
             }
           ],
           "tokens": 674,
-          "ms": 0.574,
+          "ms": 0.634,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
@@ -309,11 +539,11 @@
             {
               "tool": "get_symbol",
               "tokens": 176,
-              "ms": 0.261
+              "ms": 0.186
             }
           ],
           "tokens": 176,
-          "ms": 0.261,
+          "ms": 0.186,
           "call_count": 1,
           "claimed": [
             "enum@29-36"
@@ -419,11 +649,11 @@
             {
               "tool": "get_source",
               "tokens": 19328,
-              "ms": 3.038
+              "ms": 3.073
             }
           ],
           "tokens": 19328,
-          "ms": 3.038,
+          "ms": 3.073,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
@@ -639,39 +869,39 @@
       "of": 4
     },
     "codebase-memory": {
-      "tokens_total": 0,
-      "calls_total": 0,
-      "ms_total": 0,
-      "precision_mean": 0,
-      "recall_mean": 0,
+      "tokens_total": 762,
+      "calls_total": 1,
+      "ms_total": 19.008,
+      "precision_mean": 0.7,
+      "recall_mean": 1,
       "exact_answers": 0,
-      "answered": 0,
+      "answered": 1,
       "of": 4
     },
     "graft": {
-      "tokens_total": 0,
-      "calls_total": 0,
-      "ms_total": 0,
-      "precision_mean": 0,
-      "recall_mean": 0,
+      "tokens_total": 2766,
+      "calls_total": 1,
+      "ms_total": 1729.823,
+      "precision_mean": 0.30434782608695654,
+      "recall_mean": 1,
       "exact_answers": 0,
-      "answered": 0,
+      "answered": 1,
       "of": 4
     },
     "graphify": {
-      "tokens_total": 0,
-      "calls_total": 0,
-      "ms_total": 0,
+      "tokens_total": 611,
+      "calls_total": 1,
+      "ms_total": 115.222,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
-      "answered": 0,
+      "answered": 1,
       "of": 4
     },
     "kivgraph": {
       "tokens_total": 20922,
       "calls_total": 4,
-      "ms_total": 4.608,
+      "ms_total": 4.605,
       "precision_mean": 1,
       "recall_mean": 1,
       "exact_answers": 4,
@@ -734,7 +964,7 @@
       "kivgraph": {
         "tokens_total": 20002,
         "calls_total": 2,
-        "ms_total": 3.6119999999999997,
+        "ms_total": 3.707,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -796,7 +1026,7 @@
       "kivgraph": {
         "tokens_total": 176,
         "calls_total": 1,
-        "ms_total": 0.261,
+        "ms_total": 0.186,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,
@@ -826,39 +1056,39 @@
         "of": 1
       },
       "codebase-memory": {
-        "tokens_total": 0,
-        "calls_total": 0,
-        "ms_total": 0,
-        "precision_mean": 0,
-        "recall_mean": 0,
+        "tokens_total": 762,
+        "calls_total": 1,
+        "ms_total": 19.008,
+        "precision_mean": 0.7,
+        "recall_mean": 1,
         "exact_answers": 0,
-        "answered": 0,
+        "answered": 1,
         "of": 1
       },
       "graft": {
-        "tokens_total": 0,
-        "calls_total": 0,
-        "ms_total": 0,
-        "precision_mean": 0,
-        "recall_mean": 0,
+        "tokens_total": 2766,
+        "calls_total": 1,
+        "ms_total": 1729.823,
+        "precision_mean": 0.30434782608695654,
+        "recall_mean": 1,
         "exact_answers": 0,
-        "answered": 0,
+        "answered": 1,
         "of": 1
       },
       "graphify": {
-        "tokens_total": 0,
-        "calls_total": 0,
-        "ms_total": 0,
+        "tokens_total": 611,
+        "calls_total": 1,
+        "ms_total": 115.222,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
-        "answered": 0,
+        "answered": 1,
         "of": 1
       },
       "kivgraph": {
         "tokens_total": 744,
         "calls_total": 1,
-        "ms_total": 0.735,
+        "ms_total": 0.712,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 1,

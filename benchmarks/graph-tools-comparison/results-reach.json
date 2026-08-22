@@ -1,7 +1,7 @@
 {
   "benchmark": "graph-tools-comparison",
-  "generated_at": "2026-08-22T00:02:47.831326Z",
-  "commit": "d862705",
+  "generated_at": "2026-08-22T00:29:45.216052Z",
+  "commit": "2b6f552",
   "tokenizer": "o200k_base",
   "environment": {
     "arch": "arm64",
@@ -14,7 +14,7 @@
     "code_files": 0
   },
   "versions": {
-    "code-review-graph": "code-review-graph 2.3.7",
+    "code-review-graph": "code-review-graph 2.3.8",
     "codebase-memory": "codebase-memory-mcp 0.8.1",
     "graft": "0.10.1",
     "graphify": "graphify 0.8.31",
@@ -23,7 +23,7 @@
   "isolation": {
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
-    "graft": "context directory outside the corpus at /private/tmp/5way/graft-ctx",
+    "graft": "context directory outside the corpus at /private/tmp/5way-g/graft-ctx",
     "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
     "kivgraph": "isolated HOME at /private/tmp/chome; the published generation and the registry live there",
     "native": "reads only; nothing is written"
@@ -78,11 +78,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 530,
-              "ms": 1.028
+              "ms": 1.031
             }
           ],
           "tokens": 530,
-          "ms": 1.028,
+          "ms": 1.031,
           "call_count": 1,
           "claimed": [
             "sdk-module-ts:src/index.ts",
@@ -206,11 +206,11 @@
             {
               "tool": "find_cross_repo_consumers",
               "tokens": 112,
-              "ms": 1.347
+              "ms": 0.983
             }
           ],
           "tokens": 112,
-          "ms": 1.347,
+          "ms": 0.983,
           "call_count": 1,
           "score": {
             "claimed_set": [],
@@ -285,23 +285,39 @@
           "note": "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"
         },
         "graphify": {
-          "calls": null,
-          "tokens": 0,
-          "ms": 0,
-          "call_count": 0,
-          "unsupported": true,
-          "note": "reachable through its natural language `query`, which is direction agnostic; not implemented rather than absent"
+          "calls": [
+            {
+              "tool": "graphify query",
+              "tokens": 29,
+              "ms": 156.444,
+              "failed": true,
+              "error": "exit status 1"
+            }
+          ],
+          "tokens": 29,
+          "ms": 156.444,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "api-db-go:internal/application/handlers/guilds_handler.go"
+            ],
+            "spurious": []
+          },
+          "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
         },
         "kivgraph": {
           "calls": [
             {
               "tool": "trace_dependencies",
               "tokens": 305,
-              "ms": 0.855
+              "ms": 0.942
             }
           ],
           "tokens": 305,
-          "ms": 0.855,
+          "ms": 0.942,
           "call_count": 1,
           "claimed": [
             "api-db-go:internal/application/handlers/guilds_handler.go",
@@ -430,23 +446,40 @@
           "note": "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"
         },
         "graphify": {
-          "calls": null,
-          "tokens": 0,
-          "ms": 0,
-          "call_count": 0,
-          "unsupported": true,
-          "note": "reachable through its natural language `query`, which is direction agnostic; not implemented rather than absent"
+          "calls": [
+            {
+              "tool": "graphify query",
+              "tokens": 30,
+              "ms": 84.007,
+              "failed": true,
+              "error": "exit status 1"
+            }
+          ],
+          "tokens": 30,
+          "ms": 84.007,
+          "call_count": 1,
+          "score": {
+            "claimed_set": [],
+            "precision": 0,
+            "recall": 0,
+            "missing": [
+              "library-shared:src/redis/cache/base-cache.ts",
+              "library-shared:src/redis/cache/music/types.ts"
+            ],
+            "spurious": []
+          },
+          "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
         },
         "kivgraph": {
           "calls": [
             {
               "tool": "trace_dependencies",
               "tokens": 403,
-              "ms": 0.668
+              "ms": 0.954
             }
           ],
           "tokens": 403,
-          "ms": 0.668,
+          "ms": 0.954,
           "call_count": 1,
           "claimed": [
             "library-shared:src/redis/cache/base-cache.ts",
@@ -537,19 +570,19 @@
       "of": 4
     },
     "graphify": {
-      "tokens_total": 0,
-      "calls_total": 0,
-      "ms_total": 0,
+      "tokens_total": 59,
+      "calls_total": 2,
+      "ms_total": 240.451,
       "precision_mean": 0,
       "recall_mean": 0,
       "exact_answers": 0,
-      "answered": 0,
+      "answered": 2,
       "of": 4
     },
     "kivgraph": {
       "tokens_total": 1350,
       "calls_total": 4,
-      "ms_total": 3.898,
+      "ms_total": 3.9099999999999993,
       "precision_mean": 1,
       "recall_mean": 1,
       "exact_answers": 4,
@@ -612,7 +645,7 @@
       "kivgraph": {
         "tokens_total": 642,
         "calls_total": 2,
-        "ms_total": 2.375,
+        "ms_total": 2.014,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,
@@ -662,19 +695,19 @@
         "of": 2
       },
       "graphify": {
-        "tokens_total": 0,
-        "calls_total": 0,
-        "ms_total": 0,
+        "tokens_total": 59,
+        "calls_total": 2,
+        "ms_total": 240.451,
         "precision_mean": 0,
         "recall_mean": 0,
         "exact_answers": 0,
-        "answered": 0,
+        "answered": 2,
         "of": 2
       },
       "kivgraph": {
         "tokens_total": 708,
         "calls_total": 2,
-        "ms_total": 1.5230000000000001,
+        "ms_total": 1.896,
         "precision_mean": 1,
         "recall_mean": 1,
         "exact_answers": 2,

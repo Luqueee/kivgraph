@@ -84,15 +84,22 @@ tres campos. Es `LUQUE-2010`.
 |herramienta|consumidores|alcance|
 |---|---|---|
 |`graft`|un contexto es un árbol: `--dir` construye un grafo por directorio y ninguna respuesta lleva repositorio|`graft callers` es la dirección entrante|
-|`graphify`|el grafo se construye por ruta de repositorio y sus respuestas no lo llevan|alcanzable por su `query` en lenguaje natural: **no implementado**, no ausente|
+|`graphify`|el grafo se construye por ruta de repositorio y sus respuestas no lo llevan|**medido**: `29`-`30` tok, `P=0,00` `R=0,00` -- ver abajo|
 |`codebase-memory-mcp`|indexa un repositorio por llamada y sus filas no llevan repositorio|`search_graph` responde llamantes|
 |`code-review-graph`|se construye con `--repo`, un repositorio por grafo|su grafo se organiza alrededor del blast radius, que es la dirección entrante|
 
 Ninguno tiene dimensión de repositorio, así que la familia de consumidores no es
 una pregunta que puedan contestar mal: no la pueden formular. Mapearlos a la
-fuerza habría medido nuestra ventaja contra una capacidad inventada. La única
-casilla que es deuda nuestra y no límite suyo está marcada: el `query` de
-`graphify` es agnóstico de dirección y se puede preguntar.
+fuerza habría medido nuestra ventaja contra una capacidad inventada.
+
+**La casilla de `graphify` en alcance ya no es deuda.** Estaba marcada «no
+implementado, no ausente», que es una promesa a medias, y se implementó: su
+`query` toma una frase, así que se le pregunta la del enunciado. Responde `29` y
+`30` tokens con `P=0,00` y `R=0,00`, y el motivo viaja en la nota de cada fila --
+`query` es un vecindario BFS de profundidad 2 sobre un grafo **no dirigido**,
+sembrado por coincidencia de etiquetas: no tiene dirección, así que una pregunta
+hacia fuera alcanza los mismos vecinos que una hacia dentro, y no tiene noción de
+declaración. Puntuarlo es justo; leer el `0,00` sin esa frase, no.
 
 ## Reproducir
 

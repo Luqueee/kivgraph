@@ -32,7 +32,7 @@ func measureGraft(
 	case familyDependencies:
 		return &armResult{Unsupported: true, Note: "`graft callers` is the incoming direction; the CLI arm has no outward traversal to ask"}, nil
 	case familyLocate:
-		return &armResult{Unsupported: true, Note: "`graft grep` and `graft skeleton` are the closest calls and neither enumerates the declarations of one name; not implemented rather than absent"}, nil
+		return graftLocate(ctx, tokens, repos, captures, binary, contextDir, corpusRoot, q)
 	case familyBodies:
 		return &armResult{Unsupported: true, Note: "`graft show` returns a card, not a declaration body keyed by qualified name"}, nil
 	case familyFacts:
@@ -178,4 +178,38 @@ func atoi(in string) int {
 		out = out*10 + int(char-'0')
 	}
 	return out
+}
+
+// graftLocate answers "which files declare this name" with `graft grep`.
+//
+// This box read "not implemented rather than absent", and that is a half promise:
+// graft has a command that takes a name and answers with files, so it can be
+// asked. What it cannot do is tell a declaration from a use -- `grep` is a search
+// over the wiring cards, not a declaration index -- so the note travels with the
+// row instead of leaving a bare number to be misread.
+func graftLocate(ctx context.Context, tokens *counter, repos repositories, captures map[string]string,
+	binary, contextDir, corpusRoot string, q question) (*armResult, error) {
+	arm := &armResult{}
+	answer := runCLI(ctx, tokens, captures, q.ID+"-graft-grep", contextDir, nil, binary,
+		"--dir", contextDir, "grep", q.Subject.Symbol, corpusRoot)
+	arm.add(answer)
+	claimed := []string{}
+	for _, line := range strings.Split(answer.Text, "\n") {
+		fields := strings.Fields(line)
+		for _, field := range fields {
+			if !strings.Contains(field, "/") || !strings.Contains(field, ".") {
+				continue
+			}
+			path := strings.TrimSuffix(strings.SplitN(field, ":", 2)[0], ",")
+			if canonical := repos.canonical(path); canonical != "" {
+				claimed = append(claimed, canonical)
+			}
+			break
+		}
+	}
+	arm.Claimed = claimed
+	arm.Score = scoreAgainst(claimed, repos.canonicalAll(q.Truth))
+	arm.Note = "`grep` searches the wiring cards for a name and cannot tell a declaration from a use, " +
+		"so every file that mentions it is a hit"
+	return arm, nil
 }
