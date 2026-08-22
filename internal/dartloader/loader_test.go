@@ -31,6 +31,25 @@ func TestDartReferenceKindClassifiesResolvedUses(t *testing.T) {
 		{name: "unknown kind annotating a parameter", source: "String describe(VehicleKind kind) {", target: "VehicleKind", targetKind: "UNKNOWN", want: "TYPE_USES"},
 		{name: "unknown kind with generic arguments", source: "Result<int> value;", target: "Result", targetKind: "UNKNOWN", want: "TYPE_USES"},
 		{name: "unknown kind reading a member", source: "final name = kind.name;", target: "kind", targetKind: "UNKNOWN", want: "REFERENCES"},
+		// An argument list is opened by a callee, and a control-flow
+		// parenthesis is not one. `if (other == handler)` has a `(` in the
+		// prefix and a `)` in the suffix, which is the shape of an argument
+		// and was classified as one.
+		{name: "comparison inside an if", source: "if (other == handler) {", target: "handler", targetKind: "FUNCTION", want: "REFERENCES"},
+		{name: "comparison inside a while", source: "while (queue == handler) {", target: "handler", targetKind: "FUNCTION", want: "REFERENCES"},
+		// The same shape where the parenthesis *is* a call: the occurrence is
+		// still an operand of the comparison and not the argument.
+		{name: "comparison inside an argument list", source: "register(other == handler);", target: "handler", targetKind: "FUNCTION", want: "REFERENCES"},
+		// A grouping parenthesis opened by nothing at all.
+		{name: "comparison inside a grouping parenthesis", source: "final same = (other == handler);", target: "handler", targetKind: "FUNCTION", want: "REFERENCES"},
+		// A control-flow parenthesis with no comparison in it: the subject of a
+		// `switch` is not an argument either, and no comparison operator is
+		// there to give it away.
+		{name: "control flow subject", source: "switch (handler) {", target: "handler", targetKind: "FUNCTION", want: "REFERENCES"},
+		// The positive case has to keep working, including when the callee is
+		// reached through a member access.
+		{name: "callback through a member access", source: "registry.add(handler);", target: "handler", targetKind: "FUNCTION", want: "PASSES_AS_CALLBACK"},
+		{name: "callback in a trailing argument", source: "run(first, handler);", target: "handler", targetKind: "FUNCTION", want: "PASSES_AS_CALLBACK"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

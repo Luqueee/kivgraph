@@ -191,7 +191,13 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 					requestedPackage = requestedPackage[:slash]
 				}
 			}
-			line := bytes.Count(data[:match[0]], []byte("\n")) + 1
+			// The keyword starts the directive; `match[0]` includes the
+			// indentation the pattern skipped, and `match[1]` is just past the
+			// semicolon. Evidence has to span the directive, not the whitespace
+			// before it.
+			startPoint := positionAt(data, match[2])
+			endPoint := positionAt(data, match[1])
+			line := startPoint.Line + 1
 			targetID := resolveDartImport(root, path, requested, moduleIDs, payload.Package.Name)
 			if directive == "part" {
 				partPath := dartRelativeFile(root, path, requested)
@@ -202,7 +208,12 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 					partFile = relative(root, path)
 				}
 				if targetID != "" && partPath != "" {
-					payload.Parts = append(payload.Parts, facts.SemanticPart{LibraryFile: libraryPath, PartFile: partFile, StartLine: line, Start: match[0], Detail: requested})
+					payload.Parts = append(payload.Parts, facts.SemanticPart{
+						File: relative(root, path), LibraryFile: libraryPath, PartFile: partFile,
+						StartLine: line, StartColumn: startPoint.Character, Start: match[2],
+						EndLine: endPoint.Line + 1, EndColumn: endPoint.Character, End: match[1],
+						Detail: requested,
+					})
 				}
 				continue
 			}
@@ -217,7 +228,15 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 			if match := prefixPattern.FindStringSubmatch(body); len(match) == 2 {
 				prefix = match[1]
 			}
-			payload.Imports = append(payload.Imports, facts.SemanticImport{File: relative(root, path), Kind: kind, RequestedPackage: requestedPackage, RequestedSymbol: requested, Alternatives: alternatives, Prefix: prefix, Deferred: strings.Contains(body, "deferred"), TargetID: targetID, StartLine: line, Start: match[0], Detail: strings.TrimSpace(body)})
+			payload.Imports = append(payload.Imports, facts.SemanticImport{
+				File: relative(root, path), Kind: kind,
+				RequestedPackage: requestedPackage, RequestedSymbol: requested,
+				Alternatives: alternatives, Prefix: prefix,
+				Deferred: strings.Contains(body, "deferred"), TargetID: targetID,
+				StartLine: line, StartColumn: startPoint.Character, Start: match[2],
+				EndLine: endPoint.Line + 1, EndColumn: endPoint.Character, End: match[1],
+				Detail: strings.TrimSpace(body),
+			})
 		}
 	}
 	return payload, nil
@@ -1457,11 +1476,18 @@ func dartReferenceKind(data []byte, offset, length int, targetKind string) strin
 	}
 	if isFunctionLikeDartTarget(targetKind) {
 		suffix := strings.TrimSpace(line[min(byteCharacter+length, len(line)):])
+		// An operand of a comparison is neither assigned nor passed: the value
+		// that travels on is the boolean, and the occurrence is only read.
+		// `final same = (other == handler)` assigns the comparison, and
+		// `register(other == handler)` passes it.
+		if comparedInDartPrefix(prefix) {
+			return "REFERENCES"
+		}
 		if assignsInPrefix(prefix) {
 			return "ASSIGNS_FUNCTION"
 		}
 		if strings.HasPrefix(suffix, ",") || strings.HasPrefix(suffix, ")") || strings.HasPrefix(suffix, "]") {
-			if strings.Contains(prefix, "(") || strings.Contains(prefix, "[") || strings.Contains(prefix, "{") {
+			if opensDartArgument(prefix) {
 				return "PASSES_AS_CALLBACK"
 			}
 		}
@@ -1506,6 +1532,89 @@ func assignsInPrefix(prefix string) bool {
 		return true
 	}
 	return false
+}
+
+// comparedInDartPrefix reports whether the text immediately before an
+// occurrence is a comparison operator, which makes the occurrence an operand.
+// What travels on is the boolean, so the function is only read: neither
+// assigned nor passed, whatever the brackets around it look like.
+func comparedInDartPrefix(prefix string) bool {
+	trimmed := strings.TrimRight(prefix, " \t")
+	if trimmed == "" {
+		return false
+	}
+	for _, operator := range []string{"==", "!=", ">=", "<="} {
+		if strings.HasSuffix(trimmed, operator) {
+			return true
+		}
+	}
+	// A bare `<` or `>` is a comparison only when it is not the tail of an
+	// arrow, a shift or a compound operator. Generic arguments cannot reach
+	// here: this branch only runs for a function-like target.
+	last := trimmed[len(trimmed)-1]
+	if last != '<' && last != '>' {
+		return false
+	}
+	if len(trimmed) == 1 {
+		return true
+	}
+	return strings.IndexByte("=<>-", trimmed[len(trimmed)-2]) < 0
+}
+
+// dartControlKeywords open a parenthesis that is not an argument list. `assert`
+// is deliberately absent: it takes arguments like any call.
+var dartControlKeywords = map[string]struct{}{
+	"if": {}, "while": {}, "for": {}, "switch": {}, "catch": {}, "do": {},
+}
+
+// opensDartArgument reports whether the innermost unclosed bracket of prefix
+// opens an argument list or a collection literal, rather than grouping an
+// expression or carrying a control-flow subject.
+//
+// The old test was `prefix contains a bracket`, which every `if (...)` and
+// every parenthesised expression satisfies. An argument list is opened by a
+// callee, so what decides is the identifier immediately before the bracket:
+// a control keyword or nothing at all is not one.
+func opensDartArgument(prefix string) bool {
+	depth := 0
+	for index := len(prefix) - 1; index >= 0; index-- {
+		switch prefix[index] {
+		case ')', ']', '}':
+			depth++
+		case '(':
+			if depth > 0 {
+				depth--
+				continue
+			}
+			return calleePrecedesDartBracket(prefix[:index])
+		case '[', '{':
+			if depth > 0 {
+				depth--
+				continue
+			}
+			// A collection literal holding a function is passing it on, and a
+			// subscript is reading through one; both keep the old reading.
+			return true
+		}
+	}
+	return false
+}
+
+// calleePrecedesDartBracket reports whether text ends in a name that can be
+// called. A member access counts -- `registry.add(` is a call -- and a control
+// keyword does not.
+func calleePrecedesDartBracket(text string) bool {
+	trimmed := strings.TrimRight(text, " \t")
+	end := len(trimmed)
+	for end > 0 && isIdentifierPart(trimmed[end-1]) {
+		end--
+	}
+	name := trimmed[end:]
+	if name == "" {
+		return false
+	}
+	_, isControl := dartControlKeywords[name]
+	return !isControl
 }
 
 // annotatesDeclaration reports whether what follows an occurrence is the name
