@@ -214,33 +214,55 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   en vez de derivarlo del grafo canónico: `rebuild.LoadOrBuildSnapshot` es la
   puerta, y las tres rutas que instalan una generación -el arranque de `serve`,
   el seguidor y el padre de una pasada- pasan por ella. Lo que prueba que el
-  fichero pertenece a esa generación es su propio `snapshot.sha256`, repetido en
-  la cabecera: ninguna pasada muta una generación en sitio, así que un digest que
-  no cuadra significa que el fichero es ajeno, rancio o corrupto, y es también el
-  guardia que sostendría a cualquier ruta futura que sí mutara. Escribirlo es una
+  fichero pertenece a esa generación es `snapshot.content.sha256`, el digest del
+  grafo que el fichero contiene, repetido en su cabecera. **No es
+  `snapshot.sha256`**, que digiere los contadores por tabla y por eso no
+  distingue dos grafos de la misma forma: medido sobre `kena`, dos indexados
+  cuyos grafos diferían en 288 filas dieron un `snapshot.sha256` idéntico byte a
+  byte, así que un fichero derivado de uno se aceptaba como del otro. El de
+  contadores conserva su trabajo, que es la comprobación barata del `Rollback`.
+  Ninguna pasada muta una generación en sitio, así que un digest que no cuadra
+  significa que el fichero es ajeno, rancio o corrupto. Escribirlo es una
   economía y nunca una precondición -- un fichero ausente, ajeno, rancio o
   corrupto cuesta una derivación, se declara en el informe y jamás una respuesta.
+  Una generación publicada antes de que el registro existiera no lleva ninguno:
+  eso es `ErrNoRecordedGraphDigest`, de la misma clase que la ausencia, y contarlo
+  como fallo pondría el `doctor` en rojo en cada instalación al actualizar.
   Medido en `devlabs`: 253-255 MB de RSS y 787-836 MB de pico derivando, contra
-  150-152 MB y 264-269 MB leyendo. Ver ADR 0045.
-- `doctor` deriva el snapshot y nunca lee el publicado. No es un descuido que
-  optimizar: informa de si **este grafo** todavía puede convertirse en snapshot,
-  y leer un fichero escrito cuando el grafo estaba sano contestaría otra
-  pregunta, y la contestaría tranquilizando.
-- Cada servidor sigue guardando su propia copia de lo que leyó: `Private_Dirty`
-  es el 100 % del RSS y tres clientes son tres copias. Compartir páginas es
-  mapear el fichero, no leerlo, y eso es la fase 2 del ADR 0045; su condición es
-  que `SymbolRecord.StableKey` deje de ser una `string`.
-- El fichero publicado se **mapea** para decodificarlo y el mapeo se libera en
-  cuanto acaba la decodificación, en vez de leerlo al heap: eran 73 MB asignados
-  por carga sobre el corpus real, y ahora dos procesos que cargan la misma
-  generación leen las mismas páginas físicas mientras lo hacen. Eso es seguro
-  por una razón que **tiene que seguir siendo verdad**: todo decodificador del
-  formato copia -un registro a un struct, una cadena por una conversión que
-  asigna-, así que el snapshot no comparte nada con esos bytes. Un decodificador
-  que empezara a entregar una vista convertiría esto en un use-after-free que
-  contesta consultas en vez de romperse. El guardia es el test que carga, borra
-  el fichero y luego recorre cada símbolo, cada clave estable, cada cadena y
-  cada arista.
+  150-152 MB y 264-269 MB leyendo. Ver ADR 0045 y ADR 0061.
+- `doctor` hace **las dos** preguntas, y son distintas. `snapshot` deriva el
+  snapshot del grafo canónico y nunca lee el fichero: informa de si **este
+  grafo** todavía puede convertirse en snapshot, y leer un fichero escrito
+  cuando el grafo estaba sano contestaría otra pregunta, y la contestaría
+  tranquilizando. `snapshot.published` es la otra mitad: dice si el fichero se
+  puede usar, o por qué un servidor tendría que derivar. Sin ella, un servidor
+  que deriva el grafo entero en cada arranque es indistinguible de uno que lo
+  lee, y eso costó dos veces mientras esto se construía.
+- **Dos servidores sobre la misma generación comparten el fichero.** Medido con
+  dos `serve` sobre `kena` -- `123.531` símbolos, `98.773.720` bytes: `94 MB` de
+  `mapped file` limpio, una sola copia, y `44,5 MB` sucios por proceso. Con
+  cuatro clientes son `272 MB` contra los `692 MB` de la línea base sin
+  compartir, un `39,3 %`. Lo que sigue siendo privado son las tablas
+  decodificadas; lo compartido es el arena de cadenas, que es la parte grande.
+  `internal/procstat` reparte `Pss` y `Shared_Clean` en Linux y **declara** que
+  darwin no puede: ahí el reparto sale de `footprint`. Las cifras equivalentes
+  en Linux, con `Pss` real y tres servidores, están en la fase 2b del ADR 0045 y
+  concuerdan. Los dos umbrales de `LUQUE-2006` ya se cumplen, el de residente
+  por siete décimas, así que mapear también las tablas no lo pide ningún número.
+- El fichero publicado se **mapea y el mapeo se conserva**, porque la tabla de
+  cadenas lee sus valores en sitio en vez de copiarlos -- unos cincuenta megas
+  sobre el corpus real. Las demás tablas se decodifican a structs y sí se copian.
+  Eso hace que el mapeo tenga que vivir tanto como el snapshot, y su liberación
+  va atada a la **inalcanzabilidad** del `*GraphSnapshot` con `runtime.AddCleanup`,
+  nunca a un `Close` público: `Publish` deja el snapshot anterior como basura
+  mientras alguien lo lee, y desmapear ahí no da un error, da un `SIGSEGV`.
+  Lo que hace todo esto seguro y **tiene que seguir siendo verdad**: una tabla
+  con arena prestada **copia toda cadena que entrega**, así que ninguna respuesta
+  puede sobrevivir a las páginas de donde se leyó. Hay dos guardias, y los dos
+  fallan si se retira la copia: uno compara **direcciones** -- comparar los bytes
+  pasaría igual--, y el otro libera el mapeo a mano con un lector sosteniendo lo
+  que leyó, y reporta `SIGSEGV` en vez de `ok`. Un tercer test, el que borra el
+  fichero y recorre el grafo entero, cubre que un mapeo sobreviva a su ruta.
 - La tabla de cadenas resuelve `Lookup` por búsqueda binaria sobre los ids
   ordenados por su valor, no con un mapa: eran 20,45 MB por proceso contra 1,9 MB,
   y `Lookup` se llama una o dos veces por consulta. El orden lo lleva el fichero

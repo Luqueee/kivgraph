@@ -220,6 +220,17 @@ en silencio: cada una exige ADR, migración documentada o full rebuild.
 - El bundle publicado: los nombres `kivgraph-<os>-<arch>`, `manifest.json`,
   `SHA256SUMS` y el `RUNPATH`.
 
+Y una regla sobre **cómo** se retira cualquiera de ellas: lo que era válido ayer
+no puede convertirse hoy en un fallo. Una clave de configuración que se retira se
+acepta, se ignora y se **nombra** -- `retiredConfigKeys` y la línea
+`config.retired` de `doctor`--, porque el decodificador rechaza claves
+desconocidas y borrar el campo sin más convertiría en error de arranque cada
+fichero escrito por un `init` anterior. Lo mismo vale para un formato que sube de
+versión: un fichero de la versión anterior es una actualización, no un store
+dañado, y contarlo como fallo pone el `doctor` en rojo en cada instalación --
+que es exactamente cómo un fallo de verdad deja de notarse. Las dos formas ya se
+infringieron una vez cada una. Ver ADR 0062 y ADR 0061.
+
 ## Go
 
 - Ejecutar `gofmt` en cada archivo Go modificado.

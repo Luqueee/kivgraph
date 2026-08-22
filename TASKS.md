@@ -14934,47 +14934,57 @@ go run ./benchmarks/shared-snapshot --clients 4   (dos veces, mismo digest)
 **Objetivo:** que la decisión quede escrita donde se busca, con sus cifras y con
 las alternativas que se descartaron.
 
-**Alcance:**
+**Se hizo sin LUQUE-2006**, y la dependencia estaba mal puesta: el arnés es una
+puerta de regresión, no una fuente de las cifras. Las cifras ya existían -- la
+fase 2b del ADR 0045 en Linux con `Pss` real, y la medición de `LUQUE-2005` en
+darwin con `footprint`-- y las dos concuerdan.
 
-* `docs/adr/0043-shared-snapshot-file.md`: el problema medido, la decisión, el
-  formato, el respaldo hacia LUQUE-1204, y las dos alternativas descartadas -el
-  demonio con relé y el HTTP con URL- con el motivo de cada una.
-* `AGENTS.md`: los invariantes nuevos -el fichero es derivado y nunca una segunda
-  fuente de hechos; se mapea en sólo lectura; falla cerrado hacia la
-  reconstrucción; el mapeo lo libera el recolector-.
-* `landing/`: donde se describe el arranque y lo que cuesta un servidor.
+**El ADR ya existía y era el `0045`, no el `0043` que esta tarea nombraba.**
+Cubre el problema medido, el formato, el fail-closed y las alternativas
+descartadas -- el servidor único compartido y el mapeo de índices-- con su motivo.
+Lo que le faltaba era el estado y tres afirmaciones que habían dejado de ser
+verdad, y eso se corrige en una sección fechada al final en vez de reescribir lo
+de arriba:
 
-**Decisiones:**
+* Decía que el fichero se valida contra «el digest de contenido que la generación
+  ya guarda en `snapshot.sha256`». Ese fichero **no es un digest de contenido**.
+  Ahora apunta a `snapshot.content.sha256` y al ADR 0061.
+* Su cabecera decía «fase 2b propuesta» teniendo una sección con la fase 2b
+  medida.
+* Daba como pendiente la condición `SymbolRecord` sin `string`, que `LUQUE-2002`
+  cumplió, y los cuatro mapas «no persistibles», que `LUQUE-2003` sustituyó por
+  arrays planos. Lo que bloqueaba mapear las tablas está hecho -- y ahora ningún
+  número lo pide, porque los dos umbrales de `LUQUE-2006` ya se cumplen.
 
-* `mcp.transport` sigue aceptando **sólo** `stdio`, y el ADR dice por qué eso
-  deja de ser una limitación: la razón para un transporte compartido era la
-  memoria, y la memoria ya no la multiplica un proceso por cliente.
-* Si LUQUE-2001 dejó un desglose que valga la pena servir, `graph_status` lo
-  publica en su respuesta -que es donde un dato volátil sí puede vivir- y nunca en
-  una descripción de tool.
+**Lo que encontró la auditoría de `internal/AGENTS.md`:** cuatro afirmaciones
+falsas, y una llevaba tiempo contradiciendo a su propio ADR.
 
-**Criterios de aceptación:**
+|afirmación|realidad|
+|---|---|
+|«lo que prueba que el fichero pertenece a esa generación es su propio `snapshot.sha256`»|es `snapshot.content.sha256` desde el ADR 0061|
+|«`Private_Dirty` es el 100 % del RSS y tres clientes son tres copias»|`94 MB` compartidos y `44,5 MB` privados; el propio ADR 0045 ya medía `Shared_Clean` de `90 MB`|
+|«el mapeo se libera en cuanto acaba la decodificación» y «todo decodificador copia»|el arena se conserva mientras viva el snapshot, y la tabla de cadenas lee en sitio|
+|«`doctor` deriva el snapshot y nunca lee el publicado»|hace las dos preguntas, y son distintas: `snapshot` deriva, `snapshot.published` lee|
 
-- El ADR publica el antes y el después medidos, no una promesa.
-- `AGENTS.md` describe el comportamiento implementado y nada más.
-- `make landing-check` y `make landing-build` limpios.
-- La documentación no presenta como compartido nada que siga siendo privado.
+**En `AGENTS.md` de raíz** se añade la regla que faltaba y que las dos tareas de
+hoy infringieron una vez cada una: **lo que era válido ayer no puede convertirse
+hoy en un fallo**. Una clave retirada se acepta, se ignora y se nombra; un
+fichero de un formato anterior es una actualización y no un store dañado.
 
-**Estado:** pendiente.
+**En `landing/`**: la guía de indexado afirmaba que un servidor sostiene «un
+snapshot de `173 MB`», que es la cifra de antes del mapeo. Ahora hay una sección
+con el reparto medido y con la limitación de plataforma declarada, y
+`mcp.transport` dice por qué `stdio` es una decisión y no un hueco -- la razón
+para un transporte compartido era la memoria, y la memoria ya no la multiplica un
+cliente.
 
-**Verificación:**
+**Verificación:** gates en verde por código de salida -- `gofmt`, `vet`, `test`,
+`test-ladybug`, `build`, `landing-check`, `landing-build`-- y el sitio construido
+comprobado: el ancla `#what-a-second-server-costs` existe, el enlace desde la
+referencia resuelve, `snapshots_path` ya no figura como clave viva y la sección
+de claves retiradas está publicada.
 
-```text
-go test ./...
-make test-ladybug
-make build
-make landing-check
-make landing-build
-```
-
-**Siguiente tarea:** LUQUE-2008, si su condición se cumple.
-
----
+**Estado:** cerrada el `2026-08-22`.
 
 ## LUQUE-2008 — (aplazada) Un proceso para muchos clientes
 

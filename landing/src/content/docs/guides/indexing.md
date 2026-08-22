@@ -34,8 +34,7 @@ A pass never runs inside a process that answers queries. It holds the type
 universe of every Go module, every TypeScript worker and every SCIP index at
 once, and a Go heap that has grown to that peak keeps the arena for as long as
 the process lives. Measured on a 41-repository corpus, a server that indexed in
-its own process parked at `1.68 GB` of resident memory while holding a `173 MB`
-snapshot.
+its own process parked at `1.68 GB` of resident memory.
 
 So when a server indexes — because a client called
 [`index_project`](/reference/tools/index-project/), or because `HEAD` moved in a
@@ -59,6 +58,34 @@ kivgraph index --full --json
 A reader ignores an event kind it does not know, so a new one is not a breaking
 change. Without the flag, nothing changes: the report goes to `stdout` and
 progress to `stderr`.
+
+## What a second server costs
+
+A generation carries its snapshot as a file, and a server maps it read-only
+instead of deriving the graph. So the largest part of it — the string arena — is
+one copy in physical memory however many servers read the same generation.
+
+Measured with two servers on one generation of a 37-repository corpus,
+`123,531` symbols in a `98.8 MB` file:
+
+| | per server |
+| --- | --- |
+| mapped file, clean | `94 MB`, **one copy, shared** |
+| dirty, private | `44.5 MB` |
+
+What stays private is the decoded tables; what is shared is the arena. Projected
+to four clients that is `272 MB` against the `692 MB` a private copy each would
+cost — `39%`.
+
+On Linux, `Pss` and `Shared_Clean` in `/proc/<pid>/smaps_rollup` split it
+directly. macOS reports a footprint per process and no such split, so the
+figures above come from `footprint`, which separates dirty from clean and names
+the mapped region.
+
+If the file is absent, foreign, stale or corrupt, the server derives the graph
+from the canonical store exactly as it always did, says so, and answers. It is
+an economy, never a precondition. `kivgraph doctor` tells the two apart on the
+`snapshot.published` line.
 
 ## Determinism
 

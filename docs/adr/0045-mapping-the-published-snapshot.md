@@ -1,6 +1,6 @@
 # ADR 0045: Publicar el HotSnapshot y mapearlo
 
-- **Estado:** fases 1 y 2a aceptadas e implementadas; fase 2b propuesta
+- **Estado:** fases 1, 2a y 2b aceptadas, implementadas y medidas; la fase 2c -- mapear las tablas-- sigue abierta y **ya no es necesaria** para el criterio de la fase 20. Ver «Después de la fase 21» al final.
 - **Fecha:** 2026-08-16
 - **Revisa:** de dónde sale el HotSnapshot de un servidor, y qué comparten dos servidores del mismo grafo
 
@@ -321,3 +321,49 @@ Queda por mapear el resto del volumen: las tablas y los dos CSR, unos 15 MB, con
 todo lo que el arena no necesitaba -- layout mappable declarado por sección,
 alineación comprobada antes de reinterpretar y `SymbolRecord` sin `string`. Es la
 parte que menos compra y más cuesta, y sigue al final.
+
+## Después de la fase 21 (`2026-08-22`)
+
+Tres cosas que este documento afirmaba dejaron de ser verdad, y se corrigen aquí
+en vez de reescribir lo de arriba.
+
+**El digest ya no es `snapshot.sha256`.** Donde este ADR dice que el fichero se
+valida contra «el digest de contenido que la generación ya guarda en
+`snapshot.sha256`», resultó que ese fichero **no es un digest de contenido**: lo
+escribe `writeSnapshotDigest(candidatePath, result.Tables)` sobre los contadores
+por tabla, y los contadores no distinguen dos grafos de la misma forma. Medido
+sobre `kena`: dos indexados cuyos grafos diferían en `288` filas dieron un
+`snapshot.sha256` idéntico byte a byte. La prueba de pertenencia es ahora
+`snapshot.content.sha256`, el digest del grafo -- que ya se calculaba en cada
+build y se descartaba para este uso. Ver ADR 0061.
+
+**La condición de la fase que faltaba ya se cumple.** `SymbolRecord.StableKey`
+dejó de ser una `string` (`LUQUE-2002`, `123.531` claves resueltas contra el
+artefacto previo), y los cuatro mapas que este ADR daba por no persistibles se
+sustituyeron por arrays planos (`LUQUE-2003`, `9,59 MB` -> `1,96 MB`). Las
+secciones se alinean a 8 y cada ancho se declara una vez (`LUQUE-2004`). O sea:
+lo que bloqueaba mapear las tablas está hecho.
+
+**Y aun así no se hace, por lo que dice la medición.** Con dos servidores sobre
+`kena` -- `123.531` símbolos, fichero de `98,8 MB`, `darwin/arm64` medido con
+`footprint`, que es lo que esta plataforma sabe separar-- son `94 MB` de fichero
+mapeado limpio en una sola copia y `44,5 MB` sucios por proceso. Proyectado a
+cuatro clientes, `272 MB` contra `692 MB`: un `39,3 %`. Concuerda con las cifras
+de la fase 2b de arriba, tomadas en Linux sobre `devlabs` con `Pss` real.
+
+Los dos umbrales que `LUQUE-2006` fija -- residente total `≤40 %` de la línea
+base y `Private_Dirty` `≤60 MB` por proceso-- **ya se cumplen**. El primero por
+siete décimas, que es margen fino, así que quien lo convierta en gate lo mide en
+Linux con la línea base real. Mapear las tablas seguiría siendo la parte que
+menos compra y más cuesta -- reinterpretación con `unsafe`, relleno por registro
+en disco y una dependencia declarada de little-endian-- y ahora también es la que
+ningún número pide.
+
+**El mapeo no se libera al acabar de decodificar**, como decía una nota en
+`internal/AGENTS.md` que este ADR ya contradecía: el arena se conserva mientras
+el snapshot viva, y la liberación va atada a su inalcanzabilidad con
+`runtime.AddCleanup`. Lo que lo hace seguro tiene tres guardias, y **los tres
+fallan si se retira la copia** que hace `StringTable.String` sobre un arena
+prestado: uno compara direcciones, uno libera el mapeo a mano con un lector
+sosteniendo lo que leyó -- y reporta `SIGSEGV` en vez de `ok`--, y el tercero
+borra el fichero y recorre el grafo entero.
