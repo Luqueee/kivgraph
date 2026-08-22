@@ -14,8 +14,13 @@ import "fmt"
 // It costs about fifteen tokens and only appears when there is something to say.
 // Nothing here is derived from the graph beyond the counts already in the
 // envelope, so it cannot rewrite a client's cached prompt.
-func referenceGuidance(direction string, total, returned int, truncated bool) string {
+func referenceGuidance(direction string, total, returned int, truncated bool, verdict string) string {
 	switch {
+	case total == 0 && verdict == VerdictLowerBound:
+		// A recorded failure asked for this name, so the empty list is a
+		// minimum and not an absence. Saying otherwise sends the agent away
+		// certain, which is the one outcome worse than sending it to grep.
+		return "nothing resolved references this symbol, but the index recorded places it could not read that ask for this name: read completeness.blind_spots and fall back to its pattern before concluding anything"
 	case total == 0 && direction == FindReferencesDirectionIncoming:
 		return "nothing references this symbol in the published graph; the edges are type-checked, so this is an absence rather than a miss. Widen with find_cross_repo_consumers, or check graph_status if the tree moved since it was indexed"
 	case total == 0:

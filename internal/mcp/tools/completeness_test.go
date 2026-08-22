@@ -60,6 +60,58 @@ func TestBlastRadiusVerdictTurnsOnOneRecordedFailure(t *testing.T) {
 	}
 }
 
+// TestFindReferencesNeverCallsARecordedMissAnAbsence is the guard on the claim
+// this tool is bought for. `Caller` is referenced by nothing in this graph, so
+// the incoming answer is empty either way -- but with a failure on record that
+// asked for that very name, an empty list is a minimum, and the sentence that
+// calls it "an absence rather than a miss" would be false.
+func TestFindReferencesNeverCallsARecordedMissAnAbsence(t *testing.T) {
+	clean := completenessSnapshot(t, 61)
+	_, response, err := findReferences(context.Background(), nil,
+		FindReferencesInput{StableKey: "sym-caller", Direction: FindReferencesDirectionIncoming}, clean)
+	if err != nil {
+		t.Fatalf("find_references error = %v", err)
+	}
+	if response.Total != 0 {
+		t.Fatalf("clean graph total = %d, want an empty answer", response.Total)
+	}
+	if response.Completeness == nil || response.Completeness.Verdict != VerdictComplete {
+		t.Fatalf("clean graph verdict = %#v, want %s", response.Completeness, VerdictComplete)
+	}
+	if !strings.Contains(response.Guidance, "absence rather than a miss") {
+		t.Fatalf("clean guidance = %q, want the absence claim the graph supports", response.Guidance)
+	}
+
+	blinded := completenessSnapshot(t, 62, hotsnapshot.UnresolvedReferenceRow{
+		Key: "unresolved-caller", RepositoryKey: "repo-app", FileKey: "file-app",
+		Language: "go", RequestedPackage: "example.com/vendor", RequestedSymbol: "Caller",
+		Reason: "TARGET_NOT_INDEXED", Detail: "the definition landed on no declaration",
+		StartLine: 12, StartColumn: 4,
+	})
+	_, response, err = findReferences(context.Background(), nil,
+		FindReferencesInput{StableKey: "sym-caller", Direction: FindReferencesDirectionIncoming}, blinded)
+	if err != nil {
+		t.Fatalf("find_references error = %v", err)
+	}
+	if response.Completeness == nil || response.Completeness.Verdict != VerdictLowerBound {
+		t.Fatalf("blinded verdict = %#v, want %s", response.Completeness, VerdictLowerBound)
+	}
+	if response.Coverage.UnresolvedRelated != 1 {
+		t.Fatalf("blinded unresolved_related = %d, want the recorded failure counted", response.Coverage.UnresolvedRelated)
+	}
+	if strings.Contains(response.Guidance, "absence rather than a miss") {
+		t.Fatalf("blinded guidance = %q, which calls a recorded miss an absence", response.Guidance)
+	}
+	if !strings.Contains(response.Guidance, "blind_spots") {
+		t.Fatalf("blinded guidance = %q, want it to name where to look", response.Guidance)
+	}
+	// The coordinates are the point: an agent must be able to go and look.
+	spots := response.Completeness.BlindSpots
+	if len(spots) != 1 || spots[0].FilePath != "app.go" || spots[0].StartLine != 12 {
+		t.Fatalf("blind spots = %#v, want app.go:12", spots)
+	}
+}
+
 // TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope keeps the two
 // apart: one bounds an answer about a symbol, the other bounds every answer
 // about the repository. The snapshot tells them apart by whether the failure
