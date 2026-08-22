@@ -50,8 +50,8 @@ func readStatus(ctx context.Context, session *sdkmcp.ClientSession) (statusAnswe
 // so two runs of the same generation drive the same workload.
 func harvestProbes(ctx context.Context, session *sdkmcp.ClientSession) ([]mcpworkload.Probe, error) {
 	text, err := callTool(ctx, session, "find_symbol", map[string]any{
-		"query":           "e",
-		"match":           "substring",
+		"name":            "e",
+		"mode":            "substring",
 		"limit":           probeCount,
 		"response_format": "detailed",
 	})
