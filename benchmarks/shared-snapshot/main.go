@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -60,15 +61,54 @@ const (
 	gateEnvironmentSwitch = "KIVGRAPH_BENCH_SLO"
 )
 
+const (
+	// defaultClientList is the sweep. The gate is decided at one count, but the
+	// answer to "what does sharing buy" is the curve: below the gate count the
+	// shared part is spread over fewer processes, above it over more.
+	defaultClientList  = "2,4,8"
+	defaultGateClients = 4
+)
+
+// parseClientCounts reads the sweep. A malformed entry fails rather than being
+// skipped: a run that quietly measured fewer counts than it was asked for would
+// report a curve with a hole in it.
+func parseClientCounts(value string) ([]int, error) {
+	fields := strings.Split(value, ",")
+	counts := make([]int, 0, len(fields))
+	for _, field := range fields {
+		trimmed := strings.TrimSpace(field)
+		if trimmed == "" {
+			continue
+		}
+		parsed, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("client count %q: %w", trimmed, err)
+		}
+		if slices.Contains(counts, parsed) {
+			return nil, fmt.Errorf("client count %d is repeated", parsed)
+		}
+		counts = append(counts, parsed)
+	}
+	if len(counts) == 0 {
+		return nil, errors.New("no client counts given")
+	}
+	slices.Sort(counts)
+	return counts, nil
+}
+
 type config struct {
 	Server        string
 	ConfigPath    string
 	GenerationDir string
-	Clients       int
-	Calls         int
-	Warmup        int
-	Seed          int64
-	Directory     string
+	// Clients is every server count to measure. The shared part of a mapped
+	// snapshot is amortised over the processes holding it, so the ratio moves
+	// with the count and one point cannot say what sharing buys.
+	Clients     []int
+	GateClients int
+	Calls       int
+	Warmup      int
+	Seed        int64
+	Directory   string
 }
 
 func main() {
@@ -76,12 +116,19 @@ func main() {
 	flag.StringVar(&cfg.Server, "server", "kivgraph", "kivgraph binary under test")
 	flag.StringVar(&cfg.ConfigPath, "config", "", "configuration file the servers load")
 	flag.StringVar(&cfg.GenerationDir, "generation-dir", "", "published generation directory holding snapshot.kvsnap")
-	flag.IntVar(&cfg.Clients, "clients", defaultClients, "server processes to run at once")
+	clientList := flag.String("clients", defaultClientList, "comma-separated server counts to measure")
+	flag.IntVar(&cfg.GateClients, "gate-clients", defaultGateClients, "the server count the gate is decided on")
 	flag.IntVar(&cfg.Calls, "calls", defaultCalls, "tool calls per arm, split across the servers")
 	flag.IntVar(&cfg.Warmup, "warmup", defaultWarmup, "tool calls per arm to discard before measuring, so a mapped page is faulted in before its latency counts")
 	flag.Int64Var(&cfg.Seed, "seed", mcpworkload.DefaultSeed, "workload seed")
 	flag.StringVar(&cfg.Directory, "output", defaultDirectory, "directory for results.json and report.md")
 	flag.Parse()
+	parsed, err := parseClientCounts(*clientList)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", benchmarkName, err)
+		os.Exit(1)
+	}
+	cfg.Clients = parsed
 
 	if err := run(context.Background(), cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", benchmarkName, err)
@@ -90,11 +137,19 @@ func main() {
 }
 
 func run(ctx context.Context, cfg config) error {
-	if cfg.Clients < 2 {
-		return errors.New("clients must be at least 2: one server shares nothing")
+	if len(cfg.Clients) == 0 {
+		return errors.New("-clients is required")
 	}
-	if cfg.Calls < cfg.Clients {
-		return fmt.Errorf("calls (%d) must be at least clients (%d)", cfg.Calls, cfg.Clients)
+	for _, clients := range cfg.Clients {
+		if clients < 2 {
+			return fmt.Errorf("clients must be at least 2, got %d: one server shares nothing", clients)
+		}
+		if cfg.Calls < clients {
+			return fmt.Errorf("calls (%d) must be at least clients (%d)", cfg.Calls, clients)
+		}
+	}
+	if !slices.Contains(cfg.Clients, cfg.GateClients) {
+		return fmt.Errorf("-gate-clients %d is not among the measured counts %v", cfg.GateClients, cfg.Clients)
 	}
 	if strings.TrimSpace(cfg.GenerationDir) == "" {
 		return errors.New("-generation-dir is required: the arms are defined by whether its snapshot file is there")
@@ -109,7 +164,7 @@ func run(ctx context.Context, cfg config) error {
 		Benchmark:     benchmarkName,
 		Date:          time.Now().UTC().Format("2006-01-02"),
 		SchemaVersion: "shared-snapshot-v1",
-		Clients:       cfg.Clients,
+		GateClients:   cfg.GateClients,
 		Calls:         cfg.Calls,
 		Warmup:        cfg.Warmup,
 		Seed:          cfg.Seed,
@@ -127,24 +182,29 @@ func run(ctx context.Context, cfg config) error {
 		},
 	}
 
-	// The mapped arm first, because it is the one that has to answer what the
-	// generation is: the derived arm cannot be asked, its file is not there.
-	mapped, err := measureArm(ctx, cfg, "mapped")
-	if err != nil {
-		return fmt.Errorf("mapped arm: %w", err)
-	}
-	out.Arms = append(out.Arms, mapped)
-	out.SnapshotID = mapped.SnapshotID
+	for _, clients := range cfg.Clients {
+		// The mapped arm first, because it is the one that has to answer which
+		// snapshot is being served: the derived arm cannot be asked, its file
+		// is not there.
+		mapped, err := measureArm(ctx, cfg, clients, "mapped")
+		if err != nil {
+			return fmt.Errorf("%d clients, mapped arm: %w", clients, err)
+		}
+		out.SnapshotID = mapped.SnapshotID
 
-	derived, err := withHiddenSnapshot(snapshotPath, func() (arm, error) {
-		return measureArm(ctx, cfg, "derived")
-	})
-	if err != nil {
-		return fmt.Errorf("derived arm: %w", err)
-	}
-	out.Arms = append(out.Arms, derived)
+		derived, err := withHiddenSnapshot(snapshotPath, func() (arm, error) {
+			return measureArm(ctx, cfg, clients, "derived")
+		})
+		if err != nil {
+			return fmt.Errorf("%d clients, derived arm: %w", clients, err)
+		}
 
-	out.Comparison = compare(mapped, derived)
+		measured := point{Clients: clients, Arms: []arm{mapped, derived}}
+		measured.Comparison = compare(mapped, derived)
+		measured.Checks = checksFor(measured)
+		out.Points = append(out.Points, measured)
+	}
+
 	out.Limitations = limitations(out)
 	out.Gate = decide(out)
 	digest, err := computeDigest(out)
@@ -180,15 +240,15 @@ func withHiddenSnapshot(path string, body func() (arm, error)) (arm, error) {
 }
 
 // measureArm starts the servers, drives the workload and samples every process.
-func measureArm(ctx context.Context, cfg config, name string) (arm, error) {
-	servers := make([]*server, 0, cfg.Clients)
+func measureArm(ctx context.Context, cfg config, clients int, name string) (arm, error) {
+	servers := make([]*server, 0, clients)
 	defer func() {
 		for _, live := range servers {
 			live.stop()
 		}
 	}()
 
-	for index := range cfg.Clients {
+	for index := range clients {
 		live, err := startServer(ctx, cfg)
 		if err != nil {
 			return arm{}, fmt.Errorf("start server %d: %w", index+1, err)

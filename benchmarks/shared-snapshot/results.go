@@ -15,23 +15,35 @@ import (
 )
 
 type results struct {
-	Benchmark     string       `json:"benchmark"`
-	Date          string       `json:"date"`
-	SchemaVersion string       `json:"schema_version"`
-	Commit        string       `json:"commit"`
-	Digest        string       `json:"digest"`
-	SnapshotID    uint64       `json:"snapshot_id"`
-	Clients       int          `json:"clients"`
-	Calls         int          `json:"calls"`
-	Warmup        int          `json:"warmup"`
-	Seed          int64        `json:"seed"`
-	Environment   environment  `json:"environment"`
-	Snapshot      snapshotFile `json:"snapshot"`
-	Thresholds    thresholds   `json:"thresholds"`
-	Arms          []arm        `json:"arms"`
-	Comparison    comparison   `json:"comparison"`
-	Gate          gate         `json:"gate"`
-	Limitations   []string     `json:"limitations"`
+	Benchmark     string `json:"benchmark"`
+	Date          string `json:"date"`
+	SchemaVersion string `json:"schema_version"`
+	Commit        string `json:"commit"`
+	Digest        string `json:"digest"`
+	SnapshotID    uint64 `json:"snapshot_id"`
+	// GateClients is the client count the gate is decided on. The others are
+	// measured and reported: the question is what sharing buys as N grows, and
+	// a single N cannot answer it -- the shared part is amortised over the
+	// processes holding it, so the ratio moves with N and a lone number reads
+	// as a property of the design.
+	GateClients int          `json:"gate_clients"`
+	Calls       int          `json:"calls"`
+	Warmup      int          `json:"warmup"`
+	Seed        int64        `json:"seed"`
+	Environment environment  `json:"environment"`
+	Snapshot    snapshotFile `json:"snapshot"`
+	Thresholds  thresholds   `json:"thresholds"`
+	Points      []point      `json:"points"`
+	Gate        gate         `json:"gate"`
+	Limitations []string     `json:"limitations"`
+}
+
+// point is one client count measured on both arms.
+type point struct {
+	Clients    int        `json:"clients"`
+	Arms       []arm      `json:"arms"`
+	Comparison comparison `json:"comparison"`
+	Checks     []check    `json:"checks"`
 }
 
 type environment struct {
@@ -166,13 +178,22 @@ func currentCommit() string {
 	return strings.TrimSpace(string(output))
 }
 
-func armByName(out results, name string) (arm, bool) {
-	for _, candidate := range out.Arms {
+func armByName(measured point, name string) (arm, bool) {
+	for _, candidate := range measured.Arms {
 		if candidate.Name == name {
 			return candidate, true
 		}
 	}
 	return arm{}, false
+}
+
+func pointByClients(out results, clients int) (point, bool) {
+	for _, candidate := range out.Points {
+		if candidate.Clients == clients {
+			return candidate, true
+		}
+	}
+	return point{}, false
 }
 
 func compare(mapped, derived arm) comparison {
@@ -206,53 +227,46 @@ func limitations(out results) []string {
 			"processes holding it, so the totals sum resident sizes and count the mapped "+
 			"file once per server; the gate is not emitted")
 	}
-	mapped, hasMapped := armByName(out, "mapped")
-	derived, hasDerived := armByName(out, "derived")
-	if hasMapped && !mapped.ServedFromFile {
-		found = append(found, "the mapped arm did not serve the published file, so the two arms measured the same thing")
-	}
-	if hasDerived && derived.ServedFromFile {
-		found = append(found, "the derived arm served the published file, so the two arms measured the same thing")
-	}
-	if hasMapped && hasDerived && mapped.Symbols != derived.Symbols {
-		found = append(found, fmt.Sprintf(
-			"the arms disagree on the graph: %d symbols mapped against %d derived",
-			mapped.Symbols, derived.Symbols))
-	}
-	if hasMapped && mapped.CallErrors > 0 {
-		found = append(found, fmt.Sprintf("%d calls failed in the mapped arm", mapped.CallErrors))
-	}
-	if hasDerived && derived.CallErrors > 0 {
-		found = append(found, fmt.Sprintf("%d calls failed in the derived arm", derived.CallErrors))
+	for _, measured := range out.Points {
+		mapped, hasMapped := armByName(measured, "mapped")
+		derived, hasDerived := armByName(measured, "derived")
+		where := fmt.Sprintf("at %d clients", measured.Clients)
+		if hasMapped && !mapped.ServedFromFile {
+			found = append(found, where+": the mapped arm did not serve the published file, so the two arms measured the same thing")
+		}
+		if hasDerived && derived.ServedFromFile {
+			found = append(found, where+": the derived arm served the published file, so the two arms measured the same thing")
+		}
+		if hasMapped && hasDerived && mapped.Symbols != derived.Symbols {
+			found = append(found, fmt.Sprintf(
+				"%s: the arms disagree on the graph: %d symbols mapped against %d derived",
+				where, mapped.Symbols, derived.Symbols))
+		}
+		if hasMapped && mapped.CallErrors > 0 {
+			found = append(found, fmt.Sprintf("%s: %d calls failed in the mapped arm", where, mapped.CallErrors))
+		}
+		if hasDerived && derived.CallErrors > 0 {
+			found = append(found, fmt.Sprintf("%s: %d calls failed in the derived arm", where, derived.CallErrors))
+		}
 	}
 	return found
 }
 
-// decide evaluates every check always, and enforces them only when asked.
-//
-// The distinction is the convention of benchmarks/AGENTS.md: a threshold that
-// depends on a shared machine fails on a loaded runner over code that did not
-// change, so the limit is enforced when someone asks for it and reported the
-// rest of the time. What is always asserted is that the measurement happened.
-func decide(out results) gate {
-	mapped, hasMapped := armByName(out, "mapped")
-	_, hasDerived := armByName(out, "derived")
-	decision := gate{
-		Evaluated: hasMapped && hasDerived,
-		Enforced:  os.Getenv(gateEnvironmentSwitch) == "1",
+// checksFor prices one point against the thresholds. Every point is checked, so
+// a reader can see where the criteria start holding instead of only whether they
+// hold at the one count the gate names.
+func checksFor(measured point) []check {
+	mapped, hasMapped := armByName(measured, "mapped")
+	if !hasMapped {
+		return nil
 	}
-	if !decision.Evaluated {
-		decision.Refusals = append(decision.Refusals, "both arms are required")
-		return decision
-	}
-
-	decision.Checks = []check{
+	return []check{
 		{
 			Name:   "resident_share",
-			Passed: out.Comparison.ResidentShare > 0 && out.Comparison.ResidentShare <= maximumResidentShare,
-			Got:    out.Comparison.ResidentShare,
+			Passed: measured.Comparison.ResidentShare > 0 && measured.Comparison.ResidentShare <= maximumResidentShare,
+			Got:    measured.Comparison.ResidentShare,
 			Want:   maximumResidentShare,
-			Detail: "total " + out.Comparison.ResidentMeasure + " of the mapped arm over the derived arm",
+			Detail: "total " + measured.Comparison.ResidentMeasure + " of the mapped arm over the derived arm",
 		},
 		{
 			Name:   "private_dirty_per_process",
@@ -263,12 +277,36 @@ func decide(out results) gate {
 		},
 		{
 			Name:   "p99_not_worse",
-			Passed: out.Comparison.P99Ratio > 0 && out.Comparison.P99Ratio <= 1+maximumP99Regression,
-			Got:    out.Comparison.P99Ratio,
+			Passed: measured.Comparison.P99Ratio > 0 && measured.Comparison.P99Ratio <= 1+maximumP99Regression,
+			Got:    measured.Comparison.P99Ratio,
 			Want:   1 + maximumP99Regression,
 			Detail: "mapped p99 over derived p99",
 		},
 	}
+}
+
+// decide evaluates every check always, and enforces them only when asked.
+//
+// The distinction is the convention of benchmarks/AGENTS.md: a threshold that
+// depends on a shared machine fails on a loaded runner over code that did not
+// change, so the limit is enforced when someone asks for it and reported the
+// rest of the time. What is always asserted is that the measurement happened.
+func decide(out results) gate {
+	measured, found := pointByClients(out, out.GateClients)
+	_, hasMapped := armByName(measured, "mapped")
+	_, hasDerived := armByName(measured, "derived")
+	decision := gate{
+		Evaluated: found && hasMapped && hasDerived,
+		Enforced:  os.Getenv(gateEnvironmentSwitch) == "1",
+	}
+	if !decision.Evaluated {
+		decision.Refusals = append(decision.Refusals, fmt.Sprintf(
+			"both arms at %d clients are required, which is the count the gate is decided on",
+			out.GateClients))
+		return decision
+	}
+
+	decision.Checks = measured.Checks
 
 	// A refusal is not a failed threshold: it says the run cannot answer.
 	if !out.Environment.ProportionalSupported {
@@ -304,7 +342,7 @@ func computeDigest(out results) (string, error) {
 		Schema     string       `json:"schema"`
 		SnapshotID uint64       `json:"snapshot_id"`
 		Snapshot   snapshotFile `json:"snapshot"`
-		Clients    int          `json:"clients"`
+		Clients    []int        `json:"clients"`
 		Calls      int          `json:"calls"`
 		Warmup     int          `json:"warmup"`
 		Seed       int64        `json:"seed"`
@@ -316,7 +354,7 @@ func computeDigest(out results) (string, error) {
 		Schema:     out.SchemaVersion,
 		SnapshotID: out.SnapshotID,
 		Snapshot:   out.Snapshot,
-		Clients:    out.Clients,
+		Clients:    measuredClients(out),
 		Calls:      out.Calls,
 		Warmup:     out.Warmup,
 		Seed:       out.Seed,
@@ -324,8 +362,10 @@ func computeDigest(out results) (string, error) {
 		Arch:       out.Environment.Arch,
 		Thresholds: out.Thresholds,
 	}
-	if mapped, ok := armByName(out, "mapped"); ok {
-		identity.Symbols = mapped.Symbols
+	if measured, found := pointByClients(out, out.GateClients); found {
+		if mapped, ok := armByName(measured, "mapped"); ok {
+			identity.Symbols = mapped.Symbols
+		}
 	}
 	encoded, err := json.Marshal(identity)
 	if err != nil {
@@ -352,24 +392,27 @@ func writeResults(directory string, out results) error {
 }
 
 func printSummary(out results) {
-	fmt.Printf("snapshot %d, %d clients, %d calls, seed %d\n",
-		out.SnapshotID, out.Clients, out.Calls, out.Seed)
-	for _, item := range out.Arms {
-		fmt.Printf("  %-8s served_from_file=%-5v  resident %s  proportional %s  shared_clean %s  private_dirty %s  p99 %.2f ms  first answer %.0f ms\n",
-			item.Name, item.ServedFromFile,
-			megabytes(item.Totals.ResidentBytes), megabytes(item.Totals.ProportionalByte),
-			megabytes(item.Totals.SharedCleanByte), megabytes(item.Totals.PrivateDirtyByte),
-			item.Latency.P99MS, item.Totals.WorstFirstAnswerMS)
-	}
-	fmt.Printf("  %s share %.3f (want <= %.2f), worst private_dirty %s (want <= %s), p99 ratio %.3f\n",
-		out.Comparison.ResidentMeasure, out.Comparison.ResidentShare, maximumResidentShare,
-		megabytes(worstPrivate(out)), megabytes(maximumPrivateDirty), out.Comparison.P99Ratio)
-	for _, item := range out.Gate.Checks {
-		state := "FAIL"
-		if item.Passed {
-			state = "ok"
+	fmt.Printf("snapshot %d, %d calls, %d discarded, seed %d, gate at %d clients\n",
+		out.SnapshotID, out.Calls, out.Warmup, out.Seed, out.GateClients)
+	for _, measured := range out.Points {
+		fmt.Printf(" %d clients\n", measured.Clients)
+		for _, item := range measured.Arms {
+			fmt.Printf("  %-8s served_from_file=%-5v  resident %s  proportional %s  shared_clean %s  private_dirty %s  p99 %.2f ms  first answer %.0f ms\n",
+				item.Name, item.ServedFromFile,
+				megabytes(item.Totals.ResidentBytes), megabytes(item.Totals.ProportionalByte),
+				megabytes(item.Totals.SharedCleanByte), megabytes(item.Totals.PrivateDirtyByte),
+				item.Latency.P99MS, item.Totals.WorstFirstAnswerMS)
 		}
-		fmt.Printf("  check %-26s %-4s got %.3f want %.3f\n", item.Name, state, item.Got, item.Want)
+		fmt.Printf("  %s share %.3f (want <= %.2f), worst private_dirty %s (want <= %s), p99 ratio %.3f\n",
+			measured.Comparison.ResidentMeasure, measured.Comparison.ResidentShare, maximumResidentShare,
+			megabytes(worstPrivate(measured)), megabytes(maximumPrivateDirty), measured.Comparison.P99Ratio)
+		for _, item := range measured.Checks {
+			state := "FAIL"
+			if item.Passed {
+				state = "ok"
+			}
+			fmt.Printf("  check %-26s %-4s got %.3f want %.3f\n", item.Name, state, item.Got, item.Want)
+		}
 	}
 	for _, refusal := range out.Gate.Refusals {
 		fmt.Printf("  refusal: %s\n", refusal)
@@ -378,15 +421,26 @@ func printSummary(out results) {
 	case out.Gate.Sentinel != "":
 		fmt.Println("  " + out.Gate.Sentinel)
 	case out.Gate.Passed:
-		fmt.Printf("  every check passed; set %s=1 to emit %s\n", gateEnvironmentSwitch, gatePassSentinel)
+		fmt.Printf("  every check passed at %d clients; set %s=1 to emit %s\n",
+			out.GateClients, gateEnvironmentSwitch, gatePassSentinel)
 	default:
-		fmt.Println("  gate not emitted")
+		fmt.Printf("  gate not emitted (decided at %d clients)\n", out.GateClients)
 	}
 	fmt.Printf("  digest %s\n", out.Digest)
 }
 
-func worstPrivate(out results) int64 {
-	if mapped, ok := armByName(out, "mapped"); ok {
+// measuredClients is the sweep as run, part of a run's identity: the same
+// corpus measured at other counts is a different run.
+func measuredClients(out results) []int {
+	counts := make([]int, 0, len(out.Points))
+	for _, measured := range out.Points {
+		counts = append(counts, measured.Clients)
+	}
+	return counts
+}
+
+func worstPrivate(measured point) int64 {
+	if mapped, ok := armByName(measured, "mapped"); ok {
 		return mapped.Totals.WorstPrivateDirty
 	}
 	return 0
