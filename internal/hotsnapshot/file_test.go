@@ -40,7 +40,7 @@ func TestSnapshotFileRoundTripPreservesEveryField(t *testing.T) {
 			t.Fatalf("the fixture produced no %s, so this test cannot detect a format that drops them", populated.name)
 		}
 	}
-	if len(built.forwardEdges) == 0 || len(built.reverseEdges) == 0 || len(built.packageIncoming) == 0 {
+	if len(built.forwardEdges) == 0 || len(built.reverseEdges) == 0 || len(built.packageIncoming.values) == 0 {
 		t.Fatal("the fixture produced an empty CSR or package index")
 	}
 

@@ -191,7 +191,7 @@ type GraphSnapshot struct {
 	evidence     []EvidenceRecord
 
 	packageDependencies []PackageDependencyRecord
-	packageIncoming     map[PackageID][]PackageDependencyRecord
+	packageIncoming     packageIncomingIndex
 	unresolved          []UnresolvedReferenceRecord
 
 	forwardOffsets []uint32
@@ -200,9 +200,9 @@ type GraphSnapshot struct {
 	reverseEdges   []PackedEdge
 
 	stableKeys     StableKeyTable
-	symbolsByName  map[InternedString][]SymbolID
-	symbolsByQName map[InternedString][]SymbolID
-	fileByRepoPath map[RepoPathKey]FileID
+	symbolsByName  symbolIndex
+	symbolsByQName symbolIndex
+	fileByRepoPath fileIndex
 
 	// traversalWorkspacePool owns reusable per-call scratch buffers. It does not
 	// participate in the immutable graph state returned to readers.
@@ -260,7 +260,7 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		evidence:     append([]EvidenceRecord(nil), input.Evidence...),
 
 		packageDependencies: append([]PackageDependencyRecord(nil), input.PackageDependencies...),
-		packageIncoming:     buildPackageIncoming(input.PackageDependencies),
+		packageIncoming:     newPackageIncomingIndex(len(input.Packages), input.PackageDependencies),
 		unresolved:          append([]UnresolvedReferenceRecord(nil), input.Unresolved...),
 
 		forwardOffsets: append([]uint32(nil), forwardOffsets...),
@@ -270,10 +270,13 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		// The table already owns its arena, so there is nothing to clone: it
 		// copied its bytes when it was built, which is what stops a snapshot
 		// from pinning the buffer its keys were read through.
-		stableKeys:     input.StableKeys,
-		symbolsByName:  cloneSymbolLists(input.SymbolsByName),
-		symbolsByQName: cloneSymbolLists(input.SymbolsByQName),
-		fileByRepoPath: cloneRepoPathIndex(input.FileByRepoPath),
+		stableKeys: input.StableKeys,
+		// The input still carries maps, and that is deliberate: accumulating an
+		// index while records are read is what a map is good at. This is where
+		// they stop existing -- what the snapshot keeps is flat arrays.
+		symbolsByName:  newSymbolIndex(input.SymbolsByName),
+		symbolsByQName: newSymbolIndex(input.SymbolsByQName),
+		fileByRepoPath: newFileIndex(input.FileByRepoPath),
 	}
 	if !snapshot.validExactIndexes() {
 		return nil, ErrInvalidGraphSnapshot
@@ -323,7 +326,7 @@ func (snapshot *GraphSnapshot) Evidence(id EvidenceID) (EvidenceRecord, bool) {
 // with no incoming relation, including one that is not a package ID at all,
 // has no entry in the index and yields no rows.
 func (snapshot *GraphSnapshot) PackageDependencies(target PackageID) []PackageDependencyRecord {
-	return append([]PackageDependencyRecord(nil), snapshot.packageIncoming[target]...)
+	return snapshot.packageIncoming.rows(target, snapshot.packageDependencies)
 }
 
 // AllPackageDependencies returns all package relations in deterministic input
@@ -389,23 +392,21 @@ func (snapshot *GraphSnapshot) StableKeys() StableKeyTable { return snapshot.sta
 
 // SymbolsByName returns a copy of the exact-name result IDs.
 func (snapshot *GraphSnapshot) SymbolsByName(name InternedString) []SymbolID {
-	return append([]SymbolID(nil), snapshot.symbolsByName[name]...)
+	return append([]SymbolID(nil), snapshot.symbolsByName.lookup(name)...)
 }
 
 // SymbolsByQName returns a copy of the exact-qualified-name result IDs.
 func (snapshot *GraphSnapshot) SymbolsByQName(name InternedString) []SymbolID {
-	return append([]SymbolID(nil), snapshot.symbolsByQName[name]...)
+	return append([]SymbolID(nil), snapshot.symbolsByQName.lookup(name)...)
 }
 
 // FileByRepoPath returns the file matching an exact repository/path pair.
 func (snapshot *GraphSnapshot) FileByRepoPath(key RepoPathKey) (FileID, bool) {
-	id, found := snapshot.fileByRepoPath[key]
-	return id, found
+	return snapshot.fileByRepoPath.lookup(key)
 }
 
 func (snapshot *GraphSnapshot) validExactIndexes() bool {
-	if uint64(snapshot.stableKeys.Entries()) != uint64(len(snapshot.symbols)) ||
-		len(snapshot.fileByRepoPath) != len(snapshot.files) {
+	if uint64(snapshot.stableKeys.Entries()) != uint64(len(snapshot.symbols)) {
 		return false
 	}
 	// Entry i must be the key of symbol i, in both directions. The forward
@@ -425,32 +426,13 @@ func (snapshot *GraphSnapshot) validExactIndexes() bool {
 			return false
 		}
 	}
-	for id, file := range snapshot.files {
-		key := RepoPathKey{Repository: file.Repository, Path: file.Path}
-		if found, exists := snapshot.fileByRepoPath[key]; !exists || found != FileID(id) {
-			return false
-		}
+	if len(snapshot.packageIncoming.offsets) != len(snapshot.packages)+1 ||
+		len(snapshot.packageIncoming.values) != len(snapshot.packageDependencies) {
+		return false
 	}
-	return validSymbolLists(snapshot.symbolsByName, snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.Name }) &&
-		validSymbolLists(snapshot.symbolsByQName, snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.QualifiedName })
-}
-
-func validSymbolLists(index map[InternedString][]SymbolID, symbols []SymbolRecord, keyFor func(SymbolRecord) InternedString) bool {
-	seen := make([]bool, len(symbols))
-	for key, ids := range index {
-		for _, id := range ids {
-			if uint64(id) >= uint64(len(symbols)) || seen[id] || keyFor(symbols[id]) != key {
-				return false
-			}
-			seen[id] = true
-		}
-	}
-	for _, found := range seen {
-		if !found {
-			return false
-		}
-	}
-	return true
+	return snapshot.fileByRepoPath.valid(snapshot.files) &&
+		snapshot.symbolsByName.valid(snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.Name }) &&
+		snapshot.symbolsByQName.valid(snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.QualifiedName })
 }
 
 func validPackageDependencies(packages int, dependencies []PackageDependencyRecord) bool {
@@ -476,17 +458,6 @@ func validUnresolvedReferences(repositories, files, symbols int, references []Un
 		}
 	}
 	return true
-}
-
-func buildPackageIncoming(dependencies []PackageDependencyRecord) map[PackageID][]PackageDependencyRecord {
-	incoming := make(map[PackageID][]PackageDependencyRecord)
-	for _, dependency := range dependencies {
-		incoming[dependency.Target] = append(incoming[dependency.Target], dependency)
-	}
-	for target, values := range incoming {
-		incoming[target] = append([]PackageDependencyRecord(nil), values...)
-	}
-	return incoming
 }
 
 func validEvidenceIDs(edges []PackedEdge, evidence int) bool {
@@ -534,19 +505,3 @@ func validReverseCounterpart(symbols int, forwardOffsets []uint32, forwardEdges 
 	return true
 }
 func fitsDenseTable[T any](records []T) bool { return uint64(len(records)) < math.MaxUint32 }
-
-func cloneSymbolLists(source map[InternedString][]SymbolID) map[InternedString][]SymbolID {
-	cloned := make(map[InternedString][]SymbolID, len(source))
-	for key, values := range source {
-		cloned[key] = append([]SymbolID(nil), values...)
-	}
-	return cloned
-}
-
-func cloneRepoPathIndex(source map[RepoPathKey]FileID) map[RepoPathKey]FileID {
-	cloned := make(map[RepoPathKey]FileID, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
-	return cloned
-}

@@ -10,10 +10,10 @@
 // The breakdown is measured two ways on purpose, because neither alone is
 // honest. Flat tables, the two CSR arrays and the two arenas are computed
 // analytically -- unsafe.Sizeof times the element count, or the arena's own
-// reported size, is exact and needs no instrumentation. The three exact indexes
-// are observed on the heap, by building each one on its own with a forced GC on
-// both sides, because a Go map costs what the runtime decides it costs and no
-// arithmetic here can predict it.
+// reported size, is exact and needs no instrumentation. Every part is priced that
+// way since LUQUE-2003, and that is itself a result: while the exact indexes were
+// Go maps they had to be observed on the heap, because a map costs what the
+// runtime decides it costs and no arithmetic here could predict it.
 //
 // The report closes its own budget: the sum of the parts against HeapAlloc with
 // the snapshot alive, with the remainder named rather than spread across the
@@ -74,9 +74,10 @@ func main() {
 // component is one measured part of the resident snapshot.
 type component struct {
 	Name string `json:"name"`
-	// Method is "analytic" or "heap": which of the two ways this number was
-	// obtained, because they carry different error and a reader has to know
-	// which one they are trusting.
+	// Method says how the number was obtained, because different ways carry
+	// different error and a reader has to know which one they are trusting.
+	// Everything is "analytic" today; "heap" existed while the exact indexes
+	// were maps and nothing could compute their layout.
 	Method  string  `json:"method"`
 	Bytes   int64   `json:"bytes"`
 	Entries int64   `json:"entries"`
@@ -337,96 +338,65 @@ func stableKeyComponents(snapshot *hotsnapshot.GraphSnapshot) []component {
 	}
 }
 
-// indexComponents observes what the three exact indexes cost, by building each
-// one on its own from the records the snapshot exposes and watching the heap
-// across a forced GC. A rebuilt index has the same key and value types and the
-// same cardinality as the one the snapshot holds, which is what makes it a
-// measurement of that index and not of an analogy.
+// indexComponents prices the three exact indexes and the package back-index.
+//
+// Until LUQUE-2003 the first three were Go maps, and the only honest way to
+// price a map was to rebuild an equivalent one and watch the heap across a
+// forced GC: a map has no layout a caller can compute, because its bucket count
+// is the runtime's business and its keys are placed by a per-process hash seed.
+//
+// Flat arrays do have a layout, so these rows are analytic now -- and that
+// change of method is itself the result. A number nobody can derive is a number
+// nobody can design against, which is what this whole phase is about.
+//
+// The package back-index was never a component at all. It was a
+// map[PackageID][]PackageDependencyRecord holding copies of the rows, so pricing
+// it meant pricing a second copy of the dependency table; now it is offsets
+// addressed by the dense id itself plus one uint32 per dependency, and it is
+// cheap enough to name.
 func indexComponents(snapshot *hotsnapshot.GraphSnapshot, counts hotsnapshot.IDCounts) []component {
-	total := hotsnapshot.SymbolID(counts.Symbols)
+	const uint32Size = 4
+	repoPathKeySize := int64(unsafe.Sizeof(hotsnapshot.RepoPathKey{}))
 
-	byName := heapCost(func() any {
-		index := make(map[hotsnapshot.InternedString][]hotsnapshot.SymbolID)
-		for id := hotsnapshot.SymbolID(0); id < total; id++ {
-			record, found := snapshot.Symbol(id)
-			if !found {
-				continue
-			}
-			index[record.Name] = append(index[record.Name], id)
+	names := make(map[hotsnapshot.InternedString]struct{})
+	qualified := make(map[hotsnapshot.InternedString]struct{})
+	for id := hotsnapshot.SymbolID(0); id < hotsnapshot.SymbolID(counts.Symbols); id++ {
+		record, found := snapshot.Symbol(id)
+		if !found {
+			continue
 		}
-		return index
-	})
+		names[record.Name] = struct{}{}
+		qualified[record.QualifiedName] = struct{}{}
+	}
 
-	byQName := heapCost(func() any {
-		index := make(map[hotsnapshot.InternedString][]hotsnapshot.SymbolID)
-		for id := hotsnapshot.SymbolID(0); id < total; id++ {
-			record, found := snapshot.Symbol(id)
-			if !found {
-				continue
-			}
-			index[record.QualifiedName] = append(index[record.QualifiedName], id)
-		}
-		return index
-	})
-
-	files := hotsnapshot.FileID(counts.Files)
-	byRepoPath := heapCost(func() any {
-		index := make(map[hotsnapshot.RepoPathKey]hotsnapshot.FileID, counts.Files)
-		for id := hotsnapshot.FileID(0); id < files; id++ {
-			record, found := snapshot.File(id)
-			if !found {
-				continue
-			}
-			index[hotsnapshot.RepoPathKey{Repository: record.Repository, Path: record.Path}] = id
-		}
-		return index
-	})
+	// A CSR index costs one key and one offset per distinct value, plus the
+	// terminating offset, plus one id per symbol -- every symbol appears exactly
+	// once across the runs, which is the invariant the snapshot validates.
+	csr := func(keys int64) int64 {
+		return keys*uint32Size + (keys+1)*uint32Size + int64(counts.Symbols)*uint32Size
+	}
+	byName, byQName := csr(int64(len(names))), csr(int64(len(qualified)))
+	byRepoPath := int64(counts.Files) * (repoPathKeySize + uint32Size)
+	packageIncoming := (int64(counts.Packages)+1)*uint32Size + int64(counts.PackageEdges)*uint32Size
 
 	return []component{
 		{
-			Name: "symbolsByName (map)", Method: "heap", Bytes: byName,
-			Entries: int64(counts.Symbols), PerUnit: perUnit(byName, int64(counts.Symbols)),
+			Name: "symbolsByName (CSR)", Method: "analytic", Bytes: byName,
+			Entries: int64(len(names)), PerUnit: perUnit(byName, int64(len(names))),
 		},
 		{
-			Name: "symbolsByQName (map)", Method: "heap", Bytes: byQName,
-			Entries: int64(counts.Symbols), PerUnit: perUnit(byQName, int64(counts.Symbols)),
+			Name: "symbolsByQName (CSR)", Method: "analytic", Bytes: byQName,
+			Entries: int64(len(qualified)), PerUnit: perUnit(byQName, int64(len(qualified))),
 		},
 		{
-			Name: "fileByRepoPath (map)", Method: "heap", Bytes: byRepoPath,
+			Name: "fileByRepoPath (sorted)", Method: "analytic", Bytes: byRepoPath,
 			Entries: int64(counts.Files), PerUnit: perUnit(byRepoPath, int64(counts.Files)),
 		},
+		{
+			Name: "packageIncoming (CSR)", Method: "analytic", Bytes: packageIncoming,
+			Entries: int64(counts.PackageEdges), PerUnit: perUnit(packageIncoming, int64(counts.PackageEdges)),
+		},
 	}
-}
-
-// heapCost builds one value and reports the live heap it added, as the median of
-// three attempts. The value is kept alive across the second reading, so what is
-// measured is what it costs to hold rather than what it costed to allocate.
-//
-// The median is there because a single reading is noisy at this scale: the
-// first version of this took one sample and clamped a negative result to zero,
-// which reported the file index as costing nothing. Clamping hid the noise
-// instead of averaging it out, and a zero that means "measurement failed" is
-// indistinguishable from a zero that means "free".
-func heapCost(build func() any) int64 {
-	samples := make([]int64, 0, 3)
-	for attempt := 0; attempt < 3; attempt++ {
-		runtime.GC()
-		runtime.GC()
-		var before runtime.MemStats
-		runtime.ReadMemStats(&before)
-
-		value := build()
-
-		runtime.GC()
-		runtime.GC()
-		var after runtime.MemStats
-		runtime.ReadMemStats(&after)
-		runtime.KeepAlive(value)
-
-		samples = append(samples, int64(after.HeapAlloc)-int64(before.HeapAlloc))
-	}
-	sort.Slice(samples, func(left, right int) bool { return samples[left] < samples[right] })
-	return samples[1]
 }
 
 func perUnit(bytes, entries int64) float64 {
@@ -482,10 +452,10 @@ func limitations() []string {
 	return []string{
 		"One generation on one machine. A corpus with a Rust sysroot indexed " +
 			"would move the symbol and evidence tables and nothing else here predicts by how much.",
-		"The three indexes are priced by rebuilding an equivalent map, not by " +
-			"reading the snapshot's own. Same key and value types and same cardinality, " +
-			"so the cost is the runtime's answer for that shape -- but a map the builder " +
-			"grew differently could occupy a different number of buckets.",
+		"The exact indexes are priced from their declared layout and the distinct " +
+			"key counts read out of the records, not from the snapshot's own arrays, " +
+			"which are private. The arithmetic is exact for the shape; a builder that " +
+			"over-allocated a slice would hold slightly more than this says.",
 		"The analytic figures are count times element size. A slice rounded up " +
 			"to a size class costs slightly more than that, and the difference is left " +
 			"in the remainder rather than spread across the tables.",

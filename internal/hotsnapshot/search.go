@@ -44,12 +44,12 @@ func (filter SymbolFilter) Empty() bool {
 // SearchSymbolsByName returns one exact interned-name page. It never performs
 // substring, case-folding, or nominal matching.
 func (snapshot *GraphSnapshot) SearchSymbolsByName(name InternedString, filter SymbolFilter, offset, limit int) (SymbolPage, error) {
-	return exactSymbolPage(snapshot.keepMatching(snapshot.symbolsByName[name], filter), offset, limit)
+	return exactSymbolPage(snapshot.keepMatching(snapshot.symbolsByName.lookup(name), filter), offset, limit)
 }
 
 // SearchSymbolsByQName returns one exact interned-qualified-name page.
 func (snapshot *GraphSnapshot) SearchSymbolsByQName(name InternedString, filter SymbolFilter, offset, limit int) (SymbolPage, error) {
-	return exactSymbolPage(snapshot.keepMatching(snapshot.symbolsByQName[name], filter), offset, limit)
+	return exactSymbolPage(snapshot.keepMatching(snapshot.symbolsByQName.lookup(name), filter), offset, limit)
 }
 
 // SearchSymbolsByNamePrefix returns symbols whose unqualified name starts

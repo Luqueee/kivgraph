@@ -24,6 +24,76 @@ El arnés **se niega a publicar** si la generación que abre no es la que el
 llamante declaró: una huella etiquetada con la generación equivocada es peor que
 no tener huella.
 
+## Después de `LUQUE-2003`: sin un solo mapa
+
+|magnitud|`LUQUE-2001`|`LUQUE-2002`|`LUQUE-2003`|
+|---|---|---|---|
+|residente|`171,5 MB`|`109,1 MB`|**`101,7 MB`**|
+|por símbolo|`1.389 B`|`883 B`|**`824 B`**|
+|cobertura|`64,6 %`|`100,1 %`|**`99,9 %`**|
+|partes medidas por heap|`4`|`3`|**`0`**|
+
+Los tres mapas exactos costaban `9.592.896` bytes. Los arrays planos guardan la
+misma información en `1.961.120`: **`4,9×` menos**, y el ahorro medido es
+`7.394.536` bytes.
+
+|índice|antes (mapa)|después (plano)|
+|---|---|---|
+|`symbolsByQName`|`6.114.016`|`1.145.496`|
+|`symbolsByName`|`3.369.968`|`758.408`|
+|`fileByRepoPath`|`108.912`|`57.216`|
+|`packageIncoming`|nunca medido|`2.024`|
+
+`packageIncoming` no aparecía porque era un `map[PackageID][]PackageDependencyRecord`
+que guardaba **copias de las filas**: medirlo era medir una segunda tabla de
+dependencias. Hoy son offsets direccionados por el ID denso más un `uint32` por
+dependencia, y cabe en `2 KB`.
+
+**La fila que más dice de este cambio es la última de la primera tabla.** Ya no
+queda ninguna parte medida por heap: mientras los índices eran mapas había que
+reconstruir uno equivalente y observar el montón, porque un mapa cuesta lo que el
+runtime decide y ninguna aritmética lo predice. Un número que nadie puede derivar
+es un número contra el que nadie puede diseñar.
+
+El perfil de heap vivo ya no contiene ni `makemap` ni `mapassign`, y
+`cloneSymbolLists` -que eran `6,18 MB`- ha desaparecido. Lo que queda del
+snapshot son `65,89 MB` de `Freeze`, `23,09 MB` de `NewGraphSnapshot`, `6,91 MB`
+de `NewStableKeyTable` y `0,67 MB` de `newSymbolIndex`.
+
+La latencia no empeoró, y la cola mejoró. Contra la medición previa con el mismo
+corpus y la misma semilla (`benchmarks/mcp-client --clients 4`):
+
+|métrica|antes|después|
+|---|---|---|
+|`p50` ida y vuelta|`0,0350 ms`|`0,0349 ms`|
+|`p99` ida y vuelta|`0,2323 ms`|`0,2321 ms`|
+|`p99` backend de `get_symbol`|`1.291 ns`|`791 ns`|
+|`p99` backend de `find_cross_repo_consumers`|`16.584 ns`|`10.417 ns`|
+
+El `p50` no se mueve y el `p99` del backend baja entre un `20 %` y un `39 %`. Es
+donde cabía esperarlo: una búsqueda binaria sobre enteros contiguos no tiene
+hash, ni sondeo de bucket, ni comparación de clave, y su peor caso está acotado
+por `log₂ n`.
+
+### La decisión del prefijo, y por qué la pregunta estaba mal planteada
+
+`LUQUE-2003` pedía decidir entre dos formas de dar orden lexicográfico a la
+búsqueda por prefijo. **Ninguna hace falta, y el código lo dice:**
+`scanSymbolNames` es un barrido lineal sobre todos los símbolos en orden de
+`SymbolID`, y `TestPrefixSearchIsNameOnlyAndStable` fija ese orden como contrato
+(`IDs[0]==0, IDs[1]==1`). El prefijo nunca consultó un índice ordenado.
+
+Lo que sí existe es el array `order` del `StringTable`, y sirve a otra cosa:
+convertir la cadena de una consulta en un `InternedString`. Cuesta **`2.558.452`
+bytes**, la mitad de la fila `string table offsets+order`. Retirarlo -haciendo
+que `Freeze` asigne los IDs en orden lexicográfico- ahorraría un `2,5 %` del
+residente a cambio de permutar cada `InternedString` de cada registro una vez al
+construir, y de rechazar los ficheros publicados cuyo arena no esté ordenado.
+
+**No se hace ahora**, y el motivo es que su justificación escrita -servir a la
+búsqueda por prefijo- no existe. Queda la cifra para que `LUQUE-2004` decida con
+ella y no con una suposición.
+
 ## Después de `LUQUE-2002`: la huella medida hoy
 
 La medición de abajo es la que motivó `LUQUE-2002`, y sigue publicada porque es

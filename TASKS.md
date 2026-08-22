@@ -14512,7 +14512,67 @@ y nunca se persiste.
   medición previa, con el mismo corpus y semilla.
 - El desglose de LUQUE-2001 muestra la caída, y el residuo sigue nombrado.
 
-**Estado:** pendiente.
+**Estado:** cerrada el `2026-08-22`.
+
+**El resultado:** `109,1 MB` → **`101,7 MB`** residentes, y `GraphSnapshot` ya no
+declara ni un mapa ni un puntero -- sólo tablas planas y el `sync.Pool` de
+andamiaje. Los tres mapas exactos costaban `9.592.896` bytes; los arrays guardan
+lo mismo en `1.961.120`, **`4,9×` menos**.
+
+|índice|antes (mapa)|después (plano)|
+|---|---|---|
+|`symbolsByQName`|`6.114.016`|`1.145.496`|
+|`symbolsByName`|`3.369.968`|`758.408`|
+|`fileByRepoPath`|`108.912`|`57.216`|
+|`packageIncoming`|nunca medido|`2.024`|
+
+`packageIncoming` no estaba medido porque guardaba **copias de las filas**:
+medirlo era medir una segunda tabla de dependencias. Hoy son offsets
+direccionados por el ID denso -- `PackageID` ya es un índice denso, así que no
+necesita array de claves-- más un `uint32` por dependencia.
+
+**El indicador que más dice del cambio: cero partes medidas por heap**, de cuatro
+que había en `LUQUE-2001`. Mientras los índices eran mapas había que reconstruir
+uno equivalente y observar el montón, porque un mapa cuesta lo que el runtime
+decide. Ahora todo el desglose es aritmética sobre un layout declarado. El perfil
+de heap vivo no contiene ni `makemap` ni `mapassign`.
+
+**La latencia no se pagó, y la cola mejoró.** `benchmarks/mcp-client-flat-indexes`,
+mismo corpus y semilla: `p50` `-0,24 %`, `p99` `-0,09 %` -- ruido, y muy dentro
+del `5 %`. El `p99` del backend baja entre `20 %` y `39 %` en las cinco
+operaciones. Se cambia la media buena de un hash por una cola acotada por
+`log₂ n`, y a este tamaño la media no empeora.
+
+**La decisión del prefijo: la pregunta estaba mal planteada.** Esta tarea pedía
+elegir entre dos formas de dar orden lexicográfico a la búsqueda por prefijo.
+Ninguna hace falta: `scanSymbolNames` es un **barrido lineal** sobre todos los
+símbolos en orden de `SymbolID`, y `TestPrefixSearchIsNameOnlyAndStable` fija ese
+orden como contrato. El prefijo nunca consultó un índice ordenado.
+
+Lo que sí existe es el `order` del `StringTable`, que sirve a otra cosa --
+convertir la cadena de una consulta en un `InternedString`-- y cuesta `2.558.452`
+bytes. Retirarlo haciendo que `Freeze` asigne IDs lexicográficos ahorraría un
+`2,5 %` a cambio de permutar cada `InternedString` de cada registro y de rechazar
+los ficheros publicados cuyo arena no esté ordenado. **No se hace**, porque su
+justificación escrita no existe; queda la cifra para que `LUQUE-2004` decida con
+ella.
+
+**Desviación de un criterio, declarada:** «sin modificar un solo test» no se pudo
+cumplir al pie de la letra, y el motivo es que un test alcanzaba el campo que se
+retira. `file_test.go:43` comprobaba `len(built.packageIncoming)` como guarda de
+fixture; pasa a `len(built.packageIncoming.values)`. Una línea, en una guarda y no
+en un contrato. **Ningún test de superficie cambió**, que es lo que el criterio
+protegía: los `DeepEqual` de la ida y vuelta por fichero siguen intactos y ahora
+son más fuertes, porque comparan los arrays exactos en vez de dos mapas.
+
+**Los mapas no desaparecen del todo, y conviene saber dónde siguen.**
+`GraphSnapshotInput` los sigue aceptando: acumular un índice mientras se leen los
+registros es lo que un mapa hace bien, y `NewGraphSnapshot` los convierte en
+arrays y los tira. Eso deja los llamadores y los tests sin tocar, pero significa
+que cada carga todavía construye tres mapas transitorios. Retirar eso es
+`LUQUE-2005`, y tiene un requisito que hoy no se cumple: el fichero publicado
+**no lleva** estos índices -- se reconstruyen al abrir-- así que mapearlos exige
+antes escribirlos.
 
 **Verificación:**
 

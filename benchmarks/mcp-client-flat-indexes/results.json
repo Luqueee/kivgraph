@@ -1,0 +1,219 @@
+{
+  "benchmark": "mcp-client-flat-indexes",
+  "task": "LUQUE-2003",
+  "date": "2026-08-22",
+  "commit_after": "485efc8",
+  "question": "does replacing the four GraphSnapshot maps with flat arrays cost query latency",
+  "command": "go run ./benchmarks/mcp-client --clients 4 --calls 10000 --warmup 100 --symbols 100000 --edges 1000000 --seed 42 --output /private/tmp/mcp-before",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "unknown",
+    "memory": "unknown",
+    "go": "go1.26.4"
+  },
+  "dataset": {
+    "name": "synthetic-mcp-client",
+    "seed": 42,
+    "repositories": 10,
+    "packages": 100,
+    "files": 1000,
+    "symbols": 100000,
+    "edges": 1000000
+  },
+  "workload": {
+    "schema_version": "mcp-workload-v1",
+    "calls": 10000,
+    "distribution": {
+      "find_cross_repo_consumers": 1000,
+      "find_references": 2000,
+      "find_symbol": 4000,
+      "get_blast_radius": 500,
+      "get_symbol": 2500
+    }
+  },
+  "seed": {
+    "schema_version": "mcp-workload-v1",
+    "calls": 10000,
+    "distribution": {
+      "find_cross_repo_consumers": 1000,
+      "find_references": 2000,
+      "find_symbol": 4000,
+      "get_blast_radius": 500,
+      "get_symbol": 2500
+    }
+  },
+  "gate": {
+    "criterion": "p50 and p99 no worse than 5 percent, same corpus and seed",
+    "checks": {
+      "p50_ms": {
+        "before": 0.035,
+        "after": 0.034916,
+        "delta_ratio": -0.0024,
+        "within_5_percent": true
+      },
+      "p95_ms": {
+        "before": 0.218458,
+        "after": 0.218125,
+        "delta_ratio": -0.001524,
+        "within_5_percent": true
+      },
+      "p99_ms": {
+        "before": 0.232333,
+        "after": 0.232125,
+        "delta_ratio": -0.000895,
+        "within_5_percent": true
+      }
+    },
+    "passed": true
+  },
+  "arms": {
+    "before_maps": {
+      "metrics": {
+        "p50_ms": 0.035,
+        "p95_ms": 0.218458,
+        "p99_ms": 0.232333,
+        "throughput_per_s": 69703.83710910306,
+        "allocations_per_op": 283.6323,
+        "bytes_per_op": 31632.6536,
+        "rss_bytes": 0,
+        "goroutines": 17,
+        "errors": 0,
+        "memory_growth_detected": false
+      },
+      "operations": [
+        {
+          "operation": "find_symbol",
+          "calls": 4000,
+          "backend_p50_ms": 0.000709,
+          "backend_p95_ms": 0.001208,
+          "backend_p99_ms": 0.002417,
+          "round_trip_p50_ms": 0.029292,
+          "round_trip_p95_ms": 0.035458,
+          "round_trip_p99_ms": 0.082916,
+          "errors": 0
+        },
+        {
+          "operation": "get_symbol",
+          "calls": 2500,
+          "backend_p50_ms": 0.0005,
+          "backend_p95_ms": 0.000583,
+          "backend_p99_ms": 0.001291,
+          "round_trip_p50_ms": 0.035042,
+          "round_trip_p95_ms": 0.042542,
+          "round_trip_p99_ms": 0.089208,
+          "errors": 0
+        },
+        {
+          "operation": "find_references",
+          "calls": 2000,
+          "backend_p50_ms": 0.004791,
+          "backend_p95_ms": 0.006042,
+          "backend_p99_ms": 0.012583,
+          "round_trip_p50_ms": 0.063583,
+          "round_trip_p95_ms": 0.071333,
+          "round_trip_p99_ms": 0.191334,
+          "errors": 0
+        },
+        {
+          "operation": "find_cross_repo_consumers",
+          "calls": 1000,
+          "backend_p50_ms": 0.004958,
+          "backend_p95_ms": 0.007667,
+          "backend_p99_ms": 0.016584,
+          "round_trip_p50_ms": 0.083959,
+          "round_trip_p95_ms": 0.093792,
+          "round_trip_p99_ms": 0.208959,
+          "errors": 0
+        },
+        {
+          "operation": "get_blast_radius",
+          "calls": 500,
+          "backend_p50_ms": 0.019083,
+          "backend_p95_ms": 0.025333,
+          "backend_p99_ms": 0.069125,
+          "round_trip_p50_ms": 0.224375,
+          "round_trip_p95_ms": 0.253792,
+          "round_trip_p99_ms": 0.541209,
+          "errors": 0
+        }
+      ]
+    },
+    "after_flat_arrays": {
+      "metrics": {
+        "p50_ms": 0.034916,
+        "p95_ms": 0.218125,
+        "p99_ms": 0.232125,
+        "throughput_per_s": 71042.00548967152,
+        "allocations_per_op": 283.6665,
+        "bytes_per_op": 31849.092,
+        "rss_bytes": 0,
+        "goroutines": 17,
+        "errors": 0,
+        "memory_growth_detected": false
+      },
+      "operations": [
+        {
+          "operation": "find_symbol",
+          "calls": 4000,
+          "backend_p50_ms": 0.000709,
+          "backend_p95_ms": 0.001166,
+          "backend_p99_ms": 0.001708,
+          "round_trip_p50_ms": 0.029292,
+          "round_trip_p95_ms": 0.0335,
+          "round_trip_p99_ms": 0.063292,
+          "errors": 0
+        },
+        {
+          "operation": "get_symbol",
+          "calls": 2500,
+          "backend_p50_ms": 0.0005,
+          "backend_p95_ms": 0.000583,
+          "backend_p99_ms": 0.000791,
+          "round_trip_p50_ms": 0.035083,
+          "round_trip_p95_ms": 0.039542,
+          "round_trip_p99_ms": 0.078958,
+          "errors": 0
+        },
+        {
+          "operation": "find_references",
+          "calls": 2000,
+          "backend_p50_ms": 0.004792,
+          "backend_p95_ms": 0.005791,
+          "backend_p99_ms": 0.009375,
+          "round_trip_p50_ms": 0.063708,
+          "round_trip_p95_ms": 0.070291,
+          "round_trip_p99_ms": 0.155083,
+          "errors": 0
+        },
+        {
+          "operation": "find_cross_repo_consumers",
+          "calls": 1000,
+          "backend_p50_ms": 0.004875,
+          "backend_p95_ms": 0.007125,
+          "backend_p99_ms": 0.010417,
+          "round_trip_p50_ms": 0.084375,
+          "round_trip_p95_ms": 0.091375,
+          "round_trip_p99_ms": 0.16525,
+          "errors": 0
+        },
+        {
+          "operation": "get_blast_radius",
+          "calls": 500,
+          "backend_p50_ms": 0.019083,
+          "backend_p95_ms": 0.0245,
+          "backend_p99_ms": 0.055458,
+          "round_trip_p50_ms": 0.225666,
+          "round_trip_p95_ms": 0.241,
+          "round_trip_p99_ms": 0.512958,
+          "errors": 0
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "One machine, one seed, four clients. The workload is the synthetic corpus mcp-client generates, not kena.",
+    "The round-trip percentiles are dominated by the stdio transport, so a backend change of tens of nanoseconds is near the floor of what they can show. The per-operation backend percentiles are the sensitive figures here.",
+    "Allocations per operation are unchanged within noise; bytes per operation rose 0.7 percent, which this run does not attribute."
+  ]
+}
