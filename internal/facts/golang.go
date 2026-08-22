@@ -59,6 +59,45 @@ type GoReport struct {
 	EdgesOwnedByModule int
 }
 
+// Details for a declaration whose file is not inside the repository being
+// indexed. They are a closed vocabulary on purpose: the observed path is not
+// one of them.
+const (
+	// detailBuildCache is the case the Go loader produces on its own. Asking
+	// for compiled files means a package built with cgo or from generated
+	// sources reports positions inside $GOCACHE.
+	detailBuildCache = "declared in a Go build cache entry: the package is built from generated or cgo sources"
+	// detailModuleCache is a dependency read from the module cache rather
+	// than from a repository this index knows.
+	detailModuleCache = "declared in the Go module cache, outside every indexed repository"
+	// detailOutsideRoot is the honest remainder: outside, and the shape of
+	// the path says nothing more.
+	detailOutsideRoot = "declared outside the root of the repository being indexed"
+)
+
+// outsideRepositoryDetail says where a declaration's file lives without
+// naming the machine it lives on.
+//
+// The path is not evidence for this repository -- the reason this row exists at
+// all is that the pass refuses to key a Package, a File or a Symbol by it. A
+// build cache entry is keyed by content hash under some $HOME, so publishing
+// the path makes the same corpus indexed on two machines produce two
+// different graphs, and it names a file no reader elsewhere can open. What
+// does survive the move, and is what actually answers "why is this symbol
+// missing", is the kind of location.
+func outsideRepositoryDetail(path string) string {
+	segments := strings.Split(filepath.ToSlash(path), "/")
+	for index, segment := range segments {
+		switch {
+		case segment == "go-build":
+			return detailBuildCache
+		case segment == "mod" && index > 0 && segments[index-1] == "pkg":
+			return detailModuleCache
+		}
+	}
+	return detailOutsideRoot
+}
+
 // NormalizeGo converts the facts of one Go load into the canonical model.
 //
 // Only facts with a durable identity on both ends become edges. A reference
@@ -113,7 +152,10 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			// repository, so nothing here can carry it: a package
 			// rooted at a cache entry, a file keyed by an absolute
 			// path and a symbol attributed to both would each name
-			// this machine. Retain the loss with its reason.
+			// this machine. Retain the loss with its reason -- and
+			// with a detail that does not name the machine either,
+			// which is the same argument applied to the one field
+			// that used to escape it.
 			report.FactsOutsideRepository++
 			set.Unresolved = append(set.Unresolved, UnresolvedReference{
 				RepositoryKey:    repositoryKey,
@@ -121,7 +163,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 				RequestedPackage: definition.PackagePath,
 				RequestedSymbol:  definition.QualifiedName,
 				Reason:           string(goloader.UnresolvedDeclarationOutsideRepository),
-				Detail:           definition.FileName,
+				Detail:           outsideRepositoryDetail(definition.FileName),
 				Start: Position{
 					Line:   definition.StartLine,
 					Column: definition.StartColumn,

@@ -401,14 +401,61 @@ func TestNormalizeGoRefusesFactsFromOutsideTheRepository(t *testing.T) {
 	if len(retained) != 1 {
 		t.Fatalf("retained %d out-of-repository declarations, want 1: %#v", len(retained), retained)
 	}
-	if retained[0].Detail != cache {
-		t.Fatalf("Detail = %q, want the observed path %q", retained[0].Detail, cache)
+	// The detail explains the loss without naming the machine. The path is
+	// what this branch exists to refuse, so it must not survive in the one
+	// field that used to carry it verbatim.
+	if retained[0].Detail != detailBuildCache {
+		t.Fatalf("Detail = %q, want the classification %q", retained[0].Detail, detailBuildCache)
+	}
+	if strings.Contains(retained[0].Detail, cache) || strings.Contains(retained[0].Detail, t.TempDir()) {
+		t.Fatalf("Detail names this machine: %q", retained[0].Detail)
 	}
 	if retained[0].FileKey != "" {
 		t.Fatalf("FileKey = %q, want none: the file is not in this repository", retained[0].FileKey)
 	}
 	if retained[0].RequestedSymbol != declaration.QualifiedName {
 		t.Fatalf("RequestedSymbol = %q, want %q", retained[0].RequestedSymbol, declaration.QualifiedName)
+	}
+}
+
+// TestOutsideRepositoryDetailIsIndependentOfTheMachine defends the property
+// that motivated the classification: the same corpus indexed on two machines
+// must produce the same rows. A build cache entry lives under $HOME and is
+// keyed by content hash, so a detail that carried the path made two indexings
+// of one corpus publish two different graphs -- measured on `kena` as 288 rows
+// with the same key and a different detail, interned as 48 distinct strings.
+func TestOutsideRepositoryDetailIsIndependentOfTheMachine(t *testing.T) {
+	entry := filepath.Join("Library", "Caches", "go-build", "27",
+		"27bf728258fd9290eefce3c1972e594f6c46a1b2c552e6caf61374702bf0ecc3-d")
+	for _, home := range []string{"/Users/one", "/Users/another-with-a-longer-name", "/home/x"} {
+		got := outsideRepositoryDetail(filepath.Join(home, entry))
+		if got != detailBuildCache {
+			t.Fatalf("under %q: detail = %q, want %q", home, got, detailBuildCache)
+		}
+	}
+
+	for _, testCase := range []struct {
+		name string
+		path string
+		want string
+	}{
+		{"module cache", "/Users/x/go/pkg/mod/github.com/a/b@v1.2.3/c.go", detailModuleCache},
+		{"a directory merely named mod", "/srv/mod/c.go", detailOutsideRoot},
+		{"another repository", "/srv/other-repo/internal/c.go", detailOutsideRoot},
+		{"relative", "generated/c.go", detailOutsideRoot},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := outsideRepositoryDetail(testCase.path); got != testCase.want {
+				t.Fatalf("outsideRepositoryDetail(%q) = %q, want %q", testCase.path, got, testCase.want)
+			}
+		})
+	}
+
+	// The vocabulary is closed, so the string table interns three values
+	// however many rows a corpus produces.
+	if detailBuildCache == detailModuleCache || detailBuildCache == detailOutsideRoot ||
+		detailModuleCache == detailOutsideRoot {
+		t.Fatal("the three details must be distinguishable")
 	}
 }
 

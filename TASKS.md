@@ -15918,32 +15918,56 @@ distingue y qué no.
 
 **Objetivo:** que un grafo del mismo corpus sea el mismo en dos máquinas.
 
-**Lo que hay hoy, medido:** `288` filas de `UnresolvedReferenceRecord` llevan en
-su `Detail` una ruta absoluta de la caché de build de Go, de la forma
-`$HOME/Library/Caches/go-build/90/9038...-d`. Se internan como `48` cadenas
-distintas del `StringTable`, y son la única diferencia entre dos indexados del
-mismo corpus con dos `HOME` distintos.
+**El defecto.** `internal/facts/golang.go` rechaza crear paquete, fichero y
+símbolo para una declaración cuyo fichero cae fuera del repositorio, y su propio
+comentario dice por qué: cada uno «nombraría esta máquina». Acto seguido ponía esa
+misma ruta en `Detail`. El vocabulario de la razón
+-`goloader/unresolved.go:42-48`- ya lo tenía escrito: «no es evidencia para este
+repositorio: nombra una máquina y una entrada de caché, no código que alguien
+pueda leer en esa ruta después». La regla se aplicaba a tres campos de cuatro.
 
-**Por qué importa, y no es sólo estética:**
+Y un test lo defendía: `TestNormalizeGoRefusesFactsFromOutsideTheRepository`
+afirmaba `Detail == cache`, la ruta absoluta, mientras comprobaba en la línea de
+al lado que ningún `File.Path` fuera absoluto. El mismo invariante, aplicado a un
+campo y no al otro.
 
-* **Rompe el determinismo** que la fase 20 quiere del artefacto: el mismo corpus
-  en dos máquinas no da el mismo grafo ni el mismo fichero.
-* **Filtra una ruta local** en un artefacto que se publica y se comparte.
-* Como `detail` es lo que un lector ve al preguntar por un no resuelto, una ruta
-  de la caché de otra máquina no le dice nada: no existe en la suya.
+**Alcance, medido antes de tocar nada.** Sobre `kena`, `87` rutas absolutas entre
+las `639.613` cadenas internadas: `48` de la caché de build -- el defecto-- y `39`
+raíces de repositorio del registro, que son deliberadas y se quedan. **Ningún
+diagnóstico filtra rutas**, que era la hipótesis alternativa: los detalles de
+TypeScript son relativos por construcción -`typescript.go:401`, de la forma
+`../../libraries/...`- y los de Rust son prosa fija.
 
-**Lo que hay que averiguar antes de arreglar:** de dónde sale. Es el cargador de
-Go, que informa de un fallo de paquete con la ruta que `go/packages` le dio, y esa
-ruta apunta al caché porque el paquete es un `.test` sintético. La pregunta de
-diseño es qué `detail` sirve a quien lee: el motivo -- que ya está en `reason`-- y
-el paquete pedido -- que ya está en `requested_package`--, o una ruta que sólo
-existe en la máquina que indexó.
+**La decisión.** `Detail` pasa a ser un vocabulario cerrado de tres valores que
+clasifica *dónde* vive el fichero sin decir *en qué máquina*: entrada de la caché
+de build -- que es la que dice a un lector que el paquete se construye con cgo o
+desde fuentes generadas, lo único accionable de la ruta anterior--, caché de
+módulos, o fuera de la raíz. La clasificación se deriva de la forma de la ruta,
+así que sigue siendo observada y no fabricada.
 
-**Criterio de aceptación:** dos indexados del mismo corpus en dos `HOME` distintos
-producen el mismo conjunto de filas, y ninguna cadena internada contiene una ruta
-que dependa de la máquina. La regresión más barata es exactamente ésa.
+**Verificación:** dos indexados del mismo corpus con dos `HOME` de longitud
+distinta.
 
-**Estado:** abierta.
+|magnitud|antes|después|
+|---|---|---|
+|rutas de caché de build internadas|`48`|`0`|
+|rutas absolutas totales|`87`|`39` (las raíces del registro, idénticas)|
+|cadenas internadas|`639.613`|`639.566` (`-48 +1`, exacto)|
+|filas de no resueltos|`13.163`|`13.163`|
+|filas de esta clase retenidas|`288`|`288`|
+|conjunto `(clave, detail)` entre los dos `HOME`|**difiere**|**igual**|
+|payload publicado entre los dos `HOME`|difiere en `48` bytes|**idéntico byte a byte**|
+
+Lo único que sigue distinguiendo los dos ficheros son `5` bytes de `created_at`
+en la cabecera -- procedencia, exactamente lo que `LUQUE-2004` fijó por test.
+
+* Regresión: `TestOutsideRepositoryDetailIsIndependentOfTheMachine`, que clasifica
+  la misma entrada bajo tres `HOME` distintos y separa el caso de un directorio
+  llamado `mod` que no es la caché de módulos.
+* Gates en verde por código de salida: `gofmt`, `vet`, `test`, `-race`,
+  `test-ladybug`, `build`, `landing-check`.
+
+**Estado:** cerrada el `2026-08-22`.
 
 ---
 
