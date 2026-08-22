@@ -22,6 +22,15 @@ func TestDartReferenceKindClassifiesResolvedUses(t *testing.T) {
 		{name: "callback", source: "run(handler);", target: "handler", targetKind: "FUNCTION", want: "PASSES_AS_CALLBACK"},
 		{name: "assignment", source: "final value = handler;", target: "handler", targetKind: "FUNCTION", want: "ASSIGNS_FUNCTION"},
 		{name: "return", source: "return handler;", target: "handler", targetKind: "FUNCTION", want: "RETURNS_FUNCTION"},
+		// An arrow body carries an `=` that is not an assignment: reading a
+		// getter through `=>` was published as ASSIGNS_FUNCTION.
+		{name: "arrow body reads a getter", source: "String asText() => value.toString();", target: "value", targetKind: "GETTER", want: "REFERENCES"},
+		{name: "arrow body returns a function", source: "Runner build() => handler;", target: "handler", targetKind: "FUNCTION", want: "RETURNS_FUNCTION"},
+		// The Analysis Server answers UNKNOWN for an enum, a mixin and an
+		// extension type used as a type, so the position has to classify it.
+		{name: "unknown kind annotating a parameter", source: "String describe(VehicleKind kind) {", target: "VehicleKind", targetKind: "UNKNOWN", want: "TYPE_USES"},
+		{name: "unknown kind with generic arguments", source: "Result<int> value;", target: "Result", targetKind: "UNKNOWN", want: "TYPE_USES"},
+		{name: "unknown kind reading a member", source: "final name = kind.name;", target: "kind", targetKind: "UNKNOWN", want: "REFERENCES"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -50,6 +59,63 @@ func TestDartAnalyzerOutlinesIgnoreExternalConstructorInvocations(t *testing.T) 
 	}
 	if isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "METHOD"}}, root) {
 		t.Fatal("methods are declarations")
+	}
+}
+
+// A declaration observed by the analyzer outline without an element location
+// has to key on its identifier, the way the LSP outline does: keying on the
+// start of the declaration published `Vehicle` twice, once per source.
+func TestDeclarationNameOffsetFindsTheIdentifierInsideItsOwnSpan(t *testing.T) {
+	data := []byte("class Vehicle {\n  String drive() => 'ready';\n}\n")
+	if got := declarationNameOffset(data, 0, len(data), "Vehicle"); got != strings.Index(string(data), "Vehicle") {
+		t.Fatalf("declarationNameOffset() = %d, want %d", got, strings.Index(string(data), "Vehicle"))
+	}
+	// A whole-word match, so a name that only occurs as a substring is absent.
+	if got := declarationNameOffset([]byte("class PartValue {}"), 0, 18, "Value"); got != -1 {
+		t.Fatalf("declarationNameOffset() = %d, want -1 for a substring match", got)
+	}
+	if got := declarationNameOffset(data, 0, len(data), "Missing"); got != -1 {
+		t.Fatalf("declarationNameOffset() = %d, want -1 when the name is absent", got)
+	}
+}
+
+// The Dart LSP reports an extension type as a Namespace. Publishing it as a
+// module let it compete with its own file for the file's module identity, and a
+// `part` directive then pointed at the declaration instead of the library.
+func TestDartKindKeepsNamespaceOutOfTheModuleIdentity(t *testing.T) {
+	if got := dartKind(3); got == "module" {
+		t.Fatalf("dartKind(3) = %q, which competes with the file's module identity", got)
+	}
+	if got := dartKind(2); got != "module" {
+		t.Fatalf("dartKind(2) = %q, want module", got)
+	}
+}
+
+// Neither declaration source lists the representation field of an extension
+// type, so every use of it pointed at a target outside the graph. A plain
+// extension has no representation, and must not gain one.
+func TestExtensionTypeHeaderNamesOnlyARepresentationField(t *testing.T) {
+	cases := []struct {
+		name, header, want string
+	}{
+		{name: "representation", header: "extension type UserId(int value) ", want: "value"},
+		{name: "const representation", header: "extension type const Meters(double amount) ", want: "amount"},
+		{name: "generic representation", header: "extension type Wrapper<T>(List<T> items) ", want: "items"},
+		{name: "named constructor", header: "extension type UserId.from(int raw) ", want: "raw"},
+		{name: "plain extension", header: "extension Helpers on String ", want: ""},
+		{name: "class declaration", header: "class Vehicle ", want: ""},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			match := extensionTypeHeader.FindStringSubmatch(testCase.header)
+			got := ""
+			if match != nil {
+				got = match[1]
+			}
+			if got != testCase.want {
+				t.Fatalf("extensionTypeHeader on %q named %q, want %q", testCase.header, got, testCase.want)
+			}
+		})
 	}
 }
 

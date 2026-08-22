@@ -583,6 +583,7 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 	}
 	events := server.eventsSince(eventStart)
 	appendDartAnalyzerOutlines(events, root, contents, byURI, selectionOffsets, payload)
+	appendExtensionTypeRepresentations(root, contents, byURI, selectionOffsets, payload)
 	symbols = payload.Symbols
 	byLocation = make(map[string]string, len(symbols))
 	for _, symbol := range symbols {
@@ -646,7 +647,12 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 					}
 					continue
 				}
-				if targetID == source.ID && targetPath == sourcePath && targetOffset == sourceOffset {
+				// Identity, not position: a declaration does not reference
+				// itself. The occurrence of `Vehicle` in `class Vehicle` and the
+				// name on a `library` directive both resolve to the symbol that
+				// encloses them, at a different offset -- so comparing offsets
+				// let four self loops through as EXACT edges.
+				if targetID != "" && targetID == source.ID {
 					continue
 				}
 				endOffset := analyzerOffset(sourceData, region.Offset+region.Length)
@@ -701,7 +707,12 @@ func appendDartAnalyzerOutlines(events []analyzerMessage, root string, contents 
 		var visit func(analyzerOutline, string)
 		visit = func(row analyzerOutline, prefix string) {
 			name := strings.TrimSpace(row.Element.Name)
-			if name == "" {
+			// The Analysis Server names the compilation unit `<unit>`, and marks
+			// other synthetic elements the same way. It is not a declaration:
+			// taking it as one published a second copy of every symbol in the
+			// file under a `<unit>.` prefix, and a reference then joined the two
+			// copies of one declaration as an EXACT edge.
+			if name == "" || strings.HasPrefix(name, "<") && strings.HasSuffix(name, ">") {
 				for _, child := range row.Children {
 					visit(child, prefix)
 				}
@@ -724,7 +735,14 @@ func appendDartAnalyzerOutlines(events []analyzerMessage, root string, contents 
 			selection := analyzerOffset(data, row.Offset)
 			if row.Element.Location != nil {
 				selection = analyzerOffset(data, row.Element.Location.Offset)
+			} else if index := declarationNameOffset(data, analyzerOffset(data, row.Offset), analyzerOffset(data, row.Offset+row.Length), name); index >= 0 {
+				// The identifier, not the start of the declaration: an outline row
+				// with no element location otherwise keyed on the `class` keyword
+				// while the LSP row keyed on the name, so one declaration was
+				// published twice and a reference joined the two copies.
+				selection = index
 			}
+			kind := analyzerDartKind(row.Element.Kind)
 			if _, found := existing[locationKey(path, selection)]; !found {
 				startOffset := analyzerOffset(data, row.Offset)
 				endOffset := analyzerOffset(data, row.Offset+row.Length)
@@ -738,7 +756,6 @@ func appendDartAnalyzerOutlines(events []analyzerMessage, root string, contents 
 				if signature == "" {
 					signature = declarationSignature(data, start)
 				}
-				kind := analyzerDartKind(row.Element.Kind)
 				id := fmt.Sprintf("%s\x00%s\x00%s\x00%d:%d", relativePath, qualified, kind, start.Line, start.Character)
 				symbol := facts.SemanticSymbol{
 					ID: id, File: relativePath, Name: name, QualifiedName: qualified,
@@ -758,6 +775,104 @@ func appendDartAnalyzerOutlines(events []analyzerMessage, root string, contents 
 		visit(params.Outline, "")
 	}
 	sort.Slice(payload.Symbols, func(i, j int) bool { return payload.Symbols[i].ID < payload.Symbols[j].ID })
+	// One identity, one row. Both declaration sources can observe the same
+	// declaration and agree on its identity, and the duplicate then inflates
+	// every count taken from the payload without adding a fact.
+	unique := payload.Symbols[:0]
+	for index, symbol := range payload.Symbols {
+		if index > 0 && symbol.ID == payload.Symbols[index-1].ID {
+			continue
+		}
+		unique = append(unique, symbol)
+	}
+	payload.Symbols = unique
+}
+
+// extensionTypeHeader matches the representation declaration of an extension
+// type: `extension type UserId(int value)`, with the optional `const` and an
+// optional named constructor. The type may itself be generic or nullable, so
+// the field name is the last identifier before the closing parenthesis.
+var extensionTypeHeader = regexp.MustCompile(`extension\s+type\s+(?:const\s+)?[A-Za-z_$][A-Za-z0-9_$]*(?:<[^>]*>)?(?:\.[A-Za-z_$][A-Za-z0-9_$]*)?\s*\(\s*[^()]*?([A-Za-z_$][A-Za-z0-9_$]*)\s*\)`)
+
+// appendExtensionTypeRepresentations publishes the representation field of an
+// extension type. Neither declaration source lists it, so every use of it
+// resolved to a target that is not in the graph -- `String asText() =>
+// value.toString()` lost its only relation -- even though the field is a
+// declaration any holder can name as `id.value`.
+func appendExtensionTypeRepresentations(root string, contents map[string][]byte, byURI map[string][]facts.SemanticSymbol, selectionOffsets map[string]int, payload *facts.SemanticPayload) {
+	declared := make(map[string]struct{}, len(payload.Symbols))
+	for _, symbol := range payload.Symbols {
+		declared[symbol.File+"\x00"+symbol.QualifiedName] = struct{}{}
+	}
+	added := make([]facts.SemanticSymbol, 0, 4)
+	for _, symbol := range payload.Symbols {
+		if symbol.Kind != "extension" {
+			continue
+		}
+		path := filepath.Join(root, filepath.FromSlash(symbol.File))
+		data := contents[path]
+		if symbol.Start < 0 || symbol.End > len(data) || symbol.Start >= symbol.End {
+			continue
+		}
+		header := data[symbol.Start:symbol.End]
+		if brace := bytes.IndexByte(header, '{'); brace >= 0 {
+			header = header[:brace]
+		}
+		match := extensionTypeHeader.FindSubmatchIndex(header)
+		if match == nil {
+			continue
+		}
+		name := string(header[match[2]:match[3]])
+		qualified := symbol.QualifiedName + "." + name
+		if _, found := declared[symbol.File+"\x00"+qualified]; found {
+			continue
+		}
+		start := symbol.Start + match[2]
+		end := symbol.Start + match[3]
+		startPosition := positionAt(data, start)
+		endPosition := positionAt(data, end)
+		id := fmt.Sprintf("%s\x00%s\x00%s\x00%d:%d", symbol.File, qualified, "field", startPosition.Line, startPosition.Character)
+		field := facts.SemanticSymbol{
+			ID: id, File: symbol.File, Name: name, QualifiedName: qualified,
+			Kind: "field", Exported: !strings.HasPrefix(name, "_"),
+			Signature: "field " + qualified,
+			StartLine: startPosition.Line + 1, StartColumn: startPosition.Character, Start: start,
+			EndLine: endPosition.Line + 1, EndColumn: endPosition.Character, End: end,
+		}
+		added = append(added, field)
+		declared[symbol.File+"\x00"+qualified] = struct{}{}
+		selectionOffsets[id] = start
+		byURI[fileURI(path)] = append(byURI[fileURI(path)], field)
+	}
+	if len(added) == 0 {
+		return
+	}
+	payload.Symbols = append(payload.Symbols, added...)
+	sort.Slice(payload.Symbols, func(i, j int) bool { return payload.Symbols[i].ID < payload.Symbols[j].ID })
+}
+
+// declarationNameOffset finds where a declaration's identifier begins inside
+// its own span, so an outline row without an element location keys on the same
+// offset the LSP outline used. It returns -1 when the name is not there, and
+// requires a whole-word match so `Value` inside `PartValue` is not taken.
+func declarationNameOffset(data []byte, start, end int, name string) int {
+	if name == "" || start < 0 || end > len(data) || start >= end {
+		return -1
+	}
+	window := string(data[start:end])
+	for offset := 0; ; {
+		index := strings.Index(window[offset:], name)
+		if index < 0 {
+			return -1
+		}
+		index += offset
+		before := index == 0 || !isIdentifierPart(window[index-1])
+		after := index+len(name) >= len(window) || !isIdentifierPart(window[index+len(name)])
+		if before && after {
+			return start + index
+		}
+		offset = index + len(name)
+	}
 }
 
 func isDartAnalyzerConstructorInvocation(row analyzerOutline, root string) bool {
@@ -922,8 +1037,14 @@ func appendDartAnalyzerOverrides(events []analyzerMessage, root string, contents
 	}
 }
 
+// initialize announces hierarchical document symbols because flattenSymbols
+// needs the DocumentSymbol shape: a SymbolInformation carries a range that
+// covers only the identifier, so no declaration ever contains a reference made
+// inside its body and enclosing() answers with the file's module instead. That
+// published `EXTENDS models.dart -> Vehicle` for `class ElectricVehicle extends
+// Vehicle` -- an EXACT edge naming the wrong source.
 func (c *client) initialize(ctx context.Context, root string) error {
-	_, err := c.call(ctx, "initialize", map[string]any{"processId": nil, "rootUri": fileURI(root), "workspaceFolders": []any{map[string]any{"uri": fileURI(root), "name": filepath.Base(root)}}, "capabilities": map[string]any{"workspace": map[string]any{"workspaceFolders": true}}})
+	_, err := c.call(ctx, "initialize", map[string]any{"processId": nil, "rootUri": fileURI(root), "workspaceFolders": []any{map[string]any{"uri": fileURI(root), "name": filepath.Base(root)}}, "capabilities": map[string]any{"workspace": map[string]any{"workspaceFolders": true}, "textDocument": map[string]any{"documentSymbol": map[string]any{"hierarchicalDocumentSymbolSupport": true}}}})
 	if err != nil {
 		return err
 	}
@@ -1098,8 +1219,16 @@ func dartKind(kind int) string {
 	switch kind {
 	case 1:
 		return "file"
-	case 2, 3, 4:
+	case 2, 4:
 		return "module"
+	case 3:
+		// The Dart LSP reports an extension type as a Namespace. Calling that a
+		// module let a declaration compete with its own file for the file's
+		// module identity, and the last one by identity won: a `part` directive
+		// then published PART_OF pointing at the extension type instead of the
+		// library. Reproduced with a library under `src/`, where the name orders
+		// after `module`.
+		return "extension"
 	case 5:
 		return "class"
 	case 6:
@@ -1315,14 +1444,20 @@ func dartReferenceKind(data []byte, offset, length int, targetKind string) strin
 		return "CALLS_DIRECT"
 	}
 	prefix = strings.TrimSpace(line[:point.Character])
-	if prefix == "return" || strings.HasPrefix(prefix, "return ") || strings.Contains(prefix, " return ") {
+	// A member access means the occurrence is not what the expression yields:
+	// `=> value.toString()` returns the string, and `value` is only read.
+	memberAccess := strings.HasPrefix(strings.TrimSpace(line[byteCharacter+min(length, len(line)-byteCharacter):]), ".")
+	// An arrow body is a return: `Runner build() => handler` hands back the
+	// function exactly as `return handler` does, and only the keyword was
+	// recognised.
+	if !memberAccess && (prefix == "return" || strings.HasPrefix(prefix, "return ") || strings.Contains(prefix, " return ") || strings.HasSuffix(prefix, "=>")) {
 		if isFunctionLikeDartTarget(targetKind) {
 			return "RETURNS_FUNCTION"
 		}
 	}
 	if isFunctionLikeDartTarget(targetKind) {
 		suffix := strings.TrimSpace(line[min(byteCharacter+length, len(line)):])
-		if strings.Contains(prefix, "=") && !strings.HasPrefix(prefix, "==") {
+		if assignsInPrefix(prefix) {
 			return "ASSIGNS_FUNCTION"
 		}
 		if strings.HasPrefix(suffix, ",") || strings.HasPrefix(suffix, ")") || strings.HasPrefix(suffix, "]") {
@@ -1331,10 +1466,75 @@ func dartReferenceKind(data []byte, offset, length int, targetKind string) strin
 			}
 		}
 	}
-	if isTypeLikeDartTarget(targetKind) && !strings.HasPrefix(strings.TrimSpace(line[byteCharacter+min(length, len(line)-byteCharacter):]), ".") {
+	rest := line[byteCharacter+min(length, len(line)-byteCharacter):]
+	trailing := strings.TrimSpace(rest)
+	if strings.HasPrefix(trailing, ".") {
+		return "REFERENCES"
+	}
+	if isTypeLikeDartTarget(targetKind) {
 		return "TYPE_USES"
 	}
+	// The Analysis Server answers UNKNOWN for an enum, a mixin and an
+	// extension type used as a type, so the kind cannot classify the relation
+	// and the position has to. `VehicleKind kind` is a declaration: the
+	// occurrence is a type annotation and the name that follows is what it
+	// annotates. The reference itself is already resolved; this only decides
+	// which relation it is, which is what every other branch here does too.
+	if targetKind == "" || strings.EqualFold(strings.TrimSpace(targetKind), "UNKNOWN") {
+		if annotatesDeclaration(rest) {
+			return "TYPE_USES"
+		}
+	}
 	return "REFERENCES"
+}
+
+// assignsInPrefix reports whether the text before an occurrence ends in a plain
+// assignment. An arrow body (`=>`), a comparison and a compound operator all
+// carry an `=` that is not one: `int get value => _value` was published as
+// ASSIGNS_FUNCTION for a getter read.
+func assignsInPrefix(prefix string) bool {
+	for index := len(prefix) - 1; index >= 0; index-- {
+		if prefix[index] != '=' {
+			continue
+		}
+		if index+1 < len(prefix) && (prefix[index+1] == '=' || prefix[index+1] == '>') {
+			continue
+		}
+		if index > 0 && strings.IndexByte("!<>=+-*/%&|^~", prefix[index-1]) >= 0 {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// annotatesDeclaration reports whether what follows an occurrence is the name
+// it annotates, after any generic arguments and nullability marker.
+func annotatesDeclaration(trailing string) bool {
+	if depth := 0; strings.HasPrefix(trailing, "<") {
+		for index := 0; index < len(trailing); index++ {
+			switch trailing[index] {
+			case '<':
+				depth++
+			case '>':
+				depth--
+				if depth == 0 {
+					trailing = trailing[index+1:]
+					index = len(trailing)
+				}
+			}
+		}
+	}
+	trailing = strings.TrimPrefix(trailing, "?")
+	if trailing == "" || !isSpace(trailing[0]) {
+		return false
+	}
+	trailing = strings.TrimLeft(trailing, " \t")
+	return trailing != "" && (trailing[0] == '_' || trailing[0] >= 'a' && trailing[0] <= 'z' || trailing[0] >= 'A' && trailing[0] <= 'Z')
+}
+
+func isSpace(value byte) bool {
+	return value == ' ' || value == '\t'
 }
 
 func isFunctionLikeDartTarget(kind string) bool {
