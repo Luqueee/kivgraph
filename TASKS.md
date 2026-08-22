@@ -15137,6 +15137,8 @@ RUST_SEMANTIC_PASS
 RUST_CROSS_REPO_PASS
 MCP_TOKEN_COST_PASS
 SHARED_SNAPSHOT_PASS
+DART_SEMANTIC_PASS_WITH_LIMITS
+PYTHON_SEMANTIC_PASS_WITH_LIMITS
 ```
 
 No se puede aprobar Kivgraph sin todos ellos.
@@ -16205,5 +16207,283 @@ typo `snapshot_path` : config: FAIL -- la estrictez sigue viva
 * `TestLoadConfigRejectsInvalidDocuments/unknown_field_inside_a_section_that_has_retired_keys`.
 * Gates en verde por código de salida: `gofmt`, `vet`, `test`, `test-ladybug`,
   `build`, `landing-check`.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 29. Fase 22 — Cualificar Python y Dart
+
+El servidor anuncia cinco lenguajes. `internal/mcp/instructions.go:21` dice que
+«Dart edges are resolved by Dart Analysis Server» y que «Python uses exact
+semantic facts when a configured analyzer provides them». Go, TypeScript y Rust
+tienen cada uno su fase, su benchmark y su precisión medida. Python y Dart no
+tienen ninguna: cero benchmarks, cero informes, y Dart no aparecía ni una vez en
+este fichero.
+
+**Lo que la auditoría de código sí encontró, antes de medir nada.** Los dos
+caminos ascienden a `EXACT` con un único flag del payload
+-`internal/facts/semantic.go:295`-, y ese flag no se decide por arista: Dart lo
+pone incondicionalmente al construir el payload
+(`internal/dartloader/loader.go:122`) y Python lo deriva de si cayó al fallback
+(`internal/pythonloader/loader.go:93`). Eso **sería** una infracción del contrato
+de `AGENTS.md` -- una arista `EXACT` exige evidencia suficiente-- si los
+productores emitieran referencias que su analizador no resolvió. Leídos, no lo
+hacen:
+
+- Dart sólo emite una referencia cuando la navegación del Analysis Server da un
+  objetivo que mapea a un símbolo indexado o a un proveedor resuelto; lo demás
+  se retiene como `UNRESOLVED` con motivo `DART_TARGET_NOT_INDEXED`
+  (`internal/dartloader/loader.go:635-648`).
+- El productor exacto de Python pide `textDocument/definition` por nodo y lo que
+  no resuelve va a `UNRESOLVED` con `NAME_NOT_RESOLVED` o `TARGET_NOT_INDEXED`
+  (`python-worker/pyright_index.py:309-314`).
+
+Así que la deuda no es de corrección aparente: **es que nadie lo ha medido**. Y
+este repositorio ya sabe lo que valen las afirmaciones sin medición.
+
+**El método no se inventa.** Es el de `LUQUE-1816`: verdad de referencia escrita
+a mano leyendo los fuentes del fixture, y se mide TP, FN y **falsas exactas**
+contra ella. Comparar un índice contra sí mismo no prueba nada.
+
+## LUQUE-2201 — La exactitud de Dart, medida
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que la afirmación sobre Dart tenga un número detrás, o deje de
+hacerse.
+
+**Alcance:** `benchmarks/dart-semantic/` con `results.json` y `report.md`, con la
+forma de `benchmarks/rust-semantic/`, sobre `testdata/dart/basic` y
+`testdata/dart/advanced`.
+
+**Criterios de aceptación:**
+
+- **Falsas exactas = 0.** No es un umbral ajustable: es el contrato de
+  `AGENTS.md`. Si sale distinto de cero, el resultado es el hallazgo.
+- Toda referencia que el Analysis Server no resolvió se conserva como
+  `UNRESOLVED` con su motivo. Un hecho perdido en silencio es el defecto que
+  esta fase existe para no repetir.
+- Los invariantes que no dependen de la verdad de referencia se comprueban
+  igual: arista exacta con procedencia exacta, referencia con su observación, no
+  resuelta con sujeto.
+- Dos ejecuciones producen artefactos byte a byte idénticos.
+
+**Estado:** cerrada el `2026-08-22`. `DART_SEMANTIC_PASS_WITH_LIMITS` con `27`
+de `27` esperadas, `0` falsas exactas, `0` invariantes rotas, `6/6` no resueltas
+emparejadas y dos ejecuciones byte a byte idénticas.
+
+La primera medición dio `19` falsas exactas de `35` y `10` de `27`
+esperadas. **Siete defectos**, todos arreglados aquí porque cada uno fabricaba
+una arista `EXACT` que el fuente no contiene:
+
+- `initialize` no anunciaba `hierarchicalDocumentSymbolSupport`, así que el
+  servidor respondía `SymbolInformation` planos cuyo rango cubre sólo el
+  identificador: ninguna declaración contenía las referencias de su cuerpo y
+  `enclosing` caía al módulo. Publicaba `EXTENDS models.dart -> Vehicle` para
+  `class ElectricVehicle extends Vehicle`. Una línea: `19` falsas a `6`, `10`
+  aciertos a `24`, `edges_sourced_at_module` a `0`.
+- La guarda de autorreferencia comparaba desplazamientos y no identidades: la
+  ocurrencia de `Vehicle` en `class Vehicle` y el nombre de una directiva
+  `library` pasaban como cuatro bucles exactos.
+- Un `<unit>` -- el nombre que el Analysis Server da a la unidad de compilación --
+  se tomaba por declaración, así que cada símbolo del fichero se publicaba
+  también bajo un prefijo `<unit>.` y una referencia unía las dos copias.
+- Una fila del outline sin localización de elemento caía en el inicio de la
+  declaración mientras la del LSP caía en el identificador, así que la
+  deduplicación por posición no las unía. Deduplicar por nombre lo rompía --
+  tiraba la fila cuya posición usan los objetivos de navegación, `26` aciertos a
+  `22` --, y el arreglo verdadero es resolver el desplazamiento del nombre.
+- Un cuerpo con flecha se leía como asignación: `String asText() => value...`
+  publicaba `ASSIGNS_FUNCTION` sobre una lectura.
+- `dartKind` mapeaba `SymbolKind.Namespace` a `module`, y un `extension type` le
+  quitaba a su fichero la identidad de módulo: reproducido en un paquete con
+  `src/feature.dart`, donde la arista era `PART_OF src.piece -> UserId`.
+- El campo de representación de un `extension type` no lo publica ninguna de las
+  dos fuentes de declaraciones, así que todo uso de `id.value` apuntaba fuera del
+  grafo.
+
+Y un fixture: `testdata/dart/advanced/lib/library.dart` no compilaba
+-`EXPORT_DIRECTIVE_AFTER_PART_DIRECTIVE`-, así que no demostraba el caso que
+decía demostrar. Los dos paquetes pasan `dart analyze` limpio.
+
+Lo que queda declarado en el informe, no arreglado: las aristas de directiva
+viajan sin `evidence_key` -darles un extremo obliga a cambiar la versión del
+payload que comparten los cinco lenguajes-, un hecho `part` se observa desde sus
+dos extremos y produce dos filas idénticas, y una comparación dentro de un
+paréntesis se clasifica `PASSES_AS_CALLBACK`.
+
+**Verificación:** `go run ./benchmarks/dart-semantic` (dos veces, artefactos
+idénticos), `go test ./internal/dartloader/`, `dart analyze` en los dos
+fixtures.
+
+---
+
+## LUQUE-2202 — La exactitud de Python, en sus dos modos
+
+**Dependencias:** ninguna.
+
+**Objetivo:** lo mismo, y además la propiedad que separa los dos modos.
+
+**Alcance:** `benchmarks/python-semantic/` sobre `testdata/python/basic` y
+`testdata/python/coverage`, con **dos brazos**: el fallback de
+`python-worker/index.py` y el exacto de `python-worker/pyright_index.py`.
+
+**Criterios de aceptación:**
+
+- **El brazo fallback no publica ni una arista exacta.** Es una propiedad del
+  modo, no un número del corpus: falsable, y no depende de qué fixture se mida.
+  Es lo que promete `loader.go:93`, y nadie lo comprobaba.
+- **Falsas exactas = 0 en el brazo exacto**, por el mismo contrato.
+- Si `pyright` no está disponible, el arnés **declara la ausencia y se salta ese
+  brazo**; no finge un cero ni lo convierte en un fallo del código, que es la
+  regla de `benchmarks/AGENTS.md`.
+- Dos ejecuciones producen artefactos byte a byte idénticos.
+
+**Estado:** cerrada el `2026-08-22`. `PYTHON_SEMANTIC_PASS_WITH_LIMITS`. El
+brazo fallback cumple su propiedad -- `0` aristas exactas, `25` candidatas -- y el
+exacto sale con `35` exactas, `0` falsas y `32` de `41` esperadas. Con `PATH` sin
+`pyright-langserver` el brazo exacto se salta con motivo, sin cero inventado.
+Dos ejecuciones byte a byte idénticas.
+
+La primera medición encontró **el brazo exacto roto**, y con la infracción que
+esta fase existía para buscar:
+
+- Pedía `"capabilities": {}` y luego asumía la respuesta anidada, así que Pyright
+  contestaba plano y todo símbolo recibía el prefijo del módulo:
+  `Vehicle.drive` y `Car.drive` colapsaban en `pkg.models.drive`, el
+  normalizador publicaba dos `DEFINES` para una clave y `facts.Set.Validate`
+  rechazaba el conjunto. **El fixture `coverage` no se indexaba en absoluto.**
+- Ninguna referencia salía de la función que la hace -- `sourceId: module_id` en
+  todas --, así que `find_references` contestaba a granularidad de archivo. Y ese
+  origen fabricaba una exacta falsa: `EXTENDS pkg.models -> pkg.models.Vehicle`
+  sobre un `class ElectricVehicle(Vehicle):`.
+- Arreglados los dos, aparecieron `16` falsas nuevas: los símbolos jerárquicos
+  incluyen locales y parámetros, y una función sostenía aristas hacia sus propios
+  locales y hacia sí misma. Un local no lo puede nombrar nadie desde fuera, que
+  es la regla que Go aplica a una declaración que no alcanza el ámbito de
+  paquete.
+- La última falsa era un objetivo que Pyright sitúa dentro de un archivo pero
+  sobre ninguna declaración indexada -- una `def` `@overload`ada --, que resolvía
+  al módulo porque es el único símbolo cuyo rango cubre el fichero. Eso no es un
+  objetivo resuelto: es una arista `EXACT` ganada por ser el último candidato.
+  Ahora se retiene como `TARGET_NOT_INDEXED`, y el precio -- la llamada a
+  `convert` que deja de publicarse -- está declarado en el informe.
+
+- Y un hueco que sólo se vio con el binario: un acceso por atributo no dejaba
+  **ni arista ni fila de no resuelta**, porque el recorrido no visita un
+  `ast.Attribute`. `find_references` sobre `Box.get` contestaba `COMPLETE` y «una
+  ausencia, no un fallo» sobre un `box.get()` que el fuente hace. Ahora la
+  ocurrencia se pregunta como cualquier otra -- Pyright resuelve un miembro en su
+  nombre -- y se rechaza igual cuando no resuelve: `26` aciertos a `32`.
+
+La verdad de referencia se extendió por eso, **después de medir**, con dos filas
+que el fuente contiene y que la primera versión no enumeró porque nada podía
+observarlas: `Box.get -> Box.value` (`pkg/models.py:17` sobre `:14`) y
+`Vehicle.drive -> Vehicle.name` (`:24` sobre `:21`). Está declarado en el informe
+con esta misma razón; no se quitó ninguna expectativa ni se relajó un criterio.
+
+Lo que queda declarado: `__all__` no se lee, así que no hay `REEXPORTS`; el
+fallback sigue sin resolver un atributo, porque sin analizador no podría nombrar
+el objetivo sin adivinarlo; y una anotación subscrita degrada a `REFERENCES`.
+
+**Verificación:** `go run ./benchmarks/python-semantic` (dos veces, artefactos
+idénticos) y el brazo ausente probado con un `PATH` sin `pyright-langserver`.
+
+---
+
+## LUQUE-2203 — Publicar los números o retirar la promesa
+
+**Dependencias:** LUQUE-2201, LUQUE-2202.
+
+**Objetivo:** que `instructions.go` y la skill digan lo que está medido, no lo
+que se espera.
+
+**Alcance:** con los dos informes en la mano, una de dos salidas para cada
+lenguaje -- y la decisión sale de las cifras, no de las ganas:
+
+1. Las cifras sostienen la afirmación: se queda, y el gate entra en la lista de
+   gates globales.
+2. No la sostienen: la superficie degrada a nombrar lo que sí está medido.
+   `mcp.instructions` y `internal/integrations/assets/kivgraph/SKILL.md` son
+   superficie de compatibilidad, así que el cambio se declara.
+
+**Criterios de aceptación:**
+
+- Ninguna frase sobre Python o Dart en la superficie visible sin una cifra
+  medida detrás o una limitación declarada.
+- La documentación describe el comportamiento observado, que es la regla de la
+  raíz.
+
+**Estado:** cerrada el `2026-08-22`, por la salida 1: las cifras sostienen las
+dos afirmaciones y no hay que retirar ninguna. `instructions.go` dice que las
+aristas de Dart las resuelve el Analysis Server -- `32` exactas, `0` falsas -- y
+que Python emite hechos exactos cuando hay analizador configurado y `CANDIDATE`
+en su fallback: medido, `35` exactas con `0` falsas en el brazo exacto y `0`
+exactas con `25` candidatas en el fallback. Es una frase condicional, y el
+bundle publica los dos productores en `worker/python-worker/`, que es la tercera
+ruta que `resolveCommand` prueba: el modo exacto existe también para un binario
+instalado. Los dos tokens entran en los gates globales.
+
+**Lo que faltaba no era una frase: era que la superficie no mentía sólo cuando
+acertaba.** El humo de esta fase -- indexar dos repositorios con el binario real y
+preguntar -- encontró dos defectos que ninguna medición veía, y los dos están
+arreglados aquí. Van abajo con su propia ficha porque no son de esta tarea.
+
+---
+
+## LUQUE-2204 — `find_references` vendía un fallo como una ausencia
+
+**Dependencias:** ninguna. Encontrada por el humo de LUQUE-2202.
+
+Preguntar por `pkg.service.convert` devolvía `total: 0` con la frase «the edges
+are type-checked, so this is an absence rather than a miss», y el fuente la llama
+en `pkg/service.py:31`. El índice **guardaba** la razón -- una fila no resuelta con
+`requestedSymbol: convert`, su archivo y su línea -- y la herramienta no la
+consultaba: `addReferenceCoverage` sólo contaba aristas con confianza
+`Unresolved`, que es otra cosa. `get_blast_radius` ya usaba `completenessFor`
+para exactamente esto; `find_references`, la herramienta por la que se compra el
+producto, no.
+
+Ahora `find_references` publica `completeness` como el resto: `COMPLETE` cuando
+nada registrado puede añadir, y `LOWER_BOUND` con `blind_spots` y un patrón de
+reserva cuando un fallo registrado nombra el símbolo. La frase de ausencia sólo
+se emite en el primer caso.
+
+La distinción no es cosmética: una lista vacía leída como «no existe» manda al
+agente a `grep` y no vuelve, y leída como «no existe **y estoy seguro**» lo manda
+a concluir. Lo segundo es peor, y era lo que decía.
+
+**Verificación:** `TestFindReferencesNeverCallsARecordedMissAnAbsence`, que falla
+con la frase vieja y pasa con la nueva; y el binario real, que sobre `convert`
+responde `LOWER_BOUND` señalando `pkg/service.py:31`.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+## LUQUE-2205 — La caché de hechos no vigilaba al productor que corre
+
+**Dependencias:** ninguna. Encontrada por el humo de LUQUE-2202.
+
+Después de arreglar el productor exacto de Python, el binario seguía publicando
+el grafo anterior. La huella de la caché nombraba
+`python-worker/index.py` **a mano** -- el worker del fallback -- y nunca
+`pyright_index.py`: editar el productor exacto no cambiaba ninguna clave, así que
+una reconstrucción reutilizaba los hechos del productor anterior y publicaba una
+generación que el código vigente no produce. Dos reglas de resolución, una en el
+cargador que ejecuta y otra en la caché que vigila, y la de la caché miraba un
+fichero que en modo exacto nadie corre.
+
+Ahora `pythonloader.ProducerFile` resuelve con las mismas reglas que
+`resolveCommand` y devuelve el fichero cuyo contenido decide los hechos -- el
+script del adaptador, o el ejecutable externo --, y la caché lo huella. Sin
+resolución no hay licencia para reutilizar nada: se emite un marcador único, que
+es la regla que ese mismo fichero ya aplicaba al binario.
+
+**Verificación:** `TestAnalyzerFingerprintWatchesThePythonProducerThatRuns`, que
+falla contra la huella escrita a mano; y el binario real, donde un cambio de
+contenido en `pyright_index.py` pasa la pasada de `hits=4 misses=0` a
+`hits=0 misses=4`, y un `touch` no -- la huella es de contenido, no de fecha.
 
 **Estado:** cerrada el `2026-08-22`.
