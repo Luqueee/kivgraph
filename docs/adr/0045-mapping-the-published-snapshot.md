@@ -367,3 +367,40 @@ fallan si se retira la copia** que hace `StringTable.String` sobre un arena
 prestado: uno compara direcciones, uno libera el mapeo a mano con un lector
 sosteniendo lo que leyó -- y reporta `SIGSEGV` en vez de `ok`--, y el tercero
 borra el fichero y recorre el grafo entero.
+
+## Después de medir en Linux (`2026-08-22`)
+
+La sección de arriba decía que los dos umbrales de `LUQUE-2006` **ya se
+cumplen**, y avisaba de que el primero iba por siete décimas de margen, «así que
+quien lo convierta en gate lo mide en Linux con la línea base real». Se midió, y
+**no se cumplían**.
+
+`benchmarks/shared-snapshot` sobre `kena-workspace` -- `161.819` símbolos,
+fichero de `129 MB`, Linux con `Pss` real, `4.000` llamadas descartadas antes de
+medir--, contra el mismo binario obligado a derivar el grafo:
+
+|servidores|mapeando|derivando|cuota|sucio/símbolo|arranque|
+|---|---|---|---|---|---|
+|2|`326 MB`|`654 MB`|`0,498`|`611 B`|`12,8x`|
+|4|`514 MB`|`1.234 MB`|`0,416`|`614 B`|`13,0x`|
+|8|`888 MB`|`2.385 MB`|`0,372`|`614 B`|`13,2x`|
+
+`0,416` contra `≤0,40`, y `94,7 MB` por proceso contra `≤60 MB`. Lo que la
+medición mostró es que **el problema eran los umbrales**:
+
+- La cuota no es una propiedad del diseño sino del número de servidores: el
+  mismo código la cumple con ocho y no con dos, porque la parte compartida se
+  reparte entre los procesos que la sostienen. La propiedad falsable es que
+  **cae en cada servidor añadido**, y eso no lo miraba ningún criterio.
+- El `≤60 MB` estaba fijado contra un corpus de `123.531` símbolos y no decía
+  nada de uno mayor. Lo privado sale plano en `614 B` por símbolo, que es la
+  magnitud que escala.
+- Y la proyección de arriba -- `39,3 %` a cuatro clientes desde dos servidores en
+  darwin-- resultó cercana pero optimista: medido son `41,6 %`. Una proyección
+  entre plataformas que miden cantidades distintas -`footprint` contra
+  `Private_Dirty`- no es una medición, y aquí se comportó como tal.
+
+La decisión de fondo **no cambia**: mapear también las tablas sigue sin pedirlo
+ningún número, y ahora se sabe cuánto compraría -- esos `614 B` por símbolo. Lo
+que sí cambia es que el arranque, `13x`, quedó medido y documentado, y era el
+efecto más grande del mapeo sin criterio que lo mirara.

@@ -14849,17 +14849,25 @@ con la guarda   : ok
 sin la guarda   : signal SIGSEGV: segmentation violation
 ```
 
-**Lo que queda:** el arnés reproducible es `LUQUE-2006`, y la decisión de fondo
-es si mapear también las tablas. Hoy sólo el arena se comparte -- `file.go:301`
-lo dice: «everything else is copied either way»--, y esos `44,5 MB` sucios por
-proceso son las tablas decodificadas. `LUQUE-2002`, `2003` y `2004` dejaron los
-registros sin punteros, sin mapas y con las secciones alineadas, que es lo que
-haría mapeables las tablas; falta pagar el relleno por registro en disco y
-declarar la dependencia de little-endian. **No se hace sin que el arnés diga que
-hace falta**, porque los dos umbrales ya se cumplen.
+**Lo que queda:** la decisión de fondo es si mapear también las tablas. Hoy sólo
+el arena se comparte -- `file.go:301` lo dice: «everything else is copied either
+way»--, y lo sucio por proceso son las tablas decodificadas: `44,5 MB` medidos en
+darwin con `footprint` sobre `123.531` símbolos, `~95 MB` en Linux con
+`Private_Dirty` sobre `161.819`, que no son la misma cantidad ni el mismo corpus.
+`LUQUE-2002`, `2003` y `2004` dejaron los registros sin punteros, sin mapas y con
+las secciones alineadas, que es lo que haría mapeables las tablas; falta pagar el
+relleno por registro en disco y declarar la dependencia de little-endian.
+**No se hace sin que un número lo pida**, y el arnés dice que ninguno lo pide --
+no porque los dos umbrales originales se cumplieran, que no se cumplían, sino
+porque eran el problema y están reescritos como propiedades del diseño.
 
-**Estado:** abierta -- el mapeo, el fallback y el riesgo agudo están hechos y
-medidos; el arnés es `LUQUE-2006` y mapear las tablas espera su número.
+**Estado:** cerrada el `2026-08-22`. El mapeo, el fallback y el riesgo agudo
+están hechos y medidos, y **el número que esperaba ya llegó**: `LUQUE-2006` midió
+en Linux que la cuota de residente cae en cada servidor añadido -`0,498`, `0,416`,
+`0,372`- y que lo privado son `614 B` por símbolo. Mapear también las tablas
+ahorraría esa cifra y nada más; ningún criterio la pide, y el arranque -`13x`-
+ya lo da el mapeo del arena. Queda como el hueco de `LUQUE-2008`, con su
+condición de reapertura medida y por poco.
 
 **Verificación:**
 
@@ -16028,6 +16036,10 @@ Más un ADR: cambia a qué repositorio pertenece un símbolo, que es identidad.
 **Lo que no vale:** la versión barata — resolver la ruta contra el registro en el
 lado Go y emitir la fila sin paquete. Eso es exactamente lo que `LUQUE-2011`
 descartó, y reintroduce el first-wins silencioso.
+
+**Estado:** parada deliberada. No es una ficha pendiente: es un hueco declarado
+que se abre sólo si alguna pregunta demuestra que esa información hace falta, y
+la versión barata está prohibida por escrito arriba.
 
 ## LUQUE-2014 — El digest que prueba la pertenencia de un fichero es de contadores, no de contenido
 
