@@ -14437,16 +14437,25 @@ derivado (`TestPublishedSnapshotMatchesADerivedOne`).
 * Todas las claves del corpus resuelven al mismo `SymbolID`: el test oráculo
   sobre `123.531` símbolos, contra el artefacto pre-cambio.
 * Ahorro dentro del `±10 %`: `+4,7 %`.
-* Digest de contenido idéntico: `e80c6d46…` antes y después, reindexando el mismo
-  corpus con los dos binarios.
+* `snapshot.sha256` idéntico: `e80c6d46…` antes y después, reindexando el mismo
+  corpus con los dos binarios. **Prueba menos de lo que escribí:** ese fichero es
+  un digest de contadores de tabla, no de contenido (`LUQUE-2014`). Lo que sí
+  prueba que ninguna clave publicada cambió es el test oráculo de arriba.
 
-**Un hallazgo colateral, y no es nuestro:** los dos ficheros publicados difieren
+**Un hallazgo colateral, y sí es nuestro** -- lo escribí como ajeno y no lo es:
+los dos ficheros publicados difieren
 en `48` bytes, todos en el `stringArena`. Son `48` cadenas de detalle de
 `UNRESOLVED` que registran rutas de la caché de build de Go, y los dos `HOME`
-aislados del banco de pruebas se llamaban `h2002` y `h2002b` -- un carácter. El
-digest de contenido no lo ve porque no cubre esos detalles. Queda anotado: un
-detalle de no resuelto que incrusta una ruta dependiente de la máquina hace que
-dos indexados del mismo corpus no produzcan el mismo fichero.
+aislados del banco de pruebas se llamaban `h2002` y `h2002b` -- un carácter.
+
+**La explicación que escribí aquí era falsa, y la corrijo.** Dije que el digest de
+contenido no cubría esos detalles. Sí los cubre -- `snapshot.go:531` imprime
+`detail=%s`--, así que debería haber cambiado. Al perseguirlo hasta el final
+aparecieron dos defectos distintos, los dos medidos y ya registrados: el digest
+que prueba la pertenencia del fichero es `snapshot.sha256`, y ése es de
+**contadores de tabla** -- `rebuild.go:284`-- y no de contenido (`LUQUE-2014`); y
+las `288` filas cuyo `Detail` lleva una ruta absoluta de la caché de build de la
+máquina que indexó (`LUQUE-2015`).
 
 **Verificación:**
 
