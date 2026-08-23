@@ -15083,19 +15083,27 @@ fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace --
 pero **no por el motivo que aquí decía**. Decía «su ahorro sería de decenas de
 megabytes», y eso está mal: el `Private_Dirty` es plano en el número de
 clientes, así que con ocho servidores son `789 MB` de heap privado donde un
-demonio dejaría uno. Lo que la mantiene cerrada es otra cosa: que hay una vía
-más barata para el mismo byte, medida en `LUQUE-2216`. Dos tercios de lo que la
-carga asigna es basura suya, y la mitad de esa basura tiene nombre. Bajarlo
-mejora **toda** instalación, de un proceso o de ocho, y aleja este cruce sin
-construir un demonio.
+demonio dejaría uno.
 
-**Medido el `2026-08-22`, y queda cerca:** `94,3`–`98,1 MB` por proceso sobre
-`kena-workspace`, `161.819` símbolos. La condición no se cumple, pero por poco,
-y lo que la decide no es el número de clientes -- sale plano en `614 B` por
-símbolo en los tres puntos del barrido-- sino el tamaño del grafo. Un corpus de
-unos `170.000` símbolos la cruza. Por eso el criterio de `LUQUE-2006` se declara
-ahora por símbolo: es la magnitud que escala, y `100 MB` sobre este corpus son
-`648 B` por símbolo.
+**Y la segunda razón que se escribió aquí también está mal, medida el
+`2026-08-23`.** Decía que lo que la mantiene cerrada es que hay «una vía más
+barata para el mismo byte», la de `LUQUE-2216` a `LUQUE-2220`. Esas cuatro fases
+bajaron lo que la carga asigna de `89,7 MB` a `29,2 MB` y **el residente no se
+movió**: `71,76 MB` por servidor contra `71,22`, `0,75 %`, tres pares de tres en
+`benchmarks/load-cost-resident`. Las páginas que una asignación transitoria
+ensucia se devuelven al heap y las reutiliza el trabajo siguiente, así que nunca
+estuvieron residentes en régimen estacionario. La vía más barata existe y es
+real, pero **compra tiempo de arranque, no bytes por proceso**, y por tanto no
+aleja este cruce. Lo que mantiene esta tarea cerrada es sólo lo primero: que la
+condición no se cumple.
+
+**Medido el `2026-08-23`:** `71,2 MB` por proceso y `647 B` por símbolo sobre
+`kena`, `117.499` símbolos, contra un `≤800 B` de `LUQUE-2006` y los `648 B` que
+son `100 MB` en este corpus. La lectura del `2026-08-22` -- `94,3`–`98,1 MB` sobre
+`161.819` símbolos, `614 B` por símbolo-- decía lo mismo por símbolo: lo que
+decide no es el número de clientes, sale plano, sino el tamaño del grafo. Un
+corpus de unos `170.000` símbolos cruza los `100 MB`. Por eso el criterio de
+`LUQUE-2006` se declara por símbolo: es la magnitud que escala.
 
 **Diseño, si llega el caso:** socket unix bajo el directorio de estado, un
 `kivgraph daemon` que sostiene un `SnapshotStore`, un seguidor, un bucle de
@@ -16905,8 +16913,17 @@ capturas JSON de las dos páginas parseadas, con `coverage` sólo en las de vist
 **Dependencias:** `LUQUE-2006`.
 
 **Objetivo:** separar, en lo que cuesta cargar un snapshot, la respuesta del
-trabajo de llegar a ella. Son la misma cifra en `Private_Dirty` y se arreglan al
-revés.
+trabajo de llegar a ella.
+
+**Corregido el `2026-08-23`:** este objetivo decía «son la misma cifra en
+`Private_Dirty` y se arreglan al revés», y la primera mitad es falsa. Sólo la
+respuesta está en `Private_Dirty` en régimen estacionario; el trabajo de llegar a
+ella se devuelve al heap y lo reutiliza lo que viene después. Retirar los
+`60,5 MB` transitorios que esta ficha nombró dejó el residente por servidor en
+`71,22 MB` contra `71,76`, medido en Linux en
+`benchmarks/load-cost-resident`. Lo que se arregló era real y lo que compró es
+tiempo hasta la primera respuesta, no bytes por proceso. Las cifras de abajo son
+contabilidad del runtime de Go y siguen siendo exactas como tales.
 
 **Alcance:** `benchmarks/snapshot-heap`, sin tocar producción.
 
@@ -17129,5 +17146,62 @@ una comprobación que ningún fichero podía suspender.
 
 **Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
 `make build`; arnés regenerado; y humo con el binario real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2221 — Lo que las cuatro fases anteriores no compraron
+
+**Dependencias:** `LUQUE-2216`, `LUQUE-2217`, `LUQUE-2218`, `LUQUE-2219`,
+`LUQUE-2220`.
+
+**Objetivo:** medir en Linux si retirar `60,5 MB` de lo que la carga asigna baja
+lo que un proceso que sirve conserva residente. Es la única cifra en la que están
+escritos los dos criterios -- el gate de `LUQUE-2006` y la reapertura de
+`LUQUE-2008`-- y ninguna de las cuatro fases la observó: todas midieron
+contabilidad del runtime de Go en darwin.
+
+**Alcance:** `benchmarks/load-cost-resident`, sin tocar producción. No sobrescribe
+los artefactos de `benchmarks/shared-snapshot`, que se tomaron en el host de
+referencia; esto es otra plataforma y se declara.
+
+**Criterios de aceptación:**
+
+- **La respuesta es no.** `Private_Dirty` por servidor: `71,76 MB` antes contra
+  `71,22` después, `0,75 %`, tres pares de tres sobre el mismo fichero. Por
+  símbolo, `647,348 B` contra `647,104`. La aritmética de la asignación retirada
+  predeciría unos treinta megabytes.
+- **Por qué.** Es lo que «transitorio» significa para un asignador: las páginas
+  que se ensucian decodificando se devuelven al heap y las reutiliza el trabajo
+  siguiente, así que nunca estuvieron residentes en régimen estacionario.
+  `Private_Dirty` tomado tras `4.000` llamadas de calentamiento y `2.000` medidas
+  informa del heap de servicio asentado, no del pico de la carga.
+- **Lo que sí compró.** La primera respuesta: `138-156 ms` contra `191-292 ms`,
+  tres pares de tres, consistente con los `123,6 ms` contra `134,5` que el
+  benchmark de carga mide en darwin. Es la cifra que ve quien arranca un
+  servidor.
+- **Lo que corrige.** Tres afirmaciones escritas por mí: el objetivo de
+  `LUQUE-2216` decía que las dos mitades «son la misma cifra en `Private_Dirty`»;
+  la ficha de `LUQUE-2008` decía que lo que la mantiene cerrada es que hay «una
+  vía más barata para el mismo byte»; y las limitaciones de
+  `benchmarks/snapshot-heap` declaraban que `Private_Dirty` es mayor que sus
+  cifras sin decir que bajar las suyas no lo baja. Las tres quedan corregidas
+  donde estaban.
+- **Lo que no cambia.** `LUQUE-2008` sigue aplazada y por su primer motivo: la
+  condición pide `> 100 MB` por proceso y estamos en `71,2`. Pero la razón es el
+  tamaño del corpus -- `117.499` símbolos a `647 B`-- y no este trabajo. Un corpus
+  de unos `170.000` la cruza igual que antes.
+- **Un hueco declarado:** no se midió el pico residente durante la carga, sólo el
+  valor asentado. Una máquina que arranca ocho servidores a la vez paga un pico
+  que nadie mide, y es el único sitio donde los `60,5 MB` podrían aparecer
+  residentes.
+
+**Método:** VM `linux/arm64` de Docker Desktop sobre Apple Silicon, imagen
+`golang:1.26-trixie`, glibc `2.41`, page size `4096` -- el mismo que amd64, que es
+lo que hace comparables las unidades. Los dos binarios se compilan del mismo
+árbol en dos commits (`c420490` y `0ad501a`) y leen la misma generación
+publicada, byte a byte: el formato no cambió entre ellos. El workspace se monta
+en sólo lectura, que es lo que hace imposible tocar un repositorio indexado. La
+biblioteca nativa fijada exige glibc `≥ 2.38`: sobre `bookworm` (`2.36`) el
+enlazado falla con `GLIBCXX_3.4.31` y `__isoc23_strtol` sin resolver.
 
 **Estado:** cerrada el `2026-08-23`.

@@ -12,7 +12,7 @@ transitorios, no asignándolos.
 |dato|valor|
 |---|---|
 |fecha|`2026-08-23`|
-|commit|`1df1010`|
+|commit|`0ad501a`|
 |plataforma|`darwin/arm64`, `go1.26.4`|
 |corpus|`35` repositorios, `117499` símbolos, `337314` aristas|
 |fichero|`86.7 MB`|
@@ -52,8 +52,8 @@ momento en que sus estructuras son atribuibles: `benchmarks/snapshot-heap/live.p
 
 ## Limitaciones
 
-- Los bytes vivos y asignados son contabilidad del runtime de Go, no páginas residentes. `Private_Dirty` es mayor que cualquiera de los dos: lleva además metadatos del runtime, pilas y heap que el asignador nunca devolvió al sistema. Eso lo mide `benchmarks/shared-snapshot`, y sólo en Linux.
-- La cifra transitoria es la basura de la propia carga, medida como lo asignado menos lo vivo después de un `GC`. Es un suelo: una página que ensucia una asignación transitoria sigue sucia hasta que el asignador la barre.
+- Los bytes vivos y asignados son contabilidad del runtime de Go, no páginas residentes, y **bajar lo asignado no baja lo residente**. Medido: `benchmarks/load-cost-resident` corrió los dos binarios de los extremos de este barrido -- `89,7 MB` asignados contra `29,2`-- sobre el mismo fichero en Linux, y el `Private_Dirty` por servidor salió `71,76 MB` contra `71,22`, tres pares de tres. Las páginas que una asignación transitoria ensucia se devuelven al heap y las reutiliza el trabajo siguiente, así que nunca están residentes en régimen estacionario. Lo que sí bajó es el tiempo hasta la primera respuesta.
+- La cifra transitoria es la basura de la propia carga, medida como lo asignado menos lo vivo después de un `GC`. Es el pico de un proceso que carga y no el coste de uno que sirve: el pico concurrente de varios servidores arrancando a la vez no lo mide nadie todavía, y es el único sitio donde esta cifra podría aparecer residente.
 - El total mapeable es aritmética sobre las filas que el snapshot declara, no una medición de lo que un lector toma en el sitio hoy. El arena y la tabla de claves estables ya se toman en el sitio.
 - Un proceso, una carga. Nada de aquí dice qué paga un segundo lector de la misma generación, que es la pregunta que contesta `shared-snapshot`.
 - La cifra viva es el heap entero del proceso después de la carga, que incluye el del propio arnés, así que es una cota superior de la del snapshot. Pasadas repetidas de una misma compilación coinciden byte a byte; dos compilaciones de este arnés difirieron en torno a un megabyte, así que una comparación es entre pasadas del mismo binario y no entre ediciones de él.

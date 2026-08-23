@@ -27,11 +27,22 @@ declarado en la raíz.
   deja a `rustup` sin toolchains.
 - `benchmarks/snapshot-heap` tampoco mide páginas residentes: separa, en lo que
   cuesta cargar un snapshot publicado, los bytes que un lector **conserva** de
-  los que la carga asigna y tira. `Private_Dirty` los suma en una sola cifra y
-  se arreglan al revés -- los vivos moviendo una estructura al fichero mapeado,
-  los transitorios no asignándolos. Toma el perfil con el snapshot **vivo**, que
+  los que la carga asigna y tira. Toma el perfil con el snapshot **vivo**, que
   es la única forma de atribuirlo: el benchmark del paquete escribe el suyo
   cuando ya es inalcanzable y no atribuye ni un byte.
+- Y las dos mitades **no son la misma cifra en `Private_Dirty`**, que es lo que
+  este archivo decía. Sólo la que se conserva lo es en régimen estacionario:
+  `benchmarks/load-cost-resident` retiró `60,5 MB` de la mitad transitoria y el
+  residente por servidor no se movió (`71,76 MB` contra `71,22`, tres pares de
+  tres). Bajar lo asignado compra tiempo hasta la primera respuesta; los bytes
+  por proceso se bajan moviendo una estructura al fichero mapeado, y sólo eso.
+  Quien escriba una cifra de `snapshot-heap` en una ficha de memoria residente
+  está citando la magnitud equivocada.
+- `benchmarks/load-cost-resident` corre en un contenedor Linux y **no es el host
+  de referencia**: lo que hace comparables sus unidades es el page size de
+  `4096` bytes, y lo que hace comparables sus dos brazos es que corrieron en la
+  misma VM contra el mismo fichero. No sobrescribe los artefactos de
+  `shared-snapshot`, y no afirma ningún límite de latencia.
 
 ## Corpus y auditorías
 

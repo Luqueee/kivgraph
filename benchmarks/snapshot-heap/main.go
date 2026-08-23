@@ -392,14 +392,20 @@ func findings() []string {
 func limitations() []string {
 	return []string{
 		"Los bytes vivos y asignados son contabilidad del runtime de Go, no " +
-			"páginas residentes. `Private_Dirty` es mayor que cualquiera de los " +
-			"dos: lleva además metadatos del runtime, pilas y heap que el " +
-			"asignador nunca devolvió al sistema. Eso lo mide " +
-			"`benchmarks/shared-snapshot`, y sólo en Linux.",
+			"páginas residentes, y **bajar lo asignado no baja lo residente**. " +
+			"Medido: `benchmarks/load-cost-resident` corrió los dos binarios de " +
+			"los extremos de este barrido -- `89,7 MB` asignados contra `29,2`-- " +
+			"sobre el mismo fichero en Linux, y el `Private_Dirty` por servidor " +
+			"salió `71,76 MB` contra `71,22`, tres pares de tres. Las páginas que " +
+			"una asignación transitoria ensucia se devuelven al heap y las " +
+			"reutiliza el trabajo siguiente, así que nunca están residentes en " +
+			"régimen estacionario. Lo que sí bajó es el tiempo hasta la primera " +
+			"respuesta.",
 		"La cifra transitoria es la basura de la propia carga, medida como lo " +
-			"asignado menos lo vivo después de un `GC`. Es un suelo: una página " +
-			"que ensucia una asignación transitoria sigue sucia hasta que el " +
-			"asignador la barre.",
+			"asignado menos lo vivo después de un `GC`. Es el pico de un proceso " +
+			"que carga y no el coste de uno que sirve: el pico concurrente de " +
+			"varios servidores arrancando a la vez no lo mide nadie todavía, y es " +
+			"el único sitio donde esta cifra podría aparecer residente.",
 		"El total mapeable es aritmética sobre las filas que el snapshot declara, " +
 			"no una medición de lo que un lector toma en el sitio hoy. El arena y " +
 			"la tabla de claves estables ya se toman en el sitio.",
