@@ -340,14 +340,20 @@ func findings() []string {
 			"antes y que nadie más puede nombrar. Ceder la propiedad en el camino " +
 			"del lector quitó `20,8 MB` de lo asignado sobre este corpus y dejó " +
 			"los bytes vivos idénticos. La aritmética lo predecía en `20,74`.",
-		"Lo que queda arriba son dos mapas transitorios, y los dos tienen " +
-			"nombre. `indexSnapshotInput` construye los tres índices de búsqueda " +
-			"como mapas y `newSymbolIndex` los aplana a arrays acto seguido, así " +
-			"que el mapa entero es basura por diseño. `validReverseCounterpart` " +
-			"(`internal/hotsnapshot/snapshot.go`) construye un mapa con clave en " +
-			"cada arista directa para probar que el CSR inverso es su " +
-			"permutación, y lo tira; un mapa de bits sobre las aristas directas " +
-			"contestaría lo mismo con una fracción de los bytes.",
+		"La validación del CSR inverso ya no paga un mapa. `validReverseCounterpart` " +
+			"guardaba una clave por arista directa para probar que el inverso es " +
+			"su permutación; hoy marca un bit por arista y recorre el grupo de la " +
+			"fuente para encontrar la contrapartida. Sobre este corpus son `42 kB` " +
+			"en vez de `13,3 MB`, y el recorrido que compra son `18,4 M` " +
+			"comparaciones -- la suma de los grados de salida al cuadrado, `54x` el " +
+			"número de aristas, con un grupo mayor de `889` y una mediana de `1`. " +
+			"Ese trabajo no cuesta tiempo: la carga mide `150,0 ms` en su mejor " +
+			"pasada contra `159,6` con el mapa, alternando las dos versiones sobre " +
+			"el mismo fichero.",
+		"Lo que queda arriba es un solo mapa transitorio, y tiene nombre. " +
+			"`indexSnapshotInput` construye los tres índices de búsqueda como " +
+			"mapas y `newSymbolIndex` los aplana a arrays acto seguido, así que el " +
+			"mapa entero es basura por diseño. Es el mayor de lo que sobrevive.",
 		"El arena ya se lee en el sitio y es la sección más grande del fichero, " +
 			"que es por lo que los bytes vivos son una fracción de él. Lo que " +
 			"queda en el heap son las tablas, y el fichero declara cuántas filas " +
@@ -425,10 +431,13 @@ func render(out results) string {
 	fmt.Fprintf(&text, "|mitad|bytes|por símbolo|\n|---|---|---|\n")
 	fmt.Fprintf(&text, "|asignado|`%.1f MB`|`%.0f B`|\n", float64(out.Heap.AllocatedBytes)/mb, out.Heap.AllocPerSymbol)
 	fmt.Fprintf(&text, "|vivo|`%.1f MB`|`%.0f B`|\n", float64(out.Heap.LiveBytes)/mb, out.Heap.LivePerSymbol)
+	// The adopted tables are part of the live half, so the row sits under it:
+	// they used to be copied on top of what the decoders had already read, and
+	// that copy is what the transient half lost.
+	fmt.Fprintf(&text, "|de ello, tablas adoptadas del mapa y no copiadas|`%.1f MB`|aritmética sobre las filas|\n",
+		float64(out.Heap.AdoptedTableBytes)/mb)
 	fmt.Fprintf(&text, "|transitorio|`%.1f MB`|`%.0f %%` de lo asignado|\n",
 		float64(out.Heap.TransientBytes)/mb, out.Heap.TransientPerAlloc*100)
-	fmt.Fprintf(&text, "|de ello, tablas adoptadas y no copiadas|`%.1f MB`|aritmética sobre las filas|\n",
-		float64(out.Heap.AdoptedTableBytes)/mb)
 	text.WriteString("\n## Lo que se puede leer en el sitio\n\n")
 	fmt.Fprintf(&text, "|sección|bytes|\n|---|---|\n")
 	fmt.Fprintf(&text, "|arena de cadenas|`%.1f MB`|\n", float64(out.Mappable.ArenaBytes)/mb)

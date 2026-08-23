@@ -16980,3 +16980,49 @@ humo con el binario real por MCP sobre `kena` -- `find_symbol`,
 `find_references` y `get_file_outline` contestan con sus veredictos.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2218 — La validación del CSR inverso no paga un mapa
+
+**Dependencias:** `LUQUE-2217`.
+
+**Objetivo:** retirar el segundo asignador que `LUQUE-2216` nombró, sin relajar
+lo que la validación prueba.
+
+**Alcance:** `validReverseCounterpart` en `internal/hotsnapshot/snapshot.go`.
+Guardaba una clave por arista directa en un `map[csrEdgeKey]int` para probar que
+el CSR inverso es la permutación del directo, y lo tiraba en la misma llamada.
+Ahora marca un bit por arista directa y busca la contrapartida recorriendo el
+grupo de la fuente.
+
+**Criterios de aceptación:**
+
+- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos, `337.314`
+  aristas--, con el mismo fichero para las dos versiones: lo asignado por la
+  carga baja de `69,2 MB` a `55,9 MB`, y de `617 B` a `499 B` por símbolo. Lo
+  transitorio baja de `41,5 MB` a `28,2 MB`, del `60 %` al `50 %`. Los bytes
+  vivos no se mueven: `27,7 MB`, `247 B` por símbolo.
+- El coste que compra está medido y no es tiempo. El recorrido es la suma de los
+  grados de salida al cuadrado -- `18,4 M` comparaciones, `54x` el número de
+  aristas, grupo mayor `889`, mediana `1`. Alternando las dos versiones cinco
+  veces sobre el mismo fichero, el mapa de bits gana cuatro: mínimos `150,0 ms`
+  contra `159,6 ms`.
+- `validReverseCounterpart` desaparece de la lista de asignadores del perfil,
+  que es la comprobación de que el mapa era lo que se retiró.
+- El cambio convierte una clave compuesta de siete campos en siete
+  comparaciones, así que cada una necesita quien la defienda: antes viajaban
+  juntas en la clave y no podían podrirse por separado. Lo fija
+  `TestReverseCounterpartComparesEveryEdgeField`, con un fixture de dos aristas
+  desde la misma fuente -- el compartido tiene una sola, y romper su fila inversa
+  mueve la fuente, así que el recorrido falla por no tener dónde mirar y no por
+  el campo bajo prueba. Siete casos: uno por campo, más una arista directa
+  reclamada dos veces, que es lo único que fija el mapa de bits.
+- Falsificado antes de darlo por bueno: nueve sabotajes -- ignorar cada uno de
+  los seis campos, no marcar el bit, no comprobarlo, y devolver `true`-- y los
+  nueve caen, cada uno en el caso que lleva su nombre. Contra los tests que ya
+  existían, ocho de los nueve pasaban.
+
+**Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
+`make build`; el arnés `benchmarks/snapshot-heap` regenerado; y humo con el
+binario real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.

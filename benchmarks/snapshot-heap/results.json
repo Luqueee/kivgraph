@@ -1,14 +1,14 @@
 {
   "benchmark": "snapshot-heap",
   "date": "2026-08-23",
-  "commit": "749e638",
+  "commit": "fe8d77d",
   "environment": {
     "os": "darwin",
     "arch": "arm64",
     "go": "go1.26.4"
   },
   "corpus": {
-    "generation_dir": "/Users/adria/.cache/kivheap2/.local/state/kivgraph/generations/000001",
+    "generation_dir": "/Users/adria/.cache/kivdeg/.local/state/kivgraph/generations/000001",
     "snapshot_file_bytes": 90935856,
     "repositories": 35,
     "symbols": 117499,
@@ -16,12 +16,12 @@
     "interned_strings": 582242
   },
   "heap": {
-    "allocated_bytes": 72543064,
-    "live_bytes": 29034904,
-    "transient_bytes": 43508160,
-    "live_bytes_per_symbol": 247.1076690014383,
-    "allocated_bytes_per_symbol": 617.3930331321968,
-    "transient_share_of_allocated": 0.5997563047516162,
+    "allocated_bytes": 58611912,
+    "live_bytes": 29034840,
+    "transient_bytes": 29577072,
+    "live_bytes_per_symbol": 247.10712431595164,
+    "allocated_bytes_per_symbol": 498.82902833215604,
+    "transient_share_of_allocated": 0.5046256126229085,
     "adopted_table_bytes": 20712808,
     "live_profile_path": "benchmarks/snapshot-heap/live.pprof"
   },
@@ -35,7 +35,8 @@
   "findings": [
     "La mayor parte de lo que asigna la carga no es la respuesta. Los bytes vivos son lo que un lector conserva; el resto ensucia una página y no sostiene nada, y un perfil de heap tomado después de la carga no puede ver ni uno de ellos.",
     "El gemelo que había ya no está, y por eso se nombra: cada tabla de ancho fijo se copiaba dos veces. Los `decode*` de `readSnapshot` asignan un slice por sección y copian dentro los bytes mapeados, y `NewGraphSnapshot` volvía a copiar cada uno para que un llamante pudiera seguir mutando lo que pasó -- cierto para el constructor, superfluo para un lector que decodificó esos slices una sentencia antes y que nadie más puede nombrar. Ceder la propiedad en el camino del lector quitó `20,8 MB` de lo asignado sobre este corpus y dejó los bytes vivos idénticos. La aritmética lo predecía en `20,74`.",
-    "Lo que queda arriba son dos mapas transitorios, y los dos tienen nombre. `indexSnapshotInput` construye los tres índices de búsqueda como mapas y `newSymbolIndex` los aplana a arrays acto seguido, así que el mapa entero es basura por diseño. `validReverseCounterpart` (`internal/hotsnapshot/snapshot.go`) construye un mapa con clave en cada arista directa para probar que el CSR inverso es su permutación, y lo tira; un mapa de bits sobre las aristas directas contestaría lo mismo con una fracción de los bytes.",
+    "La validación del CSR inverso ya no paga un mapa. `validReverseCounterpart` guardaba una clave por arista directa para probar que el inverso es su permutación; hoy marca un bit por arista y recorre el grupo de la fuente para encontrar la contrapartida. Sobre este corpus son `42 kB` en vez de `13,3 MB`, y el recorrido que compra son `18,4 M` comparaciones -- la suma de los grados de salida al cuadrado, `54x` el número de aristas, con un grupo mayor de `889` y una mediana de `1`. Ese trabajo no cuesta tiempo: la carga mide `150,0 ms` en su mejor pasada contra `159,6` con el mapa, alternando las dos versiones sobre el mismo fichero.",
+    "Lo que queda arriba es un solo mapa transitorio, y tiene nombre. `indexSnapshotInput` construye los tres índices de búsqueda como mapas y `newSymbolIndex` los aplana a arrays acto seguido, así que el mapa entero es basura por diseño. Es el mayor de lo que sobrevive.",
     "El arena ya se lee en el sitio y es la sección más grande del fichero, que es por lo que los bytes vivos son una fracción de él. Lo que queda en el heap son las tablas, y el fichero declara cuántas filas tiene cada una, así que nada de ellas hay que reconstruirlo para poder confiar en él."
   ],
   "limitations": [
