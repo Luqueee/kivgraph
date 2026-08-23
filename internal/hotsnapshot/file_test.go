@@ -203,23 +203,19 @@ func TestSnapshotFileFailsClosed(t *testing.T) {
 	})
 }
 
-// TestSnapshotLoadRejectsDuplicateIdentities defends the one class of
+// TestSnapshotLoadRejectsDuplicateStableKeys defends the one class of
 // corruption that validation downstream cannot catch: an index built from
 // duplicated identities agrees with the tables it was built from, so the
 // snapshot would validate and answer one symbol's question with another's id.
 //
-// A duplicated stable key is refused by the key table rather than by
-// indexSnapshotInput, because two equal keys are not in strict byte order.
-func TestSnapshotLoadRejectsDuplicateIdentities(t *testing.T) {
+// No pass of the load refuses it. The key table does, because two equal keys are
+// not in strict byte order, and that is why the load fails on a blob it read
+// rather than on a structure it derived. The other duplicated identity a file
+// can carry -- two files at one repository path -- is refused while the index is
+// derived, so it is asserted where that happens.
+func TestSnapshotLoadRejectsDuplicateStableKeys(t *testing.T) {
 	if _, err := restoreSymbolKeys(2, []uint32{0, 3, 6}, []byte("s-as-a"), false); !errors.Is(err, ErrInvalidSnapshotFile) {
 		t.Fatalf("duplicate stable key: expected ErrInvalidSnapshotFile, got %v", err)
-	}
-	duplicatePaths := GraphSnapshotInput{Files: []FileRecord{
-		{Repository: 0, Path: 7},
-		{Repository: 0, Path: 7},
-	}}
-	if err := indexSnapshotInput(&duplicatePaths); !errors.Is(err, ErrInvalidSnapshotFile) {
-		t.Fatalf("duplicate repository path: expected ErrInvalidSnapshotFile, got %v", err)
 	}
 }
 

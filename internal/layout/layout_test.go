@@ -213,9 +213,6 @@ func emptySnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 		Strings:        interner.Freeze(),
 		ForwardOffsets: []uint32{0},
 		ReverseOffsets: []uint32{0},
-		SymbolsByName:  map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		SymbolsByQName: map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		FileByRepoPath: map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{},
 	})
 	if err != nil {
 		t.Fatalf("NewGraphSnapshot() error = %v", err)
@@ -235,9 +232,6 @@ func TestBuildRejectsInvalidContainment(t *testing.T) {
 		Packages:       []hotsnapshot.PackageRecord{{Repository: hotsnapshot.InvalidRepositoryID}},
 		ForwardOffsets: []uint32{0},
 		ReverseOffsets: []uint32{0},
-		SymbolsByName:  map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		SymbolsByQName: map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{},
-		FileByRepoPath: map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{},
 	})
 	if err != nil {
 		t.Fatalf("NewGraphSnapshot() error = %v", err)

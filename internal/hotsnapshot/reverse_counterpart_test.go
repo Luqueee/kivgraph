@@ -52,10 +52,7 @@ func twoEdgeCounterpartInput() GraphSnapshotInput {
 			{Target: 0, Evidence: 0, Kind: 1, Confidence: 1, Provenance: 1, Flags: 0},
 			{Target: 0, Evidence: 1, Kind: 2, Confidence: 2, Provenance: 2, Flags: 1},
 		},
-		StableKeys:     keys,
-		SymbolsByName:  map[InternedString][]SymbolID{4: {0, 1, 2}},
-		SymbolsByQName: map[InternedString][]SymbolID{5: {0, 1, 2}},
-		FileByRepoPath: map[RepoPathKey]FileID{{Repository: 0, Path: 3}: 0},
+		StableKeys: keys,
 	}
 }
 

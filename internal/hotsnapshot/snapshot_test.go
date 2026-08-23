@@ -41,13 +41,23 @@ func TestGraphSnapshotCopiesDataAndIndexes(t *testing.T) {
 
 	input.Symbols[0].StableKey = InvalidStableKeyID
 	input.ForwardEdges[0].Target = 1
-	input.SymbolsByName[4][0] = 1
-	input.FileByRepoPath[RepoPathKey{Repository: 0, Path: 3}] = 1
+	// The indexes are derived from these records, so mutating them afterwards is
+	// the mutation that could reach one. It is a stronger property than the maps
+	// this replaced could express: those could only be aliased, never disagreed
+	// with.
+	input.Symbols[0].Name = 5
+	input.Files[0].Path = 9
 	if id, found := snapshot.SymbolByStableKey("symbol-a"); !found || id != 0 {
 		t.Fatalf("snapshot changed after input mutation: %d, %t", id, found)
 	}
 	if symbol, found := snapshot.Symbol(0); !found || symbol.StableKey != 0 {
 		t.Fatalf("snapshot record changed after input mutation: %#v, %t", symbol, found)
+	}
+	if got := snapshot.SymbolsByName(4); len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("derived name index changed after input mutation: %v", got)
+	}
+	if id, found := snapshot.FileByRepoPath(RepoPathKey{Repository: 0, Path: 3}); !found || id != 0 {
+		t.Fatalf("derived file index changed after input mutation: %d, %t", id, found)
 	}
 	matches := snapshot.SymbolsByName(4)
 	matches[0] = 1
@@ -87,16 +97,14 @@ func TestGraphSnapshotRejectsInvalidEnvelopeAndIndexes(t *testing.T) {
 		t.Fatalf("record naming another symbol's key error = %v", err)
 	}
 
+	// Two files at one path inside a repository. It is the only way a derived
+	// index can still be refused: the two cases that used to sit here handed in
+	// an index disagreeing with the records, and there is no longer a way to
+	// hand one in.
 	input = graphSnapshotTestInput()
-	input.SymbolsByQName[5] = []SymbolID{0, 0}
+	input.Files = append(input.Files, input.Files[0])
 	if _, err := NewGraphSnapshot(input); !errors.Is(err, ErrInvalidGraphSnapshot) {
-		t.Fatalf("duplicate qualified-name result error = %v", err)
-	}
-
-	input = graphSnapshotTestInput()
-	input.FileByRepoPath[RepoPathKey{Repository: 0, Path: 3}] = 1
-	if _, err := NewGraphSnapshot(input); !errors.Is(err, ErrInvalidGraphSnapshot) {
-		t.Fatalf("invalid file index error = %v", err)
+		t.Fatalf("two files at one repository path error = %v", err)
 	}
 
 	input = graphSnapshotTestInput()
@@ -210,14 +218,5 @@ func graphSnapshotTestInput() GraphSnapshotInput {
 		ReverseOffsets: []uint32{0, 0, 1},
 		ReverseEdges:   []PackedEdge{{Target: 0, Evidence: 0}},
 		StableKeys:     keys,
-		SymbolsByName: map[InternedString][]SymbolID{
-			4: {0, 1},
-		},
-		SymbolsByQName: map[InternedString][]SymbolID{
-			5: {0, 1},
-		},
-		FileByRepoPath: map[RepoPathKey]FileID{
-			{Repository: 0, Path: 3}: 0,
-		},
 	}
 }
