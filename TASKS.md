@@ -17026,3 +17026,63 @@ grupo de la fuente.
 binario real por MCP sobre `kena`.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2219 — Los índices de búsqueda se derivan de las tablas
+
+**Dependencias:** `LUQUE-2216`, `LUQUE-2218`.
+
+**Objetivo:** retirar el mayor asignador transitorio que quedaba, y con él una
+superficie por la que un llamante podía entregar un índice que no concordaba con
+sus propios registros.
+
+**Alcance:** `GraphSnapshotInput` pierde `SymbolsByName`, `SymbolsByQName` y
+`FileByRepoPath`; `newSymbolIndex` y `newFileIndex` derivan de `Symbols` y
+`Files`; `indexSnapshotInput` desaparece del camino del lector y el builder deja
+de acumular los dos mapas de símbolos. El rechazo de dos ficheros en una ruta se
+muda a `newFileIndex`, que lo ve sin mapa porque los duplicados quedan
+adyacentes al ordenar.
+
+**Criterios de aceptación:**
+
+- Ninguno de los tres mapas guardaba nada que las tablas no dijeran ya: la clave
+  del símbolo `i` es un campo del símbolo `i`. Por eso la comprobación de que
+  índice y registros concordaban **no podía fallar**, y por eso se retira en
+  favor de una comprobación de forma -- que es el trato que
+  `packageIncomingIndex`, ya derivado, recibía desde el principio.
+- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos--, mismo fichero
+  para las dos versiones: lo asignado baja de `55,9 MB` a `36,4 MB`, y de
+  `499 B` a `325 B` por símbolo. Lo transitorio baja de `28,2 MB` a `8,7 MB`,
+  del `50 %` al `24 %`. Los bytes vivos no se mueven: `27,7 MB`.
+- El primer intento **empeoró el tiempo**: ordenar leyendo la clave del registro
+  a través de una función de comparación costó `+18 ms` por carga, cuatro pares
+  alternados de cuatro. Empaquetar clave e id en un `uint64` -- los dos son
+  `uint32`-- deja el orden en `slices.Sort` sobre enteros, sin comparador, y la
+  carga baja a `139,9 ms` frente a `152,9` con los mapas. Cuesta `1,9 MB` de
+  arrays empaquetados que se tiran.
+- Un fixture ya no puede discrepar de sus registros. `internal/webapi` mantenía
+  a mano tres mapas que debían concordar con sus propios símbolos; ahora no
+  existen. Los dos casos de `TestGraphSnapshotRejectsInvalidEnvelopeAndIndexes`
+  que entregaban un índice discrepante se retiran porque ese estado ya no se
+  puede construir, y en su lugar queda el único rechazo que sigue siendo
+  alcanzable: dos ficheros en una ruta.
+- Cobertura: `indexes.go` no tenía **ni un test directo**. Lo cubrían ochenta
+  tests de integración que construían un snapshot de paso, y por eso sabotear un
+  campo de la clave empaquetada fallaba en `find_references` en vez de aquí.
+  `internal/hotsnapshot/indexes_test.go` lo fija con un oráculo -- el mapa
+  retirado, reescrito en el test-- más los invariantes que la búsqueda binaria
+  necesita, los bordes del empaquetado (clave `0` y `MaxUint32`), el rechazo de
+  duplicados adyacentes y separados, las dos vistas vacías y la exactitud de la
+  reserva. `100 %` de sentencias de `indexes.go` con sólo esos tests.
+- Falsificado: catorce sabotajes -- no ordenar, ordenar sólo por clave, invertir
+  las mitades del empaquetado, cerrar el tramo una posición antes, no separar
+  tramos, reservar por símbolo, ignorar la clave en `lookup`, devolver vacío en
+  vez de `nil`, ignorar el repositorio en la clave de fichero, invertir su
+  orden, no rechazar duplicados, las dos comprobaciones de forma y compartir el
+  cursor del índice de paquetes-- y los catorce caen con **sólo** los tests
+  nuevos.
+
+**Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
+`make build`; arnés `benchmarks/snapshot-heap` regenerado; y humo con el binario
+real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.

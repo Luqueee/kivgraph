@@ -350,10 +350,27 @@ func findings() []string {
 			"Ese trabajo no cuesta tiempo: la carga mide `150,0 ms` en su mejor " +
 			"pasada contra `159,6` con el mapa, alternando las dos versiones sobre " +
 			"el mismo fichero.",
-		"Lo que queda arriba es un solo mapa transitorio, y tiene nombre. " +
-			"`indexSnapshotInput` construye los tres índices de búsqueda como " +
-			"mapas y `newSymbolIndex` los aplana a arrays acto seguido, así que el " +
-			"mapa entero es basura por diseño. Es el mayor de lo que sobrevive.",
+		"Los tres índices de búsqueda ya no se acumulan en mapas. Se derivaban de " +
+			"las tablas en `indexSnapshotInput` -- `16,5 MB` de mapas que " +
+			"`newSymbolIndex` aplanaba a arrays acto seguido-- y ahora se derivan " +
+			"directamente: una clave y un id caben empaquetados en un `uint64`, así " +
+			"que ordenar es `slices.Sort` sobre enteros y no hay comparador. Lo que " +
+			"se tira son esos arrays empaquetados, `1,9 MB` por las dos " +
+			"direcciones. Ni el mapa guardaba nada que las tablas no dijeran ya: la " +
+			"clave del símbolo i es un campo del símbolo i, que es por lo que la " +
+			"comprobación de que ambos concordaban no podía fallar.",
+		"El comparador era el coste, no el orden. Derivar leyendo la clave del " +
+			"registro a través de una función de comparación costaba `18 ms` por " +
+			"carga -- dos llamadas dinámicas por comparación, dos millones de " +
+			"comparaciones-- y con los enteros empaquetados la carga baja a " +
+			"`139,9 ms` frente a `152,9` con los mapas, cuatro pasadas alternadas " +
+			"de cuatro.",
+		"Lo que queda arriba ya no es un mapa: es una copia. `strings.Clone` " +
+			"asigna `7,2 MB` en el camino de carga y no sobrevive a él. La tabla de " +
+			"claves estables copia cada clave que entrega mientras está prestada de " +
+			"un fichero mapeado, que es correcto para un llamante que la guarde, y " +
+			"`validExactIndexes` pide las `117.499` para tirar cada una en la " +
+			"sentencia siguiente.",
 		"El arena ya se lee en el sitio y es la sección más grande del fichero, " +
 			"que es por lo que los bytes vivos son una fracción de él. Lo que " +
 			"queda en el heap son las tablas, y el fichero declara cuántas filas " +
