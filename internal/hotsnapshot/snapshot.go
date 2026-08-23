@@ -495,39 +495,58 @@ func validEvidenceIDs(edges []PackedEdge, evidence int) bool {
 	return true
 }
 
-type csrEdgeKey struct {
-	source, target                      SymbolID
-	evidence                            EvidenceID
-	kind, confidence, provenance, flags uint8
-}
-
+// validReverseCounterpart proves the reverse CSR is a permutation of the
+// forward one: every reverse row names a forward edge, and no forward edge is
+// named twice.
+//
+// The bitmap is what makes it cheap. Keying a map by every forward edge
+// allocated `13,3 MB` on `kena` for a structure discarded in the same call,
+// which `benchmarks/snapshot-heap` measured as a third of the load's garbage;
+// one bit per forward edge is `42 kB` there. What it costs instead is a walk of
+// the source's forward group, so the work is the sum of the squared
+// out-degrees -- `54x` the edge count on that corpus, over a comparison of
+// seven fields rather than a hash, and bounded by the widest group (`889`
+// against a median of `1`).
+//
+// It relies on validCSR having run: both offsets are sane and every Target is
+// a symbol, so no index here needs a bound of its own.
 func validReverseCounterpart(symbols int, forwardOffsets []uint32, forwardEdges []PackedEdge, reverseOffsets []uint32, reverseEdges []PackedEdge) bool {
-	counts := make(map[csrEdgeKey]int, len(forwardEdges))
-	for source := 0; source < symbols; source++ {
-		for _, edge := range forwardEdges[forwardOffsets[source]:forwardOffsets[source+1]] {
-			counts[csrEdgeKey{
-				source: SymbolID(source), target: edge.Target, evidence: edge.Evidence,
-				kind: edge.Kind, confidence: edge.Confidence, provenance: edge.Provenance, flags: edge.Flags,
-			}]++
-		}
-	}
-	for target := 0; target < symbols; target++ {
+	claimed := make([]uint64, (len(forwardEdges)+63)/64)
+	matched := 0
+	for target := range symbols {
 		for _, edge := range reverseEdges[reverseOffsets[target]:reverseOffsets[target+1]] {
-			key := csrEdgeKey{
-				source: edge.Target, target: SymbolID(target), evidence: edge.Evidence,
-				kind: edge.Kind, confidence: edge.Confidence, provenance: edge.Provenance, flags: edge.Flags,
+			// A reverse row carries its source in Target: it is the edge read
+			// from the other end.
+			source := edge.Target
+			found := false
+			for index := forwardOffsets[source]; index < forwardOffsets[source+1]; index++ {
+				if claimed[index/64]&(1<<(index%64)) != 0 {
+					continue
+				}
+				candidate := forwardEdges[index]
+				if candidate.Target != SymbolID(target) ||
+					candidate.Evidence != edge.Evidence ||
+					candidate.Kind != edge.Kind ||
+					candidate.Confidence != edge.Confidence ||
+					candidate.Provenance != edge.Provenance ||
+					candidate.Flags != edge.Flags {
+					continue
+				}
+				claimed[index/64] |= 1 << (index % 64)
+				matched++
+				found = true
+				break
 			}
-			if counts[key] == 0 {
+			if !found {
 				return false
 			}
-			counts[key]--
 		}
 	}
-	for _, count := range counts {
-		if count != 0 {
-			return false
-		}
-	}
-	return true
+	// Every forward edge has to have been claimed. The caller already refuses
+	// two CSRs of different lengths, so this cannot fail today; it is here
+	// because it is the only thing that would catch a short reverse CSR if that
+	// check moved, and it is the direction the loop above cannot see.
+	return matched == len(forwardEdges)
 }
+
 func fitsDenseTable[T any](records []T) bool { return uint64(len(records)) < math.MaxUint32 }
