@@ -53,17 +53,25 @@ func runDaemon(logger *slog.Logger, httpOptions daemon.HTTPOptions) configuredMC
 			logger.Warn(message, "command", "daemon")
 		}
 
+		// HTTP first, and the order is load-bearing. A unix socket accepts
+		// connections the moment it is bound, before anyone calls Accept, so a
+		// client that treats a successful dial as readiness would reach a daemon
+		// whose endpoint file does not exist yet. Publishing HTTP first makes
+		// the socket the later signal, so reaching it implies the endpoint is
+		// there. `benchmarks/daemon-cost` found this by failing on it.
+		served, err := daemon.ListenHTTP(options, httpOptions)
+		if err != nil {
+			return err
+		}
+
 		listener, err := daemon.Listen(options)
 		if err != nil {
+			// Withdraw the endpoint: it claims a daemon is answering, and this
+			// one is about to not exist.
+			_ = served.Close()
 			return err
 		}
 		socket := listener.Addr().String()
-
-		served, err := daemon.ListenHTTP(options, httpOptions)
-		if err != nil {
-			_ = listener.Close()
-			return err
-		}
 		logger.Info("MCP daemon listening",
 			"command", "daemon", "socket", socket, "http", served.Addr().String())
 		defer logger.Info("MCP daemon stopped listening", "command", "daemon", "socket", socket)

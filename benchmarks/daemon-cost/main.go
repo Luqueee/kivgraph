@@ -534,14 +534,23 @@ func startDaemon(ctx context.Context, cfg config) (*daemonProcess, error) {
 	if live.transport != transportHTTP {
 		return live, nil
 	}
-	// The socket accepted, so both listeners are up: the daemon publishes the
-	// endpoint before it serves either. Reading it here rather than per client
-	// keeps the endpoint out of the timed section.
-	endpoint, err := daemon.ReadEndpoint(cfg.StateDir)
-	if err != nil {
-		live.stop()
-		return nil, fmt.Errorf("read the published endpoint: %w (it said: %s)",
-			err, clip(strings.TrimSpace(stderr.String()), 400))
+	// Waited for, not inferred. The daemon publishes HTTP before it binds the
+	// socket, so reaching the socket implies this file exists -- but a harness
+	// that relied on that ordering would break silently the day it changed, and
+	// this one already failed once on the reverse order. Reading it here rather
+	// than per client keeps the endpoint out of the timed section.
+	var endpoint daemon.Endpoint
+	for {
+		endpoint, err = daemon.ReadEndpoint(cfg.StateDir)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			live.stop()
+			return nil, fmt.Errorf("the daemon published no endpoint within %s: %w (it said: %s)",
+				socketWait, err, clip(strings.TrimSpace(stderr.String()), 400))
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 	live.endpoint = endpoint
 	return live, nil
