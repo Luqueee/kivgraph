@@ -9,7 +9,7 @@ const renderedReleases = await Promise.all(
   releases.map(async (release) => {
     const { Content } = await render(release);
     return { ...release, Content };
-  })
+  }),
 );
 
 export const prerender = true;

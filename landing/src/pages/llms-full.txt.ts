@@ -72,7 +72,7 @@ export const GET: APIRoute = async ({ site }) => {
         (r) =>
           `## ${r.data.version} (${r.data.date.toISOString().split("T")[0]})\nRequires reindex: ${
             r.data.requires_reindex
-          }\n\n${(r.body ?? "").trim()}`
+          }\n\n${(r.body ?? "").trim()}`,
       )
       .join("\n\n"),
   ].join("\n");
