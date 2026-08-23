@@ -94,6 +94,15 @@ export default defineConfig({
               label: "Token-efficient code",
               slug: "token-efficient-code-understanding",
             },
+            {
+              label: "Cross-repository code graph",
+              slug: "cross-repository-code-graph",
+            },
+            {
+              label: "Workspace code intelligence",
+              slug: "workspace-code-intelligence",
+            },
+            { label: "Kivgraph FAQ", slug: "kivgraph-faq" },
           ],
         },
         {

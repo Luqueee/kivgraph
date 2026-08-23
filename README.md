@@ -1,13 +1,18 @@
 # Kivgraph
 
-A local MCP server that answers questions about code across repositories, for
-Go, TypeScript, Rust, Python and Dart.
+Kivgraph is a local **cross-repository code intelligence MCP server for AI
+coding agents**. It builds a canonical semantic code graph across multiple
+registered repositories and answers questions about symbols, repository
+relationships, callers, dependencies and change impact.
 
 It indexes a corpus once and serves an immutable graph: the edges are resolved
 by `go/types`, the TypeScript checker and `rust-analyzer`, not by matching
 names. That is the difference from a search tool, and it is what makes an empty
 answer worth something — an empty reference list means **nobody calls it**, not
 that nothing was found, and `grep` cannot tell those apart.
+
+Kivgraph is focused on semantic code relationships, not automatic discovery of
+every HTTP, gRPC, Kafka or database runtime flow between services.
 
 ## What each tool answers
 
