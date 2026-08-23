@@ -1,10 +1,25 @@
-// Package daemon serves MCP to many clients from one process.
+// Package daemon serves MCP to many clients from one process, over a unix socket
+// and over Streamable HTTP at once.
 //
 // The saving is measured, and it is the slope rather than any one total: N
-// servers cost `66` to `67 MB` of private dirty pages *per client*, and a daemon
-// costs `0,2` to `2,3 MB` per client on top of one load. At eight clients that is
-// `533 MB` against `68`-`82`, and the peak `1.046 MB` against `188`. Three runs
-// over `108.737` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`.
+// servers cost `66` to `67 MB` of private dirty pages *per client*. What a daemon
+// costs depends on the door, and the door that matters is HTTP, because no MCP
+// client configuration dials a unix socket -- it takes an executable or a url.
+//
+//	door    daemon slope        8 clients            1 client
+//	socket  0,5 MB per client   70 against 533 MB    ties
+//	http    12,5 MB per client  166 against 536 MB   76 against 67 MB
+//
+// Over `108.737` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`:
+// `results.json` for the socket and `results-http.json` for HTTP. Quoting the
+// socket slope alone describes a door nobody walks through.
+//
+// The `12 MB` are not the graph. The SDK gives every session its own
+// `MemoryEventStore` so a cut stream can resume, capped at `10 MiB` by default,
+// and `2.000` calls fill it: at `64` calls the slope falls to `2,1`-`2,7 MB` per
+// client. It is a ceiling under sustained traffic rather than what an open
+// editor costs, and it cannot be bounded from here -- the handler builds its own
+// transport and takes no event store.
 //
 // What is *not* the saving is the snapshot. It is the same mapped file in every
 // server and those pages are clean, so a reader expecting its `78 MB` to
@@ -13,9 +28,8 @@
 // `60,5 MB` off what a load allocates and the resident figure moved `0,75 %`,
 // because the allocator recycles those pages rather than keeping them.
 //
-// At one client a daemon is neither better nor worse, within a megabyte of
-// noise: the per-session MCP server does not show up against the cost of a load.
-// It wins from the second client on.
+// Over the socket a daemon ties at one client. Over HTTP it loses there, so the
+// reason to run it starts at the second client either way.
 package daemon
 
 import (
