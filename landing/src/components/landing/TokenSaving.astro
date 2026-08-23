@@ -12,6 +12,15 @@ const format = new Intl.NumberFormat("en-US");
 const peak = Math.max(...rows.map((row) => row.tokens));
 const ours = rows.find((row) => row.ours)?.tokens ?? 0;
 const saved = Math.round((1 - ours / peak) * 100);
+
+/**
+ * Milliseconds before the first bar starts, and between one bar and the next.
+ * The lead-in matters: a bar that grows while the hero is still painting is a
+ * motion nobody sees, and the comparison is the one thing on this card worth
+ * watching happen.
+ */
+const LEAD_IN_MS = 420;
+const STAGGER_MS = 160;
 ---
 
 <div
@@ -54,7 +63,7 @@ const saved = Math.round((1 - ours / peak) * 100);
                   "fill h-full",
                   row.ours ? "bg-graph-exact" : "bg-gray-500",
                 ]}
-                style={`width: ${((row.tokens / peak) * 100).toFixed(2)}%; animation-delay: ${index * 140}ms`}
+                style={`width: ${((row.tokens / peak) * 100).toFixed(2)}%; animation-delay: ${LEAD_IN_MS + index * STAGGER_MS}ms`}
               />
             </div>
           </div>
