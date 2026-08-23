@@ -53,12 +53,16 @@ const groups = [
         <li>
           <a
             href="https://github.com/Luqueee/kivgraph/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener noreferrer"
             class="text-accent-200 underline underline-offset-4">Apache-2.0</a
           >
         </li>
         <li>
           <a
             href="https://github.com/Luqueee/kivgraph"
+            target="_blank"
+            rel="noopener noreferrer"
             class="text-accent-200 underline underline-offset-4"
             >github.com/Luqueee/kivgraph</a
           >
@@ -75,6 +79,14 @@ const groups = [
               <li>
                 <a
                   href={link.href}
+                  target={
+                    /^https?:\/\//.test(link.href) ? "_blank" : undefined
+                  }
+                  rel={
+                    /^https?:\/\//.test(link.href)
+                      ? "noopener noreferrer"
+                      : undefined
+                  }
                   class="text-gray-300 underline-offset-4 transition-colors hover:text-gray-100 hover:underline"
                 >
                   {link.label}

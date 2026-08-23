@@ -1,0 +1,47 @@
+---
+// Starlight's own SocialIcons renders `<a href rel="me">` and nothing else, so
+// the one link that appears on every documentation page was the only external
+// link on the site that stayed in the tab. A rehype pass cannot reach it: it is
+// a component, not markdown. This override is that component with the two
+// attributes added, and it keeps `rel="me"` -- that is the identity claim the
+// upstream markup makes, and dropping it would break rel-me verification.
+//
+// The styles are Starlight's, in Starlight's own cascade layer, because an
+// override replaces the file wholesale: omitting them would leave the icons
+// unstyled rather than inheriting anything.
+import config from "virtual:starlight/user-config";
+import { Icon } from "@astrojs/starlight/components";
+
+const links = config.social || [];
+---
+
+{
+  links.length > 0 && (
+    <>
+      {links.map(({ label, href, icon }) => (
+        <a
+          {href}
+          rel="me noopener noreferrer"
+          target="_blank"
+          class="sl-flex"
+        >
+          <span class="sr-only">{label}</span>
+          <Icon name={icon} />
+        </a>
+      ))}
+    </>
+  )
+}
+
+<style>
+  @layer starlight.core {
+    a {
+      color: var(--sl-color-text-accent);
+      padding: 0.5em;
+      margin: -0.5em;
+    }
+    a:hover {
+      color: var(--sl-color-white);
+    }
+  }
+</style>

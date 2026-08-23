@@ -215,6 +215,28 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   ejecutarse después del primer pintado, y entonces la barra de `TokenSaving`
   se vería completa antes de encogerse para crecer. Esa crece en CSS.
 
+## Enlaces externos
+
+- Todo enlace que sale del sitio abre en una pestaña nueva, con
+  `target="_blank"` y `rel="noopener noreferrer"`. `noopener` es el motivo del
+  `rel`: sin él la pestaña abierta obtiene un handle sobre `window.opener` y
+  puede navegar esta.
+- Son tres superficies y ninguna cubre a las otras dos:
+  - El markdown de la documentación lo resuelve
+    `rehype-external-links` en `astro.config.mjs`. Un autor no puede recordar
+    los atributos en cada enlace.
+  - Las anclas literales de la landing los llevan escritos.
+  - Las navegaciones generadas -- `TopBar.astro`, `Footer.astro`-- lo derivan
+    del propio `href` con `/^https?:\/\//`, así que una entrada nueva no puede
+    olvidar la regla.
+  - El icono social de Starlight es un componente y ningún paso de rehype lo
+    alcanza: vive sobreescrito en `src/components/starlight/SocialIcons.astro`,
+    que conserva el `rel="me"` original -- es una afirmación de identidad y
+    quitarlo rompería la verificación rel-me.
+- Se comprueba sobre el HTML generado, no leyendo plantillas: `dist/client`
+  tiene `79` anclas externas y `2.436` internas, y la cuenta correcta es `0`
+  externas sin la regla y `0` internas con `target`.
+
 ## Verificación
 
 ```bash

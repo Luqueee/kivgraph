@@ -3,6 +3,7 @@ import node from "@astrojs/node";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
+import rehypeExternalLinks from "rehype-external-links";
 
 // The deployment declares itself in `landing/.env`, and this file has to read
 // it before Vite does: the config is not a module Vite transforms, so a bare
@@ -27,6 +28,20 @@ export default defineConfig({
   // the pm2 unit starts all answer on the same port, so a local check and the
   // deployed landing are never two different addresses.
   server: { port: 6767, host: true },
+  // Every link that leaves the site opens in a new tab. This covers the
+  // documentation's markdown, where an author cannot be expected to spell the
+  // attributes out on every link; the landing's own anchors and the social icon
+  // are components, which no rehype pass can reach, so they carry them
+  // literally. `noopener` is the point of the `rel`: without it the opened tab
+  // gets a handle on `window.opener` and can navigate this one.
+  markdown: {
+    rehypePlugins: [
+      [
+        rehypeExternalLinks,
+        { target: "_blank", rel: ["noopener", "noreferrer"] },
+      ],
+    ],
+  },
   redirects: {
     "/reference/[...slug]": "/docs/[...slug]",
   },
@@ -50,6 +65,7 @@ export default defineConfig({
       components: {
         Head: "./src/components/starlight/Head.astro",
         ThemeProvider: "./src/components/starlight/ThemeProvider.astro",
+        SocialIcons: "./src/components/starlight/SocialIcons.astro",
         ThemeSelect: "./src/components/starlight/ThemeSelect.astro",
       },
       social: [

@@ -33,6 +33,7 @@
     "@astrojs/check": "0.9.10",
     "@biomejs/biome": "2.5.7",
     "@tailwindcss/vite": "4.3.3",
+    "rehype-external-links": "^3.0.0",
     "typescript": "5.9.3"
   }
 }
