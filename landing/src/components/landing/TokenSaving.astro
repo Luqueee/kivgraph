@@ -21,6 +21,18 @@ const saved = Math.round((1 - ours / peak) * 100);
  */
 const LEAD_IN_MS = 420;
 const STAGGER_MS = 160;
+
+/**
+ * The length of a bar is the measurement; its pace is the argument. Ours snaps
+ * and settles, grep's grinds on at a constant rate for five times as long, so
+ * the cost is felt before the number beside it is read. Only the widths are
+ * derived from the data -- inventing a duration from the token count would put
+ * a `10.2x` figure on screen that no benchmark measured.
+ */
+const PACE = {
+  ours: { duration: 700, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+  theirs: { duration: 3600, easing: "linear" },
+} as const;
 ---
 
 <div
@@ -63,7 +75,12 @@ const STAGGER_MS = 160;
                   "fill h-full",
                   row.ours ? "bg-graph-exact" : "bg-gray-500",
                 ]}
-                style={`width: ${((row.tokens / peak) * 100).toFixed(2)}%; animation-delay: ${LEAD_IN_MS + index * STAGGER_MS}ms`}
+                style={[
+                  `width: ${((row.tokens / peak) * 100).toFixed(2)}%`,
+                  `animation-delay: ${LEAD_IN_MS + index * STAGGER_MS}ms`,
+                  `animation-duration: ${(row.ours ? PACE.ours : PACE.theirs).duration}ms`,
+                  `animation-timing-function: ${(row.ours ? PACE.ours : PACE.theirs).easing}`,
+                ].join("; ")}
               />
             </div>
           </div>
@@ -88,9 +105,12 @@ const STAGGER_MS = 160;
      full width before collapsing to grow again. `scaleX` from the left edge
      touches no layout, so a growing bar cannot shift the rows beside it, and
      `both` holds the collapsed state through the delay. */
+  /* The duration and the easing arrive per row from `PACE`, so this rule only
+     names what both bars share. */
   .fill {
     transform-origin: left center;
-    animation: fill-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-name: fill-grow;
+    animation-fill-mode: both;
   }
 
   @keyframes fill-grow {
