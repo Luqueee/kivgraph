@@ -43,6 +43,19 @@ declarado en la raíz.
   `4096` bytes, y lo que hace comparables sus dos brazos es que corrieron en la
   misma VM contra el mismo fichero. No sobrescribe los artefactos de
   `shared-snapshot`, y no afirma ningún límite de latencia.
+- `benchmarks/daemon-cost` responde qué cuesta un proceso sirviendo a N clientes
+  contra N procesos sirviendo a uno. Lo que publica como respuesta es la
+  **pendiente por cliente**, no ningún total: un brazo que ahorrara a dos
+  clientes y no a ocho parecería una victoria en cualquier fila suelta. Mide el
+  recuento de **un** cliente aunque un demonio no comparta nada allí, porque es
+  donde su coste fijo sería visible sin nada que amortizarlo -- y ahí resultó que
+  empata, desmintiendo la predicción del ADR 0065.
+- No es un brazo de `shared-snapshot` y no debe convertirse en uno: los brazos de
+  aquél se definen por si el fichero de snapshot está, y su gate mide mapear
+  contra derivar. Un tercer brazo dejaría su comparación sin significado.
+- Su corpus **no** es el de `load-cost-resident`: `108.737` símbolos contra
+  `117.499`. Una cifra por símbolo se lee de la pasada que la produjo, nunca
+  cruzada entre las dos.
 
 ## Corpus y auditorías
 
