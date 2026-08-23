@@ -27,10 +27,14 @@ Y ese servidor costaba casi lo mismo que uno consultado:
 `33` de los `40 MB` -- el `83 %` -- se pagaban antes de la primera pregunta. El
 fichero del snapshot no es lo que cuesta: se mapea, sus páginas están limpias y
 son compartidas (`6,1 MB` por proceso sobre un fichero de `77,6`). Lo privado son
-los **índices que `MapSnapshot` deriva al mapear**: las tablas de lookup, las
-claves estables y los arrays CSR que `newGraphSnapshot` construye.
+las **tablas que los decodificadores construyen al mapear**: `evidence` (`5,6 MB`),
+los dos arrays CSR de aristas (`9,5`), `symbols` (`4,6`), `unresolved` (`2,4`) y
+los offsets, contra `0,84 MB` de los tres índices de lookup que
+`newGraphSnapshot` deriva -- `23,9 MB` en total por aritmética sobre los
+recuentos de la generación `000001` y las anchuras de `file.go`. Las cadenas no
+están ahí: se leen del mapa, y son justo los `6,1 MB` compartidos.
 
-Un servidor que nunca contesta no necesita ninguno de ellos.
+Un servidor que nunca contesta no necesita ninguna de ellas.
 
 ## Lo que impedía diferirlo
 

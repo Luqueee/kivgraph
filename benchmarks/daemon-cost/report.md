@@ -46,8 +46,13 @@ produjo. Las de «ahora» son seis pasadas -- tres por puerta-- del commit `68da
 
 **Qué lo hacía caro.** El fichero del snapshot nunca fue el problema: se mapea,
 sus páginas están limpias y compartidas -- `6,1 MB` por proceso sobre un fichero
-de `77,6`. Lo privado son los índices que el mapeo deriva, y un servidor que
-nunca contesta no necesita ninguno.
+de `77,6`. Lo privado son las **tablas que los decodificadores construyen** al
+mapear: `evidence` `5,6 MB`, los dos arrays CSR de aristas `9,5`, `symbols` `4,6`,
+`unresolved` `2,4` y los offsets, contra `0,84 MB` de los tres índices de lookup
+que se derivan de ellas. Son `23,9 MB` por aritmética sobre los recuentos de esta
+generación y las anchuras de `internal/hotsnapshot/file.go` -- no una partición
+medida del residente, que este benchmark no hace-- y un servidor que nunca
+contesta no necesita ninguna.
 
 |carga|pendiente de N procesos|pendiente del demonio|proporción|
 |---|---|---|---|
@@ -261,6 +266,12 @@ carga sintética**, no algo que un editor vea.
   por eso el cruce de esta carga es un rango (`0,96`–`1,41`) y no un número: con
   una pendiente indistinguible de cero, dónde se cortan las dos rectas depende del
   ruido.
+* **El desglose de arriba es aritmética, no una partición del residente.** Este
+  benchmark mide páginas privadas por proceso y no atribuye ninguna a una
+  estructura; los `23,9 MB` salen de multiplicar los recuentos de la generación
+  por las anchuras declaradas en `internal/hotsnapshot/file.go`. Cuadra con los
+  `29 MB` de diferencia entre ocioso y consultado, y eso es coherencia, no una
+  medición del reparto.
 * **De los `10 MB` que quedan en un servidor ocioso no se sabe qué parte es qué.**
   Son un proceso de Go con su servidor MCP; este benchmark no los desglosa. Del
   fichero mapeado siguen siendo `6,1 MB` por proceso de `shared_clean` sobre un
