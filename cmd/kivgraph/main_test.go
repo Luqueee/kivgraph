@@ -250,6 +250,10 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 // session -- and the client only reports that the server failed. serve writes
 // the defaults and keeps going. It registers no repository and indexes
 // nothing: the graph stays as empty as it was.
+// testConfigPath is where a test's flag set writes --config. Each call gets a
+// fresh set, so sharing the destination is safe and keeps the calls readable.
+var testConfigPath string
+
 func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
@@ -263,7 +267,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	}
 
 	var gotStore *hotsnapshot.SnapshotStore
-	if err := runConfiguredServe(context.Background(), "serve", nil,
+	if err := runConfiguredServe(context.Background(), "serve", nil, serveFlagSet(&testConfigPath), &testConfigPath,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			return nil
@@ -296,7 +300,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte("version: 1\nnot: valid\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath), &testConfigPath,
 		func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
 			t.Fatal("serve ran with a configuration it could not read")
 			return nil
@@ -418,7 +422,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 
 	var gotStore *hotsnapshot.SnapshotStore
 	var gotIndexer indexing.ProjectIndexer
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath), &testConfigPath,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			gotIndexer = indexer

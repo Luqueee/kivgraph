@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
@@ -12,14 +14,18 @@ import (
 	"github.com/Luqueee/kivgraph/internal/indexing"
 )
 
-// runDaemon serves MCP over a socket in the state directory.
+// runDaemon serves MCP over a socket and over HTTP, from one process.
 //
 // What it changes against `serve` is only who owns the snapshot. A client that
 // spawns `serve` gets a process of its own, and eight clients get eight copies
-// of the same graph in private pages -- `566 MB` on `kena`, measured in
-// `benchmarks/load-cost-resident` and flat in the number of clients, because
-// each process decodes the same tables for itself. One daemon decodes them once.
-func runDaemon(logger *slog.Logger) configuredMCPRunner {
+// of the same graph in private pages -- `533 MB` on `kena`, against `68`-`82` for
+// one daemon, measured in `benchmarks/daemon-cost`.
+//
+// Two transports because a client reaches one or the other and not both: an
+// editor's configuration takes an executable or a `url`, never a socket path, so
+// HTTP is what makes the saving reachable at all. The socket stays because it is
+// the narrower door -- its mode is the key, where HTTP needs a token.
+func runDaemon(logger *slog.Logger, httpOptions daemon.HTTPOptions) configuredMCPRunner {
 	return func(
 		ctx context.Context,
 		loaded config.Loaded,
@@ -43,16 +49,36 @@ func runDaemon(logger *slog.Logger) configuredMCPRunner {
 				logger.Info("daemon session "+event, "command", "daemon")
 			},
 		}
+		httpOptions.OnWarning = func(message string) {
+			logger.Warn(message, "command", "daemon")
+		}
+
 		listener, err := daemon.Listen(options)
 		if err != nil {
 			return err
 		}
 		socket := listener.Addr().String()
-		logger.Info("MCP daemon listening", "command", "daemon", "socket", socket)
+
+		served, err := daemon.ListenHTTP(options, httpOptions)
+		if err != nil {
+			_ = listener.Close()
+			return err
+		}
+		logger.Info("MCP daemon listening",
+			"command", "daemon", "socket", socket, "http", served.Addr().String())
 		defer logger.Info("MCP daemon stopped listening", "command", "daemon", "socket", socket)
-		// Serve owns the listener from here: it closes it when the context is
-		// cancelled, and that close unlinks the socket file because this
-		// listener is the one that created it.
-		return daemon.Serve(ctx, listener, options)
+
+		// Both halves end together: whichever fails first cancels the other, so
+		// a daemon never keeps answering on one transport after losing the
+		// other and telling nobody.
+		group, groupCtx := errgroup.WithContext(ctx)
+		group.Go(func() error {
+			// Serve owns the listener from here: it closes it when the context
+			// is cancelled, and that close unlinks the socket file because this
+			// listener is the one that created it.
+			return daemon.Serve(groupCtx, listener, options)
+		})
+		group.Go(func() error { return served.Serve(groupCtx) })
+		return group.Wait()
 	}
 }

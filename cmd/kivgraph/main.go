@@ -24,6 +24,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/app"
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -78,7 +79,8 @@ func main() {
 			return
 		case "daemon":
 			configPath := ""
-			writeCommandHelp(os.Stdout, "daemon", serveFlagSet(&configPath))
+			var options daemonOptions
+			writeCommandHelp(os.Stdout, "daemon", daemonFlagSet(&configPath, &options))
 			return
 		}
 	}
@@ -116,7 +118,8 @@ func main() {
 		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		if err := runConfiguredServe(ctx, "serve", os.Args[2:], func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
+		configPath := ""
+		if err := runConfiguredServe(ctx, "serve", os.Args[2:], serveFlagSet(&configPath), &configPath, func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
 			return mcpserver.RunWithMetricsAndSnapshotStoreAndIndexer(ctx, toolMetricsRegistry(events), store, indexer)
 		}); err != nil {
 			logger.Error("MCP server stopped with error", "command", "serve", "error", err)
@@ -129,7 +132,11 @@ func main() {
 		logger.Info("starting MCP daemon", "command", "daemon")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], runDaemon(logger)); err != nil {
+		configPath := ""
+		var options daemonOptions
+		flags := daemonFlagSet(&configPath, &options)
+		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], flags, &configPath,
+			runDaemon(logger, daemon.HTTPOptions{Address: options.Address, AllowRemote: options.AllowRemote})); err != nil {
 			logger.Error("MCP daemon stopped with error", "command", "daemon", "error", err)
 			os.Exit(1)
 		}
@@ -364,16 +371,42 @@ func serveFlagSet(configPath *string) *flag.FlagSet {
 	return flags
 }
 
+// daemonOptions carries the flags only the daemon has: it is the one long-lived
+// command that binds a port, so it is the one that has to be told where.
+type daemonOptions struct {
+	Address     string
+	AllowRemote bool
+}
+
+func daemonFlagSet(configPath *string, options *daemonOptions) *flag.FlagSet {
+	flags := flag.NewFlagSet("daemon", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(configPath, "config", "", "configuration file")
+	flags.StringVar(&options.Address, "addr", daemon.DefaultAddress, "HTTP address for MCP clients that take a url")
+	flags.BoolVar(&options.AllowRemote, "allow-remote", false, "permit a bind outside loopback, which sends names, paths and source metadata off this host")
+	return flags
+}
+
 // runConfiguredServe builds everything a long-lived MCP command needs and hands
 // it to runMCP.
 //
 // command names the invocation in the logs, the event log and the errors. Two
 // commands share this: `serve`, which speaks over its own stdio, and `daemon`,
-// which speaks over a socket to many clients. Everything before the runner is
-// identical -- the same configuration, the same store, the same follower and the
-// same resync -- and a reader of the event log has to be able to tell which one
-// wrote a line.
-func runConfiguredServe(ctx context.Context, command string, args []string, runMCP configuredMCPRunner) error {
+// which speaks over a socket and over HTTP to many clients. Everything before
+// the runner is identical -- the same configuration, the same store, the same
+// follower and the same resync -- and a reader of the event log has to be able to
+// tell which one wrote a line.
+//
+// flags is the command's own set, already bound to configPath, because the two
+// commands do not take the same options: only the daemon binds a port.
+func runConfiguredServe(
+	ctx context.Context,
+	command string,
+	args []string,
+	flags *flag.FlagSet,
+	configPath *string,
+	runMCP configuredMCPRunner,
+) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -383,22 +416,22 @@ func runConfiguredServe(ctx context.Context, command string, args []string, runM
 	if runMCP == nil {
 		return fmt.Errorf("%s: MCP runner is required", command)
 	}
-	configPath := ""
-	flags := serveFlagSet(&configPath)
+	if flags == nil || configPath == nil {
+		return fmt.Errorf("%s: a flag set bound to a configuration path is required", command)
+	}
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("%s: unexpected arguments: %v", command, flags.Args())
 	}
-	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
+	loaded, store, err := loadConfiguredSnapshot(ctx, *configPath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
 	events := openEventLog(loaded.Config, os.Stderr)
-	defer events.Close()
 	// The started/stopped pair is what makes the tool lines between them
 	// readable: without it a reader cannot tell one server's calls from the
 	// calls of the server that replaced it after an update.

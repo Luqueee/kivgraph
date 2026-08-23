@@ -12,9 +12,9 @@ import (
 func runMCPCommand(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || helpRequested(args) {
 		writeIntegrationHelp(stdout, "mcp", "Manage local MCP client registrations", []string{
-			"mcp install [--target TARGET] [--scope user|project] [--dry-run] [--force]",
-			"mcp status --target TARGET [--scope user|project]",
-			"mcp remove --target TARGET [--scope user|project] [--dry-run] [--force]",
+			"mcp install [--target TARGET] [--scope user|project] [--daemon] [--dry-run] [--force]",
+			"mcp status --target TARGET [--scope user|project] [--daemon]",
+			"mcp remove --target TARGET [--scope user|project] [--daemon] [--dry-run] [--force]",
 		})
 		return 0
 	}
@@ -58,11 +58,17 @@ func runMCPChange(action integrations.Action, args []string, stdout, stderr io.W
 }
 
 func runMCPChangeWithInput(action integrations.Action, args []string, input io.Reader, stdout, stderr io.Writer) int {
-	target, scope, dryRun, force, ok := parseIntegrationFlags("mcp "+string(action), args, stdout, stderr, true)
+	options, ok := parseIntegrationFlags("mcp "+string(action), args, stdout, stderr, true, true)
 	if !ok {
 		return 2
 	}
-	manager, err := integrations.New(integrations.Options{})
+	target, scope, dryRun, force := options.Target, options.Scope, options.DryRun, options.Force
+	managerOptions, err := integrationManagerOptions(options.Daemon)
+	if err != nil {
+		writeCommandError(stderr, "mcp %s: %v", action, err)
+		return 1
+	}
+	manager, err := integrations.New(managerOptions)
 	if err != nil {
 		writeCommandError(stderr, "mcp %s: %v", action, err)
 		return 1
@@ -107,15 +113,21 @@ func runMCPChangeWithInput(action integrations.Action, args []string, input io.R
 }
 
 func runMCPStatus(args []string, stdout, stderr io.Writer) int {
-	target, scope, _, _, ok := parseIntegrationFlags("mcp status", args, stdout, stderr, false)
+	options, ok := parseIntegrationFlags("mcp status", args, stdout, stderr, false, true)
 	if !ok {
 		return 2
 	}
+	target, scope := options.Target, options.Scope
 	if target == "" {
 		writeCommandError(stderr, "mcp status: --target is required")
 		return 2
 	}
-	manager, err := integrations.New(integrations.Options{})
+	managerOptions, err := integrationManagerOptions(options.Daemon)
+	if err != nil {
+		writeCommandError(stderr, "mcp status: %v", err)
+		return 1
+	}
+	manager, err := integrations.New(managerOptions)
 	if err != nil {
 		writeCommandError(stderr, "mcp status: %v", err)
 		return 1
@@ -134,10 +146,11 @@ func runSkillChange(action integrations.Action, args []string, stdout, stderr io
 }
 
 func runSkillChangeWithInput(action integrations.Action, args []string, input io.Reader, stdout, stderr io.Writer) int {
-	target, scope, dryRun, force, ok := parseIntegrationFlags("skill "+string(action), args, stdout, stderr, true)
+	options, ok := parseIntegrationFlags("skill "+string(action), args, stdout, stderr, true, false)
 	if !ok {
 		return 2
 	}
+	target, scope, dryRun, force := options.Target, options.Scope, options.DryRun, options.Force
 	manager, err := integrations.New(integrations.Options{})
 	if err != nil {
 		writeCommandError(stderr, "skill %s: %v", action, err)
@@ -183,10 +196,11 @@ func runSkillChangeWithInput(action integrations.Action, args []string, input io
 }
 
 func runSkillStatus(args []string, stdout, stderr io.Writer) int {
-	target, scope, _, _, ok := parseIntegrationFlags("skill status", args, stdout, stderr, false)
+	options, ok := parseIntegrationFlags("skill status", args, stdout, stderr, false, false)
 	if !ok {
 		return 2
 	}
+	target, scope := options.Target, options.Scope
 	if target == "" {
 		writeCommandError(stderr, "skill status: --target is required")
 		return 2
@@ -211,15 +225,23 @@ type integrationOptions struct {
 	Scope  string
 	DryRun bool
 	Force  bool
+	// Daemon points the entry at a running daemon over HTTP instead of telling
+	// the client to spawn `serve` for itself.
+	Daemon bool
 }
 
 // integrationFlagSet declares them in one place. The changes flag is what
 // separates an operation that writes from one that only reports: only the
 // writers accept --dry-run and --force.
 //
+// endpoint separates the two kinds of integration rather than the two kinds of
+// operation: a skill is a file with no transport, so --daemon means nothing
+// there. It is accepted by `status` as well as by the writers, because a status
+// that compared against the wrong shape would call our own entry unmanaged.
+//
 // The output writer is a parameter because these flag sets report parse errors
 // themselves rather than discarding them, and the destination is the caller's.
-func integrationFlagSet(name string, options *integrationOptions, output io.Writer, changes bool) *flag.FlagSet {
+func integrationFlagSet(name string, options *integrationOptions, output io.Writer, changes, endpoint bool) *flag.FlagSet {
 	flags := flag.NewFlagSet(name, flag.ContinueOnError)
 	flags.SetOutput(output)
 	flags.StringVar(&options.Target, "target", "", "client target (optional for interactive install)")
@@ -228,22 +250,23 @@ func integrationFlagSet(name string, options *integrationOptions, output io.Writ
 		flags.BoolVar(&options.DryRun, "dry-run", false, "show the change without writing")
 		flags.BoolVar(&options.Force, "force", false, "replace or remove an incompatible entry")
 	}
+	if endpoint {
+		flags.BoolVar(&options.Daemon, "daemon", false, "point the client at a running `kivgraph daemon` over HTTP")
+	}
 	return flags
 }
 
-func parseIntegrationFlags(name string, args []string, stdout, stderr io.Writer, changes bool) (string, string, bool, bool, bool) {
+func parseIntegrationFlags(name string, args []string, stdout, stderr io.Writer, changes, endpoint bool) (integrationOptions, bool) {
 	options := integrationOptions{Scope: integrations.ScopeUser}
-	flags := integrationFlagSet(name, &options, stderr, changes)
-	if parsed, code := parseCommandFlags(name, flags, args, stdout, stderr); !parsed {
-		return "", "", false, false, false
-	} else if code != 0 {
-		return "", "", false, false, false
+	flags := integrationFlagSet(name, &options, stderr, changes, endpoint)
+	if parsed, code := parseCommandFlags(name, flags, args, stdout, stderr); !parsed || code != 0 {
+		return integrationOptions{}, false
 	}
 	if flags.NArg() != 0 {
 		writeCommandError(stderr, "%s: unexpected arguments", name)
-		return "", "", false, false, false
+		return integrationOptions{}, false
 	}
-	return options.Target, options.Scope, options.DryRun, options.Force, true
+	return options, true
 }
 
 func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integrations.Manager, kind string, scope integrations.Scope) ([]integrations.Target, error) {
