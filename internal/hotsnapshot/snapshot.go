@@ -445,20 +445,20 @@ func (snapshot *GraphSnapshot) validExactIndexes() bool {
 	if uint64(snapshot.stableKeys.Entries()) != uint64(len(snapshot.symbols)) {
 		return false
 	}
-	// Entry i must be the key of symbol i, in both directions. The forward
-	// check is what makes the record's dense key trustworthy, and the reverse
-	// one is what makes the ordering trustworthy: a table sorted by bytes whose
-	// entries belonged to other symbols would answer every lookup with the
-	// wrong ID rather than failing.
+	// Entry i must be the key of symbol i, and that is what the record's dense
+	// key claims -- so the claim is what gets checked.
+	//
+	// What used to sit here as well was the round trip: read entry i and look it
+	// up, expecting i back. It cannot fail. Both constructors of a
+	// StableKeyTable refuse entries that are not in strict byte order --
+	// NewStableKeyTable on the builder's path and StableKeyTableFromArena on the
+	// reader's -- and a binary search over strictly ascending, therefore
+	// distinct, entries returns the position of the one it was handed. So the
+	// ordering is trustworthy because those two say so, not because this loop
+	// asked; asking cost 117 thousand binary searches over mapped pages, `7 ms`
+	// a load, and `7,2 MB` of copies before the read stopped going through Key.
 	for id, symbol := range snapshot.symbols {
 		if symbol.StableKey != StableKeyID(id) {
-			return false
-		}
-		key, found := snapshot.stableKeys.Key(StableKeyID(id))
-		if !found {
-			return false
-		}
-		if resolved, ok := snapshot.stableKeys.Lookup(key); !ok || resolved != StableKeyID(id) {
 			return false
 		}
 	}
