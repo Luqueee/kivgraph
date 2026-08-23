@@ -83,11 +83,34 @@ func TestStableKeyTableFromArenaValidatesWhatItIsHanded(t *testing.T) {
 	// The offsets are the only thing that says where a key ends, so each of
 	// these is a key read from the wrong bytes -- a symbol answering to another
 	// symbol's identity, which no later validation can catch.
+	//
+	// The last two say nothing about offsets: every key here is the same length,
+	// so the offsets stay perfectly valid and only the ordering of the bytes is
+	// wrong. That is the case a binary search does not fail on -- it answers with
+	// the wrong ID -- and it is what lets everything downstream take strictly
+	// ascending entries as given.
 	broken := map[string]func() ([]byte, []uint32){
 		"no offsets":      func() ([]byte, []uint32) { return arena, nil },
 		"first not zero":  func() ([]byte, []uint32) { return arena, append([]uint32{1}, offsets[1:]...) },
 		"past the arena":  func() ([]byte, []uint32) { return arena[:len(arena)-1], offsets },
 		"going backwards": func() ([]byte, []uint32) { return arena, swapped(offsets, 1, 2) },
+		"keys descending": func() ([]byte, []uint32) {
+			keys := corpusKeys(8)
+			out := make([]byte, 0, len(arena))
+			for index := len(keys) - 1; index >= 0; index-- {
+				out = append(out, keys[index]...)
+			}
+			return out, offsets
+		},
+		"two keys equal": func() ([]byte, []uint32) {
+			keys := corpusKeys(8)
+			keys[3] = keys[2]
+			out := make([]byte, 0, len(arena))
+			for _, key := range keys {
+				out = append(out, key...)
+			}
+			return out, offsets
+		},
 	}
 	for name, mutate := range broken {
 		mutatedArena, mutatedOffsets := mutate()
