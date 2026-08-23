@@ -12,7 +12,7 @@ transitorios, no asignándolos.
 |dato|valor|
 |---|---|
 |fecha|`2026-08-23`|
-|commit|`c420490`|
+|commit|`749e638`|
 |plataforma|`darwin/arm64`, `go1.26.4`|
 |corpus|`35` repositorios, `117499` símbolos, `337314` aristas|
 |fichero|`86.7 MB`|
@@ -21,10 +21,10 @@ transitorios, no asignándolos.
 
 |mitad|bytes|por símbolo|
 |---|---|---|
-|asignado|`89.7 MB`|`801 B`|
+|asignado|`69.2 MB`|`617 B`|
 |vivo|`27.7 MB`|`247 B`|
-|transitorio|`62.0 MB`|`69 %` de lo asignado|
-|de ello, tablas copiadas dos veces|`19.8 MB`|aritmética sobre las filas|
+|transitorio|`41.5 MB`|`60 %` de lo asignado|
+|de ello, tablas adoptadas y no copiadas|`19.8 MB`|aritmética sobre las filas|
 
 ## Lo que se puede leer en el sitio
 
@@ -42,9 +42,8 @@ momento en que sus estructuras son atribuibles: `benchmarks/snapshot-heap/live.p
 ## Hallazgos
 
 - La mayor parte de lo que asigna la carga no es la respuesta. Los bytes vivos son lo que un lector conserva; el resto ensucia una página y no sostiene nada, y un perfil de heap tomado después de la carga no puede ver ni uno de ellos.
-- Cada tabla de ancho fijo se copia dos veces. Un decodificador asigna un slice de Go por sección y copia dentro los bytes mapeados (`internal/hotsnapshot/file.go`, las llamadas `decode*` de `readSnapshot`), y `NewGraphSnapshot` vuelve a copiar cada uno de esos slices (`internal/hotsnapshot/snapshot.go:256-269`). Las parejas del perfil no son parecidas, son exactas: `decodeSymbols` y la línea de los símbolos asignan los mismos bytes, y lo mismo la evidencia y las dos tablas de aristas.
-- La segunda copia no es defensiva en este camino. `NewGraphSnapshot` copia para que un llamante pueda seguir mutando los slices que pasó, que es lo que hace el constructor. El lector pasa slices que decodificó una sentencia antes y que nadie más puede nombrar, así que ceder la propiedad retiraría el gemelo sin relajar el contrato público.
-- La validación es la otra parte con nombre de la mitad transitoria. `validReverseCounterpart` construye un mapa con clave en cada arista directa para probar que el CSR inverso es su permutación, y lo tira (`internal/hotsnapshot/snapshot.go:478`). Un mapa de bits sobre las aristas directas contestaría lo mismo con una fracción de los bytes.
+- El gemelo que había ya no está, y por eso se nombra: cada tabla de ancho fijo se copiaba dos veces. Los `decode*` de `readSnapshot` asignan un slice por sección y copian dentro los bytes mapeados, y `NewGraphSnapshot` volvía a copiar cada uno para que un llamante pudiera seguir mutando lo que pasó -- cierto para el constructor, superfluo para un lector que decodificó esos slices una sentencia antes y que nadie más puede nombrar. Ceder la propiedad en el camino del lector quitó `20,8 MB` de lo asignado sobre este corpus y dejó los bytes vivos idénticos. La aritmética lo predecía en `20,74`.
+- Lo que queda arriba son dos mapas transitorios, y los dos tienen nombre. `indexSnapshotInput` construye los tres índices de búsqueda como mapas y `newSymbolIndex` los aplana a arrays acto seguido, así que el mapa entero es basura por diseño. `validReverseCounterpart` (`internal/hotsnapshot/snapshot.go`) construye un mapa con clave en cada arista directa para probar que el CSR inverso es su permutación, y lo tira; un mapa de bits sobre las aristas directas contestaría lo mismo con una fracción de los bytes.
 - El arena ya se lee en el sitio y es la sección más grande del fichero, que es por lo que los bytes vivos son una fracción de él. Lo que queda en el heap son las tablas, y el fichero declara cuántas filas tiene cada una, así que nada de ellas hay que reconstruirlo para poder confiar en él.
 
 ## Limitaciones

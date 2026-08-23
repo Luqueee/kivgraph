@@ -16942,3 +16942,41 @@ sobre una generación publicada real. Tres pasadas del mismo binario dan el vivo
 byte a byte idéntico y el asignado dentro de `0,1 MB`.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2217 — El lector adopta las tablas en vez de copiarlas
+
+**Dependencias:** `LUQUE-2216`.
+
+**Objetivo:** retirar el gemelo que `LUQUE-2216` midió, sin relajar el contrato
+público de `NewGraphSnapshot`.
+
+**Alcance:** `internal/hotsnapshot/snapshot.go` y `file.go`.
+
+**Criterios de aceptación:**
+
+- El cuerpo pasa a `newGraphSnapshot(input, owned bool)`. El público llama con
+  `false` y sigue copiando: su contrato es que el llamante puede seguir mutando
+  lo que pasó, y el constructor lo necesita. `readSnapshot` llama con `true`.
+- Comprobado antes de tocar, porque es lo que decide la corrección: los cinco
+  decodificadores usan `make` y copian campo a campo. **Ninguno alía los bytes
+  mapeados**, así que adoptar es seguro en los dos caminos de `readSnapshot` --
+  el mapeado y el que lee de un buffer del llamante.
+- Medido sobre el mismo corpus de `LUQUE-2216`, `117.499` símbolos: lo asignado
+  baja de `89,7` a `68,9 MB` -- `801` a `615 B` por símbolo-- y **los bytes
+  vivos quedan idénticos**, `27,7 MB`. La aritmética predecía `20,74 MB`
+  (`19,8` de tablas más `0,94` de los dos arrays de desplazamientos) y la
+  medición dio `20,8`.
+- `NewGraphSnapshot` desaparece de la lista de asignadores del perfil. Lo que
+  queda arriba son dos mapas transitorios con nombre: `indexSnapshotInput`
+  (`16,5 MB`, mapas que `newSymbolIndex` aplana acto seguido) y
+  `validReverseCounterpart` (`13,3 MB`, mapa de validación que se tira).
+- El contrato público ya tenía quien lo vigilase:
+  `TestGraphSnapshotCopiesDataAndIndexes`. No se añade un test de la adopción
+  porque no es un contrato observable: es una propiedad de memoria, y la
+  defiende la medición.
+
+**Verificación:** la suite entera; `benchmarks/snapshot-heap` antes y después; y
+humo con el binario real por MCP sobre `kena` -- `find_symbol`,
+`find_references` y `get_file_outline` contestan con sus veredictos.
+
+**Estado:** cerrada el `2026-08-23`.

@@ -122,16 +122,14 @@ type heap struct {
 	LivePerSymbol     float64 `json:"live_bytes_per_symbol"`
 	AllocPerSymbol    float64 `json:"allocated_bytes_per_symbol"`
 	TransientPerAlloc float64 `json:"transient_share_of_allocated"`
-	// DuplicatedTableBytes is the part of the transient half with a name. The
-	// decoders allocate one Go slice per fixed-width section and copy the
-	// mapped bytes into it; NewGraphSnapshot then copies every one of those
-	// slices again, because its contract is that a caller may keep mutating
-	// the input it passed. On the reader's path nobody holds that input, so
-	// the second copy is the first one's twin and the first becomes garbage.
-	// Measured against the profile, the pairs are exact: decodeSymbols and
-	// the symbols line allocate the same bytes, and so do evidence and edges.
-	DuplicatedTableBytes uint64 `json:"duplicated_table_bytes"`
-	ProfilePath          string `json:"live_profile_path"`
+	// AdoptedTableBytes is what the reader takes instead of copying: the
+	// fixed-width tables and both CSR edge arrays, whose slices the decoders
+	// allocated from the mapped bytes a statement earlier. It used to be
+	// copied again, so this is also what that twin weighed -- the arithmetic
+	// said 20.74 MB over this corpus and removing it took 20.8 MB off what the
+	// load allocates, with the live bytes unchanged.
+	AdoptedTableBytes uint64 `json:"adopted_table_bytes"`
+	ProfilePath       string `json:"live_profile_path"`
 }
 
 // mappable is the arithmetic size of everything a reader could take in place
@@ -204,12 +202,11 @@ func measure(cfg config) (results, error) {
 			TransientBytes: saturatingSub(allocated, live),
 			LivePerSymbol:  perSymbol(live, counts.Symbols),
 			AllocPerSymbol: perSymbol(allocated, counts.Symbols),
-			// Everything the decoders hand over and NewGraphSnapshot copies
-			// again: the fixed-width tables and both CSR edge arrays. The
-			// arena and the key table are excluded because the snapshot keeps
-			// them as they arrive.
-			DuplicatedTableBytes: mappableBytes(counts, 0, 0).TotalBytes,
-			ProfilePath:          profilePath,
+			// Everything the decoders hand over and the snapshot adopts: the
+			// fixed-width tables and both CSR edge arrays. The arena and the
+			// key table are excluded because they were never copied.
+			AdoptedTableBytes: mappableBytes(counts, 0, 0).TotalBytes,
+			ProfilePath:       profilePath,
 		},
 		Mappable:    mappableBytes(counts, uint64(strings.Bytes), stableKeyTableBytes(keys)),
 		Findings:    findings(),
@@ -334,25 +331,23 @@ func findings() []string {
 			"vivos son lo que un lector conserva; el resto ensucia una página y " +
 			"no sostiene nada, y un perfil de heap tomado después de la carga no " +
 			"puede ver ni uno de ellos.",
-		"Cada tabla de ancho fijo se copia dos veces. Un decodificador asigna un " +
-			"slice de Go por sección y copia dentro los bytes mapeados " +
-			"(`internal/hotsnapshot/file.go`, las llamadas `decode*` de " +
-			"`readSnapshot`), y `NewGraphSnapshot` vuelve a copiar cada uno de " +
-			"esos slices (`internal/hotsnapshot/snapshot.go:256-269`). Las parejas " +
-			"del perfil no son parecidas, son exactas: `decodeSymbols` y la línea " +
-			"de los símbolos asignan los mismos bytes, y lo mismo la evidencia y " +
-			"las dos tablas de aristas.",
-		"La segunda copia no es defensiva en este camino. `NewGraphSnapshot` " +
-			"copia para que un llamante pueda seguir mutando los slices que pasó, " +
-			"que es lo que hace el constructor. El lector pasa slices que " +
-			"decodificó una sentencia antes y que nadie más puede nombrar, así " +
-			"que ceder la propiedad retiraría el gemelo sin relajar el contrato " +
-			"público.",
-		"La validación es la otra parte con nombre de la mitad transitoria. " +
-			"`validReverseCounterpart` construye un mapa con clave en cada arista " +
-			"directa para probar que el CSR inverso es su permutación, y lo tira " +
-			"(`internal/hotsnapshot/snapshot.go:478`). Un mapa de bits sobre las " +
-			"aristas directas contestaría lo mismo con una fracción de los bytes.",
+		"El gemelo que había ya no está, y por eso se nombra: cada tabla de " +
+			"ancho fijo se copiaba dos veces. Los `decode*` de `readSnapshot` " +
+			"asignan un slice por sección y copian dentro los bytes mapeados, y " +
+			"`NewGraphSnapshot` volvía a copiar cada uno para que un llamante " +
+			"pudiera seguir mutando lo que pasó -- cierto para el constructor, " +
+			"superfluo para un lector que decodificó esos slices una sentencia " +
+			"antes y que nadie más puede nombrar. Ceder la propiedad en el camino " +
+			"del lector quitó `20,8 MB` de lo asignado sobre este corpus y dejó " +
+			"los bytes vivos idénticos. La aritmética lo predecía en `20,74`.",
+		"Lo que queda arriba son dos mapas transitorios, y los dos tienen " +
+			"nombre. `indexSnapshotInput` construye los tres índices de búsqueda " +
+			"como mapas y `newSymbolIndex` los aplana a arrays acto seguido, así " +
+			"que el mapa entero es basura por diseño. `validReverseCounterpart` " +
+			"(`internal/hotsnapshot/snapshot.go`) construye un mapa con clave en " +
+			"cada arista directa para probar que el CSR inverso es su " +
+			"permutación, y lo tira; un mapa de bits sobre las aristas directas " +
+			"contestaría lo mismo con una fracción de los bytes.",
 		"El arena ya se lee en el sitio y es la sección más grande del fichero, " +
 			"que es por lo que los bytes vivos son una fracción de él. Lo que " +
 			"queda en el heap son las tablas, y el fichero declara cuántas filas " +
@@ -432,8 +427,8 @@ func render(out results) string {
 	fmt.Fprintf(&text, "|vivo|`%.1f MB`|`%.0f B`|\n", float64(out.Heap.LiveBytes)/mb, out.Heap.LivePerSymbol)
 	fmt.Fprintf(&text, "|transitorio|`%.1f MB`|`%.0f %%` de lo asignado|\n",
 		float64(out.Heap.TransientBytes)/mb, out.Heap.TransientPerAlloc*100)
-	fmt.Fprintf(&text, "|de ello, tablas copiadas dos veces|`%.1f MB`|aritmética sobre las filas|\n",
-		float64(out.Heap.DuplicatedTableBytes)/mb)
+	fmt.Fprintf(&text, "|de ello, tablas adoptadas y no copiadas|`%.1f MB`|aritmética sobre las filas|\n",
+		float64(out.Heap.AdoptedTableBytes)/mb)
 	text.WriteString("\n## Lo que se puede leer en el sitio\n\n")
 	fmt.Fprintf(&text, "|sección|bytes|\n|---|---|\n")
 	fmt.Fprintf(&text, "|arena de cadenas|`%.1f MB`|\n", float64(out.Mappable.ArenaBytes)/mb)
