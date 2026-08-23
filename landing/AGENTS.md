@@ -191,7 +191,25 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 
 - `landing/src/lib/motion.ts` es la única capa de animación con JavaScript, y
   se carga sólo desde `Layout.astro`: la documentación de Starlight no la
-  recibe. Anima reveals al hacer scroll y un parallax sobre el fondo del hero.
+  recibe. Son cuatro piezas: la entrada del hero, el encendido del fondo, el
+  halo que sigue al puntero, los dos CTA magnéticos, más los reveals al hacer
+  scroll y el parallax del fondo.
+- El marcado del hero declara los anclajes y la capa no busca por estructura:
+  `data-hero` en la banda, `data-hero-item` en los seis bloques en orden de
+  lectura, `data-hero-field` en el plano y `data-hero-halo` en el halo.
+- El halo vive en el marcado, no lo crea el JS: un elemento añadido en runtime
+  no lleva el atributo de scope de Astro y el CSS scoped del componente no lo
+  alcanzaría. Reposa en `opacity: 0` porque no contiene nada -- si el módulo no
+  corre, no hay nada que revelar.
+- El brillo es un `::after` con un bucle CSS y **ningún tween alcanza un
+  pseudo-elemento**. El hero declara su duración como `--sheen-duration` y la
+  entrada la acorta para una pasada y luego **elimina** la propiedad, que es lo
+  que devuelve el elemento al valor de la hoja de estilo en vez de fijar una
+  copia suya.
+- Medido sobre la portada servida: LCP `76 ms` en el `h1`, igual que sin
+  animación; los seis bloques terminan en `opacity: 1`; con
+  `prefers-reduced-motion: reduce` los seis salen a `1`, el halo a `0`, el
+  brillo con `animation-name: none` y las barras a su ancho final.
 - El `h1` es el elemento LCP de la portada, y lo que penaliza esa métrica es el
   **retardo**, no la duración ni el fundido. Medido inyectando cada regla antes
   del primer pintado, con `PerformanceObserver` sobre

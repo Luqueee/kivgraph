@@ -24,9 +24,14 @@ const readout = [
 ];
 ---
 
-<section class="stage">
+<section class="stage" data-hero>
   <div class="plane" data-hero-field aria-hidden="true"></div>
   <div class="veil" aria-hidden="true"></div>
+  <!-- The halo is declared here rather than created by the motion layer:
+    an element appended at runtime carries no scope attribute, so this
+    component's scoped CSS would not reach it. It rests invisible because it
+    holds no content -- if the module never runs there is nothing to reveal. -->
+  <div class="halo" data-hero-halo aria-hidden="true"></div>
 
   <div
     class="mx-auto box-border w-full max-w-6xl px-6 py-20 text-center sm:py-24"
@@ -209,6 +214,29 @@ const readout = [
       ),
       linear-gradient(to bottom, var(--color-shell) 0%, transparent 9%),
       linear-gradient(to top, var(--color-shell) 0%, transparent 11%);
+  }
+
+  /* The pointer halo. It is a figure, not a control: no pointer events, and a
+     radius large enough that the grid under it reads as lit rather than as
+     spotlit. The motion layer translates it and fades it in; a page without
+     that module keeps it at zero and loses nothing. */
+  .halo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 22rem;
+    height: 22rem;
+    margin: -11rem 0 0 -11rem;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-graph-repository) 24%, transparent),
+      transparent 68%
+    );
+    filter: blur(30px);
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
   }
 
   @media (prefers-reduced-motion: reduce) {
