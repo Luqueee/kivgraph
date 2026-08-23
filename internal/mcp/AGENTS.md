@@ -59,12 +59,14 @@ declarado en la raíz.
   ámbito ilegible del repositorio- no entra en ninguno: se informa en
   `completeness.invisible_scopes` y en `more_invisible_scopes`, que existen
   para eso. Cambiar lo que un contador cuenta es un cambio de esquema aunque
-  el campo no cambie de nombre ni de tipo, y el compilador no lo ve: al
-  publicar el veredicto sumé los ámbitos a `unresolved_related`, y
-  `find_symbol` de un nombre que nadie referencia pasó a informar de `29`
-  registros relacionados. Todas las puertas seguían en verde porque ningún
-  test fijaba el contador sobre un fallo que **sólo** fuese de ámbito; el que
-  lo fija ahora está en `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`.
+  el campo no cambie de nombre ni de tipo, y el compilador no lo ve: el helper
+  del veredicto nació sumando los ámbitos a `unresolved_related` y se propagó
+  a cinco tools, hasta que `find_symbol` informó de `29` registros
+  relacionados para un nombre que nadie referencia. Todas las puertas seguían
+  en verde porque ningún test fijaba el contador sobre un fallo que **sólo**
+  fuese de ámbito; el que lo fija ahora está en
+  `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`. Ver ADR
+  0063.
 - Un diagnóstico del cargador que no tumba la pasada se imprime, no sólo se
   cuenta; un repositorio TypeScript que no declara ningún paquete se nombra.
   Un contador sin detalle y una entrada de registro que no aporta nada son

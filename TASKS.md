@@ -16739,8 +16739,9 @@ directiva -- `part of 'library.dart';` en el archivo parte.
 # 32. Fase 25 — Lo que la fase 23 rompió al publicar el veredicto
 
 La fase 23 dio a seis tools un `completeness`. Al medir la documentación que le
-faltaba salió algo peor: el mismo commit cambió en silencio lo que cuenta un
-contador ya publicado, y las cuatro puertas seguían en verde.
+faltaba salió algo peor: el helper del veredicto contaba mal desde que nació y
+esta fase lo propagó a cinco tools, cambiando en silencio lo que informa un
+contador publicado. Las cuatro puertas seguían en verde.
 
 ## LUQUE-2212 — Un contador publicado que cambió de significado
 
@@ -16757,13 +16758,16 @@ contar.
   informaba de `unresolved_related: 29`, y los `29` eran ámbitos ilegibles del
   repositorio que no nombran nada parecido. `usage.md` documenta los cuatro
   contadores como **disjuntos** y sobre la consulta.
-- El origen, localizado con `git show 308e802^`: antes era
-  `snapshot.UnresolvedNamingSymbol(name, 0)`; después,
-  `namingTotal + scopeTotal`. En `find_symbol` es una rotura de compatibilidad
-  -el campo existía-; en las otras cuatro tools el campo era nuevo con un
-  significado que no cuadraba. `find_cross_repo_consumers` ya lo descartaba a
-  propósito, con su comentario: ya había visto el problema en una tool y no en
-  las demás.
+- El origen, con `git log -S`: `5960312` (`2026-08-12`) creó `completenessFor`
+  devolviendo ya `namingTotal + scopeTotal`, sobre `find_references` y
+  `get_blast_radius`. La fase 23 (`308e802`) extendió el helper a cuatro tools
+  más y en `find_symbol` **sustituyó** un contador que sólo contaba nombres --
+  `snapshot.UnresolvedNamingSymbol(name, 0)`--, que es donde hay rotura de
+  compatibilidad. Once días, no un commit, y se propagó.
+- Lo delator: `find_cross_repo_consumers` descartaba el valor con su propio
+  comentario -«adding them twice would inflate the only number a caller can
+  audit»- mientras las otras cinco lo sumaban. El problema estaba visto en una
+  tool y no en las demás.
 - `completenessScopes` no devuelve contador: todo lo que encuentra es ámbito, y
   un ámbito no es una de las cuatro cosas que `coverage` cuenta. `get_file_outline`
   vuelve a `Coverage{Exact: kept}`, que es lo que publicaba antes.
@@ -16772,6 +16776,10 @@ contar.
 - Cambiar lo que un contador cuenta es un cambio de esquema aunque el campo no
   cambie de nombre ni de tipo, y el compilador no lo ve. Queda escrito en
   `internal/mcp/AGENTS.md`.
+- La raíz exige ADR para un cambio de protocolo MCP, y no había ninguno: ni la
+  fase 23 por publicar un campo nuevo en seis tools, ni esta por corregir el
+  valor de un contador en cinco. Es **ADR 0063**, y cubre las dos mitades
+  porque son la misma superficie: el veredicto y el contador que infló.
 
 **Verificación:** `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`
 extendido con la aserción del contador -falsificado volviendo a sumar los

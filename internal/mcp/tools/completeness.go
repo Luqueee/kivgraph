@@ -117,6 +117,7 @@ func completenessFor(
 	// about the name asked for, and it is already reported in full by
 	// InvisibleScopes and MoreInvisibleScopes. Adding it here once made
 	// find_symbol report 29 related records for a name nothing referenced.
+	// Ver ADR 0063.
 	return result, namingTotal, nil
 }
 
