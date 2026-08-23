@@ -59,7 +59,7 @@ const PALETTE_PROPERTIES = [
   ["--color-graph-exact", "#16a34a"],
 ] as const;
 
-interface Palette {
+export interface Palette {
   readonly node: readonly [string, string, string, string];
   readonly containment: string;
   readonly local: string;
@@ -90,7 +90,7 @@ function identityOf(index: number, salt: number): number {
 }
 
 /** The identity of an index as a fraction in `[0, 1)`. */
-function unitOf(index: number, salt: number): number {
+export function unitOf(index: number, salt: number): number {
   return identityOf(index, salt) / 0x1_0000_0000;
 }
 
@@ -99,7 +99,7 @@ function unitOf(index: number, salt: number): number {
  * `global.css`. A property that resolves empty falls back to its literal
  * rather than drawing nothing.
  */
-function readPalette(): Palette {
+export function readPalette(): Palette {
   const computed = getComputedStyle(document.documentElement);
   const resolved = PALETTE_PROPERTIES.map(([property, fallback]) => {
     const value = computed.getPropertyValue(property).trim();
@@ -208,7 +208,7 @@ function buildCrossDependencies(nodes: readonly Node[]): [number, number][] {
 }
 
 /** `#rrggbb` with an alpha, without allocating a colour parser. */
-function withAlpha(color: string, alpha: number): string {
+export function withAlpha(color: string, alpha: number): string {
   if (color.startsWith("#") && color.length === 7) {
     const red = Number.parseInt(color.slice(1, 3), 16);
     const green = Number.parseInt(color.slice(3, 5), 16);
