@@ -263,8 +263,8 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	}
 
 	var gotStore *hotsnapshot.SnapshotStore
-	if err := runConfiguredServe(context.Background(), nil,
-		func(_ context.Context, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
+	if err := runConfiguredServe(context.Background(), "serve", nil,
+		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			return nil
 		}); err != nil {
@@ -296,8 +296,8 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte("version: 1\nnot: valid\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := runConfiguredServe(context.Background(), []string{"--config", configPath},
-		func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+		func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
 			t.Fatal("serve ran with a configuration it could not read")
 			return nil
 		})
@@ -418,8 +418,8 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 
 	var gotStore *hotsnapshot.SnapshotStore
 	var gotIndexer indexing.ProjectIndexer
-	err := runConfiguredServe(context.Background(), []string{"--config", configPath},
-		func(_ context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			gotIndexer = indexer
 			return nil
@@ -1612,31 +1612,39 @@ func kivgraphProcess(pid int, command string) procstat.Process {
 	return procstat.Process{PID: pid, Args: []string{"/opt/kivgraph/bin/kivgraph", command}}
 }
 
-// TestStopEndsServersAndViewersOnly is the whole risk of this command: what it
+// TestStopEndsLongRunningCommandsOnly is the whole risk of this command: what it
 // does not kill. An index in flight is minutes of analysis, the process
 // running stop is a kivgraph process too, and anything else on the machine
 // must not match however it is named.
-func TestStopEndsServersAndViewersOnly(t *testing.T) {
+func TestStopEndsLongRunningCommandsOnly(t *testing.T) {
 	fixture := &stopFixture{
 		processes: []procstat.Process{
 			kivgraphProcess(11, "serve"),
 			kivgraphProcess(12, "ui"),
-			kivgraphProcess(13, "index"),
-			kivgraphProcess(14, "stop"),
-			{PID: 15, Args: []string{"/usr/bin/vim", "kivgraph", "serve"}},
-			{PID: 16, Args: []string{"/opt/other/kivgraph-ts-worker", "serve"}},
+			// A daemon is the third long-running command, and it is the one a
+			// list-based rule forgets: it was added after this command was.
+			kivgraphProcess(13, "daemon"),
+			kivgraphProcess(14, "index"),
+			kivgraphProcess(15, "stop"),
+			{PID: 16, Args: []string{"/usr/bin/vim", "kivgraph", "serve"}},
+			{PID: 17, Args: []string{"/opt/other/kivgraph-ts-worker", "serve"}},
 		},
-		diesOn: map[int]syscall.Signal{11: syscall.SIGTERM, 12: syscall.SIGTERM},
+		diesOn: map[int]syscall.Signal{
+			11: syscall.SIGTERM,
+			12: syscall.SIGTERM,
+			13: syscall.SIGTERM,
+		},
 	}
 
 	var stdout, stderr bytes.Buffer
 	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
 		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
 	}
-	if got := strings.Join(fixture.signals, ","); got != "11:terminated,12:terminated" {
-		t.Fatalf("signals = %q, want the server and the viewer terminated and nothing else", got)
+	want := "11:terminated,12:terminated,13:terminated"
+	if got := strings.Join(fixture.signals, ","); got != want {
+		t.Fatalf("signals = %q, want %q", got, want)
 	}
-	if !strings.Contains(stdout.String(), "2 process(es) stopped, 0 killed") {
+	if !strings.Contains(stdout.String(), "3 process(es) stopped, 0 killed") {
 		t.Fatalf("stdout = %q, want the summary", stdout.String())
 	}
 }
@@ -1723,7 +1731,15 @@ func TestStopSaysWhenNothingIsRunning(t *testing.T) {
 	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
 		t.Fatalf("runStop() = %d, want 0", code)
 	}
-	if !strings.Contains(stdout.String(), "no kivgraph serve or ui process is running") {
+	// The message has to name every command it would have stopped: a reader who
+	// left a daemon running and is told only about `serve` concludes the daemon
+	// is not a thing `stop` handles.
+	for _, command := range longRunningCommands {
+		if !strings.Contains(stdout.String(), command) {
+			t.Fatalf("stdout = %q, want it to name %q", stdout.String(), command)
+		}
+	}
+	if !strings.Contains(stdout.String(), "process is running") {
 		t.Fatalf("stdout = %q, want it said plainly", stdout.String())
 	}
 }
