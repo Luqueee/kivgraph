@@ -18,14 +18,14 @@ export const PROJECT_NAME = "Kivgraph";
  * passed to the Starlight integration so the two never disagree.
  */
 export const PROJECT_TAGLINE =
-  "A canonical code graph for Go, TypeScript, Rust, Python and Dart, served over MCP.";
+  "A local cross-repository code intelligence MCP server for AI coding agents.";
 
 /**
  * The paragraph an agent needs before it reads anything else: what the thing is,
  * and the one property that separates it from a grep.
  */
 export const PROJECT_SUMMARY =
-  'Kivgraph is a local MCP server. It indexes Go, TypeScript, Rust, Python and Dart repositories into a canonical code graph and answers "what breaks if I change this" from that graph. Edges come from language analyzers or are marked CANDIDATE/UNRESOLVED; they are never invented from matching names.';
+  "Kivgraph builds a canonical semantic code graph across registered Go, TypeScript, Rust, Python and Dart repositories. It answers questions about symbols, repository relationships, callers, dependencies and change impact locally through MCP. Results carry analyzer evidence or remain CANDIDATE/UNRESOLVED; they are never invented from matching names.";
 
 export const REPOSITORY_URL = "https://github.com/Luqueee/kivgraph";
 
@@ -122,8 +122,8 @@ export function docPathname(id: string): string {
 /**
  * The raw markdown path of a documentation page.
  *
- * `/raw/<id>.md`, so `reference/tools/find-references` is served at
- * `/raw/reference/tools/find-references.md`. The `raw/` prefix keeps the
+ * `/raw/<id>.md`, so `docs/tools/find-references` is served at
+ * `/raw/docs/tools/find-references.md`. The `raw/` prefix keeps the
  * markdown out of the way of Starlight's own `directory`-format routes, which
  * already own `/<id>/`. A page whose id is empty is the collection root, and
  * llmstxt.org asks for `index.md` where a URL has no filename.

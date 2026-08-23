@@ -270,6 +270,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          notes_file="landing/src/content/releases/${TAG}.md"
+          if [ ! -f "$notes_file" ]; then
+            echo "Release notes for $TAG not found at $notes_file." >&2
+            exit 1
+          fi
+
+          # Extract body by dropping the frontmatter (between the first two '---')
+          awk '/^---$/{p++; next} p>=2{print}' "$notes_file" | sed '/./,$!d' > "$RUNNER_TEMP/release-notes.md"
+
           assets=(
             release-assets/*.tar.gz
             "release-assets/SHA256SUMS"
@@ -279,7 +288,7 @@ jobs:
             gh release create "$TAG" \
               --verify-tag \
               --title "Kivgraph $TAG" \
-              --generate-notes \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
               --latest
           fi
           gh release upload "$TAG" "${assets[@]}" --clobber

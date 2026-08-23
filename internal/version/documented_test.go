@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -107,5 +108,60 @@ func TestDocumentedInstallVersionMatchesTheBinary(t *testing.T) {
 	}
 	if len(stale) != 0 {
 		t.Fatalf("documented install version = %s; %s", want, strings.Join(stale, "; "))
+	}
+}
+
+func TestReleaseNotes(t *testing.T) {
+	want := "v" + Value
+	notesDir := filepath.Join("..", "..", "landing", "src", "content", "releases")
+
+	entries, err := os.ReadDir(notesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Fatalf("release notes directory does not exist: %s", notesDir)
+		}
+		t.Fatalf("read release notes directory: %v", err)
+	}
+
+	var hasCurrent bool
+	var notes []string
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		versionName := strings.TrimSuffix(entry.Name(), ".md")
+		notes = append(notes, versionName)
+
+		if versionName == want {
+			hasCurrent = true
+		}
+	}
+
+	if !hasCurrent {
+		t.Errorf("missing release note for current version %q", want)
+	}
+
+	cmd := exec.Command("git", "tag")
+	cmd.Dir = filepath.Join("..", "..")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Logf("git tag failed, skipping version existence check: %v", err)
+		return
+	}
+
+	tags := make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			tags[line] = true
+		}
+	}
+	tags[want] = true
+
+	for _, note := range notes {
+		if !tags[note] {
+			t.Errorf("release note %q names a version that does not exist as a git tag", note)
+		}
 	}
 }

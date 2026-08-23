@@ -1,0 +1,91 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import { getCollection, render } from "astro:content";
+
+const releases = await getCollection("releases");
+releases.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+const renderedReleases = await Promise.all(
+  releases.map(async (release) => {
+    const { Content } = await render(release);
+    return { ...release, Content };
+  }),
+);
+
+export const prerender = true;
+---
+
+<StarlightPage frontmatter={{ title: "Releases", tableOfContents: true }}>
+  <div class="releases">
+    <p>
+      Versions prior to v0.5.0 were released without written notes. See the
+      commit history for changes in older versions.
+    </p>
+
+    {
+      renderedReleases.map(({ data, Content }) => (
+        <article class="release" id={data.version}>
+          <h2>
+            <a href={`#${data.version}`}>{data.version}</a>
+            <span class="date">
+              {data.date.toISOString().split("T")[0]}
+            </span>
+          </h2>
+
+          {data.requires_reindex && (
+            <div class="alert alert-warning">
+              <strong>Requires reindex:</strong> You must run{' '}
+              <code>kivgraph index --full</code> after updating to this version.
+            </div>
+          )}
+
+          <div class="content">
+            <Content />
+          </div>
+
+          <div class="compare">
+            <a href={`https://github.com/Luqueee/kivgraph/compare/${data.version}^...${data.version}`}>
+              View changes in {data.version}
+            </a>
+          </div>
+        </article>
+      ))
+    }
+  </div>
+
+  <style>
+    .release {
+      margin-top: 3rem;
+      padding-top: 3rem;
+      border-top: 1px solid var(--sl-color-hairline);
+    }
+    .release:first-of-type {
+      margin-top: 2rem;
+      padding-top: 0;
+      border-top: none;
+    }
+    h2 {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-top: 0 !important;
+    }
+    .date {
+      font-size: var(--sl-text-sm);
+      color: var(--sl-color-gray-3);
+      font-weight: normal;
+    }
+    .alert-warning {
+      margin: 1rem 0;
+      padding: 1rem;
+      background-color: var(--sl-color-orange-low);
+      border: 1px solid var(--sl-color-orange);
+      border-radius: 0.25rem;
+      color: var(--sl-color-orange-high);
+    }
+    .compare {
+      margin-top: 1rem;
+      font-size: var(--sl-text-sm);
+    }
+  </style>
+</StarlightPage>

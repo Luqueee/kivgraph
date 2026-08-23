@@ -1,0 +1,69 @@
+---
+import { REPOSITORY_URL } from "../../pages/_seo";
+
+const questions = [
+  {
+    question: "What is Kivgraph?",
+    answer:
+      "Kivgraph is a local cross-repository code intelligence MCP server for AI coding agents. It builds a semantic code graph across registered Go, TypeScript, Rust, Python and Dart repositories.",
+  },
+  {
+    question: "Can Kivgraph relate multiple repositories in one workspace?",
+    answer:
+      "Yes. Kivgraph preserves each repository's identity while answering supported symbol, dependency, caller and impact questions across repository boundaries.",
+  },
+  {
+    question: "Does Kivgraph replace grep?",
+    answer:
+      "No. grep is often the cheapest choice for a rare name in a small repository. Kivgraph is for typed references, repository relationships, transitive impact and evidence-backed empty results.",
+  },
+  {
+    question: "Does Kivgraph save tokens?",
+    answer:
+      "It can reduce exploratory file reads and MCP tool calls by returning structured graph facts first. The saving depends on the repository and question, so the project publishes measurements instead of promising one universal percentage.",
+  },
+  {
+    question: "Which AI coding agents can use Kivgraph?",
+    answer:
+      "Kivgraph supports MCP installation targets for Claude Code, Claude Desktop, Codex, OpenCode and Oh My Pi. The server runs locally over stdio.",
+  },
+  {
+    question:
+      "Is Kivgraph an architecture graph for HTTP, Kafka and databases?",
+    answer:
+      "Not primarily. Kivgraph focuses on semantic code relationships and analyzer-backed dependencies. It does not claim automatic discovery of every runtime relationship between independent services.",
+  },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: questions.map(({ question, answer }) => ({
+    "@type": "Question",
+    name: question,
+    acceptedAnswer: { "@type": "Answer", text: answer },
+  })),
+};
+---
+
+<div class="space-y-3">
+  {questions.map((item) => (
+    <details class="border border-rule bg-panel px-5 py-4">
+      <summary class="cursor-pointer text-sm font-medium text-gray-100">
+        {item.question}
+      </summary>
+      <p class="mt-3 max-w-[68ch] text-sm leading-6 text-gray-300">{item.answer}</p>
+    </details>
+  ))}
+</div>
+
+<script is:inline type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+<p class="mt-5 text-xs text-gray-400">
+  More answers in the <a
+    href="/kivgraph-faq/"
+    class="text-accent-200 underline underline-offset-4">Kivgraph FAQ</a
+  > and on <a
+    href={REPOSITORY_URL}
+    class="text-accent-200 underline underline-offset-4">GitHub</a
+  >.
+</p>

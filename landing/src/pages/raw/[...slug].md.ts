@@ -16,8 +16,8 @@ interface RawPageProps {
 }
 
 /**
- * One route per published page, so `reference/tools/find-references` is served
- * at `/raw/reference/tools/find-references.md`. That is the URL the Starlight
+ * One route per published page, so `docs/tools/find-references` is served
+ * at `/raw/docs/tools/find-references.md`. That is the URL the Starlight
  * `Head` override advertises with `rel="alternate" type="text/markdown"` and the
  * URL `llms.txt` links to; all three read `rawPathname` from `_seo.ts`, which is
  * what keeps them the same URL.
