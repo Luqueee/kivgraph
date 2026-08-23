@@ -600,27 +600,36 @@ dejar dos directorios compartiendo un socket. El directorio por defecto cabe de
 sobra; uno muy profundo puede no caber, y en ese caso `serve` sigue siendo el
 camino.
 
-El ahorro está medido, y lo que escala es la pendiente: N procesos cuestan entre
-`66` y `67 MB` de páginas privadas **por cliente**. La del demonio depende de por
-qué puerta entren los clientes, y la que importa es HTTP, porque es la única que
-un cliente MCP puede configurar:
+El ahorro está medido, y **a la carga que un editor produce de verdad**: la
+mediana de una sesión real es *una* llamada de tool, contada del event log de una
+máquina en uso, donde `48` de `51` servidores no recibieron ninguna.
 
-| puerta | pendiente del demonio | 8 clientes | 1 cliente |
-| --- | --- | --- | --- |
-| socket unix | `0,5 MB` por cliente | `70` contra `533 MB` | empata |
-| HTTP | `12,5 MB` por cliente | `166` contra `536 MB` | `76` contra `67 MB` |
+| puerta | pendiente del demonio | N procesos | 8 clientes | 1 cliente |
+| --- | --- | --- | --- | --- |
+| socket unix | `1,1`–`1,6 MB` por cliente | `43 MB` por cliente | `66` contra `356 MB` | empata |
+| HTTP | `1,0`–`1,3 MB` por cliente | `43 MB` por cliente | `66` contra `354 MB` | empata |
 
-A ocho clientes por HTTP el demonio cuesta **la tercera parte**, y por socket la
-séptima. En las dos puertas un cliente nuevo se responde entre `8` y `15` veces
-antes -- `12`–`19 ms` contra `107`–`263`-- porque una sesión nueva no carga nada.
-Sobre `108.737` símbolos de `kena`, en Linux: `benchmarks/daemon-cost`, con
-`results.json` para el socket y `results-http.json` para HTTP.
+**Las dos puertas cuestan lo mismo**, así que elegir HTTP -- la única que un
+cliente MCP puede configurar-- no se paga. A ocho clientes el demonio cuesta la
+**quinta parte**, y a uno empata: la razón para instalarlo empieza en el segundo.
 
-**A un cliente el demonio por HTTP es peor**, `76` contra `67 MB`, así que la
-razón para instalarlo empieza en el segundo cliente. Esos `12 MB` por sesión son
-el buffer de reanudación de `10 MiB` que el SDK de MCP da a cada una, no el
-grafo: con `64` llamadas en vez de `2.000` la pendiente cae a `2,1`–`2,7 MB`. Es
-un techo bajo tráfico sostenido, no lo que cuesta un editor abierto sin usar.
+La diferencia más grande no es ésa. Es el **pico**, y no depende de que nadie
+pregunte nada:
+
+| clientes | pico N procesos | pico 1 demonio |
+| --- | --- | --- |
+| `1` | `157 MB` | `160 MB` |
+| `8` | **`1.152 MB`** | **`169 MB`** |
+
+Ocho editores arrancando a la vez pagan ocho cargas a la vez. Y un cliente nuevo
+se responde entre `5` y `12` veces antes -- `16`–`25 ms` contra `126`–`205`--
+porque una sesión nueva no carga nada. Sobre `117.499` símbolos de `kena`, en
+Linux: `benchmarks/daemon-cost`.
+
+Bajo tráfico sostenido -- `2.000` llamadas por sesión, que ninguna sesión real
+hace-- HTTP sube a `4,9`–`5,9 MB` por cliente: el SDK de MCP da a cada sesión un
+buffer de reanudación de `10 MiB` y las respuestas lo llenan. Es un techo, está
+en `results-http-sustained.json`, y no es lo que cuesta un editor.
 
 Lo que **no** es el ahorro en ninguna puerta es el snapshot: es el mismo fichero
 mapeado en todos los servidores y esas páginas están limpias. Lo que está en

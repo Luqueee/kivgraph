@@ -1,35 +1,37 @@
 // Package daemon serves MCP to many clients from one process, over a unix socket
 // and over Streamable HTTP at once.
 //
-// The saving is measured, and it is the slope rather than any one total: N
-// servers cost `66` to `67 MB` of private dirty pages *per client*. What a daemon
-// costs depends on the door, and the door that matters is HTTP, because no MCP
-// client configuration dials a unix socket -- it takes an executable or a url.
+// The saving is measured, and it is the slope rather than any one total. At the
+// load a real editor produces -- one tool call per session, counted from an event
+// log of two days of real use, where 48 of 51 servers were asked nothing at all:
 //
-//	door    daemon slope        8 clients            1 client
-//	socket  0,5 MB per client   70 against 533 MB    ties
-//	http    12,5 MB per client  166 against 536 MB   76 against 67 MB
+//	door    daemon slope       N processes    8 clients          1 client
+//	socket  1,1-1,6 MB/client  43 MB/client   66 against 356 MB  ties
+//	http    1,0-1,3 MB/client  43 MB/client   66 against 354 MB  ties
 //
-// Over `108.737` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`:
-// `results.json` for the socket and `results-http.json` for HTTP. Quoting the
-// socket slope alone describes a door nobody walks through.
+// The two doors are indistinguishable, and the door that matters is HTTP because
+// no MCP client configuration dials a unix socket -- it takes an executable or a
+// url. Over `117.499` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`.
 //
-// The `12 MB` are not the graph. The SDK gives every session its own
-// `MemoryEventStore` so a cut stream can resume, capped at `10 MiB` by default,
-// and `2.000` calls fill it: at `64` calls the slope falls to `2,1`-`2,7 MB` per
-// client. It is a ceiling under sustained traffic rather than what an open
-// editor costs, and it cannot be bounded from here -- the handler builds its own
-// transport and takes no event store.
+// The widest gap is the peak, and it does not depend on anyone asking anything:
+// `1.152 MB` for eight processes against `169` for one daemon, because eight
+// editors starting at once pay eight loads at once.
+//
+// Under sustained traffic HTTP costs more -- `4,9`-`5,9 MB` per client at 2000
+// calls a session -- because the SDK gives every session a `10 MiB` resumption
+// buffer that response bytes fill. That is a ceiling no real session reaches, it
+// depends on the corpus rather than on the session count, and it cannot be
+// bounded from here: the handler builds its own transport and takes no event
+// store.
 //
 // What is *not* the saving is the snapshot. It is the same mapped file in every
-// server and those pages are clean, so a reader expecting its `78 MB` to
+// server and those pages are clean, so a reader expecting its `87 MB` to
 // disappear is looking at the wrong half: the bytes at stake are the private
 // ones. Nor did allocating less buy them -- `LUQUE-2216` to `LUQUE-2220` took
 // `60,5 MB` off what a load allocates and the resident figure moved `0,75 %`,
 // because the allocator recycles those pages rather than keeping them.
 //
-// Over the socket a daemon ties at one client. Over HTTP it loses there, so the
-// reason to run it starts at the second client either way.
+// At one client a daemon ties on both doors. It wins from the second.
 package daemon
 
 import (

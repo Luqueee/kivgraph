@@ -223,31 +223,39 @@ superficie observable.
   se mapea una vez y lo que `graph_status` informa es del proceso.
 - Un socket obsoleto y un demonio vivo no son el mismo estado, y la única forma
   de distinguirlos es intentar hablarle: si contesta, no se sustituye.
-- No se arranca ni se para solo. Corre en primer plano hasta la señal, como
-  `serve`, y ahí acaba la pregunta de cuándo se va un proceso ocioso.
-- El ahorro está medido en `benchmarks/daemon-cost`, y lo que escala es la
-  **pendiente**, no ningún total: N procesos cuestan `66`–`67 MB` de páginas
-  privadas por cliente. **La pendiente del demonio depende de la puerta**, y la
-  que se puede prometer es la de HTTP, porque ninguna configuración de cliente
-  MCP marca un socket:
+- El ahorro está medido en `benchmarks/daemon-cost` **a la carga que un editor
+  produce de verdad**, contada del event log: la mediana de una sesión real es
+  **una** llamada, y `48` de `51` procesos servidores no recibieron ninguna. Medir
+  `2.000` llamadas por sesión no describía a nadie.
 
-  |puerta|pendiente del demonio|8 clientes|1 cliente|
-  |---|---|---|---|
-  |socket|`0,5 MB` por cliente|`70` contra `533 MB`|empata|
-  |HTTP|`12,5 MB` por cliente|`166` contra `536 MB`|`76` contra `67 MB`|
+  |puerta|pendiente del demonio|N procesos|8 clientes|1 cliente|
+  |---|---|---|---|---|
+  |socket|`1,1`–`1,6` MB/cli|`43` MB/cli|`66` contra `356 MB`|empata|
+  |HTTP|`1,0`–`1,3` MB/cli|`43` MB/cli|`66` contra `354 MB`|empata|
 
-  Citar `0,2`–`2,3` a secas es citar la puerta que nadie cruza. Por HTTP el
-  cruce está en `1,26` clientes: con un solo editor abierto el demonio **no
-  gana nada**. Y esos `12 MB` son el `MemoryEventStore` de `10 MiB` que el SDK
-  da a cada sesión, no el grafo: con `64` llamadas en vez de `2.000` la
-  pendiente cae a `2,1`–`2,7`. Lo que no es el ahorro en ninguna puerta es el
-  snapshot: ya se comparte y esas páginas están limpias.
+  **Las dos puertas son indistinguibles a esa carga**, así que la advertencia
+  anterior -- que HTTP costaba `12,5 MB` por cliente y perdía a un cliente-- queda
+  retirada: era el buffer de reanudación del SDK llenándose con tráfico
+  sintético. Bajo carga sostenida sí cuesta más (`4,9`–`5,9`), y eso es un techo
+  que ninguna sesión real alcanza.
+
+  La diferencia más grande no es la pendiente: es el **pico**, `1.152` contra
+  `169 MB` a ocho clientes, y no depende de que nadie pregunte nada -- ocho
+  editores arrancando a la vez pagan ocho cargas a la vez. Lo que no es el ahorro
+  en ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el
   token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio
   y cambiar la entrada en silencio haría que el mismo comando escribiera dos
   ficheros distintos según si había un proceso arrancado. En ámbito `project` se
   niega: ese fichero se commitea.
+- **El demonio publica HTTP antes de enlazar el socket, y el orden es contrato.**
+  Un socket unix acepta en cuanto está enlazado, antes de que nadie llame a
+  `Accept`, así que alcanzar el socket tiene que implicar que `daemon.json` ya
+  existe. Invertirlo devolvió «no such file or directory» sobre un demonio vivo en
+  una de cada tres pasadas del benchmark. Y si el `bind` del socket falla después,
+  el endpoint se retira: un fichero que afirma que hay un demonio manda al
+  cliente siguiente a un puerto cerrado.
 
 ## `kivgraph ui`
 

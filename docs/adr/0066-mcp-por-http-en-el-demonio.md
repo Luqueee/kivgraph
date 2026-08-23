@@ -15,11 +15,11 @@ El ADR 0065 entregó `kivgraph daemon` sobre un socket unix, y el
 `benchmarks/daemon-cost` midió lo que ahorra: `66`–`67 MB` de páginas privadas
 por cliente contra `0,2`–`2,3`, y `533 MB` contra `68`–`82` a ocho clientes.
 
-Esa cifra describe el socket, y este ADR la deja obsoleta como promesa: medido
-después sobre este mismo transporte, por HTTP la pendiente del demonio es
-`12,5 MB` por cliente. El ahorro sigue siendo grande -- `166` contra `536 MB` a
-ocho clientes-- pero no es «una carga y nada más», y a un cliente el demonio por
-HTTP sale peor. Ver la sección de consecuencias.
+Esa cifra describe el socket bajo carga sostenida, y no es la que un usuario ve.
+Medido después a la carga real -- mediana de *una* llamada por sesión, contada de
+un event log de uso, donde `48` de `51` servidores no recibieron ninguna-- las dos
+puertas cuestan lo mismo: `1,0`–`1,3 MB` por cliente por HTTP contra `1,1`–`1,6`
+por socket, y N procesos `43` en vez de `66`. Ver la sección de consecuencias.
 
 Y no lo podía usar nadie. Todas las integraciones que este proyecto escribe
 -- Claude Code, Claude Desktop, Cursor, Oh My Pi-- ponen la misma entrada, en
@@ -145,29 +145,38 @@ conserva `serve` para los que no. Un cliente sin soporte HTTP no pierde nada.
   lo que sí añade es que ese fichero no debe aparecer en un log ni en una
   captura de `doctor`.
 * `kivgraph stop` ya reconoce `daemon`; nada cambia ahí.
-* **El ahorro alcanzable es menor que el medido por socket, y está medido.**
-  `benchmarks/daemon-cost` corre ahora las dos puertas -- `results.json` y
-  `results-http.json`, con el transporte dentro del digest-- sobre la misma
-  generación de `108.737` símbolos de `kena` en Linux:
+* **Elegir HTTP no cuesta nada, y eso está medido a la carga real.**
+  `benchmarks/daemon-cost` corre las dos puertas con el transporte dentro del
+  digest, sobre `117.499` símbolos de `kena` en Linux, con la carga que un editor
+  produce de verdad -- una llamada por sesión, contada de un event log donde `48`
+  de `51` servidores no recibieron ninguna:
 
-  |puerta|pendiente del demonio|8 clientes|1 cliente|
-  |---|---|---|---|
-  |socket|`0,5 MB` por cliente|`70` contra `533 MB`|empata|
-  |HTTP|`12,5 MB` por cliente|`166` contra `536 MB`|`76` contra `67 MB`|
+  |puerta|pendiente del demonio|N procesos|8 clientes|1 cliente|
+  |---|---|---|---|---|
+  |socket|`1,1`–`1,6 MB`/cli|`43 MB`/cli|`66` contra `356 MB`|empata|
+  |HTTP|`1,0`–`1,3 MB`/cli|`43 MB`/cli|`66` contra `354 MB`|empata|
 
-  Cuatro pasadas por HTTP dan `12,1`–`12,8`, así que no es ruido. El ahorro
-  sigue siendo la tercera parte a ocho clientes, pero el cruce se mueve de `1,00`
-  a `1,26` clientes: **con un solo editor abierto el demonio no gana nada.**
-* **Esos `12 MB` son un techo del SDK, no el grafo.** Cada sesión recibe su
-  propio `MemoryEventStore` para reanudar streams, con `10 MiB` por defecto
-  (`event.go:255`), y `2.000` llamadas lo llenan. Bajando la carga a `64` la
-  pendiente cae a `2,1`–`2,7 MB` por cliente: es tráfico retenido, no estructura.
-  No se puede acotar desde aquí -- `NewStreamableHTTPHandler` no acepta un
-  `EventStore` y `StreamableHTTPOptions` sólo expone `Stateless` y
-  `JSONResponse`-- y no se tomó ninguna de las dos salidas: reimplementar el
-  enrutado de sesiones del SDK, o servir en modo `Stateless` y perder la GET
-  colgada. Si el SDK cierra su `TODO(#148)`, esta cifra baja sin cambiar nada
-  más.
+  Los rangos se solapan: a esta carga el transporte no se paga. El ahorro es la
+  **quinta parte** a ocho clientes, y el cruce está en `1,06`–`1,10` por las dos
+  puertas.
+
+  La diferencia más grande no es la pendiente: es el **pico**, `1.152` contra
+  `169 MB` a ocho clientes, y no depende de que nadie pregunte nada.
+* **Una advertencia anterior de este ADR queda retirada.** Decía que HTTP costaba
+  `12,5 MB` por cliente y que a un cliente el demonio perdía. Era el
+  `MemoryEventStore` de `10 MiB` que el SDK da a cada sesión (`event.go:255`)
+  llenándose con `2.000` llamadas sintéticas. A carga real no aparece; bajo carga
+  sostenida sí -- `4,9`–`5,9 MB` por cliente-- y ese techo depende del corpus, que
+  es la firma de un coste en bytes y no en sesiones. Sigue sin poder acotarse
+  desde aquí: `NewStreamableHTTPHandler` no acepta un `EventStore` y
+  `StreamableHTTPOptions` sólo expone `Stateless` y `JSONResponse`. Si el SDK
+  cierra su `TODO(#148)`, el techo baja sin cambiar nada más.
+* **El orden de arranque es contrato:** HTTP se publica antes de enlazar el
+  socket. Un socket unix acepta en cuanto está enlazado, antes de que nadie llame
+  a `Accept`, así que alcanzar el socket tiene que implicar que `daemon.json` ya
+  existe -- al revés, una de cada tres pasadas del benchmark moría con «no such
+  file or directory» sobre un demonio vivo. Y si el `bind` falla después, el
+  endpoint se retira.
 * Una entrada con token **no se escribe en ámbito `project`**: `.mcp.json` se
   commitea, y un secreto en git no se retira borrándolo. `integrations` lo
   rechaza con `ErrEndpointNeedsUserScope` en vez de degradar a stdio en silencio.

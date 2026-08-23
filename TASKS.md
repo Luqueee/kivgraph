@@ -15165,11 +15165,14 @@ por cliente en N procesos contra `0,2`–`2,3` en un demonio. A ocho clientes,
 dentro del ruido, así que la razón para usarlo empieza en el segundo.
 
 **Corregido en `LUQUE-2223`:** esa cifra es la del socket, y ningún cliente MCP
-marca un socket. Por HTTP la pendiente del demonio es `12,5 MB` por cliente y a
-un cliente **pierde** (`76` contra `67 MB`); el ahorro sigue siendo la tercera
-parte a ocho clientes (`166` contra `536`). El motivo son los `10 MiB` de buffer
-de reanudación que el SDK da a cada sesión, no el grafo: con `64` llamadas en vez
-de `2.000` la pendiente cae a `2,1`–`2,7`.
+marca un socket.
+
+**Corregido otra vez en `LUQUE-2224`, y esta vez la carga:** `LUQUE-2223` publicó
+`12,5 MB` por cliente por HTTP midiendo `2.000` llamadas por sesión. Contada del
+event log, la mediana de una sesión real es **una** llamada y `48` de `51`
+servidores no reciben ninguna. A esa carga las dos puertas cuestan lo mismo
+-- `1,0`–`1,3` por HTTP contra `1,1`–`1,6` por socket-- y N procesos cuestan `43 MB`
+por cliente, no `66`. Medir la carga equivocada **subestimaba** el ahorro.
 
 **Verificación:** trece decisiones falsificadas una a una con su test, más dos
 de `stop`; humo con el binario real y una generación publicada, tres clientes
@@ -17410,3 +17413,80 @@ forma no se mapeó -- dos puntos medidos, `2.000` y `64` llamadas, y un intento
 intermedio descartado por salir con filas vacías en vez de publicarse; `12,5` es
 un techo bajo tráfico sostenido y no lo que cuesta un editor abierto sin usar; no
 se midió con clientes reales; no es bare metal.
+
+**Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2224 — La carga que un editor produce de verdad
+
+**Dependencias:** `LUQUE-2223`.
+
+**Objetivo:** cerrar la limitación que `LUQUE-2223` dejó abierta por escrito:
+«no se midió con clientes reales». La cifra publicada -- `12,5 MB` por cliente por
+HTTP-- salía de `2.000` llamadas por sesión, y nadie había comprobado si una
+sesión real hace eso.
+
+**La evidencia, y no hizo falta instrumentar nada.** Un `kivgraph serve` ya
+escribe cada llamada de tool en su event log. Dos días de una máquina en uso,
+editores reales:
+
+|observación|valor|
+|---|---|
+|procesos `serve` arrancados|`51`|
+|procesos con **cero** llamadas|**`48`**|
+|llamadas de tool en total|`5`|
+|llamadas por proceso que sí llamó|`3`, `1`, `1`|
+
+**Cuarenta y ocho de cincuenta y un servidores cargaron el grafo entero y nadie
+les preguntó nada.** La mediana es una llamada. El benchmark medía tres órdenes
+de magnitud por encima de lo que ocurre.
+
+**Medido a esa carga**, cuatro corridas nuevas sobre el mismo corpus
+(`117.499` símbolos, generación `000001`, Linux):
+
+|puerta|pendiente del demonio|N procesos|8 clientes|1 cliente|cruce|
+|---|---|---|---|---|---|
+|socket|`1,1`–`1,6` MB/cli|`43` MB/cli|`66` vs `356 MB`|empata|`1,06`–`1,10`|
+|HTTP|`1,0`–`1,3` MB/cli|`43` MB/cli|`66` vs `354 MB`|empata|`1,06`–`1,10`|
+
+* **Las dos puertas son indistinguibles**, con los rangos solapados. Queda
+  retirada la advertencia de `LUQUE-2223`: elegir HTTP no se paga, y a un cliente
+  el demonio no pierde.
+* **N procesos cuestan `43 MB` por cliente, no `66`.** El snapshot se ensucia al
+  consultarse, así que un `serve` al que nadie pregunta nunca toca la mayor parte
+  del fichero. Los dos brazos bajan y el del demonio baja más: la proporción a
+  ocho clientes pasa de `0,25` a `0,19`. **Medir la carga equivocada subestimaba
+  el ahorro.**
+* **La diferencia más grande es el pico**, y no depende de que nadie pregunte
+  nada: `1.152` contra `169 MB` a ocho clientes.
+* **La ventaja de latencia era del arnés.** `p99` de `1,2`–`1,9 ms` en los dos
+  brazos, contra los `13`–`20` de la carga sintética: con una llamada por cliente
+  no hay contención que repartir.
+* El techo se conserva en `results-http-sustained.json` -- `4,9`–`5,9 MB` por
+  cliente-- y **su cifra depende del corpus** (`12,1`–`12,8` sobre `108.737`
+  símbolos), que es la firma de un coste en bytes retenidos y no por sesión.
+
+**Un defecto de producción que el brazo HTTP destapó fallando:** un socket unix
+acepta en cuanto está enlazado, antes de que nadie llame a `Accept`, así que el
+arnés -- que trataba un `dial` con éxito como señal de arranque-- alcanzaba a un
+demonio cuyo `daemon.json` no existía todavía. Una de cada tres pasadas moría con
+«no such file or directory» sobre un demonio vivo. Dos arreglos: el demonio
+publica HTTP **antes** de enlazar el socket -- y retira el endpoint si el `bind`
+falla después--, y el arnés espera el endpoint en vez de deducirlo del orden.
+
+**Verificación:** el test del arranque a medias es determinista y caza las dos
+decisiones -- invertir el orden falla por el token, quitar la retirada falla por el
+endpoint. Se descartó antes un test que corría por la ventana de la carrera:
+pasaba con los dos órdenes, y un test que afirma cobertura que no tiene es peor
+que ninguno. `gofmt`, `go vet ./...`, `go test ./...`, `make build`.
+
+**Limitaciones declaradas:** la forma de la sesión es real, su ritmo no -- las
+llamadas se emiten seguidas y un editor intercala pausas; la mezcla de tools del
+arnés no es la observada (`80 %` `find_references`); el log son dos días de una
+máquina y un solo usuario, así que sostiene el orden de magnitud y no una
+distribución; y las `48` sesiones que no preguntan nada están *mejor*
+representadas de lo que el arnés puede medir, porque obliga a cada cliente a
+hacer al menos una llamada.
+
+**Estado:** cerrada el `2026-08-23`.
