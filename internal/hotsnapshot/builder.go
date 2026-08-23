@@ -198,7 +198,11 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	}
 
 	fileRecords := make([]FileRecord, len(files))
-	fileIndex := make(map[RepoPathKey]FileID, len(files))
+	// A set, not an index: newFileIndex derives the index and refuses the same
+	// duplicate. This one exists to refuse it here, where the row is still in
+	// hand and the error can name the repository and the path a person wrote
+	// rather than the two interned ids they became.
+	filePaths := make(map[RepoPathKey]struct{}, len(files))
 	for index, row := range files {
 		repositoryID, repositoryExists := repositoryIDs[row.RepositoryKey]
 		packageID, packageExists := packageIDs[row.PackageKey]
@@ -217,11 +221,11 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 			return nil, err
 		}
 		repoPath := RepoPathKey{Repository: repositoryID, Path: path}
-		if _, exists := fileIndex[repoPath]; exists {
+		if _, exists := filePaths[repoPath]; exists {
 			return nil, fmt.Errorf("%w: repository %q holds two files at %q", ErrInvalidSnapshotRows, row.RepositoryKey, row.Path)
 		}
 		fileIDs[row.Key] = id
-		fileIndex[repoPath] = id
+		filePaths[repoPath] = struct{}{}
 		fileRecords[index] = FileRecord{Repository: repositoryID, Package: packageID, Path: path}
 	}
 
@@ -230,8 +234,6 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 	// put them there. NewStableKeyTable insists on that rather than sorting
 	// again, because reordering here would move the IDs allocated below.
 	stableKeys := make([]StableKey, 0, len(symbols))
-	symbolsByName := make(map[InternedString][]SymbolID)
-	symbolsByQName := make(map[InternedString][]SymbolID)
 	for index, row := range symbols {
 		fileID, fileExists := fileIDs[row.FileKey]
 		if row.StableKey == "" || row.CanonicalIdentity == "" || row.Name == "" || row.QualifiedName == "" || row.Kind == "" || !fileExists || index > 0 && symbols[index-1].StableKey == row.StableKey {
@@ -263,8 +265,6 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		}
 		symbolIDs[row.StableKey] = id
 		stableKeys = append(stableKeys, row.StableKey)
-		symbolsByName[name] = append(symbolsByName[name], id)
-		symbolsByQName[qualifiedName] = append(symbolsByQName[qualifiedName], id)
 		symbolRecords[index] = SymbolRecord{StableKey: StableKeyID(id), CanonicalIdentity: canonical, File: fileID, Name: name, QualifiedName: qualifiedName, Kind: kind, Signature: signature, Exported: row.Exported, StartLine: row.StartLine, EndLine: row.EndLine}
 	}
 	stableKeyTable, err := NewStableKeyTable(stableKeys)
@@ -454,7 +454,7 @@ func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt t
 		Repositories: repositoryRecords, Packages: packageRecords, Files: fileRecords, Symbols: symbolRecords, Evidence: evidenceRecords,
 		PackageDependencies: packageDependencyRecords, Unresolved: unresolvedRecords,
 		ForwardOffsets: forwardOffsets, ForwardEdges: forwardEdges, ReverseOffsets: reverseOffsets, ReverseEdges: reverseEdges,
-		StableKeys: stableKeyTable, SymbolsByName: symbolsByName, SymbolsByQName: symbolsByQName, FileByRepoPath: fileIndex,
+		StableKeys: stableKeyTable,
 	})
 }
 

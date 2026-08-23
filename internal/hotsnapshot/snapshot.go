@@ -3,6 +3,7 @@ package hotsnapshot
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -162,10 +163,13 @@ type GraphSnapshotInput struct {
 	// StableKeys is the key table, and it replaces the map this input used to
 	// carry. Entry i is the key of SymbolID i, so the index that used to cost
 	// one hash entry per symbol is now the ordering of the table itself.
-	StableKeys     StableKeyTable
-	SymbolsByName  map[InternedString][]SymbolID
-	SymbolsByQName map[InternedString][]SymbolID
-	FileByRepoPath map[RepoPathKey]FileID
+	//
+	// The three lookup maps that used to sit beside it are gone for a stronger
+	// reason than cost: every one of them was derivable from the tables above,
+	// so a caller could only ever supply the right one or a wrong one. The
+	// constructor derives them now, and a fixture can no longer disagree with
+	// its own records.
+	StableKeys StableKeyTable
 }
 
 // SnapshotMetadata contains versioned, immutable snapshot metadata.
@@ -262,6 +266,12 @@ func newGraphSnapshot(input GraphSnapshotInput, owned bool) (*GraphSnapshot, err
 		PackageEdges: uint64(len(input.PackageDependencies)),
 		Unresolved:   uint64(len(input.Unresolved)),
 	}
+	// Built before the snapshot because it is the one derivation that can fail:
+	// two files at one path inside a repository.
+	fileByRepoPath, err := newFileIndex(input.Files)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidGraphSnapshot, err)
+	}
 	snapshot := &GraphSnapshot{
 		metadata: SnapshotMetadata{
 			ID: input.ID, CreatedAt: input.CreatedAt, Version: input.Version,
@@ -287,12 +297,12 @@ func newGraphSnapshot(input GraphSnapshotInput, owned bool) (*GraphSnapshot, err
 		// copied its bytes when it was built, which is what stops a snapshot
 		// from pinning the buffer its keys were read through.
 		stableKeys: input.StableKeys,
-		// The input still carries maps, and that is deliberate: accumulating an
-		// index while records are read is what a map is good at. This is where
-		// they stop existing -- what the snapshot keeps is flat arrays.
-		symbolsByName:  newSymbolIndex(input.SymbolsByName),
-		symbolsByQName: newSymbolIndex(input.SymbolsByQName),
-		fileByRepoPath: newFileIndex(input.FileByRepoPath),
+		// Derived from the tables above rather than handed in: see the note on
+		// GraphSnapshotInput.StableKeys for why there is nothing else they
+		// could be.
+		symbolsByName:  newSymbolIndex(input.Symbols, symbolName),
+		symbolsByQName: newSymbolIndex(input.Symbols, symbolQualifiedName),
+		fileByRepoPath: fileByRepoPath,
 	}
 	if !snapshot.validExactIndexes() {
 		return nil, ErrInvalidGraphSnapshot
@@ -456,10 +466,17 @@ func (snapshot *GraphSnapshot) validExactIndexes() bool {
 		len(snapshot.packageIncoming.values) != len(snapshot.packageDependencies) {
 		return false
 	}
-	return snapshot.fileByRepoPath.valid(snapshot.files) &&
-		snapshot.symbolsByName.valid(snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.Name }) &&
-		snapshot.symbolsByQName.valid(snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.QualifiedName })
+	return snapshot.fileByRepoPath.validShape(len(snapshot.files)) &&
+		snapshot.symbolsByName.validShape(len(snapshot.symbols)) &&
+		snapshot.symbolsByQName.validShape(len(snapshot.symbols))
 }
+
+// symbolName and symbolQualifiedName name the two keys a symbol is indexed
+// under. They are functions rather than a flag because the index does not care
+// which field it reads, and a flag would have to be interpreted somewhere.
+func symbolName(symbol SymbolRecord) InternedString { return symbol.Name }
+
+func symbolQualifiedName(symbol SymbolRecord) InternedString { return symbol.QualifiedName }
 
 func validPackageDependencies(packages int, dependencies []PackageDependencyRecord) bool {
 	for _, dependency := range dependencies {
