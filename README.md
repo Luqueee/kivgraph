@@ -16,7 +16,7 @@ every HTTP, gRPC, Kafka or database runtime flow between services.
 
 ## Documentation
 
-Read the [Kivgraph user documentation](https://github.com/Luqueee/kivgraph/tree/main/landing)
+Read the [Kivgraph user documentation](https://github.com/Luqueee/kivgraph/tree/main/landing/src/content/docs)
 for installation, MCP clients, code intelligence, repository relationships and
 workspace code graphs. The published site is configured separately from the
 release bundle; this link remains valid from every checkout.
