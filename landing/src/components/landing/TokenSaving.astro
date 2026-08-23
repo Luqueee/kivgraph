@@ -1,32 +1,67 @@
+---
+// The bars are derived from the numbers, never sized by hand: a chart whose
+// geometry contradicts its own figures argues against the claim it is there to
+// make. Both bars used to run the full width, so 6,200 and 63,531 drew the same
+// length.
+const rows = [
+  { label: "Kivgraph graph query", tokens: 6200, ours: true },
+  { label: "grep + file reading", tokens: 63531, ours: false },
+];
+
+const format = new Intl.NumberFormat("en-US");
+const peak = Math.max(...rows.map((row) => row.tokens));
+const ours = rows.find((row) => row.ours)?.tokens ?? 0;
+const saved = Math.round((1 - ours / peak) * 100);
+---
+
 <div
   class="border border-graph-exact bg-panel p-4"
-  aria-label="Measured token comparison: Kivgraph 6,200 tokens and grep plus reading 63,531 tokens"
+  aria-label={`Measured token comparison: ${rows
+    .map((row) => `${row.label} ${format.format(row.tokens)} tokens`)
+    .join(", ")}`}
 >
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-300">
+    <p class="text-xs font-medium tracking-[0.16em] text-gray-300 uppercase">
       context saved
     </p>
-    <p class="text-xs text-graph-exact">~90% fewer tokens</p>
+    <p class="text-xs text-graph-exact">~{saved}% fewer tokens</p>
   </div>
 
   <div class="mt-4 grid grid-cols-[1fr_auto] items-end gap-x-4 gap-y-2 text-xs">
-    <div>
-      <div class="flex items-center justify-between gap-3 text-gray-300">
-        <span>Kivgraph graph query</span>
-        <strong class="font-medium text-gray-100">6,200</strong>
-      </div>
-      <div class="mt-2 h-2 bg-graph-exact"></div>
-    </div>
-    <span class="text-gray-400">tokens</span>
-
-    <div>
-      <div class="flex items-center justify-between gap-3 text-gray-400">
-        <span>grep + file reading</span>
-        <strong class="font-medium text-gray-300">63,531</strong>
-      </div>
-      <div class="mt-2 h-2 bg-gray-500"></div>
-    </div>
-    <span class="text-gray-400">tokens</span>
+    {
+      rows.map((row, index) => (
+        <>
+          <div>
+            <div
+              class:list={[
+                "flex items-center justify-between gap-3",
+                row.ours ? "text-gray-300" : "text-gray-400",
+              ]}
+            >
+              <span>{row.label}</span>
+              <strong
+                class:list={[
+                  "font-medium",
+                  row.ours ? "text-gray-100" : "text-gray-300",
+                ]}
+              >
+                {format.format(row.tokens)}
+              </strong>
+            </div>
+            <div class="mt-2 h-2 bg-raise">
+              <div
+                class:list={[
+                  "fill h-full",
+                  row.ours ? "bg-graph-exact" : "bg-gray-500",
+                ]}
+                style={`width: ${((row.tokens / peak) * 100).toFixed(2)}%; animation-delay: ${index * 140}ms`}
+              />
+            </div>
+          </div>
+          <span class="text-gray-400">tokens</span>
+        </>
+      ))
+    }
   </div>
 
   <p class="mt-4 text-[0.7rem] leading-5 text-gray-400">
@@ -37,3 +72,30 @@
     >.
   </p>
 </div>
+
+<style>
+  /* A load-time animation belongs in CSS, not in the deferred motion module:
+     that script can run after the first paint, and the bar would be seen at
+     full width before collapsing to grow again. `scaleX` from the left edge
+     touches no layout, so a growing bar cannot shift the rows beside it, and
+     `both` holds the collapsed state through the delay. */
+  .fill {
+    transform-origin: left center;
+    animation: fill-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes fill-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fill {
+      animation: none;
+    }
+  }
+</style>

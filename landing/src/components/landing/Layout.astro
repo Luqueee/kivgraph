@@ -162,6 +162,14 @@ const structuredData = {
       >Skip to content</a
     >
     <slot />
+
+    <script>
+      // The only JavaScript this page ships beyond the copy buttons. It is a
+      // module, so it is deferred by default and cannot block the first paint.
+      import { startMotion } from "../../lib/motion";
+
+      startMotion();
+    </script>
   </body>
 </html>
 

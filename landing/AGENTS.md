@@ -159,16 +159,61 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 
 ## El hero
 
-- El lienzo del hero (`landing/src/lib/hero-graph.ts`) es un grafo sintético en
-  2D, sin three.js ni reagraph, y no importa nada de `web/`. Toma la paleta de
-  las propiedades `--color-graph-*` de `global.css`, que son los literales de
-  `web/src/renderer/reagraph.ts`, y dibuja bajo demanda: un
-  `IntersectionObserver` detiene el bucle fuera de pantalla y
-  `prefers-reduced-motion: reduce` pinta un solo fotograma sin instalar bucle
-  alguno. No acepta entrada de puntero: es una figura, no un control, y no
-  instala ningún listener. El elemento declara ancho **y** alto en CSS; dejar
-  uno al tamaño intrínseco hace que el drawing buffer realimente la caja y el
-  canvas crece sin límite.
+- El hero es centrado y su fondo es CSS: una malla estática de `72px` en
+  `--color-rule-strong` y un único brillo diagonal que la recorre, declarados
+  en el `<style>` de `Hero.astro`. No hay canvas, ni `requestAnimationFrame`,
+  ni observers, ni lectura de paleta desde la cascada: el lienzo sintético que
+  había antes costaba 415 líneas y dibujaba un campo cuyas posiciones no
+  codificaban ninguna relación del grafo.
+- El brillo es el `::after` de la malla, no un hermano, para que la máscara de
+  la malla lo recorte: un hermano iluminaría los bordes de la banda que la
+  máscara existe para esconder. Va y viene con `alternate` en vez de dar la
+  vuelta, porque un barrido de un solo sentido salta a su posición inicial en
+  cada ciclo. `prefers-reduced-motion: reduce` lo detiene.
+- El velo es una costura, no un scrim. Sólo cierra el patrón en los bordes de
+  la banda; un lavado lo bastante opaco para «proteger» el texto borra la malla
+  en su lugar, que es exactamente cómo un fondo acaba invisible.
+- La banda no lleva `border-bottom`: la primera `Section` dibuja su propio
+  `border-top`, y dos filetes contiguos leen como una regla de 2px que ninguna
+  otra costura de la página tiene.
+- Las barras de `TokenSaving.astro` se derivan de sus propias cifras y nunca se
+  dimensionan a mano: una gráfica cuya geometría contradice sus números
+  argumenta contra lo que va a demostrar.
+- `global.css` omite el preflight de Tailwind a propósito, porque Starlight
+  trae su propio reset. El de la landing vive en el `@layer base` de
+  `Layout.astro` y es el que quita el chrome nativo de `<button>`
+  (`appearance`, `background`, `font`). Una página que no use `Layout` -- una
+  ruta de preview suelta, por ejemplo -- dibuja controles del sistema: caja
+  `ButtonFace` clara con la tipografía del sistema. Ningún componente lo
+  duplica.
+
+## Movimiento
+
+- `landing/src/lib/motion.ts` es la única capa de animación con JavaScript, y
+  se carga sólo desde `Layout.astro`: la documentación de Starlight no la
+  recibe. Anima reveals al hacer scroll y un parallax sobre el fondo del hero.
+- **Nada por encima del pliegue se desvanece.** El `h1` es el candidato a LCP y
+  un elemento en `opacity: 0` no es una pintura: fundirlo mueve la métrica
+  tanto como dure la animación más lo que tarde el módulo en cargar.
+- El estado inicial lo pone GSAP con `gsap.from`, **nunca el CSS**. Ningún
+  elemento reposa en `opacity: 0` -- la única declaración así en las hojas de
+  estilo es el keyframe que parpadea el cursor del transcript--, así que un
+  bundle bloqueado deja la página entera visible en vez de esconderla detrás de
+  un script.
+- GSAP core más `ScrollTrigger` pesan `110,7 KB` sin comprimir y `43,5 KB` con
+  gzip en el bundle de la portada, medidos sobre `dist/client/_astro`. No afecta
+  a la indexación -- el contenido va en el HTML servido-- pero sí es JavaScript
+  sin usar a ojos de Lighthouse. Cambiar el número al tocar la capa.
+- Sólo se animan `opacity` y `transform`. Ninguno realimenta el layout, así que
+  un reveal no puede contribuir a CLS.
+- `prefers-reduced-motion: reduce` retorna antes de registrar el plugin: no se
+  instrumenta nada, en vez de instrumentarlo y luego saltarlo.
+- El contrato del marcado es `data-reveal` en un contenedor, cuyos hijos
+  directos entran escalonados, y `data-hero-field` en el plano del hero. Los
+  declara `Section.astro`, así que una sección nueva lo hereda.
+- Una animación de carga no va en JavaScript diferido: el módulo puede
+  ejecutarse después del primer pintado, y entonces la barra de `TokenSaving`
+  se vería completa antes de encogerse para crecer. Esa crece en CSS.
 
 ## Verificación
 
