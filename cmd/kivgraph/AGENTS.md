@@ -224,24 +224,28 @@ superficie observable.
 - Un socket obsoleto y un demonio vivo no son el mismo estado, y la única forma
   de distinguirlos es intentar hablarle: si contesta, no se sustituye.
 - El ahorro está medido en `benchmarks/daemon-cost` **a la carga que un editor
-  produce de verdad**, contada del event log: la mediana de una sesión real es
-  **una** llamada, y `48` de `51` procesos servidores no recibieron ninguna. Medir
-  `2.000` llamadas por sesión no describía a nadie.
+  produce de verdad**, contada del event log: `48` de `51` procesos servidores no
+  recibieron **ninguna** llamada, así que la mediana de una sesión real es cero.
+  Medir `2.000` llamadas por sesión no describía a nadie.
 
-  |puerta|pendiente del demonio|N procesos|8 clientes|1 cliente|
+  |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
   |---|---|---|---|---|
-  |socket|`1,1`–`1,6` MB/cli|`43` MB/cli|`66` contra `356 MB`|empata|
-  |HTTP|`1,0`–`1,3` MB/cli|`43` MB/cli|`66` contra `354 MB`|empata|
+  |ninguna|`0,8`–`1,2` MB/cli|`33` MB/cli|`40` contra `265 MB`|empata|
+  |`8` llamadas|`0,4`–`0,9` MB/cli|`40` MB/cli|`61` contra `336 MB`|empata|
 
-  **Las dos puertas son indistinguibles a esa carga**, así que la advertencia
+  **El arranque es el coste**, y es lo que hace que este comando valga: `33` de
+  los `40 MB` de un servidor consultado se pagan antes de que nadie pregunte
+  nada, y un demonio los paga una vez.
+
+  **Las dos puertas son indistinguibles a las dos cargas**, así que la advertencia
   anterior -- que HTTP costaba `12,5 MB` por cliente y perdía a un cliente-- queda
   retirada: era el buffer de reanudación del SDK llenándose con tráfico
-  sintético. Bajo carga sostenida sí cuesta más (`4,9`–`5,9`), y eso es un techo
-  que ninguna sesión real alcanza.
+  sintético. Bajo carga sostenida sí cuesta más (`12,8`), y eso es un techo que
+  ninguna sesión real alcanza y que depende del corpus.
 
-  La diferencia más grande no es la pendiente: es el **pico**, `1.152` contra
-  `169 MB` a ocho clientes, y no depende de que nadie pregunte nada -- ocho
-  editores arrancando a la vez pagan ocho cargas a la vez. Lo que no es el ahorro
+  La diferencia más grande no es la pendiente: es el **pico**, `994`–`1.000`
+  contra `134 MB` a ocho clientes, sin una sola consulta -- ocho editores
+  arrancando a la vez pagan ocho cargas a la vez. Lo que no es el ahorro
   en ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el

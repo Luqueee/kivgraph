@@ -145,29 +145,32 @@ conserva `serve` para los que no. Un cliente sin soporte HTTP no pierde nada.
   lo que sí añade es que ese fichero no debe aparecer en un log ni en una
   captura de `doctor`.
 * `kivgraph stop` ya reconoce `daemon`; nada cambia ahí.
-* **Elegir HTTP no cuesta nada, y eso está medido a la carga real.**
-  `benchmarks/daemon-cost` corre las dos puertas con el transporte dentro del
-  digest, sobre `117.499` símbolos de `kena` en Linux, con la carga que un editor
-  produce de verdad -- una llamada por sesión, contada de un event log donde `48`
-  de `51` servidores no recibieron ninguna:
+* **Elegir HTTP no cuesta nada, y eso está medido a dos cargas.**
+  `benchmarks/daemon-cost` corre las dos puertas con el transporte y los
+  recuentos dentro del digest, sobre `108.737` símbolos de `kena` en Linux. La
+  carga se contó de un event log de uso, donde `48` de `51` servidores no
+  recibieron **ninguna** llamada:
 
-  |puerta|pendiente del demonio|N procesos|8 clientes|1 cliente|
+  |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
   |---|---|---|---|---|
-  |socket|`1,1`–`1,6 MB`/cli|`43 MB`/cli|`66` contra `356 MB`|empata|
-  |HTTP|`1,0`–`1,3 MB`/cli|`43 MB`/cli|`66` contra `354 MB`|empata|
+  |ninguna|`0,8`–`1,2 MB`/cli|`33 MB`/cli|`40` contra `265 MB`|empata|
+  |`8` llamadas|`0,4`–`0,9 MB`/cli|`40 MB`/cli|`61` contra `336 MB`|empata|
 
-  Los rangos se solapan: a esta carga el transporte no se paga. El ahorro es la
-  **quinta parte** a ocho clientes, y el cruce está en `1,06`–`1,10` por las dos
-  puertas.
+  Por puerta y sin carga: `33,4`–`33,7 MB` por cliente por HTTP contra
+  `33,1`–`34,4` por socket. Los rangos se solapan a las dos cargas, así que el
+  transporte no se paga, y el cruce está en `1,04`–`1,11` clientes.
 
-  La diferencia más grande no es la pendiente: es el **pico**, `1.152` contra
-  `169 MB` a ocho clientes, y no depende de que nadie pregunte nada.
+  Dos cosas que la decisión no esperaba. **El arranque es el coste**: `33` de los
+  `40 MB` de un servidor consultado se pagan antes de la primera pregunta. Y la
+  diferencia más grande no es la pendiente sino el **pico**, `994`–`1.000` contra
+  `134 MB` a ocho clientes, sin una sola consulta.
 * **Una advertencia anterior de este ADR queda retirada.** Decía que HTTP costaba
   `12,5 MB` por cliente y que a un cliente el demonio perdía. Era el
   `MemoryEventStore` de `10 MiB` que el SDK da a cada sesión (`event.go:255`)
   llenándose con `2.000` llamadas sintéticas. A carga real no aparece; bajo carga
-  sostenida sí -- `4,9`–`5,9 MB` por cliente-- y ese techo depende del corpus, que
-  es la firma de un coste en bytes y no en sesiones. Sigue sin poder acotarse
+  sostenida sí -- `12,8 MB` por cliente aquí, `4,9`–`5,9` sobre un corpus mayor, y
+  esa dependencia del corpus es la firma de un coste en bytes y no en sesiones.
+  Sigue sin poder acotarse
   desde aquí: `NewStreamableHTTPHandler` no acepta un `EventStore` y
   `StreamableHTTPOptions` sólo expone `Stateless` y `JSONResponse`. Si el SDK
   cierra su `TODO(#148)`, el techo baja sin cambiar nada más.

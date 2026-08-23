@@ -45,15 +45,17 @@ const (
 //
 // When it is set, a plan points clients at that url instead of telling each one
 // to spawn `serve`. That is the difference the daemon was built for, and this is
-// the transport it is reachable over: at the load a real editor produces -- one
-// tool call per session, counted from a real event log -- N clients spawning
-// `serve` cost `43 MB` of private pages each against `1,0`-`1,3 MB` per client on
-// one daemon, `66` against `354 MB` at eight clients. The peak is the widest gap:
-// `1.152` against `169 MB`, because eight editors starting at once pay eight
-// loads. Measured in `benchmarks/daemon-cost`.
+// the transport it is reachable over. At the load a real editor produces -- most
+// often none at all: 48 of 51 servers in a real event log were asked nothing --
+// N clients spawning `serve` cost `33 MB` of private pages each against
+// `0,8`-`1,2 MB` per client on one daemon, `40` against `265 MB` at eight
+// clients. Answering a question adds about `7 MB` to a server that already paid
+// `33` to start, so what a daemon saves is the start. The peak is the widest gap:
+// `994`-`1.000` against `134 MB`, because eight editors starting at once pay
+// eight loads. Measured in `benchmarks/daemon-cost`.
 //
-// The two transports are indistinguishable at that load: `1,0`-`1,3` over HTTP
-// against `1,1`-`1,6` over the socket. HTTP costs more only under sustained
+// The two transports are indistinguishable: `33,4`-`33,7 MB` per client over HTTP
+// against `33,1`-`34,4` over the socket. HTTP costs more only under sustained
 // traffic, and no real session produces it.
 type Endpoint struct {
 	// URL is the streamable HTTP endpoint a client connects to.

@@ -1,24 +1,29 @@
 // Package daemon serves MCP to many clients from one process, over a unix socket
 // and over Streamable HTTP at once.
 //
-// The saving is measured, and it is the slope rather than any one total. At the
-// load a real editor produces -- one tool call per session, counted from an event
-// log of two days of real use, where 48 of 51 servers were asked nothing at all:
+// The saving is measured, and it is the slope rather than any one total. The load
+// was counted, not chosen: over two days of real use, 48 of 51 servers were asked
+// nothing at all, so the median session makes no call whatsoever.
 //
-//	door    daemon slope       N processes    8 clients          1 client
-//	socket  1,1-1,6 MB/client  43 MB/client   66 against 356 MB  ties
-//	http    1,0-1,3 MB/client  43 MB/client   66 against 354 MB  ties
+//	load      daemon slope       N processes    8 clients          1 client
+//	none      0,8-1,2 MB/client  33 MB/client   40 against 265 MB  ties
+//	8 calls   0,4-0,9 MB/client  40 MB/client   61 against 336 MB  ties
 //
-// The two doors are indistinguishable, and the door that matters is HTTP because
-// no MCP client configuration dials a unix socket -- it takes an executable or a
-// url. Over `117.499` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`.
+// Starting up is the cost: 33 of the 40 MB a queried server holds are paid before
+// the first question, and answering one adds about 7. That is what a daemon pays
+// once instead of N times.
+//
+// The two doors are indistinguishable at both loads -- 33,4-33,7 MB per client
+// over HTTP against 33,1-34,4 over the socket -- and the door that matters is HTTP
+// because no MCP client configuration dials a unix socket: it takes an executable
+// or a url. Over 108.737 symbols of kena, on Linux, in benchmarks/daemon-cost.
 //
 // The widest gap is the peak, and it does not depend on anyone asking anything:
-// `1.152 MB` for eight processes against `169` for one daemon, because eight
+// 994-1.000 MB for eight processes against 134 for one daemon, because eight
 // editors starting at once pay eight loads at once.
 //
-// Under sustained traffic HTTP costs more -- `4,9`-`5,9 MB` per client at 2000
-// calls a session -- because the SDK gives every session a `10 MiB` resumption
+// Under sustained traffic HTTP costs more -- 12,8 MB per client at 2000 calls a
+// session -- because the SDK gives every session a 10 MiB resumption
 // buffer that response bytes fill. That is a ceiling no real session reaches, it
 // depends on the corpus rather than on the session count, and it cannot be
 // bounded from here: the handler builds its own transport and takes no event

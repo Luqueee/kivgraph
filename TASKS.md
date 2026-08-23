@@ -17490,3 +17490,67 @@ representadas de lo que el arnés puede medir, porque obliga a cada cliente a
 hacer al menos una llamada.
 
 **Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2225 - Lo que cuesta un servidor al que nadie pregunta
+
+**Dependencias:** `LUQUE-2224`.
+
+**Objetivo:** medir el caso que `LUQUE-2224` descubrió y no midió. Su propia
+evidencia decía que `48` de `51` servidores reales no reciben ninguna llamada, y
+su arnés obligaba a cada cliente a hacer al menos una: el caso predominante
+quedaba declarado como limitación en vez de medido. Sólo medir; ningún cambio de
+diseño en producción.
+
+**Lo que impedía la medición:** el guardia de generación -- el `graph_status` que
+prueba que los dos brazos sirven el mismo fichero-- corría **antes** del
+muestreo, más un probe en `startServer` y otro en `connect`. Con `2.000` llamadas
+eso es invisible; con cero **es la carga entera**. El guardia pasa a correr
+después del muestreo: nada obliga a que preceda a los bytes, falla igual y
+descarta la corrida igual. Esquema `daemon-cost-v2` a `v3` por ese movimiento.
+
+**Lo medido**, seis pasadas ociosas (tres por puerta), tres por carga real y una
+sostenida, todas sobre la generación `000001` de `108.737` símbolos de `kena` en
+Linux:
+
+|carga|N procesos|demonio|proporción|8 clientes|
+|---|---|---|---|---|
+|ninguna llamada|`33,1`-`34,4` MB/cli|`0,8`-`1,2` MB/cli|`0,023`-`0,032`|`40` contra `265` MB|
+|`8` llamadas|`39,9`-`40,7` MB/cli|`0,4`-`0,9` MB/cli|`0,009`-`0,013`|`61` contra `336` MB|
+|`2.000` llamadas|`67,6` MB/cli|`12,8` MB/cli|`0,189`|`168` contra `540` MB|
+
+**El arranque es el coste:** `33` de los `40 MB` que cuesta un servidor
+consultado, y la mitad del techo sostenido, se pagan antes de que nadie pregunte
+nada. Contestar una pregunta añade unos `7 MB`. El pico sin ninguna consulta es
+`994`-`1.000 MB` a ocho clientes contra `134`, y conectar a un demonio vivo cuesta
+`1,5 ms` contra `96`-`151` de arrancar un proceso.
+
+Las dos puertas siguen siendo indistinguibles también sin carga: `33,4`-`33,7`
+por HTTP contra `33,1`-`34,4` por socket.
+
+**Verificación:** cinco tests nuevos, el primero que este arnés tiene; cuatro
+sabotajes falsificados uno a uno -- el guardia delante del muestreo, los
+percentiles de cero llamadas, el ratio con operando ausente y el probe que no se
+salta. El cuarto **no lo caza ningún test local**, y eso está dicho: vive en el
+camino que necesita un servidor real, así que la corrida se niega a publicar un
+fichero ocioso que haya cronometrado algún primer answer (`checkIdle`), y ese
+rechazo sí tiene test. `gofmt`, `go vet ./...`, `go test ./...`, `make build`.
+
+**Un modo de fallo cerrado de paso:** `latencyOf` sin llamadas devolvía
+`latency{}`, así que un fichero ocioso habría publicado `p50_ms: 0` y
+`p99_ratio: 0` -- una respuesta instantánea y un demonio infinitamente más
+rápido. Los percentiles, `new_client_ms` y los dos ratios de latencia son ahora
+punteros y desaparecen del fichero; el resumen imprime `--`. Se añade
+`new_client_connect_ms`, que se mide a toda carga y es el campo con el que dos
+cargas se comparan.
+
+**Limitaciones declaradas:** la corrida ociosa mide un arranque, no una sesión de
+trabajo; de los `33 MB` no se separa qué parte es construcción de índices, y
+afirmarlo sería inventar el mecanismo; `-calls N` reparte N llamadas entre los
+clientes que haya, así que la fila de un cliente de la carga real contesta ocho
+preguntas y no es comparable con la de ocho; el corpus es `108.737` y no los
+`117.499` de `LUQUE-2224`, porque `kena` es un workspace en uso -- ninguna cifra se
+cruza entre las dos pasadas; la sostenida es una sola pasada; no es bare metal.
+
+**Estado:** cerrada el `2026-08-23`.

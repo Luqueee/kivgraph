@@ -114,9 +114,10 @@ cifra era aritmética sobre `71,2 MB` por servidor. Se midió el mismo día, en
 **Todo lo que sigue mide el socket unix bajo carga sostenida**, que es el único
 transporte que este ADR entregó y una carga que ninguna sesión real produce. El
 ADR 0066 añadió HTTP; después se contó la carga de verdad -- mediana de *una*
-llamada por sesión, `48` de `51` servidores sin ninguna-- y a esa carga las dos
-puertas cuestan lo mismo: `1,0`–`1,6 MB` por cliente, con N procesos en `43` y no
-en `66`. La cifra de esta sección es el techo de un caso sintético; la
+llamada por sesión, y `48` de `51` servidores **ninguna**-- y a esa carga las dos
+puertas cuestan lo mismo: menos de `1,2 MB` por cliente, con N procesos en `33`
+sin consultas y `40` con ellas, no en `66`. La cifra de esta sección es el techo
+de un caso sintético; la
 alcanzable está en `benchmarks/daemon-cost/report.md`.
 
 Lo que escala es la **pendiente**, no ningún total:
