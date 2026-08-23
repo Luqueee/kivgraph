@@ -223,8 +223,12 @@ superficie observable.
   de distinguirlos es intentar hablarle: si contesta, no se sustituye.
 - No se arranca ni se para solo. Corre en primer plano hasta la señal, como
   `serve`, y ahí acaba la pregunta de cuándo se va un proceso ocioso.
-- El ahorro frente a N procesos **no está medido**; ver `LUQUE-2222`. Lo medido
-  es el coste de lo que sustituye.
+- El ahorro está medido en `benchmarks/daemon-cost`, y lo que escala es la
+  **pendiente**, no ningún total: N procesos cuestan `66`–`67 MB` de páginas
+  privadas por cliente y un demonio `0,2`–`2,3` sobre una carga. A un cliente
+  empata dentro del ruido -- el servidor MCP por sesión no aparece contra los
+  `66 MB` de la carga-- y gana desde el segundo. Lo que no es el ahorro es el
+  snapshot: ya se comparte y esas páginas están limpias.
 
 ## `kivgraph ui`
 

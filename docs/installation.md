@@ -569,10 +569,18 @@ dejar dos directorios compartiendo un socket. El directorio por defecto cabe de
 sobra; uno muy profundo puede no caber, y en ese caso `serve` sigue siendo el
 camino.
 
-El ahorro frente a N procesos **no está medido todavía**: la cifra de arriba es
-la del arreglo que esto sustituye. El snapshot ya se comparte -- es el mismo
-fichero mapeado en todos los servidores-- así que lo que está en juego son las
-páginas privadas, y la mitad privada de un demonio crece con cada sesión.
+El ahorro está medido, y lo que escala es la pendiente: N procesos cuestan entre
+`66` y `67 MB` de páginas privadas **por cliente**, y un demonio entre `0,2` y
+`2,3 MB` por cliente sobre una sola carga. A ocho clientes son `533 MB` contra
+`68`–`82`, y el pico `1.046 MB` contra `188`. Un cliente nuevo se responde entre
+`8` y `15` veces antes -- `12`–`17 ms` contra `107`–`263`-- porque una sesión nueva
+no carga nada. Tres pasadas sobre `108.737` símbolos de `kena`, en Linux:
+`benchmarks/daemon-cost`.
+
+Lo que **no** es el ahorro es el snapshot: es el mismo fichero mapeado en todos
+los servidores y esas páginas están limpias. Lo que está en juego son las
+privadas. A un cliente el demonio no gana ni pierde -- un megabyte de ruido--, así
+que la razón para usarlo empieza en el segundo.
 
 ## Rutas y mantenimiento
 

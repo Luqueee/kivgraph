@@ -104,22 +104,61 @@ de dónde vienen los bytes. Tres detalles que sí son decisiones:
 un id pertenece a los transportes que multiplexan sesiones sobre un endpoint, y
 este lleva exactamente una.
 
-## Lo que no se mide todavía
+## El ahorro, medido después (`LUQUE-2222`)
 
-El ahorro **no está observado**. La cifra medida es la del arreglo que esto
-sustituye (`71,2 MB` por servidor, cuatro servidores, Linux). Lo que un proceso
-para muchos clientes cuesta en su lugar es una medición pendiente, `LUQUE-2222`,
-y hay una razón concreta para no darla por hecha: el snapshot ya se comparte -- es
-el mismo fichero mapeado en todos los servidores y esas páginas están limpias--,
-así que los bytes en juego son los privados, y la mitad privada de un demonio
-crece con cada sesión para la que construye un servidor.
+Este ADR se aceptó con el ahorro **sin observar**, y esa sección decía que la
+cifra era aritmética sobre `71,2 MB` por servidor. Se midió el mismo día, en
+`benchmarks/daemon-cost`: tres pasadas en Linux sobre `108.737` símbolos de
+`kena`, los dos brazos leyendo el mismo fichero publicado.
 
-Hasta esa medición, el ahorro que este paquete afirma es **aritmética sobre una
-cifra medida por proceso**, y su documentación lo dice así.
+Lo que escala es la **pendiente**, no ningún total:
+
+|clientes|N procesos|1 demonio|proporción|
+|---|---|---|---|
+|`1`|`65,9`–`67,4` MB|`65,1`–`66,9` MB|`0,966`–`1,015`|
+|`2`|`129,6`–`133,4` MB|`67,3`–`68,4` MB|`0,513`–`0,521`|
+|`4`|`263,0`–`264,0` MB|`69,2`–`70,5` MB|`0,262`–`0,267`|
+|`8`|`529,0`–`533,9` MB|`68,2`–`82,1` MB|`0,128`–`0,154`|
+
+`66`–`67 MB` por cliente contra `0,2`–`2,3`: el brazo de procesos sube un
+servidor entero por cliente y su intercepto es cero dentro del ruido, porque las
+páginas privadas son por definición lo que no se comparte. El pico baja igual --
+`1.046 MB` contra `188` a ocho clientes-- y eso cierra el hueco que `LUQUE-2221`
+había declarado sin medir.
+
+**Una predicción de este ADR queda desmentida.** Decía que la mitad privada de un
+demonio «crece con cada sesión», y por eso el arnés esperaba que a un cliente
+saliera peor. Crece, pero por debajo del ruido: a un cliente empata (`0,966`–
+`1,015`), y el servidor MCP por sesión no aparece contra los `66 MB` que cuesta
+una carga. Gana desde el segundo cliente.
+
+Dos cosas que no se buscaban: un cliente nuevo se responde entre `8` y `15` veces
+antes (`12`–`17 ms` contra `107`–`263`), y a ocho clientes el demonio contesta
+**más rápido** -- `p99` de `12,8`–`17,7 ms` contra `19,0`–`20,3`-- porque ocho
+procesos compiten por diez CPU y uno solo no.
 
 `serve` no se retira ni se marca obsoleto. Un cliente que arranca su propio
 proceso sigue siendo el camino soportado, y es el único que funciona cuando el
 directorio de estado no admite un socket.
+
+## El modo del socket, corregido por la medición
+
+`Listen` fijaba el modo con `chmod` **después** de crear el socket, y correr
+`benchmarks/daemon-cost` bajo Docker lo rompió: `chmod` sobre un socket devuelve
+`EINVAL` en un bind mount de virtiofs, así que el demonio no arrancaba. Un modo
+que se fija después de existir es un fallo esperando un sistema de ficheros; el
+socket nace ahora con el modo puesto, vía `umask`, y no hay `chmod` que falle.
+
+`umask` es del proceso, y eso es un efecto colateral real. La mitigación es la
+estrecha: se toma para exactamente un `bind`, se devuelve en toda salida y
+`Listen` se llama una vez por demonio al arrancar. La alternativa -- `chmod`--
+cambia un momento de estado prestado por una incapacidad de arrancar.
+
+Y qué compra ese modo **es distinto por plataforma**, así que ninguna mitad se
+deja implícita: Linux comprueba permiso de escritura sobre el socket al conectar,
+de modo que `0600` es una puerta real; darwin **ignora** los permisos del socket
+para conectar, y allí la puerta es el directorio de estado, que hay que atravesar
+para llegar a la ruta.
 
 ## Verificación
 

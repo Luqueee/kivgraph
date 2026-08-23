@@ -15159,7 +15159,10 @@ admite un socket.
   direcciones cae: quitar `daemon` lo vuelve imparable, añadir `index` mata una
   indexación en vuelo.
 
-**Lo que no se midió:** el ahorro. Ver `LUQUE-2222`.
+**El ahorro, medido después en `LUQUE-2222`:** `66`–`67 MB` de páginas privadas
+por cliente en N procesos contra `0,2`–`2,3` en un demonio. A ocho clientes,
+`533 MB` contra `68`–`82`, y el pico `1.046 MB` contra `188`. A un cliente empata
+dentro del ruido, así que la razón para usarlo empieza en el segundo.
 
 **Verificación:** trece decisiones falsificadas una a una con su test, más dos
 de `stop`; humo con el binario real y una generación publicada, tres clientes
@@ -17254,36 +17257,76 @@ enlazado falla con `GLIBCXX_3.4.31` y `__isoc23_strtol` sin resolver.
 **Dependencias:** `LUQUE-2008`, `LUQUE-2221`.
 
 **Objetivo:** medir en Linux lo que un demonio conserva residente sirviendo a N
-clientes, contra N procesos `serve` sirviendo a uno cada uno. Es la cifra que
-justifica `LUQUE-2008`, y hoy **no está observada**: lo medido es el coste del
-arreglo que sustituye (`71,2 MB` por servidor, cuatro servidores, `LUQUE-2221`),
-y el ahorro es aritmética sobre ella.
+clientes, contra N procesos `serve` sirviendo a uno cada uno. Era la cifra que
+justificaba `LUQUE-2008` y que se aceptó sin observar: lo medido entonces era el
+coste del arreglo que sustituye (`71,2 MB` por servidor, `LUQUE-2221`), y el
+ahorro era aritmética sobre ella.
 
-**Por qué no se da por hecha.** El snapshot ya se comparte: es el mismo fichero
+**Por qué no se daba por hecha.** El snapshot ya se comparte: es el mismo fichero
 mapeado en todos los servidores y esas páginas cuentan como `Shared_Clean`. Lo
-que está en juego son las privadas, y **la mitad privada de un demonio no es
-constante**: construye un servidor MCP por sesión -- once registros de tool, sus
-buffers, su decodificador-- y esa parte crece con el número de clientes. La
-pregunta no es si ahorra, es cuánto y con qué pendiente.
+que está en juego son las privadas, y se sospechaba que **la mitad privada de un
+demonio no fuera constante**: construye un servidor MCP por sesión -- once
+registros de tool, sus buffers, su decodificador--. La pregunta no era si ahorra,
+era cuánto y con qué pendiente. La sospecha resultó cierta y por debajo del
+ruido.
 
-**Alcance:** `benchmarks/shared-snapshot`, que ya arranca N servidores y muestrea
-cada proceso, más un brazo de demonio: un proceso, N sesiones sobre el socket. No
-sobrescribe los artefactos del host de referencia.
+**Alcance:** un benchmark nuevo, `benchmarks/daemon-cost`, y **no un brazo en
+`benchmarks/shared-snapshot`** como decía esta ficha. Sus brazos se definen por
+si el fichero de snapshot está o no, y todo su gate mide mapear contra derivar:
+un tercer brazo dejaría `compare(mapped, derived)` sin significado y forzaría
+umbrales que no aplican. Reutiliza `mcpworkload` y `procstat`, que es lo que
+había que compartir.
 
-**Criterios de aceptación:**
+**Resultados.** Tres pasadas, `108.737` símbolos de `kena`, VM `linux/arm64`,
+`2.000` llamadas medidas y `4.000` descartadas, los dos brazos leyendo el mismo
+fichero publicado.
 
-- `Private_Dirty` total de los dos brazos para los mismos recuentos de cliente que
-  ya mide el arnés, en la misma VM y contra la misma generación publicada.
-- La **pendiente** por cliente del brazo demonio, no sólo su total: es lo que dice
-  si escala plano o si a los ocho clientes ya no gana.
-- La primera respuesta de un cliente nuevo contra un demonio ya arrancado, que es
-  lo que un editor ve al abrir una segunda ventana y donde el demonio debería
-  ganar por no cargar nada.
-- El pico residente durante la carga, que `LUQUE-2221` declaró como hueco: un
-  demonio carga una vez, así que es el sitio donde su ventaja debería ser mayor.
+|clientes|N procesos|1 demonio|proporción|
+|---|---|---|---|
+|`1`|`65,9`–`67,4` MB|`65,1`–`66,9` MB|`0,966`–`1,015`|
+|`2`|`129,6`–`133,4` MB|`67,3`–`68,4` MB|`0,513`–`0,521`|
+|`4`|`263,0`–`264,0` MB|`69,2`–`70,5` MB|`0,262`–`0,267`|
+|`8`|`529,0`–`533,9` MB|`68,2`–`82,1` MB|`0,128`–`0,154`|
 
-**Lo que no se puede medir en darwin, y por qué:** `Private_Dirty` es de Linux.
-`benchmarks/load-cost-resident` ya estableció que las cifras del runtime de Go en
-darwin no responden esta pregunta.
+- **La pendiente, que era el criterio:** `66`–`67 MB` por cliente contra
+  `0,2`–`2,3`. El brazo de procesos sube un servidor entero por cliente con
+  intercepto cero dentro del ruido; el del demonio tiene todo su coste en el
+  intercepto -- una carga.
+- **El pico:** `1.046 MB` contra `188` a ocho clientes. Cierra el hueco que
+  `LUQUE-2221` declaró sin medir, y dice qué era: el pico de ocho procesos son
+  ocho cargas simultáneas, no una carga más gorda.
+- **La primera respuesta de un cliente nuevo:** `12`–`17 ms` contra `107`–`263`,
+  entre `8` y `15` veces antes.
+- **Y algo que no se buscaba:** a ocho clientes el demonio contesta **más
+  rápido**, `p99` de `12,8`–`17,7 ms` contra `19,0`–`20,3`. Ocho procesos compiten
+  por diez CPU y uno solo no. A uno, dos y cuatro clientes empatan.
 
-**Estado:** abierta.
+**Una predicción de `LUQUE-2008` desmentida:** su ficha y el ADR decían que la
+mitad privada de un demonio «crece con cada sesión», y el arnés esperaba que a un
+cliente saliera peor. Crece por debajo del ruido: a un cliente empata. El
+servidor MCP por sesión no aparece contra los `66 MB` de una carga. Corregido
+donde estaba escrito.
+
+**Dos defectos del arnés que la primera pasada destapó**, los dos silencios:
+`readStatus` adivinó la forma de `graph_status` -- el conteo va anidado bajo
+`results`-- y publicó `symbols: 0` sin fallar, dejando sin nombre el corpus de un
+artefacto que existe para comparar; y `commit` se rellenaba dentro de
+`writeResults`, después de calcular las limitaciones, así que un commit ausente
+nunca podía declararse. Los dos fallan cerrado ahora.
+
+**Un defecto de producción:** `Listen` fijaba el modo del socket con `chmod`
+después de crearlo, y `chmod` sobre un socket devuelve `EINVAL` en un bind mount
+de virtiofs -- donde corre este benchmark--, así que el demonio no arrancaba. El
+socket nace con el modo puesto, vía `umask`. De paso quedó dicho que ese modo es
+una puerta real en Linux e **ignorado** por darwin para conectar, donde la puerta
+es el directorio de estado. Ver ADR 0065.
+
+**Limitaciones declaradas:** la lectura del demonio a ocho clientes es la menos
+estable (`68,2`, `71,1`, `82,1`), así que se afirma el orden de magnitud de su
+pendiente y no la cifra; no es bare metal, es la VM de Docker Desktop; la
+generación se publicó en darwin y se leyó en Linux, mismo arco y formato de
+anchura fija; el corpus son `108.737` símbolos y no los `117.499` de
+`LUQUE-2221`, así que una comparación por símbolo usa la cifra de su propia
+pasada; y no se midió por encima de ocho clientes.
+
+**Estado:** cerrada el `2026-08-23`.
