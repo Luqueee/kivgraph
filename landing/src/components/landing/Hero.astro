@@ -24,71 +24,81 @@ const readout = [
 ];
 ---
 
-<section class="stage">
-  <canvas
-    id="hero-graph"
-    class="field"
-    role="img"
-    aria-label="A synthetic code graph: repositories holding packages, files and symbols, with cross-repository dependencies between them."
-  ></canvas>
-  <div class="scrim" aria-hidden="true"></div>
+<section class="stage" data-hero>
+  <div class="plane" data-hero-field aria-hidden="true"></div>
+  <div class="veil" aria-hidden="true"></div>
+  <!-- The halo is declared here rather than created by the motion layer:
+    an element appended at runtime carries no scope attribute, so this
+    component's scoped CSS would not reach it. It rests invisible because it
+    holds no content -- if the module never runs there is nothing to reveal. -->
+  <div class="halo" data-hero-halo aria-hidden="true"></div>
 
-  <div class="mx-auto box-border w-full max-w-6xl px-6 py-14">
-    <div class="relative max-w-xl">
-      <h1
-        class="text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-4xl"
+  <div
+    class="mx-auto box-border w-full max-w-6xl px-6 py-20 text-center sm:py-24"
+  >
+    <h1
+      data-hero-item="title"
+      class="mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-5xl"
+    >
+      Local cross-repository code intelligence for AI coding agents
+    </h1>
+    <p
+      data-hero-item="lede"
+      class="mx-auto mt-6 max-w-2xl text-sm leading-6 text-gray-300"
+    >
+      Kivgraph builds a canonical semantic code graph for Go, TypeScript, Rust,
+      Python and Dart repositories and serves repository relationships,
+      references and change impact to MCP clients over stdio.
+    </p>
+
+    <div
+      data-hero-item="actions"
+      class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs"
+    >
+      <a
+        href="/install/"
+        class="border border-rule-strong bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
+        >install guide →</a
       >
-        Local cross-repository code intelligence for AI coding agents
-      </h1>
-      <p class="mt-5 text-sm text-gray-300">
-        Kivgraph builds a canonical semantic code graph for Go, TypeScript,
-        Rust, Python and Dart repositories and serves repository relationships,
-        references and change impact to MCP clients over stdio.
-      </p>
-      <div class="mt-8">
-        <TokenSaving />
-      </div>
-
-      <div class="mt-10 border border-rule bg-panel">
-        <div
-          class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
-        >
-          <span>install the latest release</span>
-          <CopyButton value={installCommand} />
-        </div>
-        <pre
-          class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
-      </div>
-      <p class="mt-3 text-xs text-gray-400">
-        The installer detects the platform, verifies the release archive and the
-        bundle checksums, and installs into <code>~/.local/opt/kivgraph</code>.
-        It never modifies a registered repository, creates an index, or replaces
-        a configuration file.
-      </p>
-
-      <div class="mt-10 flex flex-wrap items-center gap-3 text-xs">
-        <a
-          href="/install/"
-          class="border border-rule-strong bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
-          >install guide</a
-        >
-        <a
-          href="https://github.com/Luqueee/kivgraph"
-          class="border border-rule px-4 py-2 text-gray-300 transition-colors hover:border-rule-strong hover:text-gray-100"
-          >github.com/Luqueee/kivgraph</a
-        >
-      </div>
-
-      <ul class="mt-10 flex flex-wrap gap-y-2 text-xs text-gray-400">
-        {
-          facts.map((fact) => (
-            <li class="mr-3 border-l border-rule-strong pl-3 first:border-l-0 first:pl-0">
-              {fact}
-            </li>
-          ))
-        }
-      </ul>
+      <a
+        href="https://github.com/Luqueee/kivgraph"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="border border-rule px-4 py-2 text-gray-300 transition-colors hover:border-rule-strong hover:text-gray-100"
+        >github.com/Luqueee/kivgraph</a
+      >
     </div>
+
+    <div
+      data-hero-item="install"
+      class="mx-auto mt-12 max-w-2xl border border-rule bg-panel text-left"
+    >
+      <div
+        class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
+      >
+        <span>install the latest release</span>
+        <CopyButton value={installCommand} />
+      </div>
+      <pre
+        class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
+    </div>
+
+    <div data-hero-item="card" class="mx-auto mt-8 max-w-2xl text-left">
+      <TokenSaving />
+    </div>
+
+    <ul
+      data-hero-item="facts"
+      class="mt-12 flex flex-wrap justify-center gap-y-2 text-xs text-gray-400"
+    >
+      {
+        facts.map((fact) => (
+          <li class="mx-3 border-l border-rule-strong pl-3 first:border-l-0 first:pl-0">
+            {fact}
+          </li>
+        ))
+      }
+    </ul>
   </div>
 
   <div class="relative border-t border-rule">
@@ -114,80 +124,124 @@ const readout = [
 </section>
 
 <style>
-  /* The field bleeds off the right edge so its centre lands in the empty half
-     of the grid, and the copy column keeps a near-solid ground under it. The
-     canvas takes no pointer input: hero-graph.ts installs no listeners, and
-     this keeps it out of the way of the links that overlap it.
+  /* The backdrop is CSS and nothing else: a static grid and one highlight that
+     travels over it. It replaces a 2D canvas that cost 415 lines, a
+     `requestAnimationFrame` loop, a `ResizeObserver`, an `IntersectionObserver`
+     and a palette read out of the cascade, and drew a field whose node
+     positions encoded no relation in the graph.
 
-     There is deliberately no border-bottom here: the first Section band draws
-     its own border-top, and two adjacent hairlines read as one 2px rule that no
-     other seam on the page has. */
+     There is deliberately no border-bottom on the stage: the first Section band
+     draws its own border-top, and two adjacent hairlines read as one 2px rule
+     that no other seam on the page has. */
   .stage {
     position: relative;
     isolation: isolate;
     overflow: hidden;
   }
 
-  .field {
+  /* The structure never moves. The mask dissolves it before it reaches any
+     edge, which is what keeps it a backdrop rather than a texture with a
+     border of its own. */
+  .plane {
     position: absolute;
-    top: 50%;
-    right: -6%;
-    /* Both axes are stated. Leaving one to the intrinsic size lets the drawing
-       buffer feed back into the element box and the canvas grows without
-       bound. */
-    width: min(58vw, 780px);
-    height: min(58vw, 780px);
-    transform: translateY(-50%);
-    opacity: 0.85;
-    pointer-events: none;
+    inset: 0;
     z-index: -2;
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        var(--color-rule-strong) 0 1px,
+        transparent 1px 72px
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        var(--color-rule-strong) 0 1px,
+        transparent 1px 72px
+      );
+    -webkit-mask-image: radial-gradient(
+      ellipse 76% 66% at 50% 50%,
+      #000 0%,
+      transparent 80%
+    );
+    mask-image: radial-gradient(
+      ellipse 76% 66% at 50% 50%,
+      #000 0%,
+      transparent 80%
+    );
   }
 
-  /* Four stops rather than one: the copy needs page colour under it, the field
-     needs to stay readable as a field, and the seam between them must not show
-     as a band. */
-  .scrim {
+  /* The sheen is the grid's own `::after` so the grid's mask clips it too: a
+     sibling would light the band's edges the mask exists to hide. It
+     ping-pongs rather than looping, so there is no restart to disguise -- a
+     one-way sweep would snap back to its starting position every 15s. */
+  .plane::after {
+    position: absolute;
+    content: "";
+    inset: -50% -100%;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, var(--color-gray-100) 7%, transparent) 50%,
+      transparent 58%
+    );
+    /* The duration is a variable so an entrance animation can borrow the loop
+       for one fast pass and then hand it back by removing the property. */
+    animation: sheen var(--sheen-duration, 15s) ease-in-out infinite alternate;
+  }
+
+  @keyframes sheen {
+    from {
+      translate: -34% 0;
+    }
+    to {
+      translate: 34% 0;
+    }
+  }
+
+  /* The veil is a seam, not a scrim: it closes the pattern at the band's edges
+     so it never butts against the header's hairline. A wash heavy enough to
+     "protect" the copy erases the grid instead; 1px lines at `rule-strong` do
+     not compete with text at any weight here. */
+  .veil {
     position: absolute;
     inset: 0;
     z-index: -1;
     pointer-events: none;
     background:
-      linear-gradient(
-        to right,
-        var(--color-shell) 0%,
-        var(--color-shell) 34%,
-        color-mix(in oklab, var(--color-shell) 82%, transparent) 56%,
-        transparent 78%
+      radial-gradient(
+        ellipse 56% 46% at 50% 44%,
+        color-mix(in oklab, var(--color-shell) 28%, transparent),
+        transparent 72%
       ),
-      linear-gradient(to bottom, var(--color-shell) 0%, transparent 22%),
-      linear-gradient(to top, var(--color-shell) 0%, transparent 26%);
+      linear-gradient(to bottom, var(--color-shell) 0%, transparent 9%),
+      linear-gradient(to top, var(--color-shell) 0%, transparent 11%);
   }
 
-  /* Narrow screens put the copy over the middle of the field, so it drops to a
-     texture and legibility wins. */
-  @media (max-width: 63.99rem) {
-    .field {
-      opacity: 0.4;
-    }
+  /* The pointer halo. It is a figure, not a control: no pointer events, and a
+     radius large enough that the grid under it reads as lit rather than as
+     spotlit. The motion layer translates it and fades it in; a page without
+     that module keeps it at zero and loses nothing. */
+  .halo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 22rem;
+    height: 22rem;
+    margin: -11rem 0 0 -11rem;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-graph-repository) 24%, transparent),
+      transparent 68%
+    );
+    filter: blur(30px);
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
 
-    .scrim {
-      background:
-        linear-gradient(
-          to right,
-          var(--color-shell) 0%,
-          color-mix(in oklab, var(--color-shell) 88%, transparent) 62%,
-          color-mix(in oklab, var(--color-shell) 70%, transparent) 100%
-        ),
-        linear-gradient(to bottom, var(--color-shell) 0%, transparent 18%);
+  @media (prefers-reduced-motion: reduce) {
+    .plane::after {
+      animation: none;
     }
   }
 </style>
-
-<script>
-  import { startHeroGraph } from "../../lib/hero-graph";
-
-  const canvas = document.getElementById("hero-graph");
-  if (canvas instanceof HTMLCanvasElement) {
-    startHeroGraph(canvas);
-  }
-</script>

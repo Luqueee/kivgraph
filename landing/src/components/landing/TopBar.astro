@@ -1,4 +1,6 @@
 ---
+// The nav is generated, so whether a link leaves the site is read off its own
+// `href` rather than repeated per row: a new entry cannot forget the rule.
 const links = [
   { href: "#value", label: "why it matters" },
   { href: "#answers", label: "what it answers" },
@@ -6,7 +8,10 @@ const links = [
   { href: "/quickstart/", label: "quickstart" },
   { href: "/docs/mcp-tools/", label: "docs" },
   { href: "https://github.com/Luqueee/kivgraph", label: "github" },
-];
+].map((link) => ({
+  ...link,
+  external: /^https?:\/\//.test(link.href),
+}));
 ---
 
 <header class="border-b border-rule">
@@ -27,6 +32,8 @@ const links = [
         links.map((link) => (
           <a
             href={link.href}
+            target={link.external ? "_blank" : undefined}
+            rel={link.external ? "noopener noreferrer" : undefined}
             class="text-gray-400 underline-offset-4 transition-colors hover:text-gray-100 hover:underline"
           >
             {link.label}

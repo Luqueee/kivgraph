@@ -159,16 +159,120 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 
 ## El hero
 
-- El lienzo del hero (`landing/src/lib/hero-graph.ts`) es un grafo sintético en
-  2D, sin three.js ni reagraph, y no importa nada de `web/`. Toma la paleta de
-  las propiedades `--color-graph-*` de `global.css`, que son los literales de
-  `web/src/renderer/reagraph.ts`, y dibuja bajo demanda: un
-  `IntersectionObserver` detiene el bucle fuera de pantalla y
-  `prefers-reduced-motion: reduce` pinta un solo fotograma sin instalar bucle
-  alguno. No acepta entrada de puntero: es una figura, no un control, y no
-  instala ningún listener. El elemento declara ancho **y** alto en CSS; dejar
-  uno al tamaño intrínseco hace que el drawing buffer realimente la caja y el
-  canvas crece sin límite.
+- El hero es centrado y su fondo es CSS: una malla estática de `72px` en
+  `--color-rule-strong` y un único brillo diagonal que la recorre, declarados
+  en el `<style>` de `Hero.astro`. No hay canvas, ni `requestAnimationFrame`,
+  ni observers, ni lectura de paleta desde la cascada: el lienzo sintético que
+  había antes costaba 415 líneas y dibujaba un campo cuyas posiciones no
+  codificaban ninguna relación del grafo.
+- El brillo es el `::after` de la malla, no un hermano, para que la máscara de
+  la malla lo recorte: un hermano iluminaría los bordes de la banda que la
+  máscara existe para esconder. Va y viene con `alternate` en vez de dar la
+  vuelta, porque un barrido de un solo sentido salta a su posición inicial en
+  cada ciclo. `prefers-reduced-motion: reduce` lo detiene.
+- El velo es una costura, no un scrim. Sólo cierra el patrón en los bordes de
+  la banda; un lavado lo bastante opaco para «proteger» el texto borra la malla
+  en su lugar, que es exactamente cómo un fondo acaba invisible.
+- La banda no lleva `border-bottom`: la primera `Section` dibuja su propio
+  `border-top`, y dos filetes contiguos leen como una regla de 2px que ninguna
+  otra costura de la página tiene.
+- Las barras de `TokenSaving.astro` se derivan de sus propias cifras y nunca se
+  dimensionan a mano: una gráfica cuya geometría contradice sus números
+  argumenta contra lo que va a demostrar.
+- `global.css` omite el preflight de Tailwind a propósito, porque Starlight
+  trae su propio reset. El de la landing vive en el `@layer base` de
+  `Layout.astro` y es el que quita el chrome nativo de `<button>`
+  (`appearance`, `background`, `font`). Una página que no use `Layout` -- una
+  ruta de preview suelta, por ejemplo -- dibuja controles del sistema: caja
+  `ButtonFace` clara con la tipografía del sistema. Ningún componente lo
+  duplica.
+
+## Movimiento
+
+- `landing/src/lib/motion.ts` es la única capa de animación con JavaScript, y
+  se carga sólo desde `Layout.astro`: la documentación de Starlight no la
+  recibe. Son cuatro piezas: la entrada del hero, el encendido del fondo, el
+  halo que sigue al puntero, los dos CTA magnéticos, más los reveals al hacer
+  scroll y el parallax del fondo.
+- El marcado del hero declara los anclajes y la capa no busca por estructura:
+  `data-hero` en la banda, `data-hero-item` en los seis bloques en orden de
+  lectura, `data-hero-field` en el plano y `data-hero-halo` en el halo.
+- El halo vive en el marcado, no lo crea el JS: un elemento añadido en runtime
+  no lleva el atributo de scope de Astro y el CSS scoped del componente no lo
+  alcanzaría. Reposa en `opacity: 0` porque no contiene nada -- si el módulo no
+  corre, no hay nada que revelar.
+- El brillo es un `::after` con un bucle CSS y **ningún tween alcanza un
+  pseudo-elemento**. El hero declara su duración como `--sheen-duration` y la
+  entrada la acorta para una pasada y luego **elimina** la propiedad, que es lo
+  que devuelve el elemento al valor de la hoja de estilo en vez de fijar una
+  copia suya.
+- Medido sobre la portada servida: LCP `76 ms` en el `h1`, igual que sin
+  animación; los seis bloques terminan en `opacity: 1`; con
+  `prefers-reduced-motion: reduce` los seis salen a `1`, el halo a `0`, el
+  brillo con `animation-name: none` y las barras a su ancho final.
+- El `h1` es el elemento LCP de la portada, y lo que penaliza esa métrica es el
+  **retardo**, no la duración ni el fundido. Medido inyectando cada regla antes
+  del primer pintado, con `PerformanceObserver` sobre
+  `largest-contentful-paint`:
+
+  |regla sobre el `h1`|LCP|elemento|
+  |---|---|---|
+  |ninguna|`76 ms`|`H1`|
+  |sólo `transform`, `.6s`|`48 ms`|`H1`|
+  |`opacity` + `transform`, `.6s`, sin retardo|`88 ms`|`H1`|
+  |`opacity`, `.6s`, con `.6s` de retardo|`1.112 ms`|`H1`|
+  |`opacity: 0` permanente|`40 ms`|`P`|
+
+  Así que el `h1` **puede** entrar animado si su retardo es cero; lo que no
+  puede es esperar su turno en una cascada. La última fila es la trampa: un
+  `h1` oculto deja de ser candidato, Chrome mide un párrafo más pequeño y la
+  métrica *mejora* mientras la página no se lee.
+- Cualquier animación nueva sobre el hero se mide igual antes de darla por
+  gratis. La sonda que inyecta el CSS tiene que insertar el `<style>` en cuanto
+  `document.head` exista: en `evaluateOnNewDocument` ni `head` ni
+  `documentElement` existen todavía, y un `MutationObserver` registrado ahí no
+  llega a observar nada -- devuelve el baseline disfrazado de resultado.
+- El estado inicial lo pone GSAP con `gsap.from`, **nunca el CSS**. Ningún
+  elemento reposa en `opacity: 0` -- la única declaración así en las hojas de
+  estilo es el keyframe que parpadea el cursor del transcript--, así que un
+  bundle bloqueado deja la página entera visible en vez de esconderla detrás de
+  un script.
+- GSAP core más `ScrollTrigger` pesan `110,7 KB` sin comprimir y `43,5 KB` con
+  gzip en el bundle de la portada, medidos sobre `dist/client/_astro`. No afecta
+  a la indexación -- el contenido va en el HTML servido-- pero sí es JavaScript
+  sin usar a ojos de Lighthouse. Cambiar el número al tocar la capa.
+- Sólo se animan `opacity` y `transform`. Ninguno realimenta el layout, así que
+  un reveal no puede contribuir a CLS.
+- `prefers-reduced-motion: reduce` retorna antes de registrar el plugin: no se
+  instrumenta nada, en vez de instrumentarlo y luego saltarlo.
+- El contrato del marcado es `data-reveal` en un contenedor, cuyos hijos
+  directos entran escalonados, y `data-hero-field` en el plano del hero. Los
+  declara `Section.astro`, así que una sección nueva lo hereda.
+- Una animación de carga no va en JavaScript diferido: el módulo puede
+  ejecutarse después del primer pintado, y entonces la barra de `TokenSaving`
+  se vería completa antes de encogerse para crecer. Esa crece en CSS.
+
+## Enlaces externos
+
+- Todo enlace que sale del sitio abre en una pestaña nueva, con
+  `target="_blank"` y `rel="noopener noreferrer"`. `noopener` es el motivo del
+  `rel`: sin él la pestaña abierta obtiene un handle sobre `window.opener` y
+  puede navegar esta.
+- Son tres superficies y ninguna cubre a las otras dos:
+  - El markdown de la documentación lo resuelve
+    `rehype-external-links` en `astro.config.mjs`. Un autor no puede recordar
+    los atributos en cada enlace.
+  - Las anclas literales de la landing los llevan escritos.
+  - Las navegaciones generadas -- `TopBar.astro`, `Footer.astro`-- lo derivan
+    del propio `href` con `/^https?:\/\//`, así que una entrada nueva no puede
+    olvidar la regla.
+  - El icono social de Starlight es un componente y ningún paso de rehype lo
+    alcanza: vive sobreescrito en `src/components/starlight/SocialIcons.astro`,
+    que conserva el `rel="me"` original -- es una afirmación de identidad y
+    quitarlo rompería la verificación rel-me.
+- Se comprueba sobre el HTML generado, no leyendo plantillas: `dist/client`
+  tiene `79` anclas externas y `2.436` internas, y la cuenta correcta es `0`
+  externas sin la regla y `0` internas con `target`.
 
 ## Verificación
 

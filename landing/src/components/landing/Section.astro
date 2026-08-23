@@ -52,7 +52,10 @@ const { index, title, id } = Astro.props;
 ---
 
 <section id={id} class="border-t border-rule">
-  <div class="mx-auto box-border w-full max-w-6xl px-6 py-14">
+  <div
+    class="mx-auto box-border w-full max-w-6xl px-6 py-14"
+    data-reveal
+  >
     <div class="flex items-baseline gap-3">
       <span class="text-xs text-gray-400" aria-hidden="true">{index}</span>
       <h2 class="text-lg font-medium tracking-tight text-gray-100 sm:text-xl">
