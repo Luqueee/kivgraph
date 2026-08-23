@@ -524,6 +524,25 @@
   }
 }
 
+/* Keep every documentation page on the same left content rail. Starlight only
+   applies this geometry when a page has a table of contents; pages without one
+   otherwise center their narrower content column and drift when the viewport
+   changes. The right rail remains optional, but the main pane geometry is not. */
+@media (min-width: 72rem) {
+  html[data-has-sidebar] .main-pane {
+    --sl-content-margin-inline: auto 0;
+    order: 1;
+    width: min(
+      calc(100% - var(--sl-sidebar-width)),
+      calc(
+        var(--sl-content-width) +
+          (100% - var(--sl-content-width) - var(--sl-sidebar-width)) / 2
+      )
+    );
+  }
+}
+
+
 /* ==========================================================================
    Table of contents
    ========================================================================== */

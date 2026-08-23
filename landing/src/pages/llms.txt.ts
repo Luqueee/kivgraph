@@ -60,8 +60,8 @@ export const GET: APIRoute = async ({ site }) => {
 
   lines.push(
     "## Optional",
-    "",
-    `- [Repository](${REPOSITORY_URL}): source, issue tracker and release notes.`,
+    `- [Releases](${absoluteUrl(site, "/releases/")}): release notes and upgrade instructions.`,
+    `- [Repository](${REPOSITORY_URL}): source and issue tracker.`,
     `- [License](${LICENSE_URL}): ${LICENSE_NAME}.`,
     "",
   );

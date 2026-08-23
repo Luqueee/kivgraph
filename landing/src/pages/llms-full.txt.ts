@@ -29,7 +29,11 @@ const DELIMITER = "\n\n---\n\n";
  * strip; the title and the description are re-emitted above each page instead.
  */
 export const GET: APIRoute = async ({ site }) => {
-  const entries = await loadDocsInOrder();
+  const [entries, releases] = await Promise.all([
+    loadDocsInOrder(),
+    import("astro:content").then((m) => m.getCollection("releases")),
+  ]);
+  releases.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
   const header = [
     `# ${PROJECT_NAME} — complete documentation`,
@@ -39,6 +43,7 @@ export const GET: APIRoute = async ({ site }) => {
     PROJECT_SUMMARY,
     "",
     `Generated ${new Date().toISOString().slice(0, 10)}. ${entries.length} pages, in the order the site navigation presents them.`,
+    `Includes ${releases.length} releases with notes.`,
     `Licensed ${LICENSE_NAME} (${LICENSE_URL}). Source: ${REPOSITORY_URL}`,
     `The server registers ${MCP_TOOLS.length} tools over stdio: ${MCP_TOOLS.join(", ")}.`,
     `Index of the same pages, one link each: ${absoluteUrl(site, "/llms.txt")}`,
@@ -57,7 +62,21 @@ export const GET: APIRoute = async ({ site }) => {
     ].join("\n");
   });
 
-  const body = `${[header, ...pages].join(DELIMITER)}\n`;
+  const releasesPage = [
+    `# Releases`,
+    "",
+    `URL: ${absoluteUrl(site, "/releases/")}`,
+    "",
+    releases
+      .map(
+        (r) =>
+          `## ${r.data.version} (${r.data.date.toISOString().split("T")[0]})\nRequires reindex: ${
+            r.data.requires_reindex
+          }\n\n${(r.body ?? "").trim()}`
+      )
+      .join("\n\n"),
+  ].join("\n");
+  const body = `${[header, ...pages, releasesPage].join(DELIMITER)}\n`;
 
   return new Response(body, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
