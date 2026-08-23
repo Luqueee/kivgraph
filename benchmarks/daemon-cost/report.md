@@ -1,15 +1,19 @@
 # Lo que un proceso para muchos clientes cuesta de verdad
 
-`LUQUE-2222`, corregido en `LUQUE-2223`, otra vez en `LUQUE-2224` y ampliado en
-`LUQUE-2225`. `kivgraph daemon` se escribió sobre una aritmética: si un `serve`
-conserva `71 MB` de páginas privadas y esa cifra es plana en el número de
-clientes, N de ellos deberían convertirse en uno. Esto lo mide.
+`LUQUE-2222`, corregido en `LUQUE-2223`, otra vez en `LUQUE-2224`, ampliado en
+`LUQUE-2225` y **cobrado** en `LUQUE-2226`. `kivgraph daemon` se escribió sobre
+una aritmética: si un `serve` conserva `71 MB` de páginas privadas y esa cifra es
+plana en el número de clientes, N de ellos deberían convertirse en uno. Esto lo
+mide.
 
-Se ha corregido dos veces, y las dos por el mismo motivo: **la cifra publicada
+Se corrigió dos veces, y las dos por el mismo motivo: **la cifra publicada
 describía una situación que no era la del usuario.** Primero la del socket unix,
 que ningún cliente MCP puede marcar. Luego la de HTTP bajo `2.000` llamadas por
-sesión, que ninguna sesión real hace. Esta versión añade el extremo opuesto, que
-es el caso que **de verdad predomina**: el servidor al que nadie pregunta nada.
+sesión, que ninguna sesión real hace. Después se midió el extremo opuesto -- el
+servidor al que nadie pregunta, que es `48` de cada `51`-- y ahí el benchmark dejó
+de describir un reparto y encontró un defecto: **el arranque era casi todo el
+coste, y se pagaba siempre**. El ADR 0067 lo arregló, y este informe mide el antes
+y el después.
 
 |artefacto|puerta|carga|
 |---|---|---|
@@ -22,31 +26,49 @@ es el caso que **de verdad predomina**: el servidor al que nadie pregunta nada.
 Este informe no emite ningún veredicto de aceptación: mide dos formas de servir
 el mismo grafo, por dos transportes y a tres cargas, en un entorno concreto.
 
-## Lo que cuesta un servidor al que nadie pregunta
+## Lo que costaba un servidor al que nadie pregunta, y lo que cuesta ahora
 
-`33,1`–`34,4 MB` de páginas privadas por cliente. Sin haber contestado nada.
+Esta medición encontró que el arranque **era** el coste, y eso se arregló: el
+grafo lo lee ahora la primera consulta que lo necesita, no el arranque
+(ADR 0067). Las dos columnas son la misma pregunta antes y después.
+
+|ocioso, sin ninguna llamada|antes|ahora|
+|---|---|---|
+|pendiente de N procesos|`33,9` MB/cli|`9,8`–`11,3` MB/cli|
+|un cliente|`31,2 MB`|`7,1`–`9,2 MB`|
+|ocho clientes|`268,6 MB`|`75,9`–`85,7 MB`|
+|pico a ocho clientes|`994,3 MB`|`181,6`–`187,0 MB`|
+|demonio a ocho clientes|`40,4 MB`|`10,4`–`10,8 MB`|
+
+Las cifras «antes» se midieron en el commit `d990a6c` sobre esta misma
+generación; están en el historial y no en los artefactos, porque un artefacto
+describe el código que lo produjo.
+
+**Qué lo hacía caro.** El fichero del snapshot nunca fue el problema: se mapea,
+sus páginas están limpias y compartidas -- `6,1 MB` por proceso sobre un fichero
+de `77,6`. Lo privado son los índices que el mapeo deriva, y un servidor que
+nunca contesta no necesita ninguno.
 
 |carga|pendiente de N procesos|pendiente del demonio|proporción|
 |---|---|---|---|
-|ninguna llamada|`33,1`–`34,4` MB/cli|`0,8`–`1,2` MB/cli|`0,023`–`0,032`|
-|`8` llamadas|`39,9`–`40,7` MB/cli|`0,4`–`0,9` MB/cli|`0,009`–`0,013`|
-|`2.000` llamadas|`67,6` MB/cli|`12,8` MB/cli|`0,189`|
+|ninguna llamada|`9,8`–`11,3` MB/cli|`-0,2`–`0,2` MB/cli|indistinguible de cero|
+|`8` llamadas|`38,9`–`40,1` MB/cli|`0,4`–`1,0` MB/cli|`0,010`–`0,025`|
+|`2.000` llamadas|`66,9` MB/cli|`10,5` MB/cli|`0,157`|
 
-$$\frac{33}{40} = 83\,\%\ \text{de lo que cuesta un servidor consultado, y}\ \frac{33}{68} = 49\,\%\ \text{del techo}$$
+**Con carga la cifra no se movió**, que es lo que hace creíble el ahorro:
+`38,9`–`40,1` contra los `39,9` de antes, y `66,9` contra `67,6` en el caso
+sostenido. Lo que desapareció es exactamente lo que las sesiones que no preguntan
+estaban pagando.
 
-**El arranque es el coste.** Contestar una pregunta añade unos `7 MB` sobre los
-`33` que ya se pagaron al abrir el proceso, y hacen falta `2.000` llamadas para
-que la carga iguale a lo que costó estar listo. Esto importa porque `48` de cada
-`51` servidores reales **no reciben ninguna llamada**: la fila de arriba no es un
-extremo teórico, es la mediana de lo que ocurre.
+La pendiente ociosa del demonio sale **negativa por unas décimas de megabyte**.
+No significa que un cliente devuelva memoria: significa que a esta carga su coste
+por cliente está por debajo de lo que este método resuelve. Se publica el ajuste
+crudo en vez de recortarlo a cero, porque recortarlo escondería justo eso.
 
-En el brazo del demonio esa cifra es `1 MB` por cliente, que está en el ruido de
-este método. La lectura honesta no es «el demonio ahorra el 97 %», es que **el
-coste por cliente de un demonio es indistinguible de cero hasta que llega tráfico
-sostenido**, y sólo ahí se vuelve medible (`12,8`).
-
-A ocho clientes ociosos: `263`–`273 MB` contra `40 MB`. Un editor solo empata
-(`31` contra `31`–`34`), y el cruce está en `1,04`–`1,07` clientes.
+A ocho clientes ociosos: `76`–`86 MB` contra `10,4`–`10,8`. Un editor solo ya no
+empata -- `7,1`–`9,2` contra `10,3`–`10,8`-- así que el cruce se mueve a
+`1,26`–`1,54` clientes: los dos brazos son ahora tan baratos en reposo que el
+proceso del demonio pesa relativamente más. Gana desde el segundo.
 
 Y la corrida ociosa es, además, **la única medición limpia del benchmark**: es la
 única en la que los cuatro puntos del barrido miden lo mismo por cliente. Con
@@ -84,7 +106,7 @@ nunca produce.
 |dato|valor|
 |---|---|
 |fecha|2026-08-23|
-|commit|`ef31f35`|
+|commit|`638c6de` (antes) y el de este árbol (ahora)|
 |plataforma|VM `linux/arm64` de Docker Desktop, imagen `golang:1.26-trixie`|
 |kernel|`Linux 6.12.54-linuxkit`, `10` CPU, page size `4096`|
 |corpus|`kena`, `37` repositorios, **`108.737` símbolos**|
@@ -101,6 +123,11 @@ nunca produce.
 detalle: cruzar una cifra por símbolo entre corpus es el error que este mismo
 informe prohíbe más abajo. Las cifras de la versión anterior salieron de `117.499`
 símbolos y **no se reproducen aquí**; están en el historial.
+
+Y comparten algo más: **el mismo código**. Las columnas «antes» y «ahora» de la
+primera tabla son dos códigos distintos sobre esta misma generación, y por eso son
+lo único de este informe que cruza esa frontera. Todo lo demás describe el árbol
+actual, con la carga diferida del ADR 0067.
 
 El esquema subió a `v3` porque **el punto de medición se movió**. Hasta ahora el
 guardia de generación -- la llamada a `graph_status` que prueba que los dos brazos
@@ -121,10 +148,10 @@ repositorio indexado.
 
 |puerta|carga|pendiente del demonio|pendiente de N procesos|8 clientes|cruce|
 |---|---|---|---|---|---|
-|socket|ninguna|`1,1`–`1,2` MB/cli|`33,1`–`34,4` MB/cli|`40`–`42` vs `263`–`273` MB|`1,04`|
-|HTTP|ninguna|`0,8`–`1,0` MB/cli|`33,4`–`33,7` MB/cli|`40` vs `265`–`267` MB|`1,07`|
-|socket|`8`|`0,5`–`0,9` MB/cli|`39,9`–`40,6` MB/cli|`60`–`62` vs `334`–`337` MB|`1,01`–`1,06`|
-|HTTP|`8`|`0,4`–`0,5` MB/cli|`40,0`–`40,7` MB/cli|`60`–`62` vs `337` MB|`1,06`–`1,11`|
+|socket|ninguna|`-0,1`–`0,2` MB/cli|`10,2`–`10,5` MB/cli|`10`–`11` vs `78`–`80` MB|`1,26`–`1,48`|
+|HTTP|ninguna|`-0,2` MB/cli|`9,8`–`11,3` MB/cli|`11` vs `76`–`86` MB|`1,41`–`1,54`|
+|socket|`8`|`0,9`–`1,4` MB/cli|`38,9`–`40,1` MB/cli|`60`–`62` vs `325`–`332` MB|`0,96`–`1,08`|
+|HTTP|`8`|`0,6`–`1,0` MB/cli|`39,2`–`39,7` MB/cli|`62` vs `329`–`331` MB|`1,03`–`1,10`|
 
 Los rangos se solapan en las dos cargas: **elegir HTTP no se paga**, y HTTP es la
 única puerta que un cliente MCP puede configurar. Eso confirma sin carga lo que
@@ -138,12 +165,14 @@ cliente el demonio perdía por HTTP.
 
 |carga|pendiente del demonio|8 clientes|cruce|
 |---|---|---|---|
-|ninguna|`0,8`–`1,2` MB/cli|`40` vs `265` MB|`1,04`–`1,07`|
-|`8` llamadas|`0,4`–`0,9` MB/cli|`61` vs `336` MB|`1,01`–`1,11`|
-|`2.000` llamadas|`12,8` MB/cli|`168` vs `540` MB|`1,31`|
+|ninguna|`-0,2`–`0,2` MB/cli|`11` vs `76`–`86` MB|`1,26`–`1,54`|
+|`8` llamadas|`0,6`–`1,4` MB/cli|`61` vs `328` MB|`0,96`–`1,10`|
+|`2.000` llamadas|`10,5` MB/cli|`155` vs `536` MB|`1,38`|
 
-**El ahorro sigue existiendo** -- `168` contra `540 MB`, la tercera parte-- pero el
-coste por sesión se vuelve real y conviene saber de dónde sale.
+**El ahorro sigue existiendo** -- `155` contra `536 MB`, la tercera parte-- pero el
+coste por sesión se vuelve real y conviene saber de dónde sale. Y es el único caso
+que la carga diferida no mejora, por construcción: dos mil llamadas mapean el
+grafo igual, así que la pendiente de procesos apenas cambió (`66,9` contra `67,6`).
 
 ### De dónde sale, verificado en la fuente
 
@@ -172,33 +201,35 @@ acotar memoria que ya está acotada y que ninguna sesión real alcanza.
 
 ## Lo que la medición añade y no se buscaba
 
-**El pico es la diferencia más grande de todo el benchmark, y no depende de que
-nadie pregunte nada.** Sin ninguna llamada:
+**El pico sigue siendo la diferencia más grande, y ya no es un gigabyte.** Sin
+ninguna llamada:
 
 |clientes|pico N procesos|pico 1 demonio|
 |---|---|---|
-|`1`|`124`–`126` MB|`125`–`128` MB|
-|`2`|`250`–`251` MB|`128`–`130` MB|
-|`4`|`497`–`503` MB|`129`–`132` MB|
-|`8`|**`994`–`1.000` MB**|**`134`–`135` MB**|
+|`1`|`22`–`24` MB|`26`–`28` MB|
+|`2`|`44`–`46` MB|`25`–`31` MB|
+|`4`|`92`–`96` MB|`26`–`28` MB|
+|`8`|**`182`–`187` MB**|**`26`–`27` MB**|
 
-Una máquina que arranca ocho editores a la vez paga **un gigabyte** de pico contra
-`134 MB`, y ninguno de esos ocho ha hecho una sola consulta. Con `8` llamadas la
-cifra sube a `1.053`–`1.057` contra `154`–`156`: el pico es el arranque, no el
-trabajo.
+Ocho editores arrancando a la vez pagaban `994 MB` y ahora pagan `184`: la carga
+diferida se lleva el pico junto con el resto, porque el pico *era* el mapeo. Con
+`8` llamadas vuelve a `1.043`–`1.050` contra `154`–`156`, que es la prueba de que
+lo que se movió es el momento y no la cifra.
 
-**Un cliente nuevo se conecta unas cien veces antes**, y esto también es sin
-carga:
+**Y un cliente nuevo se conecta antes que antes de este cambio.** Arrancar un
+proceso ya no mapea nada:
 
-|clientes ya conectados|N procesos|1 demonio|
-|---|---|---|
-|`1`|`96`–`107` ms|`1,4`–`1,7` ms|
-|`8`|`130`–`151` ms|`1,5`–`1,6` ms|
+|clientes ya conectados|N procesos|antes|1 demonio|
+|---|---|---|---|
+|`1`|`13`–`18` ms|`96`–`107` ms|`1,6`–`2,1` ms|
+|`8`|`23`–`45` ms|`130`–`151` ms|`1,5`–`1,7` ms|
 
-Es lo que ve quien abre una segunda ventana del editor: un proceso nuevo tiene que
-cargar el snapshot, una sesión nueva no. La comparación es de conexión contra
-conexión -- `new_client_connect_ms`, que se mide a todas las cargas-- y no mezcla la
-espera de una respuesta, que a carga cero no existe.
+Es lo que ve quien abre una segunda ventana del editor. El demonio sigue ganando
+por un orden de magnitud, pero la brecha se cerró de `70x` a unos `20x`, y esa
+parte del ahorro **ya no hace falta instalar nada** para tenerla. La comparación es
+de conexión contra conexión -- `new_client_connect_ms`, que se mide a todas las
+cargas-- y no incluye la primera respuesta, que en un servidor diferido paga el
+mapeo.
 
 **La latencia empata** a la carga real: `p99` entre `4` y `17 ms` en el brazo de
 procesos y entre `4` y `29` en el del demonio, rangos que se solapan y se cruzan.
@@ -210,11 +241,17 @@ de la carga sintética**.
 * **La corrida ociosa mide un arranque, no una sesión de trabajo.** Dice lo que
   cuesta estar listo, que es lo que `48` de `51` servidores reales hacen y nada
   más; no dice nada sobre lo que cuesta contestar.
-* **De los `33 MB` no se sabe qué parte es qué.** Son páginas privadas que existen
-  antes de la primera pregunta; este benchmark no separa la construcción de
-  índices del resto del arranque, y afirmar cuál domina sería inventar el
-  mecanismo. El fichero mapeado no está ahí: son `6,1 MB` por proceso de
-  `shared_clean`, sobre un snapshot de `77,6`.
+* **La primera consulta de un servidor diferido paga el mapeo, y eso no está
+  medido como latencia aislada.** Las tablas de conexión comparan conexiones. Lo
+  que sí se midió es que ese mapeo no desapareció: con `8` llamadas las cifras
+  vuelven a las de antes.
+* **La pendiente ociosa del demonio sale negativa por décimas de megabyte.** Está
+  por debajo de lo que este método resuelve, así que la lectura es «indistinguible
+  de cero», no «devuelve memoria». Se publica el ajuste crudo.
+* **De los `10 MB` que quedan en un servidor ocioso no se sabe qué parte es qué.**
+  Son un proceso de Go con su servidor MCP; este benchmark no los desglosa. Del
+  fichero mapeado siguen siendo `6,1 MB` por proceso de `shared_clean` sobre un
+  snapshot de `77,6`, y esas páginas están limpias.
 * **La forma de la sesión es real; su ritmo no.** Las llamadas por sesión salen
   de un log de uso real, pero se emiten seguidas y desde sondas del propio
   snapshot. Un editor intercala pausas de minutos.

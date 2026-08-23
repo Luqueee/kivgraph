@@ -65,6 +65,15 @@ type GraphStatus struct {
 	// a usable answer needs its own measurement.
 	SchemaVersionExpected int  `json:"schema_version_expected,omitempty"`
 	SchemaOutdated        bool `json:"schema_outdated,omitempty"`
+	// SnapshotUnreadable is why the generation this server holds could not be
+	// mapped, when that is what happened.
+	//
+	// The snapshot is read by the first query that needs it rather than at
+	// startup (ADR 0067), so a refusal that used to kill the process now reaches
+	// a caller instead. `status` is honestly `empty` -- nothing is published --
+	// but «empty» alone would read as «never indexed», which is a different
+	// problem with a different fix.
+	SnapshotUnreadable string `json:"snapshot_unreadable,omitempty"`
 
 	Repositories int `json:"repositories"`
 	Packages     int `json:"packages"`
@@ -247,6 +256,12 @@ func graphStatus(
 		snapshot = snapshotStore.Load()
 	}
 	if snapshot == nil {
+		// A generation that could not be mapped is not the same state as no
+		// generation at all, and this is the only tool that can say so: every
+		// other one answers INDEX_NOT_READY for both.
+		if failure := snapshotStore.LoadFailure(); failure != nil {
+			status.SnapshotUnreadable = failure.Error()
+		}
 		applyMetricsStatus(&status, registry)
 		return nil, Response[GraphStatus]{Total: 1, Returned: 1, Results: status}, nil
 	}

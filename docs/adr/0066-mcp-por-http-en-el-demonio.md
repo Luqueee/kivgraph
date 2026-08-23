@@ -153,17 +153,17 @@ conserva `serve` para los que no. Un cliente sin soporte HTTP no pierde nada.
 
   |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
   |---|---|---|---|---|
-  |ninguna|`0,8`–`1,2 MB`/cli|`33 MB`/cli|`40` contra `265 MB`|empata|
-  |`8` llamadas|`0,4`–`0,9 MB`/cli|`40 MB`/cli|`61` contra `336 MB`|empata|
+  |ninguna|indistinguible de cero|`10 MB`/cli|`11` contra `80 MB`|el demonio `+2 MB`|
+  |`8` llamadas|`0,6`–`1,4 MB`/cli|`39 MB`/cli|`61` contra `328 MB`|empata|
 
-  Por puerta y sin carga: `33,4`–`33,7 MB` por cliente por HTTP contra
-  `33,1`–`34,4` por socket. Los rangos se solapan a las dos cargas, así que el
-  transporte no se paga, y el cruce está en `1,04`–`1,11` clientes.
+  Por puerta y sin carga: `9,8`–`11,3 MB` por cliente por HTTP contra
+  `10,2`–`10,5` por socket. Los rangos se solapan a las dos cargas, así que el
+  transporte no se paga, y el cruce está entre `0,96` y `1,54` clientes.
 
-  Dos cosas que la decisión no esperaba. **El arranque es el coste**: `33` de los
-  `40 MB` de un servidor consultado se pagan antes de la primera pregunta. Y la
-  diferencia más grande no es la pendiente sino el **pico**, `994`–`1.000` contra
-  `134 MB` a ocho clientes, sin una sola consulta.
+  Estas cifras son posteriores al ADR 0067, que movió la lectura del grafo a la
+  primera consulta: cuando este ADR se aceptó, un servidor ocioso costaba `33 MB`
+  por cliente en vez de `10`. La comparación entre puertas no cambió con aquello,
+  que es lo que este punto afirma.
 * **Una advertencia anterior de este ADR queda retirada.** Decía que HTTP costaba
   `12,5 MB` por cliente y que a un cliente el demonio perdía. Era el
   `MemoryEventStore` de `10 MiB` que el SDK da a cada sesión (`event.go:255`)

@@ -17,9 +17,10 @@ import (
 // runDaemon serves MCP over a socket and over HTTP, from one process.
 //
 // What it changes against `serve` is only who owns the snapshot. A client that
-// spawns `serve` gets a process of its own, and eight clients get eight copies
-// of the same graph in private pages -- `533 MB` on `kena`, against `68`-`82` for
-// one daemon, measured in `benchmarks/daemon-cost`.
+// spawns `serve` gets a process of its own, and at the load a real editor
+// produces eight of them cost `328 MB` against `61` for one daemon -- `80` against
+// `11` when nobody asks anything, which is what 48 of 51 real servers do.
+// Measured in `benchmarks/daemon-cost`.
 //
 // Two transports because a client reaches one or the other and not both: an
 // editor's configuration takes an executable or a `url`, never a socket path, so

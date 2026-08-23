@@ -230,23 +230,24 @@ superficie observable.
 
   |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
   |---|---|---|---|---|
-  |ninguna|`0,8`–`1,2` MB/cli|`33` MB/cli|`40` contra `265 MB`|empata|
-  |`8` llamadas|`0,4`–`0,9` MB/cli|`40` MB/cli|`61` contra `336 MB`|empata|
+  |ninguna|indistinguible de cero|`10` MB/cli|`11` contra `80 MB`|el demonio `+2 MB`|
+  |`8` llamadas|`0,6`–`1,4` MB/cli|`39` MB/cli|`61` contra `328 MB`|empata|
 
-  **El arranque es el coste**, y es lo que hace que este comando valga: `33` de
-  los `40 MB` de un servidor consultado se pagan antes de que nadie pregunte
-  nada, y un demonio los paga una vez.
+  **El arranque ya no es el coste, y eso es lo que hace que este comando valga
+  menos de lo que valía**: desde el ADR 0067 el grafo lo lee la primera consulta,
+  así que un servidor ocioso cuesta `10 MB` y no `33`. Lo que un demonio sigue
+  ahorrando es el resto -- y a un cliente ahora **pierde** por un par de megabytes,
+  que es el proceso extra.
 
   **Las dos puertas son indistinguibles a las dos cargas**, así que la advertencia
   anterior -- que HTTP costaba `12,5 MB` por cliente y perdía a un cliente-- queda
-  retirada: era el buffer de reanudación del SDK llenándose con tráfico
-  sintético. Bajo carga sostenida sí cuesta más (`12,8`), y eso es un techo que
-  ninguna sesión real alcanza y que depende del corpus.
+  retirada: era el buffer de reanudación del SDK llenándose con tráfico sintético.
+  Bajo carga sostenida sí cuesta más (`10,5`), y eso es un techo que ninguna sesión
+  real alcanza y que depende del corpus.
 
-  La diferencia más grande no es la pendiente: es el **pico**, `994`–`1.000`
-  contra `134 MB` a ocho clientes, sin una sola consulta -- ocho editores
-  arrancando a la vez pagan ocho cargas a la vez. Lo que no es el ahorro
-  en ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
+  La diferencia más grande no es la pendiente: es el **pico**, `182`–`187` contra
+  `26`–`27 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
+  ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el
   token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio

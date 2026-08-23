@@ -419,3 +419,37 @@ func graphStatusStore(t testing.TB, id uint64) *hotsnapshot.SnapshotStore {
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
 }
+
+// TestGraphStatusNamesAGenerationItCouldNotMap is the honest half of deferring
+// the load (ADR 0067). The refusal used to kill the process at startup; now it
+// reaches a caller, and every query tool answers INDEX_NOT_READY for it -- the
+// same code a server that was never indexed answers. Those are different
+// problems with different fixes, so this is the one tool that has to tell them
+// apart.
+func TestGraphStatusNamesAGenerationItCouldNotMap(t *testing.T) {
+	refusal := errors.New("build active snapshot \"000007\": no readable graph")
+	store := hotsnapshot.NewDeferredSnapshotStore(7, func() (*hotsnapshot.GraphSnapshot, error) {
+		return nil, refusal
+	})
+	_, response, err := graphStatus(context.Background(), nil, struct{}{}, store, nil)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	if response.Results.Status != GraphStatusEmpty {
+		t.Fatalf("status = %q, want %q: nothing is published", response.Results.Status, GraphStatusEmpty)
+	}
+	if !strings.Contains(response.Results.SnapshotUnreadable, "no readable graph") {
+		t.Fatalf("snapshot_unreadable = %q, want the refusal", response.Results.SnapshotUnreadable)
+	}
+
+	// A server that was never indexed says nothing here, because nothing was
+	// refused: a field that carried an empty reason either way would tell the
+	// two states apart no better than `status` alone.
+	_, fresh, err := graphStatus(context.Background(), nil, struct{}{}, hotsnapshot.NewSnapshotStore(nil), nil)
+	if err != nil {
+		t.Fatalf("graphStatus() error = %v", err)
+	}
+	if fresh.Results.SnapshotUnreadable != "" {
+		t.Fatalf("snapshot_unreadable = %q for a server with no generation, want empty", fresh.Results.SnapshotUnreadable)
+	}
+}

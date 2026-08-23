@@ -92,9 +92,10 @@ func Follow(ctx context.Context, store *hotsnapshot.SnapshotStore, options Follo
 			// difference between a restart and an afternoon.
 			if result.Rewound != 0 && result.Rewound != reportedRewind {
 				reportedRewind = result.Rewound
+				served, _ := store.ActiveID()
 				report(options.OnError, fmt.Errorf(
 					"generation store was rewound to %d while serving %d: restart to follow it again",
-					result.Rewound, store.Load().Metadata().ID))
+					result.Rewound, served))
 			}
 		}
 	}
@@ -130,9 +131,13 @@ func followOnce(
 	if err != nil {
 		return followResult{}, err
 	}
-	served := store.Load()
-	if !needsPublication(served, activeID) {
-		if served != nil && served.Metadata().ID > activeID {
+	// The served generation is compared by identifier, never by materialising
+	// the graph: this runs on every tick, and asking for the snapshot here would
+	// load a deferred server after one interval of answering nothing. See ADR
+	// 0067.
+	servedID, serving := store.ActiveID()
+	if !needsPublicationID(servedID, serving, activeID) {
+		if serving && servedID > activeID {
 			return followResult{Rewound: activeID}, nil
 		}
 		return followResult{}, nil
@@ -161,18 +166,21 @@ func followOnce(
 	return followResult{Published: activeID}, nil
 }
 
-// needsPublication reports whether the active generation is newer than the one
+// needsPublicationID reports whether the active generation is newer than the one
 // being served.
 //
 // The comparison is against the store, never against a counter the follower
 // keeps: another publisher -- an in-process index_project -- installs
 // generations through the same store, and a follower that remembered its own
 // last answer would rebuild what is already being served.
-func needsPublication(served *hotsnapshot.GraphSnapshot, activeID uint64) bool {
-	if served == nil {
+//
+// It takes the identifier rather than the snapshot because a store may hold a
+// generation it has not mapped yet, and this question never needs the graph.
+func needsPublicationID(servedID uint64, serving bool, activeID uint64) bool {
+	if !serving {
 		return true
 	}
-	return served.Metadata().ID < activeID
+	return servedID < activeID
 }
 
 func storeConfigOrDefault(config generation.Config) generation.Config {

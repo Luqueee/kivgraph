@@ -104,7 +104,12 @@ func newServerWithIndexer(
 	// query tool and says how to repair itself. It is the one shape a client can
 	// act on: it spawns this process, so exiting reads as a crash, and answering
 	// with tools that cannot answer teaches the agent that the tools do not work.
-	published := snapshotStore != nil && snapshotStore.Load() != nil
+	//
+	// The question is availability, not the graph. Asking for the graph here
+	// would map it once per accepted session -- and this runs for every session,
+	// including the ones that go on to ask nothing at all, which is most of
+	// them. See ADR 0067.
+	published := snapshotStore.Available()
 	instructions := serverInstructions
 	if !published {
 		instructions = staleServerInstructions
@@ -128,15 +133,9 @@ func newServerWithIndexer(
 			})
 		}
 	}
-	if registry != nil && snapshotStore != nil {
-		if snapshot := snapshotStore.Load(); snapshot != nil {
-			metadata := snapshot.Metadata()
-			registry.ObserveSnapshot(metrics.SnapshotObservation{
-				ID:        metadata.ID,
-				CreatedAt: metadata.CreatedAt,
-			})
-		}
-	}
+	// The snapshot's own metadata is not observed here for the same reason: it
+	// would require the graph. The loader records it when it runs, which is also
+	// the moment the numbers become true of this process.
 	if !published {
 		// index_project is the exception: it is how a client without a graph
 		// builds one, and it needs no graph to run.

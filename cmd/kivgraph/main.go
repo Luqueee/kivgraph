@@ -263,18 +263,23 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 	if err != nil {
 		return config.Loaded{}, nil, fmt.Errorf("resolve active generation: %w", err)
 	}
-	store := hotsnapshot.NewSnapshotStore(nil)
-	keepStore := false
-	defer func() {
-		if !keepStore {
-			store.Close()
-		}
-	}()
-	if layout.Active.ID != "" {
-		generationNumber, err := strconv.ParseUint(layout.Active.ID, 10, 64)
-		if err != nil {
-			return config.Loaded{}, nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
-		}
+	if layout.Active.ID == "" {
+		return loaded, hotsnapshot.NewSnapshotStore(nil), nil
+	}
+	generationNumber, err := strconv.ParseUint(layout.Active.ID, 10, 64)
+	if err != nil {
+		return config.Loaded{}, nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
+	}
+	// The graph is not read here. It is read by whatever first needs it, which
+	// on most servers is never: 48 of 51 in a real event log were started and
+	// asked nothing, and mapping a generation costs some thirty megabytes of
+	// private indexes whether or not anyone asks. See ADR 0067.
+	//
+	// What runs inside the loader is exactly what used to run here, fallback
+	// included: a missing, foreign, stale or corrupt snapshot file still costs a
+	// derivation from the canonical graph rather than an answer. Only the moment
+	// moved.
+	return loaded, hotsnapshot.NewDeferredSnapshotStore(generationNumber, func() (*hotsnapshot.GraphSnapshot, error) {
 		snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
 			DatabasePath: layout.Active.DatabasePath,
 			SnapshotID:   generationNumber,
@@ -286,13 +291,10 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 		// scavenge still runs: a fallback derived it the expensive way.
 		defer rebuild.ReturnBuildMemory()
 		if err != nil {
-			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
+			return nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
 		}
 		if !report.Passed {
-			return config.Loaded{}, nil, fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
-		}
-		if err := store.Publish(snapshot); err != nil {
-			return config.Loaded{}, nil, fmt.Errorf("publish active snapshot %q: %w", layout.Active.ID, err)
+			return nil, fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
 		}
 		// Which of the two routes was taken is worth a line, because nothing else
 		// distinguishes them: a server that derives answers exactly like one that
@@ -306,9 +308,8 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 				"generation", layout.Active.ID, "symbols", report.Stats.Symbols,
 				"reason", report.LoadRefused)
 		}
-	}
-	keepStore = true
-	return loaded, store, nil
+		return snapshot, nil
+	}), nil
 }
 
 func runConfiguredUI(

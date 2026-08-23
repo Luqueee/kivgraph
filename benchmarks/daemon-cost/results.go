@@ -299,9 +299,16 @@ func limitations(out results) []string {
 		notes = append(notes, fmt.Sprintf(
 			"this run spread %d calls over each arm, so its per-client figure belongs to that load and to no other", out.Calls))
 	}
-	if out.Commit == "" {
+	switch {
+	case out.Commit == "":
 		notes = append(notes,
 			"the commit could not be read, so this run's provenance is incomplete: it was launched from outside a git checkout")
+	case strings.HasSuffix(out.Commit, "-dirty"):
+		notes = append(notes,
+			"the tree had uncommitted changes, so the named commit is where the measured code came from and not what it was: this run cannot be reproduced from that commit alone")
+	case strings.HasSuffix(out.Commit, "-unknown"):
+		notes = append(notes,
+			"whether the tree was clean could not be determined, so the named commit may not be the code that ran")
 	}
 	if !out.Environment.PrivateDirtySupported {
 		notes = append(notes,
@@ -353,12 +360,25 @@ func serverVersion(server string) string {
 	return strings.TrimSpace(string(output))
 }
 
+// currentCommit names the code that was measured, and says when it cannot. A
+// dirty tree is the normal case here -- the numbers that justify a change are
+// measured before it is committed -- so reporting HEAD alone would attribute this
+// run to code it did not run. That is the provenance trap this benchmark already
+// fell into once, from the other side: a run launched outside a checkout.
 func currentCommit() string {
 	output, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(output))
+	commit := strings.TrimSpace(string(output))
+	status, err := exec.Command("git", "status", "--porcelain").Output()
+	if err != nil {
+		return commit + "-unknown"
+	}
+	if len(strings.TrimSpace(string(status))) > 0 {
+		return commit + "-dirty"
+	}
+	return commit
 }
 
 func armByName(measured point, name string) (arm, bool) {

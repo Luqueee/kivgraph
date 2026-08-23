@@ -607,36 +607,36 @@ observado, tres.
 
 | carga | pendiente del demonio | N procesos | 8 clientes | 1 cliente |
 | --- | --- | --- | --- | --- |
-| ninguna llamada | `0,8`–`1,2 MB` por cliente | `33 MB` por cliente | `40` contra `265 MB` | empata |
-| `8` llamadas | `0,4`–`0,9 MB` por cliente | `40 MB` por cliente | `61` contra `336 MB` | empata |
+| ninguna llamada | indistinguible de cero | `10 MB` por cliente | `11` contra `80 MB` | el demonio cuesta `2 MB` más |
+| `8` llamadas | `0,6`–`1,4 MB` por cliente | `39 MB` por cliente | `61` contra `328 MB` | empata |
 
-**El arranque es el coste.** Un servidor al que nadie pregunta nada ya cuesta
-`33` de los `40 MB` que cuesta uno consultado: contestar una pregunta añade unos
-`7 MB`. A ocho clientes el demonio cuesta **seis veces menos** sin consultas y
-cinco y media contestando; a uno empata, así que la razón para instalarlo empieza
-en el segundo cliente.
+Un servidor al que nadie pregunta cuesta `10 MB` y uno consultado `39`: el grafo
+se lee cuando alguien pregunta, no al arrancar. A ocho clientes el demonio cuesta
+**siete veces menos** sin consultas y cinco y media contestando; a uno empata o
+pierde por un par de megabytes, así que la razón para instalarlo empieza en el
+segundo cliente.
 
-**Las dos puertas cuestan lo mismo** -- `33,4`–`33,7 MB` por cliente por HTTP
-contra `33,1`–`34,4` por socket--, así que elegir HTTP, la única que un cliente
-MCP puede configurar, no se paga.
+**Las dos puertas cuestan lo mismo** -- `9,8`–`11,3 MB` por cliente por HTTP contra
+`10,2`–`10,5` por socket--, así que elegir HTTP, la única que un cliente MCP puede
+configurar, no se paga.
 
-La diferencia más grande no es ésa. Es el **pico**, y tampoco depende de que
-nadie pregunte nada:
+La diferencia más grande no es ésa. Es el **pico**, y no depende de que nadie
+pregunte nada:
 
 | clientes | pico N procesos | pico 1 demonio |
 | --- | --- | --- |
-| `1` | `124`–`126 MB` | `125`–`128 MB` |
-| `8` | **`994`–`1.000 MB`** | **`134`–`135 MB`** |
+| `1` | `22`–`24 MB` | `26`–`28 MB` |
+| `8` | **`182`–`187 MB`** | **`26`–`27 MB`** |
 
-Ocho editores arrancando a la vez pagan un gigabyte sin haber hecho una sola
-consulta. Y un cliente nuevo se conecta unas cien veces antes -- `1,5 ms` contra
-`96`–`151`-- porque una sesión nueva no carga nada. Sobre `108.737` símbolos de
-`kena`, en Linux: `benchmarks/daemon-cost`.
+Ocho editores arrancando a la vez pagan siete veces más pico que un demonio. Y un
+cliente nuevo se conecta antes -- `1,5`–`2,1 ms` contra `13`–`45`-- porque una
+sesión nueva no arranca nada. Sobre `108.737` símbolos de `kena`, en Linux:
+`benchmarks/daemon-cost`.
 
 Bajo tráfico sostenido -- `2.000` llamadas por sesión, que ninguna sesión real
-hace-- HTTP sube a `12,8 MB` por cliente: el SDK de MCP da a cada sesión un
-buffer de reanudación de `10 MiB` y las respuestas lo llenan. Es un techo, está
-en `results-http-sustained.json`, y no es lo que cuesta un editor.
+hace-- HTTP sube a `10,5 MB` por cliente: el SDK de MCP da a cada sesión un buffer
+de reanudación de `10 MiB` y las respuestas lo llenan. Es un techo, está en
+`results-http-sustained.json`, y no es lo que cuesta un editor.
 
 Lo que **no** es el ahorro en ninguna puerta es el snapshot: es el mismo fichero
 mapeado en todos los servidores y esas páginas están limpias. Lo que está en

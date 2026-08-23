@@ -6,28 +6,28 @@
 // nothing at all, so the median session makes no call whatsoever.
 //
 //	load      daemon slope       N processes    8 clients          1 client
-//	none      0,8-1,2 MB/client  33 MB/client   40 against 265 MB  ties
-//	8 calls   0,4-0,9 MB/client  40 MB/client   61 against 336 MB  ties
+//	none      indistinguishable  10 MB/client   11 against 80 MB   daemon +2 MB
+//	8 calls   0,6-1,4 MB/client  39 MB/client   61 against 328 MB  ties
 //
-// Starting up is the cost: 33 of the 40 MB a queried server holds are paid before
-// the first question, and answering one adds about 7. That is what a daemon pays
-// once instead of N times.
+// Starting up is no longer the cost: since ADR 0067 the graph is read by the
+// first query that needs it, so an idle server holds 10 MB where it used to hold
+// 33. What a daemon still saves is the rest -- and at one client it now loses by a
+// couple of megabytes, which is the extra process.
 //
-// The two doors are indistinguishable at both loads -- 33,4-33,7 MB per client
-// over HTTP against 33,1-34,4 over the socket -- and the door that matters is HTTP
+// The two doors are indistinguishable at both loads -- 9,8-11,3 MB per client over
+// HTTP against 10,2-10,5 over the socket -- and the door that matters is HTTP
 // because no MCP client configuration dials a unix socket: it takes an executable
 // or a url. Over 108.737 symbols of kena, on Linux, in benchmarks/daemon-cost.
 //
 // The widest gap is the peak, and it does not depend on anyone asking anything:
-// 994-1.000 MB for eight processes against 134 for one daemon, because eight
-// editors starting at once pay eight loads at once.
+// 182-187 MB for eight processes against 26-27 for one daemon, because eight
+// editors starting at once pay eight processes at once.
 //
-// Under sustained traffic HTTP costs more -- 12,8 MB per client at 2000 calls a
-// session -- because the SDK gives every session a 10 MiB resumption
-// buffer that response bytes fill. That is a ceiling no real session reaches, it
-// depends on the corpus rather than on the session count, and it cannot be
-// bounded from here: the handler builds its own transport and takes no event
-// store.
+// Under sustained traffic HTTP costs more -- 10,5 MB per client at 2000 calls a
+// session -- because the SDK gives every session a 10 MiB resumption buffer that
+// response bytes fill. That is a ceiling no real session reaches, it depends on
+// the corpus, and it cannot be capped from here: the handler builds its own
+// transport and takes no event store.
 //
 // What is *not* the saving is the snapshot. It is the same mapped file in every
 // server and those pages are clean, so a reader expecting its `87 MB` to
@@ -36,7 +36,8 @@
 // `60,5 MB` off what a load allocates and the resident figure moved `0,75 %`,
 // because the allocator recycles those pages rather than keeping them.
 //
-// At one client a daemon ties on both doors. It wins from the second.
+// At one client a daemon loses by a couple of megabytes on both doors, because a
+// server that answers nothing no longer reads the graph. It wins from the second.
 package daemon
 
 import (

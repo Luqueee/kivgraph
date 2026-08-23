@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -195,5 +197,66 @@ func TestAnIdleRunThatAnsweredSomethingIsNotPublished(t *testing.T) {
 	}
 	if err := checkIdle(0, 4, arm{Name: "daemon"}, arm{Name: "processes"}); err != nil {
 		t.Fatalf("a genuinely idle run was rejected: %v", err)
+	}
+}
+
+// TestADirtyTreeIsNamedInTheLimitations covers the provenance half of the same
+// mistake: this benchmark already published a run whose commit could not be read,
+// and a dirty tree is worse than that because it produces a commit that looks
+// authoritative. The numbers that justify a change are always measured before it
+// is committed, so this is the normal case and not an edge one.
+func TestADirtyTreeIsNamedInTheLimitations(t *testing.T) {
+	for name, test := range map[string]struct {
+		commit string
+		want   string
+	}{
+		"clean":   {commit: "638c6de", want: ""},
+		"dirty":   {commit: "638c6de-dirty", want: "uncommitted"},
+		"unknown": {commit: "638c6de-unknown", want: "could not be determined"},
+		"absent":  {commit: "", want: "outside a git checkout"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			notes := limitations(results{Commit: test.commit})
+			joined := strings.Join(notes, "\n")
+			if test.want == "" {
+				for _, note := range notes {
+					if strings.Contains(note, "commit") || strings.Contains(note, "tree") {
+						t.Fatalf("a clean tree was flagged: %q", note)
+					}
+				}
+				return
+			}
+			if !strings.Contains(joined, test.want) {
+				t.Fatalf("commit %q did not produce %q: %s", test.commit, test.want, joined)
+			}
+		})
+	}
+}
+
+// TestCurrentCommitReportsADirtyTree exercises the half that writes the field.
+// The limitation above only reads it, so without this a probe that stopped
+// appending the suffix would keep every test green and publish a commit that
+// names code it never ran.
+func TestCurrentCommitReportsADirtyTree(t *testing.T) {
+	directory := t.TempDir()
+	t.Chdir(directory)
+	for _, arguments := range [][]string{
+		{"init"},
+		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "one"},
+	} {
+		if output, err := exec.Command("git", arguments...).CombinedOutput(); err != nil {
+			t.Skipf("git is unavailable here: %v: %s", err, output)
+		}
+	}
+	clean := currentCommit()
+	if clean == "" || strings.Contains(clean, "-") {
+		t.Fatalf("a clean repository reported %q", clean)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "new.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dirty := currentCommit()
+	if dirty != clean+"-dirty" {
+		t.Fatalf("an untracked file reported %q, want %q", dirty, clean+"-dirty")
 	}
 }

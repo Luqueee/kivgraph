@@ -47,15 +47,16 @@ const (
 // to spawn `serve`. That is the difference the daemon was built for, and this is
 // the transport it is reachable over. At the load a real editor produces -- most
 // often none at all: 48 of 51 servers in a real event log were asked nothing --
-// N clients spawning `serve` cost `33 MB` of private pages each against
-// `0,8`-`1,2 MB` per client on one daemon, `40` against `265 MB` at eight
-// clients. Answering a question adds about `7 MB` to a server that already paid
-// `33` to start, so what a daemon saves is the start. The peak is the widest gap:
-// `994`-`1.000` against `134 MB`, because eight editors starting at once pay
-// eight loads. Measured in `benchmarks/daemon-cost`.
+// N clients spawning `serve` cost `10 MB` of private pages each against a slope
+// indistinguishable from zero on one daemon, `11` against `80 MB` at eight
+// clients. Answering questions is what costs now: `39 MB` per client at 8 calls,
+// `61` against `328` at eight. The peak is the widest gap: `182`-`187` against
+// `26`-`27 MB`, because eight editors starting at once pay eight processes.
+// Measured in `benchmarks/daemon-cost`, after ADR 0067 moved the graph read to
+// the first query that needs it.
 //
-// The two transports are indistinguishable: `33,4`-`33,7 MB` per client over HTTP
-// against `33,1`-`34,4` over the socket. HTTP costs more only under sustained
+// The two transports are indistinguishable: `9,8`-`11,3 MB` per client over HTTP
+// against `10,2`-`10,5` over the socket. HTTP costs more only under sustained
 // traffic, and no real session produces it.
 type Endpoint struct {
 	// URL is the streamable HTTP endpoint a client connects to.
