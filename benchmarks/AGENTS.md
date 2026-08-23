@@ -54,21 +54,32 @@ declarado en la raíz.
   cada una**: `results.json` para el socket unix y `results-http.json` para
   Streamable HTTP, con `-transport` seleccionando la puerta y el transporte
   dentro del digest. Sin eso las dos corridas colisionan en una identidad y una
-  cifra de socket puede citarse como si fuera alcanzable, que es exactamente lo
-  que pasó: `0,5 MB` por cliente por socket contra `12,5` por HTTP. **La cifra
-  publicable es la de HTTP**, porque ninguna configuración de cliente MCP marca
-  un socket. El esquema es `daemon-cost-v2`; un fichero `v1` calculó su digest
-  sin el transporte y no se puede comparar con uno nuevo.
-- La pendiente por HTTP **depende de la carga**, y el artefacto no puede
-  ocultarlo: son `12,5 MB` por cliente con `2.000` llamadas por brazo y
-  `2,1`–`2,7` con `64`, porque el SDK da a cada sesión un buffer de reanudación
-  de `10 MiB`. Citar una sin la otra convierte un techo en un coste.
+  cifra de socket puede citarse como si fuera alcanzable. El esquema es
+  `daemon-cost-v2`; un fichero `v1` calculó su digest sin el transporte y no se
+  puede comparar con uno nuevo.
+- **La carga se cuenta, no se elige, y es la variable que decidió el resultado
+  dos veces.** El event log de un `serve` registra cada llamada de tool, así que
+  la carga de una sesión real se recuenta de un log de uso -- la orden está en el
+  informe. Medido: mediana de **una** llamada por sesión y `48` de `51`
+  servidores sin ninguna. Las `2.000` llamadas del caso sostenido son tres
+  órdenes de magnitud por encima de eso, y ahí HTTP parecía costar `12,5 MB` por
+  cliente cuando a carga real cuesta `1,0`–`1,3`, igual que el socket. Un
+  benchmark que mide la carga equivocada no es impreciso: **contesta otra
+  pregunta**, y en este caso subestimaba el ahorro.
+- El caso sostenido se conserva en `results-http-sustained.json` porque es un
+  techo útil, y **su cifra no se transporta entre corpus**: `4,9`–`5,9 MB` por
+  cliente sobre `117.499` símbolos contra `12,1`–`12,8` sobre `108.737`. Esa
+  dependencia del corpus es la firma de un coste en bytes retenidos -- el buffer
+  de reanudación de `10 MiB` que el SDK da a cada sesión-- y no de un coste por
+  sesión. Citar el techo como si fuera el coste es el error que este benchmark ya
+  cometió.
 - No es un brazo de `shared-snapshot` y no debe convertirse en uno: los brazos de
   aquél se definen por si el fichero de snapshot está, y su gate mide mapear
   contra derivar. Un tercer brazo dejaría su comparación sin significado.
-- Su corpus **no** es el de `load-cost-resident`: `108.737` símbolos contra
-  `117.499`. Una cifra por símbolo se lee de la pasada que la produjo, nunca
-  cruzada entre las dos.
+- Una cifra por símbolo se lee de la pasada que la produjo, nunca cruzada entre
+  corpus. Las corridas vigentes usan los `117.499` símbolos de `kena`, los mismos
+  que `load-cost-resident`; las anteriores usaban `108.737` y sus cifras están en
+  el historial, no en estas tablas.
 
 ## Corpus y auditorías
 

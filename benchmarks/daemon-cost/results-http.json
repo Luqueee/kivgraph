@@ -2,11 +2,11 @@
   "benchmark": "daemon-cost",
   "date": "2026-08-23",
   "schema_version": "daemon-cost-v2",
-  "commit": "65c3921",
-  "digest": "55ad786d94d1072b0b439f7102e0a613e73b6122cd984f2fe3e5d3110a20f9b3",
+  "commit": "f2333a9",
+  "digest": "7e072cf239a61e75454d8564cfc62ddcb276409a7f4d765f40bea14b376942c9",
   "snapshot_id": 1,
-  "calls": 2000,
-  "warmup": 4000,
+  "calls": 8,
+  "warmup": 0,
   "seed": 42,
   "transport": "http",
   "environment": {
@@ -18,8 +18,8 @@
     "private_dirty_supported": true
   },
   "snapshot": {
-    "path": "/Users/adria/.cache/kivdcost/.local/state/kivgraph/generations/000001/snapshot.kvsnap",
-    "bytes": 81375592
+    "path": "/Users/adria/.cache/kivreal/.local/state/kivgraph/generations/000001/snapshot.kvsnap",
+    "bytes": 90935856
   },
   "points": [
     {
@@ -28,82 +28,82 @@
         {
           "name": "processes",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 1,
           "processes": [
             {
               "index": 1,
-              "pid": 24,
-              "resident_bytes": 168128512,
-              "proportional_bytes": 167524352,
-              "shared_clean_bytes": 1204224,
-              "private_dirty_bytes": 69890048,
-              "peak_bytes": 168128512
+              "pid": 937,
+              "resident_bytes": 164446208,
+              "proportional_bytes": 163461120,
+              "shared_clean_bytes": 1327104,
+              "private_dirty_bytes": 56995840,
+              "peak_bytes": 164446208
             }
           ],
           "totals": {
-            "resident_bytes": 168128512,
-            "proportional_bytes": 167524352,
-            "shared_clean_bytes": 1204224,
-            "private_dirty_bytes": 69890048,
-            "peak_bytes": 168128512,
-            "worst_private_dirty_bytes": 69890048
+            "resident_bytes": 164446208,
+            "proportional_bytes": 163461120,
+            "shared_clean_bytes": 1327104,
+            "private_dirty_bytes": 56995840,
+            "peak_bytes": 164446208,
+            "worst_private_dirty_bytes": 56995840
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 4.125834,
-            "p95_ms": 6.041541,
-            "p99_ms": 6.964791
+            "calls": 8,
+            "p50_ms": 0.747042,
+            "p95_ms": 1.658708,
+            "p99_ms": 1.658708
           },
           "call_errors": 0,
           "first_answers_ms": [
-            126.071
+            118.368
           ],
-          "new_client_ms": 113.846
+          "new_client_ms": 125.673
         },
         {
           "name": "daemon",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 1,
           "processes": [
             {
               "index": 1,
-              "pid": 179,
-              "resident_bytes": 178290688,
-              "proportional_bytes": 177690624,
-              "shared_clean_bytes": 1196032,
-              "private_dirty_bytes": 79466496,
-              "peak_bytes": 191598592
+              "pid": 994,
+              "resident_bytes": 167510016,
+              "proportional_bytes": 166524928,
+              "shared_clean_bytes": 1327104,
+              "private_dirty_bytes": 59346944,
+              "peak_bytes": 167510016
             }
           ],
           "totals": {
-            "resident_bytes": 178290688,
-            "proportional_bytes": 177690624,
-            "shared_clean_bytes": 1196032,
-            "private_dirty_bytes": 79466496,
-            "peak_bytes": 191598592,
-            "worst_private_dirty_bytes": 79466496
+            "resident_bytes": 167510016,
+            "proportional_bytes": 166524928,
+            "shared_clean_bytes": 1327104,
+            "private_dirty_bytes": 59346944,
+            "peak_bytes": 167510016,
+            "worst_private_dirty_bytes": 59346944
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 2.936791,
-            "p95_ms": 4.596667,
-            "p99_ms": 5.401833
+            "calls": 8,
+            "p50_ms": 0.754125,
+            "p95_ms": 1.197375,
+            "p99_ms": 1.197375
           },
           "call_errors": 0,
           "first_answers_ms": [
-            18.236
+            17.16
           ],
-          "new_client_ms": 13.05
+          "new_client_ms": 25.172
         }
       ],
       "comparison": {
-        "private_dirty_share": 1.137021625739905,
-        "private_dirty_saved_bytes": -9576448,
-        "peak_share": 1.1395960727946013,
-        "p99_ratio": 0.7755915432351093,
-        "new_client_speedup": 8.72383141762452
+        "private_dirty_share": 1.0412504491555874,
+        "private_dirty_saved_bytes": -2351104,
+        "peak_share": 1.0186310650592807,
+        "p99_ratio": 0.7218720835734801,
+        "new_client_speedup": 4.992571110757985
       }
     },
     {
@@ -112,93 +112,93 @@
         {
           "name": "processes",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 2,
           "processes": [
             {
               "index": 1,
-              "pid": 309,
-              "resident_bytes": 120066048,
-              "proportional_bytes": 95588352,
-              "shared_clean_bytes": 48549888,
-              "private_dirty_bytes": 71487488,
-              "peak_bytes": 138969088
+              "pid": 1022,
+              "resident_bytes": 103628800,
+              "proportional_bytes": 80101376,
+              "shared_clean_bytes": 46178304,
+              "private_dirty_bytes": 57344000,
+              "peak_bytes": 150863872
             },
             {
               "index": 2,
-              "pid": 327,
-              "resident_bytes": 168820736,
-              "proportional_bytes": 144343040,
-              "shared_clean_bytes": 48549888,
-              "private_dirty_bytes": 70549504,
-              "peak_bytes": 168820736
+              "pid": 1039,
+              "resident_bytes": 156020736,
+              "proportional_bytes": 132509696,
+              "shared_clean_bytes": 46157824,
+              "private_dirty_bytes": 48599040,
+              "peak_bytes": 156020736
             }
           ],
           "totals": {
-            "resident_bytes": 288886784,
-            "proportional_bytes": 239931392,
-            "shared_clean_bytes": 97099776,
-            "private_dirty_bytes": 142036992,
-            "peak_bytes": 307789824,
-            "worst_private_dirty_bytes": 71487488
+            "resident_bytes": 259649536,
+            "proportional_bytes": 212611072,
+            "shared_clean_bytes": 92336128,
+            "private_dirty_bytes": 105943040,
+            "peak_bytes": 306884608,
+            "worst_private_dirty_bytes": 57344000
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 3.112667,
-            "p95_ms": 6.231833,
-            "p99_ms": 7.063792
+            "calls": 8,
+            "p50_ms": 0.7855,
+            "p95_ms": 1.367375,
+            "p99_ms": 1.367375
           },
           "call_errors": 0,
           "first_answers_ms": [
-            107.723,
-            161.363
+            114.116,
+            152.832
           ],
-          "new_client_ms": 115.904
+          "new_client_ms": 145.089
         },
         {
           "name": "daemon",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 2,
           "processes": [
             {
               "index": 1,
-              "pid": 586,
-              "resident_bytes": 199684096,
-              "proportional_bytes": 199086080,
-              "shared_clean_bytes": 1191936,
-              "private_dirty_bytes": 100696064,
-              "peak_bytes": 212332544
+              "pid": 1124,
+              "resident_bytes": 174649344,
+              "proportional_bytes": 173672448,
+              "shared_clean_bytes": 1314816,
+              "private_dirty_bytes": 66433024,
+              "peak_bytes": 174649344
             }
           ],
           "totals": {
-            "resident_bytes": 199684096,
-            "proportional_bytes": 199086080,
-            "shared_clean_bytes": 1191936,
-            "private_dirty_bytes": 100696064,
-            "peak_bytes": 212332544,
-            "worst_private_dirty_bytes": 100696064
+            "resident_bytes": 174649344,
+            "proportional_bytes": 173672448,
+            "shared_clean_bytes": 1314816,
+            "private_dirty_bytes": 66433024,
+            "peak_bytes": 174649344,
+            "worst_private_dirty_bytes": 66433024
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 2.223125,
-            "p95_ms": 4.862458,
-            "p99_ms": 5.67375
+            "calls": 8,
+            "p50_ms": 0.784958,
+            "p95_ms": 1.276583,
+            "p99_ms": 1.276583
           },
           "call_errors": 0,
           "first_answers_ms": [
-            16.615,
-            16.362
+            19.756,
+            16.419
           ],
-          "new_client_ms": 12.268
+          "new_client_ms": 17.043
         }
       ],
       "comparison": {
-        "private_dirty_share": 0.7089425267468351,
-        "private_dirty_saved_bytes": 41340928,
-        "peak_share": 0.6898621313744278,
-        "p99_ratio": 0.8032158931067053,
-        "new_client_speedup": 9.4476687316596
+        "private_dirty_share": 0.627063599458728,
+        "private_dirty_saved_bytes": 39510016,
+        "peak_share": 0.5691042803945384,
+        "p99_ratio": 0.9336012432580675,
+        "new_client_speedup": 8.51311388839993
       }
     },
     {
@@ -207,115 +207,115 @@
         {
           "name": "processes",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 4,
           "processes": [
             {
               "index": 1,
-              "pid": 716,
-              "resident_bytes": 118022144,
-              "proportional_bytes": 82084864,
-              "shared_clean_bytes": 48291840,
-              "private_dirty_bytes": 69722112,
-              "peak_bytes": 136908800
+              "pid": 1155,
+              "resident_bytes": 103510016,
+              "proportional_bytes": 76305408,
+              "shared_clean_bytes": 46116864,
+              "private_dirty_bytes": 57393152,
+              "peak_bytes": 148402176
             },
             {
               "index": 2,
-              "pid": 734,
-              "resident_bytes": 115372032,
-              "proportional_bytes": 80227328,
-              "shared_clean_bytes": 46854144,
-              "private_dirty_bytes": 68509696,
-              "peak_bytes": 137355264
+              "pid": 1173,
+              "resident_bytes": 62582784,
+              "proportional_bytes": 50456576,
+              "shared_clean_bytes": 16015360,
+              "private_dirty_bytes": 46567424,
+              "peak_bytes": 151064576
             },
             {
               "index": 3,
-              "pid": 770,
-              "resident_bytes": 117657600,
-              "proportional_bytes": 82334720,
-              "shared_clean_bytes": 47087616,
-              "private_dirty_bytes": 70569984,
-              "peak_bytes": 136372224
+              "pid": 1207,
+              "resident_bytes": 60125184,
+              "proportional_bytes": 48222208,
+              "shared_clean_bytes": 15679488,
+              "private_dirty_bytes": 44445696,
+              "peak_bytes": 150654976
             },
             {
               "index": 4,
-              "pid": 808,
-              "resident_bytes": 168828928,
-              "proportional_bytes": 132811776,
-              "shared_clean_bytes": 48443392,
-              "private_dirty_bytes": 70619136,
-              "peak_bytes": 168828928
+              "pid": 1247,
+              "resident_bytes": 153681920,
+              "proportional_bytes": 126475264,
+              "shared_clean_bytes": 46153728,
+              "private_dirty_bytes": 46440448,
+              "peak_bytes": 153681920
             }
           ],
           "totals": {
-            "resident_bytes": 519880704,
-            "proportional_bytes": 377458688,
-            "shared_clean_bytes": 190676992,
-            "private_dirty_bytes": 279420928,
-            "peak_bytes": 579465216,
-            "worst_private_dirty_bytes": 70619136
+            "resident_bytes": 379899904,
+            "proportional_bytes": 301459456,
+            "shared_clean_bytes": 123965440,
+            "private_dirty_bytes": 194846720,
+            "peak_bytes": 603803648,
+            "worst_private_dirty_bytes": 57393152
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 4.698833,
-            "p95_ms": 7.794333,
-            "p99_ms": 12.528541
+            "calls": 8,
+            "p50_ms": 0.880792,
+            "p95_ms": 3.698833,
+            "p99_ms": 3.698833
           },
           "call_errors": 0,
           "first_answers_ms": [
-            108.48,
-            142.918,
-            128.197,
-            140.121
+            114.421,
+            135.911,
+            141.474,
+            171.092
           ],
-          "new_client_ms": 128.837
+          "new_client_ms": 178.685
         },
         {
           "name": "daemon",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 4,
           "processes": [
             {
               "index": 1,
-              "pid": 1254,
-              "resident_bytes": 230432768,
-              "proportional_bytes": 229830656,
-              "shared_clean_bytes": 1200128,
-              "private_dirty_bytes": 131661824,
-              "peak_bytes": 262131712
+              "pid": 1356,
+              "resident_bytes": 173080576,
+              "proportional_bytes": 172096512,
+              "shared_clean_bytes": 1327104,
+              "private_dirty_bytes": 64761856,
+              "peak_bytes": 173080576
             }
           ],
           "totals": {
-            "resident_bytes": 230432768,
-            "proportional_bytes": 229830656,
-            "shared_clean_bytes": 1200128,
-            "private_dirty_bytes": 131661824,
-            "peak_bytes": 262131712,
-            "worst_private_dirty_bytes": 131661824
+            "resident_bytes": 173080576,
+            "proportional_bytes": 172096512,
+            "shared_clean_bytes": 1327104,
+            "private_dirty_bytes": 64761856,
+            "peak_bytes": 173080576,
+            "worst_private_dirty_bytes": 64761856
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 3.570167,
-            "p95_ms": 6.598583,
-            "p99_ms": 8.838125
+            "calls": 8,
+            "p50_ms": 1.31875,
+            "p95_ms": 1.856583,
+            "p99_ms": 1.856583
           },
           "call_errors": 0,
           "first_answers_ms": [
-            18.328,
-            15.223,
-            16.177,
-            16.676
+            20.545,
+            18.576,
+            20.171,
+            21.423
           ],
-          "new_client_ms": 14.191
+          "new_client_ms": 19.907
         }
       ],
       "comparison": {
-        "private_dirty_share": 0.471195285701721,
-        "private_dirty_saved_bytes": 147759104,
-        "peak_share": 0.45236832990506887,
-        "p99_ratio": 0.7054392845902806,
-        "new_client_speedup": 9.078782326826861
+        "private_dirty_share": 0.3323733445448812,
+        "private_dirty_saved_bytes": 130084864,
+        "peak_share": 0.2866504311017346,
+        "p99_ratio": 0.5019375029908082,
+        "new_client_speedup": 8.975988345808007
       }
     },
     {
@@ -324,159 +324,159 @@
         {
           "name": "processes",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 8,
           "processes": [
             {
               "index": 1,
-              "pid": 1385,
-              "resident_bytes": 119357440,
-              "proportional_bytes": 77460480,
-              "shared_clean_bytes": 48467968,
-              "private_dirty_bytes": 70881280,
-              "peak_bytes": 136851456
+              "pid": 1387,
+              "resident_bytes": 102289408,
+              "proportional_bytes": 73449472,
+              "shared_clean_bytes": 44834816,
+              "private_dirty_bytes": 57446400,
+              "peak_bytes": 150859776
             },
             {
               "index": 2,
-              "pid": 1400,
-              "resident_bytes": 116834304,
-              "proportional_bytes": 76376064,
-              "shared_clean_bytes": 46206976,
-              "private_dirty_bytes": 70627328,
-              "peak_bytes": 137252864
+              "pid": 1405,
+              "resident_bytes": 62877696,
+              "proportional_bytes": 48975872,
+              "shared_clean_bytes": 16195584,
+              "private_dirty_bytes": 46682112,
+              "peak_bytes": 151126016
             },
             {
               "index": 3,
-              "pid": 1442,
-              "resident_bytes": 118685696,
-              "proportional_bytes": 77793280,
-              "shared_clean_bytes": 46772224,
-              "private_dirty_bytes": 71913472,
-              "peak_bytes": 137388032
+              "pid": 1437,
+              "resident_bytes": 55361536,
+              "proportional_bytes": 45853696,
+              "shared_clean_bytes": 10788864,
+              "private_dirty_bytes": 44572672,
+              "peak_bytes": 150822912
             },
             {
               "index": 4,
-              "pid": 1478,
-              "resident_bytes": 115449856,
-              "proportional_bytes": 74384384,
-              "shared_clean_bytes": 46964736,
-              "private_dirty_bytes": 68485120,
-              "peak_bytes": 136888320
+              "pid": 1473,
+              "resident_bytes": 63115264,
+              "proportional_bytes": 47287296,
+              "shared_clean_bytes": 19230720,
+              "private_dirty_bytes": 43884544,
+              "peak_bytes": 150405120
             },
             {
               "index": 5,
-              "pid": 1527,
-              "resident_bytes": 115990528,
-              "proportional_bytes": 75689984,
-              "shared_clean_bytes": 46022656,
-              "private_dirty_bytes": 69967872,
-              "peak_bytes": 139452416
+              "pid": 1517,
+              "resident_bytes": 64503808,
+              "proportional_bytes": 49570816,
+              "shared_clean_bytes": 18014208,
+              "private_dirty_bytes": 46489600,
+              "peak_bytes": 152514560
             },
             {
               "index": 6,
-              "pid": 1578,
-              "resident_bytes": 116781056,
-              "proportional_bytes": 76370944,
-              "shared_clean_bytes": 46137344,
-              "private_dirty_bytes": 70565888,
-              "peak_bytes": 136740864
+              "pid": 1577,
+              "resident_bytes": 54530048,
+              "proportional_bytes": 45022208,
+              "shared_clean_bytes": 10788864,
+              "private_dirty_bytes": 43741184,
+              "peak_bytes": 150417408
             },
             {
               "index": 7,
-              "pid": 1638,
-              "resident_bytes": 115277824,
-              "proportional_bytes": 74376192,
-              "shared_clean_bytes": 46768128,
-              "private_dirty_bytes": 68509696,
-              "peak_bytes": 136974336
+              "pid": 1631,
+              "resident_bytes": 59895808,
+              "proportional_bytes": 46387200,
+              "shared_clean_bytes": 15663104,
+              "private_dirty_bytes": 44232704,
+              "peak_bytes": 150392832
             },
             {
               "index": 8,
-              "pid": 1699,
-              "resident_bytes": 168783872,
-              "proportional_bytes": 126867456,
-              "shared_clean_bytes": 48529408,
-              "private_dirty_bytes": 70602752,
-              "peak_bytes": 168783872
+              "pid": 1695,
+              "resident_bytes": 151375872,
+              "proportional_bytes": 121312256,
+              "shared_clean_bytes": 46977024,
+              "private_dirty_bytes": 44113920,
+              "peak_bytes": 151375872
             }
           ],
           "totals": {
-            "resident_bytes": 987160576,
-            "proportional_bytes": 659318784,
-            "shared_clean_bytes": 375869440,
-            "private_dirty_bytes": 561553408,
-            "peak_bytes": 1130332160,
-            "worst_private_dirty_bytes": 71913472
+            "resident_bytes": 613949440,
+            "proportional_bytes": 477858816,
+            "shared_clean_bytes": 182493184,
+            "private_dirty_bytes": 371163136,
+            "peak_bytes": 1207914496,
+            "worst_private_dirty_bytes": 57446400
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 5.258875,
-            "p95_ms": 13.115083,
-            "p99_ms": 19.391958
+            "calls": 8,
+            "p50_ms": 1.374875,
+            "p95_ms": 1.778625,
+            "p99_ms": 1.778625
           },
           "call_errors": 0,
           "first_answers_ms": [
-            153.626,
-            168.772,
-            129.874,
-            142.433,
-            154.78,
-            163.31,
-            176.737,
-            179.403
+            141.492,
+            166.476,
+            181.047,
+            167.789,
+            179.199,
+            203.475,
+            242.821,
+            184.811
           ],
-          "new_client_ms": 162.587
+          "new_client_ms": 205.121
         },
         {
           "name": "daemon",
           "snapshot_id": 1,
-          "symbols": 108737,
+          "symbols": 117499,
           "sessions": 8,
           "processes": [
             {
               "index": 1,
-              "pid": 2399,
-              "resident_bytes": 273055744,
-              "proportional_bytes": 272451584,
-              "shared_clean_bytes": 1204224,
-              "private_dirty_bytes": 174006272,
-              "peak_bytes": 349257728
+              "pid": 1841,
+              "resident_bytes": 177557504,
+              "proportional_bytes": 176572416,
+              "shared_clean_bytes": 1327104,
+              "private_dirty_bytes": 69296128,
+              "peak_bytes": 177557504
             }
           ],
           "totals": {
-            "resident_bytes": 273055744,
-            "proportional_bytes": 272451584,
-            "shared_clean_bytes": 1204224,
-            "private_dirty_bytes": 174006272,
-            "peak_bytes": 349257728,
-            "worst_private_dirty_bytes": 174006272
+            "resident_bytes": 177557504,
+            "proportional_bytes": 176572416,
+            "shared_clean_bytes": 1327104,
+            "private_dirty_bytes": 69296128,
+            "peak_bytes": 177557504,
+            "worst_private_dirty_bytes": 69296128
           },
           "latency": {
-            "calls": 2000,
-            "p50_ms": 4.53025,
-            "p95_ms": 11.912667,
-            "p99_ms": 21.970125
+            "calls": 8,
+            "p50_ms": 1.653834,
+            "p95_ms": 1.818667,
+            "p99_ms": 1.818667
           },
           "call_errors": 0,
           "first_answers_ms": [
-            16.54,
-            15.433,
-            16.848,
-            16.025,
-            16.673,
-            15.109,
-            14.638,
-            15.23
+            17.579,
+            17.613,
+            21.806,
+            17.948,
+            16.626,
+            20.587,
+            16.614,
+            16.4
           ],
-          "new_client_ms": 12.663
+          "new_client_ms": 16.396
         }
       ],
       "comparison": {
-        "private_dirty_share": 0.30986593531634304,
-        "private_dirty_saved_bytes": 387547136,
-        "peak_share": 0.3089868096825627,
-        "p99_ratio": 1.1329503188899235,
-        "new_client_speedup": 12.839532496248912
+        "private_dirty_share": 0.18669992054383333,
+        "private_dirty_saved_bytes": 301867008,
+        "peak_share": 0.14699509326858845,
+        "p99_ratio": 1.0225128961979058,
+        "new_client_speedup": 12.510429373017809
       }
     }
   ],
@@ -484,51 +484,51 @@
     "arms": [
       {
         "name": "processes",
-        "private_dirty_bytes_per_client": 70111125.14782609,
-        "private_dirty_fixed_bytes": 308624.6956521608,
+        "private_dirty_bytes_per_client": 44661430.539130434,
+        "private_dirty_fixed_bytes": 14756819.478260871,
         "marginals": [
           {
             "from_clients": 1,
             "to_clients": 2,
-            "private_dirty_bytes_per_client": 72146944
+            "private_dirty_bytes_per_client": 48947200
           },
           {
             "from_clients": 2,
             "to_clients": 4,
-            "private_dirty_bytes_per_client": 68691968
+            "private_dirty_bytes_per_client": 44451840
           },
           {
             "from_clients": 4,
             "to_clients": 8,
-            "private_dirty_bytes_per_client": 70533120
+            "private_dirty_bytes_per_client": 44079104
           }
         ]
       },
       {
         "name": "daemon",
-        "private_dirty_bytes_per_client": 13137082.991304347,
-        "private_dirty_fixed_bytes": 72193602.7826087,
+        "private_dirty_bytes_per_client": 1086508.5217391304,
+        "private_dirty_fixed_bytes": 60885081.04347826,
         "marginals": [
           {
             "from_clients": 1,
             "to_clients": 2,
-            "private_dirty_bytes_per_client": 21229568
+            "private_dirty_bytes_per_client": 7086080
           },
           {
             "from_clients": 2,
             "to_clients": 4,
-            "private_dirty_bytes_per_client": 15482880
+            "private_dirty_bytes_per_client": -835584
           },
           {
             "from_clients": 4,
             "to_clients": 8,
-            "private_dirty_bytes_per_client": 10586112
+            "private_dirty_bytes_per_client": 1133568
           }
         ]
       }
     ],
-    "slope_ratio": 0.18737515570610813,
-    "crossover_clients": 1.2617145522073154
+    "slope_ratio": 0.024327669504163735,
+    "crossover_clients": 1.0585965374030277
   },
   "limitations": []
 }
