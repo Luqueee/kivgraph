@@ -1,146 +1,401 @@
 ---
-// A preview surface, not a published page: it exists to choose the hero field
-// by looking at the candidates side by side. It deliberately does not use
-// Layout.astro -- that shell emits the site's JSON-LD graph and the canonical
-// of a real page, and a preview URL must claim neither. `noindex` is stated
-// here for the same reason.
+// A preview surface, not a published page: it exists to choose the hero by
+// looking at the candidates instead of describing them. It deliberately does
+// not use Layout.astro -- that shell emits the site's JSON-LD graph and the
+// canonical of a real page, and a preview URL must claim neither. `noindex`
+// keeps it out of search; it is absent from `llms.txt` because that endpoint
+// lists the `docs` collection, which this route is not part of.
 //
-// Delete this route, `src/lib/hero-variants.ts` and the exports it borrows from
-// `hero-graph.ts` once the hero is decided.
+// Delete this route once the hero is decided.
 import "../styles/global.css";
+import CopyButton from "../components/landing/CopyButton.astro";
+import TokenSaving from "../components/landing/TokenSaving.astro";
 
+const installCommand =
+  "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
+
+// Every candidate is CSS: repeating gradients on a transformed or masked plane,
+// one `animation`, no canvas and no script. The field the shipped hero draws
+// costs 415 lines, a `requestAnimationFrame` loop, a `ResizeObserver`, an
+// `IntersectionObserver` and a palette read from the cascade.
 const variants = [
   {
-    key: "ripple",
-    label: "A",
-    title: "Impact radius",
-    body: "One symbol at the centre, concentric rings by hop count, every edge radial. get_blast_radius drawn literally. Two edges cannot cross: a child never leaves its parent's bearing.",
+    id: "grid",
+    label: "A - receding grid",
+    note: "A plane in perspective, horizontal lines drifting one tile toward the viewer. The vanishing point sits off-screen, so there is no skyline.",
   },
   {
-    key: "layers",
-    label: "B",
-    title: "Layered dependency graph",
-    body: "Repository, package, symbol as three columns. Every edge is monotone left to right, so crossings are impossible by construction. The shape a monorepo task graph already uses.",
+    id: "dots",
+    label: "B - dot matrix",
+    note: "A dot lattice rising slowly under a radial mask. No line to align with the copy, so the text sits on texture rather than on structure.",
   },
   {
-    key: "clusters",
-    label: "C",
-    title: "Three clusters",
-    body: "Containment stays a faint texture and only the cross-repository edges are lit. Keeps the constellation feel of the current field, with structure under it.",
+    id: "rings",
+    label: "C - concentric rings",
+    note: "Rings expanding from the centre, the shape `get_blast_radius` answers. Movement has a cause: it propagates outward and fades.",
   },
   {
-    key: "spine",
-    label: "D",
-    title: "One traced path",
-    body: "A component reaching the handler that serves it, with the rest of the graph quiet around it. One head travels the whole chain, because the claim is the path.",
+    id: "beams",
+    label: "D - drifting beams",
+    note: "Three wide soft columns crossing the band, tinted with the repository token. The only candidate that carries hue.",
   },
-] as const;
-
-export const prerender = true;
+  {
+    id: "sheen",
+    label: "E - grid with a sheen",
+    note: "A flat grid that never moves, with one diagonal highlight sweeping across it. Structure stays still; only light travels.",
+  },
+];
 ---
 
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Hero field variants — Kivgraph</title>
+    <title>Hero backdrop candidates</title>
   </head>
   <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
-    <header class="border-b border-rule">
-      <div class="mx-auto box-border w-full max-w-6xl px-6 py-6">
-        <h1 class="text-lg font-medium tracking-tight text-gray-100">
-          Hero field variants
-        </h1>
-        <p class="mt-3 max-w-[68ch] text-sm text-gray-300">
-          Four candidates for the hero graph, plus the field currently shipped.
-          Each one is deterministic: the positions come from the structure, not
-          from a hash of the node index. Cadence and density are tunable — judge
-          the layout and the kind of motion, not the exact speed.
-        </p>
-        <p class="mt-3 text-xs text-gray-400">
-          This page is <code>noindex</code> and is deleted once the hero is
-          chosen.
+    <header class="border-b border-rule-strong">
+      <div class="mx-auto box-border w-full max-w-6xl px-6 py-4">
+        <p class="text-sm text-gray-100">hero backdrop candidates</p>
+        <p class="mt-2 max-w-[76ch] text-xs text-gray-400">
+          The same centred hero five times; only the backdrop differs. Every
+          candidate is pure CSS: no canvas, no <code>
+            requestAnimationFrame
+          </code>, no observers, and one <code>animation</code> that a
+          <code>prefers-reduced-motion</code> query switches off. The synthetic
+          graph is gone from all five.
         </p>
       </div>
     </header>
 
-    <main class="mx-auto box-border w-full max-w-6xl px-6 py-10">
-      <div class="grid grid-cols-1 gap-10 lg:grid-cols-2">
-        {
-          variants.map((variant) => (
-            <section class="border border-rule bg-panel">
-              <div
-                class="flex items-baseline gap-3 border-b border-rule px-4 py-3"
-              >
-                <span class="text-xs text-gray-400">{variant.label}</span>
-                <h2 class="text-sm font-medium text-gray-100">
-                  {variant.title}
-                </h2>
-              </div>
-              <canvas
-                class="field"
-                data-variant={variant.key}
-                role="img"
-                aria-label={variant.title}
-              />
-              <p class="border-t border-rule px-4 py-3 text-xs leading-5 text-gray-400">
-                {variant.body}
+    <main>
+      {
+        variants.map((variant) => (
+          <article class="border-b border-rule-strong">
+            <div class="mx-auto box-border w-full max-w-6xl px-6 pt-6">
+              <p class="text-xs text-gray-100">{variant.label}</p>
+              <p class="mt-2 max-w-[76ch] text-xs text-gray-400">
+                {variant.note}
               </p>
-            </section>
-          ))
-        }
+            </div>
 
-        <section class="border border-rule-strong bg-panel">
-          <div class="flex items-baseline gap-3 border-b border-rule px-4 py-3">
-            <span class="text-xs text-gray-400">—</span>
-            <h2 class="text-sm font-medium text-gray-100">
-              Currently shipped, for reference
-            </h2>
-          </div>
-          <canvas
-            id="hero-current"
-            class="field"
-            role="img"
-            aria-label="The hero field currently in production"></canvas>
-          <p
-            class="border-t border-rule px-4 py-3 text-xs leading-5 text-gray-400"
-          >
-            Orbital layout with hash jitter: a node's position encodes no
-            relation, so the crossings carry no meaning. This is the one being
-            replaced.
-          </p>
-        </section>
-      </div>
+            <section class="stage" data-backdrop={variant.id}>
+              <div class="plane" aria-hidden="true" />
+              <div class="veil" aria-hidden="true" />
+
+              <div class="mx-auto box-border w-full max-w-6xl px-6 py-20 text-center">
+                <h1 class="mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-5xl">
+                  Local cross-repository code intelligence for AI coding agents
+                </h1>
+                <p class="mx-auto mt-6 max-w-2xl text-sm leading-6 text-gray-300">
+                  Kivgraph builds a canonical semantic code graph for Go,
+                  TypeScript, Rust, Python and Dart repositories and serves
+                  repository relationships, references and change impact to MCP
+                  clients over stdio.
+                </p>
+
+                <div class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs">
+                  <a
+                    href="/install/"
+                    class="border border-rule-strong bg-raise px-4 py-2 text-gray-100"
+                  >
+                    install guide →
+                  </a>
+                  <a
+                    href="https://github.com/Luqueee/kivgraph"
+                    class="border border-rule px-4 py-2 text-gray-300"
+                  >
+                    github.com/Luqueee/kivgraph
+                  </a>
+                </div>
+
+                <div class="mx-auto mt-12 max-w-2xl border border-rule bg-panel text-left">
+                  <div class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400">
+                    <span>install the latest release</span>
+                    <CopyButton value={installCommand} />
+                  </div>
+                  <pre class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
+                </div>
+
+                <div class="mx-auto mt-8 max-w-2xl text-left">
+                  <TokenSaving />
+                </div>
+              </div>
+            </section>
+          </article>
+        ))
+      }
     </main>
 
     <style>
-      /* Both axes are stated. Leaving one to the intrinsic size lets the
-         drawing buffer feed back into the element box and the canvas grows
-         without bound. */
-      .field {
-        display: block;
-        width: 100%;
-        height: 380px;
+      /* Every candidate shares the same two layers: `.plane` carries the
+         pattern and the motion, `.veil` puts page colour back under the copy
+         and dissolves the pattern into the bands above and below. Only the
+         `[data-backdrop]` blocks differ. */
+      .stage {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
       }
-    </style>
 
-    <script>
-      import { startHeroGraph } from "../lib/hero-graph";
-      import { mountVariant, type VariantName } from "../lib/hero-variants";
+      .plane {
+        position: absolute;
+        z-index: -2;
+      }
 
-      for (const canvas of document.querySelectorAll("canvas[data-variant]")) {
-        const variant = canvas.getAttribute("data-variant");
-        if (canvas instanceof HTMLCanvasElement && variant !== null) {
-          mountVariant(canvas, variant as VariantName);
+      /* The veil is a seam, not a scrim. It only has to stop the pattern at the
+         band's edges so it does not butt against the header's hairline; a wash
+         heavy enough to "protect" the copy erases the pattern instead, which is
+         how the first pass ended up with five invisible backdrops. 1px lines at
+         `rule-strong` do not compete with text at any weight on this page. */
+      .veil {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+          radial-gradient(
+            ellipse 56% 46% at 50% 44%,
+            color-mix(in oklab, var(--color-shell) 28%, transparent),
+            transparent 72%
+          ),
+          linear-gradient(to bottom, var(--color-shell) 0%, transparent 9%),
+          linear-gradient(to top, var(--color-shell) 0%, transparent 11%);
+      }
+
+      /* A - receding grid. Three things decide whether this reads as a plane or
+         as nothing, and all three were measured rather than reasoned about:
+
+         - the plane must be far taller than the band. `rotateX` folds it away
+           from the origin, so a plane the height of its own box stops well
+           short of the horizon and leaves the top empty.
+         - `perspective` fixes where the horizon lands: short values put it in
+           the middle of the band, long ones magnify the near field until only
+           two lines are left in view.
+         - the tile has to be small enough that the magnified near field still
+           carries several lines.
+
+         Only the horizontal layer moves, by exactly one tile, so the loop has
+         no seam; sliding the converging lines too would read as a zoom. */
+      [data-backdrop="grid"] .plane {
+        inset: -300% -35% -6%;
+        background-image:
+          repeating-linear-gradient(
+            to right,
+            var(--color-rule-strong) 0 1px,
+            transparent 1px 60px
+          ),
+          repeating-linear-gradient(
+            to bottom,
+            var(--color-rule-strong) 0 1px,
+            transparent 1px 60px
+          );
+        transform: perspective(46rem) rotateX(62deg);
+        transform-origin: 50% 100%;
+        /* The mask lives in the plane's own box, before the transform, and that
+           box is four times the band's height: its top rows are the far field
+           that folds toward the horizon, its bottom rows the near field. So the
+           fade belongs at the top -- a window in the middle, which is what the
+           obvious reading of these percentages gives you, hides the near field
+           and leaves the horizon exposed as a skyline. */
+        -webkit-mask-image: linear-gradient(
+          to bottom,
+          transparent 0%,
+          #000 58%,
+          #000 100%
+        );
+        mask-image: linear-gradient(
+          to bottom,
+          transparent 0%,
+          #000 58%,
+          #000 100%
+        );
+        animation: grid-drift 22s linear infinite;
+      }
+
+      @keyframes grid-drift {
+        from {
+          background-position:
+            0 0,
+            0 0;
+        }
+        to {
+          background-position:
+            0 0,
+            0 60px;
         }
       }
 
-      const current = document.getElementById("hero-current");
-      if (current instanceof HTMLCanvasElement) {
-        startHeroGraph(current);
+      /* B - dot matrix. One radial gradient tiled, rising by one tile. The mask
+         is wider than the grid's because a lattice with no lines has no edge of
+         its own to hide. */
+      [data-backdrop="dots"] .plane {
+        inset: 0;
+        background-image: radial-gradient(
+          circle at 1px 1px,
+          color-mix(in oklab, var(--color-rule-strong) 95%, transparent) 1px,
+          transparent 1.6px
+        );
+        background-size: 26px 26px;
+        -webkit-mask-image: radial-gradient(
+          ellipse 78% 70% at 50% 50%,
+          #000 0%,
+          transparent 82%
+        );
+        mask-image: radial-gradient(
+          ellipse 78% 70% at 50% 50%,
+          #000 0%,
+          transparent 82%
+        );
+        animation: dots-rise 18s linear infinite;
       }
-    </script>
+
+      @keyframes dots-rise {
+        from {
+          background-position: 0 0;
+        }
+        to {
+          background-position: 0 -26px;
+        }
+      }
+
+      /* C - concentric rings. The shape `get_blast_radius` answers: a symbol at
+         the centre and rings by hop count. The plane is square and oversized so
+         the rings stay circular whatever the band's aspect ratio is, and the
+         pulse scales rather than repainting, which keeps it on the compositor. */
+      [data-backdrop="rings"] .plane {
+        top: 50%;
+        left: 50%;
+        aspect-ratio: 1;
+        width: max(140vw, 1200px);
+        translate: -50% -50%;
+        background-image: repeating-radial-gradient(
+          circle at 50% 50%,
+          color-mix(in oklab, var(--color-rule-strong) 90%, transparent) 0 1px,
+          transparent 1px 76px
+        );
+        -webkit-mask-image: radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          transparent 62%
+        );
+        mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 62%);
+        animation: rings-propagate 9s ease-out infinite;
+      }
+
+      @keyframes rings-propagate {
+        from {
+          scale: 0.92;
+          opacity: 0.25;
+        }
+        45% {
+          opacity: 1;
+        }
+        to {
+          scale: 1.14;
+          opacity: 0;
+        }
+      }
+
+      /* D - drifting beams. Three soft columns, tinted with the repository
+         token: the one candidate that carries hue. `translate` moves the plane
+         instead of its background so the browser keeps it on the compositor,
+         and the plane is 200% wide so the loop never exposes an edge. */
+      [data-backdrop="beams"] .plane {
+        inset: -20% 0;
+        width: 200%;
+        background-image:
+          linear-gradient(
+            100deg,
+            transparent 0%,
+            color-mix(in oklab, var(--color-graph-repository) 9%, transparent)
+              14%,
+            transparent 28%
+          ),
+          linear-gradient(
+            100deg,
+            transparent 34%,
+            color-mix(in oklab, var(--color-graph-package) 7%, transparent) 46%,
+            transparent 58%
+          ),
+          linear-gradient(
+            100deg,
+            transparent 64%,
+            color-mix(in oklab, var(--color-rule-strong) 90%, transparent) 76%,
+            transparent 88%
+          );
+        filter: blur(18px);
+        animation: beams-drift 28s linear infinite;
+      }
+
+      @keyframes beams-drift {
+        from {
+          translate: 0 0;
+        }
+        to {
+          translate: -50% 0;
+        }
+      }
+
+      /* E - grid with a sheen. The structure never moves; a single diagonal
+         highlight travels across it. Two elements would be cheaper to read but
+         the sheen has to be clipped by the grid, so it is the grid's own
+         `::after`. */
+      [data-backdrop="sheen"] .plane {
+        inset: 0;
+        background-image:
+          repeating-linear-gradient(
+            to right,
+            color-mix(in oklab, var(--color-rule-strong) 80%, transparent) 0 1px,
+            transparent 1px 72px
+          ),
+          repeating-linear-gradient(
+            to bottom,
+            color-mix(in oklab, var(--color-rule-strong) 80%, transparent) 0 1px,
+            transparent 1px 72px
+          );
+        -webkit-mask-image: radial-gradient(
+          ellipse 76% 66% at 50% 50%,
+          #000 0%,
+          transparent 80%
+        );
+        mask-image: radial-gradient(
+          ellipse 76% 66% at 50% 50%,
+          #000 0%,
+          transparent 80%
+        );
+      }
+
+      [data-backdrop="sheen"] .plane::after {
+        position: absolute;
+        content: "";
+        inset: -50% -100%;
+        background: linear-gradient(
+          100deg,
+          transparent 42%,
+          color-mix(in oklab, var(--color-gray-100) 6%, transparent) 50%,
+          transparent 58%
+        );
+        animation: sheen-sweep 14s ease-in-out infinite;
+      }
+
+      @keyframes sheen-sweep {
+        from {
+          translate: -35% 0;
+        }
+        to {
+          translate: 35% 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .plane,
+        .plane::after {
+          animation: none;
+        }
+      }
+    </style>
   </body>
 </html>
