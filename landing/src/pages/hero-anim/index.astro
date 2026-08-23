@@ -1,0 +1,69 @@
+---
+// The list of candidate hero animations. Each entry is its own page, because an
+// entrance animation is judged at full size and from the top of the document,
+// which a grid of panels cannot show.
+//
+// A preview surface, not a published page: `noindex`. Delete this directory and
+// `src/lib/hero-anim.ts` once a variant is chosen.
+import { VARIANTS } from "../../lib/hero-anim";
+import "../../styles/global.css";
+
+const variants = Object.entries(VARIANTS);
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Hero animation candidates</title>
+  </head>
+  <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
+    <header class="border-b border-rule-strong">
+      <div class="mx-auto box-border w-full max-w-6xl px-6 py-4">
+        <h1 class="text-sm text-gray-100">hero animation candidates</h1>
+        <p class="mt-2 max-w-[76ch] text-xs text-gray-400">
+          One page each, on the real hero. Every page carries a
+          <code>replay</code> button, and the two that answer the pointer say so
+          instead of pretending to have an entrance. The title never animates
+          behind a delay: measured, that is the difference between
+          <span class="text-gray-100">88ms</span> and
+          <span class="text-gray-100">1112ms</span> of LCP.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <ul>
+        {
+          variants.map(([name, variant]) => (
+            <li class="border-b border-rule">
+              <a
+                href={`/hero-anim/${name}/`}
+                class="group block px-6 py-6 transition-colors hover:bg-panel"
+              >
+                <div class="mx-auto box-border w-full max-w-6xl">
+                  <p class="text-sm text-gray-100 group-hover:underline group-hover:underline-offset-4">
+                    {variant.label}
+                  </p>
+                  <p class="mt-2 max-w-[76ch] text-xs text-gray-400">
+                    {variant.summary}
+                  </p>
+                  <p class="mt-2 max-w-[76ch] text-xs text-gray-500">
+                    {variant.cost}
+                  </p>
+                  {variant.interaction !== null && (
+                    <p class="mt-2 text-xs text-graph-exact">
+                      {variant.interaction}
+                    </p>
+                  )}
+                </div>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </main>
+  </body>
+</html>

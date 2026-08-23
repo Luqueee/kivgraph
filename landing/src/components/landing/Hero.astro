@@ -32,17 +32,24 @@ const readout = [
     class="mx-auto box-border w-full max-w-6xl px-6 py-20 text-center sm:py-24"
   >
     <h1
+      data-hero-item="title"
       class="mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-5xl"
     >
       Local cross-repository code intelligence for AI coding agents
     </h1>
-    <p class="mx-auto mt-6 max-w-2xl text-sm leading-6 text-gray-300">
+    <p
+      data-hero-item="lede"
+      class="mx-auto mt-6 max-w-2xl text-sm leading-6 text-gray-300"
+    >
       Kivgraph builds a canonical semantic code graph for Go, TypeScript, Rust,
       Python and Dart repositories and serves repository relationships,
       references and change impact to MCP clients over stdio.
     </p>
 
-    <div class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs">
+    <div
+      data-hero-item="actions"
+      class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs"
+    >
       <a
         href="/install/"
         class="border border-rule-strong bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
@@ -57,7 +64,10 @@ const readout = [
       >
     </div>
 
-    <div class="mx-auto mt-12 max-w-2xl border border-rule bg-panel text-left">
+    <div
+      data-hero-item="install"
+      class="mx-auto mt-12 max-w-2xl border border-rule bg-panel text-left"
+    >
       <div
         class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
       >
@@ -68,11 +78,12 @@ const readout = [
         class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
     </div>
 
-    <div class="mx-auto mt-8 max-w-2xl text-left">
+    <div data-hero-item="card" class="mx-auto mt-8 max-w-2xl text-left">
       <TokenSaving />
     </div>
 
     <ul
+      data-hero-item="facts"
       class="mt-12 flex flex-wrap justify-center gap-y-2 text-xs text-gray-400"
     >
       {
@@ -167,7 +178,9 @@ const readout = [
       color-mix(in oklab, var(--color-gray-100) 7%, transparent) 50%,
       transparent 58%
     );
-    animation: sheen 15s ease-in-out infinite alternate;
+    /* The duration is a variable so an entrance animation can borrow the loop
+       for one fast pass and then hand it back by removing the property. */
+    animation: sheen var(--sheen-duration, 15s) ease-in-out infinite alternate;
   }
 
   @keyframes sheen {

@@ -1,0 +1,164 @@
+---
+// One page per candidate hero animation, so each one is judged on the real
+// hero at real size instead of in a grid of thumbnails. `Hero.astro` is
+// imported here exactly as the homepage imports it: what you see is what would
+// ship.
+//
+// A preview surface, not a published page: `noindex`, and absent from
+// `llms.txt` because that endpoint lists the `docs` collection. Delete this
+// route with `src/lib/hero-anim.ts` once a variant is chosen.
+import Hero from "../../components/landing/Hero.astro";
+import { VARIANTS, type VariantName } from "../../lib/hero-anim";
+import "../../styles/global.css";
+
+export function getStaticPaths() {
+  return Object.keys(VARIANTS).map((variant) => ({ params: { variant } }));
+}
+
+const variant = Astro.params.variant as VariantName;
+const detail = VARIANTS[variant];
+
+const others = Object.entries(VARIANTS).filter(([name]) => name !== variant);
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{detail.label} - hero animation</title>
+  </head>
+  <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
+    <main data-hero-root data-variant={variant}>
+      <Hero />
+    </main>
+
+    <section class="border-t border-rule-strong">
+      <div class="mx-auto box-border w-full max-w-6xl px-6 py-6">
+        <h1 class="text-sm text-gray-100">{detail.label}</h1>
+        <p class="mt-2 max-w-[76ch] text-xs text-gray-400">{detail.summary}</p>
+        <p class="mt-2 max-w-[76ch] text-xs text-gray-400">{detail.cost}</p>
+        {
+          detail.interaction !== null && (
+            <p class="mt-2 max-w-[76ch] text-xs text-graph-exact">
+              {detail.interaction}
+            </p>
+          )
+        }
+
+        <nav class="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs" aria-label="Variants">
+          {
+            others.map(([name, other]) => (
+              <a
+                href={`/hero-anim/${name}/`}
+                class="text-gray-400 underline-offset-4 hover:text-gray-100 hover:underline"
+              >
+                {other.label}
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+    </section>
+
+    <!-- Fixed, because the entrance is at the top of a page that scrolls: a
+      button in the flow would be out of view exactly when it is needed. -->
+    <div class="replay-bar">
+      <button type="button" data-replay>replay ↻</button>
+      <span data-replay-note class="text-gray-400"></span>
+    </div>
+
+    <style>
+      .replay-bar {
+        position: fixed;
+        bottom: 1.25rem;
+        left: 50%;
+        translate: -50% 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--color-rule-strong);
+        background-color: var(--color-panel);
+        font-size: var(--text-xs);
+        z-index: 20;
+      }
+
+      .replay-bar button {
+        appearance: none;
+        border: 1px solid var(--color-rule-strong);
+        background: none;
+        padding: 0.25rem 0.75rem;
+        color: var(--color-gray-100);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .replay-bar button:hover {
+        background-color: var(--color-raise);
+      }
+
+      .replay-bar button:disabled {
+        color: var(--color-gray-500);
+        cursor: default;
+      }
+
+      /* SplitText's line wrapper. The words rise out of it, so it has to clip;
+         `inline-block` keeps it in the box the line already occupied. */
+      :global(.hero-line) {
+        display: inline-block;
+        overflow: hidden;
+      }
+
+      /* The pointer halo. It is a figure: no pointer events, no layout. */
+      :global(.hero-halo) {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 22rem;
+        height: 22rem;
+        margin: -11rem 0 0 -11rem;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          color-mix(in oklab, var(--color-graph-repository) 26%, transparent),
+          transparent 68%
+        );
+        filter: blur(28px);
+        opacity: 0;
+        pointer-events: none;
+        z-index: -1;
+      }
+    </style>
+
+    <script>
+      import { mountVariant, type VariantName } from "../../lib/hero-anim";
+
+      const host = document.querySelector<HTMLElement>("[data-hero-root]");
+      const root = host?.querySelector<HTMLElement>(".stage") ?? null;
+      const button = document.querySelector<HTMLButtonElement>("[data-replay]");
+      const note = document.querySelector<HTMLElement>("[data-replay-note]");
+      // The page renders the name into the DOM rather than the script parsing
+      // the URL: a script cannot read frontmatter, and a route is not an API.
+      const variant = (host?.dataset.variant ?? null) as VariantName | null;
+
+      if (root !== null && variant !== null) {
+        const mounted = mountVariant(root, variant);
+
+        if (button !== null) {
+          if (mounted.hasEntrance) {
+            button.addEventListener("click", () => mounted.replay());
+          } else {
+            button.disabled = true;
+          }
+        }
+        if (note !== null) {
+          note.textContent = mounted.hasEntrance
+            ? "or reload the page"
+            : "nothing to replay: this one answers the pointer";
+        }
+      }
+    </script>
+  </body>
+</html>
