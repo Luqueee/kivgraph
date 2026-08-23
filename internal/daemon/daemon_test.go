@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -213,6 +214,38 @@ func TestShuttingDownIsNotReportedAsAFailure(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Serve() did not return after the context was cancelled")
+	}
+}
+
+// TestListenCreatesThePrivateSocketWithoutAChmod pins both halves of how the
+// mode is set. The mode itself matters on Linux, where connect checks write
+// permission on the socket; and it has to be there without a chmod, because
+// chmod on a socket returns EINVAL on some filesystems and a daemon that needed
+// it could not start there at all.
+func TestListenCreatesThePrivateSocketWithoutAChmod(t *testing.T) {
+	// A permissive umask, which is what makes this a test of the code and not
+	// of the environment: without narrowing, the socket would be 0777 here.
+	previous := syscall.Umask(0)
+	t.Cleanup(func() { syscall.Umask(previous) })
+
+	directory := shortTempDir(t)
+	listener, err := Listen(Options{StateDirectory: directory})
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	info, err := os.Lstat(filepath.Join(directory, SocketName))
+	if err != nil {
+		t.Fatalf("stat the socket: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Fatalf("socket mode = %#o, want 0600 under a permissive umask", mode)
+	}
+	// And the umask is given back: a library that kept it would silently
+	// narrow every file the rest of the process creates.
+	if now := syscall.Umask(0); now != 0 {
+		t.Fatalf("umask after Listen = %#o, want the 0 it was called with", now)
 	}
 }
 

@@ -1,18 +1,21 @@
 // Package daemon serves MCP to many clients from one process.
 //
-// What is measured is the cost of the arrangement this replaces: a server keeps
-// about `71 MB` of private dirty pages whatever the mapped file gives it for
-// free, and that figure is flat in the number of clients -- four of them each
-// paid their own share in `benchmarks/load-cost-resident`, on Linux. Nothing in
-// `LUQUE-2216` to `LUQUE-2220` moved it: they took `60,5 MB` off what a load
-// *allocates*, which the allocator recycles rather than keeps.
+// The saving is measured, and it is the slope rather than any one total: N
+// servers cost `66` to `67 MB` of private dirty pages *per client*, and a daemon
+// costs `0,2` to `2,3 MB` per client on top of one load. At eight clients that is
+// `533 MB` against `68`-`82`, and the peak `1.046 MB` against `188`. Three runs
+// over `108.737` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`.
 //
-// What one process for many clients costs instead is not measured yet. The
-// snapshot is already shared -- it is the same mapped file in every server, and
-// those pages are clean -- so the bytes at stake are the private ones, and a
-// daemon's own share of them grows with each session it builds a server for.
-// `LUQUE-2222` measures it. Until then the saving here is arithmetic on a
-// measured per-process figure, not an observation.
+// What is *not* the saving is the snapshot. It is the same mapped file in every
+// server and those pages are clean, so a reader expecting its `78 MB` to
+// disappear is looking at the wrong half: the bytes at stake are the private
+// ones. Nor did allocating less buy them -- `LUQUE-2216` to `LUQUE-2220` took
+// `60,5 MB` off what a load allocates and the resident figure moved `0,75 %`,
+// because the allocator recycles those pages rather than keeping them.
+//
+// At one client a daemon is neither better nor worse, within a megabyte of
+// noise: the per-session MCP server does not show up against the cost of a load.
+// It wins from the second client on.
 package daemon
 
 import (
@@ -84,12 +87,23 @@ type Options struct {
 // is a file, and bind refuses an existing path. Removing it is safe because the
 // path is inside the state directory and because a live daemon holding it would
 // answer -- which is what Dial checks before this is called.
+//
+// The socket is created with its mode already restricted rather than chmod'd
+// afterwards, and that is not a style choice: chmod on a socket returns EINVAL
+// on some filesystems -- a virtiofs bind mount is one -- so a daemon that set the
+// mode after binding could not start there at all. Measured while running
+// `benchmarks/daemon-cost` under Docker.
+//
+// What the mode buys is platform-dependent, so neither half is left implicit.
+// Linux checks write permission on the socket at connect, so 0600 is a real
+// gate. Darwin ignores socket permissions for connect entirely; there the gate
+// is the state directory, which has to be traversed to reach the path at all.
 func Listen(options Options) (net.Listener, error) {
 	path, err := SocketPath(options.StateDirectory)
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(options.StateDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(options.StateDirectory, 0o700); err != nil {
 		return nil, fmt.Errorf("create the state directory: %w", err)
 	}
 	if _, err := os.Stat(path); err == nil {
@@ -101,14 +115,18 @@ func Listen(options Options) (net.Listener, error) {
 			return nil, fmt.Errorf("remove the stale socket %s: %w", path, err)
 		}
 	}
-	listener, err := net.Listen("unix", path)
-	if err != nil {
-		return nil, fmt.Errorf("listen on %s: %w", path, err)
-	}
-	// The socket carries the whole graph, so it is the owner's alone.
-	if err := os.Chmod(path, 0o600); err != nil {
-		_ = listener.Close()
-		return nil, fmt.Errorf("restrict %s: %w", path, err)
+	// The socket carries the whole graph, so it is the owner's alone whatever
+	// umask the caller happened to have.
+	var listener net.Listener
+	if err := withPrivateUmask(func() error {
+		bound, err := net.Listen("unix", path)
+		if err != nil {
+			return fmt.Errorf("listen on %s: %w", path, err)
+		}
+		listener = bound
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	return listener, nil
 }
