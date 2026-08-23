@@ -15079,8 +15079,15 @@ de claves retiradas está publicada.
 
 **Condición que la reabre:** que el arnés de LUQUE-2006 mida un
 `Private_Dirty` por proceso por encima de **100 MB**, o un corpus donde el
-fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace: su
-ahorro sería de decenas de megabytes y su coste es un demonio.
+fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace --
+pero **no por el motivo que aquí decía**. Decía «su ahorro sería de decenas de
+megabytes», y eso está mal: el `Private_Dirty` es plano en el número de
+clientes, así que con ocho servidores son `789 MB` de heap privado donde un
+demonio dejaría uno. Lo que la mantiene cerrada es otra cosa: que hay una vía
+más barata para el mismo byte, medida en `LUQUE-2216`. Dos tercios de lo que la
+carga asigna es basura suya, y la mitad de esa basura tiene nombre. Bajarlo
+mejora **toda** instalación, de un proceso o de ocho, y aleja este cruce sin
+construir un demonio.
 
 **Medido el `2026-08-22`, y queda cerca:** `94,3`–`98,1 MB` por proceso sobre
 `kena-workspace`, `161.819` símbolos. La condición no se cumple, pero por poco,
@@ -16890,5 +16897,48 @@ superficie.
 revirtiendo cada mitad por separado; el binario real por MCP; y las `21`
 capturas JSON de las dos páginas parseadas, con `coverage` sólo en las de vista
 `full` y a cero. Ver ADR 0064.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2216 — Qué hay dentro del heap privado de un proceso
+
+**Dependencias:** `LUQUE-2006`.
+
+**Objetivo:** separar, en lo que cuesta cargar un snapshot, la respuesta del
+trabajo de llegar a ella. Son la misma cifra en `Private_Dirty` y se arreglan al
+revés.
+
+**Alcance:** `benchmarks/snapshot-heap`, sin tocar producción.
+
+**Criterios de aceptación:**
+
+- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos, `337.314`
+  aristas, fichero de `86,7 MB`: la carga **asigna `89,7 MB` y conserva
+  `27,7`**. El `69 %` de lo que pide es basura suya. `247 B` por símbolo vivos
+  contra `801` asignados.
+- Y la mitad de esa basura tiene nombre: **cada tabla de ancho fijo se copia
+  dos veces**. Los `decode*` de `readSnapshot` asignan un slice por sección y
+  copian dentro los bytes mapeados; `NewGraphSnapshot` vuelve a copiar cada uno
+  (`snapshot.go:256-269`). Las parejas del perfil son exactas, no parecidas:
+  `decodeSymbols` `5.056 kB` contra la línea de símbolos `5.056 kB`;
+  `decodeEvidence` `6.592` contra `6.592`; `decodeEdges` `7.920` contra los dos
+  `3.961,73` de las dos direcciones. Aritmética sobre las filas: `19,8 MB`.
+- La segunda copia es correcta en el constructor y superflua en el lector: existe
+  para que un llamante pueda seguir mutando lo que pasó, y el lector pasa slices
+  que decodificó una sentencia antes y que nadie más puede nombrar.
+- El otro bloque con nombre es validación: `validReverseCounterpart`
+  (`snapshot.go:478`) construye un mapa con clave en **cada arista directa** para
+  probar que el CSR inverso es su permutación, y lo tira -- `13,7 MB` en la
+  pasada de asignación.
+- El perfil se toma con el snapshot **vivo**, que es lo que el benchmark del
+  paquete no puede hacer: el suyo se escribe cuando ya es inalcanzable y no
+  atribuye ni un byte vivo. Ése fue el primer intento y salió en `0,34 kB`.
+- No se arregla nada aquí. Medir antes de tocar es el punto: los bytes vivos se
+  atacan moviendo una estructura al fichero, y los transitorios no
+  asignándolos.
+
+**Verificación:** `go run ./benchmarks/snapshot-heap -generation-dir <generación>`
+sobre una generación publicada real. Tres pasadas del mismo binario dan el vivo
+byte a byte idéntico y el asignado dentro de `0,1 MB`.
 
 **Estado:** cerrada el `2026-08-23`.

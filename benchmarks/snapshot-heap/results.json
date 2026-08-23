@@ -1,0 +1,49 @@
+{
+  "benchmark": "snapshot-heap",
+  "date": "2026-08-23",
+  "commit": "c420490",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "go": "go1.26.4"
+  },
+  "corpus": {
+    "generation_dir": "/Users/adria/.cache/kivheap/.local/state/kivgraph/generations/000001",
+    "snapshot_file_bytes": 90935856,
+    "repositories": 35,
+    "symbols": 117499,
+    "edges": 337314,
+    "interned_strings": 582242
+  },
+  "heap": {
+    "allocated_bytes": 94072248,
+    "live_bytes": 29034952,
+    "transient_bytes": 65037296,
+    "live_bytes_per_symbol": 247.10807751555333,
+    "allocated_bytes_per_symbol": 800.6216903973651,
+    "transient_share_of_allocated": 0.6913547553365579,
+    "duplicated_table_bytes": 20712808,
+    "live_profile_path": "benchmarks/snapshot-heap/live.pprof"
+  },
+  "mappable": {
+    "string_arena_bytes": 58867396,
+    "stable_key_table_bytes": 6579948,
+    "fixed_width_record_bytes": 12617272,
+    "csr_edge_bytes": 8095536,
+    "total_bytes": 86160152
+  },
+  "findings": [
+    "La mayor parte de lo que asigna la carga no es la respuesta. Los bytes vivos son lo que un lector conserva; el resto ensucia una página y no sostiene nada, y un perfil de heap tomado después de la carga no puede ver ni uno de ellos.",
+    "Cada tabla de ancho fijo se copia dos veces. Un decodificador asigna un slice de Go por sección y copia dentro los bytes mapeados (`internal/hotsnapshot/file.go`, las llamadas `decode*` de `readSnapshot`), y `NewGraphSnapshot` vuelve a copiar cada uno de esos slices (`internal/hotsnapshot/snapshot.go:256-269`). Las parejas del perfil no son parecidas, son exactas: `decodeSymbols` y la línea de los símbolos asignan los mismos bytes, y lo mismo la evidencia y las dos tablas de aristas.",
+    "La segunda copia no es defensiva en este camino. `NewGraphSnapshot` copia para que un llamante pueda seguir mutando los slices que pasó, que es lo que hace el constructor. El lector pasa slices que decodificó una sentencia antes y que nadie más puede nombrar, así que ceder la propiedad retiraría el gemelo sin relajar el contrato público.",
+    "La validación es la otra parte con nombre de la mitad transitoria. `validReverseCounterpart` construye un mapa con clave en cada arista directa para probar que el CSR inverso es su permutación, y lo tira (`internal/hotsnapshot/snapshot.go:478`). Un mapa de bits sobre las aristas directas contestaría lo mismo con una fracción de los bytes.",
+    "El arena ya se lee en el sitio y es la sección más grande del fichero, que es por lo que los bytes vivos son una fracción de él. Lo que queda en el heap son las tablas, y el fichero declara cuántas filas tiene cada una, así que nada de ellas hay que reconstruirlo para poder confiar en él."
+  ],
+  "limitations": [
+    "Los bytes vivos y asignados son contabilidad del runtime de Go, no páginas residentes. `Private_Dirty` es mayor que cualquiera de los dos: lleva además metadatos del runtime, pilas y heap que el asignador nunca devolvió al sistema. Eso lo mide `benchmarks/shared-snapshot`, y sólo en Linux.",
+    "La cifra transitoria es la basura de la propia carga, medida como lo asignado menos lo vivo después de un `GC`. Es un suelo: una página que ensucia una asignación transitoria sigue sucia hasta que el asignador la barre.",
+    "El total mapeable es aritmética sobre las filas que el snapshot declara, no una medición de lo que un lector toma en el sitio hoy. El arena y la tabla de claves estables ya se toman en el sitio.",
+    "Un proceso, una carga. Nada de aquí dice qué paga un segundo lector de la misma generación, que es la pregunta que contesta `shared-snapshot`.",
+    "La cifra viva es el heap entero del proceso después de la carga, que incluye el del propio arnés, así que es una cota superior de la del snapshot. Pasadas repetidas de una misma compilación coinciden byte a byte; dos compilaciones de este arnés difirieron en torno a un megabyte, así que una comparación es entre pasadas del mismo binario y no entre ediciones de él."
+  ]
+}

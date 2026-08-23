@@ -25,6 +25,13 @@ declarado en la raíz.
   de `graph_status`, no del fixture. El brazo Rust se salta declarándose
   cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
   deja a `rustup` sin toolchains.
+- `benchmarks/snapshot-heap` tampoco mide páginas residentes: separa, en lo que
+  cuesta cargar un snapshot publicado, los bytes que un lector **conserva** de
+  los que la carga asigna y tira. `Private_Dirty` los suma en una sola cifra y
+  se arreglan al revés -- los vivos moviendo una estructura al fichero mapeado,
+  los transitorios no asignándolos. Toma el perfil con el snapshot **vivo**, que
+  es la única forma de atribuirlo: el benchmark del paquete escribe el suyo
+  cuando ya es inalcanzable y no atribuye ni un byte.
 
 ## Corpus y auditorías
 
