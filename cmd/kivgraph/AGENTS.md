@@ -230,8 +230,8 @@ superficie observable.
 
   |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
   |---|---|---|---|---|
-  |ninguna|indistinguible de cero|`10` MB/cli|`11` contra `80 MB`|el demonio `+2 MB`|
-  |`8` llamadas|`0,6`–`1,4` MB/cli|`39` MB/cli|`61` contra `328 MB`|empata|
+  |ninguna|indistinguible de cero|`10` MB/cli|`10`–`13` contra `77`–`81 MB`|el demonio `+2`–`3 MB`|
+  |`8` llamadas|`0,6`–`0,9` MB/cli|`39` MB/cli|`60`–`62` contra `323`–`330 MB`|empata|
 
   **El arranque ya no es el coste, y eso es lo que hace que este comando valga
   menos de lo que valía**: desde el ADR 0067 el grafo lo lee la primera consulta,
@@ -242,11 +242,11 @@ superficie observable.
   **Las dos puertas son indistinguibles a las dos cargas**, así que la advertencia
   anterior -- que HTTP costaba `12,5 MB` por cliente y perdía a un cliente-- queda
   retirada: era el buffer de reanudación del SDK llenándose con tráfico sintético.
-  Bajo carga sostenida sí cuesta más (`10,5`), y eso es un techo que ninguna sesión
-  real alcanza y que depende del corpus.
+  Bajo carga sostenida sí cuesta más (`11`–`13`), y eso es un techo que ninguna
+  sesión real alcanza y que depende del corpus.
 
-  La diferencia más grande no es la pendiente: es el **pico**, `182`–`187` contra
-  `26`–`27 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
+  La diferencia más grande no es la pendiente: es el **pico**, `179`–`186` contra
+  `26`–`29 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
   ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el

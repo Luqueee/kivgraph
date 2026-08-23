@@ -153,12 +153,12 @@ conserva `serve` para los que no. Un cliente sin soporte HTTP no pierde nada.
 
   |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
   |---|---|---|---|---|
-  |ninguna|indistinguible de cero|`10 MB`/cli|`11` contra `80 MB`|el demonio `+2 MB`|
-  |`8` llamadas|`0,6`–`1,4 MB`/cli|`39 MB`/cli|`61` contra `328 MB`|empata|
+  |ninguna|indistinguible de cero|`10 MB`/cli|`10`–`13` contra `77`–`81 MB`|el demonio `+2`–`3 MB`|
+  |`8` llamadas|`0,6`–`0,9 MB`/cli|`39 MB`/cli|`60`–`62` contra `323`–`330 MB`|empata|
 
-  Por puerta y sin carga: `9,8`–`11,3 MB` por cliente por HTTP contra
-  `10,2`–`10,5` por socket. Los rangos se solapan a las dos cargas, así que el
-  transporte no se paga, y el cruce está entre `0,96` y `1,54` clientes.
+  Por puerta y sin carga: `9,8`–`10,6 MB` por cliente por HTTP contra
+  `10,0`–`10,7` por socket. Los rangos se solapan a las dos cargas, así que el
+  transporte no se paga, y el cruce está entre `0,96` y `1,41` clientes.
 
   Estas cifras son posteriores al ADR 0067, que movió la lectura del grafo a la
   primera consulta: cuando este ADR se aceptó, un servidor ocioso costaba `33 MB`

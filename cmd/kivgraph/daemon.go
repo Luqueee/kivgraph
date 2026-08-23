@@ -18,8 +18,9 @@ import (
 //
 // What it changes against `serve` is only who owns the snapshot. A client that
 // spawns `serve` gets a process of its own, and at the load a real editor
-// produces eight of them cost `328 MB` against `61` for one daemon -- `80` against
-// `11` when nobody asks anything, which is what 48 of 51 real servers do.
+// produces eight of them cost `323`-`330 MB` against `60`-`62` for one daemon --
+// `77`-`81` against `10`-`13` when nobody asks anything, which is what 48 of 51
+// real servers do.
 // Measured in `benchmarks/daemon-cost`.
 //
 // Two transports because a client reaches one or the other and not both: an

@@ -34,15 +34,15 @@ grafo lo lee ahora la primera consulta que lo necesita, no el arranque
 
 |ocioso, sin ninguna llamada|antes|ahora|
 |---|---|---|
-|pendiente de N procesos|`33,9` MB/cli|`9,8`–`11,3` MB/cli|
+|pendiente de N procesos|`33,9` MB/cli|`9,8`–`10,7` MB/cli|
 |un cliente|`31,2 MB`|`7,1`–`9,2 MB`|
-|ocho clientes|`268,6 MB`|`75,9`–`85,7 MB`|
-|pico a ocho clientes|`994,3 MB`|`181,6`–`187,0 MB`|
-|demonio a ocho clientes|`40,4 MB`|`10,4`–`10,8 MB`|
+|ocho clientes|`268,6 MB`|`77`–`81 MB`|
+|pico a ocho clientes|`994,3 MB`|`179`–`186 MB`|
+|demonio a ocho clientes|`40,4 MB`|`10`–`13 MB`|
 
-Las cifras «antes» se midieron en el commit `d990a6c` sobre esta misma
-generación; están en el historial y no en los artefactos, porque un artefacto
-describe el código que lo produjo.
+Las cifras «antes» son el commit `ef31f35` sobre esta misma generación, y están en
+el historial y no en los artefactos: un artefacto describe el código que lo
+produjo. Las de «ahora» son seis pasadas -- tres por puerta-- del commit `68da6dc`.
 
 **Qué lo hacía caro.** El fichero del snapshot nunca fue el problema: se mapea,
 sus páginas están limpias y compartidas -- `6,1 MB` por proceso sobre un fichero
@@ -51,24 +51,25 @@ nunca contesta no necesita ninguno.
 
 |carga|pendiente de N procesos|pendiente del demonio|proporción|
 |---|---|---|---|
-|ninguna llamada|`9,8`–`11,3` MB/cli|`-0,2`–`0,2` MB/cli|indistinguible de cero|
-|`8` llamadas|`38,9`–`40,1` MB/cli|`0,4`–`1,0` MB/cli|`0,010`–`0,025`|
-|`2.000` llamadas|`66,9` MB/cli|`10,5` MB/cli|`0,157`|
+|ninguna llamada|`9,8`–`10,7` MB/cli|`-0,28`–`0,32` MB/cli|indistinguible de cero|
+|`8` llamadas|`38,4`–`39,5` MB/cli|`0,63`–`0,95` MB/cli|`0,016`–`0,025`|
+|`2.000` llamadas|`66,1`–`66,2` MB/cli|`11,1`–`13,3` MB/cli|`0,168`–`0,200`|
 
 **Con carga la cifra no se movió**, que es lo que hace creíble el ahorro:
-`38,9`–`40,1` contra los `39,9` de antes, y `66,9` contra `67,6` en el caso
+`38,4`–`39,5` contra los `39,9` de antes, y `66,1`–`66,2` contra `67,6` en el caso
 sostenido. Lo que desapareció es exactamente lo que las sesiones que no preguntan
 estaban pagando.
 
-La pendiente ociosa del demonio sale **negativa por unas décimas de megabyte**.
-No significa que un cliente devuelva memoria: significa que a esta carga su coste
+La pendiente ociosa del demonio **cruza el cero** entre pasadas: `-0,28` a `0,32`.
+No significa que un cliente devuelva memoria; significa que a esta carga su coste
 por cliente está por debajo de lo que este método resuelve. Se publica el ajuste
-crudo en vez de recortarlo a cero, porque recortarlo escondería justo eso.
+crudo en vez de recortarlo, porque recortarlo escondería justo eso.
 
-A ocho clientes ociosos: `76`–`86 MB` contra `10,4`–`10,8`. Un editor solo ya no
-empata -- `7,1`–`9,2` contra `10,3`–`10,8`-- así que el cruce se mueve a
-`1,26`–`1,54` clientes: los dos brazos son ahora tan baratos en reposo que el
-proceso del demonio pesa relativamente más. Gana desde el segundo.
+A ocho clientes ociosos: `77`–`81 MB` contra `10`–`13`. Y a un cliente el demonio
+ahora **pierde** -- `9,9`–`12,0` contra `7,1`–`9,2`--, porque un servidor que no
+contesta ya no carga nada y lo único que queda es el proceso de más. El cruce
+queda entre `0,96` y `1,41` clientes según la pasada: **gana desde el segundo, y a
+uno es indistinguible o peor**.
 
 Y la corrida ociosa es, además, **la única medición limpia del benchmark**: es la
 única en la que los cuatro puntos del barrido miden lo mismo por cliente. Con
@@ -106,7 +107,7 @@ nunca produce.
 |dato|valor|
 |---|---|
 |fecha|2026-08-23|
-|commit|`638c6de` (antes) y el de este árbol (ahora)|
+|commit|`68da6dc`, árbol limpio (`ef31f35` para la columna «antes»)|
 |plataforma|VM `linux/arm64` de Docker Desktop, imagen `golang:1.26-trixie`|
 |kernel|`Linux 6.12.54-linuxkit`, `10` CPU, page size `4096`|
 |corpus|`kena`, `37` repositorios, **`108.737` símbolos**|
@@ -126,8 +127,14 @@ símbolos y **no se reproducen aquí**; están en el historial.
 
 Y comparten algo más: **el mismo código**. Las columnas «antes» y «ahora» de la
 primera tabla son dos códigos distintos sobre esta misma generación, y por eso son
-lo único de este informe que cruza esa frontera. Todo lo demás describe el árbol
-actual, con la carga diferida del ADR 0067.
+lo único de este informe que cruza esa frontera. Todo lo demás describe el commit
+`68da6dc`, con la carga diferida del ADR 0067.
+
+Los artefactos nombran ese commit **y que el árbol estaba limpio**. Antes no
+podían: el campo era `git rev-parse HEAD` a secas, así que una corrida hecha para
+justificar un cambio sin commitear -- que es el caso normal aquí-- atribuía sus
+cifras a un código que no había ejecutado. Ahora un árbol sucio publica
+`<commit>-dirty` y lo declara en `limitations`.
 
 El esquema subió a `v3` porque **el punto de medición se movió**. Hasta ahora el
 guardia de generación -- la llamada a `graph_status` que prueba que los dos brazos
@@ -148,10 +155,10 @@ repositorio indexado.
 
 |puerta|carga|pendiente del demonio|pendiente de N procesos|8 clientes|cruce|
 |---|---|---|---|---|---|
-|socket|ninguna|`-0,1`–`0,2` MB/cli|`10,2`–`10,5` MB/cli|`10`–`11` vs `78`–`80` MB|`1,26`–`1,48`|
-|HTTP|ninguna|`-0,2` MB/cli|`9,8`–`11,3` MB/cli|`11` vs `76`–`86` MB|`1,41`–`1,54`|
-|socket|`8`|`0,9`–`1,4` MB/cli|`38,9`–`40,1` MB/cli|`60`–`62` vs `325`–`332` MB|`0,96`–`1,08`|
-|HTTP|`8`|`0,6`–`1,0` MB/cli|`39,2`–`39,7` MB/cli|`62` vs `329`–`331` MB|`1,03`–`1,10`|
+|socket|ninguna|`-0,28`–`0,32` MB/cli|`10,0`–`10,7` MB/cli|`10`–`13` vs `78`–`81` MB|`1,36`–`1,41`|
+|HTTP|ninguna|`-0,04`–`0,15` MB/cli|`9,8`–`10,6` MB/cli|`10`–`11` vs `77`–`81` MB|`0,96`–`1,33`|
+|socket|`8`|`0,69`–`0,95` MB/cli|`39,1`–`39,5` MB/cli|`60`–`62` vs `327`–`330` MB|`0,99`–`1,06`|
+|HTTP|`8`|`0,63` MB/cli|`38,4`–`39,5` MB/cli|`62` vs `323`–`329` MB|`1,05`–`1,12`|
 
 Los rangos se solapan en las dos cargas: **elegir HTTP no se paga**, y HTTP es la
 única puerta que un cliente MCP puede configurar. Eso confirma sin carga lo que
@@ -165,14 +172,15 @@ cliente el demonio perdía por HTTP.
 
 |carga|pendiente del demonio|8 clientes|cruce|
 |---|---|---|---|
-|ninguna|`-0,2`–`0,2` MB/cli|`11` vs `76`–`86` MB|`1,26`–`1,54`|
-|`8` llamadas|`0,6`–`1,4` MB/cli|`61` vs `328` MB|`0,96`–`1,10`|
-|`2.000` llamadas|`10,5` MB/cli|`155` vs `536` MB|`1,38`|
+|ninguna|`-0,28`–`0,32` MB/cli|`10`–`13` vs `77`–`81` MB|`0,96`–`1,41`|
+|`8` llamadas|`0,63`–`0,95` MB/cli|`60`–`62` vs `323`–`330` MB|`0,99`–`1,12`|
+|`2.000` llamadas|`11,1`–`13,3` MB/cli|`163`–`174` vs `529`–`530` MB|`1,24`–`1,35`|
 
-**El ahorro sigue existiendo** -- `155` contra `536 MB`, la tercera parte-- pero el
-coste por sesión se vuelve real y conviene saber de dónde sale. Y es el único caso
-que la carga diferida no mejora, por construcción: dos mil llamadas mapean el
-grafo igual, así que la pendiente de procesos apenas cambió (`66,9` contra `67,6`).
+**El ahorro sigue existiendo** -- `163`–`174` contra `529`–`530 MB`, la tercera
+parte-- pero el coste por sesión se vuelve real y conviene saber de dónde sale. Y
+es el único caso que la carga diferida no mejora, por construcción: dos mil
+llamadas mapean el grafo igual, así que la pendiente de procesos apenas se movió
+(`66,1`–`66,2` contra `67,6`).
 
 ### De dónde sale, verificado en la fuente
 
@@ -207,34 +215,36 @@ ninguna llamada:
 |clientes|pico N procesos|pico 1 demonio|
 |---|---|---|
 |`1`|`22`–`24` MB|`26`–`28` MB|
-|`2`|`44`–`46` MB|`25`–`31` MB|
-|`4`|`92`–`96` MB|`26`–`28` MB|
-|`8`|**`182`–`187` MB**|**`26`–`27` MB**|
+|`2`|`44`–`47` MB|`26`–`29` MB|
+|`4`|`90`–`96` MB|`25`–`28` MB|
+|`8`|**`179`–`186` MB**|**`26`–`29` MB**|
 
-Ocho editores arrancando a la vez pagaban `994 MB` y ahora pagan `184`: la carga
-diferida se lleva el pico junto con el resto, porque el pico *era* el mapeo. Con
-`8` llamadas vuelve a `1.043`–`1.050` contra `154`–`156`, que es la prueba de que
-lo que se movió es el momento y no la cifra.
+Ocho editores arrancando a la vez pagaban `994 MB` y ahora pagan `183`: la carga
+diferida se lleva el pico junto con el resto, porque el pico *era* el mapeo. A un
+cliente el demonio **pica más alto** (`26`–`28` contra `22`–`24`), por lo mismo que
+pierde en la pendiente. Con `8` llamadas el pico vuelve a `1.038`–`1.047` contra
+`154`–`156`, que es la prueba de que lo que se movió es el momento y no la cifra.
 
 **Y un cliente nuevo se conecta antes que antes de este cambio.** Arrancar un
 proceso ya no mapea nada:
 
 |clientes ya conectados|N procesos|antes|1 demonio|
 |---|---|---|---|
-|`1`|`13`–`18` ms|`96`–`107` ms|`1,6`–`2,1` ms|
-|`8`|`23`–`45` ms|`130`–`151` ms|`1,5`–`1,7` ms|
+|`1`|`14`–`23` ms|`96`–`107` ms|`1,6`–`9,1` ms|
+|`8`|`38`–`55` ms|`130`–`151` ms|`1,6`–`2,0` ms|
 
 Es lo que ve quien abre una segunda ventana del editor. El demonio sigue ganando
-por un orden de magnitud, pero la brecha se cerró de `70x` a unos `20x`, y esa
-parte del ahorro **ya no hace falta instalar nada** para tenerla. La comparación es
-de conexión contra conexión -- `new_client_connect_ms`, que se mide a todas las
-cargas-- y no incluye la primera respuesta, que en un servidor diferido paga el
-mapeo.
+por un orden de magnitud a ocho clientes, pero la brecha se cerró de `70x` a unos
+`25x`, y esa parte del ahorro **ya no hace falta instalar nada** para tenerla. El
+`9,1 ms` de un cliente es una pasada suelta -- las otras cinco están entre `1,6` y
+`2,1`-- y se publica sin recortar. La comparación es de conexión contra conexión
+-- `new_client_connect_ms`, que se mide a todas las cargas-- y no incluye la
+primera respuesta, que en un servidor diferido paga el mapeo.
 
-**La latencia empata** a la carga real: `p99` entre `4` y `17 ms` en el brazo de
-procesos y entre `4` y `29` en el del demonio, rangos que se solapan y se cruzan.
-La ventaja de latencia que el demonio mostraba bajo carga sostenida es **un efecto
-de la carga sintética**.
+**La latencia empata** a la carga real: `p99` entre `5` y `15 ms` en el brazo de
+procesos y entre `4` y `15` en el del demonio, rangos que se solapan. Bajo carga
+sostenida el demonio sí gana (`5`–`15` contra `6`–`35`), y eso es **un efecto de la
+carga sintética**, no algo que un editor vea.
 
 ## Limitaciones
 
@@ -245,9 +255,12 @@ de la carga sintética**.
   medido como latencia aislada.** Las tablas de conexión comparan conexiones. Lo
   que sí se midió es que ese mapeo no desapareció: con `8` llamadas las cifras
   vuelven a las de antes.
-* **La pendiente ociosa del demonio sale negativa por décimas de megabyte.** Está
-  por debajo de lo que este método resuelve, así que la lectura es «indistinguible
-  de cero», no «devuelve memoria». Se publica el ajuste crudo.
+* **La pendiente ociosa del demonio cruza el cero entre pasadas** (`-0,28` a
+  `0,32`). Está por debajo de lo que este método resuelve, así que la lectura es
+  «indistinguible de cero», no «devuelve memoria». Se publica el ajuste crudo, y
+  por eso el cruce de esta carga es un rango (`0,96`–`1,41`) y no un número: con
+  una pendiente indistinguible de cero, dónde se cortan las dos rectas depende del
+  ruido.
 * **De los `10 MB` que quedan en un servidor ocioso no se sabe qué parte es qué.**
   Son un proceso de Go con su servidor MCP; este benchmark no los desglosa. Del
   fichero mapeado siguen siendo `6,1 MB` por proceso de `shared_clean` sobre un
@@ -265,7 +278,7 @@ de la carga sintética**.
 * **El log real son dos días de una máquina.** `51` procesos y `5` llamadas es una
   muestra pequeña y de un solo usuario. Sostiene el orden de magnitud -- unidades
   de llamadas por sesión, no miles-- y no una distribución.
-* **La carga sostenida es una sola pasada** por HTTP, y su pendiente depende del
+* **La carga sostenida son tres pasadas** por HTTP, y su pendiente depende del
   corpus: la cifra del techo no se transporta entre corpus.
 * **No es bare metal.** Es la VM de Docker Desktop sobre Apple Silicon. El
   `page size` es `4096`, el mismo que amd64, que es lo que hace comparables las
@@ -278,10 +291,10 @@ de la carga sintética**.
 
 ## Defectos del arnés que estas pasadas destaparon
 
-El de esta pasada es el que impedía la medición: **el guardia de generación
-contestaba antes de muestrear**, así que ningún brazo podía estar realmente
-ocioso. Movido detrás del muestreo, el guardia conserva su fuerza -- una corrida
-cuyo servidor sirve otra generación se descarta igual-- y deja de ser carga.
+El de la pasada que midió el caso ocioso era el que impedía medirlo: **el guardia
+de generación contestaba antes de muestrear**, así que ningún brazo podía estar
+realmente ocioso. Movido detrás del muestreo, el guardia conserva su fuerza -- una
+corrida cuyo servidor sirve otra generación se descarta igual-- y deja de ser carga.
 
 Y una trampa que iba con él: `latencyOf` sin llamadas devolvía `latency{}`, así
 que un fichero ocioso habría publicado `p50_ms: 0`. Un cero ahí se lee como una
@@ -296,6 +309,13 @@ Queda una comprobación que ningún test de portátil puede hacer. Los probes qu
 borrar ese salto no rompe nada que corra en local -- lo verifiqué. Por eso la
 corrida se niega a publicar un fichero ocioso que haya cronometrado algún primer
 answer (`checkIdle`), y eso sí está defendido por un test.
+
+El de esta pasada es de **procedencia**: `commit` era `git rev-parse HEAD` a
+secas, así que una corrida hecha para justificar un cambio sin commitear -- que es
+el caso normal, porque las cifras se miden antes del commit-- atribuía sus números
+a un código que no había ejecutado. Ahora un árbol sucio publica `<commit>-dirty`
+y lo dice en `limitations`, y las cinco corridas de este informe se hicieron desde
+un árbol limpio para que el campo signifique algo.
 
 De pasadas anteriores: la primera versión publicó `symbols: 0` sin fallar porque
 `readStatus` adivinó la forma de `graph_status`; y `commit` se rellenaba dentro de
@@ -335,28 +355,35 @@ export HOME=/ruta/aislada
 kivgraph init --languages go,typescript,rust --repository <nombre>=<ruta> ...
 kivgraph index --full
 
-# En Linux, las tres cargas por las dos puertas. El cwd tiene que ser el
-# checkout, o el commit no se lee y la corrida lo declara como limitación.
+# En Linux, las tres cargas por las dos puertas, tres pasadas de cada una: el
+# artefacto publicado es la mediana por pendiente de procesos. El cwd tiene que
+# ser el checkout y el árbol tiene que estar limpio, o `commit` sale vacío o con
+# `-dirty` y la corrida lo declara como limitación.
 docker run --rm -w /src \
   -v "$PWD":/src:ro -v /ruta/a/kena:/ruta/a/kena:ro -v "$HOME":"$HOME" \
   -e HOME="$HOME" golang:1.26-trixie bash -c '
     git config --global --add safe.directory /src
+    LIB=$(scripts/fetch-ladybug.sh /tool/ladybug/v0.13.1 | tail -1)
+    export CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB -llbug -Wl,-rpath,$LIB"
     go build -tags ladybug -o /out/kivgraph ./cmd/kivgraph
     go build -o /out/daemon-cost ./benchmarks/daemon-cost
     for t in socket http; do
       for c in 0 8; do
-        /out/daemon-cost -server /out/kivgraph \
-          -config "$HOME/.config/kivgraph/config.yaml" \
-          -generation-dir "$HOME/.local/state/kivgraph/generations/000001" \
-          -state-dir "$HOME/.local/state/kivgraph" \
-          -clients 1,2,4,8 -calls $c -warmup 0 \
-          -transport $t -output /out/$t-$c
+        for n in 1 2 3; do
+          /out/daemon-cost -server /out/kivgraph \
+            -config "$HOME/.config/kivgraph/config.yaml" \
+            -generation-dir "$HOME/.local/state/kivgraph/generations/000001" \
+            -state-dir "$HOME/.local/state/kivgraph" \
+            -clients 1,2,4,8 -calls $c -warmup 0 \
+            -transport $t -output /out/$t-$c-$n
+        done
       done
     done'
 ```
 
 `-calls 0` es la corrida ociosa: los clientes se conectan, negocian la sesión y no
-preguntan nada. El techo es la misma orden con `-calls 2000 -warmup 4000`.
+preguntan nada. El techo son tres pasadas de la misma orden con
+`-calls 2000 -warmup 4000 -transport http`.
 
 Y la carga real se recuenta de un log de uso, no se estima:
 

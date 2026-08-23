@@ -607,8 +607,8 @@ observado, tres.
 
 | carga | pendiente del demonio | N procesos | 8 clientes | 1 cliente |
 | --- | --- | --- | --- | --- |
-| ninguna llamada | indistinguible de cero | `10 MB` por cliente | `11` contra `80 MB` | el demonio cuesta `2 MB` más |
-| `8` llamadas | `0,6`–`1,4 MB` por cliente | `39 MB` por cliente | `61` contra `328 MB` | empata |
+| ninguna llamada | indistinguible de cero | `10 MB` por cliente | `10`–`13` contra `77`–`81 MB` | el demonio cuesta `2`–`3 MB` más |
+| `8` llamadas | `0,6`–`0,9 MB` por cliente | `39 MB` por cliente | `60`–`62` contra `323`–`330 MB` | empata |
 
 Un servidor al que nadie pregunta cuesta `10 MB` y uno consultado `39`: el grafo
 se lee cuando alguien pregunta, no al arrancar. A ocho clientes el demonio cuesta
@@ -616,8 +616,8 @@ se lee cuando alguien pregunta, no al arrancar. A ocho clientes el demonio cuest
 pierde por un par de megabytes, así que la razón para instalarlo empieza en el
 segundo cliente.
 
-**Las dos puertas cuestan lo mismo** -- `9,8`–`11,3 MB` por cliente por HTTP contra
-`10,2`–`10,5` por socket--, así que elegir HTTP, la única que un cliente MCP puede
+**Las dos puertas cuestan lo mismo** -- `9,8`–`10,6 MB` por cliente por HTTP contra
+`10,0`–`10,7` por socket--, así que elegir HTTP, la única que un cliente MCP puede
 configurar, no se paga.
 
 La diferencia más grande no es ésa. Es el **pico**, y no depende de que nadie
@@ -626,15 +626,16 @@ pregunte nada:
 | clientes | pico N procesos | pico 1 demonio |
 | --- | --- | --- |
 | `1` | `22`–`24 MB` | `26`–`28 MB` |
-| `8` | **`182`–`187 MB`** | **`26`–`27 MB`** |
+| `8` | **`179`–`186 MB`** | **`26`–`29 MB`** |
 
-Ocho editores arrancando a la vez pagan siete veces más pico que un demonio. Y un
-cliente nuevo se conecta antes -- `1,5`–`2,1 ms` contra `13`–`45`-- porque una
+Ocho editores arrancando a la vez pagan siete veces más pico que un demonio; a uno
+solo, el demonio pica algo más alto. Y un cliente nuevo se conecta antes --
+`1,6`–`2,0 ms` contra `38`–`55` a ocho clientes-- porque una
 sesión nueva no arranca nada. Sobre `108.737` símbolos de `kena`, en Linux:
 `benchmarks/daemon-cost`.
 
 Bajo tráfico sostenido -- `2.000` llamadas por sesión, que ninguna sesión real
-hace-- HTTP sube a `10,5 MB` por cliente: el SDK de MCP da a cada sesión un buffer
+hace-- HTTP sube a `11`–`13 MB` por cliente: el SDK de MCP da a cada sesión un buffer
 de reanudación de `10 MiB` y las respuestas lo llenan. Es un techo, está en
 `results-http-sustained.json`, y no es lo que cuesta un editor.
 

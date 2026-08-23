@@ -17554,3 +17554,68 @@ preguntas y no es comparable con la de ocho; el corpus es `108.737` y no los
 cruza entre las dos pasadas; la sostenida es una sola pasada; no es bare metal.
 
 **Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2226 - El arranque era el coste, y se retira
+
+**Dependencias:** `LUQUE-2225`.
+
+**Objetivo:** cobrar lo que `LUQUE-2225` midió. Su cifra decía que `33` de los
+`40 MB` que cuesta un servidor MCP se pagan **antes de la primera pregunta**, y
+que `48` de `51` servidores reales no llegan a hacerla: esas sesiones cargaban un
+grafo entero para contestar nada.
+
+**Lo hecho:** el grafo se lee en la primera consulta que lo necesita. `serve`
+resuelve la generación publicada al arrancar -- y sigue fallando si no la tiene--
+pero no la mapea; lo que decide la superficie de tools y las instrucciones del
+handshake pasa a ser la **disponibilidad**. Los tres consumidores que sólo
+comparaban generaciones -- el tick de reconciliación, la línea de arranque del log
+y el brazo de carrera al publicar-- comparan identificadores, porque cualquiera de
+ellos mapeando el grafo lo cargaría igual sin que nadie pregunte. ADR 0067.
+
+**Medido**, seis pasadas ociosas por las dos puertas sobre `108.737` símbolos de
+`kena` en Linux, árbol limpio en `68da6dc`:
+
+|ocioso|antes|ahora|
+|---|---|---|
+|pendiente de N procesos|`33,9` MB/cli|`9,8`-`10,7` MB/cli|
+|ocho clientes|`268,6 MB`|`77`-`81 MB`|
+|pico a ocho clientes|`994,3 MB`|`179`-`186 MB`|
+|conectar, ocho clientes|`130`-`151 ms`|`38`-`55 ms`|
+
+**Con carga no se movió nada**, que es lo que hace creíble el ahorro:
+`38,4`-`39,5 MB` por cliente con `8` llamadas contra los `39,9` de antes, y
+`66,1`-`66,2` contra `67,6` con `2.000`. Lo que desapareció es exactamente lo que
+pagaban las sesiones que no preguntan.
+
+**Lo que empeoró, y está publicado:** a un cliente ocioso el demonio ahora
+**pierde** -- `9,9`-`12,0` contra `7,1`-`9,2 MB`-- porque los dos brazos son tan
+baratos en reposo que el proceso de más pesa. El cruce queda entre `0,96` y `1,41`
+clientes: gana desde el segundo.
+
+**Un defecto de producción de paso:** un snapshot ilegible mataba el arranque.
+Ahora llega a una consulta y toda tool responde `INDEX_NOT_READY`, que es el mismo
+código que da un servidor jamás indexado -- dos problemas distintos con arreglos
+distintos--, así que `graph_status` gana `snapshot_unreadable` con el motivo.
+Aditivo.
+
+**Un defecto del arnés:** `commit` era `git rev-parse HEAD` a secas, así que una
+corrida hecha para justificar un cambio sin commitear atribuía sus cifras a un
+código que no había ejecutado. Ahora publica `<commit>-dirty` y lo declara en
+`limitations`; las cinco corridas de este informe se hicieron desde árbol limpio.
+
+**Verificación:** trece decisiones falsificadas una a una con su test -- seis del
+store diferido, seis de los tres comparadores de generación y el guardia de
+`graph_status`--, más dos del arnés. Una no la cazaba nadie y ésa es la que
+importaba: la línea de arranque del log cargando el grafo. Humo con un cliente MCP
+real por HTTP: handshake con `11` tools y **cero** líneas de snapshot, la consulta
+devuelve `35` repositorios y ahí aparece la carga. `gofmt`, `go vet ./...`,
+`go test ./...`, `make build`.
+
+**Limitaciones declaradas:** la primera consulta paga el mapeo y eso no se mide
+como latencia aislada; la pendiente ociosa del demonio cruza el cero entre pasadas
+(`-0,28` a `0,32`), así que el cruce es un rango y no un número; de los `10 MB` que
+quedan en un servidor ocioso no se desglosa qué parte es qué.
+
+**Estado:** cerrada el `2026-08-23`.

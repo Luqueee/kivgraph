@@ -115,10 +115,10 @@ cifra era aritmética sobre `71,2 MB` por servidor. Se midió el mismo día, en
 transporte que este ADR entregó y una carga que ninguna sesión real produce. El
 ADR 0066 añadió HTTP; después se contó la carga de verdad -- mediana de *una*
 llamada por sesión, y `48` de `51` servidores **ninguna**-- y a esa carga las dos
-puertas cuestan lo mismo: menos de `1,2 MB` por cliente, con N procesos en `33`
-sin consultas y `40` con ellas, no en `66`. La cifra de esta sección es el techo
-de un caso sintético; la
-alcanzable está en `benchmarks/daemon-cost/report.md`.
+puertas cuestan lo mismo: menos de `1 MB` por cliente, con N procesos en `10`
+sin consultas y `39` con ellas, no en `66`. La cifra de esta sección es el techo
+de un caso sintético; la alcanzable está en `benchmarks/daemon-cost/report.md`, y
+la ociosa bajó de `33` a `10` con el ADR 0067.
 
 Lo que escala es la **pendiente**, no ningún total:
 

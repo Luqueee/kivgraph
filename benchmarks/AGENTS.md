@@ -58,10 +58,18 @@ declarado en la raíz.
   socket puede citarse como si fuera alcanzable. El esquema es `daemon-cost-v3`.
 - **La carga cero no es un extremo teórico: es la mediana.** `48` de `51`
   servidores reales no reciben ninguna llamada, así que `-calls 0` mide el caso
-  que predomina. Y ahí el arranque resultó ser el coste: `33` MB por cliente sin
-  contestar nada, contra `40` contestando y `68` bajo tráfico sostenido. Es
-  también la única carga en la que los cuatro puntos del barrido miden lo mismo
-  por cliente, porque `-calls N` reparte N llamadas entre los clientes que haya.
+  que predomina. Ahí el arranque resultó ser el coste -- `33 MB` por cliente sin
+  contestar nada, contra `40` contestando-- y eso se arregló: el ADR 0067 movió la
+  lectura del grafo a la primera consulta, y la cifra ociosa vigente es `10 MB`
+  por cliente contra `39` contestando y `66` bajo tráfico sostenido. Es también la
+  única carga en la que los cuatro puntos del barrido miden lo mismo por cliente,
+  porque `-calls N` reparte N llamadas entre los clientes que haya.
+- **Un árbol sucio no publica un commit a secas.** `commit` lleva `-dirty` cuando
+  hay cambios sin commitear y `-unknown` cuando no se pudo saber, y las dos
+  variantes se declaran en `limitations`. Es el caso normal -- las cifras que
+  justifican un cambio se miden antes de commitearlo-- y sin el sufijo el
+  artefacto atribuye sus números a un código que no ejecutó. Las corridas
+  publicadas se hacen desde un árbol limpio.
 - **Un guardia no puede ser carga.** El `graph_status` que prueba que los dos
   brazos sirven la misma generación corre **después** del muestreo, no antes: nada
   obliga a que preceda a los bytes, y preguntando primero la carga cero era

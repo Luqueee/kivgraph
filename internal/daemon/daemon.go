@@ -5,25 +5,25 @@
 // was counted, not chosen: over two days of real use, 48 of 51 servers were asked
 // nothing at all, so the median session makes no call whatsoever.
 //
-//	load      daemon slope       N processes    8 clients          1 client
-//	none      indistinguishable  10 MB/client   11 against 80 MB   daemon +2 MB
-//	8 calls   0,6-1,4 MB/client  39 MB/client   61 against 328 MB  ties
+//	load      daemon slope       N processes    8 clients            1 client
+//	none      indistinguishable  10 MB/client   10-13 against 77-81  daemon +2-3 MB
+//	8 calls   0,6-0,9 MB/client  39 MB/client   60-62 against 323-330  ties
 //
 // Starting up is no longer the cost: since ADR 0067 the graph is read by the
 // first query that needs it, so an idle server holds 10 MB where it used to hold
 // 33. What a daemon still saves is the rest -- and at one client it now loses by a
 // couple of megabytes, which is the extra process.
 //
-// The two doors are indistinguishable at both loads -- 9,8-11,3 MB per client over
-// HTTP against 10,2-10,5 over the socket -- and the door that matters is HTTP
+// The two doors are indistinguishable at both loads -- 9,8-10,6 MB per client over
+// HTTP against 10,0-10,7 over the socket -- and the door that matters is HTTP
 // because no MCP client configuration dials a unix socket: it takes an executable
 // or a url. Over 108.737 symbols of kena, on Linux, in benchmarks/daemon-cost.
 //
 // The widest gap is the peak, and it does not depend on anyone asking anything:
-// 182-187 MB for eight processes against 26-27 for one daemon, because eight
+// 179-186 MB for eight processes against 26-29 for one daemon, because eight
 // editors starting at once pay eight processes at once.
 //
-// Under sustained traffic HTTP costs more -- 10,5 MB per client at 2000 calls a
+// Under sustained traffic HTTP costs more -- 11-13 MB per client at 2000 calls a
 // session -- because the SDK gives every session a 10 MiB resumption buffer that
 // response bytes fill. That is a ceiling no real session reaches, it depends on
 // the corpus, and it cannot be capped from here: the handler builds its own

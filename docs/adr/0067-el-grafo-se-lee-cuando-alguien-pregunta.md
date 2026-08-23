@@ -71,27 +71,29 @@ leerla.
 ## Lo medido
 
 Seis pasadas ociosas por las dos puertas, sobre `108.737` símbolos de `kena` en
-Linux, contra las seis de la versión anterior:
+Linux, desde un árbol limpio en el commit `68da6dc`:
 
 |ocioso|antes|ahora|
 |---|---|---|
-|pendiente de N procesos|`33,9 MB`/cli|`9,8`-`11,3 MB`/cli|
+|pendiente de N procesos|`33,9 MB`/cli|`9,8`-`10,7 MB`/cli|
 |un cliente|`31,2 MB`|`7,1`-`9,2 MB`|
-|ocho clientes|`268,6 MB`|`75,9`-`85,7 MB`|
-|pico a ocho clientes|`994,3 MB`|`181,6`-`187,0 MB`|
-|demonio, ocho clientes|`40,4 MB`|`10,4`-`10,8 MB`|
+|ocho clientes|`268,6 MB`|`77`-`81 MB`|
+|pico a ocho clientes|`994,3 MB`|`179`-`186 MB`|
+|demonio, ocho clientes|`40,4 MB`|`10`-`13 MB`|
 
 Un servidor ocioso cuesta **la tercera parte**, y el pico de ocho editores
-arrancando a la vez baja de un gigabyte a `184 MB`.
+arrancando a la vez baja de un gigabyte a `183 MB`. Y un cliente nuevo se conecta
+en `14`-`23 ms` en vez de `96`-`107`, porque arrancar un proceso ya no mapea nada.
 
-Con carga la cifra **no se mueve**: `38,9`-`40,1 MB` por cliente contra los `39,9`
-de antes, y a un cliente los dos brazos siguen empatando. El ahorro es
+Con carga la cifra **no se mueve**: `38,4`-`39,5 MB` por cliente contra los `39,9`
+de antes, y `66,1`-`66,2` contra `67,6` con `2.000` llamadas. El ahorro es
 exactamente el de las sesiones que no preguntan, y no se pagó con nada.
 
-La pendiente del demonio a carga cero pasa a ser indistinguible de cero
-(`-0,2` a `0,2 MB`), así que el cruce se mueve a `1,26`-`1,54` clientes: los dos
-brazos son ahora tan baratos en reposo que el proceso del demonio pesa
-relativamente más. A un cliente ocioso ya no gana; gana desde el segundo.
+La pendiente del demonio a carga cero pasa a cruzar el cero entre pasadas
+(`-0,28` a `0,32 MB`), así que el cruce queda entre `0,96` y `1,41` clientes: los
+dos brazos son ahora tan baratos en reposo que el proceso del demonio pesa
+relativamente más. **A un cliente ocioso el demonio ahora pierde** -- `9,9`-`12,0`
+contra `7,1`-`9,2 MB`--; gana desde el segundo.
 
 ## Consecuencias
 
