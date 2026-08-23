@@ -593,6 +593,27 @@ func findReferences(
 		nextCursor = &encoded
 	}
 
+	// The verdict comes from the graph, not from a sentence. This tool sells an
+	// empty list as proof that nobody calls the symbol, and the index keeps the
+	// failures that would make that claim false: a reference it could not
+	// resolve which asked for this very name. Without this check the answer
+	// said "an absence rather than a miss" over a recorded miss.
+	subjectRepository := hotsnapshot.InvalidRepositoryID
+	if startSymbol, found := snapshot.Symbol(startID); found {
+		if file, fileFound := snapshot.File(startSymbol.File); fileFound {
+			subjectRepository = file.Repository
+		}
+	}
+	completeness, unresolvedRelated, err := completenessFor(snapshot, subject.Name, subjectRepository)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, WrapToolError(
+			CodeSnapshotUnavailable,
+			"active snapshot contains invalid unresolved metadata",
+			err,
+		)
+	}
+	coverage.UnresolvedRelated += unresolvedRelated
+
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[ReferenceResult]{
@@ -603,7 +624,8 @@ func findReferences(
 		Truncated:     hasMore,
 		NextCursor:    nextCursor,
 		Coverage:      coverage,
-		Guidance:      referenceGuidance(options.Direction, total, len(results), hasMore),
+		Completeness:  &completeness,
+		Guidance:      referenceGuidance(options.Direction, total, len(results), hasMore, completeness.Verdict),
 		View:          options.View,
 		Results: ReferenceResult{
 			Subject: subject, Direction: options.Direction, References: results, View: options.View,

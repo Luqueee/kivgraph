@@ -1,6 +1,6 @@
 library advanced;
 
-part 'part.dart';
 export 'models.dart';
+part 'part.dart';
 
 String libraryValue() => PartValue().value;

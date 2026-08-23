@@ -485,14 +485,23 @@ four counters. Only
 it, because a package dependency proves a dependency on the provider and never a
 use of the symbol.
 
-No `completeness` object appears on this tool. Absent means it did not check how
-far the answer reaches, which is not the same as checking and finding nothing.
-[`get_blast_radius`](/reference/tools/get-blast-radius/) is the tool that
-checks.
+`completeness` states how far the answer reaches, and it rides on every
+response, in either view: a `verdict` of `COMPLETE` means nothing the index
+recorded could add to this page, `LOWER_BOUND` that the page is a floor. What
+can bound a reference answer is what the index could not read that asks for
+this name -- the references it recorded and could not resolve for the subject's
+name, in `blind_spots`, and the scopes of the subject's repository it could not
+read at all, in `invisible_scopes` -- with `fallback` carrying the pattern and
+the paths that close the gap. The distinction is load-bearing on an empty page:
+`COMPLETE` is the absence, `LOWER_BOUND` is a minimum, `guidance` says which of
+the two you got, and a reader who takes "nobody references this" from a
+`LOWER_BOUND` page can delete live code. See
+[the completeness verdict](/mcp/usage/#read-the-answer) for the semantics the
+six checking tools share.
 
 An empty answer -- an empty `files` list in the compact view, an empty
-`references` list in the full one -- with `total` at `0` is a proven absence, not
-a miss.
+`references` list in the full one -- with `total` at `0` and a `COMPLETE`
+verdict is a proven absence, not a miss.
 The edges came from `go/types`, the TypeScript checker and `rust-analyzer`, not
 from matching names, so nothing referencing the symbol was left out by a
 spelling. Grep cannot make that claim. The response says so itself, in

@@ -118,6 +118,9 @@ type SemanticImport struct {
 	StartLine        int             `json:"startLine"`
 	StartColumn      int             `json:"startColumn"`
 	Start            int             `json:"start"`
+	EndLine          int             `json:"endLine,omitempty"`
+	EndColumn        int             `json:"endColumn,omitempty"`
+	End              int             `json:"end,omitempty"`
 	Detail           string          `json:"detail,omitempty"`
 	Target           *SemanticTarget `json:"target,omitempty"`
 }
@@ -126,12 +129,21 @@ type SemanticImport struct {
 // declarations to its library, so it is deliberately kept separate from an
 // import/export symbol edge; the canonical graph still exposes both files and
 // their definitions independently.
+//
+// File is where the directive was observed, which LibraryFile and PartFile do
+// not say: they name the two ends of the relation. Dart declares it from both
+// -- `part 'piece.dart';` and `part of 'feature.dart';` -- so one relation
+// arrives as two rows that differ only in where they were seen.
 type SemanticPart struct {
+	File        string `json:"file,omitempty"`
 	LibraryFile string `json:"libraryFile"`
 	PartFile    string `json:"partFile"`
 	StartLine   int    `json:"startLine"`
 	StartColumn int    `json:"startColumn"`
 	Start       int    `json:"start"`
+	EndLine     int    `json:"endLine,omitempty"`
+	EndColumn   int    `json:"endColumn,omitempty"`
+	End         int    `json:"end,omitempty"`
 	Detail      string `json:"detail,omitempty"`
 }
 
@@ -265,7 +277,15 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 		set.Symbols = append(set.Symbols, Symbol{Key: keyString, CanonicalIdentity: canonical, RepositoryKey: repositoryKey, PackageKey: packageKey, FileKey: fileKey, Language: payload.Language, Name: symbol.Name, QualifiedName: symbol.QualifiedName, Kind: symbol.Kind, Exported: symbol.Exported, Signature: symbol.Signature, Start: Position{Line: symbol.StartLine, Column: symbol.StartColumn, Offset: symbol.Start}, End: Position{Line: symbol.EndLine, Column: symbol.EndColumn, Offset: symbol.End}})
 		set.Edges = append(set.Edges, Edge{Kind: Defines, SourceKey: fileKey, TargetKey: keyString, Confidence: StructuralCertain, Provenance: definitionProvenance(payload.Language)})
 	}
-	partEdges := make(map[string]struct{}, len(payload.Parts))
+	// One relation, one edge, and its evidence at the edge's source. Dart
+	// declares a part from both of its ends, so the same relation arrives
+	// twice: `part 'piece.dart';` in the library and `part of 'feature.dart';`
+	// in the part. Both directives are genuine, and they declare one
+	// relationship rather than two -- unlike two call sites, which are two
+	// events an agent has to visit. The edge runs part -> library, so the
+	// directive in the part file is the one whose position it carries, which is
+	// where every other edge of this package keeps its evidence.
+	partEdges := make(map[string]int, len(payload.Parts))
 	for _, part := range payload.Parts {
 		libraryFile := filepath.ToSlash(filepath.Clean(part.LibraryFile))
 		partFile := filepath.ToSlash(filepath.Clean(part.PartFile))
@@ -274,19 +294,35 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 		if libraryKey == "" || partKey == "" || libraryKey == partKey {
 			continue
 		}
+		observedFile := partFile
+		if part.File != "" {
+			observedFile = filepath.ToSlash(filepath.Clean(part.File))
+		}
+		fileKey := fileKeys[observedFile]
+		if fileKey == "" {
+			continue
+		}
+		evidence, hasEvidence := semanticDirectiveEvidence(
+			repositoryKey, fileKey, part.Start, part.End,
+			part.StartLine, part.StartColumn, part.EndLine, part.EndColumn, part.Detail)
 		identity := partKey + "\x00" + libraryKey
-		if _, exists := partEdges[identity]; exists {
+		if index, exists := partEdges[identity]; exists {
+			// The other end was seen first. Keep the observation made in the
+			// part file, because that is the edge's source; a row that is not
+			// there leaves the first one in place rather than none.
+			if hasEvidence && observedFile == partFile && set.Edges[index].EvidenceKey != evidence.Key {
+				set.Evidence = append(set.Evidence, evidence)
+				set.Edges[index].EvidenceKey = evidence.Key
+			}
 			continue
 		}
-		partEdges[identity] = struct{}{}
-		fileKey := fileKeys[libraryFile]
-		if fileKey == "" {
-			fileKey = fileKeys[partFile]
+		edge := Edge{Kind: PartOf, SourceKey: partKey, TargetKey: libraryKey, Confidence: StructuralCertain, Provenance: PackageManifest}
+		if hasEvidence {
+			set.Evidence = append(set.Evidence, evidence)
+			edge.EvidenceKey = evidence.Key
 		}
-		if fileKey == "" {
-			continue
-		}
-		set.Edges = append(set.Edges, Edge{Kind: PartOf, SourceKey: partKey, TargetKey: libraryKey, Confidence: StructuralCertain, Provenance: PackageManifest})
+		partEdges[identity] = len(set.Edges)
+		set.Edges = append(set.Edges, edge)
 	}
 	hasExternalTarget := false
 	for _, reference := range payload.References {
@@ -359,7 +395,18 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 			}
 		}
 		if targetKey != "" {
-			set.Edges = append(set.Edges, Edge{Kind: kind, SourceKey: sourceKey, TargetKey: targetKey, Confidence: confidence, Provenance: useProvenance(payload.Language, kind)})
+			edge := Edge{Kind: kind, SourceKey: sourceKey, TargetKey: targetKey, Confidence: confidence, Provenance: useProvenance(payload.Language, kind)}
+			// The producer observed the directive; discarding its position
+			// published an edge nobody could open. Both Python producers have
+			// always sent the end, and the decoder had nowhere to put it.
+			if evidence, ok := semanticDirectiveEvidence(
+				repositoryKey, fileKey, importFact.Start, importFact.End,
+				importFact.StartLine, importFact.StartColumn, importFact.EndLine, importFact.EndColumn,
+				importFact.Detail); ok {
+				set.Evidence = append(set.Evidence, evidence)
+				edge.EvidenceKey = evidence.Key
+			}
+			set.Edges = append(set.Edges, edge)
 			continue
 		}
 		set.Unresolved = append(set.Unresolved, UnresolvedReference{RepositoryKey: repositoryKey, FileKey: fileKey, Language: payload.Language, SourceSymbolKey: sourceSymbolKey, RequestedPackage: firstNonEmptySemantic(importFact.RequestedPackage, packageName), RequestedSymbol: importFact.RequestedSymbol, Reason: "IMPORT_NOT_RESOLVED", Detail: importFact.Detail, Start: Position{Line: importFact.StartLine, Column: importFact.StartColumn, Offset: importFact.Start}})
@@ -375,7 +422,37 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 	if err := set.Validate(); err != nil && !hasExternalTarget {
 		return Set{}, err
 	}
+
 	return set, nil
+}
+
+// semanticDirectiveEvidence builds the evidence of a directive edge -- an
+// import, a re-export, a part. It reports false when the producer did not
+// observe a span, because an evidence row without one names no text and would
+// be worse than the missing key it replaces: `EvidenceKey` would collide for
+// every directive of the same file.
+//
+// The Text is the directive body the producer already carries in Detail, which
+// is what a reader needs to see why the edge exists.
+func semanticDirectiveEvidence(
+	repositoryKey, fileKey string,
+	start, end, startLine, startColumn, endLine, endColumn int,
+	detail string,
+) (Evidence, bool) {
+	if fileKey == "" || end <= start {
+		return Evidence{}, false
+	}
+	if endLine < startLine {
+		endLine = startLine
+	}
+	return Evidence{
+		Key:           EvidenceKey(fileKey, start, end),
+		RepositoryKey: repositoryKey,
+		FileKey:       fileKey,
+		Start:         Position{Line: startLine, Column: startColumn, Offset: start},
+		End:           Position{Line: endLine, Column: endColumn, Offset: end},
+		Text:          detail,
+	}, true
 }
 
 func definitionProvenance(language Language) Provenance {

@@ -21,6 +21,14 @@ Las reglas del motor están en `internal/AGENTS.md`.
   respondió y `kivgraph version --json` publica su release. Lo que el bundle
   no lleva es un toolchain de Rust: sin `cargo` el analizador no carga el
   workspace, así que `doctor` lo comprueba aparte y falla nombrándolo.
+- Un `HOME` aislado deja a `rustup` sin toolchains, y con eso ningún workspace
+  carga. `RUSTUP_HOME` cuelga de `$HOME/.rustup`, así que un arnés que apunte
+  `HOME` a un temporal -lo que hay que hacer para no tocar la generación del
+  usuario- tiene que preservar `RUSTUP_HOME` y `CARGO_HOME` aparte. Sin eso
+  `rustc` deja de responder, todo repositorio Rust sale
+  `WORKSPACE_NOT_LOADED`, y una medición cuyo brazo limpio dependa de que algo
+  cargue pasa en verde sin haber medido nada. Reproducido y arreglado en
+  `benchmarks/tool-honesty`, que separa las dos cosas en `indexEnvironment`.
 - El subcomando `scip` ejecuta build scripts siempre, así que la hermeticidad
   se impone desde fuera: `CARGO_TARGET_DIR` a un directorio de estado externo
   -`cargo.targetDir` no sirve, su valor es relativo al workspace-,

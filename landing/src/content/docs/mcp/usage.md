@@ -278,7 +278,7 @@ is not repeated as structured content.
 | `results` | The answer itself. | Always |
 | `truncated` | Whether `returned` is less than `total`. | Only when it is `true` |
 | `next_cursor` | The opaque token for the next page. | Only when there is one |
-| `coverage` | Four disjoint counters: `exact`, `candidate`, `unresolved_related`, `package_level`. | Only the counters above zero, and absent entirely when all four are zero |
+| `coverage` | Four disjoint counters over the **whole answer**, not this page: `exact`, `candidate`, `unresolved_related`, `package_level`. | Only the counters above zero, and absent entirely when all four are zero |
 | `snapshot_age_ms` | How long ago that generation was built. | Never; ask [`graph_status`](/reference/tools/graph-status/) for the age |
 | `guidance` | Present only when the count alone would mislead. | Unchanged |
 | `completeness` | Present only when the tool checked how far its answer reaches. | Unchanged |
@@ -297,6 +297,20 @@ dependency proves the consumer depends on the provider package, never that it
 uses the symbol you asked about, so folding it into `exact` would report a use
 nobody observed.
 
+**The counters describe resolved relations, so a tool that returns no relations
+carries none of them.** `exact` and `candidate` are edge confidences, and the
+scope is the answer rather than the page: the `trace_dependencies` envelope
+below reports `exact` at `37` while `returned` is `3`. That is what makes the
+pair worth reading -- a counter equal to `returned` could not tell you anything
+`returned` had not already said.
+
+So `get_file_outline` publishes no counter at all, and `find_symbol` publishes
+only `unresolved_related`: both answer with declarations of one repository, and
+a declaration has no confidence to report. `get_source` keeps a count of its
+own and it is not one of these four: it answers in prose, and its header line
+says how many bodies it could actually serve, which is genuinely less than
+`returned` when a file moved under the index.
+
 Three rules matter more than the rest.
 
 **A zero-result answer means "nobody", not "not found" -- but only when the
@@ -307,9 +321,14 @@ to `find_cross_repo_consumers` on `MergeAll`, `total` 0:
 no repository in the published graph consumes this symbol. Check graph_status if a consumer is registered but was not indexed, and find_references for uses inside its own repository
 ```
 
-An empty `find_references` page carries the same kind of sentence, saying that
-the edges are type-checked and this is an absence rather than a miss. Without
-that sentence, treat a zero only as far as the tool's own description takes you.
+An empty `find_references` page carries the same kind of sentence, and which one
+depends on its verdict: with `COMPLETE` it says the edges are type-checked and
+this is an absence rather than a miss, and with `LOWER_BOUND` it says the index
+recorded places it could not read that ask for this name, and sends you to
+`completeness.blind_spots` and the fallback pattern instead. The two are never
+interchangeable: the first is a claim about the code, the second about the index.
+Without either sentence, treat a zero only as far as the tool's own description
+takes you.
 
 **`guidance` stays silent when there are rows and no truncation.** It costs
 about fifteen tokens, and fifteen tokens of advice on every call is how a saving
@@ -324,6 +343,27 @@ read, `blind_spots` for individual references the resolver could not follow, and
 `fallback` for the recovery action, a regular expression and the paths to run it
 over. Absence of the whole block means the tool did not check, which is not the
 same as checking and finding nothing.
+
+Six tools check, and **what bounds an answer is not the same question for all of
+them**, so each one looks at a different set of recorded failures:
+
+| Tool | What can bound its answer |
+| --- | --- |
+| `find_references` | Failures that asked for this name, plus unreadable scopes of the subject's repository. `direction` does not change the verdict: it is charged with the naming question either way. |
+| `get_blast_radius` | The same pair, taken from the repository the walk starts in. |
+| `trace_dependencies` | Failures **this symbol itself** made, plus unreadable scopes of its repository. "What does this reach" is never bounded by who asked for its name -- somebody else's unreadable call hides a caller, not a dependency. |
+| `find_symbol` | Unreadable scopes. Narrowed with `repo`, only that repository's; unnarrowed, every one in the graph. |
+| `get_file_outline` | Unreadable scopes of the repository asked for. There is no symbol name here, so nothing else can bound it. |
+| `find_cross_repo_consumers` | Unreadable scopes **anywhere in the graph**, deliberately. A package nobody could read in any repository is exactly where an outside consumer hides. |
+
+The scope follows the question for a reason: a verdict charged for every blind
+spot in the graph would read `LOWER_BOUND` on every answer of a corpus with one
+bad package, and a verdict that never says `COMPLETE` carries no information.
+
+The other five tools do not check, and none of them claims an absence.
+`get_symbol` and `get_source` refuse a symbol they cannot find instead of
+answering an empty list; `graph_status`, `list_repositories` and `index_project`
+answer about the index itself.
 
 This is the `completeness` block captured from `get_blast_radius` on `MergeAll`
 at depth 2:

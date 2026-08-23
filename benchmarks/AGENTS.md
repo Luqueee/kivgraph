@@ -15,6 +15,16 @@ declarado en la raíz.
   `benchmarks/web-viewer/`; el harness falla cerrado ante una métrica fuera de
   límite y no emite `WEB_VIEWER_PERFORMANCE_PASS` si el corpus o GPU no
   coinciden con la referencia declarada.
+- `benchmarks/tool-honesty/` no mide aristas: mide **qué afirma una tool cuando
+  su respuesta está vacía**, conduciendo el binario real por MCP contra un
+  corpus con puntos ciegos a propósito. Los repositorios limpios son la mitad
+  del diseño: sin ellos, un veredicto constante `LOWER_BOUND` pasaría todas las
+  comprobaciones. Los dos lenguajes van en un solo corpus para poder comprobar
+  que el veredicto no se contagia entre ellos, y cada brazo declara su propio
+  ámbito ciego: la pasada se niega si alguno perdió el suyo. El ámbito se lee
+  de `graph_status`, no del fixture. El brazo Rust se salta declarándose
+  cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
+  deja a `rustup` sin toolchains.
 
 ## Corpus y auditorías
 

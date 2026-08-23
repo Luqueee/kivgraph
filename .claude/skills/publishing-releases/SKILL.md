@@ -102,13 +102,22 @@ make test-ladybug
 make build
 ```
 
-La versión vive en **tres sitios** y los tres tienen que coincidir. No hay script
-que lo haga: se editan a mano.
+La versión vive en **cuatro sitios** y los cuatro tienen que coincidir. Se
+editan a mano; lo que ya no hace falta recordar es cuáles son.
 
 ```bash
-grep -n 'Value = ' internal/version/version.go          # var Value = "X.Y.Z"
-grep -rn 'KIVGRAPH_VERSION=v' README.md docs/installation.md
+grep -n 'Value = ' internal/version/version.go   # var Value = "X.Y.Z"
+go test ./internal/version/ -run DocumentedInstallVersion
 ```
+
+Ese test descubre por sí mismo cada comando de instalación fijado del
+repositorio y falla nombrando archivo y línea del que no coincida. Esta sección
+decía «tres sitios» y su `grep` sólo miraba `README.md` y
+`docs/installation.md`; mientras los dos iban en `v0.5.0`,
+`landing/src/content/docs/install.md` llevaba **dos minors** de retraso
+diciéndole a un lector que fijara `v0.3.0`. Una lista escrita a mano vuelve a
+quedarse corta en cuanto una página nueva lleve el comando, así que el test la
+descubre en vez de enumerarla.
 
 Un commit propio, un tag **anotado** -como todos los anteriores-, y el tag
 después del commit:

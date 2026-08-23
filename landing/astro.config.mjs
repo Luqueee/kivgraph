@@ -27,14 +27,18 @@ export default defineConfig({
   // the pm2 unit starts all answer on the same port, so a local check and the
   // deployed landing are never two different addresses.
   server: { port: 6767, host: true },
+  redirects: {
+    "/reference/[...slug]": "/docs/[...slug]",
+  },
   integrations: [
     starlight({
       title: "Kivgraph",
       description:
         "A canonical code graph for Go, TypeScript, Rust, Python and Dart, served over MCP.",
-      // The mark is a raster: there is no favicon.svg to prefer. Starlight
-      // emits this one, and Head adds the 16px and the Apple tile.
-      favicon: "/favicon-32.png",
+      // The favicon is an SVG wrapper around the committed raster mark. Its
+      // rounded clip is subtle, so the tab icon keeps the square canvas while
+      // avoiding sharp corners.
+      favicon: "/favicon.svg",
       // global.css declares the tokens for both halves of the site; docs.css
       // is the Starlight-only skin that dresses these pages like the landing.
       // Order matters: the skin reads tokens the first file declares.
@@ -83,8 +87,8 @@ export default defineConfig({
         {
           label: "Docs",
           items: [
-            { label: "CLI", slug: "reference/cli" },
-            { label: "MCP tools", slug: "reference/mcp-tools" },
+            { label: "CLI", slug: "docs/cli" },
+            { label: "MCP tools", slug: "docs/mcp-tools" },
             {
               // Explicit and grouped by what the tool is for. Alphabetical
               // autogeneration would scatter the traversal tools among the
@@ -92,42 +96,42 @@ export default defineConfig({
               label: "Tools",
               collapsed: true,
               items: [
-                { label: "find_symbol", slug: "reference/tools/find-symbol" },
-                { label: "get_symbol", slug: "reference/tools/get-symbol" },
-                { label: "get_source", slug: "reference/tools/get-source" },
+                { label: "find_symbol", slug: "docs/tools/find-symbol" },
+                { label: "get_symbol", slug: "docs/tools/get-symbol" },
+                { label: "get_source", slug: "docs/tools/get-source" },
                 {
                   label: "get_file_outline",
-                  slug: "reference/tools/get-file-outline",
+                  slug: "docs/tools/get-file-outline",
                 },
                 {
                   label: "find_references",
-                  slug: "reference/tools/find-references",
+                  slug: "docs/tools/find-references",
                 },
                 {
                   label: "find_cross_repo_consumers",
-                  slug: "reference/tools/find-cross-repo-consumers",
+                  slug: "docs/tools/find-cross-repo-consumers",
                 },
                 {
                   label: "trace_dependencies",
-                  slug: "reference/tools/trace-dependencies",
+                  slug: "docs/tools/trace-dependencies",
                 },
                 {
                   label: "get_blast_radius",
-                  slug: "reference/tools/get-blast-radius",
+                  slug: "docs/tools/get-blast-radius",
                 },
                 {
                   label: "list_repositories",
-                  slug: "reference/tools/list-repositories",
+                  slug: "docs/tools/list-repositories",
                 },
-                { label: "graph_status", slug: "reference/tools/graph-status" },
+                { label: "graph_status", slug: "docs/tools/graph-status" },
                 {
                   label: "index_project",
-                  slug: "reference/tools/index-project",
+                  slug: "docs/tools/index-project",
                 },
               ],
             },
-            { label: "Configuration", slug: "reference/configuration" },
-            { label: "Resolution vocabulary", slug: "reference/resolution" },
+            { label: "Configuration", slug: "docs/configuration" },
+            { label: "Resolution vocabulary", slug: "docs/resolution" },
           ],
         },
         { label: "Compared", slug: "comparison" },

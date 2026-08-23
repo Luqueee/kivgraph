@@ -111,7 +111,98 @@ func completenessFor(
 		Pattern: `\b` + regexpQuoteWord(symbolName) + `\b`,
 		Paths:   sortedKeys(paths),
 	}
-	return result, namingTotal + scopeTotal, nil
+	// The second value is `coverage.unresolved_related`, and the four coverage
+	// counters are documented as disjoint counts of what touches this query. A
+	// scope failure does not: it is why the answer may be short, not evidence
+	// about the name asked for, and it is already reported in full by
+	// InvisibleScopes and MoreInvisibleScopes. Adding it here once made
+	// find_symbol report 29 related records for a name nothing referenced.
+	// Ver ADR 0063.
+	return result, namingTotal, nil
+}
+
+// completenessOutwardFor builds the verdict for an answer about what a symbol
+// reaches, which is bounded by a different set of failures than an answer about
+// who reaches it: the ones the resolver recorded while reading that symbol.
+//
+// Asking the naming question here would be wrong in both directions. A failure
+// that asked for this symbol's name does not bound what the symbol reaches, and
+// a reference it makes that goes nowhere does -- and would be missed.
+func completenessOutwardFor(
+	snapshot *hotsnapshot.GraphSnapshot,
+	symbol hotsnapshot.SymbolID,
+	symbolName string,
+	repository hotsnapshot.RepositoryID,
+) (Completeness, int, error) {
+	sourced, sourcedTotal := snapshot.UnresolvedFromSymbol(symbol, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopes(repository, MaximumBlindSpots)
+	if sourcedTotal == 0 && scopeTotal == 0 {
+		return Completeness{Verdict: VerdictComplete}, 0, nil
+	}
+
+	result := Completeness{Verdict: VerdictLowerBound}
+	paths := make(map[string]struct{})
+	for _, reference := range sourced {
+		spot, err := blindSpot(snapshot, reference)
+		if err != nil {
+			return Completeness{}, 0, err
+		}
+		result.BlindSpots = append(result.BlindSpots, spot)
+		if spot.FilePath != "" {
+			paths[spot.FilePath] = struct{}{}
+		}
+	}
+	for _, reference := range scopes {
+		spot, err := blindSpot(snapshot, reference)
+		if err != nil {
+			return Completeness{}, 0, err
+		}
+		result.InvisibleScopes = append(result.InvisibleScopes, spot)
+		if directory := scopeDirectory(spot.Detail); directory != "" {
+			paths[directory] = struct{}{}
+		}
+	}
+	result.MoreBlindSpots = sourcedTotal - len(result.BlindSpots)
+	result.MoreInvisibleScopes = scopeTotal - len(result.InvisibleScopes)
+	result.Fallback = &Fallback{
+		Pattern: `\b` + regexpQuoteWord(symbolName) + `\b`,
+		Paths:   sortedKeys(paths),
+	}
+	// Only the symbol's own unresolved references touch this query; the scopes
+	// bound the answer without being evidence about it. See completenessFor.
+	return result, sourcedTotal, nil
+}
+
+// completenessScopes builds the verdict for an answer about a place rather than
+// a symbol -- what is declared under this path. There is no name to have been
+// asked for, so the only failure that can bound it is a scope the index could
+// not read: a package excluded by build tags declares nothing in the graph and
+// everything in the source.
+//
+// No fallback pattern: without a symbol there is nothing to grep for, and
+// inventing one would be advice the caller cannot use.
+//
+// It reports no coverage counter. Every failure it finds is a scope, and a
+// scope is not one of the four disjoint things `coverage` counts about an
+// answer; a reader learns of it from InvisibleScopes.
+func completenessScopes(
+	snapshot *hotsnapshot.GraphSnapshot,
+	repository hotsnapshot.RepositoryID,
+) (Completeness, error) {
+	scopes, scopeTotal := snapshot.UnresolvedScopes(repository, MaximumBlindSpots)
+	if scopeTotal == 0 {
+		return Completeness{Verdict: VerdictComplete}, nil
+	}
+	result := Completeness{Verdict: VerdictLowerBound}
+	for _, reference := range scopes {
+		spot, err := blindSpot(snapshot, reference)
+		if err != nil {
+			return Completeness{}, err
+		}
+		result.InvisibleScopes = append(result.InvisibleScopes, spot)
+	}
+	result.MoreInvisibleScopes = scopeTotal - len(result.InvisibleScopes)
+	return result, nil
 }
 
 func blindSpot(

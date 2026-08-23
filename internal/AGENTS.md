@@ -28,6 +28,20 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   índice: se declara como `UNRESOLVED` con razón `PACKAGE_NOT_BUILDABLE` y la
   pasada continúa. Cualquier otro diagnóstico del cargador sigue abortándola.
   Indexar este repositorio exige el tag `ladybug`.
+- Ante el fallo de un **repositorio entero** hay dos contratos, y cuál aplica
+  depende del lenguaje. Go y Rust registran una fila `UNRESOLVED` **sin
+  archivo** -`MODULE_NOT_LOADED`, `WORKSPACE_NOT_LOADED`,
+  `ANALYZER_UNAVAILABLE`- y la pasada continúa: el grafo se publica declarando
+  el hueco, y toda respuesta sobre ese repositorio sale como `LOWER_BOUND`.
+  TypeScript, Python y Dart devuelven error -`indexSemantic`,
+  `indexTypeScriptPackage`- y la pasada **aborta sin publicar**, así que no se
+  sirve ninguna respuesta sobre un repositorio que no cargó. Las dos formas son
+  honestas y ninguna afirma una ausencia; sólo la primera es medible desde un
+  grafo servido, y por eso es la única que `benchmarks/tool-honesty` ejercita.
+  Que la fila no lleve archivo es el contrato, no un detalle:
+  `hotsnapshot.UnresolvedScopes` selecciona exactamente las filas cuyo archivo
+  no está puesto, así que una que ganara uno dejaría de acotar su repositorio y
+  las preguntas sobre él volverían a decir `COMPLETE` sobre un hueco.
 - `go/types` viaja enlazado en el binario: Kivgraph solo comprueba tipos hasta
   la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
   por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
@@ -141,6 +155,16 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 - Los iteradores `VisitRepositories`, `VisitPackages`, `VisitFiles`,
   `VisitSymbols`, `VisitEvidence` y `VisitEdges` entregan copias por valor y
   no exponen slices internas; sus rangos son half-open y cancelables.
+- La evidencia de una arista viaja al HotSnapshot **sin su posición**:
+  `hotsnapshot.EvidenceRecord` lleva clave, los dos ficheros, clase y
+  procedencia, y el vano observado se queda en el grafo canónico. Así que
+  ninguna tool puede abrir el texto que justifica una arista, en ninguno de los
+  cinco lenguajes: una fila de `find_references` usa el rango del símbolo y su
+  `evidence_kind` sale de la procedencia. Es un hueco declarado, no un defecto
+  a arreglar de paso: proyectarlo sube la versión del formato de filas del
+  snapshot -- una superficie de compatibilidad-- y hoy ningún consumidor lo
+  pide. Quien añada un `evidence_key` a un lenguaje debe saber que completa el
+  contrato canónico y no cambia ninguna respuesta.
 - `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
   así que las columnas de una tabla se resuelven una vez por tabla y nunca por
   fila. El grafo tiene una arista por referencia del corpus.

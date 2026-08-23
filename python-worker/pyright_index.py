@@ -56,6 +56,19 @@ def point(node, line_starts, text):
             "endLine": end_line, "endColumn": end_column, "end": end}
 
 
+# attribute_point spans the member name of `box.get`, not the whole expression:
+# the occurrence being resolved is `get`, and its evidence has to say where that
+# is. Python records the end of the attribute node at the end of its name, so
+# the name starts that many characters earlier on that line.
+def attribute_point(node, line_starts, text):
+    end_line = max(1, getattr(node, "end_lineno", getattr(node, "lineno", 1)))
+    end_column = max(0, getattr(node, "end_col_offset", 0))
+    column = max(0, end_column - len(node.attr))
+    base = line_starts[min(end_line - 1, len(line_starts) - 1)]
+    return {"startLine": end_line, "startColumn": column, "start": base + column,
+            "endLine": end_line, "endColumn": end_column, "end": base + end_column}
+
+
 def module_name(root, path):
     relative = pathlib.Path(path).relative_to(root).with_suffix("")
     parts = list(relative.parts)
@@ -72,8 +85,17 @@ class LSP:
         self.process = subprocess.Popen(fields, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.next_id = 1
+        # Hierarchical document symbols, declared: without this capability
+        # Pyright answers with the flat SymbolInformation[] shape, which carries
+        # no children, and visit() below derives every qualified name from the
+        # module prefix. Two methods of two classes in one file then collapse
+        # onto one qualified name -- `Vehicle.drive` and `Car.drive` both become
+        # `pkg.models.drive` -- and the canonical set is refused for defining a
+        # symbol twice.
         self.request("initialize", {"processId": None, "rootUri": uri(root),
-                                     "capabilities": {}, "workspaceFolders":
+                                     "capabilities": {"textDocument": {"documentSymbol": {
+                                         "hierarchicalDocumentSymbolSupport": True}}},
+                                     "workspaceFolders":
                                      [{"uri": uri(root), "name": root.name}]})
         self.notify("initialized", {})
 
@@ -219,10 +241,20 @@ def main():
             symbols.append(module_symbol)
             by_location[(str(path), 0)] = module_id
 
-            def visit(entries, prefix=""):
+            # inside_callable says the entries being visited are the body of a
+            # function or a method. Their variables are locals and parameters:
+            # nothing outside can name them, which is the same rule the Go path
+            # applies to a declaration that no path from the package scope
+            # reaches. Publishing them made a function hold edges to its own
+            # locals, and every one of those was an EXACT edge the source does
+            # not contain.
+            def visit(entries, prefix="", inside_callable=False):
                 for row in entries:
                     name = row.get("name", "").strip()
                     if not name:
+                        continue
+                    kind = symbol_kind(row.get("kind", 0))
+                    if inside_callable and kind in {"variable", "constant", "type_parameter"}:
                         continue
                     qualified = f"{prefix}.{name}" if prefix else f"{module_name(root, path)}.{name}"
                     symbol_range = row.get("range", row.get("location", {}).get("range", {}))
@@ -230,7 +262,6 @@ def main():
                     start = offset_at(text, selection.get("start", {}).get("line", 0), selection.get("start", {}).get("character", 0))
                     span = symbol_range or selection
                     end = offset_at(text, span.get("end", {}).get("line", 0), span.get("end", {}).get("character", 0))
-                    kind = symbol_kind(row.get("kind", 0))
                     symbol_id = f"{relative}\x00{qualified}\x00{kind}"
                     symbol = {"id": symbol_id, "file": relative, "name": name,
                               "qualifiedName": qualified, "kind": kind,
@@ -242,7 +273,8 @@ def main():
                                   "endColumn": utf16_column(text, end), "end": end})
                     symbols.append(symbol)
                     by_location[(str(path), start)] = symbol_id
-                    visit(row.get("children", []), qualified)
+                    visit(row.get("children", []), qualified,
+                          inside_callable or kind in {"function", "method", "constructor", "property"})
             visit(rows)
 
         symbol_by_id = {row["id"]: row for row in symbols}
@@ -279,7 +311,17 @@ def main():
                     return "", ""
                 target_path, target_offset = location_offset(locations[0], contents)
                 target_id = target_at(target_path, target_offset)
-                return (target_id if target_id in symbol_by_id else ""), target_path
+                if target_id not in symbol_by_id:
+                    return "", target_path
+                # A definition that lands inside a file but on no declaration
+                # resolves to the module, because that is the only symbol whose
+                # range covers the whole file. That is not a resolved target: it
+                # is a target we could not identify -- an `@overload`ed `def`
+                # among others -- and publishing the module instead would be an
+                # EXACT edge earned by being the only candidate left.
+                if symbol_by_id[target_id]["kind"] == "module" and target_offset > 0:
+                    return "", target_path
+                return target_id, target_path
 
             def import_name_offset(alias):
                 name = alias.asname or alias.name
@@ -304,15 +346,31 @@ def main():
                                         "requestedSymbol": alias.name,
                                         "targetId": target_id,
                                         **point(node, line_starts, text)})
-                if not isinstance(node, ast.Name) or not isinstance(getattr(node, "ctx", None), ast.Load):
+                # An attribute is an occurrence like any other. Skipping them
+                # made `box.get()` invisible: no edge, and no unresolved row
+                # either, so find_references answered COMPLETE over a call the
+                # source makes. Pyright resolves a member at its name, so the
+                # occurrence is asked exactly like a bare name and refused the
+                # same way when it does not resolve.
+                if isinstance(node, ast.Name) and isinstance(getattr(node, "ctx", None), ast.Load):
+                    occurrence = point(node, line_starts, text)
+                    requested = node.id
+                elif isinstance(node, ast.Attribute) and isinstance(getattr(node, "ctx", None), ast.Load):
+                    occurrence = attribute_point(node, line_starts, text)
+                    requested = node.attr
+                else:
                     continue
-                target_id, target_path = definition_target(line_starts[node.lineno - 1] + node.col_offset)
+                target_id, target_path = definition_target(occurrence["start"])
                 if not target_id:
-                    unresolved.append({"file": relative, "sourceId": module_id,
-                                       "requestedSymbol": node.id,
+                    # The enclosing declaration owns its failures too: a row
+                    # attributed to the module says the file could not resolve
+                    # something, which is a coarser fact than the one observed.
+                    unresolved.append({"file": relative,
+                                       "sourceId": target_at(str(path), occurrence["start"]) or module_id,
+                                       "requestedSymbol": requested,
                                        "reason": "TARGET_NOT_INDEXED" if target_path else "NAME_NOT_RESOLVED",
                                        "detail": target_path,
-                                       **point(node, line_starts, text)})
+                                       **occurrence})
                     continue
                 parent = getattr(node, "parent", None)
                 kind = "REFERENCES"
@@ -328,9 +386,22 @@ def main():
                     kind = "ASSIGNS_FUNCTION" if target_id in function_symbol_ids else "REFERENCES"
                 elif isinstance(parent, ast.Call) and node in parent.args:
                     kind = "PASSES_AS_CALLBACK" if target_id in function_symbol_ids else "REFERENCES"
-                references.append({"file": relative, "sourceId": module_id,
+                # The enclosing declaration, not the module: a reference belongs
+                # to whoever makes it. Attributing every one to the module made
+                # find_references answer at file granularity, and it fabricated
+                # relations that the source does not contain -- `class
+                # ElectricVehicle(Vehicle)` was published as the module itself
+                # extending Vehicle, as an EXACT edge.
+                source_id = target_at(str(path), occurrence["start"]) or module_id
+                # A declaration does not reference itself: the name in `def
+                # drive(self)` resolves to `drive`, and publishing that is a
+                # self loop the source does not contain. The Dart path already
+                # refuses the same shape.
+                if source_id == target_id:
+                    continue
+                references.append({"file": relative, "sourceId": source_id,
                                    "targetId": target_id, "kind": kind,
-                                   **point(node, line_starts, text), "text": node.id})
+                                   **occurrence, "text": requested})
 
         result = {"version": 1, "authoritative": True, "analyzer": args.analyzer, "repository": root.name,
                   "language": "python", "package": {"name": root.name, "rootPath": str(root)},

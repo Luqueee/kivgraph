@@ -148,3 +148,28 @@ func resolveCommand(command, pythonPath, workingDirectory string) ([]string, str
 	}
 	return []string{script}, python, true, nil
 }
+
+// ProducerFile is the file whose content decides the facts of one pass: the
+// bundled script for the adapters that run one, or the resolved executable for
+// an external producer. The fact cache fingerprints it, so a change to the
+// producer forces a re-observation instead of reusing what the previous
+// producer said.
+//
+// It resolves with the same rules as resolveCommand, on purpose: two resolution
+// rules is how a cache ends up keyed on a file nobody runs. Editing the exact
+// adapter used to leave the fingerprint untouched, and a rebuild republished
+// facts the current code would not produce.
+func ProducerFile(command, analyzerCommand, analyzerMode, pythonPath, workingDirectory string) string {
+	effective := command
+	if strings.EqualFold(strings.TrimSpace(analyzerMode), "exact") {
+		effective = analyzerCommand
+	}
+	args, executable, _, err := resolveCommand(effective, pythonPath, workingDirectory)
+	if err != nil {
+		return ""
+	}
+	if len(args) > 0 && strings.HasSuffix(args[0], ".py") {
+		return args[0]
+	}
+	return executable
+}

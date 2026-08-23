@@ -60,6 +60,58 @@ func TestBlastRadiusVerdictTurnsOnOneRecordedFailure(t *testing.T) {
 	}
 }
 
+// TestFindReferencesNeverCallsARecordedMissAnAbsence is the guard on the claim
+// this tool is bought for. `Caller` is referenced by nothing in this graph, so
+// the incoming answer is empty either way -- but with a failure on record that
+// asked for that very name, an empty list is a minimum, and the sentence that
+// calls it "an absence rather than a miss" would be false.
+func TestFindReferencesNeverCallsARecordedMissAnAbsence(t *testing.T) {
+	clean := completenessSnapshot(t, 61)
+	_, response, err := findReferences(context.Background(), nil,
+		FindReferencesInput{StableKey: "sym-caller", Direction: FindReferencesDirectionIncoming}, clean)
+	if err != nil {
+		t.Fatalf("find_references error = %v", err)
+	}
+	if response.Total != 0 {
+		t.Fatalf("clean graph total = %d, want an empty answer", response.Total)
+	}
+	if response.Completeness == nil || response.Completeness.Verdict != VerdictComplete {
+		t.Fatalf("clean graph verdict = %#v, want %s", response.Completeness, VerdictComplete)
+	}
+	if !strings.Contains(response.Guidance, "absence rather than a miss") {
+		t.Fatalf("clean guidance = %q, want the absence claim the graph supports", response.Guidance)
+	}
+
+	blinded := completenessSnapshot(t, 62, hotsnapshot.UnresolvedReferenceRow{
+		Key: "unresolved-caller", RepositoryKey: "repo-app", FileKey: "file-app",
+		Language: "go", RequestedPackage: "example.com/vendor", RequestedSymbol: "Caller",
+		Reason: "TARGET_NOT_INDEXED", Detail: "the definition landed on no declaration",
+		StartLine: 12, StartColumn: 4,
+	})
+	_, response, err = findReferences(context.Background(), nil,
+		FindReferencesInput{StableKey: "sym-caller", Direction: FindReferencesDirectionIncoming}, blinded)
+	if err != nil {
+		t.Fatalf("find_references error = %v", err)
+	}
+	if response.Completeness == nil || response.Completeness.Verdict != VerdictLowerBound {
+		t.Fatalf("blinded verdict = %#v, want %s", response.Completeness, VerdictLowerBound)
+	}
+	if response.Coverage.UnresolvedRelated != 1 {
+		t.Fatalf("blinded unresolved_related = %d, want the recorded failure counted", response.Coverage.UnresolvedRelated)
+	}
+	if strings.Contains(response.Guidance, "absence rather than a miss") {
+		t.Fatalf("blinded guidance = %q, which calls a recorded miss an absence", response.Guidance)
+	}
+	if !strings.Contains(response.Guidance, "blind_spots") {
+		t.Fatalf("blinded guidance = %q, want it to name where to look", response.Guidance)
+	}
+	// The coordinates are the point: an agent must be able to go and look.
+	spots := response.Completeness.BlindSpots
+	if len(spots) != 1 || spots[0].FilePath != "app.go" || spots[0].StartLine != 12 {
+		t.Fatalf("blind spots = %#v, want app.go:12", spots)
+	}
+}
+
 // TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope keeps the two
 // apart: one bounds an answer about a symbol, the other bounds every answer
 // about the repository. The snapshot tells them apart by whether the failure
@@ -83,6 +135,14 @@ func TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope(t *testing.T
 	scopes := response.Completeness.InvisibleScopes
 	if len(scopes) != 1 || scopes[0].Reason != "PACKAGE_NOT_BUILDABLE" || scopes[0].FilePath != "" {
 		t.Fatalf("invisible scopes = %#v", scopes)
+	}
+	// And it must not be counted as one either. The four coverage counters are
+	// disjoint counts of what touches the query; a scope failure is why the
+	// answer may be short, not a record that names the symbol. Summing it here
+	// made find_symbol answer 29 related records for a name nothing referenced.
+	if response.Coverage.UnresolvedRelated != 0 {
+		t.Fatalf("unresolved_related = %d, want 0: a scope names no symbol",
+			response.Coverage.UnresolvedRelated)
 	}
 	// The directory the loader named is what the fallback has to search.
 	if response.Completeness.Fallback == nil ||
@@ -119,6 +179,41 @@ func TestFindSymbolReportsWhatItCouldNotResolve(t *testing.T) {
 	}
 	if other.Coverage.UnresolvedRelated != 0 {
 		t.Fatalf("unresolved_related for a different name = %d, want 0", other.Coverage.UnresolvedRelated)
+	}
+}
+
+// TestFindSymbolScopesTheVerdictToTheRepositoryAsked is what keeps the verdict
+// from becoming a constant. A search of the whole graph is bounded by every
+// unreadable package in it; one narrowed to a repository is bounded only by
+// that repository's. Without the scope, a single bad package anywhere would
+// print LOWER_BOUND on every lookup in the corpus, and a verdict that never
+// says COMPLETE carries no information at all.
+func TestFindSymbolScopesTheVerdictToTheRepositoryAsked(t *testing.T) {
+	store := completenessSnapshot(t, 55, hotsnapshot.UnresolvedReferenceRow{
+		Key: "unresolved-scope", RepositoryKey: "repo-core", Language: "go",
+		RequestedPackage: "example.com/core/hidden", Reason: "PACKAGE_NOT_BUILDABLE",
+		Detail: "build constraints exclude all Go files in /repo-core/hidden",
+	})
+
+	_, wide, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "Absent"}, store)
+	if err != nil {
+		t.Fatalf("find_symbol error = %v", err)
+	}
+	if wide.Completeness.Verdict != VerdictLowerBound {
+		t.Fatalf("unscoped verdict = %q, want %s", wide.Completeness.Verdict, VerdictLowerBound)
+	}
+
+	// repo-app has nothing the index could not read, so the same empty answer
+	// asked of it is an absence and not a minimum.
+	_, narrow, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "Absent", Repo: "app"}, store)
+	if err != nil {
+		t.Fatalf("find_symbol error = %v", err)
+	}
+	if narrow.Completeness.Verdict != VerdictComplete {
+		t.Fatalf("scoped verdict = %q, want %s: the blind spot belongs to another repository", narrow.Completeness.Verdict, VerdictComplete)
+	}
+	if len(narrow.Completeness.InvisibleScopes) != 0 {
+		t.Fatalf("scoped answer inherited another repository's scopes: %#v", narrow.Completeness.InvisibleScopes)
 	}
 }
 

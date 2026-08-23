@@ -58,6 +58,25 @@ page. See [when a page groups](/mcp/usage/#when-a-page-groups) for the
 mechanism shared by six tools, and the [grouped example](#example-grouped)
 below for a captured page.
 
+`get_file_outline` publishes no `coverage` counters at all. The four categories
+grade resolved relations and the confidence behind each one, and an outline
+returns the declarations of one repository, so none of them applies -- `total`
+and `returned` already say how many declarations there are. The compact view
+omits the `coverage` key entirely; the `full` view still writes the four zeros,
+because that view writes every field by contract.
+
+`completeness` states how far the page reaches, and the question names a place
+rather than a symbol, so no failed request for a name can bound it: the only
+failure that can is a scope of the repository asked for that the index could not
+read, named in `invisible_scopes`. There is no `fallback` pattern here --
+without a symbol there is nothing to grep for. An outline that lists nothing
+under a path is saying nothing is declared there, so the `verdict` is spent
+where the answer could be mistaken for that proof -- a page with no rows, a
+truncated one, and every `LOWER_BOUND` -- while a page of declarations claims no
+absence and carries no verdict at all. See
+[the completeness verdict](/mcp/usage/#read-the-answer) for the two values and
+the rest of the block.
+
 ## Example
 
 ```json
@@ -68,7 +87,7 @@ below for a captured page.
 ```
 
 ```json
-{"snapshot_id":30,"total":2,"returned":2,"coverage":{"exact":2},"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","package":"github.com/Luqueee/kivgraph/internal/mcp","kind":"const","exported":false,"files":[{"file":"internal/mcp/instructions.go","at":["staleServerInstructions@36","serverInstructions@21-27"]}]}}
+{"snapshot_id":30,"total":2,"returned":2,"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","package":"github.com/Luqueee/kivgraph/internal/mcp","kind":"const","exported":false,"files":[{"file":"internal/mcp/instructions.go","at":["staleServerInstructions@36","serverInstructions@21-27"]}]}}
 ```
 
 Both declarations are unexported constants of the same package, so the header
@@ -88,7 +107,7 @@ The same call in the `full` view, the field-per-row shape:
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":9020,"total":2,"returned":2,"truncated":false,"next_cursor":null,"coverage":{"exact":2,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","packages":["github.com/Luqueee/kivgraph/internal/mcp"],"languages":["go"],"files":[{"path":"internal/mcp/instructions.go","symbols":[{"name":"staleServerInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":36,"end_line":36},{"name":"serverInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":21,"end_line":27}]}]}}
+{"snapshot_id":30,"snapshot_age_ms":9020,"total":2,"returned":2,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","packages":["github.com/Luqueee/kivgraph/internal/mcp"],"languages":["go"],"files":[{"path":"internal/mcp/instructions.go","symbols":[{"name":"staleServerInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":36,"end_line":36},{"name":"serverInstructions","kind":"const","signature":"untyped string","exported":false,"start_line":21,"end_line":27}]}]}}
 ```
 
 ### The `files` view
@@ -105,7 +124,7 @@ the file list and a count each, and nothing about what is declared:
 ```
 
 ```json
-{"snapshot_id":30,"total":2,"returned":2,"coverage":{"exact":2},"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","files":[{"file":"internal/mcp/instructions.go","declarations":2}]}}
+{"snapshot_id":30,"total":2,"returned":2,"results":{"repository":"kivgraph","path":"internal/mcp/instructions.go","files":[{"file":"internal/mcp/instructions.go","declarations":2}]}}
 ```
 
 It is the shape of the question over a directory, where the answer is a dozen
@@ -131,7 +150,6 @@ A directory whose declarations do not share one `kind` or one `exported`:
   "snapshot_id": 1,
   "total": 32,
   "returned": 19,
-  "coverage": { "exact": 19 },
   "results": {
     "repository": "mole",
     "path": "internal/admin",

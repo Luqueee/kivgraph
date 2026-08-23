@@ -1,0 +1,276 @@
+{
+  "benchmark": "tool-honesty",
+  "command": "go run ./benchmarks/tool-honesty --kivgraph \u003cbinary\u003e",
+  "date": "2026-08-22",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "rust": "rustc 1.96.1 (31fca3adb 2026-06-26)"
+  },
+  "corpus": {
+    "languages": [
+      "go",
+      "rust"
+    ],
+    "repositories": [
+      "go-blinded",
+      "go-pure",
+      "rust-blinded",
+      "rust-pure"
+    ],
+    "symbols": 10,
+    "unresolved": 2,
+    "unresolved_by_reason": [
+      "PACKAGE_NOT_BUILDABLE=1",
+      "WORKSPACE_NOT_LOADED=1"
+    ],
+    "invisible_scopes": 2,
+    "invisible_scopes_by_language": {
+      "go": 1,
+      "rust": 1
+    }
+  },
+  "checks": [
+    {
+      "name": "a declaration lookup that finds nothing while a package is unreadable",
+      "tool": "find_symbol",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 2,
+      "guidance": "nothing declares this name in the published graph, but the index recorded places it could not read: read completeness.invisible_scopes, or widen with mode=substring, before concluding the name does not exist",
+      "errored": false
+    },
+    {
+      "name": "the same lookup narrowed to the repository that can answer it",
+      "tool": "find_symbol",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "nothing declares this name in the published graph. Widen with mode=prefix or mode=substring, or check graph_status if the tree moved since it was indexed",
+      "errored": false
+    },
+    {
+      "name": "a declaration lookup that finds nothing in a corpus that can answer",
+      "tool": "find_symbol",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "nothing declares this name in the published graph. Widen with mode=prefix or mode=substring, or check graph_status if the tree moved since it was indexed",
+      "errored": false
+    },
+    {
+      "name": "who calls a symbol nobody calls, in a repository with nothing hidden",
+      "tool": "find_references",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "nothing references this symbol in the published graph; the edges are type-checked, so this is an absence rather than a miss. Widen with find_cross_repo_consumers, or check graph_status if the tree moved since it was indexed",
+      "errored": false
+    },
+    {
+      "name": "who calls a symbol in a repository the index could not fully read",
+      "tool": "find_references",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 1,
+      "guidance": "nothing resolved references this symbol, but the index recorded places it could not read that ask for this name: read completeness.blind_spots and fall back to its pattern before concluding anything",
+      "errored": false
+    },
+    {
+      "name": "what a symbol reaches, outward, with nothing hidden",
+      "tool": "trace_dependencies",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "the traversal reached nothing within its bounds; raise depth, or call find_references for the direct relations only",
+      "errored": false
+    },
+    {
+      "name": "what a symbol reaches when its repository holds an unreadable package",
+      "tool": "trace_dependencies",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 1,
+      "guidance": "the traversal reached nothing, and the index recorded places it could not read that bound this answer: read completeness.blind_spots before concluding this reaches nothing",
+      "errored": false
+    },
+    {
+      "name": "what breaks if I change this, with nothing hidden",
+      "tool": "get_blast_radius",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "the traversal reached nothing within its bounds; raise depth, or call find_references for the direct relations only",
+      "errored": false
+    },
+    {
+      "name": "who uses this from another repository",
+      "tool": "find_cross_repo_consumers",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 2,
+      "guidance": "no repository in the published graph resolves a use of this symbol, but the index recorded places it could not read: read completeness.blind_spots and invisible_scopes before reporting that nothing outside uses it",
+      "errored": false
+    },
+    {
+      "name": "what is declared under a path the index read whole",
+      "tool": "get_file_outline",
+      "language": "go",
+      "passed": true,
+      "total": 3,
+      "verdict": "",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "errored": false
+    },
+    {
+      "name": "what is declared under a path whose repository hides a package",
+      "tool": "get_file_outline",
+      "language": "go",
+      "passed": true,
+      "total": 1,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 1,
+      "errored": false
+    },
+    {
+      "name": "a symbol that is not there, asked of the reader",
+      "tool": "get_symbol",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "errored": true,
+      "error_detail": "SYMBOL_NOT_FOUND: symbol \"there-is-no-such-key\" was not found"
+    },
+    {
+      "name": "source for a symbol that is not there",
+      "tool": "get_source",
+      "language": "go",
+      "passed": true,
+      "total": 0,
+      "verdict": "",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "errored": true,
+      "error_detail": "SYMBOL_NOT_FOUND: symbol \"there-is-no-such-key\" was not found"
+    },
+    {
+      "name": "who calls a Rust symbol nobody calls, with nothing hidden",
+      "tool": "find_references",
+      "language": "rust",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "nothing references this symbol in the published graph; the edges are type-checked, so this is an absence rather than a miss. Widen with find_cross_repo_consumers, or check graph_status if the tree moved since it was indexed",
+      "errored": false
+    },
+    {
+      "name": "who calls a Rust symbol whose repository holds a workspace that failed to load",
+      "tool": "find_references",
+      "language": "rust",
+      "passed": true,
+      "total": 0,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 1,
+      "guidance": "nothing resolved references this symbol, but the index recorded places it could not read that ask for this name: read completeness.blind_spots and fall back to its pattern before concluding anything",
+      "errored": false
+    },
+    {
+      "name": "a Rust declaration that only the unreadable workspace has",
+      "tool": "find_symbol",
+      "language": "rust",
+      "passed": true,
+      "total": 0,
+      "verdict": "LOWER_BOUND",
+      "blind_spots": 0,
+      "invisible_scopes": 2,
+      "guidance": "nothing declares this name in the published graph, but the index recorded places it could not read: read completeness.invisible_scopes, or widen with mode=substring, before concluding the name does not exist",
+      "errored": false
+    },
+    {
+      "name": "a Go answer is not bounded by a Rust blind spot",
+      "tool": "find_references",
+      "language": "rust",
+      "passed": true,
+      "total": 0,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "guidance": "nothing references this symbol in the published graph; the edges are type-checked, so this is an absence rather than a miss. Widen with find_cross_repo_consumers, or check graph_status if the tree moved since it was indexed",
+      "errored": false
+    },
+    {
+      "name": "a Rust answer is not bounded by a Go blind spot",
+      "tool": "find_references",
+      "language": "rust",
+      "passed": true,
+      "total": 1,
+      "verdict": "COMPLETE",
+      "blind_spots": 0,
+      "invisible_scopes": 0,
+      "errored": false
+    }
+  ],
+  "totals": {
+    "checks": 18,
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0
+  },
+  "gate": "TOOL_HONESTY_PASS_WITH_LIMITS",
+  "findings": [
+    "`find_references` answered an empty list with «the edges are type-checked, so this is an absence rather than a miss» while the index held an unresolved row naming that very symbol. The row was there, with its file and its line, and the tool did not read it: `addReferenceCoverage` counted edges whose confidence is Unresolved, which is a different fact. It is the check this harness exists to keep.",
+    "Six tools answer a question whose empty or partial answer reads as proof, and until this phase two published a verdict. The other four -- `trace_dependencies`, `find_cross_repo_consumers`, `find_symbol`, `get_file_outline` -- said nothing, while `internal/mcp/instructions.go` told every agent to «read confidence and completeness before treating an empty or partial answer as proof of absence».",
+    "An outward question is bounded by a different set of failures than an inward one. «Who calls this» is bounded by failures that asked for the name; «what does this reach» by failures the symbol itself made. Asking the naming question for a traversal would have missed every one of them, so `UnresolvedFromSymbol` exists for that direction.",
+    "The scope of the check follows the scope of the question, and that is what keeps the verdict from becoming a constant. A search of the whole graph is bounded by every unreadable package in it; one narrowed to a repository only by that repository's. `find_cross_repo_consumers` is deliberately the other way round: a package unreadable anywhere can hide the consumer it is asked about.",
+    "`get_symbol` and `get_source` refuse a symbol they cannot find instead of answering an empty list, so they claim no absence and need no verdict. The two checks here pin that shape: if either ever answers empty, it needs a verdict like the rest.",
+    "Measured, not assumed: `\"completeness\":{\"verdict\":\"COMPLETE\"}` is 10 tokens under `cl100k_base` -- 16 % of a one-row `find_symbol` answer and 50 % of an empty one. So a lookup spends it where the answer could be mistaken for a proof (empty, partial) and on every lower bound, while the four relational tools always carry it: for «who calls this» and «what breaks if I change this», COMPLETE on a non-empty answer is the claim being bought.",
+    "The invariant is about the shape of a failure, not about a language. A scope is a recorded failure with no file (`blindspots.go:88` filters on exactly that), and the two arms reach it through different reasons: Go excludes a package by build tag (`PACKAGE_NOT_BUILDABLE`), Rust names a workspace member that is not there (`WORKSPACE_NOT_LOADED`). Same envelope, same verdict, two loaders.",
+    "The five languages split into two honest shapes when a whole repository fails, and nothing documented which did which. Go and Rust record a fileless row and continue, so the answers about that repository become lower bounds. TypeScript, Python and Dart return an error instead -- `semantic.go:83`, `full.go:1388` -- and the pass aborts without publishing, so no answer is served at all. Both refuse to claim an absence; only the first is measurable from a served graph.",
+    "A verdict must not leak across languages, and one corpus is what makes that checkable. A Go answer scoped to a Go repository stays COMPLETE while a Rust workspace of the same graph is unreadable, and the mirror holds too. Leaking would make the verdict a constant on every polyglot monorepo, which is the only kind this product is for.",
+    "Isolating HOME breaks the Rust toolchain, and it broke this harness first. `RUSTUP_HOME` defaults to `$HOME/.rustup`, so a temporary HOME leaves rustup with no toolchains, `rustc` stops answering, and every Rust workspace fails to load -- which would have made the clean arm indistinguishable from the blinded one and passed green having measured nothing. `indexEnvironment` moves HOME and leaves the toolchain locations alone.",
+    "Measured while choosing the Rust fixture: an unresolvable *dependency* is not a blind spot. rust-analyzer loads the workspace anyway and degrades, so a crate depending on a package that cannot exist produced eight symbols and zero failures. A workspace naming a member directory that does not exist is what Cargo cannot resolve, and it is deterministic with or without network access."
+  ],
+  "limitations": [
+    "The corpus is two Go and two Rust repositories: it proves the invariant holds across the two languages that record a fileless failure and continue, and that the verdict is neither a constant nor leaky between them. TypeScript, Python and Dart abort the pass instead, so no served graph of theirs can be measured this way and none is measured here.",
+    "Two of the three Rust scope reasons are unexercised. `WORKSPACE_NOT_LOADED` is the one this fixture produces; `ANALYZER_UNAVAILABLE` needs a missing analyzer and `TARGET_NOT_BUILDABLE` was not reachable by fixture at all -- an excluded crate is discovered as its own workspace and loads, so `collectEmptyCrates` never fires here.",
+    "`MACRO_EXPANSION_DISABLED` is emitted for every Rust repository whenever `proc_macros` is off, which makes every answer about that repository a lower bound. It is literally true -- the index is incomplete by configuration and says so -- but it means the Rust verdict carries no information under that setting. The default is on, and this corpus runs with the default.",
+    "This harness reads the envelope, not the rows: it prices what a tool claims about its own completeness, and says nothing about whether the edges are right. That is what `benchmarks/go-semantic`, `rust-semantic`, `python-semantic` and `dart-semantic` measure.",
+    "It needs a binary built with the `ladybug` tag, and git on the PATH; the Rust arm also needs the pinned analyzer and a `rustc` that answers. The binary and git are required, and the Rust arm is skipped with its reason recorded rather than faked or failed."
+  ]
+}

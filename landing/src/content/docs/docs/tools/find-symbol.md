@@ -44,9 +44,23 @@ Either way every row is addressable: `get_symbol`, `get_source`,
 and `qualified_name` of a row you already have -- which is why the compact view
 drops `stable_key`. It was `885` of the `2.293` tokens of one 22-row page over
 `kena`; the compact page cost `901` before the second grouping tier below and
-`773` after it. `coverage.exact` counts the rows returned, and
-`coverage.unresolved_related` counts unresolved references that name the same
-string.
+`773` after it. `find_symbol` publishes no `exact` counter: a declaration lookup
+returns declarations rather than resolved relations, so that count could only
+repeat `returned`. `coverage` on this tool carries `unresolved_related` alone --
+unresolved references that name the same string -- and it is absent entirely
+when that counter is zero.
+
+A search that found nothing and reports no uncertainty is claiming the name does
+not exist, when it may only mean that whatever declares it was never indexed. So
+the answer also carries a `completeness` object, whose `verdict` is `COMPLETE` or
+`LOWER_BOUND`; see [the completeness verdict](/mcp/usage/#read-the-answer). What
+bounds a declaration lookup is the scopes the index could not read, and the scope
+follows the question -- `repo` narrows it to that repository, because a lookup
+charged for one unreadable package anywhere in the graph would read `LOWER_BOUND`
+on every call of the corpus and the verdict would carry no information. This is
+the most frequent call in the surface, so the block is spent where the answer
+could be mistaken for proof -- an empty or a truncated page -- and on every lower
+bound; a full page of declarations claims no absence and does not carry it.
 
 When `kind` and `exported` do not both hoist to the header -- a page mixing
 methods, functions and variables in various combinations of visibility --
@@ -66,7 +80,7 @@ by six tools, and the [example](#example-grouped) below for a captured page.
 ```
 
 ```json
-{"snapshot_id":30,"total":1,"returned":1,"coverage":{"exact":1},"results":{"name":"MergeAll","kind":"func","exported":true,"repository":"kivgraph","symbols":[{"at":"internal/facts/facts.go:516","end":542,"sig":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set"}]}}
+{"snapshot_id":30,"total":1,"returned":1,"results":{"name":"MergeAll","kind":"func","exported":true,"repository":"kivgraph","symbols":[{"at":"internal/facts/facts.go:516","end":542,"sig":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set"}]}}
 ```
 
 One row, so everything except the location is in the header and the entry is the
@@ -83,7 +97,7 @@ field-per-row shape:
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":9019,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":1,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542}]}
+{"snapshot_id":30,"snapshot_age_ms":9019,"total":1,"returned":1,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542}]}
 ```
 
 The same query in `substring` mode, which matches anywhere in the unqualified
@@ -99,7 +113,7 @@ name:
 ```
 
 ```json
-{"snapshot_id":30,"total":3,"returned":3,"coverage":{"exact":3},"results":{"exported":true,"repository":"kivgraph","symbols":[{"at":"internal/facts/facts.go:516","end":542,"name":"MergeAll","kind":"func","sig":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set"},{"at":"internal/indexer/full.go:50","name":"PhaseMerge","kind":"const"},{"at":"internal/facts/facts.go:505","end":507,"qn":"Set.Merge","kind":"method","sig":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)"}]}}
+{"snapshot_id":30,"total":3,"returned":3,"results":{"exported":true,"repository":"kivgraph","symbols":[{"at":"internal/facts/facts.go:516","end":542,"name":"MergeAll","kind":"func","sig":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set"},{"at":"internal/indexer/full.go:50","name":"PhaseMerge","kind":"const"},{"at":"internal/facts/facts.go:505","end":507,"qn":"Set.Merge","kind":"method","sig":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)"}]}}
 ```
 
 Three declarations that agree only on their repository and their visibility, so
@@ -120,7 +134,7 @@ the `full` view:
 ```
 
 ```json
-{"snapshot_id":30,"snapshot_age_ms":21769,"total":3,"returned":3,"truncated":false,"next_cursor":null,"coverage":{"exact":3,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542},{"stable_key":"VTNOLFOCZDSMBNROBRVHV2NM5MKA37B72M2K5LPCUPR3UJG2GGIA","name":"PhaseMerge","qualified_name":"PhaseMerge","kind":"const","signature":"github.com/Luqueee/kivgraph/internal/indexer.ProgressPhase","exported":true,"repository":"kivgraph","file_path":"internal/indexer/full.go","start_line":50,"end_line":50},{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":505,"end_line":507}]}
+{"snapshot_id":30,"snapshot_age_ms":21769,"total":3,"returned":3,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542},{"stable_key":"VTNOLFOCZDSMBNROBRVHV2NM5MKA37B72M2K5LPCUPR3UJG2GGIA","name":"PhaseMerge","qualified_name":"PhaseMerge","kind":"const","signature":"github.com/Luqueee/kivgraph/internal/indexer.ProgressPhase","exported":true,"repository":"kivgraph","file_path":"internal/indexer/full.go","start_line":50,"end_line":50},{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":505,"end_line":507}]}
 ```
 
 A name nobody declares is an empty `symbols` list -- an empty array in the `full`
@@ -165,7 +179,6 @@ than one kind:
   "snapshot_id": 1,
   "total": 8,
   "returned": 8,
-  "coverage": { "exact": 8 },
   "results": {
     "exported": false,
     "groups": [
@@ -228,15 +241,17 @@ it indexed into no longer exist. All of them mean the same thing for a caller:
 restart the pagination. `view` is not part of the identity, so one cursor can
 continue a query in another view.
 
-`find_symbol` never emits `guidance`. That field belongs to the reference and
-traversal tools, where a zero count reads as an absence and needs a sentence to
-say so. Here the signal is `coverage.unresolved_related`: it counts unresolved
+`find_symbol` emits `guidance` where a count alone would mislead -- an empty
+page or a truncated one -- and stays silent on a full page of rows, because
+fifteen tokens of advice on the most frequent call of the surface is how a
+saving becomes a cost. The other signal is `coverage.unresolved_related`: it
+counts unresolved
 references naming the same string, so a zero-row answer with
 `unresolved_related` at zero means the published graph declares no symbol of
 that name inside your filters, and a non-zero value means something names it
-that the indexer could not resolve to a declaration. In the compact view a zero
-counter is not written at all, so an absent `coverage` is the four zeros and an
-absent `unresolved_related` beside a non-zero `exact` is that counter at zero.
+that the indexer could not resolve to a declaration. It is the only counter
+this tool reports. In the compact view a zero counter is not written at all, so
+when `unresolved_related` is zero the whole `coverage` object is omitted.
 
 `response_format` accepts `concise` and `detailed`. Concise omits
 `canonical_identity`, which is the concatenation of language, repository,

@@ -539,6 +539,21 @@ func getFileOutline(
 		nextCursor = &encoded
 	}
 
+	// An outline that lists nothing under a path is saying nothing is declared
+	// there. A package the index could not read declares nothing in the graph
+	// and everything in the source, so the verdict is spent where the answer
+	// could be mistaken for that -- empty or partial -- and on every lower
+	// bound. A page of declarations claims no absence.
+	completeness, err := completenessScopes(snapshot, repositoryID)
+	if err != nil {
+		return nil, Response[FileOutline]{}, WrapToolError(
+			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
+	}
+	var verdict *Completeness
+	if page.Total == 0 || page.HasMore || completeness.Verdict == VerdictLowerBound {
+		verdict = &completeness
+	}
+
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[FileOutline]{
@@ -548,9 +563,14 @@ func getFileOutline(
 		Returned:      kept,
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
-		Coverage:      Coverage{Exact: kept},
-		Results:       outline,
-		View:          view,
+		// None of the four categories applies to an outline: the rows are
+		// declarations of one repository, not relations whose confidence
+		// could differ. `total` and `returned` already say how many there
+		// are. See ADR 0064.
+		Coverage:     Coverage{},
+		Completeness: verdict,
+		Results:      outline,
+		View:         view,
 	}, nil
 }
 

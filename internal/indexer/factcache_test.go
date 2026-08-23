@@ -415,6 +415,56 @@ func TestTreeFingerprintSeesEveryKindOfChange(t *testing.T) {
 	}
 }
 
+// TestAnalyzerFingerprintWatchesThePythonProducerThatRuns pins what the cache
+// is for. The fingerprint used to name `python-worker/index.py` by hand, so the
+// exact adapter was unwatched: editing it changed no key, a rebuild reused the
+// previous producer's facts, and the published generation was one the current
+// code would not produce.
+func TestAnalyzerFingerprintWatchesThePythonProducerThatRuns(t *testing.T) {
+	root := testsupport.TempDir(t)
+	fallback := filepath.Join(root, "python-worker", "index.py")
+	exact := filepath.Join(root, "python-worker", "pyright_index.py")
+	writeFullFixture(t, fallback, "print('fallback')\n")
+	writeFullFixture(t, exact, "print('exact')\n")
+
+	options := FullOptions{
+		WorkingDirectory:   root,
+		PythonIndexer:      "kivgraph-python-worker",
+		PythonAnalyzer:     "kivgraph-python-pyright",
+		PythonAnalyzerMode: "exact",
+		PythonPath:         "python3",
+	}
+	base := analyzerFingerprint(options)
+	if analyzerFingerprint(options) != base {
+		t.Fatal("fingerprint is not stable across two reads")
+	}
+
+	// The mode decides which producer runs, so it decides which file is
+	// watched: in exact mode the fallback is not the one whose facts land.
+	writeFullFixture(t, fallback, "print('fallback changed')\n")
+	if analyzerFingerprint(options) != base {
+		t.Fatal("fingerprint changed for a producer this mode does not run")
+	}
+
+	writeFullFixture(t, exact, "print('exact changed')\n")
+	if analyzerFingerprint(options) == base {
+		t.Fatal("fingerprint ignored a change to the producer this pass runs")
+	}
+
+	// And the other way round: in fallback mode the bundled worker is the one
+	// that decides, and the exact adapter is not.
+	options.PythonAnalyzerMode = "fallback"
+	base = analyzerFingerprint(options)
+	writeFullFixture(t, exact, "print('exact changed again')\n")
+	if analyzerFingerprint(options) != base {
+		t.Fatal("fallback mode watched the exact adapter")
+	}
+	writeFullFixture(t, fallback, "print('fallback changed again')\n")
+	if analyzerFingerprint(options) == base {
+		t.Fatal("fallback mode ignored a change to the worker it runs")
+	}
+}
+
 // TestAnalyzerIdentityFollowsTheGoCommand keeps entries from surviving a
 // change in the toolchain that produces them. go/types is linked into this
 // binary, but the standard library it checks against and the versions the

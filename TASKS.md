@@ -15137,6 +15137,9 @@ RUST_SEMANTIC_PASS
 RUST_CROSS_REPO_PASS
 MCP_TOKEN_COST_PASS
 SHARED_SNAPSHOT_PASS
+DART_SEMANTIC_PASS_WITH_LIMITS
+PYTHON_SEMANTIC_PASS_WITH_LIMITS
+TOOL_HONESTY_PASS_WITH_LIMITS
 ```
 
 No se puede aprobar Kivgraph sin todos ellos.
@@ -16207,3 +16210,685 @@ typo `snapshot_path` : config: FAIL -- la estrictez sigue viva
   `build`, `landing-check`.
 
 **Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 29. Fase 22 — Cualificar Python y Dart
+
+El servidor anuncia cinco lenguajes. `internal/mcp/instructions.go:21` dice que
+«Dart edges are resolved by Dart Analysis Server» y que «Python uses exact
+semantic facts when a configured analyzer provides them». Go, TypeScript y Rust
+tienen cada uno su fase, su benchmark y su precisión medida. Python y Dart no
+tienen ninguna: cero benchmarks, cero informes, y Dart no aparecía ni una vez en
+este fichero.
+
+**Lo que la auditoría de código sí encontró, antes de medir nada.** Los dos
+caminos ascienden a `EXACT` con un único flag del payload
+-`internal/facts/semantic.go:295`-, y ese flag no se decide por arista: Dart lo
+pone incondicionalmente al construir el payload
+(`internal/dartloader/loader.go:122`) y Python lo deriva de si cayó al fallback
+(`internal/pythonloader/loader.go:93`). Eso **sería** una infracción del contrato
+de `AGENTS.md` -- una arista `EXACT` exige evidencia suficiente-- si los
+productores emitieran referencias que su analizador no resolvió. Leídos, no lo
+hacen:
+
+- Dart sólo emite una referencia cuando la navegación del Analysis Server da un
+  objetivo que mapea a un símbolo indexado o a un proveedor resuelto; lo demás
+  se retiene como `UNRESOLVED` con motivo `DART_TARGET_NOT_INDEXED`
+  (`internal/dartloader/loader.go:635-648`).
+- El productor exacto de Python pide `textDocument/definition` por nodo y lo que
+  no resuelve va a `UNRESOLVED` con `NAME_NOT_RESOLVED` o `TARGET_NOT_INDEXED`
+  (`python-worker/pyright_index.py:309-314`).
+
+Así que la deuda no es de corrección aparente: **es que nadie lo ha medido**. Y
+este repositorio ya sabe lo que valen las afirmaciones sin medición.
+
+**El método no se inventa.** Es el de `LUQUE-1816`: verdad de referencia escrita
+a mano leyendo los fuentes del fixture, y se mide TP, FN y **falsas exactas**
+contra ella. Comparar un índice contra sí mismo no prueba nada.
+
+## LUQUE-2201 — La exactitud de Dart, medida
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que la afirmación sobre Dart tenga un número detrás, o deje de
+hacerse.
+
+**Alcance:** `benchmarks/dart-semantic/` con `results.json` y `report.md`, con la
+forma de `benchmarks/rust-semantic/`, sobre `testdata/dart/basic` y
+`testdata/dart/advanced`.
+
+**Criterios de aceptación:**
+
+- **Falsas exactas = 0.** No es un umbral ajustable: es el contrato de
+  `AGENTS.md`. Si sale distinto de cero, el resultado es el hallazgo.
+- Toda referencia que el Analysis Server no resolvió se conserva como
+  `UNRESOLVED` con su motivo. Un hecho perdido en silencio es el defecto que
+  esta fase existe para no repetir.
+- Los invariantes que no dependen de la verdad de referencia se comprueban
+  igual: arista exacta con procedencia exacta, referencia con su observación, no
+  resuelta con sujeto.
+- Dos ejecuciones producen artefactos byte a byte idénticos.
+
+**Estado:** cerrada el `2026-08-22`. `DART_SEMANTIC_PASS_WITH_LIMITS` con `27`
+de `27` esperadas, `0` falsas exactas, `0` invariantes rotas, `6/6` no resueltas
+emparejadas y dos ejecuciones byte a byte idénticas.
+
+La primera medición dio `19` falsas exactas de `35` y `10` de `27`
+esperadas. **Siete defectos**, todos arreglados aquí porque cada uno fabricaba
+una arista `EXACT` que el fuente no contiene:
+
+- `initialize` no anunciaba `hierarchicalDocumentSymbolSupport`, así que el
+  servidor respondía `SymbolInformation` planos cuyo rango cubre sólo el
+  identificador: ninguna declaración contenía las referencias de su cuerpo y
+  `enclosing` caía al módulo. Publicaba `EXTENDS models.dart -> Vehicle` para
+  `class ElectricVehicle extends Vehicle`. Una línea: `19` falsas a `6`, `10`
+  aciertos a `24`, `edges_sourced_at_module` a `0`.
+- La guarda de autorreferencia comparaba desplazamientos y no identidades: la
+  ocurrencia de `Vehicle` en `class Vehicle` y el nombre de una directiva
+  `library` pasaban como cuatro bucles exactos.
+- Un `<unit>` -- el nombre que el Analysis Server da a la unidad de compilación --
+  se tomaba por declaración, así que cada símbolo del fichero se publicaba
+  también bajo un prefijo `<unit>.` y una referencia unía las dos copias.
+- Una fila del outline sin localización de elemento caía en el inicio de la
+  declaración mientras la del LSP caía en el identificador, así que la
+  deduplicación por posición no las unía. Deduplicar por nombre lo rompía --
+  tiraba la fila cuya posición usan los objetivos de navegación, `26` aciertos a
+  `22` --, y el arreglo verdadero es resolver el desplazamiento del nombre.
+- Un cuerpo con flecha se leía como asignación: `String asText() => value...`
+  publicaba `ASSIGNS_FUNCTION` sobre una lectura.
+- `dartKind` mapeaba `SymbolKind.Namespace` a `module`, y un `extension type` le
+  quitaba a su fichero la identidad de módulo: reproducido en un paquete con
+  `src/feature.dart`, donde la arista era `PART_OF src.piece -> UserId`.
+- El campo de representación de un `extension type` no lo publica ninguna de las
+  dos fuentes de declaraciones, así que todo uso de `id.value` apuntaba fuera del
+  grafo.
+
+Y un fixture: `testdata/dart/advanced/lib/library.dart` no compilaba
+-`EXPORT_DIRECTIVE_AFTER_PART_DIRECTIVE`-, así que no demostraba el caso que
+decía demostrar. Los dos paquetes pasan `dart analyze` limpio.
+
+Lo que queda declarado en el informe, no arreglado: las aristas de directiva
+viajan sin `evidence_key` -darles un extremo obliga a cambiar la versión del
+payload que comparten los cinco lenguajes-, un hecho `part` se observa desde sus
+dos extremos y produce dos filas idénticas, y una comparación dentro de un
+paréntesis se clasifica `PASSES_AS_CALLBACK`.
+
+**Verificación:** `go run ./benchmarks/dart-semantic` (dos veces, artefactos
+idénticos), `go test ./internal/dartloader/`, `dart analyze` en los dos
+fixtures.
+
+---
+
+## LUQUE-2202 — La exactitud de Python, en sus dos modos
+
+**Dependencias:** ninguna.
+
+**Objetivo:** lo mismo, y además la propiedad que separa los dos modos.
+
+**Alcance:** `benchmarks/python-semantic/` sobre `testdata/python/basic` y
+`testdata/python/coverage`, con **dos brazos**: el fallback de
+`python-worker/index.py` y el exacto de `python-worker/pyright_index.py`.
+
+**Criterios de aceptación:**
+
+- **El brazo fallback no publica ni una arista exacta.** Es una propiedad del
+  modo, no un número del corpus: falsable, y no depende de qué fixture se mida.
+  Es lo que promete `loader.go:93`, y nadie lo comprobaba.
+- **Falsas exactas = 0 en el brazo exacto**, por el mismo contrato.
+- Si `pyright` no está disponible, el arnés **declara la ausencia y se salta ese
+  brazo**; no finge un cero ni lo convierte en un fallo del código, que es la
+  regla de `benchmarks/AGENTS.md`.
+- Dos ejecuciones producen artefactos byte a byte idénticos.
+
+**Estado:** cerrada el `2026-08-22`. `PYTHON_SEMANTIC_PASS_WITH_LIMITS`. El
+brazo fallback cumple su propiedad -- `0` aristas exactas, `25` candidatas -- y el
+exacto sale con `35` exactas, `0` falsas y `32` de `41` esperadas. Con `PATH` sin
+`pyright-langserver` el brazo exacto se salta con motivo, sin cero inventado.
+Dos ejecuciones byte a byte idénticas.
+
+La primera medición encontró **el brazo exacto roto**, y con la infracción que
+esta fase existía para buscar:
+
+- Pedía `"capabilities": {}` y luego asumía la respuesta anidada, así que Pyright
+  contestaba plano y todo símbolo recibía el prefijo del módulo:
+  `Vehicle.drive` y `Car.drive` colapsaban en `pkg.models.drive`, el
+  normalizador publicaba dos `DEFINES` para una clave y `facts.Set.Validate`
+  rechazaba el conjunto. **El fixture `coverage` no se indexaba en absoluto.**
+- Ninguna referencia salía de la función que la hace -- `sourceId: module_id` en
+  todas --, así que `find_references` contestaba a granularidad de archivo. Y ese
+  origen fabricaba una exacta falsa: `EXTENDS pkg.models -> pkg.models.Vehicle`
+  sobre un `class ElectricVehicle(Vehicle):`.
+- Arreglados los dos, aparecieron `16` falsas nuevas: los símbolos jerárquicos
+  incluyen locales y parámetros, y una función sostenía aristas hacia sus propios
+  locales y hacia sí misma. Un local no lo puede nombrar nadie desde fuera, que
+  es la regla que Go aplica a una declaración que no alcanza el ámbito de
+  paquete.
+- La última falsa era un objetivo que Pyright sitúa dentro de un archivo pero
+  sobre ninguna declaración indexada -- una `def` `@overload`ada --, que resolvía
+  al módulo porque es el único símbolo cuyo rango cubre el fichero. Eso no es un
+  objetivo resuelto: es una arista `EXACT` ganada por ser el último candidato.
+  Ahora se retiene como `TARGET_NOT_INDEXED`, y el precio -- la llamada a
+  `convert` que deja de publicarse -- está declarado en el informe.
+
+- Y un hueco que sólo se vio con el binario: un acceso por atributo no dejaba
+  **ni arista ni fila de no resuelta**, porque el recorrido no visita un
+  `ast.Attribute`. `find_references` sobre `Box.get` contestaba `COMPLETE` y «una
+  ausencia, no un fallo» sobre un `box.get()` que el fuente hace. Ahora la
+  ocurrencia se pregunta como cualquier otra -- Pyright resuelve un miembro en su
+  nombre -- y se rechaza igual cuando no resuelve: `26` aciertos a `32`.
+
+La verdad de referencia se extendió por eso, **después de medir**, con dos filas
+que el fuente contiene y que la primera versión no enumeró porque nada podía
+observarlas: `Box.get -> Box.value` (`pkg/models.py:17` sobre `:14`) y
+`Vehicle.drive -> Vehicle.name` (`:24` sobre `:21`). Está declarado en el informe
+con esta misma razón; no se quitó ninguna expectativa ni se relajó un criterio.
+
+Lo que queda declarado: `__all__` no se lee, así que no hay `REEXPORTS`; el
+fallback sigue sin resolver un atributo, porque sin analizador no podría nombrar
+el objetivo sin adivinarlo; y una anotación subscrita degrada a `REFERENCES`.
+
+**Verificación:** `go run ./benchmarks/python-semantic` (dos veces, artefactos
+idénticos) y el brazo ausente probado con un `PATH` sin `pyright-langserver`.
+
+---
+
+## LUQUE-2203 — Publicar los números o retirar la promesa
+
+**Dependencias:** LUQUE-2201, LUQUE-2202.
+
+**Objetivo:** que `instructions.go` y la skill digan lo que está medido, no lo
+que se espera.
+
+**Alcance:** con los dos informes en la mano, una de dos salidas para cada
+lenguaje -- y la decisión sale de las cifras, no de las ganas:
+
+1. Las cifras sostienen la afirmación: se queda, y el gate entra en la lista de
+   gates globales.
+2. No la sostienen: la superficie degrada a nombrar lo que sí está medido.
+   `mcp.instructions` y `internal/integrations/assets/kivgraph/SKILL.md` son
+   superficie de compatibilidad, así que el cambio se declara.
+
+**Criterios de aceptación:**
+
+- Ninguna frase sobre Python o Dart en la superficie visible sin una cifra
+  medida detrás o una limitación declarada.
+- La documentación describe el comportamiento observado, que es la regla de la
+  raíz.
+
+**Estado:** cerrada el `2026-08-22`, por la salida 1: las cifras sostienen las
+dos afirmaciones y no hay que retirar ninguna. `instructions.go` dice que las
+aristas de Dart las resuelve el Analysis Server -- `32` exactas, `0` falsas -- y
+que Python emite hechos exactos cuando hay analizador configurado y `CANDIDATE`
+en su fallback: medido, `35` exactas con `0` falsas en el brazo exacto y `0`
+exactas con `25` candidatas en el fallback. Es una frase condicional, y el
+bundle publica los dos productores en `worker/python-worker/`, que es la tercera
+ruta que `resolveCommand` prueba: el modo exacto existe también para un binario
+instalado. Los dos tokens entran en los gates globales.
+
+**Lo que faltaba no era una frase: era que la superficie no mentía sólo cuando
+acertaba.** El humo de esta fase -- indexar dos repositorios con el binario real y
+preguntar -- encontró dos defectos que ninguna medición veía, y los dos están
+arreglados aquí. Van abajo con su propia ficha porque no son de esta tarea.
+
+---
+
+## LUQUE-2204 — `find_references` vendía un fallo como una ausencia
+
+**Dependencias:** ninguna. Encontrada por el humo de LUQUE-2202.
+
+Preguntar por `pkg.service.convert` devolvía `total: 0` con la frase «the edges
+are type-checked, so this is an absence rather than a miss», y el fuente la llama
+en `pkg/service.py:31`. El índice **guardaba** la razón -- una fila no resuelta con
+`requestedSymbol: convert`, su archivo y su línea -- y la herramienta no la
+consultaba: `addReferenceCoverage` sólo contaba aristas con confianza
+`Unresolved`, que es otra cosa. `get_blast_radius` ya usaba `completenessFor`
+para exactamente esto; `find_references`, la herramienta por la que se compra el
+producto, no.
+
+Ahora `find_references` publica `completeness` como el resto: `COMPLETE` cuando
+nada registrado puede añadir, y `LOWER_BOUND` con `blind_spots` y un patrón de
+reserva cuando un fallo registrado nombra el símbolo. La frase de ausencia sólo
+se emite en el primer caso.
+
+La distinción no es cosmética: una lista vacía leída como «no existe» manda al
+agente a `grep` y no vuelve, y leída como «no existe **y estoy seguro**» lo manda
+a concluir. Lo segundo es peor, y era lo que decía.
+
+**Verificación:** `TestFindReferencesNeverCallsARecordedMissAnAbsence`, que falla
+con la frase vieja y pasa con la nueva; y el binario real, que sobre `convert`
+responde `LOWER_BOUND` señalando `pkg/service.py:31`.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+## LUQUE-2205 — La caché de hechos no vigilaba al productor que corre
+
+**Dependencias:** ninguna. Encontrada por el humo de LUQUE-2202.
+
+Después de arreglar el productor exacto de Python, el binario seguía publicando
+el grafo anterior. La huella de la caché nombraba
+`python-worker/index.py` **a mano** -- el worker del fallback -- y nunca
+`pyright_index.py`: editar el productor exacto no cambiaba ninguna clave, así que
+una reconstrucción reutilizaba los hechos del productor anterior y publicaba una
+generación que el código vigente no produce. Dos reglas de resolución, una en el
+cargador que ejecuta y otra en la caché que vigila, y la de la caché miraba un
+fichero que en modo exacto nadie corre.
+
+Ahora `pythonloader.ProducerFile` resuelve con las mismas reglas que
+`resolveCommand` y devuelve el fichero cuyo contenido decide los hechos -- el
+script del adaptador, o el ejecutable externo --, y la caché lo huella. Sin
+resolución no hay licencia para reutilizar nada: se emite un marcador único, que
+es la regla que ese mismo fichero ya aplicaba al binario.
+
+**Verificación:** `TestAnalyzerFingerprintWatchesThePythonProducerThatRuns`, que
+falla contra la huella escrita a mano; y el binario real, donde un cambio de
+contenido en `pyright_index.py` pasa la pasada de `hits=4 misses=0` a
+`hits=0 misses=4`, y un `touch` no -- la huella es de contenido, no de fecha.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 30. Fase 23 — Ninguna tool afirma una ausencia sin comprobarla
+
+La fase 22 cerró midiendo aristas, y encontró un defecto que ninguna medición
+de aristas puede ver: `find_references` contestaba una lista vacía con «las
+aristas están comprobadas por tipos, así que esto es una ausencia y no un
+fallo» **mientras el índice guardaba una fila de fallo que nombraba ese mismo
+símbolo**. Las aristas estaban bien. Lo que estaba mal era la frase.
+
+Es el defecto más caro de la superficie porque es el producto: un agente
+compra «¿quién llama a esto?» y la respuesta vacía es la que le hace borrar
+código. `internal/mcp/instructions.go:23` ya se lo decía a todo agente --
+«read confidence and completeness before treating an empty or partial answer
+as proof of absence»-- y sólo dos de las seis tools cuya respuesta vacía se
+lee como prueba publicaban `completeness`.
+
+El objetivo de la fase es un invariante, no una cifra: **ninguna tool afirma
+una ausencia que el grafo no sostiene**, y toda respuesta que sí es una
+ausencia lo dice. Lo segundo es la mitad que se olvida: un veredicto que
+nunca dice `COMPLETE` no informa de nada.
+
+## LUQUE-2206 — El veredicto se emite donde una respuesta se puede leer como prueba
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que las seis tools cuya respuesta vacía o parcial se lee como
+prueba publiquen `completeness`, y que las dos que rechazan un símbolo que no
+encuentran sigan rechazándolo.
+
+**Alcance:** `internal/mcp/tools/`. Seis tools relacionales y de búsqueda;
+`get_symbol` y `get_source` quedan fuera **por su forma**: no devuelven lista
+vacía, devuelven error.
+
+**Criterios de aceptación:**
+
+- La pregunta hacia fuera no se comprueba con los fallos de la pregunta hacia
+  dentro. «¿Quién llama a esto?» está acotada por los fallos que **pidieron el
+  nombre**; «¿qué alcanza esto?» por los que **el símbolo mismo** provocó. Una
+  sola de las dos comprobaciones habría dejado la otra sin acotar, así que
+  `UnresolvedFromSymbol` existe para esa dirección.
+- El ámbito de la comprobación sigue al ámbito de la pregunta. Una búsqueda de
+  todo el grafo está acotada por cada paquete ilegible que contenga; una
+  acotada a un repositorio, sólo por los de ese repositorio. Sin esta regla el
+  veredicto es una constante: un paquete malo en cualquier sitio pintaría
+  `LOWER_BOUND` en toda respuesta del corpus.
+- `find_cross_repo_consumers` es deliberadamente la excepción: su ámbito ciego
+  es **global**, porque un paquete ilegible en cualquier repositorio puede
+  esconder justo al consumidor que se pregunta. Es la tool sin competidor
+  nativo, así que su respuesta vacía se vende como hallazgo -- `grep` no puede
+  seguir un reexport con `*` que cruza de repositorio-- y por eso es la que
+  más necesita el respaldo.
+- El coste se mide, no se supone. `"completeness":{"verdict":"COMPLETE"}` son
+  `10` tokens (`cl100k_base`): `16 %` de una respuesta de una fila de
+  `find_symbol` y `50 %` de una vacía. Así que una búsqueda lo gasta donde la
+  respuesta se puede confundir con una prueba -- vacía, truncada-- y en todo
+  límite inferior, mientras las cuatro relacionales lo llevan siempre: ahí
+  `COMPLETE` sobre una respuesta con filas **es** la afirmación que se compra.
+- Cada arreglo tiene un test que falla sin él.
+
+**Verificación:** `go test ./internal/mcp/...`, y el arnés de la tarea
+siguiente contra el binario real.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2207 — Un arnés que prueba el invariante con el binario
+
+**Dependencias:** LUQUE-2206.
+
+**Objetivo:** que el invariante sea comprobable y no una promesa. Los cuatro
+arneses semánticos comparan un índice contra una verdad escrita y contestan
+«¿están bien las aristas?». Ninguno pregunta lo que pregunta una sesión, que
+es «¿usa alguien esto?», ni lee qué contesta la tool cuando no.
+
+**Alcance:** `benchmarks/tool-honesty/`, `testdata/honesty/`.
+
+**Criterios de aceptación:**
+
+- Corre el binario real por MCP sobre `stdio`, indexando en un `HOME` aislado.
+  Un arnés que construyera el snapshot a mano no probaría el camino que un
+  usuario recorre.
+- Dos repositorios, y el limpio es imprescindible: `go-pure` no tiene nada que
+  el índice no pueda leer, así que **toda** respuesta sobre él debe ser
+  `COMPLETE`. Sin ese brazo el veredicto podría ser una constante y las
+  comprobaciones de `LOWER_BOUND` pasarían igual.
+- El ámbito ciego se lee del **servidor**, no del fixture: un fixture es una
+  afirmación hasta que la pasada registra el fallo que se escribió para
+  producir. Si `unresolved_by_reason` no trae `PACKAGE_NOT_BUILDABLE`, el
+  arnés falla en vez de dar por buenas trece comprobaciones.
+- Falla ante el defecto que existe para cazar. Comprobado revirtiendo tres:
+  la frase de `find_references`, y el veredicto de `trace_dependencies` en sus
+  dos brazos.
+
+**Verificación:** `go run ./benchmarks/tool-honesty --kivgraph <binario>`;
+`13` comprobaciones, `13` pasan, y `3` fallan al revertir los arreglos.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2208 — El invariante es sobre la forma de un fallo, no sobre un lenguaje
+
+**Dependencias:** LUQUE-2207.
+
+**Objetivo:** cerrar la limitación que la ficha anterior declaró. `LUQUE-2207`
+probó el invariante sobre **un** motivo de **un** lenguaje, y de los cinco que
+el servidor anuncia sólo Go y Rust registran un fallo de repositorio y siguen
+-- los otros tres abortan la pasada. El camino de Rust no tenía **ningún** test
+que nombrara sus motivos.
+
+**Alcance:** `benchmarks/tool-honesty/`, `testdata/honesty/rust-*`,
+`internal/indexer/rust_unit_test.go`.
+
+**Criterios de aceptación:**
+
+- Un solo corpus con los dos lenguajes, no dos pasadas. Es lo que permite la
+  comprobación que ninguno haría solo: una respuesta acotada a un repositorio
+  Go sigue siendo `COMPLETE` mientras un workspace Rust del mismo grafo es
+  ilegible, y al revés. Un veredicto que se contagiara entre lenguajes sería
+  una constante en cualquier monorepo políglota, que es el único tipo para el
+  que existe este producto.
+- El fallo de Rust es de **otro motivo** que el de Go: `WORKSPACE_NOT_LOADED`
+  contra `PACKAGE_NOT_BUILDABLE`. Lo que comparten es la forma -- fila sin
+  archivo--, que es exactamente lo que dice el invariante.
+- El fixture se elige midiendo, no suponiendo. Una dependencia irresoluble
+  **no** sirve: rust-analyzer carga el workspace igual y degrada -- medido,
+  `8` símbolos y cero fallos. Un miembro declarado que no existe es lo que
+  Cargo no puede resolver, con red o sin ella.
+- Cada brazo declara su propio ámbito, y la pasada se niega si alguno perdió
+  el suyo. Un contador compartido no distinguiría dos puntos ciegos de un
+  fixture haciendo todo el trabajo.
+- El brazo Rust se salta declarándose cuando falta su toolchain, nunca se
+  finge ni se convierte en `FAIL`.
+- Los dos motivos de ámbito de Rust tienen test, y falla si la fila gana un
+  archivo -- que es lo que la convertiría en una referencia y dejaría de
+  acotar su repositorio.
+
+**Verificación:** `go run ./benchmarks/tool-honesty --kivgraph <binario>`;
+`18` comprobaciones, `18` pasan. `4` fallan al hacer global el ámbito del
+veredicto de `find_references` -- incluidas las dos de no contagio--, y la
+pasada se niega al reparar el fixture Rust. `TestWorkspaceNotLoadedFacts...`
+falla al darle un archivo a la fila.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 31. Fase 24 — Los tres defectos que la fase 22 dejó nombrados
+
+La fase 22 cerró declarando tres defectos sin arreglar. Al medirlos, **dos de
+las tres razones para aplazarlos eran falsas**, y una de las tres cosas
+declaradas no era un defecto.
+
+## LUQUE-2209 — Una comparación no es un argumento
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que `dartReferenceKind` distinga un argumento de un operando.
+
+**Alcance:** `internal/dartloader/loader.go`, `testdata/dart/advanced`,
+`benchmarks/dart-semantic`.
+
+**Criterios de aceptación:**
+
+- Son **dos** defectos ortogonales y ninguno arregla al otro: en
+  `if (other == handler)` el paréntesis lo abre un keyword y no un callee; en
+  `register(other == handler)` el paréntesis sí abre una llamada, pero la
+  ocurrencia es operando de la comparación. Dos reglas: `comparedInDartPrefix`
+  y `opensDartArgument`, que busca el corchete sin cerrar más interno y mira
+  qué identificador lo precede.
+- El fixture lo ejercita, que es lo que faltaba para no arreglarlo a ciegas.
+  Escribirlo destapó un tercer caso que nadie había nombrado:
+  `final same = (other == handler)` salía `ASSIGNS_FUNCTION`.
+- El caso positivo no se rompe, incluido el callee alcanzado por acceso a
+  miembro (`registry.add(handler)`).
+
+**Verificación:** `19` casos en `TestDartReferenceKindClassifiesResolvedUses`,
+cuatro de ellos fallando antes del arreglo; `go run ./benchmarks/dart-semantic`
+con `31/31` aciertos, `0` falsas exactas; y el binario real, donde
+`find_references fallback` devuelve tres filas con su clase cada una --
+`REFERENCES` en la comparación, `CALLS_DIRECT` y `PASSES_AS_CALLBACK` en el
+argumento.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2210 — Una arista de directiva nombra la evidencia que la justifica
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que `IMPORTS_SYMBOL`, `REEXPORTS` y `PART_OF` lleven
+`evidence_key`, que es lo que `AGENTS.md` exige de una arista canónica.
+
+**Alcance:** `internal/facts/semantic.go`, `internal/dartloader/loader.go`.
+
+**Criterios de aceptación:**
+
+- Las dos razones del aplazamiento eran falsas, y medirlas es lo primero: el
+  payload lo comparten **dos** lenguajes, no cinco -- Go, TypeScript y Rust
+  tienen su propio normalizador--, y los dos productores de Python **ya
+  enviaban el fin** de cada import en `point()`. No hubo cambio de protocolo ni
+  ADR: el decodificador Go no tenía campos donde ponerlo.
+- La evidencia va en el **origen** de la arista, que es la convención del resto
+  del paquete. Para un `part`, eso es la directiva del archivo parte, aunque el
+  otro extremo se observe primero.
+- Sin vano observado no hay evidencia. Inventarlo colisiona: `EvidenceKey` sale
+  de los desplazamientos, así que dos directivas del mismo archivo compartirían
+  clave y cada una sobrescribiría a la anterior.
+- **Lo que no cambia se declara.** La respuesta servida es idéntica byte a
+  byte antes y después: `hotsnapshot.EvidenceRecord` no proyecta la posición,
+  así que ninguna tool puede abrir el vano de una evidencia en ninguno de los
+  cinco lenguajes. Proyectarlo sube la versión del formato de filas del
+  snapshot y ningún consumidor lo pide. Anotado en `internal/AGENTS.md`.
+
+**Verificación:** `directive_edges_without_evidence` de `4` a `0`,
+`imports_without_evidence` de Python de `7`/`12` a `0`; tres tests en
+`internal/facts/semantic_test.go`, cada uno falsificado por separado; y una
+sonda que abre cada evidencia publicada y comprueba que el texto es la
+directiva -- `part of 'library.dart';` en el archivo parte.
+
+**Estado:** cerrada el `2026-08-22`.
+
+## LUQUE-2211 — El `part` duplicado no existía
+
+**Dependencias:** ninguna.
+
+**Objetivo:** comprobar el tercer defecto declarado antes de arreglarlo.
+
+**Alcance:** el hallazgo de `benchmarks/dart-semantic`.
+
+**Criterios de aceptación:**
+
+- Medido: el payload lleva `2` filas y el grafo publica `1` arista.
+  `NormalizeSemantic` deduplicaba por identidad desde el commit que trajo Dart
+  -- `fe8308b`, antes de la fase 22--, así que el hallazgo describía un defecto
+  que nunca ocurrió.
+- Lo que sí faltaba, y salió al medirlo, es que `SemanticPart` no dice **en qué
+  archivo** se observó la directiva: `LibraryFile` y `PartFile` nombran los
+  extremos de la relación, no dónde está el texto. Se arregla en `LUQUE-2210`,
+  que es quien necesita esa respuesta.
+- Una limitación que no existe es ruido que tapa las que sí: el hallazgo se
+  reescribe con la medición en la mano.
+
+**Verificación:** una sonda sobre `testdata/dart/advanced` contando aristas
+`PART_OF` y filas de payload, y `git log -L` sobre el bloque de deduplicación.
+
+**Estado:** cerrada el `2026-08-22`.
+
+---
+
+# 32. Fase 25 — Lo que la fase 23 rompió al publicar el veredicto
+
+La fase 23 dio a seis tools un `completeness`. Al medir la documentación que le
+faltaba salió algo peor: el helper del veredicto contaba mal desde que nació y
+esta fase lo propagó a cinco tools, cambiando en silencio lo que informa un
+contador publicado. Las cuatro puertas seguían en verde.
+
+## LUQUE-2212 — Un contador publicado que cambió de significado
+
+**Dependencias:** `LUQUE-2206`.
+
+**Objetivo:** que `coverage.unresolved_related` vuelva a contar lo que dice
+contar.
+
+**Alcance:** `internal/mcp/tools/completeness.go` y los cinco llamantes.
+
+**Criterios de aceptación:**
+
+- Medido con el binario real: `find_symbol` de un nombre que nadie referencia
+  informaba de `unresolved_related: 29`, y los `29` eran ámbitos ilegibles del
+  repositorio que no nombran nada parecido. `usage.md` documenta los cuatro
+  contadores como **disjuntos** y sobre la consulta.
+- El origen, con `git log -S`: `5960312` (`2026-08-12`) creó `completenessFor`
+  devolviendo ya `namingTotal + scopeTotal`, sobre `find_references` y
+  `get_blast_radius`. La fase 23 (`308e802`) extendió el helper a cuatro tools
+  más y en `find_symbol` **sustituyó** un contador que sólo contaba nombres --
+  `snapshot.UnresolvedNamingSymbol(name, 0)`--, que es donde hay rotura de
+  compatibilidad. Once días, no un commit, y se propagó.
+- Lo delator: `find_cross_repo_consumers` descartaba el valor con su propio
+  comentario -«adding them twice would inflate the only number a caller can
+  audit»- mientras las otras cinco lo sumaban. El problema estaba visto en una
+  tool y no en las demás.
+- `completenessScopes` no devuelve contador: todo lo que encuentra es ámbito, y
+  un ámbito no es una de las cuatro cosas que `coverage` cuenta. `get_file_outline`
+  vuelve a `Coverage{Exact: kept}`, que es lo que publicaba antes.
+- Nada se pierde: los `29` aparecen donde corresponde -`20` listados más `9` en
+  `more_invisible_scopes`.
+- Cambiar lo que un contador cuenta es un cambio de esquema aunque el campo no
+  cambie de nombre ni de tipo, y el compilador no lo ve. Queda escrito en
+  `internal/mcp/AGENTS.md`.
+- La raíz exige ADR para un cambio de protocolo MCP, y no había ninguno: ni la
+  fase 23 por publicar un campo nuevo en seis tools, ni esta por corregir el
+  valor de un contador en cinco. Es **ADR 0063**, y cubre las dos mitades
+  porque son la misma superficie: el veredicto y el contador que infló.
+
+**Verificación:** `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`
+extendido con la aserción del contador -falsificado volviendo a sumar los
+ámbitos, y falla-; y el binario real por MCP sobre este repositorio.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2213 — La documentación del veredicto, y tres frases falsas
+
+**Dependencias:** `LUQUE-2206`.
+
+**Objetivo:** que las once páginas de tools digan lo que su tool hace hoy.
+
+**Alcance:** `landing/src/content/docs`.
+
+**Criterios de aceptación:**
+
+- Medido antes de escribir: de las seis tools que emiten el veredicto, sólo
+  `get_blast_radius` lo documentaba. Tres lo mencionaban sin nombrarlo y dos
+  callaban.
+- Tres afirmaciones eran **falsas**, no incompletas: `find-references.md` y
+  `trace-dependencies.md` decían «No `completeness` object appears on this
+  tool», `find-symbol.md` decía «`find_symbol` never emits `guidance`» y
+  `get-blast-radius.md` seguía siendo «the one tool that states how far its
+  answer reaches». Una página que afirma lo contrario de lo que hace el código
+  es peor que una que calla.
+- La semántica compartida vive en un solo sitio -`mcp/usage.md`- con una tabla
+  de qué acota a cada tool; las páginas enlazan en vez de copiar el bloque de
+  cuarenta líneas, que es lo que se queda rancio.
+- Dos filas de esa tabla las corrigieron los agentes que las consumieron:
+  `direction` no ramifica el veredicto de `find_references` -un solo call site,
+  sin dirección- y `trace_dependencies` también incluye los ámbitos de su
+  repositorio. Escribí las dos mal.
+- La frase de `usage.md` sobre una respuesta vacía de `find_references` era
+  condicional desde la fase 23 y se leía como incondicional: es la frase que un
+  agente usa para borrar código vivo.
+
+**Verificación:** `make landing-check` en cero errores, y cada afirmación
+contrastada contra `internal/mcp/tools`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2214 — La versión documentada vive en cuatro sitios
+
+**Dependencias:** ninguna.
+
+**Objetivo:** que la documentación no pueda quedarse por detrás del binario sin
+que algo falle.
+
+**Alcance:** `internal/version`, la landing y la skill `publishing-releases`.
+
+**Criterios de aceptación:**
+
+- El defecto: `landing/src/content/docs/install.md` documentaba
+  `KIVGRAPH_VERSION=v0.3.0` con la `v0.5.0` publicada -dos minors de retraso, y
+  el ejemplo que un lector copia.
+- La causa: la skill decía «tres sitios» y su `grep` sólo miraba `README.md` y
+  `docs/installation.md`. Una lista escrita a mano se queda corta en cuanto una
+  página nueva lleve el comando.
+- `TestDocumentedInstallVersionMatchesTheBinary` **descubre** cada comando de
+  instalación fijado del repositorio y falla nombrando archivo y línea. No
+  enumera nada.
+- Un registro histórico queda fuera: esta misma ficha cita el
+  `v0.3.0` del defecto y tumbó el test al escribirla. Un backlog no instruye a
+  nadie a instalar nada, y sostenerlo a la versión de hoy haría imposible
+  describir un defecto de versión. Comprobado que la exclusión no lo desarma:
+  con `install.md` revertido a mano vuelve a fallar nombrándolo.
+
+**Verificación:** el test falla nombrando los tres ficheros al subir
+`version.Value` sin tocar la documentación, y pasa con ellos al día.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2215 — Un contador que significaba dos cosas
+
+**Dependencias:** `LUQUE-2212`.
+
+**Objetivo:** auditar los tres contadores de `coverage` que quedaron sin
+revisar, y dejar `exact` con un solo significado.
+
+**Alcance:** `find_symbol`, `get_file_outline` y la documentación de la
+superficie.
+
+**Criterios de aceptación:**
+
+- Medido con el binario real, pidiendo menos de lo que la respuesta tiene:
+  `find_references` responde `exact=3` sobre una página de `2` -toda la
+  respuesta- y `find_symbol` responde `exact=2` sobre un total de `52` -la
+  página. Un cliente no puede escribir una sola regla.
+- El defecto estaba publicado: la página de `get_file_outline` mostraba
+  `total: 32`, `returned: 19`, `exact: 19`.
+- El ámbito de página era el síntoma. Los cuatro contadores clasifican
+  **relaciones resueltas** por confianza, y esas dos tools devuelven
+  declaraciones: su `exact` era por construcción igual al número de filas.
+- Se retira en vez de hacerlo de respuesta, porque de respuesta sería idéntico
+  a `total`: un contador que no puede variar repite un número que ya viaja
+  antes. Es el mismo razonamiento con el que el ADR 0063 retiró
+  `unresolved_related` de `get_file_outline`.
+- No es global, y el matiz importa: `get_source` parece el mismo caso y no lo
+  es -su cuenta son los cuerpos que pudo servir, menor que `returned` cuando un
+  fichero se movió, y viaja en la cabecera de su prosa, no en `coverage`-, y en
+  `find_cross_repo_consumers` los cuatro informan de cuatro cosas distintas.
+- Ninguna migración: la vista compacta ya omitía `coverage` con los cuatro a
+  cero y la documentación ya lo decía, así que la ausencia era legal. La vista
+  `full` sigue escribiendo los ceros, que es su contrato.
+
+**Verificación:** cuatro payloads dorados por tool caen al reponer el contador,
+revirtiendo cada mitad por separado; el binario real por MCP; y las `21`
+capturas JSON de las dos páginas parseadas, con `coverage` sólo en las de vista
+`full` y a cero. Ver ADR 0064.
+
+**Estado:** cerrada el `2026-08-23`.

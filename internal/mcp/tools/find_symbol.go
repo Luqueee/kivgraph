@@ -495,8 +495,39 @@ func findSymbol(
 
 	// A search that found nothing and reports no uncertainty is claiming the
 	// name does not exist. It may only mean its provider was never indexed,
-	// and the index recorded exactly that, with a file and a line.
-	_, unresolvedRelated := snapshot.UnresolvedNamingSymbol(name, 0)
+	// and the index recorded exactly that, with a file and a line. Counting it
+	// was not enough: a caller saw a number with nothing telling it what the
+	// number meant or where to look.
+	//
+	// The scope half follows the question. A search of the whole graph is
+	// bounded by every unreadable package in it; one narrowed to a repository
+	// is bounded only by that repository's, and charging it for another's would
+	// make the verdict a constant on any corpus with a single bad package.
+	scope := hotsnapshot.InvalidRepositoryID
+	if filter.RepositoryName != "" {
+		if id, found := snapshot.RepositoryByName(filter.RepositoryName); found {
+			scope = id
+		}
+	}
+	completeness, unresolvedRelated, err := completenessFor(snapshot, name, scope)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, WrapToolError(
+			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
+	}
+	// Measured, not assumed: `"completeness":{"verdict":"COMPLETE"}` is 10
+	// tokens (cl100k_base), which is 16 % of a one-row answer here and 50 % of
+	// an empty one. This is the most frequent call in the surface, so the
+	// verdict is spent where the answer could be mistaken for a proof -- empty,
+	// or partial -- and on every lower bound. A page of declarations claims no
+	// absence: the rows are the answer.
+	//
+	// The four relational tools always carry it, and that is deliberate: for
+	// "who calls this" and "what breaks if I change this", COMPLETE on a
+	// non-empty answer *is* the claim being bought.
+	var verdict *Completeness
+	if page.Total == 0 || page.HasMore || completeness.Verdict == VerdictLowerBound {
+		verdict = &completeness
+	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
@@ -507,9 +538,14 @@ func findSymbol(
 		Returned:      len(results),
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
-		Coverage:      Coverage{Exact: len(results), UnresolvedRelated: unresolvedRelated},
-		Results:       SymbolResults{Symbols: results, View: view, Format: format},
-		View:          view,
+		// No `exact`: the rows are declarations, not resolved relations, so
+		// every one of them is exact and the counter could only ever repeat
+		// `returned`. A number that cannot vary is not evidence. See ADR 0064.
+		Coverage:     Coverage{UnresolvedRelated: unresolvedRelated},
+		Completeness: verdict,
+		Guidance:     symbolGuidance(page.Total, len(results), page.HasMore, completeness.Verdict),
+		Results:      SymbolResults{Symbols: results, View: view, Format: format},
+		View:         view,
 	}, nil
 }
 

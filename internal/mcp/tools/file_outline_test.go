@@ -458,7 +458,7 @@ func TestGetFileOutlineFullViewKeepsTodaysPayload(t *testing.T) {
 		"total": float64(2), "returned": float64(2),
 		"truncated": false, "next_cursor": nil,
 		"coverage": map[string]any{
-			"exact": float64(2), "candidate": float64(0),
+			"exact": float64(0), "candidate": float64(0),
 			"unresolved_related": float64(0), "package_level": float64(0),
 		},
 		"results": map[string]any{
@@ -495,7 +495,7 @@ func TestGetFileOutlineCompactViewHoistsAndDropsSignatures(t *testing.T) {
 	compact := fileOutlineText(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts/facts.go",
 	})
-	wantCompact := `{"snapshot_id":46,"total":2,"returned":2,"coverage":{"exact":2},` +
+	wantCompact := `{"snapshot_id":46,"total":2,"returned":2,` +
 		`"results":{"repository":"alpha-repo","path":"internal/facts/facts.go","package":"facts",` +
 		`"files":[{"file":"internal/facts/facts.go","at":[` +
 		`["facts.Set.Merge@10-20","method","exported"],` +
@@ -510,7 +510,7 @@ func TestGetFileOutlineCompactViewHoistsAndDropsSignatures(t *testing.T) {
 	methods := fileOutlineText(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts", "kind": "method",
 	})
-	wantMethods := `{"snapshot_id":46,"total":1,"returned":1,"coverage":{"exact":1},` +
+	wantMethods := `{"snapshot_id":46,"total":1,"returned":1,` +
 		`"results":{"repository":"alpha-repo","path":"internal/facts","package":"facts",` +
 		`"kind":"method","exported":true,` +
 		`"files":[{"file":"internal/facts/facts.go","at":["facts.Set.Merge@10-20"]}]}}`
@@ -523,7 +523,7 @@ func TestGetFileOutlineCompactViewHoistsAndDropsSignatures(t *testing.T) {
 		"repository": "alpha-repo", "path": "internal/facts/facts.go",
 		"response_format": ResponseFormatDetailed,
 	})
-	wantDetailed := `{"snapshot_id":46,"total":2,"returned":2,"coverage":{"exact":2},` +
+	wantDetailed := `{"snapshot_id":46,"total":2,"returned":2,` +
 		`"results":{"repository":"alpha-repo","path":"internal/facts/facts.go","package":"facts",` +
 		`"files":[{"file":"internal/facts/facts.go","at":[` +
 		`["facts.Set.Merge@10-20","method","exported","func (Set) Merge(Set)","symbol-merge","go:facts.Set.Merge"],` +
@@ -549,7 +549,7 @@ func TestGetFileOutlineFilesViewAnswersWhereWithoutWhat(t *testing.T) {
 	files := fileOutlineText(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "internal/facts", "view": ViewFiles,
 	})
-	want := `{"snapshot_id":47,"total":3,"returned":3,"coverage":{"exact":3},` +
+	want := `{"snapshot_id":47,"total":3,"returned":3,` +
 		`"results":{"repository":"alpha-repo","path":"internal/facts","files":[` +
 		`{"file":"internal/facts/delta.go","declarations":1},` +
 		`{"file":"internal/facts/facts.go","declarations":2}]}}`
@@ -576,7 +576,7 @@ func TestGetFileOutlineCountsOnlyWhatItReturns(t *testing.T) {
 	byDefault := fileOutlineText(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "src/range.rs",
 	})
-	wantDefault := `{"snapshot_id":61,"total":1,"returned":1,"coverage":{"exact":1},` +
+	wantDefault := `{"snapshot_id":61,"total":1,"returned":1,` +
 		`"results":{"repository":"alpha-repo","path":"src/range.rs","package":"audio",` +
 		`"kind":"enum","exported":true,"files":[{"file":"src/range.rs","at":["RangeOutcome@1-9"]}]}}`
 	if byDefault != wantDefault {
@@ -586,7 +586,7 @@ func TestGetFileOutlineCountsOnlyWhatItReturns(t *testing.T) {
 	withMembers := fileOutlineText(t, client, map[string]any{
 		"repository": "alpha-repo", "path": "src/range.rs", "include_members": true,
 	})
-	wantMembers := `{"snapshot_id":61,"total":3,"returned":3,"coverage":{"exact":3},` +
+	wantMembers := `{"snapshot_id":61,"total":3,"returned":3,` +
 		`"results":{"repository":"alpha-repo","path":"src/range.rs","package":"audio",` +
 		`"exported":true,"files":[{"file":"src/range.rs","at":[` +
 		`["RangeOutcome@1-9","enum"],["Range@3","variant"],["SendFile@5","variant"]]}]}}`

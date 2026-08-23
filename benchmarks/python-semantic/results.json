@@ -1,0 +1,289 @@
+{
+  "command": "go run ./benchmarks/python-semantic",
+  "fixtures": [
+    "testdata/python/basic",
+    "testdata/python/coverage"
+  ],
+  "environment": {
+    "python": "Python 3.14.5",
+    "python_analyzer": "pyright 1.1.413"
+  },
+  "arms": [
+    {
+      "name": "fallback",
+      "analyzer_mode": "fallback",
+      "producer": "python-worker/index.py",
+      "authoritative_payload": false,
+      "skipped": false,
+      "skip_reason": "",
+      "requires_zero_exact": true,
+      "zero_exact_held": true,
+      "cases": [
+        {
+          "name": "basic",
+          "metrics": {
+            "expected_edges": 5,
+            "true_positives": 3,
+            "exact_true_positives": 0,
+            "false_negatives": 2,
+            "false_exact_edges": 0,
+            "kind_mismatches": 0,
+            "extra_candidate_pairs": 0,
+            "exact_edges": 0,
+            "candidate_edges": 3,
+            "non_symbol_edges": 12,
+            "module_sourced_uses": 0,
+            "function_sourced_uses": 2,
+            "symbols": 8,
+            "expected_unresolved": 0,
+            "unresolved_matched": 0,
+            "unresolved_declared": 1,
+            "imports_without_evidence": 0
+          },
+          "index_error": "",
+          "missing_edges": [
+            "IMPORTS_SYMBOL pkg -\u003e pkg.models.Vehicle",
+            "REEXPORTS pkg -\u003e pkg.models.Vehicle"
+          ],
+          "false_exact_edges": [],
+          "kind_mismatches": [],
+          "extra_candidate_pairs": [],
+          "missing_unresolved": [],
+          "invariant_failures": [],
+          "unresolved_reasons": [
+            {
+              "reason": "IMPORT_NOT_RESOLVED",
+              "count": 1
+            }
+          ],
+          "unresolved_import_packages": [
+            "models"
+          ]
+        },
+        {
+          "name": "coverage",
+          "metrics": {
+            "expected_edges": 36,
+            "true_positives": 19,
+            "exact_true_positives": 0,
+            "false_negatives": 17,
+            "false_exact_edges": 0,
+            "kind_mismatches": 3,
+            "extra_candidate_pairs": 0,
+            "exact_edges": 0,
+            "candidate_edges": 22,
+            "non_symbol_edges": 25,
+            "module_sourced_uses": 0,
+            "function_sourced_uses": 16,
+            "symbols": 20,
+            "expected_unresolved": 6,
+            "unresolved_matched": 6,
+            "unresolved_declared": 53,
+            "imports_without_evidence": 0
+          },
+          "index_error": "",
+          "missing_edges": [
+            "CALLS_DIRECT pkg.service.build -\u003e pkg.contracts.Runner.run",
+            "CALLS_DIRECT pkg.service.build -\u003e pkg.models.Box.get",
+            "CALLS_DIRECT pkg.service.build -\u003e pkg.models.Vehicle.drive",
+            "IMPORTS_SYMBOL pkg -\u003e pkg.models.Box",
+            "IMPORTS_SYMBOL pkg -\u003e pkg.models.Car",
+            "IMPORTS_SYMBOL pkg -\u003e pkg.models.Vehicle",
+            "IMPORTS_SYMBOL pkg -\u003e pkg.service.build",
+            "OVERRIDES pkg.models.Car.drive -\u003e pkg.models.Vehicle.drive",
+            "REEXPORTS pkg -\u003e pkg.models.Box",
+            "REEXPORTS pkg -\u003e pkg.models.Car",
+            "REEXPORTS pkg -\u003e pkg.models.Vehicle",
+            "REEXPORTS pkg -\u003e pkg.service.build",
+            "REFERENCES pkg.models.Box.get -\u003e pkg.models.Box.value",
+            "REFERENCES pkg.models.Vehicle.drive -\u003e pkg.models.Vehicle.name",
+            "REFERENCES pkg.service.build -\u003e pkg.models.Vehicle.name",
+            "TYPE_USES pkg.service.build -\u003e pkg.models.Box",
+            "TYPE_USES pkg.service.build -\u003e pkg.models.Vehicle"
+          ],
+          "false_exact_edges": [],
+          "kind_mismatches": [
+            "REFERENCES pkg.service.build -\u003e pkg.models.Box",
+            "REFERENCES pkg.service.build -\u003e pkg.models.Vehicle",
+            "REFERENCES pkg.service.run_callback -\u003e pkg.models.Vehicle"
+          ],
+          "extra_candidate_pairs": [],
+          "missing_unresolved": [],
+          "invariant_failures": [],
+          "unresolved_reasons": [
+            {
+              "reason": "IMPORT_NOT_RESOLVED",
+              "count": 12
+            },
+            {
+              "reason": "NAME_NOT_RESOLVED",
+              "count": 41
+            }
+          ],
+          "unresolved_import_packages": [
+            "__future__",
+            "collections.abc",
+            "models",
+            "service",
+            "typing"
+          ]
+        }
+      ],
+      "totals": {
+        "expected_edges": 41,
+        "true_positives": 22,
+        "exact_true_positives": 0,
+        "false_negatives": 19,
+        "false_exact_edges": 0,
+        "kind_mismatches": 3,
+        "extra_candidate_pairs": 0,
+        "exact_edges": 0,
+        "candidate_edges": 25,
+        "non_symbol_edges": 37,
+        "module_sourced_uses": 0,
+        "function_sourced_uses": 18,
+        "symbols": 28,
+        "expected_unresolved": 6,
+        "unresolved_matched": 6,
+        "unresolved_declared": 54,
+        "imports_without_evidence": 0
+      }
+    },
+    {
+      "name": "exact",
+      "analyzer_mode": "exact",
+      "producer": "python-worker/pyright_index.py + pyright-langserver",
+      "authoritative_payload": true,
+      "skipped": false,
+      "skip_reason": "",
+      "requires_zero_exact": false,
+      "zero_exact_held": false,
+      "cases": [
+        {
+          "name": "basic",
+          "metrics": {
+            "expected_edges": 5,
+            "true_positives": 4,
+            "exact_true_positives": 4,
+            "false_negatives": 1,
+            "false_exact_edges": 0,
+            "kind_mismatches": 0,
+            "extra_candidate_pairs": 0,
+            "exact_edges": 4,
+            "candidate_edges": 0,
+            "non_symbol_edges": 12,
+            "module_sourced_uses": 0,
+            "function_sourced_uses": 2,
+            "symbols": 8,
+            "expected_unresolved": 0,
+            "unresolved_matched": 0,
+            "unresolved_declared": 0,
+            "imports_without_evidence": 0
+          },
+          "index_error": "",
+          "missing_edges": [
+            "REEXPORTS pkg -\u003e pkg.models.Vehicle"
+          ],
+          "false_exact_edges": [],
+          "kind_mismatches": [],
+          "extra_candidate_pairs": [],
+          "missing_unresolved": [],
+          "invariant_failures": [],
+          "unresolved_reasons": [],
+          "unresolved_import_packages": []
+        },
+        {
+          "name": "coverage",
+          "metrics": {
+            "expected_edges": 36,
+            "true_positives": 28,
+            "exact_true_positives": 28,
+            "false_negatives": 8,
+            "false_exact_edges": 0,
+            "kind_mismatches": 3,
+            "extra_candidate_pairs": 0,
+            "exact_edges": 31,
+            "candidate_edges": 0,
+            "non_symbol_edges": 28,
+            "module_sourced_uses": 0,
+            "function_sourced_uses": 21,
+            "symbols": 23,
+            "expected_unresolved": 6,
+            "unresolved_matched": 6,
+            "unresolved_declared": 35,
+            "imports_without_evidence": 0
+          },
+          "index_error": "",
+          "missing_edges": [
+            "CALLS_DIRECT pkg.service.build -\u003e pkg.service.convert",
+            "OVERRIDES pkg.models.Car.drive -\u003e pkg.models.Vehicle.drive",
+            "REEXPORTS pkg -\u003e pkg.models.Box",
+            "REEXPORTS pkg -\u003e pkg.models.Car",
+            "REEXPORTS pkg -\u003e pkg.models.Vehicle",
+            "REEXPORTS pkg -\u003e pkg.service.build",
+            "TYPE_USES pkg.service.build -\u003e pkg.models.Box",
+            "TYPE_USES pkg.service.build -\u003e pkg.models.Vehicle"
+          ],
+          "false_exact_edges": [],
+          "kind_mismatches": [
+            "EXACT REFERENCES pkg.service.build -\u003e pkg.models.Box",
+            "EXACT REFERENCES pkg.service.build -\u003e pkg.models.Vehicle",
+            "EXACT REFERENCES pkg.service.run_callback -\u003e pkg.models.Vehicle"
+          ],
+          "extra_candidate_pairs": [],
+          "missing_unresolved": [],
+          "invariant_failures": [],
+          "unresolved_reasons": [
+            {
+              "reason": "IMPORT_NOT_RESOLVED",
+              "count": 8
+            },
+            {
+              "reason": "TARGET_NOT_INDEXED",
+              "count": 27
+            }
+          ],
+          "unresolved_import_packages": [
+            "__future__",
+            "collections.abc",
+            "typing"
+          ]
+        }
+      ],
+      "totals": {
+        "expected_edges": 41,
+        "true_positives": 32,
+        "exact_true_positives": 32,
+        "false_negatives": 9,
+        "false_exact_edges": 0,
+        "kind_mismatches": 3,
+        "extra_candidate_pairs": 0,
+        "exact_edges": 35,
+        "candidate_edges": 0,
+        "non_symbol_edges": 40,
+        "module_sourced_uses": 0,
+        "function_sourced_uses": 23,
+        "symbols": 31,
+        "expected_unresolved": 6,
+        "unresolved_matched": 6,
+        "unresolved_declared": 35,
+        "imports_without_evidence": 0
+      }
+    }
+  ],
+  "gate": "PYTHON_SEMANTIC_PASS_WITH_LIMITS",
+  "limitations": [
+    "El corpus son dos fixtures de un solo paquete cada uno: prueba los contratos, no la escala.",
+    "La verdad de referencia se escribió leyendo `testdata/python/basic` y `testdata/python/coverage`; cada expectativa cita su archivo y su línea en `auditCases`.",
+    "Una arista se cuenta como falsa exacta sólo cuando el par (origen, destino) no existe en el fuente. Un par que existe publicado con otra clase se cuenta aparte como discrepancia de clase: la relación está, la etiqueta es más gruesa, y llamarlo arista fabricada mentiría sobre el contrato.",
+    "Ningún productor Python emite `OVERRIDES` ni `REEXPORTS`. El acceso por atributo lo resuelve el brazo exacto -- `box.get()` y `runner.run()` dan arista -- y el fallback no: sólo recorre nodos `ast.Name` en posición de lectura, y sin analizador no podría nombrar el objetivo sin adivinarlo.",
+    "`Callable` aparece en `coverage/pkg/service.py:22` como anotación y el valor que se le pasa en la línea 31 es un `lambda`, que no es un símbolo declarado: no hay `PASSES_AS_CALLBACK` que esperar en este corpus.",
+    "`CALLS_DIRECT pkg.service.build -\u003e pkg.service.convert` no se publica porque `convert` está `@overload`ada: la definición que devuelve Pyright cae dentro del módulo y sobre ninguna declaración indexada, así que el productor se niega a nombrar el módulo como objetivo. La relación no se pierde -- queda retenida como `TARGET_NOT_INDEXED` con su archivo y su posición -- y publicarla exigiría resolver la sobrecarga concreta, no elegir el único candidato que queda.",
+    "La verdad de referencia se extendió el `2026-08-22` con dos filas -- `REFERENCES pkg.models.Box.get -\u003e pkg.models.Box.value` y `REFERENCES pkg.models.Vehicle.drive -\u003e pkg.models.Vehicle.name` --, después de medir. Las dos están en el fuente (`pkg/models.py:17` sobre `:14`, y `:24` sobre `:21`) y la primera versión de la verdad no las enumeró porque el productor no visitaba un atributo y nada podía observarlas. Se declara porque extender una verdad después de medirla es exactamente lo que hay que decir: no se quitó ninguna expectativa ni se relajó ningún criterio.",
+    "La medición del brazo `exact` depende de la versión de Pyright instalada y de la typeshed que trae; la del brazo `fallback` sólo del `python3` del PATH.",
+    "El brazo `fallback` no publicó 19 de 41 relaciones del fuente; están enumeradas por nombre en la sección del brazo.",
+    "El brazo `fallback` publicó 3 relaciones existentes con otra clase que la que dice el fuente.",
+    "El brazo `exact` no publicó 9 de 41 relaciones del fuente; están enumeradas por nombre en la sección del brazo.",
+    "El brazo `exact` publicó 3 relaciones existentes con otra clase que la que dice el fuente."
+  ]
+}

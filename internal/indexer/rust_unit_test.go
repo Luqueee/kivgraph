@@ -558,6 +558,77 @@ func TestFullIndexesTheStandardLibraryAsASyntheticProvider(t *testing.T) {
 	}
 }
 
+// TestWorkspaceNotLoadedFactsRecordsAScopeAndNotAReference is the guard on the
+// only shape that lets a Rust repository survive a workspace it cannot read.
+//
+// The row must carry no file. That is not cosmetic: `UnresolvedScopes` selects
+// exactly the failures whose file is unset, so a row that gained one would
+// stop bounding the answers about its repository and every question about that
+// repository would report COMPLETE over a workspace nobody could read. Neither
+// reason had a test naming it before this.
+func TestWorkspaceNotLoadedFactsRecordsAScopeAndNotAReference(t *testing.T) {
+	repository := workspace.Repository{
+		Name: "app", Path: "/repo/app", RealPath: "/repo/app", Languages: []string{"rust"},
+	}
+	unit := rustWorkspaceUnit{
+		repository: repository,
+		workspace:  workspace.CargoWorkspace{RootPath: "/repo/app"},
+		crates:     []workspace.CargoCrate{{Name: "app_core", Version: "0.1.0"}},
+	}
+
+	for _, testCase := range []struct {
+		name       string
+		failure    rustloader.RunError
+		wantReason rustloader.UnresolvedReason
+	}{
+		{
+			name:       "the analyzer refused the workspace",
+			failure:    rustloader.RunError{Kind: rustloader.RunErrorWorkspaceNotLoaded, Detail: "cargo metadata failed"},
+			wantReason: rustloader.UnresolvedWorkspaceNotLoaded,
+		},
+		{
+			// A missing analyzer is a different fact from a workspace the
+			// analyzer read and rejected, and an agent that has to decide
+			// whether to install something or fix a manifest needs to know
+			// which one happened.
+			name:       "the analyzer was not there at all",
+			failure:    rustloader.RunError{Kind: rustloader.RunErrorAnalyzerUnavailable, Detail: "command is not executable"},
+			wantReason: rustloader.UnresolvedAnalyzerUnavailable,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := workspaceNotLoadedFacts(unit, &testCase.failure)
+			if !result.notLoaded {
+				t.Fatal("a workspace that did not load must be marked as such, or the fact cache stores the hole")
+			}
+			if len(result.set.Unresolved) != 1 {
+				t.Fatalf("unresolved = %#v, want exactly the workspace failure", result.set.Unresolved)
+			}
+			row := result.set.Unresolved[0]
+			if row.Reason != string(testCase.wantReason) {
+				t.Fatalf("reason = %q, want %q", row.Reason, testCase.wantReason)
+			}
+			if row.FileKey != "" {
+				t.Fatalf("file = %q, want none: a row with a file is one reference and not the scope this is", row.FileKey)
+			}
+			if row.RequestedPackage != "app_core" {
+				t.Fatalf("requested package = %q, want the crate the workspace resolves", row.RequestedPackage)
+			}
+			if row.Detail != testCase.failure.Detail {
+				t.Fatalf("detail = %q, want the classified failure's own", row.Detail)
+			}
+			// A failure attributed to a repository the set does not declare is
+			// not a valid fact, so the repository record travels with it.
+			if len(result.set.Repositories) != 1 || result.set.Repositories[0].Name != repository.Name {
+				t.Fatalf("repositories = %#v, want the one this failure belongs to", result.set.Repositories)
+			}
+			if row.RepositoryKey != result.set.Repositories[0].Key {
+				t.Fatalf("repository key = %q, want %q", row.RepositoryKey, result.set.Repositories[0].Key)
+			}
+		})
+	}
+}
+
 // reachedEdge names one relation the fixture must publish into the standard
 // library.
 type reachedEdge struct {

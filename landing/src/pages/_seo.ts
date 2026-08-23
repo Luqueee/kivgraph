@@ -122,8 +122,8 @@ export function docPathname(id: string): string {
 /**
  * The raw markdown path of a documentation page.
  *
- * `/raw/<id>.md`, so `reference/tools/find-references` is served at
- * `/raw/reference/tools/find-references.md`. The `raw/` prefix keeps the
+ * `/raw/<id>.md`, so `docs/tools/find-references` is served at
+ * `/raw/docs/tools/find-references.md`. The `raw/` prefix keeps the
  * markdown out of the way of Starlight's own `directory`-format routes, which
  * already own `/<id>/`. A page whose id is empty is the collection root, and
  * llmstxt.org asks for `index.md` where a URL has no filename.
