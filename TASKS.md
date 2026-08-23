@@ -15073,7 +15073,7 @@ de claves retiradas está publicada.
 
 **Estado:** cerrada el `2026-08-22`.
 
-## LUQUE-2008 — (aplazada) Un proceso para muchos clientes
+## LUQUE-2008 — Un proceso para muchos clientes
 
 **Dependencias:** LUQUE-2006.
 
@@ -15124,7 +15124,50 @@ hablar con un demonio de otra build; y que `stop` y `doctor` aprendan la
 invocación nueva, porque hoy `stop` selecciona por `argv[1] ∈ {serve, ui}` y no
 vería un demonio.
 
-**Estado:** aplazada.
+**Entregada el `2026-08-23`, y no por la condición.** La condición que la
+reabría -- `Private_Dirty` por encima de `100 MB`-- sigue sin cumplirse: `71,2 MB`
+por proceso sobre `kena`. Se hizo porque las cuatro fases `LUQUE-2216` a
+`LUQUE-2220` demostraron que **no queda otra vía**: bajaron `60,5 MB` de
+asignación y el residente se movió `0,75 %`. La vía barata compra tiempo de
+arranque, no bytes por proceso.
+
+**Lo entregado, y en qué se aparta del diseño de arriba.** `kivgraph daemon`
+sobre un socket unix en el directorio de estado, con `internal/mcp.StreamTransport`
+-- un `Transport` propio sobre `io.ReadWriteCloser`-- y un servidor MCP por sesión
+aceptada sobre un store compartido. ADR 0065.
+
+`serve` **no se convierte en un relé**, que es lo que este diseño proponía. No
+hace falta: un cliente MCP habla con el socket directamente, y un relé añadiría
+un proceso por cliente para ahorrar procesos por cliente. `serve` queda intacto
+y soportado, y es el único camino cuando la ruta del directorio de estado no
+admite un socket.
+
+**De las cuatro preguntas que había que resolver antes de entrar:**
+
+* *Quién lo arranca y cuándo sale:* nadie y nunca solo. Corre en primer plano
+  hasta `SIGINT` o `SIGTERM`, igual que `serve`. Sin arranque automático no hay
+  que decidir cuándo un proceso ocioso se va.
+* *La clave por directorio de estado:* el socket vive dentro de él. De ahí salió
+  un límite que no estaba en el diseño: una dirección unix son `104` bytes en
+  darwin y `bind` **trunca** en vez de rechazar, así que dos directorios con un
+  prefijo largo compartirían socket. Se comprueba y se nombra.
+* *El sesgo de versión:* no aplica sin relé. Un cliente y un demonio negocian
+  versión de protocolo en `initialize`, que es el mecanismo del propio MCP.
+* *`stop` y `doctor`:* `stop` seleccionaba por `argv[1] ∈ {serve, ui}` y no
+  habría visto un demonio. Ahora hay una lista, `longRunningCommands`, y el
+  mensaje de «nada corriendo» nombra las tres. Sabotear la lista en las dos
+  direcciones cae: quitar `daemon` lo vuelve imparable, añadir `index` mata una
+  indexación en vuelo.
+
+**Lo que no se midió:** el ahorro. Ver `LUQUE-2222`.
+
+**Verificación:** trece decisiones falsificadas una a una con su test, más dos
+de `stop`; humo con el binario real y una generación publicada, tres clientes
+concurrentes, `11` tools cada uno, dos preguntas distintas a la vez sin cruzarse,
+socket desvinculado al parar, cero errores. `gofmt`, `go vet ./...`,
+`go test ./...`, `make build`.
+
+**Estado:** cerrada el `2026-08-23`.
 
 ---
 
@@ -17205,3 +17248,42 @@ biblioteca nativa fijada exige glibc `≥ 2.38`: sobre `bookworm` (`2.36`) el
 enlazado falla con `GLIBCXX_3.4.31` y `__isoc23_strtol` sin resolver.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2222 — Lo que un proceso para muchos clientes cuesta de verdad
+
+**Dependencias:** `LUQUE-2008`, `LUQUE-2221`.
+
+**Objetivo:** medir en Linux lo que un demonio conserva residente sirviendo a N
+clientes, contra N procesos `serve` sirviendo a uno cada uno. Es la cifra que
+justifica `LUQUE-2008`, y hoy **no está observada**: lo medido es el coste del
+arreglo que sustituye (`71,2 MB` por servidor, cuatro servidores, `LUQUE-2221`),
+y el ahorro es aritmética sobre ella.
+
+**Por qué no se da por hecha.** El snapshot ya se comparte: es el mismo fichero
+mapeado en todos los servidores y esas páginas cuentan como `Shared_Clean`. Lo
+que está en juego son las privadas, y **la mitad privada de un demonio no es
+constante**: construye un servidor MCP por sesión -- once registros de tool, sus
+buffers, su decodificador-- y esa parte crece con el número de clientes. La
+pregunta no es si ahorra, es cuánto y con qué pendiente.
+
+**Alcance:** `benchmarks/shared-snapshot`, que ya arranca N servidores y muestrea
+cada proceso, más un brazo de demonio: un proceso, N sesiones sobre el socket. No
+sobrescribe los artefactos del host de referencia.
+
+**Criterios de aceptación:**
+
+- `Private_Dirty` total de los dos brazos para los mismos recuentos de cliente que
+  ya mide el arnés, en la misma VM y contra la misma generación publicada.
+- La **pendiente** por cliente del brazo demonio, no sólo su total: es lo que dice
+  si escala plano o si a los ocho clientes ya no gana.
+- La primera respuesta de un cliente nuevo contra un demonio ya arrancado, que es
+  lo que un editor ve al abrir una segunda ventana y donde el demonio debería
+  ganar por no cargar nada.
+- El pico residente durante la carga, que `LUQUE-2221` declaró como hueco: un
+  demonio carga una vez, así que es el sitio donde su ventaja debería ser mayor.
+
+**Lo que no se puede medir en darwin, y por qué:** `Private_Dirty` es de Linux.
+`benchmarks/load-cost-resident` ya estableció que las cifras del runtime de Go en
+darwin no responden esta pregunta.
+
+**Estado:** abierta.

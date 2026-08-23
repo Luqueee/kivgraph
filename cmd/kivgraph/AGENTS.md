@@ -173,13 +173,17 @@ superficie observable.
   `rollback`. Sin flags deja el store vacío y libera la reserva de espacio;
   con `--keep-active` conserva exactamente la generación publicada. Nunca toca
   la configuración ni el registro de repositorios.
-- `kivgraph stop` termina los procesos largos de este usuario -- `serve` y
-  `ui` -- y nada más. Selecciona por invocación, no por ejecutable: una
-  indexación en curso son minutos de análisis y no se tira, y el propio `stop`
-  no se mata a sí mismo. Manda `SIGTERM`, espera el cierre graceful acotado y
-  sólo entonces `SIGKILL`, y antes de escalar vuelve a comprobar que el pid
-  sigue siendo la misma invocación: un pid liberado durante la espera puede ya
-  pertenecer a otro proceso. `--dry-run` enumera sin señalar.
+- `kivgraph stop` termina los procesos largos de este usuario y nada más. La
+  lista es `longRunningCommands` -- `serve`, `daemon` y `ui` -- y es una lista y no
+  una regla porque la regla sería falsa: `index --full` también dura minutos, y
+  matar uno a mitad de publicación no es lo que pide quien manda parar un
+  servidor. **Un comando largo nuevo se añade ahí y al mensaje de «nada
+  corriendo», que lo nombra:** un lector que dejó un demonio y sólo oye hablar de
+  `serve` concluye que `stop` no lo gestiona. Selecciona por invocación, no por
+  ejecutable: el propio `stop` no se mata a sí mismo. Manda `SIGTERM`, espera el
+  cierre graceful acotado y sólo entonces `SIGKILL`, y antes de escalar vuelve a
+  comprobar que el pid sigue siendo la misma invocación: un pid liberado durante
+  la espera puede ya pertenecer a otro proceso. `--dry-run` enumera sin señalar.
 - `kivgraph update` ofrece parar lo que sobrevivió al bundle que reemplazó. Un
   `serve` o un `ui` que ya estaba corriendo sigue respondiendo desde la imagen
   que se intercambió -- con las tools viejas, las descripciones viejas y los
@@ -190,6 +194,37 @@ superficie observable.
   respuesta scriptable, y la escalada es la de `stop` -- una sola copia, en
   `stopTargets` -- no una segunda parecida. Una instalación que funcionó nunca
   se reporta como fallo porque la lista de procesos no se pudiera leer.
+
+## `kivgraph daemon`
+
+- Sirve MCP a varios clientes desde un proceso, sobre un socket unix. Comparte
+  con `serve` todo el montaje -- config, store, seguidor de generación, resync,
+  event log-- a través de `runConfiguredServe`, que recibe el nombre del comando
+  para que sus rótulos digan la verdad: dos comandos con un `serve` fijo en los
+  logs son indistinguibles en el mismo event log.
+- **El socket vive dentro del directorio de estado, y esa es la clave.** Dos
+  configuraciones apuntando a directorios distintos obtienen demonios distintos,
+  así que un cliente nunca alcanza un grafo construido a partir de los
+  repositorios de otro. Un socket por máquina o por usuario habría sido más
+  simple y habría cruzado exactamente eso.
+- Una dirección unix es un campo de tamaño fijo -- `104` bytes en darwin, `108`
+  en linux-- y `bind` **trunca** en vez de rechazar, lo que dejaría dos
+  directorios compartiendo socket. Se comprueba contra el menor de los dos
+  límites, para que un directorio que funciona en una plataforma funcione en la
+  otra, y el error nombra la cifra. Es una limitación declarada: quien no cabe
+  usa `serve`.
+- **Un servidor MCP por sesión aceptada, no uno por proceso.** La superficie de
+  tools se decide al construir un servidor -- un proceso sin generación publicada
+  publica sólo `index_project`-- y un demonio sobrevive a las generaciones, así
+  que uno construido al arrancar le diría a todo cliente futuro que no hay grafo.
+  El store, el registro de métricas y el indexador sí se comparten: el snapshot
+  se mapea una vez y lo que `graph_status` informa es del proceso.
+- Un socket obsoleto y un demonio vivo no son el mismo estado, y la única forma
+  de distinguirlos es intentar hablarle: si contesta, no se sustituye.
+- No se arranca ni se para solo. Corre en primer plano hasta la señal, como
+  `serve`, y ahí acaba la pregunta de cuándo se va un proceso ocioso.
+- El ahorro frente a N procesos **no está medido**; ver `LUQUE-2222`. Lo medido
+  es el coste de lo que sustituye.
 
 ## `kivgraph ui`
 
