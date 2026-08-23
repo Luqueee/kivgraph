@@ -71,6 +71,9 @@ export default defineConfig({
           label: "MCP server",
           items: [
             { label: "Clients", slug: "mcp/clients" },
+            { label: "Claude Code", slug: "mcp/claude-code" },
+            { label: "Codex", slug: "mcp/codex" },
+            { label: "Oh My Pi", slug: "mcp/oh-my-pi" },
             { label: "Agent Skill", slug: "mcp/skills" },
             { label: "Using it from an agent", slug: "mcp/usage" },
             { label: "Troubleshooting", slug: "mcp/troubleshooting" },
@@ -82,6 +85,15 @@ export default defineConfig({
             { label: "Indexing", slug: "guides/indexing" },
             { label: "Graph viewer", slug: "guides/viewer" },
             { label: "Maintenance", slug: "guides/maintenance" },
+            { label: "Code intelligence", slug: "code-intelligence" },
+            {
+              label: "Repository relationships",
+              slug: "repository-relationships",
+            },
+            {
+              label: "Token-efficient code",
+              slug: "token-efficient-code-understanding",
+            },
           ],
         },
         {
