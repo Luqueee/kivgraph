@@ -278,7 +278,7 @@ is not repeated as structured content.
 | `results` | The answer itself. | Always |
 | `truncated` | Whether `returned` is less than `total`. | Only when it is `true` |
 | `next_cursor` | The opaque token for the next page. | Only when there is one |
-| `coverage` | Four disjoint counters: `exact`, `candidate`, `unresolved_related`, `package_level`. | Only the counters above zero, and absent entirely when all four are zero |
+| `coverage` | Four disjoint counters over the **whole answer**, not this page: `exact`, `candidate`, `unresolved_related`, `package_level`. | Only the counters above zero, and absent entirely when all four are zero |
 | `snapshot_age_ms` | How long ago that generation was built. | Never; ask [`graph_status`](/reference/tools/graph-status/) for the age |
 | `guidance` | Present only when the count alone would mislead. | Unchanged |
 | `completeness` | Present only when the tool checked how far its answer reaches. | Unchanged |
@@ -296,6 +296,20 @@ answer you are holding never move. The `full` view writes every field, `false`,
 dependency proves the consumer depends on the provider package, never that it
 uses the symbol you asked about, so folding it into `exact` would report a use
 nobody observed.
+
+**The counters describe resolved relations, so a tool that returns no relations
+carries none of them.** `exact` and `candidate` are edge confidences, and the
+scope is the answer rather than the page: the `trace_dependencies` envelope
+below reports `exact` at `37` while `returned` is `3`. That is what makes the
+pair worth reading -- a counter equal to `returned` could not tell you anything
+`returned` had not already said.
+
+So `get_file_outline` publishes no counter at all, and `find_symbol` publishes
+only `unresolved_related`: both answer with declarations of one repository, and
+a declaration has no confidence to report. `get_source` keeps a count of its
+own and it is not one of these four: it answers in prose, and its header line
+says how many bodies it could actually serve, which is genuinely less than
+`returned` when a file moved under the index.
 
 Three rules matter more than the rest.
 

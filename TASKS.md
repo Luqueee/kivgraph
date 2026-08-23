@@ -16852,3 +16852,43 @@ que algo falle.
 `version.Value` sin tocar la documentación, y pasa con ellos al día.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2215 — Un contador que significaba dos cosas
+
+**Dependencias:** `LUQUE-2212`.
+
+**Objetivo:** auditar los tres contadores de `coverage` que quedaron sin
+revisar, y dejar `exact` con un solo significado.
+
+**Alcance:** `find_symbol`, `get_file_outline` y la documentación de la
+superficie.
+
+**Criterios de aceptación:**
+
+- Medido con el binario real, pidiendo menos de lo que la respuesta tiene:
+  `find_references` responde `exact=3` sobre una página de `2` -toda la
+  respuesta- y `find_symbol` responde `exact=2` sobre un total de `52` -la
+  página. Un cliente no puede escribir una sola regla.
+- El defecto estaba publicado: la página de `get_file_outline` mostraba
+  `total: 32`, `returned: 19`, `exact: 19`.
+- El ámbito de página era el síntoma. Los cuatro contadores clasifican
+  **relaciones resueltas** por confianza, y esas dos tools devuelven
+  declaraciones: su `exact` era por construcción igual al número de filas.
+- Se retira en vez de hacerlo de respuesta, porque de respuesta sería idéntico
+  a `total`: un contador que no puede variar repite un número que ya viaja
+  antes. Es el mismo razonamiento con el que el ADR 0063 retiró
+  `unresolved_related` de `get_file_outline`.
+- No es global, y el matiz importa: `get_source` parece el mismo caso y no lo
+  es -su cuenta son los cuerpos que pudo servir, menor que `returned` cuando un
+  fichero se movió, y viaja en la cabecera de su prosa, no en `coverage`-, y en
+  `find_cross_repo_consumers` los cuatro informan de cuatro cosas distintas.
+- Ninguna migración: la vista compacta ya omitía `coverage` con los cuatro a
+  cero y la documentación ya lo decía, así que la ausencia era legal. La vista
+  `full` sigue escribiendo los ceros, que es su contrato.
+
+**Verificación:** cuatro payloads dorados por tool caen al reponer el contador,
+revirtiendo cada mitad por separado; el binario real por MCP; y las `21`
+capturas JSON de las dos páginas parseadas, con `coverage` sólo en las de vista
+`full` y a cero. Ver ADR 0064.
+
+**Estado:** cerrada el `2026-08-23`.
