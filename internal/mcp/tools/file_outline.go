@@ -563,10 +563,14 @@ func getFileOutline(
 		Returned:      kept,
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
-		Coverage:      Coverage{Exact: kept},
-		Completeness:  verdict,
-		Results:       outline,
-		View:          view,
+		// None of the four categories applies to an outline: the rows are
+		// declarations of one repository, not relations whose confidence
+		// could differ. `total` and `returned` already say how many there
+		// are. See ADR 0064.
+		Coverage:     Coverage{},
+		Completeness: verdict,
+		Results:      outline,
+		View:         view,
 	}, nil
 }
 

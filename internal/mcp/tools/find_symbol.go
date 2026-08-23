@@ -538,11 +538,14 @@ func findSymbol(
 		Returned:      len(results),
 		Truncated:     page.HasMore,
 		NextCursor:    nextCursor,
-		Coverage:      Coverage{Exact: len(results), UnresolvedRelated: unresolvedRelated},
-		Completeness:  verdict,
-		Guidance:      symbolGuidance(page.Total, len(results), page.HasMore, completeness.Verdict),
-		Results:       SymbolResults{Symbols: results, View: view, Format: format},
-		View:          view,
+		// No `exact`: the rows are declarations, not resolved relations, so
+		// every one of them is exact and the counter could only ever repeat
+		// `returned`. A number that cannot vary is not evidence. See ADR 0064.
+		Coverage:     Coverage{UnresolvedRelated: unresolvedRelated},
+		Completeness: verdict,
+		Guidance:     symbolGuidance(page.Total, len(results), page.HasMore, completeness.Verdict),
+		Results:      SymbolResults{Symbols: results, View: view, Format: format},
+		View:         view,
 	}, nil
 }
 

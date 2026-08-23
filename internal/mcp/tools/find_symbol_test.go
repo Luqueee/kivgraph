@@ -110,7 +110,7 @@ func TestFindSymbolCompactPageHoistsWhatEveryRowShares(t *testing.T) {
 	client := newSymbolToolClient(t, symbolSnapshot(t, 11))
 	payload := callFindSymbolJSON(t, client, map[string]any{"name": "shared"})
 
-	const want = `{"snapshot_id":11,"total":2,"returned":2,"coverage":{"exact":2},` +
+	const want = `{"snapshot_id":11,"total":2,"returned":2,` +
 		`"results":{"name":"shared","kind":"function","exported":true,"repository":"repo-a","symbols":[` +
 		`{"at":"alpha.go:20","qn":"pkg.SharedA","sig":"func SharedA()"},` +
 		`{"at":"alpha.go:30","end":34,"qn":"pkg.SharedB","sig":"func SharedB()"}]}}`
@@ -132,7 +132,7 @@ func TestFindSymbolCompactRowsCarryWhatTheHeaderCannot(t *testing.T) {
 	client := newSymbolToolClient(t, symbolSnapshot(t, 11))
 	payload := callFindSymbolJSON(t, client, map[string]any{"name": "delta"})
 
-	const want = `{"snapshot_id":11,"total":2,"returned":2,"coverage":{"exact":2},` +
+	const want = `{"snapshot_id":11,"total":2,"returned":2,` +
 		`"results":{"name":"delta","repository":"repo-a","symbols":[` +
 		`{"at":"alpha.go:50","kind":"const","exported":true},` +
 		`{"at":"alpha.go:60","qn":"pkg.Config.delta","kind":"field","exported":false}]}}`
@@ -148,7 +148,7 @@ func TestFindSymbolCompactRowsAddressAcrossRepositories(t *testing.T) {
 	client := newSymbolToolClient(t, symbolSnapshot(t, 11))
 	payload := callFindSymbolJSON(t, client, map[string]any{"name": "omega"})
 
-	const want = `{"snapshot_id":11,"total":2,"returned":2,"coverage":{"exact":2},` +
+	const want = `{"snapshot_id":11,"total":2,"returned":2,` +
 		`"results":{"name":"omega","kind":"function","exported":true,"symbols":[` +
 		`{"at":"repo-a:alpha.go:70","qn":"pkg.Omega","sig":"func Omega()"},` +
 		`{"at":"repo-b:omega.go:5","qn":"pkgb.Omega","sig":"func Omega() error"}]}}`
@@ -166,7 +166,7 @@ func TestFindSymbolCompactRestoresTheKeysForTheDetailedFormat(t *testing.T) {
 		"name": "alpha", "response_format": ResponseFormatDetailed,
 	})
 
-	const want = `{"snapshot_id":11,"total":1,"returned":1,"coverage":{"exact":1},` +
+	const want = `{"snapshot_id":11,"total":1,"returned":1,` +
 		`"results":{"name":"alpha","kind":"function","exported":true,"repository":"repo-a","symbols":[` +
 		`{"at":"alpha.go:10","qn":"pkg.Alpha","sig":"func Alpha()",` +
 		`"stable_key":"symbol-alpha","canonical_identity":"go:alpha"}]}}`
