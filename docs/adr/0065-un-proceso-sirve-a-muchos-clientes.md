@@ -111,6 +111,13 @@ cifra era aritmética sobre `71,2 MB` por servidor. Se midió el mismo día, en
 `benchmarks/daemon-cost`: tres pasadas en Linux sobre `108.737` símbolos de
 `kena`, los dos brazos leyendo el mismo fichero publicado.
 
+**Todo lo que sigue mide el socket unix, que es el único transporte que este ADR
+entregó.** El ADR 0066 añadió HTTP y lo midió aparte: allí la pendiente del
+demonio es `12,5 MB` por cliente, no `0,2`–`2,3`, y a un cliente pierde en vez de
+empatar. Como ningún cliente MCP marca un socket, la cifra de esta sección
+describe una puerta que un editor no cruza: para lo que se puede prometer, ver
+`results-http.json` y el ADR 0066.
+
 Lo que escala es la **pendiente**, no ningún total:
 
 |clientes|N procesos|1 demonio|proporción|

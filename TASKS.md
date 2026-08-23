@@ -15164,6 +15164,13 @@ por cliente en N procesos contra `0,2`–`2,3` en un demonio. A ocho clientes,
 `533 MB` contra `68`–`82`, y el pico `1.046 MB` contra `188`. A un cliente empata
 dentro del ruido, así que la razón para usarlo empieza en el segundo.
 
+**Corregido en `LUQUE-2223`:** esa cifra es la del socket, y ningún cliente MCP
+marca un socket. Por HTTP la pendiente del demonio es `12,5 MB` por cliente y a
+un cliente **pierde** (`76` contra `67 MB`); el ahorro sigue siendo la tercera
+parte a ocho clientes (`166` contra `536`). El motivo son los `10 MiB` de buffer
+de reanudación que el SDK da a cada sesión, no el grafo: con `64` llamadas en vez
+de `2.000` la pendiente cae a `2,1`–`2,7`.
+
 **Verificación:** trece decisiones falsificadas una a una con su test, más dos
 de `stop`; humo con el binario real y una generación publicada, tres clientes
 concurrentes, `11` tools cada uno, dos preguntas distintas a la vez sin cruzarse,
@@ -17330,3 +17337,76 @@ anchura fija; el corpus son `108.737` símbolos y no los `117.499` de
 pasada; y no se midió por encima de ocho clientes.
 
 **Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2223 — El ahorro del demonio, por la puerta que un cliente puede cruzar
+
+**Dependencias:** `LUQUE-2222`.
+
+**Objetivo:** hacer alcanzable el ahorro que `LUQUE-2222` midió. El demonio
+servía sólo un socket unix, y **ninguna configuración de cliente MCP marca un
+socket**: las cinco integraciones que este proyecto escribe ponen `command` +
+`args`, y las formas remotas que aceptan son `url`. El ahorro estaba medido sobre
+código que nadie podía ejecutar.
+
+**Entregado:**
+
+* *El transporte:* el demonio sirve la misma superficie MCP por el
+  `StreamableHTTPHandler` del SDK además del socket, desde un proceso y sobre el
+  mismo store. Las dos mitades acaban juntas: la que falle primero cancela a la
+  otra, porque un demonio que siguiera contestando por una puerta después de
+  perder la otra no se lo diría a nadie.
+* *La clave:* un puerto no tiene ruta, así que el modo del socket no sirve de
+  nada allí. El token va en `daemon.token`, `0600`, y **sobrevive al reinicio** --
+  una entrada escrita en la config de un cliente seguiría valiendo o no según
+  esto. `daemon.json` lleva url, token, socket y pid, y se borra al parar: es
+  liveness, no identidad.
+* *La postura:* bind fuera de loopback se **rechaza** nombrando lo que se
+  escaparía, y sólo `--allow-remote` lo acepta con aviso. `Origin` se valida,
+  que es lo único que para a una página usando el navegador del propio usuario.
+  Comparación del token en tiempo constante, y el comentario dice que ningún
+  test de este paquete lo prueba.
+* *Las integraciones:* `mcp install --daemon` lee el endpoint y escribe la forma
+  que cada cliente entiende -- `type: http` con `headers` para Claude Code,
+  Claude Desktop y Oh My Pi; `type: remote` para OpenCode; `url` con
+  `http_headers` para Codex, porque `bearer_token_env_var` nombra una variable
+  que el usuario tendría que exportar. Verificadas contra la documentación de
+  cada cliente, no adivinadas.
+* *Lo que se niega:* una entrada con token **no se escribe en ámbito `project`**.
+  `.mcp.json` se commitea, y un secreto en git no se retira borrándolo.
+  `ErrEndpointNeedsUserScope`, en vez de degradar a stdio en silencio.
+* *Un defecto que el cambio destapó:* el renderizador de TOML tenía la entrada
+  cableada a mano en vez de renderizar la que `expectedTOMLEntry` declara, así
+  que escribía `command` mientras la comparación esperaba `url`: habría
+  reinstalado para siempre. Ahora renderiza la entrada declarada, con las
+  subtablas después de los escalares -- en TOML una clave tras una cabecera
+  pertenece a esa tabla-- y con las claves ordenadas.
+
+**La medición, que corrige lo publicado:** `benchmarks/daemon-cost` corre ahora
+las dos puertas con `-transport`, publica `results.json` y `results-http.json`, y
+mete el transporte en el digest -- sin eso las dos corridas colisionan en una
+identidad. Esquema `daemon-cost-v2`; los dos brazos regenerados.
+
+|puerta|pendiente del demonio|8 clientes|1 cliente|cruce|
+|---|---|---|---|---|
+|socket|`0,5` MB/cliente|`70` contra `533 MB`|empata|`1,00`|
+|HTTP|`12,5` MB/cliente|`166` contra `536 MB`|`76` contra `67 MB`|`1,26`|
+
+Cuatro pasadas por HTTP dan `12,1`–`12,8`: no es ruido. **El ahorro sigue siendo
+la tercera parte a ocho clientes, pero a un cliente el demonio por HTTP pierde**,
+así que la razón para instalarlo empieza en el segundo. Los `12 MB` no son el
+grafo: el SDK da a cada sesión un `MemoryEventStore` de `10 MiB` para reanudar
+streams (`event.go:255`) y `2.000` llamadas lo llenan -- con `64` la pendiente cae
+a `2,1`–`2,7`. No se puede acotar desde aquí: `NewStreamableHTTPHandler` no acepta
+un `EventStore`.
+
+Corregidos los siete sitios que citaban `0,2`–`2,3` como si fuera la cifra
+alcanzable: ADR 0065 y 0066, `docs/installation.md`, `cmd/kivgraph/AGENTS.md`,
+`benchmarks/AGENTS.md`, `internal/daemon/daemon.go`, `internal/integrations`.
+
+**Limitaciones declaradas:** la pendiente por HTTP **depende de la carga** y su
+forma no se mapeó -- dos puntos medidos, `2.000` y `64` llamadas, y un intento
+intermedio descartado por salir con filas vacías en vez de publicarse; `12,5` es
+un techo bajo tráfico sostenido y no lo que cuesta un editor abierto sin usar; no
+se midió con clientes reales; no es bare metal.

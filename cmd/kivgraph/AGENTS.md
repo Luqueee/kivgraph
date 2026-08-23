@@ -197,7 +197,9 @@ superficie observable.
 
 ## `kivgraph daemon`
 
-- Sirve MCP a varios clientes desde un proceso, sobre un socket unix. Comparte
+- Sirve MCP a varios clientes desde un proceso, por **dos puertas a la vez**: un
+  socket unix en el directorio de estado y el transporte Streamable HTTP en
+  loopback. Comparte
   con `serve` todo el montaje -- config, store, seguidor de generación, resync,
   event log-- a través de `runConfiguredServe`, que recibe el nombre del comando
   para que sus rótulos digan la verdad: dos comandos con un `serve` fijo en los
@@ -225,10 +227,27 @@ superficie observable.
   `serve`, y ahí acaba la pregunta de cuándo se va un proceso ocioso.
 - El ahorro está medido en `benchmarks/daemon-cost`, y lo que escala es la
   **pendiente**, no ningún total: N procesos cuestan `66`–`67 MB` de páginas
-  privadas por cliente y un demonio `0,2`–`2,3` sobre una carga. A un cliente
-  empata dentro del ruido -- el servidor MCP por sesión no aparece contra los
-  `66 MB` de la carga-- y gana desde el segundo. Lo que no es el ahorro es el
+  privadas por cliente. **La pendiente del demonio depende de la puerta**, y la
+  que se puede prometer es la de HTTP, porque ninguna configuración de cliente
+  MCP marca un socket:
+
+  |puerta|pendiente del demonio|8 clientes|1 cliente|
+  |---|---|---|---|
+  |socket|`0,5 MB` por cliente|`70` contra `533 MB`|empata|
+  |HTTP|`12,5 MB` por cliente|`166` contra `536 MB`|`76` contra `67 MB`|
+
+  Citar `0,2`–`2,3` a secas es citar la puerta que nadie cruza. Por HTTP el
+  cruce está en `1,26` clientes: con un solo editor abierto el demonio **no
+  gana nada**. Y esos `12 MB` son el `MemoryEventStore` de `10 MiB` que el SDK
+  da a cada sesión, no el grafo: con `64` llamadas en vez de `2.000` la
+  pendiente cae a `2,1`–`2,7`. Lo que no es el ahorro en ninguna puerta es el
   snapshot: ya se comparte y esas páginas están limpias.
+- `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
+  `daemon.json` del directorio de estado y escribe una entrada `url` con el
+  token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio
+  y cambiar la entrada en silencio haría que el mismo comando escribiera dos
+  ficheros distintos según si había un proceso arrancado. En ámbito `project` se
+  niega: ese fichero se commitea.
 
 ## `kivgraph ui`
 
