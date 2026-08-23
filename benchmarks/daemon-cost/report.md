@@ -1,24 +1,58 @@
 # Lo que un proceso para muchos clientes cuesta de verdad
 
-`LUQUE-2222`, corregido en `LUQUE-2223` y otra vez en `LUQUE-2224`.
-`kivgraph daemon` se escribió sobre una aritmética: si un `serve` conserva
-`71 MB` de páginas privadas y esa cifra es plana en el número de clientes, N de
-ellos deberían convertirse en uno. Esto lo mide.
+`LUQUE-2222`, corregido en `LUQUE-2223`, otra vez en `LUQUE-2224` y ampliado en
+`LUQUE-2225`. `kivgraph daemon` se escribió sobre una aritmética: si un `serve`
+conserva `71 MB` de páginas privadas y esa cifra es plana en el número de
+clientes, N de ellos deberían convertirse en uno. Esto lo mide.
 
 Se ha corregido dos veces, y las dos por el mismo motivo: **la cifra publicada
-describía una situación que no era la del usuario.** Primero se publicó la del
-socket unix, que ningún cliente MCP puede marcar. Luego la de HTTP bajo `2.000`
-llamadas por sesión, que **ninguna sesión real hace**. Esta versión mide la carga
-que un editor produce de verdad, contada del event log de una máquina en uso.
+describía una situación que no era la del usuario.** Primero la del socket unix,
+que ningún cliente MCP puede marcar. Luego la de HTTP bajo `2.000` llamadas por
+sesión, que ninguna sesión real hace. Esta versión añade el extremo opuesto, que
+es el caso que **de verdad predomina**: el servidor al que nadie pregunta nada.
 
 |artefacto|puerta|carga|
 |---|---|---|
-|`results.json`|socket unix|real|
-|`results-http.json`|Streamable HTTP|real|
+|`results-idle.json`|socket unix|ninguna llamada|
+|`results-http-idle.json`|Streamable HTTP|ninguna llamada|
+|`results.json`|socket unix|`8` llamadas por brazo|
+|`results-http.json`|Streamable HTTP|`8` llamadas por brazo|
 |`results-http-sustained.json`|Streamable HTTP|`2.000` llamadas: el techo|
 
 Este informe no emite ningún veredicto de aceptación: mide dos formas de servir
-el mismo grafo, por dos transportes y a dos cargas, en un entorno concreto.
+el mismo grafo, por dos transportes y a tres cargas, en un entorno concreto.
+
+## Lo que cuesta un servidor al que nadie pregunta
+
+`33,1`–`34,4 MB` de páginas privadas por cliente. Sin haber contestado nada.
+
+|carga|pendiente de N procesos|pendiente del demonio|proporción|
+|---|---|---|---|
+|ninguna llamada|`33,1`–`34,4` MB/cli|`0,8`–`1,2` MB/cli|`0,023`–`0,032`|
+|`8` llamadas|`39,9`–`40,7` MB/cli|`0,4`–`0,9` MB/cli|`0,009`–`0,013`|
+|`2.000` llamadas|`67,6` MB/cli|`12,8` MB/cli|`0,189`|
+
+$$\frac{33}{40} = 83\,\%\ \text{de lo que cuesta un servidor consultado, y}\ \frac{33}{68} = 49\,\%\ \text{del techo}$$
+
+**El arranque es el coste.** Contestar una pregunta añade unos `7 MB` sobre los
+`33` que ya se pagaron al abrir el proceso, y hacen falta `2.000` llamadas para
+que la carga iguale a lo que costó estar listo. Esto importa porque `48` de cada
+`51` servidores reales **no reciben ninguna llamada**: la fila de arriba no es un
+extremo teórico, es la mediana de lo que ocurre.
+
+En el brazo del demonio esa cifra es `1 MB` por cliente, que está en el ruido de
+este método. La lectura honesta no es «el demonio ahorra el 97 %», es que **el
+coste por cliente de un demonio es indistinguible de cero hasta que llega tráfico
+sostenido**, y sólo ahí se vuelve medible (`12,8`).
+
+A ocho clientes ociosos: `263`–`273 MB` contra `40 MB`. Un editor solo empata
+(`31` contra `31`–`34`), y el cruce está en `1,04`–`1,07` clientes.
+
+Y la corrida ociosa es, además, **la única medición limpia del benchmark**: es la
+única en la que los cuatro puntos del barrido miden lo mismo por cliente. Con
+`-calls 8` el brazo reparte ocho llamadas entre los clientes que haya, así que la
+fila de un cliente contesta ocho preguntas y la de ocho contesta una cada uno; sin
+llamadas no hay nada que repartir.
 
 ## Qué carga produce un cliente real
 
@@ -36,12 +70,12 @@ exactamente qué le piden:
 |mezcla|`find_references` `80 %`, `find_symbol` `20 %`|
 
 **Cuarenta y ocho de cincuenta y un servidores cargaron el grafo entero y nadie
-les preguntó nada.** La mediana de una sesión real es **una** llamada; el máximo
-observado, tres. El benchmark medía `2.000`, que son tres órdenes de magnitud por
+les preguntó nada.** La mediana de una sesión real es **cero** llamadas; el
+máximo observado, tres. El benchmark medía `2.000`, tres órdenes de magnitud por
 encima de lo que ocurre.
 
-Eso no es un detalle de calibración: es la variable que decidía el resultado. La
-penalización de HTTP que la versión anterior publicó -- `12,5 MB` por cliente-- era
+Eso no es un detalle de calibración: era la variable que decidía el resultado. La
+penalización de HTTP que una versión anterior publicó -- `12,5 MB` por cliente-- era
 el buffer de reanudación del SDK llenándose con respuestas que una sesión real
 nunca produce.
 
@@ -50,29 +84,32 @@ nunca produce.
 |dato|valor|
 |---|---|
 |fecha|2026-08-23|
-|commit|`f2333a9`|
+|commit|`ef31f35`|
 |plataforma|VM `linux/arm64` de Docker Desktop, imagen `golang:1.26-trixie`|
 |kernel|`Linux 6.12.54-linuxkit`, `10` CPU, page size `4096`|
-|corpus|`kena`, `37` repositorios, **`117.499` símbolos**|
-|snapshot|`86,7 MB`, generación `000001`|
-|esquema|`daemon-cost-v2`|
-|digest socket real|`41b87caa6a47`|
-|digest http real|`7e072cf239a6`|
-|digest http sostenida|`534a650f77f6`|
-|carga real|`1` llamada por cliente, `0` descartadas|
-|carga sostenida|`2.000` llamadas, `4.000` descartadas|
+|corpus|`kena`, `37` repositorios, **`108.737` símbolos**|
+|snapshot|`77,6 MB`, generación `000001`|
+|esquema|`daemon-cost-v3`|
+|digest ocioso socket|`043a0f42bcdc`|
+|digest ocioso http|`45f78ccf76e1`|
+|digest socket `8` llamadas|`84e07f9513b6`|
+|digest http `8` llamadas|`122cf7c27892`|
+|digest http sostenida|`b96fc53295d0`|
 |semilla|`42`|
 
-**Las cuatro corridas de este informe comparten corpus y generación.** Es una
-condición, no un detalle: las cifras de la versión anterior salieron de `108.737`
-símbolos y cruzarlas con éstas sería exactamente el error que este mismo informe
-prohíbe más abajo. Los digests son distintos entre sí porque el transporte y los
-recuentos entran en la identidad de la corrida.
+**Las cinco corridas comparten corpus y generación.** Es una condición, no un
+detalle: cruzar una cifra por símbolo entre corpus es el error que este mismo
+informe prohíbe más abajo. Las cifras de la versión anterior salieron de `117.499`
+símbolos y **no se reproducen aquí**; están en el historial.
 
-El esquema subió a `v2` cuando el transporte entró en esa identidad. Un fichero
-`v1` calculó su digest sin él, así que no se puede comparar por digest con uno de
-éstos: `v1` nombraba un experimento que podía haber sido cualquiera de las dos
-puertas.
+El esquema subió a `v3` porque **el punto de medición se movió**. Hasta ahora el
+guardia de generación -- la llamada a `graph_status` que prueba que los dos brazos
+sirven el mismo fichero-- corría *antes* de leer la memoria, así que cada brazo
+había contestado una pregunta antes de ser medido. Con cargas de miles de llamadas
+eso era invisible; con una carga de cero **es la carga entera**. Ahora el guardia
+corre después del muestreo: falla igual y descarta la corrida igual, por un camino
+que no contamina lo que vigila. Un fichero `v2` incluye esa llamada en sus bytes,
+así que no es la misma medición.
 
 La generación se publicó en el host (darwin/arm64, donde hay `node 25` y el
 TypeScript de `kena` carga entero) y **se lee** en Linux. Los dos brazos leen ese
@@ -80,49 +117,33 @@ mismo fichero, byte a byte: ninguno deriva, así que LadybugDB no participa. El
 workspace se monta en sólo lectura, que es lo que hace imposible tocar un
 repositorio indexado.
 
-## La respuesta
+## Las dos puertas cuestan lo mismo, y también sin carga
 
-A la carga que un editor produce de verdad, tres pasadas por puerta:
-
-|puerta|pendiente del demonio|pendiente de N procesos|1 cliente|8 clientes|cruce|
+|puerta|carga|pendiente del demonio|pendiente de N procesos|8 clientes|cruce|
 |---|---|---|---|---|---|
-|socket|`1,1`–`1,6` MB/cli|`42,8`–`43,0` MB/cli|`57` vs `57` MB|`66`–`68` vs `355`–`357` MB|`1,06`–`1,10`|
-|HTTP|`1,0`–`1,3` MB/cli|`42,6`–`43,5` MB/cli|`57` vs `54`–`57` MB|`66`–`68` vs `354`–`361` MB|`1,06`–`1,10`|
+|socket|ninguna|`1,1`–`1,2` MB/cli|`33,1`–`34,4` MB/cli|`40`–`42` vs `263`–`273` MB|`1,04`|
+|HTTP|ninguna|`0,8`–`1,0` MB/cli|`33,4`–`33,7` MB/cli|`40` vs `265`–`267` MB|`1,07`|
+|socket|`8`|`0,5`–`0,9` MB/cli|`39,9`–`40,6` MB/cli|`60`–`62` vs `334`–`337` MB|`1,01`–`1,06`|
+|HTTP|`8`|`0,4`–`0,5` MB/cli|`40,0`–`40,7` MB/cli|`60`–`62` vs `337` MB|`1,06`–`1,11`|
 
-**Las dos puertas son indistinguibles.** `1,0`–`1,3` contra `1,1`–`1,6 MB` por
-cliente, con los rangos solapados: a esta carga el transporte no se paga. Eso
-**retira la advertencia** que la versión anterior publicaba -- que HTTP costaba
-`12,5 MB` por cliente y que a un cliente el demonio perdía.
-
-A ocho clientes el demonio cuesta **la quinta parte**: `67` contra `356 MB`. Y el
-cruce está en `1,06`–`1,10` clientes por las dos puertas, así que gana desde el
-segundo cliente y a uno empata.
-
-### Y N procesos cuestan menos de lo que se publicó
-
-`42,6`–`43,5 MB` por cliente, no `66`–`67`. La razón es la misma variable: el
-snapshot se mapea y sus páginas se ensucian **al consultarse**. Un `serve` al que
-nadie pregunta -- que son `48` de cada `51`-- nunca toca la mayor parte del fichero,
-así que su mitad privada se queda en `43 MB` en vez de `67`.
-
-Los dos brazos bajan, y el del demonio baja más: la proporción a ocho clientes
-pasa de `0,25` a `0,19`. Medir la carga equivocada **subestimaba** el ahorro.
+Los rangos se solapan en las dos cargas: **elegir HTTP no se paga**, y HTTP es la
+única puerta que un cliente MCP puede configurar. Eso confirma sin carga lo que
+`LUQUE-2224` midió con ella, y retira definitivamente la advertencia de que a un
+cliente el demonio perdía por HTTP.
 
 ## El techo, y por qué es un techo
 
 `results-http-sustained.json` es la misma pregunta con `2.000` llamadas medidas y
-`4.000` descartadas, sobre este mismo corpus y tres pasadas:
+`4.000` descartadas:
 
-|carga|puerta|pendiente del demonio|8 clientes|cruce|
-|---|---|---|---|---|
-|real|socket|`1,1`–`1,6` MB/cli|`66` vs `356` MB|`1,06`–`1,10`|
-|real|HTTP|`1,0`–`1,3` MB/cli|`66` vs `354` MB|`1,06`–`1,10`|
-|sostenida|HTTP|`4,9`–`5,9` MB/cli|`136`–`141` vs `561`–`569` MB|`1,48`–`1,52`|
+|carga|pendiente del demonio|8 clientes|cruce|
+|---|---|---|---|
+|ninguna|`0,8`–`1,2` MB/cli|`40` vs `265` MB|`1,04`–`1,07`|
+|`8` llamadas|`0,4`–`0,9` MB/cli|`61` vs `336` MB|`1,01`–`1,11`|
+|`2.000` llamadas|`12,8` MB/cli|`168` vs `540` MB|`1,31`|
 
-Bajo tráfico sostenido la pendiente por HTTP se multiplica por cinco y el cruce
-se mueve a `1,5` clientes. **El ahorro sigue existiendo** -- `138` contra `565 MB` a
-ocho clientes, la cuarta parte-- pero el coste por sesión es real y conviene saber
-de dónde sale.
+**El ahorro sigue existiendo** -- `168` contra `540 MB`, la tercera parte-- pero el
+coste por sesión se vuelve real y conviene saber de dónde sale.
 
 ### De dónde sale, verificado en la fuente
 
@@ -130,12 +151,14 @@ No es el grafo: es **tráfico retenido**. El SDK da a cada sesión su propio
 `MemoryEventStore` para poder reanudar un stream cortado, y ese store guarda
 hasta `10 MiB` por defecto -- `NewMemoryEventStore(nil)` en `streamable.go:391`,
 `defaultMaxBytes = 10 << 20` en `event.go:255`. Con `2.000` llamadas cada sesión
-empuja respuestas del grafo hacia ese techo; con una, no.
+empuja respuestas del grafo hacia ese techo; con una, no; con ninguna, tampoco
+existe la sesión que las pediría.
 
 Y la cifra sostenida **depende del corpus**, que es la firma de un coste medido en
 bytes y no en sesiones: `4,9`–`5,9 MB` por cliente sobre `117.499` símbolos, y
-`12,1`–`12,8` sobre los `108.737` de la corrida anterior. Un coste estructural por
-sesión no haría eso.
+`12,8` aquí sobre `108.737` -- que reproduce los `12,1`–`12,8` medidos en un corpus
+del mismo tamaño en el commit `56c49d7`. Un coste estructural por sesión no haría
+eso.
 
 **No se puede acotar desde aquí.** `NewStreamableHTTPHandler` no acepta un
 `EventStore`: el campo existe en `StreamableServerTransport`, pero el handler
@@ -147,91 +170,100 @@ colgada y las peticiones del servidor al cliente. Ninguna se tomó: la primera
 duplica la capa HTTP del SDK y la segunda cambia el contrato del transporte para
 acotar memoria que ya está acotada y que ninguna sesión real alcanza.
 
-## Las tres pasadas del socket bajo carga sostenida
-
-Están en el historial, en el commit `56c49d7`, sobre el corpus de `108.737`
-símbolos: `0,2`–`2,3 MB` por cliente, `533 MB` contra `68`–`82` a ocho clientes.
-No se reproducen aquí porque cruzarlas con las de arriba sería comparar corpus
-distintos.
-
-
 ## Lo que la medición añade y no se buscaba
 
-**El pico casi no baja con la carga real, y sigue siendo la diferencia más
-grande de todo el benchmark.** Cifras de la corrida por HTTP; la del socket
-coincide dentro de un megabyte:
+**El pico es la diferencia más grande de todo el benchmark, y no depende de que
+nadie pregunte nada.** Sin ninguna llamada:
 
 |clientes|pico N procesos|pico 1 demonio|
 |---|---|---|
-|`1`|`157` MB|`160` MB|
-|`2`|`293` MB|`167` MB|
-|`4`|`576` MB|`165` MB|
-|`8`|**`1.152` MB**|**`169` MB**|
+|`1`|`124`–`126` MB|`125`–`128` MB|
+|`2`|`250`–`251` MB|`128`–`130` MB|
+|`4`|`497`–`503` MB|`129`–`132` MB|
+|`8`|**`994`–`1.000` MB**|**`134`–`135` MB**|
 
-Una máquina que arranca ocho editores a la vez paga **más de un gigabyte** de
-pico contra `169 MB`. Y esto es a la carga real: el pico de ocho procesos son
-ocho cargas simultáneas, no ocho consultas. Es el sitio donde el demonio gana por
-más, y no depende de que nadie pregunte nada.
+Una máquina que arranca ocho editores a la vez paga **un gigabyte** de pico contra
+`134 MB`, y ninguno de esos ocho ha hecho una sola consulta. Con `8` llamadas la
+cifra sube a `1.053`–`1.057` contra `154`–`156`: el pico es el arranque, no el
+trabajo.
 
-**Un cliente nuevo se responde entre `5` y `12` veces antes:**
+**Un cliente nuevo se conecta unas cien veces antes**, y esto también es sin
+carga:
 
 |clientes ya conectados|N procesos|1 demonio|
 |---|---|---|
-|`1`|`126`–`143` ms|`23`–`25` ms|
-|`2`|`145`–`155` ms|`17` ms|
-|`4`|`148`–`179` ms|`18`–`20` ms|
-|`8`|`202`–`205` ms|`16` ms|
+|`1`|`96`–`107` ms|`1,4`–`1,7` ms|
+|`8`|`130`–`151` ms|`1,5`–`1,6` ms|
 
-Es lo que ve quien abre una segunda ventana del editor: un proceso nuevo tiene
-que cargar el snapshot, una sesión nueva no. Y con la carga real la ventaja del
-demonio **crece** con los clientes mientras la de los procesos empeora, porque
-ocho arranques simultáneos compiten por las mismas diez CPU.
+Es lo que ve quien abre una segunda ventana del editor: un proceso nuevo tiene que
+cargar el snapshot, una sesión nueva no. La comparación es de conexión contra
+conexión -- `new_client_connect_ms`, que se mide a todas las cargas-- y no mezcla la
+espera de una respuesta, que a carga cero no existe.
 
-**La latencia empata**, y aquí sí cambia la conclusión anterior: `p99` entre
-`1,2` y `1,9 ms` en los dos brazos, contra los `13`–`20 ms` que se medían bajo
-carga sostenida. Con una llamada por cliente no hay contención que repartir, así
-que la ventaja de latencia que el demonio mostraba a ocho clientes **es un efecto
-de la carga sintética** y no algo que un usuario vea.
+**La latencia empata** a la carga real: `p99` entre `4` y `17 ms` en el brazo de
+procesos y entre `4` y `29` en el del demonio, rangos que se solapan y se cruzan.
+La ventaja de latencia que el demonio mostraba bajo carga sostenida es **un efecto
+de la carga sintética**.
 
 ## Limitaciones
 
+* **La corrida ociosa mide un arranque, no una sesión de trabajo.** Dice lo que
+  cuesta estar listo, que es lo que `48` de `51` servidores reales hacen y nada
+  más; no dice nada sobre lo que cuesta contestar.
+* **De los `33 MB` no se sabe qué parte es qué.** Son páginas privadas que existen
+  antes de la primera pregunta; este benchmark no separa la construcción de
+  índices del resto del arranque, y afirmar cuál domina sería inventar el
+  mecanismo. El fichero mapeado no está ahí: son `6,1 MB` por proceso de
+  `shared_clean`, sobre un snapshot de `77,6`.
 * **La forma de la sesión es real; su ritmo no.** Las llamadas por sesión salen
   de un log de uso real, pero se emiten seguidas y desde sondas del propio
-  snapshot. Un editor intercala pausas de minutos, y `48` de cada `51` sesiones
-  no preguntan nada en absoluto -- ésas están *mejor* representadas por el brazo
-  del demonio de lo que este arnés puede medir, porque el arnés obliga a cada
-  cliente a hacer al menos una llamada.
+  snapshot. Un editor intercala pausas de minutos.
+* **`-calls 8` no es «una llamada por cliente» en todo el barrido.** El brazo
+  reparte ocho llamadas entre los clientes que haya: a ocho clientes es una cada
+  uno, a uno son ocho. La fila de un cliente de esa carga no es comparable con la
+  de ocho.
 * **La mezcla de tools no es la observada.** El log real es `80 %`
   `find_references`; el arnés reparte entre las sondas que cosecha del snapshot.
-  Importa porque el coste sostenido se mide en bytes de respuesta, y dos tools no
-  devuelven lo mismo.
+  Importa porque el coste sostenido se mide en bytes de respuesta.
 * **El log real son dos días de una máquina.** `51` procesos y `5` llamadas es una
-  muestra pequeña y de un solo usuario. Lo que sostiene es el orden de magnitud
-  -- unidades de llamadas por sesión, no miles-- y no una distribución.
-* **La pendiente bajo carga sostenida depende del corpus**, y eso está medido:
-  `4,9`–`5,9 MB` por cliente sobre `117.499` símbolos contra `12,1`–`12,8` sobre
-  `108.737`. Es coherente con un coste en bytes retenidos, y significa que la
-  cifra del techo no se transporta entre corpus.
+  muestra pequeña y de un solo usuario. Sostiene el orden de magnitud -- unidades
+  de llamadas por sesión, no miles-- y no una distribución.
+* **La carga sostenida es una sola pasada** por HTTP, y su pendiente depende del
+  corpus: la cifra del techo no se transporta entre corpus.
 * **No es bare metal.** Es la VM de Docker Desktop sobre Apple Silicon. El
   `page size` es `4096`, el mismo que amd64, que es lo que hace comparables las
   unidades; el resto del entorno es el de un contenedor.
 * **La generación se publicó en darwin y se leyó en Linux.** Mismo arco, formato
-  de anchura fija y little-endian por diseño. Es lo que permite que los dos
-  brazos lean el mismo fichero, y es una dependencia declarada del método.
+  de anchura fija y little-endian por diseño. Es una dependencia declarada del
+  método.
 * **No se midió por encima de ocho clientes.** La pendiente medida extrapola a
   que el demonio siga plano, y una extrapolación no es una medición.
 
-## Un defecto del arnés que la primera pasada destapó
+## Defectos del arnés que estas pasadas destaparon
 
-La primera versión publicó `symbols: 0` sin fallar. `readStatus` adivinó la forma
-de `graph_status` -- el conteo está anidado bajo `results`-- y sólo comprobaba el
-`snapshot_id`, así que el corpus quedaba sin nombre en un artefacto que existe
-para ser comparado. Ahora se niega cuando el conteo es cero, como ya hacía el
-arnés de `shared-snapshot`.
+El de esta pasada es el que impedía la medición: **el guardia de generación
+contestaba antes de muestrear**, así que ningún brazo podía estar realmente
+ocioso. Movido detrás del muestreo, el guardia conserva su fuerza -- una corrida
+cuyo servidor sirve otra generación se descarta igual-- y deja de ser carga.
 
-El mismo arreglo destapó el otro: `commit` se rellenaba dentro de `writeResults`,
-después de calcular las limitaciones, así que un commit ausente nunca podía
-declararse. Se lee al construir la corrida.
+Y una trampa que iba con él: `latencyOf` sin llamadas devolvía `latency{}`, así
+que un fichero ocioso habría publicado `p50_ms: 0`. Un cero ahí se lee como una
+respuesta instantánea, y `p99_ratio: 0` como un demonio infinitamente más rápido.
+Los percentiles, el `new_client_ms` y los dos ratios de latencia son ahora
+punteros: **lo que no se midió no aparece en el fichero**, y el resumen imprime
+`--`. Es el mismo modo de fallo que este benchmark ya cometió dos veces por otra
+vía: publicar un número que un lector toma por lo que no es.
+
+Queda una comprobación que ningún test de portátil puede hacer. Los probes que
+`startServer` y `connect` se saltan bajo carga cero necesitan un servidor real, y
+borrar ese salto no rompe nada que corra en local -- lo verifiqué. Por eso la
+corrida se niega a publicar un fichero ocioso que haya cronometrado algún primer
+answer (`checkIdle`), y eso sí está defendido por un test.
+
+De pasadas anteriores: la primera versión publicó `symbols: 0` sin fallar porque
+`readStatus` adivinó la forma de `graph_status`; y `commit` se rellenaba dentro de
+`writeResults`, después de calcular las limitaciones, así que un commit ausente
+nunca podía declararse.
 
 ## Y dos defectos de producción
 
@@ -256,8 +288,7 @@ Dos arreglos, porque son dos problemas. En producción el demonio publica HTTP
 está; y si el `bind` falla después, el endpoint se retira, porque un fichero que
 afirma que hay un demonio contestando manda al cliente siguiente a un puerto
 cerrado. En el arnés, la espera del endpoint es explícita en vez de deducida del
-orden: un arnés que dependiera de ese orden se rompería en silencio el día que
-cambiara, y éste ya se rompió una vez con el orden contrario.
+orden.
 
 ## Reproducir
 
@@ -267,32 +298,28 @@ export HOME=/ruta/aislada
 kivgraph init --languages go,typescript,rust --repository <nombre>=<ruta> ...
 kivgraph index --full
 
-# En Linux, las dos puertas a la carga real: una llamada por cliente, la mediana
-# medida de una sesión. El cwd tiene que ser el checkout, o el commit no se lee y
-# la corrida lo declara como limitación.
+# En Linux, las tres cargas por las dos puertas. El cwd tiene que ser el
+# checkout, o el commit no se lee y la corrida lo declara como limitación.
 docker run --rm -w /src \
   -v "$PWD":/src:ro -v /ruta/a/kena:/ruta/a/kena:ro -v "$HOME":"$HOME" \
   -e HOME="$HOME" golang:1.26-trixie bash -c '
     git config --global --add safe.directory /src
-    go build -o /out/kivgraph ./cmd/kivgraph
+    go build -tags ladybug -o /out/kivgraph ./cmd/kivgraph
     go build -o /out/daemon-cost ./benchmarks/daemon-cost
     for t in socket http; do
-      /out/daemon-cost -server /out/kivgraph \
-        -config "$HOME/.config/kivgraph/config.yaml" \
-        -generation-dir "$HOME/.local/state/kivgraph/generations/000001" \
-        -state-dir "$HOME/.local/state/kivgraph" \
-        -clients 1,2,4,8 -calls 8 -warmup 0 \
-        -transport $t -output /out/real-$t
+      for c in 0 8; do
+        /out/daemon-cost -server /out/kivgraph \
+          -config "$HOME/.config/kivgraph/config.yaml" \
+          -generation-dir "$HOME/.local/state/kivgraph/generations/000001" \
+          -state-dir "$HOME/.local/state/kivgraph" \
+          -clients 1,2,4,8 -calls $c -warmup 0 \
+          -transport $t -output /out/$t-$c
+      done
     done'
 ```
 
-El techo es la misma orden con la carga sintética, y la diferencia entre las dos
-filas de la tabla es **sólo** ese par de números:
-
-```bash
-/out/daemon-cost ... -clients 1,2,4,8 -calls 2000 -warmup 4000 \
-  -transport http -output /out/sostenida
-```
+`-calls 0` es la corrida ociosa: los clientes se conectan, negocian la sesión y no
+preguntan nada. El techo es la misma orden con `-calls 2000 -warmup 4000`.
 
 Y la carga real se recuenta de un log de uso, no se estima:
 
@@ -319,5 +346,5 @@ EOF
 ```
 
 El `digest` es la identidad de las entradas -- corpus, generación, recuentos,
-semilla-- y no de las medidas: dos corridas del mismo experimento comparten
-cadena, y una cifra distinta no puede pasar por el mismo experimento.
+semilla, transporte-- y no de las medidas: dos corridas del mismo experimento
+comparten cadena, y una cifra distinta no puede pasar por el mismo experimento.

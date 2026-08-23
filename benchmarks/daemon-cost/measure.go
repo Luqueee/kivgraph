@@ -168,12 +168,10 @@ func latencyOf(durations []int64) latency {
 	}
 	sorted := append([]int64(nil), durations...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-	return latency{
-		Calls: len(sorted),
-		P50MS: percentileMS(sorted, 0.50),
-		P95MS: percentileMS(sorted, 0.95),
-		P99MS: percentileMS(sorted, 0.99),
-	}
+	p50 := percentileMS(sorted, 0.50)
+	p95 := percentileMS(sorted, 0.95)
+	p99 := percentileMS(sorted, 0.99)
+	return latency{Calls: len(sorted), P50MS: &p50, P95MS: &p95, P99MS: &p99}
 }
 
 func percentileMS(sorted []int64, fraction float64) float64 {
@@ -193,12 +191,18 @@ func percentileMS(sorted []int64, fraction float64) float64 {
 // worstFirstAnswer is what the slowest client waited. A mean would hide the
 // arm's shape: in the processes arm every client pays a full start, in the
 // daemon arm only the first one does.
-func worstFirstAnswer(values []float64) float64 {
+//
+// A run that asks nothing has no first answer, and nil says so: a zero would
+// read as the fastest arm ever measured.
+func worstFirstAnswer(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
 	worst := 0.0
 	for _, value := range values {
 		if value > worst {
 			worst = value
 		}
 	}
-	return worst
+	return &worst
 }
