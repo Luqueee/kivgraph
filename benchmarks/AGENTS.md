@@ -50,6 +50,19 @@ declarado en la raíz.
   recuento de **un** cliente aunque un demonio no comparta nada allí, porque es
   donde su coste fijo sería visible sin nada que amortizarlo -- y ahí resultó que
   empata, desmintiendo la predicción del ADR 0065.
+- **`daemon-cost` mide las dos puertas del demonio y publica un artefacto por
+  cada una**: `results.json` para el socket unix y `results-http.json` para
+  Streamable HTTP, con `-transport` seleccionando la puerta y el transporte
+  dentro del digest. Sin eso las dos corridas colisionan en una identidad y una
+  cifra de socket puede citarse como si fuera alcanzable, que es exactamente lo
+  que pasó: `0,5 MB` por cliente por socket contra `12,5` por HTTP. **La cifra
+  publicable es la de HTTP**, porque ninguna configuración de cliente MCP marca
+  un socket. El esquema es `daemon-cost-v2`; un fichero `v1` calculó su digest
+  sin el transporte y no se puede comparar con uno nuevo.
+- La pendiente por HTTP **depende de la carga**, y el artefacto no puede
+  ocultarlo: son `12,5 MB` por cliente con `2.000` llamadas por brazo y
+  `2,1`–`2,7` con `64`, porque el SDK da a cada sesión un buffer de reanudación
+  de `10 MiB`. Citar una sin la otra convierte un techo en un coste.
 - No es un brazo de `shared-snapshot` y no debe convertirse en uno: los brazos de
   aquél se definen por si el fichero de snapshot está, y su gate mide mapear
   contra derivar. Un tercer brazo dejaría su comparación sin significado.

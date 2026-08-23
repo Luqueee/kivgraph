@@ -16,18 +16,23 @@ import (
 )
 
 type results struct {
-	Benchmark     string       `json:"benchmark"`
-	Date          string       `json:"date"`
-	SchemaVersion string       `json:"schema_version"`
-	Commit        string       `json:"commit"`
-	Digest        string       `json:"digest"`
-	SnapshotID    uint64       `json:"snapshot_id"`
-	Calls         int          `json:"calls"`
-	Warmup        int          `json:"warmup"`
-	Seed          int64        `json:"seed"`
-	Environment   environment  `json:"environment"`
-	Snapshot      snapshotFile `json:"snapshot"`
-	Points        []point      `json:"points"`
+	Benchmark     string `json:"benchmark"`
+	Date          string `json:"date"`
+	SchemaVersion string `json:"schema_version"`
+	Commit        string `json:"commit"`
+	Digest        string `json:"digest"`
+	SnapshotID    uint64 `json:"snapshot_id"`
+	Calls         int    `json:"calls"`
+	Warmup        int    `json:"warmup"`
+	Seed          int64  `json:"seed"`
+	// Transport names which of the daemon's two doors the clients used. Without
+	// it two runs of the same corpus and client count are indistinguishable in
+	// the file, and the socket number would be quoted for a path no editor can
+	// take.
+	Transport   string       `json:"transport"`
+	Environment environment  `json:"environment"`
+	Snapshot    snapshotFile `json:"snapshot"`
+	Points      []point      `json:"points"`
 	// Slopes are what no single client count can answer. A daemon that saves at
 	// two clients and not at eight would look like a win in any one row.
 	Slopes      slopes   `json:"slopes"`
@@ -354,9 +359,14 @@ func computeDigest(out results) (string, error) {
 		Calls      int          `json:"calls"`
 		Warmup     int          `json:"warmup"`
 		Seed       int64        `json:"seed"`
-		Symbols    int          `json:"symbols"`
-		OS         string       `json:"os"`
-		Arch       string       `json:"arch"`
+		// Transport is part of the identity because the two doors are not the
+		// same experiment. Leaving it out would make a socket run and an HTTP
+		// run over the same corpus collide on one digest, and a comparison
+		// between them would look like a comparison of a run against itself.
+		Transport string `json:"transport"`
+		Symbols   int    `json:"symbols"`
+		OS        string `json:"os"`
+		Arch      string `json:"arch"`
 	}{
 		Schema:     out.SchemaVersion,
 		SnapshotID: out.SnapshotID,
@@ -365,6 +375,7 @@ func computeDigest(out results) (string, error) {
 		Calls:      out.Calls,
 		Warmup:     out.Warmup,
 		Seed:       out.Seed,
+		Transport:  out.Transport,
 		OS:         out.Environment.OS,
 		Arch:       out.Environment.Arch,
 	}

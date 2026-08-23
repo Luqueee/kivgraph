@@ -35,6 +35,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -81,7 +82,19 @@ type config struct {
 	Warmup        int
 	Seed          int64
 	Directory     string
+	// Transport is which of the daemon's two doors the clients use.
+	//
+	// It exists because the saving was measured over a unix socket and no
+	// editor can be configured for one. If HTTP costs materially more, the
+	// reachable saving is not the measured saving, and the number that gets
+	// quoted has to be this one.
+	Transport string
 }
+
+const (
+	transportSocket = "socket"
+	transportHTTP   = "http"
+)
 
 func main() {
 	var cfg config
@@ -94,6 +107,8 @@ func main() {
 	flag.IntVar(&cfg.Warmup, "warmup", defaultWarmup, "tool calls per arm to discard before measuring")
 	flag.Int64Var(&cfg.Seed, "seed", mcpworkload.DefaultSeed, "workload seed")
 	flag.StringVar(&cfg.Directory, "output", defaultDirectory, "directory for results.json and report.md")
+	flag.StringVar(&cfg.Transport, "transport", transportSocket,
+		"which daemon door the clients use: socket or http")
 	flag.Parse()
 
 	parsed, err := parseClientCounts(*clientList)
@@ -147,6 +162,9 @@ func run(ctx context.Context, cfg config) error {
 	if strings.TrimSpace(cfg.StateDir) == "" {
 		return errors.New("-state-dir is required: it is where the daemon's socket goes, and it is the key that separates daemons")
 	}
+	if cfg.Transport != transportSocket && cfg.Transport != transportHTTP {
+		return fmt.Errorf("-transport %q: want %q or %q", cfg.Transport, transportSocket, transportHTTP)
+	}
 	for _, clients := range cfg.Clients {
 		if cfg.Calls < clients {
 			return fmt.Errorf("calls (%d) must be at least clients (%d)", cfg.Calls, clients)
@@ -165,15 +183,19 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	out := results{
-		Benchmark:     benchmarkName,
-		Date:          time.Now().UTC().Format("2006-01-02"),
-		SchemaVersion: "daemon-cost-v1",
+		Benchmark: benchmarkName,
+		Date:      time.Now().UTC().Format("2006-01-02"),
+		// v2 adds the transport to the run identity. A v1 file's digest was
+		// computed without it, so the two cannot be compared by digest: v1 named
+		// an experiment that could have been either door.
+		SchemaVersion: "daemon-cost-v2",
 		// Read before the run rather than at write time, so a missing commit
 		// reaches the limitations instead of only the JSON field.
 		Commit:      currentCommit(),
 		Calls:       cfg.Calls,
 		Warmup:      cfg.Warmup,
 		Seed:        cfg.Seed,
+		Transport:   cfg.Transport,
 		Environment: observeEnvironment(cfg.Server),
 		Snapshot:    snapshotFile{Path: snapshotPath, Bytes: info.Size()},
 	}
@@ -446,6 +468,11 @@ type daemonProcess struct {
 	socket   string
 	sessions []*sdkmcp.ClientSession
 	streams  []net.Conn
+	// transport and endpoint are how a client reaches this daemon. The socket
+	// is always bound -- it is the readiness signal for both arms -- and the
+	// endpoint is only read when the clients are going to use it.
+	transport string
+	endpoint  daemon.Endpoint
 }
 
 func (live *daemonProcess) pid() int {
@@ -488,14 +515,14 @@ func startDaemon(ctx context.Context, cfg config) (*daemonProcess, error) {
 	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("start daemon: %w", err)
 	}
-	live := &daemonProcess{command: command, stderr: stderr, socket: socket}
+	live := &daemonProcess{command: command, stderr: stderr, socket: socket, transport: cfg.Transport}
 
 	deadline := time.Now().Add(socketWait)
 	for {
 		connection, err := net.Dial("unix", socket)
 		if err == nil {
 			_ = connection.Close()
-			return live, nil
+			break
 		}
 		if time.Now().After(deadline) || ctx.Err() != nil {
 			live.stop()
@@ -504,30 +531,92 @@ func startDaemon(ctx context.Context, cfg config) (*daemonProcess, error) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	if live.transport != transportHTTP {
+		return live, nil
+	}
+	// The socket accepted, so both listeners are up: the daemon publishes the
+	// endpoint before it serves either. Reading it here rather than per client
+	// keeps the endpoint out of the timed section.
+	endpoint, err := daemon.ReadEndpoint(cfg.StateDir)
+	if err != nil {
+		live.stop()
+		return nil, fmt.Errorf("read the published endpoint: %w (it said: %s)",
+			err, clip(strings.TrimSpace(stderr.String()), 400))
+	}
+	live.endpoint = endpoint
+	return live, nil
 }
 
 // connect opens one session and times the connection plus the first answered
 // call, so the two arms measure the same wait.
 func (live *daemonProcess) connect(ctx context.Context) (*sdkmcp.ClientSession, float64, error) {
 	started := time.Now()
-	stream, err := net.Dial("unix", live.socket)
+	session, stream, err := live.dial(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("dial %s: %w", live.socket, err)
-	}
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
-	session, err := client.Connect(ctx, &kivmcp.StreamTransport{Stream: stream}, nil)
-	if err != nil {
-		_ = stream.Close()
-		return nil, 0, fmt.Errorf("connect: %w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
+		return nil, 0, err
 	}
 	if _, err := callTool(ctx, session, "graph_status", map[string]any{}); err != nil {
 		_ = session.Close()
-		_ = stream.Close()
+		if stream != nil {
+			_ = stream.Close()
+		}
 		return nil, 0, fmt.Errorf("%w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
 	}
 	live.sessions = append(live.sessions, session)
-	live.streams = append(live.streams, stream)
+	if stream != nil {
+		live.streams = append(live.streams, stream)
+	}
 	return session, float64(time.Since(started).Microseconds()) / 1000, nil
+}
+
+// dial opens the session over whichever door this arm is measuring.
+//
+// The HTTP transport owns its own connections, so it returns no stream to close:
+// a nil there is the honest answer rather than a placeholder the caller would
+// close and wonder about.
+func (live *daemonProcess) dial(ctx context.Context) (*sdkmcp.ClientSession, net.Conn, error) {
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
+	if live.transport == transportHTTP {
+		transport := &sdkmcp.StreamableClientTransport{
+			Endpoint: live.endpoint.URL,
+			HTTPClient: &http.Client{
+				Transport: bearerRoundTripper{
+					token: live.endpoint.Token,
+					next:  http.DefaultTransport,
+				},
+			},
+		}
+		session, err := client.Connect(ctx, transport, nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("connect %s: %w (daemon said: %s)",
+				live.endpoint.URL, err, clip(strings.TrimSpace(live.stderr.String()), 400))
+		}
+		return session, nil, nil
+	}
+	stream, err := net.Dial("unix", live.socket)
+	if err != nil {
+		return nil, nil, fmt.Errorf("dial %s: %w", live.socket, err)
+	}
+	session, err := client.Connect(ctx, &kivmcp.StreamTransport{Stream: stream}, nil)
+	if err != nil {
+		_ = stream.Close()
+		return nil, nil, fmt.Errorf("connect: %w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
+	}
+	return session, stream, nil
+}
+
+// bearerRoundTripper attaches the token the daemon published. Every request
+// carries it, because the transport reconnects on its own and a token sent only
+// on the first request would fail the second.
+type bearerRoundTripper struct {
+	token string
+	next  http.RoundTripper
+}
+
+func (attach bearerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	cloned := request.Clone(request.Context())
+	cloned.Header.Set("Authorization", daemon.BearerHeader(attach.token))
+	return attach.next.RoundTrip(cloned)
 }
 
 func callTool(ctx context.Context, session *sdkmcp.ClientSession, name string, arguments map[string]any) (string, error) {
