@@ -1,0 +1,37 @@
+---
+const highlights = [
+  {
+    title: "Understand the workspace",
+    body: "Map symbols, callers, dependencies and repository relationships across the projects that make up your workspace.",
+    link: "/cross-repository-code-graph/",
+    label: "cross-repository code graph",
+  },
+  {
+    title: "Give agents better context",
+    body: "Return structured code intelligence before an agent scans dozens of files: definitions, references, source and bounded impact.",
+    link: "/token-efficient-code-understanding/",
+    label: "token-efficient context",
+  },
+  {
+    title: "Keep evidence local",
+    body: "Index and query private repositories locally through MCP. Exact, candidate and unresolved relationships stay distinct.",
+    link: "/code-intelligence/",
+    label: "how code intelligence works",
+  },
+];
+---
+
+<div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+  {highlights.map((highlight) => (
+    <article class="border border-rule bg-panel p-5">
+      <h3 class="text-base font-medium text-gray-100">{highlight.title}</h3>
+      <p class="mt-3 text-sm leading-6 text-gray-300">{highlight.body}</p>
+      <a
+        href={highlight.link}
+        class="mt-5 inline-block text-xs text-accent-200 underline underline-offset-4"
+      >
+        {highlight.label}
+      </a>
+    </article>
+  ))}
+</div>
