@@ -1,0 +1,39 @@
+<div
+  class="border border-graph-exact bg-panel p-4"
+  aria-label="Measured token comparison: Kivgraph 6,200 tokens and grep plus reading 63,531 tokens"
+>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-300">
+      context saved
+    </p>
+    <p class="text-xs text-graph-exact">~90% fewer tokens</p>
+  </div>
+
+  <div class="mt-4 grid grid-cols-[1fr_auto] items-end gap-x-4 gap-y-2 text-xs">
+    <div>
+      <div class="flex items-center justify-between gap-3 text-gray-300">
+        <span>Kivgraph graph query</span>
+        <strong class="font-medium text-gray-100">6,200</strong>
+      </div>
+      <div class="mt-2 h-2 bg-graph-exact"></div>
+    </div>
+    <span class="text-gray-400">tokens</span>
+
+    <div>
+      <div class="flex items-center justify-between gap-3 text-gray-400">
+        <span>grep + file reading</span>
+        <strong class="font-medium text-gray-300">63,531</strong>
+      </div>
+      <div class="mt-2 h-2 bg-gray-500"></div>
+    </div>
+    <span class="text-gray-400">tokens</span>
+  </div>
+
+  <p class="mt-4 text-[0.7rem] leading-5 text-gray-400">
+    One seven-question benchmark: all 7 exact answers, measured against the
+    host's captured grep-and-read output. <a
+      href="/comparison/"
+      class="text-accent-200 underline underline-offset-4">See the method</a
+    >.
+  </p>
+</div>

@@ -1,5 +1,6 @@
 ---
 import CopyButton from "./CopyButton.astro";
+import TokenSaving from "./TokenSaving.astro";
 
 const installCommand =
   "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
@@ -44,6 +45,9 @@ const readout = [
         Rust, Python and Dart repositories and serves repository relationships,
         references and change impact to MCP clients over stdio.
       </p>
+      <div class="mt-8">
+        <TokenSaving />
+      </div>
 
       <div class="mt-10 border border-rule bg-panel">
         <div
