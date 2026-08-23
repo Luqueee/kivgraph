@@ -365,12 +365,22 @@ func findings() []string {
 			"comparaciones-- y con los enteros empaquetados la carga baja a " +
 			"`139,9 ms` frente a `152,9` con los mapas, cuatro pasadas alternadas " +
 			"de cuatro.",
-		"Lo que queda arriba ya no es un mapa: es una copia. `strings.Clone` " +
-			"asigna `7,2 MB` en el camino de carga y no sobrevive a él. La tabla de " +
-			"claves estables copia cada clave que entrega mientras está prestada de " +
-			"un fichero mapeado, que es correcto para un llamante que la guarde, y " +
-			"`validExactIndexes` pide las `117.499` para tirar cada una en la " +
-			"sentencia siguiente.",
+		"La última copia era una validación pidiendo prestado por la puerta " +
+			"principal. La tabla de claves estables copia cada clave que entrega " +
+			"mientras está prestada de un fichero mapeado -- correcto para un " +
+			"llamante que la guarde, porque la memoria mapeada no sobrevive a su " +
+			"`munmap`-- y `validExactIndexes` pedía las `117.499` para tirar cada " +
+			"una en la sentencia siguiente: `7,2 MB`. Dentro del paquete hay una " +
+			"vista que no copia, que es lo que `Lookup` usa para comparar y " +
+			"descartar.",
+		"Y esa validación ya no pregunta nada que no pueda fallar. Leía la " +
+			"entrada `i` y la buscaba esperando `i` de vuelta; los dos " +
+			"constructores de la tabla rechazan entradas que no estén en orden " +
+			"estricto de bytes, y una búsqueda binaria sobre entradas ascendentes, " +
+			"y por tanto distintas, devuelve la posición de la que se le dio. " +
+			"Preguntarlo costaba `117` mil búsquedas binarias sobre páginas " +
+			"mapeadas. Con las dos cosas, la carga baja a `123,6 ms` frente a " +
+			"`134,5`.",
 		"El arena ya se lee en el sitio y es la sección más grande del fichero, " +
 			"que es por lo que los bytes vivos son una fracción de él. Lo que " +
 			"queda en el heap son las tablas, y el fichero declara cuántas filas " +

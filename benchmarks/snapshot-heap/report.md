@@ -12,7 +12,7 @@ transitorios, no asignándolos.
 |dato|valor|
 |---|---|
 |fecha|`2026-08-23`|
-|commit|`8cdea27`|
+|commit|`1df1010`|
 |plataforma|`darwin/arm64`, `go1.26.4`|
 |corpus|`35` repositorios, `117499` símbolos, `337314` aristas|
 |fichero|`86.7 MB`|
@@ -21,10 +21,10 @@ transitorios, no asignándolos.
 
 |mitad|bytes|por símbolo|
 |---|---|---|
-|asignado|`36.4 MB`|`325 B`|
+|asignado|`29.2 MB`|`261 B`|
 |vivo|`27.7 MB`|`247 B`|
 |de ello, tablas adoptadas del mapa y no copiadas|`19.8 MB`|aritmética sobre las filas|
-|transitorio|`8.7 MB`|`24 %` de lo asignado|
+|transitorio|`1.6 MB`|`5 %` de lo asignado|
 
 ## Lo que se puede leer en el sitio
 
@@ -46,7 +46,8 @@ momento en que sus estructuras son atribuibles: `benchmarks/snapshot-heap/live.p
 - La validación del CSR inverso ya no paga un mapa. `validReverseCounterpart` guardaba una clave por arista directa para probar que el inverso es su permutación; hoy marca un bit por arista y recorre el grupo de la fuente para encontrar la contrapartida. Sobre este corpus son `42 kB` en vez de `13,3 MB`, y el recorrido que compra son `18,4 M` comparaciones -- la suma de los grados de salida al cuadrado, `54x` el número de aristas, con un grupo mayor de `889` y una mediana de `1`. Ese trabajo no cuesta tiempo: la carga mide `150,0 ms` en su mejor pasada contra `159,6` con el mapa, alternando las dos versiones sobre el mismo fichero.
 - Los tres índices de búsqueda ya no se acumulan en mapas. Se derivaban de las tablas en `indexSnapshotInput` -- `16,5 MB` de mapas que `newSymbolIndex` aplanaba a arrays acto seguido-- y ahora se derivan directamente: una clave y un id caben empaquetados en un `uint64`, así que ordenar es `slices.Sort` sobre enteros y no hay comparador. Lo que se tira son esos arrays empaquetados, `1,9 MB` por las dos direcciones. Ni el mapa guardaba nada que las tablas no dijeran ya: la clave del símbolo i es un campo del símbolo i, que es por lo que la comprobación de que ambos concordaban no podía fallar.
 - El comparador era el coste, no el orden. Derivar leyendo la clave del registro a través de una función de comparación costaba `18 ms` por carga -- dos llamadas dinámicas por comparación, dos millones de comparaciones-- y con los enteros empaquetados la carga baja a `139,9 ms` frente a `152,9` con los mapas, cuatro pasadas alternadas de cuatro.
-- Lo que queda arriba ya no es un mapa: es una copia. `strings.Clone` asigna `7,2 MB` en el camino de carga y no sobrevive a él. La tabla de claves estables copia cada clave que entrega mientras está prestada de un fichero mapeado, que es correcto para un llamante que la guarde, y `validExactIndexes` pide las `117.499` para tirar cada una en la sentencia siguiente.
+- La última copia era una validación pidiendo prestado por la puerta principal. La tabla de claves estables copia cada clave que entrega mientras está prestada de un fichero mapeado -- correcto para un llamante que la guarde, porque la memoria mapeada no sobrevive a su `munmap`-- y `validExactIndexes` pedía las `117.499` para tirar cada una en la sentencia siguiente: `7,2 MB`. Dentro del paquete hay una vista que no copia, que es lo que `Lookup` usa para comparar y descartar.
+- Y esa validación ya no pregunta nada que no pueda fallar. Leía la entrada `i` y la buscaba esperando `i` de vuelta; los dos constructores de la tabla rechazan entradas que no estén en orden estricto de bytes, y una búsqueda binaria sobre entradas ascendentes, y por tanto distintas, devuelve la posición de la que se le dio. Preguntarlo costaba `117` mil búsquedas binarias sobre páginas mapeadas. Con las dos cosas, la carga baja a `123,6 ms` frente a `134,5`.
 - El arena ya se lee en el sitio y es la sección más grande del fichero, que es por lo que los bytes vivos son una fracción de él. Lo que queda en el heap son las tablas, y el fichero declara cuántas filas tiene cada una, así que nada de ellas hay que reconstruirlo para poder confiar en él.
 
 ## Limitaciones

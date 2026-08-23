@@ -17086,3 +17086,48 @@ adyacentes al ordenar.
 real por MCP sobre `kena`.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2220 — La validación de claves no copia ni pregunta lo imposible
+
+**Dependencias:** `LUQUE-2219`.
+
+**Objetivo:** retirar la última copia con nombre del camino de carga, y con ella
+una comprobación que ningún fichero podía suspender.
+
+**Alcance:** `validExactIndexes` en `internal/hotsnapshot/snapshot.go`.
+
+**Criterios de aceptación:**
+
+- **La copia.** `StableKeyTable.Key` copia lo que entrega mientras la tabla está
+  prestada de un fichero mapeado, porque la memoria mapeada no sobrevive a su
+  `munmap` y una clave que apuntara a ella respondería desde páginas liberadas.
+  Es correcto para un llamante que la guarde, y `validExactIndexes` pedía las
+  `117.499` para tirar cada una en la sentencia siguiente: `7,2 MB`. Dentro del
+  paquete ya existía `value`, la vista que no copia y que `Lookup` usa para
+  comparar y descartar; su propio comentario lo decía.
+- **La pregunta.** La otra mitad leía la entrada `i` y la buscaba esperando `i`
+  de vuelta. No puede fallar: `NewStableKeyTable` y `StableKeyTableFromArena`
+  rechazan entradas que no estén en orden estricto de bytes, y una búsqueda
+  binaria sobre entradas ascendentes -- por tanto distintas-- devuelve la posición
+  de la que se le dio. El comentario que decía que esta vuelta «hace fiable el
+  orden» atribuía mal la garantía: la dan esos dos constructores. Costaba `117`
+  mil búsquedas binarias sobre páginas mapeadas.
+- **Antes de retirarla, defenderla donde vive.** El orden estricto que la hace
+  infalsificable **no estaba fijado en las dos direcciones**: sabotear
+  `StableKeyTableFromArena` para aceptar entradas descendentes pasaba la suite
+  entera; sólo el caso de claves iguales caía, y por un test de carga. Los cuatro
+  casos de `TestStableKeyTableFromArenaValidatesWhatItIsHanded` eran todos sobre
+  desplazamientos. Añadidos dos sobre los bytes -- descendente y dos iguales-- con
+  desplazamientos perfectamente válidos, que es posible porque toda clave del
+  corpus mide lo mismo. Las tres formas de romper el orden caen ahora.
+- **Medido** sobre `kena`, mismo fichero: lo asignado baja de `36,4 MB` a
+  `29,2 MB` y de `325 B` a `261 B` por símbolo; lo transitorio de `8,7 MB` a
+  `1,6 MB`, del `24 %` al `5 %`. La carga baja a `123,6 ms` frente a `134,5`,
+  tres pasadas alternadas de tres. Los bytes vivos siguen en `27,7 MB`.
+- La carga asigna ahora `261 B` por símbolo y conserva `247`: lo que se tira son
+  los dos arrays empaquetados de los índices, y nada más tiene nombre.
+
+**Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
+`make build`; arnés regenerado; y humo con el binario real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.
