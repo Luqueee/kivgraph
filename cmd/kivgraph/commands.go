@@ -139,12 +139,21 @@ func commandTable() []commandSpec {
 			summary: "Run the MCP server over stdio",
 			flags:   func() *flag.FlagSet { var path string; return serveFlagSet(&path) },
 			hints:   map[string]flagHint{"config": {paths: true}},
-			// serve and ui never reach this table's dispatch: main
-			// intercepts them before run, because they are the two
+			// serve, daemon and ui never reach this table's dispatch:
+			// main intercepts them before run, because they are the
 			// commands that own a signal handler and log structurally
 			// for the life of the process. They are declared here so
 			// the help and the completion still describe them.
 			run: nil,
+		},
+		{
+			words:   []string{"daemon"},
+			group:   "Getting started",
+			usage:   "daemon",
+			summary: "Serve MCP to many clients from one process, over a unix socket",
+			flags:   func() *flag.FlagSet { var path string; return serveFlagSet(&path) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run:     nil,
 		},
 		{
 			words:   []string{"ui"},
@@ -163,7 +172,7 @@ func commandTable() []commandSpec {
 			words:   []string{"stop"},
 			group:   "Getting started",
 			usage:   "stop [--dry-run]",
-			summary: "Stop every running serve and ui of this user",
+			summary: "Stop every running serve, daemon and ui of this user",
 			flags:   func() *flag.FlagSet { var o stopOptions; return stopFlagSet(&o) },
 			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 				return runStop(args, stdout, stderr, procstat.List, signalProcess)

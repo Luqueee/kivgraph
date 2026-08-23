@@ -383,44 +383,17 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 		return nil, err
 	}
 	input.StableKeys = keys
-	if err := indexSnapshotInput(&input); err != nil {
-		return nil, err
-	}
-	snapshot, err := NewGraphSnapshot(input)
+	// The lookup indexes are not built here any more: newGraphSnapshot derives
+	// them from these same tables, which is also where a repository holding two
+	// files at one path is refused.
+	// The decoders above allocated every one of these slices from the mapped
+	// bytes a statement ago and nobody else can name them, so the snapshot
+	// takes them instead of copying them.
+	snapshot, err := newGraphSnapshot(input, true)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidSnapshotFile, err)
 	}
 	return snapshot, nil
-}
-
-// indexSnapshotInput derives the three remaining lookup indexes from the tables.
-//
-// It is the only place a reader builds them, and it builds them from the
-// records alone: a repository/path pair that appears twice is rejected here
-// rather than silently keeping whichever row came last, because a dense ID that
-// two keys resolve to is a wrong answer a query cannot detect.
-//
-// Stable keys are no longer among them. A duplicate key used to be caught here;
-// it is now caught by the key table itself, which refuses entries that are not
-// in strict byte order -- and two equal keys are not.
-func indexSnapshotInput(input *GraphSnapshotInput) error {
-	input.SymbolsByName = make(map[InternedString][]SymbolID)
-	input.SymbolsByQName = make(map[InternedString][]SymbolID)
-	input.FileByRepoPath = make(map[RepoPathKey]FileID, len(input.Files))
-	for index, record := range input.Symbols {
-		id := SymbolID(index)
-		input.SymbolsByName[record.Name] = append(input.SymbolsByName[record.Name], id)
-		input.SymbolsByQName[record.QualifiedName] = append(input.SymbolsByQName[record.QualifiedName], id)
-	}
-	for index, record := range input.Files {
-		key := RepoPathKey{Repository: record.Repository, Path: record.Path}
-		if _, duplicated := input.FileByRepoPath[key]; duplicated {
-			return fmt.Errorf("%w: repository %d path %d appears twice",
-				ErrInvalidSnapshotFile, record.Repository, record.Path)
-		}
-		input.FileByRepoPath[key] = FileID(index)
-	}
-	return nil
 }
 
 type snapshotFileHeader struct {

@@ -216,10 +216,7 @@ func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 			{Target: 0, Evidence: 0, Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse},
 			{Target: 1, Evidence: 0, Kind: facts.CodeReferences, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse},
 		},
-		StableKeys:     stableKeys,
-		SymbolsByName:  map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{nameLoad: {0, 1}, nameOther: {2}},
-		SymbolsByQName: map[hotsnapshot.InternedString][]hotsnapshot.SymbolID{qnameA: {0}, qnameB: {1}, qnameC: {2}},
-		FileByRepoPath: map[hotsnapshot.RepoPathKey]hotsnapshot.FileID{{Repository: 0, Path: interned(strings, "src/index.go")}: 0},
+		StableKeys: stableKeys,
 	})
 	if err != nil {
 		t.Fatalf("NewGraphSnapshot: %v", err)

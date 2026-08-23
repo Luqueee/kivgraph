@@ -176,7 +176,9 @@ func newStatsStyles(color bool) statsStyles {
 // a reader is looking for: an index pass explains a peak that a server would not.
 func (styles statsStyles) commandStyle(command string) lipgloss.Style {
 	switch command {
-	case "serve":
+	// A daemon reads as a server, because that is what it is doing: the
+	// distinction a reader wants here is serving from indexing.
+	case "serve", "daemon":
 		return styles.serve
 	case "ui":
 		return styles.ui

@@ -25,6 +25,37 @@ declarado en la raíz.
   de `graph_status`, no del fixture. El brazo Rust se salta declarándose
   cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
   deja a `rustup` sin toolchains.
+- `benchmarks/snapshot-heap` tampoco mide páginas residentes: separa, en lo que
+  cuesta cargar un snapshot publicado, los bytes que un lector **conserva** de
+  los que la carga asigna y tira. Toma el perfil con el snapshot **vivo**, que
+  es la única forma de atribuirlo: el benchmark del paquete escribe el suyo
+  cuando ya es inalcanzable y no atribuye ni un byte.
+- Y las dos mitades **no son la misma cifra en `Private_Dirty`**, que es lo que
+  este archivo decía. Sólo la que se conserva lo es en régimen estacionario:
+  `benchmarks/load-cost-resident` retiró `60,5 MB` de la mitad transitoria y el
+  residente por servidor no se movió (`71,76 MB` contra `71,22`, tres pares de
+  tres). Bajar lo asignado compra tiempo hasta la primera respuesta; los bytes
+  por proceso se bajan moviendo una estructura al fichero mapeado, y sólo eso.
+  Quien escriba una cifra de `snapshot-heap` en una ficha de memoria residente
+  está citando la magnitud equivocada.
+- `benchmarks/load-cost-resident` corre en un contenedor Linux y **no es el host
+  de referencia**: lo que hace comparables sus unidades es el page size de
+  `4096` bytes, y lo que hace comparables sus dos brazos es que corrieron en la
+  misma VM contra el mismo fichero. No sobrescribe los artefactos de
+  `shared-snapshot`, y no afirma ningún límite de latencia.
+- `benchmarks/daemon-cost` responde qué cuesta un proceso sirviendo a N clientes
+  contra N procesos sirviendo a uno. Lo que publica como respuesta es la
+  **pendiente por cliente**, no ningún total: un brazo que ahorrara a dos
+  clientes y no a ocho parecería una victoria en cualquier fila suelta. Mide el
+  recuento de **un** cliente aunque un demonio no comparta nada allí, porque es
+  donde su coste fijo sería visible sin nada que amortizarlo -- y ahí resultó que
+  empata, desmintiendo la predicción del ADR 0065.
+- No es un brazo de `shared-snapshot` y no debe convertirse en uno: los brazos de
+  aquél se definen por si el fichero de snapshot está, y su gate mide mapear
+  contra derivar. Un tercer brazo dejaría su comparación sin significado.
+- Su corpus **no** es el de `load-cost-resident`: `108.737` símbolos contra
+  `117.499`. Una cifra por símbolo se lee de la pasada que la produjo, nunca
+  cruzada entre las dos.
 
 ## Corpus y auditorías
 

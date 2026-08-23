@@ -15073,22 +15073,37 @@ de claves retiradas está publicada.
 
 **Estado:** cerrada el `2026-08-22`.
 
-## LUQUE-2008 — (aplazada) Un proceso para muchos clientes
+## LUQUE-2008 — Un proceso para muchos clientes
 
 **Dependencias:** LUQUE-2006.
 
 **Condición que la reabre:** que el arnés de LUQUE-2006 mida un
 `Private_Dirty` por proceso por encima de **100 MB**, o un corpus donde el
-fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace: su
-ahorro sería de decenas de megabytes y su coste es un demonio.
+fichero mapeado no baste. Mientras el mapeo cumpla, esta tarea no se hace --
+pero **no por el motivo que aquí decía**. Decía «su ahorro sería de decenas de
+megabytes», y eso está mal: el `Private_Dirty` es plano en el número de
+clientes, así que con ocho servidores son `789 MB` de heap privado donde un
+demonio dejaría uno.
 
-**Medido el `2026-08-22`, y queda cerca:** `94,3`–`98,1 MB` por proceso sobre
-`kena-workspace`, `161.819` símbolos. La condición no se cumple, pero por poco,
-y lo que la decide no es el número de clientes -- sale plano en `614 B` por
-símbolo en los tres puntos del barrido-- sino el tamaño del grafo. Un corpus de
-unos `170.000` símbolos la cruza. Por eso el criterio de `LUQUE-2006` se declara
-ahora por símbolo: es la magnitud que escala, y `100 MB` sobre este corpus son
-`648 B` por símbolo.
+**Y la segunda razón que se escribió aquí también está mal, medida el
+`2026-08-23`.** Decía que lo que la mantiene cerrada es que hay «una vía más
+barata para el mismo byte», la de `LUQUE-2216` a `LUQUE-2220`. Esas cuatro fases
+bajaron lo que la carga asigna de `89,7 MB` a `29,2 MB` y **el residente no se
+movió**: `71,76 MB` por servidor contra `71,22`, `0,75 %`, tres pares de tres en
+`benchmarks/load-cost-resident`. Las páginas que una asignación transitoria
+ensucia se devuelven al heap y las reutiliza el trabajo siguiente, así que nunca
+estuvieron residentes en régimen estacionario. La vía más barata existe y es
+real, pero **compra tiempo de arranque, no bytes por proceso**, y por tanto no
+aleja este cruce. Lo que mantiene esta tarea cerrada es sólo lo primero: que la
+condición no se cumple.
+
+**Medido el `2026-08-23`:** `71,2 MB` por proceso y `647 B` por símbolo sobre
+`kena`, `117.499` símbolos, contra un `≤800 B` de `LUQUE-2006` y los `648 B` que
+son `100 MB` en este corpus. La lectura del `2026-08-22` -- `94,3`–`98,1 MB` sobre
+`161.819` símbolos, `614 B` por símbolo-- decía lo mismo por símbolo: lo que
+decide no es el número de clientes, sale plano, sino el tamaño del grafo. Un
+corpus de unos `170.000` símbolos cruza los `100 MB`. Por eso el criterio de
+`LUQUE-2006` se declara por símbolo: es la magnitud que escala.
 
 **Diseño, si llega el caso:** socket unix bajo el directorio de estado, un
 `kivgraph daemon` que sostiene un `SnapshotStore`, un seguidor, un bucle de
@@ -15109,7 +15124,53 @@ hablar con un demonio de otra build; y que `stop` y `doctor` aprendan la
 invocación nueva, porque hoy `stop` selecciona por `argv[1] ∈ {serve, ui}` y no
 vería un demonio.
 
-**Estado:** aplazada.
+**Entregada el `2026-08-23`, y no por la condición.** La condición que la
+reabría -- `Private_Dirty` por encima de `100 MB`-- sigue sin cumplirse: `71,2 MB`
+por proceso sobre `kena`. Se hizo porque las cuatro fases `LUQUE-2216` a
+`LUQUE-2220` demostraron que **no queda otra vía**: bajaron `60,5 MB` de
+asignación y el residente se movió `0,75 %`. La vía barata compra tiempo de
+arranque, no bytes por proceso.
+
+**Lo entregado, y en qué se aparta del diseño de arriba.** `kivgraph daemon`
+sobre un socket unix en el directorio de estado, con `internal/mcp.StreamTransport`
+-- un `Transport` propio sobre `io.ReadWriteCloser`-- y un servidor MCP por sesión
+aceptada sobre un store compartido. ADR 0065.
+
+`serve` **no se convierte en un relé**, que es lo que este diseño proponía. No
+hace falta: un cliente MCP habla con el socket directamente, y un relé añadiría
+un proceso por cliente para ahorrar procesos por cliente. `serve` queda intacto
+y soportado, y es el único camino cuando la ruta del directorio de estado no
+admite un socket.
+
+**De las cuatro preguntas que había que resolver antes de entrar:**
+
+* *Quién lo arranca y cuándo sale:* nadie y nunca solo. Corre en primer plano
+  hasta `SIGINT` o `SIGTERM`, igual que `serve`. Sin arranque automático no hay
+  que decidir cuándo un proceso ocioso se va.
+* *La clave por directorio de estado:* el socket vive dentro de él. De ahí salió
+  un límite que no estaba en el diseño: una dirección unix son `104` bytes en
+  darwin y `bind` **trunca** en vez de rechazar, así que dos directorios con un
+  prefijo largo compartirían socket. Se comprueba y se nombra.
+* *El sesgo de versión:* no aplica sin relé. Un cliente y un demonio negocian
+  versión de protocolo en `initialize`, que es el mecanismo del propio MCP.
+* *`stop` y `doctor`:* `stop` seleccionaba por `argv[1] ∈ {serve, ui}` y no
+  habría visto un demonio. Ahora hay una lista, `longRunningCommands`, y el
+  mensaje de «nada corriendo» nombra las tres. Sabotear la lista en las dos
+  direcciones cae: quitar `daemon` lo vuelve imparable, añadir `index` mata una
+  indexación en vuelo.
+
+**El ahorro, medido después en `LUQUE-2222`:** `66`–`67 MB` de páginas privadas
+por cliente en N procesos contra `0,2`–`2,3` en un demonio. A ocho clientes,
+`533 MB` contra `68`–`82`, y el pico `1.046 MB` contra `188`. A un cliente empata
+dentro del ruido, así que la razón para usarlo empieza en el segundo.
+
+**Verificación:** trece decisiones falsificadas una a una con su test, más dos
+de `stop`; humo con el binario real y una generación publicada, tres clientes
+concurrentes, `11` tools cada uno, dos preguntas distintas a la vez sin cruzarse,
+socket desvinculado al parar, cero errores. `gofmt`, `go vet ./...`,
+`go test ./...`, `make build`.
+
+**Estado:** cerrada el `2026-08-23`.
 
 ---
 
@@ -16890,5 +16951,382 @@ superficie.
 revirtiendo cada mitad por separado; el binario real por MCP; y las `21`
 capturas JSON de las dos páginas parseadas, con `coverage` sólo en las de vista
 `full` y a cero. Ver ADR 0064.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2216 — Qué hay dentro del heap privado de un proceso
+
+**Dependencias:** `LUQUE-2006`.
+
+**Objetivo:** separar, en lo que cuesta cargar un snapshot, la respuesta del
+trabajo de llegar a ella.
+
+**Corregido el `2026-08-23`:** este objetivo decía «son la misma cifra en
+`Private_Dirty` y se arreglan al revés», y la primera mitad es falsa. Sólo la
+respuesta está en `Private_Dirty` en régimen estacionario; el trabajo de llegar a
+ella se devuelve al heap y lo reutiliza lo que viene después. Retirar los
+`60,5 MB` transitorios que esta ficha nombró dejó el residente por servidor en
+`71,22 MB` contra `71,76`, medido en Linux en
+`benchmarks/load-cost-resident`. Lo que se arregló era real y lo que compró es
+tiempo hasta la primera respuesta, no bytes por proceso. Las cifras de abajo son
+contabilidad del runtime de Go y siguen siendo exactas como tales.
+
+**Alcance:** `benchmarks/snapshot-heap`, sin tocar producción.
+
+**Criterios de aceptación:**
+
+- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos, `337.314`
+  aristas, fichero de `86,7 MB`: la carga **asigna `89,7 MB` y conserva
+  `27,7`**. El `69 %` de lo que pide es basura suya. `247 B` por símbolo vivos
+  contra `801` asignados.
+- Y la mitad de esa basura tiene nombre: **cada tabla de ancho fijo se copia
+  dos veces**. Los `decode*` de `readSnapshot` asignan un slice por sección y
+  copian dentro los bytes mapeados; `NewGraphSnapshot` vuelve a copiar cada uno
+  (`snapshot.go:256-269`). Las parejas del perfil son exactas, no parecidas:
+  `decodeSymbols` `5.056 kB` contra la línea de símbolos `5.056 kB`;
+  `decodeEvidence` `6.592` contra `6.592`; `decodeEdges` `7.920` contra los dos
+  `3.961,73` de las dos direcciones. Aritmética sobre las filas: `19,8 MB`.
+- La segunda copia es correcta en el constructor y superflua en el lector: existe
+  para que un llamante pueda seguir mutando lo que pasó, y el lector pasa slices
+  que decodificó una sentencia antes y que nadie más puede nombrar.
+- El otro bloque con nombre es validación: `validReverseCounterpart`
+  (`snapshot.go:478`) construye un mapa con clave en **cada arista directa** para
+  probar que el CSR inverso es su permutación, y lo tira -- `13,7 MB` en la
+  pasada de asignación.
+- El perfil se toma con el snapshot **vivo**, que es lo que el benchmark del
+  paquete no puede hacer: el suyo se escribe cuando ya es inalcanzable y no
+  atribuye ni un byte vivo. Ése fue el primer intento y salió en `0,34 kB`.
+- No se arregla nada aquí. Medir antes de tocar es el punto: los bytes vivos se
+  atacan moviendo una estructura al fichero, y los transitorios no
+  asignándolos.
+
+**Verificación:** `go run ./benchmarks/snapshot-heap -generation-dir <generación>`
+sobre una generación publicada real. Tres pasadas del mismo binario dan el vivo
+byte a byte idéntico y el asignado dentro de `0,1 MB`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2217 — El lector adopta las tablas en vez de copiarlas
+
+**Dependencias:** `LUQUE-2216`.
+
+**Objetivo:** retirar el gemelo que `LUQUE-2216` midió, sin relajar el contrato
+público de `NewGraphSnapshot`.
+
+**Alcance:** `internal/hotsnapshot/snapshot.go` y `file.go`.
+
+**Criterios de aceptación:**
+
+- El cuerpo pasa a `newGraphSnapshot(input, owned bool)`. El público llama con
+  `false` y sigue copiando: su contrato es que el llamante puede seguir mutando
+  lo que pasó, y el constructor lo necesita. `readSnapshot` llama con `true`.
+- Comprobado antes de tocar, porque es lo que decide la corrección: los cinco
+  decodificadores usan `make` y copian campo a campo. **Ninguno alía los bytes
+  mapeados**, así que adoptar es seguro en los dos caminos de `readSnapshot` --
+  el mapeado y el que lee de un buffer del llamante.
+- Medido sobre el mismo corpus de `LUQUE-2216`, `117.499` símbolos: lo asignado
+  baja de `89,7` a `68,9 MB` -- `801` a `615 B` por símbolo-- y **los bytes
+  vivos quedan idénticos**, `27,7 MB`. La aritmética predecía `20,74 MB`
+  (`19,8` de tablas más `0,94` de los dos arrays de desplazamientos) y la
+  medición dio `20,8`.
+- `NewGraphSnapshot` desaparece de la lista de asignadores del perfil. Lo que
+  queda arriba son dos mapas transitorios con nombre: `indexSnapshotInput`
+  (`16,5 MB`, mapas que `newSymbolIndex` aplana acto seguido) y
+  `validReverseCounterpart` (`13,3 MB`, mapa de validación que se tira).
+- El contrato público ya tenía quien lo vigilase:
+  `TestGraphSnapshotCopiesDataAndIndexes`. No se añade un test de la adopción
+  porque no es un contrato observable: es una propiedad de memoria, y la
+  defiende la medición.
+
+**Verificación:** la suite entera; `benchmarks/snapshot-heap` antes y después; y
+humo con el binario real por MCP sobre `kena` -- `find_symbol`,
+`find_references` y `get_file_outline` contestan con sus veredictos.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2218 — La validación del CSR inverso no paga un mapa
+
+**Dependencias:** `LUQUE-2217`.
+
+**Objetivo:** retirar el segundo asignador que `LUQUE-2216` nombró, sin relajar
+lo que la validación prueba.
+
+**Alcance:** `validReverseCounterpart` en `internal/hotsnapshot/snapshot.go`.
+Guardaba una clave por arista directa en un `map[csrEdgeKey]int` para probar que
+el CSR inverso es la permutación del directo, y lo tiraba en la misma llamada.
+Ahora marca un bit por arista directa y busca la contrapartida recorriendo el
+grupo de la fuente.
+
+**Criterios de aceptación:**
+
+- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos, `337.314`
+  aristas--, con el mismo fichero para las dos versiones: lo asignado por la
+  carga baja de `69,2 MB` a `55,9 MB`, y de `617 B` a `499 B` por símbolo. Lo
+  transitorio baja de `41,5 MB` a `28,2 MB`, del `60 %` al `50 %`. Los bytes
+  vivos no se mueven: `27,7 MB`, `247 B` por símbolo.
+- El coste que compra está medido y no es tiempo. El recorrido es la suma de los
+  grados de salida al cuadrado -- `18,4 M` comparaciones, `54x` el número de
+  aristas, grupo mayor `889`, mediana `1`. Alternando las dos versiones cinco
+  veces sobre el mismo fichero, el mapa de bits gana cuatro: mínimos `150,0 ms`
+  contra `159,6 ms`.
+- `validReverseCounterpart` desaparece de la lista de asignadores del perfil,
+  que es la comprobación de que el mapa era lo que se retiró.
+- El cambio convierte una clave compuesta de siete campos en siete
+  comparaciones, así que cada una necesita quien la defienda: antes viajaban
+  juntas en la clave y no podían podrirse por separado. Lo fija
+  `TestReverseCounterpartComparesEveryEdgeField`, con un fixture de dos aristas
+  desde la misma fuente -- el compartido tiene una sola, y romper su fila inversa
+  mueve la fuente, así que el recorrido falla por no tener dónde mirar y no por
+  el campo bajo prueba. Siete casos: uno por campo, más una arista directa
+  reclamada dos veces, que es lo único que fija el mapa de bits.
+- Falsificado antes de darlo por bueno: nueve sabotajes -- ignorar cada uno de
+  los seis campos, no marcar el bit, no comprobarlo, y devolver `true`-- y los
+  nueve caen, cada uno en el caso que lleva su nombre. Contra los tests que ya
+  existían, ocho de los nueve pasaban.
+
+**Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
+`make build`; el arnés `benchmarks/snapshot-heap` regenerado; y humo con el
+binario real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2219 — Los índices de búsqueda se derivan de las tablas
+
+**Dependencias:** `LUQUE-2216`, `LUQUE-2218`.
+
+**Objetivo:** retirar el mayor asignador transitorio que quedaba, y con él una
+superficie por la que un llamante podía entregar un índice que no concordaba con
+sus propios registros.
+
+**Alcance:** `GraphSnapshotInput` pierde `SymbolsByName`, `SymbolsByQName` y
+`FileByRepoPath`; `newSymbolIndex` y `newFileIndex` derivan de `Symbols` y
+`Files`; `indexSnapshotInput` desaparece del camino del lector y el builder deja
+de acumular los dos mapas de símbolos. El rechazo de dos ficheros en una ruta se
+muda a `newFileIndex`, que lo ve sin mapa porque los duplicados quedan
+adyacentes al ordenar.
+
+**Criterios de aceptación:**
+
+- Ninguno de los tres mapas guardaba nada que las tablas no dijeran ya: la clave
+  del símbolo `i` es un campo del símbolo `i`. Por eso la comprobación de que
+  índice y registros concordaban **no podía fallar**, y por eso se retira en
+  favor de una comprobación de forma -- que es el trato que
+  `packageIncomingIndex`, ya derivado, recibía desde el principio.
+- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos--, mismo fichero
+  para las dos versiones: lo asignado baja de `55,9 MB` a `36,4 MB`, y de
+  `499 B` a `325 B` por símbolo. Lo transitorio baja de `28,2 MB` a `8,7 MB`,
+  del `50 %` al `24 %`. Los bytes vivos no se mueven: `27,7 MB`.
+- El primer intento **empeoró el tiempo**: ordenar leyendo la clave del registro
+  a través de una función de comparación costó `+18 ms` por carga, cuatro pares
+  alternados de cuatro. Empaquetar clave e id en un `uint64` -- los dos son
+  `uint32`-- deja el orden en `slices.Sort` sobre enteros, sin comparador, y la
+  carga baja a `139,9 ms` frente a `152,9` con los mapas. Cuesta `1,9 MB` de
+  arrays empaquetados que se tiran.
+- Un fixture ya no puede discrepar de sus registros. `internal/webapi` mantenía
+  a mano tres mapas que debían concordar con sus propios símbolos; ahora no
+  existen. Los dos casos de `TestGraphSnapshotRejectsInvalidEnvelopeAndIndexes`
+  que entregaban un índice discrepante se retiran porque ese estado ya no se
+  puede construir, y en su lugar queda el único rechazo que sigue siendo
+  alcanzable: dos ficheros en una ruta.
+- Cobertura: `indexes.go` no tenía **ni un test directo**. Lo cubrían ochenta
+  tests de integración que construían un snapshot de paso, y por eso sabotear un
+  campo de la clave empaquetada fallaba en `find_references` en vez de aquí.
+  `internal/hotsnapshot/indexes_test.go` lo fija con un oráculo -- el mapa
+  retirado, reescrito en el test-- más los invariantes que la búsqueda binaria
+  necesita, los bordes del empaquetado (clave `0` y `MaxUint32`), el rechazo de
+  duplicados adyacentes y separados, las dos vistas vacías y la exactitud de la
+  reserva. `100 %` de sentencias de `indexes.go` con sólo esos tests.
+- Falsificado: catorce sabotajes -- no ordenar, ordenar sólo por clave, invertir
+  las mitades del empaquetado, cerrar el tramo una posición antes, no separar
+  tramos, reservar por símbolo, ignorar la clave en `lookup`, devolver vacío en
+  vez de `nil`, ignorar el repositorio en la clave de fichero, invertir su
+  orden, no rechazar duplicados, las dos comprobaciones de forma y compartir el
+  cursor del índice de paquetes-- y los catorce caen con **sólo** los tests
+  nuevos.
+
+**Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
+`make build`; arnés `benchmarks/snapshot-heap` regenerado; y humo con el binario
+real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2220 — La validación de claves no copia ni pregunta lo imposible
+
+**Dependencias:** `LUQUE-2219`.
+
+**Objetivo:** retirar la última copia con nombre del camino de carga, y con ella
+una comprobación que ningún fichero podía suspender.
+
+**Alcance:** `validExactIndexes` en `internal/hotsnapshot/snapshot.go`.
+
+**Criterios de aceptación:**
+
+- **La copia.** `StableKeyTable.Key` copia lo que entrega mientras la tabla está
+  prestada de un fichero mapeado, porque la memoria mapeada no sobrevive a su
+  `munmap` y una clave que apuntara a ella respondería desde páginas liberadas.
+  Es correcto para un llamante que la guarde, y `validExactIndexes` pedía las
+  `117.499` para tirar cada una en la sentencia siguiente: `7,2 MB`. Dentro del
+  paquete ya existía `value`, la vista que no copia y que `Lookup` usa para
+  comparar y descartar; su propio comentario lo decía.
+- **La pregunta.** La otra mitad leía la entrada `i` y la buscaba esperando `i`
+  de vuelta. No puede fallar: `NewStableKeyTable` y `StableKeyTableFromArena`
+  rechazan entradas que no estén en orden estricto de bytes, y una búsqueda
+  binaria sobre entradas ascendentes -- por tanto distintas-- devuelve la posición
+  de la que se le dio. El comentario que decía que esta vuelta «hace fiable el
+  orden» atribuía mal la garantía: la dan esos dos constructores. Costaba `117`
+  mil búsquedas binarias sobre páginas mapeadas.
+- **Antes de retirarla, defenderla donde vive.** El orden estricto que la hace
+  infalsificable **no estaba fijado en las dos direcciones**: sabotear
+  `StableKeyTableFromArena` para aceptar entradas descendentes pasaba la suite
+  entera; sólo el caso de claves iguales caía, y por un test de carga. Los cuatro
+  casos de `TestStableKeyTableFromArenaValidatesWhatItIsHanded` eran todos sobre
+  desplazamientos. Añadidos dos sobre los bytes -- descendente y dos iguales-- con
+  desplazamientos perfectamente válidos, que es posible porque toda clave del
+  corpus mide lo mismo. Las tres formas de romper el orden caen ahora.
+- **Medido** sobre `kena`, mismo fichero: lo asignado baja de `36,4 MB` a
+  `29,2 MB` y de `325 B` a `261 B` por símbolo; lo transitorio de `8,7 MB` a
+  `1,6 MB`, del `24 %` al `5 %`. La carga baja a `123,6 ms` frente a `134,5`,
+  tres pasadas alternadas de tres. Los bytes vivos siguen en `27,7 MB`.
+- La carga asigna ahora `261 B` por símbolo y conserva `247`: lo que se tira son
+  los dos arrays empaquetados de los índices, y nada más tiene nombre.
+
+**Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
+`make build`; arnés regenerado; y humo con el binario real por MCP sobre `kena`.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2221 — Lo que las cuatro fases anteriores no compraron
+
+**Dependencias:** `LUQUE-2216`, `LUQUE-2217`, `LUQUE-2218`, `LUQUE-2219`,
+`LUQUE-2220`.
+
+**Objetivo:** medir en Linux si retirar `60,5 MB` de lo que la carga asigna baja
+lo que un proceso que sirve conserva residente. Es la única cifra en la que están
+escritos los dos criterios -- el gate de `LUQUE-2006` y la reapertura de
+`LUQUE-2008`-- y ninguna de las cuatro fases la observó: todas midieron
+contabilidad del runtime de Go en darwin.
+
+**Alcance:** `benchmarks/load-cost-resident`, sin tocar producción. No sobrescribe
+los artefactos de `benchmarks/shared-snapshot`, que se tomaron en el host de
+referencia; esto es otra plataforma y se declara.
+
+**Criterios de aceptación:**
+
+- **La respuesta es no.** `Private_Dirty` por servidor: `71,76 MB` antes contra
+  `71,22` después, `0,75 %`, tres pares de tres sobre el mismo fichero. Por
+  símbolo, `647,348 B` contra `647,104`. La aritmética de la asignación retirada
+  predeciría unos treinta megabytes.
+- **Por qué.** Es lo que «transitorio» significa para un asignador: las páginas
+  que se ensucian decodificando se devuelven al heap y las reutiliza el trabajo
+  siguiente, así que nunca estuvieron residentes en régimen estacionario.
+  `Private_Dirty` tomado tras `4.000` llamadas de calentamiento y `2.000` medidas
+  informa del heap de servicio asentado, no del pico de la carga.
+- **Lo que sí compró.** La primera respuesta: `138-156 ms` contra `191-292 ms`,
+  tres pares de tres, consistente con los `123,6 ms` contra `134,5` que el
+  benchmark de carga mide en darwin. Es la cifra que ve quien arranca un
+  servidor.
+- **Lo que corrige.** Tres afirmaciones escritas por mí: el objetivo de
+  `LUQUE-2216` decía que las dos mitades «son la misma cifra en `Private_Dirty`»;
+  la ficha de `LUQUE-2008` decía que lo que la mantiene cerrada es que hay «una
+  vía más barata para el mismo byte»; y las limitaciones de
+  `benchmarks/snapshot-heap` declaraban que `Private_Dirty` es mayor que sus
+  cifras sin decir que bajar las suyas no lo baja. Las tres quedan corregidas
+  donde estaban.
+- **Lo que no cambia.** `LUQUE-2008` sigue aplazada y por su primer motivo: la
+  condición pide `> 100 MB` por proceso y estamos en `71,2`. Pero la razón es el
+  tamaño del corpus -- `117.499` símbolos a `647 B`-- y no este trabajo. Un corpus
+  de unos `170.000` la cruza igual que antes.
+- **Un hueco declarado:** no se midió el pico residente durante la carga, sólo el
+  valor asentado. Una máquina que arranca ocho servidores a la vez paga un pico
+  que nadie mide, y es el único sitio donde los `60,5 MB` podrían aparecer
+  residentes.
+
+**Método:** VM `linux/arm64` de Docker Desktop sobre Apple Silicon, imagen
+`golang:1.26-trixie`, glibc `2.41`, page size `4096` -- el mismo que amd64, que es
+lo que hace comparables las unidades. Los dos binarios se compilan del mismo
+árbol en dos commits (`c420490` y `0ad501a`) y leen la misma generación
+publicada, byte a byte: el formato no cambió entre ellos. El workspace se monta
+en sólo lectura, que es lo que hace imposible tocar un repositorio indexado. La
+biblioteca nativa fijada exige glibc `≥ 2.38`: sobre `bookworm` (`2.36`) el
+enlazado falla con `GLIBCXX_3.4.31` y `__isoc23_strtol` sin resolver.
+
+**Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2222 — Lo que un proceso para muchos clientes cuesta de verdad
+
+**Dependencias:** `LUQUE-2008`, `LUQUE-2221`.
+
+**Objetivo:** medir en Linux lo que un demonio conserva residente sirviendo a N
+clientes, contra N procesos `serve` sirviendo a uno cada uno. Era la cifra que
+justificaba `LUQUE-2008` y que se aceptó sin observar: lo medido entonces era el
+coste del arreglo que sustituye (`71,2 MB` por servidor, `LUQUE-2221`), y el
+ahorro era aritmética sobre ella.
+
+**Por qué no se daba por hecha.** El snapshot ya se comparte: es el mismo fichero
+mapeado en todos los servidores y esas páginas cuentan como `Shared_Clean`. Lo
+que está en juego son las privadas, y se sospechaba que **la mitad privada de un
+demonio no fuera constante**: construye un servidor MCP por sesión -- once
+registros de tool, sus buffers, su decodificador--. La pregunta no era si ahorra,
+era cuánto y con qué pendiente. La sospecha resultó cierta y por debajo del
+ruido.
+
+**Alcance:** un benchmark nuevo, `benchmarks/daemon-cost`, y **no un brazo en
+`benchmarks/shared-snapshot`** como decía esta ficha. Sus brazos se definen por
+si el fichero de snapshot está o no, y todo su gate mide mapear contra derivar:
+un tercer brazo dejaría `compare(mapped, derived)` sin significado y forzaría
+umbrales que no aplican. Reutiliza `mcpworkload` y `procstat`, que es lo que
+había que compartir.
+
+**Resultados.** Tres pasadas, `108.737` símbolos de `kena`, VM `linux/arm64`,
+`2.000` llamadas medidas y `4.000` descartadas, los dos brazos leyendo el mismo
+fichero publicado.
+
+|clientes|N procesos|1 demonio|proporción|
+|---|---|---|---|
+|`1`|`65,9`–`67,4` MB|`65,1`–`66,9` MB|`0,966`–`1,015`|
+|`2`|`129,6`–`133,4` MB|`67,3`–`68,4` MB|`0,513`–`0,521`|
+|`4`|`263,0`–`264,0` MB|`69,2`–`70,5` MB|`0,262`–`0,267`|
+|`8`|`529,0`–`533,9` MB|`68,2`–`82,1` MB|`0,128`–`0,154`|
+
+- **La pendiente, que era el criterio:** `66`–`67 MB` por cliente contra
+  `0,2`–`2,3`. El brazo de procesos sube un servidor entero por cliente con
+  intercepto cero dentro del ruido; el del demonio tiene todo su coste en el
+  intercepto -- una carga.
+- **El pico:** `1.046 MB` contra `188` a ocho clientes. Cierra el hueco que
+  `LUQUE-2221` declaró sin medir, y dice qué era: el pico de ocho procesos son
+  ocho cargas simultáneas, no una carga más gorda.
+- **La primera respuesta de un cliente nuevo:** `12`–`17 ms` contra `107`–`263`,
+  entre `8` y `15` veces antes.
+- **Y algo que no se buscaba:** a ocho clientes el demonio contesta **más
+  rápido**, `p99` de `12,8`–`17,7 ms` contra `19,0`–`20,3`. Ocho procesos compiten
+  por diez CPU y uno solo no. A uno, dos y cuatro clientes empatan.
+
+**Una predicción de `LUQUE-2008` desmentida:** su ficha y el ADR decían que la
+mitad privada de un demonio «crece con cada sesión», y el arnés esperaba que a un
+cliente saliera peor. Crece por debajo del ruido: a un cliente empata. El
+servidor MCP por sesión no aparece contra los `66 MB` de una carga. Corregido
+donde estaba escrito.
+
+**Dos defectos del arnés que la primera pasada destapó**, los dos silencios:
+`readStatus` adivinó la forma de `graph_status` -- el conteo va anidado bajo
+`results`-- y publicó `symbols: 0` sin fallar, dejando sin nombre el corpus de un
+artefacto que existe para comparar; y `commit` se rellenaba dentro de
+`writeResults`, después de calcular las limitaciones, así que un commit ausente
+nunca podía declararse. Los dos fallan cerrado ahora.
+
+**Un defecto de producción:** `Listen` fijaba el modo del socket con `chmod`
+después de crearlo, y `chmod` sobre un socket devuelve `EINVAL` en un bind mount
+de virtiofs -- donde corre este benchmark--, así que el demonio no arrancaba. El
+socket nace con el modo puesto, vía `umask`. De paso quedó dicho que ese modo es
+una puerta real en Linux e **ignorado** por darwin para conectar, donde la puerta
+es el directorio de estado. Ver ADR 0065.
+
+**Limitaciones declaradas:** la lectura del demonio a ocho clientes es la menos
+estable (`68,2`, `71,1`, `82,1`), así que se afirma el orden de magnitud de su
+pendiente y no la cifra; no es bare metal, es la VM de Docker Desktop; la
+generación se publicó en darwin y se leyó en Linux, mismo arco y formato de
+anchura fija; el corpus son `108.737` símbolos y no los `117.499` de
+`LUQUE-2221`, así que una comparación por símbolo usa la cifra de su propia
+pasada; y no se midió por encima de ocho clientes.
 
 **Estado:** cerrada el `2026-08-23`.

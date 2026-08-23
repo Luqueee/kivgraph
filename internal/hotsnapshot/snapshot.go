@@ -3,6 +3,7 @@ package hotsnapshot
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -162,10 +163,13 @@ type GraphSnapshotInput struct {
 	// StableKeys is the key table, and it replaces the map this input used to
 	// carry. Entry i is the key of SymbolID i, so the index that used to cost
 	// one hash entry per symbol is now the ordering of the table itself.
-	StableKeys     StableKeyTable
-	SymbolsByName  map[InternedString][]SymbolID
-	SymbolsByQName map[InternedString][]SymbolID
-	FileByRepoPath map[RepoPathKey]FileID
+	//
+	// The three lookup maps that used to sit beside it are gone for a stronger
+	// reason than cost: every one of them was derivable from the tables above,
+	// so a caller could only ever supply the right one or a wrong one. The
+	// constructor derives them now, and a fixture can no longer disagree with
+	// its own records.
+	StableKeys StableKeyTable
 }
 
 // SnapshotMetadata contains versioned, immutable snapshot metadata.
@@ -213,6 +217,22 @@ type GraphSnapshot struct {
 // inputs. The caller can therefore reuse or mutate GraphSnapshotInput after the
 // call without changing the returned snapshot.
 func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
+	return newGraphSnapshot(input, false)
+}
+
+// newGraphSnapshot builds the snapshot, copying every mutable input unless the
+// caller hands ownership over.
+//
+// The copy is the public contract and the builder needs it: it accumulates into
+// slices it keeps using. A reader of a snapshot file does not. Its decoders
+// allocate one slice per section, fill it from the mapped bytes and pass it
+// here, and nobody else can name those slices -- so copying them produced a
+// verbatim twin and left the original as garbage. Measured over `kena` in
+// `benchmarks/snapshot-heap`, the pairs were exact rather than close:
+// `decodeSymbols` and the symbols line allocated the same bytes, and so did the
+// evidence table and both edge arrays. Nineteen point eight megabytes of a
+// sixty-two megabyte transient half, dirtied once per process.
+func newGraphSnapshot(input GraphSnapshotInput, owned bool) (*GraphSnapshot, error) {
 	forwardOffsets := input.ForwardOffsets
 	if forwardOffsets == nil {
 		forwardOffsets = []uint32{0}
@@ -246,6 +266,12 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		PackageEdges: uint64(len(input.PackageDependencies)),
 		Unresolved:   uint64(len(input.Unresolved)),
 	}
+	// Built before the snapshot because it is the one derivation that can fail:
+	// two files at one path inside a repository.
+	fileByRepoPath, err := newFileIndex(input.Files)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidGraphSnapshot, err)
+	}
 	snapshot := &GraphSnapshot{
 		metadata: SnapshotMetadata{
 			ID: input.ID, CreatedAt: input.CreatedAt, Version: input.Version,
@@ -253,35 +279,45 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		},
 		strings: input.Strings,
 
-		repositories: append([]RepositoryRecord(nil), input.Repositories...),
-		packages:     append([]PackageRecord(nil), input.Packages...),
-		files:        append([]FileRecord(nil), input.Files...),
-		symbols:      append([]SymbolRecord(nil), input.Symbols...),
-		evidence:     append([]EvidenceRecord(nil), input.Evidence...),
+		repositories: keep(input.Repositories, owned),
+		packages:     keep(input.Packages, owned),
+		files:        keep(input.Files, owned),
+		symbols:      keep(input.Symbols, owned),
+		evidence:     keep(input.Evidence, owned),
 
-		packageDependencies: append([]PackageDependencyRecord(nil), input.PackageDependencies...),
+		packageDependencies: keep(input.PackageDependencies, owned),
 		packageIncoming:     newPackageIncomingIndex(len(input.Packages), input.PackageDependencies),
-		unresolved:          append([]UnresolvedReferenceRecord(nil), input.Unresolved...),
+		unresolved:          keep(input.Unresolved, owned),
 
-		forwardOffsets: append([]uint32(nil), forwardOffsets...),
-		forwardEdges:   append([]PackedEdge(nil), input.ForwardEdges...),
-		reverseOffsets: append([]uint32(nil), reverseOffsets...),
-		reverseEdges:   append([]PackedEdge(nil), input.ReverseEdges...),
+		forwardOffsets: keep(forwardOffsets, owned),
+		forwardEdges:   keep(input.ForwardEdges, owned),
+		reverseOffsets: keep(reverseOffsets, owned),
+		reverseEdges:   keep(input.ReverseEdges, owned),
 		// The table already owns its arena, so there is nothing to clone: it
 		// copied its bytes when it was built, which is what stops a snapshot
 		// from pinning the buffer its keys were read through.
 		stableKeys: input.StableKeys,
-		// The input still carries maps, and that is deliberate: accumulating an
-		// index while records are read is what a map is good at. This is where
-		// they stop existing -- what the snapshot keeps is flat arrays.
-		symbolsByName:  newSymbolIndex(input.SymbolsByName),
-		symbolsByQName: newSymbolIndex(input.SymbolsByQName),
-		fileByRepoPath: newFileIndex(input.FileByRepoPath),
+		// Derived from the tables above rather than handed in: see the note on
+		// GraphSnapshotInput.StableKeys for why there is nothing else they
+		// could be.
+		symbolsByName:  newSymbolIndex(input.Symbols, symbolName),
+		symbolsByQName: newSymbolIndex(input.Symbols, symbolQualifiedName),
+		fileByRepoPath: fileByRepoPath,
 	}
 	if !snapshot.validExactIndexes() {
 		return nil, ErrInvalidGraphSnapshot
 	}
 	return snapshot, nil
+}
+
+// keep returns the slice itself when the caller handed ownership over, and a
+// copy when it did not. A nil slice stays nil either way, which is what the
+// empty tables of a graph with no rows rely on.
+func keep[T any](records []T, owned bool) []T {
+	if owned {
+		return records
+	}
+	return append([]T(nil), records...)
 }
 
 // Metadata returns the snapshot's identifier, timestamp, version, and counts.
@@ -409,20 +445,20 @@ func (snapshot *GraphSnapshot) validExactIndexes() bool {
 	if uint64(snapshot.stableKeys.Entries()) != uint64(len(snapshot.symbols)) {
 		return false
 	}
-	// Entry i must be the key of symbol i, in both directions. The forward
-	// check is what makes the record's dense key trustworthy, and the reverse
-	// one is what makes the ordering trustworthy: a table sorted by bytes whose
-	// entries belonged to other symbols would answer every lookup with the
-	// wrong ID rather than failing.
+	// Entry i must be the key of symbol i, and that is what the record's dense
+	// key claims -- so the claim is what gets checked.
+	//
+	// What used to sit here as well was the round trip: read entry i and look it
+	// up, expecting i back. It cannot fail. Both constructors of a
+	// StableKeyTable refuse entries that are not in strict byte order --
+	// NewStableKeyTable on the builder's path and StableKeyTableFromArena on the
+	// reader's -- and a binary search over strictly ascending, therefore
+	// distinct, entries returns the position of the one it was handed. So the
+	// ordering is trustworthy because those two say so, not because this loop
+	// asked; asking cost 117 thousand binary searches over mapped pages, `7 ms`
+	// a load, and `7,2 MB` of copies before the read stopped going through Key.
 	for id, symbol := range snapshot.symbols {
 		if symbol.StableKey != StableKeyID(id) {
-			return false
-		}
-		key, found := snapshot.stableKeys.Key(StableKeyID(id))
-		if !found {
-			return false
-		}
-		if resolved, ok := snapshot.stableKeys.Lookup(key); !ok || resolved != StableKeyID(id) {
 			return false
 		}
 	}
@@ -430,10 +466,17 @@ func (snapshot *GraphSnapshot) validExactIndexes() bool {
 		len(snapshot.packageIncoming.values) != len(snapshot.packageDependencies) {
 		return false
 	}
-	return snapshot.fileByRepoPath.valid(snapshot.files) &&
-		snapshot.symbolsByName.valid(snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.Name }) &&
-		snapshot.symbolsByQName.valid(snapshot.symbols, func(symbol SymbolRecord) InternedString { return symbol.QualifiedName })
+	return snapshot.fileByRepoPath.validShape(len(snapshot.files)) &&
+		snapshot.symbolsByName.validShape(len(snapshot.symbols)) &&
+		snapshot.symbolsByQName.validShape(len(snapshot.symbols))
 }
+
+// symbolName and symbolQualifiedName name the two keys a symbol is indexed
+// under. They are functions rather than a flag because the index does not care
+// which field it reads, and a flag would have to be interpreted somewhere.
+func symbolName(symbol SymbolRecord) InternedString { return symbol.Name }
+
+func symbolQualifiedName(symbol SymbolRecord) InternedString { return symbol.QualifiedName }
 
 func validPackageDependencies(packages int, dependencies []PackageDependencyRecord) bool {
 	for _, dependency := range dependencies {
@@ -469,39 +512,58 @@ func validEvidenceIDs(edges []PackedEdge, evidence int) bool {
 	return true
 }
 
-type csrEdgeKey struct {
-	source, target                      SymbolID
-	evidence                            EvidenceID
-	kind, confidence, provenance, flags uint8
-}
-
+// validReverseCounterpart proves the reverse CSR is a permutation of the
+// forward one: every reverse row names a forward edge, and no forward edge is
+// named twice.
+//
+// The bitmap is what makes it cheap. Keying a map by every forward edge
+// allocated `13,3 MB` on `kena` for a structure discarded in the same call,
+// which `benchmarks/snapshot-heap` measured as a third of the load's garbage;
+// one bit per forward edge is `42 kB` there. What it costs instead is a walk of
+// the source's forward group, so the work is the sum of the squared
+// out-degrees -- `54x` the edge count on that corpus, over a comparison of
+// seven fields rather than a hash, and bounded by the widest group (`889`
+// against a median of `1`).
+//
+// It relies on validCSR having run: both offsets are sane and every Target is
+// a symbol, so no index here needs a bound of its own.
 func validReverseCounterpart(symbols int, forwardOffsets []uint32, forwardEdges []PackedEdge, reverseOffsets []uint32, reverseEdges []PackedEdge) bool {
-	counts := make(map[csrEdgeKey]int, len(forwardEdges))
-	for source := 0; source < symbols; source++ {
-		for _, edge := range forwardEdges[forwardOffsets[source]:forwardOffsets[source+1]] {
-			counts[csrEdgeKey{
-				source: SymbolID(source), target: edge.Target, evidence: edge.Evidence,
-				kind: edge.Kind, confidence: edge.Confidence, provenance: edge.Provenance, flags: edge.Flags,
-			}]++
-		}
-	}
-	for target := 0; target < symbols; target++ {
+	claimed := make([]uint64, (len(forwardEdges)+63)/64)
+	matched := 0
+	for target := range symbols {
 		for _, edge := range reverseEdges[reverseOffsets[target]:reverseOffsets[target+1]] {
-			key := csrEdgeKey{
-				source: edge.Target, target: SymbolID(target), evidence: edge.Evidence,
-				kind: edge.Kind, confidence: edge.Confidence, provenance: edge.Provenance, flags: edge.Flags,
+			// A reverse row carries its source in Target: it is the edge read
+			// from the other end.
+			source := edge.Target
+			found := false
+			for index := forwardOffsets[source]; index < forwardOffsets[source+1]; index++ {
+				if claimed[index/64]&(1<<(index%64)) != 0 {
+					continue
+				}
+				candidate := forwardEdges[index]
+				if candidate.Target != SymbolID(target) ||
+					candidate.Evidence != edge.Evidence ||
+					candidate.Kind != edge.Kind ||
+					candidate.Confidence != edge.Confidence ||
+					candidate.Provenance != edge.Provenance ||
+					candidate.Flags != edge.Flags {
+					continue
+				}
+				claimed[index/64] |= 1 << (index % 64)
+				matched++
+				found = true
+				break
 			}
-			if counts[key] == 0 {
+			if !found {
 				return false
 			}
-			counts[key]--
 		}
 	}
-	for _, count := range counts {
-		if count != 0 {
-			return false
-		}
-	}
-	return true
+	// Every forward edge has to have been claimed. The caller already refuses
+	// two CSRs of different lengths, so this cannot fail today; it is here
+	// because it is the only thing that would catch a short reverse CSR if that
+	// check moved, and it is the direction the loop above cannot see.
+	return matched == len(forwardEdges)
 }
+
 func fitsDenseTable[T any](records []T) bool { return uint64(len(records)) < math.MaxUint32 }

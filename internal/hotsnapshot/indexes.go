@@ -1,6 +1,11 @@
 package hotsnapshot
 
-import "sort"
+import (
+	"cmp"
+	"fmt"
+	"slices"
+	"sort"
+)
 
 // The indexes in this file replace the maps GraphSnapshot used to hold. A map is
 // the last thing that stops the graph from being a sequence of bytes: its buckets
@@ -26,37 +31,58 @@ type symbolIndex struct {
 	values  []SymbolID
 }
 
-// newSymbolIndex flattens the caller's map.
+// newSymbolIndex derives the index from the records themselves.
 //
-// The map is transient by design: it is the ergonomic way to accumulate the
-// index while records are being read, and this is where it stops existing. What
-// the snapshot keeps is only the three arrays.
-func newSymbolIndex(source map[InternedString][]SymbolID) symbolIndex {
-	if len(source) == 0 {
+// It used to flatten a map the caller accumulated, and that map was the largest
+// thing a load allocated and threw away -- `16,5 MB` on `kena`, measured in
+// `benchmarks/snapshot-heap`. Nothing was in it that the records did not
+// already say: the key of symbol i is a field of symbol i, which is why the
+// check that the two agreed could never fail.
+//
+// The construction sorts one array of packed integers. Key and id fit a uint64
+// together -- both are uint32 -- so ordering the packed values orders by key and
+// then by id, which is the order pages and cursors depend on, and the sort needs
+// no comparator at all. Reading the key out of the record through a comparison
+// function instead cost `18 ms` a load over this corpus: two dynamic calls per
+// comparison, and two million comparisons.
+//
+// What it still throws away is that packed array -- eight bytes a symbol, `940
+// kB` here against the map's `16,5 MB`.
+func newSymbolIndex(symbols []SymbolRecord, keyFor func(SymbolRecord) InternedString) symbolIndex {
+	if len(symbols) == 0 {
 		return symbolIndex{offsets: []uint32{0}}
 	}
-	keys := make([]InternedString, 0, len(source))
-	total := 0
-	for key, ids := range source {
-		keys = append(keys, key)
-		total += len(ids)
+	packed := make([]uint64, len(symbols))
+	for index, symbol := range symbols {
+		packed[index] = uint64(keyFor(symbol))<<32 | uint64(uint32(index))
 	}
-	sort.Slice(keys, func(left, right int) bool { return keys[left] < keys[right] })
-
+	slices.Sort(packed)
+	// Counted before allocating, so the two run arrays are exact rather than
+	// grown: an index over one key would otherwise reserve room for as many
+	// runs as there are symbols.
+	runs := 1
+	for position := 1; position < len(packed); position++ {
+		if packed[position]>>32 != packed[position-1]>>32 {
+			runs++
+		}
+	}
 	index := symbolIndex{
-		keys:    keys,
-		offsets: make([]uint32, 1, len(keys)+1),
-		values:  make([]SymbolID, 0, total),
+		keys:    make([]InternedString, 0, runs),
+		offsets: make([]uint32, 1, runs+1),
+		values:  make([]SymbolID, len(packed)),
 	}
-	for _, key := range keys {
-		ids := source[key]
-		// Sorted rather than trusted. The builder appends in ascending id
-		// order, but map iteration is not the only way this index is fed, and a
-		// run out of order would reorder a published page instead of failing.
-		run := append([]SymbolID(nil), ids...)
-		sort.Slice(run, func(left, right int) bool { return run[left] < run[right] })
-		index.values = append(index.values, run...)
-		index.offsets = append(index.offsets, uint32(len(index.values)))
+	for position, entry := range packed {
+		index.values[position] = SymbolID(uint32(entry))
+	}
+	for position := 0; position < len(packed); {
+		key := InternedString(packed[position] >> 32)
+		end := position + 1
+		for end < len(packed) && InternedString(packed[end]>>32) == key {
+			end++
+		}
+		index.keys = append(index.keys, key)
+		index.offsets = append(index.offsets, uint32(end))
+		position = end
 	}
 	return index
 }
@@ -74,39 +100,19 @@ func (index symbolIndex) lookup(key InternedString) []SymbolID {
 	return index.values[index.offsets[position]:index.offsets[position+1]]
 }
 
-// valid reports whether every symbol appears exactly once, under the key its own
-// record carries. It is the invariant the map version checked, kept whole: an
-// index that agreed with itself but not with the records would answer with
-// another symbol's id, and no query could detect that.
-func (index symbolIndex) valid(symbols []SymbolRecord, keyFor func(SymbolRecord) InternedString) bool {
-	if len(index.offsets) != len(index.keys)+1 {
+// validShape reports whether the three arrays bound each other.
+//
+// It is not the check this used to carry. That one re-derived the index from the
+// records and compared, which was worth doing while a caller could hand one in;
+// now that the constructor above is the only way one exists, comparing it
+// against the records it was built from is comparing a function to itself. What
+// is left is the shape a reader indexes blindly -- the same treatment
+// packageIncomingIndex already gets, and for the same reason.
+func (index symbolIndex) validShape(symbols int) bool {
+	if len(index.offsets) != len(index.keys)+1 || len(index.values) != symbols {
 		return false
 	}
-	if len(index.keys) > 0 && index.offsets[len(index.keys)] != uint32(len(index.values)) {
-		return false
-	}
-	seen := make([]bool, len(symbols))
-	for position, key := range index.keys {
-		if position > 0 && index.keys[position-1] >= key {
-			return false
-		}
-		start, end := index.offsets[position], index.offsets[position+1]
-		if start > end || uint64(end) > uint64(len(index.values)) {
-			return false
-		}
-		for _, id := range index.values[start:end] {
-			if uint64(id) >= uint64(len(symbols)) || seen[id] || keyFor(symbols[id]) != key {
-				return false
-			}
-			seen[id] = true
-		}
-	}
-	for _, found := range seen {
-		if !found {
-			return false
-		}
-	}
-	return true
+	return index.offsets[len(index.keys)] == uint32(len(index.values))
 }
 
 // fileIndex answers an exact repository/path pair.
@@ -125,20 +131,42 @@ func repoPathLess(left, right RepoPathKey) bool {
 	return left.Path < right.Path
 }
 
-func newFileIndex(source map[RepoPathKey]FileID) fileIndex {
-	if len(source) == 0 {
-		return fileIndex{}
+// newFileIndex derives the index from the file records, and it is where a
+// repository holding two files at one path is refused.
+//
+// That rejection used to live in indexSnapshotInput, which needed a map to
+// notice a key it had already seen. Sorting notices it without one: duplicates
+// land next to each other. The reason it is refused at all is unchanged -- a
+// dense ID that two keys resolve to is a wrong answer no query can detect.
+func newFileIndex(files []FileRecord) (fileIndex, error) {
+	if len(files) == 0 {
+		return fileIndex{}, nil
 	}
-	keys := make([]RepoPathKey, 0, len(source))
-	for key := range source {
-		keys = append(keys, key)
+	order := make([]FileID, len(files))
+	for index := range files {
+		order[index] = FileID(index)
 	}
-	sort.Slice(keys, func(left, right int) bool { return repoPathLess(keys[left], keys[right]) })
-	index := fileIndex{keys: keys, files: make([]FileID, 0, len(keys))}
-	for _, key := range keys {
-		index.files = append(index.files, source[key])
+	keyOf := func(id FileID) RepoPathKey {
+		return RepoPathKey{Repository: files[id].Repository, Path: files[id].Path}
 	}
-	return index
+	slices.SortFunc(order, func(left, right FileID) int {
+		if repoPathLess(keyOf(left), keyOf(right)) {
+			return -1
+		}
+		if repoPathLess(keyOf(right), keyOf(left)) {
+			return 1
+		}
+		return cmp.Compare(left, right)
+	})
+	index := fileIndex{keys: make([]RepoPathKey, len(order)), files: order}
+	for position, id := range order {
+		index.keys[position] = keyOf(id)
+		if position > 0 && index.keys[position] == index.keys[position-1] {
+			return fileIndex{}, fmt.Errorf("repository %d holds two files at path %d",
+				index.keys[position].Repository, index.keys[position].Path)
+		}
+	}
+	return index, nil
 }
 
 func (index fileIndex) lookup(key RepoPathKey) (FileID, bool) {
@@ -149,24 +177,12 @@ func (index fileIndex) lookup(key RepoPathKey) (FileID, bool) {
 	return index.files[position], true
 }
 
-// valid reports whether the index names every file exactly once, under the
-// repository and path the file record itself carries.
-func (index fileIndex) valid(files []FileRecord) bool {
-	if len(index.keys) != len(files) || len(index.files) != len(files) {
-		return false
-	}
-	for id, file := range files {
-		found, exists := index.lookup(RepoPathKey{Repository: file.Repository, Path: file.Path})
-		if !exists || found != FileID(id) {
-			return false
-		}
-	}
-	for position := 1; position < len(index.keys); position++ {
-		if !repoPathLess(index.keys[position-1], index.keys[position]) {
-			return false
-		}
-	}
-	return true
+// validShape reports whether the two arrays name every file once each. Like the
+// symbol index above, agreement with the records is no longer something a check
+// can establish: the constructor is the only producer, and it reads those very
+// records.
+func (index fileIndex) validShape(files int) bool {
+	return len(index.keys) == files && len(index.files) == files
 }
 
 // packageIncomingIndex answers which dependencies point at a package.

@@ -1,0 +1,82 @@
+{
+  "benchmark": "load-cost-resident",
+  "question": "does allocating less during the load reduce what a serving process keeps resident",
+  "answer": "no; it reduces time to first answer",
+  "date": "2026-08-23",
+  "commits": {
+    "before": "c420490",
+    "after": "0ad501a"
+  },
+  "environment": {
+    "host": "Mac17,2 (Apple M5), macOS 26.6",
+    "runtime": "Docker Desktop 29.1.3, linux/arm64 VM, 10 CPU, 8.2 GB",
+    "image": "golang:1.26-trixie",
+    "glibc": "2.41",
+    "page_size_bytes": 4096,
+    "go": "go1.26.7",
+    "ladybug": "liblbug-linux-aarch64 v0.13.1"
+  },
+  "dataset": {
+    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "generation": "000001",
+    "snapshot_bytes": 90935856,
+    "symbols": 117499,
+    "repositories": 35,
+    "note": "one published generation, byte-identical across every arm: the snapshot format did not change between the two commits"
+  },
+  "harness": {
+    "command": "benchmarks/shared-snapshot -server <binary> -config <config> -generation-dir <generation> -clients 4",
+    "arm_measured": "mapped",
+    "servers": 4,
+    "calls": 2000,
+    "warmup": 4000,
+    "seed": 42
+  },
+  "pairs": [
+    { "index": 1, "before": { "private_dirty_mb": 288.0, "first_answer_ms": 292 }, "after": { "private_dirty_mb": 285.6, "first_answer_ms": 147 } },
+    { "index": 2, "before": { "private_dirty_mb": 286.1, "first_answer_ms": 191 }, "after": { "private_dirty_mb": 285.2, "first_answer_ms": 156 } },
+    { "index": 3, "before": { "private_dirty_mb": 287.0, "first_answer_ms": 222 }, "after": { "private_dirty_mb": 283.8, "first_answer_ms": 138 } }
+  ],
+  "resident": {
+    "private_dirty_mb_per_server_before": 71.76,
+    "private_dirty_mb_per_server_after": 71.22,
+    "delta_mb_per_server": -0.54,
+    "delta_share": -0.0075,
+    "private_dirty_bytes_per_symbol_before": 647.348,
+    "private_dirty_bytes_per_symbol_after": 647.104,
+    "gate_bytes_per_symbol": 800
+  },
+  "first_answer_ms": {
+    "before_min": 191,
+    "after_min": 138,
+    "before_max": 292,
+    "after_max": 156,
+    "after_wins_pairs": 3,
+    "pairs": 3
+  },
+  "go_accounting_over_the_same_range": {
+    "note": "measured on darwin by benchmarks/snapshot-heap, which is Go runtime accounting rather than resident pages",
+    "allocated_mb_before": 89.7,
+    "allocated_mb_after": 29.2,
+    "transient_mb_before": 62.0,
+    "transient_mb_after": 1.6,
+    "live_mb_before": 27.7,
+    "live_mb_after": 27.7
+  },
+  "scale": {
+    "private_dirty_mb_per_server_after_by_clients": { "2": 70.5, "4": 72.2, "8": 72.4 },
+    "shared_clean_mb_total_after_by_clients": { "2": 96.2, "4": 190.8, "8": 379.1 }
+  },
+  "findings": [
+    "The load allocates 60.5 MB less and the serving process keeps the same pages resident. 71.76 MB against 71.22 MB per server, 0.75 % apart over three pairs, where the arithmetic of the allocation removed would predict a drop of about thirty.",
+    "The reason is what transient means to an allocator: pages dirtied while decoding are handed back to the heap and reused by the work that follows, so they were never resident at steady state. Private_Dirty sampled after 4000 warmup calls and 2000 measured ones reports the settled serving heap, not the peak of the load.",
+    "What the work bought is the time to that first answer: 138-156 ms against 191-292 ms, three pairs of three, which matches the 123.6 ms against 134.5 ms the load benchmark measures directly on darwin.",
+    "Bytes per symbol did not move either: 647.348 before, 647.104 after, against the 800 B gate of LUQUE-2006. A corpus of 117,499 symbols sits at 72 MB per process, and the reason that is below the 100 MB reopen condition of LUQUE-2008 is the size of this corpus, not this work: the 94-98 MB previously recorded was over 161,819 symbols, which is 609 B per symbol against these 647."
+  ],
+  "limitations": [
+    "This is not the reference host. The declared distribution target is linux/amd64 and this ran on a linux/arm64 VM under Docker Desktop on Apple Silicon; what makes the resident figures comparable in units is the 4096-byte page size, which matches, and what makes them comparable to each other is that both arms ran in the same VM against the same file.",
+    "Latency from a container is not comparable to the reference environment and no latency gate is claimed here. The first-answer figures are used only as a before/after ratio inside this VM. One p99 check of the harness failed at 4 clients in the full sweep (1.064 ms against a 1.000 ms allowance) and the harness did not emit its gate; a container with virtualised mounts is not where that limit is decided.",
+    "Peak resident during the load was not measured, only the settled value. A machine that starts several servers at once pays a peak this benchmark does not report, and that is the one place the removed allocation could still show.",
+    "Three pairs. Enough to say the resident difference is under one percent and that the first answer is consistently faster, not enough for a percentile."
+  ]
+}

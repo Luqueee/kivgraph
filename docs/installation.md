@@ -532,6 +532,56 @@ El proceso escribe exclusivamente el framing MCP en `stdout`; los logs van a
 de publicar una generación: sin una generación activa no hay símbolos que
 servir.
 
+### Un proceso para varios clientes
+
+`serve` es un proceso por cliente, y cada uno paga su propia mitad privada del
+coste de cargar el snapshot: `71,2 MB` medidos en Linux con cuatro servidores
+contra el mismo fichero mapeado (`benchmarks/load-cost-resident`).
+
+`daemon` sirve a varios clientes desde un proceso, sobre un socket unix dentro
+del directorio de estado:
+
+```bash
+kivgraph daemon
+```
+
+El socket es `~/.local/state/kivgraph/daemon.sock`. **El directorio de estado es
+la clave**: dos configuraciones apuntando a directorios distintos obtienen
+demonios distintos, así que un cliente nunca alcanza un grafo construido a partir
+de los repositorios de otro.
+
+El demonio corre en primer plano hasta recibir `SIGINT` o `SIGTERM`, igual que
+`serve`; nadie lo arranca solo y nadie lo para solo. `kivgraph stop` lo reconoce
+junto a `serve` y `ui`. Al parar desvincula su socket, así que el siguiente
+arranque no encuentra el fichero ocupado; si un proceso muere a señal y deja el
+socket detrás, el arranque siguiente comprueba si alguien contesta antes de
+borrarlo -- un demonio vivo nunca se sustituye.
+
+Cada sesión obtiene su propio servidor MCP sobre el store compartido, y eso es
+deliberado: la superficie de tools se decide al construir un servidor, así que un
+cliente que conecta después de un `index --full` ve la generación nueva. Un
+servidor construido al arrancar seguiría diciendo que no hay grafo.
+
+Una dirección unix es un campo de tamaño fijo en el kernel -- `104` bytes en
+darwin, `108` en linux-- y `bind` trunca en vez de rechazar. Un directorio de
+estado cuya ruta de socket no quepa se rechaza nombrando el límite, en vez de
+dejar dos directorios compartiendo un socket. El directorio por defecto cabe de
+sobra; uno muy profundo puede no caber, y en ese caso `serve` sigue siendo el
+camino.
+
+El ahorro está medido, y lo que escala es la pendiente: N procesos cuestan entre
+`66` y `67 MB` de páginas privadas **por cliente**, y un demonio entre `0,2` y
+`2,3 MB` por cliente sobre una sola carga. A ocho clientes son `533 MB` contra
+`68`–`82`, y el pico `1.046 MB` contra `188`. Un cliente nuevo se responde entre
+`8` y `15` veces antes -- `12`–`17 ms` contra `107`–`263`-- porque una sesión nueva
+no carga nada. Tres pasadas sobre `108.737` símbolos de `kena`, en Linux:
+`benchmarks/daemon-cost`.
+
+Lo que **no** es el ahorro es el snapshot: es el mismo fichero mapeado en todos
+los servidores y esas páginas están limpias. Lo que está en juego son las
+privadas. A un cliente el demonio no gana ni pierde -- un megabyte de ruido--, así
+que la razón para usarlo empieza en el segundo.
+
 ## Rutas y mantenimiento
 
 Con la configuración por defecto, las rutas principales son:
@@ -545,6 +595,7 @@ Con la configuración por defecto, las rutas principales son:
 | `~/.local/state/kivgraph/snapshots/` | snapshots derivados retenidos |
 | `~/.local/state/kivgraph/backups/` | backups de upgrades de schema |
 | `~/.local/state/kivgraph/go.work` | workspace sintético temporal de Go |
+| `~/.local/state/kivgraph/daemon.sock` | socket del demonio, mientras corre |
 
 El snapshot es una proyección derivada. LadybugDB en la generación publicada es
 la fuente canónica; no edites sus archivos a mano ni reemplaces un snapshot sin

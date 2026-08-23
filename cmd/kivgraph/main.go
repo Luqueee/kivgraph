@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -75,6 +76,10 @@ func main() {
 			configPath := ""
 			writeCommandHelp(os.Stdout, "serve", serveFlagSet(&configPath))
 			return
+		case "daemon":
+			configPath := ""
+			writeCommandHelp(os.Stdout, "daemon", serveFlagSet(&configPath))
+			return
 		}
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "ui" {
@@ -111,13 +116,24 @@ func main() {
 		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		if err := runConfiguredServe(ctx, os.Args[2:], func(ctx context.Context, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
+		if err := runConfiguredServe(ctx, "serve", os.Args[2:], func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
 			return mcpserver.RunWithMetricsAndSnapshotStoreAndIndexer(ctx, toolMetricsRegistry(events), store, indexer)
 		}); err != nil {
 			logger.Error("MCP server stopped with error", "command", "serve", "error", err)
 			os.Exit(1)
 		}
 		logger.Info("MCP server stopped", "command", "serve")
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "daemon" {
+		logger.Info("starting MCP daemon", "command", "daemon")
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], runDaemon(logger)); err != nil {
+			logger.Error("MCP daemon stopped with error", "command", "daemon", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("MCP daemon stopped", "command", "daemon")
 		return
 	}
 
@@ -181,7 +197,12 @@ func runServe(ctx context.Context, runMCP mcpRunner) error {
 type storageDiagnoser func(context.Context, string) (ladybug.StorageDiagnosis, error)
 
 type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, error)
-type configuredMCPRunner func(context.Context, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
+
+// configuredMCPRunner serves MCP with everything the configuration produced.
+// It receives the loaded configuration because a runner that binds a socket has
+// to know which state directory it belongs to: that directory is the key that
+// keeps two configurations from sharing one daemon.
+type configuredMCPRunner func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
 type configuredWebRunner func(context.Context, string, http.Handler) error
 
 // ensureConfiguration writes the default configuration when there is none.
@@ -343,12 +364,24 @@ func serveFlagSet(configPath *string) *flag.FlagSet {
 	return flags
 }
 
-func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCPRunner) error {
+// runConfiguredServe builds everything a long-lived MCP command needs and hands
+// it to runMCP.
+//
+// command names the invocation in the logs, the event log and the errors. Two
+// commands share this: `serve`, which speaks over its own stdio, and `daemon`,
+// which speaks over a socket to many clients. Everything before the runner is
+// identical -- the same configuration, the same store, the same follower and the
+// same resync -- and a reader of the event log has to be able to tell which one
+// wrote a line.
+func runConfiguredServe(ctx context.Context, command string, args []string, runMCP configuredMCPRunner) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if command == "" {
+		command = "serve"
+	}
 	if runMCP == nil {
-		return errors.New("serve: MCP runner is required")
+		return fmt.Errorf("%s: MCP runner is required", command)
 	}
 	configPath := ""
 	flags := serveFlagSet(&configPath)
@@ -356,7 +389,7 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 		return err
 	}
 	if flags.NArg() != 0 {
-		return fmt.Errorf("serve: unexpected arguments: %v", flags.Args())
+		return fmt.Errorf("%s: unexpected arguments: %v", command, flags.Args())
 	}
 	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
 	if err != nil {
@@ -372,21 +405,21 @@ func runConfiguredServe(ctx context.Context, args []string, runMCP configuredMCP
 	started := time.Now()
 	events.Append(eventlog.Event{
 		Kind:       eventlog.KindServe,
-		Message:    "MCP server started",
+		Message:    command + " started",
 		Generation: publishedGenerationID(store),
 	})
 	defer func() {
 		events.Append(eventlog.Event{
 			Kind:    eventlog.KindServe,
-			Message: "MCP server stopped",
+			Message: command + " stopped",
 		}.WithDuration(time.Since(started)))
 	}()
-	stopFollower := followPublishedGeneration(ctx, loaded, store, "serve", indexing.FollowOptions{})
+	stopFollower := followPublishedGeneration(ctx, loaded, store, command, indexing.FollowOptions{})
 	defer stopFollower()
-	stopResync := resyncOnBranchChange(ctx, loaded, store, projectIndexer, "serve")
+	stopResync := resyncOnBranchChange(ctx, loaded, store, projectIndexer, command)
 	defer stopResync()
 	return runServe(ctx, func(ctx context.Context) error {
-		return runMCP(ctx, store, projectIndexer, events)
+		return runMCP(ctx, loaded, store, projectIndexer, events)
 	})
 }
 
@@ -2334,7 +2367,8 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 	}
 	targets := stoppableProcesses(processes, os.Getpid())
 	if len(targets) == 0 {
-		writeInfo(stdout, "stop: no kivgraph serve or ui process is running")
+		writeInfo(stdout, "stop: no kivgraph %s process is running",
+			strings.Join(longRunningCommands, ", "))
 		return 0
 	}
 	if options.DryRun {
@@ -2394,8 +2428,14 @@ func stopTargets(
 	return killed, failed
 }
 
-// stoppableProcesses selects the long-running commands: a server and a
-// viewer, of this user, that are not this process.
+// longRunningCommands are the invocations that keep a process alive waiting for
+// work, which is what `stop` is for. It is a list rather than a rule because the
+// rule would be wrong: `index --full` also runs for minutes, and killing one
+// mid-publication is not what a reader asking to stop a server means.
+var longRunningCommands = []string{"serve", "daemon", "ui"}
+
+// stoppableProcesses selects the long-running commands of this user that are
+// not this process.
 func stoppableProcesses(processes []procstat.Process, self int) []procstat.Process {
 	targets := make([]procstat.Process, 0)
 	for _, process := range processes {
@@ -2406,7 +2446,7 @@ func stoppableProcesses(processes []procstat.Process, self int) []procstat.Proce
 		if program != "kivgraph" {
 			continue
 		}
-		if command != "serve" && command != "ui" {
+		if !slices.Contains(longRunningCommands, command) {
 			continue
 		}
 		targets = append(targets, process)

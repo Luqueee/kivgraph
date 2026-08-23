@@ -1,0 +1,52 @@
+{
+  "benchmark": "snapshot-heap",
+  "date": "2026-08-23",
+  "commit": "0ad501a",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "go": "go1.26.4"
+  },
+  "corpus": {
+    "generation_dir": "/Users/adria/.cache/kivlin/.local/state/kivgraph/generations/000001",
+    "snapshot_file_bytes": 90935856,
+    "repositories": 35,
+    "symbols": 117499,
+    "edges": 337314,
+    "interned_strings": 582242
+  },
+  "heap": {
+    "allocated_bytes": 30643984,
+    "live_bytes": 29018040,
+    "transient_bytes": 1625944,
+    "live_bytes_per_symbol": 246.9641443756968,
+    "allocated_bytes_per_symbol": 260.8020834219866,
+    "transient_share_of_allocated": 0.05305915836530916,
+    "adopted_table_bytes": 20712808,
+    "live_profile_path": "benchmarks/snapshot-heap/live.pprof"
+  },
+  "mappable": {
+    "string_arena_bytes": 58867396,
+    "stable_key_table_bytes": 6579948,
+    "fixed_width_record_bytes": 12617272,
+    "csr_edge_bytes": 8095536,
+    "total_bytes": 86160152
+  },
+  "findings": [
+    "La mayor parte de lo que asigna la carga no es la respuesta. Los bytes vivos son lo que un lector conserva; el resto ensucia una página y no sostiene nada, y un perfil de heap tomado después de la carga no puede ver ni uno de ellos.",
+    "El gemelo que había ya no está, y por eso se nombra: cada tabla de ancho fijo se copiaba dos veces. Los `decode*` de `readSnapshot` asignan un slice por sección y copian dentro los bytes mapeados, y `NewGraphSnapshot` volvía a copiar cada uno para que un llamante pudiera seguir mutando lo que pasó -- cierto para el constructor, superfluo para un lector que decodificó esos slices una sentencia antes y que nadie más puede nombrar. Ceder la propiedad en el camino del lector quitó `20,8 MB` de lo asignado sobre este corpus y dejó los bytes vivos idénticos. La aritmética lo predecía en `20,74`.",
+    "La validación del CSR inverso ya no paga un mapa. `validReverseCounterpart` guardaba una clave por arista directa para probar que el inverso es su permutación; hoy marca un bit por arista y recorre el grupo de la fuente para encontrar la contrapartida. Sobre este corpus son `42 kB` en vez de `13,3 MB`, y el recorrido que compra son `18,4 M` comparaciones -- la suma de los grados de salida al cuadrado, `54x` el número de aristas, con un grupo mayor de `889` y una mediana de `1`. Ese trabajo no cuesta tiempo: la carga mide `150,0 ms` en su mejor pasada contra `159,6` con el mapa, alternando las dos versiones sobre el mismo fichero.",
+    "Los tres índices de búsqueda ya no se acumulan en mapas. Se derivaban de las tablas en `indexSnapshotInput` -- `16,5 MB` de mapas que `newSymbolIndex` aplanaba a arrays acto seguido-- y ahora se derivan directamente: una clave y un id caben empaquetados en un `uint64`, así que ordenar es `slices.Sort` sobre enteros y no hay comparador. Lo que se tira son esos arrays empaquetados, `1,9 MB` por las dos direcciones. Ni el mapa guardaba nada que las tablas no dijeran ya: la clave del símbolo i es un campo del símbolo i, que es por lo que la comprobación de que ambos concordaban no podía fallar.",
+    "El comparador era el coste, no el orden. Derivar leyendo la clave del registro a través de una función de comparación costaba `18 ms` por carga -- dos llamadas dinámicas por comparación, dos millones de comparaciones-- y con los enteros empaquetados la carga baja a `139,9 ms` frente a `152,9` con los mapas, cuatro pasadas alternadas de cuatro.",
+    "La última copia era una validación pidiendo prestado por la puerta principal. La tabla de claves estables copia cada clave que entrega mientras está prestada de un fichero mapeado -- correcto para un llamante que la guarde, porque la memoria mapeada no sobrevive a su `munmap`-- y `validExactIndexes` pedía las `117.499` para tirar cada una en la sentencia siguiente: `7,2 MB`. Dentro del paquete hay una vista que no copia, que es lo que `Lookup` usa para comparar y descartar.",
+    "Y esa validación ya no pregunta nada que no pueda fallar. Leía la entrada `i` y la buscaba esperando `i` de vuelta; los dos constructores de la tabla rechazan entradas que no estén en orden estricto de bytes, y una búsqueda binaria sobre entradas ascendentes, y por tanto distintas, devuelve la posición de la que se le dio. Preguntarlo costaba `117` mil búsquedas binarias sobre páginas mapeadas. Con las dos cosas, la carga baja a `123,6 ms` frente a `134,5`.",
+    "El arena ya se lee en el sitio y es la sección más grande del fichero, que es por lo que los bytes vivos son una fracción de él. Lo que queda en el heap son las tablas, y el fichero declara cuántas filas tiene cada una, así que nada de ellas hay que reconstruirlo para poder confiar en él."
+  ],
+  "limitations": [
+    "Los bytes vivos y asignados son contabilidad del runtime de Go, no páginas residentes, y **bajar lo asignado no baja lo residente**. Medido: `benchmarks/load-cost-resident` corrió los dos binarios de los extremos de este barrido -- `89,7 MB` asignados contra `29,2`-- sobre el mismo fichero en Linux, y el `Private_Dirty` por servidor salió `71,76 MB` contra `71,22`, tres pares de tres. Las páginas que una asignación transitoria ensucia se devuelven al heap y las reutiliza el trabajo siguiente, así que nunca están residentes en régimen estacionario. Lo que sí bajó es el tiempo hasta la primera respuesta.",
+    "La cifra transitoria es la basura de la propia carga, medida como lo asignado menos lo vivo después de un `GC`. Es el pico de un proceso que carga y no el coste de uno que sirve: el pico concurrente de varios servidores arrancando a la vez no lo mide nadie todavía, y es el único sitio donde esta cifra podría aparecer residente.",
+    "El total mapeable es aritmética sobre las filas que el snapshot declara, no una medición de lo que un lector toma en el sitio hoy. El arena y la tabla de claves estables ya se toman en el sitio.",
+    "Un proceso, una carga. Nada de aquí dice qué paga un segundo lector de la misma generación, que es la pregunta que contesta `shared-snapshot`.",
+    "La cifra viva es el heap entero del proceso después de la carga, que incluye el del propio arnés, así que es una cota superior de la del snapshot. Pasadas repetidas de una misma compilación coinciden byte a byte; dos compilaciones de este arnés difirieron en torno a un megabyte, así que una comparación es entre pasadas del mismo binario y no entre ediciones de él."
+  ]
+}

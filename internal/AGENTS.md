@@ -155,6 +155,16 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 - Los iteradores `VisitRepositories`, `VisitPackages`, `VisitFiles`,
   `VisitSymbols`, `VisitEvidence` y `VisitEdges` entregan copias por valor y
   no exponen slices internas; sus rangos son half-open y cancelables.
+- `NewGraphSnapshot` copia toda entrada mutable y eso es su contrato: el
+  llamante puede seguir mutando lo que pasó, que es lo que hace el constructor.
+  El **lector** de un fichero no lo necesita y no lo hace: `readSnapshot` llama
+  al constructor interno cediendo la propiedad, porque sus `decode*` asignaron
+  cada slice desde los bytes mapeados una sentencia antes y nadie más puede
+  nombrarlos. Copiarlos producía un gemelo verbatim y dejaba el original de
+  basura -- `20,8 MB` sobre `kena`, medidos en `benchmarks/snapshot-heap`, con
+  los bytes vivos idénticos. Lo que hace segura la cesión es que **ningún
+  decodificador alía el mapa**: los cinco usan `make` y copian campo a campo.
+  Quien escriba uno que devuelva una vista sobre `data` rompe esto en silencio.
 - La evidencia de una arista viaja al HotSnapshot **sin su posición**:
   `hotsnapshot.EvidenceRecord` lleva clave, los dos ficheros, clase y
   procedencia, y el vano observado se queda en el grafo canónico. Así que
