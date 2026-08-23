@@ -386,7 +386,10 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 	if err := indexSnapshotInput(&input); err != nil {
 		return nil, err
 	}
-	snapshot, err := NewGraphSnapshot(input)
+	// The decoders above allocated every one of these slices from the mapped
+	// bytes a statement ago and nobody else can name them, so the snapshot
+	// takes them instead of copying them.
+	snapshot, err := newGraphSnapshot(input, true)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidSnapshotFile, err)
 	}

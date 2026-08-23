@@ -213,6 +213,22 @@ type GraphSnapshot struct {
 // inputs. The caller can therefore reuse or mutate GraphSnapshotInput after the
 // call without changing the returned snapshot.
 func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
+	return newGraphSnapshot(input, false)
+}
+
+// newGraphSnapshot builds the snapshot, copying every mutable input unless the
+// caller hands ownership over.
+//
+// The copy is the public contract and the builder needs it: it accumulates into
+// slices it keeps using. A reader of a snapshot file does not. Its decoders
+// allocate one slice per section, fill it from the mapped bytes and pass it
+// here, and nobody else can name those slices -- so copying them produced a
+// verbatim twin and left the original as garbage. Measured over `kena` in
+// `benchmarks/snapshot-heap`, the pairs were exact rather than close:
+// `decodeSymbols` and the symbols line allocated the same bytes, and so did the
+// evidence table and both edge arrays. Nineteen point eight megabytes of a
+// sixty-two megabyte transient half, dirtied once per process.
+func newGraphSnapshot(input GraphSnapshotInput, owned bool) (*GraphSnapshot, error) {
 	forwardOffsets := input.ForwardOffsets
 	if forwardOffsets == nil {
 		forwardOffsets = []uint32{0}
@@ -253,20 +269,20 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		},
 		strings: input.Strings,
 
-		repositories: append([]RepositoryRecord(nil), input.Repositories...),
-		packages:     append([]PackageRecord(nil), input.Packages...),
-		files:        append([]FileRecord(nil), input.Files...),
-		symbols:      append([]SymbolRecord(nil), input.Symbols...),
-		evidence:     append([]EvidenceRecord(nil), input.Evidence...),
+		repositories: keep(input.Repositories, owned),
+		packages:     keep(input.Packages, owned),
+		files:        keep(input.Files, owned),
+		symbols:      keep(input.Symbols, owned),
+		evidence:     keep(input.Evidence, owned),
 
-		packageDependencies: append([]PackageDependencyRecord(nil), input.PackageDependencies...),
+		packageDependencies: keep(input.PackageDependencies, owned),
 		packageIncoming:     newPackageIncomingIndex(len(input.Packages), input.PackageDependencies),
-		unresolved:          append([]UnresolvedReferenceRecord(nil), input.Unresolved...),
+		unresolved:          keep(input.Unresolved, owned),
 
-		forwardOffsets: append([]uint32(nil), forwardOffsets...),
-		forwardEdges:   append([]PackedEdge(nil), input.ForwardEdges...),
-		reverseOffsets: append([]uint32(nil), reverseOffsets...),
-		reverseEdges:   append([]PackedEdge(nil), input.ReverseEdges...),
+		forwardOffsets: keep(forwardOffsets, owned),
+		forwardEdges:   keep(input.ForwardEdges, owned),
+		reverseOffsets: keep(reverseOffsets, owned),
+		reverseEdges:   keep(input.ReverseEdges, owned),
 		// The table already owns its arena, so there is nothing to clone: it
 		// copied its bytes when it was built, which is what stops a snapshot
 		// from pinning the buffer its keys were read through.
@@ -282,6 +298,16 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 		return nil, ErrInvalidGraphSnapshot
 	}
 	return snapshot, nil
+}
+
+// keep returns the slice itself when the caller handed ownership over, and a
+// copy when it did not. A nil slice stays nil either way, which is what the
+// empty tables of a graph with no rows rely on.
+func keep[T any](records []T, owned bool) []T {
+	if owned {
+		return records
+	}
+	return append([]T(nil), records...)
 }
 
 // Metadata returns the snapshot's identifier, timestamp, version, and counts.
