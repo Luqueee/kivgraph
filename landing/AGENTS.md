@@ -192,9 +192,28 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 - `landing/src/lib/motion.ts` es la única capa de animación con JavaScript, y
   se carga sólo desde `Layout.astro`: la documentación de Starlight no la
   recibe. Anima reveals al hacer scroll y un parallax sobre el fondo del hero.
-- **Nada por encima del pliegue se desvanece.** El `h1` es el candidato a LCP y
-  un elemento en `opacity: 0` no es una pintura: fundirlo mueve la métrica
-  tanto como dure la animación más lo que tarde el módulo en cargar.
+- El `h1` es el elemento LCP de la portada, y lo que penaliza esa métrica es el
+  **retardo**, no la duración ni el fundido. Medido inyectando cada regla antes
+  del primer pintado, con `PerformanceObserver` sobre
+  `largest-contentful-paint`:
+
+  |regla sobre el `h1`|LCP|elemento|
+  |---|---|---|
+  |ninguna|`76 ms`|`H1`|
+  |sólo `transform`, `.6s`|`48 ms`|`H1`|
+  |`opacity` + `transform`, `.6s`, sin retardo|`88 ms`|`H1`|
+  |`opacity`, `.6s`, con `.6s` de retardo|`1.112 ms`|`H1`|
+  |`opacity: 0` permanente|`40 ms`|`P`|
+
+  Así que el `h1` **puede** entrar animado si su retardo es cero; lo que no
+  puede es esperar su turno en una cascada. La última fila es la trampa: un
+  `h1` oculto deja de ser candidato, Chrome mide un párrafo más pequeño y la
+  métrica *mejora* mientras la página no se lee.
+- Cualquier animación nueva sobre el hero se mide igual antes de darla por
+  gratis. La sonda que inyecta el CSS tiene que insertar el `<style>` en cuanto
+  `document.head` exista: en `evaluateOnNewDocument` ni `head` ni
+  `documentElement` existen todavía, y un `MutationObserver` registrado ahí no
+  llega a observar nada -- devuelve el baseline disfrazado de resultado.
 - El estado inicial lo pone GSAP con `gsap.from`, **nunca el CSS**. Ningún
   elemento reposa en `opacity: 0` -- la única declaración así en las hojas de
   estilo es el keyframe que parpadea el cursor del transcript--, así que un

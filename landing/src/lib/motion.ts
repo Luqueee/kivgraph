@@ -4,11 +4,12 @@
  *
  * Three rules hold this together, and each of them is a measurement rather than
  * a preference:
- *
- * - **Nothing above the fold fades in.** The `h1` is the page's LCP candidate,
- *   and an element at `opacity: 0` is not a paint: fading it in moves Largest
- *   Contentful Paint by the animation's duration plus however long the module
- *   took to load. The hero keeps its own CSS sheen and is otherwise untouched.
+ * - **Nothing above the fold waits its turn.** The `h1` is the page's LCP
+ *   candidate, and what moves that metric is the *delay*, not the fade: a
+ *   zero-delay fade measured `88 ms` against a `76 ms` baseline, while the same
+ *   fade behind a `600 ms` delay measured `1112 ms`. So the hero may animate,
+ *   but it may never be staggered after something else. The numbers and the
+ *   probe that produced them are in `landing/AGENTS.md`.
  * - **The start state is set by GSAP, never in CSS.** `gsap.from` applies it,
  *   so a blocked or failed bundle leaves every section fully visible instead of
  *   hiding the page behind a script. No element rests at `opacity: 0`: the only
