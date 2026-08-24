@@ -144,18 +144,21 @@ func TestReleaseNotes(t *testing.T) {
 	}
 
 	// A tag list this test cannot read is not evidence that a tag does not
-	// exist, and this check has cost two release attempts by assuming it was.
+	// exist, and this check has cost three release attempts by assuming it was.
 	//
 	// It had never run: with one release note, and that note naming the current
 	// version, the `tags[want] = true` below answered the question before the
-	// tag list was consulted. The second note is what exercised it -- and it
-	// failed in CI while passing locally, twice, for two different reasons.
-	// First because a plain `actions/checkout` fetches no tags at all. Then
-	// because a checkout on a tag ref knows exactly one tag: the one being
-	// built, which is a partial list that looks complete.
+	// tag list was consulted. The second note is what exercised it.
 	//
-	// ci.yml now passes fetch-tags so the list is real. These two guards are
-	// what stop the check from failing again when it cannot know.
+	// A plain `actions/checkout` fetches no tags. A checkout on a tag ref
+	// fetches exactly one -- the version being built -- which is a partial list
+	// that looks complete. Neither can be fixed with `fetch-tags`: combined
+	// with a tag `ref` it makes git fetch the commit and the tag to the same
+	// `refs/tags/<tag>` and the checkout itself fails.
+	//
+	// So this check runs where the tag list is real, which is a developer's
+	// clone, and skips in CI rather than failing there. The two guards below
+	// are what make that a skip and not a false negative.
 	cmd := exec.Command("git", "tag")
 	cmd.Dir = filepath.Join("..", "..")
 	out, err := cmd.Output()

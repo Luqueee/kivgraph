@@ -56,14 +56,8 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      # fetch-tags because internal/version checks that every release note
-      # names a real tag. A checkout on a tag ref knows exactly that one tag,
-      # which is a partial list indistinguishable from a complete one: without
-      # this, every note older than the release being built reads as missing.
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-tags: true
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -178,8 +172,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-tags: true
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -269,8 +261,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-tags: true
 
       - name: Set up Go
         uses: actions/setup-go@v5
