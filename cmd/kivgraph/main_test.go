@@ -1530,6 +1530,42 @@ func TestUsageNamesOnlyRealFlags(t *testing.T) {
 	}
 }
 
+// TestInterceptedCommandsDeclareTheFlagsTheyParse closes the direction the test
+// above deliberately leaves open. That one allows a usage line to name fewer
+// flags than the command has, because curating it is what makes the help
+// readable. It cannot catch a spec wired to a *different* command's flag set,
+// and that is what happened: `daemon` declared `serveFlagSet`, so the global
+// help printed a bare `daemon` and completion offered only `--config` while
+// `--addr` and `--allow-remote` worked. `daemon --help` was right the whole
+// time, because main parses its own set -- which is exactly why nobody noticed.
+//
+// The long-lived commands are the ones at risk: main intercepts them before
+// `run`, so their spec is documentation with no execution path to contradict it.
+func TestInterceptedCommandsDeclareTheFlagsTheyParse(t *testing.T) {
+	var path string
+	var options daemonOptions
+	var address string
+	parsed := map[string]*flag.FlagSet{
+		"serve":  serveFlagSet(&path),
+		"daemon": daemonFlagSet(&path, &options),
+		"ui":     uiFlagSet(&path, &address),
+	}
+	for _, spec := range allCommands() {
+		want, intercepted := parsed[spec.name()]
+		if !intercepted {
+			continue
+		}
+		declared := map[string]bool{}
+		forEachFlag(spec, func(entry *flag.Flag) { declared[entry.Name] = true })
+		want.VisitAll(func(entry *flag.Flag) {
+			if !declared[entry.Name] {
+				t.Errorf("%q parses --%s but its spec does not declare it, so the help and the completion cannot name it",
+					spec.name(), entry.Name)
+			}
+		})
+	}
+}
+
 // flagNamesIn answers the long flag names a usage line spells.
 func flagNamesIn(usage string) []string {
 	names := make([]string, 0, 4)

@@ -149,11 +149,19 @@ func commandTable() []commandSpec {
 		{
 			words:   []string{"daemon"},
 			group:   "Getting started",
-			usage:   "daemon",
-			summary: "Serve MCP to many clients from one process, over a unix socket",
-			flags:   func() *flag.FlagSet { var path string; return serveFlagSet(&path) },
-			hints:   map[string]flagHint{"config": {paths: true}},
-			run:     nil,
+			usage:   "daemon [--addr HOST:PORT] [--allow-remote]",
+			summary: "Serve MCP to many clients from one process, over HTTP and a unix socket",
+			// The daemon's own flag set, not serve's: these two lines are
+			// what the global help prints and what completion offers, and
+			// serve has neither --addr nor --allow-remote. `daemon --help`
+			// was already right, which is exactly why nobody noticed.
+			flags: func() *flag.FlagSet {
+				var path string
+				var options daemonOptions
+				return daemonFlagSet(&path, &options)
+			},
+			hints: map[string]flagHint{"config": {paths: true}},
+			run:   nil,
 		},
 		{
 			words:   []string{"ui"},

@@ -130,12 +130,27 @@ Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`.
 | `snapshot_built_at` | When that generation was built. |
 | `snapshot_age_ms` | How long ago, in milliseconds. This is the number that says whether an answer is minutes or days old. |
 | `schema_version` | The canonical graph schema the generation was written with. |
+| `schema_version_expected` | The canonical schema this binary builds. Present only when it differs. |
+| `schema_outdated` | The comparison between the two above, stated rather than left for the reader to make. |
 | `resolver_version` | The resolver that produced its edges. |
 | `snapshot_row_format_version` | The format version of the hot snapshot itself, as distinct from the graph schema it was derived from. |
+| `snapshot_unreadable` | Why the generation this server holds could not be mapped, when that is what happened. |
+| `last_rebuild_at` | When a full rebuild last completed in this deployment. |
+| `last_update_at` | When the graph was last updated, rebuild or reconciliation. |
 
 A `schema_version` older than the binary expects is what `kivgraph upgrade`
-exists for. Two answers that disagree on `snapshot_id` came from two different
-graphs.
+exists for. A generation published by an older binary **stays readable** -- the
+snapshot is a projection with its own row format, so every query answers -- but it
+cannot carry facts its resolver never emitted. That answer looks complete and is
+not, which is why the comparison is reported instead of inferred.
+
+`snapshot_unreadable` distinguishes two states that share a `status` of `empty`.
+The graph is read by the first query that needs it rather than at startup, so a
+snapshot that cannot be mapped reaches a caller instead of killing the process.
+Without this field, «could not be read» would look like «never indexed», which has
+a different fix. Absent when nothing was refused.
+
+Two answers that disagree on `snapshot_id` came from two different graphs.
 
 ## Counts
 
