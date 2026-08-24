@@ -144,14 +144,18 @@ func TestReleaseNotes(t *testing.T) {
 	}
 
 	// A tag list this test cannot read is not evidence that a tag does not
-	// exist. CI checks out shallow and fetches no tags, so `git tag` succeeds
-	// with empty output there -- and release.yml re-runs ci.yml, so the tagged
-	// build sees the same thing.
+	// exist, and this check has cost two release attempts by assuming it was.
 	//
-	// This check passed for a year without ever running: with one note, and
-	// that note naming the current version, the `tags[want] = true` below
-	// answered it before the tag list was consulted. The second note is what
-	// exercised it, and it failed in CI while passing locally.
+	// It had never run: with one release note, and that note naming the current
+	// version, the `tags[want] = true` below answered the question before the
+	// tag list was consulted. The second note is what exercised it -- and it
+	// failed in CI while passing locally, twice, for two different reasons.
+	// First because a plain `actions/checkout` fetches no tags at all. Then
+	// because a checkout on a tag ref knows exactly one tag: the one being
+	// built, which is a partial list that looks complete.
+	//
+	// ci.yml now passes fetch-tags so the list is real. These two guards are
+	// what stop the check from failing again when it cannot know.
 	cmd := exec.Command("git", "tag")
 	cmd.Dir = filepath.Join("..", "..")
 	out, err := cmd.Output()
@@ -166,8 +170,12 @@ func TestReleaseNotes(t *testing.T) {
 			tags[line] = true
 		}
 	}
-	if len(tags) == 0 {
-		t.Log("no tags are present in this checkout, skipping version existence check")
+	switch {
+	case len(tags) == 0:
+		t.Log("this checkout carries no tags, skipping version existence check")
+		return
+	case len(tags) == 1 && tags[want]:
+		t.Logf("this checkout carries only %s, the version being built, so its tag list is partial: skipping version existence check", want)
 		return
 	}
 	tags[want] = true
