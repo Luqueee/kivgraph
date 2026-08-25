@@ -42,7 +42,7 @@ func resolveTypeScriptSources(configuration parsedTypeScriptConfig, repositoryRo
 	excludePatternSegments := splitGlobPatterns(effectiveTypeScriptExcludePatterns(configuration))
 	allowedExtensions := allowedTypeScriptSourceExtensions(configuration.CompilerOptions)
 
-	for _, includePattern := range includePatterns {
+	for _, includePattern := range includePatternsWithDirectoriesExpanded(includePatterns) {
 		matches, err := expandTypeScriptGlob(includePattern, root, excludePatternSegments, allowedExtensions)
 		if err != nil {
 			return nil, fmt.Errorf("include pattern %q: %w", includePattern, err)
@@ -53,6 +53,28 @@ func resolveTypeScriptSources(configuration parsedTypeScriptConfig, repositoryRo
 	}
 
 	return sortedUniqueSources(sources), nil
+}
+
+// includePatternsWithDirectoriesExpanded rewrites an "include" entry that
+// names an existing directory into the "dir/**/*" the compiler reads it as.
+// `include: ["src"]` is the common spelling and it used to claim nothing:
+// matched literally, the pattern reaches the directory itself and no file
+// under it. An entry that names no directory is left exactly as declared,
+// which is what keeps a glob a glob.
+func includePatternsWithDirectoriesExpanded(patterns []string) []string {
+	expanded := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		if strings.ContainsAny(pattern, "*?") {
+			expanded = append(expanded, pattern)
+			continue
+		}
+		if info, err := os.Stat(pattern); err == nil && info.IsDir() {
+			expanded = append(expanded, filepath.Join(pattern, "**", "*"))
+			continue
+		}
+		expanded = append(expanded, pattern)
+	}
+	return expanded
 }
 
 // resolveExplicitTypeScriptFiles validates every path declared under

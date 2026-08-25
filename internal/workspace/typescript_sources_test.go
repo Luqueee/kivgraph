@@ -147,6 +147,47 @@ func TestResolveTypeScriptSources(t *testing.T) {
 			},
 		},
 		{
+			// `include: ["src"]` is how a real project spells it, and the
+			// compiler reads a directory entry as "src/**/*". Matched
+			// literally it reaches the directory and no file under it, so the
+			// project claimed nothing at all.
+			name: "an include entry naming a directory claims the tree under it",
+			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
+				writeDiscoveryFile(t, filepath.Join(root, "src", "index.ts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "src", "nested", "deep.ts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "src", "styles.css"), "body {}")
+				writeDiscoveryFile(t, filepath.Join(root, "outside.ts"), "export {}")
+				return parsedTypeScriptConfig{
+					ConfigPath: filepath.Join(root, "tsconfig.json"),
+					Directory:  root,
+					HasInclude: true,
+					Include:    []string{filepath.Join(root, "src")},
+				}
+			},
+			wantSources: func(root string) []string {
+				return []string{
+					filepath.Join(root, "src", "index.ts"),
+					filepath.Join(root, "src", "nested", "deep.ts"),
+				}
+			},
+		},
+		{
+			// The other half: an entry that names nothing on disk stays a
+			// pattern and claims nothing, rather than being turned into a
+			// wildcard over a directory that does not exist.
+			name: "an include entry naming no directory claims nothing",
+			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
+				writeDiscoveryFile(t, filepath.Join(root, "src", "index.ts"), "export {}")
+				return parsedTypeScriptConfig{
+					ConfigPath: filepath.Join(root, "tsconfig.json"),
+					Directory:  root,
+					HasInclude: true,
+					Include:    []string{filepath.Join(root, "missing")},
+				}
+			},
+			wantSources: func(root string) []string { return nil },
+		},
+		{
 			name: "explicit extension pattern does not also match other extensions",
 			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
 				writeDiscoveryFile(t, filepath.Join(root, "src", "component.ts"), "export {}")
