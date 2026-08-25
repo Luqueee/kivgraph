@@ -2,6 +2,7 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -81,11 +82,18 @@ func TestAReconcileTickDoesNotMapADeferredGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NextID() error = %v", err)
 	}
+	// A published generation is the fixture, and publishing enforces the
+	// production space policy: at least 15 % of the filesystem free. That is a
+	// precondition of the host, not of the reconciler this test covers, so a
+	// host that cannot meet it skips and says so rather than failing and
+	// pointing at the wrong thing. The Linux runner meets it and runs this.
 	if _, err := generations.Publish(ctx, generation.PublishRequest{
 		ID:       id,
 		Build:    func(_ context.Context, directory string) error { return writeGraphFile(directory) },
 		Validate: func(context.Context, generation.Generation) error { return nil },
-	}); err != nil {
+	}); errors.Is(err, generation.ErrInsufficientSpace) {
+		t.Skipf("this filesystem cannot satisfy the publish space policy: %v", err)
+	} else if err != nil {
 		t.Fatalf("Publish() error = %v", err)
 	}
 	published, err := parseSnapshotID(id)
