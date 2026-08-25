@@ -119,6 +119,24 @@ diciéndole a un lector que fijara `v0.3.0`. Una lista escrita a mano vuelve a
 quedarse corta en cuanto una página nueva lleve el comando, así que el test la
 descubre en vez de enumerarla.
 
+Y hay un quinto archivo que no lleva la versión dentro sino en su **nombre**:
+
+```bash
+ls landing/src/content/releases/vX.Y.Z.md   # tiene que existir antes del tag
+```
+
+`release.yml` toma el cuerpo de esa página como las notas de la release, y si no
+existe **corta la publicación** -- después de reejecutar `ci.yml` y de construir
+los dos bundles en sus hosts nativos, porque el paso que la lee es el último. El
+frontmatter es `version`, `date` y `requires_reindex`, validado por el esquema de
+`landing/src/content.config.ts`; ese último campo es la única cosa que le dice a
+quien actualiza si su grafo publicado le sirve tal cual, así que se responde
+mirando si algún loader cambió lo que ve, no por costumbre.
+
+Un tag sin esa página es exactamente el fallo que se paga más caro: el número no
+se reutiliza, así que se quema un `vX.Y.Z` entero por un archivo de treinta
+líneas que se escribe en un minuto.
+
 Un commit propio, un tag **anotado** -como todos los anteriores-, y el tag
 después del commit:
 
