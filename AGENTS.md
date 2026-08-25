@@ -130,6 +130,23 @@ cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
   `kivgraph doctor` informa de ese número y no del `go` del `PATH`.
 - La biblioteca nativa fijada se descarga y se verifica con `make ladybug-lib`.
   `make test-ladybug` la resuelve por su cuenta y exporta las variables `CGO_*`.
+- **`make build` no produce un binario capaz de tocar el grafo canónico.** Un
+  `go build` sin el tag `ladybug` deja dentro el fallback que declara
+  `LadybugDB native support is unavailable`, así que ese binario **sirve** un
+  snapshot ya publicado -- que se mapea y no necesita cgo-- y en cambio falla
+  todo lo que cruza LadybugDB: `index --full` muere en `stage.staging`, y su
+  propio `doctor` dice `graph.store: FAIL`. Es una limitación declarada y no un
+  silencio, pero conviene saber cuál de los dos binarios se tiene en la mano.
+  El que sí lo puede hacer se compila como lo hace la suite nativa:
+
+  ```bash
+  LIB="$(scripts/fetch-ladybug.sh)"
+  CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB" \
+    go build -tags ladybug -ldflags="-extldflags=-Wl,-rpath,$LIB" ./cmd/kivgraph
+  ```
+
+  Con él, `doctor` termina en `PASS`. Un bundle publicado lo lleva ya enlazado,
+  así que para reindexar sirve el binario instalado.
 - El analizador Rust fijado se descarga con `scripts/fetch-rust-analyzer.sh`. La
   suite de Rust exige además `rustup component add rust-analyzer` y un `cargo`
   en el `PATH`: sin toolchain el analizador no carga el workspace.
