@@ -553,6 +553,52 @@ func TestFullSkipsAModuleThatHoldsNoGo(t *testing.T) {
 	}
 }
 
+// An analyzer this machine does not have is a fact about the machine, not about
+// the code, and it must not decide whether every other repository gets a graph.
+//
+// A Dart repository registered on a laptop without Dart failed the whole index:
+// five repositories, four of which had nothing to do with Dart. It is the same
+// judgement indexGoModule already makes about a module that will not load.
+func TestFullSkipsARepositoryWhoseAnalyzerIsNotInstalled(t *testing.T) {
+	root := testsupport.TempDir(t)
+	healthy := filepath.Join(root, "healthy")
+	writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(healthy, "a.go"), "package healthy\n\nfunc Healthy() int { return 1 }\n")
+	flutter := filepath.Join(root, "flutter")
+	writeFullFixture(t, filepath.Join(flutter, "pubspec.yaml"), "name: example\n")
+	writeFullFixture(t, filepath.Join(flutter, "lib", "main.dart"), "void main() {}\n")
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+			{Name: "flutter", Path: flutter, RealPath: flutter, Languages: []string{"dart"}},
+		},
+		// A command that is not on any PATH, which is exactly what a laptop
+		// without Dart looks like to the loader.
+		DartAnalyzer:      "kivgraph-no-such-dart-analyzer",
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the Go repository indexed anyway", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.DartRepositoriesNotLoaded != 1 {
+		t.Fatalf("dart repositories not loaded = %d, want the one whose analyzer is absent",
+			report.DartRepositoriesNotLoaded)
+	}
+	healthySymbols := 0
+	for _, symbol := range set.Symbols {
+		if symbol.Name == "Healthy" {
+			healthySymbols++
+		}
+	}
+	if healthySymbols != 1 {
+		t.Fatal("a missing Dart analyzer took an unrelated Go repository down with it")
+	}
+}
+
 // A pass ends when its slowest unit ends, so the queue is drained longest
 // first. The weight is a proxy over the files a unit will read, and the only
 // thing that matters is that the heavy unit is not left for last.

@@ -229,10 +229,16 @@ type FullReport struct {
 	PythonSymbols         int
 	PythonReferences      int
 	PythonUnresolved      int
-	DartRepositories      int
-	DartSymbols           int
-	DartReferences        int
-	DartUnresolved        int
+	// PythonRepositoriesNotLoaded and DartRepositoriesNotLoaded count the
+	// repositories whose analyzer is not installed on this machine. Their
+	// facts are absent and the pass says so, rather than one absent toolchain
+	// deciding whether every other repository gets a graph.
+	PythonRepositoriesNotLoaded int
+	DartRepositories            int
+	DartSymbols                 int
+	DartReferences              int
+	DartUnresolved              int
+	DartRepositoriesNotLoaded   int
 	// EdgesWithoutProvider counts the edges the merge dropped because the
 	// repository that provides the target does not publish its declaration.
 	// Each one is declared as an unresolved reference with the position that
@@ -442,10 +448,16 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.PythonSymbols += result.symbols
 			report.PythonReferences += result.references
 			report.PythonUnresolved += result.unresolved
+			if result.notLoaded {
+				report.PythonRepositoriesNotLoaded++
+			}
 		case unit.isDart:
 			report.DartSymbols += result.symbols
 			report.DartReferences += result.references
 			report.DartUnresolved += result.unresolved
+			if result.notLoaded {
+				report.DartRepositoriesNotLoaded++
+			}
 		default:
 			report.TypeScriptSymbols += result.symbols
 			report.TypeScriptReferences += result.references
