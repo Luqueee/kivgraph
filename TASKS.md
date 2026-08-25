@@ -17654,3 +17654,45 @@ las dos formas del servidor -- `MaximumResidentSurfaceBytes` y
 ADR 0074.
 
 **Estado:** abierta.
+
+## LUQUE-2228 - `version --json` describe un binario que no es el que corre
+
+**Dependencias:** ninguna.
+
+**Reproducción**, con un binario compilado del `main` mergeado y un `dist/` de
+hace cuatro dias en el checkout:
+
+|`cwd`|`kivgraph`|`commit`|`dirty`|
+|---|---|---|---|
+|`/tmp`|`0.7.0`|`255da242c`|`false`|
+|la raiz del checkout|**`0.3.6`**|**`540607e35`**|**`true`**|
+|`<checkout>/internal`|`0.7.0`|`255da242c`|`false`|
+
+El binario es el mismo en las tres filas, y su build info lo confirma:
+`vcs.revision=255da242c`, `vcs.modified=false`.
+
+**La causa** es `findBundleManifest` en `internal/version/provenance.go`: su segundo
+candidato es `<cwd>/dist/kivgraph-<os>-<arch>/manifest.json`, que **no tiene
+ninguna relación con el ejecutable en marcha**. El primero sí la tiene -- el
+manifest junto al binario, que es como un bundle publicado se describe--; el
+segundo atribuye la procedencia de un artefacto cualquiera al proceso que
+pregunta.
+
+**No es un accidente**: `internal/version/provenance_test.go:182` lo cubre a
+propósito. Por eso esto es una ficha y no un parche: cambiarlo es cambiar la
+salida de un comando que la raiz declara superficie de compatibilidad, y exige
+ADR.
+
+**Lo que sí está a salvo, comprobado:** una generación no se puede envenenar con
+esto. `--resolver-version` toma su valor por defecto de `version.Value`
+-- `cmd/kivgraph/main.go:986` y `:1212`--, que es la constante compilada y no la
+lectura dependiente del `cwd`. El sello de una generación dice qué binario la
+produjo.
+
+**Lo que hay que decidir**, y es una sola pregunta: si `version --json` describe
+**el proceso** o **el directorio**. Si es el proceso, el segundo candidato se
+retira y el test que lo guarda se retira con él. Si es el directorio, entonces la
+salida tiene que decir de qué artefacto habla, porque hoy un lector no puede
+distinguir «esta es tu versión» de «esta es la de un bundle que dejaste ahí».
+
+**Estado:** abierta.
