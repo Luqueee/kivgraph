@@ -988,6 +988,55 @@ func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 	return flags
 }
 
+// writeIndexSummary reports what each language pass observed, one line per
+// language, always all five. A language absent from the output reads as a
+// language with no code, and the not-loaded counts are what keep that from
+// being confused with a repository this machine could not read: they were
+// counted before they were printed, and a count nobody prints is a warning
+// nobody has.
+func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
+	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
+		indexReport.GoRepositories,
+		indexReport.GoModules,
+		indexReport.GoModulesNotLoaded,
+		indexReport.GoWorkspaces,
+		indexReport.GoLoads,
+		indexReport.GoDefinitions,
+		indexReport.GoReferences,
+		indexReport.GoUnresolved,
+		indexReport.GoLoadDiagnostics,
+	)
+	writeInfo(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
+		indexReport.TypeScriptRepositories,
+		indexReport.TypeScriptSymbols,
+		indexReport.TypeScriptReferences,
+		indexReport.TypeScriptUnresolved,
+	)
+	writeInfo(stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+		indexReport.RustRepositories,
+		indexReport.RustWorkspaces,
+		indexReport.RustCrates,
+		indexReport.RustWorkspacesNotLoaded,
+		indexReport.RustSymbols,
+		indexReport.RustReferences,
+		indexReport.RustUnresolved,
+	)
+	writeInfo(stdout, "index.python: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+		indexReport.PythonRepositories,
+		indexReport.PythonRepositoriesNotLoaded,
+		indexReport.PythonSymbols,
+		indexReport.PythonReferences,
+		indexReport.PythonUnresolved,
+	)
+	writeInfo(stdout, "index.dart: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+		indexReport.DartRepositories,
+		indexReport.DartRepositoriesNotLoaded,
+		indexReport.DartSymbols,
+		indexReport.DartReferences,
+		indexReport.DartUnresolved,
+	)
+}
+
 func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	var options indexFullOptions
 	flags := indexFullFlagSet(&options)
@@ -1046,44 +1095,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	recordIndexRun(events, fullResult.RebuildReport, int64(fullResult.Counts.Symbols), time.Since(progressStart), err)
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
-	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
-		indexReport.GoRepositories,
-		indexReport.GoModules,
-		indexReport.GoModulesNotLoaded,
-		indexReport.GoWorkspaces,
-		indexReport.GoLoads,
-		indexReport.GoDefinitions,
-		indexReport.GoReferences,
-		indexReport.GoUnresolved,
-		indexReport.GoLoadDiagnostics,
-	)
-	writeInfo(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
-		indexReport.TypeScriptRepositories,
-		indexReport.TypeScriptSymbols,
-		indexReport.TypeScriptReferences,
-		indexReport.TypeScriptUnresolved,
-	)
-	writeInfo(stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
-		indexReport.RustRepositories,
-		indexReport.RustWorkspaces,
-		indexReport.RustCrates,
-		indexReport.RustWorkspacesNotLoaded,
-		indexReport.RustSymbols,
-		indexReport.RustReferences,
-		indexReport.RustUnresolved,
-	)
-	writeInfo(stdout, "index.python: repositories=%d symbols=%d references=%d unresolved=%d",
-		indexReport.PythonRepositories,
-		indexReport.PythonSymbols,
-		indexReport.PythonReferences,
-		indexReport.PythonUnresolved,
-	)
-	writeInfo(stdout, "index.dart: repositories=%d symbols=%d references=%d unresolved=%d",
-		indexReport.DartRepositories,
-		indexReport.DartSymbols,
-		indexReport.DartReferences,
-		indexReport.DartUnresolved,
-	)
+	writeIndexSummary(stdout, indexReport)
 	// A count says something happened; the lines say what. Both are on
 	// stdout with the rest of the report, because a warning in a log the
 	// caller is not reading is a warning nobody has.

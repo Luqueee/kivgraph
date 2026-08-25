@@ -1226,6 +1226,7 @@ type analysisResult struct {
 // set does not know is not a valid fact. The detail keeps the diagnostics the
 // go command produced, so the answer to "why is this repository empty" is in
 // the graph rather than in a log nobody kept.
+
 // moduleWithoutGoPackages records a go.mod that names a module and holds no Go.
 //
 // It gets its own path rather than moduleNotLoadedFacts because it is not the

@@ -22,6 +22,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/indexing"
 	"github.com/Luqueee/kivgraph/internal/logging"
 	"github.com/Luqueee/kivgraph/internal/procstat"
@@ -1993,4 +1994,38 @@ func (capture *stderrCapture) stop(t *testing.T) string {
 		t.Fatalf("close stderr reader: %v", err)
 	}
 	return capture.text()
+}
+
+// TestWriteIndexSummaryNamesWhatWasNotLoaded is the negative that matters. Every
+// language pass reports zero symbols when it has no code, and zero symbols is
+// also what a repository whose analyzer is missing reports. Without the
+// not-loaded count on the same line, a reader cannot tell the two apart -- and
+// three of the four counts existed for a release before any of them was printed.
+func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
+	var stdout bytes.Buffer
+	writeIndexSummary(&stdout, indexer.FullReport{
+		GoModulesNotLoaded:          1,
+		RustWorkspacesNotLoaded:     2,
+		PythonRepositoriesNotLoaded: 3,
+		DartRepositoriesNotLoaded:   4,
+	})
+
+	report := stdout.String()
+	for _, want := range [...]string{
+		"index.go: repositories=0 modules=0 not_loaded=1",
+		"index.rust: repositories=0 workspaces=0 crates=0 not_loaded=2",
+		"index.python: repositories=0 not_loaded=3",
+		"index.dart: repositories=0 not_loaded=4",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report is missing %q:\n%s", want, report)
+		}
+	}
+	// Five languages, always, so a missing line is never read as a missing
+	// language.
+	for _, language := range [...]string{"index.go:", "index.typescript:", "index.rust:", "index.python:", "index.dart:"} {
+		if !strings.Contains(report, language) {
+			t.Errorf("report does not name %s:\n%s", language, report)
+		}
+	}
 }

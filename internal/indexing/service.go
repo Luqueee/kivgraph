@@ -76,10 +76,20 @@ type IndexSummary struct {
 	DartSymbols            int `json:"dart_symbols"`
 	DartReferences         int `json:"dart_references"`
 	DartUnresolved         int `json:"dart_unresolved"`
-	// RustWorkspacesNotLoaded counts the Cargo workspaces the analyzer
-	// could not read. Their facts are absent and declared, so a caller that
-	// only saw the symbol count would read silence as coverage.
-	RustWorkspacesNotLoaded int `json:"rust_workspaces_not_loaded"`
+	// The not-loaded counters are the ones that keep silence from reading as
+	// coverage. A repository or module whose facts are absent contributes zero
+	// symbols, and zero symbols is also what a language with no code
+	// contributes: without these, a caller cannot tell an empty repository from
+	// one this machine could not read.
+	//
+	// All four are here because the reason differs and the consequence does
+	// not: a Cargo workspace the analyzer could not read, a Go module that did
+	// not load, and a Python or Dart repository whose analyzer is not installed
+	// on this machine.
+	RustWorkspacesNotLoaded     int `json:"rust_workspaces_not_loaded"`
+	GoModulesNotLoaded          int `json:"go_modules_not_loaded"`
+	PythonRepositoriesNotLoaded int `json:"python_repositories_not_loaded"`
+	DartRepositoriesNotLoaded   int `json:"dart_repositories_not_loaded"`
 }
 
 // ProjectIndexer is the mutation boundary used by the MCP tool. The caller
