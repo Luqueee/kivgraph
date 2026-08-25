@@ -671,8 +671,11 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	}
 	program := filepath.Base(args[0])
 	if len(args) < 2 {
-		writeUsageError(stderr, program, "no command given")
-		return 2
+		// A bare invocation is a question, not a mistake: it asks what this
+		// program does. Answering it with a usage error on stderr sent the
+		// one reader who has not read the help yet to look for the help.
+		writeHelp(stdout, program)
+		return 0
 	}
 	switch args[1] {
 	case "--help", "-h", "help":
