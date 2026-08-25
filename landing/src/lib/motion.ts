@@ -30,13 +30,20 @@ const REVEAL_SHIFT = 14;
 /** Seconds between two siblings in the same group. */
 const REVEAL_STAGGER = 0.08;
 
-/** Reading order, which is also the order the hero enters in. */
+/**
+ * Reading order, which is also the order the hero enters in. The title is
+ * first on purpose and not because it sits first on the page: the first name
+ * here gets a tween of its own at zero delay, and the `h1` is the LCP
+ * candidate. Moving the eyebrow ahead of it would queue the `h1` behind
+ * another element, which is the `1112 ms` case measured above.
+ */
 const HERO_ORDER = [
   "title",
+  "eyebrow",
   "lede",
   "actions",
+  "agents",
   "install",
-  "card",
   "facts",
 ] as const;
 
@@ -45,7 +52,7 @@ const IGNITION_SHEEN = 1.1;
 
 /**
  * The hero's entrance. The title is its own tween starting at zero, and the
- * rest are one staggered tween beside it: a single `stagger` across all six
+ * rest are one staggered tween beside it: a single `stagger` across all seven
  * would put the title in a queue, and a queued title is the difference between
  * `88 ms` and `1112 ms` of LCP.
  */

@@ -1,0 +1,402 @@
+---
+// Three questions an agent asks about one symbol, and the answer each one gets.
+//
+// The shape of every answer here is a measurement, not an illustration: the
+// subjects, the file counts, the hops, the edge kinds, the line ranges and the
+// token pairs are all from one run of `benchmarks/graph-tools-comparison` --
+// commit `954b9eb`, question set `all`, tokenizer `o200k_base`, kivgraph
+// `0.5.0` -- and each panel names the question it came from.
+//
+// What is NOT literal is the naming. That corpus is 37 private repositories, so
+// its repository, package, file and symbol names are substituted here, and the
+// page says so where a reader can see it. The substitution is structural: the
+// same number of distinct repositories, the same repository per row, the same
+// language per file, the same depth of path. Anything a reader could check
+// against the published JSON -- every count and every token figure -- is
+// untouched.
+//
+// The three subjects are not independent: `jitterFor` reaches `Open` *through*
+// a `withBackoff`, and `withBackoff` is the symbol the corpus declares seven
+// times. That is why the states read in this order.
+//
+// The control is a radio group rather than a tab widget with JavaScript. A
+// radio group is keyboard-navigable and announced by a screen reader without a
+// single line of script, every panel stays in the served HTML, and a page whose
+// CSS never arrives shows all three instead of none.
+
+interface Row {
+  repo: string;
+  file: string;
+  /** The declaration holding the reference, as the payload's `at` field names it. */
+  at: string;
+}
+
+interface Group {
+  /** Set where the rows are a hop rather than the whole answer. */
+  label: string | null;
+  rows: Row[];
+}
+
+interface Proof {
+  id: string;
+  tab: string;
+  question: string;
+  tool: string;
+  subject: { repo: string; path: string; name: string };
+  /** The rows of the answer, grouped by hop where the question has hops. */
+  groups: Group[];
+  ours: { tokens: string; calls: string };
+  grep: { tokens: string; calls: string };
+  /** The honest one-line score, including the case where we are not ahead. */
+  verdict: string;
+  /** The question id in `results-all.json`, which is what makes a row checkable. */
+  question_id: string;
+}
+
+const proofs: Proof[] = [
+  {
+    id: "refs",
+    tab: "who calls this",
+    question:
+      "Which call sites use the withBackoff declared in platform-lib/src/util/retry.ts?",
+    tool: "find_references",
+    subject: {
+      repo: "platform-lib",
+      path: "src/util/retry.ts:135",
+      name: "withBackoff",
+    },
+    groups: [
+      {
+        label: null,
+        rows: [
+          {
+            repo: "runtime-core",
+            file: "src/queue/dispatcher.ts",
+            at: "withBackoff@2",
+          },
+          {
+            repo: "runtime-core",
+            file: "src/queue/worker.ts",
+            at: "withBackoff@13",
+          },
+          {
+            repo: "runtime-core",
+            file: "src/queue/partitioning.ts",
+            at: "withBackoff@7",
+          },
+          {
+            repo: "edge-service",
+            file: "src/rpc/server.ts",
+            at: "withBackoff@20",
+          },
+          {
+            repo: "client-sdk",
+            file: "src/client/session.ts",
+            at: "withBackoff@20",
+          },
+        ],
+      },
+    ],
+    ours: { tokens: "332", calls: "2" },
+    grep: { tokens: "10,054", calls: "8" },
+    verdict:
+      "Both arms named all five files, in three repositories. Ours cost 30x less, and every edge is EXACT_TYPECHECKED by the TypeScript checker.",
+    question_id: "R1_ts_xrepo",
+  },
+  {
+    id: "blast",
+    tab: "what breaks if I change it",
+    question:
+      "Which files hold something that reaches jitterFor within two hops?",
+    tool: "get_blast_radius",
+    subject: {
+      repo: "data-service",
+      path: "internal/storage/retry.go:25",
+      name: "jitterFor",
+    },
+    groups: [
+      {
+        label: "one hop — reached from jitterFor",
+        rows: [
+          {
+            repo: "data-service",
+            file: "internal/storage/retry.go",
+            at: "withBackoff@49-78",
+          },
+          {
+            repo: "data-service",
+            file: "internal/storage/retry_test.go",
+            at: "TestJitterForWithinWindow@94-103",
+          },
+        ],
+      },
+      {
+        label: "two hops — reached from withBackoff",
+        rows: [
+          {
+            repo: "data-service",
+            file: "internal/storage/client.go",
+            at: "Open@104-144",
+          },
+          {
+            repo: "data-service",
+            file: "internal/storage/retry_test.go",
+            at: "TestWithBackoffRetriesThenSucceeds@24-43",
+          },
+        ],
+      },
+    ],
+    ours: { tokens: "2,380", calls: "1" },
+    grep: { tokens: "897", calls: "2" },
+    verdict:
+      "Nine affected nodes over two hops, all CALLS_DIRECT. Both arms were exact and grep was cheaper here — a two-hop chain inside one package is a chain grep can still walk by hand.",
+    question_id: "I1_go_depth2",
+  },
+  {
+    id: "cross",
+    tab: "who uses it from another repository",
+    question:
+      "Which files outside platform-lib consume the StatusCode it declares?",
+    tool: "find_cross_repo_consumers",
+    subject: {
+      repo: "platform-lib",
+      path: "src/errors/status.ts:29",
+      name: "StatusCode",
+    },
+    groups: [
+      {
+        label: null,
+        rows: [
+          {
+            repo: "edge-cache",
+            file: "src/http/session-guard.ts",
+            at: "IMPORTS_SYMBOL",
+          },
+          {
+            repo: "api-service",
+            file: "src/http/routes.ts",
+            at: "IMPORTS_SYMBOL",
+          },
+          { repo: "client-sdk", file: "src/index.ts", at: "REEXPORTS" },
+        ],
+      },
+    ],
+    ours: { tokens: "530", calls: "1" },
+    grep: { tokens: "12,200", calls: "7" },
+    verdict:
+      "Three of three. Grep found two: the re-export in client-sdk never spells StatusCode, so no text search reaches it. It is grep's only miss in the twenty-nine questions.",
+    question_id: "X1_ts_shared_enum",
+  },
+];
+---
+
+<p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+  One symbol, three questions, and the answer your agent gets back. Every file
+  count, hop, edge kind, line range and token figure below is from one run of
+  the published benchmark, and each panel names the question it answers.
+</p>
+<p class="mt-5 max-w-[68ch] text-xs leading-5 text-gray-400">
+  The corpus behind it is 37 private repositories, so the repository, file and
+  symbol names are substituted. The structure is not: same repositories, same
+  row in each, same language, same numbers. Every figure here can be checked
+  against <code>results-all.json</code> in the repository.
+</p>
+
+<fieldset class="proof mt-10 border-0">
+  <legend class="sr-only">Choose a question to see the answer</legend>
+
+  {
+    /* The inputs precede the tabs and the panels because the whole control is
+      one sibling selector away from them. They are visually hidden but never
+      `display: none`: a hidden radio cannot take focus, and the keyboard is how
+      a radio group is meant to be driven. */
+    proofs.map((proof, index) => (
+      <input
+        class="sr-only"
+        type="radio"
+        name="proof"
+        id={`proof-${proof.id}`}
+        checked={index === 0}
+      />
+    ))
+  }
+
+  <div
+    class="tabs flex flex-wrap gap-x-6 gap-y-2 border-b border-rule font-mono text-xs"
+  >
+    {
+      proofs.map((proof) => (
+        <label
+          class="cursor-pointer border-b-2 border-transparent pb-2 text-gray-400 transition-colors hover:text-gray-100"
+          for={`proof-${proof.id}`}
+          data-tab={proof.id}
+        >
+          {proof.tab}
+        </label>
+      ))
+    }
+  </div>
+
+  <div class="panels">
+    {
+      proofs.map((proof) => (
+        <div class="panel mt-10" data-panel={proof.id}>
+          <p class="text-xs text-gray-400">{proof.question}</p>
+
+          <div class="mt-5 border border-rule bg-panel font-mono">
+            <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-rule px-4 py-3 text-xs">
+              <span class="text-accent-200">{proof.tool}</span>
+              <span class="text-gray-400">
+                <span class="repo">{proof.subject.repo}</span>
+                {" "}
+                <span class="text-graph-file">{proof.subject.path}</span>
+              </span>
+              <span class="text-graph-symbol">{proof.subject.name}</span>
+            </div>
+
+            <ul class="px-4 py-3">
+              {proof.groups.map((group) => (
+                <li class="group-block">
+                  {group.label !== null && (
+                    <p class="pb-2 text-xs text-gray-400">{group.label}</p>
+                  )}
+                  <ul class="tree">
+                    {group.rows.map((row) => (
+                      <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1 text-xs">
+                        <span
+                          class:list={[
+                            "repo",
+                            row.repo === proof.subject.repo
+                              ? "text-gray-400"
+                              : "text-gray-300",
+                          ]}
+                          data-cross={
+                            row.repo === proof.subject.repo ? undefined : "true"
+                          }
+                        >
+                          {row.repo}
+                        </span>
+                        <span class="min-w-0 text-graph-file">{row.file}</span>
+                        <span class="text-gray-400">{row.at}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 font-mono text-xs">
+            <div class="flex items-baseline gap-2">
+              <dt class="text-gray-400">kivgraph</dt>
+              <dd class="text-graph-exact">
+                {proof.ours.tokens} tokens, {proof.ours.calls} call{proof.ours.calls === "1" ? "" : "s"}
+              </dd>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <dt class="text-gray-400">grep + reading</dt>
+              <dd class="text-gray-300">
+                {proof.grep.tokens} tokens, {proof.grep.calls} calls
+              </dd>
+            </div>
+          </dl>
+
+          <p class="mt-3 max-w-[68ch] text-xs text-gray-400">
+            {proof.verdict}
+          </p>
+          <p class="mt-3 text-xs leading-5 text-gray-400">
+            question <code>{proof.question_id}</code> of <code
+              >results-all.json</code
+            >, commit <code>954b9eb</code>
+          </p>
+        </div>
+      ))
+    }
+  </div>
+</fieldset>
+
+<p class="mt-10 text-xs">
+  <a
+    href="/comparison/"
+    class="text-accent-200 underline underline-offset-4"
+    >the whole benchmark, method and losses included</a
+  >
+</p>
+
+<style>
+  /* A `<fieldset>` for the semantics only. The UA stylesheet gives it padding,
+     a border and `min-width: min-content`; the first two are cleared by
+     utilities on the element itself, and the third has to be cleared here
+     because no utility exists for it and a fieldset that refuses to shrink
+     breaks every grid it sits in.
+
+     What is deliberately NOT here is `margin: 0`. global.css imports no
+     preflight, so a component rule outside a layer beats any utility whatever
+     its specificity -- and `margin: 0` here silently swallowed the `mt-10` that
+     separates this control from its own lede. The fieldset margin reset lives
+     in Layout's `@layer base`, with the rest of the reset. */
+  .proof {
+    min-width: 0;
+    padding: 0;
+  }
+
+  /* Only the checked panel is displayed, and the unchecked ones stay in the
+     served HTML rather than being fetched later: what a crawler and a
+     no-CSS reader see is all three, which is the honest degradation. */
+  .panel {
+    display: none;
+  }
+
+  #proof-refs:checked ~ .panels [data-panel="refs"],
+  #proof-blast:checked ~ .panels [data-panel="blast"],
+  #proof-cross:checked ~ .panels [data-panel="cross"] {
+    display: block;
+  }
+
+  #proof-refs:checked ~ .tabs [data-tab="refs"],
+  #proof-blast:checked ~ .tabs [data-tab="blast"],
+  #proof-cross:checked ~ .tabs [data-tab="cross"] {
+    border-bottom-color: var(--color-graph-exact);
+    color: var(--color-gray-100);
+  }
+
+  /* The focus ring belongs on the label, because the input that owns the focus
+     is the one thing on this control nobody can see. */
+  #proof-refs:focus-visible ~ .tabs [data-tab="refs"],
+  #proof-blast:focus-visible ~ .tabs [data-tab="blast"],
+  #proof-cross:focus-visible ~ .tabs [data-tab="cross"] {
+    outline: 1px solid var(--color-accent-200);
+    outline-offset: 3px;
+  }
+
+  /* A repository is a square of the viewer's repository colour followed by its
+     name -- the same code the legend of the published snapshot uses. A row
+     whose repository is not the subject's gets the colour at full strength,
+     which is the only place on this figure where colour carries meaning; the
+     name beside it carries the same information for anyone who cannot see it. */
+  .repo::before {
+    content: "";
+    display: inline-block;
+    width: 0.5em;
+    height: 0.5em;
+    margin-right: 0.5em;
+    vertical-align: baseline;
+    background-color: var(--color-graph-containment);
+  }
+
+  .repo[data-cross="true"]::before {
+    background-color: var(--color-graph-repository);
+  }
+
+  /* The answer is a tree, so it is a list with a rule down its left edge
+     rather than a drawing: it reflows to any width without a diagram having to
+     be redrawn for a phone, and the reading order is the same at every size. */
+  .tree {
+    border-left: 1px solid var(--color-rule-strong);
+    padding-left: 1rem;
+  }
+
+  .group-block + .group-block {
+    margin-top: 1.25rem;
+  }
+</style>

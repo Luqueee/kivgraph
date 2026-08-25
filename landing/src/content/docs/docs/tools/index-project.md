@@ -181,6 +181,6 @@ the process answering queries; see [Indexing](/guides/indexing/#where-a-pass-run
   working directory of the server process, which is the client's choice, not
   yours; prefer an absolute path.
 - Rust is indexed through an external `rust-analyzer scip` process and needs it
-  configured. See [Configuration](/reference/configuration/).
+  configured. See [Configuration](/docs/configuration/).
 - It publishes a new generation, so every cursor issued from the previous one
   expires with `CURSOR_SNAPSHOT_EXPIRED`.

@@ -42,6 +42,10 @@
 // The head below is the strongest thing in its band: a two-digit mono index and
 // a text-lg/text-xl title. SubHead.astro is one step quieter and is the only
 // other heading pattern on the page.
+//
+// Both are monospaced while the prose under them is not, which is the split
+// docs.css states: mono for headings, labels, identifiers, commands and numeric
+// readouts, sans for running prose.
 interface Props {
   index: string;
   title: string;
@@ -56,7 +60,7 @@ const { index, title, id } = Astro.props;
     class="mx-auto box-border w-full max-w-6xl px-6 py-14"
     data-reveal
   >
-    <div class="flex items-baseline gap-3">
+    <div class="flex items-baseline gap-3 font-mono">
       <span class="text-xs text-gray-400" aria-hidden="true">{index}</span>
       <h2 class="text-lg font-medium tracking-tight text-gray-100 sm:text-xl">
         {title}

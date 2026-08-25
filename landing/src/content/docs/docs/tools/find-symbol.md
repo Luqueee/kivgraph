@@ -43,7 +43,7 @@ Either way every row is addressable: `get_symbol`, `get_source`,
 `find_references` and the traversal tools all accept the `repository`, `path`
 and `qualified_name` of a row you already have -- which is why the compact view
 drops `stable_key`. It was `885` of the `2.293` tokens of one 22-row page over
-`kena`; the compact page cost `901` before the second grouping tier below and
+the private benchmark corpus; the compact page cost `901` before the second grouping tier below and
 `773` after it. `find_symbol` publishes no `exact` counter: a declaration lookup
 returns declarations rather than resolved relations, so that count could only
 repeat `returned`. `coverage` on this tool carries `unresolved_related` alone --

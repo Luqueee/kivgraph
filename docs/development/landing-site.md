@@ -125,24 +125,39 @@ inventada.
 
 ## Límites residuales
 
-- **El dominio no existe todavía.** `site` vale `http://localhost:6767` hasta que
-  el despliegue fije `KIVGRAPH_LANDING_URL`. De ahí se derivan el canonical, el
-  `og:image`, el sitemap y las URLs de `llms.txt`, así que publicar sin fijarla
-  emite el canonical de la máquina de desarrollo.
-- **Los iconos se regeneraron desde `icon-512.png`, no desde el original.** Para
-  los tamaños ≤192 y el maskable eso son reducciones, sin pérdida; el tile de 512
-  y `og.png` pasaron por un reescalado del 32 %, inspeccionado y no apreciable en
-  una marca plana. Regenerar desde la fuente es un comando.
+Las mediciones de arriba son las del 2026-08-15 y se dejan como se tomaron.
+Tres de los límites que este informe registraba ya no existen, y se corrigen
+aquí en vez de dejarlos contradiciendo el código:
+
+- **El dominio existe y el `site` por defecto es el de producción.** El sitio se
+  publica en `https://kivgraph.luqueee.dev`, y ése es ahora el valor de reserva
+  de `site` en `astro.config.mjs`. La dirección del fallback está invertida a
+  propósito: `site` se hornea en tiempo de build y CI construye sin `.env`, así
+  que un build sin variable tiene que emitir el canonical correcto. Lo que se
+  fija en `landing/.env` es el caso de desarrollo,
+  `KIVGRAPH_LANDING_URL=http://localhost:6767`. Antes era al contrario, y eso
+  fue exactamente lo que publicó `http://localhost:6767` como canonical de todas
+  las páginas.
+- **`og.png` ya no lo genera `icons.sh`.** La tarjeta dejó de ser la marca
+  centrada en el lienzo: lleva el wordmark, el titular y el lema en la Geist que
+  sirve el sitio, y componer tipografía es justo lo que ese script no hace. Se
+  renderiza desde `landing/scripts/social-card.html` en un navegador y se
+  commitea como los demás assets. El resto de la nota sigue vigente para los
+  iconos.
 - **No hay marca vectorial.** La fuente es un ráster, así que no se publica
   `favicon.svg` y no hay `.ico`: los enlaces son PNG, más el `rel="shortcut icon"`
   que emite Starlight.
 - **El fondo de los iconos es `#0f1117`, no `--color-shell`.** Es el color de la
   propia imagen; rellenar con el de la página dejaba un recuadro. `background_color`
-  del manifest lo iguala y `theme_color` sigue siendo el del sitio.
-- **El rename fue de etiqueta, no de ruta.** El grupo del sidebar, el enlace de la
-  cabecera y el del footer dicen `docs`; las URLs siguen en `/reference/...`,
-  porque es el término semánticamente más fuerte para búsqueda y recuperación y
-  mover la ruta obligaría a anidar el contenido en `content/docs/docs/`.
+  del manifest lo iguala, `theme_color` sigue siendo el del sitio, y la tarjeta
+  social usa ese mismo `#0f1117` por la misma razón.
+- **El rename ya llegó a la ruta.** Las URLs de la referencia son `/docs/...` y
+  `/reference/[...slug]` queda como redirección. El contenido vive en
+  `src/content/docs/docs/`, que es el anidamiento que este informe daba por
+  evitado; el coste real fue otro: `_seo.ts` siguió agrupando por el prefijo
+  `reference/` durante todo ese tiempo, y como sus matchers son predicados que
+  devuelven `false` en vez de búsquedas que fallen, `llms.txt` perdió dos
+  secciones enteras sin un solo error de build.
 - **`make test-ladybug` no cubre esta superficie.** El sitio no enlaza la
   biblioteca nativa; lo que se verificó bajo ese tag fue el binario con el que se
   capturó la superficie MCP.

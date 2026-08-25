@@ -47,7 +47,7 @@ of the group and the qualified name are exactly the triple `get_symbol`,
 `get_source`, `find_references` and the traversal tools take, so the next call
 is built out of the answer you just got. Under
 `response_format: "detailed"` each row also carries its stable key. Measured over
-`kena`, one directory outline went from `633` to `248` tokens with a single
+the private benchmark corpus, one directory outline went from `633` to `248` tokens with a single
 shared `kind`; a larger directory with no single shared `kind` or `exported`
 went from `3.667` to `3.184` once the second grouping tier below applied.
 

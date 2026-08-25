@@ -1,0 +1,53 @@
+---
+import CopyButton from "./CopyButton.astro";
+
+// This band is not a `Section`: it carries its own `h2` because the heading *is*
+// the call to action, and a `Section` head plus a second heading inside it would
+// put two `h2`s in one band. It repeats `Section`'s own geometry -- the
+// `border-t`, the `max-w-6xl` gutter, `py-14` and `data-reveal` -- so the
+// rhythm is identical from the outside.
+const installCommand =
+  "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
+---
+
+<section id="install" class="border-t border-rule">
+  <div class="mx-auto box-border w-full max-w-6xl px-6 py-14" data-reveal>
+    <div class="mx-auto max-w-2xl text-center">
+      <h2
+        class="font-mono text-lg font-medium tracking-tight text-gray-100 sm:text-2xl"
+      >
+        Give your coding agent structural context.
+      </h2>
+      <p class="mx-auto mt-5 max-w-[60ch] text-sm leading-6 text-gray-300">
+        One binary, one index, one MCP entry. Nothing leaves the machine, and
+        every answer carries the evidence it was resolved from.
+      </p>
+
+      <div class="mt-10 border border-rule bg-panel text-left">
+        <div
+          class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
+        >
+          <span>install the latest release</span>
+          <CopyButton value={installCommand} />
+        </div>
+        <pre
+          class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
+      </div>
+
+      <div
+        class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs"
+      >
+        <a
+          href="/install/"
+          class="border border-graph-exact bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
+          >install Kivgraph</a
+        >
+        <a
+          href="/docs/mcp-tools/"
+          class="border border-rule px-4 py-2 text-gray-300 transition-colors hover:border-rule-strong hover:text-gray-100"
+          >read the docs</a
+        >
+      </div>
+    </div>
+  </div>
+</section>

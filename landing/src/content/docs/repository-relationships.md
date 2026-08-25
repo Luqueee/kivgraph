@@ -29,6 +29,8 @@ The [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) tool r
 
 Kivgraph does not promote a plausible name match to an exact edge. Results carry confidence and provenance. Facts that cannot be resolved remain `UNRESOLVED` with their reason, while weaker analyzer results remain `CANDIDATE` instead of being presented as exact.
 
-That distinction is what makes repository relationship queries useful in code review and impact analysis: the agent can see what is proven, what is uncertain and what the index could not load.
+How strong that evidence is depends on the language. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback. A Python relationship read from the fallback is a candidate, and the response says so.
+
+That distinction is what makes repository relationship queries useful in code review and impact analysis: the agent can see what is proven, what is uncertain and what the index could not load. It is not a reason to route every question through the graph — on five of the 29 benchmark questions plain `grep` answered correctly for fewer tokens, and the [comparison](/comparison/) names them.
 
 Read the [resolution vocabulary](/docs/resolution/) before relying on a result in an automated workflow.

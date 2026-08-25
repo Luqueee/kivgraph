@@ -1,6 +1,6 @@
 ---
 title: find_references
-description: Type-checked incoming or outgoing references for one symbol, with the edge kind, confidence and provenance in the header when the page agrees on them and on the row when it does not.
+description: Type-checked incoming or outgoing references for one symbol, with the edge kind, confidence and provenance on every answer.
 ---
 
 > Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: "files"` answers which files without a line each.
@@ -29,8 +29,8 @@ description: Type-checked incoming or outgoing references for one symbol, with t
 
 Who calls or references one symbol, and what that symbol reaches directly. It is
 a single hop, not a walk: for a chain use
-[`trace_dependencies`](/reference/tools/trace-dependencies/) or
-[`get_blast_radius`](/reference/tools/get-blast-radius/). The response states the
+[`trace_dependencies`](/docs/tools/trace-dependencies/) or
+[`get_blast_radius`](/docs/tools/get-blast-radius/). The response states the
 subject once, echoes the `direction` it answered in, and returns one page of the
 matching edges. Each row names a symbol with its repository, repository-relative
 path, qualified name and line range, so the next call is built from the answer just
@@ -40,15 +40,15 @@ By default the answer arrives in the `compact` view: what every row shares is
 stated once in the header and the rows are grouped by file. It is the same
 edges, with the same confidence and the same provenance, as the `full` view --
 `confidence` and `provenance` alone were `1.200` of the `4.236` tokens of one
-fifty-row page over `kena`, the same pair on all fifty rows. Measured over that
-corpus, the page went from `4.236` to `874` tokens.
+fifty-row page over the private benchmark corpus, the same pair on all fifty
+rows. Measured over that corpus, the page went from `4.236` to `874` tokens.
 
 That page-wide hoist is unanimous or nothing: on a real `66`-row page, `65`
 rows shared `kind` and `edge_kind` and the `66`th, a re-export, was enough to
 push both columns back down to every row. `results.groups` is the second tier
 that catches it, grouping the rows by whatever exact tuple of the remaining
 columns they still share instead of `files` repeating it row by row. Measured
-over the same two `kena` questions, `1.205` and `1.143` tokens fell to `788`
+over the same two questions of that corpus, `1.205` and `1.143` tokens fell to `788`
 and `779`. See [when a page groups](/mcp/usage/#when-a-page-groups) for the
 mechanism shared by six tools, and [reading a grouped page](#reading-a-grouped-page)
 below for a captured page.
@@ -356,7 +356,7 @@ shape.
 ### One call instead of two
 
 `name` resolves the declaration itself, so a reference question does not have to
-be preceded by a [`find_symbol`](/reference/tools/find-symbol/) call:
+be preceded by a [`find_symbol`](/docs/tools/find-symbol/) call:
 
 ```json
 {
@@ -370,20 +370,24 @@ That answers exactly the page above, because one symbol in the graph declares
 refused between:
 
 ```text
-AMBIGUOUS_SYMBOL: name "withRetry" declares 7 symbols; repeat with the repository and path of the one you mean: kena:apps/api/src/retry.ts:14, kena:apps/web/src/lib/retry.ts:22, …
+AMBIGUOUS_SYMBOL: name "withBackoff" declares 7 symbols; repeat with the repository and path of the one you mean: workspace:apps/api/src/retry.ts:14, workspace:apps/web/src/lib/retry.ts:22, …
 ```
 
 The message lists all seven; the two above are the shape, the rest are cut here
 with the `…`. Those candidates are the same `repository:path:line` triple every
 tool accepts, so narrowing is a matter of copying one of them into `repository`
 and `path`. The
-refusal costs `49` to `144` tokens over `kena`, against the `2.293` of listing
+refusal costs `49` to `144` tokens over the benchmark corpus, against the `2.293` of listing
 every `find_symbol` row for the name, imports and re-exports included. A name
 the graph knows only as an import or a re-export is `SYMBOL_NOT_FOUND` with the
 same instruction: name the repository and path that declares it.
 
 All the answers above come from snapshot `30` of two repositories, `kivgraph`
-and `mole`.
+and `mole`. The refusal is not one of them: it comes from the private benchmark
+corpus, so its repository, path and symbol names are substituted. The line
+numbers, the count of seven declarations and the token figures are the measured
+ones, and the `49` to `144` range was measured against the real identifiers,
+whose length the message carries.
 
 ## Reading the result
 
@@ -402,7 +406,7 @@ interface method in `via`, which hoists and groups like the other columns, so a
 bridged row is never read as a direct call. With two implementations nothing is
 bridged -- a call reaches one of them, and naming both would trade a false
 absence for a false presence -- and
-[`get_blast_radius`](/reference/tools/get-blast-radius/) crosses `IMPLEMENTS` in
+[`get_blast_radius`](/docs/tools/get-blast-radius/) crosses `IMPLEMENTS` in
 either direction regardless.
 
 `edge_kinds_default_excluded` is present only when a filter you did not ask for
@@ -469,7 +473,7 @@ of a compact label -- bounds the declaration of the symbol holding the reference
 never the position of the token. The snapshot records which symbol contains a
 reference and not where inside it, and publishing a line nobody observed would
 be inventing evidence. The range is there so the row can be opened with
-[`get_source`](/reference/tools/get-source/) without a second lookup. A label
+[`get_source`](/docs/tools/get-source/) without a second lookup. A label
 with a single line, `Set.Symbols@251`, is a declaration that starts and ends
 there, not a range somebody dropped.
 
@@ -481,7 +485,7 @@ the symbol asked for; this tool produces none. In the full view it stays `0`; in
 the compact view a category that counted nothing is absent, and `coverage` as a
 whole is absent when all four are, because four zeros only say that the tool has
 four counters. Only
-[`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/) fills
+[`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) fills
 it, because a package dependency proves a dependency on the provider and never a
 use of the symbol.
 
@@ -572,8 +576,8 @@ carries the token to continue. When the page holds everything the full view says
 fields: a false flag and a cursor that does not exist are not facts worth a
 line. This tool walks no graph, so it has no
 `traversal_truncated` field; that one belongs to
-[`trace_dependencies`](/reference/tools/trace-dependencies/) and
-[`get_blast_radius`](/reference/tools/get-blast-radius/), where the bound is on
+[`trace_dependencies`](/docs/tools/trace-dependencies/) and
+[`get_blast_radius`](/docs/tools/get-blast-radius/), where the bound is on
 the walk rather than on the page.
 
 The cursor is an opaque base64url token over a binary body: the format version,
@@ -601,8 +605,8 @@ the snapshot does.
 found, and when the page is truncated. It stays absent on a complete non-empty
 answer. The zero-row sentence differs by direction, and both are worth reading
 literally: incoming says the absence is type-checked and points at
-[`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/) and
-[`graph_status`](/reference/tools/graph-status/); outgoing says the symbol
+[`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) and
+[`graph_status`](/docs/tools/graph-status/); outgoing says the symbol
 reaches nothing and suggests asking the other direction.
 
 `include_derived` is `false` by default and that default is load-bearing. With a
@@ -618,5 +622,5 @@ A rare name in one small repository is cheaper to grep, and this tool costs a
 symbol resolution before it answers. It is a single hop, so it cannot tell you
 what happens two calls away. It also depends on the snapshot being current: if
 the tree moved since it was indexed, the answer describes the code that was
-indexed, not the code on disk. [`graph_status`](/reference/tools/graph-status/)
+indexed, not the code on disk. [`graph_status`](/docs/tools/graph-status/)
 reports that.

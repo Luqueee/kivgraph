@@ -1,0 +1,145 @@
+---
+// The objection every developer raises first, answered with a capability table
+// rather than an argument. Each row names the benchmark question that decided
+// it, so the table is a summary of measurements and not an opinion about a
+// search tool -- and two of the rows say `grep` wins.
+//
+// Every question id refers to
+// `benchmarks/graph-tools-comparison/results-all.json`, commit `954b9eb`.
+
+interface Capability {
+  capability: string;
+  /** What a text search does with the question, in its own terms. */
+  grep: string;
+  kivgraph: string;
+  /** The measured question behind the row. */
+  evidence: string;
+  /** Set where the honest answer is that a text search is the better tool. */
+  grepWins?: boolean;
+}
+
+const rows: Capability[] = [
+  {
+    capability: "Find a string anywhere",
+    grep: "yes",
+    kivgraph: "no",
+    evidence: "Not what the graph is for; it indexes declarations, not lines.",
+  },
+  {
+    capability: "Answer a rare name in a small tree",
+    grep: "yes, cheaper",
+    kivgraph: "yes, dearer",
+    evidence:
+      "T1_go_trivial — two occurrences in the corpus, and grep at 0.53x.",
+    grepWins: true,
+  },
+  {
+    capability: "Tell two homonyms apart",
+    grep: "no",
+    kivgraph: "yes",
+    evidence:
+      "H1–H5 — a method, an interface, a type, an alias and a Rust trait impl, each with a namesake elsewhere.",
+  },
+  {
+    capability: "Follow callers without opening the files",
+    grep: "manually",
+    kivgraph: "yes",
+    evidence:
+      "R1_ts_xrepo — grep needed eight calls and 10,054 tokens; one query needed two calls and 332.",
+  },
+  {
+    capability: "Reach transitive impact",
+    grep: "one hop at a time",
+    kivgraph: "yes, bounded by depth",
+    evidence:
+      "I1–I3 — two and three hops. Inside one package grep is still cheaper; across packages it stops being.",
+    grepWins: true,
+  },
+  {
+    capability: "Find consumers in another repository",
+    grep: "only if they spell the name",
+    kivgraph: "yes",
+    evidence:
+      "X1_ts_shared_enum — grep found two of three consumers and missed the re-export.",
+  },
+  {
+    capability: "Prove that nothing calls it",
+    grep: "no",
+    kivgraph: "yes",
+    evidence:
+      "A1–A3 — grep is three to four times cheaper on these and still cannot distinguish `nobody calls it` from `my pattern missed it`.",
+  },
+];
+---
+
+<div class="grid grid-cols-1 items-baseline gap-10 lg:grid-cols-2">
+  <div>
+    <p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+      Kivgraph does not replace <code>grep</code>. It answers the structural
+      questions <code>grep</code> cannot answer reliably — and it says so on
+      the two rows below where a text search is simply the better tool.
+    </p>
+    <p class="mt-5 max-w-[68ch] text-sm leading-6 text-gray-300">
+      The difference is not thoroughness, it is evidence. An edge in this graph
+      comes from the language's own checker, so an empty list of references is a
+      claim: nobody calls it. A search that returns nothing has not made that
+      claim, and cannot.
+    </p>
+    <p class="mt-5 text-xs">
+      <a
+        href="/code-intelligence/"
+        class="text-accent-200 underline underline-offset-4"
+        >how the edges are resolved</a
+      >
+    </p>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <caption class="sr-only">
+        What a text search and a resolved code graph can each answer, with the
+        benchmark question that decided each row
+      </caption>
+      {/* Head, verdicts and question ids are mono; the cells that carry a
+        sentence are not. A whole table of monospaced prose is what the rest of
+        this page was before the two halves of the site were made to agree. */}
+      <thead class="font-mono">
+        <tr class="border-b border-rule-strong text-left text-gray-400">
+          <th scope="col" class="py-2 pr-6">question</th>
+          <th scope="col" class="py-2 pr-6 whitespace-nowrap">grep</th>
+          <th scope="col" class="py-2 whitespace-nowrap">kivgraph</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          rows.map((row) => (
+            <tr class="border-b border-rule align-baseline">
+              <th scope="row" class="py-3 pr-6 font-normal text-gray-300">
+                <span class="font-mono">{row.capability}</span>
+                <span class="mt-1 block leading-5 text-gray-400">
+                  {row.evidence}
+                </span>
+              </th>
+              <td
+                class:list={[
+                  "py-3 pr-6 font-mono",
+                  row.grepWins === true ? "text-graph-symbol" : "text-gray-400",
+                ]}
+              >
+                {row.grep}
+              </td>
+              <td
+                class:list={[
+                  "py-3 font-mono",
+                  row.grepWins === true ? "text-gray-400" : "text-graph-exact",
+                ]}
+              >
+                {row.kivgraph}
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

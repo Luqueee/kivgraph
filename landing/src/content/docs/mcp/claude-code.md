@@ -41,4 +41,4 @@ Who calls this symbol, including consumers in another repository?
 What breaks if I change this interface?
 ```
 
-See [code intelligence](/docs/code-intelligence/) and [repository relationships](/docs/repository-relationships/) for the query model.
+See [code intelligence](/code-intelligence/) and [repository relationships](/repository-relationships/) for the query model.

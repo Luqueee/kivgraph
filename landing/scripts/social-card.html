@@ -1,0 +1,162 @@
+<!doctype html>
+<!--
+  The source of `landing/public/og.png`, the 1200x630 card every link preview
+  shows on GitHub, Discord, X, LinkedIn and Reddit.
+
+  It is a committed asset, not a build step, for the same reason the icons are:
+  CI runs on Linux and must never need a browser to publish the site. Rendering
+  it is a manual, repeatable step, documented in `landing/AGENTS.md`.
+
+  Why HTML rather than ImageMagick: the card carries type, and the type has to be
+  Geist at the right weight and tracking. `icons.sh` cannot set type; a browser
+  already has the exact fonts this site ships, in `node_modules`, which is where
+  the two `@font-face` rules below point.
+
+  The palette literals are the only place in `landing/` that repeats a colour
+  token, because this file is opened directly by a browser and never sees
+  `global.css`. They are `--color-gray-100`, `--color-gray-400`,
+  `--color-rule-strong` and `--color-graph-exact`.
+
+  The field is `#0f1117`, not the site's `#0a0b0d`. That is the background of the
+  mark's own raster, and the card has to match it or the icon draws a visible
+  square inside the card -- the same trap `icons.sh` documents for the maskable
+  icon. It is also what the web manifest declares as `background_color`.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kivgraph social card</title>
+    <style>
+      @font-face {
+        font-family: "Geist Variable";
+        font-style: normal;
+        font-weight: 100 900;
+        src: url("../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2")
+          format("woff2-variations");
+      }
+
+      @font-face {
+        font-family: "Geist Mono Variable";
+        font-style: normal;
+        font-weight: 100 900;
+        src: url("../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2")
+          format("woff2-variations");
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        background: #0f1117;
+      }
+
+      /* Exactly the published size. The screenshot is taken of this element, so
+         a viewport that does not match cannot scale it. */
+      .card {
+        position: relative;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 88px 96px;
+        background: #0f1117;
+        font-family: "Geist Variable", system-ui, sans-serif;
+        color: #f5f5f5;
+      }
+
+      /* The hero's own backdrop: a 72px grid in `--color-rule-strong`, faded
+         out before it reaches an edge. Same figure, so a link preview and the
+         page it opens are recognisably the same thing.
+
+         The mask sits far right on purpose. The mark is an opaque raster, so
+         wherever it lands on top of the grid it reads as a square hole punched
+         in the pattern; keeping the grid away from the top-left corner is
+         cheaper than compositing the mark over it. */
+      .plane {
+        position: absolute;
+        inset: 0;
+        background-image:
+          repeating-linear-gradient(
+            to right,
+            #333a42 0 1px,
+            transparent 1px 72px
+          ),
+          repeating-linear-gradient(
+            to bottom,
+            #333a42 0 1px,
+            transparent 1px 72px
+          );
+        mask-image: radial-gradient(
+          ellipse 52% 88% at 90% 52%,
+          #000 0%,
+          transparent 74%
+        );
+      }
+
+      .row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+
+      .mark {
+        width: 76px;
+        height: 76px;
+      }
+
+      .wordmark {
+        font-size: 44px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+
+      .headline {
+        position: relative;
+        max-width: 22ch;
+        font-size: 68px;
+        font-weight: 500;
+        line-height: 1.06;
+        letter-spacing: -0.03em;
+      }
+
+      .tagline {
+        position: relative;
+        display: flex;
+        align-items: baseline;
+        gap: 18px;
+        font-family: "Geist Mono Variable", ui-monospace, monospace;
+        font-size: 24px;
+        color: #a3a3a3;
+      }
+
+      .tick {
+        width: 14px;
+        height: 14px;
+        flex: none;
+        background: #16a34a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <div class="plane"></div>
+
+      <div class="row">
+        <img class="mark" src="../public/icon-512.png" alt="" />
+        <span class="wordmark">Kivgraph</span>
+      </div>
+
+      <p class="headline">Know what breaks before your agent changes it.</p>
+
+      <p class="tagline">
+        <span class="tick"></span>
+        semantic code intelligence for coding agents
+      </p>
+    </div>
+  </body>
+</html>

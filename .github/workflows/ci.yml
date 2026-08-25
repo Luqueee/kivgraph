@@ -58,6 +58,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The landing's sitemap dates every URL from the commit that last
+          # touched its source, and refuses to publish a date it cannot
+          # establish. At the default depth of 1 every file collapses onto the
+          # tip commit, so this job would build -- and pass -- a sitemap with no
+          # `lastmod` at all, which is not the artifact the deploy serves.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5

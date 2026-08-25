@@ -20,9 +20,11 @@ import (
 
 const helpTagline = "A canonical polyglot code graph, served over MCP."
 
-// webBundleAbsence is why `ui` cannot run: the published MCP bundle is built
-// without web assets on purpose, so a binary that advertises a viewer it
-// cannot serve is lying to the only person who reads the help.
+// webBundleAbsence is why `ui` cannot run, and it is empty whenever the assets
+// are linked in: the published release always carries them and the release
+// workflow fails if it does not, but a `--mcp-only` bundle or a plain
+// `go build` has none, and a binary that advertises a viewer it cannot serve is
+// lying to the only person who reads the help.
 func webBundleAbsence() string {
 	if webassets.Available() {
 		return ""

@@ -7,10 +7,15 @@
 
 const groups = [
   {
+    // `releases` is here because it was reachable from nothing: published, in
+    // the sitemap, and with zero internal links pointing at it, which is the
+    // shape a crawler reports as discovered and never fetches. Every other
+    // published page has 37 or more inlinks from the Starlight sidebar.
     title: "start",
     links: [
       { href: "/install/", label: "install" },
       { href: "/quickstart/", label: "quickstart" },
+      { href: "/releases/", label: "releases" },
       { href: "/mcp/clients/", label: "MCP clients" },
       { href: "/limits/", label: "limits" },
     ],
@@ -37,7 +42,7 @@ const groups = [
 
 <footer class="border-t border-rule">
   <div
-    class="mx-auto box-border grid w-full max-w-6xl grid-cols-1 items-baseline gap-10 px-6 py-14 text-xs sm:grid-cols-2 lg:grid-cols-4"
+    class="mx-auto box-border grid w-full max-w-6xl grid-cols-1 items-baseline gap-10 px-6 py-14 font-mono text-xs sm:grid-cols-2 lg:grid-cols-4"
   >
     <div>
       <p class="flex items-center gap-2 text-gray-100">

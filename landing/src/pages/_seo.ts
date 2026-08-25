@@ -1,38 +1,31 @@
 import { type CollectionEntry, getCollection } from "astro:content";
+import { PROJECT_TAGLINE } from "../site.mjs";
 
 // Every fact the machine-readable surfaces state lives here once. `robots.txt`,
 // `llms.txt`, `llms-full.txt`, the raw markdown endpoint, the Starlight `Head`
 // override and the landing shell all read these constants, so the license, the
 // repository and the tool list cannot drift into two versions of themselves.
 //
+// The identity of the project -- name, tagline, summary, repository, license --
+// lives one level up in `src/site.mjs`, which is plain ESM with no `astro:*`
+// import, because `astro.config.mjs` needs the same name and the same tagline
+// and cannot import this file. It is re-exported here so this module stays the
+// one every consumer imports from.
+//
 // The leading underscore keeps Astro from routing this file.
+
+export {
+  LICENSE_NAME,
+  LICENSE_URL,
+  PREVIEW_ALT,
+  PROJECT_NAME,
+  PROJECT_SUMMARY,
+  PROJECT_TAGLINE,
+  REPOSITORY_URL,
+} from "../site.mjs";
 
 /** A page of the `docs` content collection. */
 export type DocEntry = CollectionEntry<"docs">;
-
-export const PROJECT_NAME = "Kivgraph";
-
-/**
- * One sentence, reused as the `description` of the site, of the software and of
- * any page that carries no `description` of its own. It matches the `description`
- * passed to the Starlight integration so the two never disagree.
- */
-export const PROJECT_TAGLINE =
-  "A local cross-repository code intelligence MCP server for AI coding agents.";
-
-/**
- * The paragraph an agent needs before it reads anything else: what the thing is,
- * and the one property that separates it from a grep.
- */
-export const PROJECT_SUMMARY =
-  "Kivgraph builds a canonical semantic code graph across registered Go, TypeScript, Rust, Python and Dart repositories. It answers questions about symbols, repository relationships, callers, dependencies and change impact locally through MCP. Results carry analyzer evidence or remain CANDIDATE/UNRESOLVED; they are never invented from matching names.";
-
-export const REPOSITORY_URL = "https://github.com/Luqueee/kivgraph";
-
-export const LICENSE_NAME = "Apache-2.0";
-
-/** The SPDX page for the license, which is what `schema.org/license` wants. */
-export const LICENSE_URL = "https://spdx.org/licenses/Apache-2.0.html";
 
 /**
  * The token Search Console hands out for HTML-tag verification of the
@@ -88,9 +81,15 @@ export const MCP_TOOLS = [
 /** A tool name as it appears in the tool list. */
 export type McpToolName = (typeof MCP_TOOLS)[number];
 
-/** The collection id of the reference page documenting one tool. */
+/**
+ * The collection id of the page documenting one tool.
+ *
+ * `docs/tools/<tool>`, with underscores spelled as hyphens the way the files
+ * under `src/content/docs/docs/tools/` are named. The namespace is `docs/`: it
+ * was `reference/` until the rename `astro.config.mjs` still redirects from.
+ */
 export function toolPageId(tool: McpToolName): string {
-  return `reference/tools/${tool.replaceAll("_", "-")}`;
+  return `docs/tools/${tool.replaceAll("_", "-")}`;
 }
 
 /**
@@ -142,31 +141,26 @@ export function isPublishedDoc(entry: DocEntry): boolean {
   return !isNotFoundPage(entry.id) && entry.data.draft !== true;
 }
 
+/**
+ * Whether `/raw/<id>.md` is a route, which is the same question as whether the
+ * id is a published member of the `docs` collection.
+ *
+ * A `<StarlightPage>` -- `/releases/` is one -- is not. Starlight synthesises a
+ * route for it whose entry claims `collection: "docs"` and a `filePath` under
+ * `src/content/docs/`, so the entry the `Head` override receives is
+ * shape-identical to a real page's and only the collection can tell them apart.
+ * `src/pages/raw/[...slug].md.ts` generates its paths from the collection, so a
+ * `<link rel="alternate" type="text/markdown">` emitted for a synthesised route
+ * would advertise a 404.
+ */
+export async function hasRawMarkdown(id: string): Promise<boolean> {
+  const entries = await getCollection("docs", isPublishedDoc);
+  return entries.some((entry) => entry.id === id);
+}
+
 /** A page's description, falling back to the project one so a link is never bare. */
 export function docDescription(entry: DocEntry): string {
   return entry.data.description ?? PROJECT_TAGLINE;
-}
-
-/**
- * Human-readable names for the path segments a breadcrumb walks through.
- *
- * `reference` reads "Docs" because that is the label the sidebar shows; the URL
- * segment stayed `reference` when the label changed, and a breadcrumb that
- * contradicts the visible navigation is worse than one that repeats it.
- */
-const SEGMENT_LABELS: Readonly<Record<string, string | undefined>> = {
-  mcp: "MCP server",
-  guides: "Guides",
-  reference: "Docs",
-  tools: "Tools",
-};
-
-/** Title-cases an unknown segment rather than leaving `find-references` raw. */
-export function segmentLabel(segment: string): string {
-  const known = SEGMENT_LABELS[segment];
-  if (known !== undefined) return known;
-  const spaced = segment.replaceAll("-", " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 /** A named run of pages, in the order the sidebar presents them. */
@@ -183,11 +177,31 @@ interface GroupDefinition {
 }
 
 /**
+ * The pages the sidebar shows under Guides that live at the root of the
+ * collection rather than under `guides/`. They are written down because there is
+ * no prefix to test: a page whose id is `code-intelligence` is a guide only
+ * because the sidebar says so.
+ */
+const FLAT_GUIDE_IDS: readonly string[] = [
+  "code-intelligence",
+  "repository-relationships",
+  "token-efficient-code-understanding",
+  "cross-repository-code-graph",
+  "workspace-code-intelligence",
+  "kivgraph-faq",
+];
+
+/**
  * The sidebar order, expressed as prefixes plus a hint rather than as a list of
- * pages. A page added to `src/content/docs/mcp/` joins the MCP section on its
- * own; a page added somewhere unforeseen lands in `OTHER_GROUP_TITLE`. Neither
- * can vanish from `llms.txt`, which is the point of deriving all of this from
- * `getCollection` instead of writing the pages down twice.
+ * pages wherever a prefix exists. A page added to `src/content/docs/mcp/` joins
+ * the MCP section on its own; a page added somewhere unforeseen lands in
+ * `OTHER_GROUP_TITLE`. Neither can vanish from `llms.txt`, which is the point of
+ * deriving all of this from `getCollection` instead of writing the pages down
+ * twice.
+ *
+ * The `order` lists are the sidebar's own order, copied from the `sidebar`
+ * option in `astro.config.mjs`: a heading that ranked its pages differently
+ * would be a second navigation.
  */
 const GROUPS: readonly GroupDefinition[] = [
   {
@@ -197,29 +211,46 @@ const GROUPS: readonly GroupDefinition[] = [
   },
   {
     title: "MCP server",
-    order: ["mcp/clients", "mcp/skills", "mcp/usage", "mcp/troubleshooting"],
+    order: [
+      "mcp/clients",
+      "mcp/claude-code",
+      "mcp/codex",
+      "mcp/oh-my-pi",
+      "mcp/skills",
+      "mcp/usage",
+      "mcp/troubleshooting",
+    ],
     matches: (id) => id.startsWith("mcp/"),
   },
   {
     title: "Guides",
-    order: ["guides/indexing", "guides/viewer", "guides/maintenance"],
-    matches: (id) => id.startsWith("guides/"),
+    order: [
+      "guides/indexing",
+      "guides/viewer",
+      "guides/maintenance",
+      ...FLAT_GUIDE_IDS,
+    ],
+    matches: (id) => id.startsWith("guides/") || FLAT_GUIDE_IDS.includes(id),
   },
   {
     title: "Reference",
     order: [
-      "reference/cli",
-      "reference/mcp-tools",
-      "reference/configuration",
-      "reference/resolution",
+      "docs/cli",
+      "docs/mcp-tools",
+      "docs/configuration",
+      "docs/resolution",
     ],
-    matches: (id) =>
-      id.startsWith("reference/") && !id.startsWith("reference/tools/"),
+    matches: (id) => id.startsWith("docs/") && !id.startsWith("docs/tools/"),
   },
   {
     title: "Tool reference",
     order: MCP_TOOLS.map(toolPageId),
-    matches: (id) => id.startsWith("reference/tools/"),
+    matches: (id) => id.startsWith("docs/tools/"),
+  },
+  {
+    title: "Benchmark",
+    order: ["comparison"],
+    matches: (id) => id === "comparison",
   },
   {
     title: "Limits",

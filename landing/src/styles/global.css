@@ -27,10 +27,11 @@
 
   /* The viewer palette, declared once. The literals are the ones in
      web/src/renderer/reagraph.ts, and they are declared as a set so the two
-     halves cannot drift apart: the legend in Snapshot.astro reads four of them
-     by variable name, the transcript and the docs skin read three more, and
-     `containment`, `local` and `cross` currently carry no consumer -- the hero
-     canvas that used all eight is gone. */
+     halves cannot drift apart: the legend in Viewer.astro reads five of them by
+     variable name, the transcripts and the docs skin read three more, and
+     `cross` marks the edge that leaves a repository in CrossRepo.astro.
+     `local` currently carries no consumer -- the hero canvas that used all
+     eight is gone. */
   --color-graph-repository: #2563eb;
   --color-graph-package: #7c3aed;
   --color-graph-file: #059669;

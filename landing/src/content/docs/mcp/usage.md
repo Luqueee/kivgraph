@@ -3,10 +3,11 @@ title: Using the MCP server
 description: Route a question to the right Kivgraph tool, address a symbol without a stable key, and read the envelope, guidance and completeness of an answer.
 ---
 
-`kivgraph serve` speaks MCP over stdio and registers eleven tools. This page is
+`kivgraph serve` speaks MCP over stdio and, once a generation is published,
+registers eleven tools; before that it registers `index_project` alone. This page is
 about using them: which tool answers which question, how to name a symbol, and
 how to read what comes back. Per-tool arguments live under
-[`/reference/mcp-tools/`](/reference/mcp-tools/) and on each tool's own page.
+[`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
 
 ## What the server tells your agent
 
@@ -32,17 +33,17 @@ model at the moment it decides whether to call anything.
 
 | The question | The tool |
 | --- | --- |
-| Who calls this, what references this | [`find_references`](/reference/tools/find-references/) |
-| What breaks if I change this | [`get_blast_radius`](/reference/tools/get-blast-radius/) |
-| What does this reach outward | [`trace_dependencies`](/reference/tools/trace-dependencies/) |
-| Who uses this from another repository | [`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/) |
-| Where is this declared | [`find_symbol`](/reference/tools/find-symbol/) |
-| What are this symbol's package, signature, visibility and line range | [`get_symbol`](/reference/tools/get-symbol/) |
-| What is declared under this path | [`get_file_outline`](/reference/tools/get-file-outline/) |
-| Give me the code of these symbols | [`get_source`](/reference/tools/get-source/) |
-| Which repositories does the graph cover, at which commit | [`list_repositories`](/reference/tools/list-repositories/) |
-| Is the published graph current | [`graph_status`](/reference/tools/graph-status/) |
-| Register projects and rebuild the graph | [`index_project`](/reference/tools/index-project/) |
+| Who calls this, what references this | [`find_references`](/docs/tools/find-references/) |
+| What breaks if I change this | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
+| What does this reach outward | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
+| Who uses this from another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
+| Where is this declared | [`find_symbol`](/docs/tools/find-symbol/) |
+| What are this symbol's package, signature, visibility and line range | [`get_symbol`](/docs/tools/get-symbol/) |
+| What is declared under this path | [`get_file_outline`](/docs/tools/get-file-outline/) |
+| Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |
+| Which repositories does the graph cover, at which commit | [`list_repositories`](/docs/tools/list-repositories/) |
+| Is the published graph current | [`graph_status`](/docs/tools/graph-status/) |
+| Register projects and rebuild the graph | [`index_project`](/docs/tools/index-project/) |
 
 `index_project` is the only tool that changes anything. Every other tool is
 annotated `readOnlyHint`.
@@ -131,11 +132,11 @@ Note the one rename: a compact row reports the file inside `at`, a full row as
 `file_path`, and arguments call it `path`. All of them are repository-relative.
 
 For a reference question the two steps collapse into one:
-[`find_references`](/reference/tools/find-references/) takes `name` on its own,
+[`find_references`](/docs/tools/find-references/) takes `name` on its own,
 answers directly when a single declaration carries that name, and returns the
 candidates as `repository:path:line` under `AMBIGUOUS_SYMBOL` when several do.
 
-[`get_file_outline`](/reference/tools/get-file-outline/) is the other way in
+[`get_file_outline`](/docs/tools/get-file-outline/) is the other way in
 when you know the file or the package but not the name. It takes `repository`
 and `path` and returns the declarations grouped by file, each as a
 `name@start-end` entry with its kind, and those rows address the next call the
@@ -166,7 +167,7 @@ provenance, spelled with or without the parts a row shares with every other row.
 | --- | --- | --- |
 | `compact` | The default. Whatever every row of the page shares is stated once in a header, and a row carries only what the header could not state for it. | Every query tool |
 | `full` | The field-per-row shape: every field on every row, including the stable keys and the `language` the compact view drops. Ask for it when a client was written against that shape. | Every query tool |
-| `files` | Only which files hold the facts, with a count each. The answer to "which files do I open". | [`find_references`](/reference/tools/find-references/) and [`get_file_outline`](/reference/tools/get-file-outline/) |
+| `files` | Only which files hold the facts, with a count each. The answer to "which files do I open". | [`find_references`](/docs/tools/find-references/) and [`get_file_outline`](/docs/tools/get-file-outline/) |
 
 An unsupported value is `INVALID_ARGUMENT`, and so is `files` on a tool whose
 answer is not a set of files -- it fails rather than quietly returning something
@@ -174,16 +175,17 @@ else.
 
 Pick `compact` unless you have a reason, which is why it is the default: over the
 four reference questions of `benchmarks/codebase-memory-comparison`, measured on
-the `kena` corpus, they cost `13.594` tokens in the previous shape, `2.883` in the
-compact view and `963` in the files view, with precision and recall unchanged.
+the private benchmark corpus, they cost `13.594` tokens in the previous shape,
+`2.883` in the compact view and `963` in the files view, with precision and
+recall unchanged.
 `view` is never part of a cursor's identity, so a page taken in one view can be
 continued in another.
 
 Four tools group their rows by file and spell each row as a label:
-[`find_references`](/reference/tools/find-references/),
-[`trace_dependencies`](/reference/tools/trace-dependencies/),
-[`get_blast_radius`](/reference/tools/get-blast-radius/) and
-[`get_file_outline`](/reference/tools/get-file-outline/). Three habits make their
+[`find_references`](/docs/tools/find-references/),
+[`trace_dependencies`](/docs/tools/trace-dependencies/),
+[`get_blast_radius`](/docs/tools/get-blast-radius/) and
+[`get_file_outline`](/docs/tools/get-file-outline/). Three habits make their
 answers readable:
 
 - **Read the header first.** A field there applies to every row. A field missing
@@ -201,10 +203,10 @@ answers readable:
   needs a stable key.
 
 The other two spell a row as an object, for the same reason: their answer is not
-a set of files. [`find_symbol`](/reference/tools/find-symbol/) addresses a
+a set of files. [`find_symbol`](/docs/tools/find-symbol/) addresses a
 declaration with `at`, which is `path:line` under a header that names the
 repository and the whole `repository:path:line` triple when the rows come from
-more than one. [`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/)
+more than one. [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/)
 keeps a field per consumer -- `repo`, `pkg`, `at` -- because a package dependency
 has a repository and no file at all.
 
@@ -257,12 +259,12 @@ column the whole page agrees on:
 stays in the header; `kind` disagrees, so each group states its own and never
 repeats it on a row. Every tool's own reference page shows the full, unabridged
 capture:
-[`find_symbol`](/reference/tools/find-symbol/#example-grouped),
-[`find_references`](/reference/tools/find-references/#reading-a-grouped-page),
-[`trace_dependencies`](/reference/tools/trace-dependencies/#reading-a-grouped-page),
-[`get_blast_radius`](/reference/tools/get-blast-radius/#reading-a-grouped-page),
-[`get_file_outline`](/reference/tools/get-file-outline/#example-grouped) and
-[`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/#reading-a-grouped-page).
+[`find_symbol`](/docs/tools/find-symbol/#example-grouped),
+[`find_references`](/docs/tools/find-references/#reading-a-grouped-page),
+[`trace_dependencies`](/docs/tools/trace-dependencies/#reading-a-grouped-page),
+[`get_blast_radius`](/docs/tools/get-blast-radius/#reading-a-grouped-page),
+[`get_file_outline`](/docs/tools/get-file-outline/#example-grouped) and
+[`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/#reading-a-grouped-page).
 
 ## Read the answer
 
@@ -279,7 +281,7 @@ is not repeated as structured content.
 | `truncated` | Whether `returned` is less than `total`. | Only when it is `true` |
 | `next_cursor` | The opaque token for the next page. | Only when there is one |
 | `coverage` | Four disjoint counters over the **whole answer**, not this page: `exact`, `candidate`, `unresolved_related`, `package_level`. | Only the counters above zero, and absent entirely when all four are zero |
-| `snapshot_age_ms` | How long ago that generation was built. | Never; ask [`graph_status`](/reference/tools/graph-status/) for the age |
+| `snapshot_age_ms` | How long ago that generation was built. | Never; ask [`graph_status`](/docs/tools/graph-status/) for the age |
 | `guidance` | Present only when the count alone would mislead. | Unchanged |
 | `completeness` | Present only when the tool checked how far its answer reaches. | Unchanged |
 
@@ -529,10 +531,10 @@ and no dirty flag: nothing clones it and nothing can move it.
 It is withheld by default from the four served tools that could return one of
 its rows:
 
-- [`find_symbol`](/reference/tools/find-symbol/)
-- [`find_references`](/reference/tools/find-references/)
-- [`trace_dependencies`](/reference/tools/trace-dependencies/)
-- [`get_blast_radius`](/reference/tools/get-blast-radius/)
+- [`find_symbol`](/docs/tools/find-symbol/)
+- [`find_references`](/docs/tools/find-references/)
+- [`trace_dependencies`](/docs/tools/trace-dependencies/)
+- [`get_blast_radius`](/docs/tools/get-blast-radius/)
 
 The default is the difference between a usable answer and an unusable one: with
 the standard library in the graph, `find_references` on `Clone` or `Debug`
@@ -600,14 +602,14 @@ latency nor money is measured anywhere in the harness.
 Answers come from the published generation, not from your working tree. A file
 you edited a minute ago is not in the graph until a rebuild publishes it.
 
-[`graph_status`](/reference/tools/graph-status/) is how you find out. Its
+[`graph_status`](/docs/tools/graph-status/) is how you find out. Its
 `repository_freshness` block lists each repository with the commit it was
 indexed at and the commit its working tree is on now, and `repositories_moved`
 counts the ones that left the indexed commit. A repository whose HEAD could not
 be read is not counted as moved and not silently counted as fresh either.
 
 Rebuilding is `kivgraph index --full` from the CLI, or
-[`index_project`](/reference/tools/index-project/) from the client. The tool
+[`index_project`](/docs/tools/index-project/) from the client. The tool
 requires explicit user approval before it runs: called without `confirmed`, it
 returns `PERMISSION_REQUIRED`. A rebuild costs the whole corpus, so pass every
 project in one call. See [`/guides/indexing/`](/guides/indexing/) for the full

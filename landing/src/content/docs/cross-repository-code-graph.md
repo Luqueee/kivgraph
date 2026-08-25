@@ -1,5 +1,5 @@
 ---
-title: Cross-Repository Code Graph MCP Server for Workspaces
+title: Cross-Repository Code Graph MCP Server
 description: Build a local semantic code graph across multiple repositories and query cross-repository consumers, dependencies and change impact with Kivgraph.
 ---
 
@@ -33,6 +33,25 @@ kivgraph index --full
 ```
 
 The repository identity travels with the graph facts. A cross-repository consumer is not confused with a local caller, and every returned row carries the repository and repository-relative path needed for the next query.
+
+## What that is worth, measured
+
+One question from the published benchmark asks which files outside
+`platform-lib` consume the `StatusCode` enum it declares. Three files do.
+`find_cross_repo_consumers` returned all three in one call for 530 tokens, and
+reported the 22 package-level rows separately rather than counting them as
+uses. `grep` spent 12,200 tokens over seven calls and found two of the three:
+the consumer in `client-sdk:src/index.ts` never spells the symbol, so no
+text search reaches it.
+
+The benchmark corpus is private, so the repository, file and symbol names here
+are substituted. The counts, the calls and the token figures are the measured
+ones.
+
+That margin is not universal. On five of the 29 questions `grep` is the cheaper
+arm, all of them single-repository lookups of a rare name. Read the
+[comparison](/comparison/) before assuming the graph is always the shorter
+path.
 
 ## Semantic code graph versus architecture graph
 

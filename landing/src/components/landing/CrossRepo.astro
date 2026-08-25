@@ -1,0 +1,190 @@
+---
+// The repository boundary, drawn once. The subject, its package, the consumer,
+// the consumer's package, the edge kind and the counts are all from question
+// `X1_ts_shared_enum` of `benchmarks/graph-tools-comparison/results-all.json`,
+// commit `954b9eb`.
+//
+// The names are substituted: that corpus is 37 private repositories. What is not
+// substituted is anything a reader can check -- three exact consumers, 22
+// package-level rows, the edge kind, the token pairs -- and the figure says so
+// in its caption.
+//
+// The figure is two panels and a connector rather than a graph drawing, because
+// the only thing worth seeing is the edge leaving one repository and arriving in
+// another. On a narrow viewport the connector turns vertical and the panels
+// stack in the same reading order; nothing is shrunk until it stops being
+// legible.
+
+const sides = [
+  {
+    role: "declares",
+    repo: "platform-lib",
+    pkg: "@workspace/platform",
+    file: "src/errors/status.ts:29",
+    symbol: "StatusCode",
+  },
+  {
+    role: "consumes",
+    repo: "client-sdk",
+    pkg: "@workspace/sdk",
+    file: "src/index.ts:1",
+    symbol: "export *",
+  },
+];
+
+const facts = [
+  {
+    key: "the edge",
+    value:
+      "REEXPORTS, EXACT_TYPECHECKED, resolved by the TypeScript checker of the providing package — not by the two packages sharing a name.",
+  },
+  {
+    key: "what grep saw",
+    value:
+      "Nothing. The consuming file never spells the symbol, so no text search reaches it. Two of the three consumers were found; this was the third.",
+  },
+  {
+    key: "what a language server sees",
+    value:
+      "Its own workspace. A cross-repository consumer is outside it, so the question cannot be asked there at all.",
+  },
+  {
+    key: "kept apart on purpose",
+    value:
+      "The same answer carried 22 package-level rows. They are reported separately and never counted as uses: a package depending on a package is not a symbol using a symbol.",
+  },
+];
+---
+
+<div class="grid grid-cols-1 items-baseline gap-10 lg:grid-cols-2">
+  <div>
+    <p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+      An agent reads one repository at a time. The change it is about to make
+      does not stop there. Kivgraph registers every repository of a workspace
+      into one graph, keeps each one's identity inside the keys it publishes,
+      and answers who consumes a symbol from outside the repository that
+      declares it.
+    </p>
+    <p class="mt-5 max-w-[68ch] text-sm leading-6 text-gray-300">
+      This is the question with no cheap substitute. A text search finds a
+      consumer only if that consumer spells the name, and a language server
+      stops at the edge of its own workspace.
+    </p>
+    <p class="mt-5 text-xs">
+      <a
+        href="/cross-repository-code-graph/"
+        class="text-accent-200 underline underline-offset-4"
+        >how the cross-repository graph is built</a
+      >
+    </p>
+  </div>
+
+  <figure class="boundary">
+    <div class="panels">
+      {
+        sides.map((side) => (
+          <div class="border border-rule bg-panel font-mono">
+            <p class="border-b border-rule px-4 py-2 text-xs text-gray-400">
+              <span class="repo" aria-hidden="true" />
+              {side.repo}
+              <span class="text-gray-400"> · {side.pkg}</span>
+            </p>
+            <div class="px-4 py-3 text-xs">
+              <p class="text-gray-400">{side.role}</p>
+              <p class="mt-1 text-graph-symbol">{side.symbol}</p>
+              <p class="mt-1 break-all text-graph-file">{side.file}</p>
+            </div>
+          </div>
+        ))
+      }
+      <div class="link" aria-hidden="true"></div>
+    </div>
+    <figcaption class="mt-3 text-xs leading-5 text-gray-400">
+      One edge, crossing a repository boundary. Grep found the other two
+      consumers of this symbol and missed this one. The corpus is private, so the
+      names are substituted; the three consumers, the 22 package-level rows and
+      the edge kind are the measured ones.
+    </figcaption>
+  </figure>
+</div>
+
+<dl class="mt-10 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-rule pt-10 md:grid-cols-2">
+  {
+    facts.map((fact) => (
+      <div>
+        <dt class="text-xs text-gray-400">{fact.key}</dt>
+        <dd class="mt-1 max-w-[68ch] text-xs text-gray-300">{fact.value}</dd>
+      </div>
+    ))
+  }
+</dl>
+
+<style>
+  /* The two panels sit in a grid with a gap wide enough to hold the connector,
+     and the connector is a positioned child of that grid rather than a third
+     column: a third column would make the two panels different widths at every
+     breakpoint, and the boundary is supposed to read as symmetrical. */
+  .panels {
+    display: grid;
+    position: relative;
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  /* Vertical by default, which is the narrow case: the panels stack and the
+     edge runs down between them. */
+  .link {
+    position: absolute;
+    left: 50%;
+    top: calc(50% - 1.25rem);
+    height: 2.5rem;
+    border-left: 1px dashed var(--color-graph-cross);
+  }
+
+  .link::after {
+    position: absolute;
+    content: "";
+    bottom: 0;
+    left: -0.25rem;
+    width: 0;
+    height: 0;
+    border-top: 0.4rem solid var(--color-graph-cross);
+    border-right: 0.3rem solid transparent;
+    border-left: 0.3rem solid transparent;
+  }
+
+  /* Wide enough for two columns: the same edge, turned. */
+  @media (min-width: 40rem) {
+    .panels {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .link {
+      left: calc(50% - 1.25rem);
+      top: 50%;
+      width: 2.5rem;
+      height: 0;
+      border-left: 0;
+      border-top: 1px dashed var(--color-graph-cross);
+    }
+
+    .link::after {
+      top: -0.3rem;
+      right: 0;
+      bottom: auto;
+      left: auto;
+      border-top: 0.3rem solid transparent;
+      border-bottom: 0.3rem solid transparent;
+      border-right: 0;
+      border-left: 0.4rem solid var(--color-graph-cross);
+    }
+  }
+
+  .repo {
+    display: inline-block;
+    width: 0.5em;
+    height: 0.5em;
+    margin-right: 0.5em;
+    background-color: var(--color-graph-repository);
+  }
+</style>

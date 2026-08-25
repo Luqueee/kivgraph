@@ -11,13 +11,14 @@
 import Default from "@astrojs/starlight/components/Head.astro";
 import {
   LICENSE_URL,
+  PREVIEW_ALT,
   PROJECT_NAME,
   absoluteUrl,
   docDescription,
   docPathname,
+  hasRawMarkdown,
   isNotFoundPage,
   rawPathname,
-  segmentLabel,
   umamiTracker,
 } from "../../pages/_seo";
 
@@ -30,6 +31,8 @@ const isNotFound = isNotFoundPage(entry.id);
 
 const description = docDescription(entry);
 const preview = absoluteUrl(Astro.site, "/og.png");
+// What the preview shows is declared once, in `src/site.mjs`, because both
+// heads describe the same file.
 
 // The same analytics the landing shell emits: one instance covers both halves
 // of the site, so a visitor who walks from the landing into the documentation
@@ -43,6 +46,12 @@ const umami = umamiTracker();
 const canonical = absoluteUrl(Astro.site, docPathname(entry.id));
 const markdown = absoluteUrl(Astro.site, rawPathname(entry.id));
 
+// `/releases/` is a `<StarlightPage>`, so Starlight hands this override an
+// entry that looks like a collection page and has no markdown source behind it.
+// Only pages the collection really holds get the `rel="alternate"` link; the
+// index at `/llms.txt` is the same for every page and stays.
+const hasMarkdown = !isNotFound && (await hasRawMarkdown(entry.id));
+
 interface ListItem {
   "@type": "ListItem";
   position: number;
@@ -50,10 +59,20 @@ interface ListItem {
   item?: string;
 }
 
-// One crumb per URL segment. The intermediate segments (`reference`, `tools`,
-// `mcp`) have no page of their own, so they carry a name and no `item` rather
-// than a link to a 404; `item` is optional on schema.org's ListItem.
-const segments = entry.id.split("/");
+// Google lists `item` under the **required** properties of `ListItem`, with one
+// exception: the last crumb in the trail, whose URL it takes from the page.
+// This file used to emit one crumb per URL segment and leave `item` off the
+// intermediate ones, on the grounds that schema.org marks it optional. Both
+// halves of that are true and the conclusion was still wrong: `/docs/`,
+// `/docs/tools/`, `/guides/` and `/mcp/` are sidebar groups, all four answer
+// 404, and a crumb that cannot carry a URL cannot be published at all. Valid
+// schema.org, invalid for Google -- the difference between markup that parses
+// and a breadcrumb that appears.
+// https://developers.google.com/search/docs/appearance/structured-data/breadcrumb
+//
+// So the trail is the addressable steps, which is also what the guideline asks
+// for -- "breadcrumbs that represent a typical user path to a page, instead of
+// mirroring the URL structure" -- and it meets the two-item minimum.
 const breadcrumb: ListItem[] = [
   {
     "@type": "ListItem",
@@ -61,17 +80,13 @@ const breadcrumb: ListItem[] = [
     name: PROJECT_NAME,
     item: absoluteUrl(Astro.site, "/"),
   },
-];
-for (const [index, segment] of segments.entries()) {
-  const last = index === segments.length - 1;
-  const crumb: ListItem = {
+  {
     "@type": "ListItem",
-    position: index + 2,
-    name: last ? entry.data.title : segmentLabel(segment),
-  };
-  if (last) crumb.item = canonical;
-  breadcrumb.push(crumb);
-}
+    position: 2,
+    name: entry.data.title,
+    item: canonical,
+  },
+];
 
 // One graph, joined to the landing page's graph by `@id`. `SoftwareApplication`
 // and `WebSite` are declared once, on `/`, and referenced from every page here;
@@ -107,9 +122,17 @@ const structuredData = {
 <Default {...Astro.props}><slot /></Default>
 
 <meta property="og:image" content={preview} />
+{/* The dimensions and the type let a client reserve the space and pick the
+    large-summary layout before it has fetched the file. `og:image` itself is
+    above; Starlight emits none of these. */}
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:alt" content={PREVIEW_ALT} />
 <meta name="twitter:title" content={entry.data.title} />
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={preview} />
+<meta name="twitter:image:alt" content={PREVIEW_ALT} />
 
 {/* The rest of the icon set. Starlight emits the 32px one from its `favicon`
     option, so repeating it here would be the duplicate. `theme-color` is the
@@ -137,13 +160,16 @@ const structuredData = {
   !isNotFound && (
     <>
       {/* An agent that landed on the HTML can take the markdown source of this
-          page instead, or the index of every page, per llmstxt.org. */}
-      <link
-        rel="alternate"
-        type="text/markdown"
-        href={markdown}
-        title={`${entry.data.title} as markdown`}
-      />
+          page instead, per llmstxt.org, when there is one. The index of every
+          page there is, below, exists for all of them. */}
+      {hasMarkdown && (
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href={markdown}
+          title={`${entry.data.title} as markdown`}
+        />
+      )}
       <link rel="describedby" href={absoluteUrl(Astro.site, "/llms.txt")} />
       <script
         type="application/ld+json"
