@@ -1,8 +1,8 @@
 {
   "benchmark": "intent-token-cost",
   "command": "go run ./benchmarks/intent-token-cost -server /tmp/kivgraph-witness-bin",
-  "commit": "e824bd86e9845d1cca06e72e309b38ea719f610b",
-  "generated_at": "2026-08-25T18:26:27Z",
+  "commit": "328694fe3dbe3f79777bb4bda401063d306bfc85-dirty",
+  "generated_at": "2026-08-25T19:09:17Z",
   "environment": {
     "os": "darwin",
     "arch": "arm64",
@@ -10,19 +10,24 @@
   },
   "dataset": {
     "question_set": "benchmarks/intent-token-cost/questions.json",
-    "question_set_version": 1,
-    "questions": 8,
-    "repository": "kivgraph",
-    "native_scope": "git grep -l -i over internal and cmd",
+    "question_set_version": 2,
+    "questions": 24,
+    "repositories": [
+      "api-db-go",
+      "kivgraph",
+      "mole"
+    ],
+    "native_scope": "git grep -l -i over internal and cmd, in the checkout the question names",
     "seed": "none: both arms are deterministic"
   },
   "tokenizer": "cl100k_base",
   "snapshot_id": 191,
   "question": "which files hold the answer to a question that names no symbol",
-  "ground_truth": "established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain; every answer file must exist in the indexed corpus, which is the registered repository and not this worktree",
+  "ground_truth": "established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain -- checked mechanically, by splitting every declared name of the answer file into words and refusing any phrase that shares one; every answer file was confirmed present in the indexed corpus, and each repository name maps to the registered checkout the graph indexed rather than to a worktree, so both arms walk the same tree",
   "results": [
     {
       "intent": "which code refuses to publish a generation when the disk is nearly full",
+      "repo": "kivgraph",
       "class": "common_vocabulary",
       "answer": [
         "internal/storage/generation/store.go",
@@ -44,6 +49,14 @@
         "total": 5639,
         "truncated": true
       },
+      "kivgraph_scoped": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 298,
+        "body_tokens": 5342,
+        "total": 5640,
+        "truncated": true
+      },
       "answer_factor": 0.8720538720538721,
       "session_factor": 0.9932612165277531,
       "unmatched_terms": [
@@ -55,6 +68,7 @@
     },
     {
       "intent": "how does a reader tell that a snapshot file does not belong to the generation it was found beside",
+      "repo": "kivgraph",
       "class": "common_vocabulary",
       "answer": [
         "internal/hotsnapshot/file.go"
@@ -62,10 +76,10 @@
       "native_pattern": "snapshot file",
       "native": {
         "rank": 2,
-        "files_offered": 7,
-        "answer_tokens": 58,
+        "files_offered": 6,
+        "answer_tokens": 47,
         "body_tokens": 6409,
-        "total": 6467
+        "total": 6456
       },
       "kivgraph": {
         "rank": 5,
@@ -75,8 +89,16 @@
         "total": 6712,
         "truncated": true
       },
-      "answer_factor": 0.19141914191419143,
-      "session_factor": 0.9634982121573301,
+      "kivgraph_scoped": {
+        "rank": 3,
+        "files_offered": 10,
+        "answer_tokens": 303,
+        "body_tokens": 6409,
+        "total": 6712,
+        "truncated": true
+      },
+      "answer_factor": 0.1551155115511551,
+      "session_factor": 0.9618593563766389,
       "unmatched_terms": [
         "does",
         "tell",
@@ -88,6 +110,7 @@
     },
     {
       "intent": "where is every tool of this server registered",
+      "repo": "kivgraph",
       "class": "common_vocabulary",
       "answer": [
         "internal/mcp/server.go"
@@ -95,27 +118,36 @@
       "native_pattern": "registered",
       "native": {
         "rank": 0,
-        "files_offered": 75,
-        "answer_tokens": 619,
-        "body_tokens": 1951,
-        "total": 2570
+        "files_offered": 72,
+        "answer_tokens": 593,
+        "body_tokens": 1931,
+        "total": 2524
       },
       "kivgraph": {
         "rank": 9,
         "files_offered": 10,
         "answer_tokens": 299,
-        "body_tokens": 1951,
-        "total": 2250,
+        "body_tokens": 1931,
+        "total": 2230,
         "truncated": true
       },
-      "answer_factor": 2.0702341137123748,
-      "session_factor": 1.1422222222222222,
+      "kivgraph_scoped": {
+        "rank": 9,
+        "files_offered": 10,
+        "answer_tokens": 297,
+        "body_tokens": 1931,
+        "total": 2228,
+        "truncated": true
+      },
+      "answer_factor": 1.9832775919732442,
+      "session_factor": 1.1318385650224214,
       "unmatched_terms": [
         "where"
       ]
     },
     {
       "intent": "how is a page token from a different question rejected",
+      "repo": "kivgraph",
       "class": "rare_vocabulary",
       "answer": [
         "internal/mcp/tools/cursor.go"
@@ -136,11 +168,21 @@
         "total": 2828,
         "truncated": true
       },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 289,
+        "body_tokens": 2541,
+        "total": 2830,
+        "truncated": true
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
       "answer_factor": 0,
       "session_factor": 0.8985148514851485
     },
     {
       "intent": "where does the daemon decide which client owns it",
+      "repo": "kivgraph",
       "class": "rare_vocabulary",
       "answer": [
         "internal/daemon/daemon.go"
@@ -161,6 +203,14 @@
         "total": 2722,
         "truncated": true
       },
+      "kivgraph_scoped": {
+        "rank": 2,
+        "files_offered": 10,
+        "answer_tokens": 295,
+        "body_tokens": 2427,
+        "total": 2722,
+        "truncated": true
+      },
       "answer_factor": 1.5559322033898304,
       "session_factor": 1.0602498163115357,
       "unmatched_terms": [
@@ -173,6 +223,7 @@
     },
     {
       "intent": "which command prints the build provenance as json",
+      "repo": "kivgraph",
       "class": "rare_vocabulary",
       "answer": [
         "cmd/kivgraph/version.go"
@@ -180,10 +231,10 @@
       "native_pattern": "provenance",
       "native": {
         "rank": 3,
-        "files_offered": 75,
-        "answer_tokens": 685,
+        "files_offered": 71,
+        "answer_tokens": 647,
         "body_tokens": 217,
-        "total": 902
+        "total": 864
       },
       "kivgraph": {
         "rank": 0,
@@ -193,8 +244,17 @@
         "total": 507,
         "truncated": true
       },
-      "answer_factor": 2.3620689655172415,
-      "session_factor": 1.7790927021696252,
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 294,
+        "body_tokens": 217,
+        "total": 511,
+        "truncated": true
+      },
+      "miss_cause": "outranked: 6 word(s) reached the graph, 2 reached nothing, and other files scored higher",
+      "answer_factor": 2.231034482758621,
+      "session_factor": 1.7041420118343196,
       "unmatched_terms": [
         "which",
         "the"
@@ -202,6 +262,7 @@
     },
     {
       "intent": "where is the compiler's own library path handed to the rust analyzer",
+      "repo": "kivgraph",
       "class": "rare_vocabulary",
       "answer": [
         "internal/rustloader/sysroot.go"
@@ -222,6 +283,15 @@
         "total": 1779,
         "truncated": true
       },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 295,
+        "body_tokens": 1481,
+        "total": 1776,
+        "truncated": true
+      },
+      "miss_cause": "outranked: 8 word(s) reached the graph, 3 reached nothing, and other files scored higher",
       "answer_factor": 0.030201342281879196,
       "session_factor": 0.8375491849353569,
       "unmatched_terms": [
@@ -232,6 +302,7 @@
     },
     {
       "intent": "how does a traversal keep from walking the whole graph",
+      "repo": "kivgraph",
       "class": "common_vocabulary",
       "answer": [
         "internal/hotsnapshot/traversal.go"
@@ -239,10 +310,10 @@
       "native_pattern": "walking",
       "native": {
         "rank": 0,
-        "files_offered": 14,
-        "answer_tokens": 127,
+        "files_offered": 11,
+        "answer_tokens": 100,
         "body_tokens": 1990,
-        "total": 2117
+        "total": 2090
       },
       "kivgraph": {
         "rank": 1,
@@ -252,38 +323,702 @@
         "total": 2283,
         "truncated": true
       },
-      "answer_factor": 0.4334470989761092,
-      "session_factor": 0.9272886552781427,
+      "kivgraph_scoped": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 292,
+        "body_tokens": 1990,
+        "total": 2282,
+        "truncated": true
+      },
+      "answer_factor": 0.3412969283276451,
+      "session_factor": 0.9154621112571178,
       "unmatched_terms": [
         "does",
         "walking",
         "the"
       ]
+    },
+    {
+      "intent": "why a program on the far machine bound to an outside address is skipped",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/discover/discover.go"
+      ],
+      "native_pattern": "outside address",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 1228,
+        "total": 1228
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 305,
+        "body_tokens": 1228,
+        "total": 1533,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 4,
+        "answer_tokens": 121,
+        "body_tokens": 1228,
+        "total": 1349
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.8010437051532941,
+      "unmatched_terms": [
+        "the",
+        "machine",
+        "an"
+      ]
+    },
+    {
+      "intent": "where the connection is aborted because the machine proves a different identity than before",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/tunnel/hostkey.go"
+      ],
+      "native_pattern": "identity changed",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 1833,
+        "total": 1833
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 303,
+        "body_tokens": 1833,
+        "total": 2136,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 5,
+        "answer_tokens": 143,
+        "body_tokens": 1833,
+        "total": 1976
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.8581460674157303,
+      "unmatched_terms": [
+        "where",
+        "the",
+        "because",
+        "machine",
+        "than"
+      ]
+    },
+    {
+      "intent": "where one rejected forward request does not tear down the whole shared link",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/tunnel/tunnel.go"
+      ],
+      "native_pattern": "rejected request",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 4241,
+        "total": 4241
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 305,
+        "body_tokens": 4241,
+        "total": 4546,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 4,
+        "answer_tokens": 124,
+        "body_tokens": 4241,
+        "total": 4365
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.932908051033876,
+      "unmatched_terms": [
+        "where",
+        "does",
+        "tear",
+        "the"
+      ]
+    },
+    {
+      "intent": "where the far end learns no more bytes are coming from one side",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/proxy/proxy.go"
+      ],
+      "native_pattern": "no more bytes",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 701,
+        "total": 701
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 313,
+        "body_tokens": 701,
+        "total": 1014,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 2,
+        "answer_tokens": 91,
+        "body_tokens": 701,
+        "total": 792
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.6913214990138067,
+      "unmatched_terms": [
+        "where",
+        "the",
+        "learns",
+        "are",
+        "coming"
+      ]
+    },
+    {
+      "intent": "where changing one setting on disk leaves the user's comments and ordering untouched",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/config/config.go"
+      ],
+      "native_pattern": "comments preserved",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 3507,
+        "total": 3507
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 309,
+        "body_tokens": 3507,
+        "total": 3816,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 3,
+        "answer_tokens": 104,
+        "body_tokens": 3507,
+        "total": 3611
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.9190251572327044,
+      "unmatched_terms": [
+        "where",
+        "disk",
+        "the"
+      ]
+    },
+    {
+      "intent": "where an oversized picture upload is turned away instead of being stored",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/clip/server.go"
+      ],
+      "native_pattern": "oversized upload",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 1635,
+        "total": 1635
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 309,
+        "body_tokens": 1635,
+        "total": 1944,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 3,
+        "answer_tokens": 115,
+        "body_tokens": 1635,
+        "total": 1750
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.8410493827160493,
+      "unmatched_terms": [
+        "where",
+        "an",
+        "picture",
+        "upload",
+        "turned",
+        "away",
+        "instead",
+        "being"
+      ]
+    },
+    {
+      "intent": "where starting a second background copy is refused while one already runs",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "cmd/mole/daemon.go"
+      ],
+      "native_pattern": "already running",
+      "native": {
+        "rank": 1,
+        "files_offered": 1,
+        "answer_tokens": 7,
+        "body_tokens": 1963,
+        "total": 1970
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 318,
+        "body_tokens": 1963,
+        "total": 2281,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 3,
+        "answer_tokens": 101,
+        "body_tokens": 1963,
+        "total": 2064
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0.0220125786163522,
+      "session_factor": 0.8636562911003945,
+      "unmatched_terms": [
+        "where",
+        "while"
+      ]
+    },
+    {
+      "intent": "where tailing the daemon output detects the file shrank and reopens it",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/mole/logs.go"
+      ],
+      "native_pattern": "shrank",
+      "native": {
+        "rank": 1,
+        "files_offered": 1,
+        "answer_tokens": 6,
+        "body_tokens": 2177,
+        "total": 2183
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 299,
+        "body_tokens": 2177,
+        "total": 2476,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 4,
+        "answer_tokens": 132,
+        "body_tokens": 2177,
+        "total": 2309
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0.020066889632107024,
+      "session_factor": 0.8816639741518578,
+      "unmatched_terms": [
+        "where",
+        "tailing",
+        "the",
+        "shrank",
+        "reopens",
+        "it"
+      ]
+    },
+    {
+      "intent": "where a bulk transfer refuses to run when the destination looks like live production",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/clone-db/main.go"
+      ],
+      "native_pattern": "destination",
+      "native": {
+        "rank": 0,
+        "files_offered": 3,
+        "answer_tokens": 30,
+        "body_tokens": 1540,
+        "total": 1570
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 313,
+        "body_tokens": 1540,
+        "total": 1853,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 315,
+        "body_tokens": 1540,
+        "total": 1855,
+        "truncated": true
+      },
+      "miss_cause": "outranked: 11 word(s) reached the graph, 2 reached nothing, and other files scored higher",
+      "answer_factor": 0.09584664536741214,
+      "session_factor": 0.8472746896923907,
+      "unmatched_terms": [
+        "where",
+        "the"
+      ]
+    },
+    {
+      "intent": "where preparing the tables stops early because something else already created them",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/infrastructure/postgres/migrate.go"
+      ],
+      "native_pattern": "preparing tables",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 2774,
+        "total": 2774
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 318,
+        "body_tokens": 2774,
+        "total": 3092,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 326,
+        "body_tokens": 2774,
+        "total": 3100,
+        "truncated": true
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0,
+      "session_factor": 0.8971539456662354,
+      "unmatched_terms": [
+        "where",
+        "the",
+        "stops",
+        "early",
+        "because",
+        "something",
+        "else",
+        "them"
+      ]
+    },
+    {
+      "intent": "where an unexpected crash inside a request becomes a normal error reply instead of raw html",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/application/middlewares/recover.go"
+      ],
+      "native_pattern": "crash",
+      "native": {
+        "rank": 0,
+        "files_offered": 7,
+        "answer_tokens": 70,
+        "body_tokens": 573,
+        "total": 643
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 304,
+        "body_tokens": 573,
+        "total": 877,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 307,
+        "body_tokens": 573,
+        "total": 880,
+        "truncated": true
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0.23026315789473684,
+      "session_factor": 0.7331812998859749,
+      "unmatched_terms": [
+        "where",
+        "an",
+        "crash",
+        "becomes",
+        "instead"
+      ]
+    },
+    {
+      "intent": "how it goes back to the remote coordinator only after several good replies in a row",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/infrastructure/locker/locker.go"
+      ],
+      "native_pattern": "remote coordinator",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 1856,
+        "total": 1856
+      },
+      "kivgraph": {
+        "rank": 5,
+        "files_offered": 10,
+        "answer_tokens": 291,
+        "body_tokens": 1856,
+        "total": 2147,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 319,
+        "body_tokens": 1856,
+        "total": 2175,
+        "truncated": true
+      },
+      "answer_factor": 0,
+      "session_factor": 0.8644620400558919,
+      "unmatched_terms": [
+        "it",
+        "goes",
+        "the",
+        "good"
+      ]
+    },
+    {
+      "intent": "at startup, where absent table shards produce a printed command an operator can paste",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/infrastructure/postgres/partition_health.go"
+      ],
+      "native_pattern": "shard",
+      "native": {
+        "rank": 0,
+        "files_offered": 2,
+        "answer_tokens": 19,
+        "body_tokens": 1868,
+        "total": 1887
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 304,
+        "body_tokens": 1868,
+        "total": 2172,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 312,
+        "body_tokens": 1868,
+        "total": 2180,
+        "truncated": true
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0.0625,
+      "session_factor": 0.8687845303867403,
+      "unmatched_terms": [
+        "where",
+        "an",
+        "can"
+      ]
+    },
+    {
+      "intent": "where the label naming who produced a reply falls back to a placeholder",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/application/handlers/headers.go"
+      ],
+      "native_pattern": "placeholder",
+      "native": {
+        "rank": 0,
+        "files_offered": 13,
+        "answer_tokens": 153,
+        "body_tokens": 741,
+        "total": 894
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 322,
+        "body_tokens": 741,
+        "total": 1063,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 330,
+        "body_tokens": 741,
+        "total": 1071,
+        "truncated": true
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0.4751552795031056,
+      "session_factor": 0.8410159924741298,
+      "unmatched_terms": [
+        "where",
+        "the",
+        "who",
+        "falls"
+      ]
+    },
+    {
+      "intent": "where an old variable that is no longer read is reported at boot",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/shared/config/config.go"
+      ],
+      "native_pattern": "variable",
+      "native": {
+        "rank": 12,
+        "files_offered": 13,
+        "answer_tokens": 139,
+        "body_tokens": 2858,
+        "total": 2997
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 318,
+        "body_tokens": 2858,
+        "total": 3176,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 333,
+        "body_tokens": 2858,
+        "total": 3191,
+        "truncated": true
+      },
+      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "answer_factor": 0.4371069182389937,
+      "session_factor": 0.943639798488665,
+      "unmatched_terms": [
+        "where",
+        "an",
+        "that",
+        "longer"
+      ]
+    },
+    {
+      "intent": "why a partial save with no usable fields is refused instead of touching the record",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/application/handlers/bots_guilds_handler.go"
+      ],
+      "native_pattern": "fields",
+      "native": {
+        "rank": 2,
+        "files_offered": 185,
+        "answer_tokens": 2093,
+        "body_tokens": 3553,
+        "total": 5646
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 323,
+        "body_tokens": 3553,
+        "total": 3876,
+        "truncated": true
+      },
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 333,
+        "body_tokens": 3553,
+        "total": 3886,
+        "truncated": true
+      },
+      "miss_cause": "outranked: 12 word(s) reached the graph, 2 reached nothing, and other files scored higher",
+      "answer_factor": 6.479876160990712,
+      "session_factor": 1.456656346749226,
+      "unmatched_terms": [
+        "instead",
+        "the"
+      ]
     }
   ],
   "totals": {
-    "questions": 8,
-    "native_hits": 3,
-    "kivgraph_hits": 5,
-    "native_top_one": 0,
+    "questions": 24,
+    "native_hits": 7,
+    "kivgraph_hits": 6,
+    "native_top_one": 2,
     "kivgraph_top_one": 2,
-    "native_answer_tokens": 2216,
-    "kivgraph_answer_tokens": 2362,
-    "body_tokens": 22358,
+    "kivgraph_scoped_hits": 6,
+    "miss_crowded_out": 0,
+    "miss_outranked": 4,
+    "miss_unreachable": 14,
+    "native_answer_tokens": 4631,
+    "kivgraph_answer_tokens": 7316,
+    "body_tokens": 55386,
     "shared_hits": 2,
-    "native_answer_tokens_on_shared_hits": 317,
+    "native_answer_tokens_on_shared_hits": 306,
     "kivgraph_answer_tokens_on_shared_hits": 600,
-    "answer_factor_on_shared_hits": 0.5283333333333333,
-    "answer_factor": 0.9381879762912786,
-    "session_factor": 0.9940938511326861,
-    "session_ceiling": 1.099114410949101,
-    "median_answer_factor": 0.6527504855149906
+    "answer_factor_on_shared_hits": 0.51,
+    "answer_factor": 0.6329961727720066,
+    "session_factor": 0.9571783994130969,
+    "session_ceiling": 1.0836131874480917,
+    "median_answer_factor": 0.046350671140939596
   },
   "limitations": [
+    "the working tree carried uncommitted changes: git grep walked them, and so did the server binary only if it was rebuilt from them",
     "a native search that matches nothing costs zero tokens and answers nothing, so the totals over every question flatter whichever arm missed; the shared-hit factor is the honest one",
     "the ground truth is one reader's judgement of which file answers each question; a second reader may accept a file this run scores as a miss",
-    "8 questions over one repository at generation 191: a set this size states a direction, not a rate",
+    "24 questions over 3 repositories at generation 191: a set this size states a direction, not a rate",
     "measured on darwin/arm64 with go1.26.4: the native arm walks a working tree, so its cost is not portable across checkouts",
-    "3 question(s) are not answered by this tool at any rank; the vocabulary of the phrase is not in the graph"
+    "18 question(s) are not answered by this tool at any rank; the vocabulary of the phrase is not in the graph"
   ]
 }

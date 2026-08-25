@@ -32,10 +32,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Luqueee/kivgraph/internal/retrieval"
 	"github.com/pkoukk/tiktoken-go"
 	tiktokenloader "github.com/pkoukk/tiktoken-go-loader"
 )
@@ -51,13 +54,18 @@ const (
 )
 
 type questionSet struct {
-	Version     int    `json:"version"`
-	Tokenizer   string `json:"tokenizer"`
-	Repository  string `json:"repository"`
-	Question    string `json:"question"`
-	GroundTruth string `json:"ground_truth"`
-	Questions   []struct {
+	Version   int    `json:"version"`
+	Tokenizer string `json:"tokenizer"`
+	// Repositories maps the name a question names to the checkout the native
+	// arm walks and the bodies are read from. A set that spans repositories
+	// needs the mapping and not just a label: this corpus holds three, and two
+	// of them have an internal/ directory, so a path alone names no file.
+	Repositories map[string]string `json:"repositories"`
+	Question     string            `json:"question"`
+	GroundTruth  string            `json:"ground_truth"`
+	Questions    []struct {
 		Intent string   `json:"intent"`
+		Repo   string   `json:"repo"`
 		Class  string   `json:"class"`
 		Answer []string `json:"answer"`
 		Native struct {
@@ -82,11 +90,21 @@ type arm struct {
 
 type questionResult struct {
 	Intent   string   `json:"intent"`
+	Repo     string   `json:"repo"`
 	Class    string   `json:"class"`
 	Answer   []string `json:"answer"`
 	Pattern  string   `json:"native_pattern"`
 	Native   arm      `json:"native"`
 	Kivgraph arm      `json:"kivgraph"`
+	// Scoped is the same question with the repository named. It is not the arm
+	// the accuracy is judged on -- an asker who does not know the symbol may
+	// not know the service either -- but it separates two failures that share
+	// one zero: a corpus whose vocabulary cannot reach the file, and three
+	// repositories competing for one window of ten rows.
+	Scoped arm `json:"kivgraph_scoped"`
+	// MissCause names why the unscoped arm missed, and it is the number that
+	// decides whether more weight or more corpus is the answer.
+	MissCause string `json:"miss_cause,omitempty"`
 	// Two factors, because one alone misleads. Answer compares only what each
 	// side spends to land on the file; session adds the body both sides then
 	// read, and that body is identical, so the session factor has a ceiling
@@ -102,6 +120,16 @@ type totals struct {
 	KivgraphHits   int `json:"kivgraph_hits"`
 	NativeTopOne   int `json:"native_top_one"`
 	KivgraphTopOne int `json:"kivgraph_top_one"`
+	// ScopedHits is the same tool told which repository to look in. The gap
+	// between it and KivgraphHits is the price of one window shared by three
+	// repositories, and it is not this surface's accuracy.
+	ScopedHits int `json:"kivgraph_scoped_hits"`
+	// The three reasons a zero happens, which are three different bills: a
+	// crowded window is a parameter away, an outranked file is weights, and an
+	// absent vocabulary is a schema version and a full rebuild.
+	MissCrowded    int `json:"miss_crowded_out"`
+	MissOutranked  int `json:"miss_outranked"`
+	MissNoTerm     int `json:"miss_unreachable"`
 	NativeAnswer   int `json:"native_answer_tokens"`
 	KivgraphAnswer int `json:"kivgraph_answer_tokens"`
 	Bodies         int `json:"body_tokens"`
@@ -132,11 +160,11 @@ type environment struct {
 // dataset declares what was asked and over what, so a reader can tell two runs
 // apart when the question set changes underneath them.
 type dataset struct {
-	QuestionSet        string `json:"question_set"`
-	QuestionSetVersion int    `json:"question_set_version"`
-	Questions          int    `json:"questions"`
-	Repository         string `json:"repository"`
-	NativeScope        string `json:"native_scope"`
+	QuestionSet        string   `json:"question_set"`
+	QuestionSetVersion int      `json:"question_set_version"`
+	Questions          int      `json:"questions"`
+	Repositories       []string `json:"repositories"`
+	NativeScope        string   `json:"native_scope"`
 	// There is no seed: every arm of this benchmark is deterministic given a
 	// generation and a working tree, and a seed nobody uses is a field that
 	// implies a sampling this harness does not do.
@@ -163,7 +191,6 @@ type config struct {
 	Server     string
 	ConfigPath string
 	Directory  string
-	Repository string
 }
 
 func main() {
@@ -171,7 +198,6 @@ func main() {
 	flag.StringVar(&cfg.Server, "server", "kivgraph", "kivgraph executable to measure")
 	flag.StringVar(&cfg.ConfigPath, "config", "", "optional --config passed to kivgraph serve")
 	flag.StringVar(&cfg.Directory, "dir", "benchmarks/intent-token-cost", "benchmark directory holding questions.json")
-	flag.StringVar(&cfg.Repository, "repository", "kivgraph", "indexed repository the questions belong to")
 	flag.Parse()
 	if err := run(context.Background(), cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -204,8 +230,9 @@ func run(ctx context.Context, cfg config) error {
 		Environment: environment{OS: runtime.GOOS, Arch: runtime.GOARCH, GoVersion: runtime.Version()},
 		Dataset: dataset{
 			QuestionSet: filepath.Join(cfg.Directory, "questions.json"), QuestionSetVersion: set.Version,
-			Questions: len(set.Questions), Repository: set.Repository,
-			NativeScope: "git grep -l -i over internal and cmd", Seed: "none: both arms are deterministic",
+			Questions: len(set.Questions), Repositories: repositoryNames(set.Repositories),
+			NativeScope: "git grep -l -i over internal and cmd, in the checkout the question names",
+			Seed:        "none: both arms are deterministic",
 		},
 		Tokenizer:   encodingName,
 		Question:    set.Question,
@@ -219,22 +246,42 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	for _, question := range set.Questions {
+		directory, declared := set.Repositories[question.Repo]
+		if !declared {
+			return fmt.Errorf("question %q names repository %q, which the set does not map to a checkout",
+				question.Intent, question.Repo)
+		}
 		result := questionResult{
-			Intent: question.Intent, Class: question.Class,
+			Intent: question.Intent, Repo: question.Repo, Class: question.Class,
 			Answer: question.Answer, Pattern: question.Native.Pattern,
 		}
-		body, err := bodyTokens(question.Answer, tokens)
+		body, err := bodyTokens(directory, question.Answer, tokens)
 		if err != nil {
 			return err
 		}
-		if result.Native, err = measureNative(question.Native.Pattern, question.Answer, body, tokens); err != nil {
+		if result.Native, err = measureNative(
+			question.Native.Pattern, directory, question.Repo, question.Answer, body, tokens); err != nil {
 			return err
 		}
 		result.Kivgraph, result.UnmatchedTerms, err = measureIntent(
-			ctx, session, question.Intent, question.Answer, body, tokens)
+			ctx, session, question.Intent, question.Repo, "", question.Answer, body, tokens)
 		if err != nil {
 			return err
 		}
+		if result.Scoped, _, err = measureIntent(
+			ctx, session, question.Intent, question.Repo, question.Repo,
+			question.Answer, body, tokens); err != nil {
+			return err
+		}
+		reaches := false
+		if result.Kivgraph.Rank == 0 && result.Scoped.Rank == 0 {
+			if reaches, err = reachable(
+				ctx, session, question.Intent, question.Repo, question.Answer[0]); err != nil {
+				return err
+			}
+		}
+		result.MissCause = missCause(
+			result.Kivgraph, result.Scoped, question.Intent, result.UnmatchedTerms, reaches)
 		result.AnswerFactor = factor(result.Native.Answer, result.Kivgraph.Answer)
 		result.SessionFactor = factor(result.Native.Total, result.Kivgraph.Total)
 		out.Results = append(out.Results, result)
@@ -256,7 +303,7 @@ func run(ctx context.Context, cfg config) error {
 // lands in it. The rank is the position of the first ground-truth file in the
 // order the search reports its files, because that is the order the reader
 // opens them in.
-func measureNative(pattern string, answer []string, body int, tokens *counter) (arm, error) {
+func measureNative(pattern, directory, repo string, answer []string, body int, tokens *counter) (arm, error) {
 	// The strongest native arm, not the most flattering one. Full match lines
 	// over the whole tree price a payload no agent pastes -- one word of these
 	// questions reports over two million tokens of lockfiles and generated
@@ -264,6 +311,10 @@ func measureNative(pattern string, answer []string, body int, tokens *counter) (
 	// source, and that is both the cheapest baseline and the one at the same
 	// granularity as view=files, so the comparison is like for like.
 	command := exec.Command("git", "grep", "-l", "-i", "--", pattern, "internal", "cmd")
+	// The search runs where the question lives. Every repository of this corpus
+	// keeps its Go under internal/ and cmd/, so the scope is one rule and not a
+	// table, but the checkout is not: a grep in the wrong tree scores nothing.
+	command.Dir = directory
 	output, err := command.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -273,9 +324,13 @@ func measureNative(pattern string, answer []string, body int, tokens *counter) (
 		}
 	}
 	text := string(output)
-	files := strings.Fields(text)
+	paths := strings.Fields(text)
+	files := make([]offeredFile, 0, len(paths))
+	for _, path := range paths {
+		files = append(files, offeredFile{repo: repo, path: path})
+	}
 	return arm{
-		Rank:   rankOf(files, answer),
+		Rank:   rankOf(files, repo, answer),
 		Files:  len(files),
 		Answer: tokens.count(text),
 		Body:   body,
@@ -291,13 +346,23 @@ func measureIntent(
 	ctx context.Context,
 	session *sdkmcp.ClientSession,
 	intent string,
+	repo string,
+	scope string,
 	answer []string,
 	body int,
 	tokens *counter,
 ) (arm, []string, error) {
-	text, err := call(ctx, session, "find_by_intent", map[string]any{
-		"intent": intent, "view": "files", "limit": intentLimit,
-	})
+	// The repository is not passed as a filter. Narrowing the question to the
+	// tree that holds its answer would measure a search the asker cannot make:
+	// not knowing the name is the premise, and not knowing which repository is
+	// part of not knowing. The rows from elsewhere stay, and they cost rank.
+	// A second, scoped call is measured beside it, and only to tell the two
+	// failures apart -- never to report the accuracy of this surface.
+	arguments := map[string]any{"intent": intent, "view": "files", "limit": intentLimit}
+	if scope != "" {
+		arguments["repo"] = scope
+	}
+	text, err := call(ctx, session, "find_by_intent", arguments)
 	if err != nil {
 		return arm{}, nil, err
 	}
@@ -306,6 +371,7 @@ func measureIntent(
 		Results   struct {
 			Files []struct {
 				File string `json:"file"`
+				Repo string `json:"repo"`
 			} `json:"files"`
 			UnmatchedTerms []string `json:"unmatched_terms"`
 		} `json:"results"`
@@ -313,12 +379,12 @@ func measureIntent(
 	if err := json.Unmarshal([]byte(text), &payload); err != nil {
 		return arm{}, nil, fmt.Errorf("decode find_by_intent payload: %w", err)
 	}
-	files := make([]string, 0, len(payload.Results.Files))
+	files := make([]offeredFile, 0, len(payload.Results.Files))
 	for _, file := range payload.Results.Files {
-		files = append(files, file.File)
+		files = append(files, offeredFile{repo: file.Repo, path: file.File})
 	}
 	return arm{
-		Rank:      rankOf(files, answer),
+		Rank:      rankOf(files, repo, answer),
 		Files:     len(files),
 		Answer:    tokens.count(text),
 		Body:      body,
@@ -327,13 +393,62 @@ func measureIntent(
 	}, payload.Results.UnmatchedTerms, nil
 }
 
+// missCause names the reason an unscoped answer did not carry the file, and the
+// order of the checks is the order of the evidence: a scoped answer that does
+// carry it proves the corpus could reach it, so the window was the constraint
+// and not the vocabulary. Only when no word of the phrase folds to a term this
+// corpus carries is the index the ceiling; in between, it is the ranking's.
+// reachable asks whether the answer file carries any term of the phrase at all,
+// by narrowing the same question to that one path. A file that answers nothing
+// even when the search is pointed straight at it is not outranked: no weight
+// can lift a score of zero, and its vocabulary is simply not in the graph. That
+// is the difference between a ranking bill and a schema bill.
+func reachable(ctx context.Context, session *sdkmcp.ClientSession, intent, repo, path string) (bool, error) {
+	text, err := call(ctx, session, "find_by_intent", map[string]any{
+		"intent": intent, "view": "files", "limit": 1,
+		"repo": repo, "path_prefix": path,
+	})
+	if err != nil {
+		return false, err
+	}
+	var payload struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		return false, fmt.Errorf("decode find_by_intent reach probe: %w", err)
+	}
+	return payload.Total > 0, nil
+}
+
+// missCause needs to know how many words of the phrase reached the graph, and
+// the files view does not carry the term roster: that roster is emitted only
+// when it explains a bad answer, which is a deliberate cut. So the count comes
+// from the words the server itself would keep -- the same function, from the
+// same tree that built the binary under measurement -- minus the ones it
+// reported as reaching nothing. Coupling the diagnosis to the tokenizer is what
+// makes it exact instead of a guess about where a word boundary falls.
+func missCause(unscoped, scoped arm, intent string, unmatched []string, reaches bool) string {
+	if unscoped.Rank > 0 {
+		return ""
+	}
+	if scoped.Rank > 0 {
+		return "crowded out: rank " + strconv.Itoa(scoped.Rank) + " inside its own repository"
+	}
+	matched := len(retrieval.QueryWords(intent, nil)) - len(unmatched)
+	if !reaches {
+		return "unreachable: the answer file carries no term of the phrase, so no weight can rank it"
+	}
+	return "outranked: " + strconv.Itoa(matched) + " word(s) reached the graph, " +
+		strconv.Itoa(len(unmatched)) + " reached nothing, and other files scored higher"
+}
+
 // bodyTokens is the source both arms read once they have landed. It is the same
 // number on both sides by construction, which is what makes the session factor
 // a bound rather than a headline.
-func bodyTokens(answer []string, tokens *counter) (int, error) {
+func bodyTokens(directory string, answer []string, tokens *counter) (int, error) {
 	total := 0
 	for _, path := range answer {
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(filepath.Join(directory, path))
 		if err != nil {
 			return 0, fmt.Errorf("read ground truth %s: %w", path, err)
 		}
@@ -344,15 +459,41 @@ func bodyTokens(answer []string, tokens *counter) (int, error) {
 
 // rankOf is the one-based position of the first wanted file, or zero when no
 // wanted file is offered at all.
-func rankOf(offered, wanted []string) int {
+// offeredFile is one row of an answer, in the order the reader opens it. The
+// repository travels with the path because a path alone is not an identity:
+// two repositories of this corpus both hold an internal/ directory, and a hit
+// scored across them would be a hit on a file the question never asked about.
+type offeredFile struct {
+	repo string
+	path string
+}
+
+// rankOf is the position of the first ground-truth file, one-based, counting
+// every row that precedes it -- rows from another repository included, because
+// the reader pays for those positions too.
+func rankOf(offered []offeredFile, repo string, wanted []string) int {
 	for index, file := range offered {
+		if file.repo != repo {
+			continue
+		}
 		for _, want := range wanted {
-			if file == want {
+			if file.path == want {
 				return index + 1
 			}
 		}
 	}
 	return 0
+}
+
+// repositoryNames sorts the declared checkouts so the artifact does not change
+// with the iteration order of a map.
+func repositoryNames(repositories map[string]string) []string {
+	names := make([]string, 0, len(repositories))
+	for name := range repositories {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func factor(native, ours int) float64 {
@@ -377,6 +518,17 @@ func summarize(rows []questionResult) totals {
 		}
 		if row.Kivgraph.Rank == 1 {
 			out.KivgraphTopOne++
+		}
+		if row.Scoped.Rank > 0 {
+			out.ScopedHits++
+		}
+		switch {
+		case strings.HasPrefix(row.MissCause, "crowded out"):
+			out.MissCrowded++
+		case strings.HasPrefix(row.MissCause, "outranked"):
+			out.MissOutranked++
+		case strings.HasPrefix(row.MissCause, "unreachable"):
+			out.MissNoTerm++
 		}
 		out.NativeAnswer += row.Native.Answer
 		out.KivgraphAnswer += row.Kivgraph.Answer
@@ -417,8 +569,8 @@ func limitations(out results) []string {
 	notes = append(notes,
 		"a native search that matches nothing costs zero tokens and answers nothing, so the totals over every question flatter whichever arm missed; the shared-hit factor is the honest one",
 		"the ground truth is one reader's judgement of which file answers each question; a second reader may accept a file this run scores as a miss",
-		fmt.Sprintf("%d questions over one repository at generation %d: a set this size states a direction, not a rate",
-			out.Totals.Questions, out.SnapshotID),
+		fmt.Sprintf("%d questions over %d repositories at generation %d: a set this size states a direction, not a rate",
+			out.Totals.Questions, len(out.Dataset.Repositories), out.SnapshotID),
 		fmt.Sprintf("measured on %s/%s with %s: the native arm walks a working tree, so its cost is not portable across checkouts",
 			out.Environment.OS, out.Environment.Arch, out.Environment.GoVersion),
 	)
@@ -438,6 +590,9 @@ func limitations(out results) []string {
 
 func printSummary(out results) {
 	fmt.Printf("%s @ generation %d, commit %s\n", out.Benchmark, out.SnapshotID, short(out.Commit))
+	fmt.Printf("miss cause crowded %d, outranked %d, unreachable %d   scoped %d/%d found\n",
+		out.Totals.MissCrowded, out.Totals.MissOutranked, out.Totals.MissNoTerm,
+		out.Totals.ScopedHits, out.Totals.Questions)
 	fmt.Printf("accuracy   native %d/%d found, %d top-1   kivgraph %d/%d found, %d top-1\n",
 		out.Totals.NativeHits, out.Totals.Questions, out.Totals.NativeTopOne,
 		out.Totals.KivgraphHits, out.Totals.Questions, out.Totals.KivgraphTopOne)
@@ -458,15 +613,40 @@ func writeReport(directory string, out results) error {
 		out.Environment.GoVersion, out.SnapshotID, out.Tokenizer)
 	fmt.Fprintf(report, "Command: `%s`. Dataset: `%s` v%d, %d questions over `%s`, native arm scoped to %s.\n\n",
 		out.Command, out.Dataset.QuestionSet, out.Dataset.QuestionSetVersion,
-		out.Dataset.Questions, out.Dataset.Repository, out.Dataset.NativeScope)
+		out.Dataset.Questions, strings.Join(out.Dataset.Repositories, "`, `"), out.Dataset.NativeScope)
 	fmt.Fprintf(report, "Ground truth: %s\n\n", out.GroundTruth)
 
 	fmt.Fprintf(report, "## Accuracy first\n\n")
-	fmt.Fprintf(report, "|question|class|native rank|kivgraph rank|\n|---|---|---|---|\n")
+	fmt.Fprintf(report, "|question|repo|class|native rank|kivgraph rank|\n|---|---|---|---|---|\n")
 	for _, row := range out.Results {
-		fmt.Fprintf(report, "|%s|%s|%s|%s|\n", row.Intent, row.Class, rankCell(row.Native), rankCell(row.Kivgraph))
+		fmt.Fprintf(report, "|%s|%s|%s|%s|%s|\n",
+			row.Intent, row.Repo, row.Class, rankCell(row.Native), rankCell(row.Kivgraph))
 	}
-	fmt.Fprintf(report, "\nFound at any rank: native %d of %d, kivgraph %d of %d. First: native %d, kivgraph %d.\n\n",
+	fmt.Fprintf(report, "\n### Per repository\n\n")
+	fmt.Fprintf(report, "|repository|questions|native found|kivgraph found|\n|---|---|---|---|\n")
+	for _, name := range out.Dataset.Repositories {
+		questions, native, ours := 0, 0, 0
+		for _, row := range out.Results {
+			if row.Repo != name {
+				continue
+			}
+			questions++
+			if row.Native.Rank > 0 {
+				native++
+			}
+			if row.Kivgraph.Rank > 0 {
+				ours++
+			}
+		}
+		fmt.Fprintf(report, "|`%s`|%d|%d|%d|\n", name, questions, native, ours)
+	}
+	fmt.Fprintf(report, "\n### Why a zero happened\n\n")
+	fmt.Fprintf(report, "|cause|questions|what it would cost to fix|\n|---|---|---|\n")
+	fmt.Fprintf(report, "|crowded out by other repositories|%d|a parameter the asker already has|\n", out.Totals.MissCrowded)
+	fmt.Fprintf(report, "|outranked inside its own repository|%d|weights, and nothing persisted|\n", out.Totals.MissOutranked)
+	fmt.Fprintf(report, "|unreachable: the file carries no term|%d|a schema version, five loaders and a full rebuild|\n\n", out.Totals.MissNoTerm)
+
+	fmt.Fprintf(report, "Found at any rank: native %d of %d, kivgraph %d of %d. First: native %d, kivgraph %d.\n\n",
 		out.Totals.NativeHits, out.Totals.Questions, out.Totals.KivgraphHits, out.Totals.Questions,
 		out.Totals.NativeTopOne, out.Totals.KivgraphTopOne)
 
