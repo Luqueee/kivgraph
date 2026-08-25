@@ -184,9 +184,16 @@ superficie observable.
 - El flujo de `index --full --json` es un protocolo, no una bitácora: `stdout`
   lleva sólo eventos JSON por línea -`progress`, y un único `result` al final- y
   el informe que leería una persona no se escribe en ese modo. Los contadores de
-  los tres lenguajes viajan en el `result`; derivarlos del `msg` de un registro
+  los cinco lenguajes viajan en el `result`; derivarlos del `msg` de un registro
   convertiría texto para humanos en una API. Un lector ignora una clase de
   evento que no conoce.
+- **Lo que no se cargó viaja con lo que sí.** `go_modules_not_loaded`,
+  `rust_workspaces_not_loaded`, `python_repositories_not_loaded` y
+  `dart_repositories_not_loaded` están en el `result` y en las líneas del informe
+  humano, los cuatro. Sin ellos un lector no puede distinguir un lenguaje sin
+  código de uno que esta máquina no pudo leer: los dos suman cero símbolos. La
+  razón difiere -- un workspace que el analizador no leyó, un módulo que no
+  cargó, un analizador que no está instalado-- y la consecuencia no.
 - **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
   `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
   `index` es lo que cada pasada de lenguaje **observó**. Un fichero que
