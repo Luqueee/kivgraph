@@ -214,10 +214,19 @@ if [[ -n "$requested_version" ]]; then
   ldflags+=" -X github.com/Luqueee/kivgraph/internal/version.Value=$requested_version"
 fi
 
+# The relative RUNPATH is the one entry the executable must carry, and it is
+# declared here rather than in CGO_LDFLAGS because cgo applies those flags to
+# every package it compiles: the linker saw one copy per package, warned about
+# each duplicate and kept the first. `-extldflags` reaches the external link
+# once, which is the number of times an rpath needs to be named. `-llbug` is
+# left out for the same reason -- the binding already declares it, and the
+# `-L` above is what makes it resolve against the pinned build.
+ldflags+=" -extldflags=-Wl,-rpath,$rpath"
+
 printf 'build-bundle: compiling Go binary for %s\n' "$target" >&2
 CGO_ENABLED=1 \
 CGO_CFLAGS="-I$native_dir" \
-CGO_LDFLAGS="-L$native_dir -llbug -Wl,-rpath,$rpath" \
+CGO_LDFLAGS="-L$native_dir" \
 GOOS="$target_os" \
 GOARCH="$target_arch" \
 go build \
