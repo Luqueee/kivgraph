@@ -14,8 +14,8 @@ ld: library 'lbug' not found
 ```
 
 No falta la biblioteca: falta decirle al enlazador dónde está. `make test-ladybug`
-exporta las tres variables `CGO_*` que apuntan a `.tooling/ladybug/<versión>` y es
-el único modo soportado de ejecutar ese tag.
+exporta las variables `CGO_*` que apuntan a `.tooling/ladybug/<versión>`, pasa el
+rpath por `-ldflags` y es el único modo soportado de ejecutar ese tag.
 
 ```bash
 make test-ladybug                                   # suite completa con la capa nativa
@@ -23,9 +23,15 @@ make test-ladybug PKGS=./internal/storage/ladybug   # un paquete mientras se tra
 ```
 
 `scripts/fetch-ladybug.sh` descarga y verifica la biblioteca la primera vez; el
-target lo invoca solo. Los avisos `duplicate -rpath` y
-`search path '.../lib/dynamic/darwin' not found` son inocuos: el binding declara
-los suyos y el build fijado no puebla ese directorio.
+target lo invoca solo. Queda **un** aviso por binario, y es del binding: el `-L`
+que apunta a su propio directorio de módulo no existe en un build fijado.
+Silenciarlo exigiría parchear un módulo fijado por digest.
+
+Los avisos `duplicate -rpath` y `ignoring duplicate libraries` ya no salen. Eran
+`221` en una pasada completa y ninguno era un defecto: `CGO_LDFLAGS` se aplica a
+cada paquete cgo en vez de una vez al enlazar, así que nombrar ahí `-llbug` o el
+rpath -- que el binding ya declara -- hacía que el enlazador viera diez copias de
+cada uno. Si vuelven, es que alguien los devolvió a `CGO_LDFLAGS`.
 
 ## Las tres suites
 
@@ -121,8 +127,9 @@ el del bundle, `dist/kivgraph-darwin-arm64/bin/kivgraph`:
 
 ```bash
 LIB="$(scripts/fetch-ladybug.sh)"
-CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB -llbug -Wl,-rpath,$LIB" \
-  go build -tags ladybug -o /tmp/kivgraph-native ./cmd/kivgraph
+CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB" \
+  go build -tags ladybug -ldflags="-extldflags=-Wl,-rpath,$LIB" \
+  -o /tmp/kivgraph-native ./cmd/kivgraph
 ```
 
 El flujo completo, con un `HOME` desechable y sin tocar ningún repositorio real:
@@ -162,8 +169,9 @@ flags que `make test-ladybug`:
 
 ```bash
 LIB="$(scripts/fetch-ladybug.sh)"
-CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB -llbug -Wl,-rpath,$LIB" \
-  go run -tags ladybug ./benchmarks/ladybug-bulk
+CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB" \
+  go run -tags ladybug -ldflags="-extldflags=-Wl,-rpath,$LIB" \
+  ./benchmarks/ladybug-bulk
 ```
 
 Escriben `results.json` y `report.md` versionados y emiten un gate en `stdout`

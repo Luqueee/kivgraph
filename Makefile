@@ -26,6 +26,20 @@ ladybug-lib:
 # "library 'lbug' not found". These flags are the whole difference, which is
 # why this target exists and why nobody should run the tag by hand.
 #
+# What the flags do NOT repeat matters as much as what they carry. The binding
+# already declares `-llbug` and an rpath of its own, and `CGO_LDFLAGS` is
+# applied to every cgo package in the build rather than once at the link, so
+# naming either here made the linker see ten copies of the same rpath and two
+# of the same library: 22 warnings for two packages, none of them a defect and
+# all of them hiding one. So `-L` is all this carries -- enough for the
+# binding's own `-llbug` to resolve against the pinned build -- and the single
+# runtime path the test binary needs is passed through `-extldflags`, which the
+# link step reads exactly once.
+#
+# One warning per binary survives, and it is the binding's: the `-L` it points
+# at its own module directory does not exist in a pinned build. Silencing that
+# would mean patching a module fixed by digest.
+#
 # PKGS narrows the run while working on one package. The default is the whole
 # suite, because that is what a release has to pass. ARGS passes flags through
 # to `go test`, which is the only way to reach a benchmark that needs this tag:
@@ -37,8 +51,8 @@ test-ladybug:
 	@LIB="$$(scripts/fetch-ladybug.sh)"; \
 	CGO_ENABLED=1 \
 	CGO_CFLAGS="-I$$LIB" \
-	CGO_LDFLAGS="-L$$LIB -llbug -Wl,-rpath,$$LIB" \
-	go test -tags ladybug $(ARGS) $(PKGS)
+	CGO_LDFLAGS="-L$$LIB" \
+	go test -tags ladybug -ldflags="-extldflags=-Wl,-rpath,$$LIB" $(ARGS) $(PKGS)
 
 # build-linux-amd64 and build-darwin-arm64 create the generated distribution
 # bundle for each supported target. cgo links the pinned LadybugDB library, so

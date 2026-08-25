@@ -364,8 +364,16 @@ make test-ladybug
 ```
 
 `make test-ladybug` es el único modo soportado de ejecutar ese tag: exporta las
-variables `CGO_*` que apuntan a la biblioteca fijada. `go test -tags ladybug`
-por su cuenta no enlaza. `PKGS` acota la pasada a un paquete.
+variables `CGO_*` que apuntan a la biblioteca fijada y pasa el rpath por
+`-ldflags`. `go test -tags ladybug` por su cuenta no enlaza. `PKGS` acota la
+pasada a un paquete.
+
+Lo que esas flags **no** repiten es parte del contrato. `CGO_LDFLAGS` se aplica a
+cada paquete cgo y no una vez al enlazar, así que nombrar ahí `-llbug` o el rpath
+-- que el binding fijado ya declara -- imprimía `221` avisos `duplicate -rpath` e
+`ignoring duplicate libraries` en una pasada completa. Ninguno era un defecto y
+entre todos tapaban el único que sí informa. Devolverlos a `CGO_LDFLAGS` los trae
+de vuelta; el rpath se declara una vez, donde se enlaza una vez.
 
 El resto de gates vive junto al código que verifica: Rust en
 `internal/rustloader/AGENTS.md`, el worker en `ts-worker/AGENTS.md`, el visor en
