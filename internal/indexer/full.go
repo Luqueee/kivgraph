@@ -229,10 +229,16 @@ type FullReport struct {
 	PythonSymbols         int
 	PythonReferences      int
 	PythonUnresolved      int
-	DartRepositories      int
-	DartSymbols           int
-	DartReferences        int
-	DartUnresolved        int
+	// PythonRepositoriesNotLoaded and DartRepositoriesNotLoaded count the
+	// repositories whose analyzer is not installed on this machine. Their
+	// facts are absent and the pass says so, rather than one absent toolchain
+	// deciding whether every other repository gets a graph.
+	PythonRepositoriesNotLoaded int
+	DartRepositories            int
+	DartSymbols                 int
+	DartReferences              int
+	DartUnresolved              int
+	DartRepositoriesNotLoaded   int
 	// EdgesWithoutProvider counts the edges the merge dropped because the
 	// repository that provides the target does not publish its declaration.
 	// Each one is declared as an unresolved reference with the position that
@@ -442,10 +448,16 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.PythonSymbols += result.symbols
 			report.PythonReferences += result.references
 			report.PythonUnresolved += result.unresolved
+			if result.notLoaded {
+				report.PythonRepositoriesNotLoaded++
+			}
 		case unit.isDart:
 			report.DartSymbols += result.symbols
 			report.DartReferences += result.references
 			report.DartUnresolved += result.unresolved
+			if result.notLoaded {
+				report.DartRepositoriesNotLoaded++
+			}
 		default:
 			report.TypeScriptSymbols += result.symbols
 			report.TypeScriptReferences += result.references
@@ -1214,6 +1226,31 @@ type analysisResult struct {
 // set does not know is not a valid fact. The detail keeps the diagnostics the
 // go command produced, so the answer to "why is this repository empty" is in
 // the graph rather than in a log nobody kept.
+// moduleWithoutGoPackages records a go.mod that names a module and holds no Go.
+//
+// It gets its own path rather than moduleNotLoadedFacts because it is not the
+// same thing. That one is for a module that should load and cannot -- most
+// often dependencies nobody has downloaded -- and it publishes an unresolved
+// reference so the graph says what is missing. This one has nothing missing:
+// Hugo names its themes with a go.mod, and so do several other tools, and
+// there is no state of the world in which one of those yields a Go package.
+// Filing it as MODULE_NOT_LOADED would leave a reference in the graph that no
+// `go mod download` could ever clear, and somebody would keep trying.
+//
+// Counted rather than silent. It is one of the modules this pass did not read,
+// which is exactly what GoModulesNotLoaded is for, and a directory quietly
+// skipped is how a graph ends up missing something nobody can name.
+//
+// Before this, one such directory failed the whole index: five repositories
+// went unindexed because a Hugo site sat inside one of them -- and it was in
+// that repository's exclusions, which never reached this far.
+func moduleWithoutGoPackages(unit analysisUnit) analysisResult {
+	return analysisResult{
+		notLoaded: true,
+		detail:    "no Go packages: " + unit.module.ModulePath + " declares a module and holds none",
+	}
+}
+
 func moduleNotLoadedFacts(unit analysisUnit, blocking []goloader.PackageError) analysisResult {
 	repositoryKey := facts.RepositoryKey(unit.repository.Name)
 	detail := formatPackageErrors(blocking) + toolchainHint(blocking)
@@ -1270,6 +1307,9 @@ func indexGoModule(
 		AllowNetwork: options.GoAllowNetwork,
 	})
 	if err != nil {
+		if errors.Is(err, goloader.ErrNoPackages) {
+			return moduleWithoutGoPackages(unit), nil
+		}
 		return analysisResult{}, fmt.Errorf("load Go module %q for %q: %w", module.ModulePath, repository.Name, err)
 	}
 	blocking := load.BlockingErrors()

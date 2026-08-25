@@ -2,8 +2,10 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -48,6 +50,27 @@ func countSemanticFiles(repository workspace.Repository, language facts.Language
 	return total
 }
 
+// analyzerNotInstalled records a repository whose analyzer this machine does
+// not have.
+//
+// It is the same judgement indexGoModule already makes about a module that
+// will not load, applied to the reason one language cannot be read at all: a
+// toolchain nobody installed is a fact about this machine, not about the code,
+// and it must not decide whether every other repository gets a graph. A Dart
+// repository registered on a laptop without Dart used to fail the entire
+// index -- five repositories, four of which had nothing to do with Dart.
+//
+// Nothing is published for it. Unlike a Go module that failed to load, there
+// is no diagnostic worth putting in the graph: the answer is "install the
+// analyzer", which belongs in the run's own output and in `doctor`, both of
+// which already say it.
+func analyzerNotInstalled(unit analysisUnit, err error) analysisResult {
+	return analysisResult{
+		notLoaded: true,
+		detail:    fmt.Sprintf("%s analyzer not installed: %v", unit.language, err),
+	}
+}
+
 func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) (analysisResult, error) {
 	var payload facts.SemanticPayload
 	var err error
@@ -80,6 +103,9 @@ func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) 
 		return analysisResult{}, fmt.Errorf("unsupported semantic language %q", unit.language)
 	}
 	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return analyzerNotInstalled(unit, err), nil
+		}
 		return analysisResult{}, err
 	}
 	set, err := facts.NormalizeSemantic(ctx, unit.repository, payload)

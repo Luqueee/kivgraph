@@ -497,6 +497,108 @@ func TestFullIsolatesAModuleThatCannotLoad(t *testing.T) {
 	}
 }
 
+// A go.mod that names a module and holds no Go is not a failure, and used to
+// be a fatal one: it took every repository down with it.
+//
+// Hugo names its themes with a go.mod, and so do several other tools. The
+// directory is Go-shaped and contains no Go, which the loader reports as
+// ErrNoPackages -- and a whole index refused to run because of one, in a
+// repository that had the directory in its own exclusions.
+//
+// It is counted rather than published. MODULE_NOT_LOADED is for something
+// missing that could be fetched; there is nothing to fetch here, and an
+// unresolved reference no `go mod download` can clear is one somebody would
+// keep trying to clear.
+func TestFullSkipsAModuleThatHoldsNoGo(t *testing.T) {
+	root := testsupport.TempDir(t)
+	healthy := filepath.Join(root, "healthy")
+	writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(healthy, "a.go"), "package healthy\n\nfunc Healthy() int { return 1 }\n")
+	// A Hugo site, in the shape Hugo actually writes it: a module directive
+	// and no Go anywhere beneath.
+	site := filepath.Join(root, "site")
+	writeFullFixture(t, filepath.Join(site, "go.mod"), "module example.com/site\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(site, "config.toml"), "baseURL = \"https://example.com\"\n")
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+			{Name: "site", Path: site, RealPath: site, Languages: []string{"go"}},
+		},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the Go-less module skipped rather than fatal", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.GoModulesNotLoaded != 1 {
+		t.Fatalf("modules not loaded = %d, want the Go-less one counted", report.GoModulesNotLoaded)
+	}
+	// Counted, but not filed as something to go and fetch.
+	for _, entry := range set.Unresolved {
+		if entry.RequestedPackage == "example.com/site" {
+			t.Fatalf("a module with no Go was published as unresolved: %#v", entry)
+		}
+	}
+	healthySymbols := 0
+	for _, symbol := range set.Symbols {
+		if symbol.Name == "Healthy" {
+			healthySymbols++
+		}
+	}
+	if healthySymbols != 1 {
+		t.Fatal("the healthy repository lost its symbols to a directory that is not Go")
+	}
+}
+
+// An analyzer this machine does not have is a fact about the machine, not about
+// the code, and it must not decide whether every other repository gets a graph.
+//
+// A Dart repository registered on a laptop without Dart failed the whole index:
+// five repositories, four of which had nothing to do with Dart. It is the same
+// judgement indexGoModule already makes about a module that will not load.
+func TestFullSkipsARepositoryWhoseAnalyzerIsNotInstalled(t *testing.T) {
+	root := testsupport.TempDir(t)
+	healthy := filepath.Join(root, "healthy")
+	writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(healthy, "a.go"), "package healthy\n\nfunc Healthy() int { return 1 }\n")
+	flutter := filepath.Join(root, "flutter")
+	writeFullFixture(t, filepath.Join(flutter, "pubspec.yaml"), "name: example\n")
+	writeFullFixture(t, filepath.Join(flutter, "lib", "main.dart"), "void main() {}\n")
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+			{Name: "flutter", Path: flutter, RealPath: flutter, Languages: []string{"dart"}},
+		},
+		// A command that is not on any PATH, which is exactly what a laptop
+		// without Dart looks like to the loader.
+		DartAnalyzer:      "kivgraph-no-such-dart-analyzer",
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the Go repository indexed anyway", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("full facts validation error = %v", err)
+	}
+	if report.DartRepositoriesNotLoaded != 1 {
+		t.Fatalf("dart repositories not loaded = %d, want the one whose analyzer is absent",
+			report.DartRepositoriesNotLoaded)
+	}
+	healthySymbols := 0
+	for _, symbol := range set.Symbols {
+		if symbol.Name == "Healthy" {
+			healthySymbols++
+		}
+	}
+	if healthySymbols != 1 {
+		t.Fatal("a missing Dart analyzer took an unrelated Go repository down with it")
+	}
+}
+
 // A pass ends when its slowest unit ends, so the queue is drained longest
 // first. The weight is a proxy over the files a unit will read, and the only
 // thing that matters is that the heavy unit is not left for last.
