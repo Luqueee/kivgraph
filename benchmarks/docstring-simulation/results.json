@@ -1,0 +1,380 @@
+{
+  "benchmark": "docstring-simulation",
+  "command": "go run ./benchmarks/docstring-simulation",
+  "generated_at": "2026-08-25T19:34:50Z",
+  "commit": "e382cb7-dirty",
+  "environment": {
+    "arch": "arm64",
+    "go": "go1.26.4",
+    "os": "darwin"
+  },
+  "snapshot": "000191",
+  "question_set": "benchmarks/intent-token-cost/questions.json",
+  "questions": 24,
+  "prose": {
+    "documented_symbols": 6536,
+    "symbols": 22299,
+    "docstring_bytes": 1606890,
+    "files_read": 690,
+    "files_not_on_disk": 0
+  },
+  "base": {
+    "terms": 1924,
+    "postings": 194181,
+    "found": 6,
+    "top_one": 2
+  },
+  "prose_index": {
+    "terms": 5295,
+    "postings": 358305,
+    "found": 0,
+    "top_one": 0
+  },
+  "sweep": [
+    {
+      "prose_weight": 1,
+      "found": 6,
+      "top_one": 2
+    },
+    {
+      "prose_weight": 0.7,
+      "found": 6,
+      "top_one": 2
+    },
+    {
+      "prose_weight": 0.5,
+      "found": 7,
+      "top_one": 2
+    },
+    {
+      "prose_weight": 0.3,
+      "found": 8,
+      "top_one": 3
+    },
+    {
+      "prose_weight": 0.15,
+      "found": 7,
+      "top_one": 3
+    }
+  ],
+  "results": [
+    {
+      "intent": "which code refuses to publish a generation when the disk is nearly full",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "base_rank": 1,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "intent": "how does a reader tell that a snapshot file does not belong to the generation it was found beside",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "base_rank": 5,
+      "prose_ranks": [
+        1,
+        1,
+        1,
+        1,
+        4
+      ]
+    },
+    {
+      "intent": "where is every tool of this server registered",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "base_rank": 9,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        10,
+        8
+      ]
+    },
+    {
+      "intent": "how is a page token from a different question rejected",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        7,
+        8,
+        9,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where does the daemon decide which client owns it",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "base_rank": 4,
+      "prose_ranks": [
+        0,
+        0,
+        5,
+        1,
+        1
+      ]
+    },
+    {
+      "intent": "which command prints the build provenance as json",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where is the compiler's own library path handed to the rust analyzer",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        3,
+        5,
+        5,
+        7,
+        0
+      ]
+    },
+    {
+      "intent": "how does a traversal keep from walking the whole graph",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "base_rank": 1,
+      "prose_ranks": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "intent": "why a program on the far machine bound to an outside address is skipped",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where the connection is aborted because the machine proves a different identity than before",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where one rejected forward request does not tear down the whole shared link",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where the far end learns no more bytes are coming from one side",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where changing one setting on disk leaves the user's comments and ordering untouched",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        2,
+        2,
+        2,
+        2,
+        9
+      ]
+    },
+    {
+      "intent": "where an oversized picture upload is turned away instead of being stored",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where starting a second background copy is refused while one already runs",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where tailing the daemon output detects the file shrank and reopens it",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where a bulk transfer refuses to run when the destination looks like live production",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where preparing the tables stops early because something else already created them",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where an unexpected crash inside a request becomes a normal error reply instead of raw html",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "how it goes back to the remote coordinator only after several good replies in a row",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "base_rank": 5,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        8,
+        2
+      ]
+    },
+    {
+      "intent": "at startup, where absent table shards produce a printed command an operator can paste",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        6,
+        6,
+        10,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where the label naming who produced a reply falls back to a placeholder",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "where an old variable that is no longer read is reported at boot",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "intent": "why a partial save with no usable fields is refused instead of touching the record",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "base_rank": 0,
+      "prose_ranks": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "limitations": [
+    "the docstring is taken with a text rule and not a parser: a loader would attach slightly more, so the prose arm is a floor and not a ceiling",
+    "this index is built in memory over a published snapshot; it prices the retrieval a schema version would buy and not the cost of persisting it",
+    "the prose arm indexes every comment block above a declaration, including the ones a loader might decline to emit, such as a directive or a licence header",
+    "24 questions over 3 repositories: a set this size states a direction, not a rate"
+  ]
+}
