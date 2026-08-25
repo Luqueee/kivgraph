@@ -48,7 +48,7 @@ From a checkout, the same installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.6.4 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.7.0 ./scripts/install.sh
 ```
 
 ## Where it lands
