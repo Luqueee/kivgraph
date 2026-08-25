@@ -20,7 +20,8 @@ Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search
 3. When you do not know the name, start with `find_by_intent`: it takes a
    plain-language description and answers with the ranked symbols and, under
    `view: "files"`, just the files to open. Its rows match text rather than
-   edges -- they carry `match: lexical` -- so confirm one with `find_references`
+   edges -- `match: lexical`, or `lexical+calls` for a row credited for the
+   terms its resolved calls reach -- so confirm one with `find_references`
    before acting on it, and prefer grep when you already know the name.
 4. Use `find_symbol` for names and qualified names, and `get_file_outline` to
    read the declarations of a file or a directory without opening it. Every row

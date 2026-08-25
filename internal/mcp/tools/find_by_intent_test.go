@@ -243,7 +243,13 @@ func TestFindByIntentRanksProductionOverFixtureAndImport(t *testing.T) {
 // TestFindByIntentReportsWhatEachTermReached is the section this tool adds over
 // the tool it was modelled on: a caller can see which of its words did the work
 // and which merely matched everything.
-func TestFindByIntentReportsWhatEachTermReached(t *testing.T) {
+// TestFindByIntentReportsOnlyTheTermsThatExplainABadAnswer is the negative
+// first: a term that discriminated earns no line, because the rows are its line.
+// Reporting every term cost a quarter of a payload to say `to 70` and `is 178`.
+//
+// What a caller can act on is reported: a word the code does not use at all, and
+// a word so widely carried that it ordered nothing.
+func TestFindByIntentReportsOnlyTheTermsThatExplainABadAnswer(t *testing.T) {
 	store := intentStore(t, 96)
 	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
 		Intent: "publish the storage generation", View: ViewFull,
@@ -251,18 +257,26 @@ func TestFindByIntentReportsWhatEachTermReached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(response.Results.Terms) == 0 {
-		t.Fatal("no terms were reported")
-	}
-	byTerm := map[string]int{}
 	for _, term := range response.Results.Terms {
+		if term.Frequency == "" {
+			t.Errorf("term %q was reported with nothing to say about it", term.Term)
+		}
 		if term.Symbols <= 0 {
 			t.Errorf("term %q reported %d symbols", term.Term, term.Symbols)
 		}
-		byTerm[term.Term] = term.Symbols
 	}
-	if byTerm["publish"] == 0 {
-		t.Errorf("terms = %#v, want `publish` among them", response.Results.Terms)
+	// `storage` is one file of this fixture and it discriminated, so it is not
+	// reported; the rows carry it. `publish` is on most of the corpus here and
+	// separated nothing, so it is.
+	byTerm := map[string]string{}
+	for _, term := range response.Results.Terms {
+		byTerm[term.Term] = term.Frequency
+	}
+	if _, reported := byTerm["storage"]; reported {
+		t.Errorf("terms = %#v, want the discriminating term left to the rows", response.Results.Terms)
+	}
+	if byTerm["publish"] == "" {
+		t.Errorf("terms = %#v, want `publish` named as too widely carried", response.Results.Terms)
 	}
 	// `the` folds to a term and reaches nothing here, so it must be reported as
 	// unmatched rather than dropped in silence: that is the difference between a
@@ -944,5 +958,90 @@ func TestFindByIntentAnswersAQuestionWiderThanItsMask(t *testing.T) {
 	}
 	if len(response.Results.Unmatched) == 0 {
 		t.Error("none of the invented words was reported as unmatched")
+	}
+}
+
+// TestFindByIntentCompactViewKeepsAMatchTheRowsDisagreeOn is the negative of the
+// hoisting: a page where one row was credited for the calls it reaches does not
+// share a match, so the header cannot state one. Hoisting `lexical` there would
+// put a claim in the envelope that the row it describes does not make.
+func TestFindByIntentCompactViewKeepsAMatchTheRowsDisagreeOn(t *testing.T) {
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "register handler", View: ViewCompact, Limit: MaximumIntentLimit,
+	}, neighbourStore(t, 140))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(response.Results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Match   string `json:"match"`
+		Symbols []struct {
+			QualifiedName string `json:"qualified_name"`
+			Match         string `json:"match"`
+		} `json:"symbols"`
+	}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Match != "" {
+		t.Errorf("the header states match = %q over rows that disagree", payload.Match)
+	}
+	byName := map[string]string{}
+	for _, row := range payload.Symbols {
+		byName[row.QualifiedName] = row.Match
+	}
+	if byName["server.registerEverything"] != "lexical+calls" {
+		t.Errorf("the credited row reads %q in compact view", byName["server.registerEverything"])
+	}
+	if byName["server.registerNothing"] != "lexical" {
+		t.Errorf("the uncredited row reads %q in compact view", byName["server.registerNothing"])
+	}
+}
+
+// TestFindByIntentCountsFilesWhenFilesAreTheRows pins what a limit means. A row
+// of a files view is a file, so asking for two rows returns two files -- not the
+// files that happen to fall out of the first two symbols, which on this fixture
+// is one file twice.
+func TestFindByIntentCountsFilesWhenFilesAreTheRows(t *testing.T) {
+	store := intentStore(t, 141)
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish generation", View: ViewFiles, Limit: 2,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(response.Results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Files []struct {
+			File    string `json:"file"`
+			Symbols int    `json:"symbols"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Files) != 2 {
+		t.Fatalf("files = %#v, want the two rows that were asked for", payload.Files)
+	}
+	if response.Returned != 2 {
+		t.Errorf("returned = %d, want it counted in the unit the rows are in", response.Returned)
+	}
+	if response.Total < 2 {
+		t.Errorf("total = %d, want the files the whole ranking holds", response.Total)
+	}
+	// A file that holds two of the ranked symbols still spends one row, and says
+	// so: that count is why the row is worth reading.
+	carried := 0
+	for _, file := range payload.Files {
+		carried += file.Symbols
+	}
+	if carried < 2 {
+		t.Errorf("files = %#v, want the symbol counts kept", payload.Files)
 	}
 }

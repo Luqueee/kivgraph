@@ -53,7 +53,7 @@ type FindByIntentInput struct {
 // IntentMatches is a page of ranked candidates and an account of the terms that
 // produced them.
 type IntentMatches struct {
-	Terms     []IntentTerm   `json:"terms"`
+	Terms     []IntentTerm   `json:"terms,omitempty"`
 	Unmatched []string       `json:"unmatched_terms,omitempty"`
 	Symbols   []IntentSymbol `json:"symbols"`
 
@@ -66,10 +66,19 @@ type IntentMatches struct {
 // the question and a term that merely matched: a term carried by most of the
 // corpus is why an unrelated file appears at all, and a caller that can see
 // that can fix its question instead of doubting the tool.
+// IntentTerm is one word of the question that the answer has to account for.
+//
+// Only two kinds of term earn a row here, and a roster of every term does not:
+// measured on this repository, the full list was a quarter of a `view=files`
+// payload and most of its lines said `to 70`, `is 178`, `when 1` -- the
+// question's grammar, counted. A term that matched four symbols and produced the
+// answer needs no line, because the rows are the line. What a caller can act on
+// is the term that matched nothing, which is in Unmatched, and the term that
+// matched so much it separated nothing, which is here.
 type IntentTerm struct {
 	Term      string `json:"term"`
 	Symbols   int    `json:"symbols"`
-	Frequency string `json:"frequency,omitempty"`
+	Frequency string `json:"frequency"`
 }
 
 // IntentSymbol is one candidate, addressable the way every row of this surface
@@ -127,23 +136,39 @@ func (matches IntentMatches) MarshalJSON() ([]byte, error) {
 			files = append(files, intentFileCount{File: symbol.FilePath, Repo: symbol.Repository, Symbols: 1})
 		}
 		return json.Marshal(struct {
-			Terms     []IntentTerm      `json:"terms"`
+			Terms     []IntentTerm      `json:"terms,omitempty"`
 			Unmatched []string          `json:"unmatched_terms,omitempty"`
 			Files     []intentFileCount `json:"files"`
 		}{Terms: matches.Terms, Unmatched: matches.Unmatched, Files: files})
 	case ViewCompact:
-		// Every row of this page shares its match kind, so it is stated once.
+		// A shared field is stated once, and a field the rows disagree on is not
+		// shared. Hoisting `lexical` over a page where one row was credited for
+		// the calls it reaches would put a claim in the header that the row it
+		// describes does not make, which is the one thing this view may not do.
 		rows := make([]IntentSymbol, len(matches.Symbols))
 		copy(rows, matches.Symbols)
-		for index := range rows {
-			rows[index].Match = ""
+		shared := ""
+		for index, row := range rows {
+			if index == 0 {
+				shared = row.Match
+				continue
+			}
+			if row.Match != shared {
+				shared = ""
+				break
+			}
+		}
+		if shared != "" {
+			for index := range rows {
+				rows[index].Match = ""
+			}
 		}
 		return json.Marshal(struct {
-			Terms     []IntentTerm   `json:"terms"`
+			Terms     []IntentTerm   `json:"terms,omitempty"`
 			Unmatched []string       `json:"unmatched_terms,omitempty"`
-			Match     string         `json:"match"`
+			Match     string         `json:"match,omitempty"`
 			Symbols   []IntentSymbol `json:"symbols"`
-		}{Terms: matches.Terms, Unmatched: matches.Unmatched, Match: "lexical", Symbols: rows})
+		}{Terms: matches.Terms, Unmatched: matches.Unmatched, Match: shared, Symbols: rows})
 	default:
 		return json.Marshal(fullMatches(matches))
 	}
@@ -266,21 +291,32 @@ func findByIntent(
 		offset = cursor.Offset
 	}
 
-	ranked, terms, unmatched, err := rankIntentCandidates(snapshot, options)
+	ranked, terms, unmatched, used, err := rankIntentCandidates(snapshot, options)
 	if err != nil {
 		return nil, Response[IntentMatches]{}, err
 	}
 
-	total := len(ranked)
-	if offset > total {
-		offset = total
+	if offset > len(ranked) {
+		offset = len(ranked)
 	}
-	end := offset + options.Limit
-	if end > total {
-		end = total
+	// A row of this answer is whatever the view spells, so a limit counts rows
+	// and not symbols. Under `view: "files"` the page therefore walks the same
+	// ranking until it has the files it was asked for -- same order, same
+	// answer, one granularity -- rather than stopping at ten symbols that turn
+	// out to be five files.
+	end, total := offset+options.Limit, len(ranked)
+	if options.View == ViewFiles {
+		end, total = filePage(ranked, offset, options.Limit)
+	}
+	if end > len(ranked) {
+		end = len(ranked)
 	}
 	page := append([]IntentSymbol(nil), ranked[offset:end]...)
-	hasMore := end < total
+	returned := len(page)
+	if options.View == ViewFiles {
+		returned = distinctFiles(page)
+	}
+	hasMore := end < len(ranked)
 	var nextCursor *string
 	if hasMore {
 		cursor, err := NewCursor(metadata.ID, queryHash, end, SortingVersionIntentV1)
@@ -298,13 +334,38 @@ func findByIntent(
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	return nil, Response[IntentMatches]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
-		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
-		Guidance: intentGuidance(total, len(page), hasMore, len(terms), len(unmatched)),
+		Total: total, Returned: returned, Truncated: hasMore, NextCursor: nextCursor,
+		Guidance: intentGuidance(total, returned, hasMore, used, len(unmatched)),
 		Results: IntentMatches{
 			Terms: terms, Unmatched: unmatched, Symbols: page, View: options.View,
 		},
 		View: options.View,
 	}, nil
+}
+
+// filePage walks a ranked page to the row count a files view was asked for, and
+// counts the total in the same unit. It never reorders: the answer is the same
+// ranking read at a coarser grain.
+func filePage(ranked []IntentSymbol, offset, limit int) (int, int) {
+	seen := make(map[string]struct{}, limit)
+	end := offset
+	for end < len(ranked) {
+		key := ranked[end].Repository + "\x00" + ranked[end].FilePath
+		if _, found := seen[key]; !found && len(seen) == limit {
+			break
+		}
+		seen[key] = struct{}{}
+		end++
+	}
+	return end, distinctFiles(ranked)
+}
+
+func distinctFiles(rows []IntentSymbol) int {
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		seen[row.Repository+"\x00"+row.FilePath] = struct{}{}
+	}
+	return len(seen)
 }
 
 // intentCandidate accumulates what one symbol matched while the terms are read.
@@ -351,10 +412,13 @@ const (
 func rankIntentCandidates(
 	snapshot *hotsnapshot.GraphSnapshot,
 	options findByIntentOptions,
-) ([]IntentSymbol, []IntentTerm, []string, error) {
+) ([]IntentSymbol, []IntentTerm, []string, int, error) {
 	corpus := int(snapshot.Metadata().Counts.Symbols)
 	words := retrieval.QueryWords(options.Intent, options.Keywords)
 	candidates := map[hotsnapshot.SymbolID]*intentCandidate{}
+	// used counts the terms the ranking read, which is no longer the length of
+	// the reported list: a term that discriminated is reported by the rows.
+	used := 0
 	terms := make([]IntentTerm, 0, len(words))
 	unmatched := make([]string, 0, len(words))
 
@@ -366,10 +430,10 @@ func rankIntentCandidates(
 			unmatched = append(unmatched, word)
 			continue
 		}
-		terms = append(terms, IntentTerm{
-			Term: word, Symbols: frequency,
-			Frequency: intentFrequencyLabel(frequency, corpus),
-		})
+		used++
+		if label := intentFrequencyLabel(frequency, corpus); label != "" {
+			terms = append(terms, IntentTerm{Term: word, Symbols: frequency, Frequency: label})
+		}
 		for _, id := range found {
 			candidate := candidates[id]
 			if candidate == nil {
@@ -382,7 +446,7 @@ func rankIntentCandidates(
 			candidate.hits++
 			candidate.frequencies = append(candidate.frequencies, frequency)
 			candidate.lengths = append(candidate.lengths, len([]rune(word)))
-			if termIndex := len(terms) - 1; termIndex < maximumNeighbourTerms {
+			if termIndex := used - 1; termIndex < maximumNeighbourTerms {
 				candidate.terms |= 1 << uint(termIndex)
 			}
 		}
@@ -413,7 +477,7 @@ func rankIntentCandidates(
 	for _, candidate := range candidates {
 		symbol, file, repository, _, err := symbolReferenceLocation(snapshot, candidate.symbol)
 		if err != nil {
-			return nil, nil, nil, WrapToolError(
+			return nil, nil, nil, 0, WrapToolError(
 				CodeSnapshotUnavailable, "active snapshot contains invalid symbol metadata", err)
 		}
 		table := snapshot.Strings()
@@ -421,7 +485,7 @@ func rankIntentCandidates(
 		qualifiedName, qualifiedOK := table.String(symbol.QualifiedName)
 		kind, kindOK := table.String(symbol.Kind)
 		if !nameOK || !qualifiedOK || !kindOK {
-			return nil, nil, nil, WrapToolError(CodeSnapshotUnavailable,
+			return nil, nil, nil, 0, WrapToolError(CodeSnapshotUnavailable,
 				"active snapshot contains invalid symbol metadata",
 				fmt.Errorf("symbol %d has invalid display strings", candidate.symbol))
 		}
@@ -466,7 +530,7 @@ func rankIntentCandidates(
 	for _, row := range rows {
 		ordered = append(ordered, row.row)
 	}
-	return ordered, terms, unmatched, nil
+	return ordered, terms, unmatched, used, nil
 }
 
 // intentFrequencyLabel says how much of the corpus a term matched, in words
