@@ -83,6 +83,35 @@ cuyo comentario dice «comments» y «disk» donde el código dice `updateMappin
   propuesta futura sobre el texto indexado: se corre antes de tocar el esquema,
   no después.
 
+## Dónde estaba la palanca
+
+El mismo simulador encontró la respuesta que este ADR buscaba, y no está en el
+texto indexado sino en **cómo se llama a la tool**. `keywords` es el parámetro que
+sustituyó a los embeddings en la `v4.0`, y ningún benchmark lo había pasado nunca.
+
+|índice|el llamante adivina identificadores|acierta|primeros|
+|---|---|---|---|
+|sólo nombres (el que se publica)|no|`6` de `24`|`2`|
+|**sólo nombres (el que se publica)**|**sí**|**`11` de `24`**|**`4`**|
+|literales, un acierto prestado vale `0,30`|sí|`16` de `24`|`4`|
+|prosa y literales, `0,30`|sí|`12` de `24`|`7`|
+
+Las palabras las adivinó un modelo a partir de la pregunta y sin ver ningún
+fichero respuesta -- que es exactamente lo que un agente llamante puede hacer.
+`11` contra `6` **sin tocar nada**, y contra los `7` de `grep`.
+
+Y nada enrutaba hacia ahí: la `guidance` nombraba `keywords` sólo cuando ninguna
+palabra de la pregunta matcheaba algo, caso que en estas `24` preguntas **no
+ocurre nunca**. El consejo no se emitía jamás.
+
+Diagnosticado sobre el brazo que ahora se recomienda, el reparto de los ceros
+cambia de sitio: los inalcanzables caen de `14` a `3`, y `10` de los `13` fallos
+restantes son pesos o un parámetro. **La factura de esquema se divide por casi
+cinco por documentar una llamada.**
+
+Esto no reabre la decisión de arriba: la refuerza. Con la tool llamada como debe,
+el techo que un `CanonicalSchemaVersion` 5 compraría son `3` preguntas de `24`.
+
 ## Lo que este ADR no cierra
 
 Que un **parser** en vez de una regla de texto ataría el docstring al símbolo con
