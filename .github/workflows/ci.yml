@@ -10,6 +10,20 @@ on:
 permissions:
   contents: read
 
+# `setup-go` installs the toolchain from `go.mod` and is the only thing that
+# should. Left on the default `auto`, `go` also fetches its own copy as the
+# module `golang.org/toolchain@vX`, which lands in the module cache -- and the
+# next run restores that cache on top of the toolchain `setup-go` just
+# installed, so `tar x` hits "Cannot open: File exists" on hundreds of paths,
+# exits 2, and the whole module cache silently fails to restore. Every run then
+# re-downloads every module.
+#
+# `local` also turns a version mismatch into a loud failure instead of a silent
+# download, which is the right trade for a project whose language ceiling is the
+# toolchain that compiled it.
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   semantic-coverage:
     name: Verify semantic coverage gates
@@ -18,10 +32,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -32,12 +46,12 @@ jobs:
           sdk: stable
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -57,7 +71,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # The landing's sitemap dates every URL from the commit that last
           # touched its source, and refuses to publish a date it cannot
@@ -67,7 +81,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -109,12 +123,12 @@ jobs:
         run: go build ./cmd/kivgraph
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -178,10 +192,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -193,12 +207,12 @@ jobs:
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Set up pnpm for distribution
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js for distribution
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -226,7 +240,7 @@ jobs:
       # The Rust engine is a 40 MB download the bundle carries; the digest in
       # the manifest is what makes the cache safe to reuse.
       - name: Cache pinned rust-analyzer
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .tooling/rust-analyzer
           key: rust-analyzer-linux-amd64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
@@ -267,10 +281,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -282,12 +296,12 @@ jobs:
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm

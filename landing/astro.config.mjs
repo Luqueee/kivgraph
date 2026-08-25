@@ -212,6 +212,11 @@ export default defineConfig({
         },
         { label: "Benchmark", slug: "comparison" },
         { label: "Limits", slug: "limits" },
+        // `/releases/` is a `<StarlightPage>` rather than a collection entry, so
+        // it takes a `link` and not a `slug`. It is here because the footer of
+        // the landing was its only inbound link -- one, from the homepage --
+        // while every collection page collects 37 or more from this sidebar.
+        { label: "Releases", link: "/releases/" },
       ],
     }),
   ],

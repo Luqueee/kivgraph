@@ -11,6 +11,12 @@ concurrency:
 
 permissions: {}
 
+# Same reason as `ci.yml`: `setup-go` owns the toolchain, and the default
+# `auto` has `go` fetch a second copy into the module cache, which then fails
+# to restore on the next run.
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   verify:
     name: Verify tagged commit
@@ -47,24 +53,24 @@ jobs:
       NATIVE_LIBRARY: ${{ matrix.native_library }}
     steps:
       - name: Checkout exact tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           check-latest: true
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -73,7 +79,7 @@ jobs:
             web/pnpm-lock.yaml
 
       - name: Cache pinned LadybugDB
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .tooling/ladybug
           key: ladybug-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
@@ -81,7 +87,7 @@ jobs:
       # The Rust engine is a 40 MB download the bundle carries; the digest in
       # the manifest is what makes the cache safe to reuse.
       - name: Cache pinned rust-analyzer
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .tooling/rust-analyzer
           key: rust-analyzer-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
@@ -227,7 +233,7 @@ jobs:
       attestations: write
     steps:
       - name: Checkout exact tag for release metadata
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
