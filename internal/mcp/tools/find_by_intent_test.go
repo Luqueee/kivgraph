@@ -1045,3 +1045,67 @@ func TestFindByIntentCountsFilesWhenFilesAreTheRows(t *testing.T) {
 		t.Errorf("files = %#v, want the symbol counts kept", payload.Files)
 	}
 }
+
+// TestFindByIntentAsksForKeywordsOnlyWhenNoneWereGiven is the negative that
+// matters: a caller that already supplied the vocabulary must not be told to
+// supply it. Advice a caller has already taken is noise in every later page,
+// and this tool pays for its guidance in the same payload as its answer.
+func TestFindByIntentAsksForKeywordsOnlyWhenNoneWereGiven(t *testing.T) {
+	store := intentStore(t, 96)
+
+	// A question wide enough to truncate, asked in prose alone.
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish the storage generation", Limit: 1,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !response.Truncated {
+		t.Fatalf("truncated = false over %d rows, want a wide page to exercise the advice", response.Total)
+	}
+	if !strings.Contains(response.Guidance, "keywords") {
+		t.Errorf("guidance = %q, want it to name the parameter that carries guessed identifiers", response.Guidance)
+	}
+
+	// The same question with the vocabulary already supplied. The page is just
+	// as wide, so the only thing that may change is the advice.
+	_, supplied, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish the storage generation", Keywords: []string{"publish", "generation"}, Limit: 1,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !supplied.Truncated {
+		t.Fatalf("truncated = false with keywords over %d rows, want the same wide page", supplied.Total)
+	}
+	if strings.Contains(supplied.Guidance, "keywords") {
+		t.Errorf("guidance = %q, want no request for what the caller already passed", supplied.Guidance)
+	}
+	if supplied.Guidance == "" {
+		t.Error("guidance is empty on a truncated page, so the caller is not told the page was cut")
+	}
+}
+
+// TestFindByIntentNamesKeywordsWhenAWordReachedNothing covers the other place
+// the vocabulary belongs: words the graph does not carry are exactly the ones a
+// caller could have guessed better, and saying so is free in a payload that
+// already lists them.
+func TestFindByIntentNamesKeywordsWhenAWordReachedNothing(t *testing.T) {
+	store := intentStore(t, 97)
+
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish generation quantum tunnelling", Limit: 50,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results.Unmatched) == 0 {
+		t.Fatalf("unmatched = %v, want the invented words reported", response.Results.Unmatched)
+	}
+	if response.Truncated {
+		t.Skip("the fixture grew wide enough to truncate, which is a different branch")
+	}
+	if !strings.Contains(response.Guidance, "keywords") {
+		t.Errorf("guidance = %q, want the unmatched words to point at the parameter", response.Guidance)
+	}
+}

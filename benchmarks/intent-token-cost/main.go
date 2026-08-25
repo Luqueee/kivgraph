@@ -64,11 +64,12 @@ type questionSet struct {
 	Question     string            `json:"question"`
 	GroundTruth  string            `json:"ground_truth"`
 	Questions    []struct {
-		Intent string   `json:"intent"`
-		Repo   string   `json:"repo"`
-		Class  string   `json:"class"`
-		Answer []string `json:"answer"`
-		Native struct {
+		Intent   string   `json:"intent"`
+		Repo     string   `json:"repo"`
+		Class    string   `json:"class"`
+		Answer   []string `json:"answer"`
+		Keywords []string `json:"keywords"`
+		Native   struct {
 			Tool    string `json:"tool"`
 			Pattern string `json:"pattern"`
 			Note    string `json:"note"`
@@ -96,6 +97,12 @@ type questionResult struct {
 	Pattern  string   `json:"native_pattern"`
 	Native   arm      `json:"native"`
 	Kivgraph arm      `json:"kivgraph"`
+	// Guessed is the same question with the identifier words a caller can guess
+	// from its own phrase. It is not a different tool and not a different index:
+	// it is the parameter this surface takes, which the first version of this
+	// harness never passed, and the gap between the two arms is how much of the
+	// accuracy was ours to give away.
+	Guessed arm `json:"kivgraph_guessed"`
 	// Scoped is the same question with the repository named. It is not the arm
 	// the accuracy is judged on -- an asker who does not know the symbol may
 	// not know the service either -- but it separates two failures that share
@@ -124,6 +131,10 @@ type totals struct {
 	// between it and KivgraphHits is the price of one window shared by three
 	// repositories, and it is not this surface's accuracy.
 	ScopedHits int `json:"kivgraph_scoped_hits"`
+	// GuessedHits is the accuracy of the same surface called with the parameter
+	// it takes for exactly this, and it is the number worth publishing.
+	GuessedHits   int `json:"kivgraph_guessed_hits"`
+	GuessedTopOne int `json:"kivgraph_guessed_top_one"`
 	// The three reasons a zero happens, which are three different bills: a
 	// crowded window is a parameter away, an outranked file is weights, and an
 	// absent vocabulary is a schema version and a full rebuild.
@@ -264,24 +275,32 @@ func run(ctx context.Context, cfg config) error {
 			return err
 		}
 		result.Kivgraph, result.UnmatchedTerms, err = measureIntent(
-			ctx, session, question.Intent, question.Repo, "", question.Answer, body, tokens)
+			ctx, session, question.Intent, question.Repo, "", nil, question.Answer, body, tokens)
 		if err != nil {
 			return err
 		}
 		if result.Scoped, _, err = measureIntent(
-			ctx, session, question.Intent, question.Repo, question.Repo,
+			ctx, session, question.Intent, question.Repo, question.Repo, nil,
 			question.Answer, body, tokens); err != nil {
 			return err
 		}
+		if result.Guessed, _, err = measureIntent(
+			ctx, session, question.Intent, question.Repo, "", question.Keywords,
+			question.Answer, body, tokens); err != nil {
+			return err
+		}
+		// The cause is diagnosed on the arm this surface tells callers to use.
+		// Diagnosing the prose-only arm would keep blaming the corpus for a
+		// parameter the caller never passed.
 		reaches := false
-		if result.Kivgraph.Rank == 0 && result.Scoped.Rank == 0 {
-			if reaches, err = reachable(
-				ctx, session, question.Intent, question.Repo, question.Answer[0]); err != nil {
+		if result.Guessed.Rank == 0 && result.Scoped.Rank == 0 {
+			if reaches, err = reachable(ctx, session, question.Intent, question.Repo,
+				question.Answer[0], question.Keywords); err != nil {
 				return err
 			}
 		}
 		result.MissCause = missCause(
-			result.Kivgraph, result.Scoped, question.Intent, result.UnmatchedTerms, reaches)
+			result.Guessed, result.Scoped, question.Intent, result.UnmatchedTerms, reaches)
 		result.AnswerFactor = factor(result.Native.Answer, result.Kivgraph.Answer)
 		result.SessionFactor = factor(result.Native.Total, result.Kivgraph.Total)
 		out.Results = append(out.Results, result)
@@ -348,6 +367,7 @@ func measureIntent(
 	intent string,
 	repo string,
 	scope string,
+	keywords []string,
 	answer []string,
 	body int,
 	tokens *counter,
@@ -359,6 +379,9 @@ func measureIntent(
 	// A second, scoped call is measured beside it, and only to tell the two
 	// failures apart -- never to report the accuracy of this surface.
 	arguments := map[string]any{"intent": intent, "view": "files", "limit": intentLimit}
+	if len(keywords) > 0 {
+		arguments["keywords"] = keywords
+	}
 	if scope != "" {
 		arguments["repo"] = scope
 	}
@@ -403,11 +426,20 @@ func measureIntent(
 // even when the search is pointed straight at it is not outranked: no weight
 // can lift a score of zero, and its vocabulary is simply not in the graph. That
 // is the difference between a ranking bill and a schema bill.
-func reachable(ctx context.Context, session *sdkmcp.ClientSession, intent, repo, path string) (bool, error) {
-	text, err := call(ctx, session, "find_by_intent", map[string]any{
+func reachable(
+	ctx context.Context,
+	session *sdkmcp.ClientSession,
+	intent, repo, path string,
+	keywords []string,
+) (bool, error) {
+	arguments := map[string]any{
 		"intent": intent, "view": "files", "limit": 1,
 		"repo": repo, "path_prefix": path,
-	})
+	}
+	if len(keywords) > 0 {
+		arguments["keywords"] = keywords
+	}
+	text, err := call(ctx, session, "find_by_intent", arguments)
 	if err != nil {
 		return false, err
 	}
@@ -522,6 +554,12 @@ func summarize(rows []questionResult) totals {
 		if row.Scoped.Rank > 0 {
 			out.ScopedHits++
 		}
+		if row.Guessed.Rank > 0 {
+			out.GuessedHits++
+		}
+		if row.Guessed.Rank == 1 {
+			out.GuessedTopOne++
+		}
 		switch {
 		case strings.HasPrefix(row.MissCause, "crowded out"):
 			out.MissCrowded++
@@ -596,6 +634,8 @@ func printSummary(out results) {
 	fmt.Printf("accuracy   native %d/%d found, %d top-1   kivgraph %d/%d found, %d top-1\n",
 		out.Totals.NativeHits, out.Totals.Questions, out.Totals.NativeTopOne,
 		out.Totals.KivgraphHits, out.Totals.Questions, out.Totals.KivgraphTopOne)
+	fmt.Printf("           with the words a caller can guess: %d/%d found, %d top-1\n",
+		out.Totals.GuessedHits, out.Totals.Questions, out.Totals.GuessedTopOne)
 	fmt.Printf("answer     native %d tokens, kivgraph %d tokens -> %.2fx (median %.2fx)\n",
 		out.Totals.NativeAnswer, out.Totals.KivgraphAnswer, out.Totals.AnswerFactor, out.Totals.MedianAnswerFactor)
 	fmt.Printf("on the %d questions both answered: %d vs %d -> %.2fx\n",
@@ -617,15 +657,16 @@ func writeReport(directory string, out results) error {
 	fmt.Fprintf(report, "Ground truth: %s\n\n", out.GroundTruth)
 
 	fmt.Fprintf(report, "## Accuracy first\n\n")
-	fmt.Fprintf(report, "|question|repo|class|native rank|kivgraph rank|\n|---|---|---|---|---|\n")
+	fmt.Fprintf(report, "|question|repo|class|native rank|as asked|with guessed words|\n|---|---|---|---|---|---|\n")
 	for _, row := range out.Results {
-		fmt.Fprintf(report, "|%s|%s|%s|%s|%s|\n",
-			row.Intent, row.Repo, row.Class, rankCell(row.Native), rankCell(row.Kivgraph))
+		fmt.Fprintf(report, "|%s|%s|%s|%s|%s|%s|\n",
+			row.Intent, row.Repo, row.Class, rankCell(row.Native),
+			rankCell(row.Kivgraph), rankCell(row.Guessed))
 	}
 	fmt.Fprintf(report, "\n### Per repository\n\n")
-	fmt.Fprintf(report, "|repository|questions|native found|kivgraph found|\n|---|---|---|---|\n")
+	fmt.Fprintf(report, "|repository|questions|native found|as asked|with guessed words|\n|---|---|---|---|---|\n")
 	for _, name := range out.Dataset.Repositories {
-		questions, native, ours := 0, 0, 0
+		questions, native, ours, guessed := 0, 0, 0, 0
 		for _, row := range out.Results {
 			if row.Repo != name {
 				continue
@@ -637,8 +678,11 @@ func writeReport(directory string, out results) error {
 			if row.Kivgraph.Rank > 0 {
 				ours++
 			}
+			if row.Guessed.Rank > 0 {
+				guessed++
+			}
 		}
-		fmt.Fprintf(report, "|`%s`|%d|%d|%d|\n", name, questions, native, ours)
+		fmt.Fprintf(report, "|`%s`|%d|%d|%d|%d|\n", name, questions, native, ours, guessed)
 	}
 	fmt.Fprintf(report, "\n### Why a zero happened\n\n")
 	fmt.Fprintf(report, "|cause|questions|what it would cost to fix|\n|---|---|---|\n")
@@ -646,9 +690,13 @@ func writeReport(directory string, out results) error {
 	fmt.Fprintf(report, "|outranked inside its own repository|%d|weights, and nothing persisted|\n", out.Totals.MissOutranked)
 	fmt.Fprintf(report, "|unreachable: the file carries no term|%d|a schema version, five loaders and a full rebuild|\n\n", out.Totals.MissNoTerm)
 
-	fmt.Fprintf(report, "Found at any rank: native %d of %d, kivgraph %d of %d. First: native %d, kivgraph %d.\n\n",
-		out.Totals.NativeHits, out.Totals.Questions, out.Totals.KivgraphHits, out.Totals.Questions,
-		out.Totals.NativeTopOne, out.Totals.KivgraphTopOne)
+	fmt.Fprintf(report, "Found at any rank: native %d of %d, asked in prose alone %d of %d, "+
+		"asked with the identifier words a caller can guess %d of %d. "+
+		"First: native %d, prose alone %d, with guessed words %d.\n\n",
+		out.Totals.NativeHits, out.Totals.Questions,
+		out.Totals.KivgraphHits, out.Totals.Questions,
+		out.Totals.GuessedHits, out.Totals.Questions,
+		out.Totals.NativeTopOne, out.Totals.KivgraphTopOne, out.Totals.GuessedTopOne)
 
 	fmt.Fprintf(report, "## Then cost\n\n")
 	fmt.Fprintf(report, "|question|native answer|kivgraph answer|answer|session|\n|---|---|---|---|---|\n")

@@ -442,10 +442,11 @@ func rank(
 type questionSet struct {
 	Repositories map[string]string `json:"repositories"`
 	Questions    []struct {
-		Intent string   `json:"intent"`
-		Repo   string   `json:"repo"`
-		Class  string   `json:"class"`
-		Answer []string `json:"answer"`
+		Intent   string   `json:"intent"`
+		Repo     string   `json:"repo"`
+		Class    string   `json:"class"`
+		Answer   []string `json:"answer"`
+		Keywords []string `json:"keywords"`
 	} `json:"questions"`
 }
 
@@ -507,12 +508,10 @@ func main() {
 		questions = flag.String("questions", "benchmarks/intent-token-cost/questions.json",
 			"question set to reuse, so both harnesses answer the same questions")
 		snapshotPath = flag.String("snapshot", "", "published snapshot to read; default is the newest one")
-		keywordPath  = flag.String("keywords", "benchmarks/docstring-simulation/keywords.json",
-			"words a calling model guessed from each question alone; the parameter the tool already takes")
-		directory = flag.String("directory", "benchmarks/docstring-simulation", "where to write the artifacts")
+		directory    = flag.String("directory", "benchmarks/docstring-simulation", "where to write the artifacts")
 	)
 	flag.Parse()
-	if err := run(*questions, *snapshotPath, *keywordPath, *directory); err != nil {
+	if err := run(*questions, *snapshotPath, *directory); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -566,7 +565,7 @@ func newestSnapshot() (string, error) {
 	return newest, nil
 }
 
-func run(questionsPath, snapshotPath, keywordPath, directory string) error {
+func run(questionsPath, snapshotPath, directory string) error {
 	if snapshotPath == "" {
 		var err error
 		if snapshotPath, err = newestSnapshot(); err != nil {
@@ -580,17 +579,6 @@ func run(questionsPath, snapshotPath, keywordPath, directory string) error {
 	var set questionSet
 	if err := json.Unmarshal(raw, &set); err != nil {
 		return fmt.Errorf("decode question set: %w", err)
-	}
-	// The keywords are an input and not a result: a model guessed them from the
-	// question alone and never saw an answer file, which is exactly what a
-	// calling agent can do and what the keywords parameter is for.
-	var keywords struct {
-		Keywords map[string][]string `json:"keywords"`
-	}
-	if raw, err := os.ReadFile(keywordPath); err == nil {
-		if err := json.Unmarshal(raw, &keywords); err != nil {
-			return fmt.Errorf("decode keywords: %w", err)
-		}
 	}
 	data, err := os.ReadFile(snapshotPath)
 	if err != nil {
@@ -687,7 +675,7 @@ func run(questionsPath, snapshotPath, keywordPath, directory string) error {
 		for index, spec := range columns {
 			var guessed []string
 			if spec.keywords {
-				guessed = keywords.Keywords[question.Intent]
+				guessed = question.Keywords
 			}
 			place := rankOf(
 				rank(snapshot, built[spec.arm], question.Intent, guessed, intentLimit, spec.weight),

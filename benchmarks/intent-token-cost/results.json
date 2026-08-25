@@ -1,8 +1,8 @@
 {
   "benchmark": "intent-token-cost",
   "command": "go run ./benchmarks/intent-token-cost -server /tmp/kivgraph-witness-bin",
-  "commit": "328694fe3dbe3f79777bb4bda401063d306bfc85-dirty",
-  "generated_at": "2026-08-25T19:09:17Z",
+  "commit": "d49e3b8572950bd9c667014d4eb7d732326dbc04-dirty",
+  "generated_at": "2026-08-25T19:55:36Z",
   "environment": {
     "os": "darwin",
     "arch": "arm64",
@@ -10,7 +10,7 @@
   },
   "dataset": {
     "question_set": "benchmarks/intent-token-cost/questions.json",
-    "question_set_version": 2,
+    "question_set_version": 3,
     "questions": 24,
     "repositories": [
       "api-db-go",
@@ -44,21 +44,29 @@
       "kivgraph": {
         "rank": 1,
         "files_offered": 10,
-        "answer_tokens": 297,
+        "answer_tokens": 302,
         "body_tokens": 5342,
-        "total": 5639,
+        "total": 5644,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 302,
+        "body_tokens": 5342,
+        "total": 5644,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 1,
         "files_offered": 10,
-        "answer_tokens": 298,
+        "answer_tokens": 303,
         "body_tokens": 5342,
-        "total": 5640,
+        "total": 5645,
         "truncated": true
       },
-      "answer_factor": 0.8720538720538721,
-      "session_factor": 0.9932612165277531,
+      "answer_factor": 0.8576158940397351,
+      "session_factor": 0.9923812898653437,
       "unmatched_terms": [
         "which",
         "the",
@@ -84,6 +92,14 @@
       "kivgraph": {
         "rank": 5,
         "files_offered": 10,
+        "answer_tokens": 308,
+        "body_tokens": 6409,
+        "total": 6717,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 3,
+        "files_offered": 10,
         "answer_tokens": 303,
         "body_tokens": 6409,
         "total": 6712,
@@ -92,13 +108,13 @@
       "kivgraph_scoped": {
         "rank": 3,
         "files_offered": 10,
-        "answer_tokens": 303,
+        "answer_tokens": 308,
         "body_tokens": 6409,
-        "total": 6712,
+        "total": 6717,
         "truncated": true
       },
-      "answer_factor": 0.1551155115511551,
-      "session_factor": 0.9618593563766389,
+      "answer_factor": 0.1525974025974026,
+      "session_factor": 0.9611433675748102,
       "unmatched_terms": [
         "does",
         "tell",
@@ -126,21 +142,30 @@
       "kivgraph": {
         "rank": 9,
         "files_offered": 10,
-        "answer_tokens": 299,
+        "answer_tokens": 304,
         "body_tokens": 1931,
-        "total": 2230,
+        "total": 2235,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 313,
+        "body_tokens": 1931,
+        "total": 2244,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 9,
         "files_offered": 10,
-        "answer_tokens": 297,
+        "answer_tokens": 302,
         "body_tokens": 1931,
-        "total": 2228,
+        "total": 2233,
         "truncated": true
       },
-      "answer_factor": 1.9832775919732442,
-      "session_factor": 1.1318385650224214,
+      "miss_cause": "crowded out: rank 9 inside its own repository",
+      "answer_factor": 1.950657894736842,
+      "session_factor": 1.1293064876957495,
       "unmatched_terms": [
         "where"
       ]
@@ -163,22 +188,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 287,
+        "answer_tokens": 292,
         "body_tokens": 2541,
-        "total": 2828,
+        "total": 2833,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 314,
+        "body_tokens": 2541,
+        "total": 2855,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 289,
+        "answer_tokens": 294,
         "body_tokens": 2541,
-        "total": 2830,
+        "total": 2835,
         "truncated": true
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
       "answer_factor": 0,
-      "session_factor": 0.8985148514851485
+      "session_factor": 0.8969290504765266
     },
     {
       "intent": "where does the daemon decide which client owns it",
@@ -198,21 +230,29 @@
       "kivgraph": {
         "rank": 4,
         "files_offered": 10,
-        "answer_tokens": 295,
+        "answer_tokens": 300,
         "body_tokens": 2427,
-        "total": 2722,
+        "total": 2727,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 4,
+        "files_offered": 10,
+        "answer_tokens": 298,
+        "body_tokens": 2427,
+        "total": 2725,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 2,
         "files_offered": 10,
-        "answer_tokens": 295,
+        "answer_tokens": 300,
         "body_tokens": 2427,
-        "total": 2722,
+        "total": 2727,
         "truncated": true
       },
-      "answer_factor": 1.5559322033898304,
-      "session_factor": 1.0602498163115357,
+      "answer_factor": 1.53,
+      "session_factor": 1.0583058305830584,
       "unmatched_terms": [
         "where",
         "does",
@@ -239,22 +279,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 290,
+        "answer_tokens": 295,
         "body_tokens": 217,
-        "total": 507,
+        "total": 512,
         "truncated": true
       },
-      "kivgraph_scoped": {
-        "rank": 0,
+      "kivgraph_guessed": {
+        "rank": 4,
         "files_offered": 10,
         "answer_tokens": 294,
         "body_tokens": 217,
         "total": 511,
         "truncated": true
       },
-      "miss_cause": "outranked: 6 word(s) reached the graph, 2 reached nothing, and other files scored higher",
-      "answer_factor": 2.231034482758621,
-      "session_factor": 1.7041420118343196,
+      "kivgraph_scoped": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 299,
+        "body_tokens": 217,
+        "total": 516,
+        "truncated": true
+      },
+      "answer_factor": 2.1932203389830507,
+      "session_factor": 1.6875,
       "unmatched_terms": [
         "which",
         "the"
@@ -278,22 +325,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 298,
+        "answer_tokens": 303,
         "body_tokens": 1481,
-        "total": 1779,
+        "total": 1784,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 4,
+        "files_offered": 10,
+        "answer_tokens": 285,
+        "body_tokens": 1481,
+        "total": 1766,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 295,
+        "answer_tokens": 300,
         "body_tokens": 1481,
-        "total": 1776,
+        "total": 1781,
         "truncated": true
       },
-      "miss_cause": "outranked: 8 word(s) reached the graph, 3 reached nothing, and other files scored higher",
-      "answer_factor": 0.030201342281879196,
-      "session_factor": 0.8375491849353569,
+      "answer_factor": 0.0297029702970297,
+      "session_factor": 0.8352017937219731,
       "unmatched_terms": [
         "where",
         "the",
@@ -318,21 +372,29 @@
       "kivgraph": {
         "rank": 1,
         "files_offered": 10,
-        "answer_tokens": 293,
+        "answer_tokens": 298,
         "body_tokens": 1990,
-        "total": 2283,
+        "total": 2288,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 297,
+        "body_tokens": 1990,
+        "total": 2287,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 1,
         "files_offered": 10,
-        "answer_tokens": 292,
+        "answer_tokens": 297,
         "body_tokens": 1990,
-        "total": 2282,
+        "total": 2287,
         "truncated": true
       },
-      "answer_factor": 0.3412969283276451,
-      "session_factor": 0.9154621112571178,
+      "answer_factor": 0.33557046979865773,
+      "session_factor": 0.9134615384615384,
       "unmatched_terms": [
         "does",
         "walking",
@@ -357,21 +419,28 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 305,
+        "answer_tokens": 310,
         "body_tokens": 1228,
-        "total": 1533,
+        "total": 1538,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 2,
+        "files_offered": 10,
+        "answer_tokens": 299,
+        "body_tokens": 1228,
+        "total": 1527,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 4,
-        "answer_tokens": 121,
+        "answer_tokens": 132,
         "body_tokens": 1228,
-        "total": 1349
+        "total": 1360
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
       "answer_factor": 0,
-      "session_factor": 0.8010437051532941,
+      "session_factor": 0.7984395318595578,
       "unmatched_terms": [
         "the",
         "machine",
@@ -396,21 +465,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 303,
+        "answer_tokens": 308,
         "body_tokens": 1833,
-        "total": 2136,
+        "total": 2141,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 309,
+        "body_tokens": 1833,
+        "total": 2142,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 5,
-        "answer_tokens": 143,
+        "answer_tokens": 154,
         "body_tokens": 1833,
-        "total": 1976
+        "total": 1987
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "miss_cause": "outranked: 7 word(s) reached the graph, 5 reached nothing, and other files scored higher",
       "answer_factor": 0,
-      "session_factor": 0.8581460674157303,
+      "session_factor": 0.8561419897244278,
       "unmatched_terms": [
         "where",
         "the",
@@ -437,21 +514,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 305,
+        "answer_tokens": 310,
         "body_tokens": 4241,
-        "total": 4546,
+        "total": 4551,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 303,
+        "body_tokens": 4241,
+        "total": 4544,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 4,
-        "answer_tokens": 124,
+        "answer_tokens": 135,
         "body_tokens": 4241,
-        "total": 4365
+        "total": 4376
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "miss_cause": "outranked: 9 word(s) reached the graph, 4 reached nothing, and other files scored higher",
       "answer_factor": 0,
-      "session_factor": 0.932908051033876,
+      "session_factor": 0.9318831026148099,
       "unmatched_terms": [
         "where",
         "does",
@@ -477,21 +562,28 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 313,
+        "answer_tokens": 318,
         "body_tokens": 701,
-        "total": 1014,
+        "total": 1019,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 8,
+        "files_offered": 10,
+        "answer_tokens": 303,
+        "body_tokens": 701,
+        "total": 1004,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 2,
-        "answer_tokens": 91,
+        "answer_tokens": 102,
         "body_tokens": 701,
-        "total": 792
+        "total": 803
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
       "answer_factor": 0,
-      "session_factor": 0.6913214990138067,
+      "session_factor": 0.6879293424926398,
       "unmatched_terms": [
         "where",
         "the",
@@ -518,21 +610,28 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 309,
+        "answer_tokens": 314,
         "body_tokens": 3507,
-        "total": 3816,
+        "total": 3821,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 8,
+        "files_offered": 10,
+        "answer_tokens": 296,
+        "body_tokens": 3507,
+        "total": 3803,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 3,
-        "answer_tokens": 104,
+        "answer_tokens": 115,
         "body_tokens": 3507,
-        "total": 3611
+        "total": 3622
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
       "answer_factor": 0,
-      "session_factor": 0.9190251572327044,
+      "session_factor": 0.9178225595393876,
       "unmatched_terms": [
         "where",
         "disk",
@@ -557,21 +656,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 309,
+        "answer_tokens": 314,
         "body_tokens": 1635,
-        "total": 1944,
+        "total": 1949,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 324,
+        "body_tokens": 1635,
+        "total": 1959,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 3,
-        "answer_tokens": 115,
+        "answer_tokens": 126,
         "body_tokens": 1635,
-        "total": 1750
+        "total": 1761
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "miss_cause": "outranked: 4 word(s) reached the graph, 8 reached nothing, and other files scored higher",
       "answer_factor": 0,
-      "session_factor": 0.8410493827160493,
+      "session_factor": 0.8388917393535146,
       "unmatched_terms": [
         "where",
         "an",
@@ -601,21 +708,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 318,
+        "answer_tokens": 323,
         "body_tokens": 1963,
-        "total": 2281,
+        "total": 2286,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 297,
+        "body_tokens": 1963,
+        "total": 2260,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 3,
-        "answer_tokens": 101,
+        "answer_tokens": 112,
         "body_tokens": 1963,
-        "total": 2064
+        "total": 2075
       },
       "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
-      "answer_factor": 0.0220125786163522,
-      "session_factor": 0.8636562911003945,
+      "answer_factor": 0.021671826625386997,
+      "session_factor": 0.8617672790901137,
       "unmatched_terms": [
         "where",
         "while"
@@ -639,21 +754,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 299,
+        "answer_tokens": 304,
         "body_tokens": 2177,
-        "total": 2476,
+        "total": 2481,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 294,
+        "body_tokens": 2177,
+        "total": 2471,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 4,
-        "answer_tokens": 132,
+        "answer_tokens": 143,
         "body_tokens": 2177,
-        "total": 2309
+        "total": 2320
       },
       "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
-      "answer_factor": 0.020066889632107024,
-      "session_factor": 0.8816639741518578,
+      "answer_factor": 0.019736842105263157,
+      "session_factor": 0.8798871422813381,
       "unmatched_terms": [
         "where",
         "tailing",
@@ -681,22 +804,30 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 313,
+        "answer_tokens": 318,
         "body_tokens": 1540,
-        "total": 1853,
+        "total": 1858,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 305,
+        "body_tokens": 1540,
+        "total": 1845,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 315,
+        "answer_tokens": 320,
         "body_tokens": 1540,
-        "total": 1855,
+        "total": 1860,
         "truncated": true
       },
       "miss_cause": "outranked: 11 word(s) reached the graph, 2 reached nothing, and other files scored higher",
-      "answer_factor": 0.09584664536741214,
-      "session_factor": 0.8472746896923907,
+      "answer_factor": 0.09433962264150944,
+      "session_factor": 0.844994617868676,
       "unmatched_terms": [
         "where",
         "the"
@@ -720,22 +851,30 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 318,
+        "answer_tokens": 323,
         "body_tokens": 2774,
-        "total": 3092,
+        "total": 3097,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 323,
+        "body_tokens": 2774,
+        "total": 3097,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 326,
+        "answer_tokens": 331,
         "body_tokens": 2774,
-        "total": 3100,
+        "total": 3105,
         "truncated": true
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
+      "miss_cause": "outranked: 4 word(s) reached the graph, 8 reached nothing, and other files scored higher",
       "answer_factor": 0,
-      "session_factor": 0.8971539456662354,
+      "session_factor": 0.8957055214723927,
       "unmatched_terms": [
         "where",
         "the",
@@ -765,22 +904,29 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 304,
+        "answer_tokens": 309,
         "body_tokens": 573,
-        "total": 877,
+        "total": 882,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 320,
+        "body_tokens": 573,
+        "total": 893,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 307,
+        "answer_tokens": 312,
         "body_tokens": 573,
-        "total": 880,
+        "total": 885,
         "truncated": true
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
-      "answer_factor": 0.23026315789473684,
-      "session_factor": 0.7331812998859749,
+      "answer_factor": 0.22653721682847897,
+      "session_factor": 0.7290249433106576,
       "unmatched_terms": [
         "where",
         "an",
@@ -807,21 +953,30 @@
       "kivgraph": {
         "rank": 5,
         "files_offered": 10,
-        "answer_tokens": 291,
+        "answer_tokens": 296,
         "body_tokens": 1856,
-        "total": 2147,
+        "total": 2152,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 308,
+        "body_tokens": 1856,
+        "total": 2164,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 1,
         "files_offered": 10,
-        "answer_tokens": 319,
+        "answer_tokens": 324,
         "body_tokens": 1856,
-        "total": 2175,
+        "total": 2180,
         "truncated": true
       },
+      "miss_cause": "crowded out: rank 1 inside its own repository",
       "answer_factor": 0,
-      "session_factor": 0.8644620400558919,
+      "session_factor": 0.862453531598513,
       "unmatched_terms": [
         "it",
         "goes",
@@ -847,22 +1002,30 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 304,
+        "answer_tokens": 309,
         "body_tokens": 1868,
-        "total": 2172,
+        "total": 2177,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 308,
+        "body_tokens": 1868,
+        "total": 2176,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 312,
+        "answer_tokens": 317,
         "body_tokens": 1868,
-        "total": 2180,
+        "total": 2185,
         "truncated": true
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
-      "answer_factor": 0.0625,
-      "session_factor": 0.8687845303867403,
+      "miss_cause": "outranked: 10 word(s) reached the graph, 3 reached nothing, and other files scored higher",
+      "answer_factor": 0.061488673139158574,
+      "session_factor": 0.866789159393661,
       "unmatched_terms": [
         "where",
         "an",
@@ -887,22 +1050,30 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 322,
+        "answer_tokens": 327,
         "body_tokens": 741,
-        "total": 1063,
+        "total": 1068,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 304,
+        "body_tokens": 741,
+        "total": 1045,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 330,
+        "answer_tokens": 335,
         "body_tokens": 741,
-        "total": 1071,
+        "total": 1076,
         "truncated": true
       },
       "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
-      "answer_factor": 0.4751552795031056,
-      "session_factor": 0.8410159924741298,
+      "answer_factor": 0.46788990825688076,
+      "session_factor": 0.8370786516853933,
       "unmatched_terms": [
         "where",
         "the",
@@ -928,22 +1099,30 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 318,
+        "answer_tokens": 323,
         "body_tokens": 2858,
-        "total": 3176,
+        "total": 3181,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 322,
+        "body_tokens": 2858,
+        "total": 3180,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 333,
+        "answer_tokens": 338,
         "body_tokens": 2858,
-        "total": 3191,
+        "total": 3196,
         "truncated": true
       },
-      "miss_cause": "unreachable: the answer file carries no term of the phrase, so no weight can rank it",
-      "answer_factor": 0.4371069182389937,
-      "session_factor": 0.943639798488665,
+      "miss_cause": "outranked: 8 word(s) reached the graph, 4 reached nothing, and other files scored higher",
+      "answer_factor": 0.43034055727554177,
+      "session_factor": 0.9421565545425966,
       "unmatched_terms": [
         "where",
         "an",
@@ -969,22 +1148,30 @@
       "kivgraph": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 323,
+        "answer_tokens": 328,
         "body_tokens": 3553,
-        "total": 3876,
+        "total": 3881,
+        "truncated": true
+      },
+      "kivgraph_guessed": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 337,
+        "body_tokens": 3553,
+        "total": 3890,
         "truncated": true
       },
       "kivgraph_scoped": {
         "rank": 0,
         "files_offered": 10,
-        "answer_tokens": 333,
+        "answer_tokens": 338,
         "body_tokens": 3553,
-        "total": 3886,
+        "total": 3891,
         "truncated": true
       },
       "miss_cause": "outranked: 12 word(s) reached the graph, 2 reached nothing, and other files scored higher",
-      "answer_factor": 6.479876160990712,
-      "session_factor": 1.456656346749226,
+      "answer_factor": 6.3810975609756095,
+      "session_factor": 1.4547796959546508,
       "unmatched_terms": [
         "instead",
         "the"
@@ -998,20 +1185,22 @@
     "native_top_one": 2,
     "kivgraph_top_one": 2,
     "kivgraph_scoped_hits": 6,
-    "miss_crowded_out": 0,
-    "miss_outranked": 4,
-    "miss_unreachable": 14,
+    "kivgraph_guessed_hits": 11,
+    "kivgraph_guessed_top_one": 4,
+    "miss_crowded_out": 2,
+    "miss_outranked": 8,
+    "miss_unreachable": 3,
     "native_answer_tokens": 4631,
-    "kivgraph_answer_tokens": 7316,
+    "kivgraph_answer_tokens": 7436,
     "body_tokens": 55386,
     "shared_hits": 2,
     "native_answer_tokens_on_shared_hits": 306,
-    "kivgraph_answer_tokens_on_shared_hits": 600,
-    "answer_factor_on_shared_hits": 0.51,
-    "answer_factor": 0.6329961727720066,
-    "session_factor": 0.9571783994130969,
+    "kivgraph_answer_tokens_on_shared_hits": 610,
+    "answer_factor_on_shared_hits": 0.5016393442622951,
+    "answer_factor": 0.6227810650887574,
+    "session_factor": 0.9553500366113782,
     "session_ceiling": 1.0836131874480917,
-    "median_answer_factor": 0.046350671140939596
+    "median_answer_factor": 0.045595821718094134
   },
   "limitations": [
     "the working tree carried uncommitted changes: git grep walked them, and so did the server binary only if it was rebuilt from them",

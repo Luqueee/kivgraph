@@ -2,7 +2,7 @@
 
 Question: would the prose this code already carries answer what the graph cannot reach?
 
-Generated 2026-08-25T19:46:11Z from commit `7967a4b-dirty` on darwin/arm64 with go1.26.4, over published generation `000191`.
+Generated 2026-08-25T19:52:19Z from commit `d49e3b8-dirty` on darwin/arm64 with go1.26.4, over published generation `000191`.
 
 Command: `go run ./benchmarks/docstring-simulation`. Dataset: `benchmarks/intent-token-cost/questions.json`, 24 questions.
 

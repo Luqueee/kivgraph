@@ -19,7 +19,12 @@ Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search
    whose names differ only in case are two repositories.
 3. When you do not know the name, start with `find_by_intent`: it takes a
    plain-language description and answers with the ranked symbols and, under
-   `view: "files"`, just the files to open. Its rows match text rather than
+   `view: "files"`, just the files to open. **Pass `keywords` with the
+   identifier words you would guess this code uses**, even when you are
+   guessing: a question in prose alone finds a fraction of what the same
+   question finds with them, because the index reads identifiers and your
+   phrase is the one thing it cannot expand -- `picture` will not reach
+   `image`, and `crash` will not reach `panic`, but you can say both. Its rows match text rather than
    edges -- `match: lexical`, or `lexical+calls` for a row credited for the
    terms its resolved calls reach -- so confirm one with `find_references`
    before acting on it, and prefer grep when you already know the name.

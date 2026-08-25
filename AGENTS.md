@@ -47,7 +47,7 @@ El campo `instructions` del servidor dice lo mismo, y Zed no lo lee.
 | qué alcanza esto hacia fuera | `trace_dependencies` |
 | quién lo usa desde otro repositorio | `find_cross_repo_consumers` |
 | dónde está declarado | `find_symbol` |
-| no sé cómo se llama, qué archivos abro | `find_by_intent` |
+| no sé cómo se llama, qué archivos abro | `find_by_intent`, con `keywords` |
 | qué hay declarado en este paquete | `get_file_outline` |
 | dame el código de estos símbolos -- hasta `20` por llamada | `get_source` |
 | ¿está el grafo al día? | `graph_status` |

@@ -335,7 +335,7 @@ func findByIntent(
 	return nil, Response[IntentMatches]{
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: returned, Truncated: hasMore, NextCursor: nextCursor,
-		Guidance: intentGuidance(total, returned, hasMore, used, len(unmatched)),
+		Guidance: intentGuidance(total, returned, hasMore, used, len(unmatched), len(options.Keywords)),
 		Results: IntentMatches{
 			Terms: terms, Unmatched: unmatched, Symbols: page, View: options.View,
 		},
@@ -562,7 +562,7 @@ func intentFrequencyLabel(frequency, corpus int) string {
 
 // intentGuidance speaks when the count misleads, and says something different
 // for each way a retrieval comes back empty.
-func intentGuidance(total, returned int, truncated bool, matched, unmatched int) string {
+func intentGuidance(total, returned int, truncated bool, matched, unmatched, guessed int) string {
 	switch {
 	case total == 0 && matched == 0 && unmatched > 0:
 		return "no word of this question appears in any name, qualified name, kind or path of the graph; the index holds no prose, so rephrase with the vocabulary the code would use, or pass keywords"
@@ -570,8 +570,19 @@ func intentGuidance(total, returned int, truncated bool, matched, unmatched int)
 		return "this question folded to no term at all; single characters are not indexed, so ask with words"
 	case total == 0:
 		return "the terms matched symbols, but every one of them was excluded by repo, kind or path_prefix; widen the narrowing"
+	case truncated && guessed == 0:
+		// The page is wide and the caller asked in prose only. Measured over
+		// three repositories, passing the identifier words a caller can guess
+		// from its own question -- without knowing the code -- moves more
+		// answers into the page than any narrowing does, and it is why this
+		// tool takes keywords instead of embeddings. So it is named before
+		// paging, which is the advice that costs another call.
+		return truncatedGuidance(returned, total,
+			"keywords with the identifier words you would guess this code uses, or repo, kind or path_prefix")
 	case truncated:
 		return truncatedGuidance(returned, total, "repo, kind or path_prefix, or ask with view=files first")
+	case unmatched > 0 && guessed == 0:
+		return "some words of this question matched nothing and are listed in unmatched_terms; the ranking used the rest, and keywords is where the vocabulary the code uses belongs"
 	case unmatched > 0:
 		return "some words of this question matched nothing and are listed in unmatched_terms; the ranking used the rest"
 	default:
