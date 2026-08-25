@@ -1,8 +1,8 @@
 {
   "benchmark": "docstring-simulation",
   "command": "go run ./benchmarks/docstring-simulation",
-  "generated_at": "2026-08-25T19:52:19Z",
-  "commit": "d49e3b8-dirty",
+  "generated_at": "2026-08-25T20:30:12Z",
+  "commit": "b0fa57e-dirty",
   "environment": {
     "arch": "arm64",
     "go": "go1.26.4",
@@ -11,6 +11,20 @@
   "snapshot": "000191",
   "question_set": "benchmarks/intent-token-cost/questions.json",
   "questions": 24,
+  "corpus": [
+    {
+      "repository": "kivgraph",
+      "symbols": 14490
+    },
+    {
+      "repository": "api-db-go",
+      "symbols": 7393
+    },
+    {
+      "repository": "mole",
+      "symbols": 416
+    }
+  ],
   "prose": {
     "documented_symbols": 6536,
     "symbols": 22299,

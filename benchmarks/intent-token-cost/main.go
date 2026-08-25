@@ -103,11 +103,12 @@ type questionResult struct {
 	// harness never passed, and the gap between the two arms is how much of the
 	// accuracy was ours to give away.
 	Guessed arm `json:"kivgraph_guessed"`
-	// Scoped is the same question with the repository named. It is not the arm
-	// the accuracy is judged on -- an asker who does not know the symbol may
-	// not know the service either -- but it separates two failures that share
-	// one zero: a corpus whose vocabulary cannot reach the file, and three
-	// repositories competing for one window of ten rows.
+	// Scoped is the same question, with the guessed words and with the
+	// repository named. An asker who does not know a symbol's name often does
+	// know which service it lives in, and this corpus is one window of ten rows
+	// shared by three repositories where the largest holds two thirds of the
+	// symbols. It is the ceiling of what a caller can reach without any change
+	// to this surface.
 	Scoped arm `json:"kivgraph_scoped"`
 	// MissCause names why the unscoped arm missed, and it is the number that
 	// decides whether more weight or more corpus is the answer.
@@ -280,7 +281,7 @@ func run(ctx context.Context, cfg config) error {
 			return err
 		}
 		if result.Scoped, _, err = measureIntent(
-			ctx, session, question.Intent, question.Repo, question.Repo, nil,
+			ctx, session, question.Intent, question.Repo, question.Repo, question.Keywords,
 			question.Answer, body, tokens); err != nil {
 			return err
 		}
@@ -628,14 +629,14 @@ func limitations(out results) []string {
 
 func printSummary(out results) {
 	fmt.Printf("%s @ generation %d, commit %s\n", out.Benchmark, out.SnapshotID, short(out.Commit))
-	fmt.Printf("miss cause crowded %d, outranked %d, unreachable %d   scoped %d/%d found\n",
-		out.Totals.MissCrowded, out.Totals.MissOutranked, out.Totals.MissNoTerm,
-		out.Totals.ScopedHits, out.Totals.Questions)
+	fmt.Printf("miss cause crowded %d, outranked %d, unreachable %d\n",
+		out.Totals.MissCrowded, out.Totals.MissOutranked, out.Totals.MissNoTerm)
 	fmt.Printf("accuracy   native %d/%d found, %d top-1   kivgraph %d/%d found, %d top-1\n",
 		out.Totals.NativeHits, out.Totals.Questions, out.Totals.NativeTopOne,
 		out.Totals.KivgraphHits, out.Totals.Questions, out.Totals.KivgraphTopOne)
-	fmt.Printf("           with the words a caller can guess: %d/%d found, %d top-1\n",
-		out.Totals.GuessedHits, out.Totals.Questions, out.Totals.GuessedTopOne)
+	fmt.Printf("           guessed words %d/%d found, %d top-1   and the repository named %d/%d found\n",
+		out.Totals.GuessedHits, out.Totals.Questions, out.Totals.GuessedTopOne,
+		out.Totals.ScopedHits, out.Totals.Questions)
 	fmt.Printf("answer     native %d tokens, kivgraph %d tokens -> %.2fx (median %.2fx)\n",
 		out.Totals.NativeAnswer, out.Totals.KivgraphAnswer, out.Totals.AnswerFactor, out.Totals.MedianAnswerFactor)
 	fmt.Printf("on the %d questions both answered: %d vs %d -> %.2fx\n",
@@ -657,16 +658,17 @@ func writeReport(directory string, out results) error {
 	fmt.Fprintf(report, "Ground truth: %s\n\n", out.GroundTruth)
 
 	fmt.Fprintf(report, "## Accuracy first\n\n")
-	fmt.Fprintf(report, "|question|repo|class|native rank|as asked|with guessed words|\n|---|---|---|---|---|---|\n")
+	fmt.Fprintf(report, "|question|repo|class|native rank|as asked|guessed words|and repo named|\n|---|---|---|---|---|---|---|\n")
 	for _, row := range out.Results {
-		fmt.Fprintf(report, "|%s|%s|%s|%s|%s|%s|\n",
+		fmt.Fprintf(report, "|%s|%s|%s|%s|%s|%s|%s|\n",
 			row.Intent, row.Repo, row.Class, rankCell(row.Native),
-			rankCell(row.Kivgraph), rankCell(row.Guessed))
+			rankCell(row.Kivgraph), rankCell(row.Guessed), rankCell(row.Scoped))
 	}
 	fmt.Fprintf(report, "\n### Per repository\n\n")
-	fmt.Fprintf(report, "|repository|questions|native found|as asked|with guessed words|\n|---|---|---|---|---|\n")
+	fmt.Fprintf(report, "|repository|questions|native found|as asked|guessed words|and repo named|\n")
+	fmt.Fprintf(report, "|---|---|---|---|---|---|\n")
 	for _, name := range out.Dataset.Repositories {
-		questions, native, ours, guessed := 0, 0, 0, 0
+		questions, native, ours, guessed, scoped := 0, 0, 0, 0, 0
 		for _, row := range out.Results {
 			if row.Repo != name {
 				continue
@@ -681,8 +683,11 @@ func writeReport(directory string, out results) error {
 			if row.Guessed.Rank > 0 {
 				guessed++
 			}
+			if row.Scoped.Rank > 0 {
+				scoped++
+			}
 		}
-		fmt.Fprintf(report, "|`%s`|%d|%d|%d|%d|\n", name, questions, native, ours, guessed)
+		fmt.Fprintf(report, "|`%s`|%d|%d|%d|%d|%d|\n", name, questions, native, ours, guessed, scoped)
 	}
 	fmt.Fprintf(report, "\n### Why a zero happened\n\n")
 	fmt.Fprintf(report, "|cause|questions|what it would cost to fix|\n|---|---|---|\n")

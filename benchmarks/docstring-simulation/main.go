@@ -196,6 +196,15 @@ func isCommentLine(trimmed string) bool {
 	return strings.HasSuffix(trimmed, "*/")
 }
 
+// corpusShare is how many symbols each repository contributes. It belongs in
+// this report because it is the first thing that explains a repository the
+// ranking never reaches: one window of ten rows is shared by every repository in
+// the graph, and the largest one does not have to be right to fill it.
+type corpusShare struct {
+	Repository string `json:"repository"`
+	Symbols    int    `json:"symbols"`
+}
+
 type proseStats struct {
 	Documented   int `json:"documented_symbols"`
 	Symbols      int `json:"symbols"`
@@ -483,12 +492,24 @@ type results struct {
 	Snapshot    string            `json:"snapshot"`
 	QuestionSet string            `json:"question_set"`
 	Questions   int               `json:"questions"`
+	Corpus      []corpusShare     `json:"corpus"`
 	Prose       proseStats        `json:"prose"`
 	Base        armStats          `json:"base"`
 	ProseIndex  armStats          `json:"prose_index"`
 	Sweep       []armStats        `json:"sweep"`
 	Results     []questionResult  `json:"results"`
 	Limitations []string          `json:"limitations"`
+}
+
+func sortedShares(shares map[string]int) []corpusShare {
+	out := make([]corpusShare, 0, len(shares))
+	for name, count := range shares {
+		out = append(out, corpusShare{Repository: name, Symbols: count})
+	}
+	slices.SortFunc(out, func(left, right corpusShare) int {
+		return cmp.Or(cmp.Compare(right.Symbols, left.Symbols), cmp.Compare(left.Repository, right.Repository))
+	})
+	return out
 }
 
 func rankOf(offered []fileRow, repo string, wanted []string) int {
@@ -594,6 +615,25 @@ func run(questionsPath, snapshotPath, directory string) error {
 	if err != nil {
 		return err
 	}
+	shares := map[string]int{}
+	table := snapshot.Strings()
+	for id := 0; id < int(snapshot.Metadata().Counts.Symbols); id++ {
+		symbol, ok := snapshot.Symbol(hotsnapshot.SymbolID(id))
+		if !ok {
+			continue
+		}
+		file, fileOK := snapshot.File(symbol.File)
+		if !fileOK {
+			continue
+		}
+		repository, repoOK := snapshot.Repository(file.Repository)
+		if !repoOK {
+			continue
+		}
+		if name, ok := table.String(repository.Name); ok {
+			shares[name]++
+		}
+	}
 	commit, err := currentCommit()
 	if err != nil {
 		return err
@@ -630,6 +670,7 @@ func run(questionsPath, snapshotPath, directory string) error {
 		QuestionSet: questionsPath,
 		Commit:      commit,
 		Questions:   len(set.Questions),
+		Corpus:      sortedShares(shares),
 		Prose:       prose,
 		Base:        armStats{Terms: len(base.keys), Postings: base.postings},
 	}
@@ -730,6 +771,14 @@ func writeReport(directory string, out results) error {
 		out.Environment["go"], out.Snapshot)
 	fmt.Fprintf(report, "Command: `%s`. Dataset: `%s`, %d questions.\n\n",
 		out.Command, out.QuestionSet, out.Questions)
+	fmt.Fprintf(report, "## The corpus one window is shared by\n\n")
+	fmt.Fprintf(report, "|repository|symbols|share|\n|---|---|---|\n")
+	for _, share := range out.Corpus {
+		fmt.Fprintf(report, "|`%s`|%d|%.0f%%|\n", share.Repository, share.Symbols,
+			100*float64(share.Symbols)/float64(out.Prose.Symbols))
+	}
+	fmt.Fprintf(report, "\n")
+
 	fmt.Fprintf(report, "## What the prose is\n\n")
 	fmt.Fprintf(report, "|documented symbols|corpus|bytes|files read|files not on disk|\n|---|---|---|---|---|\n")
 	fmt.Fprintf(report, "|%d|%d|%.2f MB|%d|%d|\n\n", out.Prose.Documented, out.Prose.Symbols,

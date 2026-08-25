@@ -2,9 +2,17 @@
 
 Question: would the prose this code already carries answer what the graph cannot reach?
 
-Generated 2026-08-25T19:52:19Z from commit `d49e3b8-dirty` on darwin/arm64 with go1.26.4, over published generation `000191`.
+Generated 2026-08-25T20:30:12Z from commit `b0fa57e-dirty` on darwin/arm64 with go1.26.4, over published generation `000191`.
 
 Command: `go run ./benchmarks/docstring-simulation`. Dataset: `benchmarks/intent-token-cost/questions.json`, 24 questions.
+
+## The corpus one window is shared by
+
+|repository|symbols|share|
+|---|---|---|
+|`kivgraph`|14490|65%|
+|`api-db-go`|7393|33%|
+|`mole`|416|2%|
 
 ## What the prose is
 

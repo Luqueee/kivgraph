@@ -24,7 +24,9 @@ Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search
    guessing: a question in prose alone finds a fraction of what the same
    question finds with them, because the index reads identifiers and your
    phrase is the one thing it cannot expand -- `picture` will not reach
-   `image`, and `crash` will not reach `panic`, but you can say both. Its rows match text rather than
+   `image`, and `crash` will not reach `panic`, but you can say both. Name `repo` too when
+   you know which project it is: one page of rows is shared by every indexed
+   repository, and the largest one fills it whether or not it is right. Its rows match text rather than
    edges -- `match: lexical`, or `lexical+calls` for a row credited for the
    terms its resolved calls reach -- so confirm one with `find_references`
    before acting on it, and prefer grep when you already know the name.

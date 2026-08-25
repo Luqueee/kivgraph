@@ -100,6 +100,13 @@ Las palabras las adivinó un modelo a partir de la pregunta y sin ver ningún
 fichero respuesta -- que es exactamente lo que un agente llamante puede hacer.
 `11` contra `6` **sin tocar nada**, y contra los `7` de `grep`.
 
+Y falta la otra mitad del consejo, que tampoco cuesta nada. El corpus es una
+ventana de diez filas compartida por tres repositorios donde el mayor tiene el
+`65 %` de los símbolos -- `kivgraph` `14.490`, `api-db-go` `7.393`, `mole` `416`--,
+así que un `api-db-go` correcto pierde el hueco contra un `kivgraph` plausible.
+Nombrando el repositorio, que es un parámetro que el llamante suele saber:
+**`17` de `24`**, y `api-db-go` pasa de `1` de `8` a `4`.
+
 Y nada enrutaba hacia ahí: la `guidance` nombraba `keywords` sólo cuando ninguna
 palabra de la pregunta matcheaba algo, caso que en estas `24` preguntas **no
 ocurre nunca**. El consejo no se emitía jamás.
