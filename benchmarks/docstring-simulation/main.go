@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"sort"
@@ -196,12 +197,50 @@ func isCommentLine(trimmed string) bool {
 }
 
 type proseStats struct {
-	Documented  int `json:"documented_symbols"`
-	Symbols     int `json:"symbols"`
-	Bytes       int `json:"docstring_bytes"`
-	FilesRead   int `json:"files_read"`
-	FilesMissed int `json:"files_not_on_disk"`
+	Documented   int `json:"documented_symbols"`
+	Symbols      int `json:"symbols"`
+	Bytes        int `json:"docstring_bytes"`
+	WithLiterals int `json:"symbols_with_literals"`
+	LiteralBytes int `json:"literal_bytes"`
+	FilesRead    int `json:"files_read"`
+	FilesMissed  int `json:"files_not_on_disk"`
 }
+
+// literals is the text a symbol's own body shows a user: messages, errors, keys.
+// It is a different hypothesis from prose and the measurement that motivated it
+// is grep's: the only two questions it answered in mole were answered by words
+// living inside a string -- "already running", and a log line about a file that
+// shrank -- not by a comment and not by a name. A message is also rarer than a
+// comment, which is the property the prose arm lacked.
+func literals(lines []string, startLine, endLine uint32) string {
+	if startLine == 0 || int(startLine) > len(lines) {
+		return ""
+	}
+	end := int(endLine)
+	if end > len(lines) || end < int(startLine) {
+		end = int(startLine)
+	}
+	body := strings.Join(lines[int(startLine)-1:end], "\n")
+	found := literalPattern.FindAllStringSubmatch(body, -1)
+	if len(found) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(found))
+	for _, match := range found {
+		for _, group := range match[1:] {
+			if group != "" {
+				parts = append(parts, group)
+			}
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// literalPattern reads interpreted and raw string literals. It is a text rule,
+// like the docstring one, and it declares the same limitation: a parser would
+// tell a literal from a character class inside a regular expression, and this
+// does not.
+var literalPattern = regexp.MustCompile("\"([^\"\\n]{2,})\"|`([^`]{2,})`")
 
 // collect reads the prose out of the checkouts the question set names. A file the
 // graph indexed and the disk no longer holds is counted and skipped: it is the
@@ -209,11 +248,12 @@ type proseStats struct {
 func collect(
 	snapshot *hotsnapshot.GraphSnapshot,
 	checkouts map[string]string,
-) (map[hotsnapshot.SymbolID]string, proseStats, error) {
+) (map[hotsnapshot.SymbolID]string, map[hotsnapshot.SymbolID]string, proseStats, error) {
 	table := snapshot.Strings()
 	total := int(snapshot.Metadata().Counts.Symbols)
 	stats := proseStats{Symbols: total}
 	docs := make(map[hotsnapshot.SymbolID]string, total/3)
+	texts := make(map[hotsnapshot.SymbolID]string, total/3)
 	cache := map[hotsnapshot.FileID][]string{}
 	missing := map[hotsnapshot.FileID]bool{}
 	for id := 0; id < total; id++ {
@@ -257,8 +297,13 @@ func collect(
 			stats.Documented++
 			stats.Bytes += len(doc)
 		}
+		if text := literals(lines, symbol.StartLine, symbol.EndLine); text != "" {
+			texts[hotsnapshot.SymbolID(id)] = text
+			stats.WithLiterals++
+			stats.LiteralBytes += len(text)
+		}
 	}
-	return docs, stats, nil
+	return docs, texts, stats, nil
 }
 
 // fileRow is one row of the files view: the granularity the question asks at.
@@ -273,6 +318,7 @@ func rank(
 	snapshot *hotsnapshot.GraphSnapshot,
 	idx index,
 	intent string,
+	keywords []string,
 	limit int,
 	proseWeight float64,
 ) []fileRow {
@@ -289,7 +335,7 @@ func rank(
 	}
 	candidates := map[hotsnapshot.SymbolID]*candidate{}
 	used := 0
-	for _, word := range retrieval.QueryWords(intent, nil) {
+	for _, word := range retrieval.QueryWords(intent, keywords) {
 		found, structural := idx.lookup(retrieval.Fold(word))
 		if len(found) == 0 {
 			continue
@@ -416,6 +462,8 @@ type questionResult struct {
 }
 
 type armStats struct {
+	// Source names the text this arm indexed beside the graph's own fields.
+	Source string `json:"source"`
 	// Weight is the share a prose-only hit keeps. One is the unweighted index,
 	// and it is reported because it is the arm that says prose alone is a wash.
 	Weight   float64 `json:"prose_weight,omitempty"`
@@ -459,10 +507,12 @@ func main() {
 		questions = flag.String("questions", "benchmarks/intent-token-cost/questions.json",
 			"question set to reuse, so both harnesses answer the same questions")
 		snapshotPath = flag.String("snapshot", "", "published snapshot to read; default is the newest one")
-		directory    = flag.String("directory", "benchmarks/docstring-simulation", "where to write the artifacts")
+		keywordPath  = flag.String("keywords", "benchmarks/docstring-simulation/keywords.json",
+			"words a calling model guessed from each question alone; the parameter the tool already takes")
+		directory = flag.String("directory", "benchmarks/docstring-simulation", "where to write the artifacts")
 	)
 	flag.Parse()
-	if err := run(*questions, *snapshotPath, *directory); err != nil {
+	if err := run(*questions, *snapshotPath, *keywordPath, *directory); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -516,7 +566,7 @@ func newestSnapshot() (string, error) {
 	return newest, nil
 }
 
-func run(questionsPath, snapshotPath, directory string) error {
+func run(questionsPath, snapshotPath, keywordPath, directory string) error {
 	if snapshotPath == "" {
 		var err error
 		if snapshotPath, err = newestSnapshot(); err != nil {
@@ -531,6 +581,17 @@ func run(questionsPath, snapshotPath, directory string) error {
 	if err := json.Unmarshal(raw, &set); err != nil {
 		return fmt.Errorf("decode question set: %w", err)
 	}
+	// The keywords are an input and not a result: a model guessed them from the
+	// question alone and never saw an answer file, which is exactly what a
+	// calling agent can do and what the keywords parameter is for.
+	var keywords struct {
+		Keywords map[string][]string `json:"keywords"`
+	}
+	if raw, err := os.ReadFile(keywordPath); err == nil {
+		if err := json.Unmarshal(raw, &keywords); err != nil {
+			return fmt.Errorf("decode keywords: %w", err)
+		}
+	}
 	data, err := os.ReadFile(snapshotPath)
 	if err != nil {
 		return fmt.Errorf("read snapshot: %w", err)
@@ -541,7 +602,7 @@ func run(questionsPath, snapshotPath, directory string) error {
 	if err != nil {
 		return fmt.Errorf("read snapshot %s: %w", snapshotPath, err)
 	}
-	docs, prose, err := collect(snapshot, set.Repositories)
+	docs, texts, prose, err := collect(snapshot, set.Repositories)
 	if err != nil {
 		return err
 	}
@@ -549,7 +610,28 @@ func run(questionsPath, snapshotPath, directory string) error {
 	if err != nil {
 		return err
 	}
-	base, withProse := build(snapshot, nil), build(snapshot, docs)
+	both := make(map[hotsnapshot.SymbolID]string, len(docs)+len(texts))
+	for id, doc := range docs {
+		both[id] = doc
+	}
+	for id, text := range texts {
+		both[id] = both[id] + " " + text
+	}
+	// The control comes first and it is the arm that must reproduce the product.
+	arms := []struct {
+		name  string
+		extra map[hotsnapshot.SymbolID]string
+	}{
+		{name: "names only", extra: nil},
+		{name: "prose", extra: docs},
+		{name: "literals", extra: texts},
+		{name: "prose and literals", extra: both},
+	}
+	built := make([]index, 0, len(arms))
+	for _, arm := range arms {
+		built = append(built, build(snapshot, arm.extra))
+	}
+	base := built[0]
 
 	out := results{
 		Benchmark:   benchmarkName,
@@ -562,33 +644,60 @@ func run(questionsPath, snapshotPath, directory string) error {
 		Questions:   len(set.Questions),
 		Prose:       prose,
 		Base:        armStats{Terms: len(base.keys), Postings: base.postings},
-		ProseIndex:  armStats{Terms: len(withProse.keys), Postings: withProse.postings},
 	}
-	// One is first and it is the control of this sweep: at weight one the
-	// multiplier is the identity, so that row is the unweighted prose index.
-	weights := []float64{1.0, 0.7, 0.5, 0.3, 0.15}
-	for _, weight := range weights {
-		out.Sweep = append(out.Sweep, armStats{Weight: weight})
+	// Weight one is the identity, so the first column of every arm is that arm's
+	// index without any discount, and the control arm ignores the weight
+	// entirely: it has no borrowed text to discount. Every arm runs twice: with
+	// the question as asked, and with the words a caller would guess beside it.
+	weights := []float64{1.0, 0.3}
+	type column struct {
+		arm      int
+		weight   float64
+		keywords bool
+	}
+	columns := []column{}
+	for position, arm := range arms {
+		for _, weight := range weights {
+			if position == 0 && weight != 1 {
+				continue
+			}
+			for _, guessed := range [...]bool{false, true} {
+				columns = append(columns, column{arm: position, weight: weight, keywords: guessed})
+				source := arm.name
+				if guessed {
+					source += " + guessed words"
+				}
+				out.Sweep = append(out.Sweep, armStats{
+					Source: source, Weight: weight,
+					Terms: len(built[position].keys), Postings: built[position].postings,
+				})
+			}
+		}
 	}
 	for _, question := range set.Questions {
 		row := questionResult{Intent: question.Intent, Repo: question.Repo, Class: question.Class}
-		row.Base = rankOf(rank(snapshot, base, question.Intent, intentLimit, 1), question.Repo, question.Answer)
+		row.Base = rankOf(
+			rank(snapshot, base, question.Intent, nil, intentLimit, 1), question.Repo, question.Answer)
 		if row.Base > 0 {
 			out.Base.Found++
 		}
 		if row.Base == 1 {
 			out.Base.TopOne++
 		}
-		for position, weight := range weights {
+		for index, spec := range columns {
+			var guessed []string
+			if spec.keywords {
+				guessed = keywords.Keywords[question.Intent]
+			}
 			place := rankOf(
-				rank(snapshot, withProse, question.Intent, intentLimit, weight),
+				rank(snapshot, built[spec.arm], question.Intent, guessed, intentLimit, spec.weight),
 				question.Repo, question.Answer)
 			row.Prose = append(row.Prose, place)
 			if place > 0 {
-				out.Sweep[position].Found++
+				out.Sweep[index].Found++
 			}
 			if place == 1 {
-				out.Sweep[position].TopOne++
+				out.Sweep[index].TopOne++
 			}
 		}
 		out.Results = append(out.Results, row)
@@ -615,12 +724,11 @@ func run(questionsPath, snapshotPath, directory string) error {
 	fmt.Printf("%s @ generation %s\n", benchmarkName, out.Snapshot)
 	fmt.Printf("prose      %d of %d symbols documented, %.2f MB, %d files read, %d missing\n",
 		prose.Documented, prose.Symbols, float64(prose.Bytes)/1e6, prose.FilesRead, prose.FilesMissed)
-	fmt.Printf("index      base %d terms / %d postings -> prose %d terms / %d postings (x%.1f)\n",
-		out.Base.Terms, out.Base.Postings, out.ProseIndex.Terms, out.ProseIndex.Postings,
-		float64(out.ProseIndex.Postings)/float64(out.Base.Postings))
-	fmt.Printf("accuracy   base %d/%d found, %d top-1\n", out.Base.Found, out.Questions, out.Base.TopOne)
+	fmt.Printf("prose      %d symbols documented; literals %d symbols, %.2f MB\n",
+		out.Prose.Documented, out.Prose.WithLiterals, float64(out.Prose.LiteralBytes)/1e6)
 	for _, arm := range out.Sweep {
-		fmt.Printf("prose w=%.2f  %d/%d found, %d top-1\n", arm.Weight, arm.Found, out.Questions, arm.TopOne)
+		fmt.Printf("%-19s w=%.2f  %6d postings  %d/%d found, %d top-1\n",
+			arm.Source, arm.Weight, arm.Postings, arm.Found, out.Questions, arm.TopOne)
 	}
 	return nil
 }
@@ -638,25 +746,20 @@ func writeReport(directory string, out results) error {
 	fmt.Fprintf(report, "|documented symbols|corpus|bytes|files read|files not on disk|\n|---|---|---|---|---|\n")
 	fmt.Fprintf(report, "|%d|%d|%.2f MB|%d|%d|\n\n", out.Prose.Documented, out.Prose.Symbols,
 		float64(out.Prose.Bytes)/1e6, out.Prose.FilesRead, out.Prose.FilesMissed)
-	fmt.Fprintf(report, "## What it costs the index\n\n")
-	fmt.Fprintf(report, "|arm|terms|postings|postings per symbol|\n|---|---|---|---|\n")
-	fmt.Fprintf(report, "|without prose|%d|%d|%.2f|\n", out.Base.Terms, out.Base.Postings,
-		float64(out.Base.Postings)/float64(out.Prose.Symbols))
-	fmt.Fprintf(report, "|with prose|%d|%d|%.2f|\n\n", out.ProseIndex.Terms, out.ProseIndex.Postings,
-		float64(out.ProseIndex.Postings)/float64(out.Prose.Symbols))
-
-	fmt.Fprintf(report, "## What it buys\n\n")
-	fmt.Fprintf(report, "|arm|found|first|\n|---|---|---|\n")
-	fmt.Fprintf(report, "|without prose|%d of %d|%d|\n", out.Base.Found, out.Questions, out.Base.TopOne)
+	fmt.Fprintf(report, "## What each arm costs and buys\n\n")
+	fmt.Fprintf(report, "|indexed text|borrowed hit worth|terms|postings|per symbol|found|first|\n")
+	fmt.Fprintf(report, "|---|---|---|---|---|---|---|\n")
 	for _, arm := range out.Sweep {
-		fmt.Fprintf(report, "|with prose, a prose-only hit worth %.2f|%d of %d|%d|\n",
-			arm.Weight, arm.Found, out.Questions, arm.TopOne)
+		fmt.Fprintf(report, "|%s|%.2f|%d|%d|%.2f|%d of %d|%d|\n",
+			arm.Source, arm.Weight, arm.Terms, arm.Postings,
+			float64(arm.Postings)/float64(out.Prose.Symbols),
+			arm.Found, out.Questions, arm.TopOne)
 	}
 	fmt.Fprintf(report, "\n")
 
-	fmt.Fprintf(report, "|question|repo|without prose")
-	for _, arm := range out.Sweep {
-		fmt.Fprintf(report, "|w=%.2f", arm.Weight)
+	fmt.Fprintf(report, "|question|repo|names")
+	for _, arm := range out.Sweep[1:] {
+		fmt.Fprintf(report, "|%s w=%.2f", arm.Source, arm.Weight)
 	}
 	fmt.Fprintf(report, "|\n|---|---|---")
 	for range out.Sweep {

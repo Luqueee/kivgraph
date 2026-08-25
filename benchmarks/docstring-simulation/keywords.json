@@ -1,0 +1,240 @@
+{
+  "note": "guessed by a calling model from the question alone, never from the answer: this is the keywords parameter the tool already takes",
+  "keywords": {
+    "which code refuses to publish a generation when the disk is nearly full": [
+      "disk",
+      "space",
+      "full",
+      "publish",
+      "generation",
+      "free",
+      "threshold",
+      "check"
+    ],
+    "how does a reader tell that a snapshot file does not belong to the generation it was found beside": [
+      "snapshot",
+      "generation",
+      "mismatch",
+      "validate",
+      "header",
+      "id",
+      "file",
+      "read"
+    ],
+    "where is every tool of this server registered": [
+      "register",
+      "tools",
+      "server",
+      "tool",
+      "handler",
+      "list",
+      "init"
+    ],
+    "how is a page token from a different question rejected": [
+      "page",
+      "token",
+      "cursor",
+      "invalid",
+      "mismatch",
+      "query",
+      "validate",
+      "pagination"
+    ],
+    "where does the daemon decide which client owns it": [
+      "daemon",
+      "owner",
+      "client",
+      "claim",
+      "lock",
+      "pid",
+      "attach"
+    ],
+    "which command prints the build provenance as json": [
+      "version",
+      "command",
+      "build",
+      "info",
+      "json",
+      "print",
+      "provenance"
+    ],
+    "where is the compiler's own library path handed to the rust analyzer": [
+      "sysroot",
+      "rust",
+      "analyzer",
+      "path",
+      "toolchain",
+      "lib",
+      "config"
+    ],
+    "how does a traversal keep from walking the whole graph": [
+      "visit",
+      "depth",
+      "limit",
+      "max",
+      "traverse",
+      "seen",
+      "cycle",
+      "nodes"
+    ],
+    "why a program on the far machine bound to an outside address is skipped": [
+      "remote",
+      "listen",
+      "address",
+      "bind",
+      "skip",
+      "localhost",
+      "port",
+      "process"
+    ],
+    "where the connection is aborted because the machine proves a different identity than before": [
+      "host",
+      "key",
+      "mismatch",
+      "fingerprint",
+      "close",
+      "verify",
+      "identity",
+      "connection"
+    ],
+    "where one rejected forward request does not tear down the whole shared link": [
+      "forward",
+      "reject",
+      "stream",
+      "channel",
+      "session",
+      "close",
+      "error",
+      "multiplex"
+    ],
+    "where the far end learns no more bytes are coming from one side": [
+      "eof",
+      "close",
+      "write",
+      "half",
+      "shutdown",
+      "stream",
+      "send"
+    ],
+    "where changing one setting on disk leaves the user's comments and ordering untouched": [
+      "config",
+      "update",
+      "preserve",
+      "comments",
+      "order",
+      "yaml",
+      "edit",
+      "set"
+    ],
+    "where an oversized picture upload is turned away instead of being stored": [
+      "image",
+      "upload",
+      "size",
+      "limit",
+      "max",
+      "reject",
+      "bytes",
+      "validate"
+    ],
+    "where starting a second background copy is refused while one already runs": [
+      "sync",
+      "already",
+      "running",
+      "start",
+      "lock",
+      "busy",
+      "concurrent",
+      "error"
+    ],
+    "where tailing the daemon output detects the file shrank and reopens it": [
+      "tail",
+      "log",
+      "truncated",
+      "reopen",
+      "file",
+      "size",
+      "follow",
+      "watch"
+    ],
+    "where a bulk transfer refuses to run when the destination looks like live production": [
+      "import",
+      "production",
+      "guard",
+      "target",
+      "refuse",
+      "env",
+      "database",
+      "check"
+    ],
+    "where preparing the tables stops early because something else already created them": [
+      "migrate",
+      "schema",
+      "exists",
+      "create",
+      "table",
+      "skip",
+      "already",
+      "init"
+    ],
+    "where an unexpected crash inside a request becomes a normal error reply instead of raw html": [
+      "panic",
+      "recover",
+      "middleware",
+      "http",
+      "error",
+      "json",
+      "handler",
+      "response"
+    ],
+    "how it goes back to the remote coordinator only after several good replies in a row": [
+      "consecutive",
+      "success",
+      "threshold",
+      "retry",
+      "backoff",
+      "remote",
+      "switch",
+      "count"
+    ],
+    "at startup, where absent table shards produce a printed command an operator can paste": [
+      "missing",
+      "shard",
+      "table",
+      "startup",
+      "print",
+      "command",
+      "hint",
+      "check"
+    ],
+    "where the label naming who produced a reply falls back to a placeholder": [
+      "author",
+      "name",
+      "default",
+      "unknown",
+      "fallback",
+      "label",
+      "empty",
+      "reply"
+    ],
+    "where an old variable that is no longer read is reported at boot": [
+      "deprecated",
+      "unused",
+      "env",
+      "config",
+      "warn",
+      "startup",
+      "variable",
+      "check"
+    ],
+    "why a partial save with no usable fields is refused instead of touching the record": [
+      "patch",
+      "update",
+      "empty",
+      "fields",
+      "validate",
+      "reject",
+      "partial",
+      "error"
+    ]
+  }
+}
