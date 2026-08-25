@@ -65,6 +65,7 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 		StateDirectory: stateDirectory(loaded),
 		ConfigPath:     configPath,
 		Address:        address,
+		AllowRemote:    options.AllowRemote,
 	}, nil
 }
 

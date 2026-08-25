@@ -95,6 +95,29 @@ clientes sin pedirlo sería peor que negarse. El lado `url` se compara por
 estructura, porque el puerto y el token de un demonio anterior no son conocibles
 desde aquí.
 
+## Un defecto que el humo destapó: `--addr` nunca funcionó
+
+`runDaemon` se construye **antes** de que `runConfiguredServe` parsee la línea de
+comandos, y recibía sus opciones ya empaquetadas en un valor. Ese valor se
+construía leyendo el struct de flags sin parsear, así que cada flag valía su
+cero: `--addr` y `--allow-remote` estaban declarados en el flag set, salían en la
+ayuda y los nombra el ADR 0066, y el demonio **sólo podía bindear
+`127.0.0.1:7788`**.
+
+Se vio arrancando un demonio con `--addr 127.0.0.1:7799` para el humo de este
+cambio: publicó `7788`. Las opciones se leen ahora dentro del closure, que corre
+después del parseo, y `TestTheDaemonFlagsReachTheBind` conduce el parseo en el
+mismo orden que `main` -- flag set, runner, y sólo entonces los argumentos--
+porque capturar por valor pasa cualquier test que rellene el struct antes de
+construir el runner.
+
+Entra en el alcance de este ADR porque `daemon install --addr` grabaría en la
+unit un flag que el demonio ignora, y una unit que promete un bind que no ocurre
+es peor que no tener el flag. Por lo mismo el spec graba `--allow-remote` junto a
+`--addr`: el demonio rechaza un bind no-loopback sin él, así que una unit con uno
+y sin el otro arrancaría un demonio que sale -- y el supervisor lo repondría, en
+bucle.
+
 ## Limitaciones declaradas
 
 - Las cifras son de `benchmarks/daemon-cost` sobre `kena` en la VM de Docker
@@ -109,3 +132,7 @@ desde aquí.
   verdad**: se comprobó, y dejó `152` entradas que hubo que retirar a mano.
 - La migración se verificó sobre un `mcp.json` real de siete servidores: la
   entrada vieja se sustituyó, las otras seis y el `$schema` quedaron intactas.
+- El camino completo se comprobó con un cliente MCP real hablando por la entrada
+  migrada: `initialize`, `tools/list` con `11` tools, `graph_status`, y un
+  `find_references` que devolvió `2` referencias exactas con su veredicto de
+  completitud. Un segundo `mcp install` contestó `managed`, sin duplicar nada.

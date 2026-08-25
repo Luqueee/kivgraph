@@ -140,7 +140,7 @@ func main() {
 		var options daemonOptions
 		flags := daemonFlagSet(&configPath, &options)
 		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], flags, &configPath,
-			runDaemon(logger, daemon.HTTPOptions{Address: options.Address, AllowRemote: options.AllowRemote})); err != nil {
+			runDaemon(logger, &options)); err != nil {
 			logger.Error("MCP daemon stopped with error", "command", "daemon", "error", err)
 			os.Exit(1)
 		}

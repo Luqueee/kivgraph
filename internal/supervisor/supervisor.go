@@ -66,6 +66,10 @@ type Spec struct {
 	// Address, when set, is passed as --addr. Empty means the daemon's own
 	// default bind.
 	Address string
+	// AllowRemote is passed as --allow-remote, and it travels with Address for
+	// a reason: the daemon refuses a non-loopback bind without it, so a unit
+	// recording one and not the other would start a daemon that exits.
+	AllowRemote bool
 }
 
 // State is what a supervisor knows about a spec.
@@ -130,6 +134,9 @@ func (spec Spec) arguments() []string {
 	}
 	if spec.Address != "" {
 		arguments = append(arguments, "--addr", spec.Address)
+	}
+	if spec.AllowRemote {
+		arguments = append(arguments, "--allow-remote")
 	}
 	return arguments
 }

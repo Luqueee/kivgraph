@@ -27,7 +27,13 @@ import (
 // editor's configuration takes an executable or a `url`, never a socket path, so
 // HTTP is what makes the saving reachable at all. The socket stays because it is
 // the narrower door -- its mode is the key, where HTTP needs a token.
-func runDaemon(logger *slog.Logger, httpOptions daemon.HTTPOptions) configuredMCPRunner {
+// The flags arrive as a pointer, not as a built value, and that is the fix for a
+// real defect: this runner is constructed before `runConfiguredServe` parses the
+// command line, so a value built at construction time read every flag as its
+// zero. `--addr` and `--allow-remote` were declared, documented and discarded --
+// the daemon could only ever bind `127.0.0.1:7788`. Reading them here reads them
+// after the parse.
+func runDaemon(logger *slog.Logger, flags *daemonOptions) configuredMCPRunner {
 	return func(
 		ctx context.Context,
 		loaded config.Loaded,
@@ -51,8 +57,12 @@ func runDaemon(logger *slog.Logger, httpOptions daemon.HTTPOptions) configuredMC
 				logger.Info("daemon session "+event, "command", "daemon")
 			},
 		}
-		httpOptions.OnWarning = func(message string) {
-			logger.Warn(message, "command", "daemon")
+		httpOptions := daemon.HTTPOptions{
+			Address:     flags.Address,
+			AllowRemote: flags.AllowRemote,
+			OnWarning: func(message string) {
+				logger.Warn(message, "command", "daemon")
+			},
 		}
 
 		// HTTP first, and the order is load-bearing. A unix socket accepts

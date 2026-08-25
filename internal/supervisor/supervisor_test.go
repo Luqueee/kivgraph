@@ -96,6 +96,23 @@ func TestArgumentsCarryOnlyWhatWasAsked(t *testing.T) {
 	}
 }
 
+// TestARemoteBindTravelsWithItsPermission is the pair the daemon refuses to
+// separate: it rejects a non-loopback bind without --allow-remote, so a unit
+// recording the address and not the permission would start a daemon that exits
+// immediately -- and the supervisor would restart it, forever.
+func TestARemoteBindTravelsWithItsPermission(t *testing.T) {
+	recorded := strings.Join(Spec{
+		Executable:     "/opt/kivgraph/bin/kivgraph",
+		StateDirectory: "/state",
+		Address:        "192.0.2.1:9000",
+		AllowRemote:    true,
+	}.arguments(), " ")
+	want := "/opt/kivgraph/bin/kivgraph daemon --addr 192.0.2.1:9000 --allow-remote"
+	if recorded != want {
+		t.Fatalf("arguments() = %q, want %q", recorded, want)
+	}
+}
+
 // TestStatusReportsTheThreeStates is the whole reason Status exists: an operator
 // asking whether the daemon has an owner gets one of three answers, and a unit
 // somebody edited by hand is reported rather than overruled.
