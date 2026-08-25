@@ -152,15 +152,37 @@ the project directory in the project scope.
 
 ## One process for many clients
 
-By default every client spawns its own `serve`. With several editors open that is
-several processes, each holding its own copy of the graph. `kivgraph daemon`
-serves them all from one process, over HTTP and a unix socket at once, and
-`--daemon` registers a client against it instead of spawning anything:
+`kivgraph mcp install` registers a client against **one daemon** by default: it
+writes a `url` entry, not a `command`. Every client shares that process instead
+of spawning a `serve` of its own.
 
 ```bash
-kivgraph daemon install
-kivgraph mcp install --daemon --target claude-code
+kivgraph mcp install --target claude-code
 ```
+
+That installs the daemon's supervisor if it is missing, waits for the endpoint,
+and reports both. What it saves, measured on a workspace of `108.737` symbols in
+`benchmarks/daemon-cost`: at eight clients, `61 MB` against `328` when they are
+asking questions, and `11` against `80` when they are not. The crossover is
+around one client, so with a single editor open it is a coin flip; from the
+second it is not close.
+
+`--stdio` is the way out, and it writes exactly what the previous default wrote:
+
+```bash
+kivgraph mcp install --target claude-code --stdio
+```
+
+Three conditions write the stdio entry on their own, and each says so:
+`--scope project`, because a url entry carries a token and that file gets
+committed; a platform with no supported supervisor, because the daemon would
+have no owner there; and a machine with no configuration yet, because there is
+no state directory to point at. Passing `--daemon` explicitly refuses instead of
+falling back, which is the point of passing it.
+
+Reinstalling replaces the entry it finds, so switching transports leaves one
+registration and not two. An entry naming a **different** kivgraph install still
+needs `--force`: that one belongs to another installation.
 
 `daemon install` gives the daemon an owner: a launchd agent on macOS, a systemd
 user unit on Linux. Both start it with your session and bring it back if it dies,
@@ -173,15 +195,9 @@ The unit is per state directory, so two configurations can hold two supervised
 daemons without either replacing the other. Nothing supervises a daemon you
 start by hand with `kivgraph daemon &`; it dies with the shell that launched it.
 
-That writes a `url` entry with the token from
-`~/.local/state/kivgraph/daemon.json` rather than a `command`, so the client
-connects to the running daemon. HTTP is the door that matters: no MCP client
-configuration dials a unix socket -- it takes an executable or a url.
-
-What it saves, measured on a workspace of `108.737` symbols in
-`benchmarks/daemon-cost`: at eight clients, `61 MB` against `328` when they are
-asking questions, and `11` against `80` when they are not. At one client it
-costs a couple of megabytes more, so it is worth it from the second.
+The url and its token come from `~/.local/state/kivgraph/daemon.json`, mode
+`0600`. HTTP is the door that matters: no MCP client configuration dials a unix
+socket -- it takes an executable or a url.
 
 The daemon binds loopback. `--allow-remote` is required to bind anywhere else,
 because the answers carry repository paths, file paths and symbol names.

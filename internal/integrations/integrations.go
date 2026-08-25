@@ -531,21 +531,31 @@ func unsupportedTarget(target Target) error {
 // parse their own configuration.
 func (manager Manager) expectedJSONEntry(target Target) map[string]any {
 	if manager.endpoint.set() {
-		headers := map[string]any{"Authorization": bearer(manager.endpoint.Token)}
-		if target == TargetOpenCode {
-			return map[string]any{
-				"type":    "remote",
-				"url":     manager.endpoint.URL,
-				"enabled": true,
-				"headers": headers,
-			}
-		}
+		return manager.endpointJSONEntry(target)
+	}
+	return manager.stdioJSONEntry(target)
+}
+
+// endpointJSONEntry is the url shape, for a client pointed at a daemon.
+func (manager Manager) endpointJSONEntry(target Target) map[string]any {
+	headers := map[string]any{"Authorization": bearer(manager.endpoint.Token)}
+	if target == TargetOpenCode {
 		return map[string]any{
-			"type":    "http",
+			"type":    "remote",
 			"url":     manager.endpoint.URL,
+			"enabled": true,
 			"headers": headers,
 		}
 	}
+	return map[string]any{
+		"type":    "http",
+		"url":     manager.endpoint.URL,
+		"headers": headers,
+	}
+}
+
+// stdioJSONEntry is the command shape, for a client that spawns `serve` itself.
+func (manager Manager) stdioJSONEntry(target Target) map[string]any {
 	if target == TargetOpenCode {
 		return map[string]any{
 			"type":    "local",
@@ -572,8 +582,71 @@ func (manager Manager) expectedTOMLEntry() map[string]any {
 	return map[string]any{"command": manager.executable, "args": []any{"serve"}}
 }
 
+// ownsOtherTOMLTransport is the Codex half of ownsOtherTransport, and it reads
+// the same way: the command form is matched including the executable, and the
+// url form structurally, because a previous daemon's port and token are not
+// knowable from here.
+func (manager Manager) ownsOtherTOMLTransport(table map[string]any) bool {
+	if manager.endpoint.set() {
+		return valuesEqual(table, map[string]any{"command": manager.executable, "args": []any{"serve"}})
+	}
+	address, ok := table["url"].(string)
+	if !ok || address == "" {
+		return false
+	}
+	headers, ok := tomlMap(table["http_headers"])
+	if !ok {
+		return false
+	}
+	authorization, ok := headers["Authorization"].(string)
+	return ok && strings.HasPrefix(authorization, "Bearer ")
+}
+
 // bearer formats the header value every one of these clients sends verbatim.
 func bearer(token string) string { return "Bearer " + token }
+
+// statusSuperseded names an entry a previous `kivgraph mcp install` wrote with
+// the other transport.
+//
+// It is not "incompatible", and the difference is the whole reason it exists.
+// `--force` protects an entry this tool did not write -- a hand-edited one, or a
+// second kivgraph install pointing somewhere else. An entry that is exactly what
+// our own previous default produced is ours to migrate, and demanding --force for
+// it would mean the very first run after the default changed failed on every
+// machine that had ever registered a client.
+const statusSuperseded = "superseded"
+
+// ownsOtherTransport reports whether raw is the entry this manager would write
+// with its other transport.
+//
+// The stdio side is compared including the executable, deliberately: an entry
+// naming a different kivgraph binary belongs to another installation, and
+// replacing it without being asked would take that installation's clients over.
+// The url side is compared structurally, because the token and the port of a
+// previous daemon are not knowable from here -- what identifies it is the shape
+// only this tool writes under its own key.
+func (manager Manager) ownsOtherTransport(raw json.RawMessage, target Target) bool {
+	if manager.endpoint.set() {
+		return rawJSONMatches(raw, manager.stdioJSONEntry(target))
+	}
+	var entry map[string]any
+	if err := json.Unmarshal(raw, &entry); err != nil {
+		return false
+	}
+	kind, _ := entry["type"].(string)
+	if kind != "http" && kind != "remote" {
+		return false
+	}
+	if address, ok := entry["url"].(string); !ok || address == "" {
+		return false
+	}
+	headers, ok := entry["headers"].(map[string]any)
+	if !ok {
+		return false
+	}
+	authorization, ok := headers["Authorization"].(string)
+	return ok && strings.HasPrefix(authorization, "Bearer ")
+}
 
 type jsonState struct {
 	root    map[string]json.RawMessage
@@ -605,9 +678,12 @@ func (manager Manager) readJSON(document mcpDocument) (jsonState, error) {
 	}
 	status := "absent"
 	if raw, ok := section["kivgraph"]; ok {
-		if rawJSONMatches(raw, manager.expectedJSONEntry(document.target)) {
+		switch {
+		case rawJSONMatches(raw, manager.expectedJSONEntry(document.target)):
 			status = "managed"
-		} else {
+		case manager.ownsOtherTransport(raw, document.target):
+			status = statusSuperseded
+		default:
 			status = "incompatible"
 		}
 	}
@@ -695,6 +771,8 @@ func jsonStatusDetail(status string) string {
 	switch status {
 	case "managed":
 		return "MCP entry matches Kivgraph"
+	case statusSuperseded:
+		return "MCP entry is Kivgraph's, from the other transport: install replaces it"
 	case "incompatible":
 		return "MCP entry exists but does not match Kivgraph"
 	default:
@@ -722,9 +800,12 @@ func (manager Manager) readTOML(document mcpDocument) (tomlState, error) {
 	}
 	status := "absent"
 	if table, ok := tomlTable(root, "mcp_servers", "kivgraph"); ok {
-		if valuesEqual(table, manager.expectedTOMLEntry()) {
+		switch {
+		case valuesEqual(table, manager.expectedTOMLEntry()):
 			status = "managed"
-		} else {
+		case manager.ownsOtherTOMLTransport(table):
+			status = statusSuperseded
+		default:
 			status = "incompatible"
 		}
 	} else if _, ok := root["mcp_servers"]; ok {
@@ -755,7 +836,11 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 		return Plan{}, incompatibleError(document.path)
 	}
 	data := state.data
-	if state.status == "incompatible" {
+	// Any existing table goes before the new one is appended, superseded
+	// included. Codex picks its transport from the shape, so a `command` left
+	// beside a `url` is two entries under one key and the client reads whichever
+	// it finds first.
+	if state.status == "incompatible" || state.status == statusSuperseded {
 		data, err = removeTOMLSection(data, "mcp_servers.kivgraph")
 		if err != nil {
 			return Plan{}, fmt.Errorf("replace Kivgraph TOML table: %w", err)
@@ -805,6 +890,8 @@ func tomlStatusDetail(status string) string {
 	switch status {
 	case "managed":
 		return "MCP entry matches Kivgraph"
+	case statusSuperseded:
+		return "MCP entry is Kivgraph's, from the other transport: install replaces it"
 	case "incompatible":
 		return "MCP entry exists but does not match Kivgraph"
 	default:

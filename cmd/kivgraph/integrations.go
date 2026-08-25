@@ -12,9 +12,9 @@ import (
 func runMCPCommand(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || helpRequested(args) {
 		writeIntegrationHelp(stdout, "mcp", "Manage local MCP client registrations", []string{
-			"mcp install [--target TARGET] [--scope user|project] [--daemon] [--dry-run] [--force]",
-			"mcp status --target TARGET [--scope user|project] [--daemon]",
-			"mcp remove --target TARGET [--scope user|project] [--daemon] [--dry-run] [--force]",
+			"mcp install [--target TARGET] [--scope user|project] [--stdio|--daemon] [--dry-run] [--force]",
+			"mcp status --target TARGET [--scope user|project] [--stdio|--daemon]",
+			"mcp remove --target TARGET [--scope user|project] [--stdio|--daemon] [--dry-run] [--force]",
 		})
 		return 0
 	}
@@ -63,7 +63,10 @@ func runMCPChangeWithInput(action integrations.Action, args []string, input io.R
 		return 2
 	}
 	target, scope, dryRun, force := options.Target, options.Scope, options.DryRun, options.Force
-	managerOptions, err := integrationManagerOptions(options.Daemon)
+	// Only an install may bring a daemon up. A remove deletes our entry and
+	// needs no endpoint to do it: starting a daemon in order to unregister from
+	// it would be the opposite of what was asked.
+	managerOptions, err := integrationManagerOptions(options, action == integrations.ActionInstall, stdout)
 	if err != nil {
 		writeCommandError(stderr, "mcp %s: %v", action, err)
 		return 1
@@ -122,7 +125,7 @@ func runMCPStatus(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "mcp status: --target is required")
 		return 2
 	}
-	managerOptions, err := integrationManagerOptions(options.Daemon)
+	managerOptions, err := integrationManagerOptions(options, false, stdout)
 	if err != nil {
 		writeCommandError(stderr, "mcp status: %v", err)
 		return 1
@@ -225,9 +228,15 @@ type integrationOptions struct {
 	Scope  string
 	DryRun bool
 	Force  bool
-	// Daemon points the entry at a running daemon over HTTP instead of telling
-	// the client to spawn `serve` for itself.
+	// Daemon asks for the url entry explicitly. Since the daemon became the
+	// default it changes no outcome on its own, and it is still accepted
+	// because it was valid yesterday: a flag that started erroring would break
+	// every script that already passes it. What it does change is the failure
+	// -- an explicit ask refuses where the default would fall back to stdio.
 	Daemon bool
+	// Stdio asks for the command entry: one `serve` per client, spawned by the
+	// client, with no daemon involved.
+	Stdio bool
 }
 
 // integrationFlagSet declares them in one place. The changes flag is what
@@ -251,7 +260,10 @@ func integrationFlagSet(name string, options *integrationOptions, output io.Writ
 		flags.BoolVar(&options.Force, "force", false, "replace or remove an incompatible entry")
 	}
 	if endpoint {
-		flags.BoolVar(&options.Daemon, "daemon", false, "point the client at a running `kivgraph daemon` over HTTP")
+		flags.BoolVar(&options.Daemon, "daemon", false,
+			"require the url entry, and fail rather than fall back (now the default)")
+		flags.BoolVar(&options.Stdio, "stdio", false,
+			"write a `serve` command entry instead: one process per client")
 	}
 	return flags
 }

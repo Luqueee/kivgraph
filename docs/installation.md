@@ -578,10 +578,25 @@ dice y falla, en vez de dejar creer que instaló algo.
 Eso lee `~/.local/state/kivgraph/daemon.json` -- modo `0600`, con la `url` y el
 token-- y escribe la entrada que ese cliente entiende: `type: http` con una
 cabecera `Authorization` para Claude Code, Claude Desktop y Oh My Pi, `type:
-remote` para OpenCode, y `url` con `http_headers` para Codex. Sin `--daemon` se
-escribe `serve`, que es un proceso por cliente; el flag es explícito a propósito,
-porque detectar un demonio y cambiar la entrada en silencio haría que el mismo
-comando escribiera dos ficheros distintos según si había un proceso arrancado.
+remote` para OpenCode, y `url` con `http_headers` para Codex.
+
+**Ésa es la entrada por defecto**: `mcp install` apunta al demonio sin que se lo
+pidan, y `--daemon` sólo cambia el fallo -- pedirlo a mano se niega donde el
+defecto caería a `serve`. La salida explícita es `--stdio`, que escribe
+exactamente lo que escribía el defecto anterior: un proceso por cliente.
+
+Hay tres condiciones que escriben `stdio` por su cuenta, y las tres lo dicen:
+ámbito `project`, porque la `url` lleva un token y ese fichero se commitea; una
+plataforma sin supervisor soportado, porque ahí el demonio no tendría dueño; y
+una máquina sin configuración todavía, porque no hay directorio de estado al que
+apuntar. Nada de esto depende de que haya un proceso arrancado: son condiciones
+declaradas, y por eso el mismo comando en la misma máquina escribe el mismo
+fichero.
+
+Reinstalar **sustituye** la entrada que encuentra, así que cambiar de transporte
+deja un registro y no dos -- `command` junto a `url` bajo una clave son dos
+registros, y el cliente elige transporte por la forma. Una entrada que nombra
+**otra** instalación de `kivgraph` sigue exigiendo `--force`: ésa no es nuestra.
 
 El token se guarda aparte, en `daemon.token`, y **sobrevive al reinicio**: una
 entrada escrita una vez sigue valiendo cuando el demonio vuelve. El endpoint no

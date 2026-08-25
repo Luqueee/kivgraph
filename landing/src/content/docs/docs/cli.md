@@ -48,9 +48,9 @@ invocation with no command, or with an unknown one, writes a single line to
 
 | Invocation | Summary |
 | --- | --- |
-| `mcp install [--scope user\|project] [--daemon]` | Detect and register one or more MCP clients |
-| `mcp status --target TARGET [--scope user\|project] [--daemon]` | Inspect a client MCP registration |
-| `mcp remove --target TARGET [--scope user\|project] [--daemon]` | Remove only Kivgraph's MCP registration |
+| `mcp install [--scope user\|project] [--stdio]` | Detect and register one or more MCP clients, against the daemon by default |
+| `mcp status --target TARGET [--scope user\|project] [--stdio]` | Inspect a client MCP registration |
+| `mcp remove --target TARGET [--scope user\|project] [--stdio]` | Remove only Kivgraph's MCP registration |
 | `skill install [--scope user\|project]` | Detect and install the Agent Skill in one or more clients |
 | `skill status --target TARGET [--scope user\|project]` | Inspect the installed Agent Skill |
 | `skill remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's Agent Skill |

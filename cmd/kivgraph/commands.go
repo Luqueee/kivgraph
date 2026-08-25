@@ -449,19 +449,21 @@ func integrationCommands() []commandSpec {
 
 func integrationCommand(kind, operation string) commandSpec {
 	writes := operation != "status"
-	// Only the MCP side has a transport to choose, so only it takes --daemon.
+	// Only the MCP side has a transport to choose, so only it takes --stdio.
+	// The line names the opt-out and not --daemon: the daemon is the default,
+	// and spelling both would suggest a choice a reader does not have to make.
 	endpoint := kind == "mcp"
 	usage := kind + " " + operation + " [--scope user|project]"
 	if endpoint {
-		usage = kind + " " + operation + " [--scope user|project] [--daemon]"
+		usage = kind + " " + operation + " [--scope user|project] [--stdio]"
 	}
 	summary := "Detect and register one or more MCP clients"
 	switch {
 	case kind == "mcp" && operation == "status":
-		usage = "mcp status --target TARGET [--scope user|project] [--daemon]"
+		usage = "mcp status --target TARGET [--scope user|project] [--stdio]"
 		summary = "Inspect a client MCP registration"
 	case kind == "mcp" && operation == "remove":
-		usage = "mcp remove --target TARGET [--scope user|project] [--daemon]"
+		usage = "mcp remove --target TARGET [--scope user|project] [--stdio]"
 		summary = "Remove only Kivgraph's MCP registration"
 	case kind == "skill" && operation == "install":
 		summary = "Detect and install the Agent Skill in one or more clients"
