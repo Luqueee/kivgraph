@@ -34,11 +34,20 @@ const (
 // the default, hoists what every reached symbol shares into the header and
 // groups the rest by file, and "full" keeps the row-per-fact shape. A traversal
 // is not a set of files, so "files" is rejected rather than reinterpreted.
+//
+// To asks a different question of the same walk: not what this root reaches,
+// but by which route it reaches one named symbol. The answer is then the route
+// itself, one row per hop in order, and the fields that select rows after
+// reachability -- repo, language, include_derived -- are refused instead of
+// applied, because a route missing a link is not a route. "compact" is refused
+// for the same reason: it groups rows by file, and the order is the answer.
 type TraceDependenciesInput struct {
 	StableKey      string   `json:"stable_key,omitempty"`
 	QualifiedName  string   `json:"qualified_name,omitempty"`
 	Repository     string   `json:"repository,omitempty"`
 	Path           string   `json:"path,omitempty"`
+	To             string   `json:"to,omitempty"`
+	ToPath         string   `json:"to_path,omitempty"`
 	Depth          int      `json:"depth,omitempty"`
 	MaxNodes       int      `json:"max_nodes,omitempty"`
 	Repo           string   `json:"repo,omitempty"`
@@ -64,6 +73,13 @@ type DependencyTrace struct {
 	DeepestDepth       int             `json:"deepest_depth"`
 	TraversalTruncated bool            `json:"traversal_truncated"`
 	Nodes              []ReachedSymbol `json:"nodes"`
+
+	// WitnessTo and WitnessHops answer a `to` request and are absent from every
+	// other one, so a fan-out page costs exactly what it cost before. Hops is the
+	// length of the route in edges; a named target with no rows is the bounded
+	// absence, and the guidance says which bound produced it.
+	WitnessTo   string `json:"witness_to,omitempty"`
+	WitnessHops int    `json:"witness_hops,omitempty"`
 
 	// View decides how MarshalJSON spells the page. It never travels in it:
 	// the caller already knows what it asked for.
@@ -395,6 +411,8 @@ func (trace DependencyTrace) MarshalJSON() ([]byte, error) {
 
 type traceDependenciesOptions struct {
 	Selector   symbolSelector
+	Target     string
+	TargetPath string
 	Depth      int
 	MaxNodes   int
 	Repo       string
@@ -413,6 +431,8 @@ type traceDependenciesQuery struct {
 	QualifiedName string   `json:"qualified_name,omitempty"`
 	Repository    string   `json:"repository,omitempty"`
 	Path          string   `json:"path,omitempty"`
+	To            string   `json:"to,omitempty"`
+	ToPath        string   `json:"to_path,omitempty"`
 	Depth         int      `json:"depth"`
 	MaxNodes      int      `json:"max_nodes"`
 	Repo          string   `json:"repo,omitempty"`
@@ -470,7 +490,7 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        traceDependenciesToolName,
-		Description: "What this symbol reaches outward, bounded by depth. Grep does not follow a chain.",
+		Description: "What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain.",
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 		Meta:        boundedResultMeta(MaximumTraversalResultChars),
 	}, handler)
@@ -488,7 +508,8 @@ func traceDependencies(
 	}
 	queryHash, err := HashQuery(traceDependenciesQuery{
 		Tool: traceDependenciesToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
-		Repository: options.Selector.Repository, Path: options.Selector.Path, Depth: options.Depth,
+		Repository: options.Selector.Repository, Path: options.Selector.Path,
+		To: options.Target, ToPath: options.TargetPath, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language,
 		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
 	})
@@ -533,6 +554,9 @@ func traceDependencies(
 	// seed is skipped from the rows by dependencyNodes, which drops a visit
 	// whose Source is InvalidSymbolID. ADR 0059.
 	seeds := append([]hotsnapshot.SymbolID{rootID}, containedMembers(snapshot, rootID, root)...)
+	if options.Target != "" {
+		return traceWitness(snapshot, options, traversalOptions, seeds, rootID, root, rootRepository.name)
+	}
 	traversal, err := snapshot.TraverseFrom(seeds, traversalOptions)
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, classifyTraversalError(err)
@@ -650,10 +674,22 @@ func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDep
 	if err != nil {
 		return traceDependenciesOptions{}, err
 	}
+	target, targetPath, view, err := normalizeWitnessTarget(arguments, view)
+	if err != nil {
+		return traceDependenciesOptions{}, err
+	}
+	derived := newDerivedFilter(arguments.IncludeDerived, repo)
+	if target != "" {
+		// The row filters are refused above rather than applied, so the row
+		// conversion a route shares with the fan-out page must withhold nothing
+		// either: a link dropped here would leave a hole in the route.
+		derived = newDerivedFilter(true, "")
+	}
 	return traceDependenciesOptions{
-		Selector: selector, Depth: depth, MaxNodes: maxNodes, Repo: repo,
+		Selector: selector, Target: target, TargetPath: targetPath,
+		Depth: depth, MaxNodes: maxNodes, Repo: repo,
 		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
-		Derived: newDerivedFilter(arguments.IncludeDerived, repo), View: view,
+		Derived: derived, View: view,
 	}, nil
 }
 
