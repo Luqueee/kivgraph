@@ -378,7 +378,7 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        findSymbolToolName,
-		Description: "Where a symbol is declared, by name, qualified name, prefix or substring. Narrow with kind, repo and path_prefix. A unique name in one repository is cheaper to grep.",
+		Description: "Where a symbol is declared, by name, qualified name, prefix or substring. Narrow with kind, repo and path_prefix.",
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 		Meta:        alwaysLoadMeta(),
 	}, handler)

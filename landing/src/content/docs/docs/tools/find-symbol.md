@@ -3,7 +3,7 @@ title: find_symbol
 description: Find where a symbol is declared, by name, qualified name, prefix or substring, narrowed by kind, repository and path.
 ---
 
-> Where a symbol is declared, by name, qualified name, prefix or substring. Narrow with kind, repo and path_prefix. A unique name in one repository is cheaper to grep.
+> Where a symbol is declared, by name, qualified name, prefix or substring. Narrow with kind, repo and path_prefix.
 
 ## Arguments
 

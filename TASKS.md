@@ -17619,3 +17619,38 @@ como latencia aislada; la pendiente ociosa del demonio cruza el cero entre pasad
 quedan en un servidor ocioso no se desglosa qué parte es qué.
 
 **Estado:** cerrada el `2026-08-23`.
+
+## LUQUE-2227 - El coste en tokens de una superficie que ya no existe
+
+**Dependencias:** `LUQUE-2226`.
+
+**El hueco:** `benchmarks/mcp-token-cost/report.md` publica «`11 tools`, `645`
+tokens residentes» y es la cifra que `internal/mcp/surface_test.go` nombra como
+autoridad del presupuesto. La superficie que se sirve hoy son `12` tools de
+consulta y `13` con `index_project`, así que ese número describe un servidor que
+no existe.
+
+Y no se puede refrescar con una corrida: el arnés **falla cerrado** contra la
+generación publicada -- `question MergeAll: no captured host read for
+internal/facts/facts.go:577-603; recapture native/reads.json against this
+generation`--. Eso es el arnés funcionando: sus capturas nativas son de la
+generación `000001` sobre el commit `f8a952d6`, y comparar contra rangos de línea
+que se movieron daría una ventaja falsa a un lado.
+
+**Lo que hace falta**, y ninguna pieza es de una línea:
+
+1. **Recapturar `native/reads.json`** contra una generación actual. Es un dataset
+   de lecturas del host, no un fichero de configuración, y su procedencia -- qué
+   generación, qué commit, qué corpus-- es parte del artefacto.
+2. **Decidir el corpus.** El informe se midió sobre `kivgraph` solo; el registro
+   actual tiene tres repositorios, y una cifra de superficie no depende del corpus
+   pero las de respuesta sí.
+3. **Volver a publicar la cifra de tokens** que el guardia de bytes cita, para que
+   las dos vuelvan a moverse juntas.
+
+**Lo que ya no depende de esto:** el presupuesto residente se guarda en bytes y en
+las dos formas del servidor -- `MaximumResidentSurfaceBytes` y
+`MaximumIndexingSurfaceBytes`--, medido en `internal/mcp/surface_test.go`. Ver
+ADR 0074.
+
+**Estado:** abierta.
