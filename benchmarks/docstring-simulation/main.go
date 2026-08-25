@@ -321,6 +321,21 @@ type fileRow struct {
 	Path string `json:"file"`
 }
 
+// explanation is one candidate with the signals that placed it, which is the
+// only way to tell a weight that is wrong from a corpus that is right.
+type explanation struct {
+	Repo       string
+	Path       string
+	Qualified  string
+	Kind       string
+	Exported   bool
+	Hits       int
+	Prose      int
+	Neighbours int
+	Callers    int
+	Score      float64
+}
+
 // rank mirrors rankIntentCandidates over the supplied index. Every weight, bound
 // and tie-break is the shipped one; only the index differs between the two arms.
 func rank(
@@ -330,6 +345,7 @@ func rank(
 	keywords []string,
 	limit int,
 	proseWeight float64,
+	explain *[]explanation,
 ) []fileRow {
 	table := snapshot.Strings()
 	corpus := int(snapshot.Metadata().Counts.Symbols)
@@ -445,8 +461,30 @@ func rank(
 			break
 		}
 	}
+	if explain != nil {
+		table := snapshot.Strings()
+		for _, row := range rows {
+			entry := candidates[row.id]
+			symbol, _ := snapshot.Symbol(row.id)
+			qualified, _ := table.String(symbol.QualifiedName)
+			kind, _ := table.String(symbol.Kind)
+			*explain = append(*explain, explanation{
+				Repo: row.repo, Path: row.path, Qualified: qualified, Kind: kind,
+				Exported: symbol.Exported, Hits: entry.hits, Prose: entry.prose,
+				Neighbours: entry.neighbours, Callers: snapshot.IncomingCount(row.id),
+				Score: row.score,
+			})
+			if len(*explain) == explainRows {
+				break
+			}
+		}
+	}
 	return files
 }
+
+// explainRows bounds the trace: an order is explained by its head and by the row
+// that should have been in it, not by four thousand candidates.
+const explainRows = 400
 
 type questionSet struct {
 	Repositories map[string]string `json:"repositories"`
@@ -530,8 +568,18 @@ func main() {
 			"question set to reuse, so both harnesses answer the same questions")
 		snapshotPath = flag.String("snapshot", "", "published snapshot to read; default is the newest one")
 		directory    = flag.String("directory", "benchmarks/docstring-simulation", "where to write the artifacts")
+		explain      = flag.String("explain", "",
+			"substring of one question: print the signals that placed the head of its page and its answer, "+
+				"asked the way callers are told to ask, and write no artifacts")
 	)
 	flag.Parse()
+	if *explain != "" {
+		if err := explainOne(*questions, *snapshotPath, *explain); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(*questions, *snapshotPath, *directory); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -555,6 +603,65 @@ func currentCommit() (string, error) {
 		return commit + "-dirty", nil
 	}
 	return commit, nil
+}
+
+// explainOne prints why one question is ordered the way it is. It asks the way
+// the skill tells callers to ask -- guessed words, repository named -- because an
+// order explained for a call nobody makes explains nothing.
+func explainOne(questionsPath, snapshotPath, needle string) error {
+	if snapshotPath == "" {
+		var err error
+		if snapshotPath, err = newestSnapshot(); err != nil {
+			return err
+		}
+	}
+	raw, err := os.ReadFile(questionsPath)
+	if err != nil {
+		return err
+	}
+	var set questionSet
+	if err := json.Unmarshal(raw, &set); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		return err
+	}
+	snapshot, err := hotsnapshot.ReadSnapshot(data, [32]byte{})
+	if err != nil {
+		return err
+	}
+	for _, question := range set.Questions {
+		if !strings.Contains(question.Intent, needle) {
+			continue
+		}
+		trace := []explanation{}
+		rank(snapshot, build(snapshot, nil), question.Intent, question.Keywords, intentLimit, 1, &trace)
+		fmt.Printf("%s\n  answer %s in %s\n\n", question.Intent, question.Answer[0], question.Repo)
+		fmt.Printf("  %-46s %-11s %4s %4s %4s %8s\n", "symbol", "kind", "hits", "near", "call", "score")
+		printed := 0
+		for position, row := range trace {
+			wanted := row.Repo == question.Repo && slices.Contains(question.Answer, row.Path)
+			if position >= 6 && !wanted {
+				continue
+			}
+			marker := " "
+			if wanted {
+				marker = ">"
+			}
+			label := row.Qualified
+			if len(label) > 44 {
+				label = label[len(label)-44:]
+			}
+			fmt.Printf("%s %-46s %-11s %4d %4d %4d %8.2f  #%d %s\n", marker, label, row.Kind,
+				row.Hits, row.Neighbours, row.Callers, row.Score, position+1, row.Repo)
+			if printed++; wanted && printed > 12 {
+				break
+			}
+		}
+		fmt.Println()
+	}
+	return nil
 }
 
 func newestSnapshot() (string, error) {
@@ -706,7 +813,7 @@ func run(questionsPath, snapshotPath, directory string) error {
 	for _, question := range set.Questions {
 		row := questionResult{Intent: question.Intent, Repo: question.Repo, Class: question.Class}
 		row.Base = rankOf(
-			rank(snapshot, base, question.Intent, nil, intentLimit, 1), question.Repo, question.Answer)
+			rank(snapshot, base, question.Intent, nil, intentLimit, 1, nil), question.Repo, question.Answer)
 		if row.Base > 0 {
 			out.Base.Found++
 		}
@@ -719,7 +826,7 @@ func run(questionsPath, snapshotPath, directory string) error {
 				guessed = question.Keywords
 			}
 			place := rankOf(
-				rank(snapshot, built[spec.arm], question.Intent, guessed, intentLimit, spec.weight),
+				rank(snapshot, built[spec.arm], question.Intent, guessed, intentLimit, spec.weight, nil),
 				question.Repo, question.Answer)
 			row.Prose = append(row.Prose, place)
 			if place > 0 {

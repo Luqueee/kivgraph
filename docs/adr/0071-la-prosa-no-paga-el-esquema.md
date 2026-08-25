@@ -119,6 +119,42 @@ cinco por documentar una llamada.**
 Esto no reabre la decisión de arriba: la refuerza. Con la tool llamada como debe,
 el techo que un `CanonicalSchemaVersion` 5 compraría son `3` preguntas de `24`.
 
+## El residuo, y por qué no es de pesos
+
+Llamada como se debe -- `17` de `24`--, los `7` fallos que quedan se clasificaron
+uno a uno preguntando con la búsqueda apuntada al propio fichero respuesta:
+
+|fallo|qué le pasa|
+|---|---|
+|`mole/cmd/mole/daemon.go`, `mole/cmd/mole/logs.go`, `api-db-go/.../headers.go`|**techo**: ni un símbolo del fichero alcanza un término|
+|`kivgraph/internal/mcp/server.go`, `api-db-go` `main.go`, `locker.go`, `bots_guilds_handler.go`|alcanzan por **un único símbolo** con un término genérico|
+
+Los cuatro segundos parecen ranking y no lo son en la práctica: `replyWithStatus`
+lleva `1` término donde `ValidationWithMeta` lleva `3`, y un peso que ponga el de
+uno por delante del de tres rompe los `17` que hoy funcionan.
+
+Sólo uno de los siete es una pregunta de forma legítima -- «dónde se registran
+todas las tools»: las doce funciones `Register*` llevan la palabra en el nombre y
+viven cada una en su fichero, mientras que el fichero que contesta es el único
+que **las llama a todas**, con `near=4` contra `near=1`. La señal correcta existe
+y está topada en `1,9`, y subir ese tope por una pregunta de `24` es ajustar una
+constante a un caso.
+
+Y las dos de `mole` son exactamente las dos que `grep` sí acierta, porque su
+vocabulario vive en un mensaje -- «already running», una línea de log sobre un
+fichero que se encogió--. Eso vuelve a señalar los **literales** y no los
+comentarios: la factura de esquema, si algún día se paga, son `3` preguntas de
+`24` y `2` de ellas son cadenas.
+
+## Cuarta señal rechazada: ordenar un fichero por lo que acumula
+
+La vista `files` ordena cada fichero por su **mejor** símbolo. Sumar los de todo
+el fichero parecía la forma natural de encontrar el punto de agregación del caso
+anterior, y se midió: **`11` de `24` baja a `7`, y los `4` primeros puestos a
+`0`**. Premia al fichero grande con muchos matches flojos por encima del que
+tiene un match fuerte, que es la definición de un god file ganando una búsqueda.
+Código retirado; queda el número.
+
 ## Lo que este ADR no cierra
 
 Que un **parser** en vez de una regla de texto ataría el docstring al símbolo con
