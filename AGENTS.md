@@ -344,6 +344,65 @@ infringieron una vez cada una. Ver ADR 0062 y ADR 0061.
 - Un fixture demuestra el caso real o no demuestra nada: comprobar qué forma
   instala de verdad la herramienta que se está imitando.
 
+### Se empieza por los negativos
+
+El orden no es una preferencia de estilo: el camino feliz se escribe solo y se
+comprueba mirando la respuesta, mientras que los rechazos, los límites y los
+vacíos son los que nadie ejecuta hasta que un usuario los ejecuta. Así que se
+escriben **primero**, antes del test que demuestra que la cosa funciona.
+
+Por cada unidad nueva, antes de dar por hecho el caso bueno:
+
+- **La entrada que sobra y la que falta.** El argumento vacío, el que llega dos
+  veces, el que se combina con otro que lo contradice. Un rechazo se prueba por
+  su mensaje además de por su error: un `INVALID_ARGUMENT` que no dice qué
+  narrowing arreglarlo es un fallo de superficie, no una validación.
+- **Los tres vacíos, que no significan lo mismo.** No hay nada, no hay nada
+  *dentro de estos límites*, y no se pudo mirar. Un test que los confunde
+  bendice la peor respuesta que este proyecto puede dar: una ausencia afirmada
+  que nadie estableció.
+- **El límite por los dos lados.** Cero, uno, exactamente el máximo, el máximo
+  más uno. Y la unidad correcta: contar bytes donde el contrato cuenta
+  caracteres ya dejó pasar un término de un solo carácter por cada alfabeto no
+  ASCII.
+- **La forma corrupta que hoy nadie puede construir.** Un guardia que sólo
+  protege de lo que el constructor de al lado nunca produce es un guardia sin
+  probar, y deja de proteger el día que los datos llegan de un fichero.
+
+### La cobertura se mide y lo que falta se nombra
+
+Se persigue la cobertura más alta que el código admita, y se mide en vez de
+estimarse:
+
+```bash
+go test ./<paquete>/ -coverprofile=/tmp/cov.out
+go tool cover -func=/tmp/cov.out
+```
+
+Sobre el código nuevo la referencia es el **100 % de sentencias**, y llegar
+suele ser señal de que la unidad tiene el tamaño correcto. Cuando no se llega,
+la rama que queda fuera **se nombra y se justifica** en el comentario del test o
+en el mensaje del commit. Sólo dos justificaciones valen:
+
+1. Alcanzarla exigiría que el reloj, el sistema de ficheros o el planificador se
+   comporten de una forma que el test no puede fijar.
+2. Alcanzarla exigiría un parámetro, un reloj inyectado o una función en el
+   código de producción que sólo existiría para el test -- que ya está
+   prohibido más arriba.
+
+Una rama sin cubrir y sin justificar es trabajo a medias, no una decisión. Y
+subir un porcentaje añadiendo tests de valores definidos estáticamente está
+prohibido más arriba: la cobertura es la consecuencia de haber probado los
+contratos, nunca el objetivo que los sustituye.
+
+### Un índice o una caché se compara contra la fuerza bruta
+
+Toda estructura que sólo existe para contestar más rápido lo que otro camino ya
+contesta lleva un test que compara los dos sobre un corpus generado: el índice
+devuelve exactamente lo que devuelve el barrido lineal, término a término. Es el
+único test capaz de detectar que dejó de decir lo mismo, porque una estructura
+derivada que se equivoca no falla -- contesta.
+
 ## Verificación obligatoria
 
 Antes de cerrar una tarea, ejecutar según el alcance. El procedimiento -qué
