@@ -164,6 +164,51 @@ func commandTable() []commandSpec {
 			run:   nil,
 		},
 		{
+			words:   []string{"daemon", "install"},
+			group:   "Getting started",
+			usage:   "daemon install [--addr HOST:PORT] [--allow-remote]",
+			summary: "Give the daemon an owner, so the platform starts it and restarts it",
+			flags: func() *flag.FlagSet {
+				var path string
+				var options supervisorOptions
+				return supervisorFlagSet("install", &path, &options)
+			},
+			hints: map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runSupervisorCommand("install", args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"daemon", "remove"},
+			group:   "Getting started",
+			usage:   "daemon remove",
+			summary: "Stop the daemon and take its supervisor entry out",
+			flags: func() *flag.FlagSet {
+				var path string
+				var options supervisorOptions
+				return supervisorFlagSet("remove", &path, &options)
+			},
+			hints: map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runSupervisorCommand("remove", args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"daemon", "status"},
+			group:   "Diagnostics",
+			usage:   "daemon status",
+			summary: "Report whether the daemon has an owner, and where its unit lives",
+			flags: func() *flag.FlagSet {
+				var path string
+				var options supervisorOptions
+				return supervisorFlagSet("status", &path, &options)
+			},
+			hints: map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runSupervisorCommand("status", args, stdout, stderr)
+			},
+		},
+		{
 			words:   []string{"ui"},
 			group:   "Getting started",
 			usage:   "ui [--addr HOST:PORT]",
@@ -482,6 +527,27 @@ func findCommand(args []string) (commandSpec, int, bool) {
 		}
 	}
 	return commandSpec{}, 0, false
+}
+
+// interceptsLongRunning reports whether main should take a command before the
+// table's dispatch.
+//
+// It asks the registry rather than comparing the first word, and that is the
+// whole point: `daemon` is intercepted because it runs for the life of the
+// process, but `daemon install` is an ordinary command that returns. A guard on
+// the first word alone would route the subcommand into the server loop, where
+// its arguments would be parsed as daemon flags and rejected.
+func interceptsLongRunning(name string, args []string) bool {
+	if len(args) == 0 || args[0] != name {
+		return false
+	}
+	spec, _, ok := findCommand(args)
+	if !ok {
+		// An unknown word after the name is the long-running command's own
+		// problem to report: its flag set names the mistake.
+		return true
+	}
+	return len(spec.words) == 1
 }
 
 // versionOptions carries the flags of `kivgraph version`.

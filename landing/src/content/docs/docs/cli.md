@@ -15,6 +15,8 @@ invocation with no command, or with an unknown one, writes a single line to
 | `index --full [--json]` | Index every registered repository and publish a generation |
 | `serve` | Run the MCP server over stdio |
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
+| `daemon install [--addr HOST:PORT] [--allow-remote]` | Give the daemon an owner, so the platform starts it and restarts it |
+| `daemon remove` | Stop the daemon and take its supervisor entry out |
 | `ui [--addr HOST:PORT]` | Serve the read-only graph viewer, every interface by default |
 | `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
 
@@ -26,6 +28,7 @@ invocation with no command, or with an unknown one, writes a single line to
 | `doctor storage --database PATH` | Inspect one LadybugDB database file |
 | `doctor graph --database PATH` | Validate the canonical graph of a database |
 | `graph status --root PATH` | Report the active and backup generations |
+| `daemon status` | Report whether the daemon has an owner, and where its unit lives |
 | `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
 | `logs [--follow] [--kind K] [--tool NAME] [--since D] [--limit N] [--failures] [--json]` | Read what this machine indexed, served and answered |
 | `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |

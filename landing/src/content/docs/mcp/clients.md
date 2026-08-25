@@ -158,9 +158,20 @@ serves them all from one process, over HTTP and a unix socket at once, and
 `--daemon` registers a client against it instead of spawning anything:
 
 ```bash
-kivgraph daemon &
+kivgraph daemon install
 kivgraph mcp install --daemon --target claude-code
 ```
+
+`daemon install` gives the daemon an owner: a launchd agent on macOS, a systemd
+user unit on Linux. Both start it with your session and bring it back if it dies,
+which is what makes a `url` entry safe to depend on -- a `command` entry is owned
+by the client that spawns it, but a url pointing at a daemon nobody restarts
+takes every client down at once. `kivgraph daemon status` says whether one is
+installed and where its unit lives, and `kivgraph daemon remove` takes it out.
+
+The unit is per state directory, so two configurations can hold two supervised
+daemons without either replacing the other. Nothing supervises a daemon you
+start by hand with `kivgraph daemon &`; it dies with the shell that launched it.
 
 That writes a `url` entry with the token from
 `~/.local/state/kivgraph/daemon.json` rather than a `command`, so the client

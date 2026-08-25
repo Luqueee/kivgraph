@@ -557,9 +557,23 @@ un editor: su configuración acepta un ejecutable o una `url`. Por eso el demoni
 publica su endpoint y hay un comando que lo escribe:
 
 ```bash
-kivgraph daemon &                       # en otra terminal
+kivgraph daemon install                 # launchd o systemd lo arranca y lo repone
 kivgraph mcp install --daemon --target claude-code
 ```
+
+`daemon install` es lo que le da **dueño** al proceso: un LaunchAgent en macOS,
+una unit de usuario de systemd en Linux. Los dos lo arrancan con la sesión y lo
+reponen si muere, y eso es lo que hace fiable una entrada `url` -- una entrada
+`command` la arranca el cliente que la lee, pero una `url` apuntando a un demonio
+que nadie repone deja a **todos** los clientes sin tools a la vez. `kivgraph
+daemon status` dice si hay uno instalado y dónde vive su unit; `kivgraph daemon
+remove` lo retira.
+
+La unit es por directorio de estado, con un digest del directorio en su etiqueta,
+así que dos configuraciones pueden tener dos demonios supervisados sin que uno
+sustituya al otro. Un `kivgraph daemon &` a mano no tiene dueño: muere con la
+terminal que lo lanzó. Y en una plataforma sin supervisor soportado el comando lo
+dice y falla, en vez de dejar creer que instaló algo.
 
 Eso lee `~/.local/state/kivgraph/daemon.json` -- modo `0600`, con la `url` y el
 token-- y escribe la entrada que ese cliente entiende: `type: http` con una

@@ -68,23 +68,27 @@ func helpRequested(args []string) bool {
 func main() {
 	logger := logging.New(os.Stderr)
 	if len(os.Args) >= 2 && helpRequested(os.Args[2:]) {
-		switch os.Args[1] {
-		case "ui":
+		// Only a bare long-running command is answered here: its flag set is
+		// the one main owns, and the table never sees it. Every other help --
+		// `daemon install --help` included -- has to reach the table, which is
+		// why this asks the registry instead of comparing the first word.
+		switch {
+		case interceptsLongRunning("ui", os.Args[1:]):
 			configPath, address := "", ""
 			writeCommandHelp(os.Stdout, "ui", uiFlagSet(&configPath, &address))
 			return
-		case "serve":
+		case interceptsLongRunning("serve", os.Args[1:]):
 			configPath := ""
 			writeCommandHelp(os.Stdout, "serve", serveFlagSet(&configPath))
 			return
-		case "daemon":
+		case interceptsLongRunning("daemon", os.Args[1:]):
 			configPath := ""
 			var options daemonOptions
 			writeCommandHelp(os.Stdout, "daemon", daemonFlagSet(&configPath, &options))
 			return
 		}
 	}
-	if len(os.Args) >= 2 && os.Args[1] == "ui" {
+	if interceptsLongRunning("ui", os.Args[1:]) {
 		// Nothing is announced before the viewer is known to exist: a
 		// binary without web assets used to log that it was starting
 		// one and then fail, which reads like a crash rather than a
@@ -114,7 +118,7 @@ func main() {
 		logger.Info("web viewer stopped", "command", "ui")
 		return
 	}
-	if len(os.Args) >= 2 && os.Args[1] == "serve" {
+	if interceptsLongRunning("serve", os.Args[1:]) {
 		logger.Info("starting MCP server", "command", "serve")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -128,7 +132,7 @@ func main() {
 		logger.Info("MCP server stopped", "command", "serve")
 		return
 	}
-	if len(os.Args) >= 2 && os.Args[1] == "daemon" {
+	if interceptsLongRunning("daemon", os.Args[1:]) {
 		logger.Info("starting MCP daemon", "command", "daemon")
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -1471,6 +1475,13 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		passed, detail := inspectDoctorDirectory(stateDirectory.path)
 		doctorResult(stateDirectory.name, passed, detail)
 	}
+	// Whether the daemon has an owner is a fact about this installation, not a
+	// defect: an absent supervisor is the state of a machine that never asked
+	// for one, and a client registered against `serve` needs no daemon at all.
+	// It is reported because it is what decides whether a `url` registration is
+	// safe -- an unsupervised daemon takes every client down with it -- and a
+	// reader cannot see it any other way.
+	reportDoctorSupervisor(doctorResult, loaded)
 
 	registry, registryErr := workspace.NewRegistry(context.Background(), loaded.Repositories)
 	if registryErr != nil {
