@@ -2,7 +2,7 @@
 
 Question: which files hold the answer to a question that names no symbol
 
-Generated 2026-08-25T20:33:49Z from commit `b0fa57e7-dirty` on darwin/arm64 with go1.26.4, generation `000191`, counted in `cl100k_base`.
+Generated 2026-08-25T21:29:02Z from commit `e9c56496` on darwin/arm64 with go1.26.4, generation `000191`, counted in `cl100k_base`.
 
 Command: `go run ./benchmarks/intent-token-cost -server /tmp/kivgraph-witness-bin`. Dataset: `benchmarks/intent-token-cost/questions.json` v3, 24 questions over `api-db-go`, `kivgraph`, `mole`, native arm scoped to git grep -l -i over internal and cmd, in the checkout the question names.
 
@@ -116,7 +116,6 @@ Over every question: answer 4631 vs 7436 tokens = **0.62x**, median 0.05x. Sessi
 
 ## Limitations
 
-- the working tree carried uncommitted changes: git grep walked them, and so did the server binary only if it was rebuilt from them
 - a native search that matches nothing costs zero tokens and answers nothing, so the totals over every question flatter whichever arm missed; the shared-hit factor is the honest one
 - the ground truth is one reader's judgement of which file answers each question; a second reader may accept a file this run scores as a miss
 - 24 questions over 3 repositories at generation 191: a set this size states a direction, not a rate

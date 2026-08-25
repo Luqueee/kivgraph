@@ -1,8 +1,8 @@
 {
   "benchmark": "docstring-simulation",
   "command": "go run ./benchmarks/docstring-simulation",
-  "generated_at": "2026-08-25T20:52:14Z",
-  "commit": "e314651-dirty",
+  "generated_at": "2026-08-25T21:29:04Z",
+  "commit": "e9c5649-dirty",
   "environment": {
     "arch": "arm64",
     "go": "go1.26.4",
