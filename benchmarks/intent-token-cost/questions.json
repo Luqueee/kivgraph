@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "tokenizer": "cl100k_base",
+  "repository": "kivgraph",
+  "question": "which files hold the answer to a question that names no symbol",
+  "ground_truth": "established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain; every answer file must exist in the indexed corpus, which is the registered repository and not this worktree",
+  "questions": [
+    {
+      "intent": "which code refuses to publish a generation when the disk is nearly full",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/storage/generation/store.go",
+        "internal/storage/generation/types.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "disk",
+        "note": "the most distinctive word of the phrase; the implementation spells it space, which the asker cannot know"
+      }
+    },
+    {
+      "intent": "how does a reader tell that a snapshot file does not belong to the generation it was found beside",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/hotsnapshot/file.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "snapshot file",
+        "note": "two words of the phrase, quoted, which is the narrowest literal an asker has"
+      }
+    },
+    {
+      "intent": "where is every tool of this server registered",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/mcp/server.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "registered",
+        "note": "the word the phrase carries; the code spells it Register"
+      }
+    },
+    {
+      "intent": "how is a page token from a different question rejected",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/mcp/tools/cursor.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "page token",
+        "note": "the phrase's own noun; this surface calls it a cursor"
+      }
+    },
+    {
+      "intent": "where does the daemon decide which client owns it",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/daemon/daemon.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "owns",
+        "note": "the verb of the phrase; the field is owner"
+      }
+    },
+    {
+      "intent": "which command prints the build provenance as json",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/kivgraph/version.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "provenance",
+        "note": "a word this repository uses heavily for edges, so the hit set is large and mostly unrelated"
+      }
+    },
+    {
+      "intent": "where is the compiler's own library path handed to the rust analyzer",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/rustloader/sysroot.go"
+      ],
+      "native": {
+        "tool": "git grep -l",
+        "pattern": "library path",
+        "note": "the phrase's own words; the code calls it the sysroot"
+      }
+    },
+    {
+      "intent": "how does a traversal keep from walking the whole graph",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/hotsnapshot/traversal.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "walking",
+        "note": "the gerund of the phrase; the code says walks and traverse"
+      }
+    }
+  ]
+}
