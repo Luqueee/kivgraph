@@ -265,6 +265,20 @@ func commandTable() []commandSpec {
 			},
 		},
 		{
+			words:   []string{"doctor", "repositories"},
+			group:   "Diagnostics",
+			usage:   "doctor repositories [--repository NAME] [--json]",
+			summary: "Audit whether every registered repository can be indexed, and say what to change",
+			flags: func() *flag.FlagSet {
+				var o doctorRepositoriesOptions
+				return doctorRepositoriesFlagSet(&o)
+			},
+			hints: map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runDoctorRepositories(args, stdout, stderr)
+			},
+		},
+		{
 			words:   []string{"graph", "status"},
 			group:   "Diagnostics",
 			usage:   "graph status --root PATH",

@@ -42,6 +42,19 @@ type parsedTypeScriptConfig struct {
 	HasExclude bool
 }
 
+// ClaimedTypeScriptSources answers which files the project at configPath
+// owns, resolving its "extends" chain and its "files"/"include"/"exclude"
+// exactly as the indexing pass does. It exists so a caller can ask what a
+// project claims without building its program, and so that nobody has to
+// reimplement the answer to compare against it.
+func ClaimedTypeScriptSources(configPath, repositoryRoot string) ([]string, error) {
+	configuration, err := resolveTypeScriptConfig(configPath, repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	return resolveTypeScriptSources(configuration, repositoryRoot)
+}
+
 // resolveTypeScriptConfig reads the tsconfig at configPath and resolves its
 // "extends" chain into one effective, fully merged configuration.
 //

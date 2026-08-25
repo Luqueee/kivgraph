@@ -149,7 +149,7 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 			if modulePath == "" {
 				return Plan{}, fmt.Errorf("repository %q module manifest %q has an empty module path", name, module.ManifestPath)
 			}
-			packagePatterns := packagePatternsForModule(discovery.Packages, module)
+			packagePatterns := PackagePatternsForModule(discovery.Packages, module)
 			provider := workspace.GoModuleProvider{
 				ModulePath:        modulePath,
 				Repository:        name,
@@ -218,7 +218,12 @@ func BuildPlan(ctx context.Context, repositories []workspace.Repository, options
 	return plan, nil
 }
 
-func packagePatternsForModule(packages []workspace.GoPackage, module workspace.GoModule) []string {
+// PackagePatternsForModule answers which import paths one module contributes,
+// which is what a load has to name explicitly: a "./..." pattern silently
+// skips a package whose files the build configuration all excludes, so it
+// never reports the exclusion. Exported so an audit lists exactly what a pass
+// would load instead of deriving a second answer.
+func PackagePatternsForModule(packages []workspace.GoPackage, module workspace.GoModule) []string {
 	patterns := make([]string, 0)
 	for _, packageValue := range packages {
 		if packageValue.ModulePath != module.ModulePath || !pathWithinModule(module.RootPath, packageValue.Directory) {

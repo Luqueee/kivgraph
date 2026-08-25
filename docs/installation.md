@@ -398,6 +398,14 @@ proyecto que los habría declarado -- no hay ninguno --, y de ellos se recogen
 sólo sus declaraciones y sus usos: un uso cuyo destino vive en otro paquete no
 produce arista. Las condiciones exactas están en el ADR 0050.
 
+Antes de pagar una pasada completa, `kivgraph doctor repositories` contesta si
+cada repositorio registrado está estructurado para que se pueda leer, sin
+indexar nada, y propone qué cambiar donde no lo está: el fichero de proyecto
+que falta con su contenido, la clave de configuración, o el comando que hay
+que ejecutar. Termina con código `1` sólo cuando algún hallazgo es `blocking`,
+es decir cuando un repositorio o un paquete no aporta nada. `--json` emite el
+informe entero con el `code` estable de cada hallazgo.
+
 Python y Dart se activan igual que los demás lenguajes:
 
 ```yaml
