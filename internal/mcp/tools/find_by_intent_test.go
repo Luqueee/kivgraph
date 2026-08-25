@@ -1,5 +1,21 @@
 package tools
 
+// Four statements of findByIntent are not covered, and none of them is
+// reachable from any input this surface accepts:
+//
+//   - the HashQuery error, which needs a query struct that json.Marshal
+//     rejects; this one is strings and ints.
+//   - the offset clamp, which needs a cursor whose offset exceeds the total of
+//     its own question; a cursor carries the query hash and the snapshot id, so
+//     the total it is compared against is the total it was minted from.
+//   - the NewCursor and Encode errors, which need an offset past
+//     maxCursorOffset -- the candidate bound is four orders of magnitude below
+//     it -- or a cursor that fails the validation of the constructor that just
+//     built it.
+//
+// Covering them would mean handing the tool a value no encoder in this package
+// produces. The guards stay because a future caller may not be this one.
+
 import (
 	"context"
 	"encoding/json"
@@ -537,6 +553,179 @@ func TestFindByIntentSaysWhenATermMatchedTooMuch(t *testing.T) {
 	}
 }
 
+// TestFindByIntentAnswersThroughItsRegistration walks the path a host actually
+// takes -- a JSON call over a session, not a direct handler call -- and does it
+// with and without an observer, because the observed handler is a second closure
+// wrapping the first and nothing else exercises it.
+func TestFindByIntentAnswersThroughItsRegistration(t *testing.T) {
+	store := intentStore(t, 120)
+	observed := 0
+	for name, register := range map[string]func(*sdkmcp.Server){
+		"plain": func(server *sdkmcp.Server) { RegisterFindByIntentWithSnapshotStore(server, store) },
+		"observed": func(server *sdkmcp.Server) {
+			RegisterFindByIntentWithObserverAndSnapshotStore(server, func(string, time.Duration) { observed++ }, store)
+		},
+	} {
+		server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+		register(server)
+		serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+		serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		t.Cleanup(func() { _ = serverSession.Close() })
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+		clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		t.Cleanup(func() { _ = clientSession.Close() })
+
+		result, err := clientSession.CallTool(context.Background(), &sdkmcp.CallToolParams{
+			Name: findByIntentToolName, Arguments: map[string]any{"intent": "publish generation"},
+		})
+		if err != nil {
+			t.Fatalf("%s: CallTool() error = %v", name, err)
+		}
+		if result.IsError {
+			t.Fatalf("%s: call returned an error result: %#v", name, result.Content)
+		}
+		text, ok := result.Content[0].(*sdkmcp.TextContent)
+		if !ok || !strings.Contains(text.Text, "storage.PublishGeneration") {
+			t.Fatalf("%s: payload does not name the production symbol: %#v", name, result.Content)
+		}
+	}
+	if observed == 0 {
+		t.Error("the observer was never called through the registered handler")
+	}
+}
+
+// TestFindByIntentBoundsTheCandidateSet keeps one question from walking the
+// whole graph. A term the corpus mostly carries would otherwise assemble a
+// candidate per symbol before the ranking ever runs.
+func TestFindByIntentBoundsTheCandidateSet(t *testing.T) {
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "repo", Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "go", Name: "pkg", ModulePath: "example.com/pkg"}},
+		Files:        []hotsnapshot.FileRow{{Key: "file", RepositoryKey: "repo", PackageKey: "pkg", Path: "internal/pkg/wide.go", Language: "go"}},
+	}
+	const symbols = maximumIntentCandidates + 500
+	for index := 0; index < symbols; index++ {
+		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{
+			StableKey:         hotsnapshot.StableKey(fmt.Sprintf("sym-%06d", index)),
+			CanonicalIdentity: fmt.Sprintf("go:pkg.Publish%06d", index),
+			FileKey:           "file", Language: "go",
+			Name:          fmt.Sprintf("Publish%06d", index),
+			QualifiedName: fmt.Sprintf("pkg.Publish%06d", index),
+			Kind:          "func", StartLine: uint32(index * 3), EndLine: uint32(index*3 + 1),
+		})
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 121, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish", View: ViewFull,
+	}, hotsnapshot.NewSnapshotStore(snapshot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Total != maximumIntentCandidates {
+		t.Fatalf("total = %d over a corpus of %d, want the candidate bound of %d",
+			response.Total, symbols, maximumIntentCandidates)
+	}
+}
+
+// TestFindByIntentExcludesByPathAlone separates the two narrowings: a path
+// prefix has to exclude on its own, not only alongside a kind.
+func TestFindByIntentExcludesByPathAlone(t *testing.T) {
+	store := intentStore(t, 122)
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish generation", View: ViewFull, PathPrefix: "internal/storage/testdata",
+		Limit: MaximumIntentLimit,
+	}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Total == 0 {
+		t.Fatal("the fixture path excluded everything, including the fixture")
+	}
+	for _, row := range response.Results.Symbols {
+		if !strings.HasPrefix(row.FilePath, "internal/storage/testdata") {
+			t.Fatalf("row %#v survived a path prefix it does not satisfy", row)
+		}
+	}
+}
+
+// TestFindByIntentKeepsANameItsQualifiedNameDoesNotImply covers the one field a
+// row withholds when it is redundant. An alias re-exported under another name is
+// the real case: the qualified name does not end in the declaration's own name,
+// so dropping it would lose the only spelling a reader recognises.
+func TestFindByIntentKeepsANameItsQualifiedNameDoesNotImply(t *testing.T) {
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "repo", Languages: "ts"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "ts", Name: "web", ModulePath: "example.com/web"}},
+		Files:        []hotsnapshot.FileRow{{Key: "file", RepositoryKey: "repo", PackageKey: "pkg", Path: "src/api/index.ts", Language: "ts"}},
+		Symbols: []hotsnapshot.SymbolRow{{
+			StableKey: "sym-alias", CanonicalIdentity: "ts:api.publishGenerationAlias", FileKey: "file",
+			Language: "ts", Name: "publishGeneration", QualifiedName: "api.publishGenerationAlias",
+			Kind: "func", Exported: true, StartLine: 5, EndLine: 9,
+		}},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 123, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "publish generation", View: ViewFull,
+	}, hotsnapshot.NewSnapshotStore(snapshot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results.Symbols) != 1 {
+		t.Fatalf("rows = %#v, want the one declaration", response.Results.Symbols)
+	}
+	if response.Results.Symbols[0].Name != "publishGeneration" {
+		t.Fatalf("row = %#v, want the name kept because the qualified name does not end in it",
+			response.Results.Symbols[0])
+	}
+}
+
+// TestFindByIntentRefusesFiltersWithSurroundingWhitespace covers the three
+// narrowing fields separately: each one is validated on its own, and a caller
+// that pasted a padded value has to be told which field it was.
+func TestFindByIntentRefusesFiltersWithSurroundingWhitespace(t *testing.T) {
+	store := intentStore(t, 124)
+	for field, arguments := range map[string]FindByIntentInput{
+		"repo":        {Intent: "publish", Repo: " main"},
+		"kind":        {Intent: "publish", Kind: "func "},
+		"path_prefix": {Intent: "publish", PathPrefix: "\tinternal"},
+	} {
+		_, _, err := findByIntent(context.Background(), nil, arguments, store)
+		if err == nil {
+			t.Errorf("%s with surrounding whitespace was accepted", field)
+			continue
+		}
+		if !strings.Contains(err.Error(), field) {
+			t.Errorf("%s: message %q does not name the field", field, err.Error())
+		}
+	}
+}
+
+// TestIntentFrequencyLabelSaysNothingWithoutACorpus is a direct unit test of the
+// label, for the one input the tool cannot produce: a published graph always has
+// symbols, so a corpus of zero only arrives if this function is reused.
+func TestIntentFrequencyLabelSaysNothingWithoutACorpus(t *testing.T) {
+	for name, corpus := range map[string]int{"zero": 0, "negative": -5} {
+		if label := intentFrequencyLabel(10, corpus); label != "" {
+			t.Errorf("%s corpus produced the label %q, want none", name, label)
+		}
+	}
+	if label := intentFrequencyLabel(1, 1_000); label != "" {
+		t.Errorf("a rare term produced %q, want no label", label)
+	}
+}
+
 func ballast() []hotsnapshot.SymbolRow {
 	rows := make([]hotsnapshot.SymbolRow, 0, 60)
 	for index := 0; index < 60; index++ {
@@ -557,4 +746,74 @@ func firstWord(text string) string {
 		return text[:index]
 	}
 	return text
+}
+
+// corruptIntentSnapshot builds a snapshot by hand -- the constructor's own input,
+// not the loader's rows -- so a field can carry a value no writer would produce.
+// A snapshot arrives from a file, and a file can disagree with its string table.
+func corruptIntentSnapshot(t *testing.T, kind, file hotsnapshot.InternedString, fileIndex uint32) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	interner := hotsnapshot.NewStringInterner()
+	intern := func(value string) hotsnapshot.InternedString {
+		id, err := interner.Intern(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	repositoryName, path := intern("repo"), intern("internal/pkg/publish.go")
+	language, name := intern("go"), intern("publishGeneration")
+	qualifiedName, validKind := intern("pkg.publishGeneration"), intern("func")
+	repositoryKey, packageKey, fileKey := intern("repo"), intern("pkg"), intern("file")
+	table := interner.Freeze()
+	stableKeys, err := hotsnapshot.NewStableKeyTable([]hotsnapshot.StableKey{"sym-corrupt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kind == hotsnapshot.InternedString(0) {
+		kind = validKind
+	}
+	if file == hotsnapshot.InternedString(0) {
+		file = path
+	}
+	snapshot, buildErr := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
+		ID: 1, CreatedAt: time.Unix(1, 0).UTC(), Version: 1, SchemaVersion: 4, ResolverVersion: "test",
+		Strings:      table,
+		Repositories: []hotsnapshot.RepositoryRecord{{Key: repositoryKey, Name: repositoryName, Path: path, Languages: language}},
+		Packages:     []hotsnapshot.PackageRecord{{Key: packageKey, Repository: 0, Language: language, Name: repositoryName, ModulePath: repositoryName}},
+		Files:        []hotsnapshot.FileRecord{{Key: fileKey, Repository: 0, Package: 0, Path: file, Language: language}},
+		Symbols: []hotsnapshot.SymbolRecord{{
+			StableKey: 0, CanonicalIdentity: qualifiedName, File: hotsnapshot.FileID(fileIndex), Language: language,
+			Name: name, QualifiedName: qualifiedName, Kind: kind, StartLine: 1, EndLine: 2,
+		}},
+		ForwardOffsets: []uint32{0, 0}, ReverseOffsets: []uint32{0, 0},
+		StableKeys: stableKeys,
+	})
+	if buildErr != nil {
+		t.Skipf("the constructor rejects this input, so the tool cannot receive it: %v", buildErr)
+	}
+	return snapshot
+}
+
+// TestFindByIntentRefusesASnapshotItCannotSpell covers the guard between the
+// index and the answer: a symbol the term index reached, whose display strings
+// the string table cannot resolve. A row half-spelled is worse than a refusal,
+// because the caller would open a file the graph never named.
+func TestFindByIntentRefusesASnapshotItCannotSpell(t *testing.T) {
+	const pastTheTable = hotsnapshot.InternedString(9_999)
+	for name, snapshot := range map[string]*hotsnapshot.GraphSnapshot{
+		"invalid kind string": corruptIntentSnapshot(t, pastTheTable, 0, 0),
+		"invalid file string": corruptIntentSnapshot(t, 0, pastTheTable, 0),
+	} {
+		_, _, err := findByIntent(context.Background(), nil, FindByIntentInput{
+			Intent: "publish generation", View: ViewFull,
+		}, hotsnapshot.NewSnapshotStore(snapshot))
+		if err == nil {
+			t.Errorf("%s: a snapshot it cannot spell was answered", name)
+			continue
+		}
+		if !strings.Contains(err.Error(), "invalid") {
+			t.Errorf("%s: message %q does not say the snapshot is at fault", name, err.Error())
+		}
+	}
 }

@@ -1,5 +1,12 @@
 package hotsnapshot
 
+// The two deadline checks inside the walk of WitnessPath are not covered. The
+// entry check fires first for any deadline already past, so reaching them needs
+// the clock to cross between entry and iteration -- a race no test can fix, and
+// production code carries no clock that exists only for a test. The bound they
+// enforce is covered where a caller can observe it: an expired context is
+// classified as a timeout and never as an absence.
+
 import (
 	"errors"
 	"testing"

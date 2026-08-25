@@ -332,11 +332,9 @@ func rankIntentCandidates(
 	unmatched := make([]string, 0, len(words))
 
 	for _, word := range words {
-		key := retrieval.Fold(word)
-		if key == retrieval.TermKeyNone {
-			continue
-		}
-		found, frequency := snapshot.SymbolsByTerm(key)
+		// QueryWords only ever returns words that fold to a key, so there is no
+		// guard here: a word it dropped never reaches this loop.
+		found, frequency := snapshot.SymbolsByTerm(retrieval.Fold(word))
 		if frequency == 0 {
 			unmatched = append(unmatched, word)
 			continue

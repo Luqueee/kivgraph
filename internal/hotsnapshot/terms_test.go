@@ -349,3 +349,38 @@ func TestTermIndexRejectsAMalformedShape(t *testing.T) {
 		t.Error("a well-formed index was refused")
 	}
 }
+
+// TestIncomingCountCountsWhatPointsAtASymbol pins the one number the ranking
+// takes from the graph rather than from the text. It is the fan-in the resolver
+// established, so a symbol nobody calls has to read zero and not one, and an id
+// outside the table has to read zero rather than reach past its end.
+func TestIncomingCountCountsWhatPointsAtASymbol(t *testing.T) {
+	rows := builderRows()
+	snapshot, err := BuildGraphSnapshot(rows, 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The fixture's edges are s-a -> s-b -> s-c, so the root of that chain is
+	// the symbol nobody points at.
+	counts := map[StableKey]int{}
+	for _, key := range []StableKey{"s-a", "s-b", "s-c"} {
+		id, ok := snapshot.SymbolByStableKey(key)
+		if !ok {
+			t.Fatalf("the fixture has no symbol %q", key)
+		}
+		counts[key] = snapshot.IncomingCount(id)
+	}
+	if counts["s-a"] != 0 {
+		t.Errorf("incoming(s-a) = %d, want zero: it is the root of the fixture chain", counts["s-a"])
+	}
+	if counts["s-b"] != 1 || counts["s-c"] != 1 {
+		t.Errorf("incoming(s-b) = %d and incoming(s-c) = %d, want the one edge each carries",
+			counts["s-b"], counts["s-c"])
+	}
+	if count := snapshot.IncomingCount(SymbolID(len(snapshot.symbols))); count != 0 {
+		t.Errorf("incoming(one past the table) = %d, want zero", count)
+	}
+	if count := snapshot.IncomingCount(SymbolID(9_999)); count != 0 {
+		t.Errorf("incoming(far past the table) = %d, want zero", count)
+	}
+}

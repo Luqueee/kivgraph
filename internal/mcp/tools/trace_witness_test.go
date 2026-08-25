@@ -4,8 +4,10 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // TestTraceWitnessAnswersWithTheRouteInOrder is the contract of `to`: the rows
@@ -142,5 +144,141 @@ func TestTraceWitnessLeavesTheFanOutPageAlone(t *testing.T) {
 	}
 	if response.Results.View != ViewCompact {
 		t.Fatalf("view = %q, want the compact default untouched", response.Results.View)
+	}
+}
+
+// TestTraceWitnessClassifiesATimeout keeps a deadline from reading as an
+// absence. The client's own context bounds the walk, so a request that ran out
+// of time has to say so rather than answer "no route".
+func TestTraceWitnessClassifiesATimeout(t *testing.T) {
+	store := traceDependenciesStore(t, 81)
+	expired, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	_, _, err := traceDependencies(expired, nil, TraceDependenciesInput{
+		StableKey: "sym-root", To: "Level3",
+	}, store)
+	if err == nil {
+		t.Fatal("an expired deadline was answered, want a timeout")
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "no route") {
+		t.Fatalf("a timeout was reported as an absence: %v", err)
+	}
+}
+
+// TestWitnessGuidanceNamesEachBound is a direct unit test of the sentence,
+// because the third case needs a graph whose resolver recorded a failure that
+// bounds this very question -- a fixture that would prove less than the table
+// below states.
+func TestWitnessGuidanceNamesEachBound(t *testing.T) {
+	if guidance := witnessGuidance(2, 3, false, VerdictComplete); guidance != "" {
+		t.Errorf("a found route produced %q, want silence", guidance)
+	}
+	if guidance := witnessGuidance(0, 3, true, VerdictComplete); !strings.Contains(guidance, "node budget") {
+		t.Errorf("a truncated search produced %q, want the budget named", guidance)
+	}
+	if guidance := witnessGuidance(0, 3, false, VerdictLowerBound); !strings.Contains(guidance, "blind_spots") {
+		t.Errorf("a lower-bound answer produced %q, want the blind spots named", guidance)
+	}
+	if guidance := witnessGuidance(0, 3, false, VerdictComplete); !strings.Contains(guidance, "bound and not an absence") {
+		t.Errorf("a depth-bounded answer produced %q, want the bound named", guidance)
+	}
+	// The budget outranks the blind spots: a search that never finished cannot
+	// claim anything about what it did not read.
+	if guidance := witnessGuidance(0, 3, true, VerdictLowerBound); !strings.Contains(guidance, "node budget") {
+		t.Errorf("a truncated lower-bound answer produced %q, want the budget first", guidance)
+	}
+}
+
+// corruptWitnessSnapshot builds a two-symbol route by hand so one field on the
+// far end can carry a value no writer produces. The route has to be walkable --
+// the target is found by name -- and only the spelling is broken, which is the
+// shape a truncated or edited snapshot file actually has.
+func corruptWitnessSnapshot(t *testing.T, reachedPath hotsnapshot.InternedString, unresolvedName hotsnapshot.InternedString) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	interner := hotsnapshot.NewStringInterner()
+	intern := func(value string) hotsnapshot.InternedString {
+		id, err := interner.Intern(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	repositoryName, path, language := intern("repo"), intern("internal/pkg/route.go"), intern("go")
+	secondPath := intern("internal/pkg/reached.go")
+	rootName, reachedName := intern("Root"), intern("Reached")
+	rootQualified, reachedQualified := intern("pkg.Root"), intern("pkg.Reached")
+	validKind := intern("func")
+	repositoryKey, packageKey, fileKey := intern("repo"), intern("pkg"), intern("file")
+	reachedFileKey := intern("file-reached")
+	evidenceKind, provenance := intern("call"), intern("GoTypesUse")
+	table := interner.Freeze()
+	if reachedPath == 0 {
+		reachedPath = secondPath
+	}
+	stableKeys, err := hotsnapshot.NewStableKeyTable([]hotsnapshot.StableKey{"sym-a-root", "sym-b-reached"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := hotsnapshot.GraphSnapshotInput{
+		ID: 1, CreatedAt: time.Unix(1, 0).UTC(), Version: 1, SchemaVersion: 4, ResolverVersion: "test",
+		Strings:      table,
+		Repositories: []hotsnapshot.RepositoryRecord{{Key: repositoryKey, Name: repositoryName, Path: path, Languages: language}},
+		Packages:     []hotsnapshot.PackageRecord{{Key: packageKey, Repository: 0, Language: language, Name: repositoryName, ModulePath: repositoryName}},
+		Files: []hotsnapshot.FileRecord{
+			{Key: fileKey, Repository: 0, Package: 0, Path: path, Language: language},
+			{Key: reachedFileKey, Repository: 0, Package: 0, Path: reachedPath, Language: language},
+		},
+		Symbols: []hotsnapshot.SymbolRecord{
+			{StableKey: 0, CanonicalIdentity: rootQualified, File: 0, Language: language, Name: rootName, QualifiedName: rootQualified, Kind: validKind, StartLine: 1, EndLine: 2},
+			{StableKey: 1, CanonicalIdentity: reachedQualified, File: 1, Language: language, Name: reachedName, QualifiedName: reachedQualified, Kind: validKind, StartLine: 4, EndLine: 5},
+		},
+		Evidence:       []hotsnapshot.EvidenceRecord{{Key: evidenceKind, SourceFile: 0, TargetFile: 0, Kind: evidenceKind, Provenance: provenance}},
+		ForwardOffsets: []uint32{0, 1, 1},
+		ForwardEdges: []hotsnapshot.PackedEdge{{
+			Target: 1, Evidence: 0, Kind: facts.CodeCallsDirect,
+			Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse,
+		}},
+		ReverseOffsets: []uint32{0, 0, 1},
+		ReverseEdges: []hotsnapshot.PackedEdge{{
+			Target: 0, Evidence: 0, Kind: facts.CodeCallsDirect,
+			Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse,
+		}},
+		StableKeys: stableKeys,
+	}
+	if unresolvedName != 0 {
+		input.Unresolved = []hotsnapshot.UnresolvedReferenceRecord{{
+			Key: unresolvedName, Repository: 0, File: 0, Source: 0, Language: language,
+			RequestedPackage: unresolvedName, RequestedSymbol: unresolvedName,
+			Reason: unresolvedName, Detail: unresolvedName, StartLine: 1,
+		}}
+	}
+	snapshot, buildErr := hotsnapshot.NewGraphSnapshot(input)
+	if buildErr != nil {
+		t.Skipf("the constructor rejects this input, so the tool cannot receive it: %v", buildErr)
+	}
+	return snapshot
+}
+
+// TestTraceWitnessRefusesASnapshotItCannotSpell covers the two guards between a
+// walked route and its answer: the rows it would return, and the blind spots it
+// would report. Either one half-spelled would put a caller in a file the graph
+// never named, so both refuse instead.
+func TestTraceWitnessRefusesASnapshotItCannotSpell(t *testing.T) {
+	const pastTheTable = hotsnapshot.InternedString(9_999)
+	for name, snapshot := range map[string]*hotsnapshot.GraphSnapshot{
+		"invalid path on the reached symbol": corruptWitnessSnapshot(t, pastTheTable, 0),
+		"invalid unresolved reference":       corruptWitnessSnapshot(t, 0, pastTheTable),
+	} {
+		_, _, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{
+			StableKey: "sym-a-root", To: "Reached",
+		}, hotsnapshot.NewSnapshotStore(snapshot))
+		if err == nil {
+			t.Errorf("%s: a snapshot it cannot spell was answered", name)
+			continue
+		}
+		if !strings.Contains(err.Error(), "invalid") {
+			t.Errorf("%s: message %q does not say the snapshot is at fault", name, err.Error())
+		}
 	}
 }
