@@ -1,63 +1,27 @@
 snapshot 1  3 bodies  context 0
-@ api-db-go internal/shared/infisical/infisical.go:72-102 func LoadSecrets [file changed, re-anchored +0]
-func LoadSecrets() (configured bool, err error) {
-	if !isConfigured() {
-		return false, nil
-	}
-	url := os.Getenv("INFISICAL_URL")
-	clientID := os.Getenv("INFISICAL_CLIENT_ID")
-	clientSecret := os.Getenv("INFISICAL_CLIENT_SECRET")
-	environment := os.Getenv("INFISICAL_ENVIRONMENT")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+The 3 declaration bodies this capture held were removed on purpose. They were
+verbatim source from a private repository, and this repository is public.
 
-	err = withRetry(ctx, func() error {
-		client, authErr := newInfisicalClient(ctx, url, clientID, clientSecret)
-		if authErr != nil {
-			return authErr
-		}
-		if err := fetchProject(client, projectCommon, environment); err != nil {
-			return fmt.Errorf("common: %w", err)
-		}
-		if err := fetchProject(client, projectAPIDBGo, environment); err != nil {
-			return fmt.Errorf("api-db-go: %w", err)
-		}
-		return nil
-	})
+What the capture was evidence for is unchanged and still checkable in
+`results-chain.json`, question `X6_bodies_two_languages`:
 
-	if err != nil {
-		return true, fmt.Errorf("infisical secrets: %w", err)
-	}
-	return true, nil
-}
-@ api-db-go internal/application/routers/guilds_router.go:34-48 func RegisterGuilds [file changed, re-anchored +0]
-func RegisterGuilds(app *fiber.App, h *handlers.GuildsHandler) {
-	g := app.Group("/guilds")
+  arm       kivgraph
+  calls     1  (get_source)
+  tokens    674   tokenizer o200k_base
+  bodies    3
+  ms        0.629
+  commit    954b9eb
 
-	g.Get("/modmail-web-access", h.ModmailWebAccessList)
-	g.Get("/modmail-enabled", h.ModmailEnabledGuildIDs)
-	g.Get("/modmail-enabled-list", h.ModmailEnabledList)
-	// Literal de un solo segmento: va ANTES del comodín `/:guild_id` o Fiber
-	// ataría `guild_id = "automation-scheduled"` y llamaría al handler equivocado.
-	g.Get("/automation-scheduled", h.AutomationScheduledGuildIDs)
-	// Mismo motivo que automation-scheduled — literal antes del comodín.
-	g.Get("/notifier-scheduled", h.NotifierPendingGuildIDs)
-	g.Get("/:guild_id/modmail-web-access", h.ModmailWebAccessCheck)
-	g.Get("/permissions", h.GetPermissions)
-	g.Get("/:guild_id", h.Get)
-}
-@ library-shared src/redis/cache/music/recommendations-cache.ts:6-18 class RecommendationsCache [file changed, re-anchored +0]
-export class RecommendationsCache extends BaseCache {
-	private cacheKey(isrc: string, storefront: string): string {
-		return `recommendations:${isrc.toLowerCase()}:${storefront.toLowerCase()}`;
-	}
+That is the whole claim the benchmark makes here -- that one call returns the
+bodies, and what they cost in tokens. Re-reading them proves nothing the token
+count does not already state, so nothing measured was lost by deleting them. The
+`ground_truth` list in `results-chain.json` still names every declaration, so the
+answer remains verifiable by anyone with access to the corpus.
 
-	async getResults(isrc: string, storefront: string): Promise<ChipbotRecommendationsResponse | null> {
-		return this.get<ChipbotRecommendationsResponse>(this.cacheKey(isrc, storefront));
-	}
+Reproducing it needs that corpus, which is private. Every other arm in this
+question is recorded `unsupported`: none of the four rival graphs returns source
+text at all.
 
-	async setResults(isrc: string, storefront: string, data: ChipbotRecommendationsResponse): Promise<void> {
-		await this.set(this.cacheKey(isrc, storefront), data, TTL_5_MIN);
-	}
-}
+This question is the two-language one: the bodies spanned a Go repository and a
+TypeScript one, which is the property it was written to measure.
