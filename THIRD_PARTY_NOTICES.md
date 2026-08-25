@@ -90,6 +90,23 @@ de módulos Go bajo `licenses/third-party/`. El aviso del core nativo de
 LadybugDB se conserva mediante el enlace oficial fijado arriba y la
 procedencia local en `docs/dependencies/ladybugdb.md`.
 
+### casing (código adaptado, no dependencia)
+
+- `github.com/danielgtaylor/casing` `v1.0.0`, función `Split` de `casing.go`.
+- Licencia: MIT License, Copyright 2021 Daniel G. Taylor.
+- Adaptado en `internal/retrieval/split.go` para devolver rangos de bytes en
+  vez de construir un `[]string`. La tabla de casos de `casing_test.go` viaja
+  con él en `internal/retrieval/split_test.go`, así que una adaptación que se
+  aparte del original falla en vez de contestar otra cosa.
+- No figura en `go.mod`: el módulo está congelado en `v1.0.0` y declara
+  `go 1.15`, así que no ofrece actualizaciones que seguir y su grafo mete seis
+  módulos en `go.sum` —`testify` y sus dependencias— que no llegan al binario.
+  Se copió la función, que es autocontenida y usa sólo `unicode`.
+- El texto completo está disponible en el tag fijado:
+  [LICENSE](https://raw.githubusercontent.com/danielgtaylor/casing/v1.0.0/LICENSE).
+  Como el código no viaja en el grafo de módulos, el script de distribución no
+  lo recoge: el aviso se conserva aquí y en la cabecera del archivo adaptado.
+
 ### TypeScript runtime
 
 - `typescript` `7.0.2`, incluido porque el worker consume la API de

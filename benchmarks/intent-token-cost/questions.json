@@ -1,0 +1,562 @@
+{
+  "version": 3,
+  "tokenizer": "cl100k_base",
+  "repositories": {
+    "kivgraph": "/Users/adria/Documents/programacion/projects/kivgraph",
+    "mole": "/Users/adria/Documents/programacion/projects/mole",
+    "api-db-go": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go"
+  },
+  "question": "which files hold the answer to a question that names no symbol",
+  "ground_truth": "established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain -- checked mechanically, by splitting every declared name of the answer file into words and refusing any phrase that shares one; every answer file was confirmed present in the indexed corpus, and each repository name maps to the registered checkout the graph indexed rather than to a worktree, so both arms walk the same tree",
+  "questions": [
+    {
+      "intent": "which code refuses to publish a generation when the disk is nearly full",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/storage/generation/store.go",
+        "internal/storage/generation/types.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "disk",
+        "note": "the most distinctive word of the phrase; the implementation spells it space, which the asker cannot know"
+      },
+      "keywords": [
+        "disk",
+        "space",
+        "full",
+        "publish",
+        "generation",
+        "free",
+        "threshold",
+        "check"
+      ]
+    },
+    {
+      "intent": "how does a reader tell that a snapshot file does not belong to the generation it was found beside",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/hotsnapshot/file.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "snapshot file",
+        "note": "two words of the phrase, quoted, which is the narrowest literal an asker has"
+      },
+      "keywords": [
+        "snapshot",
+        "generation",
+        "mismatch",
+        "validate",
+        "header",
+        "id",
+        "file",
+        "read"
+      ]
+    },
+    {
+      "intent": "where is every tool of this server registered",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/mcp/server.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "registered",
+        "note": "the word the phrase carries; the code spells it Register"
+      },
+      "keywords": [
+        "register",
+        "tools",
+        "server",
+        "tool",
+        "handler",
+        "list",
+        "init"
+      ]
+    },
+    {
+      "intent": "how is a page token from a different question rejected",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/mcp/tools/cursor.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "page token",
+        "note": "the phrase's own noun; this surface calls it a cursor"
+      },
+      "keywords": [
+        "page",
+        "token",
+        "cursor",
+        "invalid",
+        "mismatch",
+        "query",
+        "validate",
+        "pagination"
+      ]
+    },
+    {
+      "intent": "where does the daemon decide which client owns it",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/daemon/daemon.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "owns",
+        "note": "the verb of the phrase; the field is owner"
+      },
+      "keywords": [
+        "daemon",
+        "owner",
+        "client",
+        "claim",
+        "lock",
+        "pid",
+        "attach"
+      ]
+    },
+    {
+      "intent": "which command prints the build provenance as json",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/kivgraph/version.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "provenance",
+        "note": "a word this repository uses heavily for edges, so the hit set is large and mostly unrelated"
+      },
+      "keywords": [
+        "version",
+        "command",
+        "build",
+        "info",
+        "json",
+        "print",
+        "provenance"
+      ]
+    },
+    {
+      "intent": "where is the compiler's own library path handed to the rust analyzer",
+      "repo": "kivgraph",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/rustloader/sysroot.go"
+      ],
+      "native": {
+        "tool": "git grep -l",
+        "pattern": "library path",
+        "note": "the phrase's own words; the code calls it the sysroot"
+      },
+      "keywords": [
+        "sysroot",
+        "rust",
+        "analyzer",
+        "path",
+        "toolchain",
+        "lib",
+        "config"
+      ]
+    },
+    {
+      "intent": "how does a traversal keep from walking the whole graph",
+      "repo": "kivgraph",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/hotsnapshot/traversal.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "walking",
+        "note": "the gerund of the phrase; the code says walks and traverse"
+      },
+      "keywords": [
+        "visit",
+        "depth",
+        "limit",
+        "max",
+        "traverse",
+        "seen",
+        "cycle",
+        "nodes"
+      ]
+    },
+    {
+      "intent": "why a program on the far machine bound to an outside address is skipped",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/discover/discover.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "outside address",
+        "note": "the two most distinctive words of the phrase; the code spells them listen addresses"
+      },
+      "keywords": [
+        "remote",
+        "listen",
+        "address",
+        "bind",
+        "skip",
+        "localhost",
+        "port",
+        "process"
+      ]
+    },
+    {
+      "intent": "where the connection is aborted because the machine proves a different identity than before",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/tunnel/hostkey.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "identity changed",
+        "note": "what an asker calls it; the code calls it a host key"
+      },
+      "keywords": [
+        "host",
+        "key",
+        "mismatch",
+        "fingerprint",
+        "close",
+        "verify",
+        "identity",
+        "connection"
+      ]
+    },
+    {
+      "intent": "where one rejected forward request does not tear down the whole shared link",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/tunnel/tunnel.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "rejected request",
+        "note": "two words of the phrase, the narrowest literal an asker has"
+      },
+      "keywords": [
+        "forward",
+        "reject",
+        "stream",
+        "channel",
+        "session",
+        "close",
+        "error",
+        "multiplex"
+      ]
+    },
+    {
+      "intent": "where the far end learns no more bytes are coming from one side",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/proxy/proxy.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "no more bytes",
+        "note": "the phrase as written; the code calls it a half close"
+      },
+      "keywords": [
+        "eof",
+        "close",
+        "write",
+        "half",
+        "shutdown",
+        "stream",
+        "send"
+      ]
+    },
+    {
+      "intent": "where changing one setting on disk leaves the user's comments and ordering untouched",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/config/config.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "comments preserved",
+        "note": "what the asker wants to keep, which the code never names"
+      },
+      "keywords": [
+        "config",
+        "update",
+        "preserve",
+        "comments",
+        "order",
+        "yaml",
+        "edit",
+        "set"
+      ]
+    },
+    {
+      "intent": "where an oversized picture upload is turned away instead of being stored",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/clip/server.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "oversized upload",
+        "note": "the complaint, not the limit the code declares"
+      },
+      "keywords": [
+        "image",
+        "upload",
+        "size",
+        "limit",
+        "max",
+        "reject",
+        "bytes",
+        "validate"
+      ]
+    },
+    {
+      "intent": "where starting a second background copy is refused while one already runs",
+      "repo": "mole",
+      "class": "common_vocabulary",
+      "answer": [
+        "cmd/mole/daemon.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "already running",
+        "note": "the message an asker expects to find"
+      },
+      "keywords": [
+        "sync",
+        "already",
+        "running",
+        "start",
+        "lock",
+        "busy",
+        "concurrent",
+        "error"
+      ]
+    },
+    {
+      "intent": "where tailing the daemon output detects the file shrank and reopens it",
+      "repo": "mole",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/mole/logs.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "shrank",
+        "note": "the single distinctive word of the phrase"
+      },
+      "keywords": [
+        "tail",
+        "log",
+        "truncated",
+        "reopen",
+        "file",
+        "size",
+        "follow",
+        "watch"
+      ]
+    },
+    {
+      "intent": "where a bulk transfer refuses to run when the destination looks like live production",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/clone-db/main.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "destination",
+        "note": "the asker's word; the code says target"
+      },
+      "keywords": [
+        "import",
+        "production",
+        "guard",
+        "target",
+        "refuse",
+        "env",
+        "database",
+        "check"
+      ]
+    },
+    {
+      "intent": "where preparing the tables stops early because something else already created them",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/infrastructure/postgres/migrate.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "preparing tables",
+        "note": "what an asker calls a migration before knowing the word"
+      },
+      "keywords": [
+        "migrate",
+        "schema",
+        "exists",
+        "create",
+        "table",
+        "skip",
+        "already",
+        "init"
+      ]
+    },
+    {
+      "intent": "where an unexpected crash inside a request becomes a normal error reply instead of raw html",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/application/middlewares/recover.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "crash",
+        "note": "the asker's word for a panic"
+      },
+      "keywords": [
+        "panic",
+        "recover",
+        "middleware",
+        "http",
+        "error",
+        "json",
+        "handler",
+        "response"
+      ]
+    },
+    {
+      "intent": "how it goes back to the remote coordinator only after several good replies in a row",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/infrastructure/locker/locker.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "remote coordinator",
+        "note": "what an asker calls the service; the code names the product"
+      },
+      "keywords": [
+        "consecutive",
+        "success",
+        "threshold",
+        "retry",
+        "backoff",
+        "remote",
+        "switch",
+        "count"
+      ]
+    },
+    {
+      "intent": "at startup, where absent table shards produce a printed command an operator can paste",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/infrastructure/postgres/partition_health.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "shard",
+        "note": "the asker's word for a partition, and it does hit another subsystem"
+      },
+      "keywords": [
+        "missing",
+        "shard",
+        "table",
+        "startup",
+        "print",
+        "command",
+        "hint",
+        "check"
+      ]
+    },
+    {
+      "intent": "where the label naming who produced a reply falls back to a placeholder",
+      "repo": "api-db-go",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/application/handlers/headers.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "placeholder",
+        "note": "the distinctive word of the phrase; the code names a constant instead"
+      },
+      "keywords": [
+        "author",
+        "name",
+        "default",
+        "unknown",
+        "fallback",
+        "label",
+        "empty",
+        "reply"
+      ]
+    },
+    {
+      "intent": "where an old variable that is no longer read is reported at boot",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/shared/config/config.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "variable",
+        "note": "the asker's word for an environment key"
+      },
+      "keywords": [
+        "deprecated",
+        "unused",
+        "env",
+        "config",
+        "warn",
+        "startup",
+        "variable",
+        "check"
+      ]
+    },
+    {
+      "intent": "why a partial save with no usable fields is refused instead of touching the record",
+      "repo": "api-db-go",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/application/handlers/bots_guilds_handler.go"
+      ],
+      "native": {
+        "tool": "git grep -n",
+        "pattern": "fields",
+        "note": "the word an asker uses for what a partial update carries"
+      },
+      "keywords": [
+        "patch",
+        "update",
+        "empty",
+        "fields",
+        "validate",
+        "reject",
+        "partial",
+        "error"
+      ]
+    }
+  ],
+  "keywords_provenance": "guessed by a calling model from each question alone, never from an answer file: this is the keywords parameter the tool takes, and the arm that passes them measures how the surface is meant to be called rather than how a benchmark happened to call it"
+}

@@ -38,6 +38,7 @@ model at the moment it decides whether to call anything.
 | What does this reach outward | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
 | Who uses this from another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
 | Where is this declared | [`find_symbol`](/docs/tools/find-symbol/) |
+| I do not know its name; which files do I open | [`find_by_intent`](/docs/tools/find-by-intent/), with `keywords` |
 | What are this symbol's package, signature, visibility and line range | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is declared under this path | [`get_file_outline`](/docs/tools/get-file-outline/) |
 | Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |

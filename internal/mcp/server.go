@@ -145,6 +145,7 @@ func newServerWithIndexer(
 	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
+	tools.RegisterFindByIntentWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetSourceWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetFileOutlineWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
