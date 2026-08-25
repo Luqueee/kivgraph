@@ -1088,7 +1088,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
 	}
 	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
-		writeWarning(stdout, "index.typescript.no_package: %s declares no package, so it contributes nothing", repository)
+		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
 	}
 	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
 		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)

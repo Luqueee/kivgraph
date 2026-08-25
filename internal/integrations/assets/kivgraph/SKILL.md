@@ -152,8 +152,9 @@ Report the reason rather than concluding that coverage is broken:
   configured Pyright-compatible server or semantic producer was unavailable;
   switch to fallback mode only when candidate facts are acceptable.
 
-A repository registered as TypeScript that declares no package contributes
-nothing to the graph; the index reports it by name.
+A repository registered as TypeScript that declares no named package with a
+project contributes nothing to the graph; a `package.json` beside loose
+sources is not one. The index reports it by name.
 
 Rust reasons name the crate registry or the analyzer that produced the index:
 
