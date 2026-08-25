@@ -212,3 +212,62 @@ func TestNewTypeScriptPackageRegistrySkipsUnnamedRootAndHonorsCancellation(t *te
 		t.Fatalf("canceled registry error = %v, want context.Canceled", err)
 	}
 }
+
+// TestNewTypeScriptPackageRegistryAcceptsAJsconfigProject is the contract a
+// JavaScript package rests on: a jsconfig is the project of its package, and
+// the sources it claims are the .mjs files nothing else would have claimed.
+func TestNewTypeScriptPackageRegistryAcceptsAJsconfigProject(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "package.json"),
+		`{"name":"tool","version":"1.0.0","type":"module","bin":{"tool":"./tool.mjs"}}`)
+	writeDiscoveryFile(t, filepath.Join(root, "jsconfig.json"), `{"compilerOptions":{"module":"NodeNext"}}`)
+	writeDiscoveryFile(t, filepath.Join(root, "tool.mjs"), "export const tool = 1\n")
+
+	registry, err := NewTypeScriptPackageRegistry(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("NewTypeScriptPackageRegistry() error = %v", err)
+	}
+	packageValue, found := registry.Get("tool")
+	if !found {
+		t.Fatal("a package whose only project is a jsconfig must be in the registry")
+	}
+	if packageValue.ProjectPath != filepath.Join(root, "jsconfig.json") {
+		t.Fatalf("ProjectPath = %q, want the jsconfig", packageValue.ProjectPath)
+	}
+
+	configuration, err := resolveTypeScriptConfig(packageValue.ProjectPath, root)
+	if err != nil {
+		t.Fatalf("resolveTypeScriptConfig() error = %v", err)
+	}
+	sources, err := resolveTypeScriptSources(configuration, root)
+	if err != nil {
+		t.Fatalf("resolveTypeScriptSources() error = %v", err)
+	}
+	if !equalStrings(sources, []string{filepath.Join(root, "tool.mjs")}) {
+		t.Fatalf("sources = %#v, want the .mjs the jsconfig claims", sources)
+	}
+}
+
+// TestNewTypeScriptPackageRegistryPrefersTsconfigOverJsconfig keeps the
+// canonical name winning where both exist: a package migrating to TypeScript
+// keeps a jsconfig around for editors, and the tsconfig is still its project.
+func TestNewTypeScriptPackageRegistryPrefersTsconfigOverJsconfig(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name":"mixed","version":"1.0.0"}`)
+	writeDiscoveryFile(t, filepath.Join(root, "jsconfig.json"), `{"include":["legacy"]}`)
+	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"), `{"include":["src"]}`)
+	writeDiscoveryFile(t, filepath.Join(root, "src", "index.ts"), "export const index = 1\n")
+	writeDiscoveryFile(t, filepath.Join(root, "legacy", "tool.mjs"), "export const tool = 1\n")
+
+	registry, err := NewTypeScriptPackageRegistry(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("NewTypeScriptPackageRegistry() error = %v", err)
+	}
+	packageValue, found := registry.Get("mixed")
+	if !found {
+		t.Fatal("the package left the registry")
+	}
+	if packageValue.ProjectPath != filepath.Join(root, "tsconfig.json") {
+		t.Fatalf("ProjectPath = %q, want the tsconfig", packageValue.ProjectPath)
+	}
+}

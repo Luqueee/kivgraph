@@ -369,3 +369,37 @@ func TestCloneCompilerOptionsDeepCopiesNestedValues(t *testing.T) {
 		t.Fatalf("original paths[@app/*] mutated through the clone: %#v", originalPaths["@app/*"])
 	}
 }
+
+// TestResolveTypeScriptConfigImpliesAllowJsForAJsconfig covers both halves of
+// the implication a JavaScript project rests on: a jsconfig that says nothing
+// still reads JavaScript, and one that says "allowJs": false is obeyed.
+func TestResolveTypeScriptConfigImpliesAllowJsForAJsconfig(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "jsconfig.json"),
+		`{"compilerOptions":{"module":"NodeNext"}}`)
+	writeDiscoveryFile(t, filepath.Join(root, "jsconfig.strict.json"),
+		`{"compilerOptions":{"allowJs":false}}`)
+	writeDiscoveryFile(t, filepath.Join(root, "tsconfig.json"),
+		`{"compilerOptions":{"module":"NodeNext"}}`)
+
+	for name, want := range map[string]any{
+		"jsconfig.json":        true,
+		"jsconfig.strict.json": false,
+		"tsconfig.json":        nil,
+	} {
+		resolved, err := resolveTypeScriptConfig(filepath.Join(root, name), root)
+		if err != nil {
+			t.Fatalf("resolveTypeScriptConfig(%s) error = %v", name, err)
+		}
+		got, declared := resolved.CompilerOptions["allowJs"]
+		if want == nil {
+			if declared {
+				t.Fatalf("%s allowJs = %#v, want the option left undeclared", name, got)
+			}
+			continue
+		}
+		if got != want {
+			t.Fatalf("%s allowJs = %#v, want %#v", name, got, want)
+		}
+	}
+}

@@ -21,6 +21,30 @@ load a workspace without cargo.
 path each names on disk, plus the full list of retained generations. A store
 with no active generation reports `graph.active: none`; that is not an error.
 
+## Audit the registered repositories
+
+```bash
+kivgraph doctor repositories
+kivgraph doctor repositories --repository NAME --json
+```
+
+It answers whether each registered repository is structured so that a pass can
+read it, without indexing anything, and says what to change where it is not.
+Until this existed, a coverage hole only showed up as one warning among
+hundreds at the end of `index --full`.
+
+Every check asks the code a pass asks: the same package registry, the same
+source resolution, the same `go list` with the same package patterns, the same
+`cargo metadata`. A finding is `blocking` when a repository or one of its
+packages contributes nothing at all, and `partial` when it is indexed and part
+of it is invisible. The command exits `1` only for a blocking finding: a
+partial one is a hole its owner may have chosen.
+
+Each finding carries a remedy — a file to write with its exact content, a
+configuration key, or a command to run. Remedies are proposals: Kivgraph never
+writes inside the code it indexes. `--json` emits the whole report, with the
+stable `code` of every finding, for an agent to act on.
+
 ## Validate a database
 
 ```bash

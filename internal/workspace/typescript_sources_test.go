@@ -102,10 +102,12 @@ func TestResolveTypeScriptSources(t *testing.T) {
 			},
 		},
 		{
-			name: "allowJs adds JavaScript extensions",
+			name: "allowJs adds every JavaScript extension the compiler reads",
 			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
 				writeDiscoveryFile(t, filepath.Join(root, "index.ts"), "export {}")
 				writeDiscoveryFile(t, filepath.Join(root, "legacy.js"), "module.exports = {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.mjs"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.cjs"), "module.exports = {}")
 				writeDiscoveryFile(t, filepath.Join(root, "styles.css"), "body {}")
 				return parsedTypeScriptConfig{
 					ConfigPath:      filepath.Join(root, "tsconfig.json"),
@@ -114,8 +116,76 @@ func TestResolveTypeScriptSources(t *testing.T) {
 				}
 			},
 			wantSources: func(root string) []string {
-				return []string{filepath.Join(root, "index.ts"), filepath.Join(root, "legacy.js")}
+				return []string{
+					filepath.Join(root, "index.ts"),
+					filepath.Join(root, "legacy.js"),
+					filepath.Join(root, "tool.cjs"),
+					filepath.Join(root, "tool.mjs"),
+				}
 			},
+		},
+		{
+			// The other half of the same contract: ".mts" and ".cts" are
+			// TypeScript with no option asked for, and a ".mjs" beside them
+			// is a source only once the project says "allowJs".
+			name: "mts and cts are claimed without allowJs and mjs is not",
+			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
+				writeDiscoveryFile(t, filepath.Join(root, "module.mts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "script.cts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.mjs"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.cjs"), "module.exports = {}")
+				return parsedTypeScriptConfig{
+					ConfigPath: filepath.Join(root, "tsconfig.json"),
+					Directory:  root,
+				}
+			},
+			wantSources: func(root string) []string {
+				return []string{
+					filepath.Join(root, "module.mts"),
+					filepath.Join(root, "script.cts"),
+				}
+			},
+		},
+		{
+			// `include: ["src"]` is how a real project spells it, and the
+			// compiler reads a directory entry as "src/**/*". Matched
+			// literally it reaches the directory and no file under it, so the
+			// project claimed nothing at all.
+			name: "an include entry naming a directory claims the tree under it",
+			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
+				writeDiscoveryFile(t, filepath.Join(root, "src", "index.ts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "src", "nested", "deep.ts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "src", "styles.css"), "body {}")
+				writeDiscoveryFile(t, filepath.Join(root, "outside.ts"), "export {}")
+				return parsedTypeScriptConfig{
+					ConfigPath: filepath.Join(root, "tsconfig.json"),
+					Directory:  root,
+					HasInclude: true,
+					Include:    []string{filepath.Join(root, "src")},
+				}
+			},
+			wantSources: func(root string) []string {
+				return []string{
+					filepath.Join(root, "src", "index.ts"),
+					filepath.Join(root, "src", "nested", "deep.ts"),
+				}
+			},
+		},
+		{
+			// The other half: an entry that names nothing on disk stays a
+			// pattern and claims nothing, rather than being turned into a
+			// wildcard over a directory that does not exist.
+			name: "an include entry naming no directory claims nothing",
+			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
+				writeDiscoveryFile(t, filepath.Join(root, "src", "index.ts"), "export {}")
+				return parsedTypeScriptConfig{
+					ConfigPath: filepath.Join(root, "tsconfig.json"),
+					Directory:  root,
+					HasInclude: true,
+					Include:    []string{filepath.Join(root, "missing")},
+				}
+			},
+			wantSources: func(root string) []string { return nil },
 		},
 		{
 			name: "explicit extension pattern does not also match other extensions",

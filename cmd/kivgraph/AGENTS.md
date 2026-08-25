@@ -60,11 +60,15 @@ superficie observable.
 ## Ayuda, salidas y registro
 
 - La ayuda no es un error: `--help`, `-h` y `help` escriben en `stdout` y
-  terminan con código `0`; una invocación sin comando o con uno desconocido
-  escribe una línea en `stderr` y apunta a la ayuda, nunca vuelca la superficie
-  entera. Un comando puntual informa en texto plano cuando `stderr` es una
-  terminal y como registro JSON cuando no lo es; `serve` y `ui` registran
-  siempre en JSON, porque un cliente lee su `stderr`.
+  terminan con código `0`. **Una invocación sin comando es la misma pregunta**
+  -- «qué hace esto» -- así que escribe esa misma tabla en `stdout` y termina en
+  `0`; antes escribía una línea en `stderr` apuntando a una ayuda que el lector
+  todavía no había visto. Un comando **desconocido** sí es un error: una línea
+  en `stderr`, código `2`, y nunca la superficie entera -- quien se equivoca
+  escribiendo `inedx` no necesita leerse el catálogo. Un comando puntual informa
+  en texto plano cuando `stderr` es una terminal y como registro JSON cuando no
+  lo es; `serve` y `ui` registran siempre en JSON, porque un cliente lee su
+  `stderr`.
 - La ayuda marca el comando que esta build no puede ejecutar. El bundle MCP
   publicado no lleva `webassets`, así que anunciar `ui` sin decirlo describe
   una capacidad que no existe.
@@ -142,6 +146,38 @@ superficie observable.
   que `tool-stats` puede contestar lo que una media esconde -- una tool cuya
   mediana es rápida y cuya cola no -- y sólo colorea la fila que falló, porque
   una tabla donde toda línea está pintada no dice qué línea leer.
+
+## `kivgraph doctor repositories`
+
+- Contesta si un repositorio registrado está estructurado para que una pasada
+  pueda leerlo, **sin indexarlo**, y dice qué cambiar cuando no lo está. Es la
+  única forma de saberlo que no cuesta minutos: hasta aquí un agujero de
+  cobertura sólo aparecía como un aviso entre cientos al final de
+  `index --full`.
+- **Toda comprobación pregunta al código que pregunta la pasada**: el mismo
+  registro de paquetes, la misma resolución de fuentes -- por eso existe
+  `workspace.ClaimedTypeScriptSources`--, el mismo `go list` con los mismos
+  patrones -- por eso `goworkspace.PackagePatternsForModule` está exportada-- y
+  el mismo `cargo metadata`. Una comprobación que reimplementara cualquiera de
+  ellos contestaría por una pasada que nadie ejecuta, y eso es peor que no
+  contestar: daría por bueno un repositorio que la pasada descarta.
+- Los patrones de Go se nombran uno a uno **porque `./...` no basta**: un
+  paquete cuyos ficheros excluye la configuración de build no lo matchea, así
+  que `go list -e ./...` no informa de la exclusión. Medido: cero hallazgos con
+  `./...`, los dos reales al nombrar los paquetes.
+- **Un remedio se propone, nunca se aplica.** Kivgraph no escribe dentro del
+  código que indexa, y el `Remedy` está pensado para que lo aplique quien lee:
+  ruta, contenido exacto, clave de configuración o comando. Un remedio que no
+  puede nombrar el tag que pide -- Go-- lo lee de los propios ficheros con el
+  parser del compilador, porque «concede el tag» sin decir cuál no lo puede
+  aplicar nadie.
+- Sale con código `1` **sólo** si algo es `blocking`, es decir si un
+  repositorio o un paquete no aporta nada. Un hallazgo `partial` es un agujero
+  que su dueño puede haber elegido, y un gate que fallara por esos sería un
+  gate que nadie puede pasar.
+- `--json` es la salida para un agente: el informe entero, con el `code`
+  estable de cada hallazgo y su remedio. La salida de texto es la misma
+  información para una persona.
 
 ## Protocolo de `index --full --json`
 

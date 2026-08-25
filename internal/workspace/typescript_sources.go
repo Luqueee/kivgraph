@@ -10,8 +10,10 @@ import (
 )
 
 // defaultTypeScriptSourceExtensions are always recognised by an "include"
-// glob that does not already end in an explicit extension.
-var defaultTypeScriptSourceExtensions = []string{".ts", ".tsx", ".d.ts"}
+// glob that does not already end in an explicit extension. ".mts" and ".cts"
+// are TypeScript whatever the compiler options say, and matching is by
+// suffix, so they cover ".d.mts" and ".d.cts" without naming them.
+var defaultTypeScriptSourceExtensions = []string{".ts", ".tsx", ".d.ts", ".mts", ".cts"}
 
 // defaultExcludedSourceDirectoryNames are pruned from "include" expansion
 // whenever the project does not declare its own "exclude".
@@ -40,7 +42,7 @@ func resolveTypeScriptSources(configuration parsedTypeScriptConfig, repositoryRo
 	excludePatternSegments := splitGlobPatterns(effectiveTypeScriptExcludePatterns(configuration))
 	allowedExtensions := allowedTypeScriptSourceExtensions(configuration.CompilerOptions)
 
-	for _, includePattern := range includePatterns {
+	for _, includePattern := range includePatternsWithDirectoriesExpanded(includePatterns) {
 		matches, err := expandTypeScriptGlob(includePattern, root, excludePatternSegments, allowedExtensions)
 		if err != nil {
 			return nil, fmt.Errorf("include pattern %q: %w", includePattern, err)
@@ -51,6 +53,28 @@ func resolveTypeScriptSources(configuration parsedTypeScriptConfig, repositoryRo
 	}
 
 	return sortedUniqueSources(sources), nil
+}
+
+// includePatternsWithDirectoriesExpanded rewrites an "include" entry that
+// names an existing directory into the "dir/**/*" the compiler reads it as.
+// `include: ["src"]` is the common spelling and it used to claim nothing:
+// matched literally, the pattern reaches the directory itself and no file
+// under it. An entry that names no directory is left exactly as declared,
+// which is what keeps a glob a glob.
+func includePatternsWithDirectoriesExpanded(patterns []string) []string {
+	expanded := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		if strings.ContainsAny(pattern, "*?") {
+			expanded = append(expanded, pattern)
+			continue
+		}
+		if info, err := os.Stat(pattern); err == nil && info.IsDir() {
+			expanded = append(expanded, filepath.Join(pattern, "**", "*"))
+			continue
+		}
+		expanded = append(expanded, pattern)
+	}
+	return expanded
 }
 
 // resolveExplicitTypeScriptFiles validates every path declared under
@@ -120,8 +144,11 @@ func effectiveTypeScriptExcludePatterns(configuration parsedTypeScriptConfig) []
 // explicit extension.
 func allowedTypeScriptSourceExtensions(compilerOptions map[string]any) []string {
 	extensions := append([]string(nil), defaultTypeScriptSourceExtensions...)
+	// The compiler's own set for "allowJs" is the four of them: a package
+	// with "type": "module" writes ".mjs", and leaving the two out claimed
+	// no file at all in a repository that uses them.
 	if booleanCompilerOption(compilerOptions, "allowJs") {
-		extensions = append(extensions, ".js", ".jsx")
+		extensions = append(extensions, ".js", ".jsx", ".mjs", ".cjs")
 	}
 	if booleanCompilerOption(compilerOptions, "resolveJsonModule") {
 		extensions = append(extensions, ".json")

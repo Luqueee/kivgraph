@@ -3,9 +3,11 @@ title: CLI
 description: Every Kivgraph command, in the five groups the help prints them.
 ---
 
-`kivgraph --help`, `-h` and `help` write to `stdout` and exit `0`. An
-invocation with no command, or with an unknown one, writes a single line to
-`stderr` and points at the help rather than dumping the whole surface.
+`kivgraph --help`, `-h` and `help` write to `stdout` and exit `0`. So does a
+bare `kivgraph`: an invocation with no command asks what the program does, and
+it is answered with this same table. An **unknown** command writes a single
+line to `stderr` and exits `2`, rather than dumping the whole surface at
+someone who mistyped one word.
 
 ## Getting started
 
@@ -25,6 +27,7 @@ invocation with no command, or with an unknown one, writes a single line to
 | Invocation | Summary |
 | --- | --- |
 | `doctor` | Check configuration, toolchains and the published graph |
+| `doctor repositories [--repository NAME] [--json]` | Audit whether every registered repository can be indexed, and say what to change |
 | `doctor storage --database PATH` | Inspect one LadybugDB database file |
 | `doctor graph --database PATH` | Validate the canonical graph of a database |
 | `graph status --root PATH` | Report the active and backup generations |

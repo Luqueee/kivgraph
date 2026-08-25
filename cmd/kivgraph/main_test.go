@@ -558,18 +558,28 @@ func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	}
 }
 
-func TestRunWithoutCommandPointsAtTheHelp(t *testing.T) {
+// TestRunWithoutCommandWritesTheCommandTable is the contract of a bare
+// invocation: it asks what the program does, so it is answered on stdout with
+// the same table `--help` writes, and it is not a failure.
+func TestRunWithoutCommandWritesTheCommandTable(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	if got := run([]string{"kivgraph"}, &stdout, &stderr); got != 2 {
-		t.Fatalf("run() exit code = %d, want 2", got)
+	if got := run([]string{"kivgraph"}, &stdout, &stderr); got != 0 {
+		t.Fatalf("run() exit code = %d, want 0", got)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
-	for _, want := range []string{"kivgraph: no command given", `Run "kivgraph --help"`} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr = %q, want it to contain %q", stderr.String(), want)
+	var help bytes.Buffer
+	if got := run([]string{"kivgraph", "--help"}, &help, &bytes.Buffer{}); got != 0 {
+		t.Fatalf("run(--help) exit code = %d, want 0", got)
+	}
+	if stdout.String() != help.String() {
+		t.Fatalf("bare invocation wrote %q, want the same table as --help", stdout.String())
+	}
+	for _, want := range []string{"doctor repositories", "index --full", "Run \"kivgraph <command> --help\""} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout = %q, want it to contain %q", stdout.String(), want)
 		}
 	}
 }
@@ -644,7 +654,7 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	logger := logging.New(&stderr)
 
-	if got := run([]string{"kivgraph"}, &stdout, logging.NewCommandWriter(logger)); got != 2 {
+	if got := run([]string{"kivgraph", "inedx"}, &stdout, logging.NewCommandWriter(logger)); got != 2 {
 		t.Fatalf("run() exit code = %d, want 2", got)
 	}
 	if stdout.Len() != 0 {
@@ -659,7 +669,7 @@ func TestCLIErrorWriterEmitsJSONToStderr(t *testing.T) {
 		t.Fatalf("record = %#v, want the failure at ERROR", record)
 	}
 	message, ok := record["msg"].(string)
-	if !ok || !strings.Contains(message, "no command given") {
+	if !ok || !strings.Contains(message, `unknown command "inedx"`) {
 		t.Fatalf("record msg = %#v, want the usage error itself", record["msg"])
 	}
 }

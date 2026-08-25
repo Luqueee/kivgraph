@@ -164,8 +164,11 @@ type FullReport struct {
 	// itself it skipped and on whose authority.
 	Cache CacheReport
 	// TypeScriptWithoutPackages names the repositories registered as
-	// TypeScript that declare no package. They contribute nothing, and a
-	// registry entry that contributes nothing looks like coverage.
+	// TypeScript that declare no named package with a project. A manifest
+	// alone is not one: a repository of loose .mjs files beside a
+	// package.json has no project for a program to be built from. They
+	// contribute nothing, and a registry entry that contributes nothing
+	// looks like coverage.
 	TypeScriptWithoutPackages []string
 	// GoDiagnostics carries what the Go loader reported without blocking
 	// the pass. The count alone said something happened and nothing said

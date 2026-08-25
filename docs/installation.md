@@ -368,6 +368,16 @@ silenciosamente el `tsconfig` de la raíz para otro paquete. Un manifest sin
 nombre o sin proyecto se conserva como configuración del workspace, pero no
 genera hechos semánticos por sí solo.
 
+Un paquete que envía JavaScript declara su proyecto con un `jsconfig.json`,
+que Kivgraph lee como un `tsconfig` cuyo `allowJs` está implícito -- un valor
+declarado en el fichero gana, `false` incluido. Donde conviven los dos en un
+mismo directorio, el proyecto del paquete es el `tsconfig.json`. Ver el ADR
+0070.
+
+Un `include` con comodín reclama las extensiones que lee el compilador:
+`.ts`, `.tsx`, `.mts` y `.cts` siempre, más `.js`, `.jsx`, `.mjs` y `.cjs`
+cuando el proyecto declara `allowJs`.
+
 Si un repositorio registrado como TypeScript no tiene ningún provider nombrado
 con proyecto aplicable, `index --full` termina con error explícito; no publica
 una generación vacía.
@@ -387,6 +397,14 @@ de TypeScript, cuyas opciones de compilación las elige Kivgraph y no el
 proyecto que los habría declarado -- no hay ninguno --, y de ellos se recogen
 sólo sus declaraciones y sus usos: un uso cuyo destino vive en otro paquete no
 produce arista. Las condiciones exactas están en el ADR 0050.
+
+Antes de pagar una pasada completa, `kivgraph doctor repositories` contesta si
+cada repositorio registrado está estructurado para que se pueda leer, sin
+indexar nada, y propone qué cambiar donde no lo está: el fichero de proyecto
+que falta con su contenido, la clave de configuración, o el comando que hay
+que ejecutar. Termina con código `1` sólo cuando algún hallazgo es `blocking`,
+es decir cuando un repositorio o un paquete no aporta nada. `--json` emite el
+informe entero con el `code` estable de cada hallazgo.
 
 Python y Dart se activan igual que los demás lenguajes:
 
