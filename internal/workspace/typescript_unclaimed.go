@@ -146,9 +146,15 @@ func walkUnclaimedTypeScriptFiles(
 // isUnclaimedSourceName reports whether name is a TypeScript source file that
 // can carry a declaration a caller reaches. A ".d.ts" is excluded: it declares
 // the shape of an artifact and never the code behind it.
+//
+// The JavaScript family is deliberately absent. Whether a ".mjs" is a source
+// at all is the project's "allowJs" to decide, and this walk knows no
+// project: offering one to a program that does not accept it produces a file
+// the engine resolves nothing for.
 func isUnclaimedSourceName(name string) bool {
 	if strings.HasSuffix(name, ".d.ts") {
 		return false
 	}
-	return strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".tsx")
+	return strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".tsx") ||
+		strings.HasSuffix(name, ".mts") || strings.HasSuffix(name, ".cts")
 }

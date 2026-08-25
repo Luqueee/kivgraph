@@ -102,10 +102,12 @@ func TestResolveTypeScriptSources(t *testing.T) {
 			},
 		},
 		{
-			name: "allowJs adds JavaScript extensions",
+			name: "allowJs adds every JavaScript extension the compiler reads",
 			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
 				writeDiscoveryFile(t, filepath.Join(root, "index.ts"), "export {}")
 				writeDiscoveryFile(t, filepath.Join(root, "legacy.js"), "module.exports = {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.mjs"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.cjs"), "module.exports = {}")
 				writeDiscoveryFile(t, filepath.Join(root, "styles.css"), "body {}")
 				return parsedTypeScriptConfig{
 					ConfigPath:      filepath.Join(root, "tsconfig.json"),
@@ -114,7 +116,34 @@ func TestResolveTypeScriptSources(t *testing.T) {
 				}
 			},
 			wantSources: func(root string) []string {
-				return []string{filepath.Join(root, "index.ts"), filepath.Join(root, "legacy.js")}
+				return []string{
+					filepath.Join(root, "index.ts"),
+					filepath.Join(root, "legacy.js"),
+					filepath.Join(root, "tool.cjs"),
+					filepath.Join(root, "tool.mjs"),
+				}
+			},
+		},
+		{
+			// The other half of the same contract: ".mts" and ".cts" are
+			// TypeScript with no option asked for, and a ".mjs" beside them
+			// is a source only once the project says "allowJs".
+			name: "mts and cts are claimed without allowJs and mjs is not",
+			setup: func(t *testing.T, root string) parsedTypeScriptConfig {
+				writeDiscoveryFile(t, filepath.Join(root, "module.mts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "script.cts"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.mjs"), "export {}")
+				writeDiscoveryFile(t, filepath.Join(root, "tool.cjs"), "module.exports = {}")
+				return parsedTypeScriptConfig{
+					ConfigPath: filepath.Join(root, "tsconfig.json"),
+					Directory:  root,
+				}
+			},
+			wantSources: func(root string) []string {
+				return []string{
+					filepath.Join(root, "module.mts"),
+					filepath.Join(root, "script.cts"),
+				}
 			},
 		},
 		{

@@ -10,8 +10,10 @@ import (
 )
 
 // defaultTypeScriptSourceExtensions are always recognised by an "include"
-// glob that does not already end in an explicit extension.
-var defaultTypeScriptSourceExtensions = []string{".ts", ".tsx", ".d.ts"}
+// glob that does not already end in an explicit extension. ".mts" and ".cts"
+// are TypeScript whatever the compiler options say, and matching is by
+// suffix, so they cover ".d.mts" and ".d.cts" without naming them.
+var defaultTypeScriptSourceExtensions = []string{".ts", ".tsx", ".d.ts", ".mts", ".cts"}
 
 // defaultExcludedSourceDirectoryNames are pruned from "include" expansion
 // whenever the project does not declare its own "exclude".
@@ -120,8 +122,11 @@ func effectiveTypeScriptExcludePatterns(configuration parsedTypeScriptConfig) []
 // explicit extension.
 func allowedTypeScriptSourceExtensions(compilerOptions map[string]any) []string {
 	extensions := append([]string(nil), defaultTypeScriptSourceExtensions...)
+	// The compiler's own set for "allowJs" is the four of them: a package
+	// with "type": "module" writes ".mjs", and leaving the two out claimed
+	// no file at all in a repository that uses them.
 	if booleanCompilerOption(compilerOptions, "allowJs") {
-		extensions = append(extensions, ".js", ".jsx")
+		extensions = append(extensions, ".js", ".jsx", ".mjs", ".cjs")
 	}
 	if booleanCompilerOption(compilerOptions, "resolveJsonModule") {
 		extensions = append(extensions, ".json")
