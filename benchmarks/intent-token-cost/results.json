@@ -1,0 +1,289 @@
+{
+  "benchmark": "intent-token-cost",
+  "command": "go run ./benchmarks/intent-token-cost -server /tmp/kivgraph-witness-bin",
+  "commit": "e824bd86e9845d1cca06e72e309b38ea719f610b",
+  "generated_at": "2026-08-25T18:26:27Z",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "go_version": "go1.26.4"
+  },
+  "dataset": {
+    "question_set": "benchmarks/intent-token-cost/questions.json",
+    "question_set_version": 1,
+    "questions": 8,
+    "repository": "kivgraph",
+    "native_scope": "git grep -l -i over internal and cmd",
+    "seed": "none: both arms are deterministic"
+  },
+  "tokenizer": "cl100k_base",
+  "snapshot_id": 191,
+  "question": "which files hold the answer to a question that names no symbol",
+  "ground_truth": "established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain; every answer file must exist in the indexed corpus, which is the registered repository and not this worktree",
+  "results": [
+    {
+      "intent": "which code refuses to publish a generation when the disk is nearly full",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/storage/generation/store.go",
+        "internal/storage/generation/types.go"
+      ],
+      "native_pattern": "disk",
+      "native": {
+        "rank": 25,
+        "files_offered": 33,
+        "answer_tokens": 259,
+        "body_tokens": 5342,
+        "total": 5601
+      },
+      "kivgraph": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 297,
+        "body_tokens": 5342,
+        "total": 5639,
+        "truncated": true
+      },
+      "answer_factor": 0.8720538720538721,
+      "session_factor": 0.9932612165277531,
+      "unmatched_terms": [
+        "which",
+        "the",
+        "disk",
+        "nearly"
+      ]
+    },
+    {
+      "intent": "how does a reader tell that a snapshot file does not belong to the generation it was found beside",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/hotsnapshot/file.go"
+      ],
+      "native_pattern": "snapshot file",
+      "native": {
+        "rank": 2,
+        "files_offered": 7,
+        "answer_tokens": 58,
+        "body_tokens": 6409,
+        "total": 6467
+      },
+      "kivgraph": {
+        "rank": 5,
+        "files_offered": 10,
+        "answer_tokens": 303,
+        "body_tokens": 6409,
+        "total": 6712,
+        "truncated": true
+      },
+      "answer_factor": 0.19141914191419143,
+      "session_factor": 0.9634982121573301,
+      "unmatched_terms": [
+        "does",
+        "tell",
+        "that",
+        "belong",
+        "the",
+        "it"
+      ]
+    },
+    {
+      "intent": "where is every tool of this server registered",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/mcp/server.go"
+      ],
+      "native_pattern": "registered",
+      "native": {
+        "rank": 0,
+        "files_offered": 75,
+        "answer_tokens": 619,
+        "body_tokens": 1951,
+        "total": 2570
+      },
+      "kivgraph": {
+        "rank": 9,
+        "files_offered": 10,
+        "answer_tokens": 299,
+        "body_tokens": 1951,
+        "total": 2250,
+        "truncated": true
+      },
+      "answer_factor": 2.0702341137123748,
+      "session_factor": 1.1422222222222222,
+      "unmatched_terms": [
+        "where"
+      ]
+    },
+    {
+      "intent": "how is a page token from a different question rejected",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/mcp/tools/cursor.go"
+      ],
+      "native_pattern": "page token",
+      "native": {
+        "rank": 0,
+        "files_offered": 0,
+        "answer_tokens": 0,
+        "body_tokens": 2541,
+        "total": 2541
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 287,
+        "body_tokens": 2541,
+        "total": 2828,
+        "truncated": true
+      },
+      "answer_factor": 0,
+      "session_factor": 0.8985148514851485
+    },
+    {
+      "intent": "where does the daemon decide which client owns it",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/daemon/daemon.go"
+      ],
+      "native_pattern": "owns",
+      "native": {
+        "rank": 0,
+        "files_offered": 54,
+        "answer_tokens": 459,
+        "body_tokens": 2427,
+        "total": 2886
+      },
+      "kivgraph": {
+        "rank": 4,
+        "files_offered": 10,
+        "answer_tokens": 295,
+        "body_tokens": 2427,
+        "total": 2722,
+        "truncated": true
+      },
+      "answer_factor": 1.5559322033898304,
+      "session_factor": 1.0602498163115357,
+      "unmatched_terms": [
+        "where",
+        "does",
+        "the",
+        "which",
+        "it"
+      ]
+    },
+    {
+      "intent": "which command prints the build provenance as json",
+      "class": "rare_vocabulary",
+      "answer": [
+        "cmd/kivgraph/version.go"
+      ],
+      "native_pattern": "provenance",
+      "native": {
+        "rank": 3,
+        "files_offered": 75,
+        "answer_tokens": 685,
+        "body_tokens": 217,
+        "total": 902
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 290,
+        "body_tokens": 217,
+        "total": 507,
+        "truncated": true
+      },
+      "answer_factor": 2.3620689655172415,
+      "session_factor": 1.7790927021696252,
+      "unmatched_terms": [
+        "which",
+        "the"
+      ]
+    },
+    {
+      "intent": "where is the compiler's own library path handed to the rust analyzer",
+      "class": "rare_vocabulary",
+      "answer": [
+        "internal/rustloader/sysroot.go"
+      ],
+      "native_pattern": "library path",
+      "native": {
+        "rank": 0,
+        "files_offered": 1,
+        "answer_tokens": 9,
+        "body_tokens": 1481,
+        "total": 1490
+      },
+      "kivgraph": {
+        "rank": 0,
+        "files_offered": 10,
+        "answer_tokens": 298,
+        "body_tokens": 1481,
+        "total": 1779,
+        "truncated": true
+      },
+      "answer_factor": 0.030201342281879196,
+      "session_factor": 0.8375491849353569,
+      "unmatched_terms": [
+        "where",
+        "the",
+        "handed"
+      ]
+    },
+    {
+      "intent": "how does a traversal keep from walking the whole graph",
+      "class": "common_vocabulary",
+      "answer": [
+        "internal/hotsnapshot/traversal.go"
+      ],
+      "native_pattern": "walking",
+      "native": {
+        "rank": 0,
+        "files_offered": 14,
+        "answer_tokens": 127,
+        "body_tokens": 1990,
+        "total": 2117
+      },
+      "kivgraph": {
+        "rank": 1,
+        "files_offered": 10,
+        "answer_tokens": 293,
+        "body_tokens": 1990,
+        "total": 2283,
+        "truncated": true
+      },
+      "answer_factor": 0.4334470989761092,
+      "session_factor": 0.9272886552781427,
+      "unmatched_terms": [
+        "does",
+        "walking",
+        "the"
+      ]
+    }
+  ],
+  "totals": {
+    "questions": 8,
+    "native_hits": 3,
+    "kivgraph_hits": 5,
+    "native_top_one": 0,
+    "kivgraph_top_one": 2,
+    "native_answer_tokens": 2216,
+    "kivgraph_answer_tokens": 2362,
+    "body_tokens": 22358,
+    "shared_hits": 2,
+    "native_answer_tokens_on_shared_hits": 317,
+    "kivgraph_answer_tokens_on_shared_hits": 600,
+    "answer_factor_on_shared_hits": 0.5283333333333333,
+    "answer_factor": 0.9381879762912786,
+    "session_factor": 0.9940938511326861,
+    "session_ceiling": 1.099114410949101,
+    "median_answer_factor": 0.6527504855149906
+  },
+  "limitations": [
+    "a native search that matches nothing costs zero tokens and answers nothing, so the totals over every question flatter whichever arm missed; the shared-hit factor is the honest one",
+    "the ground truth is one reader's judgement of which file answers each question; a second reader may accept a file this run scores as a miss",
+    "8 questions over one repository at generation 191: a set this size states a direction, not a rate",
+    "measured on darwin/arm64 with go1.26.4: the native arm walks a working tree, so its cost is not portable across checkouts",
+    "3 question(s) are not answered by this tool at any rank; the vocabulary of the phrase is not in the graph"
+  ]
+}
