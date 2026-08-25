@@ -1,4 +1,4 @@
-# ADR 0071: la prosa no paga el esquema
+# ADR 0073: la prosa no paga el esquema
 
 - **Estado:** aceptada
 - **Fecha:** 2026-08-25
@@ -10,7 +10,7 @@
 
 ## Contexto: un techo con nombre y tamaño
 
-El ADR 0070 dejó una decisión abierta y nombró su disparador. `benchmarks/intent-token-cost`
+El ADR 0072 dejó una decisión abierta y nombró su disparador. `benchmarks/intent-token-cost`
 la disparó: sobre `24` preguntas y tres repositorios, `14` de los `18` ceros de
 `find_by_intent` no son un fallo de ranking sino un **fichero inalcanzable** --
 preguntado con la búsqueda apuntada directamente a él, no devuelve nada, porque

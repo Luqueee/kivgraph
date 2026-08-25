@@ -1,4 +1,4 @@
-# ADR 0070: la recuperación por intención, y las tres señales que no entraron
+# ADR 0072: la recuperación por intención, y las tres señales que no entraron
 
 - **Estado:** aceptada
 - **Fecha:** 2026-08-25
