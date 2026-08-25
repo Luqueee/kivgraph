@@ -16,18 +16,23 @@ import (
 )
 
 type results struct {
-	Benchmark     string       `json:"benchmark"`
-	Date          string       `json:"date"`
-	SchemaVersion string       `json:"schema_version"`
-	Commit        string       `json:"commit"`
-	Digest        string       `json:"digest"`
-	SnapshotID    uint64       `json:"snapshot_id"`
-	Calls         int          `json:"calls"`
-	Warmup        int          `json:"warmup"`
-	Seed          int64        `json:"seed"`
-	Environment   environment  `json:"environment"`
-	Snapshot      snapshotFile `json:"snapshot"`
-	Points        []point      `json:"points"`
+	Benchmark     string `json:"benchmark"`
+	Date          string `json:"date"`
+	SchemaVersion string `json:"schema_version"`
+	Commit        string `json:"commit"`
+	Digest        string `json:"digest"`
+	SnapshotID    uint64 `json:"snapshot_id"`
+	Calls         int    `json:"calls"`
+	Warmup        int    `json:"warmup"`
+	Seed          int64  `json:"seed"`
+	// Transport names which of the daemon's two doors the clients used. Without
+	// it two runs of the same corpus and client count are indistinguishable in
+	// the file, and the socket number would be quoted for a path no editor can
+	// take.
+	Transport   string       `json:"transport"`
+	Environment environment  `json:"environment"`
+	Snapshot    snapshotFile `json:"snapshot"`
+	Points      []point      `json:"points"`
 	// Slopes are what no single client count can answer. A daemon that saves at
 	// two clients and not at eight would look like a win in any one row.
 	Slopes      slopes   `json:"slopes"`
@@ -78,11 +83,15 @@ type armTotals struct {
 	WorstPrivateDirty int64 `json:"worst_private_dirty_bytes"`
 }
 
+// latency describes the answered calls. The percentiles are pointers because a
+// run that asks nothing has no percentile, and a zero there would read as an
+// instant answer rather than as no answer at all -- which is exactly the shape
+// this benchmark has already published twice by mistake.
 type latency struct {
-	Calls int     `json:"calls"`
-	P50MS float64 `json:"p50_ms"`
-	P95MS float64 `json:"p95_ms"`
-	P99MS float64 `json:"p99_ms"`
+	Calls int      `json:"calls"`
+	P50MS *float64 `json:"p50_ms,omitempty"`
+	P95MS *float64 `json:"p95_ms,omitempty"`
+	P99MS *float64 `json:"p99_ms,omitempty"`
 }
 
 type arm struct {
@@ -96,11 +105,16 @@ type arm struct {
 	CallErrors int             `json:"call_errors"`
 	// FirstAnswersMS is what each client waited to be answered, in the order
 	// they connected. In the daemon arm the shape is the finding: only the
-	// first pays for a load.
+	// first pays for a load. An idle run times no answer, so this is empty
+	// rather than a list of zeros.
 	FirstAnswersMS []float64 `json:"first_answers_ms"`
-	// NewClientMS is what one more client waits once the arm is already
-	// running, which is what a second editor window sees.
-	NewClientMS float64 `json:"new_client_ms"`
+	// NewClientMS is what one more client waits to be answered once the arm is
+	// already running. Absent when the run asks nothing.
+	NewClientMS *float64 `json:"new_client_ms,omitempty"`
+	// NewClientConnectMS is what that client waited to be connected, which is
+	// measured under every load and is therefore the field two runs of
+	// different loads can be compared on.
+	NewClientConnectMS float64 `json:"new_client_connect_ms"`
 }
 
 type comparison struct {
@@ -109,10 +123,16 @@ type comparison struct {
 	PrivateDirtyShare float64 `json:"private_dirty_share"`
 	PrivateDirtySaved int64   `json:"private_dirty_saved_bytes"`
 	PeakShare         float64 `json:"peak_share"`
-	P99Ratio          float64 `json:"p99_ratio"`
+	// P99Ratio and NewClientSpeedup divide two latencies, so they exist only
+	// when both were measured. An idle run answers nothing, and a zero here
+	// would claim the daemon was infinitely faster.
+	P99Ratio *float64 `json:"p99_ratio,omitempty"`
 	// NewClientSpeedup is the processes arm's wait over the daemon arm's. Above
 	// one means a new client is answered sooner by a running daemon.
-	NewClientSpeedup float64 `json:"new_client_speedup"`
+	NewClientSpeedup *float64 `json:"new_client_speedup,omitempty"`
+	// NewClientConnectSpeedup is the same division over the connection wait,
+	// which every load measures.
+	NewClientConnectSpeedup float64 `json:"new_client_connect_speedup"`
 }
 
 // armSlope is a straight line fitted to one arm's private half against the
@@ -154,9 +174,10 @@ type slopes struct {
 
 func compare(processes, served arm) comparison {
 	result := comparison{
-		PrivateDirtySaved: processes.Totals.PrivateDirtyByte - served.Totals.PrivateDirtyByte,
-		P99Ratio:          ratio(served.Latency.P99MS, processes.Latency.P99MS),
-		NewClientSpeedup:  ratio(processes.NewClientMS, served.NewClientMS),
+		PrivateDirtySaved:       processes.Totals.PrivateDirtyByte - served.Totals.PrivateDirtyByte,
+		P99Ratio:                ratioOf(served.Latency.P99MS, processes.Latency.P99MS),
+		NewClientSpeedup:        ratioOf(processes.NewClientMS, served.NewClientMS),
+		NewClientConnectSpeedup: ratio(processes.NewClientConnectMS, served.NewClientConnectMS),
 	}
 	result.PrivateDirtyShare = ratio(float64(served.Totals.PrivateDirtyByte), float64(processes.Totals.PrivateDirtyByte))
 	result.PeakShare = ratio(float64(served.Totals.PeakBytes), float64(processes.Totals.PeakBytes))
@@ -168,6 +189,16 @@ func ratio(numerator, denominator float64) float64 {
 		return 0
 	}
 	return numerator / denominator
+}
+
+// ratioOf divides two measurements that may not exist. A missing operand makes
+// the answer missing, never zero.
+func ratioOf(numerator, denominator *float64) *float64 {
+	if numerator == nil || denominator == nil || *denominator == 0 {
+		return nil
+	}
+	divided := *numerator / *denominator
+	return &divided
 }
 
 // slopesOf fits each arm's private half against the client count.
@@ -257,9 +288,27 @@ func crossover(processes, served armSlope) float64 {
 // limitations are emitted from what the run observed, never written by hand.
 func limitations(out results) []string {
 	notes := make([]string, 0, 4)
-	if out.Commit == "" {
+	// The load comes first because it is the limitation a reader gets wrong:
+	// this benchmark published a ceiling measured at 2.000 calls as if it were
+	// what a session costs, and an idle run is the opposite extreme.
+	switch out.Calls {
+	case 0:
+		notes = append(notes,
+			"this run asked nothing: it prices a server that was started and never queried, which is what most real sessions do but not all of them, and it therefore says nothing about what answering costs")
+	default:
+		notes = append(notes, fmt.Sprintf(
+			"this run spread %d calls over each arm, so its per-client figure belongs to that load and to no other", out.Calls))
+	}
+	switch {
+	case out.Commit == "":
 		notes = append(notes,
 			"the commit could not be read, so this run's provenance is incomplete: it was launched from outside a git checkout")
+	case strings.HasSuffix(out.Commit, "-dirty"):
+		notes = append(notes,
+			"the tree had uncommitted changes, so the named commit is where the measured code came from and not what it was: this run cannot be reproduced from that commit alone")
+	case strings.HasSuffix(out.Commit, "-unknown"):
+		notes = append(notes,
+			"whether the tree was clean could not be determined, so the named commit may not be the code that ran")
 	}
 	if !out.Environment.PrivateDirtySupported {
 		notes = append(notes,
@@ -311,12 +360,25 @@ func serverVersion(server string) string {
 	return strings.TrimSpace(string(output))
 }
 
+// currentCommit names the code that was measured, and says when it cannot. A
+// dirty tree is the normal case here -- the numbers that justify a change are
+// measured before it is committed -- so reporting HEAD alone would attribute this
+// run to code it did not run. That is the provenance trap this benchmark already
+// fell into once, from the other side: a run launched outside a checkout.
 func currentCommit() string {
 	output, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(output))
+	commit := strings.TrimSpace(string(output))
+	status, err := exec.Command("git", "status", "--porcelain").Output()
+	if err != nil {
+		return commit + "-unknown"
+	}
+	if len(strings.TrimSpace(string(status))) > 0 {
+		return commit + "-dirty"
+	}
+	return commit
 }
 
 func armByName(measured point, name string) (arm, bool) {
@@ -354,9 +416,14 @@ func computeDigest(out results) (string, error) {
 		Calls      int          `json:"calls"`
 		Warmup     int          `json:"warmup"`
 		Seed       int64        `json:"seed"`
-		Symbols    int          `json:"symbols"`
-		OS         string       `json:"os"`
-		Arch       string       `json:"arch"`
+		// Transport is part of the identity because the two doors are not the
+		// same experiment. Leaving it out would make a socket run and an HTTP
+		// run over the same corpus collide on one digest, and a comparison
+		// between them would look like a comparison of a run against itself.
+		Transport string `json:"transport"`
+		Symbols   int    `json:"symbols"`
+		OS        string `json:"os"`
+		Arch      string `json:"arch"`
 	}{
 		Schema:     out.SchemaVersion,
 		SnapshotID: out.SnapshotID,
@@ -365,6 +432,7 @@ func computeDigest(out results) (string, error) {
 		Calls:      out.Calls,
 		Warmup:     out.Warmup,
 		Seed:       out.Seed,
+		Transport:  out.Transport,
 		OS:         out.Environment.OS,
 		Arch:       out.Environment.Arch,
 	}
@@ -402,16 +470,17 @@ func printSummary(out results) {
 	for _, measured := range out.Points {
 		fmt.Printf(" %d clients\n", measured.Clients)
 		for _, one := range measured.Arms {
-			fmt.Printf("  %-10s procs %d  private_dirty %s  resident %s  shared_clean %s  peak %s  p99 %.2f ms  worst first answer %.0f ms  new client %.0f ms\n",
+			fmt.Printf("  %-10s procs %d  private_dirty %s  resident %s  shared_clean %s  peak %s  p99 %s  worst first answer %s  new client %s (connect %.0f ms)\n",
 				one.Name, len(one.Processes),
 				megabytes(one.Totals.PrivateDirtyByte), megabytes(one.Totals.ResidentBytes),
 				megabytes(one.Totals.SharedCleanByte), megabytes(one.Totals.PeakBytes),
-				one.Latency.P99MS, worstFirstAnswer(one.FirstAnswersMS), one.NewClientMS)
+				milliseconds(one.Latency.P99MS), milliseconds(worstFirstAnswer(one.FirstAnswersMS)),
+				milliseconds(one.NewClientMS), one.NewClientConnectMS)
 		}
-		fmt.Printf("  private_dirty share %.3f (saved %s), peak share %.3f, p99 ratio %.3f, new client %.2fx sooner\n",
+		fmt.Printf("  private_dirty share %.3f (saved %s), peak share %.3f, p99 ratio %s, new client connect %.2fx sooner\n",
 			measured.Comparison.PrivateDirtyShare, megabytes(measured.Comparison.PrivateDirtySaved),
-			measured.Comparison.PeakShare, measured.Comparison.P99Ratio,
-			measured.Comparison.NewClientSpeedup)
+			measured.Comparison.PeakShare, factor(measured.Comparison.P99Ratio),
+			measured.Comparison.NewClientConnectSpeedup)
 	}
 	for _, fit := range out.Slopes.Arms {
 		fmt.Printf("  slope %-10s %s per client, fixed %s\n",
@@ -437,4 +506,21 @@ func megabytes(value int64) string {
 
 func megabytesFloat(value float64) string {
 	return fmt.Sprintf("%.1f MB", value/(1<<20))
+}
+
+// milliseconds and factor render a measurement that may not exist. The dash is
+// the point: a summary that printed 0.00 for an unasked question would be read
+// as a result.
+func milliseconds(value *float64) string {
+	if value == nil {
+		return "--"
+	}
+	return fmt.Sprintf("%.2f ms", *value)
+}
+
+func factor(value *float64) string {
+	if value == nil {
+		return "--"
+	}
+	return fmt.Sprintf("%.3f", *value)
 }

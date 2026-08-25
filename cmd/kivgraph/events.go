@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,15 +30,12 @@ func openEventLog(configuration config.Config, stderr io.Writer) *eventlog.Write
 // from, or the empty string when it has none. A server with no generation is
 // the shape that only serves index_project, and a log that omitted the field
 // would read the same as one that never looked.
+//
+// It asks the store for the name rather than for the graph: this runs at
+// startup, and loading a snapshot to write its number into a log line would
+// undo the whole point of deferring the load. See ADR 0067.
 func publishedGenerationID(store *hotsnapshot.SnapshotStore) string {
-	if store == nil {
-		return ""
-	}
-	snapshot := store.Load()
-	if snapshot == nil {
-		return ""
-	}
-	return strconv.FormatUint(snapshot.Metadata().ID, 10)
+	return store.GenerationID()
 }
 
 // toolMetricsRegistry answers the registry a server observes through, wired so

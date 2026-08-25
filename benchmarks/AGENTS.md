@@ -50,12 +50,65 @@ declarado en la raíz.
   recuento de **un** cliente aunque un demonio no comparta nada allí, porque es
   donde su coste fijo sería visible sin nada que amortizarlo -- y ahí resultó que
   empata, desmintiendo la predicción del ADR 0065.
+- **`daemon-cost` mide las dos puertas del demonio a tres cargas y publica un
+  artefacto por combinación**: `results-idle.json` y `results-http-idle.json` sin
+  ninguna llamada, `results.json` y `results-http.json` con `8`, y
+  `results-http-sustained.json` con `2.000`. El transporte y los recuentos entran
+  en el digest; sin eso las corridas colisionan en una identidad y una cifra de
+  socket puede citarse como si fuera alcanzable. El esquema es `daemon-cost-v3`.
+- **La carga cero no es un extremo teórico: es la mediana.** `48` de `51`
+  servidores reales no reciben ninguna llamada, así que `-calls 0` mide el caso
+  que predomina. Ahí el arranque resultó ser el coste -- `33 MB` por cliente sin
+  contestar nada, contra `40` contestando-- y eso se arregló: el ADR 0067 movió la
+  lectura del grafo a la primera consulta, y la cifra ociosa vigente es `10 MB`
+  por cliente contra `39` contestando y `66` bajo tráfico sostenido. Es también la
+  única carga en la que los cuatro puntos del barrido miden lo mismo por cliente,
+  porque `-calls N` reparte N llamadas entre los clientes que haya.
+- **Un árbol sucio no publica un commit a secas.** `commit` lleva `-dirty` cuando
+  hay cambios sin commitear y `-unknown` cuando no se pudo saber, y las dos
+  variantes se declaran en `limitations`. Es el caso normal -- las cifras que
+  justifican un cambio se miden antes de commitearlo-- y sin el sufijo el
+  artefacto atribuye sus números a un código que no ejecutó. Las corridas
+  publicadas se hacen desde un árbol limpio.
+- **Un guardia no puede ser carga.** El `graph_status` que prueba que los dos
+  brazos sirven la misma generación corre **después** del muestreo, no antes: nada
+  obliga a que preceda a los bytes, y preguntando primero la carga cero era
+  imposible de medir. Falla y descarta igual. Ese movimiento es lo que subió el
+  esquema de `v2` a `v3`: un fichero `v2` incluye esa llamada en sus bytes.
+- **Lo que no se midió no se publica como cero.** Los percentiles, el
+  `new_client_ms` y los ratios de latencia son punteros y desaparecen del fichero
+  cuando la corrida no preguntó nada; el resumen imprime `--`. Un `p50_ms: 0` se
+  lee como una respuesta instantánea y un `p99_ratio: 0` como un demonio
+  infinitamente más rápido. Lo que sí se mide a toda carga es
+  `new_client_connect_ms`, que es el campo con el que dos cargas se comparan.
+- Un probe que sólo existe en el camino de un servidor real -- los de
+  `startServer` y `connect`-- no lo caza ningún test local: borrarlo no rompe nada
+  en un portátil. Por eso la corrida se niega a publicar un fichero ocioso que
+  haya cronometrado algún primer answer, y ese rechazo sí tiene test.
+- **La carga se cuenta, no se elige, y es la variable que decidió el resultado
+  dos veces.** El event log de un `serve` registra cada llamada de tool, así que
+  la carga de una sesión real se recuenta de un log de uso -- la orden está en el
+  informe. Medido: mediana de **una** llamada por sesión y `48` de `51`
+  servidores sin ninguna. Las `2.000` llamadas del caso sostenido son tres
+  órdenes de magnitud por encima de eso, y ahí HTTP parecía costar `12,5 MB` por
+  cliente cuando a carga real cuesta menos de `1 MB`, igual que el socket. Un
+  benchmark que mide la carga equivocada no es impreciso: **contesta otra
+  pregunta**, y en este caso subestimaba el ahorro.
+- El caso sostenido se conserva en `results-http-sustained.json` porque es un
+  techo útil, y **su cifra no se transporta entre corpus**: `4,9`–`5,9 MB` por
+  cliente sobre `117.499` símbolos contra `12,8` sobre `108.737`, reproducido dos
+  veces en corpus de ese tamaño. Esa dependencia del corpus es la firma de un
+  coste en bytes retenidos -- el buffer de reanudación de `10 MiB` que el SDK da a
+  cada sesión-- y no de un coste por sesión. Citar el techo como si fuera el coste
+  es el error que este benchmark ya cometió.
 - No es un brazo de `shared-snapshot` y no debe convertirse en uno: los brazos de
   aquél se definen por si el fichero de snapshot está, y su gate mide mapear
   contra derivar. Un tercer brazo dejaría su comparación sin significado.
-- Su corpus **no** es el de `load-cost-resident`: `108.737` símbolos contra
-  `117.499`. Una cifra por símbolo se lee de la pasada que la produjo, nunca
-  cruzada entre las dos.
+- Una cifra por símbolo se lee de la pasada que la produjo, nunca cruzada entre
+  corpus. Las corridas vigentes de `daemon-cost` usan los `108.737` símbolos de
+  `kena` en su generación `000001`; las de `117.499` están en el historial, no en
+  estas tablas. `kena` es un workspace en uso, así que un reindexado posterior no
+  reproduce el recuento anterior: el corpus se declara por pasada.
 
 ## Corpus y auditorías
 

@@ -10,10 +10,32 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/mcp/tools"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 )
+
+// TestTheStartupLineNamesTheGenerationWithoutMappingIt is a small guard on a
+// large mistake. This runs once per server start, before anything has been
+// asked, and mapping a snapshot to write its number into a log line would undo
+// every byte ADR 0067 saves -- silently, because the log would look identical.
+func TestTheStartupLineNamesTheGenerationWithoutMappingIt(t *testing.T) {
+	loads := 0
+	store := hotsnapshot.NewDeferredSnapshotStore(8, func() (*hotsnapshot.GraphSnapshot, error) {
+		loads++
+		return hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{}, 8, time.Unix(1_700_000_000, 0).UTC(), 1)
+	})
+	if got := publishedGenerationID(store); got != "8" {
+		t.Fatalf("publishedGenerationID() = %q, want \"8\"", got)
+	}
+	if loads != 0 {
+		t.Fatalf("the startup line mapped the graph %d times", loads)
+	}
+	if got := publishedGenerationID(hotsnapshot.NewSnapshotStore(nil)); got != "" {
+		t.Fatalf("publishedGenerationID() with no generation = %q, want empty", got)
+	}
+}
 
 // This is the whole point of the recorder: an observation made inside a server
 // must still be readable by a command that runs later, in another process.

@@ -108,7 +108,7 @@ curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.5.0 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.6.4 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
@@ -538,17 +538,48 @@ servir.
 coste de cargar el snapshot: `71,2 MB` medidos en Linux con cuatro servidores
 contra el mismo fichero mapeado (`benchmarks/load-cost-resident`).
 
-`daemon` sirve a varios clientes desde un proceso, sobre un socket unix dentro
-del directorio de estado:
+`daemon` sirve a varios clientes desde un proceso, por dos puertas a la vez: un
+socket unix dentro del directorio de estado y el transporte Streamable HTTP en
+loopback.
 
 ```bash
-kivgraph daemon
+kivgraph daemon                      # 127.0.0.1:7788 y el socket
+kivgraph daemon --addr 127.0.0.1:9000
 ```
 
 El socket es `~/.local/state/kivgraph/daemon.sock`. **El directorio de estado es
 la clave**: dos configuraciones apuntando a directorios distintos obtienen
 demonios distintos, así que un cliente nunca alcanza un grafo construido a partir
 de los repositorios de otro.
+
+**Ningún cliente MCP marca un socket unix**, así que el socket no es el camino de
+un editor: su configuración acepta un ejecutable o una `url`. Por eso el demonio
+publica su endpoint y hay un comando que lo escribe:
+
+```bash
+kivgraph daemon &                       # en otra terminal
+kivgraph mcp install --daemon --target claude-code
+```
+
+Eso lee `~/.local/state/kivgraph/daemon.json` -- modo `0600`, con la `url` y el
+token-- y escribe la entrada que ese cliente entiende: `type: http` con una
+cabecera `Authorization` para Claude Code, Claude Desktop y Oh My Pi, `type:
+remote` para OpenCode, y `url` con `http_headers` para Codex. Sin `--daemon` se
+escribe `serve`, que es un proceso por cliente; el flag es explícito a propósito,
+porque detectar un demonio y cambiar la entrada en silencio haría que el mismo
+comando escribiera dos ficheros distintos según si había un proceso arrancado.
+
+El token se guarda aparte, en `daemon.token`, y **sobrevive al reinicio**: una
+entrada escrita una vez sigue valiendo cuando el demonio vuelve. El endpoint no
+sobrevive, porque es liveness: se borra al parar.
+
+En ámbito `project` la instalación con `--daemon` **se niega**. Un `.mcp.json` se
+commitea, y un token en git no se retira borrándolo.
+
+El bind se comprueba: una dirección que no sea loopback se rechaza nombrando lo
+que se escaparía, y sólo `--allow-remote` la acepta, con un aviso. El servidor
+valida además la cabecera `Origin`, que es lo que impide que una página web use
+el navegador del propio usuario para leer el grafo.
 
 El demonio corre en primer plano hasta recibir `SIGINT` o `SIGTERM`, igual que
 `serve`; nadie lo arranca solo y nadie lo para solo. `kivgraph stop` lo reconoce
@@ -569,18 +600,48 @@ dejar dos directorios compartiendo un socket. El directorio por defecto cabe de
 sobra; uno muy profundo puede no caber, y en ese caso `serve` sigue siendo el
 camino.
 
-El ahorro está medido, y lo que escala es la pendiente: N procesos cuestan entre
-`66` y `67 MB` de páginas privadas **por cliente**, y un demonio entre `0,2` y
-`2,3 MB` por cliente sobre una sola carga. A ocho clientes son `533 MB` contra
-`68`–`82`, y el pico `1.046 MB` contra `188`. Un cliente nuevo se responde entre
-`8` y `15` veces antes -- `12`–`17 ms` contra `107`–`263`-- porque una sesión nueva
-no carga nada. Tres pasadas sobre `108.737` símbolos de `kena`, en Linux:
+El ahorro está medido, y **a la carga que un editor produce de verdad**: contando
+el event log de una máquina en uso, `48` de `51` servidores no recibieron
+**ninguna** llamada, así que la mediana de una sesión real es cero y el máximo
+observado, tres.
+
+| carga | pendiente del demonio | N procesos | 8 clientes | 1 cliente |
+| --- | --- | --- | --- | --- |
+| ninguna llamada | indistinguible de cero | `10 MB` por cliente | `10`–`13` contra `77`–`81 MB` | el demonio cuesta `2`–`3 MB` más |
+| `8` llamadas | `0,6`–`0,9 MB` por cliente | `39 MB` por cliente | `60`–`62` contra `323`–`330 MB` | empata |
+
+Un servidor al que nadie pregunta cuesta `10 MB` y uno consultado `39`: el grafo
+se lee cuando alguien pregunta, no al arrancar. A ocho clientes el demonio cuesta
+**siete veces menos** sin consultas y cinco y media contestando; a uno empata o
+pierde por un par de megabytes, así que la razón para instalarlo empieza en el
+segundo cliente.
+
+**Las dos puertas cuestan lo mismo** -- `9,8`–`10,6 MB` por cliente por HTTP contra
+`10,0`–`10,7` por socket--, así que elegir HTTP, la única que un cliente MCP puede
+configurar, no se paga.
+
+La diferencia más grande no es ésa. Es el **pico**, y no depende de que nadie
+pregunte nada:
+
+| clientes | pico N procesos | pico 1 demonio |
+| --- | --- | --- |
+| `1` | `22`–`24 MB` | `26`–`28 MB` |
+| `8` | **`179`–`186 MB`** | **`26`–`29 MB`** |
+
+Ocho editores arrancando a la vez pagan siete veces más pico que un demonio; a uno
+solo, el demonio pica algo más alto. Y un cliente nuevo se conecta antes --
+`1,6`–`2,0 ms` contra `38`–`55` a ocho clientes-- porque una
+sesión nueva no arranca nada. Sobre `108.737` símbolos de `kena`, en Linux:
 `benchmarks/daemon-cost`.
 
-Lo que **no** es el ahorro es el snapshot: es el mismo fichero mapeado en todos
-los servidores y esas páginas están limpias. Lo que está en juego son las
-privadas. A un cliente el demonio no gana ni pierde -- un megabyte de ruido--, así
-que la razón para usarlo empieza en el segundo.
+Bajo tráfico sostenido -- `2.000` llamadas por sesión, que ninguna sesión real
+hace-- HTTP sube a `11`–`13 MB` por cliente: el SDK de MCP da a cada sesión un buffer
+de reanudación de `10 MiB` y las respuestas lo llenan. Es un techo, está en
+`results-http-sustained.json`, y no es lo que cuesta un editor.
+
+Lo que **no** es el ahorro en ninguna puerta es el snapshot: es el mismo fichero
+mapeado en todos los servidores y esas páginas están limpias. Lo que está en
+juego son las privadas.
 
 ## Rutas y mantenimiento
 
@@ -596,6 +657,8 @@ Con la configuración por defecto, las rutas principales son:
 | `~/.local/state/kivgraph/backups/` | backups de upgrades de schema |
 | `~/.local/state/kivgraph/go.work` | workspace sintético temporal de Go |
 | `~/.local/state/kivgraph/daemon.sock` | socket del demonio, mientras corre |
+| `~/.local/state/kivgraph/daemon.json` | url y token publicados, mientras corre |
+| `~/.local/state/kivgraph/daemon.token` | el token, `0600`, sobrevive al reinicio |
 
 El snapshot es una proyección derivada. LadybugDB en la generación publicada es
 la fuente canónica; no edites sus archivos a mano ni reemplaces un snapshot sin

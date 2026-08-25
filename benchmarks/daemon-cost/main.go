@@ -35,6 +35,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -81,7 +82,19 @@ type config struct {
 	Warmup        int
 	Seed          int64
 	Directory     string
+	// Transport is which of the daemon's two doors the clients use.
+	//
+	// It exists because the saving was measured over a unix socket and no
+	// editor can be configured for one. If HTTP costs materially more, the
+	// reachable saving is not the measured saving, and the number that gets
+	// quoted has to be this one.
+	Transport string
 }
+
+const (
+	transportSocket = "socket"
+	transportHTTP   = "http"
+)
 
 func main() {
 	var cfg config
@@ -94,6 +107,8 @@ func main() {
 	flag.IntVar(&cfg.Warmup, "warmup", defaultWarmup, "tool calls per arm to discard before measuring")
 	flag.Int64Var(&cfg.Seed, "seed", mcpworkload.DefaultSeed, "workload seed")
 	flag.StringVar(&cfg.Directory, "output", defaultDirectory, "directory for results.json and report.md")
+	flag.StringVar(&cfg.Transport, "transport", transportSocket,
+		"which daemon door the clients use: socket or http")
 	flag.Parse()
 
 	parsed, err := parseClientCounts(*clientList)
@@ -147,9 +162,17 @@ func run(ctx context.Context, cfg config) error {
 	if strings.TrimSpace(cfg.StateDir) == "" {
 		return errors.New("-state-dir is required: it is where the daemon's socket goes, and it is the key that separates daemons")
 	}
-	for _, clients := range cfg.Clients {
-		if cfg.Calls < clients {
-			return fmt.Errorf("calls (%d) must be at least clients (%d)", cfg.Calls, clients)
+	if cfg.Transport != transportSocket && cfg.Transport != transportHTTP {
+		return fmt.Errorf("-transport %q: want %q or %q", cfg.Transport, transportSocket, transportHTTP)
+	}
+	// An idle run asks nothing, which is what 48 of 51 real servers did. Any
+	// other count must give every client at least one call, or the sweep would
+	// silently measure fewer clients than it reports.
+	if cfg.Calls > 0 {
+		for _, clients := range cfg.Clients {
+			if cfg.Calls < clients {
+				return fmt.Errorf("calls (%d) must be at least clients (%d), or 0 for an idle run", cfg.Calls, clients)
+			}
 		}
 	}
 	snapshotPath := filepath.Join(cfg.GenerationDir, rebuild.PublishedSnapshotFileName)
@@ -165,15 +188,24 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	out := results{
-		Benchmark:     benchmarkName,
-		Date:          time.Now().UTC().Format("2006-01-02"),
-		SchemaVersion: "daemon-cost-v1",
+		Benchmark: benchmarkName,
+		Date:      time.Now().UTC().Format("2006-01-02"),
+		// v2 added the transport to the run identity. A v1 file's digest was
+		// computed without it, so the two cannot be compared by digest: v1 named
+		// an experiment that could have been either door.
+		//
+		// v3 moves the measurement point: the generation guard now runs after
+		// the sample instead of before it, so no run pays for a `graph_status`
+		// it did not ask for. A v2 file's bytes include that call, and the two
+		// are therefore different measurements of the same arrangement.
+		SchemaVersion: "daemon-cost-v3",
 		// Read before the run rather than at write time, so a missing commit
 		// reaches the limitations instead of only the JSON field.
 		Commit:      currentCommit(),
 		Calls:       cfg.Calls,
 		Warmup:      cfg.Warmup,
 		Seed:        cfg.Seed,
+		Transport:   cfg.Transport,
 		Environment: observeEnvironment(cfg.Server),
 		Snapshot:    snapshotFile{Path: snapshotPath, Bytes: info.Size()},
 	}
@@ -191,6 +223,9 @@ func run(ctx context.Context, cfg config) error {
 			return fmt.Errorf(
 				"the arms served different generations (%d and %d): the environment given to one of them resolves to another state directory",
 				processes.SnapshotID, served.SnapshotID)
+		}
+		if err := checkIdle(cfg.Calls, clients, processes, served); err != nil {
+			return err
 		}
 		out.SnapshotID = processes.SnapshotID
 		measured := point{Clients: clients, Arms: []arm{processes, served}}
@@ -210,6 +245,28 @@ func run(ctx context.Context, cfg config) error {
 		return err
 	}
 	printSummary(out)
+	return nil
+}
+
+// checkIdle refuses to publish an idle run that answered something. Such a run
+// is not idle: some path asked a question the load did not order, and the
+// probes inside `startServer` and `connect` are the ones that would.
+//
+// It exists because those probes need a live server, so no unit test reaches
+// them -- removing the skip in `startServer` breaks nothing that runs on a
+// laptop. This turns that silence into a failed run instead of a file whose
+// name is the one thing about it that is wrong.
+func checkIdle(calls, clients int, arms ...arm) error {
+	if calls != 0 {
+		return nil
+	}
+	for _, one := range arms {
+		if len(one.FirstAnswersMS) > 0 || one.Latency.Calls > 0 {
+			return fmt.Errorf(
+				"%d clients, %s arm: an idle run answered %d calls and timed %d first answers; a probe survived on the no-call path",
+				clients, one.Name, one.Latency.Calls, len(one.FirstAnswersMS))
+		}
+	}
 	return nil
 }
 
@@ -234,7 +291,9 @@ func measureProcesses(ctx context.Context, cfg config, clients int) (arm, error)
 	firstAnswers := make([]float64, 0, clients)
 	for _, one := range live {
 		sessions = append(sessions, one.session)
-		firstAnswers = append(firstAnswers, one.firstAnswerMS)
+		if one.waited.firstAnswerMS != nil {
+			firstAnswers = append(firstAnswers, *one.waited.firstAnswerMS)
+		}
 	}
 
 	measured, err := driveAndSample(ctx, cfg, sessions, func() []int {
@@ -250,12 +309,14 @@ func measureProcesses(ctx context.Context, cfg config, clients int) (arm, error)
 	measured.Name = "processes"
 	measured.FirstAnswersMS = firstAnswers
 
-	// What a new client waits for in this arm: another whole process.
+	// What a new client waits for in this arm: another whole process. Started
+	// after the sample, so it never counts towards the arm's bytes.
 	extra, err := startServer(ctx, cfg)
 	if err != nil {
 		return arm{}, fmt.Errorf("start the extra client's server: %w", err)
 	}
-	measured.NewClientMS = extra.firstAnswerMS
+	measured.NewClientMS = extra.waited.firstAnswerMS
+	measured.NewClientConnectMS = extra.waited.connectMS
 	extra.stop()
 	return measured, nil
 }
@@ -271,12 +332,14 @@ func measureDaemon(ctx context.Context, cfg config, clients int) (arm, error) {
 	sessions := make([]*sdkmcp.ClientSession, 0, clients)
 	firstAnswers := make([]float64, 0, clients)
 	for index := range clients {
-		session, elapsed, err := served.connect(ctx)
+		session, waited, err := served.connect(ctx, cfg.Calls > 0)
 		if err != nil {
 			return arm{}, fmt.Errorf("connect client %d: %w", index+1, err)
 		}
 		sessions = append(sessions, session)
-		firstAnswers = append(firstAnswers, elapsed)
+		if waited.firstAnswerMS != nil {
+			firstAnswers = append(firstAnswers, *waited.firstAnswerMS)
+		}
 	}
 
 	measured, err := driveAndSample(ctx, cfg, sessions, func() []int { return []int{served.pid()} })
@@ -288,12 +351,14 @@ func measureDaemon(ctx context.Context, cfg config, clients int) (arm, error) {
 
 	// What a new client waits for here: a connection to a process that has
 	// already mapped the file. This is the number a second editor window sees,
-	// and it is the one place the daemon should win outright.
-	_, elapsed, err := served.connect(ctx)
+	// and it is the one place the daemon should win outright. It connects after
+	// the sample, so its session never counts towards the arm's bytes.
+	_, waited, err := served.connect(ctx, cfg.Calls > 0)
 	if err != nil {
 		return arm{}, fmt.Errorf("connect the extra client: %w", err)
 	}
-	measured.NewClientMS = elapsed
+	measured.NewClientMS = waited.firstAnswerMS
+	measured.NewClientConnectMS = waited.connectMS
 	return measured, nil
 }
 
@@ -305,6 +370,13 @@ func measureDaemon(ctx context.Context, cfg config, clients int) (arm, error) {
 // the same sample, and it is the high-water mark over the process's whole life,
 // so it includes the load -- which is the one place the retired allocations of
 // LUQUE-2216 to LUQUE-2220 could still show up.
+//
+// The generation guard runs *after* the sample and not before it. Nothing about
+// the check needs to precede the bytes, and asking first is what made an idle
+// load impossible to measure: `graph_status` is a call, and a server that
+// answered one is not a server nobody asked anything. Failing after the sample
+// discards it, which is the same outcome by a route that does not pollute the
+// measurement it guards.
 func driveAndSample(
 	ctx context.Context,
 	cfg config,
@@ -314,51 +386,43 @@ func driveAndSample(
 	if len(sessions) == 0 {
 		return arm{}, errors.New("no sessions to drive")
 	}
-	status, err := readStatus(ctx, sessions[0])
-	if err != nil {
-		return arm{}, err
-	}
 	want, parseErr := strconv.ParseUint(filepath.Base(filepath.Clean(cfg.GenerationDir)), 10, 64)
 	if parseErr != nil {
 		return arm{}, fmt.Errorf("-generation-dir must be named after its generation number: %w", parseErr)
 	}
-	if status.SnapshotID != want {
-		return arm{}, fmt.Errorf(
-			"the servers serve snapshot %d but -generation-dir names generation %d: "+
-				"the environment given to the server resolves to another state directory "+
-				"(a configuration written by `init` stores `~` paths, so HOME decides)",
-			status.SnapshotID, want)
-	}
 
-	probes, err := harvestProbes(ctx, sessions[0])
-	if err != nil {
-		return arm{}, err
-	}
-	workload, err := mcpworkload.Generate(ctx, mcpworkload.Config{
-		Calls:  cfg.Calls,
-		Seed:   cfg.Seed,
-		Corpus: mcpworkload.Corpus{Probes: probes},
-	})
-	if err != nil {
-		return arm{}, fmt.Errorf("generate workload: %w", err)
-	}
-	if cfg.Warmup > 0 {
-		warmup, err := mcpworkload.Generate(ctx, mcpworkload.Config{
-			Calls:  cfg.Warmup,
-			Seed:   cfg.Seed + 1,
+	var latencies []int64
+	var callErrors int
+	if cfg.Calls > 0 {
+		probes, err := harvestProbes(ctx, sessions[0])
+		if err != nil {
+			return arm{}, err
+		}
+		workload, err := mcpworkload.Generate(ctx, mcpworkload.Config{
+			Calls:  cfg.Calls,
+			Seed:   cfg.Seed,
 			Corpus: mcpworkload.Corpus{Probes: probes},
 		})
 		if err != nil {
-			return arm{}, fmt.Errorf("generate warmup: %w", err)
+			return arm{}, fmt.Errorf("generate workload: %w", err)
 		}
-		if _, _, err := driveAll(ctx, sessions, warmup.Requests); err != nil {
-			return arm{}, fmt.Errorf("warmup: %w", err)
+		if cfg.Warmup > 0 {
+			warmup, err := mcpworkload.Generate(ctx, mcpworkload.Config{
+				Calls:  cfg.Warmup,
+				Seed:   cfg.Seed + 1,
+				Corpus: mcpworkload.Corpus{Probes: probes},
+			})
+			if err != nil {
+				return arm{}, fmt.Errorf("generate warmup: %w", err)
+			}
+			if _, _, err := driveAll(ctx, sessions, warmup.Requests); err != nil {
+				return arm{}, fmt.Errorf("warmup: %w", err)
+			}
 		}
-	}
-
-	latencies, callErrors, err := driveAll(ctx, sessions, workload.Requests)
-	if err != nil {
-		return arm{}, err
+		latencies, callErrors, err = driveAll(ctx, sessions, workload.Requests)
+		if err != nil {
+			return arm{}, err
+		}
 	}
 
 	samples := make([]processSample, 0, 4)
@@ -374,6 +438,18 @@ func driveAndSample(
 			PeakBytes:        sample.Peak,
 		})
 	}
+
+	status, err := readStatus(ctx, sessions[0])
+	if err != nil {
+		return arm{}, err
+	}
+	if status.SnapshotID != want {
+		return arm{}, fmt.Errorf(
+			"the servers serve snapshot %d but -generation-dir names generation %d: "+
+				"the environment given to the server resolves to another state directory "+
+				"(a configuration written by `init` stores `~` paths, so HOME decides)",
+			status.SnapshotID, want)
+	}
 	return arm{
 		SnapshotID: status.SnapshotID,
 		Symbols:    status.Symbols,
@@ -385,11 +461,19 @@ func driveAndSample(
 	}, nil
 }
 
+// clientWait is what one client waited for. The connection is measured under
+// every load; the first answer exists only when this run asks for one, and a
+// zero there would read as an instant answer rather than as no answer at all.
+type clientWait struct {
+	connectMS     float64
+	firstAnswerMS *float64
+}
+
 type serverProcess struct {
-	command       *exec.Cmd
-	session       *sdkmcp.ClientSession
-	cancel        func()
-	firstAnswerMS float64
+	command *exec.Cmd
+	session *sdkmcp.ClientSession
+	cancel  func()
+	waited  clientWait
 }
 
 func (live *serverProcess) pid() int {
@@ -412,7 +496,12 @@ func (live *serverProcess) stop() {
 }
 
 // startServer launches one `serve` and times what a client actually waits for:
-// the process, the connection and the first answered call.
+// the process, the connection and -- when this run asks anything -- the first
+// answered call.
+//
+// The probe is skipped under an idle load rather than kept "because it is only
+// one call". One call is the entire load being measured there: a server that
+// answered a `graph_status` is no longer a server nobody asked anything.
 func startServer(ctx context.Context, cfg config) (*serverProcess, error) {
 	arguments := []string{"serve"}
 	if cfg.ConfigPath != "" {
@@ -432,11 +521,16 @@ func startServer(ctx context.Context, cfg config) (*serverProcess, error) {
 		return nil, fmt.Errorf("connect: %w (server said: %s)", err, clip(strings.TrimSpace(stderr.String()), 400))
 	}
 	live := &serverProcess{command: command, session: session, cancel: cancel}
+	live.waited.connectMS = float64(time.Since(started).Microseconds()) / 1000
+	if cfg.Calls == 0 {
+		return live, nil
+	}
 	if _, err := callTool(ctx, session, "graph_status", map[string]any{}); err != nil {
 		live.stop()
 		return nil, fmt.Errorf("%w (server said: %s)", err, clip(strings.TrimSpace(stderr.String()), 400))
 	}
-	live.firstAnswerMS = float64(time.Since(started).Microseconds()) / 1000
+	answered := float64(time.Since(started).Microseconds()) / 1000
+	live.waited.firstAnswerMS = &answered
 	return live, nil
 }
 
@@ -446,6 +540,11 @@ type daemonProcess struct {
 	socket   string
 	sessions []*sdkmcp.ClientSession
 	streams  []net.Conn
+	// transport and endpoint are how a client reaches this daemon. The socket
+	// is always bound -- it is the readiness signal for both arms -- and the
+	// endpoint is only read when the clients are going to use it.
+	transport string
+	endpoint  daemon.Endpoint
 }
 
 func (live *daemonProcess) pid() int {
@@ -488,14 +587,14 @@ func startDaemon(ctx context.Context, cfg config) (*daemonProcess, error) {
 	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("start daemon: %w", err)
 	}
-	live := &daemonProcess{command: command, stderr: stderr, socket: socket}
+	live := &daemonProcess{command: command, stderr: stderr, socket: socket, transport: cfg.Transport}
 
 	deadline := time.Now().Add(socketWait)
 	for {
 		connection, err := net.Dial("unix", socket)
 		if err == nil {
 			_ = connection.Close()
-			return live, nil
+			break
 		}
 		if time.Now().After(deadline) || ctx.Err() != nil {
 			live.stop()
@@ -504,30 +603,107 @@ func startDaemon(ctx context.Context, cfg config) (*daemonProcess, error) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	if live.transport != transportHTTP {
+		return live, nil
+	}
+	// Waited for, not inferred. The daemon publishes HTTP before it binds the
+	// socket, so reaching the socket implies this file exists -- but a harness
+	// that relied on that ordering would break silently the day it changed, and
+	// this one already failed once on the reverse order. Reading it here rather
+	// than per client keeps the endpoint out of the timed section.
+	var endpoint daemon.Endpoint
+	for {
+		endpoint, err = daemon.ReadEndpoint(cfg.StateDir)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			live.stop()
+			return nil, fmt.Errorf("the daemon published no endpoint within %s: %w (it said: %s)",
+				socketWait, err, clip(strings.TrimSpace(stderr.String()), 400))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	live.endpoint = endpoint
+	return live, nil
 }
 
-// connect opens one session and times the connection plus the first answered
-// call, so the two arms measure the same wait.
-func (live *daemonProcess) connect(ctx context.Context) (*sdkmcp.ClientSession, float64, error) {
+// connect opens one session and times the connection plus, when this run asks
+// anything, the first answered call -- so the two arms measure the same wait
+// under the same load.
+func (live *daemonProcess) connect(ctx context.Context, probe bool) (*sdkmcp.ClientSession, clientWait, error) {
 	started := time.Now()
+	session, stream, err := live.dial(ctx)
+	if err != nil {
+		return nil, clientWait{}, err
+	}
+	waited := clientWait{connectMS: float64(time.Since(started).Microseconds()) / 1000}
+	if probe {
+		if _, err := callTool(ctx, session, "graph_status", map[string]any{}); err != nil {
+			_ = session.Close()
+			if stream != nil {
+				_ = stream.Close()
+			}
+			return nil, clientWait{}, fmt.Errorf("%w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
+		}
+		answered := float64(time.Since(started).Microseconds()) / 1000
+		waited.firstAnswerMS = &answered
+	}
+	live.sessions = append(live.sessions, session)
+	if stream != nil {
+		live.streams = append(live.streams, stream)
+	}
+	return session, waited, nil
+}
+
+// dial opens the session over whichever door this arm is measuring.
+//
+// The HTTP transport owns its own connections, so it returns no stream to close:
+// a nil there is the honest answer rather than a placeholder the caller would
+// close and wonder about.
+func (live *daemonProcess) dial(ctx context.Context) (*sdkmcp.ClientSession, net.Conn, error) {
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
+	if live.transport == transportHTTP {
+		transport := &sdkmcp.StreamableClientTransport{
+			Endpoint: live.endpoint.URL,
+			HTTPClient: &http.Client{
+				Transport: bearerRoundTripper{
+					token: live.endpoint.Token,
+					next:  http.DefaultTransport,
+				},
+			},
+		}
+		session, err := client.Connect(ctx, transport, nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("connect %s: %w (daemon said: %s)",
+				live.endpoint.URL, err, clip(strings.TrimSpace(live.stderr.String()), 400))
+		}
+		return session, nil, nil
+	}
 	stream, err := net.Dial("unix", live.socket)
 	if err != nil {
-		return nil, 0, fmt.Errorf("dial %s: %w", live.socket, err)
+		return nil, nil, fmt.Errorf("dial %s: %w", live.socket, err)
 	}
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
 	session, err := client.Connect(ctx, &kivmcp.StreamTransport{Stream: stream}, nil)
 	if err != nil {
 		_ = stream.Close()
-		return nil, 0, fmt.Errorf("connect: %w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
+		return nil, nil, fmt.Errorf("connect: %w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
 	}
-	if _, err := callTool(ctx, session, "graph_status", map[string]any{}); err != nil {
-		_ = session.Close()
-		_ = stream.Close()
-		return nil, 0, fmt.Errorf("%w (daemon said: %s)", err, clip(strings.TrimSpace(live.stderr.String()), 400))
-	}
-	live.sessions = append(live.sessions, session)
-	live.streams = append(live.streams, stream)
-	return session, float64(time.Since(started).Microseconds()) / 1000, nil
+	return session, stream, nil
+}
+
+// bearerRoundTripper attaches the token the daemon published. Every request
+// carries it, because the transport reconnects on its own and a token sent only
+// on the first request would fail the second.
+type bearerRoundTripper struct {
+	token string
+	next  http.RoundTripper
+}
+
+func (attach bearerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	cloned := request.Clone(request.Context())
+	cloned.Header.Set("Authorization", daemon.BearerHeader(attach.token))
+	return attach.next.RoundTrip(cloned)
 }
 
 func callTool(ctx context.Context, session *sdkmcp.ClientSession, name string, arguments map[string]any) (string, error) {

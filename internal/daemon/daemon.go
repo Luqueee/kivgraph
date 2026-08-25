@@ -1,21 +1,43 @@
-// Package daemon serves MCP to many clients from one process.
+// Package daemon serves MCP to many clients from one process, over a unix socket
+// and over Streamable HTTP at once.
 //
-// The saving is measured, and it is the slope rather than any one total: N
-// servers cost `66` to `67 MB` of private dirty pages *per client*, and a daemon
-// costs `0,2` to `2,3 MB` per client on top of one load. At eight clients that is
-// `533 MB` against `68`-`82`, and the peak `1.046 MB` against `188`. Three runs
-// over `108.737` symbols of `kena`, on Linux, in `benchmarks/daemon-cost`.
+// The saving is measured, and it is the slope rather than any one total. The load
+// was counted, not chosen: over two days of real use, 48 of 51 servers were asked
+// nothing at all, so the median session makes no call whatsoever.
+//
+//	load      daemon slope       N processes    8 clients            1 client
+//	none      indistinguishable  10 MB/client   10-13 against 77-81  daemon +2-3 MB
+//	8 calls   0,6-0,9 MB/client  39 MB/client   60-62 against 323-330  ties
+//
+// Starting up is no longer the cost: since ADR 0067 the graph is read by the
+// first query that needs it, so an idle server holds 10 MB where it used to hold
+// 33. What a daemon still saves is the rest -- and at one client it now loses by a
+// couple of megabytes, which is the extra process.
+//
+// The two doors are indistinguishable at both loads -- 9,8-10,6 MB per client over
+// HTTP against 10,0-10,7 over the socket -- and the door that matters is HTTP
+// because no MCP client configuration dials a unix socket: it takes an executable
+// or a url. Over 108.737 symbols of kena, on Linux, in benchmarks/daemon-cost.
+//
+// The widest gap is the peak, and it does not depend on anyone asking anything:
+// 179-186 MB for eight processes against 26-29 for one daemon, because eight
+// editors starting at once pay eight processes at once.
+//
+// Under sustained traffic HTTP costs more -- 11-13 MB per client at 2000 calls a
+// session -- because the SDK gives every session a 10 MiB resumption buffer that
+// response bytes fill. That is a ceiling no real session reaches, it depends on
+// the corpus, and it cannot be capped from here: the handler builds its own
+// transport and takes no event store.
 //
 // What is *not* the saving is the snapshot. It is the same mapped file in every
-// server and those pages are clean, so a reader expecting its `78 MB` to
+// server and those pages are clean, so a reader expecting its `87 MB` to
 // disappear is looking at the wrong half: the bytes at stake are the private
 // ones. Nor did allocating less buy them -- `LUQUE-2216` to `LUQUE-2220` took
 // `60,5 MB` off what a load allocates and the resident figure moved `0,75 %`,
 // because the allocator recycles those pages rather than keeping them.
 //
-// At one client a daemon is neither better nor worse, within a megabyte of
-// noise: the per-session MCP server does not show up against the cost of a load.
-// It wins from the second client on.
+// At one client a daemon loses by a couple of megabytes on both doors, because a
+// server that answers nothing no longer reads the graph. It wins from the second.
 package daemon
 
 import (

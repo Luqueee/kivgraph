@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -40,6 +41,58 @@ const (
 	ActionStatus  Action = "status"
 )
 
+// Endpoint is a running daemon's HTTP endpoint.
+//
+// When it is set, a plan points clients at that url instead of telling each one
+// to spawn `serve`. That is the difference the daemon was built for, and this is
+// the transport it is reachable over. At the load a real editor produces -- most
+// often none at all: 48 of 51 servers in a real event log were asked nothing --
+// N clients spawning `serve` cost `10 MB` of private pages each against a slope
+// indistinguishable from zero on one daemon, `10`-`13` against `77`-`81 MB` at
+// eight clients. Answering questions is what costs now: `39 MB` per client at 8
+// calls, `60`-`62` against `323`-`330` at eight. The peak is the widest gap:
+// `179`-`186` against `26`-`29 MB`, because eight editors starting at once pay
+// eight processes. Measured in `benchmarks/daemon-cost`, after ADR 0067 moved the
+// graph read to the first query that needs it.
+//
+// The two transports are indistinguishable: `9,8`-`10,6 MB` per client over HTTP
+// against `10,0`-`10,7` over the socket. HTTP costs more only under sustained
+// traffic, and no real session produces it.
+type Endpoint struct {
+	// URL is the streamable HTTP endpoint a client connects to.
+	URL string
+	// Token goes into the entry as an `Authorization: Bearer` header. It is
+	// written literally, because no client reads a token out of a file for us,
+	// and that is why an endpoint entry refuses project scope: a project file
+	// is committed.
+	Token string
+}
+
+// set reports whether an endpoint should be written into a client entry.
+//
+// A half-specified endpoint never reaches here: New refuses it. Silently
+// treating a url with no token as "no endpoint" would install a stdio entry a
+// caller asked not to install, and treating it as an endpoint would write a
+// `Bearer ` header that every request fails on.
+func (endpoint Endpoint) set() bool {
+	return endpoint.URL != "" && endpoint.Token != ""
+}
+
+// ErrIncompleteEndpoint reports an endpoint missing one of its two halves.
+var ErrIncompleteEndpoint = errors.New("an endpoint needs both a url and a token")
+
+// validate refuses an endpoint that names one half of itself.
+func (endpoint Endpoint) validate() error {
+	if endpoint == (Endpoint{}) || endpoint.set() {
+		return nil
+	}
+	missing := "token"
+	if endpoint.URL == "" {
+		missing = "url"
+	}
+	return fmt.Errorf("%w: the %s is empty", ErrIncompleteEndpoint, missing)
+}
+
 // Options identifies the filesystem roots used by a Manager. HomeDir and
 // ProjectDir are injectable to make safety checks testable without touching a
 // real client configuration.
@@ -48,6 +101,9 @@ type Options struct {
 	ProjectDir string
 	Executable string
 	GOOS       string
+	// Endpoint, when set, makes plans point at a running daemon over HTTP
+	// rather than at this executable over stdio.
+	Endpoint Endpoint
 }
 
 // Manager applies integration plans for one local user and one project.
@@ -56,6 +112,7 @@ type Manager struct {
 	projectDir string
 	executable string
 	goos       string
+	endpoint   Endpoint
 }
 
 // Plan describes an inspected or applied integration operation.
@@ -139,7 +196,16 @@ func New(options Options) (Manager, error) {
 	if goos != "darwin" && goos != "linux" {
 		return Manager{}, fmt.Errorf("client integrations are supported only on darwin and linux, got %s", goos)
 	}
-	return Manager{homeDir: homeDir, projectDir: projectDir, executable: executable, goos: goos}, nil
+	if err := options.Endpoint.validate(); err != nil {
+		return Manager{}, err
+	}
+	return Manager{
+		homeDir:    homeDir,
+		projectDir: projectDir,
+		executable: executable,
+		goos:       goos,
+		endpoint:   options.Endpoint,
+	}, nil
 }
 
 // InstallMCP registers the local MCP server, or returns an idempotent plan if
@@ -354,9 +420,19 @@ type mcpDocument struct {
 	section string
 }
 
+// ErrEndpointNeedsUserScope reports an attempt to write a daemon's token into a
+// file that lives in the repository.
+var ErrEndpointNeedsUserScope = errors.New("an endpoint entry carries a token, so it is written only in user scope")
+
 func (manager Manager) mcpDocument(target Target, scope Scope) (mcpDocument, error) {
 	if err := validateScope(scope); err != nil {
 		return mcpDocument{}, err
+	}
+	// Project scope writes inside the repository, and those files are committed
+	// as a matter of course -- `.mcp.json` is meant to be. A stdio entry names
+	// an executable and is safe to share; an endpoint entry names a secret.
+	if manager.endpoint.set() && scope == ScopeProject {
+		return mcpDocument{}, fmt.Errorf("%w: %s would be committed", ErrEndpointNeedsUserScope, scope)
 	}
 	path, format, section, err := manager.mcpPath(target, scope)
 	if err != nil {
@@ -447,7 +523,29 @@ func unsupportedTarget(target Target) error {
 	}, ", "))
 }
 
+// expectedJSONEntry is the entry Kivgraph owns in a JSON client file.
+//
+// The three shapes are the clients', not ours: `mcpServers` takes `type: http`
+// with a `headers` map, and OpenCode's `mcp` section names the same thing
+// `remote`. Writing one shape for all of them would leave two clients unable to
+// parse their own configuration.
 func (manager Manager) expectedJSONEntry(target Target) map[string]any {
+	if manager.endpoint.set() {
+		headers := map[string]any{"Authorization": bearer(manager.endpoint.Token)}
+		if target == TargetOpenCode {
+			return map[string]any{
+				"type":    "remote",
+				"url":     manager.endpoint.URL,
+				"enabled": true,
+				"headers": headers,
+			}
+		}
+		return map[string]any{
+			"type":    "http",
+			"url":     manager.endpoint.URL,
+			"headers": headers,
+		}
+	}
 	if target == TargetOpenCode {
 		return map[string]any{
 			"type":    "local",
@@ -458,9 +556,24 @@ func (manager Manager) expectedJSONEntry(target Target) map[string]any {
 	return map[string]any{"command": manager.executable, "args": []any{"serve"}}
 }
 
+// expectedTOMLEntry is the entry Kivgraph owns in Codex's config.
+//
+// Codex picks its transport from the shape: a `url` instead of a `command` is
+// what selects streamable HTTP. The token goes in `http_headers` rather than
+// `bearer_token_env_var`, because the latter names an environment variable the
+// user would have to export -- which is not something an integration can install.
 func (manager Manager) expectedTOMLEntry() map[string]any {
+	if manager.endpoint.set() {
+		return map[string]any{
+			"url":          manager.endpoint.URL,
+			"http_headers": map[string]any{"Authorization": bearer(manager.endpoint.Token)},
+		}
+	}
 	return map[string]any{"command": manager.executable, "args": []any{"serve"}}
 }
+
+// bearer formats the header value every one of these clients sends verbatim.
+func bearer(token string) string { return "Bearer " + token }
 
 type jsonState struct {
 	root    map[string]json.RawMessage
@@ -648,7 +761,7 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 			return Plan{}, fmt.Errorf("replace Kivgraph TOML table: %w", err)
 		}
 	}
-	data = appendTOMLSection(data, manager.executable)
+	data = appendTOMLSection(data, manager.expectedTOMLEntry())
 	plan := Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Changed: true, DryRun: dryRun, Detail: "register Kivgraph MCP server"}
 	if dryRun {
 		plan.Status = "would-install"
@@ -753,7 +866,13 @@ func normalizeValue(value any) any {
 	}
 }
 
-func appendTOMLSection(data []byte, executable string) []byte {
+// appendTOMLSection renders the entry Kivgraph owns under `[mcp_servers]`.
+//
+// It renders whatever expectedTOMLEntry declares rather than a fixed pair of
+// lines, because the two are compared against each other: a writer that emitted
+// `command` while the comparison expected `url` would report a managed entry it
+// had never written, and reinstall forever.
+func appendTOMLSection(data []byte, entry map[string]any) []byte {
 	var builder bytes.Buffer
 	builder.Write(data)
 	if builder.Len() > 0 && data[len(data)-1] != '\n' {
@@ -763,10 +882,69 @@ func appendTOMLSection(data []byte, executable string) []byte {
 		builder.WriteByte('\n')
 	}
 	builder.WriteString("[mcp_servers.kivgraph]\n")
-	builder.WriteString("command = ")
-	builder.WriteString(tomlQuote(executable))
-	builder.WriteString("\nargs = [\"serve\"]\n")
+
+	// Scalars and arrays first, then sub-tables: in TOML a key after a table
+	// header belongs to that table, so a scalar written last would land inside
+	// `http_headers`. Sorted, so two installs of the same entry produce the
+	// same bytes.
+	tables := make([]string, 0, 1)
+	for _, key := range sortedKeys(entry) {
+		if nested, ok := entry[key].(map[string]any); ok {
+			_ = nested
+			tables = append(tables, key)
+			continue
+		}
+		builder.WriteString(key)
+		builder.WriteString(" = ")
+		builder.WriteString(tomlValue(entry[key]))
+		builder.WriteByte('\n')
+	}
+	for _, key := range tables {
+		nested := entry[key].(map[string]any)
+		builder.WriteString("\n[mcp_servers.kivgraph.")
+		builder.WriteString(key)
+		builder.WriteString("]\n")
+		for _, inner := range sortedKeys(nested) {
+			builder.WriteString(inner)
+			builder.WriteString(" = ")
+			builder.WriteString(tomlValue(nested[inner]))
+			builder.WriteByte('\n')
+		}
+	}
 	return builder.Bytes()
+}
+
+// sortedKeys keeps the rendering deterministic, which is what makes an install
+// idempotent.
+func sortedKeys(entry map[string]any) []string {
+	keys := make([]string, 0, len(entry))
+	for key := range entry {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// tomlValue renders the two value kinds a Codex entry actually holds: the
+// strings of a url, a path or a header, and the string array of an argv.
+//
+// There is no case for a boolean, because no TOML entry carries one -- OpenCode's
+// `enabled` is JSON. A branch for a value that cannot arrive is a branch no test
+// can falsify, so the default quotes whatever else appears and a wrong-looking
+// quoted value in the file is the signal.
+func tomlValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return tomlQuote(typed)
+	case []any:
+		parts := make([]string, 0, len(typed))
+		for _, item := range typed {
+			parts = append(parts, tomlValue(item))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	default:
+		return tomlQuote(fmt.Sprint(typed))
+	}
 }
 
 func tomlQuote(value string) string {

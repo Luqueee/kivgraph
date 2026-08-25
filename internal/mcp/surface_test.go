@@ -314,3 +314,53 @@ func TestServerSurfaceStaysCheapToKeepResident(t *testing.T) {
 		}
 	}
 }
+
+// TestASessionMapsNothingUntilItAsksSomething is the load-bearing half of ADR
+// 0067. The daemon builds one of these servers per accepted session, and a
+// handshake that reached for the graph would map it for every client -- including
+// the ones that go on to ask nothing, which is most of them.
+//
+// So the whole handshake is measured: initialize, the instructions it carries and
+// the tool list a client reads to decide what to call. None of it may run the
+// loader; the first tool call must.
+func TestASessionMapsNothingUntilItAsksSomething(t *testing.T) {
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo-a", Name: "a", Languages: "go"}},
+	}, 12, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	loads := 0
+	store := hotsnapshot.NewDeferredSnapshotStore(12, func() (*hotsnapshot.GraphSnapshot, error) {
+		loads++
+		return snapshot, nil
+	})
+
+	session := connectToServer(t, NewServerWithSnapshotStore(store))
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	// The surface has to be the working one: a deferred generation is a
+	// generation, and advertising the repair instructions instead would tell the
+	// agent the graph is broken.
+	if len(listed.Tools) == 0 {
+		t.Fatal("a deferred generation published no tool, so the handshake read as broken")
+	}
+	if instructions := session.InitializeResult().Instructions; strings.Contains(instructions, "index_project") &&
+		!strings.Contains(instructions, "find_references") {
+		t.Fatalf("the handshake carried the repair instructions for a healthy generation: %q", instructions)
+	}
+	if loads != 0 {
+		t.Fatalf("the handshake mapped the graph %d times; a session that asks nothing must map nothing", loads)
+	}
+
+	if _, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "list_repositories", Arguments: map[string]any{},
+	}); err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if loads != 1 {
+		t.Fatalf("the first query mapped the graph %d times, want exactly 1", loads)
+	}
+}

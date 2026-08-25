@@ -2,6 +2,9 @@ package indexing
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -45,31 +48,81 @@ func TestFollowOnceAcceptsAStoreWithNoPublication(t *testing.T) {
 // The follower asks the store what it is serving, never a counter of its own:
 // another publisher installs generations through the same store, and a
 // remembered answer would rebuild what is already published.
-func TestNeedsPublicationComparesAgainstTheServedSnapshot(t *testing.T) {
-	served := func(t *testing.T, id uint64) *hotsnapshot.GraphSnapshot {
-		t.Helper()
-		snapshot, err := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
-			ID: id, Version: 1, CreatedAt: time.Now().UTC(),
-		})
-		if err != nil {
-			t.Fatalf("NewGraphSnapshot() error = %v", err)
-		}
-		return snapshot
-	}
+func TestNeedsPublicationComparesAgainstTheServedGeneration(t *testing.T) {
 	for name, test := range map[string]struct {
-		served   *hotsnapshot.GraphSnapshot
+		servedID uint64
+		serving  bool
 		activeID uint64
 		want     bool
 	}{
-		"nothing served yet":      {served: nil, activeID: 1, want: true},
-		"active is newer":         {served: served(t, 4), activeID: 5, want: true},
-		"active is what we serve": {served: served(t, 5), activeID: 5, want: false},
-		"another publisher won":   {served: served(t, 6), activeID: 5, want: false},
+		"nothing served yet":      {serving: false, activeID: 1, want: true},
+		"active is newer":         {servedID: 4, serving: true, activeID: 5, want: true},
+		"active is what we serve": {servedID: 5, serving: true, activeID: 5, want: false},
+		"another publisher won":   {servedID: 6, serving: true, activeID: 5, want: false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := needsPublication(test.served, test.activeID); got != test.want {
-				t.Fatalf("needsPublication() = %v, want %v", got, test.want)
+			if got := needsPublicationID(test.servedID, test.serving, test.activeID); got != test.want {
+				t.Fatalf("needsPublicationID() = %v, want %v", got, test.want)
 			}
 		})
 	}
+}
+
+// TestAReconcileTickDoesNotMapADeferredGeneration is why the comparison takes an
+// identifier. This runs every reconciliation interval, so a tick that asked the
+// store for the graph would load every idle server after one interval of
+// answering nothing -- which is the cost ADR 0067 exists to avoid.
+func TestAReconcileTickDoesNotMapADeferredGeneration(t *testing.T) {
+	ctx := context.Background()
+	generations, err := generation.New(testsupport.TempDir(t), generation.DefaultConfig())
+	if err != nil {
+		t.Fatalf("generation.New() error = %v", err)
+	}
+	id, err := generations.NextID(ctx)
+	if err != nil {
+		t.Fatalf("NextID() error = %v", err)
+	}
+	// A published generation is the fixture, and publishing enforces the
+	// production space policy: at least 15 % of the filesystem free. That is a
+	// precondition of the host, not of the reconciler this test covers, so a
+	// host that cannot meet it skips and says so rather than failing and
+	// pointing at the wrong thing. The Linux runner meets it and runs this.
+	if _, err := generations.Publish(ctx, generation.PublishRequest{
+		ID:       id,
+		Build:    func(_ context.Context, directory string) error { return writeGraphFile(directory) },
+		Validate: func(context.Context, generation.Generation) error { return nil },
+	}); errors.Is(err, generation.ErrInsufficientSpace) {
+		t.Skipf("this filesystem cannot satisfy the publish space policy: %v", err)
+	} else if err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	published, err := parseSnapshotID(id)
+	if err != nil {
+		t.Fatalf("parseSnapshotID(%q) error = %v", id, err)
+	}
+
+	loads := 0
+	store := hotsnapshot.NewDeferredSnapshotStore(published, func() (*hotsnapshot.GraphSnapshot, error) {
+		loads++
+		return hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{}, published, time.Unix(1_700_000_000, 0).UTC(), 1)
+	})
+	defer store.Close()
+
+	result, err := followOnce(ctx, store, generations)
+	if err != nil {
+		t.Fatalf("followOnce() error = %v", err)
+	}
+	if result != (followResult{}) {
+		t.Fatalf("followOnce() = %+v, want nothing to do: the store already answers from that generation", result)
+	}
+	if loads != 0 {
+		t.Fatalf("a reconcile tick mapped the graph %d times", loads)
+	}
+}
+
+// writeGraphFile puts the one file a published generation must carry where the
+// store expects it, so the fixture is a real publication rather than a
+// hand-written directory.
+func writeGraphFile(directory string) error {
+	return os.WriteFile(filepath.Join(directory, generation.DefaultConfig().DatabaseFile), []byte("graph"), 0o644)
 }

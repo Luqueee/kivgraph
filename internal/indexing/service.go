@@ -362,7 +362,10 @@ func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, erro
 		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
 			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
 		}
-		if served := service.snapshotStore.Load(); served == nil || served.Metadata().ID < generationID {
+		// By identifier, not by snapshot: this arm runs when a concurrent
+		// publisher won, and mapping the graph to confirm it would do the work
+		// a deferred store exists to postpone.
+		if served, serving := service.snapshotStore.ActiveID(); !serving || served < generationID {
 			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
 		}
 	}

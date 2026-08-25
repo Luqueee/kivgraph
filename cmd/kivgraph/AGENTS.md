@@ -197,7 +197,9 @@ superficie observable.
 
 ## `kivgraph daemon`
 
-- Sirve MCP a varios clientes desde un proceso, sobre un socket unix. Comparte
+- Sirve MCP a varios clientes desde un proceso, por **dos puertas a la vez**: un
+  socket unix en el directorio de estado y el transporte Streamable HTTP en
+  loopback. Comparte
   con `serve` todo el montaje -- config, store, seguidor de generación, resync,
   event log-- a través de `runConfiguredServe`, que recibe el nombre del comando
   para que sus rótulos digan la verdad: dos comandos con un `serve` fijo en los
@@ -221,14 +223,44 @@ superficie observable.
   se mapea una vez y lo que `graph_status` informa es del proceso.
 - Un socket obsoleto y un demonio vivo no son el mismo estado, y la única forma
   de distinguirlos es intentar hablarle: si contesta, no se sustituye.
-- No se arranca ni se para solo. Corre en primer plano hasta la señal, como
-  `serve`, y ahí acaba la pregunta de cuándo se va un proceso ocioso.
-- El ahorro está medido en `benchmarks/daemon-cost`, y lo que escala es la
-  **pendiente**, no ningún total: N procesos cuestan `66`–`67 MB` de páginas
-  privadas por cliente y un demonio `0,2`–`2,3` sobre una carga. A un cliente
-  empata dentro del ruido -- el servidor MCP por sesión no aparece contra los
-  `66 MB` de la carga-- y gana desde el segundo. Lo que no es el ahorro es el
-  snapshot: ya se comparte y esas páginas están limpias.
+- El ahorro está medido en `benchmarks/daemon-cost` **a la carga que un editor
+  produce de verdad**, contada del event log: `48` de `51` procesos servidores no
+  recibieron **ninguna** llamada, así que la mediana de una sesión real es cero.
+  Medir `2.000` llamadas por sesión no describía a nadie.
+
+  |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
+  |---|---|---|---|---|
+  |ninguna|indistinguible de cero|`10` MB/cli|`10`–`13` contra `77`–`81 MB`|el demonio `+2`–`3 MB`|
+  |`8` llamadas|`0,6`–`0,9` MB/cli|`39` MB/cli|`60`–`62` contra `323`–`330 MB`|empata|
+
+  **El arranque ya no es el coste, y eso es lo que hace que este comando valga
+  menos de lo que valía**: desde el ADR 0067 el grafo lo lee la primera consulta,
+  así que un servidor ocioso cuesta `10 MB` y no `33`. Lo que un demonio sigue
+  ahorrando es el resto -- y a un cliente ahora **pierde** por un par de megabytes,
+  que es el proceso extra.
+
+  **Las dos puertas son indistinguibles a las dos cargas**, así que la advertencia
+  anterior -- que HTTP costaba `12,5 MB` por cliente y perdía a un cliente-- queda
+  retirada: era el buffer de reanudación del SDK llenándose con tráfico sintético.
+  Bajo carga sostenida sí cuesta más (`11`–`13`), y eso es un techo que ninguna
+  sesión real alcanza y que depende del corpus.
+
+  La diferencia más grande no es la pendiente: es el **pico**, `179`–`186` contra
+  `26`–`29 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
+  ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
+- `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
+  `daemon.json` del directorio de estado y escribe una entrada `url` con el
+  token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio
+  y cambiar la entrada en silencio haría que el mismo comando escribiera dos
+  ficheros distintos según si había un proceso arrancado. En ámbito `project` se
+  niega: ese fichero se commitea.
+- **El demonio publica HTTP antes de enlazar el socket, y el orden es contrato.**
+  Un socket unix acepta en cuanto está enlazado, antes de que nadie llame a
+  `Accept`, así que alcanzar el socket tiene que implicar que `daemon.json` ya
+  existe. Invertirlo devolvió «no such file or directory» sobre un demonio vivo en
+  una de cada tres pasadas del benchmark. Y si el `bind` del socket falla después,
+  el endpoint se retira: un fichero que afirma que hay un demonio manda al
+  cliente siguiente a un puerto cerrado.
 
 ## `kivgraph ui`
 

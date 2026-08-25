@@ -150,6 +150,31 @@ the project directory in the project scope.
 }
 ```
 
+## One process for many clients
+
+By default every client spawns its own `serve`. With several editors open that is
+several processes, each holding its own copy of the graph. `kivgraph daemon`
+serves them all from one process, over HTTP and a unix socket at once, and
+`--daemon` registers a client against it instead of spawning anything:
+
+```bash
+kivgraph daemon &
+kivgraph mcp install --daemon --target claude-code
+```
+
+That writes a `url` entry with the token from
+`~/.local/state/kivgraph/daemon.json` rather than a `command`, so the client
+connects to the running daemon. HTTP is the door that matters: no MCP client
+configuration dials a unix socket -- it takes an executable or a url.
+
+What it saves, measured on a workspace of `108.737` symbols in
+`benchmarks/daemon-cost`: at eight clients, `61 MB` against `328` when they are
+asking questions, and `11` against `80` when they are not. At one client it
+costs a couple of megabytes more, so it is worth it from the second.
+
+The daemon binds loopback. `--allow-remote` is required to bind anywhere else,
+because the answers carry repository paths, file paths and symbol names.
+
 ## Scope
 
 `--scope user` is the default. It writes into the client's own configuration

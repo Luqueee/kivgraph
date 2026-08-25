@@ -143,6 +143,22 @@ func TestReleaseNotes(t *testing.T) {
 		t.Errorf("missing release note for current version %q", want)
 	}
 
+	// A tag list this test cannot read is not evidence that a tag does not
+	// exist, and this check has cost three release attempts by assuming it was.
+	//
+	// It had never run: with one release note, and that note naming the current
+	// version, the `tags[want] = true` below answered the question before the
+	// tag list was consulted. The second note is what exercised it.
+	//
+	// A plain `actions/checkout` fetches no tags. A checkout on a tag ref
+	// fetches exactly one -- the version being built -- which is a partial list
+	// that looks complete. Neither can be fixed with `fetch-tags`: combined
+	// with a tag `ref` it makes git fetch the commit and the tag to the same
+	// `refs/tags/<tag>` and the checkout itself fails.
+	//
+	// So this check runs where the tag list is real, which is a developer's
+	// clone, and skips in CI rather than failing there. The two guards below
+	// are what make that a skip and not a false negative.
 	cmd := exec.Command("git", "tag")
 	cmd.Dir = filepath.Join("..", "..")
 	out, err := cmd.Output()
@@ -156,6 +172,14 @@ func TestReleaseNotes(t *testing.T) {
 		if line = strings.TrimSpace(line); line != "" {
 			tags[line] = true
 		}
+	}
+	switch {
+	case len(tags) == 0:
+		t.Log("this checkout carries no tags, skipping version existence check")
+		return
+	case len(tags) == 1 && tags[want]:
+		t.Logf("this checkout carries only %s, the version being built, so its tag list is partial: skipping version existence check", want)
+		return
 	}
 	tags[want] = true
 

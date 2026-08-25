@@ -381,9 +381,19 @@ kivgraph index --full
 kivgraph serve
 ```
 
-`kivgraph serve` debe cargar el `HotSnapshot` publicado antes de abrir el
-transporte MCP; sin una generación publicada debe fallar cada consulta que
-requiera snapshot de forma explícita.
+`kivgraph serve` debe **resolver** la generación publicada antes de abrir el
+transporte MCP y decir si la tiene; el grafo lo lee la primera consulta que lo
+necesita, no el arranque. Sin una generación publicada debe fallar cada consulta
+que requiera snapshot de forma explícita, y una generación que no se pueda mapear
+no puede confundirse con la ausencia de generación: `graph_status` la nombra.
+Ver ADR 0067, que lo midió -- `48` de `51` servidores reales no reciben ninguna
+llamada, y cargar por si acaso les costaba `33` de sus `40 MB`.
+
+Lo que decide la superficie de tools y las instrucciones del handshake es la
+**disponibilidad**, nunca el grafo: el demonio construye un servidor MCP por
+sesión aceptada, así que preguntar por el snapshot ahí lo mapea una vez por
+cliente. Por el mismo motivo, comparar generaciones -- el reconciliador, el log de
+arranque, el arm de carrera al publicar-- se hace por identificador.
 
 ## Commits y entrega
 

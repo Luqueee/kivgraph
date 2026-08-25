@@ -14,8 +14,9 @@ invocation with no command, or with an unknown one, writes a single line to
 | `init [--repository NAME=PATH] [--languages LIST]` | Write the configuration and register repositories |
 | `index --full [--json]` | Index every registered repository and publish a generation |
 | `serve` | Run the MCP server over stdio |
+| `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
 | `ui [--addr HOST:PORT]` | Serve the read-only graph viewer, every interface by default |
-| `stop [--dry-run]` | Stop every running serve and ui of this user |
+| `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
 
 ## Diagnostics
 
@@ -44,9 +45,9 @@ invocation with no command, or with an unknown one, writes a single line to
 
 | Invocation | Summary |
 | --- | --- |
-| `mcp install [--scope user\|project]` | Detect and register one or more MCP clients |
-| `mcp status --target TARGET [--scope user\|project]` | Inspect a client MCP registration |
-| `mcp remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's MCP registration |
+| `mcp install [--scope user\|project] [--daemon]` | Detect and register one or more MCP clients |
+| `mcp status --target TARGET [--scope user\|project] [--daemon]` | Inspect a client MCP registration |
+| `mcp remove --target TARGET [--scope user\|project] [--daemon]` | Remove only Kivgraph's MCP registration |
 | `skill install [--scope user\|project]` | Detect and install the Agent Skill in one or more clients |
 | `skill status --target TARGET [--scope user\|project]` | Inspect the installed Agent Skill |
 | `skill remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's Agent Skill |

@@ -250,6 +250,10 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 // session -- and the client only reports that the server failed. serve writes
 // the defaults and keeps going. It registers no repository and indexes
 // nothing: the graph stays as empty as it was.
+// testConfigPath is where a test's flag set writes --config. Each call gets a
+// fresh set, so sharing the destination is safe and keeps the calls readable.
+var testConfigPath string
+
 func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
@@ -263,7 +267,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	}
 
 	var gotStore *hotsnapshot.SnapshotStore
-	if err := runConfiguredServe(context.Background(), "serve", nil,
+	if err := runConfiguredServe(context.Background(), "serve", nil, serveFlagSet(&testConfigPath), &testConfigPath,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			return nil
@@ -296,7 +300,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte("version: 1\nnot: valid\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath), &testConfigPath,
 		func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
 			t.Fatal("serve ran with a configuration it could not read")
 			return nil
@@ -418,7 +422,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 
 	var gotStore *hotsnapshot.SnapshotStore
 	var gotIndexer indexing.ProjectIndexer
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath), &testConfigPath,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			gotIndexer = indexer
@@ -1523,6 +1527,42 @@ func TestUsageNamesOnlyRealFlags(t *testing.T) {
 					spec.name(), named)
 			}
 		}
+	}
+}
+
+// TestInterceptedCommandsDeclareTheFlagsTheyParse closes the direction the test
+// above deliberately leaves open. That one allows a usage line to name fewer
+// flags than the command has, because curating it is what makes the help
+// readable. It cannot catch a spec wired to a *different* command's flag set,
+// and that is what happened: `daemon` declared `serveFlagSet`, so the global
+// help printed a bare `daemon` and completion offered only `--config` while
+// `--addr` and `--allow-remote` worked. `daemon --help` was right the whole
+// time, because main parses its own set -- which is exactly why nobody noticed.
+//
+// The long-lived commands are the ones at risk: main intercepts them before
+// `run`, so their spec is documentation with no execution path to contradict it.
+func TestInterceptedCommandsDeclareTheFlagsTheyParse(t *testing.T) {
+	var path string
+	var options daemonOptions
+	var address string
+	parsed := map[string]*flag.FlagSet{
+		"serve":  serveFlagSet(&path),
+		"daemon": daemonFlagSet(&path, &options),
+		"ui":     uiFlagSet(&path, &address),
+	}
+	for _, spec := range allCommands() {
+		want, intercepted := parsed[spec.name()]
+		if !intercepted {
+			continue
+		}
+		declared := map[string]bool{}
+		forEachFlag(spec, func(entry *flag.Flag) { declared[entry.Name] = true })
+		want.VisitAll(func(entry *flag.Flag) {
+			if !declared[entry.Name] {
+				t.Errorf("%q parses --%s but its spec does not declare it, so the help and the completion cannot name it",
+					spec.name(), entry.Name)
+			}
+		})
 	}
 }
 

@@ -15164,6 +15164,16 @@ por cliente en N procesos contra `0,2`–`2,3` en un demonio. A ocho clientes,
 `533 MB` contra `68`–`82`, y el pico `1.046 MB` contra `188`. A un cliente empata
 dentro del ruido, así que la razón para usarlo empieza en el segundo.
 
+**Corregido en `LUQUE-2223`:** esa cifra es la del socket, y ningún cliente MCP
+marca un socket.
+
+**Corregido otra vez en `LUQUE-2224`, y esta vez la carga:** `LUQUE-2223` publicó
+`12,5 MB` por cliente por HTTP midiendo `2.000` llamadas por sesión. Contada del
+event log, la mediana de una sesión real es **una** llamada y `48` de `51`
+servidores no reciben ninguna. A esa carga las dos puertas cuestan lo mismo
+-- `1,0`–`1,3` por HTTP contra `1,1`–`1,6` por socket-- y N procesos cuestan `43 MB`
+por cliente, no `66`. Medir la carga equivocada **subestimaba** el ahorro.
+
 **Verificación:** trece decisiones falsificadas una a una con su test, más dos
 de `stop`; humo con el binario real y una generación publicada, tres clientes
 concurrentes, `11` tools cada uno, dos preguntas distintas a la vez sin cruzarse,
@@ -17328,5 +17338,284 @@ generación se publicó en darwin y se leyó en Linux, mismo arco y formato de
 anchura fija; el corpus son `108.737` símbolos y no los `117.499` de
 `LUQUE-2221`, así que una comparación por símbolo usa la cifra de su propia
 pasada; y no se midió por encima de ocho clientes.
+
+**Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2223 — El ahorro del demonio, por la puerta que un cliente puede cruzar
+
+**Dependencias:** `LUQUE-2222`.
+
+**Objetivo:** hacer alcanzable el ahorro que `LUQUE-2222` midió. El demonio
+servía sólo un socket unix, y **ninguna configuración de cliente MCP marca un
+socket**: las cinco integraciones que este proyecto escribe ponen `command` +
+`args`, y las formas remotas que aceptan son `url`. El ahorro estaba medido sobre
+código que nadie podía ejecutar.
+
+**Entregado:**
+
+* *El transporte:* el demonio sirve la misma superficie MCP por el
+  `StreamableHTTPHandler` del SDK además del socket, desde un proceso y sobre el
+  mismo store. Las dos mitades acaban juntas: la que falle primero cancela a la
+  otra, porque un demonio que siguiera contestando por una puerta después de
+  perder la otra no se lo diría a nadie.
+* *La clave:* un puerto no tiene ruta, así que el modo del socket no sirve de
+  nada allí. El token va en `daemon.token`, `0600`, y **sobrevive al reinicio** --
+  una entrada escrita en la config de un cliente seguiría valiendo o no según
+  esto. `daemon.json` lleva url, token, socket y pid, y se borra al parar: es
+  liveness, no identidad.
+* *La postura:* bind fuera de loopback se **rechaza** nombrando lo que se
+  escaparía, y sólo `--allow-remote` lo acepta con aviso. `Origin` se valida,
+  que es lo único que para a una página usando el navegador del propio usuario.
+  Comparación del token en tiempo constante, y el comentario dice que ningún
+  test de este paquete lo prueba.
+* *Las integraciones:* `mcp install --daemon` lee el endpoint y escribe la forma
+  que cada cliente entiende -- `type: http` con `headers` para Claude Code,
+  Claude Desktop y Oh My Pi; `type: remote` para OpenCode; `url` con
+  `http_headers` para Codex, porque `bearer_token_env_var` nombra una variable
+  que el usuario tendría que exportar. Verificadas contra la documentación de
+  cada cliente, no adivinadas.
+* *Lo que se niega:* una entrada con token **no se escribe en ámbito `project`**.
+  `.mcp.json` se commitea, y un secreto en git no se retira borrándolo.
+  `ErrEndpointNeedsUserScope`, en vez de degradar a stdio en silencio.
+* *Un defecto que el cambio destapó:* el renderizador de TOML tenía la entrada
+  cableada a mano en vez de renderizar la que `expectedTOMLEntry` declara, así
+  que escribía `command` mientras la comparación esperaba `url`: habría
+  reinstalado para siempre. Ahora renderiza la entrada declarada, con las
+  subtablas después de los escalares -- en TOML una clave tras una cabecera
+  pertenece a esa tabla-- y con las claves ordenadas.
+
+**La medición, que corrige lo publicado:** `benchmarks/daemon-cost` corre ahora
+las dos puertas con `-transport`, publica `results.json` y `results-http.json`, y
+mete el transporte en el digest -- sin eso las dos corridas colisionan en una
+identidad. Esquema `daemon-cost-v2`; los dos brazos regenerados.
+
+|puerta|pendiente del demonio|8 clientes|1 cliente|cruce|
+|---|---|---|---|---|
+|socket|`0,5` MB/cliente|`70` contra `533 MB`|empata|`1,00`|
+|HTTP|`12,5` MB/cliente|`166` contra `536 MB`|`76` contra `67 MB`|`1,26`|
+
+Cuatro pasadas por HTTP dan `12,1`–`12,8`: no es ruido. **El ahorro sigue siendo
+la tercera parte a ocho clientes, pero a un cliente el demonio por HTTP pierde**,
+así que la razón para instalarlo empieza en el segundo. Los `12 MB` no son el
+grafo: el SDK da a cada sesión un `MemoryEventStore` de `10 MiB` para reanudar
+streams (`event.go:255`) y `2.000` llamadas lo llenan -- con `64` la pendiente cae
+a `2,1`–`2,7`. No se puede acotar desde aquí: `NewStreamableHTTPHandler` no acepta
+un `EventStore`.
+
+Corregidos los siete sitios que citaban `0,2`–`2,3` como si fuera la cifra
+alcanzable: ADR 0065 y 0066, `docs/installation.md`, `cmd/kivgraph/AGENTS.md`,
+`benchmarks/AGENTS.md`, `internal/daemon/daemon.go`, `internal/integrations`.
+
+**Limitaciones declaradas:** la pendiente por HTTP **depende de la carga** y su
+forma no se mapeó -- dos puntos medidos, `2.000` y `64` llamadas, y un intento
+intermedio descartado por salir con filas vacías en vez de publicarse; `12,5` es
+un techo bajo tráfico sostenido y no lo que cuesta un editor abierto sin usar; no
+se midió con clientes reales; no es bare metal.
+
+**Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2224 — La carga que un editor produce de verdad
+
+**Dependencias:** `LUQUE-2223`.
+
+**Objetivo:** cerrar la limitación que `LUQUE-2223` dejó abierta por escrito:
+«no se midió con clientes reales». La cifra publicada -- `12,5 MB` por cliente por
+HTTP-- salía de `2.000` llamadas por sesión, y nadie había comprobado si una
+sesión real hace eso.
+
+**La evidencia, y no hizo falta instrumentar nada.** Un `kivgraph serve` ya
+escribe cada llamada de tool en su event log. Dos días de una máquina en uso,
+editores reales:
+
+|observación|valor|
+|---|---|
+|procesos `serve` arrancados|`51`|
+|procesos con **cero** llamadas|**`48`**|
+|llamadas de tool en total|`5`|
+|llamadas por proceso que sí llamó|`3`, `1`, `1`|
+
+**Cuarenta y ocho de cincuenta y un servidores cargaron el grafo entero y nadie
+les preguntó nada.** La mediana es una llamada. El benchmark medía tres órdenes
+de magnitud por encima de lo que ocurre.
+
+**Medido a esa carga**, cuatro corridas nuevas sobre el mismo corpus
+(`117.499` símbolos, generación `000001`, Linux):
+
+|puerta|pendiente del demonio|N procesos|8 clientes|1 cliente|cruce|
+|---|---|---|---|---|---|
+|socket|`1,1`–`1,6` MB/cli|`43` MB/cli|`66` vs `356 MB`|empata|`1,06`–`1,10`|
+|HTTP|`1,0`–`1,3` MB/cli|`43` MB/cli|`66` vs `354 MB`|empata|`1,06`–`1,10`|
+
+* **Las dos puertas son indistinguibles**, con los rangos solapados. Queda
+  retirada la advertencia de `LUQUE-2223`: elegir HTTP no se paga, y a un cliente
+  el demonio no pierde.
+* **N procesos cuestan `43 MB` por cliente, no `66`.** El snapshot se ensucia al
+  consultarse, así que un `serve` al que nadie pregunta nunca toca la mayor parte
+  del fichero. Los dos brazos bajan y el del demonio baja más: la proporción a
+  ocho clientes pasa de `0,25` a `0,19`. **Medir la carga equivocada subestimaba
+  el ahorro.**
+* **La diferencia más grande es el pico**, y no depende de que nadie pregunte
+  nada: `1.152` contra `169 MB` a ocho clientes.
+* **La ventaja de latencia era del arnés.** `p99` de `1,2`–`1,9 ms` en los dos
+  brazos, contra los `13`–`20` de la carga sintética: con una llamada por cliente
+  no hay contención que repartir.
+* El techo se conserva en `results-http-sustained.json` -- `4,9`–`5,9 MB` por
+  cliente-- y **su cifra depende del corpus** (`12,1`–`12,8` sobre `108.737`
+  símbolos), que es la firma de un coste en bytes retenidos y no por sesión.
+
+**Un defecto de producción que el brazo HTTP destapó fallando:** un socket unix
+acepta en cuanto está enlazado, antes de que nadie llame a `Accept`, así que el
+arnés -- que trataba un `dial` con éxito como señal de arranque-- alcanzaba a un
+demonio cuyo `daemon.json` no existía todavía. Una de cada tres pasadas moría con
+«no such file or directory» sobre un demonio vivo. Dos arreglos: el demonio
+publica HTTP **antes** de enlazar el socket -- y retira el endpoint si el `bind`
+falla después--, y el arnés espera el endpoint en vez de deducirlo del orden.
+
+**Verificación:** el test del arranque a medias es determinista y caza las dos
+decisiones -- invertir el orden falla por el token, quitar la retirada falla por el
+endpoint. Se descartó antes un test que corría por la ventana de la carrera:
+pasaba con los dos órdenes, y un test que afirma cobertura que no tiene es peor
+que ninguno. `gofmt`, `go vet ./...`, `go test ./...`, `make build`.
+
+**Limitaciones declaradas:** la forma de la sesión es real, su ritmo no -- las
+llamadas se emiten seguidas y un editor intercala pausas; la mezcla de tools del
+arnés no es la observada (`80 %` `find_references`); el log son dos días de una
+máquina y un solo usuario, así que sostiene el orden de magnitud y no una
+distribución; y las `48` sesiones que no preguntan nada están *mejor*
+representadas de lo que el arnés puede medir, porque obliga a cada cliente a
+hacer al menos una llamada.
+
+**Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2225 - Lo que cuesta un servidor al que nadie pregunta
+
+**Dependencias:** `LUQUE-2224`.
+
+**Objetivo:** medir el caso que `LUQUE-2224` descubrió y no midió. Su propia
+evidencia decía que `48` de `51` servidores reales no reciben ninguna llamada, y
+su arnés obligaba a cada cliente a hacer al menos una: el caso predominante
+quedaba declarado como limitación en vez de medido. Sólo medir; ningún cambio de
+diseño en producción.
+
+**Lo que impedía la medición:** el guardia de generación -- el `graph_status` que
+prueba que los dos brazos sirven el mismo fichero-- corría **antes** del
+muestreo, más un probe en `startServer` y otro en `connect`. Con `2.000` llamadas
+eso es invisible; con cero **es la carga entera**. El guardia pasa a correr
+después del muestreo: nada obliga a que preceda a los bytes, falla igual y
+descarta la corrida igual. Esquema `daemon-cost-v2` a `v3` por ese movimiento.
+
+**Lo medido**, seis pasadas ociosas (tres por puerta), tres por carga real y una
+sostenida, todas sobre la generación `000001` de `108.737` símbolos de `kena` en
+Linux:
+
+|carga|N procesos|demonio|proporción|8 clientes|
+|---|---|---|---|---|
+|ninguna llamada|`33,1`-`34,4` MB/cli|`0,8`-`1,2` MB/cli|`0,023`-`0,032`|`40` contra `265` MB|
+|`8` llamadas|`39,9`-`40,7` MB/cli|`0,4`-`0,9` MB/cli|`0,009`-`0,013`|`61` contra `336` MB|
+|`2.000` llamadas|`67,6` MB/cli|`12,8` MB/cli|`0,189`|`168` contra `540` MB|
+
+**El arranque es el coste:** `33` de los `40 MB` que cuesta un servidor
+consultado, y la mitad del techo sostenido, se pagan antes de que nadie pregunte
+nada. Contestar una pregunta añade unos `7 MB`. El pico sin ninguna consulta es
+`994`-`1.000 MB` a ocho clientes contra `134`, y conectar a un demonio vivo cuesta
+`1,5 ms` contra `96`-`151` de arrancar un proceso.
+
+Las dos puertas siguen siendo indistinguibles también sin carga: `33,4`-`33,7`
+por HTTP contra `33,1`-`34,4` por socket.
+
+**Verificación:** cinco tests nuevos, el primero que este arnés tiene; cuatro
+sabotajes falsificados uno a uno -- el guardia delante del muestreo, los
+percentiles de cero llamadas, el ratio con operando ausente y el probe que no se
+salta. El cuarto **no lo caza ningún test local**, y eso está dicho: vive en el
+camino que necesita un servidor real, así que la corrida se niega a publicar un
+fichero ocioso que haya cronometrado algún primer answer (`checkIdle`), y ese
+rechazo sí tiene test. `gofmt`, `go vet ./...`, `go test ./...`, `make build`.
+
+**Un modo de fallo cerrado de paso:** `latencyOf` sin llamadas devolvía
+`latency{}`, así que un fichero ocioso habría publicado `p50_ms: 0` y
+`p99_ratio: 0` -- una respuesta instantánea y un demonio infinitamente más
+rápido. Los percentiles, `new_client_ms` y los dos ratios de latencia son ahora
+punteros y desaparecen del fichero; el resumen imprime `--`. Se añade
+`new_client_connect_ms`, que se mide a toda carga y es el campo con el que dos
+cargas se comparan.
+
+**Limitaciones declaradas:** la corrida ociosa mide un arranque, no una sesión de
+trabajo; de los `33 MB` no se separa qué parte es construcción de índices, y
+afirmarlo sería inventar el mecanismo; `-calls N` reparte N llamadas entre los
+clientes que haya, así que la fila de un cliente de la carga real contesta ocho
+preguntas y no es comparable con la de ocho; el corpus es `108.737` y no los
+`117.499` de `LUQUE-2224`, porque `kena` es un workspace en uso -- ninguna cifra se
+cruza entre las dos pasadas; la sostenida es una sola pasada; no es bare metal.
+
+**Estado:** cerrada el `2026-08-23`.
+
+---
+
+## LUQUE-2226 - El arranque era el coste, y se retira
+
+**Dependencias:** `LUQUE-2225`.
+
+**Objetivo:** cobrar lo que `LUQUE-2225` midió. Su cifra decía que `33` de los
+`40 MB` que cuesta un servidor MCP se pagan **antes de la primera pregunta**, y
+que `48` de `51` servidores reales no llegan a hacerla: esas sesiones cargaban un
+grafo entero para contestar nada.
+
+**Lo hecho:** el grafo se lee en la primera consulta que lo necesita. `serve`
+resuelve la generación publicada al arrancar -- y sigue fallando si no la tiene--
+pero no la mapea; lo que decide la superficie de tools y las instrucciones del
+handshake pasa a ser la **disponibilidad**. Los tres consumidores que sólo
+comparaban generaciones -- el tick de reconciliación, la línea de arranque del log
+y el brazo de carrera al publicar-- comparan identificadores, porque cualquiera de
+ellos mapeando el grafo lo cargaría igual sin que nadie pregunte. ADR 0067.
+
+**Medido**, seis pasadas ociosas por las dos puertas sobre `108.737` símbolos de
+`kena` en Linux, árbol limpio en `68da6dc`:
+
+|ocioso|antes|ahora|
+|---|---|---|
+|pendiente de N procesos|`33,9` MB/cli|`9,8`-`10,7` MB/cli|
+|ocho clientes|`268,6 MB`|`77`-`81 MB`|
+|pico a ocho clientes|`994,3 MB`|`179`-`186 MB`|
+|conectar, ocho clientes|`130`-`151 ms`|`38`-`55 ms`|
+
+**Con carga no se movió nada**, que es lo que hace creíble el ahorro:
+`38,4`-`39,5 MB` por cliente con `8` llamadas contra los `39,9` de antes, y
+`66,1`-`66,2` contra `67,6` con `2.000`. Lo que desapareció es exactamente lo que
+pagaban las sesiones que no preguntan.
+
+**Lo que empeoró, y está publicado:** a un cliente ocioso el demonio ahora
+**pierde** -- `9,9`-`12,0` contra `7,1`-`9,2 MB`-- porque los dos brazos son tan
+baratos en reposo que el proceso de más pesa. El cruce queda entre `0,96` y `1,41`
+clientes: gana desde el segundo.
+
+**Un defecto de producción de paso:** un snapshot ilegible mataba el arranque.
+Ahora llega a una consulta y toda tool responde `INDEX_NOT_READY`, que es el mismo
+código que da un servidor jamás indexado -- dos problemas distintos con arreglos
+distintos--, así que `graph_status` gana `snapshot_unreadable` con el motivo.
+Aditivo.
+
+**Un defecto del arnés:** `commit` era `git rev-parse HEAD` a secas, así que una
+corrida hecha para justificar un cambio sin commitear atribuía sus cifras a un
+código que no había ejecutado. Ahora publica `<commit>-dirty` y lo declara en
+`limitations`; las cinco corridas de este informe se hicieron desde árbol limpio.
+
+**Verificación:** trece decisiones falsificadas una a una con su test -- seis del
+store diferido, seis de los tres comparadores de generación y el guardia de
+`graph_status`--, más dos del arnés. Una no la cazaba nadie y ésa es la que
+importaba: la línea de arranque del log cargando el grafo. Humo con un cliente MCP
+real por HTTP: handshake con `11` tools y **cero** líneas de snapshot, la consulta
+devuelve `35` repositorios y ahí aparece la carga. `gofmt`, `go vet ./...`,
+`go test ./...`, `make build`.
+
+**Limitaciones declaradas:** la primera consulta paga el mapeo y eso no se mide
+como latencia aislada; la pendiente ociosa del demonio cruza el cero entre pasadas
+(`-0,28` a `0,32`), así que el cruce es un rango y no un número; de los `10 MB` que
+quedan en un servidor ocioso no se desglosa qué parte es qué.
 
 **Estado:** cerrada el `2026-08-23`.
