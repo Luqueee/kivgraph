@@ -34,8 +34,10 @@ export const prerender = true;
 
           {data.requires_reindex && (
             <div class="alert alert-warning">
-              <strong>Requires reindex:</strong> You must run{' '}
-              <code>kivgraph index --full</code> after updating to this version.
+              <strong>Requires reindex:</strong> run{" "}
+              <code>kivgraph index --full</code> after updating. Until you do, a
+              graph published by the previous version still answers, without
+              this version's facts.
             </div>
           )}
 

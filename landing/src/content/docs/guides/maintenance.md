@@ -33,7 +33,7 @@ a temporary copy. It reports location, size, effective permissions, external
 locks, engine versions, storage and Go binding, schema, rollback, counts and
 referential integrity, and returns `0` only when every check is `PASS`.
 
-`doctor graph` checks the [six canonical invariants](/reference/resolution/) on
+`doctor graph` checks the [six canonical invariants](/docs/resolution/) on
 an already-published database without rebuilding it. Neither command modifies
 the database it is given.
 

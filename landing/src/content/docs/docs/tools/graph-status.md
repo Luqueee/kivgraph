@@ -194,7 +194,7 @@ says.
 ## Repository freshness
 
 `repository_freshness` carries one row per repository, in the same shape
-[`list_repositories`](/reference/tools/list-repositories/) returns. It answers,
+[`list_repositories`](/docs/tools/list-repositories/) returns. It answers,
 in the one call an agent makes before trusting anything else, whether what it is
 about to be told is stale.
 
@@ -268,7 +268,7 @@ standard library's own edge would hide exactly what indexing it was for.
   another process becomes visible when its generation is published.
 - The tool is registered only once a generation exists. Before that, `serve`
   registers `index_project` alone; see
-  [`index_project`](/reference/tools/index-project/).
+  [`index_project`](/docs/tools/index-project/).
 - Counts come from the snapshot metadata. They describe what the passes indexed,
   not what exists on disk: a reference the passes could not attribute appears in
   `unresolved` and `unresolved_by_reason`, never as an edge.

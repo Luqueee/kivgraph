@@ -9,7 +9,8 @@ release archive and the bundle checksums, and installs it without requiring Go,
 Node.js or pnpm on the build side.
 
 The release contains the Go server, the pinned LadybugDB library, the
-TypeScript worker, the pinned `rust-analyzer` and the grammar manifest.
+TypeScript worker, the bundled Python AST worker, the pinned `rust-analyzer`,
+the grammar manifest and the web viewer served by `kivgraph ui`.
 
 ## Published platforms
 
@@ -21,6 +22,10 @@ installer says so when it refuses.
 
 - Bash
 - Node.js `22` or later — the TypeScript worker is a Node process
+- Python `3.10` or later when indexing Python — the bundled worker is a Python
+  process
+- The Dart or Flutter SDK when indexing Dart — the loader drives the Dart
+  Analysis Server it supplies
 - `curl`, `tar`
 - `sha256sum` or `shasum`
 

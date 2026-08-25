@@ -1,18 +1,20 @@
 import { existsSync } from "node:fs";
 import node from "@astrojs/node";
+import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import rehypeExternalLinks from "rehype-external-links";
+import { lastmodFor } from "./src/lastmod.mjs";
+import { PROJECT_NAME, PROJECT_TAGLINE } from "./src/site.mjs";
 
 // The deployment declares itself in `landing/.env`, and this file has to read
 // it before Vite does: the config is not a module Vite transforms, so a bare
-// `process.env` sees only what the shell exported -- which is how a deploy that
-// forgot to export one variable published `http://localhost:6767` as the
-// canonical of every page. `loadEnvFile` puts the file into `process.env`,
-// which is also what feeds `import.meta.env` in the components, so `site` and
-// the analytics tracker cannot end up half configured. It throws when the file
-// is absent, and a variable already exported wins over the file.
+// `process.env` sees only what the shell exported. `loadEnvFile` puts the file
+// into `process.env`, which is also what feeds `import.meta.env` in the
+// components, so `site` and the analytics tracker cannot end up half
+// configured. It throws when the file is absent, and a variable already
+// exported wins over the file.
 if (existsSync(".env")) {
   process.loadEnvFile();
 }
@@ -21,9 +23,24 @@ if (existsSync(".env")) {
 // server only serves files and the 404 route; `output: "server"` is what makes
 // the adapter emit that entry point at all.
 export default defineConfig({
-  site: process.env.KIVGRAPH_LANDING_URL ?? "http://localhost:6767",
+  // `site` is baked in at build time and every canonical, `og:url`, sitemap
+  // entry and `llms.txt` link derives from it, so the fallback has to be the
+  // real origin: a deploy that forgot the variable once published
+  // `http://localhost:6767` as the canonical of every page, and CI builds with
+  // no `.env` at all. Development is the case that overrides it, with
+  // `KIVGRAPH_LANDING_URL=http://localhost:6767` in `landing/.env`.
+  site: process.env.KIVGRAPH_LANDING_URL ?? "https://kivgraph.luqueee.dev",
   output: "server",
   adapter: node({ mode: "standalone" }),
+  // Every canonical this site emits carries a trailing slash, and the default
+  // `ignore` served the other form too: `/docs/cli` and `/docs/cli/` both
+  // answered `200` with the same HTML and the same canonical. That is a second
+  // URL per page for a crawler to fetch and then discard -- 37 of them --
+  // which is exactly the crawl budget a young property does not have to spare.
+  // `always` makes the slashless form redirect instead. Astro warns that
+  // prerendered pages are the host's business rather than its own, so whether
+  // this reaches them is measured, not assumed; the figure is in `AGENTS.md`.
+  trailingSlash: "always",
   // 6767 everywhere: `astro dev`, `astro preview` and the standalone server
   // the pm2 unit starts all answer on the same port, so a local check and the
   // deployed landing are never two different addresses.
@@ -42,14 +59,36 @@ export default defineConfig({
       ],
     ],
   },
+  // The docs namespace was renamed `reference` -> `docs`, and Google had
+  // already discovered the old URLs. The target carries the trailing slash on
+  // purpose: every canonical on this site has one, and `/docs/[...slug]`
+  // without it resolves to a page whose own `<link rel="canonical">` points
+  // somewhere else -- a 301 that lands on a non-canonical URL, which is one
+  // more hop than a crawler needs to be given.
   redirects: {
-    "/reference/[...slug]": "/docs/[...slug]",
+    "/reference/[...slug]": "/docs/[...slug]/",
   },
   integrations: [
+    // Declared here so Starlight does not add its own: it checks
+    // `config.integrations` for `@astrojs/sitemap` and only falls back to its
+    // wrapper when nobody named it. The wrapper forwards nothing but `i18n`
+    // -- `node_modules/@astrojs/starlight/integrations/sitemap.ts` -- so a
+    // `lastmod` has to come from here. `serialize` omits the field for a URL
+    // whose date cannot be established rather than inventing one; see
+    // `src/lastmod.mjs` for why that is the only other acceptable answer.
+    sitemap({
+      serialize(item) {
+        const lastmod = lastmodFor(item.url);
+        return lastmod === undefined ? item : { ...item, lastmod };
+      },
+    }),
     starlight({
-      title: "Kivgraph",
-      description:
-        "A canonical code graph for Go, TypeScript, Rust, Python and Dart, served over MCP.",
+      // The name and the sentence come from `src/site.mjs` because this file
+      // cannot import `src/pages/_seo.ts` -- that one imports `astro:content`,
+      // which does not exist until the build runs. Written here as literals
+      // they were a second, different tagline.
+      title: PROJECT_NAME,
+      description: PROJECT_TAGLINE,
       // The favicon is an SVG wrapper around the committed raster mark. Its
       // rounded clip is subtle, so the tab icon keeps the square canvas while
       // avoiding sharp corners.
@@ -171,7 +210,7 @@ export default defineConfig({
             { label: "Resolution vocabulary", slug: "docs/resolution" },
           ],
         },
-        { label: "Compared", slug: "comparison" },
+        { label: "Benchmark", slug: "comparison" },
         { label: "Limits", slug: "limits" },
       ],
     }),

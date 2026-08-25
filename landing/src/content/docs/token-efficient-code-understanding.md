@@ -21,16 +21,44 @@ Fewer calls do not mean less evidence. Each result keeps its repository, path, s
 
 ## Token saving should be measured
 
-The amount saved depends on the question, repository, language and response view. A broad exploratory task and a rare symbol lookup do not have the same baseline. Kivgraph's benchmark reports the comparison rather than promising one universal percentage.
+The amount saved depends on the question, repository, language and response
+view. A broad exploratory task and a rare symbol lookup do not have the same
+baseline, so Kivgraph publishes the comparison instead of a universal
+percentage.
 
-The useful comparison is:
+The current run answers 29 questions over a corpus of 37 private repositories
+with Kivgraph `0.5.0`, counting with the `o200k_base` tokenizer:
 
-| Approach | First step | Common cost |
-| --- | --- | --- |
-| Text exploration | Search, open files, follow names manually | Repeated context and tool calls |
-| Code graph query | Ask for symbols or relationships | Structured rows, then targeted source |
+| Arm | Tokens | Tool calls | Precision | Recall | Exact answers |
+| --- | --- | --- | --- | --- | --- |
+| Kivgraph `0.5.0` | 35,961 | 36 | 1.00 | 0.9962 | 28 / 29 |
+| `grep` + reading | 267,980 | 101 | 1.00 | 0.9885 | 28 / 29 |
 
-Kivgraph also exposes compact and file-oriented response views where supported, so an agent can request the amount of detail the task needs.
+That is 7.45x on totals and a median of 5.95x per question. The spread matters
+more than the total: a Rust trait-method question cost 264 tokens against
+`grep`'s 22,016, both answers exact, while the widest margin in the run is
+86.8x.
+
+## Where the graph is the more expensive route
+
+`grep` is cheaper on five of the 29 questions, and both arms are correct on all
+five. They are the questions text search is built for: a rare name, one
+repository, two files to open. Looking up a Go constructor that occurs twice in
+the whole corpus cost Kivgraph 123 tokens and `grep` 65 — the graph query is
+1.9x the price of the obvious `grep`.
+
+A graph query also has a floor an agent should know about. Asked for
+`withBackoff` by bare name, where the corpus declares seven distinct symbols with
+that name, the server refuses with `AMBIGUOUS_SYMBOL` and lists all seven for
+129 tokens rather than guessing. Naming the repository and path in the first
+call avoids paying it.
+
+The benchmark corpus is private, so that symbol name is substituted. The counts
+and the token figures are the measured ones, and the 129 was measured against
+the real identifiers.
+
+Kivgraph also exposes compact and file-oriented response views where supported,
+so an agent can request the amount of detail the task needs.
 
 ## Local context and privacy
 

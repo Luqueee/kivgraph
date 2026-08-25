@@ -1,11 +1,19 @@
 ---
 // The bars are derived from the numbers, never sized by hand: a chart whose
 // geometry contradicts its own figures argues against the claim it is there to
-// make. Both bars used to run the full width, so 6,200 and 63,531 drew the same
+// make. Both bars used to run the full width, so the two totals drew the same
 // length.
+//
+// The two totals are the aggregate of one run:
+// `benchmarks/graph-tools-comparison/results-all.json`, commit `954b9eb`,
+// question set `all` (29 questions), tokenizer `o200k_base`, kivgraph `0.5.0`.
+// Both arms answered 28 of the 29 exactly. They are quoted from the same pass
+// on purpose -- pairing a token count from one run with an exactness score from
+// another is how the previous version of this card came to publish a total no
+// committed file contained.
 const rows = [
-  { label: "Kivgraph graph query", tokens: 6200, ours: true },
-  { label: "grep + file reading", tokens: 63531, ours: false },
+  { label: "Kivgraph graph queries", tokens: 35961, ours: true },
+  { label: "grep + file reading", tokens: 267980, ours: false },
 ];
 
 const format = new Intl.NumberFormat("en-US");
@@ -26,8 +34,9 @@ const STAGGER_MS = 160;
  * The length of a bar is the measurement; its pace is the argument. Ours snaps
  * and settles, grep's grinds on at a constant rate for five times as long, so
  * the cost is felt before the number beside it is read. Only the widths are
- * derived from the data -- inventing a duration from the token count would put
- * a `10.2x` figure on screen that no benchmark measured.
+ * derived from the data: a duration invented from the token count would put a
+ * ratio on screen -- `7.45x`, as it happens -- that this chart never measured
+ * and that nothing beside it cites.
  */
 const PACE = {
   ours: { duration: 700, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
@@ -91,8 +100,9 @@ const PACE = {
   </div>
 
   <p class="mt-4 text-[0.7rem] leading-5 text-gray-400">
-    One seven-question benchmark: all 7 exact answers, measured against the
-    host's captured grep-and-read output. <a
+    Twenty-nine questions over a 37-repository corpus, one pass. Both arms
+    answered 28 of them exactly; the answers were scored against a hand-written
+    ground truth, not against each other. <a
       href="/comparison/"
       class="text-accent-200 underline underline-offset-4">See the method</a
     >.

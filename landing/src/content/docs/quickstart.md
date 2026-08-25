@@ -18,6 +18,13 @@ kivgraph init \
 exactly — two repositories differing only in case are two repositories — and it
 travels inside the stable keys of everything the repository declares.
 
+`--languages` accepts ten tokens: `go`, `typescript`, `javascript`, `ts`, `js`,
+`rust`, `rs`, `python`, `py` and `dart`. The five languages are not resolved to
+the same standard. Go, TypeScript and Rust edges are type-checked; Dart edges
+are resolved by Dart Analysis Server; Python uses exact semantic facts when a
+configured analyzer provides them and `CANDIDATE` facts in its bundled AST
+fallback.
+
 ## 2. Check the machine
 
 ```bash
@@ -59,7 +66,11 @@ Configure any MCP client to start the server over stdio:
 }
 ```
 
-Most clients can be wired automatically — see [Clients](/mcp/clients/).
+Most clients can be wired automatically. `kivgraph mcp install` has five
+targets — `claude-code`, `claude-desktop`, `codex`, `opencode` and `oh-my-pi` —
+and takes `--scope user|project` (default `user`), `--dry-run` and `--force`.
+Claude Desktop is user-scope only and is the one target that installs no local
+skill. See [Clients](/mcp/clients/).
 
 ## What `serve` guarantees
 

@@ -134,4 +134,4 @@ freshness problem that does not exist.
   reason. An unknown answer must not read as a good one.
 - The row describes registration and position, not size. For counts, breakdowns
   and per-repository freshness in one answer, call
-  [`graph_status`](/reference/tools/graph-status/).
+  [`graph_status`](/docs/tools/graph-status/).

@@ -1,0 +1,172 @@
+---
+import Transcript from "./Transcript.astro";
+import type { Line } from "./transcript";
+
+// The seven declarations of one name in the benchmark corpus, taken from the
+// server's own refusal: one line that lists all seven with repository, path and
+// line. Five repositories, two languages, four TypeScript and three Go -- and
+// two of the Go three are the same path in two different repositories, which is
+// the detail that makes the case.
+//
+// The corpus is 37 private repositories, so the names below are substituted and
+// the copy says so. The structure is not: same seven, same five repositories,
+// same language split, same line numbers. The `129`-token cost of the refusal is
+// the measured one, and it was measured against the real identifiers -- a token
+// count is a function of the strings, so substituted names would not reproduce
+// it exactly.
+const declarations = [
+  { repo: "config-lib", path: "src/retry.ts:41", lang: "ts" },
+  {
+    repo: "media-service",
+    path: "internal/secrets/provider.go:240",
+    lang: "go",
+  },
+  {
+    repo: "data-service",
+    path: "internal/secrets/provider.go:143",
+    lang: "go",
+  },
+  { repo: "client-sdk", path: "src/managers/command.ts:19", lang: "ts" },
+  { repo: "data-service", path: "internal/storage/retry.go:49", lang: "go" },
+  { repo: "platform-lib", path: "src/util/retry.ts:135", lang: "ts" },
+  { repo: "client-sdk", path: "src/types/result.ts:91", lang: "ts" },
+];
+
+const claims = [
+  "Edges come from go/types, the TypeScript checker, rust-analyzer and the Dart analysis server. Never from matching a name, a path, an alias or a single plausible candidate.",
+  "Asked by a name that means seven things, the server refuses and names the seven. It costs 129 tokens and the next call is a copy of one row.",
+  "Two homonymous symbols are two symbols, with different kinds, different packages and different ranges.",
+  "A reference that cannot be resolved is published as UNRESOLVED with its reason, repository and language rather than dropped, and CANDIDATE is a different result from EXACT.",
+];
+
+// The refusal, wrapped for this column, with the corpus identifiers substituted.
+// Every line that is not part of the capture carries a `#`.
+const ambiguity: Line[] = [
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "find_references", tone: "tool" },
+  ],
+  [{ text: '{"name":"withBackoff"}', tone: "dim" }],
+  [],
+  [
+    { text: "AMBIGUOUS_SYMBOL: " },
+    { text: 'name "withBackoff" declares 7', tone: "dim" },
+  ],
+  [
+    {
+      text: "symbols; repeat with the repository and path of",
+      tone: "dim",
+    },
+  ],
+  [{ text: "the one you mean: ", tone: "dim" }],
+  [
+    { text: "config-lib" },
+    { text: ":src/retry.ts:41", tone: "file" },
+    { text: ", ...", tone: "dim" },
+  ],
+  [],
+  [{ text: "# 129 tokens, and the answer is the next call", tone: "dim" }],
+];
+
+// An absence, which is the result a search tool cannot produce.
+const absence: Line[] = [
+  [
+    { text: "tools/call ", tone: "dim" },
+    { text: "find_cross_repo_consumers", tone: "tool" },
+  ],
+  [
+    {
+      text: '{"repository":"kivgraph","path":"internal/facts/facts.go",',
+      tone: "dim",
+    },
+  ],
+  [{ text: ' "qualified_name":"MergeAll"}', tone: "dim" }],
+  [],
+  [{ text: "# total 0   returned 0   consumers null", tone: "dim" }],
+  [
+    { text: "guidance: ", tone: "dim" },
+    { text: "no repository in the published graph consumes this" },
+  ],
+  [{ text: "          symbol. Check graph_status if a consumer is" }],
+  [{ text: "          registered but was not indexed, and" }],
+  [{ text: "          find_references for uses inside its own" }],
+  [{ text: "          repository" }],
+];
+---
+
+<p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+  <code>withBackoff</code> is declared seven times in the benchmark corpus, in
+  five repositories and two languages — two of them the same file path in two
+  different repositories. The graph holds twenty-two symbols with that name
+  — the other fifteen are TypeScript barrel re-exports — and the
+  identifier appears in twenty-two files. Identical text, seven different
+  symbols.
+</p>
+<p class="mt-5 max-w-[68ch] text-xs leading-5 text-gray-400">
+  That corpus is private, so the repository, file and symbol names below are
+  substituted; the seven declarations, the five repositories, the language split
+  and the line numbers are the captured ones. The <code>129</code>-token cost of
+  the refusal was measured against the real identifiers — a token count is a
+  function of the strings it encodes. The two transcripts on the right are
+  literal: they come from Kivgraph's own repository.
+</p>
+
+<div
+  class="mt-10 grid grid-cols-1 items-baseline gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+>
+  <div class="border border-rule bg-panel">
+    <p
+      class="border-b border-rule px-4 py-2 text-xs text-gray-400"
+    >
+      one name, as a text search sees it
+    </p>
+    <ul class="px-4 py-3 font-mono text-xs">
+      {
+        declarations.map((declaration) => (
+          <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1">
+            <span class="text-graph-symbol">withBackoff</span>
+            <span class="text-gray-400">{declaration.repo}</span>
+            <span class="min-w-0 text-graph-file">{declaration.path}</span>
+            <span class="text-gray-400">{declaration.lang}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="border-t border-rule px-4 py-2 text-xs text-gray-400">
+      seven declarations, one spelling — a search cannot rank them, and
+      choosing the likeliest is how a graph invents an edge
+    </p>
+  </div>
+
+  <div class="space-y-5">
+    <Transcript
+      caption="the server refuses to choose, and says what to ask instead"
+      lines={ambiguity}
+    />
+    <Transcript
+      caption="an absence, captured on Kivgraph's own repository"
+      lines={absence}
+    />
+  </div>
+</div>
+
+<ol class="mt-10 space-y-5">
+  {
+    claims.map((claim, index) => (
+      <li class="flex gap-3 border-t border-rule pt-5 text-xs text-gray-400">
+        <span class="shrink-0 text-graph-exact" aria-hidden="true">
+          {`0${index + 1}`}
+        </span>
+        <span>{claim}</span>
+      </li>
+    ))
+  }
+</ol>
+
+<p class="mt-5 text-xs">
+  <a
+    href="/docs/resolution/"
+    class="text-accent-200 underline underline-offset-4"
+    >how resolution works, per language</a
+  >
+</p>

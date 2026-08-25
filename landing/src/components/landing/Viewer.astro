@@ -2,7 +2,10 @@
 import LeaderRow from "./LeaderRow.astro";
 import SubHead from "./SubHead.astro";
 
-// graph_status and list_repositories, captured against snapshot 30.
+// `graph_status` and `list_repositories`, captured against snapshot 30. The
+// viewer and the MCP surface read the same published snapshot, so this readout
+// is both the answer to "what is in the graph" and the answer to "what does the
+// viewer draw" -- there is no second store to inspect.
 const counts = [
   { key: "status", value: "ready" },
   { key: "snapshot_id", value: "30" },
@@ -48,6 +51,7 @@ const repositories = [
 
 const legend = [
   { label: "repository", variable: "--color-graph-repository" },
+  { label: "package", variable: "--color-graph-package" },
   { label: "file", variable: "--color-graph-file" },
   { label: "symbol", variable: "--color-graph-symbol" },
   { label: "exact dependency", variable: "--color-graph-exact" },
@@ -65,15 +69,43 @@ const READOUT =
   "mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(20rem,100%),1fr))] gap-x-10 gap-y-2 text-xs";
 ---
 
-<p class="max-w-[68ch] text-sm text-gray-300">
-  Queries are served from an immutable snapshot, published atomically, never
-  from the database. Below is <code>graph_status</code> and <code
-    >list_repositories</code
-  > on the corpus behind every transcript on this page: two repositories, one of
-  them a different project.
+<p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+  Every answer on this page comes out of one immutable snapshot, published
+  atomically and never queried from the database behind it. That snapshot is
+  inspectable two ways: as the numbers below, and as a read-only 3D view of the
+  same structure. It is a debugging surface, not the product — but it is the
+  fastest way to see whether the graph your agent is answering from is the graph
+  you meant to build.
 </p>
 
 <div class="mt-10">
+  <p class="max-w-[68ch] text-xs leading-5 text-gray-400">
+    <code>kivgraph ui</code> serves that view. It binds <code
+      >0.0.0.0:7777</code
+    > by default and carries <strong class="text-graph-symbol"
+      >no authentication</strong
+    >, so on a shared network restrict it with <code>--addr 127.0.0.1:7777</code
+    >; what it exposes is repository paths, file paths, symbol names and
+    signatures. Its palette is the one the transcripts on this page borrow: one
+    colour per node kind, plus one for an exact, type-checked edge.
+  </p>
+  <ul class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400">
+    {
+      legend.map((entry) => (
+        <li class="flex items-center gap-2">
+          <span
+            class="inline-block h-2 w-2 shrink-0"
+            style={`background:var(${entry.variable})`}
+            aria-hidden="true"
+          />
+          {entry.label}
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<div class="mt-10 border-t border-rule pt-10">
   <SubHead title="graph_status" />
   <ul class={READOUT}>
     {counts.map((count) => <LeaderRow label={count.key} value={count.value} />)}
@@ -90,7 +122,7 @@ const READOUT =
 <div class="mt-10 border-t border-rule pt-10">
   <SubHead title="list_repositories" />
   <div class="mt-5 overflow-x-auto">
-    <table class="text-xs">
+    <table class="font-mono text-xs">
       <thead>
         <tr class="border-b border-rule-strong text-gray-400">
           <th scope="col" class="py-2 pr-6 md:w-40">name</th>
@@ -117,39 +149,16 @@ const READOUT =
       </tbody>
     </table>
   </div>
-  <p class="mt-3 max-w-[68ch] text-xs text-gray-400">
+  <p class="mt-3 max-w-[68ch] text-xs leading-5 text-gray-400">
     The 1642 unresolved references are published with their reason, repository
     and language rather than dropped, and they are counted apart from the 40125
     edges. <code>graph_status</code> also reports whether a repository has moved
     since it was indexed, which is the answer when a result looks stale.
   </p>
-</div>
-
-<div class="mt-10 border-t border-rule pt-10">
-  <p class="max-w-[68ch] text-xs text-gray-400">
-    <code>kivgraph ui</code> serves a read-only 3D view of the same published
-    snapshot. It binds <code>0.0.0.0:7777</code> by default and carries no
-    authentication; restrict it with <code>--addr</code>. Its palette is the one
-    the transcripts on this page borrow: one colour per node kind, plus one for
-    an exact, type-checked edge.
-  </p>
-  <ul class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400">
-    {
-      legend.map((entry) => (
-        <li class="flex items-center gap-2">
-          <span
-            class="inline-block h-2 w-2 shrink-0"
-            style={`background:var(${entry.variable})`}
-            aria-hidden="true"
-          />
-          {entry.label}
-        </li>
-      ))
-    }
-  </ul>
   <p class="mt-5 text-xs">
-    <a href="/guides/viewer/" class="text-accent-200 underline underline-offset-4"
-      >the viewer guide</a
+    <a
+      href="/guides/viewer/"
+      class="text-accent-200 underline underline-offset-4">the viewer guide</a
     >
   </p>
 </div>

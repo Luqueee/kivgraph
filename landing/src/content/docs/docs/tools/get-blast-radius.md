@@ -27,7 +27,7 @@ description: Bounded incoming impact of one symbol, grouped by repository, packa
 ## Answers
 
 What a change to one symbol reaches: the same bounded walk as
-[`trace_dependencies`](/reference/tools/trace-dependencies/), run backwards over
+[`trace_dependencies`](/docs/tools/trace-dependencies/), run backwards over
 incoming edges. The response is the affected symbols plus four aggregations a
 reviewer acts on, by repository, by package, by depth and by relation kind. The
 root is excluded everywhere, because a symbol is not affected by its own change.
@@ -39,7 +39,8 @@ counts as affected, and the response always states which one ran. The `view`
 decides how it is spelled: by default the `compact` one, which leads with the
 filter and the four axes -- "how far does this reach" is the question, and the
 page behind them only names what the axes counted -- states what every affected
-symbol shares once, and groups the rows by file. Measured over `kena`, one
+symbol shares once, and groups the rows by file. Measured over the private
+benchmark corpus, one
 depth-2 answer went from `5.102` tokens to `921`.
 
 That page-wide hoist is unanimous or nothing: one row that disagrees on `kind`,
@@ -359,7 +360,7 @@ continuing into a set that no longer means the same thing -- and a cursor minted
 before the filter existed fails the same way.
 
 The default is the one that changes answers rather than shapes. Measured over
-`kena`, `48` of the first `50` rows of a `get_blast_radius` page were local
+the private benchmark corpus, `48` of the first `50` rows of a `get_blast_radius` page were local
 variables, and of the `118` symbols the same walk reached at depth 2, `29` are
 invocable and the rest were local bindings. `kinds: ["*"]` restores every one of
 them; a list such as `["func", "method"]` narrows further; a kind the loaders
@@ -522,7 +523,7 @@ always partition it exactly.
 ones. `package_level` counts facts about a package rather than about a symbol;
 this tool produces none, so the full view says `0` and the compact view leaves
 the counter out, as it does any counter at zero. Only
-[`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/) fills
+[`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) fills
 it, because a package dependency proves a dependency on the provider and never a
 use of the symbol, and summing the two would report a use nobody saw.
 
@@ -611,7 +612,7 @@ it is in the identity.
 naming `depth`, `max_nodes`, `edge_kinds` and `confidence` as the ways to
 narrow, and on zero rows, where it says the traversal reached nothing within its
 bounds and suggests raising `depth` or asking
-[`find_references`](/reference/tools/find-references/) for the direct relations
+[`find_references`](/docs/tools/find-references/) for the direct relations
 only. On a complete non-empty answer it is absent.
 
 `include_derived` is `false` by default. With a Rust toolchain in the graph, the

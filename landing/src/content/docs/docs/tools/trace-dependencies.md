@@ -44,7 +44,7 @@ That page-wide hoist needs every row to agree: one row with its own `kind`,
 `hop_depth`, `reached_from`, `via_kind`, `via_confidence` or `via_provenance`
 pushes the whole column back down onto every row. `results.groups` is the
 second tier that catches it, sharing its mechanism and its `compactReachedGroup`
-shape with [`get_blast_radius`](/reference/tools/get-blast-radius/): the rows
+shape with [`get_blast_radius`](/docs/tools/get-blast-radius/): the rows
 group by whatever exact tuple of those columns they still share, instead of
 repeating it once per row. See
 [when a page groups](/mcp/usage/#when-a-page-groups) for the mechanism shared
@@ -255,13 +255,13 @@ The `via_*` triple describes one route and not the only one. A breadth-first
 frontier records the shortest edge it found to each symbol, so a symbol reachable
 by both a call and a type use is reported once, by whichever edge arrived first.
 For the full set of relations into a symbol, ask
-[`find_references`](/reference/tools/find-references/), or read `by_kind` in
-[`get_blast_radius`](/reference/tools/get-blast-radius/), which counts every
+[`find_references`](/docs/tools/find-references/), or read `by_kind` in
+[`get_blast_radius`](/docs/tools/get-blast-radius/), which counts every
 relation instead of only the discovering one.
 
 The line range -- `start_line` and `end_line` in the full view, the `@start-end`
 of a compact label -- bounds the declaration of the reached symbol, so any row
-can be opened with [`get_source`](/reference/tools/get-source/) without a second
+can be opened with [`get_source`](/docs/tools/get-source/) without a second
 lookup. A label naming one line is a declaration that starts and ends there.
 
 `coverage` classifies the edges the rows were reached by: `exact` for exact
@@ -270,7 +270,7 @@ related references with no target identity. `package_level` counts facts about a
 package rather than about a symbol; this tool produces none, so in the full view
 it stays `0` and in the compact view it is simply absent, as is any other counter
 at zero and `coverage` itself when all four are.
-Only [`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/)
+Only [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/)
 fills it, because a package dependency proves a dependency on the provider and
 never a use of the symbol, and summing the two would report a use nobody saw.
 
@@ -406,7 +406,7 @@ remaining pages contain.
 it names the bounds to narrow and the cursor, exactly as in the capture above.
 On zero rows it says the traversal reached nothing within its bounds and
 suggests raising `depth` or asking
-[`find_references`](/reference/tools/find-references/) for the direct relations
+[`find_references`](/docs/tools/find-references/) for the direct relations
 only. On a complete non-empty answer it is absent.
 
 `include_derived` is `false` by default. With a Rust toolchain in the graph a
@@ -425,6 +425,6 @@ whole.
 Five hops is the ceiling and three is the default, so this is not a
 whole-program closure. It answers what one symbol reaches, which is the less
 common question: for a change you are about to make, the question is who reaches
-it, and that is [`get_blast_radius`](/reference/tools/get-blast-radius/). On a
+it, and that is [`get_blast_radius`](/docs/tools/get-blast-radius/). On a
 symbol with wide fan-out the answer is large and mostly uninteresting, and the
 first thing to do is narrow `edge_kinds` rather than page through it.

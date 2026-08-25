@@ -1,6 +1,5 @@
-import type { APIRoute, GetStaticPaths } from "astro";
+import type { APIRoute } from "astro";
 import {
-  type DocEntry,
   LICENSE_NAME,
   LICENSE_URL,
   PROJECT_NAME,
@@ -9,29 +8,40 @@ import {
   loadDocsInOrder,
 } from "../_seo";
 
-export const prerender = true;
-
-interface RawPageProps {
-  entry: DocEntry;
-}
-
 /**
- * One route per published page, so `docs/tools/find-references` is served
- * at `/raw/docs/tools/find-references.md`. That is the URL the Starlight
+ * One markdown twin per published page, so `docs/tools/find-references` is
+ * served at `/raw/docs/tools/find-references.md`. That is the URL the Starlight
  * `Head` override advertises with `rel="alternate" type="text/markdown"` and the
  * URL `llms.txt` links to; all three read `rawPathname` from `_seo.ts`, which is
  * what keeps them the same URL.
+ *
+ * Rendered on demand rather than prerendered, and that is the whole point: a
+ * prerendered dynamic route under `output: "server"` still *matches* every
+ * `/raw/**.md` the router is handed, but carries no component instance for the
+ * paths `getStaticPaths` never emitted, so Astro throws inside its own pipeline
+ * before any handler of ours can run. The namespace answered `500` to
+ * everything unknown -- a server error where a crawler should read a `404`, and
+ * `/raw/releases.md` was exactly that: a URL this site advertised for a page
+ * that lives in `src/pages`, not in the `docs` collection, and never had a twin.
+ * Handling it here costs one collection read and a string join per request.
  */
-export const getStaticPaths: GetStaticPaths = async () => {
-  const entries = await loadDocsInOrder();
-  return entries.map((entry) => ({
-    params: { slug: entry.id },
-    props: { entry } satisfies RawPageProps,
-  }));
-};
+export const prerender = false;
 
-export const GET: APIRoute<RawPageProps> = ({ props, site }) => {
-  const { entry } = props;
+export const GET: APIRoute = async ({ params, site }) => {
+  const slug = params.slug;
+  const entries = await loadDocsInOrder();
+  const entry =
+    slug === undefined ? undefined : entries.find((page) => page.id === slug);
+
+  if (entry === undefined) {
+    return new Response(
+      `No markdown source is published at /raw/${slug}.md\n`,
+      {
+        status: 404,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      },
+    );
+  }
 
   // The header is plain markdown, not a comment: whatever reads this file reads
   // markdown, and an HTML comment would be noise in a plain-text pipeline. The

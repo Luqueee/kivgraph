@@ -4,11 +4,20 @@
 // page runs on the Tailwind theme in global.css alone. The surfaces it needs
 // (shell, panel, raise, rule, rule-strong) are declared there, in `@theme`,
 // and shared with the documentation.
+//
+// `<body>` is sans, and mono is applied where it means something: a heading, a
+// label, an identifier, a command, a table header, a numeric readout. That
+// split is not new -- it is the rule `docs.css` states and the documentation
+// half already follows. The landing carried `font-mono` on `<body>` instead,
+// which put every paragraph in the terminal face, made the `h1` wrap a line
+// early at `sm:text-5xl`, and left the Geist Sans this page already downloads
+// entirely unused.
 import "../../styles/global.css";
 import {
   GOOGLE_SITE_VERIFICATION,
   LICENSE_NAME,
   LICENSE_URL,
+  PREVIEW_ALT,
   PROJECT_NAME,
   PROJECT_TAGLINE,
   REPOSITORY_URL,
@@ -28,12 +37,16 @@ const { title, description } = Astro.props;
 const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
 const preview = absoluteUrl(Astro.site, "/og.png");
 
+// What the preview shows is declared once in `src/site.mjs`, because the
+// Starlight head describes the same file. The card itself is rendered from
+// `landing/scripts/social-card.html`.
+
 // Self-hosted analytics, or nothing at all when the deployment declares none.
 const umami = umamiTracker();
 
 // One graph, not three scripts. `SoftwareApplication` is what an answer engine
-// reads to say what Kivgraph is; `WebSite` ties the pages together and carries
-// the documentation search action.
+// reads to say what Kivgraph is; `WebSite` is the node that ties the pages
+// together and that every documentation page points back to by `@id`.
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
@@ -109,11 +122,17 @@ const structuredData = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={preview} />
-    <meta property="og:locale" content="en" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={PREVIEW_ALT} />
+    {/* The OG spec wants `language_TERRITORY`, not a bare language tag. */}
+    <meta property="og:locale" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={preview} />
+    <meta name="twitter:image:alt" content={PREVIEW_ALT} />
 
     <meta
       name="robots"
@@ -155,7 +174,7 @@ const structuredData = {
       )
     }
   </head>
-  <body class="min-h-screen bg-shell font-mono text-gray-100 antialiased">
+  <body class="min-h-screen bg-shell font-sans text-gray-100 antialiased">
     <a
       href="#main"
       class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-10 focus:border focus:border-rule-strong focus:bg-panel focus:px-3 focus:py-2 focus:text-xs"
@@ -199,6 +218,10 @@ const structuredData = {
       line-height: 1.55;
     }
 
+    /* A fieldset's and legend's margin belong here rather than in the component
+       that uses one: this layer is the only place a margin reset does not
+       outrank the `mt-*` a caller puts on the element. The fieldset's `padding`
+       and `min-width` stay with the component, where the box actually matters. */
     :global(h1),
     :global(h2),
     :global(h3),
@@ -209,7 +232,9 @@ const structuredData = {
     :global(ul),
     :global(ol),
     :global(dl),
-    :global(dd) {
+    :global(dd),
+    :global(fieldset),
+    :global(legend) {
       margin: 0;
       font-size: inherit;
       font-weight: inherit;

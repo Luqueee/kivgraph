@@ -32,8 +32,12 @@ Without a repository-aware index, an agent may need repeated search and file rea
 
 Kivgraph exposes those questions through MCP tools and preserves the evidence attached to each result. This can reduce exploratory tool calls while keeping the answer addressable by repository, path, symbol and line range.
 
+It does not win every question. On the 29-question benchmark plain `grep` costs fewer tokens on five of them, all single-repository lookups of a rare name where both approaches answer correctly. The workspace graph earns its cost on common names, on transitive impact and on consumers in another repository; the split is in the [comparison](/comparison/).
+
 ## Supported workspace model
 
 The workspace graph is strongest when repositories share analyzable code contracts, packages and symbols. It does not claim automatic discovery of every runtime relationship between independent services. HTTP, gRPC, event-bus and database edges require explicit supported evidence or remain outside the semantic graph.
 
 Start with the [cross-repository code graph guide](/cross-repository-code-graph/) and then [register Kivgraph with an MCP client](/mcp/clients/).
+
+`kivgraph mcp install` has five targets: `claude-code`, `claude-desktop`, `codex`, `opencode` and `oh-my-pi`. Claude Desktop is the exception in two ways — it is user-scope only, and it is the one target that installs no local skill.

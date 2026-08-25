@@ -27,7 +27,10 @@ usage: landing/scripts/icons.sh SOURCE [--bg HEX] [--zoom PERCENT] [--drop-svg]
 
 writes into landing/public/:
   favicon-16.png  favicon-32.png  apple-touch-icon.png (180)
-  icon-192.png  icon-512.png  icon-maskable-512.png  og.png (1200x630)
+  icon-192.png  icon-512.png  icon-maskable-512.png
+
+it does NOT write og.png. The social card carries type, which ImageMagick here
+cannot set: it is rendered from landing/scripts/social-card.html instead.
 EOF
   exit 2
 }
@@ -150,11 +153,12 @@ square 410 "$work/maskable.png"
 pad "$work/maskable.png" 512 512 "$out/icon-maskable-512.png"
 echo "  wrote public/icon-maskable-512.png (512x512, mark inside the safe area)"
 
-# The OpenGraph card is what a chat client and a search preview render, so it is
-# the mark centred on the canvas colour at the 1.91:1 ratio they crop to.
-square 480 "$work/card.png"
-pad "$work/card.png" 630 1200 "$out/og.png"
-echo "  wrote public/og.png (1200x630)"
+# og.png is deliberately not written here. The card is no longer the bare mark
+# on a canvas: it carries the wordmark, the headline and the tagline, set in the
+# Geist the site ships. Setting type is what this script cannot do, so the card
+# is rendered from landing/scripts/social-card.html in a browser and committed
+# like every other asset here. Generating it from the mark again would silently
+# replace a card that has words on it with one that has none.
 
 if $drop_svg; then
   rm -f "$out/favicon.svg"

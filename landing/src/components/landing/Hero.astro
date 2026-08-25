@@ -1,26 +1,21 @@
 ---
 import CopyButton from "./CopyButton.astro";
-import TokenSaving from "./TokenSaving.astro";
+import { CLIENTS } from "./clients";
 
+// Byte-identical to README.md and to the install page. `install.sh` is a
+// published release asset, and it has to be `bash`: the script uses arrays and
+// `BASH_REMATCH`, so `sh` would not run it.
 const installCommand =
   "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
 
+// Four properties a reader can check before installing anything. Nothing here
+// is a measurement, so nothing here needs a citation; the numbers live in the
+// section that publishes their source.
 const facts = [
   "local only",
   "MCP over stdio",
-  "11 tools, ten read-only",
-  "linux/amd64, darwin/arm64",
+  "no model, no API key",
   "Apache-2.0",
-];
-
-// One published generation, as `graph_status` reported it on 2026-08-15.
-const readout = [
-  ["repositories", "2"],
-  ["packages", "57"],
-  ["files", "311"],
-  ["symbols", "10,957"],
-  ["edges", "40,125"],
-  ["unresolved", "1,642"],
 ];
 ---
 
@@ -36,45 +31,66 @@ const readout = [
   <div
     class="mx-auto box-border w-full max-w-6xl px-6 py-20 text-center sm:py-24"
   >
+    <p
+      data-hero-item="eyebrow"
+      class="font-mono text-xs tracking-[0.16em] text-gray-400 uppercase"
+    >
+      semantic code intelligence for coding agents
+    </p>
+    {/* `max-w-4xl`, not the `max-w-3xl` the prose below uses, and a size that
+      steps twice rather than once. A monospaced face sets far wider than a
+      proportional one, so 48px only fits this sentence in two lines once the
+      column is past 52rem: at 48rem, and at the 720px a tablet leaves, it broke
+      into three with `it.` alone on the last. 4xl covers that middle. */}
     <h1
       data-hero-item="title"
-      class="mx-auto max-w-3xl text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-5xl"
+      class="mx-auto mt-6 max-w-4xl font-mono text-3xl leading-tight font-medium tracking-tight text-gray-100 sm:text-4xl lg:text-5xl"
     >
-      Local cross-repository code intelligence for AI coding agents
+      Know what breaks before your coding agent changes it.
     </h1>
     <p
       data-hero-item="lede"
       class="mx-auto mt-6 max-w-2xl text-sm leading-6 text-gray-300"
     >
-      Kivgraph builds a canonical semantic code graph for Go, TypeScript, Rust,
-      Python and Dart repositories and serves repository relationships,
-      references and change impact to MCP clients over stdio.
+      Kivgraph gives Claude Code, Codex and other coding agents exact symbol
+      references, dependency paths and cross-repository change impact — from a
+      graph on your own machine, over MCP.
     </p>
 
     <div
       data-hero-item="actions"
-      class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs"
+      class="mt-10 flex flex-wrap items-center justify-center gap-3 font-mono text-xs"
     >
       <a
         href="/install/"
-        class="border border-rule-strong bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
-        >install guide →</a
+        class="border border-graph-exact bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"
+        >install Kivgraph</a
       >
       <a
-        href="https://github.com/Luqueee/kivgraph"
-        target="_blank"
-        rel="noopener noreferrer"
+        href="/comparison/"
         class="border border-rule px-4 py-2 text-gray-300 transition-colors hover:border-rule-strong hover:text-gray-100"
-        >github.com/Luqueee/kivgraph</a
+        >see the benchmark</a
       >
     </div>
+
+    <p data-hero-item="agents" class="mt-8 font-mono text-xs text-gray-400">
+      <span class="sr-only">Supported MCP clients: </span>
+      {
+        CLIENTS.map((client, index) => (
+          <>
+            {index > 0 && <span aria-hidden="true"> · </span>}
+            {client.label}
+          </>
+        ))
+      }
+    </p>
 
     <div
       data-hero-item="install"
       class="mx-auto mt-12 max-w-2xl border border-rule bg-panel text-left"
     >
       <div
-        class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
+        class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 font-mono text-xs text-gray-400"
       >
         <span>install the latest release</span>
         <CopyButton value={installCommand} />
@@ -83,13 +99,9 @@ const readout = [
         class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
     </div>
 
-    <div data-hero-item="card" class="mx-auto mt-8 max-w-2xl text-left">
-      <TokenSaving />
-    </div>
-
     <ul
       data-hero-item="facts"
-      class="mt-12 flex flex-wrap justify-center gap-y-2 text-xs text-gray-400"
+      class="mt-8 flex flex-wrap justify-center gap-y-2 font-mono text-xs text-gray-400"
     >
       {
         facts.map((fact) => (
@@ -99,27 +111,6 @@ const readout = [
         ))
       }
     </ul>
-  </div>
-
-  <div class="relative border-t border-rule">
-    <div
-      class="mx-auto box-border flex w-full max-w-6xl flex-wrap items-baseline gap-x-6 gap-y-2 px-6 py-3 text-xs"
-    >
-      <dl class="flex flex-wrap gap-x-6 gap-y-2">
-        {
-          readout.map(([label, value]) => (
-            <div class="flex items-baseline gap-2">
-              <dt class="text-gray-400">{label}</dt>
-              <dd class="text-gray-100">{value}</dd>
-            </div>
-          ))
-        }
-      </dl>
-      <p class="text-gray-400">
-        one published generation, as <code>graph_status</code> reports it; the
-        references it could not resolve are counted, not hidden
-      </p>
-    </div>
   </div>
 </section>
 

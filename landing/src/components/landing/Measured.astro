@@ -1,158 +1,114 @@
 ---
-// Every number here comes from benchmarks/graph-tools-comparison/results.json,
-// one run of a harness whose raw responses are published beside it. The three
-// passes agreed to the token on four of the six arms; the two that moved are
-// named in the caveat rather than smoothed away.
-const arms = [
+import TokenSaving from "./TokenSaving.astro";
+
+// One pass, one file, one Kivgraph version. Everything below is the aggregate
+// of `benchmarks/graph-tools-comparison/results-all.json` -- commit `954b9eb`,
+// generated 2026-08-22, question set `all`, tokenizer `o200k_base`, kivgraph
+// `0.5.0`, over a corpus of 37 private git repositories.
+//
+// It is deliberately not a best-of. The previous version of this section paired
+// a token total from one pass with an exactness score from a second and index
+// times from a third, and the headline figure it printed appeared in no
+// committed file at all. Quoting one pass costs a better-looking number and
+// buys a number that can be checked.
+const figures = [
   {
-    name: "kivgraph",
-    version: "0.3.6",
-    tokens: "6,200",
-    precision: "1.00",
-    exact: "7/7",
-    index: "63.1 s",
+    value: "35,961",
+    unit: "tokens",
+    label: "Kivgraph graph queries",
     ours: true,
   },
-  {
-    name: "graphify",
-    version: "0.8.31",
-    tokens: "2,469",
-    precision: "0.54",
-    exact: "1/7",
-    index: "13.8 s",
-  },
-  {
-    name: "graft",
-    version: "0.10.1",
-    tokens: "8,942",
-    precision: "0.14",
-    exact: "1/7",
-    index: "29.1 s",
-  },
-  {
-    name: "codebase-memory-mcp",
-    version: "0.8.1",
-    tokens: "26,688",
-    precision: "0.67",
-    exact: "3/7",
-    index: "6.1 s",
-  },
-  {
-    name: "code-review-graph",
-    version: "2.3.7",
-    tokens: "109,298",
-    precision: "0.67",
-    exact: "3/7",
-    index: "9.2 s",
-  },
-  {
-    name: "grep + reading",
-    version: "—",
-    tokens: "63,531",
-    precision: "1.00",
-    exact: "7/7",
-    index: "—",
-    baseline: true,
-  },
+  { value: "267,980", unit: "tokens", label: "grep + file reading" },
+  { value: "28 / 29", unit: null, label: "exact answers, both arms" },
 ];
 
-const findings = [
-  "A name is not a symbol. `withRetry` is declared seven times in this corpus, in three languages, and three of the five resolve callers by name: one drags four TypeScript files into a Go answer, one attributes another package's tests to this declaration, and one drops the cross-file callers and says it may undercount.",
-  "`grep` plus reading answers all seven, and is the honest denominator. Kivgraph now claims the same 44 files, none false and none missed, for a tenth of the tokens; the other four do not match it. Seven questions on one corpus is a small set, and a question that fails is worth more than the table.",
-  "We are the slowest to index and the heaviest on disk, and the only one that needs a toolchain. That row is in the table on purpose.",
+const provenance = [
+  ["questions", "29 across six sets"],
+  ["corpus", "37 git repositories"],
+  ["version", "kivgraph 0.5.0"],
+  ["commit", "954b9eb"],
+  ["tokenizer", "o200k_base"],
+];
+
+// The counterweight is part of the evidence, not a disclaimer under it. Both
+// numbers are from the same file as the figures above.
+const counterweight = [
+  "Precision was 1.00 on both arms. Kivgraph missed one TypeScript test file; grep missed one cross-repository consumer that never spells the symbol.",
+  "The median question cost 5.95x less through the graph, with the widest margin at 86.8x. grep was cheaper on five of the twenty-nine, between 0.26x and 0.53x, and every one of those five was a question both arms answered fully.",
+  "One corpus, one machine, one tokenizer. o200k_base is a proxy for the tokenizer an agent actually pays, so the ratio between the rows is the claim and the absolute values are not.",
 ];
 ---
 
 <div class="space-y-10">
-  <p class="max-w-[68ch] text-sm text-gray-300">
-    Five tools that call themselves code graphs, asked the same seven questions
-    over the same 37-repository monorepo, against a manual ground truth. Plus a
-    sixth arm: <code>grep</code> and reading the files, which is what an agent
-    already has.
+  <p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+    The alternative to a code graph is not being wrong. It is spending the
+    context. So the benchmark's sixth arm is <code>grep</code> and reading the
+    files — what an agent already does — and both arms are scored against a
+    ground truth written by hand, question by question.
   </p>
 
-  <div class="overflow-x-auto">
-    <table class="w-full text-xs">
-      <caption class="sr-only">
-        Tokens, precision and exact answers for five code-graph tools and for
-        grep, over seven questions
-      </caption>
-      <thead>
-        <tr class="border-b border-rule-strong text-left text-gray-400">
-          <th scope="col" class="py-2 pr-6">tool</th>
-          <th scope="col" class="py-2 pr-6 whitespace-nowrap">tokens</th>
-          <th scope="col" class="py-2 pr-6 whitespace-nowrap">exact</th>
-          <th scope="col" class="hidden py-2 pr-6 whitespace-nowrap sm:table-cell"
-            >precision</th
+  <dl
+    class="grid grid-cols-[repeat(auto-fit,minmax(min(14rem,100%),1fr))] gap-10"
+  >
+    {
+      figures.map((figure) => (
+        <div>
+          <dd
+            class:list={[
+              "font-mono text-3xl leading-none font-medium tracking-tight tabular-nums sm:text-4xl",
+              figure.ours === true ? "text-graph-exact" : "text-gray-100",
+            ]}
           >
-          <th scope="col" class="hidden py-2 whitespace-nowrap md:table-cell"
-            >cold index</th
-          >
-        </tr>
-      </thead>
-      <tbody>
-        {
-          arms.map((arm) => (
-            <tr class="border-b border-rule align-baseline">
-              <td class="py-3 pr-6 whitespace-nowrap">
-                <span class={arm.ours === true ? "text-accent-200" : "text-gray-300"}>
-                  {arm.name}
-                </span>
-                <span class="ml-2 text-gray-500">{arm.version}</span>
-              </td>
-              <td
-                class={
-                  arm.baseline === true
-                    ? "py-3 pr-6 whitespace-nowrap text-gray-500"
-                    : "py-3 pr-6 whitespace-nowrap text-gray-300"
-                }
-              >
-                {arm.tokens}
-              </td>
-              <td
-                class={
-                  arm.ours === true
-                    ? "py-3 pr-6 whitespace-nowrap text-graph-exact"
-                    : "py-3 pr-6 whitespace-nowrap text-gray-400"
-                }
-              >
-                {arm.exact}
-              </td>
-              <td class="hidden py-3 pr-6 whitespace-nowrap text-gray-300 sm:table-cell">
-                {arm.precision}
-              </td>
-              <td class="hidden py-3 whitespace-nowrap text-gray-400 md:table-cell">
-                {arm.index}
-              </td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
+            {figure.value}
+          </dd>
+          <dt class="mt-3 text-xs text-gray-400">
+            {figure.unit !== null && <span>{figure.unit} — </span>}
+            {figure.label}
+          </dt>
+        </div>
+      ))
+    }
+  </dl>
+
+  <div class="max-w-2xl">
+    <TokenSaving />
   </div>
+
+  <dl
+    class="flex flex-wrap gap-x-8 gap-y-2 border-t border-rule pt-10 font-mono text-xs"
+  >
+    {
+      provenance.map(([key, value]) => (
+        <div class="flex items-baseline gap-2">
+          <dt class="text-gray-400">{key}</dt>
+          <dd class="text-gray-300">{value}</dd>
+        </div>
+      ))
+    }
+  </dl>
 
   <ol class="space-y-5">
     {
-      findings.map((finding, index) => (
+      counterweight.map((item, index) => (
         <li class="flex gap-3 border-t border-rule pt-5 text-xs text-gray-400">
           <span class="shrink-0 text-graph-exact" aria-hidden="true">
             {`0${index + 1}`}
           </span>
-          <span set:html={finding.replace(/`([^`]+)`/g, '<code>$1</code>')} />
+          <span>{item}</span>
         </li>
       ))
     }
   </ol>
 
-  <p class="max-w-[68ch] text-xs text-gray-500">
-    One machine, one corpus, seven questions, three passes. Four of the six arms
-    returned the same number every pass; code-review-graph moved by 0.1% and
-    codebase-memory-mcp by 1.8% and between three and four exact answers. Only
-    the free, model-free tiers were measured. The harness, the ground truth and
-    every raw response are published, and so is the longer version with the
-    losses in full: <a
+  <p class="max-w-[68ch] text-xs leading-5 text-gray-400">
+    The harness, the hand-written ground truth and the verbatim response of
+    every call are published beside the numbers in
+    <code>benchmarks/graph-tools-comparison/</code>, so any figure here can be
+    checked against the bytes it came from — including the five where we lose.
+    The five-way comparison against four other code graphs is a separate pass
+    and is reported separately: <a
       class="text-accent-200 underline decoration-rule underline-offset-4 hover:decoration-accent-200"
-      href="/comparison/">the full comparison</a
+      href="/comparison/">explore the benchmark</a
     >.
   </p>
 </div>

@@ -28,16 +28,19 @@ no editor answers. The response states the subject once and returns a
 `consumers` list where every row carries a `category`, so an exact use is never
 mixed with a dependency between packages. Rows inside the symbol's own
 repository are excluded by construction; ask
-[`find_references`](/reference/tools/find-references/) for those.
+[`find_references`](/docs/tools/find-references/) for those.
 
 By default the page arrives in the `compact` view: `category`, `edge_kind`,
 `confidence`, `provenance`, `evidence_kind` and `reason` rise into the header
 whenever every row that has them agrees, and `requested_package` and
 `requested_symbol` do too, because the request is a property of the call and
 not of the consumer. A row keeps only what the header does not state. Measured
-over a 35-row page on `kena`, the compact view alone brought `2.456` tokens
-down to `2.202`; grouping the rows that still disagreed took it to `926` --
-see [reading a grouped page](#reading-a-grouped-page) below.
+over a 35-row page on the benchmark corpus, the compact view alone
+brought `2.456` tokens down to `2.202`; grouping the rows that still disagreed
+took it to `926` -- see [reading a grouped page](#reading-a-grouped-page) below.
+That corpus is private, so the repository and package names quoted from it below
+are substituted; the counts, the edge kinds and the token figures are the
+measured ones.
 
 ## Example
 
@@ -140,7 +143,7 @@ whole page shares one and on the row when it does not:
 | `unresolved` | A recorded reference the resolver could not follow, with the strings it asked for. |
 
 An `exact_symbol` or `candidate` row is a reference row and reads like one from
-[`find_references`](/reference/tools/find-references/): `edge_kind` is the
+[`find_references`](/docs/tools/find-references/): `edge_kind` is the
 relation, `confidence` is how well it is proven, `provenance` is the mechanism
 that observed it. It also carries the consumer's repository, package, file and
 line range, so it can be opened without another call. In the compact view the
@@ -178,12 +181,12 @@ page of exact uses and every one of those six columns drops back onto every
 row. `results.groups` is the second tier that catches it, grouping rows by
 whichever exact tuple of those six they still share -- never `detail`, which
 gets its own hoist attempt once a group is otherwise fixed, exactly as
-`reached_from` does for [`get_blast_radius`](/reference/tools/get-blast-radius/).
+`reached_from` does for [`get_blast_radius`](/docs/tools/get-blast-radius/).
 See [when a page groups](/mcp/usage/#when-a-page-groups) for the mechanism
 shared by six tools.
 
-Measured over the real 35-consumer page on `kena` that motivated this tier:
-`22` package-level dependencies on `@kena/shared`, each its own repository, all
+Measured over the real 35-consumer page on the private benchmark corpus that motivated this tier:
+`22` package-level dependencies on `@workspace/platform`, each its own repository, all
 sharing `category: "package"`, `edge_kind: "PACKAGE_DEPENDS_ON"` and the same
 confidence and provenance -- one group, `22` bare `{ "repo", "pkg" }` entries.
 The other `13` rows are unresolved imports of the same package, but for two
@@ -240,8 +243,8 @@ the six tools that check.
 carries the token to continue; otherwise the full view says `false` and `null`
 and the compact view omits both. This tool walks no graph, so it has no
 `traversal_truncated` field: that one belongs to
-[`trace_dependencies`](/reference/tools/trace-dependencies/) and
-[`get_blast_radius`](/reference/tools/get-blast-radius/), where the bound is on
+[`trace_dependencies`](/docs/tools/trace-dependencies/) and
+[`get_blast_radius`](/docs/tools/get-blast-radius/), where the bound is on
 the walk rather than on the page.
 
 The cursor is an opaque base64url token over a binary body: the format version,
@@ -268,18 +271,18 @@ the sentence quoted above, and on a truncated page, where it names `repo` and
 
 This tool takes no `include_derived` argument. Providers derived from the
 machine, the ones in the `rust:` namespace, are withheld by default only from
-[`find_symbol`](/reference/tools/find-symbol/),
-[`find_references`](/reference/tools/find-references/),
-[`trace_dependencies`](/reference/tools/trace-dependencies/) and
-[`get_blast_radius`](/reference/tools/get-blast-radius/).
+[`find_symbol`](/docs/tools/find-symbol/),
+[`find_references`](/docs/tools/find-references/),
+[`trace_dependencies`](/docs/tools/trace-dependencies/) and
+[`get_blast_radius`](/docs/tools/get-blast-radius/).
 
 ## Where it loses
 
 The answer is bounded by what is registered. A consumer nobody indexed produces
 no row, and the zero-consumer guidance says so rather than pretending otherwise;
-[`graph_status`](/reference/tools/graph-status/) and
-[`list_repositories`](/reference/tools/list-repositories/) are where you check.
+[`graph_status`](/docs/tools/graph-status/) and
+[`list_repositories`](/docs/tools/list-repositories/) are where you check.
 It also says nothing about uses inside the symbol's own repository, which are
 the common case and belong to
-[`find_references`](/reference/tools/find-references/). For a single-repository
+[`find_references`](/docs/tools/find-references/). For a single-repository
 corpus this tool has nothing to add.

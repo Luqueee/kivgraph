@@ -46,11 +46,18 @@ that triple in place of an opaque key.
 **Where it loses.** A rare name in one small repository is cheaper with `grep`,
 and indexing a small file costs more than reading it. It wins on common names,
 on transitive impact, on consumers in another repository, and on proving an
-absence. Measured, on a private 41-repository monorepo of 100,118 symbols:
-`28.3x` cheaper than `grep` for a name the corpus declares 126 times, `0.2x` for
-one that appears twice, `2.1x` over a whole session. The harness that measures
-it is `benchmarks/mcp-token-cost`, and it compares against the host's own tool
-output captured verbatim.
+absence. Measured over 29 questions against a 37-repository corpus
+(`benchmarks/graph-tools-comparison/results-all.json`, commit `954b9eb`,
+tokenizer `o200k_base`): `35,961` tokens for Kivgraph against `267,980` for
+`grep` plus reading, both exact on 28 of the 29, median `5.95x` per question in
+Kivgraph's favour. `grep` is cheaper on 5 of those 29, all of them at full
+recall on both sides: `T1_go_trivial` asks for a name the corpus declares
+twice, and there `grep` costs `0.53x` what Kivgraph does.
+
+A second harness, `benchmarks/mcp-token-cost`, compares against the host's own
+tool output captured verbatim, but it runs on Kivgraph's own single repository
+of 13,222 symbols: `7.64x` on the answers themselves and `1.60x` over a whole
+session, against a `2.41x` floor set by the source bodies both arms pay for.
 
 ## Status
 
@@ -97,8 +104,9 @@ The installer detects the platform, downloads the latest published MCP release
 for it, verifies both the release archive and the bundle checksums, and
 installs it without requiring Go or pnpm. The release contains the Go server,
 the pinned LadybugDB library, the TypeScript worker, the bundled Python AST
-worker, the pinned `rust-analyzer`, and the grammar manifest; the web viewer is
-intentionally omitted.
+worker, the pinned `rust-analyzer`, the grammar manifest and the web viewer,
+whose assets are 2.3 MB of the bundle. `scripts/build-bundle.sh --mcp-only`
+produces a bundle without the viewer for anyone who wants one.
 
 Published bundles: Linux `amd64` and macOS `arm64`.
 

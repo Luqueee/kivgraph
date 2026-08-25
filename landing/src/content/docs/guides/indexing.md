@@ -33,11 +33,13 @@ cancels the rest.
 A pass never runs inside a process that answers queries. It holds the type
 universe of every Go module, every TypeScript worker and every SCIP index at
 once, and a Go heap that has grown to that peak keeps the arena for as long as
-the process lives. Measured on a 41-repository corpus, a server that indexed in
-its own process parked at `1.68 GB` of resident memory.
+the process lives. Measured on a 41-repository, 102,385-symbol corpus, a server
+that indexed in its own process parked at `1.68 GB` of resident memory against
+a live heap that stayed flat at 173 MB — a memory measurement on that corpus,
+not one of the token figures the [benchmark](/comparison/) reports.
 
 So when a server indexes — because a client called
-[`index_project`](/reference/tools/index-project/), or because `HEAD` moved in a
+[`index_project`](/docs/tools/index-project/), or because `HEAD` moved in a
 registered repository — it runs `index --full --json` as a child process and
 reads the result. The peak dies with the child, and the server pays only for the
 snapshot it then loads.
@@ -51,9 +53,12 @@ kivgraph index --full --json
 ```
 
 ```text
-{"event":"progress","progress":{"phase":"go","repository":"api-db-go","completed":3,"total":41}}
+{"event":"progress","progress":{"phase":"go","repository":"data-service","completed":3,"total":41}}
 {"event":"result","result":{"passed":true,"generation_id":"000054","counts":{"symbols":102385},"index":{"go_definitions":41230}}}
 ```
+
+The corpus this was captured on is private, so the repository name in that event
+is substituted. The phase, the counts and the generation are the captured ones.
 
 A reader ignores an event kind it does not know, so a new one is not a breaking
 change. Without the flag, nothing changes: the report goes to `stdout` and

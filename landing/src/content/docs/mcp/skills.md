@@ -76,17 +76,17 @@ files only after the graph has named them.
 
 | Question | Tool |
 | --- | --- |
-| Is a graph published, how old is it, what does it cover | [`graph_status`](/reference/tools/graph-status/) |
-| Which repositories are indexed, and in which language | [`list_repositories`](/reference/tools/list-repositories/) |
-| Where is this name or qualified name declared | [`find_symbol`](/reference/tools/find-symbol/) |
-| Everything about one symbol already identified | [`get_symbol`](/reference/tools/get-symbol/) |
-| The code behind rows a tool returned | [`get_source`](/reference/tools/get-source/) |
-| What a package or directory declares | [`get_file_outline`](/reference/tools/get-file-outline/) |
-| Who references this, or what it reaches, one hop out | [`find_references`](/reference/tools/find-references/) |
-| Bounded dependency paths out of a symbol | [`trace_dependencies`](/reference/tools/trace-dependencies/) |
-| Consumers in another repository | [`find_cross_repo_consumers`](/reference/tools/find-cross-repo-consumers/) |
-| Bounded incoming impact, grouped | [`get_blast_radius`](/reference/tools/get-blast-radius/) |
-| Register projects and rebuild the graph | [`index_project`](/reference/tools/index-project/) |
+| Is a graph published, how old is it, what does it cover | [`graph_status`](/docs/tools/graph-status/) |
+| Which repositories are indexed, and in which language | [`list_repositories`](/docs/tools/list-repositories/) |
+| Where is this name or qualified name declared | [`find_symbol`](/docs/tools/find-symbol/) |
+| Everything about one symbol already identified | [`get_symbol`](/docs/tools/get-symbol/) |
+| The code behind rows a tool returned | [`get_source`](/docs/tools/get-source/) |
+| What a package or directory declares | [`get_file_outline`](/docs/tools/get-file-outline/) |
+| Who references this, or what it reaches, one hop out | [`find_references`](/docs/tools/find-references/) |
+| Bounded dependency paths out of a symbol | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
+| Consumers in another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
+| Bounded incoming impact, grouped | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
+| Register projects and rebuild the graph | [`index_project`](/docs/tools/index-project/) |
 
 The skill orders the first moves: `graph_status` to confirm a published
 snapshot exists and how old it is, then `list_repositories` to pick the
@@ -125,7 +125,7 @@ enter the conversation.
   not a misconfiguration.
 - Unresolved references are facts about the workspace, not defects. Report the
   reason instead of concluding that coverage is broken. See
-  [resolution](/reference/resolution/).
+  [resolution](/docs/resolution/).
 
 ### Indexing
 

@@ -1,0 +1,72 @@
+---
+import CopyButton from "./CopyButton.astro";
+import { CLIENTS } from "./clients";
+
+const command = "kivgraph mcp install --scope user";
+---
+
+<div class="grid grid-cols-1 items-baseline gap-10 lg:grid-cols-2">
+  <div>
+    <p class="max-w-[68ch] text-sm leading-6 text-gray-300">
+      One MCP server over stdio, and the same structural context in every client
+      that speaks the protocol. <code>kivgraph mcp install</code> detects the
+      agents on the machine, lets you pick, and writes the entry — with a
+      backup beside the file it edits and <code>--dry-run</code> to see the
+      change first.
+    </p>
+
+    <div class="mt-10 border border-rule bg-panel">
+      <div
+        class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
+      >
+        <span>register the client</span>
+        <CopyButton value={command} />
+      </div>
+      <pre
+        class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{command}</code></pre>
+    </div>
+
+    <p class="mt-3 max-w-[68ch] text-xs leading-5 text-gray-400">
+      The scope is <code>user</code> or <code>project</code>. Nothing is
+      installed inside a repository you registered, and the command neither
+      initialises Kivgraph nor indexes anything.
+    </p>
+  </div>
+
+  <div>
+    <ul class="border-t border-rule font-mono">
+      {
+        CLIENTS.map((client) => (
+          <li class="grid grid-cols-1 items-baseline gap-x-6 gap-y-1 border-b border-rule py-3 text-xs sm:grid-cols-[10rem_minmax(0,1fr)]">
+            <a
+              href={client.page}
+              class="text-gray-100 underline decoration-rule underline-offset-4 hover:decoration-accent-200"
+            >
+              {client.label}
+            </a>
+            <div>
+              <p class="text-gray-400">
+                <code>--target {client.target}</code>
+              </p>
+              {client.note !== undefined && (
+                <p class="mt-1 text-gray-400">{client.note}</p>
+              )}
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="mt-5 max-w-[68ch] text-xs leading-5 text-gray-400">
+      Eleven tools are registered once a generation is published. Before that
+      the server registers only <code>index_project</code> and says so, rather
+      than offering ten tools that would have nothing to answer from.
+    </p>
+    <p class="mt-5 text-xs">
+      <a
+        href="/mcp/clients/"
+        class="text-accent-200 underline underline-offset-4"
+        >every client, with its configuration path</a
+      >
+    </p>
+  </div>
+</div>

@@ -1,46 +1,60 @@
 ---
 import SubHead from "./SubHead.astro";
 
-// The three entries are a list of headed blocks rather than a <dl>: the
+// The five entries are a list of headed blocks rather than a <dl>: the
 // language name is a subsection head, and heading content is not allowed
 // inside a <dt>.
+//
+// `tier` is not decoration. The five are not equal, and the authoritative
+// sentence is the one the server itself sends to every client in
+// `internal/mcp/instructions.go`: "Go, TypeScript and Rust edges are
+// type-checked; Dart edges are resolved by Dart Analysis Server; Python uses
+// exact semantic facts when a configured analyzer provides them and CANDIDATE
+// facts in its bundled AST fallback." Presenting five logos in a row would
+// imply a parity that sentence denies.
 const languages = [
   {
     name: "Go",
+    tier: "type-checked",
     engine: "go/types, linked into the binary",
     body: "Packages are loaded through go/packages with the build tags you configure, and resolution comes from a full type universe. The unit of analysis is the module.",
     note: "The binary type-checks only up to the language version of the toolchain that built it. A module above that ceiling is rejected by name.",
   },
   {
     name: "TypeScript",
+    tier: "type-checked",
     engine: "the @kivgraph/ts-worker tsserver process",
     body: "Each package.json project is analysed by the TypeScript checker itself. A cross-package symbol is placed by the provider's declaration map, or by asking the provider's own checker what its module exports.",
     note: null,
   },
   {
     name: "Rust",
+    tier: "type-checked",
     engine: "rust-analyzer scip, bundled and pinned",
     body: "The authority is rust-analyzer, invoked once per Cargo workspace. Tree-sitter contributes the syntactic class of a use and the declared visibility, never identity.",
     note: "core, std and alloc are not indexed, so derive, operator overloading, ? and standard-library calls produce no edges.",
   },
   {
-    name: "Python",
-    engine: "the configured semantic worker or bundled AST worker",
-    body: "A configured semantic provider can publish exact declarations and references. The bundled worker covers Python and stub files without guessing dynamic names; its inferred edges remain CANDIDATE.",
-    note: "Dynamic imports, monkey patching and unresolved runtime attributes remain explicit candidates or unresolved facts.",
-  },
-  {
     name: "Dart",
+    tier: "analyzer-resolved",
     engine: "the Dart or Flutter Analysis Server",
     body: "Dart and Flutter source is indexed through the SDK analysis server. Local declarations, navigation references and calls are published with analyzer evidence, while external packages are reported as unresolved unless their source is indexed.",
     note: "Tests and generated files are excluded by default and can be enabled in configuration.",
   },
+  {
+    name: "Python",
+    tier: "exact only with a configured analyzer",
+    engine: "the configured semantic worker or bundled AST worker",
+    body: "A configured semantic provider — a Pyright-compatible language server — can publish exact declarations and references. Without one, the bundled worker covers Python and stub files without guessing dynamic names, and everything it infers stays CANDIDATE rather than becoming EXACT.",
+    note: "Dynamic imports, monkey patching and unresolved runtime attributes remain explicit candidates or unresolved facts.",
+  },
 ];
 ---
 
-<p class="max-w-[68ch] text-sm text-gray-300">
+<p class="max-w-[68ch] text-sm leading-6 text-gray-300">
   One authority per language, and it is the language's own. An edge is never
-  created from a name.
+  created from a name — but the five are not equal, and the difference is
+  printed on each row rather than left for you to discover after indexing.
 </p>
 
 <ul class="mt-10">
@@ -49,7 +63,17 @@ const languages = [
       <li class="grid grid-cols-1 items-baseline gap-x-10 gap-y-5 border-t border-rule py-5 md:grid-cols-[12rem_minmax(0,1fr)]">
         <div>
           <SubHead title={language.name} />
-          <p class="mt-3 text-xs text-accent-200">{language.engine}</p>
+          <p
+            class:list={[
+              "mt-3 font-mono text-xs",
+              language.tier === "type-checked"
+                ? "text-graph-exact"
+                : "text-graph-symbol",
+            ]}
+          >
+            {language.tier}
+          </p>
+          <p class="mt-1 font-mono text-xs text-gray-400">{language.engine}</p>
         </div>
         <div>
           <p class="max-w-[68ch] text-xs text-gray-300">{language.body}</p>

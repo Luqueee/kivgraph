@@ -1,43 +1,70 @@
 ---
-import { REPOSITORY_URL } from "../../pages/_seo";
+import { REPOSITORY_URL, absoluteUrl } from "../../pages/_seo";
 
+// The questions a developer actually asks in the first five minutes, in the
+// order they ask them. Nothing here exists for a search engine: every entry is
+// a question that has a precise answer, and the two that make Kivgraph look
+// worse -- what grep is still better at, and what the viewer exposes -- are
+// answered rather than omitted.
+//
+// The answers are plain strings because they are also the `acceptedAnswer` text
+// of the FAQPage below, and structured data cannot carry markup.
 const questions = [
-  {
-    question: "What is Kivgraph?",
-    answer:
-      "Kivgraph is a local cross-repository code intelligence MCP server for AI coding agents. It builds a semantic code graph across registered Go, TypeScript, Rust, Python and Dart repositories.",
-  },
-  {
-    question: "Can Kivgraph relate multiple repositories in one workspace?",
-    answer:
-      "Yes. Kivgraph preserves each repository's identity while answering supported symbol, dependency, caller and impact questions across repository boundaries.",
-  },
   {
     question: "Does Kivgraph replace grep?",
     answer:
-      "No. grep is often the cheapest choice for a rare name in a small repository. Kivgraph is for typed references, repository relationships, transitive impact and evidence-backed empty results.",
+      "No, and the benchmark says where it should not. grep is cheaper for a rare name in one small repository: over the 29 published questions it cost fewer tokens on five of them, between 0.26x and 0.53x of ours, and both arms were fully correct on all five. Kivgraph is for type-checked references, transitive impact, consumers in another repository, and empty answers you can rely on.",
   },
   {
-    question: "Does Kivgraph save tokens?",
+    question: "Does my code leave my machine?",
     answer:
-      "It can reduce exploratory file reads and MCP tool calls by returning structured graph facts first. The saving depends on the repository and question, so the project publishes measurements instead of promising one universal percentage.",
+      "No. The server is a local process that speaks MCP over stdio, and no query path makes a network call. One thing to know: kivgraph ui, the optional viewer, opens a local HTTP listener that binds 0.0.0.0:7777 with no authentication and exposes repository paths, file paths, symbol names and signatures. On a shared network, start it as kivgraph ui --addr 127.0.0.1:7777.",
   },
   {
-    question: "Which AI coding agents can use Kivgraph?",
+    question: "Does Kivgraph need an LLM, an API key or an embedding step?",
     answer:
-      "Kivgraph supports MCP installation targets for Claude Code, Claude Desktop, Codex, OpenCode and Oh My Pi. The server runs locally over stdio.",
+      "None of the three. The edges are resolved by go/types, the TypeScript checker, rust-analyzer and the Dart analysis server, all running locally. There is no model in the indexing path and no key to configure.",
   },
   {
-    question:
-      "Is Kivgraph an architecture graph for HTTP, Kafka and databases?",
+    question: "How is this different from a vector database over my code?",
     answer:
-      "Not primarily. Kivgraph focuses on semantic code relationships and analyzer-backed dependencies. It does not claim automatic discovery of every runtime relationship between independent services.",
+      "A vector index answers what looks similar; this answers what is connected, and each edge records the analyzer that resolved it. The difference shows up in an empty answer: a similarity search always returns its nearest neighbours, whereas an empty reference list here is a claim that nothing calls the symbol.",
+  },
+  {
+    question: "How does cross-repository analysis work?",
+    answer:
+      "Every registered repository is indexed into one graph, and each keeps its identity inside the keys it publishes, so a symbol used from outside the repository that declares it is a cross-repository consumer with its own evidence. In the published benchmark this found three of three consumers of one symbol where grep found two: the third re-exports it and never spells its name, so no text search reaches it.",
+  },
+  {
+    question: "Which languages are supported, and are they equal?",
+    answer:
+      "Go, TypeScript, Rust, Python and Dart, and no, they are not equal. Go, TypeScript and Rust edges are type-checked. Dart edges are resolved by the Dart Analysis Server. Python publishes exact semantic facts only when a configured Pyright-compatible analyzer provides them; with the bundled AST fallback its inferred references stay CANDIDATE and never become EXACT.",
+  },
+  {
+    question: "What happens when Kivgraph finds no references?",
+    answer:
+      "It says so, and that is the answer rather than a failure. A reference that could not be resolved is published as UNRESOLVED with its reason, repository and language instead of being dropped, and CANDIDATE is reported as a different result from EXACT — so an empty list means nobody calls the symbol, not that nothing was found.",
+  },
+  {
+    question: "How much does indexing cost, and how often must I re-index?",
+    answer:
+      "A full rebuild is the only path; there is no incremental mode. Measured cold on the benchmark corpus of 37 repositories and 96,482 published symbols, one pass took 37.6 seconds and left 1,423 MB of on-disk state — the slowest and heaviest of the five tools compared. Re-index when a repository has moved; graph_status reports whether one has.",
+  },
+  {
+    question: "What can it answer before I have indexed anything?",
+    answer:
+      "Nothing, deliberately. With no published generation the server registers only index_project and reports that it has no graph to answer from, rather than offering ten tools whose answers would be empty for the wrong reason.",
   },
 ];
 
 const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
+  // Joined to the site graph by `@id` rather than left as an orphan script:
+  // the two nodes the landing shell publishes are `#software` and `#website`.
+  "@id": absoluteUrl(Astro.site, "/#faq"),
+  isPartOf: { "@id": absoluteUrl(Astro.site, "/#website") },
+  about: { "@id": absoluteUrl(Astro.site, "/#software") },
   mainEntity: questions.map(({ question, answer }) => ({
     "@type": "Question",
     name: question,
@@ -47,21 +74,34 @@ const faqSchema = {
 ---
 
 <div class="space-y-3">
-  {questions.map((item) => (
-    <details class="border border-rule bg-panel px-5 py-4">
-      <summary class="cursor-pointer text-sm font-medium text-gray-100">
-        {item.question}
-      </summary>
-      <p class="mt-3 max-w-[68ch] text-sm leading-6 text-gray-300">{item.answer}</p>
-    </details>
-  ))}
+  {
+    questions.map((item) => (
+      <details class="border border-rule bg-panel px-5 py-4">
+        <summary
+          class="cursor-pointer font-mono text-sm font-medium text-gray-100"
+        >
+          {item.question}
+        </summary>
+        <p class="mt-3 max-w-[68ch] text-sm leading-6 text-gray-300">
+          {item.answer}
+        </p>
+      </details>
+    ))
+  }
 </div>
 
-<script is:inline type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+<script
+  is:inline
+  type="application/ld+json"
+  set:html={JSON.stringify(faqSchema)}
+/>
 <p class="mt-5 text-xs text-gray-400">
   More answers in the <a
     href="/kivgraph-faq/"
     class="text-accent-200 underline underline-offset-4">Kivgraph FAQ</a
+  >, the <a
+    href="/limits/"
+    class="text-accent-200 underline underline-offset-4">limits</a
   > and on <a
     href={REPOSITORY_URL}
     target="_blank"
