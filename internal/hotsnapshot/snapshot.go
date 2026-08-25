@@ -206,6 +206,9 @@ type GraphSnapshot struct {
 	stableKeys     StableKeyTable
 	symbolsByName  symbolIndex
 	symbolsByQName symbolIndex
+	// symbolsByTerm answers a question that names no symbol exactly. It is
+	// derived at load like the two above, from the same records.
+	symbolsByTerm  termIndex
 	fileByRepoPath fileIndex
 
 	// traversalWorkspacePool owns reusable per-call scratch buffers. It does not
@@ -302,6 +305,7 @@ func newGraphSnapshot(input GraphSnapshotInput, owned bool) (*GraphSnapshot, err
 		// could be.
 		symbolsByName:  newSymbolIndex(input.Symbols, symbolName),
 		symbolsByQName: newSymbolIndex(input.Symbols, symbolQualifiedName),
+		symbolsByTerm:  newTermIndex(input.Symbols, input.Files, input.Strings),
 		fileByRepoPath: fileByRepoPath,
 	}
 	if !snapshot.validExactIndexes() {
@@ -468,7 +472,8 @@ func (snapshot *GraphSnapshot) validExactIndexes() bool {
 	}
 	return snapshot.fileByRepoPath.validShape(len(snapshot.files)) &&
 		snapshot.symbolsByName.validShape(len(snapshot.symbols)) &&
-		snapshot.symbolsByQName.validShape(len(snapshot.symbols))
+		snapshot.symbolsByQName.validShape(len(snapshot.symbols)) &&
+		snapshot.symbolsByTerm.validShape()
 }
 
 // symbolName and symbolQualifiedName name the two keys a symbol is indexed

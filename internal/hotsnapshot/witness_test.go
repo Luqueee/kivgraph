@@ -159,3 +159,50 @@ func TestWitnessPathWalksIncomingEdgesToo(t *testing.T) {
 		t.Fatalf("incoming route = %#v, want s-c, s-b, s-a", path)
 	}
 }
+
+// TestWitnessPathValidatesEverySeed covers the seeds themselves. A traversal is
+// given its seeds by a caller that resolved them separately -- a root plus the
+// members its own source declares -- so one bad id among good ones has to be
+// refused rather than skipped.
+func TestWitnessPathValidatesEverySeed(t *testing.T) {
+	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := TraversalOptions{Direction: TraversalOutgoing, MaxDepth: 3, MaxNodes: 10}
+	past := SymbolID(len(snapshot.symbols))
+
+	if _, _, err := snapshot.WitnessPath([]SymbolID{0, past}, 2, options); !errors.Is(err, ErrInvalidTraversal) {
+		t.Fatalf("a seed past the table = %v, want ErrInvalidTraversal", err)
+	}
+	if _, _, err := snapshot.WitnessPath([]SymbolID{past}, 2, options); !errors.Is(err, ErrInvalidTraversal) {
+		t.Fatalf("the only seed past the table = %v, want ErrInvalidTraversal", err)
+	}
+	// More seeds than the node budget is a request that cannot be answered
+	// within its own bounds, and saying so beats answering a smaller question.
+	if _, _, err := snapshot.WitnessPath([]SymbolID{0, 1}, 2, TraversalOptions{
+		Direction: TraversalOutgoing, MaxDepth: 3, MaxNodes: 1,
+	}); !errors.Is(err, ErrInvalidTraversal) {
+		t.Fatalf("more seeds than budget = %v, want ErrInvalidTraversal", err)
+	}
+}
+
+// TestWitnessPathAcceptsARepeatedSeed covers the deduplication. Seeds arrive
+// from two places -- the root and the members it contains -- and a type whose
+// method list already names the root would otherwise be enqueued twice and
+// counted twice against the node budget.
+func TestWitnessPathAcceptsARepeatedSeed(t *testing.T) {
+	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, truncated, err := snapshot.WitnessPath([]SymbolID{0, 0, 0}, 2, TraversalOptions{
+		Direction: TraversalOutgoing, MaxDepth: 5, MaxNodes: 3,
+	})
+	if err != nil || truncated {
+		t.Fatalf("repeated seed = %v, truncated %t", err, truncated)
+	}
+	if len(path) != 3 || path[0].ID != 0 || path[2].ID != 2 {
+		t.Fatalf("route = %#v, want the same three hops as a single seed", path)
+	}
+}
