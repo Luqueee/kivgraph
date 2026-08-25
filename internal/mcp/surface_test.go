@@ -208,13 +208,21 @@ func connectToServer(t *testing.T, server *sdkmcp.Server) *sdkmcp.ClientSession 
 // covers instead.
 func publishedServer(t *testing.T) *sdkmcp.Server {
 	t.Helper()
+	return NewServerWithSnapshotStore(publishedStore(t))
+}
+
+// publishedStore is the smallest store that counts as a published generation,
+// which is all a surface test needs: the shape of the surface does not depend on
+// what the graph holds.
+func publishedStore(t *testing.T) *hotsnapshot.SnapshotStore {
+	t.Helper()
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
 		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo-a", Name: "a", Languages: "go"}},
 	}, 1, time.Unix(1_700_000_000, 0).UTC(), 1)
 	if err != nil {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
-	return NewServerWithSnapshotStore(hotsnapshot.NewSnapshotStore(snapshot))
+	return hotsnapshot.NewSnapshotStore(snapshot)
 }
 
 // TestServerWithoutAGenerationPublishesNoTool is the fail-closed handshake. A
@@ -287,6 +295,16 @@ func toolNames(listed []*sdkmcp.Tool) []string {
 // benchmarks/mcp-token-cost measures the token figure the phase quotes. The two
 // move together; this guards the drift.
 const MaximumResidentSurfaceBytes = 1900
+
+// MaximumIndexingSurfaceBytes bounds the other shape this server has. A client
+// that configures indexing is handed one tool more -- the only one that can
+// change the graph -- and it is budgeted on its own line rather than inside the
+// number above, because a client that never configures it never pays for it.
+//
+// Both lines are guarded, and that is the point: the ceiling above was measured
+// against a server built without an indexer, so the surface that actually ships
+// through `kivgraph serve` was never on any scale.
+const MaximumIndexingSurfaceBytes = 2100
 
 func TestServerSurfaceStaysCheapToKeepResident(t *testing.T) {
 	session := connectToServer(t, publishedServer(t))
@@ -363,5 +381,46 @@ func TestASessionMapsNothingUntilItAsksSomething(t *testing.T) {
 	}
 	if loads != 1 {
 		t.Fatalf("the first query mapped the graph %d times, want exactly 1", loads)
+	}
+}
+
+// TestIndexingSurfaceStaysCheapToKeepResident guards the shape a configured
+// client is handed: every query tool, plus the one that rebuilds the graph.
+func TestIndexingSurfaceStaysCheapToKeepResident(t *testing.T) {
+	session := connectToServer(t, NewServerWithSnapshotStoreAndIndexer(
+		publishedStore(t), &fakeProjectIndexer{}))
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+
+	mutating := 0
+	resident := 0
+	for _, tool := range listed.Tools {
+		if tool.Description == "" {
+			t.Fatalf("tool %q has no description: the description is the only routing a deferred surface carries", tool.Name)
+		}
+		resident += len(tool.Name)*2 + len(tool.Description)
+		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+			mutating++
+		}
+	}
+	if mutating != 1 {
+		t.Errorf("mutating tools = %d, want exactly the one that rebuilds the graph", mutating)
+	}
+	if resident > MaximumIndexingSurfaceBytes {
+		t.Errorf("indexing surface = %d bytes over %d tools, above the %d ceiling",
+			resident, len(listed.Tools), MaximumIndexingSurfaceBytes)
+	}
+	// The two shapes differ by one tool and nothing else, so the query ceiling
+	// cannot be met by moving a description into the tool only some clients see.
+	query := connectToServer(t, publishedServer(t))
+	queryTools, err := query.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	if len(listed.Tools) != len(queryTools.Tools)+1 {
+		t.Errorf("indexing surface has %d tools and the query surface %d, want exactly one more",
+			len(listed.Tools), len(queryTools.Tools))
 	}
 }

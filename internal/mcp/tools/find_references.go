@@ -444,7 +444,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		// is 2,480 tokens against 912 for the same files, the same precision and
 		// the same recall -- and one page instead of two where 66 references
 		// collapse into 9 files. Both were already supported; nothing said so.
-		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A rare name in one repository is cheaper to grep. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: \"files\"` answers which files without a line each.",
+		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: \"files\"` answers which files without a line each.",
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
 		Meta:        alwaysLoadMeta(),
 	}, handler)
