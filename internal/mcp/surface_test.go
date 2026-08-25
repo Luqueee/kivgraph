@@ -22,6 +22,7 @@ import (
 // list costs description tokens in every request of every session. It remains
 // available from the CLI.
 var allowedTools = []string{
+	"find_by_intent",
 	"find_cross_repo_consumers",
 	"find_references",
 	"find_symbol",

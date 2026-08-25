@@ -46,6 +46,16 @@ func Score(signals Signals) float64 {
 		return 0
 	}
 	score := rarity(signals)
+	if score <= 0 {
+		// Every term of the question is carried by the whole corpus, so the text
+		// separates nothing -- and the structure still does. Falling to exactly
+		// zero here would discard the kind, the visibility, the directory and
+		// the caller count, and answer a degenerate question in stable-key
+		// order: alphabetically, with the fixture first. The floor is far below
+		// one hit of the commonest term a real corpus holds, so it only ever
+		// decides an order that rarity declined to.
+		score = rarityFloor
+	}
 	score *= kindWeight(signals.Kind)
 	if signals.Exported {
 		score *= 1.5
@@ -54,6 +64,10 @@ func Score(signals Signals) float64 {
 	score *= callerWeight(signals.Callers)
 	return score
 }
+
+// rarityFloor is what a candidate is worth when its terms are worthless. See
+// the comment in Score: it exists so the structural signals can still order.
+const rarityFloor = 1e-9
 
 // rarity is the base: how many terms were hit, each discounted by how much of
 // the corpus its term matches.

@@ -160,3 +160,17 @@ func (snapshot *GraphSnapshot) SymbolsByTerm(term retrieval.TermKey) ([]SymbolID
 func (snapshot *GraphSnapshot) TermCount() int {
 	return len(snapshot.symbolsByTerm.keys)
 }
+
+// IncomingCount reports how many resolved references point at a symbol.
+//
+// It reads the reverse CSR that already exists rather than counting anything: a
+// symbol's incoming run is bounded by two offsets, so the answer is a
+// subtraction. It is the one ranking signal no text search can have, and the
+// reason a question answered from this graph beats the same question answered by
+// matching names -- the number is what analysers resolved, not what looked alike.
+func (snapshot *GraphSnapshot) IncomingCount(symbol SymbolID) int {
+	if uint64(symbol)+1 >= uint64(len(snapshot.reverseOffsets)) {
+		return 0
+	}
+	return int(snapshot.reverseOffsets[symbol+1] - snapshot.reverseOffsets[symbol])
+}

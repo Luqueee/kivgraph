@@ -110,7 +110,24 @@ func AppendTextKeys(dst []TermKey, spans []Span, value string) ([]TermKey, []Spa
 // is decided where it can be measured instead: by how much of the corpus it
 // matches, which the index already knows.
 func QueryTerms(intent string, keywords []string) []TermKey {
+	words := QueryWords(intent, keywords)
+	keys := make([]TermKey, 0, len(words))
+	for _, word := range words {
+		keys = append(keys, Fold(word))
+	}
+	return keys
+}
+
+// QueryWords is QueryTerms with the words kept.
+//
+// A caller that reports which words of a question matched and which did not has
+// to name them the way they were written: `registration` and `registry` are one
+// term, and an answer that showed the key, or the other spelling, would read as
+// a tool that misheard the question. The first spelling wins because it is the
+// one the reader typed first.
+func QueryWords(intent string, keywords []string) []string {
 	var (
+		words []string
 		keys  []TermKey
 		spans []Span
 	)
@@ -118,13 +135,13 @@ func QueryTerms(intent string, keywords []string) []TermKey {
 		for _, word := range strings.FieldsFunc(text, isSeparator) {
 			spans = AppendSpans(spans[:0], word)
 			for _, span := range spans {
-				key := Fold(word[span.Start:span.End])
-				if key == TermKeyNone {
+				part := word[span.Start:span.End]
+				key := Fold(part)
+				if key == TermKeyNone || containsKey(keys, key) {
 					continue
 				}
-				if !containsKey(keys, key) {
-					keys = append(keys, key)
-				}
+				keys = append(keys, key)
+				words = append(words, part)
 			}
 		}
 	}
@@ -132,7 +149,7 @@ func QueryTerms(intent string, keywords []string) []TermKey {
 	for _, keyword := range keywords {
 		fold(keyword)
 	}
-	return keys
+	return words
 }
 
 // isSeparator splits a question into words. A question is prose, so anything

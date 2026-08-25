@@ -17,7 +17,12 @@ Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search
 2. Use `list_repositories` to identify the repository and language before
    narrowing a query. Repository names are case sensitive: two repositories
    whose names differ only in case are two repositories.
-3. Use `find_symbol` for names and qualified names, and `get_file_outline` to
+3. When you do not know the name, start with `find_by_intent`: it takes a
+   plain-language description and answers with the ranked symbols and, under
+   `view: "files"`, just the files to open. Its rows match text rather than
+   edges -- they carry `match: lexical` -- so confirm one with `find_references`
+   before acting on it, and prefer grep when you already know the name.
+4. Use `find_symbol` for names and qualified names, and `get_file_outline` to
    read the declarations of a file or a directory without opening it. Every row
    they return carries repository, repository-relative path, qualified name and
    a line range, and every tool accepts that triple in place of a stable key:

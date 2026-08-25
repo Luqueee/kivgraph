@@ -80,10 +80,22 @@ func TestScoreDiscountsATermThatMatchesTheCorpus(t *testing.T) {
 		t.Fatalf("the widest term kept %.0f%% of a rare term's weight, want it nearly discounted away",
 			everywhere/rare*100)
 	}
-	// A term the whole corpus carries is worth nothing at all, which is the
-	// floor the linear discount exists to provide.
-	if score := Score(Signals{Hits: 1, Frequencies: []int{symbols}, Symbols: symbols, Kind: "func"}); score != 0 {
-		t.Fatalf("a term every symbol carries scored %v, want zero", score)
+	// A term the whole corpus carries is worth nothing the text can contribute,
+	// and the score falls to the floor that lets the structural signals order
+	// instead -- positive, so a fixture does not win a degenerate question by
+	// being alphabetically first, and negligible against any real rarity.
+	worthless := Score(Signals{Hits: 1, Frequencies: []int{symbols}, Symbols: symbols, Kind: "func"})
+	if worthless <= 0 {
+		t.Fatalf("a term every symbol carries scored %v, want a positive floor", worthless)
+	}
+	if worthless > rare/1e6 {
+		t.Fatalf("the floor is %v against a rare term's %v, want it negligible", worthless, rare)
+	}
+	// And at the floor the structure decides, which is the whole point of it.
+	fixture := Score(Signals{Hits: 1, Frequencies: []int{symbols}, Symbols: symbols, Kind: "func", Path: "internal/testdata/x.go"})
+	production := Score(Signals{Hits: 1, Frequencies: []int{symbols}, Symbols: symbols, Kind: "func", Path: "internal/x.go"})
+	if fixture >= production {
+		t.Fatalf("at the floor a fixture scored %v against production at %v", fixture, production)
 	}
 }
 
