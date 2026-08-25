@@ -111,5 +111,42 @@ para que la revisión siguiente tenga un disparador y no una discusión.
   los cinco loaders emitiendo docstrings y una reconstrucción completa, y compra
   dos de ocho preguntas **en este conjunto**.
 - Y ocho preguntas sobre un repositorio marcan una dirección, no una tasa: antes
-  de pagar un cambio de esquema, el mismo arnés sobre `kena` — cinco lenguajes,
-  `123.524` símbolos— es más barato y decide mejor.
+  de pagar un cambio de esquema, el mismo arnés sobre otro corpus es más barato
+  y decide mejor.
+
+## La medición que esta decisión pidió, y lo que corrigió
+
+El conjunto pasó a `24` preguntas sobre los tres repositorios registrados —
+`kivgraph`, `mole` y el servicio `api-db-go` de `kena`—, con la verdad de
+terreno leída del código y la regla de sesgo comprobada a máquina: ninguna
+palabra de una frase es un identificador declarado en su fichero respuesta.
+
+|repositorio|preguntas|`grep` acierta|la tool acierta|
+|---|---|---|---|
+|`kivgraph`|`8`|`3`|`5`|
+|`api-db-go`|`8`|`2`|`1`|
+|`mole`|`8`|`2`|`0`|
+
+**El `5` de `8` era del repositorio, no de la tool.** Sobre dos codebases que no
+escribí, `grep` va por delante: `7` de `24` contra `6` de `24`, al mismo coste
+de sesión.
+
+Y de los `18` ceros, la causa se separa en tres facturas distintas:
+
+|causa|preguntas|qué costaría arreglarla|
+|---|---|---|
+|competencia entre repositorios|`0`|un parámetro que el llamante ya tiene|
+|desbancada dentro de su repositorio|`4`|pesos, y nada persistido|
+|inalcanzable: el fichero no lleva ningún término|`14`|esquema, cinco loaders y reconstrucción|
+
+Las dos primeras hipótesis mueren con un número. Nombrar el repositorio **no
+mueve nada** -`6` de `24` con filtro y sin él-, así que la ventana compartida no
+era el problema. Y el ranking sólo es dueño de `4` fallos: en los otros `14`, una
+búsqueda apuntada **directamente** al fichero respuesta no devuelve nada, y
+ningún peso levanta una puntuación de cero.
+
+Eso confirma el techo que este ADR ya nombraba y le pone tamaño: `14` de `18`, y
+no `2` de `3`. La conclusión que cambia es la otra — **seguir puliendo el ranking
+no está capado en `6` de `8` sino en `4` preguntas de `24`**, y la diferencia
+entre un repositorio que contesta y uno que no es si su código deletrea el
+comportamiento en los nombres o lo guarda en cadenas y comentarios.
