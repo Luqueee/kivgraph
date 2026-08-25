@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/bits"
 	"sort"
 	"strings"
 	"time"
@@ -311,7 +312,33 @@ type intentCandidate struct {
 	symbol      hotsnapshot.SymbolID
 	hits        int
 	frequencies []int
+	lengths     []int
+	// terms is which terms this symbol carries, one bit each, in the order the
+	// question spelled them. It exists so a candidate can be asked what its
+	// neighbours carry without building a second table: every symbol that
+	// carries any term is already a candidate, so the map below is the term
+	// membership index too.
+	terms uint32
+	// neighbours is how many terms this symbol reaches but does not carry.
+	neighbours int
 }
+
+const (
+	// maximumNeighbourTerms is how many terms fit in the mask above. A question
+	// with more terms than this still answers; its later terms simply earn no
+	// neighbour credit, which is the cheap end of a bound that keeps one
+	// question from walking the graph.
+	maximumNeighbourTerms = 32
+	// maximumNeighbourEdges bounds the fan-out inspected per candidate. A hub
+	// with four hundred callees would otherwise price one question at the width
+	// of the graph, and the terms a hub reaches say little about it anyway.
+	//
+	// No test asserts this number, and that is deliberate: the credit saturates
+	// at three reached terms, so a fixture wide enough to cross this bound would
+	// score identically on either side of it. It is a cost guard with no
+	// observable contract, and a test of it would only restate the constant.
+	maximumNeighbourEdges = 64
+)
 
 // rankIntentCandidates folds the question, reads every term, scores what the
 // terms reached and orders it.
@@ -354,7 +381,27 @@ func rankIntentCandidates(
 			}
 			candidate.hits++
 			candidate.frequencies = append(candidate.frequencies, frequency)
+			candidate.lengths = append(candidate.lengths, len([]rune(word)))
+			if termIndex := len(terms) - 1; termIndex < maximumNeighbourTerms {
+				candidate.terms |= 1 << uint(termIndex)
+			}
 		}
+	}
+
+	// The terms a candidate reaches, read from the candidates themselves: a
+	// symbol carrying any term is in this map, so the map is both the candidate
+	// set and the membership index of every term.
+	for _, candidate := range candidates {
+		reached := uint32(0)
+		for index, edge := range snapshot.Outgoing(candidate.symbol) {
+			if index >= maximumNeighbourEdges {
+				break
+			}
+			if neighbour := candidates[edge.Target]; neighbour != nil {
+				reached |= neighbour.terms
+			}
+		}
+		candidate.neighbours = bits.OnesCount32(reached & ^candidate.terms)
 	}
 
 	type scored struct {
@@ -390,7 +437,7 @@ func rankIntentCandidates(
 		row := IntentSymbol{
 			QualifiedName: qualifiedName, Kind: kind, Repository: repository.name,
 			FilePath: file.path, StartLine: symbol.StartLine, EndLine: symbol.EndLine,
-			Terms: candidate.hits, Match: "lexical",
+			Terms: candidate.hits, Match: matchLabel(candidate.neighbours),
 		}
 		if !nameIsLastSegment(name, qualifiedName) {
 			row.Name = name
@@ -401,7 +448,8 @@ func rankIntentCandidates(
 		rows = append(rows, scored{
 			row: row,
 			score: retrieval.Score(retrieval.Signals{
-				Hits: candidate.hits, Frequencies: candidate.frequencies, Symbols: corpus,
+				Hits: candidate.hits, Frequencies: candidate.frequencies,
+				Lengths: candidate.lengths, Symbols: corpus, Neighbours: candidate.neighbours,
 				Kind: kind, Exported: symbol.Exported, Path: file.path,
 				Callers: snapshot.IncomingCount(candidate.symbol),
 			}),
@@ -424,6 +472,16 @@ func rankIntentCandidates(
 // intentFrequencyLabel says how much of the corpus a term matched, in words
 // rather than a number, because a number derived from the graph would change
 // with every reindex and this text travels in the answer a client may cache.
+// matchLabel says how a row was reached. A row credited for what it calls did
+// not match the question's text alone, and calling it lexical would be the kind
+// of small lie that makes a whole answer unciteable.
+func matchLabel(neighbours int) string {
+	if neighbours > 0 {
+		return "lexical+calls"
+	}
+	return "lexical"
+}
+
 func intentFrequencyLabel(frequency, corpus int) string {
 	if corpus <= 0 {
 		return ""

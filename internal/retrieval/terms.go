@@ -22,6 +22,15 @@ import (
 // past six starts losing the pairs that motivate the fold at all.
 const TermPrefixRunes = 5
 
+// And a word shorter than it does not reach a term longer than it: `rust` and
+// `rustloader` are different keys, so a four-letter question word never reaches
+// the ten-letter token that starts with it. That is a real gap and widening it
+// was measured: asking every short word as a prefix range answered one more
+// question and lost two others -- `tool` widened to `tools` and `toolstats` and
+// buried the file that registers them from eighth place to fourteenth. Five
+// answers with exact keys beat four with ranges, so the gap stays, and what
+// closes it for a caller who needs it is the `keywords` parameter.
+
 // TermKey is a token folded to the term it is indexed under: the first
 // TermPrefixRunes runes, lowercased, packed into one integer.
 //

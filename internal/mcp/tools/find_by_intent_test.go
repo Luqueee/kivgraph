@@ -817,3 +817,132 @@ func TestFindByIntentRefusesASnapshotItCannotSpell(t *testing.T) {
 		}
 	}
 }
+
+// neighbourStore is a question with two plausible answers and one edge between
+// them: `caller` carries "register" and calls three symbols carrying "handler",
+// while `bystander` carries "register" and calls nothing. Nothing in the text
+// separates them, which is the case the graph exists for.
+func neighbourStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "main", Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "go", Name: "server", ModulePath: "example.com/server"}},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-caller", RepositoryKey: "repo", PackageKey: "pkg", Path: "internal/server/wiring.go", Language: "go"},
+			{Key: "file-bystander", RepositoryKey: "repo", PackageKey: "pkg", Path: "internal/server/other.go", Language: "go"},
+			{Key: "file-handlers", RepositoryKey: "repo", PackageKey: "pkg", Path: "internal/server/handlers.go", Language: "go"},
+			// The orphan needs a path that carries no term of the question: a
+			// file called handlers.go would hand it "handler" through its own
+			// route, which is a lexical hit and not a graph one.
+			{Key: "file-orphan", RepositoryKey: "repo", PackageKey: "pkg", Path: "internal/server/misc.go", Language: "go"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-a-caller", CanonicalIdentity: "go:server.registerEverything", FileKey: "file-caller",
+				Language: "go", Name: "registerEverything", QualifiedName: "server.registerEverything",
+				Kind: "func", StartLine: 10, EndLine: 40},
+			{StableKey: "sym-b-bystander", CanonicalIdentity: "go:server.registerNothing", FileKey: "file-bystander",
+				Language: "go", Name: "registerNothing", QualifiedName: "server.registerNothing",
+				Kind: "func", StartLine: 10, EndLine: 40},
+			{StableKey: "sym-c-handler", CanonicalIdentity: "go:server.handlerOne", FileKey: "file-handlers",
+				Language: "go", Name: "handlerOne", QualifiedName: "server.handlerOne",
+				Kind: "func", StartLine: 5, EndLine: 9},
+			{StableKey: "sym-d-orphan", CanonicalIdentity: "go:server.callsBoth", FileKey: "file-orphan",
+				Language: "go", Name: "callsBoth", QualifiedName: "server.callsBoth",
+				Kind: "func", StartLine: 50, EndLine: 60},
+		},
+		Edges: []hotsnapshot.EdgeRow{
+			{SourceKey: "sym-a-caller", TargetKey: "sym-c-handler", Kind: 1, Confidence: 8, Provenance: 3,
+				EvidenceKind: "checker", EvidenceSourceFileKey: "file-caller", EvidenceTargetFileKey: "file-handlers"},
+			// The orphan calls both candidates. It carries no term of the
+			// question, and the graph must not turn it into an answer.
+			{SourceKey: "sym-d-orphan", TargetKey: "sym-a-caller", Kind: 1, Confidence: 8, Provenance: 3,
+				EvidenceKind: "checker", EvidenceSourceFileKey: "file-orphan", EvidenceTargetFileKey: "file-caller"},
+			{SourceKey: "sym-d-orphan", TargetKey: "sym-b-bystander", Kind: 1, Confidence: 8, Provenance: 3,
+				EvidenceKind: "checker", EvidenceSourceFileKey: "file-orphan", EvidenceTargetFileKey: "file-bystander"},
+		},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestFindByIntentNeverInventsACandidateFromTheGraph is the negative first. A
+// symbol that carries no term of the question is not an answer, however many
+// answers it calls: the credit is a weight on lexical evidence and never a
+// substitute for it.
+func TestFindByIntentNeverInventsACandidateFromTheGraph(t *testing.T) {
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "register handler", View: ViewFull, Limit: MaximumIntentLimit,
+	}, neighbourStore(t, 130))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range response.Results.Symbols {
+		if row.QualifiedName == "server.callsBoth" {
+			t.Fatalf("a symbol carrying no term was answered because it calls two that do: %#v", row)
+		}
+	}
+	if response.Total == 0 {
+		t.Fatal("the question answered nothing at all")
+	}
+}
+
+// TestFindByIntentPrefersTheSymbolThatReachesTheRest is the contract the graph
+// buys. Two symbols carry the same term and nothing in their text separates
+// them; the one whose resolved calls reach the other term of the question is
+// the answer, and the row says so rather than calling itself lexical.
+func TestFindByIntentPrefersTheSymbolThatReachesTheRest(t *testing.T) {
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: "register handler", View: ViewFull, Limit: MaximumIntentLimit,
+	}, neighbourStore(t, 131))
+	if err != nil {
+		t.Fatal(err)
+	}
+	caller, bystander := -1, -1
+	for index, row := range response.Results.Symbols {
+		switch row.QualifiedName {
+		case "server.registerEverything":
+			caller = index
+		case "server.registerNothing":
+			bystander = index
+		}
+	}
+	if caller < 0 || bystander < 0 {
+		t.Fatalf("both candidates should be answered, got %#v", response.Results.Symbols)
+	}
+	if caller > bystander {
+		t.Fatalf("the symbol that reaches the question's other term ranked %d, behind the one that reaches nothing at %d",
+			caller+1, bystander+1)
+	}
+	if match := response.Results.Symbols[caller].Match; match != "lexical+calls" {
+		t.Errorf("the credited row says match = %q, want it to admit the edge it used", match)
+	}
+	if match := response.Results.Symbols[bystander].Match; match != "lexical" {
+		t.Errorf("an uncredited row says match = %q, want plain lexical", match)
+	}
+}
+
+// TestFindByIntentAnswersAQuestionWiderThanItsMask covers the bound on the term
+// mask: a question with more terms than the mask holds still answers, and the
+// terms past the bound simply earn no graph credit.
+func TestFindByIntentAnswersAQuestionWiderThanItsMask(t *testing.T) {
+	words := make([]string, 0, maximumNeighbourTerms+8)
+	for index := 0; index < maximumNeighbourTerms+8; index++ {
+		words = append(words, fmt.Sprintf("word%02d", index))
+	}
+	intent := "register handler " + strings.Join(words, " ")
+	_, response, err := findByIntent(context.Background(), nil, FindByIntentInput{
+		Intent: intent, View: ViewFull, Limit: MaximumIntentLimit,
+	}, neighbourStore(t, 132))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Total == 0 {
+		t.Fatal("a question wider than the mask answered nothing")
+	}
+	if len(response.Results.Unmatched) == 0 {
+		t.Error("none of the invented words was reported as unmatched")
+	}
+}

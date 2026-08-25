@@ -16,6 +16,16 @@ type Signals struct {
 	// A term matching most of the corpus separates nothing, and this is what
 	// replaces a stopword list.
 	Frequencies []int
+	// Lengths are the rune counts of the words that hit, positionally aligned
+	// with Frequencies. Frequency alone cannot tell a question's grammar from
+	// its vocabulary: measured on this repository, `is` carries 178 of 22,299
+	// symbols, which the discount below reads as almost pure signal, and it put
+	// IsValidModuleKey first for three unrelated questions. Length can tell
+	// them apart, and it does it without an English word list: the fold is a
+	// prefix of five runes, so a two-rune word matched a two-rune segment of an
+	// identifier, and in code those are particles -- Is, To, Of, At, In -- while
+	// the vocabulary a question is actually about is longer than the fold.
+	Lengths []int
 	// Symbols is the size of the corpus the frequencies are counted against.
 	Symbols int
 	// Kind is the symbol's kind as the graph spells it.
@@ -26,6 +36,18 @@ type Signals struct {
 	Path string
 	// Callers is how many resolved references point at the symbol.
 	Callers int
+	// Neighbours is how many terms of the question this symbol does not carry
+	// itself and reaches through a resolved outgoing edge.
+	//
+	// It is the one signal in this struct that no text search can have. The
+	// question that named this file -- where is every tool of this server
+	// registered -- is answered by a function whose own name carries one term of
+	// it and which calls twelve symbols carrying another; the file that holds it
+	// ranked thirteenth on text alone and no amount of weighing its words moves
+	// it, because the words are not there. Grep cannot see it, and a graph whose
+	// edges come from matching names cannot claim it: an edge asserted by a
+	// resolver is what makes this evidence rather than a coincidence.
+	Neighbours int
 }
 
 // Score ranks one candidate. Higher is earlier; the number means nothing on its
@@ -45,7 +67,7 @@ func Score(signals Signals) float64 {
 	if signals.Hits <= 0 {
 		return 0
 	}
-	score := rarity(signals)
+	score := evidence(signals)
 	if score <= 0 {
 		// Every term of the question is carried by the whole corpus, so the text
 		// separates nothing -- and the structure still does. Falling to exactly
@@ -62,15 +84,41 @@ func Score(signals Signals) float64 {
 	}
 	score *= pathWeight(signals.Path)
 	score *= callerWeight(signals.Callers)
+	score *= neighbourWeight(signals.Neighbours)
 	return score
 }
+
+// neighbourWeight credits a symbol for the terms it reaches rather than holds.
+//
+// It is deliberately weaker than carrying the term: a symbol named after the
+// question outranks one that merely calls something named after it, at every
+// count. So this is a bounded multiplier over the text base and never an
+// addition to it -- a candidate that carries no term at all is not a candidate,
+// however much it calls.
+func neighbourWeight(neighbours int) float64 {
+	if neighbours <= 0 {
+		return 1
+	}
+	weight := 1 + 0.3*float64(neighbours)
+	if weight > neighbourCeiling {
+		return neighbourCeiling
+	}
+	return weight
+}
+
+// neighbourCeiling is strictly below doubling, and the margin is the whole
+// point: at exactly two, a symbol carrying one term and reaching another scores
+// the same as one carrying both, and a tie is decided by the stable key -- which
+// is alphabetical, and puts the fixture first. Reaching is weaker evidence than
+// carrying, so it has to lose that comparison rather than draw it.
+const neighbourCeiling = 1.9
 
 // rarityFloor is what a candidate is worth when its terms are worthless. See
 // the comment in Score: it exists so the structural signals can still order.
 const rarityFloor = 1e-9
 
-// rarity is the base: how many terms were hit, each discounted by how much of
-// the corpus its term matches.
+// evidence is the base: how many terms were hit, each discounted twice -- by how
+// much of the corpus its term matches, and by how much of a term the word was.
 //
 // A term matching four symbols in five -- which the fold of `internal` does on
 // this very repository -- carries almost no information, and counting it as a
@@ -83,14 +131,14 @@ const rarityFloor = 1e-9
 // what this needs is not a smooth curve but a floor: a term is worth its full
 // hit when it is rare and worth almost nothing when it is everywhere, and the
 // interesting behaviour is at the two ends rather than in the middle.
-func rarity(signals Signals) float64 {
+func evidence(signals Signals) float64 {
 	if signals.Symbols <= 0 || len(signals.Frequencies) == 0 {
 		// No corpus to compare against: every hit counts once, which is what a
 		// caller that did not supply frequencies is asking for.
 		return float64(signals.Hits)
 	}
 	base := 0.0
-	for _, frequency := range signals.Frequencies {
+	for index, frequency := range signals.Frequencies {
 		share := float64(frequency) / float64(signals.Symbols)
 		if share < 0 {
 			share = 0
@@ -103,9 +151,35 @@ func rarity(signals Signals) float64 {
 		if frequency <= 0 {
 			continue
 		}
-		base += 1 - share
+		base += (1 - share) * lengthWeight(signals, index)
 	}
 	return base
+}
+
+// lengthWeight is how much of a term a word was, squared.
+//
+// It saturates at the fold length because a word longer than the prefix carries
+// no more evidence than the prefix does: `traversal` and `traverse` are one
+// term, and neither is worth more than the other. It is squared rather than
+// linear because the interesting behaviour is at the short end -- linear leaves
+// a two-rune particle worth 0.4 of a real word, which two of them still outrank
+// a real one with, and squared leaves it worth 0.16.
+//
+// A caller that supplies no lengths gets the full weight, which is what asking
+// without them means.
+func lengthWeight(signals Signals, index int) float64 {
+	if index >= len(signals.Lengths) {
+		return 1
+	}
+	runes := signals.Lengths[index]
+	if runes <= 0 {
+		return 0
+	}
+	if runes >= TermPrefixRunes {
+		return 1
+	}
+	share := float64(runes) / float64(TermPrefixRunes)
+	return share * share
 }
 
 // kindWeight prefers the kinds a question about behaviour is asking about.
