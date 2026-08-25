@@ -1,20 +1,20 @@
 {
   "benchmark": "docstring-simulation",
   "command": "go run ./benchmarks/docstring-simulation",
-  "generated_at": "2026-08-25T21:29:04Z",
-  "commit": "e9c5649-dirty",
+  "generated_at": "2026-08-25T22:16:30Z",
+  "commit": "255da24-dirty",
   "environment": {
     "arch": "arm64",
     "go": "go1.26.4",
     "os": "darwin"
   },
-  "snapshot": "000191",
+  "snapshot": "000194",
   "question_set": "benchmarks/intent-token-cost/questions.json",
   "questions": 24,
   "corpus": [
     {
       "repository": "kivgraph",
-      "symbols": 14490
+      "symbols": 24610
     },
     {
       "repository": "api-db-go",
@@ -26,18 +26,18 @@
     }
   ],
   "prose": {
-    "documented_symbols": 6536,
-    "symbols": 22299,
-    "docstring_bytes": 1606890,
-    "symbols_with_literals": 10678,
-    "literal_bytes": 766190,
-    "files_read": 690,
+    "documented_symbols": 10622,
+    "symbols": 32419,
+    "docstring_bytes": 2683313,
+    "symbols_with_literals": 12192,
+    "literal_bytes": 1009112,
+    "files_read": 759,
     "files_not_on_disk": 0
   },
   "base": {
     "source": "",
-    "terms": 1924,
-    "postings": 194181,
+    "terms": 2456,
+    "postings": 347989,
     "found": 6,
     "top_one": 2
   },
@@ -50,114 +50,114 @@
     {
       "source": "names only",
       "prose_weight": 1,
-      "terms": 1924,
-      "postings": 194181,
+      "terms": 2456,
+      "postings": 347989,
       "found": 6,
       "top_one": 2
     },
     {
       "source": "names only + guessed words",
       "prose_weight": 1,
-      "terms": 1924,
-      "postings": 194181,
+      "terms": 2456,
+      "postings": 347989,
       "found": 11,
       "top_one": 4
     },
     {
       "source": "prose",
       "prose_weight": 1,
-      "terms": 5295,
-      "postings": 358305,
-      "found": 6,
+      "terms": 5986,
+      "postings": 603808,
+      "found": 5,
       "top_one": 2
     },
     {
       "source": "prose + guessed words",
       "prose_weight": 1,
-      "terms": 5295,
-      "postings": 358305,
-      "found": 9,
+      "terms": 5986,
+      "postings": 603808,
+      "found": 7,
       "top_one": 5
     },
     {
       "source": "prose",
       "prose_weight": 0.3,
-      "terms": 5295,
-      "postings": 358305,
-      "found": 8,
-      "top_one": 3
+      "terms": 5986,
+      "postings": 603808,
+      "found": 6,
+      "top_one": 2
     },
     {
       "source": "prose + guessed words",
       "prose_weight": 0.3,
-      "terms": 5295,
-      "postings": 358305,
-      "found": 11,
-      "top_one": 6
+      "terms": 5986,
+      "postings": 603808,
+      "found": 9,
+      "top_one": 4
     },
     {
       "source": "literals",
       "prose_weight": 1,
-      "terms": 3770,
-      "postings": 245195,
+      "terms": 4700,
+      "postings": 408815,
       "found": 5,
       "top_one": 1
     },
     {
       "source": "literals + guessed words",
       "prose_weight": 1,
-      "terms": 3770,
-      "postings": 245195,
+      "terms": 4700,
+      "postings": 408815,
       "found": 10,
       "top_one": 4
     },
     {
       "source": "literals",
       "prose_weight": 0.3,
-      "terms": 3770,
-      "postings": 245195,
+      "terms": 4700,
+      "postings": 408815,
       "found": 7,
       "top_one": 3
     },
     {
       "source": "literals + guessed words",
       "prose_weight": 0.3,
-      "terms": 3770,
-      "postings": 245195,
+      "terms": 4700,
+      "postings": 408815,
       "found": 16,
       "top_one": 4
     },
     {
       "source": "prose and literals",
       "prose_weight": 1,
-      "terms": 5931,
-      "postings": 401974,
-      "found": 5,
+      "terms": 6834,
+      "postings": 656334,
+      "found": 4,
       "top_one": 2
     },
     {
       "source": "prose and literals + guessed words",
       "prose_weight": 1,
-      "terms": 5931,
-      "postings": 401974,
+      "terms": 6834,
+      "postings": 656334,
       "found": 9,
       "top_one": 5
     },
     {
       "source": "prose and literals",
       "prose_weight": 0.3,
-      "terms": 5931,
-      "postings": 401974,
-      "found": 9,
-      "top_one": 4
+      "terms": 6834,
+      "postings": 656334,
+      "found": 6,
+      "top_one": 2
     },
     {
       "source": "prose and literals + guessed words",
       "prose_weight": 0.3,
-      "terms": 5931,
-      "postings": 401974,
-      "found": 12,
-      "top_one": 7
+      "terms": 6834,
+      "postings": 656334,
+      "found": 10,
+      "top_one": 5
     }
   ],
   "results": [
@@ -172,15 +172,15 @@
         0,
         0,
         4,
-        1,
+        5,
         0,
         6,
         1,
         1,
         0,
         0,
-        1,
-        1
+        4,
+        6
       ]
     },
     {
@@ -209,21 +209,21 @@
       "intent": "where is every tool of this server registered",
       "repo": "kivgraph",
       "class": "common_vocabulary",
-      "base_rank": 9,
+      "base_rank": 10,
       "prose_ranks": [
-        9,
-        0,
-        0,
-        0,
         10,
         0,
         0,
         0,
-        10,
         0,
         0,
         0,
-        8,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         0
       ]
     },
@@ -235,17 +235,17 @@
       "prose_ranks": [
         0,
         1,
-        7,
-        1,
         0,
         1,
         0,
         1,
         0,
         1,
-        3,
+        0,
         1,
-        5,
+        0,
+        1,
+        0,
         1
       ]
     },
@@ -259,16 +259,16 @@
         4,
         0,
         0,
-        1,
-        1,
+        0,
+        0,
         0,
         0,
         5,
         6,
         0,
         0,
-        1,
-        1
+        0,
+        0
       ]
     },
     {
@@ -301,17 +301,17 @@
       "prose_ranks": [
         0,
         4,
+        2,
+        1,
+        6,
+        1,
+        4,
+        4,
+        0,
+        2,
         3,
         1,
         7,
-        1,
-        4,
-        2,
-        0,
-        2,
-        4,
-        1,
-        9,
         1
       ]
     },
@@ -346,17 +346,17 @@
         0,
         2,
         0,
-        8,
+        6,
+        0,
+        2,
+        0,
+        0,
         0,
         3,
         0,
+        9,
         0,
-        0,
-        3,
-        0,
-        0,
-        0,
-        4
+        2
       ]
     },
     {
@@ -370,11 +370,11 @@
         0,
         0,
         0,
+        10,
         0,
         0,
         0,
-        0,
-        6,
+        7,
         0,
         0,
         0,
@@ -484,11 +484,11 @@
         1,
         1,
         1,
-        2,
+        3,
         0,
-        6,
+        5,
         0,
-        8
+        7
       ]
     },
     {
@@ -500,7 +500,7 @@
         0,
         0,
         0,
-        6,
+        0,
         0,
         0,
         3,
@@ -508,7 +508,7 @@
         0,
         8,
         0,
-        3,
+        0,
         0,
         0
       ]
@@ -546,7 +546,7 @@
         0,
         0,
         0,
-        4,
+        0,
         0,
         6,
         0,
@@ -554,7 +554,7 @@
         0,
         0,
         0,
-        9
+        0
       ]
     },
     {
@@ -566,9 +566,9 @@
         0,
         1,
         0,
-        4,
         0,
-        2,
+        0,
+        0,
         0,
         2,
         0,
@@ -589,7 +589,7 @@
         0,
         0,
         0,
-        8,
+        7,
         0,
         0,
         0,
@@ -597,7 +597,7 @@
         0,
         0,
         0,
-        10,
+        8,
         0
       ]
     },
@@ -614,9 +614,9 @@
         0,
         3,
         0,
-        4,
-        0,
         5,
+        0,
+        4,
         0,
         2,
         0,
@@ -659,7 +659,7 @@
         0,
         3,
         5,
-        0,
+        6,
         3,
         0,
         0,

@@ -155,6 +155,33 @@ anterior, y se midió: **`11` de `24` baja a `7`, y los `4` primeros puestos a
 tiene un match fuerte, que es la definición de un god file ganando una búsqueda.
 Código retirado; queda el número.
 
+## Confirmado sobre un segundo corpus
+
+La generación `000194` -- la primera después de que el loader de TypeScript
+empezara a leer un `jsconfig` como proyecto-- creció el corpus un `45 %`:
+`32.419` símbolos contra `22.299`, y `kivgraph` pasó del `65 %` al `76 %` del
+total. El índice de nombres pasó de `1.924` términos y `8,71` postings por
+símbolo a `2.456` y `10,73`.
+
+Las mismas `24` preguntas sobre ese corpus dan **exactamente los mismos
+aciertos**: `6` de `24` en prosa sola, `11` con las palabras adivinadas, `17`
+nombrando el repositorio, y el mismo reparto de causas -- `6` de ventana, `4`
+desbancadas, `3` inalcanzables--. La superficie no se degrada porque el corpus
+crezca.
+
+Y la decisión de este ADR sale más fuerte, no más débil:
+
+|texto indexado|generación `000191`|generación `000194`|
+|---|---|---|
+|prosa, mejor caso|`11` de `24`|**`9` de `24`**|
+|literales, mejor caso|`16` de `24`|**`16` de `24`**|
+
+**La prosa empeora cuando el corpus crece y los literales aguantan.** Es lo
+esperable de una señal que añade vocabulario en todas partes frente a una que
+añade el vocabulario de un comportamiento concreto, y es la segunda medición
+independiente que dice que si algún día se paga un esquema, se paga por los
+literales.
+
 ## Lo que este ADR no cierra
 
 Que un **parser** en vez de una regla de texto ataría el docstring al símbolo con
