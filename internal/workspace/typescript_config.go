@@ -64,11 +64,24 @@ func resolveTypeScriptConfig(configPath, repositoryRoot string) (parsedTypeScrip
 		return parsedTypeScriptConfig{}, err
 	}
 
+	compilerOptions := resolved.compilerOptions
+	// A jsconfig implies "allowJs": without it the source resolution of a
+	// JavaScript project claims no file, while the engine loading that same
+	// project claims every one. A declared value wins, false included.
+	if isJavaScriptConfigPath(cleanConfigPath) {
+		if _, declared := compilerOptions["allowJs"]; !declared {
+			if compilerOptions == nil {
+				compilerOptions = make(map[string]any, 1)
+			}
+			compilerOptions["allowJs"] = true
+		}
+	}
+
 	return parsedTypeScriptConfig{
 		ConfigPath:      cleanConfigPath,
 		Directory:       filepath.Dir(cleanConfigPath),
 		ExtendsChain:    resolved.chain,
-		CompilerOptions: resolved.compilerOptions,
+		CompilerOptions: compilerOptions,
 		Files:           resolved.files,
 		Include:         resolved.include,
 		Exclude:         resolved.exclude,

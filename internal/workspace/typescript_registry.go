@@ -367,12 +367,28 @@ func typeScriptProjectLessSpecific(current, candidate *TypeScriptProject) bool {
 	if len(currentRoot) != len(candidateRoot) {
 		return len(currentRoot) < len(candidateRoot)
 	}
-	currentPrimary := filepath.Base(current.ConfigPath) == "tsconfig.json"
-	candidatePrimary := filepath.Base(candidate.ConfigPath) == "tsconfig.json"
-	if currentPrimary != candidatePrimary {
-		return !currentPrimary && candidatePrimary
+	currentRank := typeScriptProjectNameRank(current.ConfigPath)
+	candidateRank := typeScriptProjectNameRank(candidate.ConfigPath)
+	if currentRank != candidateRank {
+		return candidateRank < currentRank
 	}
 	return candidate.ConfigPath < current.ConfigPath
+}
+
+// typeScriptProjectNameRank orders the configs of one directory by how
+// canonically each declares that directory's project: lower wins. A
+// "tsconfig.json" beats the "jsconfig.json" beside it, and both beat a
+// variant such as "tsconfig.build.json" -- which was already the rule for
+// the two classes that existed before jsconfig was one of them.
+func typeScriptProjectNameRank(configPath string) int {
+	switch filepath.Base(configPath) {
+	case "tsconfig.json":
+		return 0
+	case "jsconfig.json":
+		return 1
+	default:
+		return 2
+	}
 }
 
 func packageTypeScriptConfigMetadata(project *TypeScriptProject) (typeScriptConfigMetadata, error) {

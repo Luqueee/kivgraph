@@ -368,6 +368,16 @@ silenciosamente el `tsconfig` de la raíz para otro paquete. Un manifest sin
 nombre o sin proyecto se conserva como configuración del workspace, pero no
 genera hechos semánticos por sí solo.
 
+Un paquete que envía JavaScript declara su proyecto con un `jsconfig.json`,
+que Kivgraph lee como un `tsconfig` cuyo `allowJs` está implícito -- un valor
+declarado en el fichero gana, `false` incluido. Donde conviven los dos en un
+mismo directorio, el proyecto del paquete es el `tsconfig.json`. Ver el ADR
+0070.
+
+Un `include` con comodín reclama las extensiones que lee el compilador:
+`.ts`, `.tsx`, `.mts` y `.cts` siempre, más `.js`, `.jsx`, `.mjs` y `.cjs`
+cuando el proyecto declara `allowJs`.
+
 Si un repositorio registrado como TypeScript no tiene ningún provider nombrado
 con proyecto aplicable, `index --full` termina con error explícito; no publica
 una generación vacía.

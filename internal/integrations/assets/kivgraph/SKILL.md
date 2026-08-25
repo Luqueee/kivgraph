@@ -154,7 +154,9 @@ Report the reason rather than concluding that coverage is broken:
 
 A repository registered as TypeScript that declares no named package with a
 project contributes nothing to the graph; a `package.json` beside loose
-sources is not one. The index reports it by name.
+sources is not one. The index reports it by name. A package that ships
+JavaScript declares its project with a `jsconfig.json`, read as a tsconfig
+whose `allowJs` is implied.
 
 Rust reasons name the crate registry or the analyzer that produced the index:
 

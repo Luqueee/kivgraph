@@ -46,8 +46,22 @@ type TypeScriptWorkspaceDeclaration struct {
 	Patterns     []string
 }
 
+// isTypeScriptConfigName reports whether name declares a project the engine
+// can load. "jsconfig." is the same file for a package that ships
+// JavaScript: the compiler reads it as a tsconfig whose "allowJs" defaults
+// to true, and a repository of loose .mjs files has no other way to declare
+// a project without pretending to be TypeScript.
 func isTypeScriptConfigName(name string) bool {
-	return strings.HasPrefix(name, "tsconfig.") && strings.HasSuffix(name, ".json")
+	if !strings.HasSuffix(name, ".json") {
+		return false
+	}
+	return strings.HasPrefix(name, "tsconfig.") || strings.HasPrefix(name, "jsconfig.")
+}
+
+// isJavaScriptConfigPath reports whether path is a "jsconfig", whose implied
+// compiler options differ from a tsconfig's.
+func isJavaScriptConfigPath(path string) bool {
+	return strings.HasPrefix(filepath.Base(path), "jsconfig.")
 }
 
 func readTypeScriptManifest(path string) ([]byte, error) {
