@@ -330,6 +330,15 @@ jobs:
       - name: Fetch the pinned LadybugDB library
         run: scripts/fetch-ladybug.sh
 
+      # The dead-code check belongs here because this is the only Linux job
+      # that builds the tag. Under the default configuration the files behind
+      # it are not analysed, so 20 symbols whose callers live there look
+      # unreferenced -- every one a false positive. With the tag the answer is
+      # zero, which is what makes it a gate rather than a wish. The answer does
+      # not depend on the platform, so the macOS job does not repeat it.
+      - name: Dead code, in the configuration that can answer
+        run: make lint-ladybug
+
       - name: Go tests with LadybugDB
         run: make test-ladybug
 

@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -980,8 +979,6 @@ func directorySize(path string) int64 {
 	})
 	return total
 }
-
-var errUnsupported = errors.New("family not supported by this arm")
 
 // kivgraphScope says what the index covered, and distinguishes a rebuild from a
 // republication of an unchanged tree instead of printing a zero as if it were a

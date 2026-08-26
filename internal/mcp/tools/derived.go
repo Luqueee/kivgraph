@@ -1,10 +1,7 @@
 package tools
 
 import (
-	"fmt"
-
 	"github.com/Luqueee/kivgraph/internal/facts"
-	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
 // derivedFilter decides whether rows from a provider Kivgraph derived from the
@@ -41,20 +38,4 @@ func (filter derivedFilter) keepsRepository(name string) bool {
 		return true
 	}
 	return !facts.IsSyntheticRepository(name)
-}
-
-// keepsSymbol reports whether one symbol of the snapshot belongs in the answer.
-func (filter derivedFilter) keepsSymbol(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID) (bool, error) {
-	if filter.keepsAll() {
-		return true, nil
-	}
-	repository, _, err := symbolRepositoryAndLanguages(snapshot, id)
-	if err != nil {
-		return false, err
-	}
-	name, ok := snapshot.Strings().String(repository.Name)
-	if !ok {
-		return false, fmt.Errorf("repository has an invalid name: %v", repository)
-	}
-	return !facts.IsSyntheticRepository(name), nil
 }

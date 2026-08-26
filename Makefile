@@ -54,6 +54,23 @@ test-ladybug:
 	CGO_LDFLAGS="-L$$LIB" \
 	go test -tags ladybug -ldflags="-extldflags=-Wl,-rpath,$$LIB" $(ARGS) $(PKGS)
 
+# lint-ladybug runs the dead-code check in the only configuration that can
+# answer it. Under the default build the files behind the `ladybug` tag are
+# not analysed at all, so every symbol whose caller lives in one of them looks
+# unreferenced: measured at 20 findings, all of them false. With the tag they
+# are read and the answer was zero, which is what makes this enforceable.
+#
+# It shares test-ladybug's environment because staticcheck type-checks cgo the
+# same way the compiler does, and without the pinned library it cannot load
+# the package it is being asked about.
+lint-ladybug:
+	@LIB="$$(scripts/fetch-ladybug.sh)"; \
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$$LIB" \
+	CGO_LDFLAGS="-L$$LIB" \
+	go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 \
+		-checks=U1000 -tags ladybug $(PKGS)
+
 # build-linux-amd64 and build-darwin-arm64 create the generated distribution
 # bundle for each supported target. cgo links the pinned LadybugDB library, so
 # a bundle is always built by a host of its own platform.

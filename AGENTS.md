@@ -449,12 +449,19 @@ Si el cambio afecta LadybugDB nativo:
 
 ```bash
 make test-ladybug
+make lint-ladybug
 ```
 
 `make test-ladybug` es el único modo soportado de ejecutar ese tag: exporta las
 variables `CGO_*` que apuntan a la biblioteca fijada y pasa el rpath por
 `-ldflags`. `go test -tags ladybug` por su cuenta no enlaza. `PKGS` acota la
 pasada a un paquete.
+
+`make lint-ladybug` contesta la pregunta de código muerto, y sólo se puede
+contestar ahí. Bajo la configuración por defecto los ficheros tras el tag no se
+analizan, así que todo símbolo cuyo llamante vive en uno de ellos parece sin
+referencias: medido en `20` hallazgos, los `20` falsos. Con el tag la respuesta es
+cero, y eso es lo que lo convierte en un gate en vez de un deseo.
 
 Lo que esas flags **no** repiten es parte del contrato. `CGO_LDFLAGS` se aplica a
 cada paquete cgo y no una vez al enlazar, así que nombrar ahí `-llbug` o el rpath

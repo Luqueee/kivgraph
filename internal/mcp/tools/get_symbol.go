@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -153,13 +152,6 @@ func getSymbol(
 		Returned:      1,
 		Results:       details,
 	}, nil
-}
-
-func normalizeSymbolStableKey(value string) (string, error) {
-	if value == "" || strings.TrimSpace(value) != value {
-		return "", NewToolError(CodeInvalidArgument, "stable_key must be a non-empty value without surrounding whitespace")
-	}
-	return value, nil
 }
 
 func symbolDetails(

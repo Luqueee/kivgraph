@@ -17874,11 +17874,24 @@ El recuento, sobre el árbol de hoy:
 |`S1017`|`1`|`1`|`TrimPrefix` escrito a mano|
 
 **La trampa, y por eso esto es una ficha y no un `sed`:** los recuentos cambian
-con el tag, y en direcciones opuestas. `U1000` baja de `28` a `15` porque quince
-de esos «no usados» **sí** tienen llamante detrás de `//go:build ladybug`:
-borrarlos con la pasada por defecto rompería `make test-ladybug`, que es
-precisamente el gate que no corre en la misma invocación. Toda retirada de código
-muerto aquí se comprueba en las dos pasadas antes de tocar nada.
+con el tag, y en direcciones opuestas. Medido al cerrar la clase, el reparto de
+`U1000` es este -- y el número que esta ficha decía antes era `15`, que es el
+lado equivocado de la resta:
+
+|conjunto|n|qué es|
+|---|---:|---|
+|muerto en las dos configuraciones|`8`|retirada segura sin razonar sobre tags|
+|reportado **sólo sin** el tag|`20`|falsos: su llamante vive en un `_native.go`|
+|muerto con `-tags ladybug`|`15`|real, y ya retirado|
+
+El motivo es que ninguna configuración es superconjunto de la otra: con el tag
+desaparecen los ficheros `!ladybug`, y sin él no se analizan los `_native.go`.
+Así que `U1000` **no se puede exigir en la pasada por defecto** -- ahí los `20`
+falsos lo impiden-- y sí con el tag, donde la respuesta hoy es cero.
+
+Y un aviso que costó una vuelta: `2>/dev/null` sobre `staticcheck` hace que un
+paquete que **no cargó** se lea igual que un paquete sin hallazgos. El cero se
+confirma inyectando un muerto y viendo que lo caza, con `stderr` a la vista.
 
 `ST1005` sube de `18` a `46`: la mayoría vive en `arrow_scan_native.go`, que sólo
 compila con el tag. Son cadenas de error que empiezan por mayúscula, y varias
@@ -17886,8 +17899,20 @@ empiezan por un nombre propio -- `Symbol`, `Arrow`--, donde la convención de Go
 aplica igual. Cada una se lee antes de bajarle la inicial.
 
 **Cómo se cierra:** una pasada por clase, en commits separados, corriendo
-`go test ./...` y `make test-ladybug` en cada una. Al terminar, el gate pasa de
-`-checks='SA*'` a `-checks=all` en `.github/workflows/ci.yml`, que es la línea
-que convierte el trabajo en irreversible.
+`go test ./...` y `make test-ladybug` en cada una.
 
-**Estado:** abierta.
+El estado final **no** es un solo `-checks=all`: `U1000` sólo tiene respuesta con
+el tag, así que vive en `make lint-ladybug` y en el job que ya lo construye,
+mientras el resto de clases se exige en la pasada por defecto. Un `all` único
+sobre la configuración por defecto reintroduciría los `20` falsos.
+
+**Estado:** parcial.
+
+- `U1000`: **cerrada**. `15` símbolos retirados, `170` líneas y ninguna añadida;
+  seis eran los decodificadores `FlatTuple` que el camino Arrow sustituyó y dejó
+  atrás. Gate: `make lint-ladybug`, visto fallar con un muerto inyectado en el
+  camino nativo.
+- `ST1005` (`46`) y `S1016`/`S1017` (`6`): abiertas. Las segundas nombran una
+  forma duplicada cada una -- `traversalQueueItem` a `TraversalVisit`,
+  `IndexObservation` a `IndexMetrics`, `Reference` a `ScanEdge`--, así que son
+  preguntas de diseño y se leen una a una.
