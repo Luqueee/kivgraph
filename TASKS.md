@@ -17689,10 +17689,17 @@ esto. `--resolver-version` toma su valor por defecto de `version.Value`
 lectura dependiente del `cwd`. El sello de una generación dice qué binario la
 produjo.
 
-**Lo que hay que decidir**, y es una sola pregunta: si `version --json` describe
-**el proceso** o **el directorio**. Si es el proceso, el segundo candidato se
-retira y el test que lo guarda se retira con él. Si es el directorio, entonces la
-salida tiene que decir de qué artefacto habla, porque hoy un lector no puede
-distinguir «esta es tu versión» de «esta es la de un bundle que dejaste ahí».
+**Decidido: describe el proceso.** El segundo candidato se retiró y el test que
+lo guardaba se fue con él. La versión pasa a ser siempre `version.Value`, que es
+lo que `fallbackProvenance` ya hacía y sólo el camino del bundle sustituía; un
+manifest cuyo `release` no coincide se rechaza nombrando los dos, igual que uno
+de otra plataforma. Ver ADR 0075.
 
-**Estado:** abierta.
+La reproducción de arriba, con el mismo `dist/` viejo en el checkout: `0.3.6`
+antes, `0.8.0` después, con el commit del build info. Dos tests negativos, cada
+uno visto fallar. Ningún consumidor cambia: los tres ejecutan el binario del
+bundle, y el manifest de un bundle copia el `version` del binario que
+`build-bundle.sh` acaba de construir, así que el guardia nuevo no puede saltar en
+uno legítimo.
+
+**Estado:** cerrada el `2026-08-26`.
