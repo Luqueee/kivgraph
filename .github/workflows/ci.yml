@@ -402,6 +402,16 @@ jobs:
       # go/packages, the main module fails to type-check, and the pass indexes
       # 63 Go definitions instead of 10075 -- and publishes a generation, and
       # passes. A gate that green-lights a hollow graph is worse than no gate.
+      # An index type-checks every package of every registered module, and
+      # this job only built ./cmd/kivgraph -- so the dependencies imported
+      # solely by benchmarks/ were never downloaded. The loader reports
+      # such a module as MODULE_NOT_LOADED and publishes the rest, which
+      # is how the pass indexed 63 definitions instead of 10075 while
+      # reporting success. A warm cache is a precondition of loading Go,
+      # not part of what this gate measures.
+      - name: Download what the pass will type-check
+        run: go mod download
+
       - name: Index with the bundled binary
         shell: bash
         run: |
