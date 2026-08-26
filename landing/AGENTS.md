@@ -500,6 +500,30 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `document.head` exista: en `evaluateOnNewDocument` ni `head` ni
   `documentElement` existen todavía, y un `MutationObserver` registrado ahí no
   llega a observar nada -- devuelve el baseline disfrazado de resultado.
+- **Un control nuevo en el hero se mide igual que una animación**, y el botón
+  que copia el prompt del agente es el primero que pasó por ahí. Medir un LCP
+  contra el otro build es lo único que contesta la pregunta: la cifra sola no
+  dice nada, porque la máquina que mide y las versiones instaladas mueven la
+  mediana más que el cambio. Se sirven **los dos builds a la vez**, en dos
+  puertos, y se **intercalan** las cargas alternando cuál va primero en cada
+  ronda; si no, el brazo que corre siempre en segundo lugar hereda una máquina
+  ya caliente y la diferencia que se publica es esa.
+- Resultado de esa pasada, 15 cargas por brazo a `1440x900`: sin el botón
+  `min 75 / mediana 85 / max 104 ms`, con él `min 71 / mediana 82 / max 99 ms`.
+  El botón no cuesta nada -- sale 3 ms por debajo, dentro de un ruido de
+  ~30 ms -- y lo que de verdad se estaba comprobando es lo otro: el elemento LCP
+  fue el `h1` (`data-hero-item="title"`) en **las 30 cargas** y su superficie
+  pintada la misma, `90132`. Un control añadido a la fila de acciones no
+  desplazó al candidato, que es el fallo que esta sección existe para evitar.
+- La sonda no vive en el repositorio y no hace falta que viva: `playwright-core`
+  en un directorio de usar y tirar fuera del árbol, apuntando con
+  `executablePath` al Chromium que la caché de Playwright ya tiene. `-core` a
+  propósito, porque no descarga navegadores. `addInitScript` es el
+  `evaluateOnNewDocument` que este archivo nombra más arriba, y para el LCP no
+  hace falta esperar a que exista un `head`: un `PerformanceObserver` sobre
+  `largest-contentful-paint` con `buffered: true` no toca el DOM. Desde la CLI
+  de Chromium a secas -- `--dump-dom` y `--virtual-time-budget`-- la medida sale
+  vacía o irrepetible; se intentó, y por eso está escrito aquí.
 - El estado inicial lo pone GSAP con `gsap.from`, **nunca el CSS**. Ningún
   elemento reposa en `opacity: 0` -- la única declaración así en las hojas de
   estilo es el keyframe que parpadea el cursor del transcript--, así que un
