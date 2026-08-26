@@ -140,6 +140,15 @@ func run(ctx context.Context, cfg config, command string) error {
 	if out.CrossRepository, err = measureCrossRepository(ctx, session, tokens, cfg.Directory, questions); err != nil {
 		return err
 	}
+	// Every arm that opens a file is priced from a capture, so a gap is not a
+	// missing number: it is an unpriced arm. The run walks the whole set first
+	// and names all of them, because they move together -- one generation moved
+	// the ranges -- and one key per build makes the recapture cost more than the
+	// measurement it protects.
+	if unmet := reads.unmet(); len(unmet) > 0 {
+		return fmt.Errorf("no captured host read for %d range(s); recapture native/reads.json against this generation:\n%s",
+			len(unmet), strings.Join(unmet, "\n"))
+	}
 	out.Totals = totalise(out.Questions)
 	out.Limitations = limitations(out)
 

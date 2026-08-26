@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -81,17 +82,38 @@ type hostRead struct {
 	Tokens int    `json:"tokens"`
 }
 
-func loadHostReads(directory string) (map[string]hostRead, error) {
+// hostReads is the capture set, and the record of what was asked of it and not
+// found. A run that aborts on the first gap tells the reader one range to
+// capture out of however many moved, so recapturing turns into one build per
+// key; the whole point of failing closed is to price the work, not to reveal it
+// one line at a time.
+type hostReads struct {
+	captures map[string]hostRead
+	missing  map[string]struct{}
+}
+
+func loadHostReads(directory string) (*hostReads, error) {
 	path := filepath.Join(directory, "native", "reads.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	reads := map[string]hostRead{}
-	if err := json.Unmarshal(data, &reads); err != nil {
+	captures := map[string]hostRead{}
+	if err := json.Unmarshal(data, &captures); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	return reads, nil
+	return &hostReads{captures: captures, missing: map[string]struct{}{}}, nil
+}
+
+// unmet lists every range asked for and not captured, sorted, so one pass names
+// the whole recapture.
+func (reads *hostReads) unmet() []string {
+	keys := make([]string, 0, len(reads.missing))
+	for key := range reads.missing {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func loadQuestions(directory string) (questionSet, error) {
@@ -499,7 +521,7 @@ func measureQuestion(
 	directory string,
 	source corpus,
 	roots map[string]string,
-	reads map[string]hostRead,
+	reads *hostReads,
 	asked question,
 ) (questionResult, error) {
 	result := questionResult{Symbol: asked.Symbol, Class: asked.Class}
@@ -646,14 +668,15 @@ func measureQuestion(
 // capture. A missing capture is a failure, not a fallback: silently charging the
 // raw slice instead would understate the arm that reads files, which is the arm
 // this benchmark exists to compare against.
-func hostReadCost(reads map[string]hostRead, relativePath string, start, end int) (int, error) {
+func hostReadCost(reads *hostReads, relativePath string, start, end int) (int, error) {
 	if relativePath == "" || start <= 0 || end < start {
 		return 0, nil
 	}
 	key := fmt.Sprintf("%s:%d-%d", relativePath, start, end)
-	read, found := reads[key]
+	read, found := reads.captures[key]
 	if !found {
-		return 0, fmt.Errorf("no captured host read for %s; recapture native/reads.json against this generation", key)
+		reads.missing[key] = struct{}{}
+		return 0, nil
 	}
 	return read.Tokens, nil
 }
