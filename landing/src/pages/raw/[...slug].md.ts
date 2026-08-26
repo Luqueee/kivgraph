@@ -18,12 +18,21 @@ import {
  * Rendered on demand rather than prerendered, and that is the whole point: a
  * prerendered dynamic route under `output: "server"` still *matches* every
  * `/raw/**.md` the router is handed, but carries no component instance for the
- * paths `getStaticPaths` never emitted, so Astro throws inside its own pipeline
- * before any handler of ours can run. The namespace answered `500` to
+ * paths a static path list never emitted, so Astro throws inside its own
+ * pipeline before any handler of ours can run. The namespace answered `500` to
  * everything unknown -- a server error where a crawler should read a `404`, and
  * `/raw/releases.md` was exactly that: a URL this site advertised for a page
  * that lives in `src/pages`, not in the `docs` collection, and never had a twin.
  * Handling it here costs one collection read and a string join per request.
+ *
+ * The paragraph above says "a static path list" instead of naming the export,
+ * and the circumlocution is load-bearing. Astro decides whether to warn that
+ * the export is being ignored by testing the file's own source text for that
+ * name -- a plain substring check in `vite-plugin-routes`, not a look at what
+ * the module exports -- so writing it in a comment was enough to trip it. The
+ * advice it printed was to add `export const prerender = true;`, which is
+ * exactly the defect described above. This route exports no path list, must
+ * not, and now says so without spelling the word.
  */
 export const prerender = false;
 
