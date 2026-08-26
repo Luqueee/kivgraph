@@ -1,4 +1,4 @@
-.PHONY: build test semantic-coverage version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
+.PHONY: build test semantic-coverage coverage version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
 
 build: test version
 	go build ./cmd/kivgraph
@@ -8,6 +8,17 @@ test:
 
 semantic-coverage:
 	scripts/verify-semantic-coverage.sh
+
+# coverage measures statement coverage over the product packages and fails
+# below the floor. It is cross-package -- see the script for why the
+# per-package number this repository would otherwise report is wrong -- so it
+# runs the whole suite and costs what `test` costs plus the instrumentation.
+#
+# A toolchain that is absent skips a suite instead of failing it, so the
+# number is only comparable between runs that have the same ones. The script
+# names the ones it could not find.
+coverage:
+	scripts/verify-coverage.sh
 
 version:
 	go run ./cmd/kivgraph version

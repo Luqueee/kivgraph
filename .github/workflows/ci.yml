@@ -247,6 +247,51 @@ jobs:
         working-directory: landing
         run: pnpm build
 
+  coverage:
+    name: Verify the coverage floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # This job exists as its own because the number is only comparable between
+    # runs that installed the same analyzers: a missing one skips its suite
+    # rather than failing it, so measuring in `verify` -- which has no Dart and
+    # no pyright -- would report a floor breach that is really a toolchain that
+    # was never there. Everything the suite can reach is installed here.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # The Python suite resolves through a real pyright language server and
+      # skips without one, which is why it contributes nothing to the number
+      # measured anywhere else in this workflow.
+      - name: Install pyright
+        run: npm install -g pyright
+
+      - name: Install pinned rust-analyzer
+        run: |
+          rustup component add rust-analyzer
+          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
+          echo "$analyzer_dir" >> "$GITHUB_PATH"
+
+      - name: Verify the coverage floor
+        run: make coverage
+
   ladybug:
     name: Verify against a real LadybugDB
     runs-on: ubuntu-latest
