@@ -190,7 +190,7 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   lo lee con `process.loadEnvFile()` antes de que Vite mire: el config **no** es
   un módulo que Vite transforme, así que `import.meta.env` está vacío ahí y un
   `process.env` pelado sólo ve lo que exportó la shell. El valor de reserva de
-  `site` es el origen de producción, `https://kivgraph.luqueee.dev`, y la
+  `site` es el origen de producción, `https://kivgraph.dev`, y la
   dirección importa: `site` se hornea en tiempo de build y CI construye sin
   `.env`, así que la reserva tiene que ser la respuesta correcta. Lo que se fija
   en el fichero es el caso de desarrollo,
@@ -199,6 +199,29 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `http://localhost:6767` como canonical y en el sitemap de todas las páginas.
   Una variable ya exportada gana sobre el fichero -medido-, y `.env` está en
   `.gitignore`.
+- **El origen es el apex de `kivgraph.dev`.** Es la forma que
+  `internal/supervisor/supervisor_linux.go` ya escribía en la línea
+  `Documentation=` de cada unit de systemd que genera, así que el sitio publicaba
+  el canonical de un host y el demonio documentaba otro. `www` no es un segundo
+  origen: lo redirige el host en vez de servirlo, porque dos nombres
+  contestando el mismo HTML son el duplicado que cada canonical de este sitio
+  existe para evitar.
+- El origen anterior, `https://kivgraph.luqueee.dev`, tiene que seguir
+  contestando con un `301` permanente hacia la ruta equivalente del nuevo -- ruta
+  a ruta, no todo a la raíz, que Google trata como soft 404 y no transfiere
+  señales. Eso vive en el host, no en este repositorio: `ecosystem.config.cjs`
+  arranca un proceso Node y el TLS y el proxy inverso son cosa de quien lo sirve.
+  Retirar el DNS del host viejo en vez de redirigirlo tira el historial de
+  indexado que las 37 URLs ya tenían.
+- **Search Console se verifica por DNS, no por el HTML.** El sitio emitía un
+  `google-site-verification` en el shell de la landing, que es el método de
+  etiqueta HTML de una propiedad *URL-prefix* -- y una propiedad URL-prefix es un
+  origen: el token acuñado para `https://kivgraph.luqueee.dev/` no verificaba
+  nada en `https://kivgraph.dev/`, y cada mudanza pedía un literal nuevo en
+  `_seo.ts`. Una propiedad de dominio con un registro `TXT` cubre el apex, `www`
+  y todo subdominio de una vez, y no depende del HTML que este repositorio
+  sirve, así que una página que deje de emitir una etiqueta no puede
+  desverificar la propiedad.
 - Los hechos de identidad -- nombre, lema, resumen, repositorio, licencia, el
   alt de la tarjeta social-- viven en `landing/src/site.mjs`, ESM pelado y sin
   un solo `import` de `astro:*`, porque `astro.config.mjs` tiene que poder

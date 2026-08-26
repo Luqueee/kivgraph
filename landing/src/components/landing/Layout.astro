@@ -14,7 +14,6 @@
 // entirely unused.
 import "../../styles/global.css";
 import {
-  GOOGLE_SITE_VERIFICATION,
   LICENSE_NAME,
   LICENSE_URL,
   PREVIEW_ALT,
@@ -99,13 +98,6 @@ const structuredData = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-
-    {/* Search Console verifies an URL-prefix property by fetching its root, so
-        the tag lives on this page alone. */}
-    <meta
-      name="google-site-verification"
-      content={GOOGLE_SITE_VERIFICATION}
-    />
 
     {/* favicon.svg is the committed raster mark inside a rounded clip; the PNGs
         are the same mark with square corners. The vector goes first because a

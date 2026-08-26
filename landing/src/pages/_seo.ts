@@ -27,14 +27,15 @@ export {
 /** A page of the `docs` content collection. */
 export type DocEntry = CollectionEntry<"docs">;
 
-/**
- * The token Search Console hands out for HTML-tag verification of the
- * URL-prefix property. It is a literal because it belongs to the property, not
- * to the machine serving it, and Google fetches it from the property root, so
- * only the landing shell emits it; the documentation pages do not.
- */
-export const GOOGLE_SITE_VERIFICATION =
-  "6Fs8IePpUHnOCsQg8mlX_ADhWLEmTI8MRm41hPztRvI";
+// Search Console is verified by DNS, so no token lives here. The site used to
+// emit a `google-site-verification` meta tag, which is the HTML-tag method of a
+// URL-prefix property -- and a URL-prefix property is one origin: the token
+// minted for `https://kivgraph.luqueee.dev/` verified nothing on
+// `https://kivgraph.dev/`, and a move would have needed a new literal in this
+// file every time. A domain property authenticated by a TXT record covers the
+// apex, `www` and every subdomain at once, and it does not depend on the HTML
+// this repository ships, so a page that stops emitting a tag cannot unverify
+// the property.
 
 /** The self-hosted analytics tracker a deployment carries, if it carries one. */
 export interface UmamiTracker {
