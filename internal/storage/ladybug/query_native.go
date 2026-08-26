@@ -346,85 +346,6 @@ func (reader *reader) ScanAll(ctx context.Context) (ScanRows, error) {
 	return rows, nil
 }
 
-func (reader *reader) scanConnection(ctx context.Context, operation, query string, decode func(*lbug.FlatTuple) error) error {
-	if err := ctx.Err(); err != nil {
-		return &Error{Op: operation, Err: err}
-	}
-	connection, err := lbug.OpenConnection(reader.parent.native)
-	if err != nil {
-		return &Error{Op: operation, Err: err}
-	}
-	defer connection.Close()
-	if err := setQueryDeadline(connection, ctx); err != nil {
-		return &Error{Op: operation, Err: err}
-	}
-	statement, err := connection.Prepare(query)
-	if err != nil {
-		connection.SetTimeout(0)
-		return &Error{Op: operation, Err: err}
-	}
-	defer statement.Close()
-	result, err := connection.Execute(statement, map[string]any{})
-	if err != nil {
-		if result != nil {
-			result.Close()
-		}
-		connection.SetTimeout(0)
-		return &Error{Op: operation, Err: err}
-	}
-	defer func() {
-		result.Close()
-		connection.SetTimeout(0)
-	}()
-	for result.HasNext() {
-		if err := ctx.Err(); err != nil {
-			return &Error{Op: operation, Err: err}
-		}
-		tuple, err := nextTuple(result)
-		if err != nil {
-			return &Error{Op: operation, Err: err}
-		}
-		decodeErr := decode(tuple)
-		tuple.Close()
-		if decodeErr != nil {
-			return &Error{Op: operation, Err: decodeErr}
-		}
-	}
-	return nil
-}
-
-func decodeRepositoryRecord(tuple *lbug.FlatTuple) (RepositoryRecord, error) {
-	values := [4]string{}
-	var decodeErrors []error
-	for index := range values {
-		value, err := tupleString(tuple, uint64(index))
-		values[index] = value
-		if err != nil {
-			decodeErrors = append(decodeErrors, err)
-		}
-	}
-	if err := errors.Join(decodeErrors...); err != nil {
-		return RepositoryRecord{}, err
-	}
-	return RepositoryRecord{StableKey: values[0], Name: values[1], Path: values[2], Language: values[3]}, nil
-}
-
-func decodeFileRecord(tuple *lbug.FlatTuple) (FileRecord, error) {
-	values := [5]string{}
-	var decodeErrors []error
-	for index := range values {
-		value, err := tupleString(tuple, uint64(index))
-		values[index] = value
-		if err != nil {
-			decodeErrors = append(decodeErrors, err)
-		}
-	}
-	if err := errors.Join(decodeErrors...); err != nil {
-		return FileRecord{}, err
-	}
-	return FileRecord{StableKey: values[0], RepositoryKey: values[1], Path: values[2], ContentHash: values[3], Language: values[4]}, nil
-}
-
 func (reader *reader) execute(ctx context.Context, operation string, statement *lbug.PreparedStatement, arguments map[string]any) (*lbug.QueryResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, &Error{Op: operation, Err: err}
@@ -531,17 +452,6 @@ func decodeReference(tuple *lbug.FlatTuple) (Reference, error) {
 		EvidenceKind:  values[3],
 		SourceFileKey: values[4],
 		TargetFileKey: values[5],
-	}, nil
-}
-
-func decodeScanEdge(tuple *lbug.FlatTuple) (ScanEdge, error) {
-	reference, err := decodeReference(tuple)
-	if err != nil {
-		return ScanEdge{}, err
-	}
-	return ScanEdge{
-		SourceKey: reference.SourceKey, TargetKey: reference.TargetKey, Kind: reference.Kind,
-		EvidenceKind: reference.EvidenceKind, SourceFileKey: reference.SourceFileKey, TargetFileKey: reference.TargetFileKey,
 	}, nil
 }
 

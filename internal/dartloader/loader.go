@@ -1227,13 +1227,6 @@ func beforePosition(left, right position) bool {
 func afterPosition(left, right position) bool {
 	return right.Line < left.Line || (right.Line == left.Line && right.Character < left.Character)
 }
-func referenceKind(kind string) bool {
-	switch kind {
-	case "class", "method", "constructor", "function", "enum", "interface", "mixin", "extension", "variable", "field", "property", "enum_member":
-		return true
-	}
-	return false
-}
 func dartKind(kind int) string {
 	switch kind {
 	case 1:
@@ -1712,9 +1705,6 @@ func utf16Width(value rune) int {
 		return 2
 	}
 	return 1
-}
-func offsetFromSymbol(data []byte, symbol facts.SemanticSymbol) int {
-	return symbol.Start
 }
 func locationKey(path string, offset int) string {
 	return filepath.Clean(path) + "\x00" + strconv.Itoa(offset)

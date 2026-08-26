@@ -391,10 +391,3 @@ func readRSSBytes() int64 {
 	}
 	return 0
 }
-
-func maxInt64(left, right int64) int64 {
-	if left > right {
-		return left
-	}
-	return right
-}

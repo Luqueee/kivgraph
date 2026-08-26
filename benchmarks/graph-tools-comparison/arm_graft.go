@@ -160,15 +160,6 @@ func graftSkeletonNames(text string) []string {
 	return out
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func atoi(in string) int {
 	out := 0
 	for _, char := range in {

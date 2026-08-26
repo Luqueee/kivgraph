@@ -467,10 +467,6 @@ func referenceKeysByKind(references []ReferenceKey) [2][]ReferenceKey {
 	return grouped
 }
 
-func (writer *writer) referenceStatements(kind string) *referenceMutationStatements {
-	return &writer.statements.references[referenceKindIndex(kind)]
-}
-
 func referenceKindIndex(kind string) int {
 	if kind == ReferenceKindCallsDirect {
 		return 1
@@ -563,18 +559,6 @@ func mutationSymbolRows(symbols []Symbol) []any {
 			"file_key": symbol.FileKey, "name": symbol.Name,
 			"qualified_name": symbol.QualifiedName, "kind": symbol.Kind,
 			"signature": symbol.Signature, "start_line": symbol.StartLine, "end_line": symbol.EndLine,
-		}
-	}
-	return rows
-}
-
-func mutationReferenceRows(references []Reference) []any {
-	rows := make([]any, len(references))
-	for index, reference := range references {
-		rows[index] = map[string]any{
-			"source_key": reference.SourceKey, "target_key": reference.TargetKey,
-			"evidence_kind": reference.EvidenceKind, "source_file_key": reference.SourceFileKey,
-			"target_file_key": reference.TargetFileKey,
 		}
 	}
 	return rows

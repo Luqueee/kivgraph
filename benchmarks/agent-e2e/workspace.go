@@ -361,12 +361,6 @@ func (i indexer) register() error {
 	return nil
 }
 
-// configPath is the isolated configuration both the indexer and the arm's server
-// read, so they agree on where the generation lives.
-func (i indexer) configPath() string {
-	return filepath.Join(i.Home, ".config", "kivgraph", "config.yaml")
-}
-
 func lastLines(text string, count int) string {
 	lines := strings.Split(strings.TrimSpace(text), "\n")
 	if len(lines) > count {

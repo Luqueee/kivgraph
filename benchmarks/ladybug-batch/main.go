@@ -32,8 +32,6 @@ const (
 	maxQualificationRSS = int64(2 * 1024 * 1024 * 1024)
 )
 
-var defaultBatchSizes = []int{100, 1_000, 10_000, 50_000}
-
 type config struct {
 	CorpusDir   string
 	DatabaseDir string
