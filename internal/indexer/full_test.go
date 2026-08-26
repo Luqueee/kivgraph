@@ -1025,3 +1025,160 @@ func TestMergeSetsStampsProvenanceFromThePass(t *testing.T) {
 		t.Errorf("unregistered commit = %q, want the value its unit carried", untouched.Commit)
 	}
 }
+
+// A facts payload that cannot be decoded, or that decodes into a set the
+// storage layer would refuse, is an error here rather than an empty set.
+// DecodeFactsJSON is what a caller uses to read facts back between indexing
+// and rebuilding, and an empty set accepted at that boundary would publish a
+// generation that silently holds nothing.
+func TestDecodeFactsJSONRefusesWhatItCannotStore(t *testing.T) {
+	for _, testCase := range [...]struct {
+		name string
+		data string
+		want string
+	}{
+		{name: "an empty document", data: "", want: "decode facts JSON"},
+		{name: "a truncated object", data: `{"repositories":`, want: "decode facts JSON"},
+		{name: "a document that is not an object", data: `["repositories"]`, want: "decode facts JSON"},
+		{name: "a field of the wrong type", data: `{"symbols":42}`, want: "decode facts JSON"},
+		{
+			// Well-formed JSON that Validate refuses: a symbol whose
+			// file nothing declares cannot be stored, and reporting it
+			// as a decode success would move the failure to the load.
+			name: "a symbol with no file",
+			data: `{"repositories":[],"packages":[],"files":[],` +
+				`"symbols":[{"stable_key":"k","file_key":"absent","name":"n"}],` +
+				`"evidence":[],"edges":[],"unresolved":[]}`,
+			want: "",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			set, err := DecodeFactsJSON([]byte(testCase.data))
+			if err == nil {
+				t.Fatalf("DecodeFactsJSON(%s) = %+v, want an error", testCase.data, set)
+			}
+			if testCase.want != "" && !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("error = %v, want it to name %q", err, testCase.want)
+			}
+			if !reflect.DeepEqual(set, facts.Set{}) {
+				t.Fatalf("DecodeFactsJSON() = %+v alongside an error, want the zero set", set)
+			}
+		})
+	}
+}
+
+// The round trip is the contract: what a pass encoded is what a rebuild
+// reads, field for field.
+func TestDecodeFactsJSONRoundTripsAValidSet(t *testing.T) {
+	want := facts.Set{
+		Repositories: []facts.Repository{},
+		Packages:     []facts.Package{},
+		Files:        []facts.File{},
+		Symbols:      []facts.Symbol{},
+		Evidence:     []facts.Evidence{},
+		Edges:        []facts.Edge{},
+		Unresolved:   []facts.UnresolvedReference{},
+	}
+	encoded, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	got, err := DecodeFactsJSON(encoded)
+	if err != nil {
+		t.Fatalf("DecodeFactsJSON() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DecodeFactsJSON() = %+v, want %+v", got, want)
+	}
+}
+
+// Every synthetic workspace of one pass is named from the same base, and the
+// index goes before the extension rather than after it: the go command
+// selects a workspace by the .work suffix, so a file named go.work.2 is not
+// one, and removeUnusedWorkFiles would leave it behind for the next pass to
+// mistake for the workspace in force.
+func TestSiblingWorkFileKeepsTheExtensionLast(t *testing.T) {
+	for _, testCase := range [...]struct {
+		base  string
+		index int
+		want  string
+	}{
+		{base: "/tmp/state/go.work", index: 0, want: "/tmp/state/go.0.work"},
+		{base: "/tmp/state/go.work", index: 12, want: "/tmp/state/go.12.work"},
+		{base: "go.work", index: 3, want: "go.3.work"},
+		// A base with no extension has nowhere to put the index but the
+		// end, and the result still has to be distinct per index.
+		{base: "/tmp/state/gowork", index: 4, want: "/tmp/state/gowork.4"},
+	} {
+		if got := siblingWorkFile(testCase.base, testCase.index); got != testCase.want {
+			t.Fatalf("siblingWorkFile(%q, %d) = %q, want %q",
+				testCase.base, testCase.index, got, testCase.want)
+		}
+	}
+}
+
+// The names a TypeScript unit requested come from all three places a request
+// can appear: an import that resolved, one that did not, and a package
+// dependency. A name gathered from only some of them would leave the fact
+// cache revalidating against a provider list that is missing entries, so a
+// package that appeared later would never invalidate the entry.
+func TestRequestedTypeScriptPackagesGathersEveryRequest(t *testing.T) {
+	payload := facts.TypeScriptPayload{
+		Imports: []facts.TypeScriptImport{
+			{RequestedPackage: "@scope/resolved"},
+			{RequestedPackage: "second-resolved"},
+		},
+		Unresolved: []facts.TypeScriptUnresolved{{RequestedPackage: "@scope/absent"}},
+		Dependencies: []facts.TypeScriptDependency{
+			{Package: "@scope/dependency"},
+		},
+	}
+	got := requestedTypeScriptPackages(payload)
+	want := []string{"@scope/resolved", "second-resolved", "@scope/absent", "@scope/dependency"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("requestedTypeScriptPackages() = %#v, want %#v", got, want)
+	}
+	// An empty payload requests nothing, and that is an empty list rather
+	// than a nil the caller would have to special-case.
+	if empty := requestedTypeScriptPackages(facts.TypeScriptPayload{}); len(empty) != 0 {
+		t.Fatalf("requestedTypeScriptPackages(empty) = %#v, want nothing", empty)
+	}
+}
+
+// The worker is looked for beside this executable, which is how a
+// distribution bundle finds the one it shipped. Anything that is not a
+// runnable file there is not a candidate: a directory of the right name, or a
+// file without an execute bit, would otherwise be handed to exec and fail
+// later with an error that names neither.
+func TestSiblingExecutableAcceptsOnlyARunnableFile(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Skipf("this platform cannot name the running executable: %v", err)
+	}
+	directory := filepath.Dir(executable)
+	runnable := "kivgraph-sibling-runnable"
+	if err := os.WriteFile(filepath.Join(directory, runnable), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Skipf("the directory holding the test binary is not writable: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(filepath.Join(directory, runnable)) })
+	plain := "kivgraph-sibling-plain"
+	if err := os.WriteFile(filepath.Join(directory, plain), []byte("not runnable\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(filepath.Join(directory, plain)) })
+	directoryName := "kivgraph-sibling-directory"
+	if err := os.Mkdir(filepath.Join(directory, directoryName), 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(filepath.Join(directory, directoryName)) })
+
+	path, found := siblingExecutable(runnable)
+	if !found || path != filepath.Join(directory, runnable) {
+		t.Fatalf("siblingExecutable(runnable) = %q, %v, want the sibling path and true", path, found)
+	}
+	for _, name := range [...]string{plain, directoryName, "kivgraph-sibling-absent"} {
+		if path, found := siblingExecutable(name); found {
+			t.Fatalf("siblingExecutable(%q) = %q, true, want false", name, path)
+		}
+	}
+}
