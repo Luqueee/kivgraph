@@ -1,3 +1,5 @@
+// Package webassets serves the viewer's built assets when they were linked
+// into this binary, and a named unavailability when they were not.
 package webassets
 
 import (

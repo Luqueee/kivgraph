@@ -1,3 +1,6 @@
+// Package workspace discovers what a registered repository actually contains
+// -- its modules, crates, packages and sources -- and which provider claims
+// each file.
 package workspace
 
 import (

@@ -1,3 +1,6 @@
+// Package ladybug is the canonical graph store: the LadybugDB schema, the
+// native bindings that read and write it, and the stubs that report the
+// feature unavailable when those bindings were not linked in.
 package ladybug
 
 import "context"

@@ -1,3 +1,6 @@
+// Package pythonloader turns the Python code of a registered repository into
+// semantic facts, through Pyright where it is available and through a fallback
+// worker where it is not.
 package pythonloader
 
 import (

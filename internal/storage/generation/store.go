@@ -1,3 +1,5 @@
+// Package generation owns the on-disk store of published graph generations:
+// how one is built, published, backed up and rolled back.
 package generation
 
 import (

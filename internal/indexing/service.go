@@ -1,3 +1,6 @@
+// Package indexing drives a full index as a service: it runs the pass in a
+// detached process, reports progress on the wire, and keeps a snapshot store
+// following what the pass published.
 package indexing
 
 import (

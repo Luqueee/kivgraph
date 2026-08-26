@@ -1,3 +1,5 @@
+// Package synthetic generates deterministic repository corpora for benchmarks
+// and scale tests.
 package synthetic
 
 import (

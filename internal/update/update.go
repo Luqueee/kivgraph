@@ -1,3 +1,5 @@
+// Package update replaces an installed bundle with a newer published release,
+// and reports that one exists without installing it.
 package update
 
 import (

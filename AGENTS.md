@@ -479,7 +479,7 @@ pueden reproducir a mano cuando uno de ellos falla:
 
 |gate|comando|qué exige|
 |---|---|---|
-|corrección|`staticcheck -checks='SA*,S1016,S1017,ST1005' ./...`|toda clase que nace verde bajo la configuración por defecto. No es `all`: `U1000` sólo se puede contestar con el tag y vive en `make lint-ladybug`|
+|corrección|`staticcheck -checks='all,-U1000' ./...`|toda clase de `staticcheck`. `U1000` es la única exclusión y no por ruidosa: bajo esta build no se puede contestar, y vive en `make lint-ladybug`|
 |vulnerabilidades|`govulncheck ./...`|cero **alcanzables**; una en un módulo que no se llama no falla|
 |reproducibilidad|`scripts/check-reproducible-bundle.sh`|dos builds del mismo checkout, payload idéntico|
 |humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las doce tools contesten|

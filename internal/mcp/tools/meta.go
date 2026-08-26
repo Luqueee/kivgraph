@@ -1,3 +1,5 @@
+// Package tools implements the MCP tools Kivgraph answers questions with,
+// along with their arguments, cursors, error codes and response shapes.
 package tools
 
 import sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"

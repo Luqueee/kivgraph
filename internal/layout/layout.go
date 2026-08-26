@@ -1,3 +1,5 @@
+// Package layout assigns deterministic coordinates to a graph snapshot so the
+// viewer can draw it, and answers viewport queries at each level of detail.
 package layout
 
 import (

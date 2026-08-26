@@ -1,3 +1,5 @@
+// Package dartloader turns the Dart code of a registered repository into
+// semantic facts by driving the Dart analysis server.
 package dartloader
 
 import (

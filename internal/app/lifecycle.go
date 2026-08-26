@@ -1,3 +1,6 @@
+// Package app owns the process lifecycle: resources start together and close
+// in reverse order, so a worker that fails cannot suppress the cleanup of the
+// connections it was using.
 package app
 
 import (
