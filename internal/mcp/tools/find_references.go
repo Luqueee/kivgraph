@@ -872,6 +872,35 @@ func decodeReferenceEdge(edge hotsnapshot.PackedEdge) (decodedReferenceEdge, boo
 	return decodedReferenceEdge{Kind: kind, Confidence: confidence, Provenance: provenance}, true, nil
 }
 
+// referenceEdgeKindCodes is isReferenceEdgeKind as the traversal wants it: the
+// codes, so a walk can be restricted to uses.
+//
+// A traversal that admits every kind is not a superset of one that admits uses:
+// the symbol CSR also carries containment -- METHOD_OF pairs a method with the
+// type that declares it -- and a row builder that refuses a non-reference kind
+// turns the first one reached into a failed query. Naming the vocabulary here
+// keeps the two in step: a kind added to the list above is walked, and one kept
+// out of it is not.
+func referenceEdgeKindCodes() []uint8 {
+	kinds := []facts.EdgeKind{
+		facts.ImportsSymbol, facts.Exports, facts.Reexports,
+		facts.References, facts.CallsDirect, facts.PassesAsCallback,
+		facts.AssignsFunction, facts.ReturnsFunction, facts.TypeUses,
+		facts.Implements, facts.Extends, facts.Embeds, facts.Overrides, facts.PartOf,
+	}
+	codes := make([]uint8, 0, len(kinds))
+	for _, kind := range kinds {
+		code, err := kind.Code()
+		if err != nil {
+			// Unreachable: every kind above is in the vocabulary, and the
+			// test below holds it to isReferenceEdgeKind.
+			continue
+		}
+		codes = append(codes, code)
+	}
+	return codes
+}
+
 func isReferenceEdgeKind(kind facts.EdgeKind) bool {
 	switch kind {
 	case facts.ImportsSymbol, facts.Exports, facts.Reexports,

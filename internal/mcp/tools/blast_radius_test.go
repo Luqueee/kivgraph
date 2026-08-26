@@ -346,6 +346,34 @@ func blastRadiusFanInStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 	return hotsnapshot.NewSnapshotStore(snapshot)
 }
 
+// TestGetBlastRadiusReachesAMethodsCallersWithoutItsPairing is the same defect
+// as TestTraceDependenciesWalksPastAMethodWithoutFollowingItsPairing, incoming:
+// both tools build their traversal options in dependencyTraversalOptions, so one
+// missing default failed both. A Go type is reached from its own method by
+// METHOD_OF, which is containment and not a use, and the impact row builder
+// refuses a non-reference kind -- so asking what breaks if a type changes died
+// on the published graph with SNAPSHOT_UNAVAILABLE, which is the question this
+// server exists to answer.
+//
+// The method itself is not impact: what it declares changing does not break the
+// method, and the seeds already treat a member as content.
+func TestGetBlastRadiusReachesAMethodsCallersWithoutItsPairing(t *testing.T) {
+	store := methodPairingStore(t, 72)
+	_, response, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{
+		StableKey: "sym-type", Depth: 2, Limit: 500,
+	}, store)
+	if err != nil {
+		t.Fatalf("getBlastRadius() error = %v", err)
+	}
+	reached := make([]string, 0, len(response.Results.Symbols))
+	for _, symbol := range response.Results.Symbols {
+		reached = append(reached, symbol.QualifiedName)
+	}
+	if len(reached) != 0 {
+		t.Fatalf("reached = %v, want nothing: the only edge into the type is its own method's pairing", reached)
+	}
+}
+
 // TestGetBlastRadiusGroupsFanInDespiteDivergingReachedFrom is the regression
 // guard for the bug found measuring ADR 0046 against a real 29-row page: with
 // `reached_from` folded into the grouping tuple, every one of the four

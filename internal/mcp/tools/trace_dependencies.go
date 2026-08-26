@@ -716,6 +716,17 @@ func dependencyTraversalOptions(ctx context.Context, options traceDependenciesOp
 			}
 			traversal.EdgeKinds = append(traversal.EdgeKinds, code)
 		}
+	} else {
+		// Reach is what a symbol uses, so the default is the reference
+		// vocabulary and not every kind the CSR happens to carry. Containment
+		// is already answered without a hop -- the root's own members are
+		// seeds, ADR 0059 -- and following it outward would report the type
+		// that declares a reached method as reached too, at a hop of cost.
+		//
+		// Left open it was worse than wrong: the row builders refuse a
+		// non-reference kind as a corrupt snapshot, so the first METHOD_OF
+		// edge reached failed the whole query on the published graph.
+		traversal.EdgeKinds = referenceEdgeKindCodes()
 	}
 	if options.Confidence != "" {
 		code, err := facts.Confidence(options.Confidence).Code()
