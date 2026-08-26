@@ -21,6 +21,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/indexing"
@@ -30,9 +31,11 @@ import (
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 	"github.com/Luqueee/kivgraph/internal/synthetic"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/update"
 	"github.com/Luqueee/kivgraph/internal/version"
 	"github.com/Luqueee/kivgraph/internal/webassets"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -2027,5 +2030,455 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 		if !strings.Contains(report, language) {
 			t.Errorf("report does not name %s:\n%s", language, report)
 		}
+	}
+}
+
+// A generation is named by an unsigned decimal, and anything else is a
+// request the command cannot honour rather than a generation zero: reading a
+// rejected identifier as 0 would point every malformed request at the same
+// real generation.
+func TestSnapshotReportIDRejectsWhatIsNotAGeneration(t *testing.T) {
+	for _, id := range [...]string{"", " ", "-1", "1.0", "0x10", "seven", "18446744073709551616"} {
+		value, err := snapshotReportID(id)
+		if err == nil {
+			t.Fatalf("snapshotReportID(%q) = %d, want an error", id, value)
+		}
+		if value != 0 {
+			t.Fatalf("snapshotReportID(%q) = %d alongside an error, want 0", id, value)
+		}
+		if !strings.Contains(err.Error(), "parse generation") || !strings.Contains(err.Error(), id) {
+			t.Fatalf("snapshotReportID(%q) error = %v, want it to name the parse and the input", id, err)
+		}
+	}
+}
+
+// The accepted range is the whole of uint64, both ends included: a generation
+// counter that wrapped at a smaller width would reject identifiers the store
+// can legitimately hold.
+func TestSnapshotReportIDAcceptsTheWholeRange(t *testing.T) {
+	for id, want := range map[string]uint64{
+		"0":                    0,
+		"1":                    1,
+		"18446744073709551615": ^uint64(0),
+	} {
+		value, err := snapshotReportID(id)
+		if err != nil {
+			t.Fatalf("snapshotReportID(%q) error = %v", id, err)
+		}
+		if value != want {
+			t.Fatalf("snapshotReportID(%q) = %d, want %d", id, value, want)
+		}
+	}
+}
+
+// A failed rebuild is explained by the first thing that failed, in the order
+// the rebuild ran: stage, then integrity, then invariant, then probe. A
+// report whose every check failed must still name the stage, because that is
+// the failure that caused the rest.
+func TestRebuildFailureReasonNamesTheEarliestFailure(t *testing.T) {
+	everything := rebuild.Report{
+		Stages: []rebuild.Stage{
+			{Name: "load", Passed: true},
+			{Name: "verify", Passed: false, Detail: "row count diverged"},
+		},
+		Integrity: []rebuild.IntegrityCheck{
+			{Table: "symbols", Expected: 10, Observed: 9, Passed: false},
+		},
+		Invariants: ladybug.CanonicalIntegrityReport{
+			Findings: []ladybug.IntegrityFinding{{Rule: "dangling_edge", Violations: 3, Passed: false}},
+		},
+		Probes: []ladybug.CanonicalProbeResult{
+			{Probe: "symbol_lookup", Passed: false, Detail: "no rows"},
+		},
+	}
+	if got, want := rebuildFailureReason(everything), `stage "verify" failed: row count diverged`; got != want {
+		t.Fatalf("rebuildFailureReason() = %q, want %q", got, want)
+	}
+
+	withoutStage := everything
+	withoutStage.Stages = []rebuild.Stage{{Name: "load", Passed: true}}
+	if got, want := rebuildFailureReason(withoutStage),
+		`integrity check "symbols" failed: expected 10, observed 9`; got != want {
+		t.Fatalf("rebuildFailureReason() = %q, want %q", got, want)
+	}
+
+	withoutIntegrity := withoutStage
+	withoutIntegrity.Integrity = nil
+	if got, want := rebuildFailureReason(withoutIntegrity),
+		`invariant "dangling_edge" failed: 3 violation(s)`; got != want {
+		t.Fatalf("rebuildFailureReason() = %q, want %q", got, want)
+	}
+
+	withoutInvariants := withoutIntegrity
+	withoutInvariants.Invariants = ladybug.CanonicalIntegrityReport{}
+	if got, want := rebuildFailureReason(withoutInvariants),
+		`probe "symbol_lookup" failed: no rows`; got != want {
+		t.Fatalf("rebuildFailureReason() = %q, want %q", got, want)
+	}
+}
+
+// A report that failed and names nothing still has to say so. Returning the
+// empty string would print a bare "rebuild failed:" with the cause missing
+// exactly where the reader is looking for it.
+func TestRebuildFailureReasonFallsBackWhenNothingIsMarkedFailed(t *testing.T) {
+	for _, report := range [...]rebuild.Report{
+		{},
+		{
+			Stages:     []rebuild.Stage{{Name: "load", Passed: true}},
+			Integrity:  []rebuild.IntegrityCheck{{Table: "symbols", Passed: true}},
+			Invariants: ladybug.CanonicalIntegrityReport{Findings: []ladybug.IntegrityFinding{{Rule: "ok", Passed: true}}},
+			Probes:     []ladybug.CanonicalProbeResult{{Probe: "lookup", Passed: true}},
+		},
+	} {
+		if got, want := rebuildFailureReason(report), "full rebuild failed"; got != want {
+			t.Fatalf("rebuildFailureReason(%+v) = %q, want %q", report, got, want)
+		}
+	}
+}
+
+// A progress line names the phase, the repository, the position and the
+// state, and each of those is absent from the line exactly when it is absent
+// from the event. A line that printed "0/0" or a bare phase where a
+// repository was named would report work nobody did.
+func TestWriteIndexProgressNamesOnlyWhatTheEventCarries(t *testing.T) {
+	// The elapsed seconds are fixed by placing the start in the past, so
+	// the assertion covers the format without depending on the clock.
+	start := time.Now().Add(-12 * time.Second)
+	for _, testCase := range [...]struct {
+		name  string
+		event indexer.ProgressEvent
+		want  string
+	}{
+		{
+			name:  "a phase with no repository and no total",
+			event: indexer.ProgressEvent{Phase: "publish", Started: true},
+			want:  "[  12.0s] publish start\n",
+		},
+		{
+			name:  "a repository carries the phase and its position",
+			event: indexer.ProgressEvent{Phase: "index", Repository: "kena", Completed: 2, Total: 7},
+			want:  "[  12.0s] 2/7 index kena done\n",
+		},
+		{
+			name:  "a detail is parenthesised after the state",
+			event: indexer.ProgressEvent{Phase: "load", Repository: "kena", Detail: "3 modules", Started: true},
+			want:  "[  12.0s] load kena start (3 modules)\n",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			writeIndexProgress(&stderr, start, testCase.event)
+			if stderr.String() != testCase.want {
+				t.Fatalf("writeIndexProgress() wrote %q, want %q", stderr.String(), testCase.want)
+			}
+		})
+	}
+}
+
+// No movement is not the same as movement that changed nothing. An empty list
+// means nothing moved, so there is no commit whose tree could be compared,
+// and answering true would skip a rebuild on the strength of a comparison
+// nobody made.
+func TestCommitChangedNothingIsFalseWhenNothingMoved(t *testing.T) {
+	if commitChangedNothing(context.Background(), nil) {
+		t.Fatal("commitChangedNothing(nil) = true, want false: nothing moved is not an unchanged tree")
+	}
+	if commitChangedNothing(context.Background(), []indexing.RepositoryMovement{}) {
+		t.Fatal("commitChangedNothing(empty) = true, want false")
+	}
+}
+
+// Signal 0 asks whether a process can be signalled without sending anything,
+// which is how `stop` checks that a pid is still the invocation it read.
+func TestSignalProcessReachesALiveProcess(t *testing.T) {
+	if err := signalProcess(os.Getpid(), syscall.Signal(0)); err != nil {
+		t.Fatalf("signalProcess(self, 0) error = %v, want the running test to be reachable", err)
+	}
+}
+
+// A pid that names no process is an error, not a silent success: `stop`
+// escalates to SIGKILL only after confirming the process is still there, so a
+// nil error here would escalate against a pid that has already been reused.
+//
+// The os.FindProcess failure branch stays uncovered: on Unix FindProcess is
+// documented always to succeed, so reaching it would need a platform this
+// build does not target.
+func TestSignalProcessFailsOnAPidThatNamesNoProcess(t *testing.T) {
+	// The maximum pid a Linux kernel hands out is far below this, and a
+	// negative pid would address a process group instead of a process.
+	if err := signalProcess(1<<30, syscall.Signal(0)); err == nil {
+		t.Fatal("signalProcess(unused pid, 0) = nil, want an error")
+	}
+}
+
+// goCeilingRepository registers a directory holding one module that declares
+// the given language version. The repository is built literally because
+// reportGoLanguageCeiling reads the registry entries rather than the registry,
+// so a commit would be state the check never looks at.
+func goCeilingRepository(t *testing.T, name, goVersion string) workspace.Repository {
+	t.Helper()
+	root := testsupport.TempDir(t)
+	module := "module example.com/" + name + "\n\ngo " + goVersion + "\n"
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(module), 0o600); err != nil {
+		t.Fatalf("WriteFile(go.mod) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "doc.go"), []byte("package "+name+"\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(doc.go) error = %v", err)
+	}
+	return workspace.Repository{
+		Name: name, Path: root, RealPath: root, Languages: []string{"go"},
+	}
+}
+
+// The ceiling is what this build type-checks with, and it is reported as a
+// pass even when nothing is registered: an empty registry cannot raise the
+// requirement above what the build supports.
+//
+// The branch where LanguageVersion() answers nothing stays uncovered: it
+// requires runtime.Version() to be unparseable, which no real toolchain
+// produces and no test can arrange without a function that exists only for
+// the test.
+func TestReportGoLanguageCeilingPassesWithNothingRegistered(t *testing.T) {
+	var name, detail string
+	var passed bool
+	reportGoLanguageCeiling(func(gotName string, gotPassed bool, gotDetail string) {
+		name, passed, detail = gotName, gotPassed, gotDetail
+	}, nil)
+	if name != "toolchain.typecheck" || !passed {
+		t.Fatalf("report(%q, %v, %q), want a passing toolchain.typecheck", name, passed, detail)
+	}
+	ceiling := goworkspace.LanguageVersion()
+	if !strings.Contains(detail, "go "+ceiling) {
+		t.Fatalf("detail = %q, want it to name the ceiling go %s", detail, ceiling)
+	}
+}
+
+// A module that needs a newer language version than this build understands is
+// the one failure this check reports, and it has to fail rather than name a
+// ceiling the module exceeds.
+func TestReportGoLanguageCeilingFailsOnAModuleAboveTheCeiling(t *testing.T) {
+	var passed bool
+	var detail string
+	reportGoLanguageCeiling(func(_ string, gotPassed bool, gotDetail string) {
+		passed, detail = gotPassed, gotDetail
+	}, []workspace.Repository{goCeilingRepository(t, "ahead", "1.99")})
+	if passed {
+		t.Fatalf("report passed with detail %q, want a failure for a module above the ceiling", detail)
+	}
+	if !strings.Contains(detail, "requires go 1.99") {
+		t.Fatalf("detail = %q, want it to name the version the module requires", detail)
+	}
+}
+
+// A module at or below the ceiling leaves the verdict passing, and the detail
+// names the highest registered module so a reader can see how close the
+// registry is to the limit.
+func TestReportGoLanguageCeilingNamesTheHighestRegisteredModule(t *testing.T) {
+	var passed bool
+	var detail string
+	reportGoLanguageCeiling(func(_ string, gotPassed bool, gotDetail string) {
+		passed, detail = gotPassed, gotDetail
+	}, []workspace.Repository{goCeilingRepository(t, "behind", "1.21")})
+	if !passed {
+		t.Fatalf("report failed with detail %q, want a module below the ceiling to pass", detail)
+	}
+	if !strings.Contains(detail, "highest registered module") {
+		t.Fatalf("detail = %q, want it to name the highest registered module", detail)
+	}
+}
+
+// A module may declare a patch release of the ceiling -- go 1.24.3 against a
+// build that type-checks with go 1.24 -- and that is accepted, because a
+// patch never adds a language feature. The detail still has to name it as the
+// highest registered module: a reader comparing the two numbers is asking how
+// close the registry is to the limit, and rounding the module down to the
+// ceiling hides that it is already at it.
+func TestReportGoLanguageCeilingNamesAPatchAboveTheCeiling(t *testing.T) {
+	ceiling := goworkspace.LanguageVersion()
+	if ceiling == "" {
+		t.Skip("this build reports no Go language ceiling")
+	}
+	patch := ceiling + ".3"
+	var passed bool
+	var detail string
+	reportGoLanguageCeiling(func(_ string, gotPassed bool, gotDetail string) {
+		passed, detail = gotPassed, gotDetail
+	}, []workspace.Repository{goCeilingRepository(t, "patched", patch)})
+	if !passed {
+		t.Fatalf("report failed with detail %q, want a patch of the ceiling to pass", detail)
+	}
+	if !strings.Contains(detail, "highest registered module: go "+patch) {
+		t.Fatalf("detail = %q, want it to name go %s as the highest registered module", detail, patch)
+	}
+}
+
+// cleanTestStore opens a real generation store, because what cleanGenerations
+// adds to the store is the choice between the two discards and the context of
+// the error, and a fake store would test neither.
+func cleanTestStore(t *testing.T) *generation.Store {
+	t.Helper()
+	store, err := generation.New(testsupport.TempDir(t), generation.DefaultConfig())
+	if err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
+		t.Fatalf("generation.New() error = %v", err)
+	}
+	return store
+}
+
+// A store that never published has nothing to discard, and that is a success
+// with an empty list rather than a failure: `clean` on a fresh installation
+// must not report an error.
+func TestCleanGenerationsAcceptsAStoreThatNeverPublished(t *testing.T) {
+	removed, err := cleanGenerations(context.Background(), cleanTestStore(t), false, "")
+	if err != nil {
+		t.Fatalf("cleanGenerations() error = %v", err)
+	}
+	if len(removed) != 0 {
+		t.Fatalf("cleanGenerations() = %v, want nothing removed", removed)
+	}
+}
+
+// Keeping a generation requires naming one, and the empty name is refused
+// rather than read as "keep nothing" -- which would discard everything under
+// a flag that asks to preserve. runClean never gets here: it refuses
+// --keep-active on a store with no published generation first, and this test
+// is what keeps that guard from being the only thing standing between the
+// flag and the opposite of what it asks for.
+func TestCleanGenerationsRefusesToKeepAGenerationWithNoName(t *testing.T) {
+	removed, err := cleanGenerations(context.Background(), cleanTestStore(t), true, "")
+	if err == nil {
+		t.Fatalf("cleanGenerations(keepActive, \"\") = %v, want an error", removed)
+	}
+	if removed != nil {
+		t.Fatalf("cleanGenerations() = %v alongside an error, want nothing", removed)
+	}
+}
+
+// Keeping the published generation removes the others and leaves that one
+// alone. This is what --keep-active is for, so a run that removed it -- or
+// that removed nothing -- would defeat the flag in the two opposite ways.
+func TestCleanGenerationsKeepsOnlyTheActiveGeneration(t *testing.T) {
+	store := cleanTestStore(t)
+	for _, id := range [...]string{"000001", "000002", "000003"} {
+		publishCleanGeneration(t, store, id)
+	}
+	removed, err := cleanGenerations(context.Background(), store, true, "000003")
+	if err != nil {
+		t.Fatalf("cleanGenerations() error = %v", err)
+	}
+	if strings.Join(removed, ",") != "000001,000002" {
+		t.Fatalf("cleanGenerations() = %v, want the two generations that are not active", removed)
+	}
+	active, err := store.Current(context.Background())
+	if err != nil {
+		t.Fatalf("Current() error = %v", err)
+	}
+	if active.ID != "000003" {
+		t.Fatalf("Current() = %q, want the kept generation 000003", active.ID)
+	}
+}
+
+// publishCleanGeneration publishes a generation whose payload is only what
+// the store requires, because what is under test is which generations survive
+// a discard, not what they hold.
+func publishCleanGeneration(t *testing.T, store *generation.Store, id string) {
+	t.Helper()
+	_, err := store.Publish(context.Background(), generation.PublishRequest{
+		ID: id,
+		Build: func(_ context.Context, path string) error {
+			return os.WriteFile(filepath.Join(path, "graph.db"), []byte(id), 0o600)
+		},
+		Validate: func(context.Context, generation.Generation) error { return nil },
+	})
+	if err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
+		t.Fatalf("Publish(%s) error = %v", id, err)
+	}
+}
+
+// Keeping a generation the store does not hold is a request it cannot honour,
+// and the failure has to name the discard: an error that only said "not
+// found" would leave the reader guessing which half of `clean` failed.
+func TestCleanGenerationsFailsWhenTheKeptGenerationIsAbsent(t *testing.T) {
+	removed, err := cleanGenerations(context.Background(), cleanTestStore(t), true, "000007")
+	if err == nil {
+		t.Fatalf("cleanGenerations() = %v, want an error for a generation the store does not hold", removed)
+	}
+	if removed != nil {
+		t.Fatalf("cleanGenerations() = %v alongside an error, want nothing", removed)
+	}
+	if !strings.Contains(err.Error(), "discard generations:") {
+		t.Fatalf("error = %v, want it to name the discard", err)
+	}
+}
+
+// unregisterableConfig writes a configuration whose registry names a
+// directory that is not a repository, which is the shape registration
+// refuses.
+func unregisterableConfig(t *testing.T) string {
+	t.Helper()
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "config.yaml")
+	initConfig(t, configPath)
+	err := config.RegisterRepositories(filepath.Join(directory, "repositories.yaml"), []config.Repository{{
+		Name: "loose", Path: testsupport.TempDir(t), Languages: []string{"go"},
+	}})
+	if err != nil {
+		t.Fatalf("config.RegisterRepositories() error = %v", err)
+	}
+	return configPath
+}
+
+// A request `index --full` cannot use is rejected before a repository is
+// read: a pass costs minutes, and starting one on a misspelled flag would
+// spend them answering for settings nobody asked for.
+func TestRunIndexFullRejectsAnUnusableRequest(t *testing.T) {
+	for _, args := range [][]string{
+		{"--nonexistent"},
+		{"unexpected"},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := runIndexFull(args, &stdout, &stderr); code != 2 {
+			t.Fatalf("runIndexFull(%v) = %d, want 2 (stderr=%q)", args, code, stderr.String())
+		}
+	}
+}
+
+// A configuration or a registry that cannot be read stops the pass. Indexing
+// the default set instead would publish a graph built from repositories the
+// caller did not name.
+//
+// These are every branch of runIndexFull a test can reach without running a
+// pass. What is left below the registration is the pass itself -- minutes of
+// work over real repositories, ending in a published generation -- which
+// belongs to an integration suite and not here, and the os.Getwd failure,
+// which needs the working directory to be removed underneath the process.
+func TestRunIndexFullFailsOnSourcesItCannotRead(t *testing.T) {
+	absent := filepath.Join(t.TempDir(), "absent.yaml")
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	initConfig(t, configPath)
+	for _, testCase := range [...]struct {
+		name string
+		args []string
+	}{
+		{name: "an unreadable configuration", args: []string{"--config", absent}},
+		{
+			name: "an unreadable registry override",
+			args: []string{"--config", configPath, "--repositories", absent},
+		},
+		{
+			name: "a registered path that is not a repository",
+			args: []string{"--config", unregisterableConfig(t)},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := runIndexFull(testCase.args, &stdout, &stderr); code != 1 {
+				t.Fatalf("runIndexFull(%v) = %d, want 1 (stderr=%q)", testCase.args, code, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "index --full:") {
+				t.Fatalf("stderr = %q, want it to name the command that failed", stderr.String())
+			}
+		})
 	}
 }
