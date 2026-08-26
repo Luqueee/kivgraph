@@ -503,6 +503,70 @@ func TestTraceDependenciesFollowsMethodsDeclaredOutsideTheType(t *testing.T) {
 	}
 }
 
+// TestTraceDependenciesWalksPastAMethodWithoutFollowingItsPairing is the
+// negative that the receiver fixture above cannot catch: there its METHOD_OF
+// edge points at the root, which the traversal has already seeded, so the edge
+// is never visited and the row builder never sees it.
+//
+// Reached for the first time, it was fatal. The traversal admitted every kind
+// when the caller named none, so it walked the pairing outward from a method to
+// its type; the row builder refuses a non-reference kind, on the premise that
+// the symbol CSR carries only uses. METHOD_OF broke that premise when it was
+// added, and it is containment by its own definition -- a type is not referenced
+// by its own methods. On the published graph the whole query failed:
+// SNAPSHOT_UNAVAILABLE on trace_dependencies of MergeAll at depth two, whose
+// body names Position.Offset.
+//
+// So the type must not appear either: reaching a method is not reaching what
+// declares it, which is the same rule the seeds already follow.
+func TestTraceDependenciesWalksPastAMethodWithoutFollowingItsPairing(t *testing.T) {
+	store := methodPairingStore(t, 71)
+
+	_, response, err := traceDependencies(context.Background(), nil,
+		TraceDependenciesInput{StableKey: "sym-caller", Depth: 2}, store)
+	if err != nil {
+		t.Fatalf("traceDependencies() error = %v", err)
+	}
+	reached := map[string]int{}
+	for _, node := range response.Results.Nodes {
+		reached[node.QualifiedName] = node.Depth
+	}
+	want := map[string]int{"target.Buffer.Grow": 1}
+	if !reflect.DeepEqual(reached, want) {
+		t.Fatalf("reached = %#v, want only the method the caller names", reached)
+	}
+}
+
+// methodPairingStore is the shape the receiver fixture cannot express: the
+// pairing is reached from outside, so its target is not a seed. A caller names
+// one method, and that method belongs to a type nothing else in the walk names.
+func methodPairingStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "api", Languages: "go"}},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "pkg", RepositoryKey: "repo", Language: "go", Name: "target", ModulePath: "example.com/api"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-caller", RepositoryKey: "repo", PackageKey: "pkg", Path: "caller.go", Language: "go"},
+			{Key: "file-target", RepositoryKey: "repo", PackageKey: "pkg", Path: "buffer.go", Language: "go"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-caller", CanonicalIdentity: "go:caller.Merge", FileKey: "file-caller", Language: "go", Name: "Merge", QualifiedName: "caller.Merge", Kind: "func", StartLine: 3, EndLine: 9},
+			{StableKey: "sym-method", CanonicalIdentity: "go:target.Buffer.Grow", FileKey: "file-target", Language: "go", Name: "Grow", QualifiedName: "target.Buffer.Grow", Kind: "method", StartLine: 12, EndLine: 18},
+			{StableKey: "sym-type", CanonicalIdentity: "go:target.Buffer", FileKey: "file-target", Language: "go", Name: "Buffer", QualifiedName: "target.Buffer", Kind: "struct", StartLine: 4, EndLine: 4},
+		},
+		Edges: []hotsnapshot.EdgeRow{
+			{SourceKey: "sym-caller", TargetKey: "sym-method", Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse, EvidenceKind: "types", EvidenceSourceFileKey: "file-caller", EvidenceTargetFileKey: "file-target"},
+			{SourceKey: "sym-method", TargetKey: "sym-type", Kind: facts.CodeMethodOf, Confidence: facts.CodeStructuralCertain, Provenance: facts.CodeGoTypesDefinition, EvidenceKind: "types", EvidenceSourceFileKey: "file-target", EvidenceTargetFileKey: "file-target"},
+		},
+	}, id, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
 // receiverMemberStore is the Go shape: a one-line struct, a method declared
 // after it in the same file, and the pairing between them carried by METHOD_OF
 // because no line range can express it.

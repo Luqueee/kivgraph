@@ -14,6 +14,35 @@ import (
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
+// TestReferenceEdgeKindCodesMatchTheReferenceVocabulary keeps the traversal
+// default in step with the row builders. They are two lists of the same thing:
+// what a walk may follow, and what a row may carry. When METHOD_OF was added to
+// the graph the second one refused it and the first one did not exist, so the
+// walk reached an edge no row could describe and the query failed. A kind added
+// to one list and not the other brings that back.
+func TestReferenceEdgeKindCodesMatchTheReferenceVocabulary(t *testing.T) {
+	walked := map[uint8]struct{}{}
+	for _, code := range referenceEdgeKindCodes() {
+		walked[code] = struct{}{}
+	}
+	seen := 0
+	for code := 0; code <= 255; code++ {
+		kind, err := facts.EdgeKindFromCode(uint8(code))
+		if err != nil {
+			continue
+		}
+		seen++
+		_, isWalked := walked[uint8(code)]
+		if isReferenceEdgeKind(kind) != isWalked {
+			t.Errorf("kind %q (code %d): isReferenceEdgeKind = %v, walked by default = %v",
+				kind, code, isReferenceEdgeKind(kind), isWalked)
+		}
+	}
+	if seen < len(walked) {
+		t.Fatalf("the vocabulary decodes %d kinds but the default walks %d", seen, len(walked))
+	}
+}
+
 func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 	client := newFindReferencesToolClient(t, referenceSnapshot(t, 31))
 
