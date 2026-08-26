@@ -1,10 +1,18 @@
 # internal/
-## AGENTS.md#9A17
+## AGENTS.md#2455
  23:- `internal/indexer.Full` carga Go mediante los patrones de paquetes producidos
 *24:  por `DiscoverGo`; no sustituirlos por `./...`, porque las `exclusions`
  25:  configuradas deben seguir siendo efectivas durante `go/packages`.
  26:- Los tags de build con los que se carga Go vienen de `go.build_tags`. Un
  27:  directorio cuyos archivos excluye esa configuración no es un fallo del
+
+## audit/
+### golang.go#7F00
+ 24:) ([]Finding, error) {
+*25:	discovery, err := workspace.DiscoverGo(ctx, repository)
+ 26:	if err != nil {
+ 27:		return nil, fmt.Errorf("discover Go modules: %w", err)
+ 28:	}
 
 ## goloader/
 ### crossrepo.go#0B69
@@ -15,7 +23,7 @@
  69:		}
 
 ## goworkspace/
-### synthetic.go#83C4
+### synthetic.go#C36E
  137:		}
 *138:		discovery, err := workspace.DiscoverGo(ctx, repository)
  139:		if err != nil {

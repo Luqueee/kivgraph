@@ -1,10 +1,10 @@
 # internal/
-## AGENTS.md#9A17
- 134:  no exponen slices internas; sus rangos son half-open y cancelables.
-*135:- `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
- 136:  así que las columnas de una tabla se resuelven una vez por tabla y nunca por
- 137:  fila. El grafo tiene una arista por referencia del corpus.
- 138:- El scan canónico lee en chunks de Arrow, no valor a valor: un `Symbol` son
+## AGENTS.md#2455
+ 177:  contrato canónico y no cambia ninguna respuesta.
+*178:- `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
+ 179:  así que las columnas de una tabla se resuelven una vez por tabla y nunca por
+ 180:  fila. El grafo tiene una arista por referencia del corpus.
+ 181:- El scan canónico lee en chunks de Arrow, no valor a valor: un `Symbol` son
 
 ## storage/ladybug/
 ### canonical_load.go#FF4D
@@ -40,7 +40,7 @@
  272:		if !exists {
  273:			return nil, fmt.Errorf("%w: table %q has no declared column order", ErrInvalidCanonicalLoad, name)
  274:		}
-### canonical_load_test.go#A0D7
+### canonical_load_test.go#18EC
  13:// TestCanonicalColumnsMatchesSchemaMetadata is the parity invariant with the
 *14:// schema: CanonicalColumns must not hand LoadCanonical an order that
  15:// disagrees with what CanonicalNodeTables/CanonicalRelationshipTables define.
@@ -94,10 +94,3 @@
  424:	}
  425:	if len(row) != len(columns) {
  426:		t.Fatalf("%s row has %d fields %v, want %d matching columns %v", table, len(row), row, len(columns), columns)
-### canonical_mutation.go#3E23
- 214:// canonicalColumnTypes returns the declared LadybugDB type ("STRING",
-*215:// "INT64" or "BOOL") of every column CanonicalColumns(table) would render
-*216:// for table, keyed by column name. CanonicalColumns itself intentionally
- 217:// drops this information -- a CSV column is text regardless of the type it
- 218:// loads into -- but a Cypher UNWIND row needs it back: ON CREATE/ON MATCH
- 219:// SET rejects an implicit STRING -> INT64 cast from a struct field

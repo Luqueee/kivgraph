@@ -17703,19 +17703,33 @@ son ruido, y están explicadas abajo.
   `f8a952d6` vive en otro sitio. El dataset ya mezclaba procedencia antes de
   esta recaptura.
 
-**Lo que queda, y ahora es una decisión y no un trabajo:** el brazo nativo sigue
-mezclando procedencia. Sus `grep` están capturados en `f8a952d6` y sus lecturas
-lo están hoy, así que la corrida completa **no se puede publicar como la cifra
-del corpus** hasta recapturar también los `grep` contra la generación vigente.
-Eso es el punto «decidir el corpus», y de él cuelga el tercero -- republicar la
-cifra que el guardia de bytes cita.
+**El corpus decidido, y recapturado entero:** `HEAD` de `main` sobre la
+generación `000206`. Los seis `grep` del brazo nativo se recapturaron con la
+herramienta real del host, porque su salida -- árbol de directorios, hashes de
+fichero, líneas de contexto, elisiones-- no se compone desde el repo como la
+lectura. La copia no queda a mi palabra: **`835` líneas numeradas verificadas
+contra el fichero del repo, `0` discrepancias**.
+
+Con una sola procedencia la corrida publica `1,76x` en respuesta, `1,24x` en
+sesión y `1,47x` sirviendo los cuerpos. No es comparable con el `7,64x` de la
+generación `000001`: aquel corpus era un repositorio sin paquetes ilegibles, y el
+informe ya declaraba que su cifra no se transporta entre corpus.
+
+**La cifra republicada:** `716` tokens residentes -- `220` de enrutado, `496` de
+descripciones-- para once tools de consulta más `index_project`, contra los `645`
+de once que decían `report.md` y `docs/protocol/mcp-surface-v3.md`.
+
+**Lo que queda desalineado, y por qué no se toca aquí:**
+`benchmarks/mcp-token-cost/cross-repo/report.md` sigue diciendo `645`. Es otro
+arnés sobre otro corpus -- `shared-library` en `/private/tmp/lg-crossrepo`, un
+fixture temporal que ya no existe--, y su cabecera declara su propia procedencia:
+commit `a0372d4e`, servidor `0.5.1`. Refrescarlo es reconstruir ese fixture.
 
 **Y la corrida completa dejó un defecto medido, que se fue a `LUQUE-2229`:** el
 titular sale `0,63x` -- perdemos-- y no es el corpus. `find_references` gasta el
 `91-98 %` de cada respuesta en un bloque `completeness` idéntico.
 
-**Estado:** abierta. Primer punto cerrado; quedan la decisión del corpus y la
-republicación.
+**Estado:** cerrada el `2026-08-26`.
 
 ## LUQUE-2228 - `version --json` describe un binario que no es el que corre
 
@@ -17819,3 +17833,28 @@ del `fallback` -- «a Go build cache entry: ...»-- porque cortaba el `detail` p
 último `" in "`. Sólo se acepta una ruta absoluta. Ver ADR 0076.
 
 **Estado:** cerrada el `2026-08-26`.
+
+## LUQUE-2230 - Una tool que se sirve y no está documentada
+
+**Dependencias:** ninguna. Salió de republicar la cifra de `LUQUE-2227`.
+
+`internal/mcp/server.go:139-158` registra **once** tools de consulta cuando hay
+generación publicada, y `find_by_intent` es una de ellas. La documentación de
+usuario no la nombra en ningún sitio:
+
+|fichero|qué dice|
+|---|---|
+|`landing/src/content/docs/docs/mcp-tools.md`|«The eleven tools», y lista diez|
+|`landing/src/content/docs/mcp/skills.md:12`|«the eleven tools still work»|
+|`landing/src/pages/index.astro:25`|«a list of the eleven tools»|
+|`landing/AGENTS.md:300`, `:312`|«son once tools»|
+|`docs/development/landing-site.md:54`|«Son once tools»|
+
+`docs/protocol/mcp-surface-v3.md` ya se corrigió: su bloque enumeraba diez y
+decía once. El resto son páginas publicadas, así que la corrección no es cambiar
+un número: es escribir la fila que describe qué pregunta contesta
+`find_by_intent` y contra qué alternativa nativa compite, que es lo que la
+convención de esa página exige de cada tool. Gate de la landing: `pnpm check` y
+`pnpm build`.
+
+**Estado:** abierta.
