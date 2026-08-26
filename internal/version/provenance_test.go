@@ -26,7 +26,7 @@ func TestCollectReadsBundleManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	if provenance.Kivgraph != "0.1.0" || provenance.Go != "go1.24.4" {
+	if provenance.Kivgraph != Value || provenance.Go != "go1.24.4" {
 		t.Fatalf("release/toolchain = %#v", provenance)
 	}
 	if provenance.Commit == nil || *provenance.Commit != strings.Repeat("a", 40) {
@@ -177,28 +177,57 @@ func TestCollectRejectsBundleManifestBuiltForAnotherPlatform(t *testing.T) {
 	}
 }
 
-func TestCollectReadsDistBundleForTheRunningPlatform(t *testing.T) {
+// TestCollectIgnoresABundleInTheWorkingDirectory is the negative that matters:
+// a manifest describes the bundle it sits in, and a bundle sitting in whatever
+// directory the caller happened to be in describes some other build. Reading it
+// made `version --json` report a release this executable is not, which is the
+// one thing this output exists to state.
+func TestCollectIgnoresABundleInTheWorkingDirectory(t *testing.T) {
 	workingDir := t.TempDir()
 	bundleRoot := filepath.Join(workingDir, "dist", "kivgraph-"+runtime.GOOS+"-"+runtime.GOARCH)
 	if err := os.MkdirAll(bundleRoot, 0o755); err != nil {
 		t.Fatalf("mkdir dist bundle: %v", err)
 	}
 	writeBundleFixture(t, bundleRoot)
-	// A bundle for another platform sitting next to it must be ignored.
-	otherRoot := filepath.Join(workingDir, "dist", "kivgraph-plan9-mips")
-	if err := os.MkdirAll(otherRoot, 0o755); err != nil {
-		t.Fatalf("mkdir foreign dist bundle: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(otherRoot, "manifest.json"), []byte("{"), 0o600); err != nil {
-		t.Fatalf("write foreign manifest: %v", err)
-	}
 
-	provenance, err := Collect("", workingDir)
+	provenance, err := Collect(filepath.Join(t.TempDir(), "bin", "kivgraph"), workingDir)
 	if err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	if provenance.Kivgraph != "0.1.0" || provenance.Resolver == nil || *provenance.Resolver != "resolver-v9" {
-		t.Fatalf("provenance = %#v, want the dist bundle manifest", provenance)
+	if provenance.Kivgraph != Value {
+		t.Errorf("provenance.Kivgraph = %q, want the compiled %q", provenance.Kivgraph, Value)
+	}
+	if provenance.Resolver != nil {
+		t.Errorf("provenance.Resolver = %q, want null: it was borrowed from a bundle in the working directory", *provenance.Resolver)
+	}
+}
+
+// TestCollectRejectsABundleManifestForAnotherRelease is the platform guard's
+// twin. A manifest built for another target does not describe this executable
+// and is refused; one built for another release does not either, and was
+// preferred over the compiled version instead.
+func TestCollectRejectsABundleManifestForAnotherRelease(t *testing.T) {
+	root := t.TempDir()
+	executable := writeBundleFixture(t, root)
+	manifestPath := filepath.Join(root, "manifest.json")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read fixture manifest: %v", err)
+	}
+	stale := strings.Replace(string(data), `"release": "`+Value+`"`, `"release": "0.0.1"`, 1)
+	if stale == string(data) {
+		t.Fatal("fixture manifest does not carry the compiled release")
+	}
+	if err := os.WriteFile(manifestPath, []byte(stale), 0o600); err != nil {
+		t.Fatalf("write fixture manifest: %v", err)
+	}
+
+	_, err = Collect(executable, t.TempDir())
+	if err == nil {
+		t.Fatal("Collect() = nil error, want a release mismatch")
+	}
+	if !strings.Contains(err.Error(), "0.0.1") || !strings.Contains(err.Error(), Value) {
+		t.Fatalf("Collect() error = %v, want it to name 0.0.1 and %s", err, Value)
 	}
 }
 
@@ -220,7 +249,7 @@ func writeBundleFixture(t *testing.T, root string) string {
 	manifest := fmt.Sprintf(`{
   "manifest_version": 1,
   "product": "kivgraph",
-  "release": "0.1.0",
+  "release": "%s",
   "target": {"os": "%s", "arch": "%s"},
   "source": {"commit": "%s", "dirty": false},
   "toolchain": {"go": "go1.24.4", "node": "v25.9.0", "pnpm": "11.5.1", "typescript": "7.0.2"},
@@ -240,7 +269,7 @@ func writeBundleFixture(t *testing.T, root string) string {
   "grammars": {"manifest": "grammars/manifest.json", "sha256": "grammar-sha-placeholder"},
   "artifacts": []
 }`,
-		runtime.GOOS, runtime.GOARCH, strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64),
+		Value, runtime.GOOS, runtime.GOARCH, strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64),
 		strings.Repeat("d", 64), strings.Repeat("e", 64))
 	manifest = strings.Replace(manifest, "grammar-sha-placeholder", grammarSHA, 1)
 	manifestPath := filepath.Join(root, "manifest.json")

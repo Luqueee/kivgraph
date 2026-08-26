@@ -102,9 +102,17 @@ type bundleManifest struct {
 	Artifacts []json.RawMessage `json:"artifacts"`
 }
 
-// Collect obtains provenance from the executable's distribution manifest when
-// present. Without a bundle manifest it returns build/runtime metadata and
-// explicit nulls for values that are not embedded in a development binary.
+// Collect describes the running process, and never the directory it was invoked
+// from. Provenance comes from the manifest of the bundle this executable lives
+// in -- resolved from the executable path, not from workingDir, which only
+// locates the grammar manifest of a development checkout. A manifest found
+// there that names another release or another target does not describe this
+// process and is refused rather than preferred.
+//
+// The version is always the compiled Value: a manifest can enrich provenance,
+// never rename the binary. Without a bundle manifest the unavailable values are
+// explicit nulls, because a guess read off a neighbouring directory is what this
+// output exists to avoid.
 func Collect(executablePath, workingDir string) (Provenance, error) {
 	if workingDir == "" {
 		var err error
@@ -124,7 +132,7 @@ func Collect(executablePath, workingDir string) (Provenance, error) {
 		return Provenance{}, err
 	}
 
-	manifestPath, bundleRoot, found, err := findBundleManifest(executablePath, workingDir)
+	manifestPath, bundleRoot, found, err := findBundleManifest(executablePath)
 	if err != nil {
 		return Provenance{}, err
 	}
@@ -221,8 +229,8 @@ func findGrammarRoot(start string) string {
 	}
 }
 
-func findBundleManifest(executablePath, workingDir string) (path, root string, found bool, err error) {
-	candidates := make([]struct{ path, root string }, 0, 2)
+func findBundleManifest(executablePath string) (path, root string, found bool, err error) {
+	candidates := make([]struct{ path, root string }, 0, 1)
 	if executablePath != "" {
 		executable, absErr := filepath.Abs(executablePath)
 		if absErr != nil {
@@ -238,12 +246,6 @@ func findBundleManifest(executablePath, workingDir string) (path, root string, f
 			path: filepath.Join(bundleRoot, "manifest.json"), root: bundleRoot,
 		})
 	}
-	distBundle := filepath.Join(workingDir, "dist", "kivgraph-"+runtime.GOOS+"-"+runtime.GOARCH)
-	candidates = append(candidates, struct{ path, root string }{
-		path: filepath.Join(distBundle, "manifest.json"),
-		root: distBundle,
-	})
-
 	for _, candidate := range candidates {
 		info, statErr := os.Stat(candidate.path)
 		if errors.Is(statErr, os.ErrNotExist) {
@@ -286,7 +288,7 @@ func loadBundleProvenance(manifestPath, bundleRoot string) (Provenance, error) {
 		return Provenance{}, err
 	}
 	return Provenance{
-		Kivgraph:           manifest.Release,
+		Kivgraph:           Value,
 		Commit:             stringPointer(manifest.Source.Commit),
 		Dirty:              boolPointer(manifest.Source.Dirty),
 		Go:                 manifest.Toolchain.Go,
@@ -315,6 +317,9 @@ func validateBundleManifest(manifest bundleManifest) error {
 	}
 	if manifest.Target.OS != runtime.GOOS || manifest.Target.Arch != runtime.GOARCH {
 		return fmt.Errorf("target: want %s/%s, got %s/%s", runtime.GOOS, runtime.GOARCH, manifest.Target.OS, manifest.Target.Arch)
+	}
+	if manifest.Release != Value {
+		return fmt.Errorf("release: want %s, got %s", Value, manifest.Release)
 	}
 	if manifest.Toolchain.Go == "" || manifest.LadybugDB.Core == "" || manifest.LadybugDB.Binding == "" {
 		return errors.New("toolchain.go, ladybugdb.core and ladybugdb.binding are required")
