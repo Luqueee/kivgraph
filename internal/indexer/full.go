@@ -1,3 +1,6 @@
+// Package indexer runs the full analysis pass that turns registered
+// repositories into semantic facts, and owns the fact cache that pass may
+// reuse -- a cache that must agree with the analysis or be reported diverged.
 package indexer
 
 import (

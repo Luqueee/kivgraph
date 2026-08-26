@@ -1,3 +1,6 @@
+// Package syntax parses source with the pinned tree-sitter grammars and
+// reports syntactic candidates, which are never semantic evidence on their
+// own.
 package syntax
 
 import (

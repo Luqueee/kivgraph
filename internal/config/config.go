@@ -1,3 +1,5 @@
+// Package config defines the on-disk configuration and the repository
+// registry, their defaults, and the rules that decide where each one lives.
 package config
 
 import (

@@ -1,3 +1,5 @@
+// Package mcp assembles the Kivgraph MCP server: the tool surface, the
+// instructions returned at handshake, and the transports it is served over.
 package mcp
 
 import (

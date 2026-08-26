@@ -17945,6 +17945,25 @@ sobre la configuración por defecto reintroduciría los `20` falsos.
 - Gate: `-checks='SA*,S1016,S1017,ST1005'`, visto rojo con una cadena devuelta
   a mayúscula.
 
-Con esto la ficha queda cerrada. El estado final es el que anticipaba y **no**
-es un `-checks=all`: `U1000` sigue fuera de la pasada por defecto, donde sus
-`20` falsos lo impiden, y vive en `make lint-ladybug`.
+- `ST1000` (`94` por defecto, `103` con el tag): **cerrada**. No formaba parte
+  del recuento original porque no es una forma ni una cadena: son `17`
+  paquetes sin comentario de paquete, y `staticcheck` lo repite en cada
+  fichero del paquete. Se cierra con `17` comentarios, uno por paquete, en un
+  fichero sin build tag para que la respuesta sea la misma en las dos
+  configuraciones.
+
+Con esto la ficha queda cerrada, y el estado final resultó **mejor** que el que
+anticipaba. La predicción era que no cabía un `-checks=all`; medido al cerrar
+`ST1000`, bajo la configuración por defecto `all` reporta `20` hallazgos y los
+`20` son `U1000`. Así que el gate se invierte y nombra la única exclusión en
+vez de las inclusiones: `-checks='all,-U1000'`.
+
+La diferencia no es cosmética y se midió con una mutación. Un `if nil == err {
+return true }; return false` inyectado en `internal/version` es `S1008`, una
+clase que ninguna enumeración anterior nombraba: el gate invertido lo caza y el
+enumerado -- `SA*,S1016,S1017,ST1005` -- lo deja pasar con `exit 0`. Enumerar lo
+verde deja fuera toda clase que `staticcheck` añada después, en silencio.
+
+`U1000` sigue siendo la excepción, y no por ruidosa sino porque **bajo esta
+build no se puede contestar**: sus `20` falsos son símbolos cuyo llamante vive
+tras el tag. Vive en `make lint-ladybug`, donde la respuesta es cero.
