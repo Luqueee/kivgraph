@@ -17858,3 +17858,36 @@ convención de esa página exige de cada tool. Gate de la landing: `pnpm check` 
 `pnpm build`.
 
 **Estado:** abierta.
+
+## LUQUE-2231 - Lo que `staticcheck` ve y el gate todavía no exige
+
+**Dependencias:** ninguna. El gate `SA*` ya está en CI y nace verde; esto es el
+resto, que no lo está porque nace rojo.
+
+El recuento, sobre el árbol de hoy:
+
+|clase|sin tags|con `-tags ladybug`|qué es|
+|---|---:|---:|---|
+|`U1000`|`28`|`15`|código muerto|
+|`ST1005`|`18`|`46`|cadena de error capitalizada|
+|`S1016`|`4`|`5`|conversión entre structs equivalentes|
+|`S1017`|`1`|`1`|`TrimPrefix` escrito a mano|
+
+**La trampa, y por eso esto es una ficha y no un `sed`:** los recuentos cambian
+con el tag, y en direcciones opuestas. `U1000` baja de `28` a `15` porque quince
+de esos «no usados» **sí** tienen llamante detrás de `//go:build ladybug`:
+borrarlos con la pasada por defecto rompería `make test-ladybug`, que es
+precisamente el gate que no corre en la misma invocación. Toda retirada de código
+muerto aquí se comprueba en las dos pasadas antes de tocar nada.
+
+`ST1005` sube de `18` a `46`: la mayoría vive en `arrow_scan_native.go`, que sólo
+compila con el tag. Son cadenas de error que empiezan por mayúscula, y varias
+empiezan por un nombre propio -- `Symbol`, `Arrow`--, donde la convención de Go no
+aplica igual. Cada una se lee antes de bajarle la inicial.
+
+**Cómo se cierra:** una pasada por clase, en commits separados, corriendo
+`go test ./...` y `make test-ladybug` en cada una. Al terminar, el gate pasa de
+`-checks='SA*'` a `-checks=all` en `.github/workflows/ci.yml`, que es la línea
+que convierte el trabajo en irreversible.
+
+**Estado:** abierta.

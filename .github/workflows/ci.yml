@@ -24,6 +24,15 @@ permissions:
 env:
   GOTOOLCHAIN: local
 
+# A push that supersedes another leaves four jobs running for a commit nobody
+# will merge, and the free plan allows twenty concurrent jobs across the
+# account, so those are slots taken from the run that matters. main is excluded:
+# its history is what release tags are cut from, so every commit on it keeps its
+# own verdict.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   semantic-coverage:
     name: Verify semantic coverage gates
@@ -99,10 +108,43 @@ jobs:
       - name: Check Go formatting
         shell: bash
         run: |
-          test -z "$(gofmt -l $(find . -type f -name '*.go' -not -path './.git/*'))"
+          test -z "$(find . -type f -name '*.go' -not -path './.git/*' -exec gofmt -l {} +)"
 
       - name: Go vet
         run: go vet ./...
+
+      # The workflow file is code too, and the failures it can carry are the
+      # ones nobody notices: an expression that never evaluates, a heredoc that
+      # does not close, a job that silently never dispatches. actionlint runs
+      # shellcheck over every run block as well.
+      - name: Lint the workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
+      # Correctness only. The whole staticcheck surface reports 54 findings on
+      # this tree -- dead code behind build tags, error-string style -- and a gate
+      # that starts red is one people learn to scroll past. The SA classes are
+      # the ones that describe a bug; they were green when this was added, and
+      # the rest is LUQUE-2231.
+      - name: Correctness lint
+        run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 -checks='SA*' ./...
+
+      # Reachable vulnerabilities, not an advisory list: govulncheck exits
+      # non-zero only for what this code calls. It is what found the five
+      # standard-library advisories the toolchain bump closed, and the four in
+      # the MCP transport that the SDK upgrade closed with it.
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+      # The documentation invariants: every CLAUDE.md stays a symlink to the
+      # AGENTS.md beside it, and a new line under docs/ stays inside 84 columns.
+      # The base ref is what makes the second a ratchet over changed lines
+      # instead of a demand to reflow forty existing files.
+      - name: Check documentation invariants
+        shell: bash
+        run: |
+          base="${{ github.base_ref || 'main' }}"
+          git fetch --no-tags --depth=100 origin "$base"
+          scripts/check-docs.sh "origin/$base"
 
       # A failing Go test is reported as an annotation so the reason is visible
       # on the run without opening the log.
@@ -116,8 +158,18 @@ jobs:
             while IFS= read -r line; do printf '::error::%s\n' "$line"; done
           exit 1
 
+      # The packages where a race is a data race and not a flake: the snapshot
+      # store publishes by compare-and-swap, the follower installs generations
+      # from another goroutine, the daemon serves sessions in parallel, and the
+      # generation store holds a lock across a rename.
       - name: Selected Go race tests
-        run: go test -race ./cmd/kivgraph/...
+        run: |
+          go test -race \
+            ./cmd/kivgraph/... \
+            ./internal/hotsnapshot/... \
+            ./internal/indexing/... \
+            ./internal/daemon/... \
+            ./internal/storage/generation/...
 
       - name: Build Go
         run: go build ./cmd/kivgraph
@@ -265,6 +317,13 @@ jobs:
           test "$("$bundle/bin/kivgraph" version --json | jq -r .rust_analyzer)" = "$pinned"
           "$bundle/bin/rust-analyzer" --version
 
+      # AGENTS.md requires a clean distribution build to be reproducible
+      # between checkouts of the same commit, comparing the whole payload, and
+      # nothing verified it. Two builds prove it across invocations; a second
+      # host is out of reach of one job. Measured at 769 identical files.
+      - name: Verify the bundle builds reproducibly
+        run: scripts/check-reproducible-bundle.sh
+
       # The pinned core and the pinned Go binding must share a version: a
       # mismatched pair segfaults on the first C call instead of failing a
       # test, which is why this job exists at all.
@@ -273,6 +332,126 @@ jobs:
 
       - name: Go tests with LadybugDB
         run: make test-ladybug
+
+  smoke:
+    name: Serve a graph the bundle built itself
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # This is the flow AGENTS.md requires before closing an installation change,
+    # and until now a person ran it by hand when they remembered. The two defects
+    # of PR #21 -- trace_dependencies and get_blast_radius answering
+    # SNAPSHOT_UNAVAILABLE on any Go type with methods -- passed every test with a
+    # fixture and only failed against a real published generation. No other job
+    # publishes one, which is why they shipped in v0.8.0.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install pinned rust-analyzer
+        run: |
+          rustup component add rust-analyzer
+          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
+          echo "$analyzer_dir" >> "$GITHUB_PATH"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            ts-worker/pnpm-lock.yaml
+            web/pnpm-lock.yaml
+
+      - name: Install patchelf
+        run: |
+          sudo apt-get update \
+            -o Acquire::Retries=0 \
+            -o Acquire::http::Timeout=5 \
+            -o Acquire::https::Timeout=5
+          sudo apt-get install -y patchelf
+
+      - name: Cache pinned rust-analyzer
+        uses: actions/cache@v6
+        with:
+          path: .tooling/rust-analyzer
+          key: rust-analyzer-linux-amd64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
+
+      # The binary under test is the one a user downloads, not `go run`: the
+      # bundle carries the native library, the worker and the RUNPATH, and every
+      # one of those is a way for an install to be broken while the tests pass.
+      - name: Build the distribution bundle
+        run: make build-linux-amd64
+
+      # A temporary HOME, because this must not read or write the runner's
+      # configuration, and because a fresh HOME is what a first install is.
+      #
+      # The module cache is exported back in on purpose, and the rehearsal is why:
+      # GOMODCACHE defaults inside HOME, so a fresh one hides the cache from
+      # go/packages, the main module fails to type-check, and the pass indexes
+      # 63 Go definitions instead of 10075 -- and publishes a generation, and
+      # passes. A gate that green-lights a hollow graph is worse than no gate.
+      - name: Index with the bundled binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Captured before HOME moves: GOMODCACHE defaults inside HOME, so a
+          # fresh one hides the module cache from go/packages, the main module
+          # fails to type-check and the pass indexes 63 Go definitions instead
+          # of 10075 -- measured both ways while rehearsing this job. It still
+          # publishes a generation and it still passes, and a gate that
+          # green-lights a hollow graph is worse than no gate. GOPATH travels
+          # with it because the two are read as a pair.
+          gomodcache="$(go env GOMODCACHE)"
+          gopath="$(go env GOPATH)"
+          export HOME="$RUNNER_TEMP/smoke-home"
+          mkdir -p "$HOME"
+          export GOMODCACHE="$gomodcache" GOPATH="$gopath"
+          echo "GOMODCACHE=$gomodcache" >> "$GITHUB_ENV"
+          echo "GOPATH=$gopath" >> "$GITHUB_ENV"
+
+          bundle="$PWD/dist/kivgraph-linux-amd64/bin/kivgraph"
+          "$bundle" init --repository kivgraph="$PWD" --languages go,typescript
+          "$bundle" doctor
+          "$bundle" index --full --json | tee "$RUNNER_TEMP/index.json" | tail -1
+
+          # The graph has to be worth serving: below this the pass loaded almost
+          # nothing and every query after it would answer about an empty corpus.
+          #
+          # The floors hold because HOME is new on every run, so the fact cache
+          # is cold and the counters report the whole pass. A warm one reports
+          # only what it loaded anew, which is why these numbers do not mean the
+          # same thing on a workstation that has indexed before.
+          definitions="$(jq -rs 'map(select(.event == "result"))[-1].result.index.go_definitions' "$RUNNER_TEMP/index.json")"
+          symbols="$(jq -rs 'map(select(.event == "result"))[-1].result.index.typescript_symbols' "$RUNNER_TEMP/index.json")"
+          printf 'go definitions %s, typescript symbols %s\n' "$definitions" "$symbols"
+          test "$definitions" -ge 5000
+          test "$symbols" -ge 1000
+
+      # Registered is not the same as working. Every reference tool is called
+      # with a real symbol of the graph that was just published, and the two
+      # traversals at depth two -- the depth that leaves the symbol and walks an
+      # edge, and the depth at which both answered SNAPSHOT_UNAVAILABLE in
+      # v0.8.0 while every fixture test in the repository passed.
+      - name: Prove every tool answers about the graph it just built
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/smoke-home"
+          go run ./benchmarks/mcp-token-cost \
+            --server "$PWD/dist/kivgraph-linux-amd64/bin/kivgraph" \
+            --smoke
 
   macos:
     name: Verify Go on macOS arm64
