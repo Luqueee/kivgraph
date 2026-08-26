@@ -12,6 +12,18 @@ const links = [
   ...link,
   external: /^https?:\/\//.test(link.href),
 }));
+
+// The six labels are 62 characters of monospace plus five gaps, so the row they
+// want is about 530px wide, and the bar only holds it beside the wordmark from
+// 768px up and beside the tagline as well from 1024px. Below that the whole bar
+// wrapped, and it wrapped badly: measured on the built page, the header stood
+// 137px tall at 320px, 113px at 390px and 89px through 540px, against the 41px
+// it costs on a desktop. That is a third of a phone's first screenful spent on
+// a pile of links before the page has said anything.
+//
+// So the bar keeps one row at every width. What changes is what the row holds:
+// the tagline is decorative next to the wordmark and only appears where it
+// already fitted, and the links collapse behind a disclosure below 768px.
 ---
 
 <header class="border-b border-rule">
@@ -23,9 +35,42 @@ const links = [
       ></span>
       kivgraph
     </a>
-    <span class="text-gray-400">cross-repository code intelligence</span>
+
+    {/* The tagline repeats what the hero says one screen down, so it is the
+        first thing to go when the row is short. It returns at 1024px, which is
+        the width it already needed to sit on the same line as the links. */}
+    <span class="hidden text-gray-400 lg:inline"
+      >cross-repository code intelligence</span
+    >
+
+    {/* The disclosure is a checkbox and a label, like the tabs on the front
+        page: no JavaScript, keyboard-navigable, and announced. The input is
+        `sr-only` and never `display: none`, because a hidden input cannot take
+        focus and the keyboard is how this is meant to be driven. It comes
+        before the label and the nav because the whole control is a sibling
+        selector. */}
+    <input id="nav-open" class="peer sr-only" type="checkbox" />
+    <label
+      for="nav-open"
+      class="ml-auto cursor-pointer text-gray-400 transition-colors hover:text-gray-100 md:hidden"
+    >
+      <span data-when="closed">menu</span>
+      <span data-when="open">close</span>
+    </label>
+
+    {/* Closed, the nav is `display: none` and its links stay in the served
+        HTML, which is what a crawler and a reader with no CSS get: the whole
+        list, exactly as the front page's tabs degrade. Open, it is a column
+        under the wordmark rather than a row squeezed beside it. From 768px the
+        disclosure stops applying and this is the row it always was.
+
+        Nothing closes it on a tap, and nothing needs to: this header does not
+        stick, so following one of the four in-page anchors scrolls it out of
+        the viewport along with the rest of the bar. A close-on-click would be
+        the one piece of JavaScript on this control, bought for a state the
+        reader stops seeing anyway. */}
     <nav
-      class="ml-auto flex flex-wrap items-center gap-x-6 gap-y-2"
+      class="hidden w-full basis-full flex-col gap-y-3 pt-3 peer-checked:flex md:ml-auto md:flex md:w-auto md:basis-auto md:flex-row md:items-center md:gap-x-6 md:gap-y-2 md:pt-0"
       aria-label="Primary"
     >
       {
@@ -43,3 +88,26 @@ const links = [
     </nav>
   </div>
 </header>
+
+<style>
+  /* The word on the button is the action it performs, so it has to follow the
+     checkbox. It cannot be a `peer-checked:` utility: that variant compiles to
+     a sibling combinator and these two spans are inside the label, which is the
+     sibling -- the utility would compile and never match. */
+  label[for="nav-open"] [data-when="open"],
+  #nav-open:checked ~ label[for="nav-open"] [data-when="closed"] {
+    display: none;
+  }
+
+  #nav-open:checked ~ label[for="nav-open"] [data-when="open"] {
+    display: inline;
+  }
+
+  /* The focus ring belongs on the label, because the input that owns the focus
+     is the one thing on this control nobody can see. Same rule, same reason and
+     same offset as the tabs of `ProductProof.astro`. */
+  #nav-open:focus-visible ~ label[for="nav-open"] {
+    outline: 1px solid var(--color-accent-200);
+    outline-offset: 3px;
+  }
+</style>
