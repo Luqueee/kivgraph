@@ -112,3 +112,139 @@ func selectorSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 	}
 	return snapshot
 }
+
+// A name that several repositories declare is refused with every candidate
+// named by where it is, because that is the narrowing the caller can express
+// next. Answering with either one would be a nominal coincidence, which this
+// surface refuses exactly as the graph does.
+func TestResolveDeclarationByNameRefusesAnAmbiguousName(t *testing.T) {
+	snapshot := selectorSnapshot(t)
+	_, _, err := resolveDeclarationByName(snapshot, "Merge", "", "")
+	if err == nil {
+		t.Fatal("resolveDeclarationByName(ambiguous) error = nil, want an ambiguity")
+	}
+	message := err.Error()
+	for _, want := range []string{
+		`name "Merge" declares 2 symbols`,
+		"repeat with the repository and path",
+		"alpha:src/set.go:10",
+		"beta:src/set.go:5",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("ambiguity message = %q, want it to contain %q", message, want)
+		}
+	}
+}
+
+// Two declarations of one name in one repository are still ambiguous, and the
+// narrowing the caller already applied does not make the answer a guess.
+func TestResolveDeclarationByNameStaysAmbiguousWithinOneRepository(t *testing.T) {
+	snapshot := selectorSnapshot(t)
+	_, _, err := resolveDeclarationByName(snapshot, "Twin", "alpha", "src/twins.go")
+	if err == nil {
+		t.Fatal("resolveDeclarationByName(homonyms) error = nil, want an ambiguity")
+	}
+	if !strings.Contains(err.Error(), `name "Twin" declares 2 symbols`) {
+		t.Fatalf("ambiguity message = %q, want it to count both declarations", err.Error())
+	}
+}
+
+// The narrowing resolves it, and the qualified name travels back so the
+// caller never has to ask a second time for what the lookup already read.
+func TestResolveDeclarationByNameResolvesANarrowedName(t *testing.T) {
+	snapshot := selectorSnapshot(t)
+	id, qualifiedName, err := resolveDeclarationByName(snapshot, "Merge", "beta", "")
+	if err != nil {
+		t.Fatalf("resolveDeclarationByName() error = %v", err)
+	}
+	if qualifiedName != "pkg.Merge" {
+		t.Fatalf("qualified name = %q, want pkg.Merge", qualifiedName)
+	}
+	symbol, found := snapshot.Symbol(id)
+	if !found || symbolStableKey(snapshot, symbol) != "beta-merge" {
+		t.Fatalf("resolved %#v, want beta-merge", symbol)
+	}
+}
+
+// A repository the graph does not hold is a different answer from a name it
+// does not hold, and both are different from a name that is only mentioned.
+// Collapsing them would send the caller to narrow a search that was never
+// going to find anything.
+func TestResolveDeclarationByNameSeparatesItsThreeAbsences(t *testing.T) {
+	snapshot := selectorSnapshot(t)
+	for _, testCase := range [...]struct {
+		name       string
+		symbol     string
+		repository string
+		want       string
+	}{
+		{
+			name:       "a repository the graph does not hold",
+			symbol:     "Merge",
+			repository: "gamma",
+			want:       `repository "gamma" is not in the published graph`,
+		},
+		{
+			name:   "a name the graph does not hold",
+			symbol: "Absent",
+			want:   `name "Absent" was not found`,
+		},
+		{
+			name:       "a name no repository under this narrowing declares",
+			symbol:     "Merge",
+			repository: "beta",
+			want:       "",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, _, err := resolveDeclarationByName(snapshot, testCase.symbol, testCase.repository, "")
+			if testCase.want == "" {
+				if err != nil {
+					t.Fatalf("resolveDeclarationByName() error = %v, want it to resolve", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("resolveDeclarationByName() error = nil, want %q", testCase.want)
+			}
+			if !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("error = %q, want it to contain %q", err.Error(), testCase.want)
+			}
+		})
+	}
+}
+
+// A name that the graph only ever imports or re-exports is not a name it
+// does not hold: the caller has to be told the declaration is elsewhere,
+// because "not found" would send them to give up on a symbol that exists.
+func TestResolveDeclarationByNameSaysWhenANameIsOnlyMentioned(t *testing.T) {
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-alpha", Name: "alpha", Path: "/tmp/alpha", Languages: "go"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "package-alpha", RepositoryKey: "repo-alpha", Language: "go", Name: "example.com/alpha/pkg", ModulePath: "example.com/alpha"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-alpha", RepositoryKey: "repo-alpha", PackageKey: "package-alpha", Path: "src/uses.go", Language: "go"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{
+				StableKey: "alpha-import", CanonicalIdentity: "go:alpha:pkg.Borrowed",
+				FileKey: "file-alpha", Language: "go", Name: "Borrowed",
+				QualifiedName: "pkg.Borrowed", Kind: "import", StartLine: 1, EndLine: 1,
+			},
+		},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 82, time.Unix(1_700_000_082, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	_, _, err = resolveDeclarationByName(snapshot, "Borrowed", "", "")
+	if err == nil {
+		t.Fatal("resolveDeclarationByName(mentioned) error = nil, want the mention reported")
+	}
+	if !strings.Contains(err.Error(), "is only imported or re-exported here, never declared") {
+		t.Fatalf("error = %q, want it to separate a mention from an absence", err.Error())
+	}
+}
