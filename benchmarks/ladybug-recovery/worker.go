@@ -176,7 +176,7 @@ func workerDiskFull(ctx context.Context, databasePath, markerPath string) error 
 		return fmt.Errorf("injected write failure returned by Apply: %w", applyErr)
 	}
 	if injectedDuringApply {
-		return errors.New("Apply returned success after ENOSPC was injected during the transaction")
+		return errors.New("unexpected success from Apply after ENOSPC was injected during the transaction")
 	}
 	return errors.New("ENOSPC was not injected during Apply")
 }

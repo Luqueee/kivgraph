@@ -347,7 +347,7 @@ type canonicalArrowChunk struct {
 
 func newCanonicalArrowChunk(columns []arrowColumn, formats []string, rowCount int64) (*canonicalArrowChunk, error) {
 	if len(columns) != len(formats) {
-		return nil, fmt.Errorf("Arrow chunk has %d columns, want %d", len(columns), len(formats))
+		return nil, fmt.Errorf("unexpected Arrow chunk with %d columns, want %d", len(columns), len(formats))
 	}
 	chunk := &canonicalArrowChunk{
 		rowCount: rowCount,
@@ -370,7 +370,7 @@ func newCanonicalArrowChunk(columns []arrowColumn, formats []string, rowCount in
 					return nil, fmt.Errorf("column %d: %w", index, err)
 				}
 				if end-start > int64(^uint(0)>>1)-total {
-					return nil, fmt.Errorf("Arrow string data exceeds addressable memory")
+					return nil, fmt.Errorf("the Arrow string data exceeds addressable memory")
 				}
 				column.sourceStart, column.sourceEnd = start, end
 				column.destination = int(total)

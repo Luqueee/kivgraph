@@ -88,7 +88,7 @@ func RunWithOptions(ctx context.Context, options Options, repository workspace.R
 		return facts.SemanticPayload{}, fmt.Errorf("decode Python facts: %w", err)
 	}
 	if payload.Version != PayloadVersion || payload.Language != facts.LanguagePython {
-		return facts.SemanticPayload{}, fmt.Errorf("Python facts version/language = %d/%q, want %d/%q", payload.Version, payload.Language, PayloadVersion, facts.LanguagePython)
+		return facts.SemanticPayload{}, fmt.Errorf("unexpected Python facts version/language = %d/%q, want %d/%q", payload.Version, payload.Language, PayloadVersion, facts.LanguagePython)
 	}
 	payload.Authoritative = !fallback
 	if fallback {
@@ -104,7 +104,7 @@ func resolveCommand(command, pythonPath, workingDirectory string) ([]string, str
 	if strings.EqualFold(strings.TrimSpace(command), "auto") || (len(fields) > 0 && strings.EqualFold(fields[0], "kivgraph-python-pyright")) {
 		python, err := exec.LookPath(pythonPath)
 		if err != nil {
-			return nil, "", false, fmt.Errorf("Python executable %q is unavailable: %w", pythonPath, err)
+			return nil, "", false, fmt.Errorf("unavailable Python executable %q: %w", pythonPath, err)
 		}
 		script := filepath.Join(workingDirectory, "python-worker", "pyright_index.py")
 		if _, err := os.Stat(script); err != nil {
@@ -117,7 +117,7 @@ func resolveCommand(command, pythonPath, workingDirectory string) ([]string, str
 			}
 		}
 		if _, err := os.Stat(script); err != nil {
-			return nil, "", false, fmt.Errorf("Python Pyright adapter not found: %s", script)
+			return nil, "", false, fmt.Errorf("missing Python Pyright adapter: %s", script)
 		}
 		return append([]string{script}, fields[1:]...), python, false, nil
 	}
@@ -131,7 +131,7 @@ func resolveCommand(command, pythonPath, workingDirectory string) ([]string, str
 	}
 	python, err := exec.LookPath(pythonPath)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("Python executable %q is unavailable: %w", pythonPath, err)
+		return nil, "", false, fmt.Errorf("unavailable Python executable %q: %w", pythonPath, err)
 	}
 	script := filepath.Join(workingDirectory, "python-worker", "index.py")
 	if _, err := os.Stat(script); err != nil {
@@ -144,7 +144,7 @@ func resolveCommand(command, pythonPath, workingDirectory string) ([]string, str
 		}
 	}
 	if _, err := os.Stat(script); err != nil {
-		return nil, "", false, fmt.Errorf("Python fallback worker not found: %s", script)
+		return nil, "", false, fmt.Errorf("missing Python fallback worker: %s", script)
 	}
 	return []string{script}, python, true, nil
 }

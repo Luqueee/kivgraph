@@ -17906,7 +17906,7 @@ el tag, así que vive en `make lint-ladybug` y en el job que ya lo construye,
 mientras el resto de clases se exige en la pasada por defecto. Un `all` único
 sobre la configuración por defecto reintroduciría los `20` falsos.
 
-**Estado:** parcial.
+**Estado:** cerrada.
 
 - `U1000`: **cerrada**. `15` símbolos retirados, `170` líneas y ninguna añadida;
   seis eran los decodificadores `FlatTuple` que el camino Arrow sustituyó y dejó
@@ -17929,4 +17929,22 @@ sobre la configuración por defecto reintroduciría los `20` falsos.
   ataría la superficie serializada al struct del llamante.
 - Gate de las dos: `-checks='SA*,S1016,S1017'` en el paso `Correctness lint`,
   visto rojo con una conversión devuelta a literal.
-- `ST1005` (`46`): abierta, y la única que queda.
+- `ST1005`: **cerrada**, y eran `47` y no `46`: `18` bajo la configuración por
+  defecto -- `dartloader` `13`, `pythonloader` `5`-- y `29` más tras el tag,
+  `26` de ellas en `arrow_scan_native.go`.
+- Ninguna de las `47` se arregló bajando la inicial, y por eso había que
+  leerlas. Las `47` empezaban por nombre propio o identificador exportado --
+  `Dart`, `Python`, `Arrow`, `Apply`--, justo el caso que la convención de Go
+  **permite** y que el heurístico de `staticcheck` no reconoce. `dart analyzer
+  command is empty` habría sido la respuesta equivocada en todas. Se
+  reescribieron para que la frase empiece por el fallo y el nombre propio
+  quede donde estaba: `empty Dart analyzer command`, `nil Arrow string
+  column`, `missing Python Pyright adapter`. Donde invertir la frase la
+  estropeaba, el artículo la abre sin perder nada: `the Arrow string data
+  exceeds addressable memory`.
+- Gate: `-checks='SA*,S1016,S1017,ST1005'`, visto rojo con una cadena devuelta
+  a mayúscula.
+
+Con esto la ficha queda cerrada. El estado final es el que anticipaba y **no**
+es un `-checks=all`: `U1000` sigue fuera de la pasada por defecto, donde sus
+`20` falsos lo impiden, y vive en `make lint-ladybug`.
