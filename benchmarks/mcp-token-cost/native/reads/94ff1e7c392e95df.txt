@@ -1,0 +1,33 @@
+[internal/hotsnapshot/publication.go#D3AA]
+169:// generation that won the race.
+170:func (store *SnapshotStore) Publish(candidate *GraphSnapshot) error {
+171:	if candidate == nil {
+172:		return ErrNilSnapshot
+173:	}
+174:	candidateID := candidate.Metadata().ID
+175:	for {
+176:		if store.closed.Load() {
+177:			return ErrSnapshotStoreClosed
+178:		}
+179:		current := store.active.Load()
+180:		if current != nil && candidateID <= current.Metadata().ID {
+181:			return ErrSnapshotGeneration
+182:		}
+183:		if store.active.CompareAndSwap(current, candidate) {
+184:			if store.closed.Load() {
+185:				store.active.CompareAndSwap(candidate, nil)
+186:				return ErrSnapshotStoreClosed
+187:			}
+188:			// A published generation retires the refusal of the previous one:
+189:			// whatever could not be mapped is no longer what a reader would be
+190:			// asking for, so a rebuild recovers a server without a restart.
+191:			store.failure.Store(nil)
+192:			return nil
+193:		}
+194:	}
+195:}
+196:
+197:// Close removes the active snapshot and prevents future publications. It is
+198:// idempotent; readers holding an earlier pointer may still finish safely.
+
+[Showing lines 169-198 of 204. Use :199 to continue]

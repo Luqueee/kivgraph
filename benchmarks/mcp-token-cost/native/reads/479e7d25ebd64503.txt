@@ -1,0 +1,60 @@
+[internal/indexing/follow.go#866A]
+114:// being served, and reports what it concluded.
+115:func followOnce(
+116:	ctx context.Context,
+117:	store *hotsnapshot.SnapshotStore,
+118:	generations *generation.Store,
+119:) (followResult, error) {
+120:	active, err := generations.Current(ctx)
+121:	if err != nil {
+122:		if errors.Is(err, generation.ErrNoCurrent) {
+123:			// Nothing has ever been published, or everything was
+124:			// discarded. A server keeps whatever it holds: the store
+125:			// publishes generations, it never retracts one.
+126:			return followResult{}, nil
+127:		}
+128:		return followResult{}, fmt.Errorf("read active generation: %w", err)
+129:	}
+130:	activeID, err := parseSnapshotID(active.ID)
+131:	if err != nil {
+132:		return followResult{}, err
+133:	}
+134:	// The served generation is compared by identifier, never by materialising
+135:	// the graph: this runs on every tick, and asking for the snapshot here would
+136:	// load a deferred server after one interval of answering nothing. See ADR
+137:	// 0067.
+138:	servedID, serving := store.ActiveID()
+139:	if !needsPublicationID(servedID, serving, activeID) {
+140:		if serving && servedID > activeID {
+141:			return followResult{Rewound: activeID}, nil
+142:		}
+143:		return followResult{}, nil
+144:	}
+145:	snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+146:		DatabasePath: active.DatabasePath,
+147:		SnapshotID:   activeID,
+148:	})
+149:	// From here the build's inputs are unreachable whatever happens next,
+150:	// including the lost race below, where the whole snapshot is dropped too.
+151:	defer rebuild.ReturnBuildMemory()
+152:	if err != nil {
+153:		return followResult{}, fmt.Errorf("build published snapshot %q: %w", active.ID, err)
+154:	}
+155:	if !report.Passed {
+156:		return followResult{}, fmt.Errorf("build published snapshot %q did not pass", active.ID)
+157:	}
+158:	if err := store.Publish(snapshot); err != nil {
+159:		if errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+160:			// Another publisher installed this generation, or a newer
+161:			// one, while this snapshot was being built. Its work stands.
+162:			return followResult{}, nil
+163:		}
+164:		return followResult{}, fmt.Errorf("publish snapshot %q: %w", active.ID, err)
+165:	}
+166:	return followResult{Published: activeID}, nil
+167:}
+168:
+169:// needsPublicationID reports whether the active generation is newer than the one
+170:// being served.
+
+[Showing lines 114-170 of 205. Use :171 to continue]

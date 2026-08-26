@@ -1,0 +1,57 @@
+[internal/indexing/service.go#BACE]
+336:
+337:func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, error) {
+338:	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+339:		Root:  filepath.Dir(service.loaded.Config.Storage.DatabasePath),
+340:		Store: generation.DefaultConfig(),
+341:	})
+342:	if err != nil {
+343:		return 0, fmt.Errorf("resolve published generation: %w", err)
+344:	}
+345:	if layout.Active.ID == "" {
+346:		return 0, errors.New("rebuild published no active generation")
+347:	}
+348:	generationID, err := parseSnapshotID(layout.Active.ID)
+349:	if err != nil {
+350:		return 0, err
+351:	}
+352:	// The child that ran the pass wrote the snapshot into the generation it
+353:	// published, so the parent reads it instead of scanning the graph again.
+354:	snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+355:		DatabasePath: layout.Active.DatabasePath,
+356:		SnapshotID:   generationID,
+357:	})
+358:	// The build's inputs die here whether or not the publication below wins.
+359:	defer rebuild.ReturnBuildMemory()
+360:	if err != nil {
+361:		return 0, fmt.Errorf("build published snapshot: %w", err)
+362:	}
+363:	if !report.Passed {
+364:		return 0, errors.New("build published snapshot did not pass")
+365:	}
+366:	// Losing this race is success, not failure. The generation follower runs
+367:	// in the same process and installs whatever CURRENT points at; when it
+368:	// gets there first, the store is already serving exactly the snapshot
+369:	// this rebuild produced. Reporting an error here would make the caller
+370:	// retry a rebuild that already landed.
+371:	if err := service.snapshotStore.Publish(snapshot); err != nil {
+372:		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
+373:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+374:		}
+375:		// By identifier, not by snapshot: this arm runs when a concurrent
+376:		// publisher won, and mapping the graph to confirm it would do the work
+377:		// a deferred store exists to postpone.
+378:		if served, serving := service.snapshotStore.ActiveID(); !serving || served < generationID {
+379:			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+380:		}
+381:	}
+382:	return generationID, nil
+383:}
+384:
+385:func parseSnapshotID(value string) (uint64, error) {
+386:	parsed, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+…
+390:	return parsed, nil
+391:}
+
+[Showing lines 336-386 of 531. Use :387 to continue]

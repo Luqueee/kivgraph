@@ -1,0 +1,39 @@
+[internal/storage/ladybug/canonical_load_native.go#B2C6]
+251:// relationship from ever loading before the nodes it connects.
+252:func stageCanonicalCSVs(stagingDir string, tableRows map[string][][]string) ([]canonicalStagedTable, error) {
+253:	nodeTables := CanonicalNodeTables()
+254:	relationshipTables := CanonicalRelationshipTables()
+255:	nodeNames := make(map[string]struct{}, len(nodeTables))
+256:	order := make([]string, 0, len(nodeTables)+len(relationshipTables))
+257:	for _, table := range nodeTables {
+258:		nodeNames[table.Name] = struct{}{}
+259:		order = append(order, table.Name)
+260:	}
+261:	for _, table := range relationshipTables {
+262:		order = append(order, table.Name)
+263:	}
+264:
+265:	staged := make([]canonicalStagedTable, 0, len(tableRows))
+266:	for _, name := range order {
+267:		rows, exists := tableRows[name]
+268:		if !exists || len(rows) == 0 {
+269:			continue
+270:		}
+271:		columns, exists := CanonicalColumns(name)
+272:		if !exists {
+273:			return nil, fmt.Errorf("%w: table %q has no declared column order", ErrInvalidCanonicalLoad, name)
+274:		}
+275:		csvPath := filepath.Join(stagingDir, name+".csv")
+276:		if err := writeCanonicalCSV(csvPath, columns, rows); err != nil {
+277:			return nil, &Error{Op: "load canonical", Err: fmt.Errorf("stage %s: %w", name, err)}
+278:		}
+279:		_, isNode := nodeNames[name]
+280:		staged = append(staged, canonicalStagedTable{name: name, csvPath: csvPath, rows: int64(len(rows)), isNode: isNode})
+281:	}
+282:	return staged, nil
+283:}
+284:
+285:// writeCanonicalCSV writes a table's rows behind a header row, quoting fields
+286:// per RFC 4180. The pinned engine (v0.13.1) was verified directly to accept
+
+[Showing lines 251-286 of 410. Use :287 to continue]

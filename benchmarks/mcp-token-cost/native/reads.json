@@ -3,9 +3,17 @@
     "file": "cmd/kivgraph/main.go",
     "tokens": 429
   },
+  "cmd/kivgraph/main.go:1745-1770": {
+    "file": "cmd/kivgraph/main.go",
+    "tokens": 429
+  },
   "cmd/kivgraph/main.go:221-282": {
     "file": "cmd/kivgraph/main.go",
     "tokens": 836
+  },
+  "internal/audit/golang.go:20-81": {
+    "file": "internal/audit/golang.go",
+    "tokens": 752
   },
   "internal/facts/facts.go:524-526": {
     "file": "internal/facts/facts.go",
@@ -14,6 +22,14 @@
   "internal/facts/facts.go:535-561": {
     "file": "internal/facts/facts.go",
     "tokens": 441
+  },
+  "internal/facts/facts.go:566-568": {
+    "file": "internal/facts/facts.go",
+    "tokens": 99
+  },
+  "internal/facts/facts.go:577-603": {
+    "file": "internal/facts/facts.go",
+    "tokens": 442
   },
   "internal/goloader/crossrepo.go:53-94": {
     "file": "internal/goloader/crossrepo.go",
@@ -27,9 +43,17 @@
     "file": "internal/goworkspace/synthetic.go",
     "tokens": 1174
   },
+  "internal/hotsnapshot/publication.go:170-195": {
+    "file": "internal/hotsnapshot/publication.go",
+    "tokens": 313
+  },
   "internal/hotsnapshot/publication.go:45-66": {
     "file": "internal/hotsnapshot/publication.go",
     "tokens": 250
+  },
+  "internal/hotsnapshot/publication.go:87-112": {
+    "file": "internal/hotsnapshot/publication.go",
+    "tokens": 279
   },
   "internal/indexer/delta.go:252-318": {
     "file": "internal/indexer/delta.go",
@@ -39,6 +63,10 @@
     "file": "internal/indexer/full.go",
     "tokens": 1876
   },
+  "internal/indexer/full.go:260-481": {
+    "file": "internal/indexer/full.go",
+    "tokens": 2541
+  },
   "internal/indexer/full.go:681-712": {
     "file": "internal/indexer/full.go",
     "tokens": 443
@@ -47,13 +75,29 @@
     "file": "internal/indexer/full.go",
     "tokens": 618
   },
+  "internal/indexer/full.go:920-951": {
+    "file": "internal/indexer/full.go",
+    "tokens": 441
+  },
+  "internal/indexer/full.go:974-1022": {
+    "file": "internal/indexer/full.go",
+    "tokens": 644
+  },
   "internal/indexing/follow.go:114-162": {
     "file": "internal/indexing/follow.go",
     "tokens": 595
   },
+  "internal/indexing/follow.go:115-167": {
+    "file": "internal/indexing/follow.go",
+    "tokens": 665
+  },
   "internal/indexing/service.go:305-348": {
     "file": "internal/indexing/service.go",
     "tokens": 607
+  },
+  "internal/indexing/service.go:337-383": {
+    "file": "internal/indexing/service.go",
+    "tokens": 658
   },
   "internal/mcp/server.go:18-20": {
     "file": "internal/mcp/server.go",
@@ -70,6 +114,10 @@
   "internal/storage/ladybug/canonical_load.go:81-298": {
     "file": "internal/storage/ladybug/canonical_load.go",
     "tokens": 2502
+  },
+  "internal/storage/ladybug/canonical_load_native.go:252-283": {
+    "file": "internal/storage/ladybug/canonical_load_native.go",
+    "tokens": 489
   },
   "internal/workspace/go_discovery.go:25-93": {
     "file": "internal/workspace/go_discovery.go",
