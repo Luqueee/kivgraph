@@ -444,6 +444,26 @@ jobs:
       # traversals at depth two -- the depth that leaves the symbol and walks an
       # edge, and the depth at which both answered SNAPSHOT_UNAVAILABLE in
       # v0.8.0 while every fixture test in the repository passed.
+      # A floor that trips says the graph is hollow and not why. The loader
+      # already wrote the reason -- a module it could not load, and the
+      # go command's own stderr -- so a failing gate prints it instead of
+      # sending the next reader to reproduce the pass by hand.
+      - name: Explain a hollow pass
+        if: failure()
+        shell: bash
+        run: |
+          export HOME="$RUNNER_TEMP/smoke-home"
+          go env GOMODCACHE GOPATH GOTOOLCHAIN GOFLAGS GOCACHE
+          go version
+          bundle="$PWD/dist/kivgraph-linux-amd64/bin/kivgraph"
+          "$bundle" logs --kind index --json | tail -c 2000
+          # The reason a module did not load only travels on the human
+          # path -- index.go.diagnostic, one line per module -- so the
+          # pass runs again without --json to say what it could not read.
+          "$bundle" index --full 2>&1 \
+            | grep -E 'index\.go:|index\.go\.diagnostic:' \
+            | head -30
+
       - name: Prove every tool answers about the graph it just built
         shell: bash
         run: |
