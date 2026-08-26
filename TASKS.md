@@ -17653,7 +17653,46 @@ las dos formas del servidor -- `MaximumResidentSurfaceBytes` y
 `MaximumIndexingSurfaceBytes`--, medido en `internal/mcp/surface_test.go`. Ver
 ADR 0074.
 
-**Estado:** abierta.
+**Hecho, el 2026-08-26:** el arnés ya **nombra la recaptura entera en una
+pasada** en vez de abortar en la primera clave. Recorre todas las preguntas,
+anota lo que le pidieron y no tenía, y se niega a publicar al final; abortar en
+la primera convertía una recaptura de doce rangos en doce compilaciones para
+descubrir el tamaño del trabajo.
+
+Y la primera corrida completa **no llegó a las capturas**: murió en el producto,
+con `trace_dependencies` respondiendo `SNAPSHOT_UNAVAILABLE` sobre la generación
+publicada. Ése era un defecto real de dos tools y se fue en su propio PR -- el
+recorrido admitía contención por defecto--, no aquí.
+
+**Los doce rangos que faltan**, medidos contra la generación `000200`:
+
+```
+cmd/kivgraph/main.go:1745-1770
+internal/audit/golang.go:20-81
+internal/facts/facts.go:566-568
+internal/facts/facts.go:577-603
+internal/hotsnapshot/publication.go:170-195
+internal/hotsnapshot/publication.go:87-112
+internal/indexer/full.go:260-481
+internal/indexer/full.go:920-951
+internal/indexer/full.go:974-1022
+internal/indexing/follow.go:115-167
+internal/indexing/service.go:337-383
+internal/storage/ladybug/canonical_load_native.go:252-283
+```
+
+**Lo que queda, y por qué no lo cierra un script:** cada entrada vale lo que
+cuesta **la lectura del host** de ese rango -- su cabecera y el número que
+prepende a cada línea, un `38 %` sobre los bytes--, y por eso es un dataset
+capturado y no una cuenta. Calcularlo desde el fichero sería la imitación que
+`bodyCost` declara que no hace, y descontaría al brazo que abre ficheros, que es
+el brazo contra el que este benchmark compara. Son doce lecturas del host, con su
+procedencia -- generación, commit, corpus-- escrita al lado.
+
+Con eso hecho, quedan los otros dos puntos: decidir el corpus y republicar la
+cifra que el guardia de bytes cita.
+
+**Estado:** abierta, con el trabajo medido.
 
 ## LUQUE-2228 - `version --json` describe un binario que no es el que corre
 
