@@ -481,6 +481,117 @@ jobs:
             --server "$PWD/dist/kivgraph-linux-amd64/bin/kivgraph" \
             --smoke
 
+  # darwin/arm64 is published and cannot be cross-compiled: cgo links the
+  # pinned LadybugDB library, so the only machine that can build this bundle
+  # is a macOS one. Until this job existed the darwin payload was first built
+  # at tag time, which put its platform-specific half -- the load commands
+  # rewritten after linking, the ad-hoc signature Apple Silicon requires to
+  # execute at all -- behind a version number that a failure burns.
+  darwin-bundle:
+    name: Build the macOS bundle a release publishes
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install pinned rust-analyzer
+        run: |
+          rustup component add rust-analyzer
+          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
+          echo "$analyzer_dir" >> "$GITHUB_PATH"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            ts-worker/pnpm-lock.yaml
+            web/pnpm-lock.yaml
+
+      - name: Cache pinned LadybugDB
+        uses: actions/cache@v6
+        with:
+          path: .tooling/ladybug
+          key: ladybug-darwin-arm64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
+
+      - name: Cache pinned rust-analyzer
+        uses: actions/cache@v6
+        with:
+          path: .tooling/rust-analyzer
+          key: rust-analyzer-darwin-arm64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
+
+      - name: Build the macOS bundle
+        run: make build-darwin-arm64
+
+      # Everything here is either specific to Mach-O or specific to being
+      # published. The checksum tool is shasum: macOS ships no sha256sum.
+      - name: Verify the macOS bundle
+        shell: bash
+        run: |
+          bundle=dist/kivgraph-darwin-arm64
+          (cd "$bundle" && shasum -a 256 -c SHA256SUMS >/dev/null)
+
+          # AGENTS.md: the executable declares exactly one RUNPATH, the
+          # relative one. build-bundle.sh drops the one the Go binding points
+          # at its own module directory, and a second surviving entry makes an
+          # installed bundle load a library from wherever that path resolves.
+          rpaths=$(otool -l "$bundle/bin/kivgraph" | grep -c LC_RPATH)
+          test "$rpaths" -eq 1
+          otool -l "$bundle/bin/kivgraph" | grep -q '@loader_path/../lib'
+
+          # Editing those load commands invalidates the signature, and Apple
+          # Silicon refuses to execute an unsigned binary at all -- so the
+          # re-signing step is load-bearing, and the assertion is that the
+          # signature is the ad-hoc one and that the binary runs.
+          codesign -dv "$bundle/bin/kivgraph" 2>&1 | grep -q 'Signature=adhoc'
+          test -f "$bundle/lib/liblbug.dylib"
+
+          # version --json carries no platform field, so the manifest is what
+          # names the target, and the binary that answers is the one built for
+          # it: a bundle assembled for the wrong platform cannot run here.
+          version_json=$("$bundle/bin/kivgraph" version --json)
+          test "$(jq -r .dirty <<<"$version_json")" = "false"
+          test "$(jq -r .target.os "$bundle/manifest.json")" = "darwin"
+          test "$(jq -r .target.arch "$bundle/manifest.json")" = "arm64"
+          test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
+          test "$(jq -r .source.commit "$bundle/manifest.json")" = "$GITHUB_SHA"
+          test "$(jq -r .schema <<<"$version_json")" = "$(jq -r .schema.canonical "$bundle/manifest.json")"
+
+          # The engine has to be the pinned one on this platform too: an
+          # installation that falls back to the PATH indexes a different graph.
+          pinned=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
+          test -x "$bundle/bin/rust-analyzer"
+          test "$(jq -r .rust_analyzer <<<"$version_json")" = "$pinned"
+          "$bundle/bin/rust-analyzer" --version
+
+          # The viewer ships, and the binary must be able to serve it.
+          test -f "$bundle/web/index.html"
+          help_output=$("$bundle/bin/kivgraph" --help)
+          grep -q '^  ui \[' <<<"$help_output"
+          if grep -q 'unavailable: this build carries no web bundle' <<<"$help_output"; then
+            echo "bundle carries web assets the binary cannot serve" >&2
+            exit 1
+          fi
+          test ! -e "$bundle/landing"
+
+      # The reproducibility rule is not platform-specific and its darwin half
+      # was never checked: the scripts default to the host target, so this is
+      # the same gate the Linux job runs, on the other published platform.
+      - name: Verify the macOS bundle builds reproducibly
+        run: scripts/check-reproducible-bundle.sh
+
   macos:
     name: Verify Go on macOS arm64
     runs-on: macos-15
