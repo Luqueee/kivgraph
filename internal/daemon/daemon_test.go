@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -163,6 +164,26 @@ func TestAClientLeavingIsNotReportedAsAFailure(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the session never ended after the connection dropped")
+	}
+}
+
+// TestAWriteToADepartedClientIsNotAFailure fixes the shape the error arrives
+// in, which is the whole difficulty: the syscall is three wrappers deep inside
+// the message the SDK produces, so a classifier that matched on text would pass
+// here and a classifier that forgot to unwrap would report every departure as a
+// failure. The two cases are one event seen from the writing side -- the peer
+// closed while this end was answering -- and neither is the daemon's problem.
+func TestAWriteToADepartedClientIsNotAFailure(t *testing.T) {
+	for _, errno := range []syscall.Errno{syscall.EPIPE, syscall.ECONNRESET} {
+		wrapped := fmt.Errorf("write message: %w", &net.OpError{
+			Op:  "write",
+			Net: "unix",
+			Err: &os.SyscallError{Syscall: "write", Err: errno},
+		})
+		if isDisconnect(wrapped) {
+			continue
+		}
+		t.Fatalf("isDisconnect(%v) = false, want a departing client treated as one", wrapped)
 	}
 }
 

@@ -48,6 +48,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -233,10 +234,18 @@ func serveSession(ctx context.Context, connection net.Conn, options Options) err
 // connection is how a session ends, not a failure the daemon should report as
 // one, and the alternative -- logging every departure as an error -- is how a
 // real failure stops being noticed.
+//
+// EPIPE and ECONNRESET are the same event observed from the writing side: the
+// peer is gone before this end finished answering it. They arrived with the
+// SDK's v1 transport, which reports a failed write where the previous one
+// returned io.EOF and swallowed it, so an ordinary Close() by a client began
+// reaching the daemon as "write message: ...: broken pipe" -- a logged error
+// per departure, which is the outcome this function exists to prevent.
 func isDisconnect(err error) bool {
 	if err == nil {
 		return true
 	}
 	return errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrClosed) ||
-		errors.Is(err, context.Canceled) || errors.Is(err, sdkmcp.ErrConnectionClosed)
+		errors.Is(err, context.Canceled) || errors.Is(err, sdkmcp.ErrConnectionClosed) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }
