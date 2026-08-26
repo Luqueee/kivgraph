@@ -61,11 +61,19 @@ export function umamiTracker(): UmamiTracker | null {
 }
 
 /**
- * The eleven tools the server registers over stdio, in the order the reference
- * lists them: lookups first, then traversal, then the two whole-graph tools and
- * the one that mutates. `get_unresolved_references` is not among them.
+ * The twelve tools the server registers over stdio, in the order the reference
+ * lists them: retrieval first, then lookups, then traversal, then the two
+ * whole-graph tools and the one that mutates. `get_unresolved_references` is not
+ * among them.
+ *
+ * `find_by_intent` leads because it is the one that answers without a name, and
+ * the surface `internal/mcp/surface_test.go` declares as a contract is what this
+ * list has to match: it arrived in v0.8.0 and this list stayed at eleven, which
+ * left the tool out of `llms.txt`, out of `llms-full.txt` and out of the sidebar
+ * while `mcp/usage.md` already linked to a page that did not exist.
  */
 export const MCP_TOOLS = [
+  "find_by_intent",
   "find_symbol",
   "get_symbol",
   "get_source",

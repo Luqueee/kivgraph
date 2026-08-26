@@ -319,8 +319,19 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `internal/mcp/tools`, `README.md`-, copiadas literalmente cuando son un
   contrato. `docs/` sigue siendo material interno de ingeniería -ADRs,
   informes de cualificación- y no se publica.
+- **El recuento de tools sale del contrato, no de la memoria.** La lista viva es
+  `allowedTools` en `internal/mcp/surface_test.go`, que ese fichero declara
+  contrato y no instantánea, más `index_project`, que sólo se registra en la
+  ruta `serve` configurada. `MCP_TOOLS` en `_seo.ts` tiene que casar con ella:
+  de ahí salen el grupo *Tool reference* de `llms.txt` y de `llms-full.txt`.
+  `find_by_intent` llegó en la v0.8.0 y esa lista se quedó en once, así que la
+  tool faltaba en los dos endpoints y en la barra lateral mientras
+  `mcp/usage.md` ya enlazaba a `/docs/tools/find-by-intent/`, que respondía
+  `404`. Al añadir una tool se tocan cinco sitios: la página, el sidebar de
+  `astro.config.mjs`, `MCP_TOOLS`, `docs/mcp-tools.md` y el recuento en prosa de
+  este archivo.
 - La referencia de tools documenta la superficie que `internal/mcp/server.go`
-  registra, no el paquete `internal/mcp/tools`: son once tools, `get_source`
+  registra, no el paquete `internal/mcp/tools`: son doce tools, `get_source`
   entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta
   la contesta el CLI. Sin generación publicada sólo se registra
   `index_project`, y la documentación lo dice donde se instala.
@@ -332,10 +343,10 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   medición -> por eso una búsqueda de texto no puede decir lo mismo -> qué es en
   realidad un nombre -> las relaciones cruzan repositorios -> se enchufa al
   agente que ya usas -> instálalo. `index.astro` no compone nada más.
-- Lo que **no** está en la portada es la lista de las once tools. El visitante
+- Lo que **no** está en la portada es la lista de las doce tools. El visitante
   pregunta qué va a poder entender su agente, no qué funciones exporta el
   servidor; la referencia de tools es una página y cada banda enlaza a ella donde
-  la pregunta aparece. Un componente que enumeraba las once desapareció por eso,
+  la pregunta aparece. Un componente que las enumeraba desapareció por eso,
   junto con la banda de tres tarjetas que sólo servía para enlazar tres páginas
   SEO: esos enlaces viven ahora dentro del texto de la sección a la que
   pertenecen, que es además el ancla contextual que un buscador premia.

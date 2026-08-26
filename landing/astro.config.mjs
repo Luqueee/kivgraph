@@ -179,6 +179,7 @@ export default defineConfig({
               label: "Tools",
               collapsed: true,
               items: [
+                { label: "find_by_intent", slug: "docs/tools/find-by-intent" },
                 { label: "find_symbol", slug: "docs/tools/find-symbol" },
                 { label: "get_symbol", slug: "docs/tools/get-symbol" },
                 { label: "get_source", slug: "docs/tools/get-source" },

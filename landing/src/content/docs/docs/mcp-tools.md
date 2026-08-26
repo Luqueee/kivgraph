@@ -1,10 +1,10 @@
 ---
 title: MCP tools
-description: The eleven tools Kivgraph registers over stdio once a generation is published, and which question each one answers.
+description: The twelve tools Kivgraph registers over stdio once a generation is published, and which question each one answers.
 ---
 
-`kivgraph serve` registers eleven tools over stdio *once a generation is
-published*. Ten are read-only. `index_project` is the only one that mutates
+`kivgraph serve` registers twelve tools over stdio *once a generation is
+published*. Eleven are read-only. `index_project` is the only one that mutates
 anything, and only after explicit consent. A server with no published
 generation registers `index_project` alone; see
 [Before a generation is published](#before-a-generation-is-published).
@@ -16,6 +16,7 @@ database and does not run the TypeScript worker.
 
 | The question | The tool |
 | --- | --- |
+| I do not know its name; which files do I open | [`find_by_intent`](/docs/tools/find-by-intent/) |
 | Who calls this, what references this | [`find_references`](/docs/tools/find-references/) |
 | What breaks if I change this | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | What does this reach outwards | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
@@ -48,6 +49,7 @@ contract, and how to read `coverage`, `guidance` and `completeness`.
 
 Read-only, symbols and source:
 
+- [`find_by_intent`](/docs/tools/find-by-intent/)
 - [`find_symbol`](/docs/tools/find-symbol/)
 - [`get_symbol`](/docs/tools/get-symbol/)
 - [`get_source`](/docs/tools/get-source/)
