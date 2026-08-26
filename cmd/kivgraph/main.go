@@ -1099,6 +1099,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	// A count says something happened; the lines say what. Both are on
 	// stdout with the rest of the report, because a warning in a log the
 	// caller is not reading is a warning nobody has.
+	for _, module := range boundedReportLines(indexReport.GoModulesNotRead, 20) {
+		writeWarning(stdout, "index.go.not_read: %s", module)
+	}
 	for _, diagnostic := range boundedReportLines(indexReport.GoDiagnostics, 20) {
 		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
 	}

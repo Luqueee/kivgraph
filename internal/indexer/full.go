@@ -186,6 +186,17 @@ type FullReport struct {
 	// GoModulesNotLoaded counts the modules the loader could not read. Their
 	// facts are absent and declared; the pass still publishes the rest.
 	GoModulesNotLoaded int
+	// GoModulesNotRead names each of those modules and why, one line each.
+	//
+	// It is not GoDiagnostics: that field is what the loader said about a
+	// module it nevertheless read, and this is the class that produced no
+	// facts at all. Keeping them apart is what lets a reader see
+	// "not_loaded=4 diagnostics=1" and still learn what the four were --
+	// the count travels today and the reason was reachable only by
+	// querying the published graph for its MODULE_NOT_LOADED rows, which
+	// no command exposes. A hollow graph nobody can explain is how an
+	// index passes and answers about nothing.
+	GoModulesNotRead []string
 	// GoWorkspaces counts the synthetic go.work files this pass installed.
 	// A module that reaches no other registered module loads without one.
 	GoWorkspaces           int
@@ -428,6 +439,9 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.GoModules++
 			if result.notLoaded {
 				report.GoModulesNotLoaded++
+				if result.notRead != "" {
+					report.GoModulesNotRead = append(report.GoModulesNotRead, result.notRead)
+				}
 			}
 			report.GoLoadDiagnostics += result.loadDiagnostics
 			report.GoDiagnostics = append(report.GoDiagnostics, result.diagnostics...)
@@ -1216,6 +1230,9 @@ type analysisResult struct {
 	composed map[string]composedTarget
 	// diagnostics are what the loader said without blocking the pass.
 	diagnostics []string
+	// notRead explains a unit that produced no facts, for the reader of
+	// the report. Empty for every unit that loaded.
+	notRead string
 }
 
 // moduleNotLoadedFacts declares a Go module the loader could not read.
@@ -1249,6 +1266,8 @@ func moduleWithoutGoPackages(unit analysisUnit) analysisResult {
 	return analysisResult{
 		notLoaded: true,
 		detail:    "no Go packages: " + unit.module.ModulePath + " declares a module and holds none",
+		notRead: fmt.Sprintf("%s: %s: NO_GO_PACKAGES: declares a module and holds no Go file",
+			unit.repository.Name, unit.module.ModulePath),
 	}
 }
 
@@ -1274,6 +1293,8 @@ func moduleNotLoadedFacts(unit analysisUnit, blocking []goloader.PackageError) a
 		unresolved: 1,
 		notLoaded:  true,
 		detail:     "not loaded: " + firstLine(detail),
+		notRead: fmt.Sprintf("%s: %s: MODULE_NOT_LOADED: %s",
+			unit.repository.Name, unit.module.ModulePath, firstLine(detail)),
 	}
 }
 

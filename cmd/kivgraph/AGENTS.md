@@ -194,6 +194,14 @@ superficie observable.
   código de uno que esta máquina no pudo leer: los dos suman cero símbolos. La
   razón difiere -- un workspace que el analizador no leyó, un módulo que no
   cargó, un analizador que no está instalado-- y la consecuencia no.
+- **Y el contador nombra a sus módulos.** Cada módulo Go que no se leyó sale
+  como `index.go.not_read: <repositorio>: <módulo>: <motivo>: <detalle>` en el
+  informe humano, con el mismo tope de veinte líneas que los diagnósticos. El
+  contador solo dejaba una pregunta sin respuesta: `not_loaded=4` con
+  `diagnostics=1` no dice cuáles son los cuatro, y el motivo vivía únicamente en
+  las filas `MODULE_NOT_LOADED` del grafo publicado, que ningún comando lee.
+  `index.go.diagnostic` es otra clase -- lo que el cargador dijo de un módulo que
+  **sí** leyó-- y mezclarlas perdería justo esa distinción.
 - **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
   `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
   `index` es lo que cada pasada de lenguaje **observó**. Un fichero que
