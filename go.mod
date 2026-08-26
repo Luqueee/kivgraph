@@ -1,8 +1,6 @@
 module github.com/Luqueee/kivgraph
 
-go 1.26.0
-
-toolchain go1.26.6
+go 1.26.6
 
 tool honnef.co/go/tools/cmd/staticcheck
 
