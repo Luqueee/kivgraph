@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -292,5 +293,99 @@ func writeGitHeadTestFile(t *testing.T, path, contents string) {
 	}
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatalf("write %q: %v", path, err)
+	}
+}
+
+// A value that is not an object id is refused before git is asked anything.
+// The question this answers is "may I skip the rebuild?", so a value it
+// cannot even parse has to answer no: the alternative is publishing a graph
+// derived from a commit nobody identified.
+func TestCommitsHaveIdenticalTreesRefusesWhatIsNotAnObjectID(t *testing.T) {
+	valid := gitHeadTestCommit
+	for _, testCase := range [...]struct{ name, from, to string }{
+		{name: "an empty from", from: "", to: valid},
+		{name: "an empty to", from: valid, to: ""},
+		{name: "a truncated id", from: "0123456", to: valid},
+		{name: "an id one character too long", from: valid + "0", to: valid},
+		{name: "a non-hexadecimal id", from: strings.Repeat("z", len(valid)), to: valid},
+		{name: "a branch name", from: "main", to: valid},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			// The path is never reached, so it does not have to exist.
+			if CommitsHaveIdenticalTrees(context.Background(), t.TempDir(), testCase.from, testCase.to) {
+				t.Fatalf("CommitsHaveIdenticalTrees(%q, %q) = true, want false",
+					testCase.from, testCase.to)
+			}
+		})
+	}
+}
+
+// One commit compared with itself is identical without asking git, which is
+// what keeps a poll that observed no movement from spawning a process. A nil
+// context is the caller that has none to offer and must not be a crash.
+func TestCommitsHaveIdenticalTreesAnswersTheSameCommitWithoutGit(t *testing.T) {
+	//nolint:staticcheck // the nil context is the input under test.
+	if !CommitsHaveIdenticalTrees(nil, t.TempDir(), gitHeadTestCommit, gitHeadTestCommit) {
+		t.Fatal("CommitsHaveIdenticalTrees(same commit) = false, want true")
+	}
+	if CommitsHaveIdenticalTrees(context.Background(), t.TempDir(), gitHeadTestCommit, gitHeadTestOtherCommit) {
+		t.Fatal("CommitsHaveIdenticalTrees(two absent commits) = true, want false")
+	}
+}
+
+// The whole point of the function, against a real repository: a commit that
+// recorded no change to the tree is identical, one that added a file is not,
+// and a commit this repository does not hold cannot be settled and so is not
+// identical either.
+func TestCommitsHaveIdenticalTreesSeparatesACommitFromACheckout(t *testing.T) {
+	binary, err := exec.LookPath("git")
+	if err != nil {
+		t.Skipf("git is not on PATH: %v", err)
+	}
+	repository := testsupport.TempDir(t)
+	run := func(arguments ...string) string {
+		t.Helper()
+		command := exec.Command(binary, arguments...)
+		command.Dir = repository
+		command.Env = append(os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null",
+			"GIT_CONFIG_SYSTEM=/dev/null",
+			"GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=Kivgraph Test",
+			"GIT_AUTHOR_EMAIL=test@kivgraph.invalid",
+			"GIT_COMMITTER_NAME=Kivgraph Test",
+			"GIT_COMMITTER_EMAIL=test@kivgraph.invalid",
+		)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(arguments, " "), err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	run("init", ".")
+	run("commit", "--allow-empty", "--message", "initial commit")
+	first := run("rev-parse", "HEAD")
+	// A second empty commit moves HEAD and records the same tree, which is
+	// exactly the checkout this function exists to tell from a change.
+	run("commit", "--allow-empty", "--message", "moves HEAD and nothing else")
+	unchanged := run("rev-parse", "HEAD")
+	writeGitHeadTestFile(t, filepath.Join(repository, "added.txt"), "content\n")
+	run("add", "added.txt")
+	run("commit", "--message", "adds a file")
+	changed := run("rev-parse", "HEAD")
+
+	if first == unchanged || unchanged == changed {
+		t.Fatalf("the fixture produced repeated commits: %q %q %q", first, unchanged, changed)
+	}
+	if !CommitsHaveIdenticalTrees(context.Background(), repository, first, unchanged) {
+		t.Fatal("two commits recording the same tree = false, want true")
+	}
+	if CommitsHaveIdenticalTrees(context.Background(), repository, unchanged, changed) {
+		t.Fatal("a commit that added a file = true, want false")
+	}
+	// A commit the repository does not hold cannot be answered, and the
+	// honest answer to "may I skip the rebuild?" is then no.
+	if CommitsHaveIdenticalTrees(context.Background(), repository, first, gitHeadTestPackedCommit) {
+		t.Fatal("a commit the repository does not hold = true, want false")
 	}
 }
