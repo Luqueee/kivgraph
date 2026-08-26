@@ -273,11 +273,21 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 - `--zoom` recorta la fuente a su centro antes de escalar, porque un icono de
   app quiere la marca al ~80 % del lienzo y ésta ocupaba el 60,9 % medido: a
   16 px eso son diez píxeles de marca en una pestaña. Se mide, no se estima.
-- No hay marca vectorial: la fuente es un ráster. Un `favicon.svg` rancio no es
-  inofensivo, **gana**, porque el navegador prefiere el vector -- el de la marca
-  antigua seguía sirviéndose y era lo que se veía en la pestaña. `icons.sh
+- No hay marca vectorial: la fuente es un ráster, y `favicon.svg` es ese mismo
+  ráster -- el PNG de 32 px en base64-- envuelto en un `clipPath` de esquinas
+  redondeadas, `rx=7` sobre un lienzo de 32. Es el único icono con radio: los
+  PNG salen cuadrados de `icons.sh` y quedan como reserva para un cliente que no
+  acepte un icono SVG. Lo enlazan **las dos** mitades del sitio -- Starlight por
+  la opción `favicon` de `astro.config.mjs` y la landing por su propio
+  `<link rel="icon" type="image/svg+xml">`--, porque el navegador prefiere el
+  vector y tenerlo en una mitad sola es lo que dejaba la pestaña de la
+  documentación redondeada y la de la portada con esquinas rectas.
+- Ese mismo «gana el vector» es lo que hace peligroso un `favicon.svg` rancio:
+  cuando envolvía la marca antigua, era la marca antigua lo que se veía en la
+  pestaña aunque los PNG estuviesen al día. Al regenerar los iconos se
+  reemplaza también el base64 que este fichero lleva dentro; `icons.sh
   --drop-svg` lo retira, y entonces `favicon` de Starlight apunta al PNG de
-  32 px, que emite como `rel="shortcut icon"`.
+  32 px, que emite como `rel="shortcut icon"`, y la landing pierde el radio.
 
 ## Contenido
 

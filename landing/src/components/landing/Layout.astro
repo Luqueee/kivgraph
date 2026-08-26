@@ -107,9 +107,13 @@ const structuredData = {
       content={GOOGLE_SITE_VERIFICATION}
     />
 
-    {/* The mark is a raster, so there is no vector icon. A stale
-        `image/svg+xml` entry would win over these: a browser prefers the
-        vector, and it was still the old graph-nodes drawing. */}
+    {/* favicon.svg is the committed raster mark inside a rounded clip; the PNGs
+        are the same mark with square corners. The vector goes first because a
+        browser prefers it, which is what gives the tab the same rounded icon the
+        documentation already shows -- Starlight serves favicon.svg from the
+        `favicon` option in astro.config.mjs. The PNGs stay as the fallback for a
+        client that will not take an SVG icon. */}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
