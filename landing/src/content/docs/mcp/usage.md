@@ -4,7 +4,7 @@ description: Route a question to the right Kivgraph tool, address a symbol witho
 ---
 
 `kivgraph serve` speaks MCP over stdio and, once a generation is published,
-registers eleven tools; before that it registers `index_project` alone. This page is
+registers twelve tools; before that it registers `index_project` alone. This page is
 about using them: which tool answers which question, how to name a symbol, and
 how to read what comes back. Per-tool arguments live under
 [`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
