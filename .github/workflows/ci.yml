@@ -120,13 +120,18 @@ jobs:
       - name: Lint the workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 
-      # Correctness only. The whole staticcheck surface reports 54 findings on
-      # this tree -- dead code behind build tags, error-string style -- and a gate
-      # that starts red is one people learn to scroll past. The SA classes are
-      # the ones that describe a bug; they were green when this was added, and
-      # the rest is LUQUE-2231.
+      # Correctness first, then the LUQUE-2231 classes as each one closes. A
+      # gate that starts red is one people learn to scroll past, so a class is
+      # added here on the commit that empties it, never before. The SA classes
+      # describe a bug and were green when this was added; S1016 and S1017
+      # joined with the five duplicate shapes they named, and holding them here
+      # is what stops a sixth from being written. U1000 cannot join: under the
+      # default build the files behind the `ladybug` tag are not analysed, so
+      # every symbol whose caller lives in one of them looks unreferenced --
+      # measured at 20 findings, all false. It lives in `make lint-ladybug`,
+      # the only configuration that can answer it. ST1005 is what is left.
       - name: Correctness lint
-        run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 -checks='SA*' ./...
+        run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 -checks='SA*,S1016,S1017' ./...
 
       # Reachable vulnerabilities, not an advisory list: govulncheck exits
       # non-zero only for what this code calls. It is what found the five
