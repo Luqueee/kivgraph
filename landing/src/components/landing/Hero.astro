@@ -11,6 +11,42 @@ const installCommand =
 // Four properties a reader can check before installing anything. Nothing here
 // is a measurement, so nothing here needs a citation; the numbers live in the
 // section that publishes their source.
+// The same setup addressed to the agent the visitor already has open, because
+// that is who ends up running it. Every command is the one the Quickstart
+// publishes, in the order it publishes them: register, check, index, connect.
+//
+// Step 5 spells the five target ids out instead of picking one, and that is the
+// difference between a prompt that runs and one that hangs. `kivgraph mcp
+// install` with no `--target` opens an interactive selector -- arrows, space,
+// Enter -- which an agent driving a pipe would sit in forever; its own help says
+// to pass `--target` for scripted use. The agent reading this knows which of
+// the five it is, which is the one thing this page cannot know.
+//
+// It is instructions and not a script on purpose. The two facts an installer
+// cannot know are the repository's absolute path and the languages it actually
+// holds, and an agent reading the checkout can see both. For the same reason it
+// is told to stop on a failing `doctor` rather than continue: publishing a
+// generation on a machine missing a toolchain produces a graph with a silent
+// hole in it.
+const agentPrompt = `Set up Kivgraph on this machine so you can answer questions about my code through it.
+
+1. Install it:
+   ${installCommand}
+2. Register this repository. Use its absolute path, and pass only the languages it actually contains (go, typescript, javascript, rust, python, dart):
+   kivgraph init --repository <name>=<absolute path> --languages <languages>
+3. Check the machine. If any line is not PASS, stop and tell me which one:
+   kivgraph doctor
+4. Build and publish the graph. This takes minutes; wait for it:
+   kivgraph index --full
+5. Register yourself as an MCP client. Pass --target with your own id, so it does not open its interactive selector -- one of claude-code, claude-desktop, codex, opencode, oh-my-pi:
+   kivgraph mcp install --target <your id>
+6. Unless you are Claude Desktop, which has none, install the Agent Skill that teaches you when to reach for it:
+   kivgraph skill install --target <your id>
+
+Then reload your MCP servers and call the graph_status tool to confirm a generation is published. From then on, ask Kivgraph who calls a symbol and what a change breaks instead of grepping for names.
+
+Reference: https://kivgraph.dev/quickstart/`;
+
 const facts = [
   "local only",
   "MCP over stdio",
@@ -61,6 +97,24 @@ const facts = [
       data-hero-item="actions"
       class="mt-10 flex flex-wrap items-center justify-center gap-3 font-mono text-xs"
     >
+      {/* The loudest thing in the row, because it is the one that does the
+        work: filled rather than outlined, and the only filled control on the
+        page. The fill is the green this site already spends on an exact
+        answer, and the label on it is `--color-shell` and not `--color-gray-100`
+        -- measured, `#16a34a` against `#f5f5f5` is `3.02:1` and fails AA, while
+        against `#0a0b0d` it is `5.97:1` and passes.
+
+        The width is reserved rather than left to the label, because the label
+        is what changes: on a copy it becomes `copied`, and measured, the button
+        went 185px -> 77px and shoved the button beside it 54px to the left on
+        every click. `21ch` is the resting label's own length in the monospace
+        face it is set in, and `2rem` is the `px-4` on both sides -- box-sizing
+        here is `border-box`, so the padding has to be in the figure. */}
+      <CopyButton
+        value={agentPrompt}
+        label="copy the agent prompt"
+        class="min-w-[calc(22ch+2rem)] cursor-pointer border border-graph-exact bg-graph-exact px-4 py-2 text-center text-shell transition-colors hover:border-gray-100 hover:bg-gray-100"
+      />
       <a
         href="/install/"
         class="border border-graph-exact bg-raise px-4 py-2 text-gray-100 transition-colors hover:border-gray-700"

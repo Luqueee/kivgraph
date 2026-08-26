@@ -2,16 +2,24 @@
 interface Props {
   value: string;
   label?: string;
+  /**
+   * Replaces the default chrome outright rather than adding to it. A caller
+   * that wants this button to read as one of the hero's actions has to restate
+   * the padding and the border too, and letting it append would have left the
+   * `w-16` of the default behind -- wide enough for `copied` and nothing else.
+   */
+  class?: string;
 }
 
-const { value, label = "copy" } = Astro.props;
+const {
+  value,
+  label = "copy",
+  class:
+    className = "w-16 shrink-0 border border-rule-strong py-1 text-center text-xs text-gray-300 transition-colors hover:bg-raise hover:text-gray-100",
+} = Astro.props;
 ---
 
-<button
-  type="button"
-  data-copy={value}
-  class="w-16 shrink-0 border border-rule-strong py-1 text-center text-xs text-gray-300 transition-colors hover:bg-raise hover:text-gray-100"
->{label}</button>
+<button type="button" data-copy={value} class={className}>{label}</button>
 
 <script>
   // One listener per button, wired once for every copy button on the page.
