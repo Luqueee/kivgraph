@@ -1,0 +1,69 @@
+[internal/audit/golang.go#7F00]
+19:// registered as Go, listing packages without building a type universe.
+20:func auditGo(
+21:	ctx context.Context,
+22:	repository workspace.Repository,
+23:	options Options,
+24:) ([]Finding, error) {
+25:	discovery, err := workspace.DiscoverGo(ctx, repository)
+26:	if err != nil {
+27:		return nil, fmt.Errorf("discover Go modules: %w", err)
+28:	}
+29:	if len(discovery.Modules) == 0 {
+30:		return []Finding{{
+31:			Repository: repository.Name,
+32:			Language:   "go",
+33:			Code:       CodeGoNoModule,
+34:			Severity:   SeverityBlocking,
+35:			Detail:     "no go.mod in the tree, so there is no module to load",
+36:			Remedy: Remedy{
+37:				Summary: "run `go mod init` in the module root, or take the repository out of the registry if it holds no Go module",
+38:				Command: "go mod init <module path>",
+39:			},
+40:		}}, nil
+41:	}
+42:
+43:	findings := make([]Finding, 0)
+44:	for _, module := range discovery.Modules {
+45:		patterns := goworkspace.PackagePatternsForModule(discovery.Packages, module)
+46:		if len(patterns) == 0 {
+47:			continue
+48:		}
+49:		inspected, err := goloader.Inspect(ctx, goloader.Options{
+50:			Directory:    module.RootPath,
+51:			Patterns:     patterns,
+52:			BuildTags:    append([]string(nil), options.GoBuildTags...),
+53:			AllowNetwork: options.GoAllowNetwork,
+54:		})
+55:		if err != nil {
+56:			findings = append(findings, Finding{
+57:				Repository: repository.Name,
+58:				Language:   "go",
+59:				Code:       CodeGoPackageError,
+60:				Severity:   SeverityBlocking,
+61:				Detail:     fmt.Sprintf("the go command could not list %s: %v", relativePath(repository.RealPath, module.RootPath), err),
+62:				Remedy: Remedy{
+63:					Summary: "make the module list cleanly, then re-run the audit",
+64:					Command: "go list ./...",
+65:				},
+66:			})
+67:			continue
+68:		}
+69:		filesByImportPath := make(map[string][]string, len(discovery.Packages))
+70:		for _, packageValue := range discovery.Packages {
+71:			filesByImportPath[packageValue.ImportPath] = packageValue.Files
+72:		}
+73:		for _, packageValue := range inspected.Packages {
+74:			for _, message := range packageValue.Errors {
+75:				findings = append(findings, goPackageFinding(repository,
+76:					packageValue.PackagePath, message, filesByImportPath[packageValue.PackagePath]))
+77:			}
+78:		}
+79:	}
+80:	return findings, nil
+81:}
+82:
+83:// goPackageFinding classifies one message the go command produced. A package
+84:// excluded by build constraints is the common one and has a remedy; anything
+
+[Showing lines 19-84 of 118. Use :85 to continue]

@@ -17681,18 +17681,41 @@ internal/indexing/service.go:337-383
 internal/storage/ladybug/canonical_load_native.go:252-283
 ```
 
-**Lo que queda, y por qué no lo cierra un script:** cada entrada vale lo que
-cuesta **la lectura del host** de ese rango -- su cabecera y el número que
-prepende a cada línea, un `38 %` sobre los bytes--, y por eso es un dataset
-capturado y no una cuenta. Calcularlo desde el fichero sería la imitación que
-`bodyCost` declara que no hace, y descontaría al brazo que abre ficheros, que es
-el brazo contra el que este benchmark compara. Son doce lecturas del host, con su
-procedencia -- generación, commit, corpus-- escrita al lado.
+**Las doce están capturadas** contra la generación `000204`, y el arnés corre
+completo por primera vez. La tubería de captura resultó estar del todo
+determinada, y se comprobó antes de escribir nada: el nombre del fichero es
+`sha256(clave)[:16].txt` y la cifra es el conteo `cl100k_base` de su texto
+verbatim -- verificado en las **20 capturas previas, 20 de 20 exactas**. Cada
+captura nueva se compuso de piezas observadas -- el hash de la cabecera, la
+ventana que el pie declara, la cola elidida-- sobre el contenido del repo, y ese
+compositor reproduce **10 de las 20** originales byte a byte; las otras diez no
+son ruido, y están explicadas abajo.
 
-Con eso hecho, quedan los otros dos puntos: decidir el corpus y republicar la
+**Lo que la captura descubrió del propio dataset**, y no se sabía:
+
+- la lectura del host **ensancha** la ventana pedida y a veces **elide** líneas
+  con un `…` y una cola sintáctica. `internal/mcp/server.go:18-20` pide tres
+  líneas y devuelve `17-23`. Por eso el residuo contra un render plano va de
+  `37` a `229` tokens y no hay marco fijo que lo explique; el agregado sí encaja
+  con el `38 %` documentado, `1,392x` sobre los bytes.
+- **dos capturas no corresponden al commit declarado.**
+  `internal/facts/facts.go:524-526` y `:535-561` guardan texto que en
+  `f8a952d6` vive en otro sitio. El dataset ya mezclaba procedencia antes de
+  esta recaptura.
+
+**Lo que queda, y ahora es una decisión y no un trabajo:** el brazo nativo sigue
+mezclando procedencia. Sus `grep` están capturados en `f8a952d6` y sus lecturas
+lo están hoy, así que la corrida completa **no se puede publicar como la cifra
+del corpus** hasta recapturar también los `grep` contra la generación vigente.
+Eso es el punto «decidir el corpus», y de él cuelga el tercero -- republicar la
 cifra que el guardia de bytes cita.
 
-**Estado:** abierta, con el trabajo medido.
+**Y la corrida completa dejó un defecto medido, que se fue a `LUQUE-2229`:** el
+titular sale `0,63x` -- perdemos-- y no es el corpus. `find_references` gasta el
+`91-98 %` de cada respuesta en un bloque `completeness` idéntico.
+
+**Estado:** abierta. Primer punto cerrado; quedan la decisión del corpus y la
+republicación.
 
 ## LUQUE-2228 - `version --json` describe un binario que no es el que corre
 
@@ -17742,3 +17765,44 @@ bundle, y el manifest de un bundle copia el `version` del binario que
 uno legítimo.
 
 **Estado:** cerrada el `2026-08-26`.
+
+## LUQUE-2229 - Una respuesta que es 93 % el mismo párrafo
+
+**Dependencias:** ninguna. Lo descubrió la primera corrida completa de
+`benchmarks/mcp-token-cost` tras la recaptura de `LUQUE-2227`.
+
+**Reproducción**, `find_references` sobre la generación `000204`, medido en bytes
+de la respuesta JSON:
+
+|símbolo|refs|`results`|`completeness`|cuota|`invisible_scopes`|tuplas distintas|
+|---|---:|---:|---:|---:|---:|---:|
+|`MergeAll`|3|`455`|`6.113`|`93 %`|`20`|**`2`**|
+|`CanonicalColumns`|3|`513`|`6.121`|`92 %`|`20`|**`2`**|
+|`DiscoverGo`|4|`576`|`6.115`|`91 %`|`20`|**`2`**|
+|`BuildPlan`|3|`502`|`6.114`|`92 %`|`20`|**`2`**|
+|`NewServer`|0|`142`|`6.407`|`98 %`|`20`|**`2`**|
+
+**La causa no es el tamaño, es la repetición.** Los `20` scopes se reducen a
+**dos** tuplas `(reason, requested_package, detail)`: todos son
+`DECLARATION_OUTSIDE_REPOSITORY` sobre `internal/procstat`, y cada uno arrastra
+la misma frase en prosa -- «declared in a Go build cache entry: the package is
+built from generated or cgo sources»-- una vez por símbolo cgo. El bloque es
+**idéntico en las cinco preguntas**, así que no es evidencia de la respuesta: es
+una propiedad de la generación reserializada en cada una.
+
+**Lo que cuesta.** El arnés lo cobra donde se nota: el titular pasa de `7,64x` a
+favor a `0,63x` en contra, es decir `1,6x` más caro que `grep` más lectura. Con
+`NewServer` -- cero referencias-- el `98 %` de lo que el agente paga es texto que
+no habla de `NewServer`.
+
+**Lo que no hay que romper al arreglarlo.** La distinción que este bloque
+sostiene es real y es la razón de ser del servidor: una lista vacía significa
+«nadie lo llama», y `LOWER_BOUND` con sus scopes es lo que impide confundir eso
+con «no se encontró». Agrupar por tupla con un contador conserva la afirmación
+entera; borrar el bloque la destruye. Ver ADR 0059 y el `X1` del corpus de
+`graph-tools-comparison`, donde un consumidor real nunca deletrea el símbolo.
+
+**Superficie.** Cambia la forma de una salida de tool, que la raíz declara
+superficie de compatibilidad: exige ADR.
+
+**Estado:** abierta.

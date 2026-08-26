@@ -1,0 +1,56 @@
+[internal/indexer/full.go#8097]
+973:// the repository that provides it does not publish the declaration.
+974:func closeCrossRepositoryEdges(merged facts.Set, composed map[string]composedTarget) (facts.Set, int) {
+975:	symbols := make(map[string]facts.Symbol, len(merged.Symbols))
+976:	for _, symbol := range merged.Symbols {
+977:		symbols[symbol.Key] = symbol
+978:	}
+979:	placed := make(map[string]struct{}, len(merged.Packages)+len(merged.Files))
+980:	for _, entry := range merged.Packages {
+981:		placed[entry.Key] = struct{}{}
+982:	}
+983:	for _, entry := range merged.Files {
+984:		placed[entry.Key] = struct{}{}
+985:	}
+986:	evidence := make(map[string]facts.Evidence, len(merged.Evidence))
+987:	for _, entry := range merged.Evidence {
+988:		evidence[entry.Key] = entry
+989:	}
+990:	kept := merged.Edges[:0]
+991:	dropped := 0
+992:	for _, edge := range merged.Edges {
+993:		if _, exists := symbols[edge.TargetKey]; exists {
+994:			kept = append(kept, edge)
+995:			continue
+996:		}
+997:		if _, exists := placed[edge.TargetKey]; exists {
+998:			kept = append(kept, edge)
+999:			continue
+1000:		}
+1001:		source, sourceKnown := symbols[edge.SourceKey]
+1002:		target, described := composed[edge.TargetKey]
+1003:		if !sourceKnown || !described {
+1004:			// Nothing here can say what was observed: an end that is not a
+1005:			// symbol of this graph, or a key no unit reported composing.
+1006:			// Validation names it rather than this dropping it unexplained.
+1007:			kept = append(kept, edge)
+1008:			continue
+1009:		}
+1010:		dropped++
+1011:		merged.Unresolved = append(merged.Unresolved,
+1012:			unresolvedFromEdge(edge, source, target, evidence[edge.EvidenceKey]))
+1013:	}
+1014:	merged.Edges = kept
+1015:	if dropped != 0 {
+1016:		// One pass over the single set deduplicates the appended entries on
+1017:		// the same identity Merge uses and restores the canonical order:
+1018:		// several edges can share one missing target at one position.
+1019:		merged = facts.MergeAll([]facts.Set{merged})
+1020:	}
+1021:	return merged, dropped
+1022:}
+1023:
+1024:// composedTarget describes a target whose key a unit built from a provider's
+1025:// identity without reading its declaration.
+
+[Showing lines 973-1025 of 1756. Use :1026 to continue]

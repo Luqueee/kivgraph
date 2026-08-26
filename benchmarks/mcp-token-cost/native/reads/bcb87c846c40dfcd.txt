@@ -1,0 +1,33 @@
+[internal/hotsnapshot/publication.go#D3AA]
+86:// once build one set of indexes rather than N.
+87:func (store *SnapshotStore) materialise() *GraphSnapshot {
+88:	if store.deferred == nil {
+89:		return nil
+90:	}
+91:	store.deferredOnce.Lock()
+92:	defer store.deferredOnce.Unlock()
+93:	if snapshot := store.active.Load(); snapshot != nil {
+94:		return snapshot
+95:	}
+96:	if store.failure.Load() != nil {
+97:		return nil
+98:	}
+99:	snapshot, err := store.deferred()
+100:	if err == nil && snapshot == nil {
+101:		err = ErrNilSnapshot
+102:	}
+103:	if err != nil {
+104:		store.failure.Store(&err)
+105:		return nil
+106:	}
+107:	if publishErr := store.Publish(snapshot); publishErr != nil {
+108:		store.failure.Store(&publishErr)
+109:		return nil
+110:	}
+111:	return snapshot
+112:}
+113:
+114:// Available answers whether a query has a graph to read, without materialising
+115:// one. A deferred store that has not been asked anything yet is available: the
+
+[Showing lines 86-115 of 204. Use :116 to continue]
