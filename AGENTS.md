@@ -434,6 +434,17 @@ go test ./...
 make build
 ```
 
+Si el cambio toca documentación bajo `docs/` o un `CLAUDE.md`:
+
+```bash
+scripts/check-docs.sh
+```
+
+Comprueba que todo `CLAUDE.md` sigue siendo un symlink a su `AGENTS.md` y que
+ninguna línea **nueva** bajo `docs/` pasa de 84 columnas. Lo segundo es un
+ratchet sobre las líneas que cambian, no sobre los ficheros: cuarenta documentos
+preceden a la regla y reflowarlos no es el precio de añadir una frase.
+
 Si el cambio afecta LadybugDB nativo:
 
 ```bash
@@ -455,6 +466,22 @@ de vuelta; el rpath se declara una vez, donde se enlaza una vez.
 El resto de gates vive junto al código que verifica: Rust en
 `internal/rustloader/AGENTS.md`, el worker en `ts-worker/AGENTS.md`, el visor en
 `web/AGENTS.md` y la landing en `landing/AGENTS.md`.
+
+Y hay cuatro que sólo corre CI, porque piden red o varios minutos, pero que se
+pueden reproducir a mano cuando uno de ellos falla:
+
+|gate|comando|qué exige|
+|---|---|---|
+|corrección|`staticcheck -checks='SA*' ./...`|las clases `SA`, que describen un defecto. El resto es `LUQUE-2231`|
+|vulnerabilidades|`govulncheck ./...`|cero **alcanzables**; una en un módulo que no se llama no falla|
+|reproducibilidad|`scripts/check-reproducible-bundle.sh`|dos builds del mismo checkout, payload idéntico|
+|humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las doce tools contesten|
+
+El humo es el único que prueba el producto contra una generación **publicada**, y
+por eso existe: los dos defectos que la `v0.8.0` se llevó pasaban todos los tests
+con fixtures y sólo fallaban ahí. Corre con un `HOME` temporal, y exporta
+`GOMODCACHE` a la caché real -- sin eso el módulo principal no type-checkea y el
+grafo sale hueco sin que nada lo diga.
 
 Para cambios de instalación local, ejecutar el flujo con un `HOME` temporal y
 sin modificar repositorios indexados:

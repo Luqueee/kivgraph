@@ -467,6 +467,17 @@ func TestFullIsolatesAModuleThatCannotLoad(t *testing.T) {
 	if report.GoModulesNotLoaded != 1 {
 		t.Fatalf("modules not loaded = %d, want exactly the broken one", report.GoModulesNotLoaded)
 	}
+	// The count says one module is missing; the line says which and why,
+	// and it is the only place a reader of the report can learn it.
+	if len(report.GoModulesNotRead) != 1 {
+		t.Fatalf("modules not read = %q, want exactly example.com/broken", report.GoModulesNotRead)
+	}
+	for _, want := range []string{"example.com/broken", "MODULE_NOT_LOADED", "absent/dependency"} {
+		if strings.Contains(report.GoModulesNotRead[0], want) {
+			continue
+		}
+		t.Fatalf("module not read = %q, want it to name %q", report.GoModulesNotRead[0], want)
+	}
 
 	declared := false
 	for _, entry := range set.Unresolved {
@@ -535,6 +546,15 @@ func TestFullSkipsAModuleThatHoldsNoGo(t *testing.T) {
 	}
 	if report.GoModulesNotLoaded != 1 {
 		t.Fatalf("modules not loaded = %d, want the Go-less one counted", report.GoModulesNotLoaded)
+	}
+	if len(report.GoModulesNotRead) != 1 {
+		t.Fatalf("modules not read = %q, want exactly example.com/site", report.GoModulesNotRead)
+	}
+	for _, want := range []string{"example.com/site", "NO_GO_PACKAGES"} {
+		if strings.Contains(report.GoModulesNotRead[0], want) {
+			continue
+		}
+		t.Fatalf("module not read = %q, want it to name %q", report.GoModulesNotRead[0], want)
 	}
 	// Counted, but not filed as something to go and fetch.
 	for _, entry := range set.Unresolved {

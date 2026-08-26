@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -52,6 +53,73 @@ var forbiddenTools = []string{
 	"edit_file",
 	"edit",
 	"run_command",
+}
+
+// surfaceSpecification is the protocol document that describes this surface.
+// The path is relative to this package, which is what a Go test can rely on.
+const surfaceSpecification = "../../docs/protocol/mcp-surface-v3.md"
+
+// TestTheSpecificationNamesEveryToolThatIsServed closes LUQUE-2230 as a class.
+//
+// allowedTools is the contract inside the code, and it caught nothing about the
+// document that describes the contract to a reader: find_by_intent shipped in
+// serve while the specification enumerated ten tools and claimed eleven, and it
+// was found by accident weeks later. A tool nobody documents is a tool nobody
+// calls, so the two lists have to be one.
+//
+// The comparison is against the fenced block, not against a mention anywhere in
+// the prose: a name that only appears in a sentence about what was retired must
+// not satisfy this.
+func TestTheSpecificationNamesEveryToolThatIsServed(t *testing.T) {
+	document, err := os.ReadFile(surfaceSpecification)
+	if err != nil {
+		t.Fatalf("read %s: %v", surfaceSpecification, err)
+	}
+	listed := specificationToolBlock(t, string(document))
+	documented := make(map[string]struct{}, len(listed))
+	for _, name := range listed {
+		documented[name] = struct{}{}
+	}
+	for _, name := range allowedTools {
+		if _, found := documented[name]; !found {
+			t.Errorf("%s does not list %q, which serve registers", surfaceSpecification, name)
+		}
+	}
+	served := make(map[string]struct{}, len(allowedTools))
+	for _, name := range allowedTools {
+		served[name] = struct{}{}
+	}
+	for _, name := range listed {
+		if _, found := served[name]; !found {
+			t.Errorf("%s lists %q, which no server registers", surfaceSpecification, name)
+		}
+	}
+	// The mutation is documented in prose rather than in the block, because a
+	// client that never configures indexing never sees it.
+	if !strings.Contains(string(document), "index_project") {
+		t.Errorf("%s does not mention index_project", surfaceSpecification)
+	}
+}
+
+// specificationToolBlock returns the tool names of the document's first fenced
+// text block, which is the enumeration of the surface.
+func specificationToolBlock(t *testing.T, document string) []string {
+	t.Helper()
+	const fence = "```text"
+	start := strings.Index(document, fence)
+	if start < 0 {
+		t.Fatalf("%s has no fenced text block enumerating the tools", surfaceSpecification)
+	}
+	rest := document[start+len(fence):]
+	end := strings.Index(rest, "```")
+	if end < 0 {
+		t.Fatalf("%s has an unterminated fenced block", surfaceSpecification)
+	}
+	names := strings.Fields(rest[:end])
+	if len(names) == 0 {
+		t.Fatalf("%s enumerates no tool", surfaceSpecification)
+	}
+	return names
 }
 
 func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {

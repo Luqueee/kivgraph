@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	sdkjsonrpc "github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -163,6 +166,47 @@ func TestAClientLeavingIsNotReportedAsAFailure(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the session never ended after the connection dropped")
+	}
+}
+
+// TestADepartureIsNotAFailureInAnyOfItsShapes fixes the shapes the error
+// arrives in, which is the whole difficulty: the SDK's v1 transport surfaces
+// whichever end of the race finished first, so one ordinary Close() by a
+// client can produce a socket error, a connection error or a JSON-RPC one.
+// Each is wrapped the way the SDK wraps it -- the syscall three layers deep,
+// the wire error under a %w with its cause formatted by %v -- so a classifier
+// that forgot to unwrap, or one that matched on the message, fails here.
+func TestADepartureIsNotAFailureInAnyOfItsShapes(t *testing.T) {
+	socket := func(errno syscall.Errno) error {
+		return fmt.Errorf("write message: %w", &net.OpError{
+			Op:  "write",
+			Net: "unix",
+			Err: &os.SyscallError{Syscall: "write", Err: errno},
+		})
+	}
+	// conn.go wraps the cause with %v, so io.EOF does not travel: the code is
+	// the only thing left to classify by.
+	wire := func(code int64, message string) error {
+		return fmt.Errorf("%w: %v", &sdkjsonrpc.Error{Code: code, Message: message}, io.EOF)
+	}
+
+	for _, departure := range []error{
+		socket(syscall.EPIPE),
+		socket(syscall.ECONNRESET),
+		wire(wireServerClosing, "server is closing"),
+		wire(wireClientClosing, "client is closing"),
+	} {
+		if isDisconnect(departure) {
+			continue
+		}
+		t.Fatalf("isDisconnect(%v) = false, want a departing client treated as one", departure)
+	}
+
+	// And the classifier still refuses what is not a departure: a coded error
+	// that means the peer sent something invalid is the daemon's business.
+	invalid := fmt.Errorf("handling request: %w", &sdkjsonrpc.Error{Code: -32602, Message: "invalid params"})
+	if isDisconnect(invalid) {
+		t.Fatalf("isDisconnect(%v) = true, want a protocol failure reported", invalid)
 	}
 }
 
