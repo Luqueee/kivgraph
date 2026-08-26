@@ -36,10 +36,11 @@ const (
 )
 
 type config struct {
-	Server     string
-	ConfigPath string
-	Directory  string
-	Repository string
+	Server      string
+	ConfigPath  string
+	Directory   string
+	Repository  string
+	SurfaceOnly bool
 }
 
 func main() {
@@ -48,6 +49,7 @@ func main() {
 	flag.StringVar(&cfg.ConfigPath, "config", "", "optional --config passed to kivgraph serve")
 	flag.StringVar(&cfg.Directory, "dir", defaultDirectory, "benchmark directory holding questions.json and native captures")
 	flag.StringVar(&cfg.Repository, "repository", "kivgraph", "indexed repository the questions belong to")
+	flag.BoolVar(&cfg.SurfaceOnly, "smoke", false, "measure the surface and prove every tool answers, without writing anything")
 	flag.Parse()
 
 	// os.Args[0] is whatever temporary path `go run` linked, which changes on
@@ -73,13 +75,29 @@ func canonicalCommand(cfg config) string {
 	if cfg.Repository != "kivgraph" {
 		command += " --repository " + cfg.Repository
 	}
+	if cfg.SurfaceOnly {
+		command += " --smoke"
+	}
 	return command
 }
+
+// maximumResidentSurfaceTokens bounds what a host keeps resident for this
+// server, in the unit an agent pays.
+//
+// internal/mcp guards the same surface in bytes, because that package has no
+// tokenizer; this is the figure the reports and the protocol document quote, and
+// it is the half a byte guard cannot see -- a description rewritten into fewer,
+// longer words moves one number and not the other. Measured at 716 over
+// generation 000206, guarded with the headroom of one description.
+const maximumResidentSurfaceTokens = 800
 
 func run(ctx context.Context, cfg config, command string) error {
 	tokens, err := newCounter()
 	if err != nil {
 		return err
+	}
+	if cfg.SurfaceOnly {
+		return runSmoke(ctx, cfg, tokens)
 	}
 	questions, err := loadQuestions(cfg.Directory)
 	if err != nil {
@@ -165,6 +183,84 @@ func run(ctx context.Context, cfg config, command string) error {
 		return err
 	}
 	printSummary(out)
+	return nil
+}
+
+// runSmoke measures the half of this benchmark that transports between corpora
+// and then proves every tool answers, which together are what a gate can demand
+// on every commit.
+//
+// The arms cannot be demanded: their native captures are pinned to the line
+// ranges of one commit, so asking for them here would fail closed on the first
+// change that moves a line -- which is the harness working, and useless as a
+// gate. Nothing here reads a capture. What it does read is questions.json, for
+// the symbol names only: a name survives an edit that moves it, and calling the
+// tools with a real symbol is the difference between proving they are registered
+// and proving they work.
+//
+// That difference is the whole reason this exists. The two defects of PR #21
+// answered SNAPSHOT_UNAVAILABLE for any Go type with methods at depth two, and
+// they passed every fixture test in the repository: only a real published
+// generation showed them.
+//
+// It writes nothing. A partial run must never overwrite the report that carries
+// the corpus figures.
+func runSmoke(ctx context.Context, cfg config, tokens *counter) error {
+	questions, err := loadQuestions(cfg.Directory)
+	if err != nil {
+		return err
+	}
+	session, _, cleanup, err := connect(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	snapshot, err := readSnapshot(ctx, session)
+	if err != nil {
+		return err
+	}
+	measured, err := measureSurface(ctx, session, tokens)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s  generation %06d  %s\n", benchmarkName, snapshot.ID, encodingName)
+	fmt.Printf("resident surface: %d tok (%d routes + %d descriptions), %d tok of deferred schema, %d tools, %d annotated read-only\n",
+		measured.ResidentOhMyPi, measured.RouteTokens, measured.DescriptionTokens,
+		measured.DeferredSchemaTokens, measured.Tools, measured.ReadOnly)
+	if measured.ResidentOhMyPi > maximumResidentSurfaceTokens {
+		return fmt.Errorf("resident surface is %d tokens, want at most %d: every tool costs this in every request of every session",
+			measured.ResidentOhMyPi, maximumResidentSurfaceTokens)
+	}
+	return probeTools(ctx, session, questions)
+}
+
+// probeTools calls the reference tools with a real symbol of the indexed corpus
+// and requires an answer. It asserts nothing about the payload: an empty result
+// is a legitimate answer, and a transport that refuses the question is not.
+//
+// Depth two is not arbitrary. It is the first depth that leaves the symbol and
+// walks an edge of the graph, which is where a traversal meets containment, and
+// where both traversal tools were broken while every fixture passed.
+func probeTools(ctx context.Context, session *sdkmcp.ClientSession, questions questionSet) error {
+	root := questions.TraversalRoot
+	for _, probe := range []struct {
+		tool      string
+		arguments map[string]any
+	}{
+		{"graph_status", map[string]any{}},
+		{"list_repositories", map[string]any{}},
+		{"find_symbol", map[string]any{"name": root}},
+		{"find_by_intent", map[string]any{"intent": "publish a generation"}},
+		{"find_references", map[string]any{"name": root}},
+		{"trace_dependencies", map[string]any{"qualified_name": root, "depth": 2}},
+		{"get_blast_radius", map[string]any{"qualified_name": root, "depth": 2}},
+	} {
+		if _, _, err := call(ctx, session, probe.tool, probe.arguments); err != nil {
+			return fmt.Errorf("%s answered nothing about %q: %w", probe.tool, root, err)
+		}
+		fmt.Printf("  %-20s answered\n", probe.tool)
+	}
 	return nil
 }
 
