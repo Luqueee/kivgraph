@@ -50,6 +50,7 @@ import (
 	"sync"
 	"syscall"
 
+	sdkjsonrpc "github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -235,17 +236,45 @@ func serveSession(ctx context.Context, connection net.Conn, options Options) err
 // one, and the alternative -- logging every departure as an error -- is how a
 // real failure stops being noticed.
 //
-// EPIPE and ECONNRESET are the same event observed from the writing side: the
-// peer is gone before this end finished answering it. They arrived with the
-// SDK's v1 transport, which reports a failed write where the previous one
-// returned io.EOF and swallowed it, so an ordinary Close() by a client began
-// reaching the daemon as "write message: ...: broken pipe" -- a logged error
-// per departure, which is the outcome this function exists to prevent.
+// A departure reaches this function in three shapes, and the SDK's v1
+// transport is why there is more than one. Under v0.8.0 a client leaving
+// arrived as io.EOF and was swallowed; v1 surfaces whichever end of the race
+// finished first, so an ordinary Close() by a client can produce any of them:
+//
+//   - the socket layer: EPIPE or ECONNRESET, the same event seen from the
+//     writing side -- the peer is gone before this end finished answering it
+//   - the connection layer: net.ErrClosed, os.ErrClosed, context.Canceled or
+//     the SDK's own ErrConnectionClosed
+//   - the protocol layer: a JSON-RPC error carrying code -32003 or -32004
+//
+// Those two codes are matched rather than their sentinels because the
+// sentinels live in the SDK's internal jsonrpc2 package. The public jsonrpc
+// alias exposes the error's Code, and the code is the part of the contract
+// that travels on the wire -- unlike the message, which is prose. The
+// alternative here is not a stricter check, it is matching "server is
+// closing: EOF" as text.
+//
+// Getting this wrong logs an error for every ordinary departure, which ADR
+// 0065 names as the outcome this function exists to prevent: a line per
+// client is how a real failure stops being noticed.
 func isDisconnect(err error) bool {
 	if err == nil {
 		return true
 	}
-	return errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrClosed) ||
+	if errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrClosed) ||
 		errors.Is(err, context.Canceled) || errors.Is(err, sdkmcp.ErrConnectionClosed) ||
-		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+		return true
+	}
+	var wire *sdkjsonrpc.Error
+	if errors.As(err, &wire) {
+		return wire.Code == wireClientClosing || wire.Code == wireServerClosing
+	}
+	return false
 }
+
+// The JSON-RPC codes the SDK answers with while either end is closing.
+const (
+	wireClientClosing = -32003
+	wireServerClosing = -32004
+)
