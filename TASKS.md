@@ -17805,4 +17805,17 @@ entera; borrar el bloque la destruye. Ver ADR 0059 y el `X1` del corpus de
 **Superficie.** Cambia la forma de una salida de tool, que la raíz declara
 superficie de compatibilidad: exige ADR.
 
-**Estado:** abierta.
+**Lo hecho.** `UnresolvedScopes` se retira y queda `UnresolvedScopeGroups`, que
+agrupa por `(repository, reason, requested_package, detail)` -- identificadores
+internados, una consulta de mapa por falla y ninguna cadena construida. Las filas
+llevan `occurrences` y dejan de llevar `requested_symbol` y `start_line`, que
+pertenecían a una de las fallas agrupadas. Medido después: las `165` fallas son
+**cinco** paquetes, el par de llamadas baja de `3.219` a `991` tokens, y
+`more_invisible_scopes` pasa a `0` -- la verdad entera cabe en la respuesta. El
+titular del arnés va de `0,63x` a `1,53x`.
+
+Con él se arregló un defecto contiguo: `scopeDirectory` publicaba prosa como ruta
+del `fallback` -- «a Go build cache entry: ...»-- porque cortaba el `detail` por el
+último `" in "`. Sólo se acepta una ruta absoluta. Ver ADR 0076.
+
+**Estado:** cerrada el `2026-08-26`.

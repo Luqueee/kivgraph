@@ -75,14 +75,38 @@ func (snapshot *GraphSnapshot) UnresolvedFromSymbol(symbol SymbolID, limit int) 
 	return matched, total
 }
 
-// UnresolvedScopes returns the failures that describe something the index
-// could not read at all, rather than one reference. Passing
+// UnresolvedScopeGroup is one invisible scope and how many recorded failures
+// share it. The identity is what a reader can act on -- reason, repository,
+// requested package, detail -- and never one failure's own position: a scope is
+// a package or a module, so a row per failure inside it repeats a single fact
+// and charges every answer for the repetition. Twenty cgo symbols of one
+// package are one unreadable package.
+type UnresolvedScopeGroup struct {
+	Reference   UnresolvedReferenceRecord
+	Occurrences int
+}
+
+// UnresolvedScopeGroups returns the scopes the index could not read at all,
+// rather than one reference, one row per distinct scope. Passing
 // InvalidRepositoryID returns them for every repository.
-func (snapshot *GraphSnapshot) UnresolvedScopes(repository RepositoryID, limit int) ([]UnresolvedReferenceRecord, int) {
+//
+// total is the number of distinct scopes before limit, so a cut list still
+// reports the size of the problem instead of the size of the page.
+func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, limit int) ([]UnresolvedScopeGroup, int) {
 	if snapshot == nil || limit < 0 {
 		return nil, 0
 	}
-	matched := make([]UnresolvedReferenceRecord, 0)
+	// Interned identifiers compare directly, so grouping costs one map probe
+	// per failure and never builds a key string.
+	type identity struct {
+		repository       RepositoryID
+		reason           InternedString
+		requestedPackage InternedString
+		detail           InternedString
+	}
+	const notShown = -1
+	groups := make([]UnresolvedScopeGroup, 0)
+	placed := make(map[identity]int)
 	total := 0
 	for _, reference := range snapshot.unresolved {
 		if reference.File != InvalidFileID {
@@ -91,12 +115,29 @@ func (snapshot *GraphSnapshot) UnresolvedScopes(repository RepositoryID, limit i
 		if repository != InvalidRepositoryID && reference.Repository != repository {
 			continue
 		}
-		total++
-		if len(matched) < limit {
-			matched = append(matched, reference)
+		key := identity{
+			repository:       reference.Repository,
+			reason:           reference.Reason,
+			requestedPackage: reference.RequestedPackage,
+			detail:           reference.Detail,
 		}
+		if index, seen := placed[key]; seen {
+			if index != notShown {
+				groups[index].Occurrences++
+			}
+			continue
+		}
+		total++
+		if len(groups) >= limit {
+			// Counted as a distinct scope, and remembered so its later
+			// failures never inflate a scope that is shown.
+			placed[key] = notShown
+			continue
+		}
+		placed[key] = len(groups)
+		groups = append(groups, UnresolvedScopeGroup{Reference: reference, Occurrences: 1})
 	}
-	return matched, total
+	return groups, total
 }
 
 // UnresolvedInRepository counts every recorded failure of one repository,

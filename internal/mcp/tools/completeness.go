@@ -37,7 +37,9 @@ type Completeness struct {
 	BlindSpots     []BlindSpot `json:"blind_spots,omitempty"`
 	MoreBlindSpots int         `json:"more_blind_spots,omitempty"`
 	// InvisibleScopes are whole packages or modules the index could not read.
-	// They bound every answer about their repository, whatever was asked.
+	// They bound every answer about their repository, whatever was asked, and
+	// they are one row per scope: the unit is the package, so a reader learns
+	// nothing from the same package repeated once per failure inside it.
 	InvisibleScopes     []BlindSpot `json:"invisible_scopes,omitempty"`
 	MoreInvisibleScopes int         `json:"more_invisible_scopes,omitempty"`
 	// Fallback closes the gap. A warning without the recovery action forces a
@@ -56,6 +58,10 @@ type BlindSpot struct {
 	RequestedSymbol  string `json:"requested_symbol,omitempty"`
 	RequestedPackage string `json:"requested_package,omitempty"`
 	Detail           string `json:"detail,omitempty"`
+	// Occurrences is how many recorded failures share an invisible scope. It
+	// is absent from a failed reference, which is one occurrence by
+	// definition.
+	Occurrences int `json:"occurrences,omitempty"`
 }
 
 // Fallback is the bounded search that covers what the graph could not.
@@ -78,7 +84,7 @@ func completenessFor(
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
 	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, MaximumBlindSpots)
-	scopes, scopeTotal := snapshot.UnresolvedScopes(repository, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
 	if namingTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil
 	}
@@ -95,8 +101,8 @@ func completenessFor(
 			paths[spot.FilePath] = struct{}{}
 		}
 	}
-	for _, reference := range scopes {
-		spot, err := blindSpot(snapshot, reference)
+	for _, group := range scopes {
+		spot, err := invisibleScope(snapshot, group)
 		if err != nil {
 			return Completeness{}, 0, err
 		}
@@ -135,7 +141,7 @@ func completenessOutwardFor(
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
 	sourced, sourcedTotal := snapshot.UnresolvedFromSymbol(symbol, MaximumBlindSpots)
-	scopes, scopeTotal := snapshot.UnresolvedScopes(repository, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
 	if sourcedTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil
 	}
@@ -152,8 +158,8 @@ func completenessOutwardFor(
 			paths[spot.FilePath] = struct{}{}
 		}
 	}
-	for _, reference := range scopes {
-		spot, err := blindSpot(snapshot, reference)
+	for _, group := range scopes {
+		spot, err := invisibleScope(snapshot, group)
 		if err != nil {
 			return Completeness{}, 0, err
 		}
@@ -189,13 +195,13 @@ func completenessScopes(
 	snapshot *hotsnapshot.GraphSnapshot,
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, error) {
-	scopes, scopeTotal := snapshot.UnresolvedScopes(repository, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
 	if scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, nil
 	}
 	result := Completeness{Verdict: VerdictLowerBound}
-	for _, reference := range scopes {
-		spot, err := blindSpot(snapshot, reference)
+	for _, group := range scopes {
+		spot, err := invisibleScope(snapshot, group)
 		if err != nil {
 			return Completeness{}, err
 		}
@@ -203,6 +209,24 @@ func completenessScopes(
 	}
 	result.MoreInvisibleScopes = scopeTotal - len(result.InvisibleScopes)
 	return result, nil
+}
+
+// invisibleScope builds the row for one scope the index could not read. It
+// drops the symbol and the line of the failure it was grouped from: a scope is
+// a package, so naming one of its failures reads as if that one mattered, and
+// the count is what tells a reader how much is behind it.
+func invisibleScope(
+	snapshot *hotsnapshot.GraphSnapshot,
+	group hotsnapshot.UnresolvedScopeGroup,
+) (BlindSpot, error) {
+	spot, err := blindSpot(snapshot, group.Reference)
+	if err != nil {
+		return BlindSpot{}, err
+	}
+	spot.RequestedSymbol = ""
+	spot.StartLine = 0
+	spot.Occurrences = group.Occurrences
+	return spot, nil
 }
 
 func blindSpot(
@@ -245,13 +269,23 @@ func blindSpot(
 // scopeDirectory recovers the directory a scope failure names. The loader
 // writes it into the detail, which is the only place it exists: a package the
 // build excluded has no File row to point at.
+//
+// Not every detail names one, and the marker alone cannot tell: "declared in a
+// Go build cache entry: ..." yields prose. The fallback is a recovery action, so
+// a path that does not exist is worse than no path at all -- it sends an agent
+// to sweep something that is not there. Only an absolute path is accepted,
+// which is what the loader writes.
 func scopeDirectory(detail string) string {
 	marker := " in "
 	index := strings.LastIndex(detail, marker)
 	if index < 0 {
 		return ""
 	}
-	return strings.TrimSpace(detail[index+len(marker):])
+	candidate := strings.TrimSpace(detail[index+len(marker):])
+	if !strings.HasPrefix(candidate, "/") {
+		return ""
+	}
+	return candidate
 }
 
 // regexpQuoteWord escapes what a symbol name may legally contain and a regular

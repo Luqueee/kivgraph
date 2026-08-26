@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -109,6 +110,69 @@ func TestFindReferencesNeverCallsARecordedMissAnAbsence(t *testing.T) {
 	spots := response.Completeness.BlindSpots
 	if len(spots) != 1 || spots[0].FilePath != "app.go" || spots[0].StartLine != 12 {
 		t.Fatalf("blind spots = %#v, want app.go:12", spots)
+	}
+}
+
+// TestInvisibleScopesReportThePackageOnceNotEveryFailureInside closes
+// LUQUE-2229. A scope is a package, so enumerating it once per failure inside it
+// repeats one fact and charges every answer for the repetition: on this
+// repository 165 failures of 5 packages filled the list of 20, reported 145 more
+// and cost 91-98 % of every response. Grouping keeps the whole claim -- the
+// count says how much is behind each row -- and stops truncating it.
+func TestInvisibleScopesReportThePackageOnceNotEveryFailureInside(t *testing.T) {
+	rows := make([]hotsnapshot.UnresolvedReferenceRow, 0, 4)
+	for index := 0; index < 3; index++ {
+		rows = append(rows, hotsnapshot.UnresolvedReferenceRow{
+			Key: fmt.Sprintf("unresolved-cgo-%d", index), RepositoryKey: "repo-core", Language: "go",
+			RequestedPackage: "example.com/core/procstat", RequestedSymbol: fmt.Sprintf("_Cfunc_probe_%d", index),
+			Reason: "DECLARATION_OUTSIDE_REPOSITORY", StartLine: uint32(10 + index),
+			Detail: "declared in a Go build cache entry: the package is built from generated or cgo sources",
+		})
+	}
+	rows = append(rows, hotsnapshot.UnresolvedReferenceRow{
+		Key: "unresolved-excluded", RepositoryKey: "repo-core", Language: "go",
+		RequestedPackage: "example.com/core/benchmarks", Reason: "PACKAGE_NOT_BUILDABLE",
+		Detail: "build constraints exclude all Go files in /repo-core/benchmarks",
+	})
+	store := completenessSnapshot(t, 54, rows...)
+
+	_, response, err := findReferences(context.Background(), nil,
+		FindReferencesInput{Name: "Core", Repo: "core"}, store)
+	if err != nil {
+		t.Fatalf("find_references error = %v", err)
+	}
+	scopes := response.Completeness.InvisibleScopes
+	if len(scopes) != 2 {
+		t.Fatalf("invisible scopes = %#v, want one row per package", scopes)
+	}
+	if response.Completeness.MoreInvisibleScopes != 0 {
+		t.Fatalf("more_invisible_scopes = %d, want the whole truth in the answer",
+			response.Completeness.MoreInvisibleScopes)
+	}
+	byPackage := map[string]BlindSpot{}
+	for _, scope := range scopes {
+		byPackage[scope.RequestedPackage] = scope
+	}
+	cgo, found := byPackage["example.com/core/procstat"]
+	if !found {
+		t.Fatalf("invisible scopes = %#v, want the cgo package", scopes)
+	}
+	if cgo.Occurrences != 3 {
+		t.Fatalf("occurrences = %d, want the three failures behind the row", cgo.Occurrences)
+	}
+	// The symbol and the line belong to one of the three, so reporting either
+	// reads as if that one mattered. The count is what a reader can act on.
+	if cgo.RequestedSymbol != "" || cgo.StartLine != 0 {
+		t.Fatalf("grouped scope = %#v, want no single failure's position", cgo)
+	}
+	if excluded := byPackage["example.com/core/benchmarks"]; excluded.Occurrences != 1 {
+		t.Fatalf("single-failure scope = %#v, want one occurrence", excluded)
+	}
+	// A detail that names no directory must not become a path to sweep: the
+	// fallback is a recovery action, and "a Go build cache entry: ..." is prose.
+	fallback := response.Completeness.Fallback
+	if fallback == nil || len(fallback.Paths) != 1 || fallback.Paths[0] != "/repo-core/benchmarks" {
+		t.Fatalf("fallback paths = %#v, want only the directory a detail named", fallback)
 	}
 }
 
