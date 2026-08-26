@@ -267,21 +267,21 @@ type arrowArenaColumn struct {
 func newArrowArenaColumn(column arrowColumn) (arrowArenaColumn, error) {
 	array := column.array
 	if array == nil {
-		return arrowArenaColumn{}, fmt.Errorf("Arrow string column is nil")
+		return arrowArenaColumn{}, fmt.Errorf("nil Arrow string column")
 	}
 	if array.n_buffers < 3 {
-		return arrowArenaColumn{}, fmt.Errorf("Arrow string column has %d buffers, want at least 3", array.n_buffers)
+		return arrowArenaColumn{}, fmt.Errorf("unexpected Arrow string column with %d buffers, want at least 3", array.n_buffers)
 	}
 	offsets := C.kivgraph_array_buffer(array, 1)
 	data := C.kivgraph_array_buffer(array, 2)
 	if offsets == nil || data == nil {
-		return arrowArenaColumn{}, fmt.Errorf("Arrow string column has nil offsets or data buffer")
+		return arrowArenaColumn{}, fmt.Errorf("nil offsets or data buffer in the Arrow string column")
 	}
 	var validity unsafe.Pointer
 	if array.null_count != 0 {
 		validity = C.kivgraph_array_buffer(array, 0)
 		if validity == nil {
-			return arrowArenaColumn{}, fmt.Errorf("Arrow string column has null count %d but no validity buffer", array.null_count)
+			return arrowArenaColumn{}, fmt.Errorf("missing validity buffer for the Arrow string column with null count %d", array.null_count)
 		}
 	}
 	return arrowArenaColumn{column: column, offsets: offsets, data: data, validity: validity}, nil
@@ -295,7 +295,7 @@ func (column *arrowArenaColumn) offsetsAt(row int64) (int64, int64, error) {
 		return 0, 0, err
 	}
 	if null {
-		return 0, 0, fmt.Errorf("Arrow column contains null at row %d", row)
+		return 0, 0, fmt.Errorf("null in the Arrow column at row %d", row)
 	}
 	return start, end, nil
 }
@@ -306,7 +306,7 @@ func (column *arrowArenaColumn) offsetsAt(row int64) (int64, int64, error) {
 func (column *arrowArenaColumn) offsetsOrNullAt(row int64) (int64, int64, bool, error) {
 	array := column.column.array
 	if row < 0 || row >= int64(array.length) {
-		return 0, 0, false, fmt.Errorf("Arrow row %d outside length %d", row, array.length)
+		return 0, 0, false, fmt.Errorf("out-of-range Arrow row %d, length %d", row, array.length)
 	}
 	index := int64(array.offset) + row
 	if column.validity != nil {
@@ -368,7 +368,7 @@ func (column *arrowArenaColumn) dataRange(rowCount int64) (int64, int64, error) 
 
 func decodeArrowStringRows(rows *ScanRows, columns []arrowColumn, stringCount int, rowCount int64, consume func(int64, []string) error) error {
 	if stringCount < 0 || stringCount > len(columns) {
-		return fmt.Errorf("Arrow string column count = %d, columns = %d", stringCount, len(columns))
+		return fmt.Errorf("unexpected Arrow string column count = %d, columns = %d", stringCount, len(columns))
 	}
 	arenaColumns := make([]arrowArenaColumn, stringCount)
 	var total int64
@@ -387,7 +387,7 @@ func decodeArrowStringRows(rows *ScanRows, columns []arrowColumn, stringCount in
 				return err
 			}
 			if item.sourceEnd < item.sourceStart || item.sourceEnd-item.sourceStart > int64(^uint(0)>>1)-total {
-				return fmt.Errorf("Arrow string data exceeds addressable memory")
+				return fmt.Errorf("the Arrow string data exceeds addressable memory")
 			}
 			item.destination = int(total)
 			total += item.sourceEnd - item.sourceStart
@@ -413,7 +413,7 @@ func decodeArrowStringRows(rows *ScanRows, columns []arrowColumn, stringCount in
 				return err
 			}
 			if start < item.sourceStart || end < start || end > item.sourceEnd {
-				return fmt.Errorf("Arrow string offsets %d..%d outside chunk range %d..%d", start, end, item.sourceStart, item.sourceEnd)
+				return fmt.Errorf("out-of-range Arrow string offsets %d..%d, chunk range %d..%d", start, end, item.sourceStart, item.sourceEnd)
 			}
 			length := int(end - start)
 			if length == 0 {
@@ -483,23 +483,23 @@ type arrowInt64Column struct {
 func newArrowInt64Column(column arrowColumn) (arrowInt64Column, error) {
 	array := column.array
 	if array == nil {
-		return arrowInt64Column{}, fmt.Errorf("Arrow int64 column is nil")
+		return arrowInt64Column{}, fmt.Errorf("nil Arrow int64 column")
 	}
 	if column.format != "l" {
 		return arrowInt64Column{}, fmt.Errorf("unsupported Arrow int64 format %q", column.format)
 	}
 	if array.n_buffers < 2 {
-		return arrowInt64Column{}, fmt.Errorf("Arrow int64 column has %d buffers, want at least 2", array.n_buffers)
+		return arrowInt64Column{}, fmt.Errorf("unexpected Arrow int64 column with %d buffers, want at least 2", array.n_buffers)
 	}
 	values := C.kivgraph_array_buffer(array, 1)
 	if values == nil {
-		return arrowInt64Column{}, fmt.Errorf("Arrow int64 column has nil values buffer")
+		return arrowInt64Column{}, fmt.Errorf("nil values buffer in the Arrow int64 column")
 	}
 	var validity unsafe.Pointer
 	if array.null_count != 0 {
 		validity = C.kivgraph_array_buffer(array, 0)
 		if validity == nil {
-			return arrowInt64Column{}, fmt.Errorf("Arrow int64 column has null count %d but no validity buffer", array.null_count)
+			return arrowInt64Column{}, fmt.Errorf("missing validity buffer for the Arrow int64 column with null count %d", array.null_count)
 		}
 	}
 	return arrowInt64Column{column: column, values: values, validity: validity}, nil
@@ -508,13 +508,13 @@ func newArrowInt64Column(column arrowColumn) (arrowInt64Column, error) {
 func (column *arrowInt64Column) valueAt(row int64) (int64, error) {
 	array := column.column.array
 	if row < 0 || row >= int64(array.length) {
-		return 0, fmt.Errorf("Arrow row %d outside length %d", row, array.length)
+		return 0, fmt.Errorf("out-of-range Arrow row %d, length %d", row, array.length)
 	}
 	index := int64(array.offset) + row
 	if column.validity != nil {
 		bit := *(*byte)(unsafe.Add(column.validity, index/8))
 		if bit&(byte(1)<<uint(index%8)) == 0 {
-			return 0, fmt.Errorf("Arrow column contains null at row %d", row)
+			return 0, fmt.Errorf("null in the Arrow column at row %d", row)
 		}
 	}
 	value := *(*C.int64_t)(unsafe.Add(column.values, index*int64(unsafe.Sizeof(C.int64_t(0)))))
@@ -554,11 +554,11 @@ func scanArrowQuery(ctx context.Context, connection *C.lbug_connection, query st
 		return err
 	}
 	if len(formats) != len(expectedFormats) {
-		return fmt.Errorf("Arrow schema columns = %d, want %d", len(formats), len(expectedFormats))
+		return fmt.Errorf("unexpected Arrow schema columns = %d, want %d", len(formats), len(expectedFormats))
 	}
 	for index := range formats {
 		if formats[index] != expectedFormats[index] {
-			return fmt.Errorf("Arrow schema column %d format = %q, want %q", index, formats[index], expectedFormats[index])
+			return fmt.Errorf("unexpected Arrow schema column %d format = %q, want %q", index, formats[index], expectedFormats[index])
 		}
 	}
 
@@ -573,13 +573,13 @@ func scanArrowQuery(ctx context.Context, connection *C.lbug_connection, query st
 		chunkErr := func() error {
 			defer C.kivgraph_release_array(&array)
 			if array.n_children != C.int64_t(len(formats)) {
-				return fmt.Errorf("Arrow chunk columns = %d, want %d", array.n_children, len(formats))
+				return fmt.Errorf("unexpected Arrow chunk columns = %d, want %d", array.n_children, len(formats))
 			}
 			columns := make([]arrowColumn, len(formats))
 			for index, format := range formats {
 				columns[index] = arrowColumn{format: format, array: C.kivgraph_array_child(&array, C.int64_t(index))}
 				if columns[index].array == nil {
-					return fmt.Errorf("Arrow chunk column %d is nil", index)
+					return fmt.Errorf("nil Arrow chunk column %d", index)
 				}
 			}
 			return consume(columns, int64(array.length))
@@ -593,13 +593,13 @@ func scanArrowQuery(ctx context.Context, connection *C.lbug_connection, query st
 
 func arrowSchemaFormats(schema *C.ArrowSchema) ([]string, error) {
 	if schema.n_children < 0 {
-		return nil, fmt.Errorf("Arrow schema has negative child count %d", schema.n_children)
+		return nil, fmt.Errorf("negative child count %d in the Arrow schema", schema.n_children)
 	}
 	formats := make([]string, int(schema.n_children))
 	for index := range formats {
 		child := C.kivgraph_schema_child(schema, C.int64_t(index))
 		if child == nil || child.format == nil {
-			return nil, fmt.Errorf("Arrow schema column %d has no format", index)
+			return nil, fmt.Errorf("no format for Arrow schema column %d", index)
 		}
 		formats[index] = C.GoString(child.format)
 	}
@@ -684,23 +684,23 @@ type arrowBoolColumn struct {
 func newArrowBoolColumn(column arrowColumn) (arrowBoolColumn, error) {
 	array := column.array
 	if array == nil {
-		return arrowBoolColumn{}, fmt.Errorf("Arrow bool column is nil")
+		return arrowBoolColumn{}, fmt.Errorf("nil Arrow bool column")
 	}
 	if column.format != arrowBool {
 		return arrowBoolColumn{}, fmt.Errorf("unsupported Arrow bool format %q", column.format)
 	}
 	if array.n_buffers < 2 {
-		return arrowBoolColumn{}, fmt.Errorf("Arrow bool column has %d buffers, want at least 2", array.n_buffers)
+		return arrowBoolColumn{}, fmt.Errorf("unexpected Arrow bool column with %d buffers, want at least 2", array.n_buffers)
 	}
 	values := C.kivgraph_array_buffer(array, 1)
 	if values == nil {
-		return arrowBoolColumn{}, fmt.Errorf("Arrow bool column has nil values buffer")
+		return arrowBoolColumn{}, fmt.Errorf("nil values buffer in the Arrow bool column")
 	}
 	var validity unsafe.Pointer
 	if array.null_count != 0 {
 		validity = C.kivgraph_array_buffer(array, 0)
 		if validity == nil {
-			return arrowBoolColumn{}, fmt.Errorf("Arrow bool column has null count %d but no validity buffer", array.null_count)
+			return arrowBoolColumn{}, fmt.Errorf("missing validity buffer for the Arrow bool column with null count %d", array.null_count)
 		}
 	}
 	return arrowBoolColumn{column: column, values: values, validity: validity}, nil
@@ -712,7 +712,7 @@ func newArrowBoolColumn(column arrowColumn) (arrowBoolColumn, error) {
 func (column *arrowBoolColumn) valueAt(row int64) (bool, error) {
 	array := column.column.array
 	if row < 0 || row >= int64(array.length) {
-		return false, fmt.Errorf("Arrow row %d outside length %d", row, array.length)
+		return false, fmt.Errorf("out-of-range Arrow row %d, length %d", row, array.length)
 	}
 	index := int64(array.offset) + row
 	if column.validity != nil && !arrowBitSet(column.validity, index) {

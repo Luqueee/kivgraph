@@ -124,14 +124,15 @@ jobs:
       # gate that starts red is one people learn to scroll past, so a class is
       # added here on the commit that empties it, never before. The SA classes
       # describe a bug and were green when this was added; S1016 and S1017
-      # joined with the five duplicate shapes they named, and holding them here
-      # is what stops a sixth from being written. U1000 cannot join: under the
-      # default build the files behind the `ladybug` tag are not analysed, so
-      # every symbol whose caller lives in one of them looks unreferenced --
+      # joined with the five duplicate shapes they named; ST1005 joined with
+      # the 47 error strings that led with a proper noun. U1000 is the one
+      # class that cannot join, which is why this is not `-checks=all`: under
+      # the default build the files behind the `ladybug` tag are not analysed,
+      # so every symbol whose caller lives in one of them looks unreferenced --
       # measured at 20 findings, all false. It lives in `make lint-ladybug`,
-      # the only configuration that can answer it. ST1005 is what is left.
+      # the only configuration that can answer it.
       - name: Correctness lint
-        run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 -checks='SA*,S1016,S1017' ./...
+        run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 -checks='SA*,S1016,S1017,ST1005' ./...
 
       # Reachable vulnerabilities, not an advisory list: govulncheck exits
       # non-zero only for what this code calls. It is what found the five

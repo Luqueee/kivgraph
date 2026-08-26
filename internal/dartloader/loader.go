@@ -127,7 +127,7 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 	for _, path := range files {
 		result, err := client.call(ctx, "textDocument/documentSymbol", map[string]any{"textDocument": map[string]any{"uri": fileURI(path)}})
 		if err != nil {
-			return facts.SemanticPayload{}, fmt.Errorf("Dart symbols %q: %w", path, err)
+			return facts.SemanticPayload{}, fmt.Errorf("reading Dart symbols for %q: %w", path, err)
 		}
 		var rows []documentSymbol
 		if len(result) != 0 && string(result) != "null" {
@@ -263,11 +263,11 @@ func start(ctx context.Context, command, sdkPath, root string) (*client, error) 
 		fields = strings.Fields(command)
 	}
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("Dart analyzer command is empty")
+		return nil, fmt.Errorf("empty Dart analyzer command")
 	}
 	executable, err := exec.LookPath(fields[0])
 	if err != nil {
-		return nil, fmt.Errorf("Dart analyzer %q is unavailable: %w", fields[0], err)
+		return nil, fmt.Errorf("unavailable Dart analyzer %q: %w", fields[0], err)
 	}
 	args := append([]string{}, fields[1:]...)
 	if filepath.Base(executable) == "dart" {
@@ -297,14 +297,14 @@ func start(ctx context.Context, command, sdkPath, root string) (*client, error) 
 func SDKRoot(command string) (string, error) {
 	fields := strings.Fields(strings.TrimSpace(command))
 	if len(fields) == 0 {
-		return "", fmt.Errorf("Dart SDK command is empty")
+		return "", fmt.Errorf("empty Dart SDK command")
 	}
 	executable, err := exec.LookPath(fields[0])
 	if err != nil {
-		return "", fmt.Errorf("Dart SDK %q is unavailable: %w", fields[0], err)
+		return "", fmt.Errorf("unavailable Dart SDK %q: %w", fields[0], err)
 	}
 	if filepath.Base(executable) != "dart" && filepath.Base(executable) != "dart.exe" {
-		return "", fmt.Errorf("Dart SDK command %q is not the dart executable", executable)
+		return "", fmt.Errorf("unexpected Dart SDK command %q, want the dart executable", executable)
 	}
 	candidates := []string{
 		filepath.Join(filepath.Dir(executable), ".."),
@@ -319,7 +319,7 @@ func SDKRoot(command string) (string, error) {
 			return root, nil
 		}
 	}
-	return "", fmt.Errorf("Dart SDK executable %q has no discoverable lib directory", executable)
+	return "", fmt.Errorf("no discoverable lib directory for Dart SDK executable %q", executable)
 }
 
 type navigationTarget struct {
@@ -403,11 +403,11 @@ func startAnalyzer(ctx context.Context, command, sdkPath, root string) (*analyze
 		fields = strings.Fields(sdkPath)
 	}
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("Dart analyzer command is empty")
+		return nil, fmt.Errorf("empty Dart analyzer command")
 	}
 	executable, err := exec.LookPath(fields[0])
 	if err != nil {
-		return nil, fmt.Errorf("Dart analyzer %q is unavailable: %w", fields[0], err)
+		return nil, fmt.Errorf("unavailable Dart analyzer %q: %w", fields[0], err)
 	}
 	args := append([]string{}, fields[1:]...)
 	if filepath.Base(executable) == "dart" {
@@ -468,7 +468,7 @@ func (c *analyzerClient) collect(ctx context.Context, requests map[string]struct
 			return nil, ctx.Err()
 		case message, ok := <-c.out:
 			if !ok {
-				return nil, fmt.Errorf("Dart analysis server closed")
+				return nil, fmt.Errorf("closed connection to the Dart analysis server")
 			}
 			if message.Event != "" {
 				c.eventsMu.Lock()
@@ -480,7 +480,7 @@ func (c *analyzerClient) collect(ctx context.Context, requests map[string]struct
 				continue
 			}
 			if len(message.Error) != 0 && string(message.Error) != "null" {
-				return nil, fmt.Errorf("Dart analyzer request failed: %s", message.Error)
+				return nil, fmt.Errorf("failed Dart analyzer request: %s", message.Error)
 			}
 			results[message.ID] = message.Result
 		}
@@ -1085,13 +1085,13 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 			return nil, ctx.Err()
 		case message, ok := <-c.out:
 			if !ok {
-				return nil, fmt.Errorf("Dart analysis server closed")
+				return nil, fmt.Errorf("closed connection to the Dart analysis server")
 			}
 			if string(message.ID) != strconv.Itoa(id) {
 				continue
 			}
 			if len(message.Error) != 0 && string(message.Error) != "null" {
-				return nil, fmt.Errorf("Dart LSP %s failed: %s", method, message.Error)
+				return nil, fmt.Errorf("failed Dart LSP request %s: %s", method, message.Error)
 			}
 			return message.Result, nil
 		}
