@@ -1,20 +1,20 @@
 # internal/
-## AGENTS.md#9A17
- 32:  la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
-*33:  por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
- 34:  repositorio, módulo y versión; nunca se deja que el `go.work` sintético
- 35:  escale el toolchain y reviente la carga de todos los repositorios dentro de
- 36:  la biblioteca estándar. El techo es `major.minor`.
+## AGENTS.md#2455
+ 46:  la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
+*47:  por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
+ 48:  repositorio, módulo y versión; nunca se deja que el `go.work` sintético
+ 49:  escale el toolchain y reviente la carga de todos los repositorios dentro de
+ 50:  la biblioteca estándar. El techo es `major.minor`.
 
 ## facts/
-### golang_test.go#333B
- 33:	repositories := fixtureRepositories(t)
-*34:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
- 35:	if err != nil {
-*36:		t.Fatalf("BuildPlan() error = %v", err)
- 37:	}
- 38:	workFile := filepath.Join(t.TempDir(), "go.work")
- 39:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
+### golang_test.go#FCB9
+ 44:	t.Helper()
+*45:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 46:	if err != nil {
+*47:		t.Fatalf("BuildPlan() error = %v", err)
+ 48:	}
+ 49:	workFile := filepath.Join(t.TempDir(), "go.work")
+ 50:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
 
 ## goloader/
 ### crossrepo_test.go#26E4
@@ -49,14 +49,14 @@
  38:	}
  39:	if len(plan.Conflicts) != 0 {
  40:		t.Fatalf("fixture workspace has conflicts: %#v", plan.Conflicts)
-### loader_test.go#4F9A
- 352:	}
-*353:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
- 354:	if err != nil {
-*355:		t.Fatalf("BuildPlan() error = %v", err)
- 356:	}
- 357:	target := filepath.Join(root, "state", "go.work")
- 358:	if _, err := goworkspace.Write(context.Background(), target, plan, repositories); err != nil {
+### loader_test.go#338E
+ 363:	}
+*364:	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
+ 365:	if err != nil {
+*366:		t.Fatalf("BuildPlan() error = %v", err)
+ 367:	}
+ 368:	target := filepath.Join(root, "state", "go.work")
+ 369:	if _, err := goworkspace.Write(context.Background(), target, plan, repositories); err != nil {
 ### precision.go#98AD
  180:
 *181:	plan, err := goworkspace.BuildPlan(ctx, workspaceRepositories, goworkspace.Options{})
@@ -73,7 +73,7 @@
  87:	if _, err := goworkspace.Write(context.Background(), workFile, plan, repositories); err != nil {
 
 ## goworkspace/
-### synthetic.go#83C4
+### synthetic.go#C36E
  113:
 *114:// BuildPlan discovers every Go module of the registered repositories and
  115:// composes the workspace content without writing anything.
@@ -196,9 +196,9 @@
  46:	if _, err := Write(context.Background(), target, plan, repositories); err != nil {
 
 ## indexer/
-### full.go#5C1A
- 263:		}
-*264:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
- 265:		if err != nil {
- 266:			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
- 267:		}
+### full.go#8097
+ 364:		}
+*365:		plan, err := goworkspace.BuildPlan(ctx, goRepositories, goworkspace.Options{})
+ 366:		if err != nil {
+ 367:			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
+ 368:		}

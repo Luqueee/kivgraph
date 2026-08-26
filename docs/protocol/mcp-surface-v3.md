@@ -14,10 +14,10 @@ y su generación. Ninguna se declara a mano.
 ## 1. Las once tools
 
 ```text
-list_repositories       find_symbol            get_symbol
-get_file_outline        find_references        find_cross_repo_consumers
-trace_dependencies      get_blast_radius       get_source
-graph_status
+list_repositories       find_symbol            find_by_intent
+get_symbol              get_file_outline       find_references
+find_cross_repo_consumers                      trace_dependencies
+get_blast_radius        get_source             graph_status
 ```
 
 Una `serve` configurada añade `index_project`, la única mutación, con su puerta
@@ -225,8 +225,10 @@ anuncia y no se rellena describe una respuesta que no se envía.
 **Lo que un anfitrión mantiene residente no es el esquema.** Oh My Pi monta cada
 tool como un dispositivo cuya documentación se lee bajo demanda; Claude Code
 difiere los esquemas detrás de su búsqueda de tools e inyecta `instructions` al
-abrir la sesión. Lo residente es el nombre, dos veces, y la descripción: `645`
-tokens para once tools, medido por el arnés, frente a `1.702` de esquema diferido.
+abrir la sesión. Lo residente es el nombre, dos veces, y la descripción: `716`
+tokens -- `220` de enrutado y `496` de descripciones-- para las once de consulta
+más `index_project`, medido por el arnés sobre la generación `000206`, frente a
+`2.104` de esquema diferido.
 
 Ahí es donde vive el enrutado, y por eso cada descripción dice contra qué
 alternativa nativa compite y **dónde pierde**. Nada de eso puede llevar un número
