@@ -51,7 +51,7 @@ Eso es lo que hizo visibles los tres primeros defectos de la lista siguiente: la
 página vieja describía una superficie que el servidor no publica.
 
 La referencia documenta lo que `internal/mcp/server.go` registra, no el paquete
-`internal/mcp/tools`. Son once tools. `get_source` es una de ellas y
+`internal/mcp/tools`. Son doce tools. `get_source` es una de ellas y
 `get_unresolved_references` no está publicada.
 
 ## SEO, con un agente como segundo lector

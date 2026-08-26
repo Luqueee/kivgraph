@@ -1,5 +1,6 @@
 ---
 import Agents from "../components/landing/Agents.astro";
+import AskWithoutName from "../components/landing/AskWithoutName.astro";
 import CrossRepo from "../components/landing/CrossRepo.astro";
 import Faq from "../components/landing/Faq.astro";
 import FinalCta from "../components/landing/FinalCta.astro";
@@ -16,13 +17,17 @@ import Section from "../components/landing/Section.astro";
 import TopBar from "../components/landing/TopBar.astro";
 import Viewer from "../components/landing/Viewer.astro";
 
-// The order is the argument, and it runs in one direction: here is a symbol I
-// want to change -> here is what a resolved graph says about it -> here is the
-// measurement -> here is why a text search cannot say the same thing -> here is
+// The order is the argument, and it runs in one direction: you cannot name it
+// yet -> here is a symbol I want to change -> here is what a resolved graph
+// says about it -> here is the measurement -> here is why a text search cannot say the same thing -> here is
 // what a name really is -> the relationships cross repositories -> it plugs
 // into the agent you already run -> install it.
 //
-// What is deliberately *not* here is a list of the eleven tools. A visitor is
+// The first band is unnumbered on purpose. It answers the question a visitor
+// arrives with rather than one of the questions the numbered argument makes,
+// and numbering it would have renumbered five bands to say so.
+//
+// What is deliberately *not* here is a list of the twelve tools. A visitor is
 // asking what their agent will be able to understand, not which functions the
 // server exports; the tool reference is a page of its own and every section
 // below links into it where the question comes up.
@@ -39,6 +44,7 @@ export const prerender = true;
   <TopBar />
   <main id="main">
     <Hero />
+    <AskWithoutName />
     <Section index="01" title="what your agent can ask" id="proof">
       <ProductProof />
     </Section>

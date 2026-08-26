@@ -1,0 +1,137 @@
+---
+// The first thing after the hero, and the only capability on this page with a
+// band to itself. It earns that because it answers the question a visitor
+// arrives with -- they cannot name the thing yet -- and every band below assumes
+// they can.
+//
+// Not a `Section`: it carries its own `h2`, because the heading *is* the claim,
+// and a `Section` head plus a heading inside would put two `h2`s in one band.
+// It repeats `Section`'s geometry -- `border-t`, the `max-w-6xl` gutter, `py-14`
+// and `data-reveal` -- so the rhythm is identical from the outside, which is the
+// trade `FinalCta.astro` already makes.
+//
+// The claim in the heading is a superlative and it is checkable: of the twelve
+// tools `internal/mcp/server.go` registers, every other one takes a symbol, a
+// file or a repository, and this is the only one that takes a sentence.
+//
+// **Every value below is a captured one.** The question, the two answer files,
+// both ranks and the pattern come from one row of
+// `benchmarks/intent-token-cost/results.json` -- the `kivgraph` question
+// `which code refuses to publish a generation when the disk is nearly full`,
+// commit `255da242`, generation `000194`. A demonstration with plausible
+// invented paths would argue against the one property this page sells, which is
+// why `ProductProof.astro` is captured too.
+//
+// What is deliberately NOT shown is a token figure. That same pass measures
+// reach rather than cost: its cost total over 24 questions flatters whichever
+// arm missed, since a search that finds nothing costs nothing, and its
+// like-for-like sample is the two questions both arms answered. Rank is what it
+// measures well, so rank is what this card shows.
+const demo = {
+  intent:
+    "which code refuses to publish a generation when the disk is nearly full",
+  answer: [
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/types.go",
+  ],
+  rank: 1,
+  offered: 10,
+  nativePattern: "disk",
+  nativeRank: 25,
+  nativeOffered: 34,
+  // The words of the question that appear nowhere in the graph. They are the
+  // honest half of the story: the phrase carried the answer on the rest.
+  unmatched: ["which", "the", "disk", "nearly"],
+};
+---
+
+<section id="ask-without-a-name" class="border-t border-rule">
+  <div class="mx-auto box-border w-full max-w-6xl px-6 py-14" data-reveal>
+    <div class="mx-auto max-w-3xl text-center">
+      <p class="font-mono text-xs tracking-[0.16em] text-accent-200 uppercase">
+        ask without a name
+      </p>
+      <h2
+        class="mx-auto mt-5 max-w-[26ch] font-mono text-lg leading-tight font-medium tracking-tight text-gray-100 sm:text-2xl"
+      >
+        The one tool that does not need you to know what it is called.
+      </h2>
+    </div>
+
+    <div
+      class="mx-auto mt-10 max-w-3xl border border-accent-900 bg-panel font-mono text-xs"
+    >
+      {/* The card names the tool, the way `ProductProof.astro` heads each of
+        its answers with the tool that produced it: accent for the tool, gray
+        for the argument. `intent` beside it is the argument's own name, not a
+        second name for the tool -- without this header the card promoted a tool
+        it never spelled. */}
+      <div
+        class="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-rule px-4 py-3 sm:px-5"
+      >
+        <span class="text-accent-200">find_by_intent</span>
+        <span class="text-gray-400">takes a sentence, not a symbol</span>
+      </div>
+
+      {/* The question, verbatim from the dataset. */}
+      <div class="border-b border-rule px-4 py-3 sm:px-5">
+        <span class="text-gray-400">intent</span>
+        <p class="mt-2 text-sm leading-6 text-gray-100">{demo.intent}</p>
+      </div>
+
+      {/* The answer, as files rather than a sentence about files. */}
+      <div class="px-4 py-4 sm:px-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+          <span class="text-gray-400">files to open</span>
+          <span class="text-graph-exact"
+            >ranked {demo.rank} of {demo.offered}</span
+          >
+        </div>
+        <ul class="tree mt-3 space-y-1">
+          {
+            demo.answer.map((file) => (
+              <li class="text-graph-file break-all">{file}</li>
+            ))
+          }
+        </ul>
+      </div>
+
+      {/* The contrast, from the same row of the same pass. */}
+      <div
+        class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-rule px-4 py-3 text-gray-400 sm:px-5"
+      >
+        <span>grep -l {demo.nativePattern}</span>
+        <span class="text-graph-symbol"
+          >ranked {demo.nativeRank} of {demo.nativeOffered}</span
+        >
+      </div>
+    </div>
+
+    <p
+      class="mx-auto mt-5 max-w-[70ch] text-center text-xs leading-5 text-gray-400"
+    >
+      Not one identifier in that question. {demo.unmatched.length} of its words
+      match nothing in the graph — {demo.unmatched.join(", ")} — and the rest
+      carried it. The rows are text that looked alike, not edges a checker
+      resolved, so they are where to start reading rather than the answer.
+    </p>
+
+    <p class="mt-5 text-center text-xs">
+      <a
+        href="/docs/tools/find-by-intent/"
+        class="text-accent-200 underline underline-offset-4"
+        >what <code class="font-mono">find_by_intent</code> returns, and where it
+        loses</a
+      >
+    </p>
+  </div>
+</section>
+
+<style>
+  /* The same left rule the product demonstration uses for a file list, so two
+     figures on one page do not draw a list two ways. */
+  .tree {
+    border-left: 1px solid var(--color-rule-strong);
+    padding-left: 1rem;
+  }
+</style>

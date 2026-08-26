@@ -9,7 +9,7 @@ An Agent Skill is a Markdown instruction file a coding agent loads alongside its
 tools. Kivgraph ships one, and it exists for a single reason: to route a
 question to the right tool before the agent reaches for grep or starts opening
 files. It is not required in order to use the MCP server. Install it to change
-which tool the agent picks; skip it and the eleven tools still work.
+which tool the agent picks; skip it and the twelve tools still work.
 
 ## Install
 
