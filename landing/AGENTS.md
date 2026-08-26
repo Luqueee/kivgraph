@@ -271,6 +271,39 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `/raw/nonsense.md` y un slug anidado inventado dan `404`; los 37 `alternate`
   del sitio y los 73 enlaces de `llms.txt` y `llms-full.txt` dan `200`.
 
+## Warnings del build
+
+- El build imprime **un** warning y sólo uno: `Could not render /404 from route
+  /[...slug] as it conflicts with higher priority route /404`. Es de Starlight y
+  no del código de aquí: su integración inyecta una ruta `404` de prioridad
+  alta, y su `getPaths()` -- `utils/routing/index.ts` -- mapea **todas** las
+  rutas sin excluir la entrada `404` de la colección, así que el catch-all
+  reclama una ruta que el otro ya sirve y Astro se salta la duplicada. La salida
+  es correcta: el `404.html` construido lleva el `title` de
+  `src/content/docs/404.md` y su `noindex`. Quitarlo exigiría `disable404Route`
+  y escribir a mano la página, o borrar `404.md` y perder su copia y sus enlaces.
+  No se persigue.
+- Los otros dos que hubo se arreglaron, y uno merece quedar escrito porque
+  volverá a morder. Astro decide si avisar de que una ruta dinámica ignora su
+  lista de rutas estáticas **buscando el nombre de esa función como subcadena en
+  el texto del fichero** -- `vite-plugin-routes`, no una lectura de los exports--,
+  así que mencionarla en un comentario basta para dispararlo. Le pasaba a
+  `src/pages/raw/[...slug].md.ts`, que no exporta ninguna, y el consejo impreso
+  -- añadir `prerender = true`-- es exactamente el defecto del `500` que ese
+  fichero documenta. El comentario la nombra ahora con un rodeo, a propósito.
+- El pipeline de markdown se declara con un `processor` explícito,
+  `unified({...})` de `@astrojs/markdown-remark`, que por eso es dependencia
+  directa de `landing/`. La forma antigua -- `markdown.rehypePlugins` a secas--
+  sigue funcionando porque Astro la traspasa al processor configurado, pero está
+  deprecada y avisa en cada build. Nombrarlo es además lo que mantiene a
+  Starlight en pie: **no fija** el processor, lo **muta**, empujando sus asides,
+  sus anclas de encabezado y su soporte de código RTL dentro de `remarkPlugins`
+  y `rehypePlugins`, y sólo reconoce dos motores. Uno que no reconozca no es un
+  error: avisa y deja caer esas transformaciones en silencio. Medido antes y
+  después de la migración sobre `dist/client`: `88` anclas externas todas con
+  `target` y `noopener`, `280` `sl-anchor-link`, `280` `sl-heading-wrapper` y
+  `175` bloques de Expressive Code, idénticos.
+
 ## Iconos
 
 - Los iconos son assets commiteados, no un paso de build:

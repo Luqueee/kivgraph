@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import node from "@astrojs/node";
+import { unified } from "@astrojs/markdown-remark";
 import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
@@ -58,13 +59,24 @@ export default defineConfig({
   // are components, which no rehype pass can reach, so they carry them
   // literally. `noopener` is the point of the `rel`: without it the opened tab
   // gets a handle on `window.opener` and can navigate this one.
+  //
+  // The plugin hangs off an explicit `unified()` processor rather than the bare
+  // `markdown.rehypePlugins` array, which Astro 7 deprecated: it still coerces
+  // the old shape onto whatever processor is configured, and warns once per
+  // build while doing it. Naming the processor is also what keeps Starlight
+  // working -- it does not set one, it *mutates* the configured one, pushing its
+  // asides, heading anchors and RTL code support into `remarkPlugins` and
+  // `rehypePlugins`, and it only recognises two engines. A processor it cannot
+  // recognise is not an error: it warns and silently drops those transforms.
   markdown: {
-    rehypePlugins: [
-      [
-        rehypeExternalLinks,
-        { target: "_blank", rel: ["noopener", "noreferrer"] },
+    processor: unified({
+      rehypePlugins: [
+        [
+          rehypeExternalLinks,
+          { target: "_blank", rel: ["noopener", "noreferrer"] },
+        ],
       ],
-    ],
+    }),
   },
   // The docs namespace was renamed `reference` -> `docs`, and Google had
   // already discovered the old URLs. The target carries the trailing slash on
