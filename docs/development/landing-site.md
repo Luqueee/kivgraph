@@ -130,7 +130,8 @@ Tres de los límites que este informe registraba ya no existen, y se corrigen
 aquí en vez de dejarlos contradiciendo el código:
 
 - **El dominio existe y el `site` por defecto es el de producción.** El sitio se
-  publica en `https://kivgraph.luqueee.dev`, y ése es ahora el valor de reserva
+  publica en `https://kivgraph.dev` -- era `https://kivgraph.luqueee.dev` cuando
+  se tomó esta medición--, y ése es ahora el valor de reserva
   de `site` en `astro.config.mjs`. La dirección del fallback está invertida a
   propósito: `site` se hornea en tiempo de build y CI construye sin `.env`, así
   que un build sin variable tiene que emitir el canonical correcto. Lo que se

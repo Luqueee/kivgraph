@@ -29,7 +29,14 @@ export default defineConfig({
   // `http://localhost:6767` as the canonical of every page, and CI builds with
   // no `.env` at all. Development is the case that overrides it, with
   // `KIVGRAPH_LANDING_URL=http://localhost:6767` in `landing/.env`.
-  site: process.env.KIVGRAPH_LANDING_URL ?? "https://kivgraph.luqueee.dev",
+  //
+  // The origin is the apex of `kivgraph.dev`, which is the form
+  // `internal/supervisor/supervisor_linux.go` already writes into the
+  // `Documentation=` line of every systemd unit it generates. `www` is not a
+  // second origin: the host redirects it here rather than serving it, because
+  // two hostnames answering the same HTML is the duplicate every canonical on
+  // this site exists to prevent.
+  site: process.env.KIVGRAPH_LANDING_URL ?? "https://kivgraph.dev",
   output: "server",
   adapter: node({ mode: "standalone" }),
   // Every canonical this site emits carries a trailing slash, and the default
