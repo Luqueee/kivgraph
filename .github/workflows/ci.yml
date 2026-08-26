@@ -458,11 +458,9 @@ jobs:
           bundle="$PWD/dist/kivgraph-linux-amd64/bin/kivgraph"
           "$bundle" logs --kind index --json | tail -c 2000
           # The reason a module did not load only travels on the human
-          # path -- index.go.diagnostic, one line per module -- so the
-          # pass runs again without --json to say what it could not read.
-          "$bundle" index --full 2>&1 \
-            | grep -E 'index\.go:|index\.go\.diagnostic:' \
-            | head -30
+          # path -- index.go.not_read, one line per module -- so the pass
+          # runs again without --json to say what it could not read.
+          "$bundle" index --full 2>&1 | grep -E 'index\.go' | head -30
 
       - name: Prove every tool answers about the graph it just built
         shell: bash
