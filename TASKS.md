@@ -17864,7 +17864,7 @@ convención de esa página exige de cada tool. Gate de la landing: `pnpm check` 
 **Dependencias:** ninguna. El gate `SA*` ya está en CI y nace verde; esto es el
 resto, que no lo está porque nace rojo.
 
-El recuento, sobre el árbol de hoy:
+El recuento cuando se abrió la ficha:
 
 |clase|sin tags|con `-tags ladybug`|qué es|
 |---|---:|---:|---|
@@ -17912,7 +17912,21 @@ sobre la configuración por defecto reintroduciría los `20` falsos.
   seis eran los decodificadores `FlatTuple` que el camino Arrow sustituyó y dejó
   atrás. Gate: `make lint-ladybug`, visto fallar con un muerto inyectado en el
   camino nativo.
-- `ST1005` (`46`) y `S1016`/`S1017` (`6`): abiertas. Las segundas nombran una
-  forma duplicada cada una -- `traversalQueueItem` a `TraversalVisit`,
-  `IndexObservation` a `IndexMetrics`, `Reference` a `ScanEdge`--, así que son
-  preguntas de diseño y se leen una a una.
+- `S1016`/`S1017`: **cerrada**, y sobre este árbol eran `5` y no `6`. El sexto
+  era `decodeScanEdge`, la conversión `Reference` a `ScanEdge`, y se fue con
+  los decodificadores `FlatTuple` que retiró la pasada de `U1000`. Que ese cero
+  es real y no un paquete que no cargó se comprobó como manda la ficha:
+  inyectando la misma forma en `arrow_scan_native.go` y viéndola cazada con el
+  tag.
+- Las cinco no tenían la misma respuesta, que es por lo que esto era una ficha.
+  `traversalQueueItem` no tenía significado propio -- la cola marca visitado al
+  encolar, así que toda entrada suya acaba reportada-- y el tipo se **borró**
+  en vez de convertirse. `IndexObservation` e `IndexMetrics` sí lo tienen:
+  `Observation` es lo que reporta el llamante y `Metrics` lo que `Report`
+  serializa, y `3` de los `5` pares difieren de verdad -- `Query` y `Ladybug`
+  acumulan, `Snapshot` deriva `Age`--, así que se **conservan los dos nombres**
+  y se convierte. Fundirlos metería las etiquetas JSON en el tipo de entrada y
+  ataría la superficie serializada al struct del llamante.
+- Gate de las dos: `-checks='SA*,S1016,S1017'` en el paso `Correctness lint`,
+  visto rojo con una conversión devuelta a literal.
+- `ST1005` (`46`): abierta, y la única que queda.

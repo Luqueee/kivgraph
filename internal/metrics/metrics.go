@@ -119,7 +119,10 @@ type IndexObservation struct {
 	Unresolved uint64
 }
 
-// IndexMetrics is the latest index operation gauge set.
+// IndexMetrics is the latest index operation gauge set. Nothing here is
+// derived or cumulative, so it is IndexObservation carrying the report's JSON
+// tags and the two convert exactly; a field that only one of them needs stops
+// that conversion compiling, which is where that decision belongs.
 type IndexMetrics struct {
 	Duration   time.Duration `json:"duration"`
 	Files      uint64        `json:"files"`
@@ -134,7 +137,8 @@ type WorkerObservation struct {
 	MemoryBytes int64
 }
 
-// WorkerMetrics is the current TypeScript worker gauge set.
+// WorkerMetrics is the current TypeScript worker gauge set. Like IndexMetrics
+// it is its observation with the report's JSON tags, and converts exactly.
 type WorkerMetrics struct {
 	Restarts    uint64 `json:"restarts"`
 	MemoryBytes int64  `json:"memory_bytes"`
@@ -278,13 +282,7 @@ func (r *Registry) ObserveIndex(observation IndexObservation) {
 	}
 	r.mu.Lock()
 	r.state.observedIndex = true
-	r.state.index = IndexMetrics{
-		Duration:   normalized.Duration,
-		Files:      normalized.Files,
-		Symbols:    normalized.Symbols,
-		Edges:      normalized.Edges,
-		Unresolved: normalized.Unresolved,
-	}
+	r.state.index = IndexMetrics(normalized)
 	r.mu.Unlock()
 	if r.otel != nil {
 		r.otel.observeIndex(normalized)
@@ -302,10 +300,7 @@ func (r *Registry) ObserveWorker(observation WorkerObservation) {
 	}
 	r.mu.Lock()
 	r.state.observedWorker = true
-	r.state.worker = WorkerMetrics{
-		Restarts:    normalized.Restarts,
-		MemoryBytes: normalized.MemoryBytes,
-	}
+	r.state.worker = WorkerMetrics(normalized)
 	r.mu.Unlock()
 	if r.otel != nil {
 		r.otel.observeWorker(normalized)

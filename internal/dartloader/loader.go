@@ -1820,9 +1820,7 @@ func pathExcluded(root, path string, patterns []string) bool {
 		if rel == pattern || strings.HasPrefix(rel, pattern+"/") {
 			return true
 		}
-		if strings.HasPrefix(pattern, "**/") {
-			pattern = strings.TrimPrefix(pattern, "**/")
-		}
+		pattern = strings.TrimPrefix(pattern, "**/")
 		if matched, _ := filepath.Match(pattern, rel); matched {
 			return true
 		}

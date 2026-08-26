@@ -38,6 +38,11 @@ type TraversalOptions struct {
 // first arrived at it, which is the only path fact a breadth-first frontier
 // can state without retaining every route. The start symbol has no such edge:
 // its Source is InvalidSymbolID and its Edge is zero.
+//
+// The breadth-first queue holds these directly rather than a shape of its own:
+// a symbol is marked visited at the moment it is enqueued, so every entry on
+// the queue is a symbol that will be reported, carrying the arrival it was
+// enqueued with.
 type TraversalVisit struct {
 	ID     SymbolID
 	Depth  uint32
@@ -107,7 +112,7 @@ func (snapshot *GraphSnapshot) TraverseFrom(starts []SymbolID, options Traversal
 			continue
 		}
 		scratch.visited[start] = generation
-		scratch.queue = append(scratch.queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
+		scratch.queue = append(scratch.queue, TraversalVisit{ID: start, Source: InvalidSymbolID})
 		discovered++
 	}
 
@@ -123,7 +128,7 @@ func (snapshot *GraphSnapshot) TraverseFrom(starts []SymbolID, options Traversal
 			return result, ErrTraversalTimeout
 		}
 		item := scratch.queue[queueIndex]
-		result.Visits = append(result.Visits, TraversalVisit{ID: item.ID, Depth: item.Depth, Source: item.Source, Edge: item.Edge})
+		result.Visits = append(result.Visits, item)
 		if repository, ok := snapshot.symbolRepository(item.ID); ok {
 			if !scratch.repositoriesSeen[repository] {
 				scratch.repositoriesSeen[repository] = true
@@ -149,24 +154,17 @@ func (snapshot *GraphSnapshot) TraverseFrom(starts []SymbolID, options Traversal
 			}
 			scratch.visited[edge.Target] = generation
 			discovered++
-			scratch.queue = append(scratch.queue, traversalQueueItem{ID: edge.Target, Depth: item.Depth + 1, Source: item.ID, Edge: edge})
+			scratch.queue = append(scratch.queue, TraversalVisit{ID: edge.Target, Depth: item.Depth + 1, Source: item.ID, Edge: edge})
 		}
 	}
 	result.Repositories = traversalRepositoryGroups(scratch.repositoryCounts, scratch.repositories)
 	return result, nil
 }
 
-type traversalQueueItem struct {
-	ID     SymbolID
-	Depth  uint32
-	Source SymbolID
-	Edge   PackedEdge
-}
-
 type traversalWorkspace struct {
 	visited          []uint32
 	generation       uint32
-	queue            []traversalQueueItem
+	queue            []TraversalVisit
 	repositoryCounts []int
 	repositoriesSeen []bool
 	repositories     []RepositoryID
@@ -186,7 +184,7 @@ func (workspace *traversalWorkspace) prepare(symbolCount, repositoryCount, maxNo
 
 	initialQueueCapacity := minInt(maxNodes, 64)
 	if cap(workspace.queue) < initialQueueCapacity {
-		workspace.queue = make([]traversalQueueItem, 0, initialQueueCapacity)
+		workspace.queue = make([]TraversalVisit, 0, initialQueueCapacity)
 	} else {
 		workspace.queue = workspace.queue[:0]
 	}

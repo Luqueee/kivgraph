@@ -479,7 +479,7 @@ pueden reproducir a mano cuando uno de ellos falla:
 
 |gate|comando|qué exige|
 |---|---|---|
-|corrección|`staticcheck -checks='SA*' ./...`|las clases `SA`, que describen un defecto. El resto es `LUQUE-2231`|
+|corrección|`staticcheck -checks='SA*,S1016,S1017' ./...`|las clases que ya nacen verdes: `SA` describe un defecto, `S1016`/`S1017` una forma duplicada. Lo que queda es `ST1005`, en `LUQUE-2231`|
 |vulnerabilidades|`govulncheck ./...`|cero **alcanzables**; una en un módulo que no se llama no falla|
 |reproducibilidad|`scripts/check-reproducible-bundle.sh`|dos builds del mismo checkout, payload idéntico|
 |humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las doce tools contesten|

@@ -74,7 +74,7 @@ func (snapshot *GraphSnapshot) WitnessPath(
 			continue
 		}
 		scratch.visited[start] = generation
-		scratch.queue = append(scratch.queue, traversalQueueItem{ID: start, Source: InvalidSymbolID})
+		scratch.queue = append(scratch.queue, TraversalVisit{ID: start, Source: InvalidSymbolID})
 		discovered++
 	}
 
@@ -109,7 +109,7 @@ func (snapshot *GraphSnapshot) WitnessPath(
 			}
 			scratch.visited[edge.Target] = generation
 			discovered++
-			scratch.queue = append(scratch.queue, traversalQueueItem{
+			scratch.queue = append(scratch.queue, TraversalVisit{
 				ID: edge.Target, Depth: item.Depth + 1, Source: item.ID, Edge: edge,
 			})
 			if edge.Target == target {
@@ -133,7 +133,7 @@ func (snapshot *GraphSnapshot) WitnessPath(
 // Backwards is the only direction that needs one pass: a node is enqueued after
 // the node it was reached from, so every parent sits at a lower index than its
 // child, and the visited mark means no symbol was enqueued twice.
-func witnessFromQueue(queue []traversalQueueItem, target SymbolID, maxDepth int) []TraversalVisit {
+func witnessFromQueue(queue []TraversalVisit, target SymbolID, maxDepth int) []TraversalVisit {
 	path := make([]TraversalVisit, 0, maxDepth+1)
 	wanted := target
 	for index := len(queue) - 1; index >= 0; index-- {
@@ -141,9 +141,7 @@ func witnessFromQueue(queue []traversalQueueItem, target SymbolID, maxDepth int)
 		if item.ID != wanted {
 			continue
 		}
-		path = append(path, TraversalVisit{
-			ID: item.ID, Depth: item.Depth, Source: item.Source, Edge: item.Edge,
-		})
+		path = append(path, item)
 		if item.Source == InvalidSymbolID {
 			break
 		}
