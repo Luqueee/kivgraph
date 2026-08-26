@@ -51,6 +51,8 @@ func TestServeServesHealthAndStopsOnCancellation(t *testing.T) {
 }
 
 func TestRunRejectsInvalidInputs(t *testing.T) {
+	// The nil is the subject of the assertion, not an oversight.
+	//lint:ignore SA1012 this test exists to prove the rejection
 	if err := Run(nil, "127.0.0.1:0", NewHandler(nil)); err == nil {
 		t.Fatal("Run() accepted nil context")
 	}

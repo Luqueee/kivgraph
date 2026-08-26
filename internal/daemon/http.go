@@ -339,10 +339,22 @@ func mcpHandler(options Options, token string) http.Handler {
 	// A server per session, for the same reason the socket half builds one: the
 	// tool surface is decided when a server is built, and a daemon outlives
 	// generations.
+	// The SDK enables net/http's CSRF protection by default, and it refuses a
+	// cross-origin request -- which a page served from another loopback port is,
+	// by definition. The viewer is exactly that page, and the ports it can sit
+	// on -- the packaged bundle's, a dev server's -- are not knowable from here,
+	// so there is no trusted-origin list to write.
+	//
+	// requireLocalOrigin below is the policy instead, and on the axis that
+	// matters it is the stricter of the two: it refuses every remote origin
+	// while allowing any loopback one. TestHTTPRefusesARemoteOrigin holds it.
+	// The bypass is scoped to the one path this handler serves.
+	crossOrigin := http.NewCrossOriginProtection()
+	crossOrigin.AddInsecureBypassPattern(MCPPath)
 	handler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
 		return kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexer(
 			options.Registry, options.SnapshotStore, options.Indexer)
-	}, nil)
+	}, &sdkmcp.StreamableHTTPOptions{CrossOriginProtection: crossOrigin})
 
 	// The comparison is constant-time, and no test in this package proves it:
 	// only the timing differs, and a unit test cannot observe that reliably.

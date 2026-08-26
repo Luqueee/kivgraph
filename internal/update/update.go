@@ -367,7 +367,10 @@ func extractArchive(archivePath, destination string) error {
 			}
 			continue
 		}
-		if header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+		// TypeRegA is the pre-1.11 spelling of a regular file, and the reader
+		// has normalised it to TypeReg on the way in since then, so naming it
+		// here only widens what this accepts by a value that cannot arrive.
+		if header.Typeflag != tar.TypeReg {
 			return fmt.Errorf("archive entry %q has unsupported type %d", relative, header.Typeflag)
 		}
 		if header.Size < 0 {

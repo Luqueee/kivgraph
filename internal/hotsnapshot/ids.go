@@ -98,7 +98,11 @@ func (allocator *IDAllocator) Evidence() (EvidenceID, error) {
 }
 
 func (allocator *IDAllocator) Edge() (EdgeID, error) {
-	if allocator.counts.Edges >= math.MaxUint64 {
+	// The sentinel is the last value of the range, so allocating it is the
+	// overflow: an edge whose id equals InvalidEdgeID reads as no edge at all.
+	// Written as a comparison against MaxUint64 half the condition could never
+	// hold, which is how a guard stops being readable as one.
+	if allocator.counts.Edges == uint64(InvalidEdgeID) {
 		return InvalidEdgeID, ErrIDOverflow
 	}
 	value := EdgeID(allocator.counts.Edges)
