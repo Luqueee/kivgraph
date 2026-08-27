@@ -197,9 +197,14 @@ func TestReadFrameRejectsForeignProtocolVersion(t *testing.T) {
 }
 
 func TestReadFrameHonoursDeadlineAndCancellationOnAPipe(t *testing.T) {
-	incoming, outgoing, err := os.Pipe()
+	// The transport is the one the supervisor gives a session, not os.Pipe.
+	// The two are the same call on Unix and are not on Windows, where an
+	// anonymous pipe cannot be interrupted at all -- and this test asserting
+	// os.Pipe was how that went unnoticed: it did not fail there, it hung,
+	// and took the package's whole timeout with it.
+	incoming, outgoing, err := interruptibleOutputPipe()
 	if err != nil {
-		t.Fatalf("Pipe() error = %v", err)
+		t.Fatalf("interruptibleOutputPipe() error = %v", err)
 	}
 	defer incoming.Close()
 	defer outgoing.Close()

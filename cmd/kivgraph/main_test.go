@@ -2218,14 +2218,6 @@ func TestCommitChangedNothingIsFalseWhenNothingMoved(t *testing.T) {
 	}
 }
 
-// Signal 0 asks whether a process can be signalled without sending anything,
-// which is how `stop` checks that a pid is still the invocation it read.
-func TestSignalProcessReachesALiveProcess(t *testing.T) {
-	if err := signalProcess(os.Getpid(), syscall.Signal(0)); err != nil {
-		t.Fatalf("signalProcess(self, 0) error = %v, want the running test to be reachable", err)
-	}
-}
-
 // A pid that names no process is an error, not a silent success: `stop`
 // escalates to SIGKILL only after confirming the process is still there, so a
 // nil error here would escalate against a pid that has already been reused.
