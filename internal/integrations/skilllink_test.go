@@ -315,3 +315,199 @@ func TestADanglingLinkIsStillOursToRemove(t *testing.T) {
 		t.Fatalf("the broken link survived: %v", err)
 	}
 }
+
+// TestEveryPlacementReportsSomethingAReaderCanAct on is the half of status
+// nothing covered: each state a client path can be in, and the sentence it
+// produces. A status word with no explanation is a status nobody can use.
+func TestEveryPlacementReportsSomethingAReaderCanActOn(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		arrange func(t *testing.T, manager Manager, path string)
+		status  string
+		says    string
+	}{
+		{"nothing there", func(*testing.T, Manager, string) {}, "absent", "not installed"},
+		{"a copy from an earlier install", func(t *testing.T, _ Manager, path string) {
+			writeAt(t, path, embeddedSkill)
+		}, statusSuperseded, "earlier install"},
+		{"an edited copy", func(t *testing.T, _ Manager, path string) {
+			writeAt(t, path, []byte("# theirs\n"))
+		}, "incompatible", "does not match"},
+		{"a link somewhere else", func(t *testing.T, manager Manager, path string) {
+			linkAt(t, path, filepath.Join(manager.homeDir, "elsewhere.md"))
+		}, "incompatible", "not Kivgraph's"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			manager, home, _ := testManager(t)
+			path := filepath.Join(home, ".claude", "skills", "kivgraph", "SKILL.md")
+			testCase.arrange(t, manager, path)
+			plan, err := manager.StatusSkill(TargetClaudeCode, ScopeUser)
+			if err != nil {
+				t.Fatalf("StatusSkill() error = %v", err)
+			}
+			if plan.Status != testCase.status {
+				t.Fatalf("status = %q, want %q", plan.Status, testCase.status)
+			}
+			if !strings.Contains(plan.Detail, testCase.says) {
+				t.Fatalf("detail %q does not say %q", plan.Detail, testCase.says)
+			}
+		})
+	}
+}
+
+// TestRemovingWhatIsNotThereChangesNothing keeps a remove on a clean machine
+// from reporting work it did not do.
+func TestRemovingWhatIsNotThereChangesNothing(t *testing.T) {
+	manager, _, _ := testManager(t)
+	plan, err := manager.RemoveSkill(TargetClaudeCode, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("RemoveSkill() error = %v", err)
+	}
+	if plan.Status != "absent" || plan.Changed {
+		t.Fatalf("plan = %#v", plan)
+	}
+}
+
+// TestRemovingAnEditedCopyKeepsItUnderForce covers the migration case from the
+// other side: the copy is not ours, so it is refused, and forcing it preserves
+// what was there.
+func TestRemovingAnEditedCopyKeepsItUnderForce(t *testing.T) {
+	manager, home, _ := testManager(t)
+	path := filepath.Join(home, ".claude", "skills", "kivgraph", "SKILL.md")
+	writeAt(t, path, []byte("# theirs\n"))
+	if _, err := manager.RemoveSkill(TargetClaudeCode, ScopeUser, false, false); err == nil {
+		t.Fatal("an edited copy was removed without --force")
+	}
+	plan, err := manager.RemoveSkill(TargetClaudeCode, ScopeUser, false, true)
+	if err != nil {
+		t.Fatalf("forced RemoveSkill() error = %v", err)
+	}
+	if plan.Status != "removed" {
+		t.Fatalf("plan = %#v", plan)
+	}
+	backups, err := filepath.Glob(filepath.Join(filepath.Dir(path), "*.kivgraph.bak"))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("the edited copy was not kept: %q (err %v)", backups, err)
+	}
+}
+
+// TestADryRunRemoveTakesNothing is the promise the flag makes on the way out.
+func TestADryRunRemoveTakesNothing(t *testing.T) {
+	manager, _, _ := testManager(t)
+	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := manager.RemoveSkill(TargetClaudeCode, ScopeUser, true, false)
+	if err != nil {
+		t.Fatalf("RemoveSkill() error = %v", err)
+	}
+	if plan.Status != "would-remove" {
+		t.Fatalf("plan = %#v", plan)
+	}
+	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(path); err != nil {
+		t.Fatalf("a dry run took the link: %v", err)
+	}
+}
+
+// TestADryRunRepairLeavesTheCanonicalMissing covers the branch a broken link
+// takes when nothing is meant to be written yet.
+func TestADryRunRepairLeavesTheCanonicalMissing(t *testing.T) {
+	manager, _, _ := testManager(t)
+	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(manager.canonicalSkillPath()); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, true, false)
+	if err != nil {
+		t.Fatalf("InstallSkill() error = %v", err)
+	}
+	if plan.Status != "would-install" || !plan.DryRun {
+		t.Fatalf("plan = %#v", plan)
+	}
+	if _, err := os.Stat(manager.canonicalSkillPath()); !os.IsNotExist(err) {
+		t.Fatalf("a dry run restored the canonical: %v", err)
+	}
+}
+
+// TestInstallingOverALinkLeavesTheCanonicalAlone covers the ordinary repeat
+// install: the link is ours and the file behind it already says what it should.
+func TestInstallingOverALinkLeavesTheCanonicalAlone(t *testing.T) {
+	manager, _, _ := testManager(t)
+	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(manager.canonicalSkillPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, true, false)
+	if err != nil {
+		t.Fatalf("InstallSkill() error = %v", err)
+	}
+	if plan.Status != "managed" || plan.Changed {
+		t.Fatalf("a dry run over a healthy link = %#v", plan)
+	}
+	after, err := os.Stat(manager.canonicalSkillPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Fatal("a repeat install rewrote a canonical that needed nothing")
+	}
+}
+
+func writeAt(t *testing.T, path string, body []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func linkAt(t *testing.T, path, target string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestADirectoryWhereTheSkillGoesIsAnError keeps something that is neither a
+// file nor a link from being read as absent, which would make install create a
+// link over it and fail in a way that names nothing.
+func TestADirectoryWhereTheSkillGoesIsAnError(t *testing.T) {
+	manager, home, _ := testManager(t)
+	path := filepath.Join(home, ".claude", "skills", "kivgraph", "SKILL.md")
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.StatusSkill(TargetClaudeCode, ScopeUser); err == nil {
+		t.Fatal("a directory read as a skill")
+	} else if !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("error does not say what is wrong: %v", err)
+	}
+	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, true); err == nil {
+		t.Fatal("install wrote over a directory")
+	}
+}
+
+// TestACanonicalThatIsNotAFileIsReported covers the same rule one level down:
+// the canonical is read through readDestination, which refuses a link, so a
+// link left there has to surface rather than be treated as an edit.
+func TestACanonicalThatIsNotAFileIsReported(t *testing.T) {
+	manager, home, _ := testManager(t)
+	linkAt(t, manager.canonicalSkillPath(), filepath.Join(home, "somewhere.md"))
+	if _, err := manager.StatusSkill(TargetClaudeCode, ScopeUser); err == nil {
+		t.Fatal("a canonical that is a link read as an ordinary file")
+	}
+}
