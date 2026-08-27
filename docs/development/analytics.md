@@ -670,10 +670,12 @@ umami_list_reports(websiteId=<main property>, type=goal)
 A goal reading `{"type": "url", "value": "/"}` is the failure, and it is
 invisible from the dashboard.
 
-One goal exists that this document says should not: **`github_click`**. It
-points at its event correctly, so it counts -- which is the problem, because
-counting interest as conversion is what inflates the rate. Deleting it loses no
-data: the event stays in *Events* either way.
+A sixth goal existed that this document says should not: **`github_click`**,
+created the same afternoon. It pointed at its event correctly, so it counted --
+which is the problem, because counting interest as conversion is what inflates
+the rate. It was **deleted on 2026-08-27** and the five above are what remains.
+No data was lost: the event is still recorded and still visible in *Events*,
+which is exactly what the micro level in the table above asks for.
 
 ### 1b. The AI crawler property and its variables
 
