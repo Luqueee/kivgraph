@@ -16,6 +16,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/Luqueee/kivgraph/internal/durable"
 )
 
 const (
@@ -1192,7 +1194,7 @@ func writeDestination(path string, data []byte, exists bool, previous []byte) er
 	if err := os.Rename(temporaryPath, path); err != nil {
 		return fmt.Errorf("replace integration file %q: %w", path, err)
 	}
-	if err := syncDirectory(parent); err != nil {
+	if err := durable.Directory(parent); err != nil {
 		return fmt.Errorf("sync integration directory %q: %w", parent, err)
 	}
 	return nil
@@ -1251,25 +1253,16 @@ func removeDestination(path string, previous []byte) error {
 	if err := os.Rename(path, tombstonePath); err != nil {
 		return fmt.Errorf("move integration path %q for removal: %w", path, err)
 	}
-	if err := syncDirectory(parent); err != nil {
+	if err := durable.Directory(parent); err != nil {
 		return fmt.Errorf("sync integration directory %q: %w", parent, err)
 	}
 	if err := os.Remove(tombstonePath); err != nil {
 		return fmt.Errorf("delete removed integration path: %w", err)
 	}
-	if err := syncDirectory(parent); err != nil {
+	if err := durable.Directory(parent); err != nil {
 		return fmt.Errorf("sync integration directory %q: %w", parent, err)
 	}
 	return nil
-}
-
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
 }
 
 func incompatibleError(path string) error {

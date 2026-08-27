@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/Luqueee/kivgraph/internal/durable"
 )
 
 // statusBroken is a link of ours with nothing on the other end.
@@ -234,7 +236,7 @@ func (manager Manager) linkSkill(path string, state skillState) error {
 	if err := os.Symlink(manager.canonicalSkillPath(), path); err != nil {
 		return fmt.Errorf("link skill %q: %w", path, err)
 	}
-	return syncDirectory(parent)
+	return durable.Directory(parent)
 }
 
 // removeLinkedSkill takes away the link and leaves the canonical file.

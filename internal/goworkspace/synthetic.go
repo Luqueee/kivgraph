@@ -18,6 +18,7 @@ import (
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/semver"
 
+	"github.com/Luqueee/kivgraph/internal/durable"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -758,16 +759,7 @@ func writeAtomic(target string, contents []byte) error {
 	if err := os.Rename(name, target); err != nil {
 		return fmt.Errorf("install workspace: %w", err)
 	}
-	return syncDirectory(directory)
-}
-
-func syncDirectory(directory string) error {
-	handle, err := os.Open(directory)
-	if err != nil {
-		return fmt.Errorf("open %q: %w", directory, err)
-	}
-	defer handle.Close()
-	if err := handle.Sync(); err != nil {
+	if err := durable.Directory(directory); err != nil {
 		return fmt.Errorf("sync %q: %w", directory, err)
 	}
 	return nil
