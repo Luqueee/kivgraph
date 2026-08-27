@@ -213,16 +213,30 @@ func (manager Manager) claudeDesktopMarkers() []string {
 		}
 	}
 	if manager.goos == "windows" {
-		// The first is the directory the application itself creates, which
-		// makes it a fact about the app having run rather than a guess about
-		// where an installer put it. The second is that guess, kept for the
-		// same reason the unqualified `.desktop` entry below is: a marker that
-		// is wrong costs a detection and a marker that is missing costs the
-		// same, so the cheaper mistake is to look in both places.
-		return []string{
+		// Three, because Windows has had two installers and they agree on
+		// nothing. Measured on a host running Claude Desktop 1.37937.3.0 from
+		// the Store: the first two are **both absent**, and only the package
+		// directory is there.
+		//
+		//   - the MSIX package's own data directory, which is where a Store
+		//     install keeps everything including the configuration this
+		//     manager writes;
+		//   - `%APPDATA%\Claude`, which the older Win32 build created and
+		//     which every piece of documentation still names;
+		//   - `%LOCALAPPDATA%\AnthropicClaude`, which the Win32 installer
+		//     created and filled with `app-X.Y.Z` directories.
+		//
+		// All three are kept because a marker that is wrong costs a detection
+		// and a marker that is missing costs the same, so the cheaper mistake
+		// is to look in every place a real install has ever put itself.
+		markers := []string{
 			filepath.Join(manager.roamingDir(), "Claude"),
 			filepath.Join(manager.localDir(), "AnthropicClaude"),
 		}
+		if packaged, found := manager.claudeDesktopPackage(); found {
+			markers = append([]string{packaged}, markers...)
+		}
+		return markers
 	}
 	return []string{
 		filepath.Join(manager.homeDir, ".local", "share", "applications", "com.anthropic.Claude.desktop"),
