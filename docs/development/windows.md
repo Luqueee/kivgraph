@@ -10,6 +10,10 @@ that a real host had to confirm it. A real host did, and disagreed with the
 optimism while confirming the shape: the code compiled clean and then failed
 184 of its own tests. Everything below is measured on that host.
 
+Thirty-one of those failures are left, and what they are made of matters more
+than the count -- roughly half are tests exercising features the product
+refuses on Windows on purpose. The section on what is left says which.
+
 ## What this rests on
 
 A Windows Server 2022 virtual machine -- Go 1.26.6, mingw-w64 GCC 16.2, the
@@ -22,7 +26,8 @@ times, with the fixes between the runs.
 |2|`fsync`|25|146|
 |3|`filesystemCapacity`, `go.work` paths|28|61|
 |4|program names, `HOME`, path order|31|38|
-|5|manifest containment, `doctor`|31|TOTAL5|
+|5|manifest containment, `doctor`|32|33|
+|6|assertions a platform cannot answer|34|31|
 
 Before any of that, the compile results the first version of this document
 reported still hold, and one of them was strengthened: the tree builds for
@@ -80,6 +85,22 @@ Neither of the first two looks wrong. Both are the kind of line that gets
 written once, reads as careful, and is a no-op on every platform the project
 ships to -- which is exactly why a compile gate cannot find them and why the
 `windows-cross` job in CI is worth having but is not worth trusting.
+
+## What the last thirty-one are
+
+|cause|count|
+|---|---|
+|client integrations, refused by `NewManager` on purpose|13|
+|the host's Python, not the port|3|
+|`update`, refused because no Windows release exists|2|
+|`procstat` and signal-0 liveness, unimplemented|2|
+|deleting a file something still holds open|2|
+|everything else, one apiece|9|
+
+The first two rows are not defects and the third follows from a decision
+nobody has made yet, so a little over half of what is left is waiting on
+somebody to say what Windows should be promised rather than on somebody to
+write something.
 
 ## What is still open
 
@@ -166,11 +187,21 @@ Four differences are structural rather than cosmetic:
 
 ## What is left, in order
 
-1. **Finish the long tail.** What remains is small and individually
-   uninteresting: tests asserting mode bits that do not exist, tests asserting
-   that the CLI supports a platform it correctly refuses, a Python analyzer
-   that the embeddable interpreter cannot satisfy. None of it needs a
-   decision.
+1. **Finish the long tail,** knowing that most of what is left is not a
+   defect. Roughly a third of the remaining failures are tests exercising
+   client integrations, which `integrations.NewManager` refuses outright on
+   anything but darwin and linux, and updates, which are refused because no
+   Windows release exists to update to. Both refusals are correct today and
+   both are product decisions, so those tests cannot be fixed -- only decided.
+
+   The one mechanical piece left is `internal/procstat`, which reports
+   `ErrProcessListUnsupported` and takes `kivgraph stop` and part of `doctor`
+   with it. Windows has the primitive, `CreateToolhelp32Snapshot`, already
+   bound in `golang.org/x/sys/windows`. It is not quite the free win the
+   others were: Toolhelp yields a process's image name and not its argv, and
+   `procstat.Process` carries `Args` because callers use it to tell a `serve`
+   from an `index`. Whether an image name is enough to stop the right process
+   is a question worth answering before writing it.
 2. **Decide the framing cancellation.** The pipe deadlock, in an ADR. Nothing
    downstream is trustworthy while a stuck worker cannot be given up on.
 3. **Decide the socket, and start the daemon.** Explicit DACL or named pipe,
