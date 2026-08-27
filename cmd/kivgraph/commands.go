@@ -229,7 +229,7 @@ func commandTable() []commandSpec {
 			summary: "Stop every running serve, daemon and ui of this user",
 			flags:   func() *flag.FlagSet { var o stopOptions; return stopFlagSet(&o) },
 			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
-				return runStop(args, stdout, stderr, procstat.List, signalProcess)
+				return runStop(args, stdout, stderr, procstat.List, signalProcess, gracefulStopSupported)
 			},
 		},
 		{

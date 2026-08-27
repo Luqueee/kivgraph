@@ -700,7 +700,7 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess)
+	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess, gracefulStopSupported)
 }
 
 // updateOptions carries the flags of `kivgraph update`.
@@ -727,6 +727,7 @@ func runUpdateWithRunner(
 	runner updateRunner,
 	list processLister,
 	signal processSignaller,
+	graceful bool,
 ) int {
 	var options updateOptions
 	flags := updateFlagSet(&options)
@@ -760,7 +761,7 @@ func runUpdateWithRunner(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, options.StopStale, result.LatestVersion)
+	return stopStaleProcesses(stdin, stdout, stderr, list, signal, options.StopStale, result.LatestVersion, graceful)
 }
 
 // stopStaleProcesses offers to end the servers that outlived the bundle they
@@ -781,6 +782,7 @@ func stopStaleProcesses(
 	signal processSignaller,
 	stopStale bool,
 	release string,
+	graceful bool,
 ) int {
 	processes, err := list()
 	if err != nil {
@@ -803,7 +805,7 @@ func stopStaleProcesses(
 			return 0
 		}
 	}
-	killed, failed := stopTargets(targets, stdout, stderr, list, signal)
+	killed, failed := stopTargets(targets, stdout, stderr, list, signal, graceful)
 	if failed != 0 {
 		writeResult(stdout, false, "update.stop: FAIL (%d of %d)", failed, len(targets))
 		return 1
@@ -2425,7 +2427,10 @@ func stopFlagSet(options *stopOptions) *flag.FlagSet {
 // left alone, because killing one throws away minutes of analysis, and the
 // stop command does not stop itself. Nothing else running on the machine can
 // match, since the first argument has to be a kivgraph binary.
-func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller) int {
+// graceful is passed rather than read from the build, so the platform that
+// cannot ask a process to exit is exercised on the platform that can. The
+// branch would otherwise be reachable only where CI does not run.
+func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller, graceful bool) int {
 	var options stopOptions
 	flags := stopFlagSet(&options)
 	if parsed, code := parseCommandFlags("stop", flags, args, stdout, stderr); !parsed {
@@ -2455,7 +2460,7 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 		return 0
 	}
 
-	killed, failed := stopTargets(targets, stdout, stderr, list, signal)
+	killed, failed := stopTargets(targets, stdout, stderr, list, signal, graceful)
 	if failed != 0 {
 		writeResult(stdout, false, "stop: FAIL (%d of %d)", failed, len(targets))
 		return 1
@@ -2478,9 +2483,10 @@ func stopTargets(
 	stdout, stderr io.Writer,
 	list processLister,
 	signal processSignaller,
+	graceful bool,
 ) (killed, failed int) {
 	for _, target := range targets {
-		if gracefulStopSupported {
+		if graceful {
 			if err := signal(target.PID, syscall.SIGTERM); err != nil {
 				writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
 				failed++
@@ -2507,7 +2513,7 @@ func stopTargets(
 			failed++
 			continue
 		}
-		if gracefulStopSupported {
+		if graceful {
 			writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
 		} else {
 			writeWarning(stdout, "stop.terminated: pid=%d was ended without being asked, which is all this platform offers %s", target.PID, target.Command())
