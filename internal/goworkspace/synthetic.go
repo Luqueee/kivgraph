@@ -537,7 +537,14 @@ func (plan Plan) Render() ([]byte, error) {
 		return nil, fmt.Errorf("go directive: %w", err)
 	}
 	for _, module := range plan.Modules {
-		if err := file.AddUse(filepath.ToSlash(module.RootPath), module.ModulePath); err != nil {
+		// A `use` path is read by the go command as a filesystem path, not as
+		// the slash-separated import path it sits next to, so it is written in
+		// the separator of the host. This used to normalise to slashes, which
+		// looked right beside the module path and was a no-op on every platform
+		// this shipped to -- and is not one on Windows, where `use C:/x/y`
+		// makes the go command answer that the directory prefix contains no
+		// module it lists, while `use C:\x\y` loads.
+		if err := file.AddUse(filepath.FromSlash(module.RootPath), module.ModulePath); err != nil {
 			return nil, fmt.Errorf("use %q: %w", module.RootPath, err)
 		}
 	}
