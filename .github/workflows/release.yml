@@ -41,16 +41,29 @@ jobs:
             arch: amd64
             runner: ubuntu-24.04
             native_library: lib/liblbug.so
+            archive_name: kivgraph-linux-amd64.tar.gz
           - os: darwin
             arch: arm64
             runner: macos-15
             native_library: lib/liblbug.dylib
+            archive_name: kivgraph-darwin-arm64.tar.gz
+          # Windows carries its library beside the executable rather than in a
+          # lib/ the executable points at, because there is no RUNPATH to point
+          # with, and it ships a zip because that is what its tools read.
+          - os: windows
+            arch: amd64
+            runner: windows-2022
+            native_library: bin/lbug_shared.dll
+            archive_name: kivgraph-windows-amd64.zip
     env:
       TARGET_OS: ${{ matrix.os }}
       TARGET_ARCH: ${{ matrix.arch }}
       BUNDLE_NAME: kivgraph-${{ matrix.os }}-${{ matrix.arch }}
-      ARCHIVE_NAME: kivgraph-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+      ARCHIVE_NAME: ${{ matrix.archive_name }}
       NATIVE_LIBRARY: ${{ matrix.native_library }}
+      # The suffix that makes a file a program where a platform decides that
+      # from the name. Empty everywhere else, so the paths below read the same.
+      PROGRAM_SUFFIX: ${{ matrix.os == 'windows' && '.exe' || '' }}
     steps:
       - name: Checkout exact tag
         uses: actions/checkout@v7
@@ -151,28 +164,28 @@ jobs:
           test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
           test "$(jq -r .target.os "$bundle/manifest.json")" = "$TARGET_OS"
           test "$(jq -r .target.arch "$bundle/manifest.json")" = "$TARGET_ARCH"
-          test "$("$bundle/bin/kivgraph" version)" = "$EXPECTED_VERSION"
-          version_json=$("$bundle/bin/kivgraph" version --json)
+          test "$("$bundle/bin/kivgraph$PROGRAM_SUFFIX" version)" = "$EXPECTED_VERSION"
+          version_json=$("$bundle/bin/kivgraph$PROGRAM_SUFFIX" version --json)
           test "$(jq -r .kivgraph <<<"$version_json")" = "$EXPECTED_VERSION"
           test "$(jq -r .schema <<<"$version_json")" = "$(jq -r .schema.canonical "$bundle/manifest.json")"
           test "$(jq -r .snapshot_row_format <<<"$version_json")" = "$(jq -r .schema.snapshot_row_format "$bundle/manifest.json")"
           # The Rust engine has to be in the payload, has to run on this
           # platform, and has to be the pinned one: an installation that falls
           # back to whatever the PATH holds indexes a different graph.
-          test -x "$bundle/bin/rust-analyzer"
+          test -x "$bundle/bin/rust-analyzer$PROGRAM_SUFFIX"
           test -f "$bundle/tools/manifest.json"
           test -f "$bundle/licenses/third-party/rust-analyzer/LICENSE-MIT"
           test -f "$bundle/licenses/third-party/rust-analyzer/LICENSE-APACHE"
           pinned_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
           test "$(jq -r .tools.rust_analyzer.release "$bundle/manifest.json")" = "$pinned_release"
           test "$(jq -r .rust_analyzer <<<"$version_json")" = "$pinned_release"
-          grep -q "$("$bundle/bin/rust-analyzer" --version | awk '{print $2}')" <<<"$pinned_release"
+          grep -q "$("$bundle/bin/rust-analyzer$PROGRAM_SUFFIX" --version | awk '{print $2}')" <<<"$pinned_release"
           # The viewer has to be in the payload and the binary has to know
           # it: a bundle that carries web/ but was linked without the
           # webassets tag serves the "no web bundle" page on every route,
           # and the help is where that shows.
           test -f "$bundle/web/index.html"
-          help_output=$("$bundle/bin/kivgraph" --help)
+          help_output=$("$bundle/bin/kivgraph$PROGRAM_SUFFIX" --help)
           grep -q '^  ui \[' <<<"$help_output"
           if grep -q 'unavailable: this build carries no web bundle' <<<"$help_output"; then
             echo "bundle carries web assets the binary cannot serve: built without the webassets tag" >&2
@@ -188,6 +201,7 @@ jobs:
           fi
 
       - name: Create reproducible release archive
+        if: matrix.os != 'windows'
         shell: bash
         run: |
           sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
@@ -213,6 +227,59 @@ jobs:
           test "$(awk '{print $2}' "$assets/$ARCHIVE_NAME.sha256")" = "$ARCHIVE_NAME"
           test -s "$assets/$ARCHIVE_NAME"
           test -s "$assets/$ARCHIVE_NAME.sha256"
+
+      # Windows ships a zip, and a zip is not reproducible the way the tarball
+      # above is: it stores a modification time per entry and offers no flag to
+      # normalise them. They are normalised before packing instead, to
+      # 1980-01-01 -- the earliest date the format can represent -- and the
+      # entry order is fixed by handing the packer a sorted list rather than
+      # letting it walk the tree.
+      #
+      # Measured on a Windows host, two passes over one bundle produce a
+      # byte-identical zip. What that does not establish is the same across two
+      # runners, because the compressor is not pinned and this has only been
+      # run on one machine. The property the release actually checks is the
+      # bundle's, and check-reproducible-bundle.sh verifies that before this
+      # step runs; the archive is a container around an artifact already shown
+      # to be reproducible.
+      #
+      # The packer is bsdtar and named explicitly. A Git for Windows shell puts
+      # GNU tar first on PATH, and GNU tar cannot write a zip at all -- it does
+      # not fail over to something that can, it fails.
+      - name: Create release archive
+        if: matrix.os == 'windows'
+        shell: bash
+        run: |
+          bsdtar=""
+          for candidate in /c/Windows/System32/tar.exe tar; do
+            if "$candidate" --version 2>/dev/null | grep -qi bsdtar; then
+              bsdtar="$candidate"
+              break
+            fi
+          done
+          [[ -n "$bsdtar" ]] || { echo "no bsdtar found: a zip cannot be written with GNU tar" >&2; exit 1; }
+          assets="$RUNNER_TEMP/release-assets"
+          mkdir -p "$assets"
+          cd "$RUNNER_TEMP"
+          find "$BUNDLE_NAME" -exec touch -t 198001010000 {} +
+          find "$BUNDLE_NAME" -print | LC_ALL=C sort > entries.txt
+          "$bsdtar" --format=zip -cf "$assets/$ARCHIVE_NAME" -T entries.txt
+          # The line is built rather than taken from the tool's output, which
+          # is what build-bundle.sh does and for the reason this step found:
+          # sha256sum defaults to binary mode in a Git for Windows shell and
+          # marks the name with an asterisk, so the file name in the manifest
+          # is "*kivgraph-windows-amd64.zip" and matches nothing.
+          (
+            cd "$assets"
+            printf '%s  %s\n' "$(sha256sum "$ARCHIVE_NAME" | awk '{print $1}')" "$ARCHIVE_NAME" \
+              > "$ARCHIVE_NAME.sha256"
+          )
+          test "$(awk '{print $2}' "$assets/$ARCHIVE_NAME.sha256")" = "$ARCHIVE_NAME"
+          test -s "$assets/$ARCHIVE_NAME"
+          # The installer refuses a backslash, and the packer that produces one
+          # is the mistake this catches: it is checked here, where the archive
+          # is made, rather than left for a user to discover at install time.
+          ! unzip -l "$assets/$ARCHIVE_NAME" | grep -q '\\\\'
 
       - name: Upload release archive
         uses: actions/upload-artifact@v4
