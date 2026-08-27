@@ -16,7 +16,7 @@ requested_target=${KIVGRAPH_TARGET:-}
 output_argument=""
 usage() {
   printf 'usage: %s [--target OS/ARCH] [--mcp-only] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
-  printf 'supported targets: linux/amd64, darwin/arm64\n' >&2
+  printf 'supported targets: linux/amd64, darwin/arm64, windows/amd64\n' >&2
 }
 while (( $# > 0 )); do
   case "$1" in

@@ -1,0 +1,22 @@
+# Git for Windows sets core.autocrlf=true by default, and a repository with no
+# .gitattributes lets that decide what a checkout contains. It rewrites every
+# file Git considers text on the way out of the index, so a Windows contributor
+# gets a working tree this project has never tested: scripts/*.sh with CRLF
+# terminators, testdata goldens that no longer equal what a test writes, and
+# tool output compared against expectations that differ by an invisible byte.
+#
+# This branch has already paid for that failure mode twice, in the same shape
+# each time -- a carriage return riding along in something that was then
+# compared for equality, so a digest did not equal itself and printed
+# identically on both sides of the message. Those were tools formatting their
+# output; this is the checkout itself, and it reaches everything.
+#
+# eol=lf rather than text=auto alone: `auto` still defers to core.autocrlf for
+# the working tree, which is the setting being defended against. This makes the
+# answer a property of the repository instead of a property of whoever cloned
+# it.
+#
+# Nothing tracked here carries a CR today, so this normalises no file and
+# changes no checkout on Linux or macOS. It only removes a difference Windows
+# would otherwise introduce.
+* text=auto eol=lf
