@@ -214,6 +214,29 @@ jobs:
           test -s "$assets/$ARCHIVE_NAME"
           test -s "$assets/$ARCHIVE_NAME.sha256"
 
+      # The MCP Registry accepts npm, PyPI, NuGet, cargo, OCI and MCPB packages,
+      # and a `.tar.gz` on a release is none of them. MCPB is the one that
+      # describes what this release already is -- a prebuilt binary needing no
+      # toolchain -- so the same bundle is published twice, in two containers,
+      # rather than distributed a second way.
+      - name: Create MCP bundle
+        shell: bash
+        env:
+          KIVGRAPH_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          assets="$RUNNER_TEMP/release-assets"
+          scripts/build-mcpb.sh \
+            --bundle "$RUNNER_TEMP/$BUNDLE_NAME" \
+            --version "$KIVGRAPH_VERSION" \
+            --target "$TARGET_OS/$TARGET_ARCH" \
+            --output "$assets/$BUNDLE_NAME.mcpb" \
+            > "$assets/$BUNDLE_NAME.mcpb.sha256.raw"
+          # The script prints "<digest>  <name>", which is already the format
+          # `sha256sum -c` reads.
+          mv "$assets/$BUNDLE_NAME.mcpb.sha256.raw" "$assets/$BUNDLE_NAME.mcpb.sha256"
+          test -s "$assets/$BUNDLE_NAME.mcpb"
+          test -s "$assets/$BUNDLE_NAME.mcpb.sha256"
+
       - name: Upload release archive
         uses: actions/upload-artifact@v4
         with:
@@ -252,14 +275,16 @@ jobs:
           assets="$GITHUB_WORKSPACE/release-assets"
           mkdir -p "$assets"
           cp "$platform_assets"/*.tar.gz "$assets/"
+          cp "$platform_assets"/*.mcpb "$assets/"
           install -m 0755 scripts/install.sh "$assets/install.sh"
-          cat "$platform_assets"/*.tar.gz.sha256 > "$RUNNER_TEMP/platform-checksums"
+          cat "$platform_assets"/*.tar.gz.sha256 "$platform_assets"/*.mcpb.sha256 \
+            > "$RUNNER_TEMP/platform-checksums"
           (
             cd "$assets"
             # Each archive must still hash to what its own build job recorded.
             sha256sum -c "$RUNNER_TEMP/platform-checksums"
             # SHA256SUMS covers every published file, lexicographic, no paths.
-            sha256sum -- install.sh *.tar.gz | LC_ALL=C sort -k 2 > SHA256SUMS
+            sha256sum -- install.sh *.tar.gz *.mcpb | LC_ALL=C sort -k 2 > SHA256SUMS
             published=$(find . -maxdepth 1 -type f ! -name SHA256SUMS | wc -l)
             test "$(wc -l < SHA256SUMS)" -eq "$published"
           )
@@ -269,7 +294,9 @@ jobs:
       - name: Attest release archives
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: release-assets/*.tar.gz
+          subject-path: |
+            release-assets/*.tar.gz
+            release-assets/*.mcpb
 
       - name: Publish assets
         env:
@@ -287,6 +314,7 @@ jobs:
 
           assets=(
             release-assets/*.tar.gz
+            release-assets/*.mcpb
             "release-assets/SHA256SUMS"
             "release-assets/install.sh"
           )
@@ -298,3 +326,77 @@ jobs:
               --latest
           fi
           gh release upload "$TAG" "${assets[@]}" --clobber
+
+  # Publishing to the MCP Registry is its own job, after the release exists,
+  # because the registry fetches the package URL to check the `fileSha256` it
+  # was given. Running it beside `publish` would race the upload and fail on a
+  # 404 that describes nothing.
+  #
+  # `github-oidc` is what removes the interactive step: `mcp-publisher login
+  # github` opens a device flow, which no unattended run can complete, and the
+  # alternative is a long-lived token in the repository secrets. The identity
+  # proven here is the repository itself, which is also the namespace being
+  # published to -- `io.github.Luqueee/kivgraph`.
+  registry:
+    name: Publish to the MCP Registry
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Download platform release archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: ${{ runner.temp }}/platform-assets
+          merge-multiple: true
+
+      - name: Install mcp-publisher
+        shell: bash
+        run: |
+          curl -fsSL \
+            "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher --help >/dev/null
+
+      # The digests are read from the artifacts this run produced, not from the
+      # release page: a hash taken from what was uploaded describes what was
+      # uploaded, and one taken from anywhere else is a claim about it.
+      - name: Build the published server.json
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          platform_assets="$RUNNER_TEMP/platform-assets"
+          version="${TAG#v}"
+          args=()
+          for target in linux/amd64 darwin/arm64; do
+            asset="kivgraph-${target%%/*}-${target##*/}.mcpb"
+            test -s "$platform_assets/$asset"
+            digest="$(sha256sum "$platform_assets/$asset" | awk '{print $1}')"
+            # It must still hash to what its own build job recorded.
+            grep -q "$digest" "$platform_assets/$asset.sha256"
+            args+=(--package "$target=$digest")
+          done
+          scripts/build-server-json.sh \
+            --version "$version" \
+            --tag "$TAG" \
+            "${args[@]}" \
+            --output server.json
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+
+      - name: Authenticate with the MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the MCP Registry
+        run: ./mcp-publisher publish
