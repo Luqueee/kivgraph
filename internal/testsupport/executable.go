@@ -22,3 +22,19 @@ func InstalledExecutable() string {
 	}
 	return filepath.Join("/", "opt", "kivgraph", "bin", "kivgraph")
 }
+
+// MovedExecutable is a second plausible absolute path to an installed
+// kivgraph, different from InstalledExecutable and in the same platform shape.
+//
+// The fixtures that need one are testing that a client configuration naming a
+// kivgraph which has since moved is replaced rather than appended beside. That
+// needs two paths, and the second was written as "/usr/local/bin/kivgraph" --
+// which on Windows is not absolute, so it absolutised to
+// "C:\usr\local\bin\kivgraph" while the assertion still held the Unix
+// spelling. Same failure as above, one fixture further along.
+func MovedExecutable() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(`C:\`, "Program Files", "kivgraph", "bin", "kivgraph.exe")
+	}
+	return filepath.Join("/", "usr", "local", "bin", "kivgraph")
+}

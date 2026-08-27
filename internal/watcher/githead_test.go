@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -155,7 +156,7 @@ func TestReadGitHeadRejectsNonRepositoryAndUnreadableLayouts(t *testing.T) {
 		if head != (GitHead{}) {
 			t.Fatalf("ReadGitHead(%s) = %#v on error, want the zero value", name, head)
 		}
-		if !strings.Contains(err.Error(), repository) {
+		if !errorNamesPath(err, repository) {
 			t.Fatalf("ReadGitHead(%s) error = %v, want it to name %q", name, err, repository)
 		}
 	}
@@ -388,4 +389,25 @@ func TestCommitsHaveIdenticalTreesSeparatesACommitFromACheckout(t *testing.T) {
 	if CommitsHaveIdenticalTrees(context.Background(), repository, first, gitHeadTestPackedCommit) {
 		t.Fatal("a commit the repository does not hold = true, want false")
 	}
+}
+
+// errorNamesPath reports whether an error names a path, in either of the two
+// renderings a path can arrive in.
+//
+// These errors quote with %q, and %q escapes a backslash -- so on Windows the
+// separator is doubled and the message contains "C:\\Users\\x" where the
+// path is `C:\Users\x`. A plain Contains against the path therefore fails for
+// the formatting verb rather than for the error, which is what this test was
+// reporting: the message named the repository perfectly well.
+//
+// Checking both renderings rather than switching the errors to %s keeps the
+// quoting, which is what makes a path with a space in it readable -- and
+// Windows has one in "Program Files".
+func errorNamesPath(err error, path string) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	return strings.Contains(message, path) ||
+		strings.Contains(message, strings.Trim(strconv.Quote(path), `"`))
 }

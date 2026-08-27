@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -594,6 +595,18 @@ func assertAbsent(t *testing.T, path string) {
 
 func assertMode(t *testing.T, path string, want os.FileMode) {
 	t.Helper()
+	// One claim among several here, so a platform that keeps no mode bits
+	// drops this one and keeps the rest rather than skipping the whole test:
+	// publishing and restoring a generation is worth checking everywhere, and
+	// Go reports 0777 for every directory on Windows regardless of its ACL, so
+	// asserting 0700 there asserts what Go says about every directory.
+	//
+	// Spelled out rather than calling testsupport.ModeBitsHonoured, which says
+	// exactly this: internal/testsupport imports this package, so a test here
+	// that imported it back would be an import cycle.
+	if runtime.GOOS == "windows" {
+		return
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
