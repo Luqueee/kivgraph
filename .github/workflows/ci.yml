@@ -95,6 +95,24 @@ jobs:
           go-version-file: go.mod
           check-latest: true
 
+      # Dart and pyright are here for the same reason rust-analyzer is: their
+      # suites skip without them, and a skipped suite hides a whole language
+      # path from CI. They arrived with the coverage floor -- which this job
+      # now gates -- and until then the Python analyzer tests had never run in
+      # this workflow at all.
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Set up Node.js for the analyzers
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install pyright
+        run: npm install -g pyright
+
       # The Rust tests skip without a runnable analyzer, and a skipped suite
       # would hide the whole Rust path from CI. rustup ships a proxy named
       # rust-analyzer whether or not the component exists, so it has to be
@@ -156,17 +174,15 @@ jobs:
           git fetch --no-tags --depth=100 origin "$base"
           scripts/check-docs.sh "origin/$base"
 
-      # A failing Go test is reported as an annotation so the reason is visible
-      # on the run without opening the log.
-      - name: Go tests
-        shell: bash
-        run: |
-          set -o pipefail
-          go test ./... 2>&1 | tee "$RUNNER_TEMP/go-test.log" && exit 0
-          grep -E '^(--- )?FAIL|\.go:[0-9]+:' "$RUNNER_TEMP/go-test.log" |
-            head -20 |
-            while IFS= read -r line; do printf '::error::%s\n' "$line"; done
-          exit 1
+      # The Go suite runs once, instrumented, and gates the coverage floor in
+      # the same pass. `make coverage` measures with -coverpkg=./... while the
+      # tests execute, so it cannot follow a plain `go test ./...` -- that
+      # would be the same work twice, which is what it replaced. It emits the
+      # same ::error:: annotations on failure, and refuses to run at all when
+      # an analyzer is missing, because the low number that produces reads as
+      # a floor breach and is really a toolchain nobody installed.
+      - name: Go tests and coverage floor
+        run: make coverage
 
       # The packages where a race is a data race and not a flake: the snapshot
       # store publishes by compare-and-swap, the follower installs generations
@@ -246,51 +262,6 @@ jobs:
       - name: Build landing package
         working-directory: landing
         run: pnpm build
-
-  coverage:
-    name: Verify the coverage floor
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    # This job exists as its own because the number is only comparable between
-    # runs that installed the same analyzers: a missing one skips its suite
-    # rather than failing it, so measuring in `verify` -- which has no Dart and
-    # no pyright -- would report a floor breach that is really a toolchain that
-    # was never there. Everything the suite can reach is installed here.
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          check-latest: true
-
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      # The Python suite resolves through a real pyright language server and
-      # skips without one, which is why it contributes nothing to the number
-      # measured anywhere else in this workflow.
-      - name: Install pyright
-        run: npm install -g pyright
-
-      - name: Install pinned rust-analyzer
-        run: |
-          rustup component add rust-analyzer
-          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
-          echo "$analyzer_dir" >> "$GITHUB_PATH"
-
-      - name: Verify the coverage floor
-        run: make coverage
 
   ladybug:
     name: Verify against a real LadybugDB

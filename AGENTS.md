@@ -535,7 +535,7 @@ El resto de gates vive junto al código que verifica: Rust en
 `internal/rustloader/AGENTS.md`, el worker en `ts-worker/AGENTS.md`, el visor en
 `web/AGENTS.md` y la landing en `landing/AGENTS.md`.
 
-Y hay cuatro que sólo corre CI, porque piden red o varios minutos, pero que se
+Y hay cinco que sólo corre CI, porque piden red o varios minutos, pero que se
 pueden reproducir a mano cuando uno de ellos falla:
 
 |gate|comando|qué exige|
@@ -543,7 +543,27 @@ pueden reproducir a mano cuando uno de ellos falla:
 |corrección|`staticcheck -checks='all,-U1000' ./...`|toda clase de `staticcheck`. `U1000` es la única exclusión y no por ruidosa: bajo esta build no se puede contestar, y vive en `make lint-ladybug`|
 |vulnerabilidades|`govulncheck ./...`|cero **alcanzables**; una en un módulo que no se llama no falla|
 |reproducibilidad|`scripts/check-reproducible-bundle.sh`|dos builds del mismo checkout, payload idéntico|
+|cobertura|`make coverage`|la suite Go entera, instrumentada, por encima del suelo de sentencias|
 |humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las doce tools contesten|
+
+`make coverage` **es** el `go test ./...` del job `verify`, no un gate aparte:
+mide con `-coverpkg=./...` mientras los tests corren, así que no puede seguir a
+una pasada limpia sin ser el mismo trabajo dos veces. Mide cruzando paquetes
+porque este repositorio prueba cruzando fronteras a propósito -- `index_project.go`
+se ejercita desde `internal/mcp`, no desde `internal/mcp/tools`--, y el número por
+paquete que `go test ./...` produce sale casi tres puntos bajo y señala como sin
+tests ficheros que sí lo están. `benchmarks/` e `internal/testsupport` quedan
+fuera: son arneses sin tests propios y cuestan quince puntos que no dicen nada
+del producto.
+
+Se niega a correr si falta `dart`, `pyright-langserver` o `rust-analyzer`, porque
+un analizador ausente salta su suite en vez de fallarla: sin Dart el total cae de
+`80,0 %` a `77,9 %`, por debajo del suelo, y el fallo se leería como tests
+perdidos. `KIVGRAPH_COVERAGE_ALLOW_PARTIAL=1` mide igual y no aplica el suelo,
+que es lo que quiere una estación de trabajo sin los cinco instalados.
+
+El suelo es un trinquete: se sube cuando la suite se lo gana, y bajarlo es una
+regresión o una decisión que va en el mensaje del commit.
 
 El humo es el único que prueba el producto contra una generación **publicada**, y
 por eso existe: los dos defectos que la `v0.8.0` se llevó pasaban todos los tests
