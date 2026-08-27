@@ -47,32 +47,11 @@ const {
 >
 
 <script>
+  import { track } from "../../lib/analytics";
+  import type { AnalyticsEvent, AnalyticsProperties } from "../../lib/analytics";
+
   // One listener per button, wired once for every copy button on the page.
   const RESET_MS = 1500;
-
-  // Umami exposes `track` on `window` once its script has run. It is `defer`ed
-  // and served by another host, so it may not be there at all -- blocked, an
-  // instance that is down, or a build with no tracker configured. Reporting is
-  // therefore best-effort and never in the way of the copy that the reader
-  // actually asked for: this returns silently rather than throwing into a click
-  // handler.
-  type Umami = { track: (name: string, data?: unknown) => void };
-
-  function report(name: string, data: unknown): void {
-    const umami = (window as unknown as { umami?: Umami }).umami;
-    if (umami === undefined) {
-      return;
-    }
-    try {
-      if (data === undefined) {
-        umami.track(name);
-      } else {
-        umami.track(name, data);
-      }
-    } catch {
-      // An analytics failure is not a page failure.
-    }
-  }
 
   const buttons = Array.from(document.querySelectorAll("button[data-copy]"));
 
@@ -88,11 +67,11 @@ const {
     }
 
     const label = button.textContent ?? "copy";
-    const eventName = button.dataset.copyEvent;
-    let eventData: unknown;
+    const eventName = button.dataset.copyEvent as AnalyticsEvent | undefined;
+    let eventData: AnalyticsProperties | undefined;
     if (button.dataset.copyData !== undefined) {
       try {
-        eventData = JSON.parse(button.dataset.copyData);
+        eventData = JSON.parse(button.dataset.copyData) as AnalyticsProperties;
       } catch {
         eventData = undefined;
       }
@@ -108,8 +87,12 @@ const {
           // Reported on success only. A copy the clipboard refused is not an
           // intent the reader expressed, and counting it would inflate the one
           // conversion this site has.
+          //
+          // `track()` and not a provider: this component does not know which
+          // analytics exist, which is what lets one be added or removed without
+          // touching a button.
           if (eventName !== undefined) {
-            report(eventName, eventData);
+            track(eventName, eventData);
           }
         },
         () => {

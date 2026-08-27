@@ -257,6 +257,24 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   el informe un número que ninguna visita produjo. El vocabulario, los goals y
   la convención UTM viven en `docs/development/analytics.md`; un evento nuevo se
   añade ahí antes que en el código.
+- **Nadie llama a un proveedor: se llama a `track()`.** La capa está en
+  `src/lib/analytics/`, el catálogo de eventos es tipado y un nombre que no esté
+  en él no compila. Umami y PostHog contestan preguntas distintas -- adquisición
+  y comportamiento -- y sus cifras no van a cuadrar; esperar que lo hagan es un
+  error de método y no un fallo.
+- **No hay `astro:page-load` y no debe haberlo mientras no exista
+  `<ClientRouter />`.** Este sitio navega con cargas completas, así que la
+  captura automática de PostHog da un `$pageview` por página; añadir un listener
+  encima da dos. Medido: uno en la carga, uno al navegar, uno en `back`, uno en
+  `reload`. Si algún día entra `ClientRouter`, esa medición hay que rehacerla.
+- PostHog se importa **dinámicamente tras el `load`** y sin
+  `PUBLIC_POSTHOG_KEY` **desaparece del bundle** por tree-shaking. Con clave son
+  `+82,8 KB` gzip sobre los `72,1` del sitio, que es más que todo el resto de su
+  JavaScript junto: no es gratis, está fuera de la ruta crítica, y no hay build
+  más ligero del paquete.
+- Verificar PostHog en headless exige ocultar `navigator.webdriver`: su filtro
+  de bots descarta esos eventos **sin un solo error**, y el payload de `/e/` va
+  gzip. Está contado en `analytics.md` porque cuesta una tarde descubrirlo.
 - **Lo que arranca pm2 es `server.mjs`, no el entry del adaptador**, y la razón
   es medible: un middleware de Astro ve **una** de siete rutas -- sólo la no
   prerenderizada-- porque el handler estático contesta las demás antes de que
