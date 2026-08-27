@@ -212,6 +212,7 @@ func TestEveryTargetWritesWhereItsOwnClientLooks(t *testing.T) {
 	}{
 		{TargetClaudeCode, ScopeUser, filepath.Join(home, ".claude", "settings.json")},
 		{TargetClaudeCode, ScopeProject, filepath.Join(project, ".claude", "settings.json")},
+		{TargetClaudeDesktop, ScopeUser, filepath.Join(home, ".claude", "settings.json")},
 		{TargetCodex, ScopeUser, filepath.Join(home, ".codex", "hooks.json")},
 		{TargetCodex, ScopeProject, filepath.Join(project, ".codex", "hooks.json")},
 		{TargetOpenCode, ScopeUser, filepath.Join(home, ".config", "opencode", "plugins", "kivgraph.js")},
@@ -274,11 +275,11 @@ func TestTheOpenCodePluginNamesThisInstallationsBinary(t *testing.T) {
 }
 
 // TestATargetWithNoGateIsRefusedByName keeps a client that cannot host the gate
-// from being told it can. Claude Desktop has no pre-tool contract, and Oh My
-// Pi's own documentation calls its hook subsystem legacy.
+// from being told it can. Oh My Pi's own documentation calls its hook subsystem
+// legacy and says the runtime uses an extension runner instead.
 func TestATargetWithNoGateIsRefusedByName(t *testing.T) {
 	manager, _, _ := testManager(t)
-	for _, target := range []Target{TargetClaudeDesktop, TargetOhMyPi, Target("cursor")} {
+	for _, target := range []Target{TargetOhMyPi, Target("cursor")} {
 		_, err := manager.InstallHook(target, ScopeUser, false, false)
 		if err == nil {
 			t.Fatalf("%s was offered a gate it cannot host", target)
@@ -346,5 +347,89 @@ func TestAForeignGateIsNeverClaimed(t *testing.T) {
 		if manager.ownsHookEntry(entry) {
 			t.Fatalf("claimed a foreign gate: %q", command)
 		}
+	}
+}
+
+// TestClaudeDesktopIsGatedThroughTheFileItActuallyReads records the fact that
+// found this target, because it is not guessable from the app's own directory.
+//
+// Claude Desktop bundles a Claude Code and runs it for agent work without
+// giving it a configuration directory of its own. The proof is a transcript: a
+// session the desktop app records under its own `claude-code-sessions` as
+// `cliSessionId` 6c7bf9db-2774-45bf-8371-8764497bb74a was written to
+// ~/.claude/projects/-home-devlabs-claude/6c7bf9db-....jsonl, which is
+// $CLAUDE_CONFIG_DIR/projects with the variable unset. So the settings it reads
+// are the user's, and the gate reaches it through the same file claude-code
+// installs into.
+//
+// The two targets therefore share a document, and that is the behaviour to
+// hold: installing one and asking about the other has to say it is there,
+// because it is.
+func TestClaudeDesktopIsGatedThroughTheFileItActuallyReads(t *testing.T) {
+	manager, home, _ := testManager(t)
+	if _, err := manager.InstallHook(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallHook(claude-code) error = %v", err)
+	}
+	status, err := manager.StatusHook(TargetClaudeDesktop, ScopeUser)
+	if err != nil {
+		t.Fatalf("StatusHook(claude-desktop) error = %v", err)
+	}
+	if status.Status != "managed" {
+		t.Fatalf("claude-desktop status = %q after installing claude-code, want managed", status.Status)
+	}
+	if status.Path != filepath.Join(home, ".claude", "settings.json") {
+		t.Fatalf("claude-desktop reads %s", status.Path)
+	}
+	// And installing it again is a no-op rather than a second entry.
+	plan, err := manager.InstallHook(TargetClaudeDesktop, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("InstallHook(claude-desktop) error = %v", err)
+	}
+	if plan.Changed {
+		t.Fatalf("installing claude-desktop over claude-code changed the file: %#v", plan)
+	}
+}
+
+// TestClaudeDesktopHasNoProjectScope holds the one way the two targets differ:
+// the desktop app reads the user's settings and has no repository to put a
+// project file in.
+func TestClaudeDesktopHasNoProjectScope(t *testing.T) {
+	manager, _, _ := testManager(t)
+	if _, err := manager.InstallHook(TargetClaudeDesktop, ScopeProject, false, false); err == nil {
+		t.Fatal("claude-desktop accepted a project scope it cannot read")
+	}
+}
+
+// TestClaudeDesktopIsDetectedByItsOwnEntry keeps the desktop app from being
+// reported as installed on every machine that has ever run the CLI -- they
+// share ~/.claude, so the configuration directory says nothing about it. The
+// Linux filename is the one the claude-desktop package actually ships.
+func TestClaudeDesktopIsDetectedByItsOwnEntry(t *testing.T) {
+	manager, home, _ := testManager(t)
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	detected := func() bool {
+		detections, err := manager.DetectHookTargets(ScopeUser)
+		if err != nil {
+			t.Fatalf("DetectHookTargets() error = %v", err)
+		}
+		for _, detection := range detections {
+			if detection.Target == TargetClaudeDesktop {
+				return detection.Detected
+			}
+		}
+		t.Fatal("claude-desktop is not offered as a hook target")
+		return false
+	}
+	if detected() {
+		t.Fatal("a bare ~/.claude reported the desktop app as installed")
+	}
+	entry := filepath.Join(home, "Applications", "Claude.app")
+	if err := os.MkdirAll(entry, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if !detected() {
+		t.Fatal("the desktop app is installed and was not detected")
 	}
 }

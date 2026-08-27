@@ -91,13 +91,13 @@ delante de una tool que está esperando; arrancar un indexador ahí convertiría
 
 ## Qué clientes la alojan
 
-| cliente          | mecanismo             | fichero                          |
-| ---------------- | --------------------- | -------------------------------- |
-| `claude-code`    | gancho de shell       | `.claude/settings.json`          |
-| `codex`          | gancho de shell       | `.codex/hooks.json`              |
-| `opencode`       | plugin generado       | `plugins/kivgraph.js`            |
-| `claude-desktop` | no tiene              | --                               |
-| `oh-my-pi`       | subsistema *legacy*   | --                               |
+| cliente          | mecanismo           | fichero                    |
+| ---------------- | ------------------- | -------------------------- |
+| `claude-code`    | gancho de shell     | `.claude/settings.json`    |
+| `claude-desktop` | gancho de shell     | `~/.claude/settings.json`  |
+| `codex`          | gancho de shell     | `.codex/hooks.json`        |
+| `opencode`       | plugin generado     | `plugins/kivgraph.js`      |
+| `oh-my-pi`       | subsistema *legacy* | --                         |
 
 Claude Code y Codex leen el **mismo veredicto**, byte a byte, así que un solo
 comando sirve a los dos; se diferencian en dónde se registra, no en lo que dice.
@@ -109,10 +109,51 @@ OpenCode no puede ejecutar un binario: su `tool.execute.before` devuelve
 generado es sólo esa traducción -- reenvía el mismo payload al mismo comando y
 convierte una negativa en un `Error`.
 
-Los otros dos se niegan por su nombre. Claude Desktop no tiene contrato previo a
-la tool, y la documentación de Oh My Pi llama *legacy* a su subsistema de
-ganchos y dice que el runtime usa un ejecutor de extensiones: escribir contra
-eso sería escribir contra un blanco móvil.
+### Claude Desktop lee el fichero del usuario, y hubo que demostrarlo
+
+La primera versión de este ADR decía que Claude Desktop no tenía contrato previo
+a la tool. Es falso. La aplicación **empaqueta un Claude Code** -- en esta
+máquina `claude-code/2.1.237/claude` bajo su directorio de datos-- y lo lanza
+para su trabajo de agente.
+
+La duda real era otra: si lo lanza con un `CLAUDE_CONFIG_DIR` propio, el fichero
+del usuario no le llega. La resolución del binario es
+`CLAUDE_CONFIG_DIR ?? ~/.claude`, así que la pregunta se contesta mirando dónde
+acaban las transcripciones. Una sesión que la aplicación registra con
+`cliSessionId` `6c7bf9db-2774-45bf-8371-8764497bb74a` está escrita en
+`~/.claude/projects/-home-devlabs-claude/6c7bf9db-...jsonl`, que es
+`$CLAUDE_CONFIG_DIR/projects` con la variable **sin poner**.
+
+De modo que Claude Desktop lee `~/.claude/settings.json`, el mismo fichero, y la
+puerta ya le llegaba antes de que este ADR lo supiera. `--target claude-desktop`
+existe para no obligar a nadie a saberlo, no porque escriba en otro sitio: los
+dos objetivos comparten documento, instalar uno deja el otro `managed`, y
+`claude-desktop` no admite alcance de proyecto porque no tiene repositorio donde
+poner un fichero.
+
+Se detecta por su propia entrada `.desktop` y no por `~/.claude`, que comparte
+con la CLI: en Linux el paquete instala `com.anthropic.Claude.desktop`, y el
+marcador `claude.desktop` que este repositorio usaba no existía, así que ni
+`mcp install` ni `skill install` lo detectaban tampoco.
+
+Oh My Pi es el único que se niega por su nombre: su documentación llama *legacy*
+a su subsistema de ganchos y dice que el runtime usa un ejecutor de extensiones,
+así que escribir contra eso sería escribir contra un blanco móvil.
+
+### Lo que existe y no se usa
+
+El binario lee además un fichero de política en una ruta fija por plataforma --
+`/etc/claude-code/managed-settings.json` en Linux,
+`/Library/Application Support/ClaudeCode` en macOS-- y fusiona sobre él cada
+`*.json` de un directorio `managed-settings.d` contiguo, en orden alfabético.
+Eso alcanzaría a todos los Claude Code de la máquina de una vez, al margen de
+`CLAUDE_CONFIG_DIR`.
+
+No se instala ahí. Pide `root`, y su alcance es la máquina entera y no el
+usuario que lo pidió; una herramienta que se instala en `/etc` porque el usuario
+escribió `hook install` estaría decidiendo por los demás. Queda documentado para
+quien lo quiera como política, y como el sitio donde iría un `--scope machine`
+si alguien lo pide.
 
 ## Un array no es un mapa
 

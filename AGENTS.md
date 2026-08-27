@@ -111,7 +111,10 @@ cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
 
 `kivgraph hook install` registra un gancho que se ejecuta antes de cada tool del
 agente y niega la búsqueda cuando el grafo la contesta mejor. Lo alojan
-`claude-code`, `codex` y `opencode`; los otros dos clientes no tienen dónde.
+`claude-code`, `claude-desktop`, `codex` y `opencode`. Claude Desktop empaqueta
+un Claude Code y lo lanza sin darle configuración propia, así que lee
+`~/.claude/settings.json`: comparte fichero con `claude-code` e instalar uno
+deja el otro `managed`. Oh My Pi es el único que no puede alojarlo.
 
 Se cierra por **un solo hecho**: el nombre lo declaran dos cosas o más, así que
 una búsqueda de texto no puede separar lo que encuentra. Un nombre sin homónimo

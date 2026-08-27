@@ -22,6 +22,13 @@ const preToolUse = "PreToolUse"
 // hookOperation is the command an agent runs to reach the gate.
 const hookOperation = "hook run"
 
+// claudeMatcher is the tool list both Claude clients gate on.
+//
+// Task is stock Claude Code's research dispatch and Agent is the same tool in
+// newer harnesses; naming one would leave the other ungated in half the
+// installations.
+const claudeMatcher = "Bash|Glob|Grep|Task|Agent"
+
 // hookTimeoutSeconds bounds the gate from the agent's side as well as its own.
 //
 // It is a belt on top of the command's braces: the command already gives up on
@@ -51,11 +58,10 @@ type hookDocument struct {
 
 // hookDocumentFor resolves a target's gate.
 //
-// Only three of the five clients can host one, and the two that cannot are
-// refused by name rather than left to fail later. Claude Desktop has no
-// pre-tool contract at all, and Oh My Pi's own documentation calls its hook
-// subsystem legacy and says the runtime uses an extension runner instead --
-// writing a file against that would be writing against a moving target.
+// Four of the five clients can host one. Oh My Pi is the exception: its own
+// documentation calls its hook subsystem legacy and says the runtime uses an
+// extension runner instead, and writing a file against that would be writing
+// against a moving target.
 func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument, error) {
 	if err := validateScope(scope); err != nil {
 		return hookDocument{}, err
@@ -66,10 +72,22 @@ func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument
 		// Claude Code keeps hooks in settings.json, which is not the
 		// .claude.json its MCP servers live in. Two files, one client.
 		document.path = filepath.Join(manager.scopeRoot(scope), ".claude", "settings.json")
-		// Task is stock Claude Code's research dispatch and Agent is the
-		// same tool in newer harnesses; naming one would leave the other
-		// ungated in half the installations.
-		document.matcher = "Bash|Glob|Grep|Task|Agent"
+		document.matcher = claudeMatcher
+	case TargetClaudeDesktop:
+		// Claude Desktop bundles a Claude Code and runs it for its agent
+		// work, and it does not give that process a configuration
+		// directory of its own: a session started from the desktop app
+		// writes its transcript to `~/.claude/projects`, which is
+		// `$CLAUDE_CONFIG_DIR/projects` with the variable unset. So the
+		// gate it reads is the one in the file below -- the same file
+		// claude-code installs into, named separately because a reader
+		// looking for the desktop app should not have to know that.
+		if scope != ScopeUser {
+			return hookDocument{}, fmt.Errorf(
+				"target %q has no project scope: it reads only the user's settings", target)
+		}
+		document.path = filepath.Join(manager.homeDir, ".claude", "settings.json")
+		document.matcher = claudeMatcher
 	case TargetCodex:
 		document.path = filepath.Join(manager.scopeRoot(scope), ".codex", "hooks.json")
 		// Codex gates the shell, apply_patch and MCP calls. Only the
@@ -85,7 +103,7 @@ func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument
 	default:
 		return hookDocument{}, fmt.Errorf(
 			"target %q hosts no pre-tool-use gate (want %s)", target,
-			strings.Join([]string{TargetClaudeCode, TargetCodex, TargetOpenCode}, ", "))
+			strings.Join(targetNames(HookTargets()), ", "))
 	}
 	return document, nil
 }
@@ -150,22 +168,69 @@ func (manager Manager) StatusHook(target Target, scope Scope) (Plan, error) {
 // DetectHookTargets reports which clients can host a gate and appear installed.
 func (manager Manager) DetectHookTargets(scope Scope) ([]TargetDetection, error) {
 	detections := []TargetDetection{}
-	for _, target := range []Target{TargetClaudeCode, TargetCodex, TargetOpenCode} {
+	for _, target := range HookTargets() {
 		document, err := manager.hookDocumentFor(target, scope)
 		if err != nil {
 			continue
 		}
-		// The gate's own file may not exist yet, so what is looked for is
-		// the directory the client keeps its configuration in: that is
-		// what says the client is installed rather than that we already
-		// wrote to it.
-		exists, err := pathExists(filepath.Dir(document.path))
+		detected, err := anyPathExists(manager.hookMarkers(target, document))
 		if err != nil {
 			return nil, err
 		}
-		detections = append(detections, TargetDetection{Target: target, Detected: exists})
+		detections = append(detections, TargetDetection{Target: target, Detected: detected})
 	}
 	return detections, nil
+}
+
+// hookMarkers are the paths that say a client is installed.
+//
+// For three of the four it is the directory the client keeps its configuration
+// in, because the gate's own file may not exist yet and its absence says
+// nothing about the client. Claude Desktop needs its own answer: it writes into
+// `~/.claude`, which is Claude Code's directory, so keying off that would
+// report the desktop app as installed on every machine that has ever run the
+// CLI.
+func (manager Manager) hookMarkers(target Target, document hookDocument) []string {
+	if target != TargetClaudeDesktop {
+		return []string{filepath.Dir(document.path)}
+	}
+	return manager.claudeDesktopMarkers()
+}
+
+// claudeDesktopMarkers are the paths that say the desktop app is installed.
+//
+// The Linux entry is `com.anthropic.Claude.desktop`, which is what the
+// `claude-desktop` package actually ships -- `dpkg -L claude-desktop` names
+// exactly one `.desktop` file and that is it. The unqualified `claude.desktop`
+// beside it is kept for a packaging that uses it, and because dropping a marker
+// can only ever cost a detection.
+func (manager Manager) claudeDesktopMarkers() []string {
+	if manager.goos == "darwin" {
+		return []string{
+			filepath.Join(manager.homeDir, "Applications", "Claude.app"),
+			"/Applications/Claude.app",
+		}
+	}
+	return []string{
+		filepath.Join(manager.homeDir, ".local", "share", "applications", "com.anthropic.Claude.desktop"),
+		"/usr/share/applications/com.anthropic.Claude.desktop",
+		filepath.Join(manager.homeDir, ".local", "share", "applications", "claude.desktop"),
+		"/usr/share/applications/claude.desktop",
+	}
+}
+
+// anyPathExists reports whether at least one marker is present.
+func anyPathExists(paths []string) (bool, error) {
+	for _, path := range paths {
+		exists, err := pathExists(path)
+		if err != nil {
+			return false, err
+		}
+		if exists {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // plan is the common shape of every answer this file gives.
@@ -180,5 +245,14 @@ func (manager Manager) plan(action Action, document hookDocument, status, detail
 // text that named all five would send a reader to a --target that answers with
 // an error.
 func HookTargets() []Target {
-	return []Target{TargetClaudeCode, TargetCodex, TargetOpenCode}
+	return []Target{TargetClaudeCode, TargetClaudeDesktop, TargetCodex, TargetOpenCode}
+}
+
+// targetNames spells a target list for an error message.
+func targetNames(targets []Target) []string {
+	names := make([]string, 0, len(targets))
+	for _, target := range targets {
+		names = append(names, string(target))
+	}
+	return names
 }
