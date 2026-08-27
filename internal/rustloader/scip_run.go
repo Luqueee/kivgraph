@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
 )
 
@@ -99,9 +100,9 @@ func ResolveAnalyzer(command string) (string, AnalyzerSource, error) {
 		}
 		return resolved, AnalyzerExplicit, nil
 	}
-	if executable, err := os.Executable(); err == nil {
-		sibling := filepath.Join(filepath.Dir(executable), trimmed)
-		if info, statErr := os.Stat(sibling); statErr == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+	if selfPath, err := os.Executable(); err == nil {
+		sibling := filepath.Join(filepath.Dir(selfPath), executable.Name(trimmed))
+		if info, statErr := os.Stat(sibling); statErr == nil && executable.IsProgram(info) {
 			return sibling, AnalyzerBundled, nil
 		}
 	}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/dartloader"
+	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goloader"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -1544,16 +1545,22 @@ const defaultTypeScriptWorkerCommand = "kivgraph-ts-worker"
 // siblingExecutable answers an executable installed next to the running
 // binary, which is what a bundle is.
 func siblingExecutable(name string) (string, bool) {
-	executable, err := os.Executable()
+	selfPath, err := os.Executable()
 	if err != nil {
 		return "", false
 	}
-	candidate := filepath.Join(filepath.Dir(executable), name)
-	info, statErr := os.Stat(candidate)
-	if statErr != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-		return "", false
+	// Every name this platform would run, not just the one it would compile
+	// to: the bundle's worker shim is a script, and a search for the compiled
+	// form would report a complete bundle as missing it.
+	for _, name := range executable.Candidates(name) {
+		candidate := filepath.Join(filepath.Dir(selfPath), name)
+		info, statErr := os.Stat(candidate)
+		if statErr != nil || !executable.IsProgram(info) {
+			continue
+		}
+		return candidate, true
 	}
-	return candidate, true
+	return "", false
 }
 
 // DecodeFactsJSON is kept small and explicit for callers that persist a facts

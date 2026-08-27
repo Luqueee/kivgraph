@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/durable"
 )
 
 const backupManifestVersion = 1
@@ -119,7 +121,7 @@ func CreateBackup(ctx context.Context, request BackupRequest) (string, error) {
 	if err := writeManifest(temporaryPath, manifest); err != nil {
 		return "", fmt.Errorf("write backup manifest: %w", err)
 	}
-	if err := syncDirectory(temporaryPath); err != nil {
+	if err := durable.Directory(temporaryPath); err != nil {
 		return "", fmt.Errorf("sync temporary backup: %w", err)
 	}
 	if err := os.Rename(temporaryPath, finalPath); err != nil {
@@ -132,7 +134,7 @@ func CreateBackup(ctx context.Context, request BackupRequest) (string, error) {
 		return "", fmt.Errorf("publish backup: %w", err)
 	}
 	completed = true
-	if err := syncDirectory(destinationRoot); err != nil {
+	if err := durable.Directory(destinationRoot); err != nil {
 		return "", fmt.Errorf("sync backup directory: %w", err)
 	}
 	return finalPath, nil
@@ -426,14 +428,4 @@ func fileSHA256(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
-}
-
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	syncErr := directory.Sync()
-	closeErr := directory.Close()
-	return errors.Join(syncErr, closeErr)
 }

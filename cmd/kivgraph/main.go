@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -446,11 +447,23 @@ func runConfiguredServe(
 		Message:    command + " started",
 		Generation: publishedGenerationID(store),
 	})
+	// The close belongs in the same deferred call as the last line written,
+	// because two defers would run in the wrong order and close the file
+	// before the "stopped" event reached it.
+	//
+	// It was missing entirely. `index` closed its writer and the long-running
+	// commands -- the ones that hold the handle for hours -- did not, which on
+	// Unix costs a descriptor until the process exits and shows up nowhere. On
+	// Windows an open file cannot be deleted, so a test's own temporary
+	// directory outlived the test and said so.
 	defer func() {
 		events.Append(eventlog.Event{
 			Kind:    eventlog.KindServe,
 			Message: command + " stopped",
 		}.WithDuration(time.Since(started)))
+		if err := events.Close(); err != nil {
+			writeWarning(os.Stderr, "events: close: %v", err)
+		}
 	}()
 	stopFollower := followPublishedGeneration(ctx, loaded, store, command, indexing.FollowOptions{})
 	defer stopFollower()
@@ -699,7 +712,7 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess)
+	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess, gracefulStopSupported)
 }
 
 // updateOptions carries the flags of `kivgraph update`.
@@ -726,6 +739,7 @@ func runUpdateWithRunner(
 	runner updateRunner,
 	list processLister,
 	signal processSignaller,
+	graceful bool,
 ) int {
 	var options updateOptions
 	flags := updateFlagSet(&options)
@@ -759,7 +773,7 @@ func runUpdateWithRunner(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, options.StopStale, result.LatestVersion)
+	return stopStaleProcesses(stdin, stdout, stderr, list, signal, options.StopStale, result.LatestVersion, graceful)
 }
 
 // stopStaleProcesses offers to end the servers that outlived the bundle they
@@ -780,6 +794,7 @@ func stopStaleProcesses(
 	signal processSignaller,
 	stopStale bool,
 	release string,
+	graceful bool,
 ) int {
 	processes, err := list()
 	if err != nil {
@@ -802,7 +817,7 @@ func stopStaleProcesses(
 			return 0
 		}
 	}
-	killed, failed := stopTargets(targets, stdout, stderr, list, signal)
+	killed, failed := stopTargets(targets, stdout, stderr, list, signal, graceful)
 	if failed != 0 {
 		writeResult(stdout, false, "update.stop: FAIL (%d of %d)", failed, len(targets))
 		return 1
@@ -1790,6 +1805,18 @@ func inspectDoctorDirectory(path string) (bool, string) {
 	if !info.IsDir() {
 		return false, "not a directory"
 	}
+	// Whether the directory is the owner's alone is a question with no answer
+	// on a platform that does not keep POSIX mode bits. Go reports every
+	// directory on Windows as 0777, so asking here would fail every state
+	// directory on every machine, and a check that cannot be wrong is not a
+	// check -- it is a permanent red that teaches an operator to ignore the
+	// whole report. What the platform does have is an ACL, which nothing here
+	// sets yet, so the honest answer names the gap instead of asserting either
+	// side of it. workspace.validateDirectoryPermissions already declines the
+	// same question for the same reason.
+	if runtime.GOOS == "windows" {
+		return true, path + " (privacy unchecked: this platform keeps an ACL, not mode bits)"
+	}
 	if info.Mode().Perm()&0o077 != 0 {
 		return false, fmt.Sprintf("permissions %04o are broader than 0700", info.Mode().Perm())
 	}
@@ -2412,7 +2439,10 @@ func stopFlagSet(options *stopOptions) *flag.FlagSet {
 // left alone, because killing one throws away minutes of analysis, and the
 // stop command does not stop itself. Nothing else running on the machine can
 // match, since the first argument has to be a kivgraph binary.
-func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller) int {
+// graceful is passed rather than read from the build, so the platform that
+// cannot ask a process to exit is exercised on the platform that can. The
+// branch would otherwise be reachable only where CI does not run.
+func runStop(args []string, stdout, stderr io.Writer, list processLister, signal processSignaller, graceful bool) int {
 	var options stopOptions
 	flags := stopFlagSet(&options)
 	if parsed, code := parseCommandFlags("stop", flags, args, stdout, stderr); !parsed {
@@ -2442,7 +2472,7 @@ func runStop(args []string, stdout, stderr io.Writer, list processLister, signal
 		return 0
 	}
 
-	killed, failed := stopTargets(targets, stdout, stderr, list, signal)
+	killed, failed := stopTargets(targets, stdout, stderr, list, signal, graceful)
 	if failed != 0 {
 		writeResult(stdout, false, "stop: FAIL (%d of %d)", failed, len(targets))
 		return 1
@@ -2465,18 +2495,28 @@ func stopTargets(
 	stdout, stderr io.Writer,
 	list processLister,
 	signal processSignaller,
+	graceful bool,
 ) (killed, failed int) {
 	for _, target := range targets {
-		if err := signal(target.PID, syscall.SIGTERM); err != nil {
-			writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
-			failed++
-			continue
-		}
-		if waitForExit(target.PID, list, stopGracePeriod) {
-			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
-			continue
-		}
-		if !stillRunning(target, list) {
+		if graceful {
+			if err := signal(target.PID, syscall.SIGTERM); err != nil {
+				writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
+				failed++
+				continue
+			}
+			if waitForExit(target.PID, list, stopGracePeriod) {
+				writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
+				continue
+			}
+			if !stillRunning(target, list) {
+				writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
+				continue
+			}
+		} else if !stillRunning(target, list) {
+			// Without a polite stage there is no bounded wait either, so the
+			// only thing between listing the process and ending it is this
+			// second look -- and it is the one that matters, because a pid
+			// freed in between can already belong to something else.
 			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
 			continue
 		}
@@ -2485,7 +2525,11 @@ func stopTargets(
 			failed++
 			continue
 		}
-		writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
+		if graceful {
+			writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
+		} else {
+			writeWarning(stdout, "stop.terminated: pid=%d was ended without being asked, which is all this platform offers %s", target.PID, target.Command())
+		}
 		killed++
 	}
 	return killed, failed

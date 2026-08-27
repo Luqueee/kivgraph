@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Luqueee/kivgraph/internal/durable"
 )
 
 func (store *Store) Prepare(ctx context.Context) error {
@@ -528,20 +530,9 @@ func requireRegular(path string) error {
 	return nil
 }
 
-func rawSyncFile(path string) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	return file.Sync()
-}
+// rawSyncFile and rawSyncDirectory are the flushes without the fault
+// injector in front of them, which is the whole of what "raw" means here.
+// What they flush, and where a platform cannot, is durable's business.
+func rawSyncFile(path string) error { return durable.File(path) }
 
-func rawSyncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
-}
+func rawSyncDirectory(path string) error { return durable.Directory(path) }

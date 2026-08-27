@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -42,8 +41,8 @@ func TestPublishedSnapshotSurvivesWorkerLoss(t *testing.T) {
 		t.Fatalf("worker did not start: %#v", status)
 	}
 
-	if err := syscall.Kill(status.PID, syscall.SIGKILL); err != nil {
-		t.Fatalf("Kill() error = %v", err)
+	if err := killProcess(status.PID); err != nil {
+		t.Fatalf("killProcess() error = %v", err)
 	}
 	duringRestart := querySymbol(t, session)
 
@@ -200,11 +199,25 @@ func waitForWorkerGiveUp(t *testing.T, supervisor *tsworker.Supervisor) bool {
 			return true
 		}
 		if status.PID != 0 && status.State == tsworker.StateReady {
-			_ = syscall.Kill(status.PID, syscall.SIGKILL)
+			_ = killProcess(status.PID)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	return false
+}
+
+// killProcess ends a worker the way something outside the supervisor would,
+// without naming a signal. What this test needs is that the process is gone
+// and that the supervisor did not ask for it -- SIGKILL where there are
+// signals and TerminateProcess where there are not both satisfy that, and
+// naming syscall.SIGKILL here would have made the whole file Unix-only for a
+// detail it never asserts on.
+func killProcess(pid int) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return process.Kill()
 }
 
 func startWorker(t *testing.T, tune func(*tsworker.Options)) *tsworker.Supervisor {

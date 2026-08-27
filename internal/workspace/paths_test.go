@@ -141,6 +141,12 @@ func TestValidatePathsRejectsSecurityViolations(t *testing.T) {
 		{
 			name: "permissions",
 			build: func(t *testing.T) config.RepositoriesFile {
+				// Chmod does not report failure on a platform that keeps no
+				// mode bits -- it toggles the read-only attribute and returns
+				// nil -- so the skip below never fires there and the case
+				// instead asserts that an unreadable directory was refused
+				// after failing to make one.
+				testsupport.SkipWithoutModeBits(t)
 				path := testsupport.TempDir(t)
 				if err := os.Chmod(path, 0o000); err != nil {
 					t.Skipf("chmod unavailable: %v", err)

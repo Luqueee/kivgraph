@@ -2,7 +2,6 @@ package pythonloader
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,12 +16,8 @@ func TestRunConfiguredSemanticProviderIsAuthoritative(t *testing.T) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	provider := filepath.Join(t.TempDir(), "python-provider")
 	payload := `{"version":1,"repository":"semantic","language":"python","package":{"name":"semantic","rootPath":"PROJECT"},"files":[{"path":"main.py"}],"symbols":[{"id":"main","file":"main.py","name":"main","qualifiedName":"main","kind":"function","exported":true,"signature":"def main()","startLine":1,"start":0,"endLine":1,"end":10},{"id":"helper","file":"main.py","name":"helper","qualifiedName":"helper","kind":"function","exported":true,"signature":"def helper()","startLine":2,"start":11,"endLine":2,"end":23}],"references":[{"file":"main.py","sourceId":"main","targetId":"helper","kind":"CALLS_DIRECT","startLine":1,"start":5,"endLine":1,"end":11}],"imports":[],"unresolved":[]}`
-	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '%s'", payload)
-	if err := os.WriteFile(provider, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	provider := writeProvider(t, "python-provider", payload)
 	result, err := Run(context.Background(), provider, "python3", workspace.Repository{Name: "semantic", Path: root, RealPath: root}, root)
 	if err != nil {
 		t.Fatal(err)
@@ -46,12 +41,8 @@ func TestRunExactModeUsesConfiguredAnalyzer(t *testing.T) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	provider := filepath.Join(t.TempDir(), "python-exact-provider")
 	payload := `{"version":1,"repository":"exact","language":"python","package":{"name":"exact","rootPath":"PROJECT"},"files":[{"path":"main.py"}],"symbols":[],"references":[],"imports":[],"unresolved":[]}`
-	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '%s'", payload)
-	if err := os.WriteFile(provider, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	provider := writeProvider(t, "python-exact-provider", payload)
 	result, err := RunWithOptions(context.Background(), Options{
 		IndexerCommand:  "missing-fallback",
 		AnalyzerCommand: provider,

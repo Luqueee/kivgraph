@@ -846,18 +846,36 @@ func (supervisor *Supervisor) startSession(ctx context.Context) (*session, error
 	if err != nil {
 		return nil, newSupervisorError(CodeSpawn, "spawn", err)
 	}
-	stdout, err := cmd.StdoutPipe()
+	// stdout is wired by hand rather than through cmd.StdoutPipe, because the
+	// pipe this end reads from has to be one the runtime can interrupt: that
+	// is what lets a blocked ReadFrame be cancelled, and so what lets the
+	// supervisor give up on a worker that stopped answering. See
+	// interruptibleOutputPipe, where the platforms differ.
+	stdout, childStdout, err := interruptibleOutputPipe()
 	if err != nil {
 		_ = stdin.Close()
 		return nil, newSupervisorError(CodeSpawn, "spawn", err)
 	}
+	cmd.Stdout = childStdout
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = childStdout.Close()
 		return nil, newSupervisorError(CodeSpawn, "spawn", err)
 	}
 	if err := cmd.Start(); err != nil {
 		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = childStdout.Close()
+		return nil, newSupervisorError(CodeSpawn, "spawn", err)
+	}
+	// The child holds its own end now. This copy has to go, or the read end
+	// never sees EOF when the worker exits and every reader waits on a writer
+	// that is this process.
+	if err := childStdout.Close(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
 		return nil, newSupervisorError(CodeSpawn, "spawn", err)
 	}
 

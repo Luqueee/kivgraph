@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // The supervisor tests drive a real child process. Re-executing the test
@@ -258,16 +260,7 @@ func blockForever() {
 }
 
 // processAlive reports whether the pid still exists.
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return process.Signal(syscall.Signal(0)) == nil
-}
+func processAlive(pid int) bool { return testsupport.ProcessAlive(pid) }
 
 // waitForState polls until the supervisor reaches one of the wanted states.
 func waitForState(t *testing.T, supervisor *Supervisor, timeout time.Duration, wanted ...State) Status {

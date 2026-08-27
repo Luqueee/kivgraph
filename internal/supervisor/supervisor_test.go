@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func testSpec(directory string) Spec {
@@ -121,7 +123,7 @@ func TestStatusReportsTheThreeStates(t *testing.T) {
 		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
 	}
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	spec := testSpec(t.TempDir())
 
@@ -172,7 +174,7 @@ func TestRemovingAnAbsentUnitIsNotAFailure(t *testing.T) {
 		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
 	}
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
 	report, err := Remove(testSpec(t.TempDir()))

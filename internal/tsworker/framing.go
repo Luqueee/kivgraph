@@ -127,9 +127,25 @@ type Reader struct {
 // is only observed between frames.
 func NewReader(source io.Reader) *Reader {
 	reader := &Reader{source: source}
-	if candidate, ok := source.(deadlineSetter); ok {
-		reader.deadline = candidate
+	candidate, ok := source.(deadlineSetter)
+	if !ok {
+		return reader
 	}
+	// Having the method is not having the capability. *os.File carries
+	// SetReadDeadline on every platform and answers os.ErrNoDeadline for a
+	// handle its runtime cannot poll -- an anonymous pipe on Windows, which is
+	// exactly what a child process's stdout was. Asserting the type alone made
+	// this reader claim an interruption it could not perform, and armDeadline
+	// discarded the error that said so, so a blocked read simply never came
+	// back and the supervisor waited on it forever.
+	//
+	// Clearing a deadline is the probe. It is idempotent, it is what the
+	// reader would do at the end of the first frame anyway, and it is refused
+	// by precisely the transports that cannot honour one.
+	if err := candidate.SetReadDeadline(time.Time{}); err != nil {
+		return reader
+	}
+	reader.deadline = candidate
 	return reader
 }
 

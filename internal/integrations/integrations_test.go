@@ -1,7 +1,9 @@
 package integrations
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +17,7 @@ func testManager(t *testing.T) (Manager, string, string) {
 	manager, err := New(Options{
 		HomeDir:    home,
 		ProjectDir: project,
-		Executable: "/opt/kivgraph/bin/kivgraph",
+		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
 	})
 	if err != nil {
@@ -25,6 +27,10 @@ func testManager(t *testing.T) (Manager, string, string) {
 }
 
 func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
+	// The mode is the claim here, and only a platform that keeps one can
+	// answer it. Where it does not, the file is narrowed with an ACL and
+	// asserting 0600 would assert what Go reports about every file there.
+	testsupport.SkipWithoutModeBits(t)
 	manager, home, _ := testManager(t)
 	path := filepath.Join(home, ".claude.json")
 
@@ -39,7 +45,7 @@ func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	if !strings.Contains(string(first), `"command": "/opt/kivgraph/bin/kivgraph"`) {
+	if !strings.Contains(string(first), `"command": "`+escapedPath(t, testsupport.InstalledExecutable())+`"`) {
 		t.Fatalf("installed JSON does not contain executable: %s", first)
 	}
 	if mode := fileMode(t, path); mode.Perm() != 0o600 {
@@ -228,4 +234,19 @@ func TestTheAdvertisedTargetListsMatchWhatEachKindAccepts(t *testing.T) {
 			}
 		})
 	}
+}
+
+// escapedPath is the path as it appears inside a JSON or TOML string.
+//
+// A Windows path is mostly backslashes and both formats escape a backslash the
+// same way, so the encoder answers for both. Writing the expectation by hand
+// would mean writing the escaping by hand, which is the thing under test one
+// file over.
+func escapedPath(t *testing.T, path string) string {
+	t.Helper()
+	encoded, err := json.Marshal(path)
+	if err != nil {
+		t.Fatalf("encode %q: %v", path, err)
+	}
+	return string(encoded[1 : len(encoded)-1])
 }

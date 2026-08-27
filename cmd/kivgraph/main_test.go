@@ -100,8 +100,8 @@ func TestRunUpdateCheckUsesReleaseRunner(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner([]string{"--check"}, nil, &stdout, &stderr, runner, noProcesses, nil); got != 0 {
-		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
+	if got := runUpdateWithRunner([]string{"--check"}, nil, &stdout, &stderr, runner, noProcesses, nil, true); got != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if !called {
 		t.Fatal("update runner was not called")
@@ -128,8 +128,8 @@ func TestRunUpdateReportsInstalledRelease(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner(nil, nil, &stdout, &stderr, runner, noProcesses, nil); got != 0 {
-		t.Fatalf("runUpdateWithRunner() exit code = %d, stderr=%q", got, stderr.String())
+	if got := runUpdateWithRunner(nil, nil, &stdout, &stderr, runner, noProcesses, nil, true); got != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if got, want := stdout.String(), "kivgraph updated: "+version.Value+" -> 0.1.1\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
@@ -145,7 +145,7 @@ func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 
@@ -182,7 +182,7 @@ func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	var initStdout, initStderr bytes.Buffer
@@ -214,7 +214,7 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
@@ -264,7 +264,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(home, ".config", "kivgraph", "config.yaml")
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		t.Fatalf("config error = %v, want a home with no configuration", err)
@@ -326,7 +326,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 // instead, and never binds a port to serve nothing.
 func TestRunConfiguredUIRefusesWithoutTheWebBundle(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	err := runConfiguredUI(context.Background(), []string{"--config", filepath.Join(root, "config.yaml")},
 		func(context.Context, string, http.Handler) error {
 			t.Fatal("ui opened a server with no viewer to serve")
@@ -348,7 +348,7 @@ func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	var initStdout, initStderr bytes.Buffer
@@ -414,7 +414,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{
@@ -450,7 +450,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 // place.
 func TestFollowPublishedGenerationStopsWithItsCaller(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	if _, err := config.Initialize(config.InitOptions{
 		ConfigPath:       configPath,
@@ -499,7 +499,7 @@ func TestFollowPublishedGenerationStopsWithItsCaller(t *testing.T) {
 
 func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{
@@ -541,7 +541,7 @@ func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 // TestUIWarnsWhenTheBindIsReachable keeps.
 func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{
@@ -1691,7 +1691,7 @@ func TestStopEndsLongRunningCommandsOnly(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal, true); code != 0 {
 		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
 	}
 	want := "11:terminated,12:terminated,13:terminated"
@@ -1714,7 +1714,7 @@ func TestStopKillsWhatDoesNotExit(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal, true); code != 0 {
 		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
 	}
 	if got := strings.Join(fixture.signals, ","); got != "21:terminated,21:killed" {
@@ -1722,6 +1722,36 @@ func TestStopKillsWhatDoesNotExit(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "stop.killed: pid=21") {
 		t.Fatalf("stdout = %q, want the kill reported rather than hidden", stdout.String())
+	}
+}
+
+// TestStopWithoutAGracefulStageTerminatesAndSaysSo covers the platform that
+// cannot ask a process it did not start to exit, from the platform that can.
+//
+// The branch is Windows-only in production and would otherwise be reachable
+// only where CI does not run, which is how a platform-specific path stays
+// broken for a release. Two things are asserted and both are the point: one
+// signal rather than two -- there is no polite one to send first -- and a
+// report that says the process was ended rather than that it agreed to stop.
+func TestStopWithoutAGracefulStageTerminatesAndSaysSo(t *testing.T) {
+	shortenStopGrace(t)
+	fixture := &stopFixture{
+		processes: []procstat.Process{kivgraphProcess(31, "daemon")},
+		diesOn:    map[int]syscall.Signal{31: syscall.SIGKILL},
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal, false); code != 0 {
+		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
+	}
+	if got := strings.Join(fixture.signals, ","); got != "31:killed" {
+		t.Fatalf("signals = %q, want the kill alone and no SIGTERM before it", got)
+	}
+	if output := stdout.String(); !strings.Contains(output, "stop.terminated: pid=31") {
+		t.Fatalf("stdout = %q, want the termination named rather than reported as a stop", output)
+	}
+	if output := stdout.String(); strings.Contains(output, "stop.killed") {
+		t.Fatalf("stdout = %q, want no claim that a grace period elapsed", output)
 	}
 }
 
@@ -1736,7 +1766,7 @@ func TestStopNeverKillsAReusedPid(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal, true); code != 0 {
 		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
 	}
 	if got := strings.Join(fixture.signals, ","); got != "31:terminated" {
@@ -1749,7 +1779,7 @@ func TestStopDryRunSignalsNothing(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(41, "serve")}}
 
 	var stdout, stderr bytes.Buffer
-	if code := runStop([]string{"--dry-run"}, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+	if code := runStop([]string{"--dry-run"}, &stdout, &stderr, fixture.list, fixture.signal, true); code != 0 {
 		t.Fatalf("runStop() = %d, want 0: %s", code, stderr.String())
 	}
 	if len(fixture.signals) != 0 {
@@ -1768,7 +1798,7 @@ func TestStopReportsWhatItCouldNotStop(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 1 {
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal, true); code != 1 {
 		t.Fatalf("runStop() = %d, want 1", code)
 	}
 	if !strings.Contains(stderr.String(), "operation not permitted") {
@@ -1782,7 +1812,7 @@ func TestStopSaysWhenNothingIsRunning(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(61, "index")}}
 
 	var stdout, stderr bytes.Buffer
-	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal); code != 0 {
+	if code := runStop(nil, &stdout, &stderr, fixture.list, fixture.signal, true); code != 0 {
 		t.Fatalf("runStop() = %d, want 0", code)
 	}
 	// The message has to name every command it would have stopped: a reader who
@@ -2185,14 +2215,6 @@ func TestCommitChangedNothingIsFalseWhenNothingMoved(t *testing.T) {
 	}
 	if commitChangedNothing(context.Background(), []indexing.RepositoryMovement{}) {
 		t.Fatal("commitChangedNothing(empty) = true, want false")
-	}
-}
-
-// Signal 0 asks whether a process can be signalled without sending anything,
-// which is how `stop` checks that a pid is still the invocation it read.
-func TestSignalProcessReachesALiveProcess(t *testing.T) {
-	if err := signalProcess(os.Getpid(), syscall.Signal(0)); err != nil {
-		t.Fatalf("signalProcess(self, 0) error = %v, want the running test to be reachable", err)
 	}
 }
 

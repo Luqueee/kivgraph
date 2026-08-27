@@ -225,7 +225,16 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 		if err := ctx.Err(); err != nil {
 			return Set{}, err
 		}
-		path := filepath.Clean(filepath.ToSlash(file.Path))
+		// Clean first and convert after, which is the order the twelve other
+		// normalisations in this file use and the only one that is right.
+		// filepath.Clean produces the separator of the host, so converting
+		// before it undoes the conversion: this line keyed the file table
+		// under "lib\\main.dart" while every lookup against it asked for
+		// "lib/main.dart", and every Dart and Python symbol was reported as
+		// referencing a file nobody had declared. On a platform whose
+		// separator is already a slash the two orders agree, which is why
+		// this survived.
+		path := filepath.ToSlash(filepath.Clean(file.Path))
 		if path == "." || path == "" {
 			return Set{}, fmt.Errorf("%w: semantic file has empty path", ErrInvalidFacts)
 		}

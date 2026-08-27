@@ -83,26 +83,45 @@ if [[ "$target_os" == "$target" || -z "$target_arch" ]]; then
 	exit 2
 fi
 
+# MCPB names platforms the way Node's `process.platform` does, so Windows is
+# `win32` rather than `windows`. The identifier belongs to the format, not to
+# us, and `$target_os` is the name the release matrix uses -- the two have to
+# be mapped here or the manifest claims a platform no client recognises.
+case "$target_os" in
+linux) mcpb_platform="linux" ;;
+darwin) mcpb_platform="darwin" ;;
+windows) mcpb_platform="win32" ;;
+*)
+	printf 'build-mcpb: no MCPB platform identifier for %s\n' "$target_os" >&2
+	exit 2
+	;;
+esac
+
+program="bin/kivgraph"
+if [[ "$target_os" == windows ]]; then
+	program="bin/kivgraph.exe"
+fi
+
 # The binary and the native library are what make this archive worth shipping.
 # Packaging a bundle missing either produces a `.mcpb` that installs and then
 # fails at the first tool call, which is the failure a reader cannot diagnose.
-if [[ ! -x "$bundle/bin/kivgraph" ]]; then
-	printf 'build-mcpb: %s/bin/kivgraph is missing or not executable\n' "$bundle" >&2
+#
+# Presence and executability are separate checks because on Windows only the
+# first one means anything. There is no executable mode bit there; what `-x`
+# reports is the shell's guess from the extension, so asserting it would be
+# asserting a property of the shell rather than of the file.
+if [[ ! -f "$bundle/$program" ]]; then
+	printf 'build-mcpb: %s/%s is missing\n' "$bundle" "$program" >&2
+	exit 1
+fi
+if [[ "$target_os" != windows && ! -x "$bundle/$program" ]]; then
+	printf 'build-mcpb: %s/%s is not executable\n' "$bundle" "$program" >&2
 	exit 1
 fi
 if [[ ! -f "$bundle/manifest.json" ]]; then
 	printf 'build-mcpb: %s/manifest.json is missing, so this is not a built bundle\n' "$bundle" >&2
 	exit 1
 fi
-
-case "$target_os" in
-linux) mcpb_platform="linux" ;;
-darwin) mcpb_platform="darwin" ;;
-*)
-	printf 'build-mcpb: no MCPB platform identifier for %s\n' "$target_os" >&2
-	exit 2
-	;;
-esac
 
 sha256() {
 	if command -v sha256sum >/dev/null 2>&1; then
@@ -148,9 +167,9 @@ cat >"$staging/manifest.json" <<MANIFEST
   "keywords": ["code-intelligence", "code-graph", "static-analysis", "mcp"],
   "server": {
     "type": "binary",
-    "entry_point": "server/bin/kivgraph",
+    "entry_point": "server/$program",
     "mcp_config": {
-      "command": "\${__dirname}/server/bin/kivgraph",
+      "command": "\${__dirname}/server/$program",
       "args": ["serve"],
       "env": {}
     }
@@ -179,7 +198,22 @@ output_name="$(basename "$output")"
 # cannot start.
 #
 # 1980-01-01 is the earliest instant a zip entry can express.
-python3 - "$staging" "$output_dir/$output_name" <<'PACKAGE'
+# `python3` is the name on Linux and macOS; a Git for Windows shell has only
+# `python` on PATH in some images and both in others. Resolving it here beats
+# discovering the difference in a release job.
+python=""
+for candidate in python3 python; do
+	if command -v "$candidate" >/dev/null 2>&1; then
+		python="$candidate"
+		break
+	fi
+done
+if [[ -z "$python" ]]; then
+	printf 'build-mcpb: no python3 or python on PATH to write the archive\n' >&2
+	exit 1
+fi
+
+"$python" - "$staging" "$output_dir/$output_name" <<'PACKAGE'
 import os
 import stat
 import sys

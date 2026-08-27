@@ -3,6 +3,7 @@ package integrations
 import (
 	"encoding/json"
 	"errors"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,7 +22,7 @@ func endpointManager(t *testing.T) (Manager, string, string) {
 	manager, err := New(Options{
 		HomeDir:    home,
 		ProjectDir: project,
-		Executable: "/opt/kivgraph/bin/kivgraph",
+		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
 		Endpoint:   Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "a-token"},
 	})
@@ -89,7 +90,7 @@ func TestAnEndpointEntryNamesNoCommand(t *testing.T) {
 func TestWithoutAnEndpointNothingChanges(t *testing.T) {
 	manager, _, _ := testManager(t)
 	entry := manager.expectedJSONEntry(TargetClaudeCode)
-	if entry["command"] != "/opt/kivgraph/bin/kivgraph" {
+	if entry["command"] != testsupport.InstalledExecutable() {
 		t.Fatalf("entry = %#v, want the executable", entry)
 	}
 	if _, found := entry["url"]; found {
@@ -131,6 +132,10 @@ func TestAnEndpointRefusesProjectScope(t *testing.T) {
 // TestAnInstalledEndpointIsWhatTheClientReads closes the loop through the real
 // writer: a hand-built map proves the shape, not that it survives the file.
 func TestAnInstalledEndpointIsWhatTheClientReads(t *testing.T) {
+	// The mode is the claim here, and only a platform that keeps one can
+	// answer it. Where it does not, the file is narrowed with an ACL and
+	// asserting 0600 would assert what Go reports about every file there.
+	testsupport.SkipWithoutModeBits(t)
 	manager, home, _ := endpointManager(t)
 
 	if _, err := manager.InstallMCP(TargetClaudeCode, ScopeUser, false, false); err != nil {
@@ -216,7 +221,7 @@ func TestReinstallingOverAStdioEntryReplacesIt(t *testing.T) {
 	base := Options{
 		HomeDir:    home,
 		ProjectDir: project,
-		Executable: "/opt/kivgraph/bin/kivgraph",
+		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
 	}
 	stdio, err := New(base)
@@ -303,7 +308,7 @@ func TestTheRenderedEntryIsExactlyTheseBytes(t *testing.T) {
 
 	want := "[mcp_servers.kivgraph]\n" +
 		"args = [\"serve\"]\n" +
-		"command = \"/opt/kivgraph/bin/kivgraph\"\n"
+		"command = \"" + escapedPath(t, testsupport.InstalledExecutable()) + "\"\n"
 	if got := string(appendTOMLSection(nil, manager.expectedTOMLEntry())); got != want {
 		t.Fatalf("rendered:\n%s\nwant:\n%s", got, want)
 	}
@@ -371,7 +376,7 @@ func TestNewRefusesAHalfSpecifiedEndpoint(t *testing.T) {
 		_, err := New(Options{
 			HomeDir:    t.TempDir(),
 			ProjectDir: t.TempDir(),
-			Executable: "/opt/kivgraph/bin/kivgraph",
+			Executable: testsupport.InstalledExecutable(),
 			GOOS:       "darwin",
 			Endpoint:   endpoint,
 		})

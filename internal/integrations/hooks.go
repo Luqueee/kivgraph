@@ -212,6 +212,18 @@ func (manager Manager) claudeDesktopMarkers() []string {
 			"/Applications/Claude.app",
 		}
 	}
+	if manager.goos == "windows" {
+		// The first is the directory the application itself creates, which
+		// makes it a fact about the app having run rather than a guess about
+		// where an installer put it. The second is that guess, kept for the
+		// same reason the unqualified `.desktop` entry below is: a marker that
+		// is wrong costs a detection and a marker that is missing costs the
+		// same, so the cheaper mistake is to look in both places.
+		return []string{
+			filepath.Join(manager.roamingDir(), "Claude"),
+			filepath.Join(manager.localDir(), "AnthropicClaude"),
+		}
+	}
 	return []string{
 		filepath.Join(manager.homeDir, ".local", "share", "applications", "com.anthropic.Claude.desktop"),
 		"/usr/share/applications/com.anthropic.Claude.desktop",

@@ -11,27 +11,12 @@ import (
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
-// fakeIndexChild writes an executable that answers like `index --full --json`.
-// The script records its own arguments so a test can assert what the parent
-// asked for, which is the half of the contract the event stream cannot show.
-func fakeIndexChild(t *testing.T, body string) (executable, argumentsFile string) {
-	t.Helper()
-	directory := testsupport.TempDir(t)
-	executable = filepath.Join(directory, "fake-kivgraph")
-	argumentsFile = filepath.Join(directory, "arguments")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argumentsFile + "\n" + body
-	if err := os.WriteFile(executable, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake child: %v", err)
-	}
-	return executable, argumentsFile
-}
-
 func TestRunDetachedForwardsProgressAndReturnsTheReport(t *testing.T) {
-	executable, _ := fakeIndexChild(t, strings.Join([]string{
-		`printf '%s\n' '{"event":"progress","progress":{"phase":"go","repository":"one","completed":1,"total":2}}'`,
-		`printf '%s\n' '{"event":"progress","progress":{"phase":"rust","repository":"two","completed":2,"total":2}}'`,
-		`printf '%s\n' '{"event":"result","result":{"passed":true,"generation_id":"000054","counts":{"symbols":7},"index":{"rust_symbols":3}}}'`,
-	}, "\n")+"\n")
+	executable, _ := fakeIndexChild(t, fakeChildScript{Stdout: []string{
+		`{"event":"progress","progress":{"phase":"go","repository":"one","completed":1,"total":2}}`,
+		`{"event":"progress","progress":{"phase":"rust","repository":"two","completed":2,"total":2}}`,
+		`{"event":"result","result":{"passed":true,"generation_id":"000054","counts":{"symbols":7},"index":{"rust_symbols":3}}}`,
+	}})
 
 	var reported []ProjectProgress
 	document, err := RunDetached(context.Background(), DetachedOptions{
@@ -60,8 +45,9 @@ func TestRunDetachedForwardsProgressAndReturnsTheReport(t *testing.T) {
 // configuration would index a different graph than the one it serves -- and on
 // a temporary configuration, would publish into the real state directory.
 func TestRunDetachedPassesTheConfigurationToTheChild(t *testing.T) {
-	executable, argumentsFile := fakeIndexChild(t,
-		`printf '%s\n' '{"event":"result","result":{"passed":true,"generation_id":"000001"}}'`+"\n")
+	executable, argumentsFile := fakeIndexChild(t, fakeChildScript{Stdout: []string{
+		`{"event":"result","result":{"passed":true,"generation_id":"000001"}}`,
+	}})
 
 	if _, err := RunDetached(context.Background(), DetachedOptions{
 		Executable:       executable,
@@ -96,8 +82,9 @@ func TestRunDetachedPassesTheConfigurationToTheChild(t *testing.T) {
 // an empty value is not a value, and passing `--config ""` would make the child
 // resolve a path from an empty string instead of using the default location.
 func TestRunDetachedOmitsFlagsItWasNotGiven(t *testing.T) {
-	executable, argumentsFile := fakeIndexChild(t,
-		`printf '%s\n' '{"event":"result","result":{"passed":true}}'`+"\n")
+	executable, argumentsFile := fakeIndexChild(t, fakeChildScript{Stdout: []string{
+		`{"event":"result","result":{"passed":true}}`,
+	}})
 
 	if _, err := RunDetached(context.Background(), DetachedOptions{Executable: executable}); err != nil {
 		t.Fatalf("RunDetached() error = %v", err)
@@ -114,10 +101,12 @@ func TestRunDetachedOmitsFlagsItWasNotGiven(t *testing.T) {
 // TestRunDetachedPrefersTheChildsOwnReason keeps the useful half of a failure.
 // The child knows why it stopped; the exit code only says that it did.
 func TestRunDetachedPrefersTheChildsOwnReason(t *testing.T) {
-	executable, _ := fakeIndexChild(t, strings.Join([]string{
-		`printf '%s\n' '{"event":"result","result":{"passed":false,"error":"rebuild graph did not pass its gates"}}'`,
-		`exit 1`,
-	}, "\n")+"\n")
+	executable, _ := fakeIndexChild(t, fakeChildScript{
+		Stdout: []string{
+			`{"event":"result","result":{"passed":false,"error":"rebuild graph did not pass its gates"}}`,
+		},
+		ExitCode: 1,
+	})
 
 	document, err := RunDetached(context.Background(), DetachedOptions{Executable: executable})
 	if !errors.Is(err, ErrIndexProcess) {
@@ -135,7 +124,9 @@ func TestRunDetachedPrefersTheChildsOwnReason(t *testing.T) {
 // be mistaken for success: the child exited zero without reporting a
 // generation, so nothing was published and the caller must not report one.
 func TestRunDetachedRejectsAPassThatPublishedNothing(t *testing.T) {
-	executable, _ := fakeIndexChild(t, "echo 'the analyzer could not start' >&2\n")
+	executable, _ := fakeIndexChild(t, fakeChildScript{
+		Stderr: []string{"the analyzer could not start"},
+	})
 
 	if _, err := RunDetached(context.Background(), DetachedOptions{Executable: executable}); err == nil {
 		t.Fatal("RunDetached() error = nil, want a failure: no report means no generation")
@@ -148,11 +139,11 @@ func TestRunDetachedRejectsAPassThatPublishedNothing(t *testing.T) {
 // TestRunDetachedIgnoresLinesItDoesNotUnderstand keeps the stream extensible:
 // a server built before an event kind existed must still read the result.
 func TestRunDetachedIgnoresLinesItDoesNotUnderstand(t *testing.T) {
-	executable, _ := fakeIndexChild(t, strings.Join([]string{
-		`printf '%s\n' 'not json at all'`,
-		`printf '%s\n' '{"event":"invented","payload":{}}'`,
-		`printf '%s\n' '{"event":"result","result":{"passed":true,"generation_id":"000002"}}'`,
-	}, "\n")+"\n")
+	executable, _ := fakeIndexChild(t, fakeChildScript{Stdout: []string{
+		`not json at all`,
+		`{"event":"invented","payload":{}}`,
+		`{"event":"result","result":{"passed":true,"generation_id":"000002"}}`,
+	}})
 
 	document, err := RunDetached(context.Background(), DetachedOptions{Executable: executable})
 	if err != nil {
@@ -190,10 +181,9 @@ func TestTailBufferKeepsTheEnd(t *testing.T) {
 // client's next request and lose it. The child reports what it read, so the
 // assertion is on the observed end of the pipe and not on the wiring.
 func TestRunDetachedGivesTheChildNoStdin(t *testing.T) {
-	executable, _ := fakeIndexChild(t, strings.Join([]string{
-		`if read -r line; then inherited="$line"; else inherited="none"; fi`,
-		`printf '{"event":"result","result":{"passed":true,"generation_id":"%s"}}\n' "$inherited"`,
-	}, "\n")+"\n")
+	executable, _ := fakeIndexChild(t, fakeChildScript{Stdout: []string{
+		`{"event":"result","result":{"passed":true,"generation_id":"` + stdinPlaceholder + `"}}`,
+	}})
 
 	document, err := RunDetached(context.Background(), DetachedOptions{Executable: executable})
 	if err != nil {
@@ -209,10 +199,10 @@ func TestRunDetachedGivesTheChildNoStdin(t *testing.T) {
 // A pass reports what it could not load without failing, and a diagnostic that
 // only reaches a discarded buffer is a diagnostic nobody has.
 func TestRunDetachedMirrorsTheChildLog(t *testing.T) {
-	executable, _ := fakeIndexChild(t, strings.Join([]string{
-		`echo '{"level":"WARN","msg":"module not loaded"}' >&2`,
-		`printf '%s\n' '{"event":"result","result":{"passed":true,"generation_id":"000001"}}'`,
-	}, "\n")+"\n")
+	executable, _ := fakeIndexChild(t, fakeChildScript{
+		Stderr: []string{`{"level":"WARN","msg":"module not loaded"}`},
+		Stdout: []string{`{"event":"result","result":{"passed":true,"generation_id":"000001"}}`},
+	})
 
 	log := &strings.Builder{}
 	if _, err := RunDetached(context.Background(), DetachedOptions{

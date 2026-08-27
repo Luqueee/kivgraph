@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -481,7 +482,13 @@ func TestAnalyzerIdentityFollowsTheGoCommand(t *testing.T) {
 // TestAnalyzerIdentityFollowsTheWorker covers the other half of the analyser:
 // the same command line runs whatever the last build left in dist.
 func TestAnalyzerIdentityFollowsTheWorker(t *testing.T) {
-	worker := filepath.Join(testsupport.TempDir(t), "worker")
+	// The name carries the platform's program suffix. factsCommand resolves a
+	// configured worker with exec.LookPath and refuses one it cannot run, and
+	// on Windows a file with no extension is not runnable -- so the fixture
+	// took the "worker command is not executable" path, the fingerprint fell
+	// back to the constant "unavailable", and the test read a fixture Windows
+	// cannot run as an analyser identity that ignores its worker.
+	worker := filepath.Join(testsupport.TempDir(t), executable.Name("worker"))
 	writeFullFixture(t, worker, "#!/bin/sh\necho first\n")
 	if err := os.Chmod(worker, 0o700); err != nil {
 		t.Fatalf("Chmod() error = %v", err)

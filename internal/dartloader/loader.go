@@ -24,6 +24,8 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/workspace"
+
+	"github.com/Luqueee/kivgraph/internal/executable"
 )
 
 const PayloadVersion = 1
@@ -272,7 +274,7 @@ func start(ctx context.Context, command, sdkPath, root string) (*client, error) 
 		return nil, fmt.Errorf("unavailable Dart analyzer %q: %w", fields[0], err)
 	}
 	args := append([]string{}, fields[1:]...)
-	if filepath.Base(executable) == "dart" {
+	if isDartProgram(executable) {
 		args = append(args, "language-server", "--protocol=lsp", "--client-id=kivgraph", "--client-version=dev")
 	}
 	cmd := exec.CommandContext(ctx, executable, args...)
@@ -305,7 +307,7 @@ func SDKRoot(command string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unavailable Dart SDK %q: %w", fields[0], err)
 	}
-	if filepath.Base(executable) != "dart" && filepath.Base(executable) != "dart.exe" {
+	if !isDartProgram(executable) {
 		return "", fmt.Errorf("unexpected Dart SDK command %q, want the dart executable", executable)
 	}
 	candidates := []string{
@@ -399,6 +401,20 @@ type analyzerClient struct {
 	next     int
 }
 
+// isDartProgram reports whether a resolved path is the `dart` program itself,
+// under any name the platform stores it as.
+//
+// The three places that asked this used filepath.Base and compared against
+// "dart". On Windows the resolved path ends in `dart.exe`, so two of them
+// answered no and launched the SDK with no subcommand at all -- the process
+// printed its usage and exited, and the loader reported "closed connection to
+// the Dart analysis server". One of the three already carried `|| == "dart.exe"`
+// beside it, which is the drift executable.BaseName exists to remove: the
+// question is asked once, for every platform, in one place.
+func isDartProgram(path string) bool {
+	return executable.BaseName(path) == "dart"
+}
+
 func startAnalyzer(ctx context.Context, command, sdkPath, root string) (*analyzerClient, error) {
 	fields := strings.Fields(strings.TrimSpace(command))
 	if len(fields) == 0 {
@@ -412,7 +428,7 @@ func startAnalyzer(ctx context.Context, command, sdkPath, root string) (*analyze
 		return nil, fmt.Errorf("unavailable Dart analyzer %q: %w", fields[0], err)
 	}
 	args := append([]string{}, fields[1:]...)
-	if filepath.Base(executable) == "dart" {
+	if isDartProgram(executable) {
 		args = append(args, "language-server", "--protocol=analyzer", "--client-id=kivgraph", "--client-version=dev")
 	}
 	cmd := exec.CommandContext(ctx, executable, args...)
@@ -908,8 +924,19 @@ func isDartAnalyzerConstructorInvocation(row analyzerOutline, root string) bool 
 		return true
 	}
 	path := filepath.Clean(row.Element.Location.File)
-	if !filepath.IsAbs(path) {
+	switch {
+	case filepath.IsAbs(path):
+		// Absolute: pathWithin below decides whether it is ours.
+	case filepath.IsLocal(path):
 		path = filepath.Join(root, path)
+	default:
+		// Neither absolute nor local. On Unix that is a `..` climbing out of
+		// the repository. On Windows it is also `\sdk\flutter\widgets.dart`,
+		// which is rooted on the current drive and which filepath.IsAbs
+		// reports as relative because it names no volume -- so the join used
+		// to place an SDK file inside the repository and this function
+		// answered that a Flutter constructor was a declaration we own.
+		return true
 	}
 	return !pathWithin(root, path)
 }
@@ -1291,9 +1318,26 @@ func dartKind(kind int) string {
 		return "symbol"
 	}
 }
+
+// fileURI renders a path as the `file:` URI the analysis server expects.
+//
+// The leading slash is not decoration. A Windows path starts with its volume
+// rather than with a separator, so `C:/x/models.dart` went into url.URL as a
+// path with no leading slash and came out as `file://C:/x/models.dart` -- in
+// which `C:` is the *authority*, not a drive. The server said so:
+// "URI does not contain an absolute file path (missing drive letter)", and
+// every documentSymbol request for the whole fixture failed with it.
 func fileURI(path string) string {
-	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+	slashed := filepath.ToSlash(path)
+	if !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed
+	}
+	return (&url.URL{Scheme: "file", Path: slashed}).String()
 }
+
+// uriPath is the inverse, and has to remove the same slash: `/C:/x` is a URI
+// path and not a file name, and handing it to the file system would look for a
+// directory called "C:" at the root of the current drive.
 func uriPath(value string) (string, error) {
 	parsed, err := url.Parse(value)
 	if err != nil {
@@ -1302,6 +1346,9 @@ func uriPath(value string) (string, error) {
 	path, err := url.PathUnescape(parsed.Path)
 	if err != nil {
 		return "", err
+	}
+	if len(path) > 2 && path[0] == '/' && path[2] == ':' {
+		path = path[1:]
 	}
 	return filepath.FromSlash(path), nil
 }

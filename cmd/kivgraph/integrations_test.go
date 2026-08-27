@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestRunMCPInstallStatusRemove(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"kivgraph", "mcp", "install", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
@@ -47,7 +48,7 @@ func TestRunMCPInstallStatusRemove(t *testing.T) {
 
 func TestRunSkillInstallDryRunDoesNotWrite(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"kivgraph", "skill", "install", "--target", "codex", "--dry-run"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("skill dry-run exit code = %d, stderr=%q", code, stderr.String())
@@ -62,7 +63,7 @@ func TestRunSkillInstallDryRunDoesNotWrite(t *testing.T) {
 }
 func TestRunMCPInstallInteractiveSelectsDetectedAgents(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	for _, directory := range []string{filepath.Join(home, ".claude"), filepath.Join(home, ".codex")} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			t.Fatal(err)
@@ -97,7 +98,7 @@ func TestRunMCPInstallInteractiveSelectsDetectedAgents(t *testing.T) {
 
 func TestRunSkillInstallInteractiveFallsBackToSupportedAgents(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 
 	var stdout, stderr bytes.Buffer
 	if code := runSkillChangeWithInput(
@@ -122,7 +123,7 @@ func TestRunSkillInstallInteractiveFallsBackToSupportedAgents(t *testing.T) {
 }
 func TestRunMCPInstallInteractiveCanCancel(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 
 	var stdout, stderr bytes.Buffer
 	if code := runMCPChangeWithInput(

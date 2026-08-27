@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tools": [
     {
       "name": "rust-analyzer",
@@ -7,7 +7,6 @@
       "release": "0.3.3008-standalone",
       "repository": "https://github.com/rust-lang/rust-analyzer.git",
       "commit": "f938641be53c2e4bacd7dc46bddb74825a3e9d28",
-      "archive_format": "gz",
       "license": "MIT OR Apache-2.0",
       "license_files": [
         {
@@ -26,13 +25,22 @@
           "target": "linux/amd64",
           "asset": "rust-analyzer-x86_64-unknown-linux-gnu.gz",
           "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-08-10.1/rust-analyzer-x86_64-unknown-linux-gnu.gz",
-          "sha256": "d42908a7dc7b89250ae881a0919e477296843665c98574ecc8fe16ba60cecefb"
+          "sha256": "d42908a7dc7b89250ae881a0919e477296843665c98574ecc8fe16ba60cecefb",
+          "archive_format": "gz"
         },
         {
           "target": "darwin/arm64",
           "asset": "rust-analyzer-aarch64-apple-darwin.gz",
           "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-08-10.1/rust-analyzer-aarch64-apple-darwin.gz",
-          "sha256": "954c1dce00ab43d5a35caac07aff12a787b006b50dd3f4471bae4b13512343ef"
+          "sha256": "954c1dce00ab43d5a35caac07aff12a787b006b50dd3f4471bae4b13512343ef",
+          "archive_format": "gz"
+        },
+        {
+          "target": "windows/amd64",
+          "asset": "rust-analyzer-x86_64-pc-windows-msvc.zip",
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-08-10.1/rust-analyzer-x86_64-pc-windows-msvc.zip",
+          "sha256": "f667620d3af202f480faf9e407374509ebddef3b8611922e463aeaa7e6985fc8",
+          "archive_format": "zip"
         }
       ]
     }

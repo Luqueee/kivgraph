@@ -62,11 +62,15 @@ go 1.22
 		t.Fatalf("Render() error = %v", err)
 	}
 	contents := string(rendered)
+	// The fragments are the paths as the host writes them, not as an import
+	// path would: a `use` directive is read by the go command as a filesystem
+	// path, and asserting the slash form here passed on Unix by accident and
+	// hid the Windows defect it was in the best position to catch.
 	for _, fragment := range []string{
 		"go 1.24",
-		filepath.ToSlash(first),
-		filepath.ToSlash(nested),
-		filepath.ToSlash(second),
+		filepath.FromSlash(first),
+		filepath.FromSlash(nested),
+		filepath.FromSlash(second),
 		"replace example.com/vendored => example.com/vendored/v2 v2.1.0",
 	} {
 		if !strings.Contains(contents, fragment) {
@@ -316,7 +320,7 @@ go 1.24
 	if err != nil {
 		t.Fatalf("read workspace: %v", err)
 	}
-	if !strings.Contains(string(contents), filepath.ToSlash(module)) {
+	if !strings.Contains(string(contents), filepath.FromSlash(module)) {
 		t.Fatalf("workspace does not use the module:\n%s", contents)
 	}
 

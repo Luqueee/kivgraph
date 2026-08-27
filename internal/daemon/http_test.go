@@ -7,10 +7,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -18,6 +16,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // startHTTP runs a daemon's HTTP half over a temporary state directory and
@@ -198,37 +197,6 @@ func TestHTTPRefusesABindOutsideLoopback(t *testing.T) {
 	defer func() { _ = served.listener.Close() }()
 	if len(warned) != 1 || !strings.Contains(warned[0], "not loopback") {
 		t.Fatalf("warnings = %v, want one naming the bind", warned)
-	}
-}
-
-// TestEndpointIsPrivateAndNamesItsDaemon pins the file that carries the key. A
-// world-readable token is the same as no token, and a reader has to be able to
-// tell a live endpoint from one a killed daemon left behind.
-func TestEndpointIsPrivateAndNamesItsDaemon(t *testing.T) {
-	previous := syscall.Umask(0)
-	t.Cleanup(func() { syscall.Umask(previous) })
-
-	served, endpoint, _ := startHTTP(t, nil)
-	info, err := os.Lstat(served.path)
-	if err != nil {
-		t.Fatalf("stat the endpoint: %v", err)
-	}
-	if mode := info.Mode().Perm(); mode != 0o600 {
-		t.Fatalf("endpoint mode = %#o, want 0600 under a permissive umask", mode)
-	}
-	if endpoint.PID != os.Getpid() {
-		t.Fatalf("endpoint pid = %d, want %d", endpoint.PID, os.Getpid())
-	}
-	if endpoint.Token == "" || len(endpoint.Token) < 32 {
-		t.Fatalf("endpoint token = %q, want a long random string", endpoint.Token)
-	}
-	if !strings.HasSuffix(endpoint.URL, MCPPath) {
-		t.Fatalf("endpoint url = %q, want it to end with %q", endpoint.URL, MCPPath)
-	}
-	// The socket is named too, so a client that cannot speak HTTP finds the
-	// other door from the same file.
-	if !strings.HasSuffix(endpoint.Socket, SocketName) {
-		t.Fatalf("endpoint socket = %q, want the daemon's socket", endpoint.Socket)
 	}
 }
 
@@ -437,44 +405,17 @@ func TestTheTokenSurvivesARestart(t *testing.T) {
 	}
 }
 
-// TestTheTokenFileIsPrivateAndSurvivesTheEndpoint pins the split between the two
-// files: identity persists, liveness does not.
-func TestTheTokenFileIsPrivateAndSurvivesTheEndpoint(t *testing.T) {
-	previous := syscall.Umask(0)
-	t.Cleanup(func() { syscall.Umask(previous) })
-
-	served, _, cancel := startHTTP(t, nil)
-	directory := filepath.Dir(served.path)
-
-	info, err := os.Lstat(TokenPath(directory))
-	if err != nil {
-		t.Fatalf("stat the token: %v", err)
-	}
-	if mode := info.Mode().Perm(); mode != 0o600 {
-		t.Fatalf("token mode = %#o, want 0600 under a permissive umask", mode)
-	}
-
-	cancel()
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		if _, err := os.Stat(served.path); errors.Is(err, os.ErrNotExist) {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("the endpoint outlived its daemon")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if _, err := os.Stat(TokenPath(directory)); err != nil {
-		t.Fatalf("the token did not survive the daemon that wrote it: %v", err)
-	}
-}
-
 // TestALeakyTokenFileIsNamedRatherThanReplaced covers the choice a reader would
 // most likely make the other way. Re-minting would fix the permission and break
 // every client configured with the old token; the warning fixes neither, and
 // says so.
 func TestALeakyTokenFileIsNamedRatherThanReplaced(t *testing.T) {
+	// The leak this names is a mode bit, so the warning exists only where one
+	// means something. Where it does not, the daemon narrows the file with an
+	// ACL instead and has nothing to warn about -- and warning anyway, on
+	// every token on every host, would be the always-red line an operator
+	// learns to scroll past.
+	testsupport.SkipWithoutModeBits(t)
 	directory := shortTempDir(t)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)

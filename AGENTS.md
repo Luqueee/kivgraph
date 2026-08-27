@@ -292,11 +292,13 @@ infringieron una vez cada una. Ver ADR 0062 y ADR 0061.
 
 ## Plataformas y distribución
 
-- Los objetivos de distribución son `linux/amd64` y `darwin/arm64`, y sólo
-  esos. En macOS se publica únicamente Apple Silicon; `darwin/amd64` está
-  fuera de alcance por decisión, no por coste, y el instalador lo dice al
-  rechazarlo. La nomenclatura es `kivgraph-<os>-<arch>` para el directorio,
-  la raíz del tar y el archivo publicado. Un bundle se construye siempre en un
+- Los objetivos de distribución son `linux/amd64`, `darwin/arm64` y
+  `windows/amd64`, y sólo esos. En macOS se publica únicamente Apple Silicon;
+  `darwin/amd64` está fuera de alcance por decisión, no por coste, y el
+  instalador lo dice al rechazarlo. La nomenclatura es `kivgraph-<os>-<arch>`
+  para el directorio, la raíz del archivo y el archivo publicado. El contenedor
+  sí cambia: Windows publica un `.zip` porque es lo que sus propias
+  herramientas leen, y el resto un `.tar.gz`. Un bundle se construye siempre en un
   host de su propia plataforma: cgo enlaza la biblioteca nativa y no hay
   cross-compilation.
 - `scripts/build-bundle.sh` es el único generador de bundles; los objetivos

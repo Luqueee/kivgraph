@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -341,10 +342,24 @@ func validateBundleManifest(manifest bundleManifest) error {
 
 func loadGrammarProvenance(root, manifestReference, expectedSHA256 string, required bool) (GrammarProvenance, error) {
 	base := GrammarProvenance{Manifest: manifestReference, Versions: []GrammarVersion{}}
-	if filepath.IsAbs(manifestReference) || filepath.Clean(manifestReference) != manifestReference || manifestReference == ".." || strings.HasPrefix(manifestReference, ".."+string(filepath.Separator)) {
+	// The reference comes out of a JSON manifest, so it is slash-separated by
+	// contract and travels between platforms unchanged. The containment check
+	// is therefore made in slash terms: filepath.Clean rewrites
+	// "grammars/manifest.json" to "grammars\\manifest.json" on Windows, finds
+	// it differs from what it was handed, and reports a correctly written
+	// manifest as an attempt to escape the bundle. A backslash is refused
+	// outright for the same reason -- it is not a separator in this format, so
+	// a reference carrying one is not one this bundle wrote.
+	//
+	// The host's separator enters one line down, where the reference stops
+	// being a name in a document and becomes a path on a disk.
+	if manifestReference == "" || path.IsAbs(manifestReference) || filepath.IsAbs(manifestReference) ||
+		strings.ContainsRune(manifestReference, '\\') ||
+		path.Clean(manifestReference) != manifestReference ||
+		manifestReference == ".." || strings.HasPrefix(manifestReference, "../") {
 		return GrammarProvenance{}, fmt.Errorf("grammar manifest path %q escapes bundle root", manifestReference)
 	}
-	manifestPath := filepath.Join(root, manifestReference)
+	manifestPath := filepath.Join(root, filepath.FromSlash(manifestReference))
 	data, err := os.ReadFile(manifestPath)
 	if errors.Is(err, os.ErrNotExist) && !required {
 		return base, nil

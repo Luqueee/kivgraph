@@ -152,6 +152,12 @@ func Listen(options Options) (net.Listener, error) {
 	}); err != nil {
 		return nil, err
 	}
+	// On the platforms that have no umask the socket exists before anything
+	// has said who may reach it, so that is said now.
+	if err := narrowSocket(path); err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
 	return listener, nil
 }
 

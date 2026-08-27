@@ -209,8 +209,26 @@ func validateScopedPath(base, rawPath string) error {
 		return fmt.Errorf("must not be empty")
 	}
 	candidate := rawPath
-	if !filepath.IsAbs(candidate) {
+	switch {
+	case filepath.IsAbs(candidate):
+		// An absolute path may legitimately name something inside the
+		// repository; pathWithin below is what decides whether it does.
+	case filepath.IsLocal(candidate):
 		candidate = filepath.Join(base, candidate)
+	default:
+		// Neither absolute nor local. On Unix that is a `..` climbing out of
+		// the base, and joining it and testing containment caught it. On
+		// Windows it is also `\outside`, which is rooted on the current drive
+		// but is not absolute because it names no volume, and `C:outside`,
+		// which is relative to that drive's working directory. filepath.IsAbs
+		// reports false for both, so the join below used to swallow them and
+		// produce a path inside the repository -- the guard returned nil for
+		// exactly the input it exists to refuse.
+		//
+		// filepath.IsLocal is the platform's own answer to "does this stay
+		// under its base", including the Windows reserved device names, and
+		// asking it is cheaper than enumerating the shapes.
+		return fmt.Errorf("path %q escapes repository realpath %q", rawPath, base)
 	}
 	candidate, err := filepath.Abs(candidate)
 	if err != nil {

@@ -42,6 +42,22 @@ func TestTermIndexOverThePublishedGraph(t *testing.T) {
 	if symbols == 0 || terms == 0 || postings == 0 {
 		t.Fatalf("published graph has %d symbols, %d terms, %d postings", symbols, terms, postings)
 	}
+	// The claims below are about this project's own graph: `traversal` reaches
+	// TraverseFrom because TraverseFrom is in it, and a widest term matching a
+	// large share of the corpus needs a corpus. A machine can have a published
+	// generation that is neither -- the bundle smoke test publishes a graph of
+	// a handful of symbols and leaves it in the state directory, which is what
+	// this found on the Windows host: two symbols, five terms, and a fatal
+	// about `traversal` that was reporting the fixture and not the index.
+	//
+	// The floor is far below a real index of this repository -- six figures of
+	// symbols -- and far above any fixture, so it separates the two without
+	// pinning a corpus size the measurement is not about.
+	const smallestMeasurableCorpus = 1000
+	if symbols < smallestMeasurableCorpus {
+		t.Skipf("the published generation holds %d symbols, which is a fixture rather than an index: "+
+			"run `kivgraph index --full` over this repository to measure", symbols)
+	}
 	bytes := terms*8 + (terms+1)*4 + postings*4
 	t.Logf("symbols %d | terms %d | postings %d (%.2f per symbol) | index %.2f MB | load+derive %s",
 		symbols, terms, postings, float64(postings)/float64(symbols),

@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 )
 
@@ -13,8 +14,25 @@ import (
 // resolved `kivgraph` at call time would work from a terminal and silently
 // stop working everywhere else.
 func (manager Manager) pluginBody() []byte {
+	// The placeholder stands where a JavaScript string goes, quotes included,
+	// and the value is encoded rather than pasted. A Windows path is mostly
+	// backslashes, and JavaScript does not refuse an escape it does not know:
+	// it drops the backslash, so `\o` is `o` and the path still looks
+	// plausible -- while `C:\bin\kivgraph.exe` becomes a path with a
+	// backspace in it. A shim that names a corrupted binary fails at the
+	// moment the editor calls it, with nothing to connect the failure to the
+	// install that wrote it.
+	//
+	// JSON's string syntax is a subset of JavaScript's, so the encoder is the
+	// right one and there is no second escaping to keep in step.
+	encoded, err := json.Marshal(manager.executable)
+	if err != nil {
+		// A Go string is always encodable, so this cannot happen; quoting
+		// without escaping would be worse than an obviously wrong path.
+		encoded = []byte(`""`)
+	}
 	return []byte(strings.ReplaceAll(
-		string(embeddedOpenCodePlugin), executablePlaceholder, manager.executable))
+		string(embeddedOpenCodePlugin), executablePlaceholder, string(encoded)))
 }
 
 // installPlugin writes the OpenCode shim.

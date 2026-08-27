@@ -1,3 +1,5 @@
+//go:build unix
+
 package tsworker
 
 import (
@@ -11,6 +13,11 @@ import (
 // the kernel takes the worker away: a polite SIGTERM and an unblockable
 // SIGKILL. Neither is a supervisor-initiated shutdown, so both must end in a
 // new session serving requests again.
+//
+// The distinction between the two signals is the test, which is why this file
+// is Unix-only rather than reaching for os.Process.Kill: Windows has no way to
+// deliver the polite half, so running half of this there would assert nothing
+// the resilience suite does not already cover.
 func TestSupervisorRecoversFromExternalSignals(t *testing.T) {
 	for name, signalToSend := range map[string]syscall.Signal{
 		"SIGTERM": syscall.SIGTERM,

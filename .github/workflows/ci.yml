@@ -694,3 +694,49 @@ jobs:
 
       - name: Go tests with LadybugDB
         run: make test-ladybug
+
+  # windows-cross is a compile gate and deliberately nothing more. It cannot
+  # run what it builds, and windows/amd64 is not a published target: what it
+  # buys is that the next unguarded `syscall.Kill` or `flock` fails here
+  # instead of surviving until somebody tries to add the platform. The two
+  # missing lock files this job would have caught got in exactly that way.
+  #
+  # It runs on Linux rather than on a Windows runner because the question it
+  # asks is about the source, not about the machine: whether every package
+  # still has an implementation for this GOOS. Answering it needs a C compiler
+  # for the target -- the tree-sitter grammars are cgo -- and mingw-w64 is the
+  # whole of that.
+  windows-cross:
+    name: Cross-compile for windows/amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      GOOS: windows
+      GOARCH: amd64
+      CGO_ENABLED: "1"
+      CC: x86_64-w64-mingw32-gcc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install the Windows C cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64
+
+      - name: Build for windows/amd64
+        run: go build ./...
+
+      # The three Unix-only calls that were left in this tree were all in test
+      # files, which `go build` never reads. `go vet` type-checks them, so it
+      # is the half of this job that earns its place.
+      - name: Vet for windows/amd64
+        run: go vet ./...

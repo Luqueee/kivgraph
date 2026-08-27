@@ -9,8 +9,11 @@ indexed source set. The bundled AST worker remains the explicit fallback.
 import argparse
 import ast
 import json
+import os
+import os.path
 import pathlib
 import shlex
+import shutil
 import subprocess
 import sys
 import urllib.parse
@@ -77,11 +80,54 @@ def module_name(root, path):
     return ".".join(parts) or root.name
 
 
+def split_command(command):
+    """Split a configured command line the way its own platform would.
+
+    shlex is a POSIX shell lexer, and a POSIX shell treats a backslash as an
+    escape. On Windows it is the path separator, so the default mode deletes
+    every one of them: measured on the host, `C:\\tools\\node\\pyright-langserver`
+    comes back as `C:toolsnodepyright-langserver`. Any configured analyser on a
+    Windows machine was therefore unrunnable, and the loader reported it as the
+    analyser being unavailable rather than as the path having been eaten.
+
+    posix=False keeps the backslashes and also keeps the quotation marks inside
+    the token, so a quoted path -- which is the normal case under
+    "Program Files" -- has to be unwrapped here.
+    """
+    if os.name != "nt":
+        return shlex.split(command)
+    fields = []
+    for field in shlex.split(command, posix=False):
+        if len(field) > 1 and field[0] == '"' and field[-1] == '"':
+            field = field[1:-1]
+        fields.append(field)
+    return fields
+
+
+def resolve_program(program):
+    """Return the file a platform would actually run for this name.
+
+    CreateProcess searches PATH but does not append PATHEXT, so a bare
+    `pyright-langserver` raises FileNotFoundError on Windows even though
+    `pyright-langserver.CMD` is right there on the PATH -- which is exactly how
+    npm installs it. shutil.which does consult PATHEXT, and the path it
+    returns starts fine.
+
+    A name that already resolves, or that names an existing file, is left
+    alone: the caller may have configured something which is not on the PATH at
+    all.
+    """
+    if os.path.isfile(program):
+        return program
+    return shutil.which(program) or program
+
+
 class LSP:
     def __init__(self, command, root):
-        fields = shlex.split(command) or ["pyright-langserver"]
+        fields = split_command(command) or ["pyright-langserver"]
         if "--stdio" not in fields:
             fields.append("--stdio")
+        fields[0] = resolve_program(fields[0])
         self.process = subprocess.Popen(fields, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.next_id = 1
@@ -146,15 +192,53 @@ def position(text, offset):
 
 
 def path_from_uri(value):
+    """Turn a file URI back into a path this platform can open.
+
+    The URI path is not the file path on Windows. `file:///c%3A/x/main.py`
+    parses to `/c%3A/x/main.py`: a leading slash before the drive, the colon
+    percent-encoded, and the separators the wrong way round. Nothing in
+    `contents` matches that, so every declaration the language server returned
+    looked like one outside the indexed source set and the worker emitted no
+    exact edge at all -- measured on the host as 23 symbols and 0 references,
+    with pyright answering correctly the whole time and 63 occurrences
+    recorded as TARGET_NOT_INDEXED against a detail of
+    `\\c:\\...\\contracts.pyi`.
+
+    urllib.request.url2pathname is the documented inverse and is not enough on
+    its own: it looks for the drive before unquoting, so `%3A` hides it and the
+    leading slash survives. Unquoting first is what makes the drive visible,
+    and it is safe here because a file URI encodes every literal percent.
+    """
     parsed = urllib.parse.urlparse(value or "")
-    return urllib.parse.unquote(parsed.path)
+    path = urllib.parse.unquote(parsed.path or "")
+    if os.name == "nt":
+        path = path.replace("/", os.sep)
+        # `\c:\x` -- a rooted path whose first component is a drive. The slash
+        # is the URI's, not the file system's.
+        if len(path) > 2 and path[0] == os.sep and path[2] == ":":
+            path = path[1:]
+    return os.path.normpath(path) if path else path
+
+
+def compare_path(path):
+    """The one spelling this worker compares paths by.
+
+    Windows file names are case-insensitive and the language server does not
+    use the same case we do: it answers `c:\\kivgraph\\...` where the walk
+    produced `C:\\kivgraph\\...`. Comparing those as strings is comparing
+    two spellings of one file and concluding they are two files.
+
+    On POSIX normcase is the identity, so this is abspath and nothing else.
+    """
+    return os.path.normcase(os.path.abspath(path))
 
 
 def location_offset(location, contents):
     selection = location.get("range", location.get("targetSelectionRange", {}))
     start = selection.get("start", {})
     path = path_from_uri(location.get("uri", ""))
-    return path, offset_at(contents.get(path, ""), start.get("line", 0), start.get("character", 0))
+    text = contents.get(compare_path(path), "") if path else ""
+    return path, offset_at(text, start.get("line", 0), start.get("character", 0))
 
 
 def is_type_position(node):
@@ -215,17 +299,20 @@ def main():
         files.append(path)
         parsed[path] = (text, tree)
 
-    contents = {str(path): text for path, (text, _) in parsed.items()}
+    # Keyed by the comparison spelling, because the only reader that looks a
+    # path up here is holding one the language server chose rather than one
+    # this walk produced.
+    contents = {compare_path(path): text for path, (text, _) in parsed.items()}
     lsp = LSP(args.analyzer, root)
     try:
-        for path, text in contents.items():
+        for path, (text, _) in parsed.items():
             lsp.notify("textDocument/didOpen", {"textDocument":
                 {"uri": uri(path), "languageId": "python", "version": 1, "text": text}})
 
         symbols = []
         by_location = {}
         for path in files:
-            text = contents[str(path)]
+            text = contents[compare_path(path)]
             rows = lsp.request("textDocument/documentSymbol", {"textDocument": {"uri": uri(path)}}) or []
             relative = path.relative_to(root).as_posix()
 

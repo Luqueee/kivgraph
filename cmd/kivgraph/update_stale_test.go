@@ -33,8 +33,8 @@ func TestUpdateReportsTheProcessesLeftOnTheOldRelease(t *testing.T) {
 	}}
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
-		installedRunner(), fixture.list, fixture.signal); code != 0 {
-		t.Fatalf("runUpdateWithRunner() = %d, stderr=%q", code, stderr.String())
+		installedRunner(), fixture.list, fixture.signal, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	output := stdout.String()
 	for _, want := range []string{
@@ -65,8 +65,8 @@ func TestUpdateStopsTheOldProcessesWhenAsked(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner([]string{"--stop"}, nil, &stdout, &stderr,
-		installedRunner(), fixture.list, fixture.signal); code != 0 {
-		t.Fatalf("runUpdateWithRunner() = %d, stderr=%q", code, stderr.String())
+		installedRunner(), fixture.list, fixture.signal, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	if got := strings.Join(fixture.signals, ","); got != "31:terminated" {
 		t.Fatalf("signals = %q, want a single SIGTERM", got)
@@ -81,8 +81,8 @@ func TestUpdateStopsTheOldProcessesWhenAsked(t *testing.T) {
 func TestUpdateSaysNothingWhenNoProcessIsStale(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
-		installedRunner(), noProcesses, nil); code != 0 {
-		t.Fatalf("runUpdateWithRunner() = %d, stderr=%q", code, stderr.String())
+		installedRunner(), noProcesses, nil, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	if got, want := stdout.String(), "kivgraph updated: "+version.Value+" -> 9.9.9\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
@@ -95,8 +95,8 @@ func TestUpdateSucceedsWhenTheProcessListIsUnavailable(t *testing.T) {
 	list := func() ([]procstat.Process, error) { return nil, procstat.ErrProcessListUnsupported }
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
-		installedRunner(), list, nil); code != 0 {
-		t.Fatalf("runUpdateWithRunner() = %d, want 0 (stderr=%q)", code, stderr.String())
+		installedRunner(), list, nil, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) = %d, want 0 (stderr=%q)", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "kivgraph updated: ") {
 		t.Fatalf("the successful install was not reported:\n%s", stdout.String())
@@ -120,8 +120,8 @@ func TestUpdateCheckDoesNotTouchProcesses(t *testing.T) {
 				LatestVersion:   "9.9.9",
 				UpdateAvailable: true,
 			}, nil
-		}, fixture.list, fixture.signal); code != 0 {
-		t.Fatalf("runUpdateWithRunner() = %d, stderr=%q", code, stderr.String())
+		}, fixture.list, fixture.signal, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	if strings.Contains(stdout.String(), "update.stale") {
 		t.Fatalf("--check reported stale processes:\n%s", stdout.String())

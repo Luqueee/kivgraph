@@ -790,17 +790,32 @@ func TestRunRecordsMetrics(t *testing.T) {
 	if observed.Index.Files != uint64(len(set.Files)) ||
 		observed.Index.Symbols != uint64(len(set.Symbols)) ||
 		observed.Index.Edges != uint64(len(set.Edges)) ||
-		observed.Index.Unresolved != uint64(len(set.Unresolved)) ||
-		observed.Index.Duration <= 0 {
+		observed.Index.Unresolved != uint64(len(set.Unresolved)) {
 		t.Fatalf("index metrics = %+v", observed.Index)
 	}
-	if observed.Ladybug.Transactions != 1 || observed.Ladybug.TransactionTotal <= 0 || observed.Ladybug.DatabaseBytes <= 0 {
+	if observed.Ladybug.Transactions != 1 || observed.Ladybug.DatabaseBytes <= 0 {
 		t.Fatalf("Ladybug metrics = %+v", observed.Ladybug)
 	}
-	if observed.Snapshot.ID != uint64(options.SnapshotID) ||
-		observed.Snapshot.BuildDuration <= 0 ||
-		observed.Snapshot.Bytes <= 0 {
+	if observed.Snapshot.ID != uint64(options.SnapshotID) || observed.Snapshot.Bytes <= 0 {
 		t.Fatalf("snapshot metrics = %+v", observed.Snapshot)
+	}
+	// The durations are a separate claim because on some platforms they are a
+	// claim about the clock. This fixture's rebuild is small enough that a
+	// transaction and a snapshot build both finish inside one tick of the
+	// Windows monotonic clock, so `> 0` is unobservable there and says nothing
+	// about whether the rebuild was timed. The counters above are the part
+	// that holds everywhere.
+	if !testsupport.ClockResolvesShortDurations() {
+		return
+	}
+	if observed.Index.Duration <= 0 {
+		t.Fatalf("index duration = %v, want it measured", observed.Index.Duration)
+	}
+	if observed.Ladybug.TransactionTotal <= 0 {
+		t.Fatalf("Ladybug transaction total = %v, want it measured", observed.Ladybug.TransactionTotal)
+	}
+	if observed.Snapshot.BuildDuration <= 0 {
+		t.Fatalf("snapshot build duration = %v, want it measured", observed.Snapshot.BuildDuration)
 	}
 }
 

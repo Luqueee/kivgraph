@@ -2,8 +2,11 @@ package integrations
 
 import (
 	"encoding/json"
+	"github.com/Luqueee/kivgraph/internal/executable"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -92,7 +95,7 @@ func TestInstallLeavesAnotherToolsGateAlone(t *testing.T) {
 	commands := commandsIn(t, document)
 	want := []string{
 		"/home/u/.cargo/bin/tokensave hook-pre-tool-use",
-		"/opt/kivgraph/bin/kivgraph hook run",
+		testsupport.InstalledExecutable() + " hook run",
 	}
 	if strings.Join(commands, "|") != strings.Join(want, "|") {
 		t.Fatalf("PreToolUse commands = %q, want %q", commands, want)
@@ -138,8 +141,9 @@ func TestInstallIsIdempotentAndReplacesAMovedBinary(t *testing.T) {
 	}
 
 	// Move the binary and reinstall: one entry, the new path.
+	movedExecutable := testsupport.MovedExecutable()
 	moved, err := New(Options{HomeDir: home, ProjectDir: t.TempDir(),
-		Executable: "/usr/local/bin/kivgraph", GOOS: "linux"})
+		Executable: movedExecutable, GOOS: "linux"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,8 +158,63 @@ func TestInstallIsIdempotentAndReplacesAMovedBinary(t *testing.T) {
 		t.Fatalf("InstallHook() error = %v", err)
 	}
 	commands := commandsIn(t, readSettings(t, path))
-	if len(commands) != 1 || commands[0] != "/usr/local/bin/kivgraph hook run" {
+	// Not compared against a spelled-out string: the manager quotes an
+	// executable whose path contains a space, and on Windows the plausible
+	// install location is under "Program Files". Asserting the unquoted
+	// spelling would be asserting that the quoting is absent.
+	if len(commands) != 1 {
+		t.Fatalf("after reinstall, commands = %q, want exactly one", commands)
+	}
+	if !strings.Contains(commands[0], movedExecutable) || !strings.HasSuffix(commands[0], hookOperation) {
 		t.Fatalf("after reinstall, commands = %q, want one naming the new path", commands)
+	}
+}
+
+// A path with a space in it is the ordinary case on Windows, where an
+// installation lands under "Program Files", and it is the case the entry has
+// to survive twice: quoted on the way in so the agent runs one program rather
+// than two arguments, and recognised as ours on the way back out so that a
+// reinstall replaces the entry instead of appending beside it.
+//
+// Neither half was covered. The quoting is a single `strings.ContainsAny` in
+// hookCommand and the unquoting a single `strings.Trim` in hooks_entry.go, and
+// a round trip that nobody exercises is a round trip that holds until the
+// platform where it is the default arrives.
+func TestHookEntrySurvivesAnExecutablePathWithASpace(t *testing.T) {
+	home := t.TempDir()
+	spaced := filepath.Join(home, "Program Files", "kivgraph", "bin",
+		executable.Name("kivgraph"))
+	manager, err := New(Options{HomeDir: home, ProjectDir: t.TempDir(),
+		Executable: spaced, GOOS: runtime.GOOS})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	path := filepath.Join(home, ".claude", "settings.json")
+
+	if _, err := manager.InstallHook(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallHook() error = %v", err)
+	}
+	commands := commandsIn(t, readSettings(t, path))
+	if len(commands) != 1 {
+		t.Fatalf("commands = %q, want exactly one", commands)
+	}
+	if !strings.HasPrefix(commands[0], `"`+spaced+`"`) {
+		t.Fatalf("command = %q, want the executable quoted: unquoted, the agent "+
+			"runs the first word and passes the rest as arguments", commands[0])
+	}
+
+	// The second install must read its own entry back and recognise it. If the
+	// unquoting is wrong the entry looks like somebody else's and a second one
+	// is appended, which is the accumulation this gate exists to prevent.
+	second, err := manager.InstallHook(TargetClaudeCode, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("second InstallHook() error = %v", err)
+	}
+	if second.Status != "managed" || second.Changed {
+		t.Fatalf("second install = %#v, want a no-op: the quoted entry was not recognised as ours", second)
+	}
+	if commands := commandsIn(t, readSettings(t, path)); len(commands) != 1 {
+		t.Fatalf("after reinstall, commands = %q, want the entry replaced rather than appended", commands)
 	}
 }
 
@@ -266,7 +325,7 @@ func TestTheOpenCodePluginNamesThisInstallationsBinary(t *testing.T) {
 	if strings.Contains(string(body), executablePlaceholder) {
 		t.Fatal("the plugin still carries its placeholder")
 	}
-	if !strings.Contains(string(body), `"/opt/kivgraph/bin/kivgraph"`) {
+	if !strings.Contains(string(body), escapedPath(t, testsupport.InstalledExecutable())) {
 		t.Fatal("the plugin does not name this installation's binary")
 	}
 	if !strings.Contains(string(body), "tool.execute.before") {
@@ -299,8 +358,8 @@ func TestATargetWithNoGateIsRefusedByName(t *testing.T) {
 func TestABinaryNotCalledKivgraphStillOwnsItsGate(t *testing.T) {
 	home := t.TempDir()
 	for _, executable := range []string{
-		"/tmp/kivgraph-hook",         // a development build
-		"/opt/kivgraph/bin/kivgraph", // the ordinary install
+		"/tmp/kivgraph-hook",              // a development build
+		testsupport.InstalledExecutable(), // the ordinary install
 		"/home/u/.local/bin/kivgraph-0.8.0",
 	} {
 		t.Run(filepath.Base(executable), func(t *testing.T) {
