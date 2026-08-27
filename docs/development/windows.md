@@ -1,7 +1,9 @@
 # Windows support: what it would take
 
-`windows/amd64` is not a supported platform and nothing here ships it. This
-document is what was learned trying, so that whoever decides to finish knows
+`windows/amd64` is a published platform as of
+[ADR 0079](../adr/0079-windows-is-a-published-platform.md), and nothing ships
+it yet. That ADR takes the eight decisions this document kept arriving at;
+what is here is the measurement behind them, so that whoever finishes knows
 what is left and what it is made of.
 
 It has been rewritten once. The first version answered the question by
