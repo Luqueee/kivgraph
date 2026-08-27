@@ -401,6 +401,128 @@ Una línea JSON por detección en `stdout`, que es donde pm2 ya recoge:
 Es la fuente de verdad que sobrevive a que Umami esté caído o a que un evento
 se deduplique, y no añade un segundo sistema de logging.
 
+## PostHog: el comportamiento, no la adquisición
+
+Umami y PostHog **no se solapan y no compiten**. Cada uno contesta preguntas que
+el otro no puede, y esperar que sus números cuadren es un error de método, no un
+fallo:
+
+|herramienta|qué contesta|campos|
+|---|---|---|
+|Search Console|antes del clic|query, impresiones, CTR, posición|
+|Umami|la adquisición|referrer, landing, país, dispositivo, Web Vitals|
+|PostHog|el comportamiento|funnels, paths, replay, heatmaps, conversión|
+
+La columna que une las tres es la **URL de aterrizaje**.
+
+### Una sola llamada
+
+Ningún componente conoce a un proveedor. Todos llaman a lo mismo:
+
+```ts
+import { track, ANALYTICS_EVENTS } from "../../lib/analytics";
+
+track(ANALYTICS_EVENTS.INSTALL_COPY, { where: "hero" });
+```
+
+`src/lib/analytics/` es `events.ts` (el catálogo tipado), `umami.ts`,
+`posthog.ts` e `index.ts` con la fachada. Un nombre de evento que no esté en
+`ANALYTICS_EVENTS` **no compila**: un evento que existe en una llamada y en
+ningún sitio más es una columna que dentro de seis semanas nadie sabe explicar.
+
+### Pageviews: por qué no hay `astro:page-load`
+
+Porque este sitio **no tiene `<ClientRouter />` ni View Transitions** -- medido,
+no supuesto. Cada navegación es una carga de documento completa, así que la
+captura automática de PostHog da exactamente un `$pageview` por página. Añadir
+un listener encima es lo que produce **dos**; añadirlo en vez de la automática
+obligaría a desactivarla para reimplementar lo que ya hace.
+
+Si algún día se añade `<ClientRouter />`, esto cambia y hay que volver aquí: el
+guard de init en `posthog.ts` ya está puesto por eso.
+
+Medido sobre el build, interceptando la ingesta:
+
+|acción|eventos|
+|---|---|
+|carga inicial|`$pageview`|
+|navegar A -> B|`$pageleave` + `$pageview`|
+|back|`$pageleave` + `$pageview`|
+|reload|`$pageleave` + `$pageview`|
+|clic en copiar|`$autocapture`, `prompt_copy`, `$$heatmap`, `$web_vitals`|
+
+Uno por carga, ninguno duplicado, y `prompt_copy` **una sola vez** pese a ir
+también a Umami.
+
+### El coste, que no es pequeño
+
+|build|JS total|gzip|
+|---|---|---|
+|sin PostHog|214,1 KB|**72,1 KB**|
+|con PostHog|467,5 KB|**154,9 KB**|
+
+PostHog **más que dobla** el JavaScript de un sitio que no tiene ni una isla de
+framework. No hay build más ligero: `module` (85 KB) ya es el menor del paquete
+y `module.no-external` es mayor.
+
+Dos cosas lo hacen aceptable, y las dos son decisiones:
+
+- **Se importa dinámicamente tras el evento `load`.** El chunk no está entre los
+  scripts que pide la portada, así que no compite con el LCP, que en este
+  repositorio está medido y escrito.
+- **Sin `PUBLIC_POSTHOG_KEY` desaparece entero.** Vite sustituye la variable en
+  tiempo de build, el `return` temprano se vuelve constante y el tree-shaking se
+  lleva la librería: un build sin clave crece `0,9 KB`. Un despliegue sin
+  configurar no paga nada.
+
+### Producción y nada más
+
+`isAnalyticsEnabled()` exige `import.meta.env.PROD` **y**
+`location.hostname === PRODUCTION_HOST`. Medido: desde `localhost`, cero
+eventos. `www` no está en el guard porque `www.kivgraph.dev` no resuelve, y
+añadirlo sería inventar un host.
+
+### Privacidad del replay
+
+`maskAllInputs` está activo. Lo que se graba es una pantalla de documentación:
+comandos, rutas y código público. No hay formulario que recoja datos
+personales, ni token, ni cabecera, ni secreto en el HTML -- `PUBLIC_POSTHOG_KEY`
+es una clave de captura y es pública por diseño. **Ninguna clave administrativa
+de PostHog puede aparecer en código cliente**, y eso incluye la del MCP.
+
+### La trampa que cuesta una tarde: el bot filter
+
+**PostHog descarta los eventos de un navegador automatizado en silencio.** No
+hay error, `init` termina, la config se descarga, `capture` existe -- y no sale
+ni una petición. El descarte se dispara con `navigator.webdriver`, que Playwright
+deja en `true`.
+
+Verificar PostHog en headless exige ocultarlo:
+
+```js
+await ctx.addInitScript(() => {
+  Object.defineProperty(navigator, "webdriver", { get: () => false });
+});
+```
+
+Sin eso se pierde el tiempo revisando la clave, la región, la red y el propio
+código, que fue exactamente lo que pasó. Y el payload de `/e/` va **gzip**:
+`request.postDataBuffer()` y `zlib.gunzipSync`, porque `postData()` devuelve
+binario ilegible.
+
+### Regiones: no se cambian
+
+US Cloud y EU Cloud son despliegues separados con cuentas distintas. Cambiar la
+región de un proyecto existente exige plan Scale o Enterprise y que lo haga su
+equipo. Para un proyecto sin datos, la respuesta es crearlo en EU y ya.
+
+La forma de saber a qué región pertenece una clave, sin entrar al panel:
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' \
+  https://eu-assets.i.posthog.com/array/<clave>/config.js   # 200 si es de EU
+```
+
 ## MANUAL SETUP REQUIRED
 
 Lo que sigue **no se puede hacer desde el repositorio**. Son cambios en el
@@ -500,6 +622,96 @@ referrer chatgpt.com  ->  /docs/tools/find-by-intent/   (propiedad principal)
 
 Las dos mitades comparten la **ruta**, que es la columna por la que se cruzan a
 mano, igual que con Search Console.
+
+### 1e. PostHog: proyecto, variables y MCP
+
+El proyecto vive en **Cloud EU**, `https://eu.posthog.com`. Su clave de captura
+va en `landing/.env` **del host**:
+
+```env
+PUBLIC_POSTHOG_KEY=<la phc_... del proyecto EU>
+PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+```
+
+`PUBLIC_` no es decorativo: Astro sólo expone al cliente las variables con ese
+prefijo, y la clave de captura tiene que correr en el navegador. Es de build,
+así que **hay que reconstruir**, no basta reiniciar.
+
+Antes de dar por buena una clave, comprobar su región -- una de US en el host de
+EU no captura nada y no da error visible:
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' \
+  https://eu-assets.i.posthog.com/array/<clave>/config.js
+```
+
+**El MCP se autentica aparte, por OAuth, y nunca con esta clave.**
+
+```bash
+claude mcp add --transport http posthog https://mcp.posthog.com/mcp -s user
+```
+
+Comprobar la documentación oficial antes de ejecutarlo por si el comando cambió.
+
+### 1f. Los dashboards
+
+**Umami — SEO** (propiedad principal): visitors, orgánico, referrers, landing
+pages, Google, Bing, AI referrals, campañas UTM, país, dispositivo, Web Vitals.
+
+**Umami — AI Crawlers** (segunda propiedad): provider, agent, category, path,
+requests y su evolución.
+
+**PostHog — Growth**, en cuatro bloques:
+
+|bloque|qué lleva|
+|---|---|
+|adquisición|tráfico por fuente, top landing pages|
+|conversión|conversión primaria, por fuente y por landing|
+|producto|`install_copy`, `prompt_copy`, `github_click`, `quickstart_copy`|
+|UX|funnels, paths, heatmaps, replay, rage y dead clicks|
+
+Funnels que merecen existir:
+
+```text
+landing -> docs -> install_copy
+Google  -> landing -> docs -> install_copy
+ChatGPT / Claude / Perplexity -> landing -> docs -> install_copy
+```
+
+### 1g. Referrals de IA frente a crawlers de IA
+
+**No son lo mismo y no deben mezclarse.** Un *referral* es una persona que llega
+desde `chatgpt.com`, `perplexity.ai`, `claude.ai`, `gemini.google.com` o
+`copilot.microsoft.com`, y vive en la propiedad principal y en PostHog. Un
+*crawler* es una máquina, y vive sólo en la propiedad de crawlers.
+
+La correlación que interesa no la calcula nadie automáticamente, y no hace falta:
+
+```text
+OAI-SearchBot -> /docs/tools/find-by-intent/     (crawlers)
+        ...semanas después...
+referrer chatgpt.com -> /docs/tools/find-by-intent/ -> install_copy
+```
+
+Las dos mitades comparten la **ruta**. Eso es correlación, no causalidad, y un
+informe que las confunda está inventando.
+
+### 1h. Un prompt de análisis para el MCP
+
+```text
+Analiza kivgraph.dev en los últimos 30 días. Compara Google, Bing, ChatGPT,
+Claude, Perplexity, GitHub, Reddit y Direct. Para cada fuente: sesiones,
+landing pages, conversiones, install_copy, github_click, paths y dispositivo.
+
+Encuentra páginas con mucho tráfico y mala conversión, páginas con poco
+tráfico y conversión alta, las fuentes de mayor intención, los puntos de
+abandono y las oportunidades SEO.
+
+Usa funnels, paths y replays como evidencia. No confundas correlación con
+causalidad, no infieras keywords de Google desde PostHog, no asumas que
+`direct` es acceso directo, y no compares cifras absolutas de Umami y PostHog
+sin considerar que miden de formas distintas.
+```
 
 ### 2. El dominio del sitio en Umami
 

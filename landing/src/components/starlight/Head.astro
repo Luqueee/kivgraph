@@ -196,3 +196,12 @@ const structuredData = {
     />
   )
 }
+
+{/* The documentation half of the same boot. Starlight owns this shell, so the
+    landing's `Layout.astro` never runs here and the call has to be repeated;
+    the module is shared and initialises once per document. */}
+<script>
+  import { initAnalytics } from "../../lib/analytics";
+
+  initAnalytics();
+</script>

@@ -26,6 +26,9 @@ testdata/generated/
 .DS_Store
 .env
 .env.*
+# ...except the template, which carries no value and is the only record of
+# which variables a deployment has to set. `.env.*` would swallow it.
+!.env.example
 
 # Downloaded toolchain artifacts
 .tooling/

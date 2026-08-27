@@ -195,6 +195,17 @@ const structuredData = {
 
       startMotion();
     </script>
+
+    {/* Analytics starts here and in the Starlight `Head` override, which are
+      the two shells this site has. It does nothing outside production on the
+      real host, and it loads PostHog after the `load` event so a library the
+      size of this site's whole JavaScript budget never sits on the critical
+      path. */}
+    <script>
+      import { initAnalytics } from "../../lib/analytics";
+
+      initAnalytics();
+    </script>
   </body>
 </html>
 

@@ -2,6 +2,10 @@
 # blocks dependency lifecycle scripts unless the package is approved here, and
 # without the link `astro build` cannot find its esbuild binary.
 allowBuilds:
+  # `posthog-js` pulls in core-js, whose postinstall only prints a funding
+  # notice. `false` and not `true`: nothing needs building, and an unanswered
+  # entry here fails the whole install -- which would take CI with it.
+  core-js: false
   esbuild: true
 
 # pnpm 11 holds back releases younger than its default minimumReleaseAge. These
