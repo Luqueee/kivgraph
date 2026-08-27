@@ -190,12 +190,32 @@ carries `FILE_FLAG_FIRST_PIPE_INSTANCE` against a squatted name,
 this user by SID, SYSTEM and the administrators -- which is most of the work
 decision 3 asks for on the daemon's socket, done here first.
 
-### One thing has still never been exercised
+### The last unexercised thing, and what it cost to reach
 
-`RunDetached` is unverified on Windows. Its test fixture is a `#!/bin/sh`
-script, and porting it means writing every test body twice; what is unportable
-there is the fixture and not the code under test. It is named here so that "the
-suite passes" is not read as covering it.
+~~`RunDetached` is unverified on Windows.~~ **Verified**, and the reason it was
+not is worth keeping: its fixture wrote a `#!/bin/sh` script and handed it a
+body of shell. There is no interpreter for a `#!` line on Windows and no
+`/bin/sh` to name in one, so the whole file was `//go:build unix` -- and
+porting it appeared to mean writing every body twice, once as a batch file,
+which would have made the fixture the thing under review.
+
+The way out was to stop scripting the child and re-execute the test binary as
+it. `os/exec` inherits the environment, so the parent hands the child its whole
+script in one variable and `TestMain` acts on it before the testing package has
+parsed a flag. What the child can do is now a closed set -- record its
+arguments, write lines to each stream, report what stdin gave it, exit with a
+code -- which is narrower than a shell and is every capability the ten tests
+used.
+
+All ten run on Windows now, including the one that matters most here:
+`command.Stdin = nil` really does give the child nothing, so a daemon whose
+stdin is the MCP stream does not lose the client's next request to its own
+indexer. That was a guarantee this branch had asserted only on Unix.
+
+It is also better on Unix. A scripted child can drift into shell quoting that
+means something different under a different `/bin/sh`, and the arguments it
+records are now the ones the exec layer passed rather than whatever a
+word-splitting pass made of them.
 
 The socket, which this document once listed beside it, has been reached. The
 daemon starts, serves MCP over HTTP and over `AF_UNIX`, and the socket now
@@ -360,10 +380,11 @@ mostly not defects:
    this branch makes possible and does not perform; and the Python analyzer
    failures are the embeddable interpreter on the machine that ran the suite,
    not the port.
-2. **Two claims that want a real installation rather than more code.** The
+2. **One claim that wants a real installation rather than more code.** The
    Claude Desktop detection markers are a guess about where the installer puts
    things -- the first is the directory the application itself creates, which
-   is a fact; the second is not. And `RunDetached` above.
+   is a fact; the second is not. No amount of testing settles it; installing
+   the application does.
 3. **A first release.** Everything here has been verified on one Windows host
    with a served archive standing in for a release. The matrix row has never
    run on a GitHub runner.
