@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/integrations"
 )
 
 // TestTheGateStandsAsideOnEveryFailure is the contract the whole command
@@ -94,5 +95,32 @@ func TestTheEscapeHatchIsReadTheWayAShellWouldWriteIt(t *testing.T) {
 		if disabled(value) {
 			t.Fatalf("%q turned the gate off", value)
 		}
+	}
+}
+
+// TestHookCompletesOnlyTargetsItAccepts is a regression. The help footer was
+// fixed to name the four clients that host a gate and the completion was not,
+// so pressing tab offered `oh-my-pi` and the command that followed refused it.
+// A completion is a promise about what the next word may be.
+func TestHookCompletesOnlyTargetsItAccepts(t *testing.T) {
+	candidates := completionCandidates([]string{"hook", "install", "--target", ""})
+	for _, candidate := range candidates {
+		if _, err := integrations.New(integrations.Options{}); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, target := range integrations.HookTargets() {
+			if string(target) == candidate {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("completion offers %q, which hook install refuses", candidate)
+		}
+	}
+	if len(candidates) != len(integrations.HookTargets()) {
+		t.Fatalf("completion offers %d targets, want the %d that host a gate",
+			len(candidates), len(integrations.HookTargets()))
 	}
 }

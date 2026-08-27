@@ -2,6 +2,7 @@ package agenthook
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -142,4 +143,28 @@ func questionsEqual(got, want Question) bool {
 		}
 	}
 	return true
+}
+
+// TestFirstLineBoundsWhatARefusalQuotes keeps a subagent's prompt from arriving
+// in an error message whole. The refusal is one line the caller reads, not a
+// transcript of what it asked for.
+func TestFirstLineBoundsWhatARefusalQuotes(t *testing.T) {
+	for _, testCase := range []struct{ prompt, want string }{
+		{"find where indexing happens", "find where indexing happens"},
+		{"find the indexer. Then read it.", "find the indexer"},
+		{"first line\nsecond line", "first line"},
+		{"  padded  ", "padded"},
+		{"", ""},
+	} {
+		if got := firstLine(testCase.prompt); got != testCase.want {
+			t.Fatalf("firstLine(%q) = %q, want %q", testCase.prompt, got, testCase.want)
+		}
+	}
+	long := firstLine(strings.Repeat("word ", 60))
+	if len([]rune(long)) > 121 {
+		t.Fatalf("a long prompt was quoted at %d runes", len([]rune(long)))
+	}
+	if !strings.HasSuffix(long, "…") {
+		t.Fatalf("a clipped prompt does not say it was clipped: %q", long)
+	}
 }

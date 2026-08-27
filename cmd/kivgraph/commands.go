@@ -519,7 +519,7 @@ func integrationCommand(kind, operation string) commandSpec {
 			return integrationFlagSet(kind+" "+operation, &options, io.Discard, writes, endpoint)
 		},
 		hints: map[string]flagHint{
-			"target": {values: integrationTargetNames},
+			"target": {values: targetNamesFor(kind)},
 			"scope":  {values: integrationScopeNames},
 		},
 		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
@@ -533,6 +533,14 @@ func integrationCommand(kind, operation string) commandSpec {
 			}
 		},
 	}
+}
+
+// targetNamesFor answers the vocabulary one family's --target accepts.
+func targetNamesFor(kind string) func() []string {
+	if kind == "hook" {
+		return hookTargetNames
+	}
+	return integrationTargetNames
 }
 
 // allCommands is the table every reader walks, longest invocation first so a
@@ -658,7 +666,19 @@ func recordedToolNames() []string {
 // which is the whole point of completing this flag: the vocabulary is long,
 // hyphenated and easy to misspell.
 func integrationTargetNames() []string {
-	targets := integrations.KnownTargets()
+	return targetNamesOf(integrations.KnownTargets())
+}
+
+// hookTargetNames are the targets `hook --target` completes to.
+//
+// A completion is a promise, and the family's targets are not all the same:
+// only four clients host a pre-tool-use gate, so offering the fifth would
+// complete a word the command then refuses.
+func hookTargetNames() []string {
+	return targetNamesOf(integrations.HookTargets())
+}
+
+func targetNamesOf(targets []integrations.Target) []string {
 	names := make([]string, 0, len(targets))
 	for _, target := range targets {
 		names = append(names, string(target))
