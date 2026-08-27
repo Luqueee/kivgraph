@@ -14,6 +14,12 @@ import (
 
 func windowsManager(t *testing.T, home string) Manager {
 	t.Helper()
+	// LOCALAPPDATA is pinned to a directory the test owns, because the Claude
+	// Desktop path now looks there for an MSIX package. Left alone, a suite run
+	// on a Windows machine that actually has Claude Desktop installed would
+	// resolve the real package and these fixtures would be asserting against
+	// the host.
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 	manager, err := New(Options{
 		HomeDir:    home,
 		ProjectDir: t.TempDir(),
@@ -208,5 +214,129 @@ func TestThePluginDoesNotCorruptAPathWithBackslashes(t *testing.T) {
 				t.Fatalf("plugin does not carry %s; it would name a different file", encoded)
 			}
 		})
+	}
+}
+
+// Claude Desktop on Windows ships as an MSIX package, and MSIX redirects a
+// packaged application's writes into its own container: it asks for
+// `%APPDATA%\Claude` and Windows gives it
+// `%LOCALAPPDATA%\Packages\Claude_<hash>\LocalCache\Roaming\Claude`. So a
+// configuration written to the documented path is one the application never
+// reads, and `mcp install --target claude-desktop` reported success while
+// changing nothing that loads an MCP server.
+//
+// Measured on a host running Claude Desktop 1.37937.3.0 from the Store:
+// `%APPDATA%\Claude` absent, `%LOCALAPPDATA%\AnthropicClaude` absent, and the
+// live `claude_desktop_config.json` inside the package. Both markers this
+// manager had were wrong, and so was the path it wrote to.
+//
+// What these cannot check is that Windows still redirects. That is a property
+// of Windows, and the reason the paths above carry the version they were
+// observed under.
+
+func claudeDesktopPath(t *testing.T, manager Manager) string {
+	t.Helper()
+	path, _, _, err := manager.mcpPath(TargetClaudeDesktop, ScopeUser)
+	if err != nil {
+		t.Fatalf("mcpPath() error = %v", err)
+	}
+	return path
+}
+
+// An installed package that has already run: its data directory holds the file
+// the application is reading now, so that is the file to edit.
+func TestClaudeDesktopIsWrittenInsideItsPackage(t *testing.T) {
+	home := t.TempDir()
+	roaming := filepath.Join(t.TempDir(), "Roaming")
+	t.Setenv("APPDATA", roaming)
+	manager := windowsManager(t, home)
+	data := filepath.Join(home, "AppData", "Local", "Packages",
+		"Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude")
+	if err := os.MkdirAll(data, 0o755); err != nil {
+		t.Fatalf("create package data: %v", err)
+	}
+
+	got := claudeDesktopPath(t, manager)
+	if want := filepath.Join(data, "claude_desktop_config.json"); got != want {
+		t.Fatalf("mcpPath() = %q, want the packaged path %q", got, want)
+	}
+	if got == filepath.Join(roaming, "Claude", "claude_desktop_config.json") {
+		t.Fatal("mcpPath() returned the documented path, which a packaged install never reads")
+	}
+}
+
+// Installed but never run: the package exists and its data directory does not.
+// The configuration still belongs inside it, because that is where the
+// application looks the first time it starts.
+func TestClaudeDesktopPackageThatHasNeverRunIsStillThePlace(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("APPDATA", filepath.Join(t.TempDir(), "Roaming"))
+	manager := windowsManager(t, home)
+	pkg := filepath.Join(home, "AppData", "Local", "Packages", "Claude_pzs8sxrjxfjjc")
+	if err := os.MkdirAll(pkg, 0o755); err != nil {
+		t.Fatalf("create package: %v", err)
+	}
+
+	want := filepath.Join(pkg, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json")
+	if got := claudeDesktopPath(t, manager); got != want {
+		t.Fatalf("mcpPath() = %q, want %q", got, want)
+	}
+}
+
+// Two packages, one of them already running. The choice has to be the one the
+// application is using, and the same one every time.
+func TestClaudeDesktopPrefersThePackageThatHasRun(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("APPDATA", filepath.Join(t.TempDir(), "Roaming"))
+	manager := windowsManager(t, home)
+	packages := filepath.Join(home, "AppData", "Local", "Packages")
+	// Named so the one that has run sorts *second*, which is what makes this a
+	// test of the preference rather than of the glob's order.
+	if err := os.MkdirAll(filepath.Join(packages, "Claude_aaaaaaaaaaaaa"), 0o755); err != nil {
+		t.Fatalf("create package: %v", err)
+	}
+	running := filepath.Join(packages, "Claude_zzzzzzzzzzzzz")
+	if err := os.MkdirAll(filepath.Join(running, "LocalCache", "Roaming", "Claude"), 0o755); err != nil {
+		t.Fatalf("create package data: %v", err)
+	}
+
+	want := filepath.Join(running, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json")
+	for attempt := range 3 {
+		if got := claudeDesktopPath(t, manager); got != want {
+			t.Fatalf("attempt %d: mcpPath() = %q, want the package that has run %q", attempt, got, want)
+		}
+	}
+}
+
+// Detection is the other half. On the measured host neither older marker
+// exists, so a packaged install was reported as no install at all and the
+// target was never offered.
+func TestClaudeDesktopIsDetectedFromItsPackageAlone(t *testing.T) {
+	home := t.TempDir()
+	roaming := filepath.Join(t.TempDir(), "Roaming")
+	t.Setenv("APPDATA", roaming)
+	manager := windowsManager(t, home)
+	local := filepath.Join(home, "AppData", "Local")
+	if err := os.MkdirAll(filepath.Join(local, "Packages", "Claude_pzs8sxrjxfjjc"), 0o755); err != nil {
+		t.Fatalf("create package: %v", err)
+	}
+	for _, absent := range []string{filepath.Join(roaming, "Claude"), filepath.Join(local, "AnthropicClaude")} {
+		if _, err := os.Stat(absent); !os.IsNotExist(err) {
+			t.Fatalf("stat %q = %v, want it absent for this case to mean anything", absent, err)
+		}
+	}
+
+	detections, err := manager.DetectMCPTargets(ScopeUser)
+	if err != nil {
+		t.Fatalf("DetectMCPTargets() error = %v", err)
+	}
+	detected := false
+	for _, detection := range detections {
+		if detection.Target == TargetClaudeDesktop {
+			detected = detection.Detected
+		}
+	}
+	if !detected {
+		t.Fatal("a packaged Claude Desktop was not detected, so the target is never offered")
 	}
 }

@@ -126,6 +126,64 @@ type Manager struct {
 // themselves consult. The fallback is the default layout, which is right on
 // the machine that has not been redirected and is the only guess available on
 // the one that has.
+// claudeDesktopPackage returns the per-user package directory of an
+// MSIX-packaged Claude Desktop, and whether one is installed.
+//
+// Windows ships Claude Desktop as an MSIX package, and MSIX redirects a
+// packaged application's writes into its own container. Electron asks for
+// `%APPDATA%\Claude` and Windows quietly gives it
+// `%LOCALAPPDATA%\Packages\Claude_<hash>\LocalCache\Roaming\Claude`, so
+// that is where the application reads its configuration -- and a file written
+// to `%APPDATA%\Claude` by anything outside the package is a file it never
+// sees.
+//
+// Measured on a host running Claude Desktop 1.37937.3.0 from the Store:
+// `%APPDATA%\Claude` does not exist at all, `%LOCALAPPDATA%\AnthropicClaude`
+// does not exist either, and the live `claude_desktop_config.json` is inside
+// the package. Writing outside it would have reported a successful install and
+// changed nothing the application reads.
+//
+// The package directory and not its data directory, because this is also what
+// answers "is it installed": the package appears when the application is
+// installed and its data directory only when the application first runs.
+//
+// The hash is matched rather than spelled. It is reported as stable and was
+// `pzs8sxrjxfjjc` on that host, but a package family name is not ours to pin
+// and a wrong literal here is an integration that silently stops working.
+func (manager Manager) claudeDesktopPackage() (string, bool) {
+	matches, err := filepath.Glob(filepath.Join(manager.localDir(), "Packages", "Claude_*"))
+	if err != nil || len(matches) == 0 {
+		return "", false
+	}
+	// Glob sorts, so the choice is deterministic when a machine carries more
+	// than one. One that has already run is preferred over one that has not,
+	// because its data directory is the file the application is reading now.
+	for _, match := range matches {
+		if info, statErr := os.Stat(claudeDesktopPackageData(match)); statErr == nil && info.IsDir() {
+			return match, true
+		}
+	}
+	return matches[0], true
+}
+
+// claudeDesktopPackageData is where a packaged Claude Desktop keeps what an
+// unpackaged one would keep in `%APPDATA%\Claude`.
+func claudeDesktopPackageData(pkg string) string {
+	return filepath.Join(pkg, "LocalCache", "Roaming", "Claude")
+}
+
+// claudeDesktopDir is where Claude Desktop keeps its configuration on Windows.
+//
+// The packaged location when the machine has a packaged install, and the
+// documented one otherwise -- which is what the older Win32 installer used and
+// what a reader following the official documentation expects.
+func (manager Manager) claudeDesktopDir() string {
+	if pkg, found := manager.claudeDesktopPackage(); found {
+		return claudeDesktopPackageData(pkg)
+	}
+	return filepath.Join(manager.roamingDir(), "Claude")
+}
+
 func (manager Manager) roamingDir() string {
 	if configured := strings.TrimSpace(os.Getenv("APPDATA")); configured != "" {
 		return configured
@@ -482,7 +540,7 @@ func (manager Manager) mcpPath(target Target, scope Scope) (string, fileFormat, 
 		case "linux":
 			return filepath.Join(manager.homeDir, ".config", "Claude", "claude_desktop_config.json"), formatJSON, "mcpServers", nil
 		case "windows":
-			return filepath.Join(manager.roamingDir(), "Claude", "claude_desktop_config.json"), formatJSON, "mcpServers", nil
+			return filepath.Join(manager.claudeDesktopDir(), "claude_desktop_config.json"), formatJSON, "mcpServers", nil
 		default:
 			return "", 0, "", fmt.Errorf("target %q is unsupported on %s", target, manager.goos)
 		}
