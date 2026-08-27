@@ -333,6 +333,38 @@ infringieron una vez cada una. Ver ADR 0062 y ADR 0061.
   pertenece al llamador.
 - Los comandos, códigos, campos JSON y gates se escriben entre backticks.
 
+## El idioma de lo que se escribe
+
+Todo texto que este repositorio **entrega o publica** se escribe en inglés:
+
+- la documentación de `docs/` y la de `landing/`;
+- los `AGENTS.md` y las skills de `.claude/skills/`;
+- las notas de una release -- que son el cuerpo de
+  `landing/src/content/releases/vX.Y.Z.md`, y ya lo estaban;
+- el cuerpo y el título de un pull request;
+- el mensaje de un commit, que la sección de entrega ya exigía;
+- los comentarios del código, que ya lo están y no cambian.
+
+La razón no es preferencia. El público de este repositorio lee inglés -- el
+`README`, la landing, la referencia de tools y las releases ya se publican
+así -- y un proyecto que documenta sus contratos en un idioma y su código en
+otro obliga a cada lector nuevo a elegir cuál de los dos es el que manda.
+
+**Es un ratchet, no una migración.** La regla vale para lo que se escribe a
+partir de ahora; los documentos que la preceden se quedan como están hasta que
+alguien los traduzca. Es el mismo trato que la regla de columnas de
+`scripts/check-docs.sh`: un gate que nace en rojo es un gate que se aprende a
+ignorar.
+
+Y de ahí sale la única parte que no es obvia: **un fichero no se vuelve
+bilingüe**. Si un cambio añade una frase a un documento que está en castellano,
+esa frase va en castellano. Traducir el fichero es un cambio propio, entero, con
+su propio commit -- porque media página en cada idioma se lee peor que cualquiera
+de los dos, y porque un diff que traduce y edita a la vez no se puede revisar.
+
+Lo que no se entrega no entra aquí: una conversación, una nota de trabajo o el
+texto de una tarea van en el idioma que quiera quien escribe.
+
 ## Tamaño y forma de un cambio
 
 - Un cambio que no sea mecánico no debería pasar de 800 líneas, y de 500 si es
@@ -525,6 +557,10 @@ arranque, el arm de carrera al publicar-- se hace por identificador.
   `cli`, `web`, `landing`, `release`- y se omite cuando el cambio es
   transversal.
 - El cuerpo explica el por qué cuando no es obvio; nunca narra el diff.
+- El título y el cuerpo de un pull request van en inglés, como el commit. Un PR
+  es lo que lee quien revisa y lo que queda en el historial de la rama cuando el
+  commit ya no se abre, así que no puede estar en un idioma distinto del commit
+  que resume.
 - Revisar el diff completo y `git diff --check`.
 - Confirmar que no quedan imports, rutas, nombres de paquete o comandos
   antiguos del proyecto.
