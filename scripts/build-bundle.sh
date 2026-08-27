@@ -121,7 +121,17 @@ case "$target" in
 esac
 
 output_dir=${output_argument:-"$root/dist/$bundle_name"}
-if [[ "$output_dir" != /* ]]; then
+# "Absolute" is not "starts with a slash" on every host this builds for. Under
+# the MSYS bash a Windows runner provides, `RUNNER_TEMP` arrives as `D:\a\_temp`
+# -- a drive letter, no leading slash -- so a test for `/*` alone read it as
+# relative and prefixed the repository root. The release job passes exactly that
+# value, and the result was `$root/D:\a\_temp/...`, which `go build` reported as
+# `mkdir /d/a/kivgraph/kivgraph/D:: The filename, directory name, or volume
+# label syntax is incorrect`: a directory literally named `D:` under the
+# checkout. It blocked the v0.9.0 release, and the compile-only
+# `windows-cross` gate could not have caught it -- nothing about it changes
+# whether the package builds.
+if [[ "$output_dir" != /* && ! "$output_dir" =~ ^[A-Za-z]:[\\/] ]]; then
   output_dir="$root/$output_dir"
 fi
 
