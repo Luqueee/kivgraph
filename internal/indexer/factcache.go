@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/pythonloader"
@@ -877,23 +878,39 @@ func fileFingerprint(path string) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
+// fingerprintedExtensions is every extension a language this build analyses is
+// written in.
+//
+// It is derived from config rather than listed here, because listing it here is
+// how Rust went missing: the switch this replaces named nine extensions across
+// four languages and `.rs` was not one of them, so `treeFingerprint` over a
+// crate matched no file at all and hashed the empty string. Every Rust unit
+// therefore had a constant tree fingerprint, and an edit to a `.rs` file
+// invalidated nothing.
+var fingerprintedExtensions = config.SourceExtensionSet(config.SupportedLanguages())
+
+// fingerprintedManifests are the files that decide how those languages are
+// built. A change to one of them can change facts without any source changing.
+var fingerprintedManifests = map[string]struct{}{
+	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
+	"package.json": {}, "tsconfig.json": {},
+	"cargo.toml": {}, "cargo.lock": {},
+	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
+	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
+	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},
+}
+
 // isFingerprintedSource is what a unit can read: the languages this indexer
 // analyses, plus the manifests that decide how they are built.
 func isFingerprintedSource(name string) bool {
-	switch name {
-	case "go.mod", "go.sum", "go.work", "go.work.sum", "package.json", "tsconfig.json", "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock", "pubspec.yaml", "pubspec.lock", "analysis_options.yaml":
+	base := strings.ToLower(filepath.Base(name))
+	if _, ok := fingerprintedManifests[base]; ok {
 		return true
 	}
-	base := filepath.Base(name)
 	if strings.HasPrefix(base, "requirements-") && strings.HasSuffix(base, ".txt") {
 		return true
 	}
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".go", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".py", ".pyi", ".dart":
-		return true
-	default:
-		return false
-	}
+	return config.HasSourceExtension(fingerprintedExtensions, name)
 }
 
 // sameFacts reports what differs between a stored entry and a fresh analysis.
