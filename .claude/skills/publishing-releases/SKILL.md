@@ -133,6 +133,12 @@ frontmatter es `version`, `date` y `requires_reindex`, validado por el esquema d
 quien actualiza si su grafo publicado le sirve tal cual, así que se responde
 mirando si algún loader cambió lo que ve, no por costumbre.
 
+Esa página **se escribe en inglés**, y no por gusto: es a la vez una página
+publicada de la landing y el cuerpo de la release de GitHub, así que la leen
+usuarios y no el equipo. Las notas anteriores ya lo están; la regla completa --
+qué se escribe en inglés y qué se deja como está -- vive en la sección *El
+idioma de lo que se escribe* del `AGENTS.md` de la raíz.
+
 Un tag sin esa página es exactamente el fallo que se paga más caro: el número no
 se reutiliza, así que se quema un `vX.Y.Z` entero por un archivo de treinta
 líneas que se escribe en un minuto.

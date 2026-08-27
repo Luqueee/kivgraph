@@ -196,6 +196,18 @@ git diff --check
 
 Y en `ts-worker/`, `pnpm check && pnpm build`.
 
+Si el cambio toca `docs/` o un `CLAUDE.md`, además `scripts/check-docs.sh` --
+que verifica el symlink y el ancho de columna, **no** el idioma. El idioma lo
+decide quien escribe: documento nuevo, en inglés; documento que ya existe en
+castellano, se queda en castellano hasta que alguien lo traduzca entero. La
+regla está en *El idioma de lo que se escribe*, en el `AGENTS.md` de la raíz, y
+también alcanza al commit y al pull request con los que se cierra la tarea.
+
+Y una trampa de ese gate que cuesta un CI en rojo: `check-docs.sh` mide el
+ancho con `git diff`, así que **no ve un fichero sin trackear**. Sobre un
+documento recién creado contesta `ok` sin haber mirado nada. Correrlo después
+del `git add`.
+
 ## Lo que esta máquina no puede probar
 
 El bundle `linux/amd64` no se construye aquí: cgo enlaza la biblioteca nativa y
