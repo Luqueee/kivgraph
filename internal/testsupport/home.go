@@ -26,5 +26,9 @@ func SetHome(t testing.TB, directory string) {
 		// redirects home without it leaves the cache pointing at the real
 		// profile -- which is the same defect one directory over.
 		t.Setenv("LocalAppData", directory)
+		// APPDATA is where a client keeps its configuration, so a test that
+		// redirects home and leaves this pointing at the real profile writes
+		// into the machine it is running on.
+		t.Setenv("APPDATA", directory)
 	}
 }

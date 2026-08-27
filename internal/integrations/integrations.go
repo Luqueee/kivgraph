@@ -117,6 +117,29 @@ type Manager struct {
 	endpoint   Endpoint
 }
 
+// roamingDir and localDir answer where Windows keeps a program's per-user
+// data, which is not derivable from the home directory alone: both are
+// redirected on a machine with roaming profiles or folder redirection, and a
+// path built out of the profile would then be one nothing reads.
+//
+// The environment is consulted first because that is what the applications
+// themselves consult. The fallback is the default layout, which is right on
+// the machine that has not been redirected and is the only guess available on
+// the one that has.
+func (manager Manager) roamingDir() string {
+	if configured := strings.TrimSpace(os.Getenv("APPDATA")); configured != "" {
+		return configured
+	}
+	return filepath.Join(manager.homeDir, "AppData", "Roaming")
+}
+
+func (manager Manager) localDir() string {
+	if configured := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); configured != "" {
+		return configured
+	}
+	return filepath.Join(manager.homeDir, "AppData", "Local")
+}
+
 // Plan describes an inspected or applied integration operation.
 type Plan struct {
 	Action  Action
@@ -195,8 +218,8 @@ func New(options Options) (Manager, error) {
 	if goos == "" {
 		goos = runtime.GOOS
 	}
-	if goos != "darwin" && goos != "linux" {
-		return Manager{}, fmt.Errorf("client integrations are supported only on darwin and linux, got %s", goos)
+	if goos != "darwin" && goos != "linux" && goos != "windows" {
+		return Manager{}, fmt.Errorf("client integrations are supported only on darwin, linux and windows, got %s", goos)
 	}
 	if err := options.Endpoint.validate(); err != nil {
 		return Manager{}, err
@@ -458,6 +481,8 @@ func (manager Manager) mcpPath(target Target, scope Scope) (string, fileFormat, 
 			return filepath.Join(manager.homeDir, "Library", "Application Support", "Claude", "claude_desktop_config.json"), formatJSON, "mcpServers", nil
 		case "linux":
 			return filepath.Join(manager.homeDir, ".config", "Claude", "claude_desktop_config.json"), formatJSON, "mcpServers", nil
+		case "windows":
+			return filepath.Join(manager.roamingDir(), "Claude", "claude_desktop_config.json"), formatJSON, "mcpServers", nil
 		default:
 			return "", 0, "", fmt.Errorf("target %q is unsupported on %s", target, manager.goos)
 		}
