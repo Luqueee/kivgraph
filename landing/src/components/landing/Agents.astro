@@ -20,7 +20,7 @@ const command = "kivgraph mcp install --scope user";
         class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
       >
         <span>register the client</span>
-        <CopyButton value={command} />
+        <CopyButton value={command} event="client_connect_copy" />
       </div>
       <pre
         class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{command}</code></pre>

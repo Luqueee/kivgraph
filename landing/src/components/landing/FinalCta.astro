@@ -28,7 +28,7 @@ const installCommand =
           class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
         >
           <span>install the latest release</span>
-          <CopyButton value={installCommand} />
+          <CopyButton value={installCommand} event="install_copy" eventData={{ where: "final_cta" }} />
         </div>
         <pre
           class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>

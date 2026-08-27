@@ -238,6 +238,25 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   sirve la instancia, no este bundle -- y lo emiten **las dos** mitades del
   sitio, incluido el 404, para que un visitante que pasa de la landing a la
   documentación siga siendo una sesión.
+- El tracker lleva `data-performance="true"` y `data-domains`, y las dos cosas
+  son para SEO y no para contar visitas. La primera enciende los Core Web
+  Vitals de campo -- LCP, INP, CLS, FCP, TTFB -- que es lo que permite preguntar
+  qué página rankea **y** va lenta. La segunda es el guarda que el par de
+  variables no puede ser: sale de `PRODUCTION_HOST` en `site.mjs` y **no** del
+  host de `Astro.site`, porque un build de staging fija `site` al origen de
+  staging y seguirlo le dejaría casar consigo mismo. El par falla cerrado
+  cuando falta una variable; una preview que hereda **las dos** es justo el
+  caso que no atrapa.
+- `data-exclude-search` no está puesto y no debe ponerse: ahí viajan `utm_*`,
+  `gclid`, `fbclid` y `msclkid`, y excluirlas deja la atribución en blanco.
+- Los eventos salen de `CopyButton.astro` -- que los declara `event` y
+  `eventData`, opcionales, y reporta **en el `then` del `writeText`**, así que
+  una copia rechazada no cuenta -- y de `data-umami-event` en los enlaces que
+  salen del sitio, que Umami lee del clic sin JavaScript nuestro. Un enlace
+  interno **no** lleva evento: ya es un pageview, y contarlo dos veces pone en
+  el informe un número que ninguna visita produjo. El vocabulario, los goals y
+  la convención UTM viven en `docs/development/analytics.md`; un evento nuevo se
+  añade ahí antes que en el código.
 - El JSON-LD del sitio es **un** grafo: la landing publica
   `SoftwareApplication` en `<site>/#software` y `WebSite` en `<site>/#website`, y
   cada página de documentación emite un `TechArticle` que los referencia por

@@ -1,5 +1,5 @@
 import { type CollectionEntry, getCollection } from "astro:content";
-import { PROJECT_TAGLINE } from "../site.mjs";
+import { PRODUCTION_HOST, PROJECT_TAGLINE } from "../site.mjs";
 
 // Every fact the machine-readable surfaces state lives here once. `robots.txt`,
 // `llms.txt`, `llms-full.txt`, the raw markdown endpoint, the Starlight `Head`
@@ -21,6 +21,8 @@ export {
   PROJECT_NAME,
   PROJECT_SUMMARY,
   PROJECT_TAGLINE,
+  PRODUCTION_HOST,
+  PRODUCTION_ORIGIN,
   REPOSITORY_URL,
 } from "../site.mjs";
 
@@ -43,6 +45,16 @@ export interface UmamiTracker {
   readonly src: string;
   /** The id Umami minted for this site, which the script reports against. */
   readonly websiteId: string;
+  /**
+   * The only host allowed to report, as `data-domains`.
+   *
+   * It is `PRODUCTION_HOST` and deliberately not the host of `Astro.site`: a
+   * staging build sets `site` to the staging origin, so following it would let
+   * staging match itself and write into the production dataset. The env pair
+   * already fails closed when half of it is missing, but a preview deployment
+   * that inherits both variables is exactly the case that pair cannot catch.
+   */
+  readonly domains: string;
 }
 
 /**
@@ -57,7 +69,7 @@ export interface UmamiTracker {
 export function umamiTracker(): UmamiTracker | null {
   const src = import.meta.env.KIVGRAPH_UMAMI_SCRIPT_URL;
   const websiteId = import.meta.env.KIVGRAPH_UMAMI_WEBSITE_ID;
-  return src && websiteId ? { src, websiteId } : null;
+  return src && websiteId ? { src, websiteId, domains: PRODUCTION_HOST } : null;
 }
 
 /**
