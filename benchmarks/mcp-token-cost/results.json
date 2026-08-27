@@ -25,7 +25,7 @@
   },
   "corpus": {
     "repository": "kivgraph",
-    "path": "/Users/adria/Documents/programacion/projects/kivgraph",
+    "path": "/path/to/kivgraph",
     "branch": "fix/scope-once-not-per-failure",
     "indexed_commit": "1a7d02665751f3bf5dfd453c8bb8361880e0533d",
     "current_commit": "1a7d02665751f3bf5dfd453c8bb8361880e0533d",

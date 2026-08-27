@@ -50,11 +50,11 @@ Por último, el layout publicado empaquetaba cada contenedor en una rejilla de
 9. La etiqueta dibujada en el lienzo es el nombre acortado a sus dos últimos
    segmentos de ruta (máximo `32` caracteres). El nombre completo viaja en el
    nodo y se muestra al pasar el cursor: nada se pierde, pero un módulo como
-   `kena.bot/api-db-go/internal/domain/errors` deja de tapar a sus vecinos.
+   `workspace/go-svc-a/internal/domain/errors` deja de tapar a sus vecinos.
 10. El visor no dibuja las coordenadas absolutas del layout: proyecta cada eje
     por rango. Las posiciones distintas se ordenan y se reparten a intervalos
     iguales, conservando el orden y las columnas del layout. Con la proyección
-    lineal, la celda más densa del mundo de `~/kena` concentraba `11` de `128`
+    lineal, la celda más densa del mundo de `~/workspace` concentraba `11` de `128`
     paquetes mientras tres cuartas partes del lienzo quedaban vacías; por
     rango, ninguna celda pasa de `2`.
 11. El visor dibuja además la contención que cada nodo ya declara en el

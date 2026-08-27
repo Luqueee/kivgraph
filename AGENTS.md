@@ -64,13 +64,13 @@ construye con la respuesta que ya se tiene.
 Una pregunta de referencias no necesita resolver el símbolo antes: `name` a
 secas basta, y cuando varias declaraciones comparten el nombre la respuesta se
 niega a elegir y **nombra los candidatos** con esa misma tripleta, así que
-acotar es copiar uno. Sobre `kena` la negativa cuesta `129` tokens donde el
+acotar es copiar uno. Sobre `workspace` la negativa cuesta `129` tokens donde el
 `find_symbol` previo costaba `750`; medido en
 `benchmarks/graft-comparison/report.md`.
 
 Y se pide a la granularidad que se pregunta: `view: "files"` responde qué
 archivos sin la línea de cada referencia. Las cuatro preguntas de referencias de
-`kena` cuestan `2.480` tokens con línea y `912` sin ella, con la misma precisión
+`workspace` cuestan `2.480` tokens con línea y `912` sin ella, con la misma precisión
 y la misma exhaustividad -- y una página en vez de dos donde 66 referencias caben
 en 9 archivos. Quien necesite la línea pide las filas compactas, que son el
 valor por defecto.
@@ -91,7 +91,7 @@ coste de esos cuerpos y no por el de la respuesta.
 
 El caso genuinamente trivial **ya es una fila medida**, y confirma la
 desventaja: `benchmarks/graph-tools-comparison/trivial.md`, sobre
-`newGMCClient` -- dos apariciones en todo `kena`, una declaración y una llamada,
+`newGMCClient` -- dos apariciones en todo `workspace`, una declaración y una llamada,
 sin homónimo en cinco lenguajes. Los seis brazos aciertan y `grep` es el más
 barato de todos: `65` tokens contra nuestros `123`, o sea que costamos `1,9x`.
 Los otros cuatro grafos también pierden contra esa línea de `grep`, y la razón

@@ -383,7 +383,7 @@ the graph knows only as an import or a re-export is `SYMBOL_NOT_FOUND` with the
 same instruction: name the repository and path that declares it.
 
 All the answers above come from snapshot `30` of two repositories, `kivgraph`
-and `mole`. The refusal is not one of them: it comes from the private benchmark
+and `go-svc-e`. The refusal is not one of them: it comes from the private benchmark
 corpus, so its repository, path and symbol names are substituted. The line
 numbers, the count of seven declarations and the token figures are the measured
 ones, and the `49` to `144` range was measured against the real identifiers,

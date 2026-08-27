@@ -1,1 +1,1 @@
-No graph found at /Users/adria/Documents/programacion/projects/kena/modules/sdk-module-ts/.code-review-graph/graph.db. Run `code-review-graph build` first.
+No graph found at /path/to/workspace/modules/sdk-module-ts/.code-review-graph/graph.db. Run `code-review-graph build` first.

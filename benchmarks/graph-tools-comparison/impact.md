@@ -15,7 +15,7 @@ the run is `--set impact`. No verdict: two questions on one corpus.
 |---|---|
 |date|2026-08-21|
 |commit|`5295901`|
-|corpus|`/Users/adria/Documents/programacion/projects/kena`, 37 git repositories|
+|corpus|`/path/to/workspace`, 37 git repositories|
 |tokenizer|`tiktoken` `o200k_base`|
 |versions|kivgraph `0.3.6`, graft `0.10.1`, code-review-graph `2.3.7`, graphify `0.8.31`, codebase-memory-mcp `0.8.1`|
 
@@ -76,10 +76,10 @@ expansion claimed five files and one of them is prose.
 
 Truth at two hops, four files:
 
-- `services/api-db-go/cmd/server/main.go`
-- `services/api-db-go/internal/application/handlers/guilds_mock_test.go`
-- `services/api-db-go/internal/application/routers/guilds_router.go`
-- `services/api-db-go/internal/application/routers/routers_test.go`
+- `services/go-svc-a/cmd/server/main.go`
+- `services/go-svc-a/internal/application/handlers/guilds_mock_test.go`
+- `services/go-svc-a/internal/application/routers/guilds_router.go`
+- `services/go-svc-a/internal/application/routers/routers_test.go`
 
 **Truth at three hops is the same four**, and that is the question. The frontier
 at hop two is `main`, `TestRegisterGuilds_RoutesMounted`,

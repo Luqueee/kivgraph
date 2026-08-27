@@ -1,4 +1,4 @@
-# Cinco grafos de código sobre el workspace `kena`
+# Cinco grafos de código sobre el workspace `workspace`
 
 Comparación de coste en tokens y exactitud entre cinco herramientas que se
 describen como grafos de código, más un sexto brazo: `grep` y leer los archivos,
@@ -24,7 +24,7 @@ concreto, en un estado concreto de ese corpus.
 |---|---|
 |fecha|2026-08-21|
 |commit|`4c1bfae`|
-|corpus|`/Users/adria/Documents/programacion/projects/kena`, 37 repositorios git|
+|corpus|`/path/to/workspace`, 37 repositorios git|
 |máquina|Apple M5, macOS, `arm64`|
 |toolchain|`go1.26.4`|
 |tokenizador|`tiktoken` `o200k_base`|
@@ -143,7 +143,7 @@ Dos lecturas que conviene no mezclar:
 
 ## El hallazgo: tres de cinco resuelven por nombre
 
-`withRetry` se declara **siete veces** en `kena`, en tres lenguajes. `now_ms`,
+`withRetry` se declara **siete veces** en `workspace`, en tres lenguajes. `now_ms`,
 cuatro. Ese es el caso que separa las cinco herramientas, y tres fallan igual:
 
 - **codebase-memory-mcp**: sus aristas `CALLS` apuntan al nombre, no al símbolo,
@@ -215,7 +215,7 @@ invisible, que es el cero de `R1` para las dos.
 
 - **Indexación y disco**: el más caro de los cinco, y el único con dependencia de
   toolchain.
-- **`R1`, cross-package**: cero, como las otras cuatro. `kena` consume sus
+- **`R1`, cross-package**: cero, como las otras cuatro. `workspace` consume sus
   repositorios como paquetes publicados y no como fuente, así que la respuesta no
   es alcanzable para nadie; la pregunta se conserva justamente por eso.
 - **`R3`**: `R=0,89`. Falta
@@ -260,7 +260,7 @@ pip install code-review-graph        # 2.3.7, en un venv aislado
 npm install -g @nanonets/graft       # 0.10.1
 
 # graphify escribe dentro del árbol que lee: copia privada, nunca el corpus
-rsync -a --delete --exclude=node_modules /ruta/a/kena/ /private/tmp/5way/kena-copy/
+rsync -a --delete --exclude=node_modules /ruta/a/workspace/ /private/tmp/5way/workspace-copy/
 
 go run ./benchmarks/graph-tools-comparison
 ```

@@ -15,7 +15,7 @@ heap vivo en `profiles/inuse.pprof`.
 |---|---|
 |fecha|`2026-08-22`|
 |comando|`go run ./benchmarks/hot-snapshot-footprint --graph <graph.db> --generation <id>`|
-|corpus|`kena`, 37 repositorios registrados, Go + TypeScript + Rust|
+|corpus|`workspace`, 37 repositorios registrados, Go + TypeScript + Rust|
 |generación|`000001`, un pase completo, `graph.db` de `234 MB`|
 |contenido|`123.531` símbolos, `372.320` aristas, `372.320` evidencias, `4.768` ficheros|
 |`go`|`go1.26.4 darwin/arm64`|

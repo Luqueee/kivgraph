@@ -678,7 +678,7 @@ pregunte nada:
 Ocho editores arrancando a la vez pagan siete veces más pico que un demonio; a uno
 solo, el demonio pica algo más alto. Y un cliente nuevo se conecta antes --
 `1,6`–`2,0 ms` contra `38`–`55` a ocho clientes-- porque una
-sesión nueva no arranca nada. Sobre `108.737` símbolos de `kena`, en Linux:
+sesión nueva no arranca nada. Sobre `108.737` símbolos de `workspace`, en Linux:
 `benchmarks/daemon-cost`.
 
 Bajo tráfico sostenido -- `2.000` llamadas por sesión, que ninguna sesión real

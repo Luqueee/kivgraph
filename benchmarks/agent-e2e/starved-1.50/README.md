@@ -10,5 +10,5 @@ arreglos que a estas ejecuciones les faltan: mensaje de commit neutro en el esta
 preparado, `.git` denegado a `Read`/`Grep`/`Glob`, y presupuesto agotado
 distinguido de fallo real.
 
-La ejecución `api-db-go-f3a50ad-kivgraph-t1` es la que leyó `.git/logs/HEAD` y
+La ejecución `go-svc-a-f3a50ad-kivgraph-t1` es la que leyó `.git/logs/HEAD` y
 motivó ese cierre; escribió 0 archivos, así que no contaminó ningún resultado.

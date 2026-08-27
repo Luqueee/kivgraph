@@ -435,7 +435,7 @@ func contentText(result *sdkmcp.CallToolResult) string {
 }
 
 // TestFindReferencesCompactViewHoistsSharedColumns is the token contract of
-// ADR 0046: the default view states what every row shares once. Over `kena`,
+// ADR 0046: the default view states what every row shares once. Over `workspace`,
 // confidence and provenance alone were 1.200 of the 4.236 tokens of one page.
 func TestFindReferencesCompactViewHoistsSharedColumns(t *testing.T) {
 	client := newFindReferencesToolClient(t, referenceSnapshot(t, 35))
@@ -720,7 +720,7 @@ func TestFindReferencesNamesTheRepoFilterWhenItWasMeantAsTheSubject(t *testing.T
 	}
 }
 
-// forwardingSnapshot is the real cross-package shape the `kena` measurement
+// forwardingSnapshot is the real cross-package shape the `workspace` measurement
 // found: a declaration, its own export binding, a barrel re-exporting it from
 // another file, and one consumer that imports it and calls it. The consumer
 // resolves to the declaration and not to the barrel, which is why dropping the

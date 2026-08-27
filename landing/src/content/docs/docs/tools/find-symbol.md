@@ -157,7 +157,7 @@ The same absence in the `full` view keeps the counters and the nulls:
 ```
 
 These responses come from snapshot `30` of two repositories, `kivgraph`
-and `mole`.
+and `go-svc-e`.
 
 
 ## Example: grouped
@@ -185,12 +185,12 @@ than one kind:
       {
         "kind": "method",
         "symbols": [
-          { "at": "mole:internal/clip/server.go:147", "end": 174, "qn": "Server.handleLatest", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" },
-          { "at": "mole:internal/admin/admin.go:106", "end": 129, "qn": "Server.handleStatus", "sig": "func(w net/http.ResponseWriter, _ *net/http.Request)" },
-          { "at": "mole:internal/admin/admin.go:150", "end": 169, "qn": "Server.handlePortAdd", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" },
-          { "at": "mole:internal/clip/server.go:89", "end": 145, "qn": "Server.handlePut", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" },
-          { "at": "mole:internal/admin/admin.go:131", "end": 134, "qn": "Server.handleHealth", "sig": "func(w net/http.ResponseWriter, _ *net/http.Request)" },
-          { "at": "mole:internal/admin/admin.go:175", "end": 188, "qn": "Server.handlePortDelete", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" }
+          { "at": "go-svc-e:internal/clip/server.go:147", "end": 174, "qn": "Server.handleLatest", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" },
+          { "at": "go-svc-e:internal/admin/admin.go:106", "end": 129, "qn": "Server.handleStatus", "sig": "func(w net/http.ResponseWriter, _ *net/http.Request)" },
+          { "at": "go-svc-e:internal/admin/admin.go:150", "end": 169, "qn": "Server.handlePortAdd", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" },
+          { "at": "go-svc-e:internal/clip/server.go:89", "end": 145, "qn": "Server.handlePut", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" },
+          { "at": "go-svc-e:internal/admin/admin.go:131", "end": 134, "qn": "Server.handleHealth", "sig": "func(w net/http.ResponseWriter, _ *net/http.Request)" },
+          { "at": "go-svc-e:internal/admin/admin.go:175", "end": 188, "qn": "Server.handlePortDelete", "sig": "func(w net/http.ResponseWriter, r *net/http.Request)" }
         ]
       },
       {
@@ -202,7 +202,7 @@ than one kind:
       {
         "kind": "func",
         "symbols": [
-          { "at": "mole:internal/proxy/proxy.go:44", "end": 88, "name": "handle", "sig": "func(local net.Conn, dial github.com/Luqueee/mole/internal/proxy.Dialer, remoteAddr string, hooks github.com/Luqueee/mole/internal/proxy.Hooks, log *log/slog.Logger)" }
+          { "at": "go-svc-e:internal/proxy/proxy.go:44", "end": 88, "name": "handle", "sig": "func(local net.Conn, dial github.com/Luqueee/go-svc-e/internal/proxy.Dialer, remoteAddr string, hooks github.com/Luqueee/go-svc-e/internal/proxy.Hooks, log *log/slog.Logger)" }
         ]
       }
     ]
@@ -216,7 +216,7 @@ drops out of the header and each group states its own instead. The `func` group
 carries `name` because `handle` is the whole qualified name of a closure with no
 receiver to prefix it, while every method above spells `qn` instead, since
 `Server.handlePut` is not implied by `handle` alone. `repository` never reaches
-the page header at all here, because the page spans both `mole` and `kivgraph`
+the page header at all here, because the page spans both `go-svc-e` and `kivgraph`
 and a group carries no `repository` field of its own to hoist into -- so every
 row of every group, six-strong or alone, spells its own `repo:` prefix in `at`.
 

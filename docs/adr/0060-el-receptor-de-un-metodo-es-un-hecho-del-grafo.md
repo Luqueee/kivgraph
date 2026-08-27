@@ -24,7 +24,7 @@ ADR 0059 declaró y no arregló, y es exactamente el defecto que su propia nota
 describía como inaceptable: la diferencia estaba escrita en un ADR y no en la
 respuesta.
 
-Medido sobre `kena`, con `depth: 1`:
+Medido sobre `workspace`, con `depth: 1`:
 
 |sujeto|antes|después|
 |---|---|---|

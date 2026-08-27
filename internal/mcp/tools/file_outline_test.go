@@ -343,7 +343,7 @@ func manyDeclarationsSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStor
 
 // TestGetFileOutlineCompactGroupsTheMajorityKindOnce is the regression guard
 // for the real page that motivated this: a 197-declaration directory outline
-// over `kena` had 7 distinct kinds, one covering 132 of them, and repeating
+// over `workspace` had 7 distinct kinds, one covering 132 of them, and repeating
 // `kind` on every row cost more than reading the source would have. Here four
 // declarations share one (kind, visibility) pair across two files and two
 // share another in a third, which is enough to force grouping over the flat

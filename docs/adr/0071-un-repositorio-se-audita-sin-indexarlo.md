@@ -41,7 +41,7 @@ lógica nueva: `workspace.ClaimedTypeScriptSources` y
 
 **Los patrones de Go se nombran uno a uno.** `go list -e ./...` **no** informa
 de un paquete cuyos ficheros excluye la configuración de build: el patrón no lo
-matchea. Medido en `api-db-go`: cero hallazgos con `./...`, los dos reales al
+matchea. Medido en `go-svc-a`: cero hallazgos con `./...`, los dos reales al
 nombrar los paquetes, que es lo que la pasada ya hacía.
 
 **Un remedio se propone, nunca se aplica.** Kivgraph no escribe dentro del

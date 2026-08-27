@@ -76,7 +76,7 @@ missing snapshot: reporting that the index is empty is its job.
     "repository_freshness": [
       {
         "name": "kivgraph",
-        "path": "/Users/adria/Documents/programacion/projects/kivgraph",
+        "path": "/path/to/kivgraph",
         "languages": ["go", "typescript"],
         "indexed_commit": "d67bc0ebfb3b002f7c52fb9b048b688bd24bd28b",
         "indexed_branch": "main",
@@ -85,8 +85,8 @@ missing snapshot: reporting that the index is empty is its job.
         "moved": false
       },
       {
-        "name": "mole",
-        "path": "/Users/adria/Documents/programacion/projects/mole",
+        "name": "go-svc-e",
+        "path": "/path/to/home/Documents/programacion/projects/go-svc-e",
         "languages": ["go", "typescript"],
         "indexed_commit": "4cc05cdc2c73cb7111b7b38447639c1444ab8410",
         "indexed_branch": "main",
@@ -119,7 +119,7 @@ missing snapshot: reporting that the index is empty is its job.
 }
 ```
 
-Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`.
+Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`.
 
 ## Identity and freshness
 

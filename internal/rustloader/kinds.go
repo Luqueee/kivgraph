@@ -70,13 +70,13 @@ var scipKindNames = map[int32]string{
 // `shapes::impl::Circle` lands in Unresolved with DEFINITION_NOT_INDEXED, and
 // that no in-repository reference names a key the pass does not publish. So a
 // kind for a symbol the loader never creates was unreachable by construction,
-// not merely unobserved -- and nothing covered the branch itself. On kena, with
+// not merely unobserved -- and nothing covered the branch itself. On workspace, with
 // 3063 Rust symbols across two workspaces, `find_symbol` with
 // `kind=implementation` answers zero. LUQUE-2008.
 //
 // The consequence is declared rather than hidden: a reference whose target is an
 // impl header stays UNRESOLVED, because there is no symbol to point it at. That
-// is 56 of the 1969 unresolved Rust references on kena, the same shape as a
+// is 56 of the 1969 unresolved Rust references on workspace, the same shape as a
 // reference into the sysroot -- the declaration lives outside what this graph
 // publishes. Members of those blocks are indexed normally, which is why
 // `error::impl::ApiError::with_context_header` is a row and `error::impl::ApiError`

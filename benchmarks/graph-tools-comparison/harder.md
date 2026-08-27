@@ -20,7 +20,7 @@ corpus in one state of it.
 |---|---|
 |date|2026-08-21|
 |commit|`6c7a789`|
-|corpus|`/Users/adria/Documents/programacion/projects/kena`, 37 git repositories|
+|corpus|`/path/to/workspace`, 37 git repositories|
 |corpus files under the rule|`610` Go, `3.247` TypeScript, `85` Rust|
 |tokenizer|`tiktoken` `o200k_base`|
 |versions|kivgraph `0.3.6`, graft `0.10.1`, code-review-graph `2.3.7`, graphify `0.8.31`, codebase-memory-mcp `0.8.1`|
@@ -42,7 +42,7 @@ choice.
 |`H4_ts_alias`|`export { X as Y } from` where `X` has one declaration and one alias|`CommandManager as SlashCommandManager`, 4 of 16|
 |`H5_rs_trait`|a `fn` inside an `impl Trait for Type` block, unique among trait impls, in 4-10 files|`MemoryStateStore::delete_player`, 17 candidates|
 |`A1`,`A2`,`A3`|a declaration no **other** file names, one per language|`BenchmarkDeserializeValueDate`, `addMockedSongsToQueue`, `build_all_image_sizes`|
-|`O3_rs_outline`|a `.rs` file with 5-15 top-level declarations, first path alphabetically|`api-music-nodo/src/audio/range.rs`, 39 candidates|
+|`O3_rs_outline`|a `.rs` file with 5-15 top-level declarations, first path alphabetically|`rs-svc-a/src/audio/range.rs`, 39 candidates|
 
 ### Where the rule had to look wider, and why it mattered
 
@@ -74,7 +74,7 @@ the name, and **one** is a reference to this declaration.
 |`routers/command_router.go`|`24`|the same line on `*handlers.CommandHandler`|
 |`routers/premium_router.go`|`30`|the same line on `*handlers.PremiumHandler`|
 
-Truth: `services/api-db-go/internal/application/routers/bots_router.go`.
+Truth: `services/go-svc-a/internal/application/routers/bots_router.go`.
 
 Five of the six files are wrong answers, and the reference is a **method value**
 passed to a route, never a call. A name-matching tool scores `P=0.17`.
@@ -94,7 +94,7 @@ interface.
 |`postgres/migrations/...notifier-subs-schema.up.sql`|`27`|a SQL comment|
 |`api-gateway/src/application/controllers/notifier-controller.ts`|`296`|a TypeScript comment -- the name crosses languages|
 
-Truth: `services/api-db-go/internal/application/handlers/guilds_handler.go`.
+Truth: `services/go-svc-a/internal/application/handlers/guilds_handler.go`.
 
 The call site names the **interface**, so `go/types` resolves it there and not
 to the implementation the question is about. The interface declaration is not an
@@ -107,7 +107,7 @@ Declared at `libraries/library-shared/src/types/gateway-registry.ts:51`.
 |file|what it is|
 |---|---|
 |`library-shared/src/types/gateway-registry.ts`|the declaration, and a use at `60` -- declaring file|
-|`library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts`|imports it and annotates six positions -- **an answer**|
+|`library-shared/src/redis/cache/gateway/registry/go-svc-d-cache.ts`|imports it and annotates six positions -- **an answer**|
 |`gateway/src/grpc/manager/RegistryGrpcManager.ts`|imports it, annotates four positions, and re-exports it -- **an answer**, in another repository|
 |`gateway/src/types/registry.ts`|`export type { ApiRuntimeState, ... }` and nothing else -- a barrel|
 
@@ -128,7 +128,7 @@ Truth: `modules/sdk-module-ts/src/sdk/client/ModuleActions.ts`.
 
 ### `H5_rs_trait` -- `MemoryStateStore::delete_player`
 
-Declared at `services/kenalink-rs/src/state/memory.rs:84`, the single `impl
+Declared at `services/rs-svc-b/src/state/memory.rs:84`, the single `impl
 StateStore` in the crate. Every call goes through `Arc<dyn StateStore>`.
 
 |file|what it is|
@@ -237,8 +237,8 @@ that `dist/` exists now, and `generated_files` accepts only `include`, so a buil
 package is indexed. But the shape of the two rows was ours:
 
 ```
-gateway:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
-sdk-module-ts:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
+gateway:../../libraries/library-shared/dist/.../go-svc-d-cache.d.ts
+sdk-module-ts:../../libraries/library-shared/dist/.../go-svc-d-cache.d.ts
 ```
 
 One file, attributed to **two repositories, neither of which contains it**, by a
@@ -336,10 +336,10 @@ type use in it. `RegistryGrpcManager.ts` in `gateway` annotates four positions
 with `ApiRuntimeState` and was absent.
 
 The diagnosis was not the one the symptom suggested. It is not about types --
-the same file's `import type { RedisAdapter } from "@kena/shared"` resolves
+the same file's `import type { RedisAdapter } from "@private/shared"` resolves
 fine. It is about the **path**: the manager imports the type from
 `"../../types/registry.js"`, a local barrel whose entire content is
-`export type { ApiRuntimeState, ... } from "@kena/shared"`. Bindings were made
+`export type { ApiRuntimeState, ... } from "@private/shared"`. Bindings were made
 only for imports that named a package, so this file bound nothing, and its four
 uses were dropped whole for having no target. Measured in the payload:
 
@@ -356,8 +356,8 @@ resolved to, never on a name.
 
 It also cost a precision regression on the way, which the set caught: widening
 the walk to every file of the program pulled in the `.d.ts` of every dependency,
-and binding those named the installed copy of `@kena/shared` as a consumer of a
-type `@kena/shared` declares -- in two repositories at once. `H3` read
+and binding those named the installed copy of `@private/shared` as a consumer of a
+type `@private/shared` declares -- in two repositories at once. `H3` read
 `0.50`/`1.00` for one pass. Files under a `node_modules` are the provider's own
 source and are not walked.
 

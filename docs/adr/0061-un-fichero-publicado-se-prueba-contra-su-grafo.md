@@ -25,7 +25,7 @@ contadores por tabla** que reportó el cargador.
 ### La medición
 
 Los contadores no distinguen dos grafos de la misma forma. El mismo corpus
-`kena` indexado en dos `HOME` distintos produjo:
+`workspace` indexado en dos `HOME` distintos produjo:
 
 |magnitud|valor|
 |---|---|

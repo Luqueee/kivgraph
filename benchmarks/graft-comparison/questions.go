@@ -54,20 +54,20 @@ var withRetryDeclarations = []string{
 	"libraries/library-shared/src/utils/retry.ts",
 	"modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
 	"modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
-	"services/api-db-go/internal/infrastructure/postgres/retry.go",
-	"services/api-db-go/internal/shared/infisical/infisical.go",
-	"services/api-music/internal/shared/infisical/infisical.go",
+	"services/go-svc-a/internal/infrastructure/postgres/retry.go",
+	"services/go-svc-a/internal/shared/infisical/infisical.go",
+	"services/go-svc-b/internal/shared/infisical/infisical.go",
 }
 
 var nowMsDeclarations = []string{
-	"services/api-music-nodo/src/providers/chipbot.rs",
-	"services/api-music-nodo/src/providers/deezer.rs",
-	"services/api-music-nodo/src/system/chipbot_files.rs",
-	"services/kenalink-rs/src/util.rs",
+	"services/rs-svc-a/src/providers/chipbot.rs",
+	"services/rs-svc-a/src/providers/deezer.rs",
+	"services/rs-svc-a/src/system/chipbot_files.rs",
+	"services/rs-svc-b/src/util.rs",
 }
 
 // questions is the measured set. Q1 has no reachable answer on this corpus and
-// is kept for exactly that reason: kena's repositories consume each other as
+// is kept for exactly that reason: workspace's repositories consume each other as
 // published packages, never as source, so the honest result is an absence and a
 // benchmark that dropped the question would hide it.
 var questions = []question{
@@ -80,7 +80,7 @@ var questions = []question{
 			Path: "src/utils/retry.ts", Name: "withRetry", Symbol: "withRetry",
 		},
 		Callers: []string{
-			"modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+			"modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
 			"packages/core/src/cluster/master/index.ts",
 			"packages/core/src/cluster/worker/BotWorker.ts",
 			"packages/core/src/shared/utils/sharding.ts",
@@ -90,15 +90,15 @@ var questions = []question{
 	},
 	{
 		ID:       "Q2_go",
-		Ask:      "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+		Ask:      "Which call sites use withRetry in services/go-svc-a/internal/infrastructure/postgres/retry.go?",
 		Language: "go",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/postgres/retry.go", Name: "withRetry", Symbol: "withRetry",
 		},
 		Callers: []string{
-			"services/api-db-go/internal/infrastructure/postgres/client.go",
-			"services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+			"services/go-svc-a/internal/infrastructure/postgres/client.go",
+			"services/go-svc-a/internal/infrastructure/postgres/retry_test.go",
 		},
 		Declarations: withRetryDeclarations,
 	},
@@ -125,19 +125,19 @@ var questions = []question{
 	},
 	{
 		ID:       "Q4_rust",
-		Ask:      "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+		Ask:      "Which files call now_ms() from services/rs-svc-b/src/util.rs?",
 		Language: "rust",
 		Subject: subject{
-			Repo: "kenalink-rs", Dir: "services/kenalink-rs",
+			Repo: "rs-svc-b", Dir: "services/rs-svc-b",
 			Path: "src/util.rs", Name: "util::now_ms", Symbol: "now_ms",
 		},
 		Callers: []string{
-			"services/kenalink-rs/src/api_rest/error.rs",
-			"services/kenalink-rs/src/api_rest/routes_players.rs",
-			"services/kenalink-rs/src/api_rest/routes_sessions.rs",
-			"services/kenalink-rs/src/api_ws/mod.rs",
-			"services/kenalink-rs/src/audio/songbird_engine.rs",
-			"services/kenalink-rs/src/main.rs",
+			"services/rs-svc-b/src/api_rest/error.rs",
+			"services/rs-svc-b/src/api_rest/routes_players.rs",
+			"services/rs-svc-b/src/api_rest/routes_sessions.rs",
+			"services/rs-svc-b/src/api_ws/mod.rs",
+			"services/rs-svc-b/src/audio/songbird_engine.rs",
+			"services/rs-svc-b/src/main.rs",
 		},
 		Declarations: nowMsDeclarations,
 	},
@@ -170,14 +170,14 @@ type scopeProbe struct {
 }
 
 var scopeProbes = []scopeProbe{
-	// The intermediate scope. One repository is not enough for Go: `api-db-go`
+	// The intermediate scope. One repository is not enough for Go: `go-svc-a`
 	// declares `withRetry` in two packages, so the name is still ambiguous inside
 	// the build and the cross-file callers are still dropped. It is the probe
 	// that shows the boundary is the build, not the repository.
 	{
 		ID:      "go_repository_scope",
 		Subject: questions[1].Subject,
-		Root:    "services/api-db-go",
+		Root:    "services/go-svc-a",
 		Callers: []string{
 			"internal/infrastructure/postgres/client.go",
 			"internal/infrastructure/postgres/retry_test.go",
@@ -186,13 +186,13 @@ var scopeProbes = []scopeProbe{
 	{
 		ID:      "go_package_scope",
 		Subject: questions[1].Subject,
-		Root:    "services/api-db-go/internal/infrastructure/postgres",
+		Root:    "services/go-svc-a/internal/infrastructure/postgres",
 		Callers: []string{"client.go", "retry_test.go"},
 	},
 	{
 		ID:      "rust_repository_scope",
 		Subject: questions[3].Subject,
-		Root:    "services/kenalink-rs",
+		Root:    "services/rs-svc-b",
 		Callers: []string{
 			"src/api_rest/error.rs",
 			"src/api_rest/routes_players.rs",
@@ -205,22 +205,22 @@ var scopeProbes = []scopeProbe{
 }
 
 // crossRepoConsumers is the package dimension: which repositories consume
-// `@kena/shared`. The truth is computed from the corpus rather than asserted --
+// `@private/shared`. The truth is computed from the corpus rather than asserted --
 // every file whose text imports the package specifier, mapped to the repository
 // holding it, with the provider itself removed:
 //
-//	grep -rIn -E 'from +"@kena/shared|import +"@kena/shared|require\("@kena/shared' \
+//	grep -rIn -E 'from +"@private/shared|import +"@private/shared|require\("@private/shared' \
 //	  --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
 //	  --include='*.mjs' --include='*.cjs' . | grep -v /node_modules/
 //
 // 773 files in 23 directories, of which one is `libraries/library-shared`. That
 // leaves 22 consumers, which is the count the earlier codebase-memory-mcp
 // comparison classified by hand. A repository that declares the dependency
-// without importing it -- `api-metrics` -- is correctly absent, and so are the
+// without importing it -- `go-svc-c` -- is correctly absent, and so are the
 // two that only name it in comments.
 var crossRepoConsumers = []string{
-	"admin.kena.lan", "api-cdn", "api-gateway", "api-premium", "api-translations",
-	"automation-module", "captcha.kena.bot", "core", "dash.kena.bot", "gateway",
+	"admin.workspace", "api-cdn", "api-gateway", "api-premium", "api-translations",
+	"automation-module", "captcha.workspace", "core", "dash.workspace", "gateway",
 	"greeter-module", "levels-module", "library-lavalink", "logs-module",
 	"moderation-module", "modmail-module", "music-module", "sdk-module-ts",
 	"tempVoice-module", "template-module", "tickets-module", "utils-module",

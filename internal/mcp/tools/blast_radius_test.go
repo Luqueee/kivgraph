@@ -300,7 +300,7 @@ func blastRadiusStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 // blastRadiusFanInStore is the shape that surfaced a real regression: four
 // depth-1 callers of the root, each with its own depth-2 consumer. Every
 // depth-1 row shares one tuple and every depth-2 row shares another, but each
-// depth-2 row's `reached_from` names a different depth-1 parent -- on `kena`,
+// depth-2 row's `reached_from` names a different depth-1 parent -- on `workspace`,
 // 26 of 29 rows shared one tuple while `reached_from` alone had 26 distinct
 // values, and folding it into the grouping key fragmented every group back
 // down to one row.
@@ -834,7 +834,7 @@ func sortedJSONKeys(object map[string]json.RawMessage) []string {
 	return keys
 }
 
-// blastRadiusNoiseStore reproduces what ADR 0046 measured on `kena`: the
+// blastRadiusNoiseStore reproduces what ADR 0046 measured on `workspace`: the
 // frontier of an impact traversal is mostly local bindings, and the callers a
 // reviewer came for sit behind them. sym-handler is reachable only through the
 // excluded variable, so a filter on what is reported must not shorten the walk.

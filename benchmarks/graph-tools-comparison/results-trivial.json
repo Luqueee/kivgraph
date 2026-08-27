@@ -9,7 +9,7 @@
     "os": "Darwin"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "code_files": 0
   },
@@ -24,7 +24,7 @@
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
-    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/workspace-copy",
     "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
@@ -34,9 +34,9 @@
     {
       "id": "T1_go_trivial",
       "family": "references",
-      "question": "Which files call newGMCClient in services/api-db-go?",
+      "question": "Which files call newGMCClient in services/go-svc-a?",
       "ground_truth": [
-        "services/api-db-go/internal/infrastructure/locker/locker.go"
+        "services/go-svc-a/internal/infrastructure/locker/locker.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -57,7 +57,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "spurious": []
           },
@@ -81,7 +81,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "spurious": []
           },
@@ -105,7 +105,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "spurious": []
           }
@@ -122,13 +122,13 @@
           "ms": 145.47,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go",
-            "api-db-go:internal/infrastructure/locker/locker.go",
-            "api-db-go:internal/infrastructure/locker/locker.go"
+            "go-svc-a:internal/infrastructure/locker/locker.go",
+            "go-svc-a:internal/infrastructure/locker/locker.go",
+            "go-svc-a:internal/infrastructure/locker/locker.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -149,11 +149,11 @@
           "ms": 0.244,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
+            "go-svc-a:internal/infrastructure/locker/locker.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -173,11 +173,11 @@
           "ms": 0,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
+            "go-svc-a:internal/infrastructure/locker/locker.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "precision": 1,
             "recall": 1,

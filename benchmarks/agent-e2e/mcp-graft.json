@@ -5,9 +5,9 @@
     "--dir",
     "/private/tmp/e2e-graft-ctx",
     "mcp",
-    "/private/tmp/e2e-kena"
+    "/private/tmp/e2e-workspace"
    ],
-   "command": "/Users/adria/.nvm/versions/node/v25.2.1/bin/graft"
+   "command": "/path/to/home/.nvm/versions/node/v25.2.1/bin/graft"
   }
  }
 }

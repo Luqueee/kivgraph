@@ -1,10 +1,10 @@
 {
  "version": 1,
- "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "corpus": "/path/to/workspace",
  "tasks": [
   {
-   "id": "api-db-go-f3a50ad",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-f3a50ad",
+   "repo": "services/go-svc-a",
    "commit": "f3a50ad5ae25752fb9b7f38a8468708d6354742a",
    "short": "f3a50ad",
    "parent": "051d90a06d5a81cb584ed67f4c986a9d58dfc579",
@@ -22,8 +22,8 @@
    "n_truth": 6
   },
   {
-   "id": "api-db-go-821977c",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-821977c",
+   "repo": "services/go-svc-a",
    "commit": "821977cccf6ad6e188f771346a94ec8ab3212973",
    "short": "821977c",
    "parent": "9471c235a03cd972a5ce93cf7843cbd31196ab96",
@@ -154,8 +154,8 @@
    "short": "b8fd33d",
    "parent": "c33db4a171d95849f660dd29a984a0c5cad4f4ab",
    "language": "typescript",
-   "subject": "fix(music): el bot que pides entra a tu canal aunque ya haya otro Kena sonando",
-   "prompt_intent": "fix(music): el bot que pides entra a tu canal aunque ya haya otro Kena sonando\n\nBug: con kena1 sonando en tu canal, pedir kena2 te encolaba la cancion en\nkena1 y kena2 no entraba nunca. Un canal de voz admite varios bots\n—Discord lo permite y el nodo los aisla por (session_id, guild_id)— y\nelegir un bot concreto que ademas esta libre es justo pedir que entre ese.",
+   "subject": "fix(music): el bot que pides entra a tu canal aunque ya haya otro Workspace sonando",
+   "prompt_intent": "fix(music): el bot que pides entra a tu canal aunque ya haya otro Workspace sonando\n\nBug: con bot1 sonando en tu canal, pedir bot2 te encolaba la cancion en\nbot1 y bot2 no entraba nunca. Un canal de voz admite varios bots\n—Discord lo permite y el nodo los aisla por (session_id, guild_id)— y\nelegir un bot concreto que ademas esta libre es justo pedir que entre ese.",
    "truth_files": [
     "src/shared/bot-pool.test.ts",
     "src/shared/bot-pool.ts"
@@ -163,8 +163,8 @@
    "n_truth": 2
   },
   {
-   "id": "kenalink-rs-e39c66b",
-   "repo": "services/kenalink-rs",
+   "id": "rs-svc-b-e39c66b",
+   "repo": "services/rs-svc-b",
    "commit": "e39c66bee53abf93895c47e0ae729e32557952c6",
    "short": "e39c66b",
    "parent": "38169e6cae2c5d6d365c573248746c2fd0a95357",
@@ -182,8 +182,8 @@
    "n_truth": 6
   },
   {
-   "id": "kenalink-rs-188ae97",
-   "repo": "services/kenalink-rs",
+   "id": "rs-svc-b-188ae97",
+   "repo": "services/rs-svc-b",
    "commit": "188ae97a344bb24595335cfdf6fd097ac603f2b8",
    "short": "188ae97",
    "parent": "5a16b240127a50ecdc992e488900afdfc0029916",
@@ -199,8 +199,8 @@
    "n_truth": 4
   },
   {
-   "id": "api-music-nodo-2fd7c63",
-   "repo": "services/api-music-nodo",
+   "id": "rs-svc-a-2fd7c63",
+   "repo": "services/rs-svc-a",
    "commit": "2fd7c63b8a4de12ffd34f5773147657e7c506898",
    "short": "2fd7c63",
    "parent": "d4af38722e0117867143ac69a1668f721027af93",

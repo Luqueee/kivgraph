@@ -11,7 +11,7 @@ import (
 // same edges, with the same confidence and the same provenance, spelled with or
 // without the parts a row shares with every other row.
 //
-// The measured cost of spelling them out on every row, over `kena`
+// The measured cost of spelling them out on every row, over `workspace`
 // (`benchmarks/codebase-memory-comparison`): `confidence` plus `provenance`
 // were `1.200` of the `4.236` tokens of one `find_references` page, and every
 // one of the fifty rows carried the same pair. See ADR 0046.

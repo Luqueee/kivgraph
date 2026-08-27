@@ -42,8 +42,8 @@
    "n_truth": 6
   },
   {
-   "id": "api-db-go-9c47084",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-9c47084",
+   "repo": "services/go-svc-a",
    "commit": "9c4708438b6f7c3169318cb6b3273e046a7a330e",
    "short": "9c47084",
    "parent": "ff98710e5db5dc59cc19af0c1ae2b33431ed851a",
@@ -62,8 +62,8 @@
    "n_truth": 7
   },
   {
-   "id": "api-db-go-821977c",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-821977c",
+   "repo": "services/go-svc-a",
    "commit": "821977cccf6ad6e188f771346a94ec8ab3212973",
    "short": "821977c",
    "parent": "9471c235a03cd972a5ce93cf7843cbd31196ab96",
@@ -79,8 +79,8 @@
    "n_truth": 4
   },
   {
-   "id": "kenalink-rs-e39c66b",
-   "repo": "services/kenalink-rs",
+   "id": "rs-svc-b-e39c66b",
+   "repo": "services/rs-svc-b",
    "commit": "e39c66bee53abf93895c47e0ae729e32557952c6",
    "short": "e39c66b",
    "parent": "38169e6cae2c5d6d365c573248746c2fd0a95357",
@@ -98,8 +98,8 @@
    "n_truth": 6
   },
   {
-   "id": "kenalink-rs-43a4608",
-   "repo": "services/kenalink-rs",
+   "id": "rs-svc-b-43a4608",
+   "repo": "services/rs-svc-b",
    "commit": "43a460876da1a56726b4d2abd0362cf993a171eb",
    "short": "43a4608",
    "parent": "d84cb7b606148e79ebd1ccc5157f88843b168b28",

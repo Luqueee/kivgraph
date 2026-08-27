@@ -74,7 +74,8 @@ leerla.
 
 ## Lo medido
 
-Seis pasadas ociosas por las dos puertas, sobre `108.737` símbolos de `kena` en
+Seis pasadas ociosas por las dos puertas, sobre `108.737` símbolos de
+`workspace` en
 Linux, desde un árbol limpio en el commit `68da6dc`:
 
 |ocioso|antes|ahora|

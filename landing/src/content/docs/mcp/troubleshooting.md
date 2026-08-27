@@ -206,7 +206,7 @@ Paths and line ranges name code that has moved. `graph_status` reports it in `re
 
 ```json
 {
-  "name": "mole",
+  "name": "go-svc-e",
   "languages": ["go", "typescript"],
   "indexed_commit": "4cc05cdc2c73cb7111b7b38447639c1444ab8410",
   "indexed_branch": "main",

@@ -31,7 +31,7 @@ const (
 //
 // Kinds selects which symbol kinds the answer reports. Left empty it excludes
 // `variable` and `field`, the local bindings a traversal walks through on its
-// way to real consumers: measured on `getRequiredField` of `kena`, 48 of the
+// way to real consumers: measured on `getRequiredField` of `workspace`, 48 of the
 // 50 rows of the first page were bindings like `handleBan.userId`, and the
 // callers a reviewer came for fell to page two. `["*"]` reports every kind and
 // an explicit list reports exactly those. The filter is part of the query, not

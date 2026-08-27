@@ -8,7 +8,7 @@
 
 Con el layout estructural en su sitio, el visor dibujaba un tile de `1.200`
 nodos a `1` fotograma por segundo y seguía dibujándolo con el grafo quieto y
-nadie tocando nada. Medido sobre el índice de `~/kena` con WebGL por software:
+nadie tocando nada. Medido sobre el índice de `~/workspace` con WebGL por software:
 
 ```text
 draw calls con la imagen quieta, 5 s   34.164

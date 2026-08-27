@@ -1,6 +1,6 @@
 # ¿Ayuda una capa de contexto a entregar un cambio real?
 
-Tres brazos del mismo agente sobre los mismos commits reales de `kena`: sin capa
+Tres brazos del mismo agente sobre los mismos commits reales de `workspace`: sin capa
 de contexto, con Kivgraph montado por MCP, y con `graft` montado por MCP. Se
 puntúa contra los archivos que tocó el autor del commit. Sin modelo juez y sin
 similitud: `git` dice qué escribió el brazo y el commit dice qué debía escribir.
@@ -45,12 +45,12 @@ como en frío en las otras 5.
 
 |tarea|archivos|`cold`|`kivgraph`|`graft`|
 |---|---|---|---|---|
-|`api-db-go-f3a50ad` (go)|6|0/2 · `P=0,17` `R=0,08`|0/2 · `0,00`/`0,00`|0/2 · `0,00`/`0,00`|
+|`go-svc-a-f3a50ad` (go)|6|0/2 · `P=0,17` `R=0,08`|0/2 · `0,00`/`0,00`|0/2 · `0,00`/`0,00`|
 |`core-6ad7d65` (ts)|3|0/2 · `0,58`/`0,50`|0/2 · `0,50`/`0,50`|0/2 · `0,50`/`0,33`|
 |`gateway-37cd672` (ts)|2|0/2 · `1,00`/`0,50`|0/2 · `1,00`/`0,50`|0/2 · `1,00`/`0,50`|
 |`library-shared-e294840` (ts)|3|**2/2** · `1,00`/`1,00`|1/2 · `0,88`/`1,00`|**2/2** · `1,00`/`1,00`|
-|`kenalink-rs-188ae97` (rust)|4|**2/2** · `1,00`/`1,00`|**2/2** · `1,00`/`1,00`|**2/2** · `1,00`/`1,00`|
-|`api-music-nodo-2fd7c63` (rust)|3|1/2 · `0,88`/`1,00`|1/2 · `0,88`/`1,00`|**2/2** · `1,00`/`1,00`|
+|`rs-svc-b-188ae97` (rust)|4|**2/2** · `1,00`/`1,00`|**2/2** · `1,00`/`1,00`|**2/2** · `1,00`/`1,00`|
+|`rs-svc-a-2fd7c63` (rust)|3|1/2 · `0,88`/`1,00`|1/2 · `0,88`/`1,00`|**2/2** · `1,00`/`1,00`|
 
 `x/2` son las ejecuciones exactas ($P=R=1{,}00$) de dos trials.
 
@@ -89,13 +89,13 @@ sacar conclusiones de la media:
   `src/shared/RequestMetrics.test.ts`. Idéntico en los tres brazos, en los dos
   trials. El techo de `R=0,50` no es una diferencia entre herramientas: es que
   ningún agente escribe el test si no se lo piden.
-- `kenalink-rs-188ae97`: 2/2 exactas en los tres brazos. Tarea fácil para todos.
+- `rs-svc-b-188ae97`: 2/2 exactas en los tres brazos. Tarea fácil para todos.
 - `library-shared-e294840`: 2/2, 2/2 y 1/2; la única no exacta escribió un
   archivo de más con `R=1,00`.
 
 ### La tarea Go es inválida, y es un fallo mío
 
-En `api-db-go-f3a50ad` los tres brazos trabajaron sobre `module_moderation_*` y la
+En `go-svc-a-f3a50ad` los tres brazos trabajaron sobre `module_moderation_*` y la
 verdad es `module_leveling_*`. No es que fallaran: **el enunciado no determina la
 respuesta**. El commit tocaba los dos módulos, su asunto habla de «normalizar los
 enums vacíos» sin decir cuál, y mi generador de prompts borra toda ruta para no
@@ -134,7 +134,7 @@ invariante que importa. `1,38 s` → `0,10 s`, y el host reporta `connected` con
 
 Sin config explícita y `--strict-mcp-config`, el agente hereda lo que haya en el
 entorno. En esta máquina había tres cosas: un `.mcp.json` del propio corpus
-(`web/dash.kena.bot`, con dos servidores HTTP), los servidores del plugin de
+(`web/dash.workspace`, con dos servidores HTTP), los servidores del plugin de
 Cloudflare del host, y un hook global `PreToolUse` sobre `Grep` que ejecuta
 `tokensave` — es decir, **una tercera herramienta de contexto colándose en los
 tres brazos**. Ahora cada brazo pasa su propia config, vacía en `cold`, y el
@@ -172,7 +172,7 @@ el barrido con simetría en los tests Go queda pendiente.
 ## Garantías del experimento
 
 - **El corpus no se toca.** Todo ocurre en una copia privada; del original sólo se
-  lee con `git archive`. Comprobado antes y después: los 37 repositorios de `kena`
+  lee con `git archive`. Comprobado antes y después: los 37 repositorios de `workspace`
   siguen con los dos `go.sum` sucios que ya tenían y nada más.
 - **La respuesta no está al alcance.** El repositorio de cada tarea se reconstruye
   en el padre del commit como repositorio de **un solo commit**; `assertNoLeak`
@@ -236,7 +236,7 @@ claude auth login --claudeai
 go run ./benchmarks/agent-e2e \
   --kivgraph /private/tmp/kivgraph-e2e \
   --model claude-sonnet-5 --trials 2 --budget-usd 3.0 \
-  --only api-db-go-f3a50ad,core-6ad7d65,gateway-37cd672,library-shared-e294840,kenalink-rs-188ae97,api-music-nodo-2fd7c63
+  --only go-svc-a-f3a50ad,core-6ad7d65,gateway-37cd672,library-shared-e294840,rs-svc-b-188ae97,rs-svc-a-2fd7c63
 ```
 
 `raw/` conserva el stream completo de cada ejecución -- cada llamada de

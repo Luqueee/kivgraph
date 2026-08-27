@@ -18,7 +18,7 @@
     "private_dirty_supported": true
   },
   "snapshot": {
-    "path": "/Users/adria/.cache/kivreal/.local/state/kivgraph/generations/000001/snapshot.kvsnap",
+    "path": "/path/to/home/.cache/kivreal/.local/state/kivgraph/generations/000001/snapshot.kvsnap",
     "bytes": 81375592
   },
   "points": [

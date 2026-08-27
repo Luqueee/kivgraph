@@ -177,7 +177,7 @@ type repositories struct {
 }
 
 // discoverRepositories walks until it meets a `.git`, at whatever depth it sits.
-// A fixed two-level walk missed `kena-cli`, which lives at the corpus root and
+// A fixed two-level walk missed `workspace-cli`, which lives at the corpus root and
 // is a repository like any other; a benchmark that silently indexes 36 of 37
 // repositories is measuring a corpus nobody has.
 func discoverRepositories(corpus string) (repositories, error) {
@@ -207,7 +207,7 @@ func discoverRepositories(corpus string) (repositories, error) {
 	if err != nil {
 		return repositories{}, fmt.Errorf("walk %s: %w", corpus, err)
 	}
-	// Longest first: `services/api-db-go` must win over `services` when a path
+	// Longest first: `services/go-svc-a` must win over `services` when a path
 	// is canonicalised.
 	sort.Slice(out.dirs, func(i, j int) bool { return len(out.dirs[i]) > len(out.dirs[j]) })
 	if len(out.dirs) == 0 {
@@ -225,8 +225,8 @@ func (r repositories) canonical(path string) string {
 		path = strings.TrimPrefix(path, prefix)
 	}
 	// A private copy of the corpus answers with its own root.
-	if index := strings.Index(path, "/kena-copy/"); index >= 0 {
-		path = path[index+len("/kena-copy/"):]
+	if index := strings.Index(path, "/workspace-copy/"); index >= 0 {
+		path = path[index+len("/workspace-copy/"):]
 	}
 	for _, dir := range r.dirs {
 		if path == dir {

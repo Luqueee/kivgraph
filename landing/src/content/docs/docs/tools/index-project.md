@@ -65,7 +65,7 @@ seeing which ones is not approval.
   "name": "index_project",
   "arguments": {
     "name": "kivgraph",
-    "path": "/Users/adria/Documents/programacion/projects/kivgraph",
+    "path": "/path/to/kivgraph",
     "languages": ["go"]
   }
 }
@@ -75,7 +75,7 @@ seeing which ones is not approval.
 PERMISSION_REQUIRED: user approval is required; confirm the operation before setting confirmed=true
 ```
 
-Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`. The captured
+Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`. The captured
 call sent no `confirmed` and the client declared no elicitation capability, so
 the refusal is the whole response.
 
@@ -88,12 +88,12 @@ The batch form, which is the one to send:
     "projects": [
       {
         "name": "kivgraph",
-        "path": "/Users/adria/Documents/programacion/projects/kivgraph",
+        "path": "/path/to/kivgraph",
         "languages": ["go", "typescript"]
       },
       {
-        "name": "mole",
-        "path": "/Users/adria/Documents/programacion/projects/mole",
+        "name": "go-svc-e",
+        "path": "/path/to/home/Documents/programacion/projects/go-svc-e",
         "languages": ["go", "typescript"]
       }
     ],
@@ -141,8 +141,8 @@ for that repository to be in the graph, and it is.
   on purpose.
 - Only a name already held by a **different** directory is a real conflict,
   because then nothing can decide which of the two repositories the name means.
-  The error names the registered path: `project "mole" is already registered at
-  "/repos/mole": choose another name or remove that entry`.
+  The error names the registered path: `project "go-svc-e" is already registered at
+  "/repos/go-svc-e": choose another name or remove that entry`.
 
 Names are compared exactly, and a name is an identifier: `.`, `..` and anything
 containing a path separator are rejected. The `rust:` namespace is reserved for

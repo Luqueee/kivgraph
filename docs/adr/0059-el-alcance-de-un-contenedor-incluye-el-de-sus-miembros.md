@@ -67,7 +67,7 @@ conjunto entero sube `14,4 %` y pasa de `3/4` a `4/4` exactas.
 
 La cota de `max_nodes` sigue siendo la que protege de un contenedor enorme, y
 `traversal_truncated` sigue diciéndolo. Un `struct` Go con nueve métodos medido
-sobre `kena` -- `GuildsHandler` -- responde `3` nodos y `167` tokens, no una
+sobre `workspace` -- `GuildsHandler` -- responde `3` nodos y `167` tokens, no una
 explosión, y por un motivo que conviene leer entero en la limitación de abajo.
 
 ## Limitación declarada: en Go y en Rust un método no está dentro del tipo

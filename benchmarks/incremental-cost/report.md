@@ -22,7 +22,7 @@ aceptación.
 |commit|`2808ea9`|
 |máquina|`Mac17,2` (Apple M5), 10 CPU, macOS `26.6`|
 |toolchains|`go1.26.4`, LadybugDB `v0.13.1`, `node v25.2.1`|
-|corpus|`kena`, 37 repositorios git, 35 indexados, **los tres lenguajes cargados**|
+|corpus|`workspace`, 37 repositorios git, 35 indexados, **los tres lenguajes cargados**|
 |tamaño|`4.768` ficheros, `123.524` símbolos, `493.521` aristas|
 |caché de hechos|**caliente**|
 
@@ -62,7 +62,7 @@ la base real de `493.521` aristas, el mejor de tres:
 |**total fijo por delta**|**`1,947`**|
 
 `ApplyCanonicalDelta` no se cronometra aquí: escala con la edición, y construir
-un delta a escala de `kena` exige salida real del cargador para `kena`. Los
+un delta a escala de `workspace` exige salida real del cargador para `workspace`. Los
 costes fijos ya deciden la pregunta, y hay una cota: leer las dieciocho tablas de
 relación cuesta `0,034 s`, así que el trabajo por tabla en esta base está en el
 orden de `2 ms`.
@@ -106,7 +106,7 @@ diseño, no este código.
 
 ## Corrección: la primera medición no llevaba Rust
 
-La primera pasada de este benchmark indexó `kena` **sin Rust**. El `PATH` del
+La primera pasada de este benchmark indexó `workspace` **sin Rust**. El `PATH` del
 harness llevaba `CARGO_HOME` pero no `cargo`, así que `rust-analyzer` rechazó los
 dos workspaces Cargo y el pase publicó el resto. Kivgraph lo dijo -- `not_loaded=2`
 en su JSON y en su salida humana, que es exactamente lo que su contrato promete

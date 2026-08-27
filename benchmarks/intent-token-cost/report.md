@@ -4,7 +4,7 @@ Question: which files hold the answer to a question that names no symbol
 
 Generated 2026-08-25T22:16:00Z from commit `255da242-dirty` on darwin/arm64 with go1.26.4, generation `000194`, counted in `cl100k_base`.
 
-Command: `go run ./benchmarks/intent-token-cost -server /tmp/kivgraph-main`. Dataset: `benchmarks/intent-token-cost/questions.json` v3, 24 questions over `api-db-go`, `kivgraph`, `mole`, native arm scoped to git grep -l -i over internal and cmd, in the checkout the question names.
+Command: `go run ./benchmarks/intent-token-cost -server /tmp/kivgraph-main`. Dataset: `benchmarks/intent-token-cost/questions.json` v3, 24 questions over `go-svc-a`, `kivgraph`, `go-svc-e`, native arm scoped to git grep -l -i over internal and cmd, in the checkout the question names.
 
 Ground truth: established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain -- checked mechanically, by splitting every declared name of the answer file into words and refusing any phrase that shares one; every answer file was confirmed present in the indexed corpus, and each repository name maps to the registered checkout the graph indexed rather than to a worktree, so both arms walk the same tree
 
@@ -20,30 +20,30 @@ Ground truth: established by reading the implementation, never from a tool answe
 |which command prints the build provenance as json|kivgraph|rare_vocabulary|3 of 75|**not offered** (10 files)|4 of 10|4 of 10|
 |where is the compiler's own library path handed to the rust analyzer|kivgraph|rare_vocabulary|**not offered** (1 files)|**not offered** (10 files)|4 of 10|3 of 10|
 |how does a traversal keep from walking the whole graph|kivgraph|common_vocabulary|**not offered** (14 files)|1 of 10|1 of 10|1 of 10|
-|why a program on the far machine bound to an outside address is skipped|mole|common_vocabulary|**not offered** (0 files)|**not offered** (10 files)|2 of 10|1 of 10|
-|where the connection is aborted because the machine proves a different identity than before|mole|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|5 of 10|
-|where one rejected forward request does not tear down the whole shared link|mole|common_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|2 of 7|
-|where the far end learns no more bytes are coming from one side|mole|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|8 of 10|1 of 7|
-|where changing one setting on disk leaves the user's comments and ordering untouched|mole|common_vocabulary|**not offered** (0 files)|**not offered** (10 files)|8 of 10|1 of 10|
-|where an oversized picture upload is turned away instead of being stored|mole|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|3 of 5|
-|where starting a second background copy is refused while one already runs|mole|common_vocabulary|1 of 1|**not offered** (10 files)|**not offered** (10 files)|**not offered** (4 files)|
-|where tailing the daemon output detects the file shrank and reopens it|mole|rare_vocabulary|1 of 1|**not offered** (10 files)|**not offered** (10 files)|**not offered** (9 files)|
-|where a bulk transfer refuses to run when the destination looks like live production|api-db-go|rare_vocabulary|**not offered** (3 files)|**not offered** (10 files)|**not offered** (10 files)|**not offered** (10 files)|
-|where preparing the tables stops early because something else already created them|api-db-go|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|7 of 10|
-|where an unexpected crash inside a request becomes a normal error reply instead of raw html|api-db-go|rare_vocabulary|**not offered** (7 files)|**not offered** (10 files)|1 of 10|1 of 10|
-|how it goes back to the remote coordinator only after several good replies in a row|api-db-go|rare_vocabulary|**not offered** (0 files)|5 of 10|**not offered** (10 files)|**not offered** (10 files)|
-|at startup, where absent table shards produce a printed command an operator can paste|api-db-go|common_vocabulary|**not offered** (2 files)|**not offered** (10 files)|**not offered** (10 files)|5 of 10|
-|where the label naming who produced a reply falls back to a placeholder|api-db-go|rare_vocabulary|**not offered** (13 files)|**not offered** (10 files)|**not offered** (10 files)|**not offered** (10 files)|
-|where an old variable that is no longer read is reported at boot|api-db-go|common_vocabulary|12 of 13|**not offered** (10 files)|**not offered** (10 files)|2 of 10|
-|why a partial save with no usable fields is refused instead of touching the record|api-db-go|common_vocabulary|2 of 185|**not offered** (10 files)|**not offered** (10 files)|**not offered** (10 files)|
+|why a program on the far machine bound to an outside address is skipped|go-svc-e|common_vocabulary|**not offered** (0 files)|**not offered** (10 files)|2 of 10|1 of 10|
+|where the connection is aborted because the machine proves a different identity than before|go-svc-e|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|5 of 10|
+|where one rejected forward request does not tear down the whole shared link|go-svc-e|common_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|2 of 7|
+|where the far end learns no more bytes are coming from one side|go-svc-e|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|8 of 10|1 of 7|
+|where changing one setting on disk leaves the user's comments and ordering untouched|go-svc-e|common_vocabulary|**not offered** (0 files)|**not offered** (10 files)|8 of 10|1 of 10|
+|where an oversized picture upload is turned away instead of being stored|go-svc-e|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|3 of 5|
+|where starting a second background copy is refused while one already runs|go-svc-e|common_vocabulary|1 of 1|**not offered** (10 files)|**not offered** (10 files)|**not offered** (4 files)|
+|where tailing the daemon output detects the file shrank and reopens it|go-svc-e|rare_vocabulary|1 of 1|**not offered** (10 files)|**not offered** (10 files)|**not offered** (9 files)|
+|where a bulk transfer refuses to run when the destination looks like live production|go-svc-a|rare_vocabulary|**not offered** (3 files)|**not offered** (10 files)|**not offered** (10 files)|**not offered** (10 files)|
+|where preparing the tables stops early because something else already created them|go-svc-a|rare_vocabulary|**not offered** (0 files)|**not offered** (10 files)|**not offered** (10 files)|7 of 10|
+|where an unexpected crash inside a request becomes a normal error reply instead of raw html|go-svc-a|rare_vocabulary|**not offered** (7 files)|**not offered** (10 files)|1 of 10|1 of 10|
+|how it goes back to the remote coordinator only after several good replies in a row|go-svc-a|rare_vocabulary|**not offered** (0 files)|5 of 10|**not offered** (10 files)|**not offered** (10 files)|
+|at startup, where absent table shards produce a printed command an operator can paste|go-svc-a|common_vocabulary|**not offered** (2 files)|**not offered** (10 files)|**not offered** (10 files)|5 of 10|
+|where the label naming who produced a reply falls back to a placeholder|go-svc-a|rare_vocabulary|**not offered** (13 files)|**not offered** (10 files)|**not offered** (10 files)|**not offered** (10 files)|
+|where an old variable that is no longer read is reported at boot|go-svc-a|common_vocabulary|12 of 13|**not offered** (10 files)|**not offered** (10 files)|2 of 10|
+|why a partial save with no usable fields is refused instead of touching the record|go-svc-a|common_vocabulary|2 of 185|**not offered** (10 files)|**not offered** (10 files)|**not offered** (10 files)|
 
 ### Per repository
 
 |repository|questions|native found|as asked|guessed words|and repo named|
 |---|---|---|---|---|---|
-|`api-db-go`|8|2|1|1|4|
+|`go-svc-a`|8|2|1|1|4|
 |`kivgraph`|8|3|5|7|7|
-|`mole`|8|2|0|3|6|
+|`go-svc-e`|8|2|0|3|6|
 
 ### Why a zero happened
 

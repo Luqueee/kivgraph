@@ -128,7 +128,7 @@ func swapped(offsets []uint32, left, right int) []uint32 {
 
 // TestStableKeyTableCopiesWhatItIsGiven is the defect this table exists for. A
 // snapshot that stored the caller's strings would keep the buffer they were read
-// from reachable: measured at 58 MB pinned by 6.4 MB of keys on kena.
+// from reachable: measured at 58 MB pinned by 6.4 MB of keys on workspace.
 func TestStableKeyTableCopiesWhatItIsGiven(t *testing.T) {
 	source := []byte("kv-aaaa")
 	keys := []StableKey{StableKey(source)}

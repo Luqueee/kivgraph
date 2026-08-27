@@ -30,7 +30,7 @@ const PublishedSnapshotFileName = "snapshot.kvsnap"
 //
 // It is deliberately not snapshot.sha256. That one digests the canonical table
 // counts, and counts cannot tell two graphs of the same shape apart: measured
-// on `kena`, two indexings whose graphs differed in 288 rows produced a
+// on `workspace`, two indexings whose graphs differed in 288 rows produced a
 // byte-identical snapshot.sha256. A file proven only against counts is a file
 // that can be accepted for a graph it does not contain. The counts digest
 // keeps its own job, which is Rollback's cheap check that a destination

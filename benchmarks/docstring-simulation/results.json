@@ -17,11 +17,11 @@
       "symbols": 24610
     },
     {
-      "repository": "api-db-go",
+      "repository": "go-svc-a",
       "symbols": 7393
     },
     {
-      "repository": "mole",
+      "repository": "go-svc-e",
       "symbols": 416
     }
   ],
@@ -339,7 +339,7 @@
     },
     {
       "intent": "why a program on the far machine bound to an outside address is skipped",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -361,7 +361,7 @@
     },
     {
       "intent": "where the connection is aborted because the machine proves a different identity than before",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -383,7 +383,7 @@
     },
     {
       "intent": "where one rejected forward request does not tear down the whole shared link",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -405,7 +405,7 @@
     },
     {
       "intent": "where the far end learns no more bytes are coming from one side",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -427,7 +427,7 @@
     },
     {
       "intent": "where changing one setting on disk leaves the user's comments and ordering untouched",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -449,7 +449,7 @@
     },
     {
       "intent": "where an oversized picture upload is turned away instead of being stored",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -471,7 +471,7 @@
     },
     {
       "intent": "where starting a second background copy is refused while one already runs",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -493,7 +493,7 @@
     },
     {
       "intent": "where tailing the daemon output detects the file shrank and reopens it",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -515,7 +515,7 @@
     },
     {
       "intent": "where a bulk transfer refuses to run when the destination looks like live production",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -537,7 +537,7 @@
     },
     {
       "intent": "where preparing the tables stops early because something else already created them",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -559,7 +559,7 @@
     },
     {
       "intent": "where an unexpected crash inside a request becomes a normal error reply instead of raw html",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -581,7 +581,7 @@
     },
     {
       "intent": "how it goes back to the remote coordinator only after several good replies in a row",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "base_rank": 5,
       "prose_ranks": [
@@ -603,7 +603,7 @@
     },
     {
       "intent": "at startup, where absent table shards produce a printed command an operator can paste",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -625,7 +625,7 @@
     },
     {
       "intent": "where the label naming who produced a reply falls back to a placeholder",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -647,7 +647,7 @@
     },
     {
       "intent": "where an old variable that is no longer read is reported at boot",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [
@@ -669,7 +669,7 @@
     },
     {
       "intent": "why a partial save with no usable fields is refused instead of touching the record",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "common_vocabulary",
       "base_rank": 0,
       "prose_ranks": [

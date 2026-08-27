@@ -180,7 +180,7 @@ func isDeclarationKind(kind string) bool {
 //
 // It is the same refusal to guess as resolveSymbolSelector: several
 // declarations of one name -- `withRetry` names seven symbols across three
-// languages in `kena` -- return the candidates as `repository:path:line`, which
+// languages in `workspace` -- return the candidates as `repository:path:line`, which
 // measured 49 to 144 tokens against the 2.293 of listing every row of
 // find_symbol, imports and re-exports included.
 func resolveDeclarationByName(

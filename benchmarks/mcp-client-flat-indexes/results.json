@@ -212,7 +212,7 @@
     }
   },
   "limitations": [
-    "One machine, one seed, four clients. The workload is the synthetic corpus mcp-client generates, not kena.",
+    "One machine, one seed, four clients. The workload is the synthetic corpus mcp-client generates, not workspace.",
     "The round-trip percentiles are dominated by the stdio transport, so a backend change of tens of nanoseconds is near the floor of what they can show. The per-operation backend percentiles are the sensitive figures here.",
     "Allocations per operation are unchanged within noise; bytes per operation rose 0.7 percent, which this run does not attribute."
   ]

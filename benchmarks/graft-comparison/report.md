@@ -1,8 +1,8 @@
-# Kivgraph contra NanoNets `graft` sobre el workspace `kena`
+# Kivgraph contra NanoNets `graft` sobre el workspace `workspace`
 
 Comparación de coste en tokens, latencia y exactitud entre `kivgraph 0.3.2` y
 `graft 0.10.1` (`@nanonets/graft`), respondiendo las mismas preguntas
-estructurales sobre `/Users/adria/Documents/programacion/projects/kena`, más un
+estructurales sobre `/path/to/workspace`, más un
 tercer brazo: las herramientas que cualquier agente ya tiene, `grep` y lectura
 de archivos.
 
@@ -27,8 +27,8 @@ estado concreto de ese corpus.
 
 El estado de Kivgraph vive en un `HOME` aislado (`/tmp/kivbench-graft-home`) con
 los 37 repositorios registrados y `include_tests: true`; el contexto de graft
-vive fuera del corpus (`/private/tmp/graft-kena-ctx`), así que no se escribe nada
-dentro de `kena`. Ninguno de los 37 repositorios se modificó.
+vive fuera del corpus (`/private/tmp/graft-workspace-ctx`), así que no se escribe nada
+dentro de `workspace`. Ninguno de los 37 repositorios se modificó.
 
 ## Antes de los cocientes: graft no es determinista
 
@@ -54,7 +54,7 @@ mueve y graft sí.
 
 Cada pregunta es «qué archivos llaman a esta declaración concreta». Los brazos
 parten del **nombre desnudo** que tiene quien pregunta: `withRetry` existe siete
-veces en `kena` y `now_ms` cuatro.
+veces en `workspace` y `now_ms` cuatro.
 
 |pregunta|kivgraph|kivgraph vista `files`|graft|graft `--lsp`|`grep`+lectura|
 |---|---|---|---|---|---|
@@ -210,13 +210,13 @@ La frontera está en el **build**, no en el paquete:
 
 |scope de la construcción|tokens|resultado|
 |---|---|---|
-|`Q2` desde la carpeta `kena` completa|`659`|`P=0,00 R=0,00`, 2 homónimos, «sin llamantes»|
-|`Q2` desde `services/api-db-go`|`232`|`P=0,00 R=0,00`, 2 homónimos, «sin llamantes»|
+|`Q2` desde la carpeta `workspace` completa|`659`|`P=0,00 R=0,00`, 2 homónimos, «sin llamantes»|
+|`Q2` desde `services/go-svc-a`|`232`|`P=0,00 R=0,00`, 2 homónimos, «sin llamantes»|
 |`Q2` desde `.../infrastructure/postgres`|`206`|**`P=1,00 R=1,00`**|
-|`Q4` desde `services/kenalink-rs`|`532`|**`P=1,00 R=1,00`**|
+|`Q4` desde `services/rs-svc-b`|`532`|**`P=1,00 R=1,00`**|
 
 Con el repositorio Rust solo, graft resuelve los seis llamantes de `now_ms`. Con
-el repositorio Go solo **sigue** en cero, porque `api-db-go` declara dos
+el repositorio Go solo **sigue** en cero, porque `go-svc-a` declara dos
 `withRetry` en dos paquetes: hay que bajar al paquete. Kivgraph separa esos dos
 símbolos porque los resuelve `go/types`, no la coincidencia de nombres, y el
 scope no entra en la pregunta.
@@ -345,13 +345,13 @@ resueltos retenidos con su motivo.
 ## Reproducir
 
 ```bash
-# graft: el contexto vive fuera del corpus, así que nada se escribe en kena
+# graft: el contexto vive fuera del corpus, así que nada se escribe en workspace
 npm install -g @nanonets/graft
-graft --dir /private/tmp/graft-kena-ctx build /ruta/a/kena
+graft --dir /private/tmp/graft-workspace-ctx build /ruta/a/workspace
 
 # el tier opt-in: los servidores tienen que estar en el PATH
 export PATH="$PATH:$(go env GOPATH)/bin"
-graft --dir /private/tmp/graft-kena-lsp build /ruta/a/kena --lsp
+graft --dir /private/tmp/graft-workspace-lsp build /ruta/a/workspace --lsp
 
 # kivgraph: HOME aislado, y las rutas reales de los cachés que exige el índice
 export HOME=/tmp/kivbench-graft-home

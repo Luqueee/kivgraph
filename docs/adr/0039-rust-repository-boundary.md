@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Dos repositorios Rust reales -`api-music-nodo` y `kenalink-rs`- se indexaban sin
+Dos repositorios Rust reales -`rs-svc-a` y `rs-svc-b`- se indexaban sin
 error y después impedían publicar ninguna generación. Cada uno fallaba por un
 camino distinto, y los dos son la forma normal de un crate, no una rareza:
 
@@ -18,7 +18,7 @@ snapshot build failed: unresolved reference "…src/main.rs:CRATE_PROVIDER_NOT_F
 
 ### El crate vendorizado
 
-`kenalink-rs` sustituye `songbird` por un fork en `vendor/songbird` con
+`rs-svc-b` sustituye `songbird` por un fork en `vendor/songbird` con
 `[patch.crates-io]`. Cargo lo compila y `rust-analyzer` lo indexa; el
 descubrimiento Cargo de Kivgraph **nunca camina `vendor`**, así que ningún
 manifest de ese repositorio declara ese crate. La normalización descartaba sus
@@ -30,7 +30,7 @@ referencias hacia ellas: 74 destinos colgantes y una pasada que no valida. Los
 
 Un paquete Cargo compila varios crates: la biblioteca, cada binario, el build
 script y un crate por test de integración. El moniker SCIP nombra el **paquete**
--`rust-analyzer cargo api-music-nodo 1.0.0 crate/`-, así que los módulos raíz de
+-`rust-analyzer cargo rs-svc-a 1.0.0 crate/`-, así que los módulos raíz de
 todos ellos llegan como un mismo símbolo definido en varios documentos; el
 propio `rust-analyzer` lo reporta como bug suyo. Solo uno puede ser el nodo, y
 el resto de documentos seguían atribuyendo sus usos a ese nodo: un `use` de
@@ -62,7 +62,7 @@ la clave que su proveedor publica.
 
 Solo la biblioteca es enlazable, así que es la única que otro repositorio puede
 nombrar. Ordenar por ruta habría publicado `crate/` y `main()` desde `build.rs`,
-que es lo que hacía perder 328 referencias de `src/main.rs` en `kenalink-rs`.
+que es lo que hacía perder 328 referencias de `src/main.rs` en `rs-svc-b`.
 
 ### 3. Un uso pertenece a una declaración de su propio documento
 
@@ -73,7 +73,7 @@ el uso no tiene fuente.
 
 Un fallo de resolución no la necesita: se declara igual, con su archivo y su
 posición y sin `SourceSymbolKey`. Perderlo habría convertido 299 agujeros
-declarados de `api-music-nodo` en silencio.
+declarados de `rs-svc-a` en silencio.
 
 ### 4. Ninguna arista se publica hacia un destino propio que no se publica
 
@@ -96,8 +96,8 @@ repositorio sigue ausente a propósito: lo cierra el merge con el proveedor.
 
 ## Consecuencias
 
-- Los dos repositorios publican generación. Sobre ellos: `api-music-nodo`
-  1 665 símbolos y 5 713 referencias, `kenalink-rs` 726 y 2 773.
+- Los dos repositorios publican generación. Sobre ellos: `rs-svc-a`
+  1 665 símbolos y 5 713 referencias, `rs-svc-b` 726 y 2 773.
 - Los usos de nivel superior de un `main.rs`, un `build.rs` o un test de
   integración no producen arista cuando su módulo raíz no es el publicado: 184 y
   7 en esos repositorios. Se cuentan y se nombran en los diagnósticos.

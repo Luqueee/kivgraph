@@ -1,1 +1,1 @@
-No graph found at /Users/adria/Documents/programacion/projects/kena/services/api-music-nodo/.code-review-graph/graph.db. Run `code-review-graph build` first.
+No graph found at /path/to/workspace/services/rs-svc-a/.code-review-graph/graph.db. Run `code-review-graph build` first.

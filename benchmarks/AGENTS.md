@@ -106,8 +106,8 @@ declarado en la raíz.
   contra derivar. Un tercer brazo dejaría su comparación sin significado.
 - Una cifra por símbolo se lee de la pasada que la produjo, nunca cruzada entre
   corpus. Las corridas vigentes de `daemon-cost` usan los `108.737` símbolos de
-  `kena` en su generación `000001`; las de `117.499` están en el historial, no en
-  estas tablas. `kena` es un workspace en uso, así que un reindexado posterior no
+  `workspace` en su generación `000001`; las de `117.499` están en el historial, no en
+  estas tablas. `workspace` es un workspace en uso, así que un reindexado posterior no
   reproduce el recuento anterior: el corpus se declara por pasada.
 
 ## Corpus y auditorías

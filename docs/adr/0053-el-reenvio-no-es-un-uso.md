@@ -6,7 +6,8 @@
 ## Contexto
 
 `find_references` respondía con las aristas `EXPORTS` y `REEXPORTS` junto a las
-de uso. Sobre el monorepo `kena`, la pregunta «qué call sites usan el `withRetry`
+de uso. Sobre el monorepo `workspace`, la pregunta «qué call sites usan el
+`withRetry`
 declarado en `libraries/library-shared/src/utils/retry.ts`» devolvía nueve
 archivos: los cinco llamantes reales y cuatro barrels de re-export.
 
@@ -17,7 +18,7 @@ archivos: los cinco llamantes reales y cuatro barrels de re-export.
   core            src/cluster/worker/BotWorker.ts
   gateway         src/grpc/server.ts
   core            src/cluster/master/index.ts
-  sdk-module-ts   src/sdk/client/KenaModule.ts
+  sdk-module-ts   src/sdk/client/PrivateModule.ts
   core            src/shared/utils/sharding.ts
 [export / REEXPORTS / EXACT_TYPECHECKED]
   library-shared  src/index.ts

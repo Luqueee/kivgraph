@@ -167,13 +167,13 @@ key as the root and every column spelled on every row:
         "reason": "PACKAGE_NOT_BUILDABLE",
         "repository": "kivgraph",
         "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-delta-profile",
-        "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile"
+        "detail": "LIST: build constraints exclude all Go files in /path/to/kivgraph/benchmarks/ladybug-delta-profile"
       },
       {
         "reason": "PACKAGE_NOT_BUILDABLE",
         "repository": "kivgraph",
         "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery",
-        "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
+        "detail": "LIST: build constraints exclude all Go files in /path/to/kivgraph/benchmarks/ladybug-recovery"
       },
       {
         "reason": "PACKAGE_PROVIDER_NOT_FOUND",
@@ -190,8 +190,8 @@ key as the root and every column spelled on every row:
     "fallback": {
       "pattern": "\\bMergeAll\\b",
       "paths": [
-        "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile",
-        "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
+        "/path/to/kivgraph/benchmarks/ladybug-delta-profile",
+        "/path/to/kivgraph/benchmarks/ladybug-recovery"
       ]
     }
   },
@@ -326,7 +326,7 @@ key as the root and every column spelled on every row:
 
 Three of the seven `invisible_scopes` entries are elided above, marked with the
 `…` line; the response carries them all. This answer comes from snapshot `30` of
-two repositories, `kivgraph` and `mole`.
+two repositories, `kivgraph` and `go-svc-e`.
 
 ## Reading the result
 
@@ -412,7 +412,7 @@ to the page header:
 
 ```json
 {
-  "repository": "mole",
+  "repository": "go-svc-e",
   "path": "internal/admin/admin.go",
   "qualified_name": "Server",
   "depth": 2
@@ -427,7 +427,7 @@ to the page header:
   "coverage": { "exact": 9 },
   "completeness": { … },
   "results": {
-    "root": "mole:internal/admin/admin.go:58",
+    "root": "go-svc-e:internal/admin/admin.go:58",
     "depth": 2,
     "max_nodes": 5000,
     "kinds_default_excluded": ["field", "variable"],
@@ -435,12 +435,12 @@ to the page header:
     "deepest_depth": 2,
     "by_depth": { "1": 8, "2": 1 },
     "by_kind": { "CALLS_DIRECT": 1, "PASSES_AS_CALLBACK": 1, "TYPE_USES": 8 },
-    "by_repository": { "mole": 9 },
+    "by_repository": { "go-svc-e": 9 },
     "by_package": [
-      { "package": "github.com/Luqueee/mole/cmd/mole", "count": 1 },
-      { "package": "github.com/Luqueee/mole/internal/admin", "count": 8 }
+      { "package": "github.com/Luqueee/go-svc-e/cmd/go-svc-e", "count": 1 },
+      { "package": "github.com/Luqueee/go-svc-e/internal/admin", "count": 8 }
     ],
-    "repository": "mole",
+    "repository": "go-svc-e",
     "via_confidence": "EXACT_TYPECHECKED",
     "groups": [
       {
@@ -470,7 +470,7 @@ to the page header:
         "reached_from": "Server.WithPortController",
         "via_kind": "CALLS_DIRECT",
         "via_provenance": "GO_AST_CALL",
-        "files": [{ "file": "cmd/mole/main.go", "at": ["runUp@117-321"] }]
+        "files": [{ "file": "cmd/go-svc-e/main.go", "at": ["runUp@117-321"] }]
       }
     ]
   }
@@ -481,7 +481,7 @@ The `completeness` block is cut here with `{ … }` for the same reason the firs
 example cuts it: it is not the field this page is illustrating, and
 [`completeness`](#completeness) below spells it in full elsewhere. `repository`
 and `via_confidence` still hoist to the page header -- everything affected sits
-in `mole`, reached by an edge a type checker resolved -- but `kind` splits three
+in `go-svc-e`, reached by an edge a type checker resolved -- but `kind` splits three
 ways and `hop_depth` with it, so every group states its own pair instead of
 forcing one row, `Server.WithPortController@89-92`, to carry a residual tail
 the other eight rows do not need. The third group is alone because it is the

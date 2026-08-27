@@ -1,6 +1,6 @@
 # ADR 0047: La identidad de un campo se enraíza en un tipo con nombre
 
-- **Estado:** aceptado e implementado; medido sobre `kena` y con regresión en
+- **Estado:** aceptado e implementado; medido sobre `workspace` y con regresión en
   `internal/goloader`
 - **Fecha:** 2026-08-19
 - **Revisa:** la identidad canónica de los campos de structs anónimos, y por qué
@@ -12,8 +12,8 @@
 
 ```text
 invalid fact set: symbol "Errors.Message" is defined by two files,
-"file:api-db-go:internal/application/handlers/bots_mock_test.go" and
-"file:api-db-go:internal/application/handlers/command_mock_test.go",
+"file:go-svc-a:internal/application/handlers/bots_mock_test.go" and
+"file:go-svc-a:internal/application/handlers/command_mock_test.go",
 so two declarations share one identity
 ```
 
@@ -48,7 +48,7 @@ encuentra ningún campo intermedio con nombre, devuelve vacío y cede el turno a
 lo que introduce un campo intermedio con nombre y hace que la ruta parcial parezca
 una respuesta.
 
-Coste observado: `api-db-go` no se podía indexar con `go.include_tests`. En el
+Coste observado: `go-svc-a` no se podía indexar con `go.include_tests`. En el
 benchmark `benchmarks/agent-e2e/` eso obligó a excluir los tests Go de un lado y no
 del otro, una asimetría declarada en su informe.
 

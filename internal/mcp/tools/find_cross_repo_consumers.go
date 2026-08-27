@@ -1095,7 +1095,7 @@ func compactCrossRepoSubject(subject CrossRepoSubject) CompactCrossRepoSubject {
 }
 
 // crossRepoPerRow drops a value the header already states. Repeating it is what
-// this view exists to remove: over `kena` those columns were a fifth of a page.
+// this view exists to remove: over `workspace` those columns were a fifth of a page.
 func crossRepoPerRow(hoisted, value string) string {
 	if hoisted == value {
 		return ""

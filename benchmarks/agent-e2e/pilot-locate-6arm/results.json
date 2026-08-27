@@ -9,7 +9,7 @@
   "go": "go1.26.4",
   "os": "darwin"
  },
- "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "corpus": "/path/to/workspace",
  "arms": [
   "cold",
   "kivgraph",
@@ -22,8 +22,8 @@
  "budget_usd_per_run": 3,
  "tasks": [
   {
-   "id": "api-db-go-821977c",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-821977c",
+   "repo": "services/go-svc-a",
    "language": "go",
    "commit": "821977cccf6ad6e188f771346a94ec8ab3212973",
    "subject": "feat(leveling): bloque `requirements` en la config del módulo",
@@ -33,12 +33,12 @@
     "internal/domain/validations/module_leveling_validations.go",
     "internal/infrastructure/redis/module_cache.go"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nAñade a la configuración del módulo de niveles un bloque de requisitos, con su validación y su reflejo en la caché.\n\nThe change belongs in the services/api-db-go repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nAñade a la configuración del módulo de niveles un bloque de requisitos, con su validación y su reflejo en la caché.\n\nThe change belongs in the services/go-svc-a repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   }
  ],
  "runs": [
   {
-   "task": "api-db-go-821977c",
+   "task": "go-svc-a-821977c",
    "arm": "cold",
    "trial": 1,
    "ms": 271972,
@@ -60,7 +60,7 @@
    "budget_exhausted": true,
    "terminal_reason": "budget_exhausted",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-cold-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-821977c-cold-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_leveling_handler.go",
     "internal/domain/dbguild/module_leveling.go",
@@ -83,7 +83,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-821977c",
+   "task": "go-svc-a-821977c",
    "arm": "kivgraph",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -107,7 +107,7 @@
    "context_tool_calls": 4,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-kivgraph-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-821977c-kivgraph-t1.jsonl",
    "wrote": [
     "internal/domain/dbguild/module_leveling.go",
     "internal/domain/mocks/module_leveling_mock.go",
@@ -126,7 +126,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-821977c",
+   "task": "go-svc-a-821977c",
    "arm": "graft",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -152,7 +152,7 @@
    "context_tool_calls": 13,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-graft-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-821977c-graft-t1.jsonl",
    "wrote": [
     "internal/domain/dbguild/module_leveling.go",
     "internal/domain/dbguild/module_leveling_test.go",
@@ -173,7 +173,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-821977c",
+   "task": "go-svc-a-821977c",
    "arm": "code-review-graph",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `crg`. Query it first -- to find a declaration, its callers and the blast radius of a change -- and read files once it has told you which ones matter.",
@@ -199,7 +199,7 @@
    "budget_exhausted": true,
    "terminal_reason": "budget_exhausted",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-code-review-graph-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-821977c-code-review-graph-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_leveling_handler.go",
     "internal/domain/dbguild/module_leveling.go",
@@ -222,7 +222,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-821977c",
+   "task": "go-svc-a-821977c",
    "arm": "codebase-memory",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `memory`. Query it first -- to search the graph, trace a path between symbols and read a snippet -- and read files once it has told you which ones matter.",
@@ -248,9 +248,9 @@
    "context_tool_calls": 5,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-codebase-memory-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-821977c-codebase-memory-t1.jsonl",
    "wrote": [
-    ".agents/skills/api-db-go-endpoints/reference/mongo-core.md",
+    ".agents/skills/go-svc-a-endpoints/reference/mongo-core.md",
     "internal/domain/dbguild/module_leveling.go",
     "internal/domain/dbguild/module_leveling_normalize_test.go",
     "internal/domain/mocks/module_leveling_mock.go"
@@ -264,14 +264,14 @@
     "internal/infrastructure/redis/module_cache.go"
    ],
    "spurious": [
-    ".agents/skills/api-db-go-endpoints/reference/mongo-core.md",
+    ".agents/skills/go-svc-a-endpoints/reference/mongo-core.md",
     "internal/domain/dbguild/module_leveling_normalize_test.go",
     "internal/domain/mocks/module_leveling_mock.go"
    ],
    "exact": false
   },
   {
-   "task": "api-db-go-821977c",
+   "task": "go-svc-a-821977c",
    "arm": "graphify",
    "trial": 1,
    "directive": "A code graph of this workspace is built at `graphify-out/graph.json` in each repository, and the `graphify` command queries it: `graphify affected \"\u003cname\u003e\"`, `graphify query \"\u003cquestion\u003e\"` and `graphify explain \"\u003cname\u003e\"`, each with `--graph \u003cpath\u003e`. Query it first and read files once it has told you which ones matter.",
@@ -293,7 +293,7 @@
    "context_tool_calls": 0,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-821977c-graphify-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-821977c-graphify-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_leveling_handler.go",
     "internal/domain/dbguild/module_leveling.go",

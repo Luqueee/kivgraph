@@ -64,7 +64,7 @@ Tres razones, todas de la tabla:
    `1`, `0,7` y `0,5`, y vuelve al cuarto en `0,3`. Cuatro respuestas buenas
    pasan a depender de dónde caiga una constante.
 
-Sólo **una** pregunta gana de forma estable en todos los pesos: la de `mole`,
+Sólo **una** pregunta gana de forma estable en todos los pesos: la de `go-svc-e`,
 cuyo comentario dice «comments» y «disk» donde el código dice `updateMapping` y
 `yaml.Node`. Una pregunta no paga cinco loaders.
 
@@ -102,10 +102,11 @@ fichero respuesta -- que es exactamente lo que un agente llamante puede hacer.
 
 Y falta la otra mitad del consejo, que tampoco cuesta nada. El corpus es una
 ventana de diez filas compartida por tres repositorios donde el mayor tiene el
-`65 %` de los símbolos -- `kivgraph` `14.490`, `api-db-go` `7.393`, `mole` `416`--,
-así que un `api-db-go` correcto pierde el hueco contra un `kivgraph` plausible.
+`65 %` de los símbolos -- `kivgraph` `14.490`, `go-svc-a` `7.393`,
+`go-svc-e` `416`--,
+así que un `go-svc-a` correcto pierde el hueco contra un `kivgraph` plausible.
 Nombrando el repositorio, que es un parámetro que el llamante suele saber:
-**`17` de `24`**, y `api-db-go` pasa de `1` de `8` a `4`.
+**`17` de `24`**, y `go-svc-a` pasa de `1` de `8` a `4`.
 
 Y nada enrutaba hacia ahí: la `guidance` nombraba `keywords` sólo cuando ninguna
 palabra de la pregunta matcheaba algo, caso que en estas `24` preguntas **no
@@ -126,8 +127,8 @@ uno a uno preguntando con la búsqueda apuntada al propio fichero respuesta:
 
 |fallo|qué le pasa|
 |---|---|
-|`mole/cmd/mole/daemon.go`, `mole/cmd/mole/logs.go`, `api-db-go/.../headers.go`|**techo**: ni un símbolo del fichero alcanza un término|
-|`kivgraph/internal/mcp/server.go`, `api-db-go` `main.go`, `locker.go`, `bots_guilds_handler.go`|alcanzan por **un único símbolo** con un término genérico|
+|tres de `go-svc-e` y `go-svc-a`|**techo**: ningún símbolo alcanza un término|
+|`mcp/server.go` y tres de `go-svc-a`|**un símbolo** con término genérico|
 
 Los cuatro segundos parecen ranking y no lo son en la práctica: `replyWithStatus`
 lleva `1` término donde `ValidationWithMeta` lleva `3`, y un peso que ponga el de
@@ -140,7 +141,7 @@ que **las llama a todas**, con `near=4` contra `near=1`. La señal correcta exis
 y está topada en `1,9`, y subir ese tope por una pregunta de `24` es ajustar una
 constante a un caso.
 
-Y las dos de `mole` son exactamente las dos que `grep` sí acierta, porque su
+Y las dos de `go-svc-e` son exactamente las dos que `grep` sí acierta, porque su
 vocabulario vive en un mensaje -- «already running», una línea de log sobre un
 fichero que se encogió--. Eso vuelve a señalar los **literales** y no los
 comentarios: la factura de esquema, si algún día se paga, son `3` preguntas de

@@ -9,7 +9,7 @@
     "os": "Darwin"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "code_files": 0
   },
@@ -24,7 +24,7 @@
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
-    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/workspace-copy",
     "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
@@ -166,7 +166,7 @@
     {
       "id": "X2_go_absent_consumers",
       "family": "consumers",
-      "question": "Which files outside api-db-go consume the LoadSecrets it declares?",
+      "question": "Which files outside go-svc-a consume the LoadSecrets it declares?",
       "ground_truth": [],
       "arms": {
         "code-review-graph": {
@@ -257,7 +257,7 @@
       "family": "dependencies",
       "question": "Which files declare something RegisterGuilds reaches outward in one hop?",
       "ground_truth": [
-        "services/api-db-go/internal/application/handlers/guilds_handler.go"
+        "services/go-svc-a/internal/application/handlers/guilds_handler.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -296,66 +296,66 @@
           "ms": 161.494,
           "call_count": 1,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/middlewares/recover.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/middlewares/recover.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/domain/mocks/fake_guilds_repo.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_handler.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/middlewares/recover.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/mocks/fake_guilds_repo.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_handler.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/middlewares/recover.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/mocks/fake_guilds_repo.go"
             ],
             "precision": 0.16666666666666666,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/middlewares/recover.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/mocks/fake_guilds_repo.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/middlewares/recover.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/mocks/fake_guilds_repo.go"
             ]
           },
           "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
@@ -372,19 +372,19 @@
           "ms": 0.975,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go"
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -449,11 +449,11 @@
           "ms": 0,
           "call_count": 10,
           "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go"
+            "go-svc-a:internal/application/handlers/guilds_handler.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -640,9 +640,9 @@
       "family": "dependencies",
       "question": "Which files declare something UserCache reaches outward in one hop?",
       "ground_truth": [
-        "services/api-db-go/internal/infrastructure/redis/client.go",
-        "services/api-db-go/internal/infrastructure/redis/serialization.go",
-        "services/api-db-go/internal/domain/services/core_reader.go"
+        "services/go-svc-a/internal/infrastructure/redis/client.go",
+        "services/go-svc-a/internal/infrastructure/redis/serialization.go",
+        "services/go-svc-a/internal/domain/services/core_reader.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -681,56 +681,56 @@
           "ms": 155.482,
           "call_count": 1,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository_integration_test.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/core_cache.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository_integration_test.go",
+              "go-svc-a:internal/infrastructure/redis/core_cache.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 0.2,
             "recall": 0.3333333333333333,
             "missing": [
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/infrastructure/redis/client.go"
+              "go-svc-a:internal/domain/services/core_reader.go",
+              "go-svc-a:internal/infrastructure/redis/client.go"
             ],
             "spurious": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/core_cache.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository_integration_test.go",
+              "go-svc-a:internal/infrastructure/redis/core_cache.go"
             ]
           },
           "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
@@ -747,16 +747,16 @@
           "ms": 0.697,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/domain/services/core_reader.go"
+            "go-svc-a:internal/infrastructure/redis/client.go",
+            "go-svc-a:internal/infrastructure/redis/client.go",
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/domain/services/core_reader.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/infrastructure/redis/client.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:internal/domain/services/core_reader.go",
+              "go-svc-a:internal/infrastructure/redis/client.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -791,15 +791,15 @@
           "ms": 0,
           "call_count": 4,
           "claimed": [
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/domain/services/core_reader.go"
+            "go-svc-a:internal/infrastructure/redis/client.go",
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/domain/services/core_reader.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/infrastructure/redis/client.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:internal/domain/services/core_reader.go",
+              "go-svc-a:internal/infrastructure/redis/client.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 1,
             "recall": 1,

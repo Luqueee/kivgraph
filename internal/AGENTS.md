@@ -161,7 +161,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   al constructor interno cediendo la propiedad, porque sus `decode*` asignaron
   cada slice desde los bytes mapeados una sentencia antes y nadie más puede
   nombrarlos. Copiarlos producía un gemelo verbatim y dejaba el original de
-  basura -- `20,8 MB` sobre `kena`, medidos en `benchmarks/snapshot-heap`, con
+  basura -- `20,8 MB` sobre `workspace`, medidos en `benchmarks/snapshot-heap`, con
   los bytes vivos idénticos. Lo que hace segura la cesión es que **ningún
   decodificador alía el mapa**: los cinco usan `make` y copian campo a campo.
   Quien escriba uno que devuelva una vista sobre `data` rompe esto en silencio.
@@ -251,7 +251,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   fichero pertenece a esa generación es `snapshot.content.sha256`, el digest del
   grafo que el fichero contiene, repetido en su cabecera. **No es
   `snapshot.sha256`**, que digiere los contadores por tabla y por eso no
-  distingue dos grafos de la misma forma: medido sobre `kena`, dos indexados
+  distingue dos grafos de la misma forma: medido sobre `workspace`, dos indexados
   cuyos grafos diferían en 288 filas dieron un `snapshot.sha256` idéntico byte a
   byte, así que un fichero derivado de uno se aceptaba como del otro. El de
   contadores conserva su trabajo, que es la comprobación barata del `Rollback`.
@@ -273,7 +273,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   que deriva el grafo entero en cada arranque es indistinguible de uno que lo
   lee, y eso costó dos veces mientras esto se construía.
 - **Dos servidores sobre la misma generación comparten el fichero.** Medido con
-  dos `serve` sobre `kena` -- `123.531` símbolos, `98.773.720` bytes: `94 MB` de
+  dos `serve` sobre `workspace` -- `123.531` símbolos, `98.773.720` bytes: `94 MB` de
   `mapped file` limpio, una sola copia, y `44,5 MB` sucios por proceso. Con
   cuatro clientes son `272 MB` contra los `692 MB` de la línea base sin
   compartir, un `39,3 %`. Lo que sigue siendo privado son las tablas

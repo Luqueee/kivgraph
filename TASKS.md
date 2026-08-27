@@ -7015,7 +7015,7 @@ No hay comando `watch`; `cmd/kivgraph/main.go:468-471` responde
 `index: only --full is supported`. `config.watcher.enabled` vale `true` por
 defecto y no enciende nada. Toda sincronización pasa por `RunFull`.
 
-Medido sobre el workspace Kena -33 repositorios, 4.488 ficheros, 89.606
+Medido sobre el workspace Workspace -33 repositorios, 4.488 ficheros, 89.606
 símbolos, 323.049 aristas, `darwin/arm64`, caché de build de Go caliente-:
 
 ```text
@@ -7082,7 +7082,7 @@ ni el commit.
   tocar `go.mod`, `package.json` o `Cargo.toml`, y eso es `REPUBLISH`, no
   `DELTA`. La máquina de decisión existe; se le deja decidir.
 * **`index --full` no sirve como sincronización a esta escala.** Con dos
-  repositorios son 3 s e invisible; con Kena son 7 a 13 s, que es exactamente la
+  repositorios son 3 s e invisible; con Workspace son 7 a 13 s, que es exactamente la
   ventana en la que el agente pregunta. Ésa es la razón de esta tarea: sin el
   delta, ningún disparador llega a tiempo.
 * **La caducidad es por fichero, no por repositorio.** Un checkout deja la
@@ -7106,7 +7106,7 @@ ni el commit.
   obtiene el lock recoge la generación del otro.
 - [x] Un repositorio cuya ref vive en `packed-refs` se detecta igual que uno con
   ref suelta.
-- [x] Con el corpus Kena, el tiempo entre el `checkout` y la generación
+- [x] Con el corpus Workspace, el tiempo entre el `checkout` y la generación
   publicada queda registrado en la tarea y comparado contra los `7-13 s` que
   cuesta hoy `index --full`.
 - [ ] El test de ruta falla si un delta del tamaño de un checkout degrada a
@@ -7132,7 +7132,7 @@ en `list_repositories` y `graph_status`. Contra el corpus real:
 ```text
 graph_status: repositories=2  repositories_moved=1
   kivgraph  moved=true   indexed at commit e13b9ad on main, the tree is now at 91f13bf on main
-  mole       moved=false
+  go-svc-e       moved=false
 ```
 
 El test de ruta pasa y fija lo que el diseño necesitaba saber: un checkout de
@@ -7174,10 +7174,10 @@ inútil. `publishActiveSnapshot` trata ahora ese caso como éxito cuando el stor
 ya sirve esa generación o una posterior.
 
 **Ruta `DELTA`: descartada por decisión, no por coste de implementación.** El
-suelo medido es `7 s` en Kena y `3 s` en dos repositorios, y con el commit ya
+suelo medido es `7 s` en Workspace y `3 s` en dos repositorios, y con el commit ya
 resuelto sólo se paga en un cambio de rama real. Conservar el fact set anterior
 para diferenciar cuesta **`257 MB` retenidos** -medido decodificando la caché
-de hechos de Kena: 89.606 símbolos, 223.233 evidencias, 323.049 aristas-, sobre
+de hechos de Workspace: 89.606 símbolos, 223.233 evidencias, 323.049 aristas-, sobre
 los `638 MB` de RSS que ya tiene un `serve` con ese grafo cargado, y por cada
 cliente MCP abierto. No compensa. Leerlo del disco en vez de retenerlo evita esa
 memoria pero exige demostrar que el round-trip canónico es exacto, y eso pide su
@@ -10846,7 +10846,7 @@ reproducibles.
 
 **Estado:** `PASS_WITH_LIMITS`.
 
-**Verificación:** `docs/performance/slo.md` define el gate y `benchmarks/web-viewer/results.json` conserva las mediciones; el corpus ejecutado es `~/kena` y no el corpus sintético de referencia.
+**Verificación:** `docs/performance/slo.md` define el gate y `benchmarks/web-viewer/results.json` conserva las mediciones; el corpus ejecutado es `~/workspace` y no el corpus sintético de referencia.
 
 ---
 
@@ -11301,7 +11301,7 @@ legibles y relaciones visibles en cada nivel de detalle.
 * `go vet ./...` y `go test ./...` correctos;
 * `pnpm --dir web check`: 3 archivos de test y 16 tests pasando;
 * `pnpm --dir web build`: bundle regenerado;
-* medición sobre el tile de paquetes de `~/kena` (`128` nodos): con proyección
+* medición sobre el tile de paquetes de `~/workspace` (`128` nodos): con proyección
   lineal la celda más densa del mundo reunía `11` nodos y sólo `51` de `400`
   celdas tenían contenido; por rango, ninguna celda pasa de `2` y se ocupan
   `100`;
@@ -11384,7 +11384,7 @@ el renderer.
   `web/src/renderer/reagraph.ts`.
 
 **Medición:** el reparto real del coste de una tile de `2.000` nodos, medido
-contra el índice de `~/kena`:
+contra el índice de `~/workspace`:
 
 ```text
 fetch    16,7 ms
@@ -11482,7 +11482,7 @@ coordenadas publicadas proyectadas por rango.
 * `web/src/renderer/reagraph.ts` y su test;
 * `web/src/components/GraphPreview.tsx`.
 
-**Medición:** sobre el índice de `~/kena`, con el adaptador completo:
+**Medición:** sobre el índice de `~/workspace`, con el adaptador completo:
 
 ```text
 nivel         nodos  aristas  layout   radio   dispersión x/y/z
@@ -11506,7 +11506,7 @@ esos niveles se dibujen en vez de quedar como puntos de una décima de píxel.
   del lienzo: el grafo ocupa `82 %` del ancho y `85 %` del alto en paquetes, y
   `70 %` y `94 %` en archivos; antes ocupaba `38 %` y `41 %`;
 * rotación con arrastre: clusters que se solapaban de frente se separan;
-* cursor sobre `web-kena.bot`: el nodo y su vecindario quedan iluminados y el
+* cursor sobre `web-workspace`: el nodo y su vecindario quedan iluminados y el
   resto baja a `0,18` de opacidad; al retirar el cursor la vista recupera su
   brillo y el rótulo de estado;
 * cambio de nivel: `295`, `336`, `557` y `2.304` ms; deslizador a `400` y
@@ -11570,7 +11570,7 @@ interactuar con mil nodos sea fluido.
 * `web/package.json`, `web/src/renderer/reagraph.ts` y su test,
   `web/src/components/GraphPreview.tsx`.
 
-**Medición:** nivel `files`, `1.200` nodos, índice de `~/kena`, WebGL por
+**Medición:** nivel `files`, `1.200` nodos, índice de `~/workspace`, WebGL por
 software:
 
 ```text
@@ -11592,7 +11592,7 @@ aristas que reconstruye       1.460         295
 * smoke Chromium: niveles `repositories` `292` ms, `files` `394` ms, `symbols`
   `799` ms, `packages` `671` ms; rotación con arrastre, zoom con rueda y modo
   2D correctos; rótulos legibles al acercarse a `34` fps; cero `pageerror`;
-* resaltado sobre `web-captcha.kena.bot`: vecindario iluminado, resto atenuado
+* resaltado sobre `web-captcha.workspace`: vecindario iluminado, resto atenuado
   incluida la malla de contención, y apagado al salir del nodo.
 
 **Limitación:** siguen emitiéndose unas `1.200` draw calls por fotograma
@@ -14294,7 +14294,7 @@ publica entradas y bytes del arena, y es lo único que hoy se puede citar.
 
 **Estado:** cerrada el `2026-08-22`. `benchmarks/hot-snapshot-footprint`.
 
-**El resultado:** `171,5 MB` residentes sobre `kena` -- que confirma el `173 MB`
+**El resultado:** `171,5 MB` residentes sobre `workspace` -- que confirma el `173 MB`
 que esta fase citaba de otra máquina-- con dos pasadas dentro del `0,01 %`. Los
 tres que dominan: el arena de strings (`63,9 MB`, `37 %` del total), los tres
 mapas de símbolos (`16,5 MB`, que es **2,4 veces** la tabla de `6,9 MB` que
@@ -14383,7 +14383,7 @@ de menos: mientras haya un puntero en la tabla, la tabla no se puede mapear.
 
 **Estado:** cerrada el `2026-08-22`.
 
-**El resultado:** `171,5 MB` → **`109,1 MB`** residentes sobre `kena`, un
+**El resultado:** `171,5 MB` → **`109,1 MB`** residentes sobre `workspace`, un
 **`36,4 %`** menos, y la cobertura del desglose pasa de `64,6 %` a **`100,1 %`**:
 cierra porque los búferes que las claves fijaban ya no están. Por símbolo,
 `1.389` → `883` bytes.
@@ -14804,7 +14804,7 @@ redactarla: `loadPublishedSnapshot` ya mapea el fichero con
 inalcanzabilidad con `runtime.AddCleanup`, el fallback ya tiene sus seis casos
 declarados, y desenlazar el fichero mapeado ya tiene test.
 
-**Reparto real, con dos `serve` sobre la misma generación de `kena`**
+**Reparto real, con dos `serve` sobre la misma generación de `workspace`**
 (`123.531` símbolos, fichero de `98.773.720` bytes, `darwin/arm64`):
 
 |magnitud|por proceso|
@@ -14941,7 +14941,7 @@ propiedad que valora. Lo retirado, y por qué, queda en el informe.
   limitaciones.
 
 **Estado:** cerrada. El arnés está entregado y medido en Linux (`devlabs`,
-16 CPU) sobre `kena-workspace` -51 repositorios, `161.819` símbolos, generación
+16 CPU) sobre `workspace` -51 repositorios, `161.819` símbolos, generación
 `000001`, `snapshot.kvsnap` de `129 MB`-, en `benchmarks/shared-snapshot/` con
 `report.md` y `results.json`. Digest `71c8301f`, **idéntico en dos ejecuciones**,
 y con `KIVGRAPH_BENCH_SLO=1` emite `SHARED_SNAPSHOT_PASS`.
@@ -15098,7 +15098,7 @@ aleja este cruce. Lo que mantiene esta tarea cerrada es sólo lo primero: que la
 condición no se cumple.
 
 **Medido el `2026-08-23`:** `71,2 MB` por proceso y `647 B` por símbolo sobre
-`kena`, `117.499` símbolos, contra un `≤800 B` de `LUQUE-2006` y los `648 B` que
+`workspace`, `117.499` símbolos, contra un `≤800 B` de `LUQUE-2006` y los `648 B` que
 son `100 MB` en este corpus. La lectura del `2026-08-22` -- `94,3`–`98,1 MB` sobre
 `161.819` símbolos, `614 B` por símbolo-- decía lo mismo por símbolo: lo que
 decide no es el número de clientes, sale plano, sino el tamaño del grafo. Un
@@ -15126,7 +15126,7 @@ vería un demonio.
 
 **Entregada el `2026-08-23`, y no por la condición.** La condición que la
 reabría -- `Private_Dirty` por encima de `100 MB`-- sigue sin cumplirse: `71,2 MB`
-por proceso sobre `kena`. Se hizo porque las cuatro fases `LUQUE-2216` a
+por proceso sobre `workspace`. Se hizo porque las cuatro fases `LUQUE-2216` a
 `LUQUE-2220` demostraron que **no queda otra vía**: bajaron `60,5 MB` de
 asignación y el residente se movió `0,75 %`. La vía barata compra tiempo de
 arranque, no bytes por proceso.
@@ -15339,7 +15339,7 @@ salió `0,57x`: perdíamos contra `grep`. La duda era si el factor cruza a favor
 cuando el corpus es un monorepo de verdad, que es donde `grep` cuesta caro.
 
 **Corpus.** Privado y ajeno, así que no entra en este repositorio: el monorepo
-`kena` de la máquina `devlabs`, `linux/x86_64`, 43 repositorios git
+`workspace` de la máquina `devlabs`, `linux/x86_64`, 43 repositorios git
 registrados. Indexado con `go1.26.4`, `rustc 1.96.1`, worker TypeScript del
 checkout:
 
@@ -15360,7 +15360,7 @@ máquina**: aquí sólo viven los números y el método.
                               nativo  Kivgraph  factor   nativo  Kivgraph  factor
 RedisAdapter  cross-repo       6.379      4.140   1,54x    7.598      5.359   1,42x
 register      nombre común    12.656        448  28,25x   13.276      1.068  12,43x
-KenaLogger    export             754      1.246   0,61x    4.035      4.527   0,89x
+PrivateLogger    export             754      1.246   0,61x    4.035      4.527   0,89x
 AUTOMATION…   nombre raro        183        861   0,21x      330      1.008   0,33x
 TOTAL                         19.972      6.695   2,98x   25.239     11.962   2,11x
 sirviendo los cuerpos con get_source                                 13.268   1,90x
@@ -15388,7 +15388,7 @@ reales. En su máquina, con sus commits: los dos publican, y
 RedisAdapter  library-shared src/redis/RedisAdapter.ts:12-45
               exact 83, package_level 24, unresolved 0
               consumidores en 9 repositorios; find_references ve 86 desde 14
-KenaLogger    library-logger src/logger.ts:103-420
+PrivateLogger    library-logger src/logger.ts:103-420
               exact 6, package_level 22, unresolved 0; las dos tools concuerdan
 ```
 
@@ -15624,7 +15624,7 @@ cualquier documento cite son proyecciones, no mediciones.
 **Lo que no vale:** dejarlo como está y seguir citando el incremental como una
 propiedad del producto.
 
-**Medido** (`benchmarks/incremental-cost`, commit `e78490e`, corpus `kena` con
+**Medido** (`benchmarks/incremental-cost`, commit `e78490e`, corpus `workspace` con
 `4.683` ficheros y `477.027` aristas, caché de hechos caliente):
 
 |ruta|segundos|contra el full|
@@ -15741,7 +15741,7 @@ viaja en las dos vistas porque la compacta es la de por defecto.
 La exhaustividad medida no se mueve: `X4` sigue en `R=0,50` sobre ficheros
 alcanzados. Lo que se va es el silencio, y cuesta `70` tokens en la respuesta que
 lo necesita (`163` -> `233`); las otras tres preguntas del conjunto no se movieron
-ni un token. Verificado sobre `kena` con el binario real, no sólo en fixture.
+ni un token. Verificado sobre `workspace` con el binario real, no sólo en fixture.
 
 **Descendido (ADR 0059).** La travesía siembra el contenedor **y sus miembros a
 profundidad cero**, en un solo BFS -- `TraverseFrom`--, porque un miembro es
@@ -15787,7 +15787,7 @@ relación nueva, así que `CanonicalSchemaVersion` sube de `3` a `4` con su DDL 
 documentación regenerados. Y Rust **no** necesitó revertir LUQUE-2008: el miembro
 se empareja con el tipo que nombra el bloque, saltándose el bloque.
 
-**Medido**, con `depth: 1` sobre `kena`:
+**Medido**, con `depth: 1` sobre `workspace`:
 
 |sujeto|antes|después|
 |---|---|---|
@@ -15860,7 +15860,7 @@ preguntas sobre el código.
 
 **Dependencias:** ninguna.
 
-**El hueco, y de quién es la culpa:** los tres conjuntos medidos sobre `kena`
+**El hueco, y de quién es la culpa:** los tres conjuntos medidos sobre `workspace`
 -`reach`, `chain` y el desglose de `incremental-cost`- se construyeron sobre un
 índice **sin Rust**. Al `PATH` del harness le faltaba `cargo`, así que
 `rust-analyzer` rechazó los dos workspaces Cargo y el pase publicó el resto.
@@ -15877,7 +15877,7 @@ no `1,67x`, así que la retirada se refuerza. `reach.md` y `chain.md` llevan la
 nota de que su corpus no tenía Rust; sus cifras no cambian, porque sus preguntas
 son de Go y TypeScript y sus verdades se leyeron de los ficheros.
 
-**Lo que faltaba, y ya está:** una pregunta de Rust sobre `kena`, no sobre un
+**Lo que faltaba, y ya está:** una pregunta de Rust sobre `workspace`, no sobre un
 fixture. Es `R1_rs_sole_impl_dyn`, en el conjunto `rust` con su informe
 `benchmarks/graph-tools-comparison/rust.md`: el único llamante de
 `StateStore::delete_session` llega por `Arc<dyn StateStore>`, o sea dispatch
@@ -15898,7 +15898,7 @@ describían un corpus sin Rust y ningún contador las paró.
 
 **Dependencias:** LUQUE-2006.
 
-**El número:** el índice de `kena` publica `3.063` símbolos Rust y `1.969`
+**El número:** el índice de `workspace` publica `3.063` símbolos Rust y `1.969`
 referencias no resueltas. Ninguna pregunta de ningún conjunto pregunta nada sobre
 esa proporción, y es la más alta de los tres lenguajes -- `go_unresolved` es
 `9.581` sobre `114.741` referencias, `typescript_unresolved` `5.998` sobre
@@ -15915,7 +15915,7 @@ contador agregado.
 convención de `benchmarks/`, y decidir a partir del desglose si hay defecto o
 límite. Hoy nadie lo sabe, y el número está a la vista desde que Rust carga.
 
-**Resultado.** De las `1.969` referencias Rust no resueltas de `kena`:
+**Resultado.** De las `1.969` referencias Rust no resueltas de `workspace`:
 
 |grupo|cuenta|parte|qué es|
 |---|---|---|---|
@@ -15937,10 +15937,10 @@ de esto un defecto.
 **El hecho:** `internal/rustloader/kinds.go` tiene dos ramas para los bloques
 `impl` -- `PublishedKind` devuelve `"implementation"` y `PublishedName` renderiza
 `impl X for Y`, con un comentario que explica por qué un bloque no tiene nombre
-propio-- y **ninguna se ejecuta**. Evidencia directa sobre `kena`:
+propio-- y **ninguna se ejecuta**. Evidencia directa sobre `workspace`:
 
 ```
-find_symbol { name: "impl", kind: "implementation", repo: "api-music-nodo" }
+find_symbol { name: "impl", kind: "implementation", repo: "rs-svc-a" }
   -> total: 0
 ```
 
@@ -15984,7 +15984,7 @@ verifican nada.
 
 La consecuencia queda escrita donde vive el código: una referencia cuyo destino es
 la cabecera de un `impl` sigue `UNRESOLVED` porque no hay símbolo al que apuntar --
-`56` de las `1.969` de `kena`, la misma forma que una referencia al sysroot.
+`56` de las `1.969` de `workspace`, la misma forma que una referencia al sysroot.
 
 ## LUQUE-2009 — Un contador de no resueltos cuenta observaciones, no hechos
 
@@ -15992,7 +15992,7 @@ la cabecera de un `impl` sigue `UNRESOLVED` porque no hay símbolo al que apunta
 
 **Dependencias:** LUQUE-2007.
 
-**El hecho, medido:** `go_unresolved` declara `9.581` sobre `kena` y el grafo
+**El hecho, medido:** `go_unresolved` declara `9.581` sobre `workspace` y el grafo
 canónico guarda `6.059` filas. La clave de un no resuelto incluye el **offset**,
 así que sólo colapsan dos observaciones de la misma posición -- y con
 `include_tests: true` eso ocurre por diseño: `go/packages` carga `pkg` y
@@ -16023,7 +16023,7 @@ cosas distintas según un flag de configuración.
 
 **Corrección y resultado.** Esta tarea decía que uno de los contadores medía algo
 distinto de sus vecinos, y que los de al lado -- símbolos, referencias-- sí eran
-hechos distintos. **Es falso.** Medido en un solo pase sobre `kena` con
+hechos distintos. **Es falso.** Medido en un solo pase sobre `workspace` con
 `include_tests: true`:
 
 |lenguaje|símbolos: cargador|grafo|ratio|no resueltos|grafo|ratio|
@@ -16053,8 +16053,8 @@ una. Rust coincide exacto porque carga una pasada por workspace.
 **Era:** la respuesta de `H3_ts_type` traía dos filas de esta forma:
 
 ```
-gateway:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
-sdk-module-ts:../../libraries/library-shared/dist/.../api-registry-cache.d.ts
+gateway:../../libraries/library-shared/dist/.../go-svc-d-cache.d.ts
+sdk-module-ts:../../libraries/library-shared/dist/.../go-svc-d-cache.d.ts
 ```
 
 Un fichero atribuido a dos repositorios, y ninguno lo contiene. El `AGENTS.md`
@@ -16083,7 +16083,7 @@ cuyo fichero **fuente** es la salida construida del proveedor: hechos del
 proveedor, que su propia pasada es quien debe publicar.
 
 **Medido:** `H3` vuelve a `1,00`/`1,00` con `280` tokens, y **ninguna de las 29
-preguntas tiene ya una fila cuya ruta escape de su repositorio**. Sobre `kena` la
+preguntas tiene ya una fila cuya ruta escape de su repositorio**. Sobre `workspace` la
 retirada quita `193` ficheros, `542` símbolos y `1.275` aristas, y añade `173`
 huecos retenidos.
 
@@ -16126,7 +16126,7 @@ generación distinga dos grafos que difieren.
 `writeSnapshotDigest(candidatePath, result.Tables)` -`rebuild.go:284`- sobre los
 **contadores por tabla**. Ese valor viajaba en la cabecera del fichero publicado
 como `contentDigest`, y es lo que `loadPublishedSnapshot` comparaba. Los
-contadores no distinguen dos grafos de la misma forma: el mismo corpus `kena` en
+contadores no distinguen dos grafos de la misma forma: el mismo corpus `workspace` en
 dos `HOME` dio un `snapshot.sha256` **idéntico** sobre grafos que diferían en
 `288` filas y `48` bytes de arena.
 
@@ -16152,7 +16152,7 @@ hex indistinguibles, así que una generación anterior fallaría el rollback con
 «digest mismatch» -- corrupción para describir una actualización, la misma clase
 de defecto que el `doctor` en rojo de `LUQUE-2004`.
 
-**Verificación sobre el corpus real** (`kena`, 37 repositorios, 123.531 símbolos):
+**Verificación sobre el corpus real** (`workspace`, 37 repositorios, 123.531 símbolos):
 
 |comprobación|resultado|
 |---|---|
@@ -16194,7 +16194,7 @@ afirmaba `Detail == cache`, la ruta absoluta, mientras comprobaba en la línea d
 al lado que ningún `File.Path` fuera absoluto. El mismo invariante, aplicado a un
 campo y no al otro.
 
-**Alcance, medido antes de tocar nada.** Sobre `kena`, `87` rutas absolutas entre
+**Alcance, medido antes de tocar nada.** Sobre `workspace`, `87` rutas absolutas entre
 las `639.613` cadenas internadas: `48` de la caché de build -- el defecto-- y `39`
 raíces de repositorio del registro, que son deliberadas y se quedan. **Ningún
 diagnóstico filtra rutas**, que era la hipótesis alternativa: los detalles de
@@ -16985,7 +16985,7 @@ contabilidad del runtime de Go y siguen siendo exactas como tales.
 
 **Criterios de aceptación:**
 
-- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos, `337.314`
+- Medido sobre `workspace` -- `35` repositorios, `117.499` símbolos, `337.314`
   aristas, fichero de `86,7 MB`: la carga **asigna `89,7 MB` y conserva
   `27,7`**. El `69 %` de lo que pide es basura suya. `247 B` por símbolo vivos
   contra `801` asignados.
@@ -17049,7 +17049,7 @@ público de `NewGraphSnapshot`.
   defiende la medición.
 
 **Verificación:** la suite entera; `benchmarks/snapshot-heap` antes y después; y
-humo con el binario real por MCP sobre `kena` -- `find_symbol`,
+humo con el binario real por MCP sobre `workspace` -- `find_symbol`,
 `find_references` y `get_file_outline` contestan con sus veredictos.
 
 **Estado:** cerrada el `2026-08-23`.
@@ -17069,7 +17069,7 @@ grupo de la fuente.
 
 **Criterios de aceptación:**
 
-- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos, `337.314`
+- Medido sobre `workspace` -- `35` repositorios, `117.499` símbolos, `337.314`
   aristas--, con el mismo fichero para las dos versiones: lo asignado por la
   carga baja de `69,2 MB` a `55,9 MB`, y de `617 B` a `499 B` por símbolo. Lo
   transitorio baja de `41,5 MB` a `28,2 MB`, del `60 %` al `50 %`. Los bytes
@@ -17096,7 +17096,7 @@ grupo de la fuente.
 
 **Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
 `make build`; el arnés `benchmarks/snapshot-heap` regenerado; y humo con el
-binario real por MCP sobre `kena`.
+binario real por MCP sobre `workspace`.
 
 **Estado:** cerrada el `2026-08-23`.
 
@@ -17122,7 +17122,7 @@ adyacentes al ordenar.
   índice y registros concordaban **no podía fallar**, y por eso se retira en
   favor de una comprobación de forma -- que es el trato que
   `packageIncomingIndex`, ya derivado, recibía desde el principio.
-- Medido sobre `kena` -- `35` repositorios, `117.499` símbolos--, mismo fichero
+- Medido sobre `workspace` -- `35` repositorios, `117.499` símbolos--, mismo fichero
   para las dos versiones: lo asignado baja de `55,9 MB` a `36,4 MB`, y de
   `499 B` a `325 B` por símbolo. Lo transitorio baja de `28,2 MB` a `8,7 MB`,
   del `50 %` al `24 %`. Los bytes vivos no se mueven: `27,7 MB`.
@@ -17156,7 +17156,7 @@ adyacentes al ordenar.
 
 **Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
 `make build`; arnés `benchmarks/snapshot-heap` regenerado; y humo con el binario
-real por MCP sobre `kena`.
+real por MCP sobre `workspace`.
 
 **Estado:** cerrada el `2026-08-23`.
 
@@ -17193,7 +17193,7 @@ una comprobación que ningún fichero podía suspender.
   desplazamientos. Añadidos dos sobre los bytes -- descendente y dos iguales-- con
   desplazamientos perfectamente válidos, que es posible porque toda clave del
   corpus mide lo mismo. Las tres formas de romper el orden caen ahora.
-- **Medido** sobre `kena`, mismo fichero: lo asignado baja de `36,4 MB` a
+- **Medido** sobre `workspace`, mismo fichero: lo asignado baja de `36,4 MB` a
   `29,2 MB` y de `325 B` a `261 B` por símbolo; lo transitorio de `8,7 MB` a
   `1,6 MB`, del `24 %` al `5 %`. La carga baja a `123,6 ms` frente a `134,5`,
   tres pasadas alternadas de tres. Los bytes vivos siguen en `27,7 MB`.
@@ -17201,7 +17201,7 @@ una comprobación que ningún fichero podía suspender.
   los dos arrays empaquetados de los índices, y nada más tiene nombre.
 
 **Verificación:** `gofmt`, `go vet ./...`, `go test ./...`, `make test-ladybug`,
-`make build`; arnés regenerado; y humo con el binario real por MCP sobre `kena`.
+`make build`; arnés regenerado; y humo con el binario real por MCP sobre `workspace`.
 
 **Estado:** cerrada el `2026-08-23`.
 
@@ -17287,7 +17287,7 @@ un tercer brazo dejaría `compare(mapped, derived)` sin significado y forzaría
 umbrales que no aplican. Reutiliza `mcpworkload` y `procstat`, que es lo que
 había que compartir.
 
-**Resultados.** Tres pasadas, `108.737` símbolos de `kena`, VM `linux/arm64`,
+**Resultados.** Tres pasadas, `108.737` símbolos de `workspace`, VM `linux/arm64`,
 `2.000` llamadas medidas y `4.000` descartadas, los dos brazos leyendo el mismo
 fichero publicado.
 
@@ -17511,7 +17511,7 @@ después del muestreo: nada obliga a que preceda a los bytes, falla igual y
 descarta la corrida igual. Esquema `daemon-cost-v2` a `v3` por ese movimiento.
 
 **Lo medido**, seis pasadas ociosas (tres por puerta), tres por carga real y una
-sostenida, todas sobre la generación `000001` de `108.737` símbolos de `kena` en
+sostenida, todas sobre la generación `000001` de `108.737` símbolos de `workspace` en
 Linux:
 
 |carga|N procesos|demonio|proporción|8 clientes|
@@ -17550,7 +17550,7 @@ trabajo; de los `33 MB` no se separa qué parte es construcción de índices, y
 afirmarlo sería inventar el mecanismo; `-calls N` reparte N llamadas entre los
 clientes que haya, así que la fila de un cliente de la carga real contesta ocho
 preguntas y no es comparable con la de ocho; el corpus es `108.737` y no los
-`117.499` de `LUQUE-2224`, porque `kena` es un workspace en uso -- ninguna cifra se
+`117.499` de `LUQUE-2224`, porque `workspace` es un workspace en uso -- ninguna cifra se
 cruza entre las dos pasadas; la sostenida es una sola pasada; no es bare metal.
 
 **Estado:** cerrada el `2026-08-23`.
@@ -17575,7 +17575,7 @@ y el brazo de carrera al publicar-- comparan identificadores, porque cualquiera 
 ellos mapeando el grafo lo cargaría igual sin que nadie pregunte. ADR 0067.
 
 **Medido**, seis pasadas ociosas por las dos puertas sobre `108.737` símbolos de
-`kena` en Linux, árbol limpio en `68da6dc`:
+`workspace` en Linux, árbol limpio en `68da6dc`:
 
 |ocioso|antes|ahora|
 |---|---|---|

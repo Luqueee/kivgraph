@@ -925,7 +925,7 @@ func repositoryRoot(roots map[string]string, repository, fallback string) string
 // resolveSubject answers the declaration a question is about, and refuses to
 // guess one.
 //
-// A bare name does not identify a symbol in a corpus of any size: the kena
+// A bare name does not identify a symbol in a corpus of any size: the workspace
 // monorepo declares 87 rows named `RedisAdapter`, one class and eighty-six
 // imports and aliases of it. Taking the first row made the measurement depend on
 // page order, and it took the cheap side: consumers of an import alias are a

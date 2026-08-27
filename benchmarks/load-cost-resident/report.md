@@ -21,7 +21,7 @@ veredicto de aceptación: mide dos binarios sobre un fichero concreto.
 |runtime|Docker Desktop `29.1.3`, VM `linux/arm64`, 10 CPU, `8,2 GB`|
 |imagen|`golang:1.26-trixie`, glibc `2.41`|
 |page size|`4096` bytes|
-|corpus|generación `000001` de `kena`, `117.499` símbolos, `35` repositorios|
+|corpus|generación `000001` de `workspace`, `117.499` símbolos, `35` repositorios|
 
 La generación es una sola y es la misma para todos los brazos: el formato del
 fichero no cambió entre los dos commits, así que los dos binarios leen los

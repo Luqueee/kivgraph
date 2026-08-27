@@ -1243,7 +1243,7 @@ func TestNormalizeTypeScriptSeparatesHomonymsDeclaredInDifferentModules(t *testi
 // A consumer resolving an import into a workspace sibling's built declarations
 // gets a repository-relative path that climbs out of its own tree. Keying such a
 // file under the consumer published a row whose path escapes its own repository,
-// and a row like that cannot be handed back to any tool -- on kena, one `.d.ts`
+// and a row like that cannot be handed back to any tool -- on workspace, one `.d.ts`
 // was claimed by two repositories, neither of which contained it.
 //
 // The fact is retired, not re-attributed: a File belongs to a Package and this
@@ -1259,7 +1259,7 @@ func TestNormalizeTypeScriptRetiresAFileOutsideTheRepository(t *testing.T) {
 		Version:    TypeScriptWireVersion,
 		Repository: TypeScriptRepository{Name: "gateway"},
 		Package: &TypeScriptPackage{
-			Name: "@kena/gateway", Version: "0.0.1",
+			Name: "@workspace/gateway", Version: "0.0.1",
 			RootPath: ".", ManifestPath: "package.json",
 		},
 		Files: []string{"src/manager.ts", foreign},

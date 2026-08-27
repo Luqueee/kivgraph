@@ -369,7 +369,7 @@ func manySymbolsSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 }
 
 // TestFindSymbolCompactGroupsTheMajorityKindOnce is the regression guard for
-// the real page that motivated this: a search of `453` rows over `kena` had 7
+// the real page that motivated this: a search of `453` rows over `workspace` had 7
 // distinct (kind, exported) pairs, one covering 222 of them, and repeating
 // both columns on every row cost more than the search itself. Here four
 // declarations share one pair across two files and two share another in a

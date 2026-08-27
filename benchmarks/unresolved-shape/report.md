@@ -1,6 +1,6 @@
 # De qué son los no resueltos
 
-`LUQUE-2007`. El índice de `kena` publica `9.581` referencias Go, `5.998`
+`LUQUE-2007`. El índice de `workspace` publica `9.581` referencias Go, `5.998`
 TypeScript y `1.969` Rust sin resolver, y ningún conjunto de preguntas había
 preguntado nunca **qué son**. Un contador
 agregado no distingue una limitación declarada de un defecto escondido, y ésa era
@@ -19,7 +19,7 @@ Métricas crudas en `results.json`.
 |---|---|
 |fecha|2026-08-21|
 |commit|`9cad2d3`|
-|corpus|`kena`, 37 repositorios, con `cargo` en el `PATH`|
+|corpus|`workspace`, 37 repositorios, con `cargo` en el `PATH`|
 |máquina|`Mac17,2` (Apple M5), macOS `26.6`|
 
 ## El panorama
@@ -68,7 +68,7 @@ Los `56` restantes son bloques `impl`, inherentes y de trait. **El cargador nunc
 los publica como símbolo.** La evidencia es directa:
 
 ```
-find_symbol { name: "impl", kind: "implementation", repo: "api-music-nodo" }
+find_symbol { name: "impl", kind: "implementation", repo: "rs-svc-a" }
   -> total: 0
 ```
 
@@ -104,7 +104,7 @@ Los `288` se identifican por su propio `detail`, que es una ruta dentro de
 en ningún fichero del repositorio. Desaparecen con `include_tests: false`.
 
 Y los `3` no son código roto. Su `detail` lo dice: `build constraints exclude all
-Go files in ...`, sobre la raíz de `api-db-go` y dos directorios `testutil`. Un
+Go files in ...`, sobre la raíz de `go-svc-a` y dos directorios `testutil`. Un
 directorio sin ficheros Go compilables para la plataforma actual no es un fallo,
 y el cargador lo registra en vez de callarlo.
 
@@ -126,7 +126,7 @@ Sin tests las dos cifras **coinciden exactamente**. Con tests, el número que un
 usuario lee sobreestima los hechos distintos en `1,58x`. Ni una fila se pierde:
 lo que sobra son observaciones repetidas. Queda en `LUQUE-2009`.
 
-## TypeScript: un cuarto apunta al propio código de `kena`
+## TypeScript: un cuarto apunta al propio código de `workspace`
 
 |grupo|cuenta|parte|qué es|
 |---|---|---|---|
@@ -136,15 +136,15 @@ lo que sobra son observaciones repetidas. Queda en `LUQUE-2009`.
 |`DECLARATION_NOT_RESOLVED`|`109`|`1,8 %`|nombre que el proveedor no declara|
 |`MODULE_NOT_RESOLVED`|`1`|`0,0 %`|un paquete que no resuelve|
 
-**`1.492` ocurrencias -- el `24,9 %` -- piden código de `kena`**, no de terceros:
-`@kena/sdk::CommandContext`, `@kena/sdk::SlashCommandBuilder`,
-`@kena/web::Translations`. La causa es el estado del corpus, verificado:
+**`1.492` ocurrencias -- el `24,9 %` -- piden código de `workspace`**, no de terceros:
+`@workspace/sdk::CommandContext`, `@workspace/sdk::SlashCommandBuilder`,
+`@workspace/web::Translations`. La causa es el estado del corpus, verificado:
 **ninguno** de los tres paquetes internos tiene `dist/`.
 
 Y aquí la parte accionable, que no es la que este informe dijo primero.
 
 **Corrección.** La primera versión de esta sección leyó `declarationMap` en los
-tres `tsconfig.json` y concluyó que `@kena/web` no lo emitía. Es falso:
+tres `tsconfig.json` y concluyó que `@workspace/web` no lo emitía. Es falso:
 `library-web` no compila con `tsc` sino con `tsdown`, y su `tsdown.config.ts`
 lleva `dts: { sourcemap: true }` con un comentario que explica el motivo en los
 términos de este grafo -- «sin ellos nada conecta el `.d.ts` publicado con `src/`,
@@ -166,9 +166,9 @@ todo el cuarto interno:
 |hecho|evidencia|
 |---|---|
 |los paquetes internos **son** miembros del workspace|`pnpm-workspace.yaml`, 43 entradas, `library-web` incluido|
-|sus consumidores los piden por rango de registro|`105` declaraciones `@kena/*` en `28` `package.json`, **todas** `0.0.1`, ninguna `workspace:*`|
+|sus consumidores los piden por rango de registro|`105` declaraciones `@workspace/*` en `28` `package.json`, **todas** `0.0.1`, ninguna `workspace:*`|
 |`pnpm 11` no enlaza por defecto|`link-workspace-packages` sin configurar; el default es `false` desde `pnpm 10`|
-|así que se resuelven desde el store|`node_modules/@kena/shared -> .pnpm/@kena+shared@0.0.1_.../node_modules/@kena/shared`|
+|así que se resuelven desde el store|`node_modules/@private/shared -> .pnpm/@workspace+shared@0.0.1_.../node_modules/@private/shared`|
 |y esa copia no tiene con qué mapear|`0` `.d.ts.map`, sin `src/`|
 
 Y `PROVIDER_SOURCE_UNAVAILABLE` salta exactamente donde el worker dice: cuando el
@@ -201,7 +201,7 @@ interno pasó de `1.492` a `463`.
 
 ## Y los `463` que quedan tampoco son un defecto
 
-Siguen nombrando `@kena/sdk`: `SlashCommandBuilder`, `ContainerBuilder`,
+Siguen nombrando `@workspace/sdk`: `SlashCommandBuilder`, `ContainerBuilder`,
 `Collection`. Pero `src/discord.ts` del sdk dice qué son:
 
 ```ts

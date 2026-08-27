@@ -2,7 +2,7 @@
 
 Hasta hoy la única dimensión Rust medida en este proyecto era `H5_rs_trait`, y
 vivía sobre un **fixture sintético**. Peor: los tres conjuntos medidos sobre
-`kena` -`reach`, `chain` y el desglose de `incremental-cost`- se construyeron
+`workspace` -`reach`, `chain` y el desglose de `incremental-cost`- se construyeron
 sobre un índice **sin Rust**, porque al `PATH` del harness le faltaba `cargo`.
 Ésta es la primera pregunta de Rust sobre código que alguien envió a producción.
 
@@ -15,7 +15,7 @@ Las métricas crudas están en `results-rust.json` y las respuestas literales en
 |---|---|
 |fecha|2026-08-21|
 |commit|`11016ce`|
-|corpus|`kena`, 37 repositorios, `126.934` símbolos publicados|
+|corpus|`workspace`, 37 repositorios, `126.934` símbolos publicados|
 |por lenguaje|`go` `19.166`, `typescript` `128.985`, `rust` `3.063`|
 |kivgraph|`0.3.6`|
 
@@ -61,7 +61,7 @@ capacidad exclusiva.
 ## Los tres ceros, cada uno por su motivo
 
 - **`code-review-graph`** respondió cero llamantes, y **todo lo que la respuesta
-  necesita está dentro de `kenalink-rs`**, que es exactamente el repositorio sobre
+  necesita está dentro de `rs-svc-b`**, que es exactamente el repositorio sobre
   el que construyó su grafo. No es un problema de alcance: es un fallo.
 
   Esta fila obligó a arreglar el harness. La nota de este brazo estaba
@@ -87,7 +87,7 @@ go run ./benchmarks/graph-tools-comparison --set rust \
   --kivgraph-home /private/tmp/rshome
 ```
 
-La copia privada del corpus tiene que contener `services/kenalink-rs`: `graphify`
+La copia privada del corpus tiene que contener `services/rs-svc-b`: `graphify`
 escribe al lado del código que lee y nunca se le apunta al repositorio real.
 
 ## Limitaciones

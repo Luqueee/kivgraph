@@ -486,7 +486,7 @@ func TestSnapshotFileRefusesAMalformedSectionTable(t *testing.T) {
 // regression this format has, and it fixes the exact claim that is true.
 //
 // "Two publications of the same graph produce the same file" is false, and
-// measuring it said by how much: on a 98 MB file over kena, six bytes. They are
+// measuring it said by how much: on a 98 MB file over workspace, six bytes. They are
 // the snapshot id and the build timestamp, which identify *which* publication
 // this is -- a second publication is a different generation at a different time,
 // and recording that is provenance, not nondeterminism.

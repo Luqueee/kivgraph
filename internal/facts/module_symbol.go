@@ -14,7 +14,7 @@ import (
 // in a test, a callback handed to a router, a closure in an initialiser. The
 // checker resolves those targets perfectly well; what is missing is a source.
 //
-// Dropping them is not a small loss. Measured on `packages/core` of the kena
+// Dropping them is not a small loss. Measured on `packages/core` of the workspace
 // monorepo: 98 of 14100 uses in ordinary source, all of them top level
 // statements in bootstrap files, and 38 of 38 uses in a test file -- every call
 // a `vitest` file makes, because the idiom puts all of them inside a callback.

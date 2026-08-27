@@ -17,7 +17,7 @@
     "ladybug": "liblbug-linux-aarch64 v0.13.1"
   },
   "dataset": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "generation": "000001",
     "snapshot_bytes": 90935856,
     "symbols": 117499,

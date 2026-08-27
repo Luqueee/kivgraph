@@ -1,8 +1,0 @@
-[graft] tokens saved ≈ 180 (65%) — this output ≈ 95 tok vs reading the 1 file(s) it covers whole ≈ 275 tok (estimate). At the end of your reply, tell the user the total graft tokens saved this turn — sum each such line across your graft calls — e.g. "🌱 graft saved ~N tokens this turn".
-
-graft skeleton — packages/core/src/cluster/worker/ipc/WorkerIPC.ts
-- L8-L39  class WorkerIPC  class WorkerIPC extends EventEmitter
-- L15-L21  method constructor  constructor(client: BotWorker)
-- L23-L25  method destroy  destroy(): void
-- L27-L30  method handleMessage  private handleMessage(msg: IPCMessage): void
-- L32-L38  method sendMessage  sendMessage(msg: IPCMessage): void

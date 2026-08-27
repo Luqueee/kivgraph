@@ -64,8 +64,8 @@ func main() {
 	flag.StringVar(&cfg.CRG, "crg", "/private/tmp/crg-venv/bin/code-review-graph", "code-review-graph executable")
 	flag.StringVar(&cfg.Graphify, "graphify", "graphify", "graphify executable")
 	flag.StringVar(&cfg.CMM, "codebase-memory", "codebase-memory-mcp", "codebase-memory-mcp executable")
-	flag.StringVar(&cfg.Corpus, "corpus", "/Users/adria/Documents/programacion/projects/kena", "corpus root")
-	flag.StringVar(&cfg.CorpusCopy, "corpus-copy", "/private/tmp/5way/kena-copy",
+	flag.StringVar(&cfg.Corpus, "corpus", "/path/to/workspace", "corpus root")
+	flag.StringVar(&cfg.CorpusCopy, "corpus-copy", "/private/tmp/5way/workspace-copy",
 		"private copy of the corpus, for tools that write beside the code they read")
 	flag.StringVar(&cfg.Directory, "dir", defaultDirectory, "benchmark directory to write results into")
 	flag.StringVar(&cfg.StateRoot, "state-root", "/private/tmp/5way", "directory holding each arm's isolated state")
@@ -330,7 +330,7 @@ func buildEveryIndex(ctx context.Context, cfg config, out *results) error {
 	}
 	// The `Needs` line below has always said that a load without its toolchain
 	// leaves its symbols absent. It was true and unchecked, and a whole language
-	// went missing behind it: three published sets measured kena with no Rust in
+	// went missing behind it: three published sets measured workspace with no Rust in
 	// it, because cargo was not on the PATH and nothing read the counter that
 	// said so. A measurement that names a corpus it did not measure is worse
 	// than one that refuses to run.

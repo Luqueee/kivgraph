@@ -7,7 +7,7 @@ against it**, by a rule rather than by hand.
 
 ## The selection rule, fixed in advance
 
-Over the corpus `/Users/adria/Documents/programacion/projects/kena`, excluding
+Over the corpus `/path/to/workspace`, excluding
 `node_modules`, `dist`, `build`, `target`, `.next`, `graphify-out` and any
 `vendor` tree -- vendored third-party source is not the project's code:
 
@@ -28,7 +28,7 @@ it selected are below, with every occurrence read and attributed.
 
 ### `N1_go` -- `Capture`
 
-Declared at `services/api-db-go/internal/infrastructure/glitchtip/glitchtip.go:84`.
+Declared at `services/go-svc-a/internal/infrastructure/glitchtip/glitchtip.go:84`.
 Occurs in four files; **one** is a caller.
 
 |file|line|what it is|
@@ -38,7 +38,7 @@ Occurs in four files; **one** is a caller.
 |`mongo/global_repository.go`|`103`|a comment: "Capture the raw version BEFORE defaulting"|
 |`mongo/premium_repository.go`|`416`|a comment: "Capture the OLD cache keys BEFORE the patch"|
 
-Ground truth: `services/api-db-go/internal/infrastructure/glitchtip/glitchtip_test.go`.
+Ground truth: `services/go-svc-a/internal/infrastructure/glitchtip/glitchtip_test.go`.
 
 Two of the three non-declaring files are English prose that happens to start a
 sentence with the verb. A name-matching tool answers three files and scores
@@ -62,7 +62,7 @@ catch a regression in the ordinary path.
 
 ### `N3_rust` -- `build_router`
 
-Declared at `services/api-music-nodo/src/http/routes.rs:28`.
+Declared at `services/rs-svc-a/src/http/routes.rs:28`.
 Occurs in four files; **two** are callers.
 
 |file|line|what it is|
@@ -72,8 +72,8 @@ Occurs in four files; **two** are callers.
 |`src/http/openapi.rs`|`4`|a doc comment naming `routes::build_router`|
 |`tests/http_surface.rs`|`16`, `133`|imports it and calls it|
 
-Ground truth: `services/api-music-nodo/src/app.rs` and
-`services/api-music-nodo/tests/http_surface.rs`.
+Ground truth: `services/rs-svc-a/src/app.rs` and
+`services/rs-svc-a/tests/http_surface.rs`.
 
 One occurrence is a doc comment, and one caller is an integration test outside
 `src/`, which is a different inclusion question from Go's.
@@ -125,7 +125,7 @@ The corpus-wide numbers moved too: symbols `96.482` -> `125.821`, edges
 ### What the fixes bought
 
 `R1` went from naming none of the five call sites to naming **all five**. The
-installed-copy bridge resolves `804` of `804` `@kena/shared` imports that
+installed-copy bridge resolves `804` of `804` `@private/shared` imports that
 previously had no target at all. Precision is `0.56` because four re-export
 barrels still rank as callers, which is a separate defect: an incoming
 references answer mixes `REEXPORTS` with `CALLS_DIRECT`, so a barrel

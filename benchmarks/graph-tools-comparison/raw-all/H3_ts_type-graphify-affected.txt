@@ -1,13 +1,13 @@
 Affected nodes for ApiRuntimeState
 Relations: calls, references, imports, imports_from, re_exports, inherits, extends, implements, uses, mixes_in, embeds
 Depth: 2
-- api-registry-cache.ts [imports] src/redis/cache/gateway/registry/api-registry-cache.ts:L1
-- .find() [references] src/redis/cache/gateway/registry/api-registry-cache.ts:L13
-- .save() [references] src/redis/cache/gateway/registry/api-registry-cache.ts:L17
-- .all() [references] src/redis/cache/gateway/registry/api-registry-cache.ts:L32
-- .markDead() [references] src/redis/cache/gateway/registry/api-registry-cache.ts:L55
+- go-svc-d-cache.ts [imports] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L1
+- .find() [references] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L13
+- .save() [references] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L17
+- .all() [references] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L32
+- .markDead() [references] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L55
 - base-cache.ts [imports_from] src/redis/cache/base-cache.ts:L1
 - BaseCache [imports] src/redis/cache/base-cache.ts:L4
-- .apiKey() [calls] src/redis/cache/gateway/registry/api-registry-cache.ts:L9
-- .activeKey() [calls] src/redis/cache/gateway/registry/api-registry-cache.ts:L5
-- .ids() [calls] src/redis/cache/gateway/registry/api-registry-cache.ts:L28
+- .apiKey() [calls] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L9
+- .activeKey() [calls] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L5
+- .ids() [calls] src/redis/cache/gateway/registry/go-svc-d-cache.ts:L28

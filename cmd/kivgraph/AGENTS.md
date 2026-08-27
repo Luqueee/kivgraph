@@ -207,7 +207,7 @@ superficie observable.
   `index` es lo que cada pasada de lenguaje **observó**. Un fichero que
   pertenece a dos paquetes -- `pkg` y `pkg.test` -- se observa dos veces y se
   guarda una, así que los dos bloques del mismo evento divergen sin que ninguno
-  esté mal. Medido sobre `kena` con `include_tests: true`: `index` suma `146.600`
+  esté mal. Medido sobre `workspace` con `include_tests: true`: `index` suma `146.600`
   símbolos y `counts.symbols` dice `124.073`; `go_definitions` va `1,63x` por
   encima de los símbolos Go del grafo y `go_unresolved` `1,58x`, mientras que
   Rust -- una pasada por workspace -- coincide exacto. Con `include_tests: false`

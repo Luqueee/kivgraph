@@ -56,7 +56,7 @@ func TestScoreAgainstScoresAnAbsence(t *testing.T) {
 }
 
 // TestPublishedCorpusRefusesAMissingLanguage defends the rule that was missing
-// when three published sets measured kena without Rust in it.
+// when three published sets measured workspace without Rust in it.
 //
 // The counter that would have caught it was in the payload the harness already
 // parsed, and the `Needs` line already said a load without its toolchain leaves

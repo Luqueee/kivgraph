@@ -151,7 +151,7 @@ func TestLoadOrBuildSnapshotFallsBackAndSaysWhy(t *testing.T) {
 // symbol signature apart -- produce the same table-count digest and different
 // graph digests. So a snapshot file of the first, dropped into a generation of
 // the second, was provable against snapshot.sha256 and is not provable against
-// the record. On `kena` the same collision was two indexings whose graphs
+// the record. On `workspace` the same collision was two indexings whose graphs
 // differed in 288 rows and whose snapshot.sha256 was byte-identical.
 func TestTableCountsCannotProveWhichGraphAFileHolds(t *testing.T) {
 	counts := map[string]int64{"Repository": 1, "Package": 1, "File": 2, "Symbol": 2, "Edge": 6}

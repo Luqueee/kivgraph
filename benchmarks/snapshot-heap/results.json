@@ -8,7 +8,7 @@
     "go": "go1.26.4"
   },
   "corpus": {
-    "generation_dir": "/Users/adria/.cache/kivlin/.local/state/kivgraph/generations/000001",
+    "generation_dir": "/path/to/home/.cache/kivlin/.local/state/kivgraph/generations/000001",
     "snapshot_file_bytes": 90935856,
     "repositories": 35,
     "symbols": 117499,

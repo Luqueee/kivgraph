@@ -4,7 +4,7 @@ El benchmark de `benchmarks/graft-comparison/` mide preguntas sueltas. Este mide
 lo único que le importa a quien usa una: **si el agente entrega el cambio**.
 
 Tres brazos del mismo agente, mismo modelo, mismas herramientas de archivo, sobre
-los mismos commits reales de `kena`:
+los mismos commits reales de `workspace`:
 
 - `cold` — sin capa de contexto.
 - `kivgraph` — con el MCP de Kivgraph montado.
@@ -37,7 +37,7 @@ hay soporte de API key en esta configuración.
 ## Qué garantiza el harness
 
 - **El corpus no se toca.** Todo ocurre en una copia privada
-  (`/private/tmp/e2e-kena`); del original sólo se lee con `git archive`.
+  (`/private/tmp/e2e-workspace`); del original sólo se lee con `git archive`.
 - **La respuesta no está al alcance.** El repositorio de la tarea se reconstruye
   en el padre del commit como un repositorio de **un solo commit**: el commit que
   se está reimplementando es inalcanzable, y `assertNoLeak` lo comprueba en cada

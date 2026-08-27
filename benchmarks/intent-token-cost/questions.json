@@ -2,9 +2,9 @@
   "version": 3,
   "tokenizer": "cl100k_base",
   "repositories": {
-    "kivgraph": "/Users/adria/Documents/programacion/projects/kivgraph",
-    "mole": "/Users/adria/Documents/programacion/projects/mole",
-    "api-db-go": "/Users/adria/Documents/programacion/projects/kena/services/api-db-go"
+    "kivgraph": "/path/to/kivgraph",
+    "go-svc-e": "/path/to/home/Documents/programacion/projects/go-svc-e",
+    "go-svc-a": "/path/to/workspace/services/go-svc-a"
   },
   "question": "which files hold the answer to a question that names no symbol",
   "ground_truth": "established by reading the implementation, never from a tool answer: every file below was located by searching for the identifiers that implement the behaviour, which the asker does not know yet and the phrase therefore cannot contain -- checked mechanically, by splitting every declared name of the answer file into words and refusing any phrase that shares one; every answer file was confirmed present in the indexed corpus, and each repository name maps to the registered checkout the graph indexed rather than to a worktree, so both arms walk the same tree",
@@ -192,7 +192,7 @@
     },
     {
       "intent": "why a program on the far machine bound to an outside address is skipped",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "answer": [
         "internal/discover/discover.go"
@@ -215,7 +215,7 @@
     },
     {
       "intent": "where the connection is aborted because the machine proves a different identity than before",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "answer": [
         "internal/tunnel/hostkey.go"
@@ -238,7 +238,7 @@
     },
     {
       "intent": "where one rejected forward request does not tear down the whole shared link",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "answer": [
         "internal/tunnel/tunnel.go"
@@ -261,7 +261,7 @@
     },
     {
       "intent": "where the far end learns no more bytes are coming from one side",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "answer": [
         "internal/proxy/proxy.go"
@@ -283,7 +283,7 @@
     },
     {
       "intent": "where changing one setting on disk leaves the user's comments and ordering untouched",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "answer": [
         "internal/config/config.go"
@@ -306,7 +306,7 @@
     },
     {
       "intent": "where an oversized picture upload is turned away instead of being stored",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "answer": [
         "internal/clip/server.go"
@@ -329,10 +329,10 @@
     },
     {
       "intent": "where starting a second background copy is refused while one already runs",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "common_vocabulary",
       "answer": [
-        "cmd/mole/daemon.go"
+        "cmd/go-svc-e/daemon.go"
       ],
       "native": {
         "tool": "git grep -n",
@@ -352,10 +352,10 @@
     },
     {
       "intent": "where tailing the daemon output detects the file shrank and reopens it",
-      "repo": "mole",
+      "repo": "go-svc-e",
       "class": "rare_vocabulary",
       "answer": [
-        "cmd/mole/logs.go"
+        "cmd/go-svc-e/logs.go"
       ],
       "native": {
         "tool": "git grep -n",
@@ -375,7 +375,7 @@
     },
     {
       "intent": "where a bulk transfer refuses to run when the destination looks like live production",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "answer": [
         "cmd/clone-db/main.go"
@@ -398,7 +398,7 @@
     },
     {
       "intent": "where preparing the tables stops early because something else already created them",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "answer": [
         "internal/infrastructure/postgres/migrate.go"
@@ -421,7 +421,7 @@
     },
     {
       "intent": "where an unexpected crash inside a request becomes a normal error reply instead of raw html",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "answer": [
         "internal/application/middlewares/recover.go"
@@ -444,7 +444,7 @@
     },
     {
       "intent": "how it goes back to the remote coordinator only after several good replies in a row",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "answer": [
         "internal/infrastructure/locker/locker.go"
@@ -467,7 +467,7 @@
     },
     {
       "intent": "at startup, where absent table shards produce a printed command an operator can paste",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "common_vocabulary",
       "answer": [
         "internal/infrastructure/postgres/partition_health.go"
@@ -490,7 +490,7 @@
     },
     {
       "intent": "where the label naming who produced a reply falls back to a placeholder",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "rare_vocabulary",
       "answer": [
         "internal/application/handlers/headers.go"
@@ -513,7 +513,7 @@
     },
     {
       "intent": "where an old variable that is no longer read is reported at boot",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "common_vocabulary",
       "answer": [
         "internal/shared/config/config.go"
@@ -536,7 +536,7 @@
     },
     {
       "intent": "why a partial save with no usable fields is refused instead of touching the record",
-      "repo": "api-db-go",
+      "repo": "go-svc-a",
       "class": "common_vocabulary",
       "answer": [
         "internal/application/handlers/bots_guilds_handler.go"
