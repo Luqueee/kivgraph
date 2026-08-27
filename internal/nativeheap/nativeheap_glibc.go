@@ -1,10 +1,5 @@
 //go:build linux && cgo
 
-// Package nativeheap returns the memory the native engine borrowed.
-//
-// It is not the Go heap. LadybugDB is C++ and allocates through libc, so
-// nothing in runtime/debug can see that memory or hand it back, and a snapshot
-// build borrows most of its bytes there.
 package nativeheap
 
 /*

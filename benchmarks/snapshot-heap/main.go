@@ -29,7 +29,6 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -237,28 +236,6 @@ func writeLiveProfile(path string) error {
 		return fmt.Errorf("write the live profile: %w", err)
 	}
 	return nil
-}
-
-// mapSnapshotFile maps the file read-only and shared, the way the loader does:
-// the pages a second process reads are then the same physical pages.
-func mapSnapshotFile(path string) ([]byte, func(), error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open the published snapshot: %w", err)
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, nil, fmt.Errorf("stat the published snapshot: %w", err)
-	}
-	if info.Size() == 0 {
-		return nil, nil, errors.New("the published snapshot is empty")
-	}
-	data, err := syscall.Mmap(int(file.Fd()), 0, int(info.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
-	if err != nil {
-		return nil, nil, fmt.Errorf("map the published snapshot: %w", err)
-	}
-	return data, func() { _ = syscall.Munmap(data) }, nil
 }
 
 func readDigest(directory string) ([32]byte, error) {
