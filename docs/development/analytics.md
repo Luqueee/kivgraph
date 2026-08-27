@@ -791,15 +791,34 @@ figures without considering that they measure in different ways.
 
 ### 2. The site's domain in Umami
 
-The site's entry still points at `kivgraph.luqueee.dev`. Change it to
-`kivgraph.dev` in *Settings -> Websites*. It does not cut off collection — the
-tracker does not filter on that field — but the panel shows a host that today
-only redirects.
+**Done.** The entry reads `kivgraph.dev`; it used to read
+`kivgraph.luqueee.dev`, which is a host that today only redirects. The change
+was cosmetic in the sense that matters here -- the tracker does not filter on
+that field, so collection never depended on it.
+
+Both properties are distinct entries and their ids are the two the host holds,
+which is the part worth re-checking rather than assuming:
+
+```bash
+grep -E '^KIVGRAPH_UMAMI(_AI)?_WEBSITE_ID=' landing/.env
+```
+
+`KIVGRAPH_UMAMI_WEBSITE_ID` is `kivgraph` and `KIVGRAPH_UMAMI_AI_WEBSITE_ID` is
+`kivgraph AI CRAWLERS`. The same id in both is the mistake the separation exists
+to prevent, and nothing in the code can catch it.
 
 ### 3. Search Console
 
-Create the **domain** property for `kivgraph.dev` with the `TXT` record, and
-submit `https://kivgraph.dev/sitemap-index.xml`.
+The domain property's `TXT` record is in place, which is checkable without the
+panel:
+
+```bash
+dig +short TXT kivgraph.dev | grep google-site-verification
+```
+
+`https://kivgraph.dev/sitemap-index.xml` answers `200`. Whether it was
+**submitted** is only visible inside Search Console, so it is not asserted
+here.
 
 ### 4. First-party tracking, if wanted
 
