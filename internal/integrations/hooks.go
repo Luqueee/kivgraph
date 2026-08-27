@@ -40,7 +40,8 @@ const hookTimeoutSeconds = 5
 type hookKind uint8
 
 const (
-	// hookEntry is an entry in a file of hooks the agent already reads.
+	// hookEntry is an entry in a file of hooks the agent already reads. It
+	// is the zero value because it is what three of the four targets are.
 	hookEntry hookKind = iota
 	// hookPlugin is a file the agent loads as code, because it has no
 	// shell-hook contract at all.
@@ -131,10 +132,10 @@ func (manager Manager) InstallHook(target Target, scope Scope, dryRun, force boo
 	if err != nil {
 		return Plan{}, err
 	}
-	if document.kind == hookPlugin {
-		return manager.installPlugin(document, dryRun, force)
+	if document.kind == hookEntry {
+		return manager.installHookEntry(document, dryRun)
 	}
-	return manager.installHookEntry(document, dryRun)
+	return manager.installPlugin(document, dryRun, force)
 }
 
 // RemoveHook removes only the entry Kivgraph owns.
@@ -143,10 +144,10 @@ func (manager Manager) RemoveHook(target Target, scope Scope, dryRun, force bool
 	if err != nil {
 		return Plan{}, err
 	}
-	if document.kind == hookPlugin {
-		return manager.removePlugin(document, dryRun, force)
+	if document.kind == hookEntry {
+		return manager.removeHookEntry(document, dryRun)
 	}
-	return manager.removeHookEntry(document, dryRun)
+	return manager.removePlugin(document, dryRun, force)
 }
 
 // StatusHook inspects one client's gate.
@@ -155,7 +156,7 @@ func (manager Manager) StatusHook(target Target, scope Scope) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	if document.kind == hookPlugin {
+	if document.kind != hookEntry {
 		return manager.statusPlugin(document)
 	}
 	state, err := manager.readHooks(document)
