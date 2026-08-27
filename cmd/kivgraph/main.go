@@ -2480,16 +2480,25 @@ func stopTargets(
 	signal processSignaller,
 ) (killed, failed int) {
 	for _, target := range targets {
-		if err := signal(target.PID, syscall.SIGTERM); err != nil {
-			writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
-			failed++
-			continue
-		}
-		if waitForExit(target.PID, list, stopGracePeriod) {
-			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
-			continue
-		}
-		if !stillRunning(target, list) {
+		if gracefulStopSupported {
+			if err := signal(target.PID, syscall.SIGTERM); err != nil {
+				writeCommandError(stderr, "stop: pid=%d: %v", target.PID, err)
+				failed++
+				continue
+			}
+			if waitForExit(target.PID, list, stopGracePeriod) {
+				writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
+				continue
+			}
+			if !stillRunning(target, list) {
+				writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
+				continue
+			}
+		} else if !stillRunning(target, list) {
+			// Without a polite stage there is no bounded wait either, so the
+			// only thing between listing the process and ending it is this
+			// second look -- and it is the one that matters, because a pid
+			// freed in between can already belong to something else.
 			writeInfo(stdout, "stop: pid=%d %s", target.PID, target.Command())
 			continue
 		}
@@ -2498,7 +2507,11 @@ func stopTargets(
 			failed++
 			continue
 		}
-		writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
+		if gracefulStopSupported {
+			writeWarning(stdout, "stop.killed: pid=%d did not exit in %s %s", target.PID, stopGracePeriod, target.Command())
+		} else {
+			writeWarning(stdout, "stop.terminated: pid=%d was ended without being asked, which is all this platform offers %s", target.PID, target.Command())
+		}
 		killed++
 	}
 	return killed, failed

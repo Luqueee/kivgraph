@@ -121,8 +121,11 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 		fmt.Fprintf(stdout, "daemon.supervisor: %s\n", report.Detail)
 	}
 	// A status that only names the state leaves the reader to guess the
-	// remedy, and the remedy is the reason they asked.
-	if operation == "status" && report.State != supervisor.StateInstalled {
+	// remedy, and the remedy is the reason they asked. Where there is no
+	// supervisor to install, the remedy is not that command -- naming it there
+	// sends an operator to run something that can only answer that it will not
+	// work, which is worse than the silence it was written to avoid.
+	if operation == "status" && (report.State == supervisor.StateAbsent || report.State == supervisor.StateStale) {
 		fmt.Fprintf(stdout, "daemon.supervisor: install one with `kivgraph daemon install`\n")
 	}
 	// After an install the operator's next question is where clients should
@@ -168,8 +171,13 @@ func reportDoctorSupervisor(result func(name string, passed bool, detail string)
 	if report.Path != "" {
 		detail += " " + report.Path
 	}
-	if report.State != supervisor.StateInstalled {
+	switch report.State {
+	case supervisor.StateAbsent, supervisor.StateStale:
 		detail += ": install one with `kivgraph daemon install`"
+	case supervisor.StateUnsupported:
+		// The daemon still runs here; what it lacks is something to start it
+		// again. Saying that is the whole report, and it is not a remedy.
+		detail += ": the daemon will run but nothing will restart it"
 	}
 	result("daemon.supervisor", true, detail)
 }

@@ -35,12 +35,25 @@ in the release matrix, and a line in `SHA256SUMS` beside the other two.
 ### The eight
 
 **1. `stop` gets a real process table.** `internal/procstat` is implemented
-with `CreateToolhelp32Snapshot` for the PID and the image name, and
-`Win32_Process.CommandLine` through WMI for the arguments. Toolhelp alone
-would leave `procstat.Process.Args` empty, and `Args` is what tells a `serve`
-from an `index`: a `stop` that cannot tell them apart is a `stop` that ends
-the wrong process. WMI costs more than reading `/proc`, and it is what
-answering the whole question costs here.
+with `CreateToolhelp32Snapshot` for the PIDs, and the command line is read out
+of each process's own memory: `NtQueryInformationProcess` for the PEB address,
+then three `ReadProcessMemory` calls, then `DecomposeCommandLine`. Toolhelp
+alone would leave `procstat.Process.Args` empty, and `Args` is what tells a
+`serve` from an `index`: a `stop` that cannot tell them apart is a `stop` that
+ends the wrong process.
+
+*Amended after writing.* This first said `Win32_Process.CommandLine` through
+WMI, on the reasoning that WMI is what answering the whole question costs
+here. It is not: `golang.org/x/sys/windows` already binds every call the PEB
+route needs, including the `PEB` and `RTL_USER_PROCESS_PARAMETERS` layouts and
+`DecomposeCommandLine`, which applies the same rules `CommandLineToArgvW` does
+-- the split the process itself used. So the reachable route costs no COM
+dependency, no subprocess and no per-call marshalling, and the decision that
+rested on the cost had the cost wrong. The choice stands; its reason changed.
+
+A process this cannot open is skipped rather than reported, which is the trade
+the Linux implementation already makes with an unreadable `cmdline`: a process
+it cannot read is not one it could have signalled.
 
 **2. Worker framing moves to a named pipe on Windows.** Go does not associate
 the handles from `os.Pipe` with its I/O completion port, so a read deadline
@@ -118,9 +131,17 @@ covering it.
 
 ### The order
 
-1. `procstat`, and the advice `doctor` gives about a supervisor it cannot
-   install. `stop` is the only user-facing command that fails rather than
-   declines.
+1. ~~`procstat`, and the advice `doctor` gives about a supervisor it cannot
+   install.~~ **Done.** `stop` finds its targets, and two things fell out of
+   doing it. `procstat.Invocation` compared an observed program against a
+   literal `"kivgraph"`, which a process table reporting `kivgraph.exe` never
+   matches, so `stop` quietly stopped nothing; `executable.BaseName` is the
+   inverse of `executable.Name` and both live in one place now. And there is
+   no polite stage: no console control event reaches a daemon with no console
+   and no window message reaches one with no window, so `stop` skips straight
+   to termination and reports `stop.terminated` rather than the line it prints
+   when a process was asked and agreed. An operator who cannot tell those
+   apart reads a truncated answer as a bug in the server.
 2. The named pipe, because nothing downstream of a worker is trustworthy
    while a stuck one cannot be abandoned.
 3. The DACL, the supervisor, the integrations.

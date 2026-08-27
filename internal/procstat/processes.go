@@ -2,8 +2,9 @@ package procstat
 
 import (
 	"errors"
-	"path/filepath"
 	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/executable"
 )
 
 // ErrProcessListUnsupported reports that this build cannot enumerate
@@ -37,7 +38,7 @@ func (process Process) Invocation() (program, command string) {
 	if len(process.Args) == 0 {
 		return "", ""
 	}
-	program = filepath.Base(strings.TrimSpace(process.Args[0]))
+	program = executable.BaseName(strings.TrimSpace(process.Args[0]))
 	if len(process.Args) > 1 {
 		command = strings.TrimSpace(process.Args[1])
 	}

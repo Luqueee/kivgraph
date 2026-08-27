@@ -51,3 +51,22 @@ func isProgramExtension(extension string) bool {
 	}
 	return false
 }
+
+// BaseName returns the name a program is called by, given the path it is
+// stored at, which here means without the extension that made it runnable.
+//
+// It is the inverse of Name, and it matters wherever code compares an observed
+// program against one it expects: a process table reports "kivgraph.exe", and
+// every caller that knows the program as "kivgraph" would otherwise have to
+// remember which of the two it was holding. `stop` did not, and quietly
+// stopped nothing.
+//
+// Only a program extension is removed. A file called "graph.db" keeps its
+// suffix, because that suffix is part of what it is called.
+func BaseName(path string) string {
+	base := filepath.Base(path)
+	if extension := filepath.Ext(base); isProgramExtension(extension) {
+		return strings.TrimSuffix(base, extension)
+	}
+	return base
+}

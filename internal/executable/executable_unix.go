@@ -2,7 +2,10 @@
 
 package executable
 
-import "io/fs"
+import (
+	"io/fs"
+	"path/filepath"
+)
 
 // Name returns the file name a program is stored under, which here is the name
 // it is called by.
@@ -13,3 +16,7 @@ func Name(base string) string { return base }
 func IsProgram(info fs.FileInfo) bool {
 	return info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
 }
+
+// BaseName returns the name a program is called by, given the path it is
+// stored at. Here the two are the same.
+func BaseName(path string) string { return filepath.Base(path) }
