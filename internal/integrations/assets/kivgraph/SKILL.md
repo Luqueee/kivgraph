@@ -12,47 +12,79 @@ Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search
 
 ## Workflow
 
-1. Start with `graph_status` to check that a published snapshot exists, its
-   age, repository coverage, and whether the index is ready.
-2. Use `list_repositories` to identify the repository and language before
-   narrowing a query. Repository names are case sensitive: two repositories
-   whose names differ only in case are two repositories.
-3. When you do not know the name, start with `find_by_intent`: it takes a
+Start with the question, not with a survey of the corpus. Two of these tools
+describe the whole install and cost accordingly; the rest answer about one
+symbol. Measured over MCP on a 53-repository index, counted in `cl100k_base`:
+
+| the call | tokens |
+| --- | ---: |
+| `graph_status` | `5541` |
+| `list_repositories` | `4787` |
+| `find_references`, one symbol | `1618` |
+| `find_symbol`, one exact name | `1539` |
+| `get_source`, one declaration | `788` |
+| `find_by_intent`, `view: "files"` | `300` |
+| `get_symbol`, one declaration | `245` |
+
+The first two scale with the corpus and say nothing about your symbol. Opening
+every session with both spends `10328` tokens before the first question is
+asked, which is 34 times what that question costs. Reach for them when you
+need what they hold, which is not usually.
+
+1. **When you do not know the name, start with `find_by_intent`.** It takes a
    plain-language description and answers with the ranked symbols and, under
-   `view: "files"`, just the files to open. Two things decide whether it
-   answers at all, and both are yours. **Pass `keywords` with the identifier
-   words you would guess this code uses**, even when you are guessing: the
-   index reads identifiers, and your phrase is the one thing it cannot expand
-   -- `picture` will not reach `image` and `crash` will not reach `panic`, but
-   you can say both. And **name `repo` when you know which project it is**: one
-   page of rows is shared by every indexed repository, and the largest one
-   fills it whether or not it is right. Its rows match text rather than edges
-   -- `match: lexical`, or `lexical+calls` for a row credited for the terms its
-   resolved calls reach -- so confirm one with `find_references` before acting
-   on it, and prefer grep when you already know the name.
-4. Use `find_symbol` for names and qualified names, and `get_file_outline` to
-   read the declarations of a file or a directory without opening it. Every row
-   they return carries repository, repository-relative path, qualified name and
-   a line range, and every tool accepts that triple in place of a stable key:
-   build the next call out of the answer just received.
-4. Use `get_source` to read the code a row names. It answers in prose, not
-   JSON, and takes a list of selectors, so one call reads several declarations.
-5. Use `find_references` for direct incoming or outgoing references and
-   `trace_dependencies` for bounded dependency paths. `find_references` takes
-   `name` on its own: with one declaration of that name it answers about it,
-   and with several it names the candidates as `repository:path:line`, so the
-   usual question costs one call and not two.
-6. Use `find_cross_repo_consumers` for consumers in another repository and
-   `get_blast_radius` for bounded impact analysis. Read its `coverage`
-   carefully: `exact` and `candidate` count consumers of the symbol asked
-   for, while `package_level` counts dependencies on the provider package,
-   which prove nothing about that symbol. A failure that named no symbol
-   belongs to the package, and the response says so itself: its unresolved
-   rows and its `completeness.invisible_scopes` carry `requested_package`
-   rather than attributing the failure to every symbol that package exports.
-7. Read `completeness` before concluding. A verdict of `LOWER_BOUND` means the
-   answer is a floor: `invisible_scopes` names what could not be seen, and
-   `fallback` names the paths and the pattern to grep instead.
+   `view: "files"`, just the files to open -- `300` tokens against `558` for
+   the same query without it. Two things decide whether it answers at all, and
+   both are yours. **Pass `keywords` with the identifier words you would guess
+   this code uses**, even when you are guessing: the index reads identifiers,
+   and your phrase is the one thing it cannot expand -- `picture` will not
+   reach `image` and `crash` will not reach `panic`, but you can say both. And
+   **name `repo` when you know which project it is**: one page of rows is
+   shared by every indexed repository, and the largest one fills it whether or
+   not it is right. Its rows match text rather than edges -- `match: lexical`,
+   or `lexical+calls` for a row credited for the terms its resolved calls reach
+   -- so confirm one with `find_references` before acting on it, and prefer
+   grep when you already know the name.
+2. **When you do know the name, ask the question directly.** Do not resolve
+   the symbol first. `find_references` takes `name` on its own: with one
+   declaration of that name it answers about it, and with several it names the
+   candidates as `repository:path:line`, so the usual question costs one call
+   and not two. The same holds for `get_blast_radius` and
+   `trace_dependencies`. `find_symbol` is for the case where locating the
+   declaration *is* the question -- by name, qualified name, prefix or
+   substring.
+3. **Narrow before you read.** Every row carries repository,
+   repository-relative path, qualified name and a line range, and every tool
+   accepts that triple in place of a stable key: build the next call out of
+   the answer just received. `get_symbol` returns one symbol's package,
+   signature, visibility and line range for `245` tokens; `get_source` returns
+   the code for `788`. When a signature settles it, do not pay for the body.
+   `get_file_outline` reads the declarations of a file or a directory without
+   opening it, and `get_source` answers in prose rather than JSON and takes a
+   list of selectors, so one call reads several declarations.
+4. **Follow the edges.** `find_references` for direct incoming or outgoing
+   references, `trace_dependencies` for bounded dependency paths,
+   `find_cross_repo_consumers` for consumers in another repository, and
+   `get_blast_radius` for bounded impact analysis. Read the last one's
+   `coverage` carefully: `exact` and `candidate` count consumers of the symbol
+   asked for, while `package_level` counts dependencies on the provider
+   package, which prove nothing about that symbol. A failure that named no
+   symbol belongs to the package, and the response says so itself: its
+   unresolved rows and its `completeness.invisible_scopes` carry
+   `requested_package` rather than attributing the failure to every symbol
+   that package exports.
+5. **Read `completeness` before concluding.** A verdict of `LOWER_BOUND` means
+   the answer is a floor: `invisible_scopes` names what could not be seen, and
+   `fallback` names the paths and the pattern to grep instead. This is the one
+   step that never costs an extra call, because it is already in the response
+   you have.
+6. **`list_repositories` when you do not know the repository name**, and not
+   as a matter of course. Repository names are case sensitive: two
+   repositories whose names differ only in case are two repositories.
+7. **`graph_status` when an answer looks stale**, which is what its own
+   description says, or when you must establish that a published generation
+   exists at all. It reports the snapshot, its age, repository coverage and
+   whether a repository moved since it was indexed.
 
 Python and Dart notes:
 
