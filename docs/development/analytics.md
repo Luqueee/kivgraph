@@ -124,6 +124,23 @@ copia que el portapapeles rechazó no cuenta.
 |`mcp_config_copy`|se copia el JSON de MCP|—|
 |`github_click`|enlace al repo|`where`: `topbar`, `footer`, `docs_header`|
 
+Dónde se dispara cada uno, medido sobre `dist/client`, que es lo que hay que
+saber para probarlos y lo que decide si un goal se puede acotar por ruta:
+
+|evento|sección de la portada|ancla|
+|---|---|---|
+|`prompt_copy`|hero|`/`|
+|`install_copy`|hero y CTA final|`/` y `#install`|
+|`client_connect_copy`|06, *works where you already code*|`#agents`|
+|`quickstart_copy`|07, *start with your workspace*|`#quickstart`|
+|`mcp_config_copy`|07, la caja del JSON|`#quickstart`|
+|`github_click`|topbar, footer y cabecera de docs|las 39 páginas|
+
+Los cinco de copia viven **sólo en la portada**. Si algún día se añade un botón
+de copiar fuera de ella -- `/install/` es el candidato obvio -- hay que volver a
+los goals: uno acotado a una ruta deja de contar en silencio, y una conversión
+que baja sin avisar se lee como que la gente dejó de instalar.
+
 `github_click` **no** usa JavaScript nuestro: Umami lee `data-umami-event` del
 clic. En `TopBar.astro` el atributo se deriva del propio `href`, así que una
 entrada nueva no puede olvidarse de él, y **sólo** lo llevan los enlaces
@@ -392,19 +409,40 @@ dashboard de Umami y en el host.
 ### 1. Goals en el dashboard
 
 Umami no define goals en el cliente. En el sitio, *Settings -> Websites ->
-kivgraph -> Goals*, crear:
+kivgraph -> Goals*, crear uno por evento:
 
-|nombre|tipo|valor|
+|nombre|acción|valor|
 |---|---|---|
-|`install_copy`|event|`install_copy`|
-|`prompt_copy`|event|`prompt_copy`|
-|`client_connect_copy`|event|`client_connect_copy`|
-|`quickstart_copy`|event|`quickstart_copy`|
-|`mcp_config_copy`|event|`mcp_config_copy`|
+|`install_copy`|Triggered event|`install_copy`|
+|`prompt_copy`|Triggered event|`prompt_copy`|
+|`client_connect_copy`|Triggered event|`client_connect_copy`|
+|`quickstart_copy`|Triggered event|`quickstart_copy`|
+|`mcp_config_copy`|Triggered event|`mcp_config_copy`|
 
 `github_click` se deja **fuera** de los goals a propósito: es interés, y
 contarlo como conversión inflaría la tasa con clics que no llevan a instalar
-nada.
+nada. Se ve igual en *Events* sin ser goal.
+
+**Hay que crear los goals después de que llegue el primer evento, no antes**, y
+la razón cuesta una tarde si se descubre sola. Con *Triggered event* el
+formulario pide un segundo valor, y ese valor es el **nombre del evento** -- no
+la ruta, aunque lo parezca. Umami llena ese desplegable con los eventos que el
+sitio ya registró, así que en un sitio sin ninguno ofrece sólo `/`, que es lo
+único que hay en la tabla. Elegirlo crea seis goals que buscan un evento
+llamado `/` y **nunca cuentan**, mientras *Events* sí suma: el campo `Name` es
+sólo la etiqueta de la tarjeta, así que los goals se ven bien nombrados y a
+cero. Ya pasó una vez.
+
+Y el mismo desplegable vacío revienta la página con
+`TypeError: Cannot read properties of null (reading 'value')`. Es un bug de la
+UI, no de la configuración: el select hace
+`items?.map(e => typeof e === "object" ? e : {label: e, value: e})` y después
+`.map(e => e.value)`, y como `typeof null === "object"` el `null` pasa el
+guardia intacto y revienta en el segundo `map`.
+
+Así que el orden es: desplegar, pulsar una vez cada botón de copiar en
+`https://kivgraph.dev/`, comprobar en *Events* que aparecen los nombres, y
+entonces crear los goals eligiéndolos de la lista.
 
 ### 1b. La propiedad de crawlers de IA y sus variables
 
