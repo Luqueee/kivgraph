@@ -123,6 +123,15 @@ cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
   consentimiento explícito del cliente antes de cambiar el registro de
   repositorios o publicar una generación.
 
+## La skill se edita en un solo sitio
+
+`kivgraph skill install` deja, en alcance de usuario, un fichero canónico en
+`~/.config/kivgraph/skills/kivgraph/SKILL.md` y enlaza ahí la ruta de cada
+cliente. Editarlo una vez alcanza a todos, y un upgrade **no** se lleva el
+cambio: `install` sólo escribe el canónico si falta o si lo que hay es la skill
+que el build trae, y `--force` recupera esa. El alcance de proyecto copia, porque
+un enlace absoluto se commitearía roto. Ver ADR 0078.
+
 ## Puesta en marcha
 
 - El toolchain Go es el del `go.mod`. `go/types` viaja enlazado en el binario,

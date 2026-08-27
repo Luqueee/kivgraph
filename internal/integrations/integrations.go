@@ -369,6 +369,9 @@ func (manager Manager) InstallSkill(target Target, scope Scope, dryRun, force bo
 	if err != nil {
 		return Plan{}, err
 	}
+	if manager.linksSkills(scope) {
+		return manager.installLinkedSkill(target, scope, path, dryRun, force)
+	}
 	return manager.installSkillFile(target, scope, path, dryRun, force)
 }
 
@@ -378,6 +381,9 @@ func (manager Manager) RemoveSkill(target Target, scope Scope, dryRun, force boo
 	if err != nil {
 		return Plan{}, err
 	}
+	if manager.linksSkills(scope) {
+		return manager.removeLinkedSkill(target, scope, path, dryRun, force)
+	}
 	return manager.removeSkillFile(target, scope, path, dryRun, force)
 }
 
@@ -386,6 +392,9 @@ func (manager Manager) StatusSkill(target Target, scope Scope) (Plan, error) {
 	path, err := manager.skillPath(target, scope)
 	if err != nil {
 		return Plan{}, err
+	}
+	if manager.linksSkills(scope) {
+		return manager.statusLinkedSkill(target, scope, path)
 	}
 	data, exists, err := readDestination(path)
 	if err != nil {
