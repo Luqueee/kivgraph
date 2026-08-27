@@ -1,32 +1,33 @@
-# Analítica: Umami para SEO
+# Analytics: Umami for SEO
 
-Este documento describe cómo está integrada la analítica de la landing, qué
-registra, qué **no** registra, y cómo usarla para responder preguntas de SEO.
-No es documentación de usuario: `docs/` es material interno y no se publica.
+This document describes how the landing site's analytics are wired, what they
+record, what they do **not** record, and how to use them to answer SEO
+questions. It is not user documentation: `docs/` is internal material and is
+not published.
 
-El criterio es uno y conviene enunciarlo antes que nada: **no se optimiza para
-tener más datos, sino para tener datos accionables**. Un evento que no cambia
-una decisión no se añade.
+There is one criterion and it is worth stating before anything else: **we do
+not optimise for having more data, but for having actionable data**. An event
+that does not change a decision is not added.
 
-## Qué hay
+## What is there
 
-Un Umami **autoalojado** en `https://analytics.luqueee.dev`, confirmado por su
-propio `/api/config`, que devuelve `"cloudMode": false`. El endpoint de
-recolección es `/api/send`.
+A **self-hosted** Umami at `https://analytics.luqueee.dev`, confirmed by its
+own `/api/config`, which returns `"cloudMode": false`. The collection endpoint
+is `/api/send`.
 
-El tracker lo emiten las **dos** mitades del sitio y ninguna otra cosa:
+The tracker is emitted by **both** halves of the site and by nothing else:
 
-|mitad|componente|
+|half|component|
 |---|---|
 |landing|`landing/src/components/landing/Layout.astro`|
-|documentación y `404`|`landing/src/components/starlight/Head.astro`|
+|documentation and `404`|`landing/src/components/starlight/Head.astro`|
 
-Las dos leen `umamiTracker()` de `landing/src/pages/_seo.ts`, así que el tag es
-idéntico en las 39 páginas y **no hay forma de que una mitad derive de la
-otra**. Medido sobre `dist/client`: 39 de 39 páginas con tracker, y exactamente
-**uno** por página.
+Both read `umamiTracker()` from `landing/src/pages/_seo.ts`, so the tag is
+identical across the 39 pages and **there is no way for one half to drift from
+the other**. Measured over `dist/client`: 39 of 39 pages carry the tracker, and
+exactly **one** per page.
 
-El tag que se sirve:
+The tag that is served:
 
 ```html
 <script
@@ -38,159 +39,162 @@ El tag que se sirve:
 ></script>
 ```
 
-### Por qué el sitio no duplica pageviews
+### Why the site does not duplicate pageviews
 
-Porque no puede. La landing es Astro con `output: "server"` y todo
-prerenderizado salvo `/raw/[...slug]`, y **no monta `ClientRouter` ni
-ViewTransitions**: cada navegación es una carga completa de documento. No hay
-enrutado de cliente que pueda disparar un segundo pageview, y `auto-pageview`
-queda en su valor por defecto porque no hay nada que desactivar.
+Because it cannot. The landing is Astro with `output: "server"` and everything
+prerendered except `/raw/[...slug]`, and it **mounts neither `ClientRouter` nor
+ViewTransitions**: every navigation is a full document load. There is no client
+routing that could fire a second pageview, and `auto-pageview` stays at its
+default because there is nothing to disable.
 
-## Variables de entorno
+## Environment variables
 
-|variable|dónde|qué hace|
+|variable|where|what it does|
 |---|---|---|
-|`KIVGRAPH_UMAMI_SCRIPT_URL`|`landing/.env` del host|URL absoluta del tracker|
-|`KIVGRAPH_UMAMI_WEBSITE_ID`|`landing/.env` del host|el UUID que acuñó Umami|
+|`KIVGRAPH_UMAMI_SCRIPT_URL`|host's `landing/.env`|absolute tracker URL|
+|`KIVGRAPH_UMAMI_WEBSITE_ID`|host's `landing/.env`|the UUID Umami minted|
 
-**Fail-closed por diseño:** con una sola de las dos, `umamiTracker()` devuelve
-`null` y no se emite nada. Por eso `astro dev`, un build local y CI no pueden
-escribir en el dataset de producción.
+**Fail-closed by design:** with only one of the two, `umamiTracker()` returns
+`null` and nothing is emitted. That is why `astro dev`, a local build and CI
+cannot write to the production dataset.
 
-Las dos se **hornean en tiempo de build**, porque las páginas son
-prerenderizadas. Exportarlas y reiniciar `pm2` no emite nada: hay que
-reconstruir.
+Both are **baked at build time**, because the pages are prerendered. Exporting
+them and restarting `pm2` emits nothing: you have to rebuild.
 
 ```bash
 cd /root/kivgraph && git pull
 make landing-build && pm2 restart kivgraph-landing
-curl -s https://kivgraph.dev/ | grep -c analytics.luqueee.dev   # espera 1
+curl -s https://kivgraph.dev/ | grep -c analytics.luqueee.dev   # expect 1
 ```
 
-### El guarda que las variables no pueden ser
+### The guard the variables cannot be
 
-`data-domains="kivgraph.dev"` sale de `PRODUCTION_HOST` en `landing/src/site.mjs`
-y **no** del host de `Astro.site`. La distinción es la que decide si funciona:
-un despliegue de staging fija `site` al origen de staging, así que seguir a
-`Astro.site` le dejaría casar consigo mismo y escribir en producción. El par de
-variables falla cerrado cuando falta una, pero una preview que **hereda las dos**
-es exactamente el caso que ese par no puede atrapar.
+`data-domains="kivgraph.dev"` comes from `PRODUCTION_HOST` in
+`landing/src/site.mjs` and **not** from the host of `Astro.site`. That
+distinction is what decides whether it works: a staging deployment pins `site`
+to the staging origin, so following `Astro.site` would let it match itself and
+write to production. The pair of variables fails closed when one is missing,
+but a preview that **inherits both** is exactly the case that pair cannot
+catch.
 
-`PRODUCTION_ORIGIN` es además el valor de reserva de `site` en
-`astro.config.mjs`, así que el origen de producción se declara **una vez**.
+`PRODUCTION_ORIGIN` is also the fallback value of `site` in
+`astro.config.mjs`, so the production origin is declared **once**.
 
-## Qué se registra
+## What is recorded
 
-Automáticamente, por el tracker:
+Automatically, by the tracker:
 
-- pageview con `url` **incluida la query string**, `referrer`, `title`,
-  `hostname`, idioma y resolución de pantalla;
-- país y dispositivo, derivados por el servidor a partir de la petición;
-- duración de visita y navegación entre páginas, derivadas de la sesión;
-- **Core Web Vitals** por `data-performance`: LCP, INP, CLS, FCP y TTFB.
+- pageview with `url` **including the query string**, `referrer`, `title`,
+  `hostname`, language and screen resolution;
+- country and device, derived by the server from the request;
+- visit duration and page-to-page navigation, derived from the session;
+- **Core Web Vitals** through `data-performance`: LCP, INP, CLS, FCP and TTFB.
 
-Y los eventos de la tabla de más abajo.
+Plus the events in the table below.
 
-### Qué NO se registra
+### What is NOT recorded
 
-- **Nada personal.** No hay `identify()`, ni un id de usuario, ni campos libres
-  que puedan arrastrar texto escrito por el visitante.
-- **Ningún secreto.** El `website-id` es público por construcción — viaja en el
-  HTML de cada página — y no autoriza nada.
-- **Nada trivial.** Ni `scroll_25`, ni `mouse_move`, ni tiempo en pantalla por
-  tramos. Un evento que se dispara sin intención distorsiona el *bounce rate* y
-  el engagement, que son justo las dos métricas con las que se decide qué página
-  arreglar.
+- **Nothing personal.** There is no `identify()`, no user id, and no free-text
+  fields that could drag along text the visitor typed.
+- **No secret.** The `website-id` is public by construction — it travels in the
+  HTML of every page — and authorises nothing.
+- **Nothing trivial.** No `scroll_25`, no `mouse_move`, no time-on-screen
+  buckets. An event that fires without intent distorts the *bounce rate* and
+  engagement, which are precisely the two metrics used to decide which page to
+  fix.
 
-### Las query strings se conservan a propósito
+### Query strings are kept on purpose
 
-`data-exclude-search` **no** está puesto, y no debe ponerse. Ahí es donde viajan
+`data-exclude-search` is **not** set, and must not be. That is where
 `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `gclid`,
-`fbclid` y `msclkid`. Excluirlas dejaría la atribución de campañas en blanco.
+`fbclid` and `msclkid` travel. Excluding them would leave campaign attribution
+blank.
 
-## Eventos
+## Events
 
-Todos salen de una acción que expresa **intención real**. Cinco de los seis
-pasan por `CopyButton.astro`, que es lo que garantiza un nombre consistente y
-**un disparo por copia** — se reporta en el `then` del `writeText`, así que una
-copia que el portapapeles rechazó no cuenta.
+Every one comes from an action that expresses **real intent**. Five of the six
+go through `CopyButton.astro`, which is what guarantees a consistent name and
+**one fire per copy** — it reports in the `then` of the `writeText`, so a copy
+the clipboard refused does not count.
 
-|evento|cuándo se dispara|metadata|
+|event|when it fires|metadata|
 |---|---|---|
-|`install_copy`|se copia el one-liner|`where`: `hero`, `final_cta`|
-|`prompt_copy`|se copia el prompt del agente|—|
-|`client_connect_copy`|se copia `kivgraph mcp install`|—|
-|`quickstart_copy`|se copia un comando del Quickstart|`step`: título del paso|
-|`mcp_config_copy`|se copia el JSON de MCP|—|
-|`github_click`|enlace al repo|`where`: `topbar`, `footer`, `docs_header`|
+|`install_copy`|the one-liner is copied|`where`: `hero`, `final_cta`|
+|`prompt_copy`|the agent prompt is copied|—|
+|`client_connect_copy`|`kivgraph mcp install` is copied|—|
+|`quickstart_copy`|a Quickstart command is copied|`step`: the step's title|
+|`mcp_config_copy`|the MCP JSON is copied|—|
+|`github_click`|link to the repo|`where`: `topbar`, `footer`, `docs_header`|
 
-Dónde se dispara cada uno, medido sobre `dist/client`, que es lo que hay que
-saber para probarlos y lo que decide si un goal se puede acotar por ruta:
+Where each one fires, measured over `dist/client`, which is what you need to
+know in order to test them and what decides whether a goal can be scoped by
+route:
 
-|evento|sección de la portada|ancla|
+|event|section of the front page|anchor|
 |---|---|---|
 |`prompt_copy`|hero|`/`|
-|`install_copy`|hero y CTA final|`/` y `#install`|
+|`install_copy`|hero and final CTA|`/` and `#install`|
 |`client_connect_copy`|06, *works where you already code*|`#agents`|
 |`quickstart_copy`|07, *start with your workspace*|`#quickstart`|
-|`mcp_config_copy`|07, la caja del JSON|`#quickstart`|
-|`github_click`|topbar, footer y cabecera de docs|las 39 páginas|
+|`mcp_config_copy`|07, the JSON box|`#quickstart`|
+|`github_click`|topbar, footer and docs header|all 39 pages|
 
-Los cinco de copia viven **sólo en la portada**. Si algún día se añade un botón
-de copiar fuera de ella -- `/install/` es el candidato obvio -- hay que volver a
-los goals: uno acotado a una ruta deja de contar en silencio, y una conversión
-que baja sin avisar se lee como que la gente dejó de instalar.
+The five copy events live **only on the front page**. If a copy button is ever
+added outside it -- `/install/` is the obvious candidate -- the goals have to be
+revisited: one scoped to a route silently stops counting, and a conversion that
+drops without warning reads as people having stopped installing.
 
-`github_click` **no** usa JavaScript nuestro: Umami lee `data-umami-event` del
-clic. En `TopBar.astro` el atributo se deriva del propio `href`, así que una
-entrada nueva no puede olvidarse de él, y **sólo** lo llevan los enlaces
-externos: uno interno ya es un pageview, y contarlo dos veces pondría en el
-informe un número que ninguna visita produjo.
+`github_click` uses **no** JavaScript of ours: Umami reads `data-umami-event`
+off the click. In `TopBar.astro` the attribute is derived from the `href`
+itself, so a new entry cannot forget it, and **only** external links carry it:
+an internal one is already a pageview, and counting it twice would put a number
+in the report that no visit produced.
 
-### Convención de nombres
+### Naming convention
 
-- `snake_case`, en minúsculas, sin espacios ni acentos;
-- `<objeto>_<acción>`, no al revés: `install_copy`, no `copy_install`;
-- la metadata es plana y sus valores son cadenas, porque eso es por lo que un
-  informe agrupa;
-- un evento nuevo se añade **aquí** antes que en el código.
+- `snake_case`, lowercase, no spaces and no accents;
+- `<object>_<action>`, not the other way round: `install_copy`, not
+  `copy_install`;
+- metadata is flat and its values are strings, because that is what a report
+  groups by;
+- a new event is added **here** before it is added to the code.
 
-### Si el tracker no está
+### If the tracker is not there
 
-No pasa nada. `report()` en `CopyButton.astro` comprueba `window.umami` y
-retorna en silencio si no existe — bloqueado, instancia caída, o un build sin
-las variables — y envuelve la llamada en un `try`. Una analítica que falla no
-es un fallo de la página, y el copiado que el lector pidió ocurre igual.
+Nothing happens. `report()` in `CopyButton.astro` checks `window.umami` and
+returns silently if it does not exist — blocked, instance down, or a build
+without the variables — and wraps the call in a `try`. Analytics that fail are
+not a failure of the page, and the copy the reader asked for happens anyway.
 
-## Goals recomendados
+## Recommended goals
 
-La conversión de este sitio **no se puede observar**: sucede en una terminal.
-Lo más cerca que la página llega es el momento en que el visitante se lleva el
-comando o el prompt. Eso son las conversiones primarias.
+This site's conversion **cannot be observed**: it happens in a terminal. The
+closest the page gets is the moment the visitor takes the command or the prompt
+away. Those are the primary conversions.
 
-|nivel|eventos|qué significa|
+|level|events|what it means|
 |---|---|---|
-|**primaria**|`install_copy`, `prompt_copy`|se lleva lo necesario para instalar|
-|secundaria|`client_connect_copy`, `mcp_config_copy`|está conectando su agente|
-|secundaria|`quickstart_copy`|está siguiendo la guía paso a paso|
-|micro|`github_click`|interés, no compromiso|
+|**primary**|`install_copy`, `prompt_copy`|takes what is needed to install|
+|secondary|`client_connect_copy`, `mcp_config_copy`|is connecting their agent|
+|secondary|`quickstart_copy`|is following the guide step by step|
+|micro|`github_click`|interest, not commitment|
 
-El embudo que interesa medir:
+The funnel worth measuring:
 
 ```text
 landing SEO -> hero -> install_copy | prompt_copy
 ```
 
-`quickstart_copy` con `step` distingue quién abandonó y dónde: si el paso 1 se
-copia mucho más que el 3, el problema está entre medias.
+`quickstart_copy` with `step` tells who dropped off and where: if step 1 is
+copied far more than step 3, the problem is in between.
 
-## Convención UTM
+## UTM convention
 
-**Los UTM sólo van en enlaces externos que controlamos nosotros.** Nunca en un
-enlace interno: reescribiría el `referrer` de la propia sesión y partiría una
-visita en dos, que es exactamente lo que arruina un informe de atribución.
+**UTMs only go on external links that we control.** Never on an internal link:
+it would rewrite the session's own `referrer` and split one visit into two,
+which is exactly what ruins an attribution report.
 
-Reglas: minúsculas, sin espacios, nombres estables en el tiempo.
+Rules: lowercase, no spaces, names that stay stable over time.
 
 ```text
 ?utm_source=reddit&utm_medium=social&utm_campaign=launch
@@ -199,198 +203,197 @@ Reglas: minúsculas, sin espacios, nombres estables en el tiempo.
 ?utm_source=github&utm_medium=referral&utm_campaign=readme
 ```
 
-|parámetro|vocabulario|
+|parameter|vocabulary|
 |---|---|
 |`utm_source`|`reddit`, `x`, `youtube`, `github`, `hn`, `newsletter`|
 |`utm_medium`|`social`, `video`, `referral`, `email`|
-|`utm_campaign`|el nombre de la campaña, estable: `launch`, `readme`, `v0-8`|
-|`utm_content`|la variante, cuando hay dos creatividades|
-|`utm_term`|sólo en campañas de pago con palabra clave|
+|`utm_campaign`|the campaign name, stable: `launch`, `readme`, `v0-8`|
+|`utm_content`|the variant, when there are two creatives|
+|`utm_term`|only in paid campaigns with a keyword|
 
-## Cómo analizar tráfico orgánico
+## How to analyse organic traffic
 
-El eje es siempre el mismo: **referrer -> landing -> comportamiento ->
-conversión**.
+The axis is always the same: **referrer -> landing -> behaviour ->
+conversion**.
 
-1. En el dashboard, filtra por `Referrer` = `google.com` (o `bing.com`,
+1. In the dashboard, filter by `Referrer` = `google.com` (or `bing.com`,
    `duckduckgo.com`).
-2. Ordena por `Path` para ver **qué páginas reciben el tráfico**, no sólo
-   cuántas visitas hay.
-3. Cruza con `Bounce rate` y `Visit duration`: mucho tráfico con rebote alto es
-   una página que rankea para una intención que no satisface.
-4. Añade el goal para ver **qué landings convierten**, no cuáles reciben más.
-5. Mira los Web Vitals de esa misma página en la pestaña de rendimiento.
+2. Sort by `Path` to see **which pages receive the traffic**, not just how many
+   visits there are.
+3. Cross it with `Bounce rate` and `Visit duration`: lots of traffic with a high
+   bounce is a page that ranks for an intent it does not satisfy.
+4. Add the goal to see **which landings convert**, not which receive most.
+5. Look at the Web Vitals of that same page in the performance tab.
 
-Segmentaciones disponibles: referrer, path, landing page, dispositivo, país,
-`utm_source`, `utm_medium`, `utm_campaign`, evento/conversión y Web Vitals.
+Available segmentations: referrer, path, landing page, device, country,
+`utm_source`, `utm_medium`, `utm_campaign`, event/conversion and Web Vitals.
 
-### Los cuatro casos que hay que saber encontrar
+### The four cases you have to know how to find
 
-|patrón|qué significa|qué hacer|
+|pattern|what it means|what to do|
 |---|---|---|
-|tráfico alto, rebote alto|rankea para otra intención|reescribir la entradilla|
-|tráfico bajo, conversión alta|buena y nadie la ve|enlaces internos hacia ella|
-|tráfico alto, LCP p75 malo|pierde a quien llega|optimizar esa ruta|
-|posición buena, CTR bajo|el snippet no vende|reescribir `title` y `description`|
+|high traffic, high bounce|ranks for another intent|rewrite the intro|
+|low traffic, high conversion|good and nobody sees it|internal links to it|
+|high traffic, bad p75 LCP|loses whoever arrives|optimise that route|
+|good position, low CTR|the snippet does not sell|rewrite `title`/`description`|
 
-El último **no se ve en Umami**: sale de Search Console. De ahí la sección
-siguiente.
+The last one **is not visible in Umami**: it comes from Search Console. Hence
+the next section.
 
-## Umami y Google Search Console son complementarios
+## Umami and Google Search Console are complementary
 
-Umami no sustituye a Search Console y no debe intentarlo. Cada uno ve una mitad
-y la unión es lo accionable:
+Umami does not replace Search Console and must not try to. Each sees one half
+and the union is what is actionable:
 
 |Search Console|Umami|
 |---|---|
-|query, impresiones, CTR, posición|visitantes, visitas, rebote, duración|
-|landing URL|landing URL, referrer, navegación|
-|país, dispositivo|país, dispositivo, eventos, conversiones, Web Vitals|
+|query, impressions, CTR, position|visitors, visits, bounce, duration|
+|landing URL|landing URL, referrer, navigation|
+|country, device|country, device, events, conversions, Web Vitals|
 
-**La columna que las une es la landing URL.** El cruce se hace exportando el
-informe de páginas de Search Console y el de páginas de Umami, y uniendo por
-esa columna:
+**The column that joins them is the landing URL.** The cross is done by
+exporting Search Console's pages report and Umami's pages report, and joining
+on that column:
 
 ```text
-Search Console: /docs/cli/  ->  12.400 impresiones, CTR 1,2 %, posición 8,4
-Umami:          /docs/cli/  ->  148 visitas, rebote 71 %, LCP p75 3,9 s
+Search Console: /docs/cli/  ->  12,400 impressions, CTR 1.2 %, position 8.4
+Umami:          /docs/cli/  ->  148 visits, bounce 71 %, p75 LCP 3.9 s
 ```
 
-Esa fila dice tres cosas a la vez: rankea, el snippet no convence, y quien
-entra se encuentra una página lenta. Ninguna de las dos herramientas la dice
-sola.
+That row says three things at once: it ranks, the snippet does not convince,
+and whoever enters finds a slow page. Neither tool says it alone.
 
-No hace falta más infraestructura para esto. Una integración automática entre
-las dos exigiría un job, credenciales de la API de Search Console y un
-almacén — desproporcionado para un sitio de 39 páginas y un cruce que se hace
-con dos CSV.
+No more infrastructure is needed for this. An automatic integration between the
+two would require a job, Search Console API credentials and a store —
+disproportionate for a 39-page site and a cross that is done with two CSVs.
 
 ## Core Web Vitals
 
-`data-performance="true"` es lo que los enciende. Umami los recoge del propio
-navegador del visitante, así que son **datos de campo**, no de laboratorio: son
-lo que de verdad experimenta quien llega desde Google, y por eso valen más que
-un Lighthouse local para decidir qué arreglar.
+`data-performance="true"` is what turns them on. Umami collects them from the
+visitor's own browser, so they are **field data**, not lab data: they are what
+someone arriving from Google actually experiences, and that is why they are
+worth more than a local Lighthouse for deciding what to fix.
 
-Lee siempre el **percentil 75**, que es el umbral con el que Google evalúa, y
-no la media: una media buena esconde perfectamente un cuarto de visitantes con
-una experiencia mala.
+Always read the **75th percentile**, which is the threshold Google evaluates
+against, and not the mean: a good mean hides a quarter of visitors with a bad
+experience perfectly well.
 
-Prioridad: **LCP**, **INP**, **CLS**. `FCP` y `TTFB` son diagnóstico, no
-objetivo.
+Priority: **LCP**, **INP**, **CLS**. `FCP` and `TTFB` are diagnosis, not a
+target.
 
-La medida de laboratorio del hero vive en otro sitio y responde otra pregunta:
-`landing/AGENTS.md`, sección *Movimiento*.
+The lab measurement of the hero lives somewhere else and answers another
+question: `landing/AGENTS.md`, section *Movimiento*.
 
-## Agentes de IA: la segunda propiedad
+## AI agents: the second property
 
-Dos fenómenos distintos, dos datasets. La propiedad principal describe
-**personas**; los crawlers y agentes de IA van a una segunda propiedad y no
-tocan visitantes, rebote, duración, journeys ni conversión de la primera. El
-filtro de bots de Umami se queda **encendido** en las dos.
+Two distinct phenomena, two datasets. The main property describes **people**;
+AI crawlers and agents go to a second property and do not touch visitors,
+bounce, duration, journeys or conversion of the first. Umami's bot filter stays
+**on** in both.
 
-### Por qué no es un middleware de Astro
+### Why it is not an Astro middleware
 
-Porque no ve nada. Medido sobre el build: un middleware en `src/middleware.ts`
-recibió **una** de siete rutas -- `/raw/docs/cli.md`, la única no
-prerenderizada -- y se perdió `/`, `/docs/cli/`, `/install/`, `/robots.txt`,
-`/sitemap-0.xml` y el 404. El handler estático del adaptador contesta esas
-antes de que exista el pipeline SSR, y son justo las que pide un crawler.
+Because it sees nothing. Measured over the build: a middleware in
+`src/middleware.ts` received **one** of seven routes -- `/raw/docs/cli.md`, the
+only non-prerendered one -- and missed `/`, `/docs/cli/`, `/install/`,
+`/robots.txt`, `/sitemap-0.xml` and the 404. The adapter's static handler
+answers those before the SSR pipeline exists, and they are precisely the ones a
+crawler asks for.
 
-Lo que sí ve todo es `landing/server.mjs`, que es lo que arranca pm2 en lugar
-del entry del adaptador. No reimplementa nada: importa el `handler` que el
-propio adaptador exporta -- `createStandaloneHandler`, con estáticos, el `301`
-de barra final y el 404 -- y lo envuelve en un `http.createServer`. Verificado a
-través del wrapper: `/`, `/docs/cli/`, `/robots.txt` y `/sitemap-0.xml` en
-`200`, y `/docs/cli` en `301` a la canónica.
+What does see everything is `landing/server.mjs`, which is what pm2 starts
+instead of the adapter's entry. It reimplements nothing: it imports the
+`handler` the adapter itself exports -- `createStandaloneHandler`, with statics,
+the trailing-slash `301` and the 404 -- and wraps it in an `http.createServer`.
+Verified through the wrapper: `/`, `/docs/cli/`, `/robots.txt` and
+`/sitemap-0.xml` at `200`, and `/docs/cli` at `301` to the canonical form.
 
-### El registro de agentes
+### The agent registry
 
-`landing/src/ai-agents.mjs`. Plain ESM por la misma razón que `site.mjs`: lo
-consume un proceso Node pelado que Vite nunca transforma.
+`landing/src/ai-agents.mjs`. Plain ESM for the same reason as `site.mjs`: it is
+consumed by a bare Node process that Vite never transforms.
 
-**Cada identificador salió de la documentación del operador**, con la fuente y
-la fecha al lado. Añadir un agente es una fila ahí y un caso en
-`ai-agents.test.mjs`; ningún otro sitio del repositorio nombra un agente.
+**Every identifier came from the operator's documentation**, with the source
+and the date beside it. Adding an agent is a row there and a case in
+`ai-agents.test.mjs`; no other place in the repository names an agent.
 
-|proveedor|agentes|categoría|verificación publicada|
+|provider|agents|category|published verification|
 |---|---|---|---|
-|OpenAI|`OAI-SearchBot`|`search`|rangos IP (`searchbot.json`)|
-|OpenAI|`ChatGPT-User`|`user_fetch`|rangos IP (`chatgpt-user.json`)|
-|OpenAI|`GPTBot`|`training`|rangos IP (`gptbot.json`)|
-|Anthropic|`Claude-SearchBot`|`search`|ninguna publicada|
-|Anthropic|`Claude-User`|`user_fetch`|ninguna publicada|
-|Anthropic|`ClaudeBot`|`training`|ninguna publicada|
-|Perplexity|`PerplexityBot`|`search`|rangos IP (`perplexitybot.json`)|
-|Perplexity|`Perplexity-User`|`user_fetch`|rangos IP (`perplexity-user.json`)|
+|OpenAI|`OAI-SearchBot`|`search`|IP ranges (`searchbot.json`)|
+|OpenAI|`ChatGPT-User`|`user_fetch`|IP ranges (`chatgpt-user.json`)|
+|OpenAI|`GPTBot`|`training`|IP ranges (`gptbot.json`)|
+|Anthropic|`Claude-SearchBot`|`search`|none published|
+|Anthropic|`Claude-User`|`user_fetch`|none published|
+|Anthropic|`ClaudeBot`|`training`|none published|
+|Perplexity|`PerplexityBot`|`search`|IP ranges (`perplexitybot.json`)|
+|Perplexity|`Perplexity-User`|`user_fetch`|IP ranges (`perplexity-user.json`)|
 
-Tres cosas que el registro hace a propósito y conviene no deshacer:
+Three things the registry does on purpose and that are best left alone:
 
-- **Los UA de OpenAI llevan un Chrome completo dentro.** Su cadena real empieza
-  por `Mozilla/5.0 (Macintosh; ...) Chrome/131.0.0.0 Safari/537.36` y el token
-  va al final. Un matcher que comprobase «¿es Chrome?» antes que el token
-  archivaría los tres como humanos.
-- **Un bot genérico no es IA.** `Googlebot`, `Bingbot`, `Discordbot`, `curl` y
-  un navegador caen a `null`. Convertir cualquier bot en bot de IA vaciaría de
-  sentido el segundo dataset entero.
-- **`Google-Extended` no está, y su ausencia es el punto.** Es un token de
-  `robots.txt` que controla si Google puede usar contenido ya rastreado para
-  entrenar Gemini; la documentación de crawlers de Google no le asigna ningún
-  user agent HTTP, así que nunca llega en una petición. Inventar tráfico de
-  Gemini a partir de él sería fabricar una cifra.
+- **OpenAI's UAs carry a full Chrome inside.** Their real string starts with
+  `Mozilla/5.0 (Macintosh; ...) Chrome/131.0.0.0 Safari/537.36` and the token
+  comes at the end. A matcher that checked "is this Chrome?" before the token
+  would file all three as human.
+- **A generic bot is not AI.** `Googlebot`, `Bingbot`, `Discordbot`, `curl` and
+  a browser fall through to `null`. Turning any bot into an AI bot would drain
+  the entire second dataset of meaning.
+- **`Google-Extended` is not there, and its absence is the point.** It is a
+  `robots.txt` token that controls whether Google may use already-crawled
+  content to train Gemini; Google's crawler documentation assigns it no HTTP
+  user agent, so it never arrives on a request. Inventing Gemini traffic from
+  it would be fabricating a figure.
 
-`unknown_ai` es la cuarta categoría: un operador que este fichero conoce
-enviando un agente que no. Es un hallazgo, no una clasificación, y la señal de
-que hace falta una fila nueva.
+`unknown_ai` is the fourth category: an operator this file knows about sending
+an agent it does not. It is a finding, not a classification, and the signal
+that a new row is needed.
 
-### Verificación
+### Verification
 
-Hoy es `user_agent` y el evento lo dice: `verified: false`. Nadie resuelve DNS
-ni compara rangos en el camino de la petición, porque eso sí costaría latencia.
+Today it is `user_agent` and the event says so: `verified: false`. Nobody
+resolves DNS or compares ranges on the request path, because that would cost
+latency.
 
-OpenAI y Perplexity **publican ficheros CIDR** -- están en el registro -- así que
-subir esto a `ip_range` es posible más adelante y fuera de banda: descargar los
-JSON con caché y comparar. Anthropic no publica ninguno, así que una fila de
-Claude no puede pasar de ser una afirmación. Mentir sobre eso sería peor que no
-verificar.
+OpenAI and Perplexity **publish CIDR files** -- they are in the registry -- so
+raising this to `ip_range` is possible later and out of band: download the JSON
+with caching and compare. Anthropic publishes none, so a Claude row cannot be
+more than an assertion. Lying about that would be worse than not verifying.
 
-### Qué se envía, y qué no
+### What is sent, and what is not
 
-Un evento `ai_crawler_request` a la propiedad de crawlers, con
-`provider`, `agent`, `category`, `path`, `method`, `status` y `verified`.
+An `ai_crawler_request` event to the crawler property, with `provider`, `agent`,
+`category`, `path`, `method`, `status` and `verified`.
 
-**No se envía** la IP, ninguna cookie, ninguna cabecera de autorización, la
-query string ni el cuerpo. El user agent completo se queda **sólo** en el log
-local: es lo que permite convertir un `unknown_ai` en una fila del registro, y
-describe un robot y no a una persona.
+**Not sent:** the IP, any cookie, any authorisation header, the query string or
+the body. The full user agent stays **only** in the local log: it is what makes
+it possible to turn an `unknown_ai` into a registry row, and it describes a
+robot and not a person.
 
-El sender se identifica como `kivgraph-landing/1.0`, neutro y honesto. Umami
-descarta lo que parece un bot, y lo que reportamos **es** un bot: falsear la
-cabecera sería spoofing, y apagar el filtro globalmente expondría la propiedad
-principal justo a la contaminación que todo esto evita.
+The sender identifies itself as `kivgraph-landing/1.0`, neutral and honest.
+Umami discards what looks like a bot, and what we report **is** a bot: faking
+the header would be spoofing, and turning the filter off globally would expose
+the main property to exactly the contamination all of this avoids.
 
-### Ruido
+### Noise
 
-- **Assets fuera.** `/_astro/`, `/pagefind/`, el favicon, el manifest y todo lo
-  que termina en extensión de asset no generan fila.
-- **Dentro a propósito:** `robots.txt`, `llms.txt`, `llms-full.txt`, los
-  sitemaps y `/raw/**.md`. No son páginas, pero son **cómo** un agente descubre
-  y lee este sitio, y un crawler que empieza por `llms.txt` se comporta distinto
-  de uno que recorre el sitemap.
-- **Deduplicación de 15 minutos** por par (agente, ruta). Medido: cuatro
-  peticiones a la misma ruta producen **un** evento. No es sampling -- que
-  tiraría filas al azar y haría insignificante el recuento de un agente poco
-  frecuente -- y el log local sigue teniendo las cuatro.
+- **Assets out.** `/_astro/`, `/pagefind/`, the favicon, the manifest and
+  everything ending in an asset extension produce no row.
+- **In on purpose:** `robots.txt`, `llms.txt`, `llms-full.txt`, the sitemaps and
+  `/raw/**.md`. They are not pages, but they are **how** an agent discovers and
+  reads this site, and a crawler that starts at `llms.txt` behaves differently
+  from one that walks the sitemap.
+- **15-minute deduplication** per (agent, path) pair. Measured: four requests to
+  the same path produce **one** event. It is not sampling -- which would drop
+  rows at random and make a rare agent's count meaningless -- and the local log
+  still has all four.
 
-### Nada de esto bloquea una respuesta
+### None of this blocks a response
 
-`fire-and-forget` con timeout de 2 s, dentro de `response.on("finish")`, y todo
-fallo se traga. Medido con Umami apuntando a un puerto muerto: `/docs/cli/`
-contesta en **0,6-0,9 ms**. Si Umami se cae, `kivgraph.dev` sirve igual.
+`fire-and-forget` with a 2 s timeout, inside `response.on("finish")`, and every
+failure is swallowed. Measured with Umami pointed at a dead port: `/docs/cli/`
+answers in **0.6-0.9 ms**. If Umami goes down, `kivgraph.dev` serves anyway.
 
-### Log local
+### Local log
 
-Una línea JSON por detección en `stdout`, que es donde pm2 ya recoge:
+One JSON line per detection on `stdout`, which is where pm2 already collects:
 
 ```json
 {"ai_agent":true,"ai_provider":"openai","ai_agent_name":"OAI-SearchBot",
@@ -398,26 +401,26 @@ Una línea JSON por detección en `stdout`, que es donde pm2 ya recoge:
  "method":"GET","path":"/docs/cli/","status":200,"at":"..."}
 ```
 
-Es la fuente de verdad que sobrevive a que Umami esté caído o a que un evento
-se deduplique, y no añade un segundo sistema de logging.
+It is the source of truth that survives Umami being down or an event being
+deduplicated, and it does not add a second logging system.
 
-## PostHog: el comportamiento, no la adquisición
+## PostHog: the behaviour, not the acquisition
 
-Umami y PostHog **no se solapan y no compiten**. Cada uno contesta preguntas que
-el otro no puede, y esperar que sus números cuadren es un error de método, no un
-fallo:
+Umami and PostHog **do not overlap and do not compete**. Each answers questions
+the other cannot, and expecting their numbers to agree is a method error, not a
+bug:
 
-|herramienta|qué contesta|campos|
+|tool|what it answers|fields|
 |---|---|---|
-|Search Console|antes del clic|query, impresiones, CTR, posición|
-|Umami|la adquisición|referrer, landing, país, dispositivo, Web Vitals|
-|PostHog|el comportamiento|funnels, paths, replay, heatmaps, conversión|
+|Search Console|before the click|query, impressions, CTR, position|
+|Umami|the acquisition|referrer, landing, country, device, Web Vitals|
+|PostHog|the behaviour|funnels, paths, replay, heatmaps, conversion|
 
-La columna que une las tres es la **URL de aterrizaje**.
+The column that joins the three is the **landing URL**.
 
-### Una sola llamada
+### A single call
 
-Ningún componente conoce a un proveedor. Todos llaman a lo mismo:
+No component knows a provider. They all call the same thing:
 
 ```ts
 import { track, ANALYTICS_EVENTS } from "../../lib/analytics";
@@ -425,79 +428,79 @@ import { track, ANALYTICS_EVENTS } from "../../lib/analytics";
 track(ANALYTICS_EVENTS.INSTALL_COPY, { where: "hero" });
 ```
 
-`src/lib/analytics/` es `events.ts` (el catálogo tipado), `umami.ts`,
-`posthog.ts` e `index.ts` con la fachada. Un nombre de evento que no esté en
-`ANALYTICS_EVENTS` **no compila**: un evento que existe en una llamada y en
-ningún sitio más es una columna que dentro de seis semanas nadie sabe explicar.
+`src/lib/analytics/` is `events.ts` (the typed catalogue), `umami.ts`,
+`posthog.ts` and `index.ts` with the facade. An event name that is not in
+`ANALYTICS_EVENTS` **does not compile**: an event that exists in one call and
+nowhere else is a column nobody can explain six weeks later.
 
-### Pageviews: por qué no hay `astro:page-load`
+### Pageviews: why there is no `astro:page-load`
 
-Porque este sitio **no tiene `<ClientRouter />` ni View Transitions** -- medido,
-no supuesto. Cada navegación es una carga de documento completa, así que la
-captura automática de PostHog da exactamente un `$pageview` por página. Añadir
-un listener encima es lo que produce **dos**; añadirlo en vez de la automática
-obligaría a desactivarla para reimplementar lo que ya hace.
+Because this site **has neither `<ClientRouter />` nor View Transitions** --
+measured, not assumed. Every navigation is a full document load, so PostHog's
+automatic capture gives exactly one `$pageview` per page. Adding a listener on
+top is what produces **two**; adding it instead of the automatic one would mean
+disabling that to reimplement what it already does.
 
-Si algún día se añade `<ClientRouter />`, esto cambia y hay que volver aquí: el
-guard de init en `posthog.ts` ya está puesto por eso.
+If `<ClientRouter />` is ever added, this changes and you have to come back
+here: the init guard in `posthog.ts` is already there for that reason.
 
-Medido sobre el build, interceptando la ingesta:
+Measured over the build, intercepting the ingest:
 
-|acción|eventos|
+|action|events|
 |---|---|
-|carga inicial|`$pageview`|
-|navegar A -> B|`$pageleave` + `$pageview`|
+|initial load|`$pageview`|
+|navigate A -> B|`$pageleave` + `$pageview`|
 |back|`$pageleave` + `$pageview`|
 |reload|`$pageleave` + `$pageview`|
-|clic en copiar|`$autocapture`, `prompt_copy`, `$$heatmap`, `$web_vitals`|
+|click to copy|`$autocapture`, `prompt_copy`, `$$heatmap`, `$web_vitals`|
 
-Uno por carga, ninguno duplicado, y `prompt_copy` **una sola vez** pese a ir
-también a Umami.
+One per load, none duplicated, and `prompt_copy` **exactly once** despite also
+going to Umami.
 
-### El coste, que no es pequeño
+### The cost, which is not small
 
-|build|JS total|gzip|
+|build|total JS|gzip|
 |---|---|---|
-|sin PostHog|214,1 KB|**72,1 KB**|
-|con PostHog|467,5 KB|**154,9 KB**|
+|without PostHog|214.1 KB|**72.1 KB**|
+|with PostHog|467.5 KB|**154.9 KB**|
 
-PostHog **más que dobla** el JavaScript de un sitio que no tiene ni una isla de
-framework. No hay build más ligero: `module` (85 KB) ya es el menor del paquete
-y `module.no-external` es mayor.
+PostHog **more than doubles** the JavaScript of a site that does not have a
+single framework island. There is no lighter build: `module` (85 KB) is already
+the smallest in the package and `module.no-external` is bigger.
 
-Dos cosas lo hacen aceptable, y las dos son decisiones:
+Two things make it acceptable, and both are decisions:
 
-- **Se importa dinámicamente tras el evento `load`.** El chunk no está entre los
-  scripts que pide la portada, así que no compite con el LCP, que en este
-  repositorio está medido y escrito.
-- **Sin `PUBLIC_POSTHOG_KEY` desaparece entero.** Vite sustituye la variable en
-  tiempo de build, el `return` temprano se vuelve constante y el tree-shaking se
-  lleva la librería: un build sin clave crece `0,9 KB`. Un despliegue sin
-  configurar no paga nada.
+- **It is imported dynamically after the `load` event.** The chunk is not among
+  the scripts the front page requests, so it does not compete with the LCP,
+  which in this repository is measured and written down.
+- **Without `PUBLIC_POSTHOG_KEY` it disappears entirely.** Vite substitutes the
+  variable at build time, the early `return` becomes constant and tree-shaking
+  takes the library away: a build without a key grows `0.9 KB`. An unconfigured
+  deployment pays nothing.
 
-### Producción y nada más
+### Production and nothing else
 
-`isAnalyticsEnabled()` exige `import.meta.env.PROD` **y**
-`location.hostname === PRODUCTION_HOST`. Medido: desde `localhost`, cero
-eventos. `www` no está en el guard porque `www.kivgraph.dev` no resuelve, y
-añadirlo sería inventar un host.
+`isAnalyticsEnabled()` requires `import.meta.env.PROD` **and**
+`location.hostname === PRODUCTION_HOST`. Measured: from `localhost`, zero
+events. `www` is not in the guard because `www.kivgraph.dev` does not resolve,
+and adding it would be inventing a host.
 
-### Privacidad del replay
+### Replay privacy
 
-`maskAllInputs` está activo. Lo que se graba es una pantalla de documentación:
-comandos, rutas y código público. No hay formulario que recoja datos
-personales, ni token, ni cabecera, ni secreto en el HTML -- `PUBLIC_POSTHOG_KEY`
-es una clave de captura y es pública por diseño. **Ninguna clave administrativa
-de PostHog puede aparecer en código cliente**, y eso incluye la del MCP.
+`maskAllInputs` is on. What gets recorded is a documentation screen: commands,
+paths and public code. There is no form collecting personal data, no token, no
+header and no secret in the HTML -- `PUBLIC_POSTHOG_KEY` is a capture key and is
+public by design. **No administrative PostHog key may appear in client code**,
+and that includes the MCP's.
 
-### La trampa que cuesta una tarde: el bot filter
+### The trap that costs an afternoon: the bot filter
 
-**PostHog descarta los eventos de un navegador automatizado en silencio.** No
-hay error, `init` termina, la config se descarga, `capture` existe -- y no sale
-ni una petición. El descarte se dispara con `navigator.webdriver`, que Playwright
-deja en `true`.
+**PostHog discards events from an automated browser silently.** There is no
+error, `init` finishes, the config downloads, `capture` exists -- and not a
+single request goes out. The discard is triggered by `navigator.webdriver`,
+which Playwright leaves at `true`.
 
-Verificar PostHog en headless exige ocultarlo:
+Verifying PostHog in headless requires hiding it:
 
 ```js
 await ctx.addInitScript(() => {
@@ -505,35 +508,36 @@ await ctx.addInitScript(() => {
 });
 ```
 
-Sin eso se pierde el tiempo revisando la clave, la región, la red y el propio
-código, que fue exactamente lo que pasó. Y el payload de `/e/` va **gzip**:
-`request.postDataBuffer()` y `zlib.gunzipSync`, porque `postData()` devuelve
-binario ilegible.
+Without that you waste time reviewing the key, the region, the network and the
+code itself, which is exactly what happened. And the `/e/` payload is **gzip**:
+`request.postDataBuffer()` and `zlib.gunzipSync`, because `postData()` returns
+unreadable binary.
 
-### Regiones: no se cambian
+### Regions: they are not changed
 
-US Cloud y EU Cloud son despliegues separados con cuentas distintas. Cambiar la
-región de un proyecto existente exige plan Scale o Enterprise y que lo haga su
-equipo. Para un proyecto sin datos, la respuesta es crearlo en EU y ya.
+US Cloud and EU Cloud are separate deployments with distinct accounts. Changing
+an existing project's region requires a Scale or Enterprise plan and their team
+to do it. For a project with no data, the answer is to create it in the EU and
+be done.
 
-La forma de saber a qué región pertenece una clave, sin entrar al panel:
+The way to tell which region a key belongs to, without entering the panel:
 
 ```bash
 curl -o /dev/null -w '%{http_code}\n' \
-  https://eu-assets.i.posthog.com/array/<clave>/config.js   # 200 si es de EU
+  https://eu-assets.i.posthog.com/array/<key>/config.js   # 200 if it is EU
 ```
 
 ## MANUAL SETUP REQUIRED
 
-Lo que sigue **no se puede hacer desde el repositorio**. Son cambios en el
-dashboard de Umami y en el host.
+What follows **cannot be done from the repository**. These are changes in the
+Umami dashboard and on the host.
 
-### 1. Goals en el dashboard
+### 1. Goals in the dashboard
 
-Umami no define goals en el cliente. En el sitio, *Settings -> Websites ->
-kivgraph -> Goals*, crear uno por evento:
+Umami does not define goals on the client. On the site, *Settings -> Websites ->
+kivgraph -> Goals*, create one per event:
 
-|nombre|acción|valor|
+|name|action|value|
 |---|---|---|
 |`install_copy`|Triggered event|`install_copy`|
 |`prompt_copy`|Triggered event|`prompt_copy`|
@@ -541,56 +545,56 @@ kivgraph -> Goals*, crear uno por evento:
 |`quickstart_copy`|Triggered event|`quickstart_copy`|
 |`mcp_config_copy`|Triggered event|`mcp_config_copy`|
 
-`github_click` se deja **fuera** de los goals a propósito: es interés, y
-contarlo como conversión inflaría la tasa con clics que no llevan a instalar
-nada. Se ve igual en *Events* sin ser goal.
+`github_click` is deliberately left **out** of the goals: it is interest, and
+counting it as a conversion would inflate the rate with clicks that lead to
+installing nothing. It is visible in *Events* all the same without being a goal.
 
-**Hay que crear los goals después de que llegue el primer evento, no antes**, y
-la razón cuesta una tarde si se descubre sola. Con *Triggered event* el
-formulario pide un segundo valor, y ese valor es el **nombre del evento** -- no
-la ruta, aunque lo parezca. Umami llena ese desplegable con los eventos que el
-sitio ya registró, así que en un sitio sin ninguno ofrece sólo `/`, que es lo
-único que hay en la tabla. Elegirlo crea seis goals que buscan un evento
-llamado `/` y **nunca cuentan**, mientras *Events* sí suma: el campo `Name` es
-sólo la etiqueta de la tarjeta, así que los goals se ven bien nombrados y a
-cero. Ya pasó una vez.
+**The goals have to be created after the first event arrives, not before**, and
+the reason costs an afternoon if you discover it on your own. With *Triggered
+event* the form asks for a second value, and that value is the **event name** --
+not the route, even though it looks like it. Umami fills that dropdown with the
+events the site has already recorded, so on a site with none it offers only `/`,
+which is the only thing in the table. Choosing it creates six goals looking for
+an event named `/` that **never count**, while *Events* does add up: the `Name`
+field is only the card's label, so the goals look well named and sit at zero. It
+has already happened once.
 
-Y el mismo desplegable vacío revienta la página con
-`TypeError: Cannot read properties of null (reading 'value')`. Es un bug de la
-UI, no de la configuración: el select hace
-`items?.map(e => typeof e === "object" ? e : {label: e, value: e})` y después
-`.map(e => e.value)`, y como `typeof null === "object"` el `null` pasa el
-guardia intacto y revienta en el segundo `map`.
+And that same empty dropdown blows the page up with
+`TypeError: Cannot read properties of null (reading 'value')`. It is a UI bug,
+not a configuration one: the select does
+`items?.map(e => typeof e === "object" ? e : {label: e, value: e})` and then
+`.map(e => e.value)`, and since `typeof null === "object"` the `null` passes the
+guard intact and blows up in the second `map`.
 
-Así que el orden es: desplegar, pulsar una vez cada botón de copiar en
-`https://kivgraph.dev/`, comprobar en *Events* que aparecen los nombres, y
-entonces crear los goals eligiéndolos de la lista.
+So the order is: deploy, press each copy button once on
+`https://kivgraph.dev/`, check in *Events* that the names appear, and only then
+create the goals by choosing them from the list.
 
-### 1b. La propiedad de crawlers de IA y sus variables
+### 1b. The AI crawler property and its variables
 
-*Settings -> Websites -> Add website*, con nombre
-`kivgraph.dev - AI Crawlers` y dominio `kivgraph.dev`. Copiar el **Website ID**
-y ponerlo en `landing/.env` **del host**, junto a las dos que ya hay:
+*Settings -> Websites -> Add website*, with name `kivgraph.dev - AI Crawlers`
+and domain `kivgraph.dev`. Copy the **Website ID** and put it in the **host's**
+`landing/.env`, next to the two that are already there:
 
 ```env
 KIVGRAPH_UMAMI_URL=https://analytics.luqueee.dev
-KIVGRAPH_UMAMI_AI_WEBSITE_ID=<el id de la propiedad de crawlers>
+KIVGRAPH_UMAMI_AI_WEBSITE_ID=<the crawler property's id>
 ```
 
-Nunca el id de la propiedad principal: mezclarlos es justo lo que esta
-separación existe para impedir. Como el par de la web, **falla cerrado**: con
-una de las dos ausentes no se envía nada, así que en desarrollo está apagado.
-`KIVGRAPH_UMAMI_AI_TRACKING=off` lo desactiva sin borrar nada.
+Never the main property's id: mixing them is exactly what this separation exists
+to prevent. Like the site's pair, it **fails closed**: with either one missing
+nothing is sent, so in development it is off. `KIVGRAPH_UMAMI_AI_TRACKING=off`
+disables it without deleting anything.
 
-Estas dos las lee `server.mjs` en el arranque; **no** son variables de build, así
-que no hace falta reconstruir para cambiarlas.
+These two are read by `server.mjs` at startup; they are **not** build variables,
+so there is no need to rebuild in order to change them.
 
-Pero la primera vez **`pm2 restart` no basta, y falla en silencio**. `restart`
-reutiliza la definición de proceso que pm2 tiene guardada, incluida la ruta del
-script, así que sigue arrancando el entry del adaptador y no `server.mjs`. El
-sitio funciona, no hay ningún error, y no se detecta ni un agente. La señal es
-la línea de arranque: si dice `[@astrojs/node] Server listening on`, está
-corriendo el entry viejo.
+But the first time **`pm2 restart` is not enough, and it fails silently**.
+`restart` reuses the process definition pm2 has saved, including the script
+path, so it keeps starting the adapter's entry and not `server.mjs`. The site
+works, there is no error at all, and not a single agent is detected. The signal
+is the startup line: if it says `[@astrojs/node] Server listening on`, the old
+entry is running.
 
 ```bash
 pm2 delete kivgraph-landing
@@ -599,101 +603,104 @@ pm2 save
 pm2 logs kivgraph-landing --lines 5
 ```
 
-Lo que tiene que aparecer es la línea de `server.mjs`, en JSON:
+What has to appear is `server.mjs`'s line, in JSON:
 
 ```json
 {"msg":"kivgraph-landing listening","host":"0.0.0.0","port":6767,"ai_tracking":true}
 ```
 
-Un `restart` a secas vale para todo lo demás; el `delete` sólo hace falta cuando
-cambia el `script` del ecosystem, que es exactamente lo que pasó al añadir el
-detector.
+A plain `restart` is fine for everything else; the `delete` is only needed when
+the ecosystem's `script` changes, which is exactly what happened when the
+detector was added.
 
-Y una distinción que se paga si se ignora: **el log de detección se escribe
-haya envío o no**. Ver una línea `ai_agent` demuestra que el detector corre, no
-que Umami recibió nada; eso lo decide `ai_tracking` en la línea de arranque.
+And a distinction that costs you if ignored: **the detection log is written
+whether or not anything is sent**. Seeing an `ai_agent` line proves the detector
+runs, not that Umami received anything; that is decided by `ai_tracking` on the
+startup line.
 
-### 1c. Los informes de la propiedad de crawlers
+### 1c. The crawler property's reports
 
-Todo sale de un solo evento, `ai_crawler_request`, filtrando por sus campos.
+Everything comes from a single event, `ai_crawler_request`, filtered by its
+fields.
 
-|informe|filtro|qué contesta|
+|report|filter|what it answers|
 |---|---|---|
-|**AI Crawlers Overview**|ninguno|desglose por proveedor, agente, categoría y ruta|
-|**Search AI Crawlers**|`category = search`|quién te está indexando para citarte|
-|**AI User Fetches**|`category = user_fetch`|**qué pide alguien a su asistente**|
-|**Training Crawlers**|`category = training`|quién recoge para entrenar|
-|**Provider x page**|`provider = openai` + `path`|qué lee cada proveedor|
+|**AI Crawlers Overview**|none|breakdown by provider, agent, category and path|
+|**Search AI Crawlers**|`category = search`|who is indexing you to cite you|
+|**AI User Fetches**|`category = user_fetch`|**what someone asks their assistant**|
+|**Training Crawlers**|`category = training`|who collects for training|
+|**Provider x page**|`provider = openai` + `path`|what each provider reads|
 
-`user_fetch` es el que más dice: es intención humana llegando por una máquina, y
-es lo que se compara con los referrals de IA de la propiedad principal.
+`user_fetch` says the most: it is human intent arriving through a machine, and
+it is what gets compared with the main property's AI referrals.
 
-### 1d. Referrals de IA, en la propiedad principal
+### 1d. AI referrals, in the main property
 
-No hace falta nada nuevo: el referrer ya se recoge y las query strings también.
-En *Referrers*, filtrar por `chatgpt.com`, `perplexity.ai`, `claude.ai`,
-`gemini.google.com` y `copilot.microsoft.com`; y en los parámetros, por
-`utm_source=chatgpt.com`, que es lo que ChatGPT añade a los enlaces que muestra.
+Nothing new is needed: the referrer is already collected and so are the query
+strings. In *Referrers*, filter by `chatgpt.com`, `perplexity.ai`, `claude.ai`,
+`gemini.google.com` and `copilot.microsoft.com`; and in the parameters, by
+`utm_source=chatgpt.com`, which is what ChatGPT appends to the links it shows.
 
-La correlación que se busca no la calcula Umami, y no hace falta que lo haga:
+The correlation being looked for is not computed by Umami, and it does not need
+to be:
 
 ```text
-OAI-SearchBot  ->  /docs/tools/find-by-intent/     (propiedad de crawlers)
-        ...semanas después...
-referrer chatgpt.com  ->  /docs/tools/find-by-intent/   (propiedad principal)
+OAI-SearchBot  ->  /docs/tools/find-by-intent/     (crawler property)
+        ...weeks later...
+referrer chatgpt.com  ->  /docs/tools/find-by-intent/   (main property)
 ```
 
-Las dos mitades comparten la **ruta**, que es la columna por la que se cruzan a
-mano, igual que con Search Console.
+Both halves share the **path**, which is the column they are crossed on by
+hand, just as with Search Console.
 
-### 1e. PostHog: proyecto, variables y MCP
+### 1e. PostHog: project, variables and MCP
 
-El proyecto vive en **Cloud EU**, `https://eu.posthog.com`. Su clave de captura
-va en `landing/.env` **del host**:
+The project lives on **Cloud EU**, `https://eu.posthog.com`. Its capture key
+goes in the **host's** `landing/.env`:
 
 ```env
-PUBLIC_POSTHOG_KEY=<la phc_... del proyecto EU>
+PUBLIC_POSTHOG_KEY=<the EU project's phc_...>
 PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
 ```
 
-`PUBLIC_` no es decorativo: Astro sólo expone al cliente las variables con ese
-prefijo, y la clave de captura tiene que correr en el navegador. Es de build,
-así que **hay que reconstruir**, no basta reiniciar.
+`PUBLIC_` is not decorative: Astro only exposes variables with that prefix to
+the client, and the capture key has to run in the browser. It is a build
+variable, so **you have to rebuild**; restarting is not enough.
 
-Antes de dar por buena una clave, comprobar su región -- una de US en el host de
-EU no captura nada y no da error visible:
+Before accepting a key, check its region -- a US one on the EU host captures
+nothing and gives no visible error:
 
 ```bash
 curl -o /dev/null -w '%{http_code}\n' \
-  https://eu-assets.i.posthog.com/array/<clave>/config.js
+  https://eu-assets.i.posthog.com/array/<key>/config.js
 ```
 
-**El MCP se autentica aparte, por OAuth, y nunca con esta clave.**
+**The MCP authenticates separately, over OAuth, and never with this key.**
 
 ```bash
 claude mcp add --transport http posthog https://mcp.posthog.com/mcp -s user
 ```
 
-Comprobar la documentación oficial antes de ejecutarlo por si el comando cambió.
+Check the official documentation before running it in case the command changed.
 
-### 1f. Los dashboards
+### 1f. The dashboards
 
-**Umami — SEO** (propiedad principal): visitors, orgánico, referrers, landing
-pages, Google, Bing, AI referrals, campañas UTM, país, dispositivo, Web Vitals.
+**Umami — SEO** (main property): visitors, organic, referrers, landing pages,
+Google, Bing, AI referrals, UTM campaigns, country, device, Web Vitals.
 
-**Umami — AI Crawlers** (segunda propiedad): provider, agent, category, path,
-requests y su evolución.
+**Umami — AI Crawlers** (second property): provider, agent, category, path,
+requests and how they evolve.
 
-**PostHog — Growth**, en cuatro bloques:
+**PostHog — Growth**, in four blocks:
 
-|bloque|qué lleva|
+|block|what it carries|
 |---|---|
-|adquisición|tráfico por fuente, top landing pages|
-|conversión|conversión primaria, por fuente y por landing|
-|producto|`install_copy`, `prompt_copy`, `github_click`, `quickstart_copy`|
-|UX|funnels, paths, heatmaps, replay, rage y dead clicks|
+|acquisition|traffic by source, top landing pages|
+|conversion|primary conversion, by source and by landing|
+|product|`install_copy`, `prompt_copy`, `github_click`, `quickstart_copy`|
+|UX|funnels, paths, heatmaps, replay, rage and dead clicks|
 
-Funnels que merecen existir:
+Funnels that deserve to exist:
 
 ```text
 landing -> docs -> install_copy
@@ -701,94 +708,96 @@ Google  -> landing -> docs -> install_copy
 ChatGPT / Claude / Perplexity -> landing -> docs -> install_copy
 ```
 
-### 1g. Referrals de IA frente a crawlers de IA
+### 1g. AI referrals versus AI crawlers
 
-**No son lo mismo y no deben mezclarse.** Un *referral* es una persona que llega
-desde `chatgpt.com`, `perplexity.ai`, `claude.ai`, `gemini.google.com` o
-`copilot.microsoft.com`, y vive en la propiedad principal y en PostHog. Un
-*crawler* es una máquina, y vive sólo en la propiedad de crawlers.
+**They are not the same and must not be mixed.** A *referral* is a person
+arriving from `chatgpt.com`, `perplexity.ai`, `claude.ai`, `gemini.google.com`
+or `copilot.microsoft.com`, and lives in the main property and in PostHog. A
+*crawler* is a machine, and lives only in the crawler property.
 
-La correlación que interesa no la calcula nadie automáticamente, y no hace falta:
+The correlation that matters is not computed automatically by anyone, and it
+does not need to be:
 
 ```text
 OAI-SearchBot -> /docs/tools/find-by-intent/     (crawlers)
-        ...semanas después...
+        ...weeks later...
 referrer chatgpt.com -> /docs/tools/find-by-intent/ -> install_copy
 ```
 
-Las dos mitades comparten la **ruta**. Eso es correlación, no causalidad, y un
-informe que las confunda está inventando.
+Both halves share the **path**. That is correlation, not causation, and a report
+that confuses them is inventing.
 
-### 1h. Un prompt de análisis para el MCP
+### 1h. An analysis prompt for the MCP
 
 ```text
-Analiza kivgraph.dev en los últimos 30 días. Compara Google, Bing, ChatGPT,
-Claude, Perplexity, GitHub, Reddit y Direct. Para cada fuente: sesiones,
-landing pages, conversiones, install_copy, github_click, paths y dispositivo.
+Analyse kivgraph.dev over the last 30 days. Compare Google, Bing, ChatGPT,
+Claude, Perplexity, GitHub, Reddit and Direct. For each source: sessions,
+landing pages, conversions, install_copy, github_click, paths and device.
 
-Encuentra páginas con mucho tráfico y mala conversión, páginas con poco
-tráfico y conversión alta, las fuentes de mayor intención, los puntos de
-abandono y las oportunidades SEO.
+Find pages with lots of traffic and poor conversion, pages with little
+traffic and high conversion, the highest-intent sources, the drop-off
+points and the SEO opportunities.
 
-Usa funnels, paths y replays como evidencia. No confundas correlación con
-causalidad, no infieras keywords de Google desde PostHog, no asumas que
-`direct` es acceso directo, y no compares cifras absolutas de Umami y PostHog
-sin considerar que miden de formas distintas.
+Use funnels, paths and replays as evidence. Do not confuse correlation with
+causation, do not infer Google keywords from PostHog, do not assume that
+`direct` is direct access, and do not compare absolute Umami and PostHog
+figures without considering that they measure in different ways.
 ```
 
-### 2. El dominio del sitio en Umami
+### 2. The site's domain in Umami
 
-La entrada del sitio sigue apuntando a `kivgraph.luqueee.dev`. Cambiarla a
-`kivgraph.dev` en *Settings -> Websites*. No corta la recogida — el tracker no
-filtra por ese campo — pero el panel muestra un host que hoy sólo redirige.
+The site's entry still points at `kivgraph.luqueee.dev`. Change it to
+`kivgraph.dev` in *Settings -> Websites*. It does not cut off collection — the
+tracker does not filter on that field — but the panel shows a host that today
+only redirects.
 
 ### 3. Search Console
 
-Crear la propiedad de **dominio** de `kivgraph.dev` con el registro `TXT`, y
-enviar `https://kivgraph.dev/sitemap-index.xml`.
+Create the **domain** property for `kivgraph.dev` with the `TXT` record, and
+submit `https://kivgraph.dev/sitemap-index.xml`.
 
-### 4. First-party tracking, si se quiere
+### 4. First-party tracking, if wanted
 
-Hoy el tracker se sirve desde `analytics.luqueee.dev`. Un bloqueador que
-reconozca ese patrón se lo come, y el dato se pierde entero. Servirlo desde el
-propio dominio lo evita:
+Today the tracker is served from `analytics.luqueee.dev`. A blocker that
+recognises that pattern eats it, and the data is lost entirely. Serving it from
+the site's own domain avoids that:
 
 ```text
-https://kivgraph.dev/u.js      en vez de  https://analytics.luqueee.dev/script.js
-https://kivgraph.dev/api/u     en vez de  https://analytics.luqueee.dev/api/send
+https://kivgraph.dev/u.js      instead of  https://analytics.luqueee.dev/script.js
+https://kivgraph.dev/api/u     instead of  https://analytics.luqueee.dev/api/send
 ```
 
-Umami lo soporta de forma nativa, sin parches, con dos variables **en la
-instancia**:
+Umami supports this natively, without patches, with two variables **on the
+instance**:
 
 ```env
 TRACKER_SCRIPT_NAME=u.js
 COLLECT_API_ENDPOINT=/api/u
 ```
 
-y un proxy inverso en el host de la landing que reenvíe esas dos rutas a la
-instancia. Con Cloudflare delante, una regla de origen o un Worker hacen lo
-mismo sin tocar el host.
+plus a reverse proxy on the landing's host that forwards those two routes to the
+instance. With Cloudflare in front, an origin rule or a Worker does the same
+without touching the host.
 
-Hecho eso, el repositorio no cambia: basta con apuntar
-`KIVGRAPH_UMAMI_SCRIPT_URL` a `https://kivgraph.dev/u.js`. Esa es la razón de
-que la URL sea una variable de entorno y no un literal.
+Once that is done, the repository does not change: it is enough to point
+`KIVGRAPH_UMAMI_SCRIPT_URL` at `https://kivgraph.dev/u.js`. That is the reason
+the URL is an environment variable and not a literal.
 
-**No está hecho** porque exige tocar la instancia y el proxy, y porque un
-proxy a medias es peor que ninguno: si `/api/u` no llega, se pierde el 100 %
-del dato en vez del porcentaje que hoy bloquea un adblocker.
+**It is not done** because it requires touching the instance and the proxy, and
+because a half-finished proxy is worse than none: if `/api/u` does not arrive,
+100 % of the data is lost instead of the percentage an adblocker blocks today.
 
-## Verificación
+## Verification
 
 ```bash
-# el tracker se emite, una vez por página, con las dos opciones
+# the tracker is emitted, once per page, with both options
 curl -s https://kivgraph.dev/ | grep -o '<script[^>]*analytics[^>]*>'
 
-# los eventos están en el HTML servido
+# the events are in the served HTML
 curl -s https://kivgraph.dev/ | grep -o 'data-copy-event="[a-z_]*"' | sort -u
 curl -s https://kivgraph.dev/ | grep -o 'data-umami-event="[a-z_]*"' | sort -u
 ```
 
-En el navegador, con la consola abierta: copiar el comando de instalación debe
-producir **una** petición a `/api/send`, no dos. Y en `localhost` no debe
-producir ninguna, porque `data-domains` no casa.
+In the browser, with the console open: copying the install command must produce
+**one** request to `/api/send`, not two. And on `localhost` it must produce
+none, because `data-domains` does not match.
