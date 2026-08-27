@@ -39,6 +39,12 @@ asset_for_platform() {
         Darwin/arm64 | Darwin/x86_64)
             echo "liblbug-osx-universal.tar.gz 4195a05e42671e5f8d036c5d035617ca05d25a1813b2ed8b46ab6cf9d8f0c426"
             ;;
+        MINGW*/x86_64 | MSYS*/x86_64 | CYGWIN*/x86_64)
+            # Windows is reached through a POSIX shell, so it is `uname` that
+            # names it and there are three spellings depending on which one.
+            # The asset is a zip where every other platform ships a tarball.
+            echo "liblbug-windows-x86_64.zip 68e0dffb16cf54158ca5780e0e62042e03873eb7287d10bdc2bf79f105998caa"
+            ;;
         *)
             echo "unsupported platform ${system}/${machine}" >&2
             return 1
@@ -49,15 +55,29 @@ asset_for_platform() {
 # locate_library prints the directory holding the shared object. The Linux and
 # macOS assets extract it flat; other layouts nest it, so it is located instead
 # of assumed.
+#
+# The Windows object is `lbug_shared.dll` rather than `liblbug.*`, which is not
+# a naming preference: the import library beside it is what the linker reads
+# and it names that object, so the pair has to be kept under the name the
+# binding's `-llbug_shared` resolves to.
 locate_library() {
     local destination object
     destination="$1"
     object="$(find "${destination}" -maxdepth 3 -type f \
-        \( -name 'liblbug.so*' -o -name 'liblbug.dylib' \) -print -quit)"
+        \( -name 'liblbug.so*' -o -name 'liblbug.dylib' -o -name 'lbug_shared.dll' \) -print -quit)"
     if [[ -z "${object}" ]]; then
         return 1
     fi
     dirname "${object}"
+}
+
+# require_unzip stops before the download is thrown away rather than after.
+require_unzip() {
+    if ! command -v unzip >/dev/null 2>&1; then
+        echo "unzip is required to extract a zip asset and was not found" >&2
+        echo "  a Git for Windows shell ships one at /usr/bin/unzip" >&2
+        return 1
+    fi
 }
 
 # sha256_of prints the SHA-256 of a file. macOS ships shasum, not the coreutils
@@ -105,7 +125,20 @@ main() {
         return 1
     fi
 
-    tar --extract --file "${archive}" --directory "${destination}"
+    # A zip is not a tarball and the tar in a Git for Windows shell is GNU
+    # tar, which cannot read one. The extractor is chosen by what the archive
+    # is rather than by what the platform usually ships, so a machine with
+    # bsdtar on PATH and a machine with unzip both work and neither is
+    # silently doing the other's job.
+    case "${asset}" in
+        *.zip)
+            require_unzip
+            unzip -q -o "${archive}" -d "${destination}"
+            ;;
+        *)
+            tar --extract --file "${archive}" --directory "${destination}"
+            ;;
+    esac
     rm -f "${archive}"
 
     if ! library="$(locate_library "${destination}")"; then
