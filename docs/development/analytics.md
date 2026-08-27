@@ -267,6 +267,75 @@ No more infrastructure is needed for this. An automatic integration between the
 two would require a job, Search Console API credentials and a store —
 disproportionate for a 39-page site and a cross that is done with two CSVs.
 
+## IndexNow: telling Bing before it comes back
+
+Search Console and Umami both describe what already happened. IndexNow is the
+one lever that changes *when* a page is looked at: it pushes a list of changed
+URLs instead of waiting for a crawler to return.
+
+It matters here for a reason that is not obvious. **The answer engines do not
+crawl much on their own** -- ChatGPT's search leans on Bing's index, Perplexity
+on Bing and Google. So this is the closest thing that exists to submitting a
+site to AI search, and it is still only a push: it changes when a page is
+seen, never whether it is liked. Nothing here is a ranking signal.
+
+### Ownership is a file, not a token
+
+`https://kivgraph.dev/<key>.txt`, containing exactly the key and nothing else.
+Anyone may read it, and that is the mechanism rather than a weakness: fetching
+it proves whoever submitted the URLs controls the host. So the key is **public
+by construction**, committed like the Umami website id, and belongs in no
+secret store.
+
+|where|what|
+|---|---|
+|`landing/src/indexnow.mjs`|the key, and the path derived from it|
+|`landing/public/<key>.txt`|the file the verifier fetches|
+|`scripts/indexnow-submit.sh`|the submission|
+
+### The failure that says nothing about itself
+
+The key lives in two places -- a constant, and a file whose **name** is that
+constant -- and nothing at build or request time compares them. When they
+drift, IndexNow answers `403`, which is exactly what a key that was never valid
+gets. The response cannot tell you which happened.
+
+So two things check it instead. `landing/src/indexnow.test.mjs` asserts the
+file exists, that its bytes are the key with no trailing newline, and that it
+is the **only** key file -- a rotated key leaving the old file behind is the
+other way this drifts. And the script fetches the key from the live site before
+submitting anything, so a `403` cannot be reached without first being told the
+file is not being served.
+
+### It is a build artifact
+
+`landing/public/` is copied into `dist/client`, so the key file **is baked at
+build time** like everything else here. Adding it and restarting `pm2` serves
+the previous bundle and the key stays a `404`; the order is the one the
+environment variables need:
+
+```bash
+cd /root/kivgraph && git pull
+make landing-build && pm2 restart kivgraph-landing
+curl -s https://kivgraph.dev/<key>.txt   # the key, or nothing has changed
+```
+
+### Submitting
+
+```bash
+scripts/indexnow-submit.sh                    # every URL in the live sitemap
+scripts/indexnow-submit.sh /install/          # only what changed
+INDEXNOW_DRY_RUN=1 scripts/indexnow-submit.sh # print the payload, send nothing
+```
+
+The URL list is read from the site's own sitemap rather than kept here, because
+a second list of pages is a list that goes stale. `200` is accepted and `202`
+is accepted with the key still to be validated -- both are success, and a `202`
+that never becomes a `200` means the key file stopped being reachable.
+
+It is deliberately **not** automated. The landing deploys by hand, and a
+submission fired from CI would announce URLs the host has not rebuilt yet.
+
 ## Core Web Vitals
 
 `data-performance="true"` is what turns them on. Umami collects them from the
