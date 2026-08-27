@@ -1549,12 +1549,18 @@ func siblingExecutable(name string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	candidate := filepath.Join(filepath.Dir(selfPath), executable.Name(name))
-	info, statErr := os.Stat(candidate)
-	if statErr != nil || !executable.IsProgram(info) {
-		return "", false
+	// Every name this platform would run, not just the one it would compile
+	// to: the bundle's worker shim is a script, and a search for the compiled
+	// form would report a complete bundle as missing it.
+	for _, name := range executable.Candidates(name) {
+		candidate := filepath.Join(filepath.Dir(selfPath), name)
+		info, statErr := os.Stat(candidate)
+		if statErr != nil || !executable.IsProgram(info) {
+			continue
+		}
+		return candidate, true
 	}
-	return candidate, true
+	return "", false
 }
 
 // DecodeFactsJSON is kept small and explicit for callers that persist a facts

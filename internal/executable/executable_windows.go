@@ -76,3 +76,35 @@ func BaseName(path string) string {
 	}
 	return base
 }
+
+// Candidates are the file names this platform would try when looking for a
+// program called base, in the order it would try them.
+//
+// Naming a program and finding one are different questions here, and Name
+// answers only the first: it produces `.exe`, because that is what a program
+// this project compiles is stored as. A lookup has to consider everything the
+// shell would run -- the bundle's own TypeScript worker shim is a `.cmd`, and
+// a search that only tried `.exe` would report the bundle as not carrying it.
+//
+// A base that already names a program is returned alone: it is not a stem to
+// which extensions apply.
+func Candidates(base string) []string {
+	if base == "" {
+		return nil
+	}
+	if isProgramExtension(filepath.Ext(base)) {
+		return []string{base}
+	}
+	list := os.Getenv("PATHEXT")
+	if strings.TrimSpace(list) == "" {
+		list = ".COM;.EXE;.BAT;.CMD"
+	}
+	candidates := make([]string, 0, 4)
+	for _, extension := range strings.Split(list, ";") {
+		if extension = strings.TrimSpace(extension); extension == "" {
+			continue
+		}
+		candidates = append(candidates, base+extension)
+	}
+	return candidates
+}

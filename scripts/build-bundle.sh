@@ -72,7 +72,8 @@ host_target() {
   case "${system}/${machine}" in
     Linux/x86_64) printf 'linux/amd64' ;;
     Darwin/arm64) printf 'darwin/arm64' ;;
-    *) fail "unsupported host ${system}/${machine}: supported targets are linux/amd64 and darwin/arm64" ;;
+    MINGW*/x86_64 | MSYS*/x86_64 | CYGWIN*/x86_64) printf 'windows/amd64' ;;
+    *) fail "unsupported host ${system}/${machine}: supported targets are linux/amd64, darwin/arm64 and windows/amd64" ;;
   esac
 }
 
@@ -84,18 +85,38 @@ target_os=${target%/*}
 target_arch=${target#*/}
 bundle_name="kivgraph-${target_os}-${target_arch}"
 
+# What differs per target, and nothing else: where the native library goes,
+# what it is called, and the relative search path the executable carries to
+# find it. Windows has no third answer to the last of those -- it has no answer
+# at all, which is why the library moves instead.
 case "$target" in
   linux/amd64)
     native_library_name=liblbug.so
+    native_library_subdir=lib
+    program_suffix=''
     # $ORIGIN is expanded by the dynamic loader, not by the shell.
     rpath='$ORIGIN/../lib'
     ;;
   darwin/arm64)
     native_library_name=liblbug.dylib
+    native_library_subdir=lib
+    program_suffix=''
     # The pinned dylib declares @rpath/liblbug.dylib as its install name and
     # carries a linker ad-hoc signature that copying preserves. Rewriting the
     # install name would invalidate it, so the executable carries the rpath.
     rpath='@loader_path/../lib'
+    ;;
+  windows/amd64)
+    native_library_name=lbug_shared.dll
+    # There is no RUNPATH here and no flag that adds one: Windows resolves a
+    # DLL from the directory of the executable that needs it, so the library
+    # sits beside the binary rather than in a lib/ the binary points at. That
+    # is a change to the bundle layout and not a flag, which is why the
+    # directory is a variable and the check below asserts adjacency rather
+    # than a path.
+    native_library_subdir=bin
+    program_suffix='.exe'
+    rpath=''
     ;;
 esac
 
@@ -118,6 +139,10 @@ case "$target" in
     ;;
   linux/*)
     require_command patchelf
+    ;;
+  windows/*)
+    # Nothing: there is no load command to rewrite, and unzip is required by
+    # the fetch scripts that need it rather than here.
     ;;
 esac
 
@@ -221,7 +246,9 @@ fi
 # once, which is the number of times an rpath needs to be named. `-llbug` is
 # left out for the same reason -- the binding already declares it, and the
 # `-L` above is what makes it resolve against the pinned build.
-ldflags+=" -extldflags=-Wl,-rpath,$rpath"
+if [[ -n "$rpath" ]]; then
+  ldflags+=" -extldflags=-Wl,-rpath,$rpath"
+fi
 
 printf 'build-bundle: compiling Go binary for %s\n' "$target" >&2
 CGO_ENABLED=1 \
@@ -234,7 +261,7 @@ go build \
   -trimpath \
   -buildvcs=true \
   -ldflags "$ldflags" \
-  -o "$output_dir/bin/kivgraph" \
+  -o "$output_dir/bin/kivgraph$program_suffix" \
   ./cmd/kivgraph
 
 # The pinned Go binding declares its own RUNPATH towards its module directory,
@@ -242,7 +269,7 @@ go build \
 # executable is rewritten to carry exactly the relative entry, so a bundle does
 # not depend on where its builder kept its module cache.
 normalise_runpath() {
-  local binary="$output_dir/bin/kivgraph" observed
+  local binary="$output_dir/bin/kivgraph$program_suffix" observed
   case "$target" in
     darwin/*)
       while read -r observed; do
@@ -255,19 +282,31 @@ normalise_runpath() {
     linux/*)
       patchelf --set-rpath "$rpath" "$binary"
       ;;
+    windows/*)
+      # A PE carries no search path to normalise. What replaces this check is
+      # the adjacency assert below, which is the property that actually makes
+      # the bundle relocatable here.
+      ;;
   esac
 }
 
 normalise_runpath
 
 assert_single_runpath() {
-  local binary="$output_dir/bin/kivgraph" observed
+  local binary="$output_dir/bin/kivgraph$program_suffix" observed
   case "$target" in
     darwin/*)
       observed=$(otool -l "$binary" | awk '/LC_RPATH/{found=1} found && $1=="path"{print $2; found=0}')
       ;;
     linux/*)
       observed=$(patchelf --print-rpath "$binary")
+      ;;
+    windows/*)
+      # The equivalent claim: the loader looks beside the executable, so the
+      # library being there is what a RUNPATH buys elsewhere. Asserted after
+      # the library is installed, which is why this returns rather than
+      # falling through to a comparison of two empty strings.
+      return 0
       ;;
   esac
   [[ "$observed" == "$rpath" ]] ||
@@ -276,14 +315,21 @@ assert_single_runpath() {
 
 assert_single_runpath
 
-install -m 0755 "$native_library" "$output_dir/lib/$native_library_name"
+install -m 0755 "$native_library" "$output_dir/$native_library_subdir/$native_library_name"
+
+# On the platform with no search path to declare, adjacency is the contract, so
+# it is asserted where every other target asserts its RUNPATH.
+if [[ "$target" == windows/* ]]; then
+  [[ -f "$output_dir/bin/$native_library_name" ]] ||
+    fail "the native library is not beside the executable, which is the only place this platform looks"
+fi
 
 # rust-analyzer is the engine that reads Rust. It is pinned in
 # tools/manifest.json and travels inside the bundle so an installation does not
 # have to add it by hand; `cargo` is still the caller's, because a workspace
 # cannot be loaded without it.
 rust_analyzer_dir=$("$root/scripts/fetch-rust-analyzer.sh")
-install -m 0755 "$rust_analyzer_dir/rust-analyzer" "$output_dir/bin/rust-analyzer"
+install -m 0755 "$rust_analyzer_dir/rust-analyzer$program_suffix" "$output_dir/bin/rust-analyzer$program_suffix"
 mkdir -p "$output_dir/licenses/third-party/rust-analyzer"
 install -m 0644 "$rust_analyzer_dir/LICENSE-APACHE" \
   "$output_dir/licenses/third-party/rust-analyzer/LICENSE-APACHE"
@@ -311,7 +357,45 @@ mkdir -p "$output_dir/worker/python-worker"
 install -m 0644 "$root/python-worker/index.py" "$output_dir/worker/python-worker/index.py"
 install -m 0644 "$root/python-worker/pyright_index.py" "$output_dir/worker/python-worker/pyright_index.py"
 
-cat > "$output_dir/bin/kivgraph-ts-worker" <<'EOF'
+# The worker shim is a script, and a script is not portable the way a compiled
+# binary is: the shebang form runs where there is an interpreter for one, and
+# Windows needs a batch file it will run itself.
+if [[ "$target" == windows/* ]]; then
+  # Batch defers `shift` until the end of a parenthesised block, so the branch
+  # is written with labels rather than an `if (...)`, and `%*` is unaffected by
+  # `shift` at all -- which is why the arguments are rebuilt one at a time
+  # instead of forwarded wholesale. Both are the kind of thing that appears to
+  # work until an argument is dropped silently.
+  #
+  # `%~dp0` does not resolve a symlink, where the shell form used `pwd -P`
+  # because the worker compares its own realpath. Windows installs do not reach
+  # the bundle through a link today; if one ever does, this is where it breaks.
+  cat > "$output_dir/bin/kivgraph-ts-worker.cmd" <<'BATCH'
+@echo off
+setlocal enabledelayedexpansion
+set "BUNDLE_ROOT=%~dp0.."
+set "ENTRY=%BUNDLE_ROOT%\worker\dist\index.js"
+if /I "%~1"=="facts" goto facts
+goto collect
+
+:facts
+set "ENTRY=%BUNDLE_ROOT%\worker\dist\facts-cli.js"
+shift
+
+:collect
+set "ARGS="
+:next
+if "%~1"=="" goto run
+set "ARGS=!ARGS! "%~1""
+shift
+goto next
+
+:run
+node "%ENTRY%"!ARGS!
+exit /b %ERRORLEVEL%
+BATCH
+else
+  cat > "$output_dir/bin/kivgraph-ts-worker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -324,7 +408,8 @@ if [[ "${1:-}" == "facts" ]]; then
 fi
 exec node "$bundle_root/worker/dist/index.js" "$@"
 EOF
-chmod 0755 "$output_dir/bin/kivgraph-ts-worker"
+  chmod 0755 "$output_dir/bin/kivgraph-ts-worker"
+fi
 
 copy_module_licenses() {
   local module version module_dir safe candidate
@@ -344,11 +429,11 @@ copy_module_licenses
 
 # The relative RUNPATH must be enough to start the executable. Running it
 # without any library search variable is the check that proves it.
-release_version=$("$output_dir/bin/kivgraph" version)
+release_version=$("$output_dir/bin/kivgraph$program_suffix" version)
 if [[ -n "$requested_version" && "$release_version" != "$requested_version" ]]; then
   fail "built release version $release_version does not match requested $requested_version"
 fi
-version_json=$("$output_dir/bin/kivgraph" version --json)
+version_json=$("$output_dir/bin/kivgraph$program_suffix" version --json)
 canonical_schema=$(jq -er '.schema' <<<"$version_json") ||
   fail "built binary reported no canonical schema version"
 snapshot_row_format=$(jq -er '.snapshot_row_format' <<<"$version_json") ||
@@ -358,7 +443,7 @@ rust_analyzer_version=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .vers
 rust_analyzer_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' "$root/tools/manifest.json")
 rust_analyzer_sha256=$(sha256_of "$output_dir/bin/rust-analyzer")
 tools_sha256=$(sha256_of "$output_dir/tools/manifest.json")
-ladybug_sha256=$(sha256_of "$output_dir/lib/$native_library_name")
+ladybug_sha256=$(sha256_of "$output_dir/$native_library_subdir/$native_library_name")
 artifact_dirs=(bin lib worker grammars licenses skills tools)
 if [[ "$web_assets" == true ]]; then
   artifact_dirs+=(web)

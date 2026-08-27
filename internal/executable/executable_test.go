@@ -103,3 +103,38 @@ func TestIsProgramAcceptsOne(t *testing.T) {
 		t.Fatalf("IsProgram(%q) = false, want true", path)
 	}
 }
+
+func TestCandidatesRefusesToLookForNothing(t *testing.T) {
+	if got := executable.Candidates(""); len(got) != 0 {
+		t.Fatalf("Candidates(\"\") = %v, want nothing to look for", got)
+	}
+}
+
+// A base that already names a program is a name, not a stem: appending
+// extensions to it would look for "kivgraph.exe.cmd".
+func TestCandidatesDoNotExtendANameThatIsAlreadyOne(t *testing.T) {
+	for _, base := range []string{executable.Name("kivgraph"), "kivgraph"} {
+		got := executable.Candidates(executable.Name(base))
+		if len(got) != 1 || got[0] != executable.Name(base) {
+			t.Fatalf("Candidates(%q) = %v, want the name alone", executable.Name(base), got)
+		}
+	}
+}
+
+// Whatever a platform would try, Name's answer has to be among it, or a
+// program this project writes is one it cannot then find.
+func TestWhatNameWritesIsAmongWhatCandidatesLooksFor(t *testing.T) {
+	for _, base := range []string{"kivgraph", "rust-analyzer"} {
+		written := executable.Name(base)
+		found := false
+		for _, candidate := range executable.Candidates(base) {
+			if candidate == written {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("Candidates(%q) = %v, none of which is Name(%q) = %q",
+				base, executable.Candidates(base), base, written)
+		}
+	}
+}

@@ -69,3 +69,29 @@ func TestPathExtIsMatchedWithoutRegardToCase(t *testing.T) {
 		t.Fatalf("Name(kivgraph.EXE) = %q, want no second extension added", got)
 	}
 }
+
+// The bundle's TypeScript worker shim is a `.cmd`, so a lookup that only tried
+// the compiled form would report a complete bundle as missing it.
+func TestCandidatesCoverEveryProgramExtensionThePlatformRuns(t *testing.T) {
+	t.Setenv("PATHEXT", ".COM;.EXE;.BAT;.CMD")
+	got := executable.Candidates("kivgraph-ts-worker")
+	want := []string{
+		"kivgraph-ts-worker.COM", "kivgraph-ts-worker.EXE",
+		"kivgraph-ts-worker.BAT", "kivgraph-ts-worker.CMD",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Candidates() = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("Candidates() = %v, want %v: the order is the order the shell tries", got, want)
+		}
+	}
+}
+
+func TestCandidatesFollowANarrowedPathExt(t *testing.T) {
+	t.Setenv("PATHEXT", ".EXE")
+	if got := executable.Candidates("kivgraph"); len(got) != 1 || got[0] != "kivgraph.exe" && got[0] != "kivgraph.EXE" {
+		t.Fatalf("Candidates() = %v, want only what this machine says it runs", got)
+	}
+}

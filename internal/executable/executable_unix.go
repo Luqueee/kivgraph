@@ -30,3 +30,17 @@ func BaseName(path string) string {
 	}
 	return filepath.Base(path)
 }
+
+// Candidates are the file names this platform would try when looking for a
+// program called base, in the order it would try them.
+//
+// Here there is one, which is why the distinction between naming a program and
+// finding one is invisible until it is not: Windows stores a program under one
+// name and will run several, so a lookup that tried only Name would miss a
+// perfectly good `.cmd`.
+func Candidates(base string) []string {
+	if base == "" {
+		return nil
+	}
+	return []string{base}
+}
