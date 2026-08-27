@@ -196,8 +196,14 @@ func tokenize(segment string) []string {
 	return tokens
 }
 
-// disableVariable turns the gate off for one call.
-const disableVariable = "KIVGRAPH_DISABLE_HOOK"
+// DisableVariable turns the gate off for one call.
+//
+// It is read in two places and both are needed. The gate itself reads it from
+// its own environment, which is how a user turns the gate off for a session;
+// and stripAssignments reads it off the front of the very command being gated,
+// which is how the refusal's own advice works -- an agent that prefixes the
+// retry has changed nothing about its environment, only about that one line.
+const DisableVariable = "KIVGRAPH_DISABLE_HOOK"
 
 // stripAssignments removes the `VAR=value` prefix of a command and reports
 // whether it turns the gate off.
@@ -208,7 +214,7 @@ func stripAssignments(tokens []string) ([]string, bool) {
 		if !found || name == "" || strings.ContainsAny(name, "/. -") {
 			break
 		}
-		if name == disableVariable && value != "" && value != "0" {
+		if name == DisableVariable && value != "" && value != "0" {
 			escaped = true
 		}
 		tokens = tokens[1:]

@@ -171,7 +171,7 @@ func denySymbol(name string, facts Facts, because string) Decision {
 			lines = append(lines, "  "+row)
 		}
 	}
-	return Decision{Deny: true, Reason: strings.Join(append(lines, absenceLine, escapeLine), "\n")}
+	return Decision{Deny: true, Reason: strings.Join(append(lines, escapeLine), "\n")}
 }
 
 // decideIntent answers a pattern that gropes for a name.
@@ -212,12 +212,8 @@ func (gate Gate) ask(ctx context.Context, subject string,
 	return facts, true
 }
 
-// absenceLine is the argument text search cannot make for itself.
-const absenceLine = "An empty grep is not a proof: it cannot tell " +
-	"\"nobody calls it\" from \"the callers spell it differently\"."
-
 // escapeLine tells the caller how to insist.
-const escapeLine = "To run this one anyway: KIVGRAPH_DISABLE_HOOK=1 before the command."
+const escapeLine = "To run this one anyway: " + DisableVariable + "=1 before the command."
 
 // IndexedExtensions builds an Indexed function from the languages a
 // configuration names.

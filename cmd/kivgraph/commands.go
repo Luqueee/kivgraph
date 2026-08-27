@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
@@ -408,6 +409,18 @@ func commandTable() []commandSpec {
 			summary: "Print the shell completion script for one shell",
 			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 				return runCompletionScript(args, stdout, stderr)
+			},
+		},
+		{
+			words: []string{"hook", "run"},
+			// Hidden, like __complete, and for the same reason: an agent
+			// invokes it once per tool call and a person never types it.
+			// `hook install` is the surface a reader is meant to find,
+			// and it names this one in what it writes.
+			hidden:  true,
+			summary: "Answer an agent's pre-tool-use gate from stdin",
+			run: func(_ dependencies, _ []string, stdout, _ io.Writer) int {
+				return runHookRun(os.Stdin, stdout)
 			},
 		},
 		{

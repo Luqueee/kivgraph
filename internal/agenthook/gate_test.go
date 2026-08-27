@@ -113,7 +113,7 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 			if !strings.Contains(decision.Reason, testCase.names) {
 				t.Fatalf("refusal names no %s call:\n%s", testCase.names, decision.Reason)
 			}
-			if !strings.Contains(decision.Reason, disableVariable) {
+			if !strings.Contains(decision.Reason, DisableVariable) {
 				t.Fatalf("refusal offers no way to insist:\n%s", decision.Reason)
 			}
 		})
