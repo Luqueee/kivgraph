@@ -38,7 +38,7 @@ func runSkillCommand(args []string, stdout, stderr io.Writer) int {
 			"skill install [--target TARGET] [--scope user|project] [--dry-run] [--force]",
 			"skill status --target TARGET [--scope user|project]",
 			"skill remove --target TARGET [--scope user|project] [--dry-run] [--force]",
-		}, integrations.KnownTargets())
+		}, integrations.SkillTargets())
 		return 0
 	}
 	switch args[0] {

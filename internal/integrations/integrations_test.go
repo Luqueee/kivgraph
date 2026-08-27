@@ -189,3 +189,43 @@ func fileMode(t *testing.T, path string) os.FileMode {
 	}
 	return info.Mode()
 }
+
+// TestTheAdvertisedTargetListsMatchWhatEachKindAccepts keeps a name from being
+// offered by help or completion and then refused by the command behind it. The
+// lists are derived from the resolvers rather than restated, so a target that
+// gains or loses support cannot leave one of them stale.
+func TestTheAdvertisedTargetListsMatchWhatEachKindAccepts(t *testing.T) {
+	manager, _, _ := testManager(t)
+	for _, kind := range []struct {
+		name       string
+		advertised []Target
+		resolve    func(Target) error
+	}{
+		{"skill", SkillTargets(), func(target Target) error {
+			_, err := manager.skillPath(target, ScopeUser)
+			return err
+		}},
+		{"hook", HookTargets(), func(target Target) error {
+			_, err := manager.hookDocumentFor(target, ScopeUser)
+			return err
+		}},
+	} {
+		t.Run(kind.name, func(t *testing.T) {
+			advertised := map[Target]bool{}
+			for _, target := range kind.advertised {
+				advertised[target] = true
+				if err := kind.resolve(target); err != nil {
+					t.Fatalf("%s advertises %q and refuses it: %v", kind.name, target, err)
+				}
+			}
+			for _, target := range KnownTargets() {
+				if advertised[target] {
+					continue
+				}
+				if err := kind.resolve(target); err == nil {
+					t.Fatalf("%s accepts %q and does not advertise it", kind.name, target)
+				}
+			}
+		})
+	}
+}
