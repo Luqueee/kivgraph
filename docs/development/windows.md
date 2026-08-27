@@ -27,13 +27,19 @@ supposed to do and what a falling number would have hidden.
 ## What this rests on
 
 A Windows Server 2022 virtual machine running the repository's own suite,
-fourteen times, with the fixes between the runs. What it needed installed,
+eighteen times, with the fixes between the runs. What it needed installed,
 beyond Go 1.26.6 and mingw-w64 GCC 16.2, is worth writing down: `git`, a
 `python3`, Node and pnpm for the worker, `jq`, and a Git for Windows shell
 rather than the minimal one, because `bash` is what builds a bundle. Without
 `git` and `python3` in particular, eighteen failures are the machine rather
 than the port -- the kind of number that gets quoted at a planning meeting and
 should not be.
+
+**And the analysers: `pyright` and the Dart SDK.** Without them their suites
+skip, which is not a neutral outcome -- it is how six defects in this port
+stayed invisible for fourteen runs while their absence was blamed for the
+failures beside them. Install them before concluding anything about a
+remaining failure.
 
 |run|what changed before it|packages ok|tests failed|
 |---|---|---|---|
@@ -49,7 +55,14 @@ should not be.
 |10|a child both platforms have|36|27|
 |11|client integrations opened|39|21|
 |12|fixtures that speak the platform|39|18|
-|13|the distribution, and what testing it found|40|**13**|
+|13|the distribution, and what testing it found|40|13|
+|14|the release path, found by merging `main`|40|13|
+|15|`RunDetached`, line endings, path containment|39|13|
+|16|`update`, and four fixtures|41|10|
+|17|the analysers installed, and the six defects they hid|50|**0**|
+
+Run 17 was re-run with `-count=1` so that nothing was served from the test
+cache: 50 packages, 0 cached, 0 failures.
 
 Before any of that, the compile results the first version of this document
 reported still hold, and one of them was strengthened: the tree builds for
@@ -150,28 +163,34 @@ written once, reads as careful, and is a no-op on every platform the project
 ships to -- which is exactly why a compile gate cannot find them and why the
 `windows-cross` job in CI is worth having but is not worth trusting.
 
-## What the last thirteen are
+## What the last thirteen were
 
-|cause|count|
-|---|---|
-|the host's Python, not the port|3|
-|`update`, refused because no release has been published yet|2|
-|POSIX mode bits|2|
-|everything else, one apiece|6|
+This section used to explain why thirteen failures were mostly not defects:
 
-That second row was wrong, and so was calling the last one a long tail of
-unrelated singletons. `update` was not waiting for a release; it was broken in
-four separate ways. And one of the six was a security guard returning nil.
-Both are below.
+|cause|count claimed|what it was|
+|---|---|---|
+|the host's Python, not the port|3|three defects in the Python worker|
+|`update`, waiting for a release|2|four defects in `update`|
+|POSIX mode bits|2|two fixtures, correctly diagnosed|
+|everything else, one apiece|6|one security guard, three defects, two fixtures|
 
-Only the last row is work. The first is the machine the suite ran on -- an
-embeddable interpreter without the standard library a real install has. The
-second is correct and stops being true the day a release goes out, which this
-branch makes possible and does not perform. The third is a claim no platform
-without mode bits can answer.
+**Every row but the third was wrong**, and each was wrong the same way: the
+test name was read instead of the code, and an absent analyser was assumed
+rather than checked. The suite now passes on the host -- 50 packages, zero
+failures -- and the way there was almost entirely defects in the product.
 
-The deadlock is gone: `internal/tsworker` was costing whatever the test timeout
-was -- 1500 seconds on the first run -- and passes in three.
+The correction that mattered was cheap and should have come first: **install
+the analysers**. `pyright` and the Dart SDK were not on the machine, so their
+suites skipped, and the failures that remained were attributed to their
+absence. Installing them took ten minutes, turned five "environment" failures
+into five real defects, and each install then uncovered two or three more as
+previously-skipped tests began to run.
+
+The count did not fall monotonically and never has. It went 13 → 10 → 7, then
+*up* as `pyright` and `dart` arrived, then to zero.
+
+The deadlock is gone too: `internal/tsworker` was costing whatever the test
+timeout was -- 1500 seconds on the first run -- and passes in three.
 
 ## What is still open
 
@@ -435,32 +454,82 @@ All seventeen tests in `internal/update` pass on the host, including the
 end-to-end install: fetch a zip, verify its checksum, extract it, validate the
 bundle by running its binary, replace atomically.
 
+### The five defects the analysers were hiding
+
+Three in `python-worker/pyright_index.py`, each hiding the next:
+
+- `shlex` is a POSIX shell lexer and a POSIX shell treats a backslash as an
+  escape, so `shlex.split` deleted every separator in a Windows path.
+  `C:\tools\node\pyright-langserver` came back as
+  `C:toolsnodepyright-langserver` -- and the loader reported that as the
+  analyser being unavailable, not as the path having been destroyed.
+- `CreateProcess` searches `PATH` but does not append `PATHEXT`, so a bare
+  `pyright-langserver` raised `FileNotFoundError` with
+  `pyright-langserver.CMD` on the `PATH`, which is exactly how npm installs
+  it.
+- With those fixed pyright ran, found all 23 symbols and resolved **zero**
+  references. A file URI is not a file path: `file:///c%3A/x.py` parses to
+  `/c%3A/x.py`, and `url2pathname` looks for the drive *before* unquoting, so
+  `%3A` hides it. And the server answers `c:\` where the walk produced `C:\`,
+  which as strings are two files. 63 occurrences were recorded
+  `TARGET_NOT_INDEXED`; after the fix, 21 references.
+
+Three more in `internal/dartloader`, in the same shape of chain:
+
+- `filepath.IsAbs("\sdk\flutter\widgets.dart")` is false, so the path was
+  joined to the repository root and a Flutter file landed *inside* it. Same
+  defect as the `internal/workspace` containment guard on this branch, same
+  remedy.
+- `filepath.Base(executable) == "dart"` is false for `dart.exe`, so the SDK was
+  launched with **no subcommand**: it printed its usage, exited, and the loader
+  said "closed connection to the Dart analysis server". Two of the three sites
+  asked it that way; the third already carried `|| == "dart.exe"` beside it,
+  which is the drift `executable.BaseName` exists to remove.
+- `file://C:/x` has host `"C:"` and path `"/x"`. The server said so --
+  "URI does not contain an absolute file path (missing drive letter)" -- and
+  rejected every request for the whole fixture.
+
+None of these six is subtle once seen. All six were invisible while the tests
+that would have caught them were skipping.
+
+### The clock is a platform property too
+
+`TestRunRecordsMetrics` asserted that a duration was greater than zero, and on
+Windows it is not. Measured on the host:
+
+|                                  |linux/amd64|windows/amd64|
+|---|---|---|
+|smallest non-zero `time.Since`|`9ns`|`52.6µs`|
+|short work measured as exactly 0|0 / 1000|996 / 1000|
+
+Go's monotonic clock there reads the interrupt time, whose tick is the
+scheduler's rather than the counter's. So `> 0` on a fast unit of work is a
+claim about the clock and not about the code, and
+`testsupport.ClockResolvesShortDurations` names that the way
+`ModeBitsHonoured` names the other one. The counters in that test keep their
+assertions on every platform; only the durations are gated.
+
 ## What is left
 
-ADR 0079's four steps are done. What remains is smaller than any of them and
-mostly not defects:
+ADR 0079's four steps are done and the suite passes on the host. What remains
+is two things, and neither is a failing test:
 
-1. **The long tail.** A handful of failures, and about half are not defects:
-   `update` refuses Windows because no release has been published yet, which
-   this branch makes possible and does not perform; and the Python analyzer
-   failures are the embeddable interpreter on the machine that ran the suite,
-   not the port.
-2. **One claim that wants a real installation rather than more code.** The
+1. **One claim that wants a real installation rather than more code.** The
    Claude Desktop detection markers are a guess about where the installer puts
    things -- the first is the directory the application itself creates, which
    is a fact; the second is not. No amount of testing settles it; installing
    the application does.
-3. **A first release.** Everything here has been verified on one Windows host
+2. **A first release.** Everything here has been verified on one Windows host
    with a served archive standing in for a release. The matrix row has never
    run on a GitHub runner.
 
-That third one is the honest limit of this branch. It builds, installs and runs
+That second one is the honest limit of this branch. It builds, installs and runs
 on a machine; it has not yet been published from CI, and a release job has ways
 to differ from a laptop that no amount of local verification anticipates.
 
 Two of those ways have already been found, and neither was found by running
 anything -- both came out of merging `main` back in, above. That is worth
-reading as evidence about the third item rather than as two items closed: the
+reading as evidence about that item rather than as two items closed: the
 release path is the part of this work with the fewest facts behind it, and it
 has now produced a defect for every time anybody has looked at it.
 
