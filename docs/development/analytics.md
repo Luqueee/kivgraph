@@ -461,12 +461,35 @@ una de las dos ausentes no se envía nada, así que en desarrollo está apagado.
 `KIVGRAPH_UMAMI_AI_TRACKING=off` lo desactiva sin borrar nada.
 
 Estas dos las lee `server.mjs` en el arranque; **no** son variables de build, así
-que basta con reiniciar:
+que no hace falta reconstruir para cambiarlas.
+
+Pero la primera vez **`pm2 restart` no basta, y falla en silencio**. `restart`
+reutiliza la definición de proceso que pm2 tiene guardada, incluida la ruta del
+script, así que sigue arrancando el entry del adaptador y no `server.mjs`. El
+sitio funciona, no hay ningún error, y no se detecta ni un agente. La señal es
+la línea de arranque: si dice `[@astrojs/node] Server listening on`, está
+corriendo el entry viejo.
 
 ```bash
-pm2 restart kivgraph-landing
-pm2 logs kivgraph-landing --lines 5   # la primera línea dice ai_tracking: true
+pm2 delete kivgraph-landing
+pm2 start landing/ecosystem.config.cjs
+pm2 save
+pm2 logs kivgraph-landing --lines 5
 ```
+
+Lo que tiene que aparecer es la línea de `server.mjs`, en JSON:
+
+```json
+{"msg":"kivgraph-landing listening","host":"0.0.0.0","port":6767,"ai_tracking":true}
+```
+
+Un `restart` a secas vale para todo lo demás; el `delete` sólo hace falta cuando
+cambia el `script` del ecosystem, que es exactamente lo que pasó al añadir el
+detector.
+
+Y una distinción que se paga si se ignora: **el log de detección se escribe
+haya envío o no**. Ver una línea `ai_agent` demuestra que el detector corre, no
+que Umami recibió nada; eso lo decide `ai_tracking` en la línea de arranque.
 
 ### 1c. Los informes de la propiedad de crawlers
 
