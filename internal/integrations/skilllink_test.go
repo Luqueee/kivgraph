@@ -1,6 +1,7 @@
 package integrations
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -243,5 +244,74 @@ func TestDryRunLinksNothing(t *testing.T) {
 	}
 	if entries, err := os.ReadDir(home); err != nil || len(entries) != 0 {
 		t.Fatalf("a dry run created %v (err %v)", entries, err)
+	}
+}
+
+// TestADanglingLinkIsNotManaged is a regression, and the way it was found is
+// the point: every test above installed and then asked, so the canonical always
+// existed. Deleting it -- which a tidy-up, a restore, or a home directory synced
+// between machines will do -- leaves a link no client can read a skill through,
+// and status called that "managed". A status that says the skill is installed
+// when nothing can load it is worse than one that says nothing.
+func TestADanglingLinkIsNotManaged(t *testing.T) {
+	manager, _, _ := testManager(t)
+	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(manager.canonicalSkillPath()); err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.StatusSkill(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatalf("StatusSkill() error = %v", err)
+	}
+	if status.Status != statusBroken {
+		t.Fatalf("a dangling link reads as %q, want %q", status.Status, statusBroken)
+	}
+	if !strings.Contains(status.Detail, "does not exist") {
+		t.Fatalf("status does not say what is wrong: %q", status.Detail)
+	}
+
+	// Install repairs it, and says it changed something rather than
+	// reporting the no-op it would have reported before.
+	plan, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("InstallSkill() error = %v", err)
+	}
+	if !plan.Changed || plan.Status != "installed" {
+		t.Fatalf("repairing plan = %#v", plan)
+	}
+	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the link still leads nowhere: %v", err)
+	}
+	if !bytes.Equal(data, embeddedSkill) {
+		t.Fatal("the restored canonical is not the shipped skill")
+	}
+}
+
+// TestADanglingLinkIsStillOursToRemove keeps a broken link from needing --force
+// to clean up. It is ours; nothing is lost by taking it.
+func TestADanglingLinkIsStillOursToRemove(t *testing.T) {
+	manager, _, _ := testManager(t)
+	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(manager.canonicalSkillPath()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.RemoveSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatalf("RemoveSkill() error = %v", err)
+	}
+	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Fatalf("the broken link survived: %v", err)
 	}
 }

@@ -74,6 +74,18 @@ Una copia **editada** es el único caso que sí pierde algo, porque se editó cu
 todavía no había un canónico que editar en su lugar. Se niega sin `--force`, y
 con `--force` se guarda en `.kivgraph.bak` antes de que el enlace ocupe su sitio.
 
+### Un enlace sin destino no es una skill instalada
+
+El canónico puede desaparecer -- una limpieza, una restauración, un `$HOME`
+sincronizado entre máquinas-- y dejar enlaces que no llevan a ninguna parte.
+Ningún cliente puede cargar una skill a través de uno, así que reportarlos como
+`managed` sería un estado que miente, y peor que no decir nada.
+
+Se reportan como `broken`, nombrando el fichero que falta, y un `install` los
+repara sin pedir `--force`: el enlace ya es nuestro y lo único que falta es el
+fichero al que apunta. Un `remove` también se los lleva sin forzar, porque no
+hay nada que perder.
+
 ### Un `remove` no borra el canónico
 
 Es el fichero al que se invitó a la gente a hacer cambios. Borrar una edición

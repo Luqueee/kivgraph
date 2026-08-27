@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 )
 
+// statusBroken is a link of ours with nothing on the other end.
+const statusBroken = "broken"
+
 // canonicalSkillPath is the one copy of the skill a user edits.
 //
 // It sits beside `config.yaml` rather than under `~/.local/share`, and the
@@ -42,6 +45,11 @@ const (
 	skillAbsent skillPlacement = iota
 	// skillLinked is a link to the canonical file: what install produces.
 	skillLinked
+	// skillDangling is a link to the canonical file with nothing on the
+	// other end. It reads as ours because it is, but no client can load a
+	// skill through it, so reporting it as managed would be a status that
+	// lies. Install restores the file and needs no forcing to do it.
+	skillDangling
 	// skillShippedCopy is a copy of the skill this build ships, which is
 	// what an install before this change left behind. Install upgrades it
 	// to a link, and does not need forcing to do so: nothing is lost,
@@ -85,6 +93,11 @@ func (manager Manager) inspectSkillPath(path string) (skillState, error) {
 		placement := skillForeign
 		if target == manager.canonicalSkillPath() {
 			placement = skillLinked
+			if _, err := os.Stat(target); errors.Is(err, os.ErrNotExist) {
+				placement = skillDangling
+			} else if err != nil {
+				return skillState{}, fmt.Errorf("inspect canonical skill %q: %w", target, err)
+			}
 		}
 		return skillState{placement: placement, target: target}, nil
 	}
@@ -158,14 +171,28 @@ func (manager Manager) installLinkedSkill(target Target, scope Scope, path strin
 	if edited && !force {
 		detail = "link to the edited canonical skill at " + manager.canonicalSkillPath() + " (kept)"
 	}
-	if state.placement == skillLinked {
+	if state.placement == skillLinked || state.placement == skillDangling {
+		// The link is already ours. Only the file it points at may need
+		// writing, which is exactly what a dangling one is missing.
 		plan := Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path,
 			Status: "managed", Detail: "skill already points at " + manager.canonicalSkillPath()}
+		if state.placement == skillDangling {
+			plan.Status, plan.Changed = statusBroken, true
+			plan.Detail = "restore " + manager.canonicalSkillPath() + ", which the link points at"
+		}
 		if dryRun {
+			plan.DryRun = true
+			if plan.Changed {
+				plan.Status = "would-install"
+			}
 			return plan, nil
 		}
-		if _, err := manager.ensureCanonicalSkill(force); err != nil {
+		written, err := manager.ensureCanonicalSkill(force)
+		if err != nil {
 			return Plan{}, err
+		}
+		if written && state.placement == skillDangling {
+			plan.Status = "installed"
 		}
 		return plan, nil
 	}
@@ -234,7 +261,7 @@ func (manager Manager) removeLinkedSkill(target Target, scope Scope, path string
 		plan.Status = "would-remove"
 		return plan, nil
 	}
-	if state.placement == skillLinked {
+	if state.placement == skillLinked || state.placement == skillDangling {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return Plan{}, fmt.Errorf("remove skill link %q: %w", path, err)
 		}
@@ -269,6 +296,8 @@ func placementName(placement skillPlacement) string {
 	switch placement {
 	case skillLinked:
 		return "managed"
+	case skillDangling:
+		return statusBroken
 	case skillShippedCopy:
 		return statusSuperseded
 	case skillForeign:
@@ -283,6 +312,8 @@ func linkedStatusDetail(state skillState, canonical string) string {
 	switch state.placement {
 	case skillLinked:
 		return "skill points at " + canonical
+	case skillDangling:
+		return "skill points at " + canonical + ", which does not exist: install restores it"
 	case skillShippedCopy:
 		return "skill is a copy from an earlier install: install replaces it with a link"
 	case skillForeign:
