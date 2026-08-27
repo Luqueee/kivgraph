@@ -2186,13 +2186,13 @@ func TestWriteIndexProgressNamesOnlyWhatTheEventCarries(t *testing.T) {
 		},
 		{
 			name:  "a repository carries the phase and its position",
-			event: indexer.ProgressEvent{Phase: "index", Repository: "kena", Completed: 2, Total: 7},
-			want:  "[  12.0s] 2/7 index kena done\n",
+			event: indexer.ProgressEvent{Phase: "index", Repository: "workspace", Completed: 2, Total: 7},
+			want:  "[  12.0s] 2/7 index workspace done\n",
 		},
 		{
 			name:  "a detail is parenthesised after the state",
-			event: indexer.ProgressEvent{Phase: "load", Repository: "kena", Detail: "3 modules", Started: true},
-			want:  "[  12.0s] load kena start (3 modules)\n",
+			event: indexer.ProgressEvent{Phase: "load", Repository: "workspace", Detail: "3 modules", Started: true},
+			want:  "[  12.0s] load workspace start (3 modules)\n",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

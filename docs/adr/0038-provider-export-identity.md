@@ -25,7 +25,7 @@ arista de símbolo, aunque su fuente estuviera nombrada y su proyecto abierto.
 Todo consumidor quedaba como `PROVIDER_SOURCE_UNAVAILABLE` con el detalle «no
 declaration map places this symbol in the provider's source».
 
-En un monorepo pnpm real -40 repositorios, `@kena/shared` consumido por 17-
+En un monorepo pnpm real -40 repositorios, `@private/shared` consumido por 17-
 eso son 89 ficheros en 14 repositorios sin una sola arista de símbolo, y el
 grafo respondiendo con las dependencias de paquete como si fueran consumidores.
 

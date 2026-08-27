@@ -225,7 +225,7 @@ interface BindingRequest {
  * A local barrel that re-exports a package -- `export type { X } from "pkg"` --
  * puts a foreign declaration behind a relative specifier, and this file then
  * binds a name whose provider no textual import of its own names. Measured on
- * the `kena` monorepo, that is how a consumer of `@kena/shared` disappeared
+ * the private monorepo, that is how a consumer of `@private/shared` disappeared
  * from an answer about the type it annotates four positions with: nothing bound
  * the name, so its uses had no target and were dropped whole.
  */
@@ -498,7 +498,7 @@ export async function resolveImportedSymbols(
   // can put one behind a relative path: `export { x } from "pkg"` in one file
   // and `import { x } from "./that-file.js"` in the next. Nothing in the second
   // file's own text names a package, so no binding was made for it and every
-  // use of the name was dropped for having no target -- measured on `kena`,
+  // use of the name was dropped for having no target -- measured on a private monorepo,
   // where a consumer vanished from an answer about a type it annotates four
   // positions with.
   //

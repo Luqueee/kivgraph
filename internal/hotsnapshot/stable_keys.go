@@ -120,7 +120,7 @@ func (table StableKeyTable) Arena() ([]byte, []uint32) { return table.arena, tab
 // receives are views over the buffer the database was read through -- ScanCanonical
 // hands out every value as a string over the scan's own arena -- so a snapshot
 // that stored those views would keep that entire buffer reachable for as long as
-// it lived. Measured on kena: 6.4 MB of keys pinned 58 MB of read buffers, a
+// it lived. Measured on workspace: 6.4 MB of keys pinned 58 MB of read buffers, a
 // third of the resident footprint. See benchmarks/hot-snapshot-footprint.
 //
 // Strict byte order is required rather than sorted here, because the order is

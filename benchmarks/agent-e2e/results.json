@@ -9,7 +9,7 @@
   "go": "go1.26.4",
   "os": "darwin"
  },
- "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "corpus": "/path/to/workspace",
  "arms": [
   "cold",
   "kivgraph",
@@ -19,8 +19,8 @@
  "budget_usd_per_run": 3,
  "tasks": [
   {
-   "id": "api-db-go-f3a50ad",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-f3a50ad",
+   "repo": "services/go-svc-a",
    "language": "go",
    "commit": "f3a50ad5ae25752fb9b7f38a8468708d6354742a",
    "subject": "fix(validación): normalizar los enums vacíos y rechazar sólo lo imposible",
@@ -32,7 +32,7 @@
     "internal/domain/validations/module_leveling_validations_test.go",
     "internal/infrastructure/mongo/module_leveling_repository.go"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».\n\nThe change belongs in the services/api-db-go repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».\n\nThe change belongs in the services/go-svc-a repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   },
   {
    "id": "core-6ad7d65",
@@ -45,7 +45,7 @@
     "src/infrastructure/grpc/server.ts",
     "tests/cluster/master/ipc/RequestTracker-overflow.test.ts"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(ipc): techo de la cola de peticiones del RequestTracker\n\nCierra el otro agujero de RAM del informe: `pendingRequests` no tenía `maxPending`.\nCada entrada retiene sus closures, un `Timeout` y el payload completo —hasta 16 MiB\npor `max_receive_message_length`— mientras se espera al worker, así que si las\npeticiones entran más rápido de lo que el worker resuelve, el mapa crece hasta\ndonde aguante el heap. Es lo que mejor explica los 10 GB del 11-08-2026.\n\nThe change belongs in the packages/core repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfeat(ipc): techo de la cola de peticiones del RequestTracker\n\nCierra el otro agujero de RAM del informe: `pendingRequests` no tenía `maxPending`.\nCada entrada retiene sus closures, un `Timeout` y el payload completo —hasta 16 MiB\npor `max_receive_message_length`— mientras se espera al worker, así que si las\npeticiones entran más rápido de lo que el worker resuelve, el mapa crece hasta\ndonde aguante el heap. Es lo que mejor explica los 10 GB del 11-08-2026.\n\nThe change belongs in the packages/core repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   },
   {
    "id": "gateway-37cd672",
@@ -57,7 +57,7 @@
     "src/shared/RequestMetrics.test.ts",
     "src/shared/RequestMetrics.ts"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nperf(request-metrics): volcar el contador cada segundo\n\nEl panel en vivo sondea cada segundo y pinta la diferencia entre dos\nsondeos, pero el buffer bajaba a Redis cada 10 s: nueve de cada diez\npuntos salían clavados a cero y el décimo con los 10 s de golpe, una\ncurva de picos que no se parece al trafico que la produjo.\n\nThe change belongs in the packages/gateway repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nperf(request-metrics): volcar el contador cada segundo\n\nEl panel en vivo sondea cada segundo y pinta la diferencia entre dos\nsondeos, pero el buffer bajaba a Redis cada 10 s: nueve de cada diez\npuntos salían clavados a cero y el décimo con los 10 s de golpe, una\ncurva de picos que no se parece al trafico que la produjo.\n\nThe change belongs in the packages/gateway repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   },
   {
    "id": "library-shared-e294840",
@@ -70,11 +70,11 @@
     "src/automation/catalog.test.ts",
     "src/automation/types.ts"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(automation): «contar miembros conectados» tiene su propia tarjeta\n\nLo metí ayer como tercera opción del «dónde contar» de «contar personas con un\nrol», defendiendo que era la misma pregunta con otro filtro. Me equivoqué: una\nopción escondida en un desplegable no se encuentra escaneando el catálogo, que\nes como se busca aquí — el usuario la pidió y luego no la vio «en ningún sitio».\n\nThe change belongs in the libraries/library-shared repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfeat(automation): «contar miembros conectados» tiene su propia tarjeta\n\nLo metí ayer como tercera opción del «dónde contar» de «contar personas con un\nrol», defendiendo que era la misma pregunta con otro filtro. Me equivoqué: una\nopción escondida en un desplegable no se encuentra escaneando el catálogo, que\nes como se busca aquí — el usuario la pidió y luego no la vio «en ningún sitio».\n\nThe change belongs in the libraries/library-shared repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   },
   {
-   "id": "kenalink-rs-188ae97",
-   "repo": "services/kenalink-rs",
+   "id": "rs-svc-b-188ae97",
+   "repo": "services/rs-svc-b",
    "language": "rust",
    "commit": "188ae97a344bb24595335cfdf6fd097ac603f2b8",
    "subject": "feat(stats): emitir pausedPlayers y disconnectedPlayers",
@@ -84,11 +84,11 @@
     "src/state/memory.rs",
     "src/state/mod.rs"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfeat(stats): emitir pausedPlayers y disconnectedPlayers\n\nbuild_stats es el unico constructor de StatsPayload, asi que el STATS del\nWebSocket y el GET /v4/stats ganan los dos contadores de una vez.\n\nThe change belongs in the services/kenalink-rs repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfeat(stats): emitir pausedPlayers y disconnectedPlayers\n\nbuild_stats es el unico constructor de StatsPayload, asi que el STATS del\nWebSocket y el GET /v4/stats ganan los dos contadores de una vez.\n\nThe change belongs in the services/rs-svc-b repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   },
   {
-   "id": "api-music-nodo-2fd7c63",
-   "repo": "services/api-music-nodo",
+   "id": "rs-svc-a-2fd7c63",
+   "repo": "services/rs-svc-a",
    "language": "rust",
    "commit": "2fd7c63b8a4de12ffd34f5773147657e7c506898",
    "subject": "refactor(system): move Chipbot file orchestration into the core",
@@ -97,12 +97,12 @@
     "src/system/chipbot_files.rs",
     "src/system/mod.rs"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nrefactor(system): move Chipbot file orchestration into the core\n\n«archivo» absorbs ISRC/format validation, fs-cache probe,\ntmp+rename download, ID3, manifest and counter. The controller becomes\nan adapter: Range over AudioServe and Err(String) -\u003e 500 with cause\nmapping, keeping the handler name in the log. Zero observable changes.\n\nThe change belongs in the services/api-music-nodo repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nrefactor(system): move Chipbot file orchestration into the core\n\n«archivo» absorbs ISRC/format validation, fs-cache probe,\ntmp+rename download, ID3, manifest and counter. The controller becomes\nan adapter: Range over AudioServe and Err(String) -\u003e 500 with cause\nmapping, keeping the handler name in the log. Zero observable changes.\n\nThe change belongs in the services/rs-svc-a repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   }
  ],
  "runs": [
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "cold",
    "trial": 1,
    "ms": 363161,
@@ -124,7 +124,7 @@
    "budget_exhausted": true,
    "terminal_reason": "budget_exhausted",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-cold-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_music_handler.go",
     "internal/domain/validations/module_validations.go",
@@ -149,7 +149,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "kivgraph",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -176,7 +176,7 @@
    "budget_exhausted": true,
    "terminal_reason": "budget_exhausted",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-kivgraph-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-kivgraph-t1.jsonl",
    "wrote": [
     "internal/domain/validations/module_moderation_validations.go"
    ],
@@ -197,7 +197,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "graft",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -224,7 +224,7 @@
    "context_tool_calls": 12,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-graft-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-graft-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_moderation_handler.go",
     "internal/domain/validations/module_moderation_validations.go"
@@ -247,7 +247,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "cold",
    "trial": 2,
    "ms": 405927,
@@ -267,7 +267,7 @@
    "context_tool_calls": 0,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-cold-t2.jsonl",
    "wrote": [
     "internal/application/handlers/module_moderation_handler.go",
     "internal/domain/dbguild/module_moderation.go",
@@ -290,7 +290,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "kivgraph",
    "trial": 2,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -313,7 +313,7 @@
    "context_tool_calls": 1,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-kivgraph-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-kivgraph-t2.jsonl",
    "wrote": [
     "internal/application/handlers/module_moderation_handler.go",
     "internal/domain/validations/module_moderation_validations.go"
@@ -336,7 +336,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "graft",
    "trial": 2,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -361,7 +361,7 @@
    "context_tool_calls": 19,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-graft-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-graft-t2.jsonl",
    "wrote": [
     "internal/domain/validations/module_greeter_validations.go",
     "internal/domain/validations/module_tts_validations.go",
@@ -1075,7 +1075,7 @@
    "exact": true
   },
   {
-   "task": "kenalink-rs-188ae97",
+   "task": "rs-svc-b-188ae97",
    "arm": "cold",
    "trial": 1,
    "ms": 59138,
@@ -1095,7 +1095,7 @@
    "context_tool_calls": 0,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-cold-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-b-188ae97-cold-t1.jsonl",
    "wrote": [
     "src/api_ws/mod.rs",
     "src/protocol.rs",
@@ -1110,7 +1110,7 @@
    "exact": true
   },
   {
-   "task": "kenalink-rs-188ae97",
+   "task": "rs-svc-b-188ae97",
    "arm": "kivgraph",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -1135,7 +1135,7 @@
    "context_tool_calls": 12,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-kivgraph-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-b-188ae97-kivgraph-t1.jsonl",
    "wrote": [
     "src/api_ws/mod.rs",
     "src/protocol.rs",
@@ -1150,7 +1150,7 @@
    "exact": true
   },
   {
-   "task": "kenalink-rs-188ae97",
+   "task": "rs-svc-b-188ae97",
    "arm": "graft",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -1173,7 +1173,7 @@
    "context_tool_calls": 6,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-graft-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-b-188ae97-graft-t1.jsonl",
    "wrote": [
     "src/api_ws/mod.rs",
     "src/protocol.rs",
@@ -1188,7 +1188,7 @@
    "exact": true
   },
   {
-   "task": "kenalink-rs-188ae97",
+   "task": "rs-svc-b-188ae97",
    "arm": "cold",
    "trial": 2,
    "ms": 39127,
@@ -1207,7 +1207,7 @@
    "context_tool_calls": 0,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-cold-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-b-188ae97-cold-t2.jsonl",
    "wrote": [
     "src/api_ws/mod.rs",
     "src/protocol.rs",
@@ -1222,7 +1222,7 @@
    "exact": true
   },
   {
-   "task": "kenalink-rs-188ae97",
+   "task": "rs-svc-b-188ae97",
    "arm": "kivgraph",
    "trial": 2,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -1245,7 +1245,7 @@
    "context_tool_calls": 8,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-kivgraph-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-b-188ae97-kivgraph-t2.jsonl",
    "wrote": [
     "src/api_ws/mod.rs",
     "src/protocol.rs",
@@ -1260,7 +1260,7 @@
    "exact": true
   },
   {
-   "task": "kenalink-rs-188ae97",
+   "task": "rs-svc-b-188ae97",
    "arm": "graft",
    "trial": 2,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -1285,7 +1285,7 @@
    "context_tool_calls": 11,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/kenalink-rs-188ae97-graft-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-b-188ae97-graft-t2.jsonl",
    "wrote": [
     "src/api_ws/mod.rs",
     "src/protocol.rs",
@@ -1300,7 +1300,7 @@
    "exact": true
   },
   {
-   "task": "api-music-nodo-2fd7c63",
+   "task": "rs-svc-a-2fd7c63",
    "arm": "cold",
    "trial": 1,
    "ms": 290890,
@@ -1322,7 +1322,7 @@
    "context_tool_calls": 0,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-cold-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-a-2fd7c63-cold-t1.jsonl",
    "wrote": [
     "src/http/controllers/chipbot.rs",
     "src/providers/chipbot.rs",
@@ -1339,7 +1339,7 @@
    "exact": false
   },
   {
-   "task": "api-music-nodo-2fd7c63",
+   "task": "rs-svc-a-2fd7c63",
    "arm": "kivgraph",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -1364,7 +1364,7 @@
    "context_tool_calls": 2,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-kivgraph-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-a-2fd7c63-kivgraph-t1.jsonl",
    "wrote": [
     "src/http/controllers/chipbot.rs",
     "src/providers/chipbot.rs",
@@ -1381,7 +1381,7 @@
    "exact": false
   },
   {
-   "task": "api-music-nodo-2fd7c63",
+   "task": "rs-svc-a-2fd7c63",
    "arm": "graft",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -1407,7 +1407,7 @@
    "context_tool_calls": 8,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-graft-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-a-2fd7c63-graft-t1.jsonl",
    "wrote": [
     "src/http/controllers/chipbot.rs",
     "src/system/chipbot_files.rs",
@@ -1421,7 +1421,7 @@
    "exact": true
   },
   {
-   "task": "api-music-nodo-2fd7c63",
+   "task": "rs-svc-a-2fd7c63",
    "arm": "cold",
    "trial": 2,
    "ms": 247593,
@@ -1442,7 +1442,7 @@
    "context_tool_calls": 0,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-cold-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-a-2fd7c63-cold-t2.jsonl",
    "wrote": [
     "src/http/controllers/chipbot.rs",
     "src/system/chipbot_files.rs",
@@ -1456,7 +1456,7 @@
    "exact": true
   },
   {
-   "task": "api-music-nodo-2fd7c63",
+   "task": "rs-svc-a-2fd7c63",
    "arm": "kivgraph",
    "trial": 2,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -1481,7 +1481,7 @@
    "context_tool_calls": 2,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-kivgraph-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-a-2fd7c63-kivgraph-t2.jsonl",
    "wrote": [
     "src/http/controllers/chipbot.rs",
     "src/system/chipbot_files.rs",
@@ -1495,7 +1495,7 @@
    "exact": true
   },
   {
-   "task": "api-music-nodo-2fd7c63",
+   "task": "rs-svc-a-2fd7c63",
    "arm": "graft",
    "trial": 2,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -1522,7 +1522,7 @@
    "context_tool_calls": 19,
    "terminal_reason": "completed",
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-music-nodo-2fd7c63-graft-t2.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/rs-svc-a-2fd7c63-graft-t2.jsonl",
    "wrote": [
     "src/http/controllers/chipbot.rs",
     "src/system/chipbot_files.rs",

@@ -9,7 +9,7 @@
     "os": "Darwin"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "code_files": 0
   },
@@ -24,7 +24,7 @@
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
-    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/workspace-copy",
     "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
@@ -36,7 +36,7 @@
       "family": "references",
       "question": "Which call sites use the withRetry declared in libraries/library-shared/src/utils/retry.ts?",
       "ground_truth": [
-        "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+        "modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
         "packages/core/src/cluster/master/index.ts",
         "packages/core/src/cluster/worker/BotWorker.ts",
         "packages/core/src/shared/utils/sharding.ts",
@@ -65,7 +65,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": []
           },
@@ -93,7 +93,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": []
           },
@@ -121,7 +121,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": []
           }
@@ -146,7 +146,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": []
           },
@@ -159,7 +159,7 @@
               "tokens": 129,
               "ms": 0.188,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, go-svc-b:internal/shared/infisical/infisical.go:240, go-svc-a:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, go-svc-a:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
@@ -174,7 +174,7 @@
             "core:src/cluster/worker/BotWorker.ts",
             "gateway:src/grpc/server.ts",
             "core:src/cluster/master/index.ts",
-            "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "sdk-module-ts:src/sdk/client/PrivateModule.ts",
             "core:src/shared/utils/sharding.ts"
           ],
           "score": {
@@ -183,7 +183,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "precision": 1,
             "recall": 1,
@@ -239,7 +239,7 @@
           "ms": 0,
           "call_count": 8,
           "claimed": [
-            "sdk-module-ts:src/sdk/client/KenaModule.ts",
+            "sdk-module-ts:src/sdk/client/PrivateModule.ts",
             "core:src/cluster/master/index.ts",
             "core:src/cluster/worker/BotWorker.ts",
             "core:src/shared/utils/sharding.ts",
@@ -251,7 +251,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "precision": 1,
             "recall": 1,
@@ -265,10 +265,10 @@
     {
       "id": "R2_go",
       "family": "references",
-      "question": "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+      "question": "Which call sites use withRetry in services/go-svc-a/internal/infrastructure/postgres/retry.go?",
       "ground_truth": [
-        "services/api-db-go/internal/infrastructure/postgres/client.go",
-        "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+        "services/go-svc-a/internal/infrastructure/postgres/client.go",
+        "services/go-svc-a/internal/infrastructure/postgres/retry_test.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -289,8 +289,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           },
@@ -314,8 +314,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           },
@@ -339,8 +339,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           }
@@ -366,8 +366,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           },
@@ -381,7 +381,7 @@
               "tokens": 129,
               "ms": 0.301,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, go-svc-b:internal/shared/infisical/infisical.go:240, go-svc-a:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, go-svc-a:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
@@ -393,17 +393,17 @@
           "ms": 0.469,
           "call_count": 2,
           "claimed": [
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/client.go"
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/client.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -459,13 +459,13 @@
           "ms": 0,
           "call_count": 8,
           "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            "go-svc-a:internal/infrastructure/postgres/client.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -767,14 +767,14 @@
     {
       "id": "R4_rust",
       "family": "references",
-      "question": "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+      "question": "Which files call now_ms() from services/rs-svc-b/src/util.rs?",
       "ground_truth": [
-        "services/kenalink-rs/src/api_rest/error.rs",
-        "services/kenalink-rs/src/api_rest/routes_players.rs",
-        "services/kenalink-rs/src/api_rest/routes_sessions.rs",
-        "services/kenalink-rs/src/api_ws/mod.rs",
-        "services/kenalink-rs/src/audio/songbird_engine.rs",
-        "services/kenalink-rs/src/main.rs"
+        "services/rs-svc-b/src/api_rest/error.rs",
+        "services/rs-svc-b/src/api_rest/routes_players.rs",
+        "services/rs-svc-b/src/api_rest/routes_sessions.rs",
+        "services/rs-svc-b/src/api_ws/mod.rs",
+        "services/rs-svc-b/src/audio/songbird_engine.rs",
+        "services/rs-svc-b/src/main.rs"
       ],
       "arms": {
         "code-review-graph": {
@@ -795,12 +795,12 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           },
@@ -824,12 +824,12 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           },
@@ -853,12 +853,12 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           }
@@ -881,12 +881,12 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           },
@@ -899,7 +899,7 @@
               "tokens": 84,
               "ms": 0.214,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
+              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: rs-svc-a:src/providers/chipbot.rs:392, rs-svc-a:src/system/chipbot_files.rs:123, rs-svc-b:src/util.rs:3, rs-svc-a:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
@@ -911,49 +911,49 @@
           "ms": 0.476,
           "call_count": 2,
           "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/api_rest/error.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs"
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_sessions.rs",
+            "rs-svc-b:src/api_rest/routes_sessions.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/audio/songbird_engine.rs",
+            "rs-svc-b:src/audio/songbird_engine.rs",
+            "rs-svc-b:src/audio/songbird_engine.rs",
+            "rs-svc-b:src/audio/songbird_engine.rs",
+            "rs-svc-b:src/api_rest/error.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -994,21 +994,21 @@
           "ms": 0,
           "call_count": 5,
           "claimed": [
-            "kenalink-rs:src/api_rest/error.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_rest/routes_sessions.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/audio/songbird_engine.rs",
-            "kenalink-rs:src/main.rs"
+            "rs-svc-b:src/api_rest/error.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_rest/routes_sessions.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/audio/songbird_engine.rs",
+            "rs-svc-b:src/main.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -1024,8 +1024,8 @@
       "family": "impact",
       "question": "Which files hold something that reaches expBackoffJitter within two hops?",
       "ground_truth": [
-        "services/api-db-go/internal/infrastructure/postgres/client.go",
-        "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+        "services/go-svc-a/internal/infrastructure/postgres/client.go",
+        "services/go-svc-a/internal/infrastructure/postgres/retry_test.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -1046,8 +1046,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           },
@@ -1071,8 +1071,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           },
@@ -1096,8 +1096,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           }
@@ -1123,8 +1123,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": []
           },
@@ -1143,19 +1143,19 @@
           "ms": 1.074,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go",
-            "api-db-go:internal/infrastructure/postgres/client.go"
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go",
+            "go-svc-a:internal/infrastructure/postgres/client.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -1181,13 +1181,13 @@
           "ms": 0,
           "call_count": 2,
           "claimed": [
-            "api-db-go:internal/infrastructure/postgres/client.go",
-            "api-db-go:internal/infrastructure/postgres/retry_test.go"
+            "go-svc-a:internal/infrastructure/postgres/client.go",
+            "go-svc-a:internal/infrastructure/postgres/retry_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -1497,7 +1497,7 @@
     {
       "id": "O2_go_small",
       "family": "outline",
-      "question": "What is declared at the top level of api-db-go postgres/retry.go?",
+      "question": "What is declared at the top level of go-svc-a postgres/retry.go?",
       "ground_truth": [
         "expBackoffJitter",
         "retryInfo",
@@ -1670,9 +1670,9 @@
     {
       "id": "H1_go_method",
       "family": "references",
-      "question": "Which files reference the GetAll declared on BotsHandler in services/api-db-go?",
+      "question": "Which files reference the GetAll declared on BotsHandler in services/go-svc-a?",
       "ground_truth": [
-        "services/api-db-go/internal/application/routers/bots_router.go"
+        "services/go-svc-a/internal/application/routers/bots_router.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -1693,7 +1693,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/routers/bots_router.go"
+              "go-svc-a:internal/application/routers/bots_router.go"
             ],
             "spurious": []
           },
@@ -1717,7 +1717,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/routers/bots_router.go"
+              "go-svc-a:internal/application/routers/bots_router.go"
             ],
             "spurious": []
           },
@@ -1741,7 +1741,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/routers/bots_router.go"
+              "go-svc-a:internal/application/routers/bots_router.go"
             ],
             "spurious": []
           }
@@ -1768,48 +1768,48 @@
           "ms": 400.183,
           "call_count": 3,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/domain/errors/mongo_error.go",
-            "api-db-go:internal/domain/errors/not_found.go",
-            "api-db-go:internal/application/handlers/bots_mock_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/validations/bot_validations.go",
-            "api-db-go:internal/application/routers/bots_router.go",
-            "api-db-go:internal/domain/errors/unknown_error.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/validations/bot_validations.go",
-            "api-db-go:internal/application/routers/bots_router.go",
-            "api-db-go:internal/application/routers/bots_router.go",
-            "api-db-go:internal/application/routers/bots_router.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+            "go-svc-a:internal/application/handlers/capture_errors.go",
+            "go-svc-a:internal/domain/errors/mongo_error.go",
+            "go-svc-a:internal/domain/errors/not_found.go",
+            "go-svc-a:internal/application/handlers/bots_mock_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/domain/validations/bot_validations.go",
+            "go-svc-a:internal/application/routers/bots_router.go",
+            "go-svc-a:internal/domain/errors/unknown_error.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/domain/validations/bot_validations.go",
+            "go-svc-a:internal/application/routers/bots_router.go",
+            "go-svc-a:internal/application/routers/bots_router.go",
+            "go-svc-a:internal/application/routers/bots_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/bots_mock_test.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/routers/bots_router.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/errors/mongo_error.go",
-              "api-db-go:internal/domain/errors/not_found.go",
-              "api-db-go:internal/domain/errors/unknown_error.go",
-              "api-db-go:internal/domain/validations/bot_validations.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/bots_mock_test.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/application/routers/bots_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/errors/mongo_error.go",
+              "go-svc-a:internal/domain/errors/not_found.go",
+              "go-svc-a:internal/domain/errors/unknown_error.go",
+              "go-svc-a:internal/domain/validations/bot_validations.go"
             ],
             "precision": 0.1,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/bots_mock_test.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/errors/mongo_error.go",
-              "api-db-go:internal/domain/errors/not_found.go",
-              "api-db-go:internal/domain/errors/unknown_error.go",
-              "api-db-go:internal/domain/validations/bot_validations.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/bots_mock_test.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/errors/mongo_error.go",
+              "go-svc-a:internal/domain/errors/not_found.go",
+              "go-svc-a:internal/domain/errors/unknown_error.go",
+              "go-svc-a:internal/domain/validations/bot_validations.go"
             ]
           },
           "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"GetAll\"` refused with `No unique node match`, naming none of the 46 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `handlers_bots_handler_getall`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood seeded by label matching that crosses homonyms and mixes callers with callees",
@@ -1822,7 +1822,7 @@
               "tokens": 72,
               "ms": 0.356,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"GetAll\" declares 3 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/application/handlers/premium_handler.go:47, api-db-go:internal/application/handlers/bots_handler.go:47, api-db-go:internal/application/handlers/command_handler.go:33"
+              "error": "AMBIGUOUS_SYMBOL: name \"GetAll\" declares 3 symbols; repeat with the repository and path of the one you mean: go-svc-a:internal/application/handlers/premium_handler.go:47, go-svc-a:internal/application/handlers/bots_handler.go:47, go-svc-a:internal/application/handlers/command_handler.go:33"
             },
             {
               "tool": "find_references",
@@ -1834,11 +1834,11 @@
           "ms": 0.546,
           "call_count": 2,
           "claimed": [
-            "api-db-go:internal/application/routers/bots_router.go"
+            "go-svc-a:internal/application/routers/bots_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/routers/bots_router.go"
+              "go-svc-a:internal/application/routers/bots_router.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -1874,11 +1874,11 @@
           "ms": 0,
           "call_count": 4,
           "claimed": [
-            "api-db-go:internal/application/routers/bots_router.go"
+            "go-svc-a:internal/application/routers/bots_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/routers/bots_router.go"
+              "go-svc-a:internal/application/routers/bots_router.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -1892,9 +1892,9 @@
     {
       "id": "H2_go_iface",
       "family": "references",
-      "question": "Which files call the FindPendingGuilds implemented by NotifierSubRepository in services/api-db-go?",
+      "question": "Which files call the FindPendingGuilds implemented by NotifierSubRepository in services/go-svc-a?",
       "ground_truth": [
-        "services/api-db-go/internal/application/handlers/guilds_handler.go"
+        "services/go-svc-a/internal/application/handlers/guilds_handler.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -1915,7 +1915,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "spurious": []
           },
@@ -1939,7 +1939,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "spurious": []
           },
@@ -1963,7 +1963,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "spurious": []
           }
@@ -1984,7 +1984,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "spurious": []
           },
@@ -1997,7 +1997,7 @@
               "tokens": 61,
               "ms": 0.215,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"FindPendingGuilds\" declares 2 symbols; repeat with the repository and path of the one you mean: api-db-go:internal/infrastructure/postgres/notifier_sub_repository.go:182, api-db-go:internal/infrastructure/pgrepo/repos.go:329"
+              "error": "AMBIGUOUS_SYMBOL: name \"FindPendingGuilds\" declares 2 symbols; repeat with the repository and path of the one you mean: go-svc-a:internal/infrastructure/postgres/notifier_sub_repository.go:182, go-svc-a:internal/infrastructure/pgrepo/repos.go:329"
             },
             {
               "tool": "find_references",
@@ -2009,11 +2009,11 @@
           "ms": 0.348,
           "call_count": 2,
           "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go"
+            "go-svc-a:internal/application/handlers/guilds_handler.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -2044,11 +2044,11 @@
           "ms": 0,
           "call_count": 3,
           "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go"
+            "go-svc-a:internal/application/handlers/guilds_handler.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -2064,7 +2064,7 @@
       "family": "references",
       "question": "Which files use the ApiRuntimeState declared in libraries/library-shared/src/types/gateway-registry.ts?",
       "ground_truth": [
-        "libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+        "libraries/library-shared/src/redis/cache/gateway/registry/go-svc-d-cache.ts",
         "packages/gateway/src/grpc/manager/RegistryGrpcManager.ts"
       ],
       "arms": {
@@ -2087,7 +2087,7 @@
             "recall": 0,
             "missing": [
               "gateway:src/grpc/manager/RegistryGrpcManager.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+              "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
             ],
             "spurious": []
           },
@@ -2112,7 +2112,7 @@
             "recall": 0,
             "missing": [
               "gateway:src/grpc/manager/RegistryGrpcManager.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+              "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
             ],
             "spurious": []
           },
@@ -2137,7 +2137,7 @@
             "recall": 0,
             "missing": [
               "gateway:src/grpc/manager/RegistryGrpcManager.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+              "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
             ],
             "spurious": []
           }
@@ -2154,21 +2154,21 @@
           "ms": 104.993,
           "call_count": 1,
           "claimed": [
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
             "library-shared:src/redis/cache/base-cache.ts",
             "library-shared:src/redis/cache/base-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
           ],
           "score": {
             "claimed_set": [
               "library-shared:src/redis/cache/base-cache.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+              "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
             ],
             "precision": 0.5,
             "recall": 0.5,
@@ -2193,18 +2193,18 @@
           "ms": 0.27,
           "call_count": 1,
           "claimed": [
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
             "gateway:src/grpc/manager/RegistryGrpcManager.ts"
           ],
           "score": {
             "claimed_set": [
               "gateway:src/grpc/manager/RegistryGrpcManager.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+              "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
             ],
             "precision": 1,
             "recall": 1,
@@ -2224,13 +2224,13 @@
           "ms": 0,
           "call_count": 1,
           "claimed": [
-            "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts",
+            "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts",
             "gateway:src/grpc/manager/RegistryGrpcManager.ts"
           ],
           "score": {
             "claimed_set": [
               "gateway:src/grpc/manager/RegistryGrpcManager.ts",
-              "library-shared:src/redis/cache/gateway/registry/api-registry-cache.ts"
+              "library-shared:src/redis/cache/gateway/registry/go-svc-d-cache.ts"
             ],
             "precision": 1,
             "recall": 1,
@@ -2399,11 +2399,11 @@
     {
       "id": "H5_rs_trait",
       "family": "references",
-      "question": "Which files call the delete_player implemented by MemoryStateStore in services/kenalink-rs?",
+      "question": "Which files call the delete_player implemented by MemoryStateStore in services/rs-svc-b?",
       "ground_truth": [
-        "services/kenalink-rs/src/api_rest/routes_players.rs",
-        "services/kenalink-rs/src/api_ws/mod.rs",
-        "services/kenalink-rs/src/main.rs"
+        "services/rs-svc-b/src/api_rest/routes_players.rs",
+        "services/rs-svc-b/src/api_ws/mod.rs",
+        "services/rs-svc-b/src/main.rs"
       ],
       "arms": {
         "code-review-graph": {
@@ -2424,9 +2424,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           },
@@ -2450,9 +2450,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           },
@@ -2476,9 +2476,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           }
@@ -2501,9 +2501,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": []
           },
@@ -2516,7 +2516,7 @@
               "tokens": 54,
               "ms": 0.22,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"delete_player\" declares 2 symbols; repeat with the repository and path of the one you mean: kenalink-rs:src/api_rest/routes_players.rs:393, kenalink-rs:src/state/memory.rs:84"
+              "error": "AMBIGUOUS_SYMBOL: name \"delete_player\" declares 2 symbols; repeat with the repository and path of the one you mean: rs-svc-b:src/api_rest/routes_players.rs:393, rs-svc-b:src/state/memory.rs:84"
             },
             {
               "tool": "find_references",
@@ -2528,16 +2528,16 @@
           "ms": 0.359,
           "call_count": 2,
           "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/main.rs",
-            "kenalink-rs:src/api_rest/routes_players.rs"
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/main.rs",
+            "rs-svc-b:src/api_rest/routes_players.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -2573,15 +2573,15 @@
           "ms": 0,
           "call_count": 4,
           "claimed": [
-            "kenalink-rs:src/api_rest/routes_players.rs",
-            "kenalink-rs:src/api_ws/mod.rs",
-            "kenalink-rs:src/main.rs"
+            "rs-svc-b:src/api_rest/routes_players.rs",
+            "rs-svc-b:src/api_ws/mod.rs",
+            "rs-svc-b:src/main.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -2595,7 +2595,7 @@
     {
       "id": "A1_go_absent",
       "family": "references",
-      "question": "Which files reference the BenchmarkDeserializeValueDate declared in services/api-db-go?",
+      "question": "Which files reference the BenchmarkDeserializeValueDate declared in services/go-svc-a?",
       "ground_truth": [],
       "arms": {
         "code-review-graph": {
@@ -2675,59 +2675,59 @@
           "ms": 139.972,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/domain/dbguild/config_override.go",
-            "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-            "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-            "api-db-go:internal/infrastructure/redis/bot_cache.go",
-            "api-db-go:internal/infrastructure/redis/command_cache.go",
-            "api-db-go:internal/infrastructure/redis/global_cache.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-            "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-            "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-            "api-db-go:internal/infrastructure/redis/module_cache.go",
-            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-            "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-            "api-db-go:internal/infrastructure/redis/premium_cache.go"
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/domain/dbguild/config_override.go",
+            "go-svc-a:internal/infrastructure/mongo/command_repository_test.go",
+            "go-svc-a:internal/infrastructure/mongo/premium_repository_test.go",
+            "go-svc-a:internal/infrastructure/redis/bot_cache.go",
+            "go-svc-a:internal/infrastructure/redis/command_cache.go",
+            "go-svc-a:internal/infrastructure/redis/global_cache.go",
+            "go-svc-a:internal/infrastructure/redis/guild_cache.go",
+            "go-svc-a:internal/infrastructure/redis/guild_cache.go",
+            "go-svc-a:internal/infrastructure/redis/guild_cache_test.go",
+            "go-svc-a:internal/infrastructure/redis/guild_cache_test.go",
+            "go-svc-a:internal/infrastructure/redis/guild_cache_test.go",
+            "go-svc-a:internal/infrastructure/redis/guild_core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/guild_core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/module_cache.go",
+            "go-svc-a:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "go-svc-a:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "go-svc-a:internal/infrastructure/redis/module_greeter_marshal_test.go",
+            "go-svc-a:internal/infrastructure/redis/premium_cache.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/domain/dbguild/config_override.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-              "api-db-go:internal/infrastructure/redis/bot_cache.go",
-              "api-db-go:internal/infrastructure/redis/command_cache.go",
-              "api-db-go:internal/infrastructure/redis/global_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-              "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-              "api-db-go:internal/infrastructure/redis/module_cache.go",
-              "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-              "api-db-go:internal/infrastructure/redis/premium_cache.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:internal/domain/dbguild/config_override.go",
+              "go-svc-a:internal/infrastructure/mongo/command_repository_test.go",
+              "go-svc-a:internal/infrastructure/mongo/premium_repository_test.go",
+              "go-svc-a:internal/infrastructure/redis/bot_cache.go",
+              "go-svc-a:internal/infrastructure/redis/command_cache.go",
+              "go-svc-a:internal/infrastructure/redis/global_cache.go",
+              "go-svc-a:internal/infrastructure/redis/guild_cache.go",
+              "go-svc-a:internal/infrastructure/redis/guild_cache_test.go",
+              "go-svc-a:internal/infrastructure/redis/guild_core_cache.go",
+              "go-svc-a:internal/infrastructure/redis/module_cache.go",
+              "go-svc-a:internal/infrastructure/redis/module_greeter_marshal_test.go",
+              "go-svc-a:internal/infrastructure/redis/premium_cache.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 0,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:internal/domain/dbguild/config_override.go",
-              "api-db-go:internal/infrastructure/mongo/command_repository_test.go",
-              "api-db-go:internal/infrastructure/mongo/premium_repository_test.go",
-              "api-db-go:internal/infrastructure/redis/bot_cache.go",
-              "api-db-go:internal/infrastructure/redis/command_cache.go",
-              "api-db-go:internal/infrastructure/redis/global_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache.go",
-              "api-db-go:internal/infrastructure/redis/guild_cache_test.go",
-              "api-db-go:internal/infrastructure/redis/guild_core_cache.go",
-              "api-db-go:internal/infrastructure/redis/module_cache.go",
-              "api-db-go:internal/infrastructure/redis/module_greeter_marshal_test.go",
-              "api-db-go:internal/infrastructure/redis/premium_cache.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:internal/domain/dbguild/config_override.go",
+              "go-svc-a:internal/infrastructure/mongo/command_repository_test.go",
+              "go-svc-a:internal/infrastructure/mongo/premium_repository_test.go",
+              "go-svc-a:internal/infrastructure/redis/bot_cache.go",
+              "go-svc-a:internal/infrastructure/redis/command_cache.go",
+              "go-svc-a:internal/infrastructure/redis/global_cache.go",
+              "go-svc-a:internal/infrastructure/redis/guild_cache.go",
+              "go-svc-a:internal/infrastructure/redis/guild_cache_test.go",
+              "go-svc-a:internal/infrastructure/redis/guild_core_cache.go",
+              "go-svc-a:internal/infrastructure/redis/module_cache.go",
+              "go-svc-a:internal/infrastructure/redis/module_greeter_marshal_test.go",
+              "go-svc-a:internal/infrastructure/redis/premium_cache.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ]
           },
           "note": "graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability"
@@ -2910,7 +2910,7 @@
     {
       "id": "A3_rs_absent",
       "family": "references",
-      "question": "Which files call the build_all_image_sizes declared in services/api-music-nodo?",
+      "question": "Which files call the build_all_image_sizes declared in services/rs-svc-a?",
       "ground_truth": [],
       "arms": {
         "code-review-graph": {
@@ -3044,7 +3044,7 @@
     {
       "id": "O3_rs_outline",
       "family": "outline",
-      "question": "What is declared at the top level of api-music-nodo audio/range.rs?",
+      "question": "What is declared at the top level of rs-svc-a audio/range.rs?",
       "ground_truth": [
         "RangeOutcome",
         "build_response",
@@ -3252,10 +3252,10 @@
       "family": "impact",
       "question": "Which files hold something that reaches the AutomationScheduledGuildIDs of GuildsHandler within two hops?",
       "ground_truth": [
-        "services/api-db-go/cmd/server/main.go",
-        "services/api-db-go/internal/application/handlers/guilds_mock_test.go",
-        "services/api-db-go/internal/application/routers/guilds_router.go",
-        "services/api-db-go/internal/application/routers/routers_test.go"
+        "services/go-svc-a/cmd/server/main.go",
+        "services/go-svc-a/internal/application/handlers/guilds_mock_test.go",
+        "services/go-svc-a/internal/application/routers/guilds_router.go",
+        "services/go-svc-a/internal/application/routers/routers_test.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -3276,10 +3276,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -3303,10 +3303,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -3330,10 +3330,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           }
@@ -3360,52 +3360,52 @@
           "ms": 418.677,
           "call_count": 3,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/module_notifier_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+            "go-svc-a:internal/application/handlers/capture_errors.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/module_notifier_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ],
             "precision": 0.4,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ]
           },
           "note": "`affected --depth 2` (the flag's own default is 2); graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"AutomationScheduledGuildIDs\"` refused with `No unique node match`, naming none of the 2 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `handlers_guilds_handler_automationscheduledguildids`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood rather than a reachable set",
@@ -3423,18 +3423,18 @@
           "ms": 1,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -3460,17 +3460,17 @@
           "ms": 0,
           "call_count": 2,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -3486,10 +3486,10 @@
       "family": "impact",
       "question": "Which files hold something that reaches the AutomationScheduledGuildIDs of GuildsHandler within three hops?",
       "ground_truth": [
-        "services/api-db-go/cmd/server/main.go",
-        "services/api-db-go/internal/application/handlers/guilds_mock_test.go",
-        "services/api-db-go/internal/application/routers/guilds_router.go",
-        "services/api-db-go/internal/application/routers/routers_test.go"
+        "services/go-svc-a/cmd/server/main.go",
+        "services/go-svc-a/internal/application/handlers/guilds_mock_test.go",
+        "services/go-svc-a/internal/application/routers/guilds_router.go",
+        "services/go-svc-a/internal/application/routers/routers_test.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -3510,10 +3510,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -3537,10 +3537,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -3564,10 +3564,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           }
@@ -3594,52 +3594,52 @@
           "ms": 429.819,
           "call_count": 3,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/domain/validations/module_notifier_validations.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+            "go-svc-a:internal/application/handlers/capture_errors.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/domain/validations/module_notifier_validations.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ],
             "precision": 0.4,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ]
           },
           "note": "`affected --depth 3` (the flag's own default is 2); graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"AutomationScheduledGuildIDs\"` refused with `No unique node match`, naming none of the 2 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `handlers_guilds_handler_automationscheduledguildids`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood rather than a reachable set",
@@ -3657,44 +3657,44 @@
           "ms": 0.99,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -3720,17 +3720,17 @@
           "ms": 0,
           "call_count": 2,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -3876,7 +3876,7 @@
     {
       "id": "X2_go_absent_consumers",
       "family": "consumers",
-      "question": "Which files outside api-db-go consume the LoadSecrets it declares?",
+      "question": "Which files outside go-svc-a consume the LoadSecrets it declares?",
       "ground_truth": [],
       "arms": {
         "code-review-graph": {
@@ -3967,7 +3967,7 @@
       "family": "dependencies",
       "question": "Which files declare something RegisterGuilds reaches outward in one hop?",
       "ground_truth": [
-        "services/api-db-go/internal/application/handlers/guilds_handler.go"
+        "services/go-svc-a/internal/application/handlers/guilds_handler.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -4006,66 +4006,66 @@
           "ms": 149.927,
           "call_count": 1,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/middlewares/recover.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/domain/mocks/fake_guilds_repo.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/middlewares/recover.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/domain/mocks/fake_guilds_repo.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_handler.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/middlewares/recover.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/mocks/fake_guilds_repo.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_handler.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/middlewares/recover.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/mocks/fake_guilds_repo.go"
             ],
             "precision": 0.16666666666666666,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/middlewares/recover.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/mocks/fake_guilds_repo.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/middlewares/recover.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/mocks/fake_guilds_repo.go"
             ]
           },
           "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
@@ -4082,19 +4082,19 @@
           "ms": 0.6,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go",
-            "api-db-go:internal/application/handlers/guilds_handler.go"
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go",
+            "go-svc-a:internal/application/handlers/guilds_handler.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -4159,11 +4159,11 @@
           "ms": 0,
           "call_count": 10,
           "claimed": [
-            "api-db-go:internal/application/handlers/guilds_handler.go"
+            "go-svc-a:internal/application/handlers/guilds_handler.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/guilds_handler.go"
+              "go-svc-a:internal/application/handlers/guilds_handler.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -4350,9 +4350,9 @@
       "family": "dependencies",
       "question": "Which files declare something UserCache reaches outward in one hop?",
       "ground_truth": [
-        "services/api-db-go/internal/infrastructure/redis/client.go",
-        "services/api-db-go/internal/infrastructure/redis/serialization.go",
-        "services/api-db-go/internal/domain/services/core_reader.go"
+        "services/go-svc-a/internal/infrastructure/redis/client.go",
+        "services/go-svc-a/internal/infrastructure/redis/serialization.go",
+        "services/go-svc-a/internal/domain/services/core_reader.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -4391,56 +4391,56 @@
           "ms": 150.204,
           "call_count": 1,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go",
-            "api-db-go:internal/infrastructure/redis/core_cache.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository_integration_test.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go",
+            "go-svc-a:internal/infrastructure/redis/core_cache.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/core_cache.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository_integration_test.go",
+              "go-svc-a:internal/infrastructure/redis/core_cache.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 0.2,
             "recall": 0.3333333333333333,
             "missing": [
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/infrastructure/redis/client.go"
+              "go-svc-a:internal/domain/services/core_reader.go",
+              "go-svc-a:internal/infrastructure/redis/client.go"
             ],
             "spurious": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository.go",
-              "api-db-go:internal/infrastructure/mongo/bot_repository_integration_test.go",
-              "api-db-go:internal/infrastructure/redis/core_cache.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository.go",
+              "go-svc-a:internal/infrastructure/mongo/bot_repository_integration_test.go",
+              "go-svc-a:internal/infrastructure/redis/core_cache.go"
             ]
           },
           "note": "`query` is a depth-2 BFS neighbourhood over an undirected graph, seeded by label matching: it has no direction, so an outward question reaches the same neighbours an inward one would, and no notion of a declaration, so a name is a name wherever it appears"
@@ -4457,16 +4457,16 @@
           "ms": 0.652,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/domain/services/core_reader.go"
+            "go-svc-a:internal/infrastructure/redis/client.go",
+            "go-svc-a:internal/infrastructure/redis/client.go",
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/domain/services/core_reader.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/infrastructure/redis/client.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:internal/domain/services/core_reader.go",
+              "go-svc-a:internal/infrastructure/redis/client.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -4501,15 +4501,15 @@
           "ms": 0,
           "call_count": 4,
           "claimed": [
-            "api-db-go:internal/infrastructure/redis/client.go",
-            "api-db-go:internal/infrastructure/redis/serialization.go",
-            "api-db-go:internal/domain/services/core_reader.go"
+            "go-svc-a:internal/infrastructure/redis/client.go",
+            "go-svc-a:internal/infrastructure/redis/serialization.go",
+            "go-svc-a:internal/domain/services/core_reader.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/domain/services/core_reader.go",
-              "api-db-go:internal/infrastructure/redis/client.go",
-              "api-db-go:internal/infrastructure/redis/serialization.go"
+              "go-svc-a:internal/domain/services/core_reader.go",
+              "go-svc-a:internal/infrastructure/redis/client.go",
+              "go-svc-a:internal/infrastructure/redis/serialization.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -4529,9 +4529,9 @@
         "libraries/library-shared/src/utils/retry.ts",
         "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
         "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
-        "services/api-db-go/internal/infrastructure/postgres/retry.go",
-        "services/api-db-go/internal/shared/infisical/infisical.go",
-        "services/api-music/internal/shared/infisical/infisical.go"
+        "services/go-svc-a/internal/infrastructure/postgres/retry.go",
+        "services/go-svc-a/internal/shared/infisical/infisical.go",
+        "services/go-svc-b/internal/shared/infisical/infisical.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -4560,9 +4560,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/retry.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
+              "go-svc-a:internal/infrastructure/postgres/retry.go",
+              "go-svc-a:internal/shared/infisical/infisical.go",
+              "go-svc-b:internal/shared/infisical/infisical.go",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -4590,9 +4590,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/retry.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
+              "go-svc-a:internal/infrastructure/postgres/retry.go",
+              "go-svc-a:internal/shared/infisical/infisical.go",
+              "go-svc-b:internal/shared/infisical/infisical.go",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -4632,9 +4632,9 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/retry.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
+              "go-svc-a:internal/infrastructure/postgres/retry.go",
+              "go-svc-a:internal/shared/infisical/infisical.go",
+              "go-svc-b:internal/shared/infisical/infisical.go",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -4662,16 +4662,16 @@
             "library-env:src/retry.ts",
             "library-shared:src/utils/retry.ts",
             "sdk-module-ts:src/sdk/types/ModuleResult.ts",
-            "api-music:internal/shared/infisical/infisical.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-db-go:internal/infrastructure/postgres/retry.go",
+            "go-svc-b:internal/shared/infisical/infisical.go",
+            "go-svc-a:internal/shared/infisical/infisical.go",
+            "go-svc-a:internal/infrastructure/postgres/retry.go",
             "sdk-module-ts:src/sdk/managers/CommandManager.ts"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/retry.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
+              "go-svc-a:internal/infrastructure/postgres/retry.go",
+              "go-svc-a:internal/shared/infisical/infisical.go",
+              "go-svc-b:internal/shared/infisical/infisical.go",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -4700,15 +4700,15 @@
             "library-shared:src/utils/retry.ts",
             "sdk-module-ts:src/sdk/managers/CommandManager.ts",
             "sdk-module-ts:src/sdk/types/ModuleResult.ts",
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go"
+            "go-svc-a:internal/infrastructure/postgres/retry.go",
+            "go-svc-a:internal/shared/infisical/infisical.go",
+            "go-svc-b:internal/shared/infisical/infisical.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/postgres/retry.go",
-              "api-db-go:internal/shared/infisical/infisical.go",
-              "api-music:internal/shared/infisical/infisical.go",
+              "go-svc-a:internal/infrastructure/postgres/retry.go",
+              "go-svc-a:internal/shared/infisical/infisical.go",
+              "go-svc-b:internal/shared/infisical/infisical.go",
               "library-env:src/retry.ts",
               "library-shared:src/utils/retry.ts",
               "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -4728,8 +4728,8 @@
       "family": "bodies",
       "question": "Give me the complete source of these three declarations, in one call",
       "ground_truth": [
-        "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
-        "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+        "go-svc-a:internal/shared/infisical/infisical.go#LoadSecrets",
+        "go-svc-a:internal/application/routers/guilds_router.go#RegisterGuilds",
         "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
       ],
       "arms": {
@@ -4777,14 +4777,14 @@
           "ms": 0.492,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
-            "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+            "go-svc-a:internal/shared/infisical/infisical.go#LoadSecrets",
+            "go-svc-a:internal/application/routers/guilds_router.go#RegisterGuilds",
             "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
-              "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+              "go-svc-a:internal/application/routers/guilds_router.go#RegisterGuilds",
+              "go-svc-a:internal/shared/infisical/infisical.go#LoadSecrets",
               "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
             ],
             "precision": 1,
@@ -4815,14 +4815,14 @@
           "ms": 0,
           "call_count": 3,
           "claimed": [
-            "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
-            "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+            "go-svc-a:internal/shared/infisical/infisical.go#LoadSecrets",
+            "go-svc-a:internal/application/routers/guilds_router.go#RegisterGuilds",
             "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
-              "api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
+              "go-svc-a:internal/application/routers/guilds_router.go#RegisterGuilds",
+              "go-svc-a:internal/shared/infisical/infisical.go#LoadSecrets",
               "library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache"
             ],
             "precision": 1,
@@ -4930,26 +4930,26 @@
       "family": "bodies",
       "question": "Give me the complete source of these twenty declarations, in one call",
       "ground_truth": [
-        "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
-        "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
-        "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
-        "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
-        "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
-        "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
-        "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
-        "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
-        "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
-        "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
-        "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
-        "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
-        "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
-        "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
-        "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
-        "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
-        "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
-        "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
-        "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
-        "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+        "go-svc-a:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+        "go-svc-a:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+        "go-svc-a:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+        "go-svc-a:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+        "go-svc-a:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+        "go-svc-a:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+        "go-svc-a:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+        "go-svc-a:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+        "go-svc-a:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+        "go-svc-a:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+        "go-svc-a:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+        "go-svc-a:internal/domain/validations/messages_validations.go#parseMessageRow",
+        "go-svc-a:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+        "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+        "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+        "go-svc-a:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+        "go-svc-a:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+        "go-svc-a:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+        "go-svc-a:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+        "go-svc-a:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
       ],
       "arms": {
         "code-review-graph": {
@@ -4996,49 +4996,49 @@
           "ms": 4.15,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
-            "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
-            "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
-            "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
-            "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
-            "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
-            "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
-            "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
-            "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
-            "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
-            "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
-            "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
-            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
-            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
-            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
-            "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
-            "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
-            "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
-            "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
-            "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+            "go-svc-a:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+            "go-svc-a:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+            "go-svc-a:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+            "go-svc-a:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+            "go-svc-a:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+            "go-svc-a:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+            "go-svc-a:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+            "go-svc-a:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+            "go-svc-a:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+            "go-svc-a:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+            "go-svc-a:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+            "go-svc-a:internal/domain/validations/messages_validations.go#parseMessageRow",
+            "go-svc-a:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+            "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+            "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+            "go-svc-a:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+            "go-svc-a:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+            "go-svc-a:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+            "go-svc-a:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+            "go-svc-a:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
-              "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
-              "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
-              "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
-              "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
-              "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
-              "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
-              "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
-              "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
-              "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
-              "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
-              "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
-              "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
-              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
-              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
-              "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
-              "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
-              "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
-              "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
-              "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+              "go-svc-a:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+              "go-svc-a:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+              "go-svc-a:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+              "go-svc-a:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+              "go-svc-a:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+              "go-svc-a:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+              "go-svc-a:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+              "go-svc-a:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+              "go-svc-a:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+              "go-svc-a:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+              "go-svc-a:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+              "go-svc-a:internal/domain/validations/messages_validations.go#parseMessageRow",
+              "go-svc-a:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+              "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+              "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+              "go-svc-a:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+              "go-svc-a:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+              "go-svc-a:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+              "go-svc-a:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+              "go-svc-a:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
             ],
             "precision": 1,
             "recall": 1,
@@ -5143,49 +5143,49 @@
           "ms": 0,
           "call_count": 18,
           "claimed": [
-            "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
-            "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
-            "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
-            "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
-            "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
-            "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
-            "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
-            "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
-            "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
-            "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
-            "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
-            "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
-            "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
-            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
-            "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
-            "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
-            "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
-            "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
-            "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
-            "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+            "go-svc-a:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+            "go-svc-a:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+            "go-svc-a:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+            "go-svc-a:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+            "go-svc-a:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+            "go-svc-a:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+            "go-svc-a:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+            "go-svc-a:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+            "go-svc-a:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+            "go-svc-a:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+            "go-svc-a:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+            "go-svc-a:internal/domain/validations/messages_validations.go#parseMessageRow",
+            "go-svc-a:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+            "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+            "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+            "go-svc-a:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+            "go-svc-a:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+            "go-svc-a:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+            "go-svc-a:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+            "go-svc-a:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
-              "api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
-              "api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
-              "api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
-              "api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
-              "api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
-              "api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
-              "api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
-              "api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
-              "api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
-              "api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
-              "api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
-              "api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
-              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
-              "api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
-              "api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
-              "api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
-              "api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
-              "api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
-              "api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
+              "go-svc-a:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+              "go-svc-a:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+              "go-svc-a:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+              "go-svc-a:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+              "go-svc-a:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+              "go-svc-a:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+              "go-svc-a:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+              "go-svc-a:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+              "go-svc-a:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+              "go-svc-a:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+              "go-svc-a:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+              "go-svc-a:internal/domain/validations/messages_validations.go#parseMessageRow",
+              "go-svc-a:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+              "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+              "go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+              "go-svc-a:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+              "go-svc-a:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+              "go-svc-a:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+              "go-svc-a:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+              "go-svc-a:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch"
             ],
             "precision": 1,
             "recall": 1,
@@ -5201,7 +5201,7 @@
       "family": "references",
       "question": "Which files reference the delete_session declared on MemoryStateStore?",
       "ground_truth": [
-        "services/kenalink-rs/src/api_ws/mod.rs"
+        "services/rs-svc-b/src/api_ws/mod.rs"
       ],
       "arms": {
         "code-review-graph": {
@@ -5222,7 +5222,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           },
@@ -5246,7 +5246,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           },
@@ -5270,7 +5270,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           }
@@ -5293,7 +5293,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           },
@@ -5311,11 +5311,11 @@
           "ms": 0.234,
           "call_count": 1,
           "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs"
+            "rs-svc-b:src/api_ws/mod.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -5345,11 +5345,11 @@
           "ms": 0,
           "call_count": 3,
           "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs"
+            "rs-svc-b:src/api_ws/mod.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -5363,9 +5363,9 @@
     {
       "id": "T1_go_trivial",
       "family": "references",
-      "question": "Which files call newGMCClient in services/api-db-go?",
+      "question": "Which files call newGMCClient in services/go-svc-a?",
       "ground_truth": [
-        "services/api-db-go/internal/infrastructure/locker/locker.go"
+        "services/go-svc-a/internal/infrastructure/locker/locker.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -5386,7 +5386,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "spurious": []
           },
@@ -5410,7 +5410,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "spurious": []
           },
@@ -5434,7 +5434,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "spurious": []
           }
@@ -5451,13 +5451,13 @@
           "ms": 140.164,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go",
-            "api-db-go:internal/infrastructure/locker/locker.go",
-            "api-db-go:internal/infrastructure/locker/locker.go"
+            "go-svc-a:internal/infrastructure/locker/locker.go",
+            "go-svc-a:internal/infrastructure/locker/locker.go",
+            "go-svc-a:internal/infrastructure/locker/locker.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -5478,11 +5478,11 @@
           "ms": 0.303,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
+            "go-svc-a:internal/infrastructure/locker/locker.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -5502,11 +5502,11 @@
           "ms": 0,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/infrastructure/locker/locker.go"
+            "go-svc-a:internal/infrastructure/locker/locker.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:internal/infrastructure/locker/locker.go"
+              "go-svc-a:internal/infrastructure/locker/locker.go"
             ],
             "precision": 1,
             "recall": 1,

@@ -58,7 +58,7 @@ mismo orden que el ruido y no se reclama como resultado.
 ## Limitaciones
 
 - **Una máquina, una semilla, cuatro clientes**, y el corpus es el sintético que
-  genera el arnés, no `kena`. Un corpus con muchas más claves distintas mueve el
+  genera el arnés, no `workspace`. Un corpus con muchas más claves distintas mueve el
   `log₂ n` de la búsqueda binaria y este banco no lo mide.
 - **Los percentiles de ida y vuelta no son sensibles a este cambio.** Se publican
   porque son la puerta declarada en la tarea, pero la evidencia real son los

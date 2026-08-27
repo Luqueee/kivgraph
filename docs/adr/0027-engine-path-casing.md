@@ -12,8 +12,8 @@ resuelve por su cuenta se reporta con la grafía canónica del volumen, en
 minúsculas:
 
 ```text
-esperado  /Users/adria/.../nomap/dist/index.d.ts
-observado /users/adria/.../nomap/dist/index.d.ts
+esperado  /path/to/home/.../nomap/dist/index.d.ts
+observado /users/someone/.../nomap/dist/index.d.ts
 ```
 
 Las rutas del propio proyecto no se ven afectadas: llegan como las declara el

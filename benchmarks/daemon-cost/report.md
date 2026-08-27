@@ -115,7 +115,7 @@ nunca produce.
 |commit|`68da6dc`, árbol limpio (`ef31f35` para la columna «antes»)|
 |plataforma|VM `linux/arm64` de Docker Desktop, imagen `golang:1.26-trixie`|
 |kernel|`Linux 6.12.54-linuxkit`, `10` CPU, page size `4096`|
-|corpus|`kena`, `37` repositorios, **`108.737` símbolos**|
+|corpus|`workspace`, `37` repositorios, **`108.737` símbolos**|
 |snapshot|`77,6 MB`, generación `000001`|
 |esquema|`daemon-cost-v3`|
 |digest ocioso socket|`043a0f42bcdc`|
@@ -151,7 +151,7 @@ que no contamina lo que vigila. Un fichero `v2` incluye esa llamada en sus bytes
 así que no es la misma medición.
 
 La generación se publicó en el host (darwin/arm64, donde hay `node 25` y el
-TypeScript de `kena` carga entero) y **se lee** en Linux. Los dos brazos leen ese
+TypeScript de `workspace` carga entero) y **se lee** en Linux. Los dos brazos leen ese
 mismo fichero, byte a byte: ninguno deriva, así que LadybugDB no participa. El
 workspace se monta en sólo lectura, que es lo que hace imposible tocar un
 repositorio indexado.
@@ -371,7 +371,7 @@ kivgraph index --full
 # ser el checkout y el árbol tiene que estar limpio, o `commit` sale vacío o con
 # `-dirty` y la corrida lo declara como limitación.
 docker run --rm -w /src \
-  -v "$PWD":/src:ro -v /ruta/a/kena:/ruta/a/kena:ro -v "$HOME":"$HOME" \
+  -v "$PWD":/src:ro -v /ruta/a/workspace:/ruta/a/workspace:ro -v "$HOME":"$HOME" \
   -e HOME="$HOME" golang:1.26-trixie bash -c '
     git config --global --add safe.directory /src
     LIB=$(scripts/fetch-ladybug.sh /tool/ladybug/v0.13.1 | tail -1)

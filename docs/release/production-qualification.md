@@ -143,7 +143,7 @@ par LadybugDB core/binding `v0.13.1`. Los resultados versionados están en
 ## Evidencia del visor web
 
 `benchmarks/web-viewer/results.json` midió el visor contra el `HotSnapshot`
-publicado de `~/kena`: `meta` p95 `1,255 ms`, payload p95 `18,31 ms`, primer
+publicado de `~/workspace`: `meta` p95 `1,255 ms`, payload p95 `18,31 ms`, primer
 frame p95 `84,53 ms`, pan/zoom p95 `11,30 ms`, hover p95 `4,90 ms`, vecindad
 depth 3 p95 `1,51 ms`, heap `41.534.874` bytes y cero errores. Chromium cargó
 el worker real, decodificó `LGVB` v2, seleccionó símbolos, expandió vecindad y
@@ -196,7 +196,7 @@ Requisitos obligatorios del despliegue:
    producción. La evidencia válida de escala es
    `benchmarks/ladybug-bulk/full-scale/report.md` y
    `benchmarks/ladybug-large/report.md`.
-9. El benchmark del visor cumple sus límites sobre `~/kena`, pero no certifica
+9. El benchmark del visor cumple sus límites sobre `~/workspace`, pero no certifica
    todavía el corpus de referencia de `100.000` símbolos y `1.000.000` aristas;
    tampoco representa una GPU discreta.
 

@@ -17,11 +17,11 @@ func TestUpsertRepositoryIsIdempotentForTheSameProject(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
 		{Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go", "typescript"},
 			Exclusions: []string{"**/testdata"}},
-		{Name: "mole", Path: "/repos/mole", Languages: []string{"go"}},
+		{Name: "go-svc-e", Path: "/repos/go-svc-e", Languages: []string{"go"}},
 	}}
 
 	changed, err := upsertRepository(&registry, config.Repository{
-		Name: "mole", Path: "/repos/mole", Languages: []string{"go"},
+		Name: "go-svc-e", Path: "/repos/go-svc-e", Languages: []string{"go"},
 	})
 	if err != nil {
 		t.Fatalf("upsertRepository() error = %v", err)
@@ -64,21 +64,21 @@ func TestUpsertRepositoryKeepsExclusionsWhenLanguagesChange(t *testing.T) {
 // of the two repositories the name means.
 func TestUpsertRepositoryRefusesANameHeldByAnotherPath(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
-		{Name: "mole", Path: "/repos/mole", Languages: []string{"go"}},
+		{Name: "go-svc-e", Path: "/repos/go-svc-e", Languages: []string{"go"}},
 	}}
 
 	_, err := upsertRepository(&registry, config.Repository{
-		Name: "mole", Path: "/elsewhere/mole", Languages: []string{"go"},
+		Name: "go-svc-e", Path: "/elsewhere/go-svc-e", Languages: []string{"go"},
 	})
 	if err == nil {
 		t.Fatal("upsertRepository() accepted a name already held by another directory")
 	}
-	for _, want := range []string{"already registered", "/repos/mole"} {
+	for _, want := range []string{"already registered", "/repos/go-svc-e"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error = %q, want it to mention %q", err, want)
 		}
 	}
-	if len(registry.Repositories) != 1 || registry.Repositories[0].Path != "/repos/mole" {
+	if len(registry.Repositories) != 1 || registry.Repositories[0].Path != "/repos/go-svc-e" {
 		t.Fatalf("repositories = %#v, want the registry untouched", registry.Repositories)
 	}
 }
@@ -89,7 +89,7 @@ func TestUpsertRepositoryAppendsAProjectThatIsNew(t *testing.T) {
 	}}
 
 	changed, err := upsertRepository(&registry, config.Repository{
-		Name: "mole", Path: "/repos/mole", Languages: []string{"go"},
+		Name: "go-svc-e", Path: "/repos/go-svc-e", Languages: []string{"go"},
 	})
 	if err != nil {
 		t.Fatalf("upsertRepository() error = %v", err)

@@ -9,7 +9,7 @@
   "go": "go1.26.4",
   "os": "darwin"
  },
- "corpus": "/Users/adria/Documents/programacion/projects/kena",
+ "corpus": "/path/to/workspace",
  "arms": [
   "cold",
   "kivgraph",
@@ -18,8 +18,8 @@
  "trials": 3,
  "tasks": [
   {
-   "id": "api-db-go-f3a50ad",
-   "repo": "services/api-db-go",
+   "id": "go-svc-a-f3a50ad",
+   "repo": "services/go-svc-a",
    "language": "go",
    "commit": "f3a50ad5ae25752fb9b7f38a8468708d6354742a",
    "subject": "fix(validación): normalizar los enums vacíos y rechazar sólo lo imposible",
@@ -31,12 +31,12 @@
     "internal/domain/validations/module_leveling_validations_test.go",
     "internal/infrastructure/mongo/module_leveling_repository.go"
    ],
-   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-kena.\n\nImplement this change:\n\nfix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».\n\nThe change belongs in the services/api-db-go repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(validación): normalizar los enums vacíos y rechazar sólo lo imposible\n\nCierra el frente de validación de las auditorías: había reglas de negocio que sólo\naplicaba el zod del navegador, así que una llamada directa a la API guardaba\nconfiguraciones que el bot no puede cumplir. Y enums vacíos que significan «no haré\nnada» pareciendo «configurado».\n\nThe change belongs in the services/go-svc-a repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
   }
  ],
  "runs": [
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "cold",
    "trial": 1,
    "ms": 732564,
@@ -57,7 +57,7 @@
    ],
    "context_tool_calls": 0,
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-cold-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-cold-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_moderation_handler.go",
     "internal/domain/dbguild/module_moderation.go",
@@ -82,7 +82,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "kivgraph",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
@@ -106,7 +106,7 @@
    ],
    "context_tool_calls": 4,
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-kivgraph-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-kivgraph-t1.jsonl",
    "wrote": [
     "internal/application/handlers/moderation_mock_test.go",
     "internal/application/handlers/module_moderation_handler.go",
@@ -131,7 +131,7 @@
    "exact": false
   },
   {
-   "task": "api-db-go-f3a50ad",
+   "task": "go-svc-a-f3a50ad",
    "arm": "graft",
    "trial": 1,
    "directive": "A code graph of this workspace is mounted over MCP as `graft`. Query it first -- to find the relevant code, a file's API surface and what calls a symbol -- and read files once it has told you which ones matter.",
@@ -157,7 +157,7 @@
    ],
    "context_tool_calls": 18,
    "errored": false,
-   "transcript": "benchmarks/agent-e2e/raw/api-db-go-f3a50ad-graft-t1.jsonl",
+   "transcript": "benchmarks/agent-e2e/raw/go-svc-a-f3a50ad-graft-t1.jsonl",
    "wrote": [
     "internal/application/handlers/module_moderation_handler.go",
     "internal/domain/validations/module_moderation_validations.go",

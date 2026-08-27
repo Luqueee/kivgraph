@@ -17,7 +17,7 @@
     "gpu_mode": "software/headless browser adapter"
   },
   "dataset": {
-    "name": "published HotSnapshot from ~/kena",
+    "name": "published HotSnapshot from ~/workspace",
     "snapshot_id": 2,
     "seed": null,
     "repositories": 35,
@@ -78,7 +78,7 @@
     "reason": "The measured published snapshot has 83,293 symbols and 204,630 edges; the SLO reference corpus requires 100,000 symbols and 1,000,000 edges."
   },
   "limitations": [
-    "This run uses the published ~/kena snapshot instead of the required 100,000-symbol / 1,000,000-edge synthetic reference corpus.",
+    "This run uses the published ~/workspace snapshot instead of the required 100,000-symbol / 1,000,000-edge synthetic reference corpus.",
     "The browser exposes an ANGLE Intel software/headless renderer; GPU-bound frame cost is not representative of a discrete GPU.",
     "The harness validates recorded metrics and fails closed; collection remains a Chromium smoke capture until a reproducible CDP launcher is supplied."
   ]

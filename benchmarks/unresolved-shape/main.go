@@ -2,7 +2,7 @@
 //
 // Every counter this project publishes reports unresolved references as one
 // number per language, and one number cannot tell a declared limitation from a
-// hidden defect. `rust_unresolved` reads 1969 against 3063 Rust symbols on kena
+// hidden defect. `rust_unresolved` reads 1969 against 3063 Rust symbols on workspace
 // -- the highest ratio of the three languages -- and nothing had ever asked what
 // those are.
 //

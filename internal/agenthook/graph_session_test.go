@@ -99,7 +99,7 @@ func TestAToolThatIsNotThereIsAnError(t *testing.T) {
 func TestIntentReadsRankedCandidates(t *testing.T) {
 	const matches = `{"snapshot_id":90,"symbols":[` +
 		`{"repository":"kivgraph","file_path":"internal/mcp/server.go","qualified_name":"mcp.NewServer"},` +
-		`{"repository":"kena","file_path":"internal/api/server.go","qn":"api.NewServer"}]}`
+		`{"repository":"workspace","file_path":"internal/api/server.go","qn":"api.NewServer"}]}`
 	graph := &daemonGraph{session: answeringSession(t,
 		map[string]string{"find_by_intent": matches}, nil)}
 	facts, err := graph.Intent(context.Background(), "New.*Server")
@@ -111,7 +111,7 @@ func TestIntentReadsRankedCandidates(t *testing.T) {
 	}
 	want := []string{
 		"kivgraph internal/mcp/server.go mcp.NewServer",
-		"kena internal/api/server.go api.NewServer",
+		"workspace internal/api/server.go api.NewServer",
 	}
 	for index, row := range want {
 		if facts.Sample[index] != row {

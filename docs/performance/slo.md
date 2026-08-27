@@ -62,7 +62,7 @@ snapshot anterior. No se publica un snapshot parcial aunque una fase falle: la
 generación candidata sólo pasa a `CURRENT` si supera integridad y validación.
 
 Lo que abarata una reindexación es la caché de hechos, no un delta: medido sobre
-el corpus `kena` (`4.683` ficheros, `477.027` aristas) los motores de lenguaje
+el corpus `workspace` (`4.683` ficheros, `477.027` aristas) los motores de lenguaje
 con caché caliente son `0,57 s` de un pase de `9,17 s`. Las cifras están en
 `benchmarks/incremental-cost/report.md`.
 

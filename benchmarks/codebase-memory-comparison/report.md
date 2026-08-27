@@ -1,9 +1,9 @@
-# Kivgraph contra `codebase-memory-mcp` sobre el workspace `kena`
+# Kivgraph contra `codebase-memory-mcp` sobre el workspace `workspace`
 
 Comparación de coste en tokens y de exactitud entre `kivgraph 0.2.1`
 (commit `67338a42b0d652db1c3edce47d8b262cb07cc06f`) y
 `codebase-memory-mcp 0.8.1`, respondiendo las mismas preguntas estructurales
-sobre `/Users/adria/Documents/programacion/projects/kena`.
+sobre `/path/to/workspace`.
 
 Las métricas crudas están en `results.json`. Este informe no emite ningún
 veredicto de aceptación: mide dos herramientas sobre un corpus concreto y en
@@ -23,17 +23,17 @@ un estado concreto de ese corpus.
 El estado de Kivgraph se creó en un `HOME` aislado (`/tmp/kivbench-home`): la
 generación `000088` del usuario y su registro de repositorios no se tocaron.
 `codebase-memory-mcp` guarda su índice en `~/.cache/codebase-memory-mcp/`. Ni
-uno ni otro escribe dentro de `kena`.
+uno ni otro escribe dentro de `workspace`.
 
 ## Dataset
 
-`kena` es un monorepo poliglota de 37 repositorios git independientes,
+`workspace` es un monorepo poliglota de 37 repositorios git independientes,
 `5.302` archivos de código y ~`840k` líneas: TypeScript `640k`
 (`.ts` + `.tsx`), Go `134k`, Rust `53k`.
 
 Estado relevante: las dependencias pnpm están instaladas y los repositorios de
-`kena` **no se consumen entre sí por fuente**. Cada uno declara
-`"@kena/shared": "0.0.1"`, un rango de registro, y pnpm materializa una copia
+`workspace` **no se consumen entre sí por fuente**. Cada uno declara
+`"@private/shared": "0.0.1"`, un rango de registro, y pnpm materializa una copia
 del paquete publicado en `node_modules/.pnpm/`, con su `dist` y sin `src`. Es
 una propiedad del corpus, no de las herramientas, y es lo que explica `Q1` y
 la sección de cross-repository.
@@ -93,7 +93,7 @@ declara.
 
 |pregunta|lenguaje|`grep`+lectura|Kivgraph|`codebase-memory-mcp`|
 |---|---|---|---|---|
-|`Q1` llamantes de `withRetry` de `@kena/shared`|TS cross-package|`16.004` tok|`2.708` tok, `P=0,00` `R=0,00`|`830` tok, `P=0,00` `R=0,00`|
+|`Q1` llamantes de `withRetry` de `@private/shared`|TS cross-package|`16.004` tok|`2.708` tok, `P=0,00` `R=0,00`|`830` tok, `P=0,00` `R=0,00`|
 |`Q2` llamantes de `withRetry` en `postgres/retry.go`|Go|`16.004` tok|`2.918` tok, `P=1,00` `R=1,00`|`961` tok, `P=0,33` `R=1,00`|
 |`Q3` llamantes de `getRequiredField`|TS intra-repo|`4.210` tok|`4.505` tok, `P=1,00` `R=0,89`|`830` tok, `P=1,00` `R=1,00`|
 |`Q4` llamantes de `now_ms()`|Rust|`3.394` tok|`3.455` tok, `P=1,00` `R=1,00`|`596` tok, `P=1,00` `R=0,67`|
@@ -102,7 +102,7 @@ declara.
 
 `withRetry` es un homónimo de siete declaraciones en tres lenguajes
 (`library-shared`, `library-env`, `sdk-module-ts` como función y como método
-privado, y tres funciones Go en `api-db-go` y `api-music`). Es el caso donde
+privado, y tres funciones Go en `go-svc-a` y `go-svc-b`). Es el caso donde
 `grep` no puede contestar y donde se ve la diferencia entre las dos
 herramientas.
 
@@ -114,18 +114,18 @@ herramientas.
   `packages/core/src/cluster/worker/BotWorker.ts`,
   `packages/core/src/shared/utils/sharding.ts` y
   `packages/gateway/src/grpc/server.ts`. Esos archivos importan `withRetry`
-  de `@kena/shared`; la arista cruza lenguaje por coincidencia de nombre. Es
+  de `@private/shared`; la arista cruza lenguaje por coincidencia de nombre. Es
   el mismo mecanismo que deja `Q1` en cero: los llamantes reales del símbolo
-  de `@kena/shared` acabaron colgados de un archivo `.go`.
+  de `@private/shared` acabaron colgados de un archivo `.go`.
 - **`Q4`, dos llamantes perdidos.** `codebase-memory-mcp` no reporta
   `api_rest/routes_players.rs` ni `api_ws/mod.rs`, que llaman `now_ms()` por
   ruta importada (`use crate::util::now_ms`) y cualificada
   (`crate::util::now_ms()`).
 - **`Q1`, Kivgraph.** Devuelve tres re-exportaciones dentro de
   `library-shared` y ninguna llamada. La causa no es que falte construir el
-  paquete: en `kena` **ningún** repositorio consume a otro por fuente. Todos
-  declaran `"@kena/shared": "0.0.1"`, un rango de registro, y pnpm coloca en
-  `node_modules/.pnpm/@kena+shared@0.0.1_…/` una copia del paquete publicado
+  paquete: en `workspace` **ningún** repositorio consume a otro por fuente. Todos
+  declaran `"@private/shared": "0.0.1"`, un rango de registro, y pnpm coloca en
+  `node_modules/.pnpm/@workspace+shared@0.0.1_…/` una copia del paquete publicado
   con su propio `dist` y sin `src`. Se comprobó construyendo
   `library-shared` y `library-env` y reindexando con la caché de hechos
   borrada: `96.923` símbolos, `368.166` aristas y `22.929` no resueltos,
@@ -143,17 +143,17 @@ herramientas.
 
 ## Cross-repository
 
-`kena` no tiene una sola dependencia `workspace:` o `link:` entre sus 37
+`workspace` no tiene una sola dependencia `workspace:` o `link:` entre sus 37
 repositorios: el grafo de consumo entre repos existe a nivel de paquete
 publicado, no de símbolo con fuente en disco. Eso acota lo que se puede medir
 sobre este corpus y obliga a un fixture aparte para el resto.
 
-### Nivel paquete, sobre `kena`
+### Nivel paquete, sobre `workspace`
 
-Pregunta: qué repositorios consumen `@kena/shared`. La verdad son los `22`
-repositorios que lo importan en código; se excluye `services/api-metrics`, que
+Pregunta: qué repositorios consumen `@private/shared`. La verdad son los `22`
+repositorios que lo importan en código; se excluye `services/go-svc-c`, que
 lo declara en `dependencies` y no lo importa en ningún `.ts`, y se excluyen
-`libraries/library-env` y `web/logs.kena.bot`, que sólo lo nombran en
+`libraries/library-env` y `web/logs.workspace`, que sólo lo nombran en
 comentarios.
 
 |          |llamadas|tokens|resultado|
@@ -163,13 +163,13 @@ comentarios.
 
 `codebase-memory-mcp` no modela paquetes npm: su label `Package` tiene `100`
 nodos y todos son módulos Go. `get_architecture` cuesta `13.548` tokens y no
-contiene la dependencia. La ausencia de `api-metrics` en la respuesta de
+contiene la dependencia. La ausencia de `go-svc-c` en la respuesta de
 Kivgraph es correcta: su arista de paquete nace de un import observado en un
 `File`, no del manifiesto.
 
 ### Identidad de símbolo, sobre un fixture de dos repositorios
 
-Como `kena` no permite medirlo, se construyó `/private/tmp/xrepo-bench` con
+Como `workspace` no permite medirlo, se construyó `/private/tmp/xrepo-bench` con
 dos repositorios git: `lib-a` exporta `withRetry` y se consume desde `app-b`
 por `node_modules/@bench/lib-a` -> `lib-a`, resuelto a `dist/*.d.ts`; `app-b`
 declara además un **homónimo local** `withRetry` en `src/local.ts` que sólo
@@ -202,7 +202,7 @@ llama.
 identidad de símbolo importado, así que no puede contestar `X1` por diseño.
 Medido: `total_cross_edges: 0` con los dos proyectos del fixture y `21`
 proyectos escaneados, y `total_cross_edges: 0` entre cinco repositorios de
-`kena` registrados por separado (`api-gateway`, `api-db-go`, `api-premium`,
+`workspace` registrados por separado (`api-gateway`, `go-svc-a`, `api-premium`,
 `api-translations`, `packages/core`), aunque `api-gateway` habla gRPC con
 `env.grpc.host` y consume rutas de `api-db`. Con la dirección en una variable
 de entorno no hay literal que casar; Kivgraph no modela rutas HTTP en
@@ -255,7 +255,7 @@ para ver el orden de magnitud, no para afirmar un SLO.
   `confidence` y `provenance`, no una lista de archivos. La ventaja ahí no es
   el ahorro, es que `P=1,00`.
 - **En cross-repository no hay competencia**: Kivgraph contesta a nivel
-  paquete sobre `kena` (`22`/`22`, 1 llamada, `2.456` tok) y a nivel símbolo
+  paquete sobre `workspace` (`22`/`22`, 1 llamada, `2.456` tok) y a nivel símbolo
   sobre el fixture (`P=1,00` `R=1,00`); `codebase-memory-mcp` no modela
   paquetes npm, y su modo cross-repo sólo casa rutas HTTP y RPC, que en este
   corpus dan `0` aristas. Sus tokens ahí son baratos porque no hay respuesta.
@@ -286,7 +286,7 @@ para ver el orden de magnitud, no para afirmar un SLO.
 ## Reproducir
 
 ```bash
-codebase-memory-mcp cli index_repository '{"repo_path":"/ruta/a/kena"}'
+codebase-memory-mcp cli index_repository '{"repo_path":"/ruta/a/workspace"}'
 
 export HOME=/tmp/kivbench-home
 kivgraph init --repository <nombre>=<ruta> ...   # un repositorio git por entrada
@@ -354,7 +354,7 @@ cambios.
 
 |pregunta|Kivgraph|`codebase-memory-mcp`|
 |---|---|---|
-|`Q1` `withRetry` de `@kena/shared`|`297` tok, 2 llamadas, `P=0,00` `R=0,00`|`830` tok, 3 llamadas, `P=0,00` `R=0,00`|
+|`Q1` `withRetry` de `@private/shared`|`297` tok, 2 llamadas, `P=0,00` `R=0,00`|`830` tok, 3 llamadas, `P=0,00` `R=0,00`|
 |`Q2` `withRetry` de `postgres/retry.go`|`320` tok, 2, `P=1,00` `R=1,00`|`961` tok, 3, `P=0,33` `R=1,00`|
 |`Q3` `getRequiredField`|`1.034` tok, 1, `P=1,00` `R=0,89`|`830` tok, 3, `P=1,00` `R=1,00`|
 |`Q4` `now_ms()`|`1.232` tok, 2, `P=1,00` `R=1,00`|`596` tok, 3, `P=1,00` `R=0,67`|
@@ -364,7 +364,7 @@ cambios.
 |outline de un directorio|`248` tok, 1 llamada|`4.875` tok, 2 intentos|
 |código de dos símbolos|`201` tok, 1|`1.231` tok, 2|
 |impacto de `getRequiredField`|`921` tok, 1, `29` afectados invocables|`2.071` tok, 2 (`trace_path` vacío + Cypher)|
-|consumidores cross-repo de `@kena/shared`|`2.202` tok, 1, `22`/`22`|`13.847` tok, 3, sin respuesta|
+|consumidores cross-repo de `@private/shared`|`2.202` tok, 1, `22`/`22`|`13.847` tok, 3, sin respuesta|
 |**total nueve preguntas**|**`7.356`** tok|`29.633` tok|
 |**sesión, con el coste fijo**|**`10.007`** tok|`32.589` tok|
 
@@ -438,7 +438,7 @@ generación `000003`, mismo rival sin tocar:
 |---|---|---|---|
 |censo de declaraciones de `withRetry` (7 filas)|`find_symbol`|`901` tok|`773` tok|
 |outline de `ipc/utils/` (13 declaraciones)|`get_file_outline`|`248` tok|`248` tok (sin cambio)|
-|consumidores cross-repo de `@kena/shared` (35 filas)|`find_cross_repo_consumers`|`2.202` tok|`926` tok|
+|consumidores cross-repo de `@private/shared` (35 filas)|`find_cross_repo_consumers`|`2.202` tok|`926` tok|
 |**total nueve preguntas**| |`6.587` tok|**`5.183`** tok|
 
 ```text
@@ -454,13 +454,13 @@ página pequeña; la ganancia real está en páginas grandes con una minoría
 disidente, como `find_symbol` sobre el prefijo `handle*` en `packages-core`
 -`500` filas, `22.657 -> 18.678` tok- o `get_file_outline` sobre un directorio
 entero -`3.667 -> 3.184` tok-, ninguna de las dos parte del cuestionario de
-nueve preguntas pero medidas sobre el mismo `kena`.
+nueve preguntas pero medidas sobre el mismo `workspace`.
 
 `find_cross_repo_consumers` es donde estaba el coste real: `35` filas con
 `22` dependencias de paquete que comparten una tupla y `13` no resueltas que
 colapsan a dos pares `(reason, detail)`. La sección "Qué falló, exactamente"
 de este mismo informe -y el ADR 0046- asumían que `detail` era prosa propia
-de cada fila no resuelta; sobre `kena` es una plantilla repetida palabra por
+de cada fila no resuelta; sobre `workspace` es una plantilla repetida palabra por
 palabra en las filas que fallan por el mismo motivo, y agrupar la expone
 como lo que es: una propiedad del grupo, no de la fila.
 

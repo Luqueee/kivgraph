@@ -1,7 +1,7 @@
 # Fixture de copia instalada por un gestor de paquetes
 
 Reproduce la forma que `pnpm` instala de verdad, medida sobre el monorepo de
-referencia (`@kena/shared@0.0.1`), no una que resuelva por `paths`:
+referencia (`@private/shared@0.0.1`), no una que resuelva por `paths`:
 
 - el consumidor llega al proveedor por un symlink de `node_modules` hacia el
   almacén `node_modules/.pnpm/<nombre>@<versión>/node_modules/<nombre>`;
@@ -24,6 +24,6 @@ workspace por el `name` del `package.json` más cercano. Ver ADR 0051.
 | `vendoredHelper`, reexportado por `@kivgraph-fixture/installed` | `@kivgraph-fixture/vendored/dist/index.d.ts` | ninguno declara `@kivgraph-fixture/vendored` | `UNRESOLVED`, sin cambio |
 
 El tercero es la dependencia transitiva que `pnpm` cuelga como hermana en el
-almacén: `@kena/shared` depende de `@kena/env`, `@kena/http` y `@kena/logger`
+almacén: `@private/shared` depende de `@workspace/env`, `@workspace/http` y `@workspace/logger`
 igual, y sólo algunas están registradas. El `package.json` más cercano al
 `.d.ts` nombra al dueño real, que no es el paquete que el consumidor importó.

@@ -117,15 +117,15 @@ para que la revisión siguiente tenga un disparador y no una discusión.
 ## La medición que esta decisión pidió, y lo que corrigió
 
 El conjunto pasó a `24` preguntas sobre los tres repositorios registrados —
-`kivgraph`, `mole` y el servicio `api-db-go` de `kena`—, con la verdad de
+`kivgraph`, `go-svc-e` y el servicio `go-svc-a` de `workspace`—, con la verdad de
 terreno leída del código y la regla de sesgo comprobada a máquina: ninguna
 palabra de una frase es un identificador declarado en su fichero respuesta.
 
 |repositorio|preguntas|`grep` acierta|la tool acierta|
 |---|---|---|---|
 |`kivgraph`|`8`|`3`|`5`|
-|`api-db-go`|`8`|`2`|`1`|
-|`mole`|`8`|`2`|`0`|
+|`go-svc-a`|`8`|`2`|`1`|
+|`go-svc-e`|`8`|`2`|`0`|
 
 **El `5` de `8` era del repositorio, no de la tool.** Sobre dos codebases que no
 escribí, `grep` va por delante: `7` de `24` contra `6` de `24`, al mismo coste

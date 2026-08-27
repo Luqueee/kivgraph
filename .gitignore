@@ -39,3 +39,9 @@ testdata/generated/
 
 # stray binary from `go build ./benchmarks/...`: the harness is run with `go run`
 /graph-tools-comparison
+
+# Compiled benchmark harnesses. They were committed once, and they embed the
+# absolute paths of the machine that built them.
+/agent-e2e
+/hot-snapshot-footprint
+/shared-snapshot

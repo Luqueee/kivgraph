@@ -15,7 +15,7 @@ siendo estructural y no una fila medida».
 |---|---|
 |fecha|`2026-08-22`|
 |versión|`kivgraph 0.5.0`, commit `c1bde5d`|
-|corpus|`kena`, 37 repositorios registrados, `5.330` ficheros de código|
+|corpus|`workspace`, 37 repositorios registrados, `5.330` ficheros de código|
 |generación|`000001`, un pase completo con el binario de `v0.5.0`|
 |tokenizador|`tiktoken` `o200k_base`|
 |datos crudos|`results-all.json` y `raw-all/`, una sola pasada `--set all` de las `29` preguntas|
@@ -46,7 +46,7 @@ que un lector termina en la búsqueda sin abrir nada.
 ## El resultado
 
 `T1_go_trivial` — «¿qué ficheros llaman a `newGMCClient` en
-`services/api-db-go`?». Verdad: un fichero.
+`services/go-svc-a`?». Verdad: un fichero.
 
 |brazo|tokens|llamadas|`P`|`R`|
 |---|---|---|---|---|

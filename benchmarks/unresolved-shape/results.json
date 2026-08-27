@@ -11,7 +11,7 @@
     "rust_analyzer": "pinned, cargo on PATH"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "note": "symbols and unresolved counted off the published canonical graph, not off the index event"
   },
@@ -42,11 +42,11 @@
         "github.com/gofiber/fiber/v3 github.com/gofiber/fiber/v3::App"
       ],
       "top_files": [
-        "file:api-db-go:internal/infrastructure/mongo/translation_repository.go",
-        "file:api-db-go:internal/infrastructure/redis/client.go",
-        "file:api-db-go:cmd/server/main.go",
-        "file:api-music:internal/infrastructure/redis/client.go",
-        "file:api-db-go:internal/infrastructure/mongo/module_music_repository.go"
+        "file:go-svc-a:internal/infrastructure/mongo/translation_repository.go",
+        "file:go-svc-a:internal/infrastructure/redis/client.go",
+        "file:go-svc-a:cmd/server/main.go",
+        "file:go-svc-b:internal/infrastructure/redis/client.go",
+        "file:go-svc-a:internal/infrastructure/mongo/module_music_repository.go"
       ]
     },
     {
@@ -88,11 +88,11 @@
         "alloc::str::impl::str::to_ascii_lowercase"
       ],
       "top_files": [
-        "file:kenalink-rs:src/audio/songbird_engine.rs",
-        "file:kenalink-rs:src/main.rs",
-        "file:api-music-nodo:src/audio/deezer_download.rs",
-        "file:api-music-nodo:tests/http_surface.rs",
-        "file:api-music-nodo:tests/redis_parity.rs"
+        "file:rs-svc-b:src/audio/songbird_engine.rs",
+        "file:rs-svc-b:src/main.rs",
+        "file:rs-svc-a:src/audio/deezer_download.rs",
+        "file:rs-svc-a:tests/http_surface.rs",
+        "file:rs-svc-a:tests/redis_parity.rs"
       ]
     },
     {
@@ -101,14 +101,14 @@
       "count": 1220,
       "share_of_language": 0.20363879152061426,
       "examples": [
-        "@kena/sdk::CommandContext",
-        "@kena/sdk::MessageContainerBuilder",
-        "@kena/sdk::SlashCommandBuilder",
-        "@kena/sdk::ArgsHandler",
-        "@kena/web::Translations",
-        "@kena/web::CommonTranslations",
-        "@kena/sdk::ContainerBuilder",
-        "@kena/sdk::TextDisplayBuilder"
+        "@workspace/sdk::CommandContext",
+        "@workspace/sdk::MessageContainerBuilder",
+        "@workspace/sdk::SlashCommandBuilder",
+        "@workspace/sdk::ArgsHandler",
+        "@workspace/web::Translations",
+        "@workspace/web::CommonTranslations",
+        "@workspace/sdk::ContainerBuilder",
+        "@workspace/sdk::TextDisplayBuilder"
       ],
       "top_files": [
         "file:moderation-module:src/events/interactions/InteractionCreate.ts",
@@ -124,14 +124,14 @@
       "count": 288,
       "share_of_language": 0.047532596137976564,
       "examples": [
-        "kena.bot/api-db-go/cmd/clone-db.test::benchmarks",
-        "kena.bot/api-db-go/cmd/clone-db.test::examples",
-        "kena.bot/api-db-go/cmd/clone-db.test::fuzzTargets",
-        "kena.bot/api-db-go/cmd/clone-db.test::init",
-        "kena.bot/api-db-go/cmd/clone-db.test::main",
-        "kena.bot/api-db-go/cmd/clone-db.test::tests",
-        "kena.bot/api-db-go/cmd/server.test::benchmarks",
-        "kena.bot/api-db-go/cmd/server.test::examples"
+        "workspace/go-svc-a/cmd/clone-db.test::benchmarks",
+        "workspace/go-svc-a/cmd/clone-db.test::examples",
+        "workspace/go-svc-a/cmd/clone-db.test::fuzzTargets",
+        "workspace/go-svc-a/cmd/clone-db.test::init",
+        "workspace/go-svc-a/cmd/clone-db.test::main",
+        "workspace/go-svc-a/cmd/clone-db.test::tests",
+        "workspace/go-svc-a/cmd/server.test::benchmarks",
+        "workspace/go-svc-a/cmd/server.test::examples"
       ]
     },
     {
@@ -140,21 +140,21 @@
       "count": 272,
       "share_of_language": 0.045401435486563176,
       "examples": [
-        "@kena/sdk::SlashCommandBuilder",
-        "@kena/sdk::ContainerBuilder",
-        "@kena/sdk::TextDisplayBuilder",
-        "@kena/sdk::ActionRowBuilder",
-        "@kena/web::userImage",
-        "@kena/sdk::Collection",
-        "@kena/sdk::SeparatorBuilder",
-        "@kena/sdk::SectionBuilder"
+        "@workspace/sdk::SlashCommandBuilder",
+        "@workspace/sdk::ContainerBuilder",
+        "@workspace/sdk::TextDisplayBuilder",
+        "@workspace/sdk::ActionRowBuilder",
+        "@workspace/web::userImage",
+        "@workspace/sdk::Collection",
+        "@workspace/sdk::SeparatorBuilder",
+        "@workspace/sdk::SectionBuilder"
       ],
       "top_files": [
         "file:tickets-module:src/test/e2e/ticket-e2e.test.ts",
         "file:tickets-module:src/shared/ticket-lifecycle.ts",
-        "file:dash.kena.bot:app/i18n/types.ts",
+        "file:dash.workspace:app/i18n/types.ts",
         "file:logs-module:src/builders/ExampleBuilder.ts",
-        "file:logs.kena.bot:app/i18n/types.ts"
+        "file:logs.workspace:app/i18n/types.ts"
       ]
     },
     {
@@ -163,21 +163,21 @@
       "count": 112,
       "share_of_language": 0.056881665820213305,
       "examples": [
-        "api-music-nodo::audio::deezer_download::impl::TrackId3Metadata::Default::default",
-        "api-music-nodo::audio::disk::impl::DiskPaths",
-        "api-music-nodo::audio::disk::impl::DiskPaths::Clone::clone",
-        "api-music-nodo::audio::range::impl::RangeOutcome",
-        "api-music-nodo::cache::health::impl::HealthCheckStore",
-        "api-music-nodo::cache::health::impl::System",
-        "api-music-nodo::cache::health::impl::System::PartialEq<Self>::eq",
-        "api-music-nodo::cache::impl::MusicNodoRedis"
+        "rs-svc-a::audio::deezer_download::impl::TrackId3Metadata::Default::default",
+        "rs-svc-a::audio::disk::impl::DiskPaths",
+        "rs-svc-a::audio::disk::impl::DiskPaths::Clone::clone",
+        "rs-svc-a::audio::range::impl::RangeOutcome",
+        "rs-svc-a::cache::health::impl::HealthCheckStore",
+        "rs-svc-a::cache::health::impl::System",
+        "rs-svc-a::cache::health::impl::System::PartialEq<Self>::eq",
+        "rs-svc-a::cache::impl::MusicNodoRedis"
       ],
       "top_files": [
-        "file:api-music-nodo:src/telemetry/bandwidth.rs",
-        "file:api-music-nodo:tests/http_surface.rs",
-        "file:api-music-nodo:src/providers/deezer.rs",
-        "file:api-music-nodo:src/providers/spotify.rs",
-        "file:api-music-nodo:src/error.rs"
+        "file:rs-svc-a:src/telemetry/bandwidth.rs",
+        "file:rs-svc-a:tests/http_surface.rs",
+        "file:rs-svc-a:src/providers/deezer.rs",
+        "file:rs-svc-a:src/providers/spotify.rs",
+        "file:rs-svc-a:src/error.rs"
       ]
     },
     {
@@ -186,20 +186,20 @@
       "count": 109,
       "share_of_language": 0.018193957603071274,
       "examples": [
-        "@kena/shared::Client",
-        "@kena/shared::UntypedServiceImplementation",
+        "@private/shared::Client",
+        "@private/shared::UntypedServiceImplementation",
         "gateway-api::Error",
-        "@kena/sdk::Error",
-        "@kena/sdk::EventEmitter",
-        "@kena/shared::Error",
-        "dash.kena.bot::Error",
-        "dash.kena.bot::Response"
+        "@workspace/sdk::Error",
+        "@workspace/sdk::EventEmitter",
+        "@private/shared::Error",
+        "dash.workspace::Error",
+        "dash.workspace::Response"
       ],
       "top_files": [
-        "file:dash.kena.bot:app/features/custom-bots/custom-bots.server.ts",
-        "file:dash.kena.bot:vitest.setup.ts",
-        "file:admin.kena.lan:app/features/tasks/components/ui/button.tsx",
-        "file:admin.kena.lan:vitest.setup.ts",
+        "file:dash.workspace:app/features/custom-bots/custom-bots.server.ts",
+        "file:dash.workspace:vitest.setup.ts",
+        "file:admin.workspace:app/features/tasks/components/ui/button.tsx",
+        "file:admin.workspace:vitest.setup.ts",
         "file:api-translations:src/mcp/confirm.ts"
       ]
     },
@@ -209,9 +209,9 @@
       "count": 3,
       "share_of_language": 0.0004951312097705892,
       "examples": [
-        "kena.bot/api-db-go/internal/testutil::",
-        "kena.bot/api-db-go::",
-        "kena.bot/api-music/internal/infrastructure/redis/testutil::"
+        "workspace/go-svc-a/internal/testutil::",
+        "workspace/go-svc-a::",
+        "workspace/go-svc-b/internal/infrastructure/redis/testutil::"
       ]
     },
     {
@@ -223,7 +223,7 @@
         "@fortawesome/fontawesome-free::"
       ],
       "top_files": [
-        "file:kena.bot:src/app/layout.tsx"
+        "file:workspace:src/app/layout.tsx"
       ]
     }
   ],
@@ -241,7 +241,7 @@
         "impl_blocks": {
           "count": 56,
           "what": "inherent and trait impl blocks -- `impl::Type` and `impl::Type::Trait` -- which the loader never publishes as symbols",
-          "evidence": "find_symbol with kind=implementation over api-music-nodo answers total 0, while the members of those same blocks are indexed and appear in get_file_outline",
+          "evidence": "find_symbol with kind=implementation over rs-svc-a answers total 0, while the members of those same blocks are indexed and appear in get_file_outline",
           "verdict": "a reference that can never resolve, against a kind the loader has code to render and never creates"
         },
         "derived_trait_members": {
@@ -313,7 +313,7 @@
     "PROVIDER_SOURCE_UNAVAILABLE": {
       "count": 1220,
       "share": 0.204,
-      "what": "kena's own packages, none of which has a dist/"
+      "what": "workspace's own packages, none of which has a dist/"
     },
     "DECLARATION_SOURCE_NOT_MAPPED": {
       "count": 272,
@@ -332,10 +332,10 @@
     "internal_share": {
       "count": 1492,
       "share": 0.249,
-      "what": "occurrences asking for kena's own packages rather than third-party ones",
+      "what": "occurrences asking for workspace's own packages rather than third-party ones",
       "corpus_state": "verified: none of sdk-module-ts, library-web or library-shared has a dist/",
       "what_a_build_would_fix": {
-        "answer": "nothing. Every internal package is a workspace member, all 105 @kena/* declarations across 28 package.json files pin 0.0.1 rather than workspace:*, and pnpm 11 defaults link-workspace-packages to false. So every consumer resolves its own monorepo's packages from published tarballs in the store, which carry no src and no .d.ts.map, and the loader excludes installed copies by design",
+        "answer": "nothing. Every internal package is a workspace member, all 105 @workspace/* declarations across 28 package.json files pin 0.0.1 rather than workspace:*, and pnpm 11 defaults link-workspace-packages to false. So every consumer resolves its own monorepo's packages from published tarballs in the store, which carry no src and no .d.ts.map, and the loader excludes installed copies by design",
         "measured": "library-web was pulled, built with nine .d.ts.map files, and the corpus went from 5998 unresolved to 5997",
         "what_would_fix_it": "consumers resolving the workspace copy: link-workspace-packages=true, or the 105 ranges as workspace:*. Both are decisions about their dependency tree"
       },
@@ -363,16 +363,16 @@
             "delta": 2270
           }
         },
-        "what_remains": "463, still naming @kena/sdk, and inherent: the sdk re-exports SlashCommandBuilder and Collection from @discordjs/builders and @discordjs/collection, so the declaring source leaves the corpus. Same class as the Rust sysroot"
+        "what_remains": "463, still naming @workspace/sdk, and inherent: the sdk re-exports SlashCommandBuilder and Collection from @discordjs/builders and @discordjs/collection, so the declaring source leaves the corpus. Same class as the Rust sysroot"
       }
     }
   },
   "corrections": [
     {
-      "what": "the first version of this report read declarationMap out of the three tsconfig.json files and concluded @kena/web did not emit one",
+      "what": "the first version of this report read declarationMap out of the three tsconfig.json files and concluded @workspace/web did not emit one",
       "why_it_was_wrong": "library-web builds with tsdown, not tsc, and its tsdown.config.ts carries dts: { sourcemap: true }",
       "how_it_was_caught": "the user said the library should have a map; pulling and building it produced nine .d.ts.map files, and re-measuring showed the unresolved count did not move",
-      "what_replaced_it": "the measured explanation: consumers resolve @kena/web from a published tarball, and the loader excludes installed copies by design"
+      "what_replaced_it": "the measured explanation: consumers resolve @workspace/web from a published tarball, and the loader excludes installed copies by design"
     },
     {
       "what": "this report then claimed library-web was absent from pnpm-workspace.yaml",

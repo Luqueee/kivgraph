@@ -1,10 +1,10 @@
 {
  "mcpServers": {
   "memory": {
-   "command": "/Users/adria/.local/bin/codebase-memory-mcp",
+   "command": "/path/to/home/.local/bin/codebase-memory-mcp",
    "env": {
     "HOME": "/private/tmp/e2e5/cmm-home",
-    "PATH": "/Users/adria/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.4.darwin-arm64/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/opt/homebrew/bin:/Users/adria/.cargo/bin:/Users/adria/.local/bin:/Users/adria/go/bin:/Users/adria/.nvm/versions/node/v25.2.1/bin"
+    "PATH": "/path/to/home/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.4.darwin-arm64/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/opt/homebrew/bin:/path/to/home/.cargo/bin:/path/to/home/.local/bin:/path/to/home/go/bin:/path/to/home/.nvm/versions/node/v25.2.1/bin"
    }
   }
  }

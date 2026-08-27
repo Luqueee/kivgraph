@@ -341,16 +341,16 @@ describe("createPackageProviderRegistry ownership", () => {
     // a first match would credit the workspace with declaring code that
     // belongs to the library inside it.
     const registry = createPackageProviderRegistry([
-      provider("@scope/workspace", "/repos/kena"),
-      provider("@scope/shared", "/repos/kena/libraries/library-shared"),
+      provider("@scope/workspace", "/repos/workspace"),
+      provider("@scope/shared", "/repos/workspace/libraries/library-shared"),
     ]);
 
     expect(
       registry.owning(
-        "/repos/kena/libraries/library-shared/src/enums/events.ts",
+        "/repos/workspace/libraries/library-shared/src/enums/events.ts",
       )?.name,
     ).toBe("@scope/shared");
-    expect(registry.owning("/repos/kena/tools/build.ts")?.name).toBe(
+    expect(registry.owning("/repos/workspace/tools/build.ts")?.name).toBe(
       "@scope/workspace",
     );
   });

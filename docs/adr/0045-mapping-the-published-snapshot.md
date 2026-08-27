@@ -332,7 +332,7 @@ valida contra «el digest de contenido que la generación ya guarda en
 `snapshot.sha256`», resultó que ese fichero **no es un digest de contenido**: lo
 escribe `writeSnapshotDigest(candidatePath, result.Tables)` sobre los contadores
 por tabla, y los contadores no distinguen dos grafos de la misma forma. Medido
-sobre `kena`: dos indexados cuyos grafos diferían en `288` filas dieron un
+sobre `workspace`: dos indexados cuyos grafos diferían en `288` filas dieron un
 `snapshot.sha256` idéntico byte a byte. La prueba de pertenencia es ahora
 `snapshot.content.sha256`, el digest del grafo -- que ya se calculaba en cada
 build y se descartaba para este uso. Ver ADR 0061.
@@ -345,7 +345,7 @@ secciones se alinean a 8 y cada ancho se declara una vez (`LUQUE-2004`). O sea:
 lo que bloqueaba mapear las tablas está hecho.
 
 **Y aun así no se hace, por lo que dice la medición.** Con dos servidores sobre
-`kena` -- `123.531` símbolos, fichero de `98,8 MB`, `darwin/arm64` medido con
+`workspace` -- `123.531` símbolos, fichero de `98,8 MB`, `darwin/arm64` medido con
 `footprint`, que es lo que esta plataforma sabe separar-- son `94 MB` de fichero
 mapeado limpio en una sola copia y `44,5 MB` sucios por proceso. Proyectado a
 cuatro clientes, `272 MB` contra `692 MB`: un `39,3 %`. Concuerda con las cifras
@@ -375,7 +375,7 @@ cumplen**, y avisaba de que el primero iba por siete décimas de margen, «así 
 quien lo convierta en gate lo mide en Linux con la línea base real». Se midió, y
 **no se cumplían**.
 
-`benchmarks/shared-snapshot` sobre `kena-workspace` -- `161.819` símbolos,
+`benchmarks/shared-snapshot` sobre `workspace` -- `161.819` símbolos,
 fichero de `129 MB`, Linux con `Pss` real, `4.000` llamadas descartadas antes de
 medir--, contra el mismo binario obligado a derivar el grafo:
 

@@ -16,7 +16,7 @@ Las métricas crudas están en `results-reach.json` y las respuestas literales e
 |---|---|
 |fecha|2026-08-21|
 |commit|`d862705`, más el descenso del ADR 0059|
-|corpus|`kena`, 37 repositorios git, `4.768` ficheros, `123.531` símbolos -- **con Rust**|
+|corpus|`workspace`, 37 repositorios git, `4.768` ficheros, `123.531` símbolos -- **con Rust**|
 |kivgraph|`0.3.6`|
 |tokenizador|`tiktoken` `o200k_base`|
 
@@ -29,7 +29,7 @@ Cada verdad se levantó resolviendo, para cada fichero que menciona el nombre,
    consumidor real, porque el import era **multilínea** y el nombre estaba en la
    línea 9 de un bloque que abre en la 2.
 2. **Por exceso de confianza en el texto.** `modules/sdk-module-ts/src/index.ts`
-   reexporta el sujeto con `export * from "@kena/shared"`. El símbolo cruza ahí
+   reexporta el sujeto con `export * from "@private/shared"`. El símbolo cruza ahí
    la frontera de repositorio **en un fichero cuyo texto no lo nombra jamás**. Lo
    encontró el grafo; se verificó aparte enumerando todos los reexports por
    estrella del paquete en el corpus -- hay exactamente uno, y ninguno nombrado.

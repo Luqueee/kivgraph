@@ -46,7 +46,7 @@ type ProjectResult struct {
 // These count what each language pass **observed**, and Counts on the same
 // result counts what the published graph **holds**. They differ on purpose and
 // they differ by language: a file belonging to two packages -- `pkg` and
-// `pkg.test` -- is observed twice and stored once, so on kena with
+// `pkg.test` -- is observed twice and stored once, so on workspace with
 // include_tests: true GoDefinitions runs 1.63x over the graph's Go symbols and
 // GoUnresolved 1.58x, TypeScript symbols 1.14x, and Rust exactly 1.00x because
 // it loads one pass per workspace. With include_tests: false the Go unresolved

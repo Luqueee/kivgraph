@@ -32,7 +32,7 @@
     }
   },
   "dataset": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repos": 37,
     "code_files": 5302,
     "loc": {
@@ -92,7 +92,7 @@
         "packages/core/src/cluster/worker/BotWorker.ts",
         "packages/core/src/shared/utils/sharding.ts",
         "packages/gateway/src/grpc/server.ts",
-        "modules/sdk-module-ts/src/sdk/client/KenaModule.ts"
+        "modules/sdk-module-ts/src/sdk/client/PrivateModule.ts"
       ],
       "kivgraph": {
         "tokens": 2708,
@@ -111,7 +111,7 @@
         "precision": 0.0,
         "recall": 0.0,
         "missing": [
-          "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+          "modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
           "packages/core/src/cluster/master/index.ts",
           "packages/core/src/cluster/worker/BotWorker.ts",
           "packages/core/src/shared/utils/sharding.ts",
@@ -132,12 +132,12 @@
           "trace_path",
           "query_graph"
         ],
-        "qualified_name": "Users-adria-Documents-programacion-projects-kena.libraries.library-shared.src.utils.retry.withRetry",
+        "qualified_name": "workspace.libraries.library-shared.src.utils.retry.withRetry",
         "files": [],
         "precision": 0.0,
         "recall": 0.0,
         "missing": [
-          "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+          "modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
           "packages/core/src/cluster/master/index.ts",
           "packages/core/src/cluster/worker/BotWorker.ts",
           "packages/core/src/shared/utils/sharding.ts",
@@ -147,10 +147,10 @@
       }
     },
     "Q2_go_callers": {
-      "question": "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+      "question": "Which call sites use withRetry in services/go-svc-a/internal/infrastructure/postgres/retry.go?",
       "gt_files": [
-        "services/api-db-go/internal/infrastructure/postgres/client.go",
-        "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+        "services/go-svc-a/internal/infrastructure/postgres/client.go",
+        "services/go-svc-a/internal/infrastructure/postgres/retry_test.go"
       ],
       "kivgraph": {
         "tokens": 2918,
@@ -162,8 +162,8 @@
         ],
         "qualified_name": "withRetry",
         "files": [
-          "services/api-db-go/internal/infrastructure/postgres/client.go",
-          "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+          "services/go-svc-a/internal/infrastructure/postgres/client.go",
+          "services/go-svc-a/internal/infrastructure/postgres/retry_test.go"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -179,14 +179,14 @@
           "trace_path",
           "query_graph"
         ],
-        "qualified_name": "Users-adria-Documents-programacion-projects-kena.services.api-db-go.internal.infrastructure.postgres.retry.withRetry",
+        "qualified_name": "workspace.services.go-svc-a.internal.infrastructure.postgres.retry.withRetry",
         "files": [
           "packages/core/src/cluster/master/index.ts",
           "packages/core/src/cluster/worker/BotWorker.ts",
           "packages/core/src/shared/utils/sharding.ts",
           "packages/gateway/src/grpc/server.ts",
-          "services/api-db-go/internal/infrastructure/postgres/client.go",
-          "services/api-db-go/internal/infrastructure/postgres/retry_test.go"
+          "services/go-svc-a/internal/infrastructure/postgres/client.go",
+          "services/go-svc-a/internal/infrastructure/postgres/retry_test.go"
         ],
         "precision": 0.333,
         "recall": 1.0,
@@ -247,7 +247,7 @@
           "trace_path",
           "query_graph"
         ],
-        "qualified_name": "Users-adria-Documents-programacion-projects-kena.packages.core.src.cluster.worker.ipc.utils.ipcCase.getRequiredField",
+        "qualified_name": "workspace.packages.core.src.cluster.worker.ipc.utils.ipcCase.getRequiredField",
         "files": [
           "packages/core/src/cluster/worker/ipc/channel.ipc.ts",
           "packages/core/src/cluster/worker/ipc/client.ipc.ts",
@@ -266,14 +266,14 @@
       }
     },
     "Q4_rust_callers": {
-      "question": "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+      "question": "Which files call now_ms() from services/rs-svc-b/src/util.rs?",
       "gt_files": [
-        "services/kenalink-rs/src/api_rest/error.rs",
-        "services/kenalink-rs/src/api_rest/routes_players.rs",
-        "services/kenalink-rs/src/api_rest/routes_sessions.rs",
-        "services/kenalink-rs/src/api_ws/mod.rs",
-        "services/kenalink-rs/src/audio/songbird_engine.rs",
-        "services/kenalink-rs/src/main.rs"
+        "services/rs-svc-b/src/api_rest/error.rs",
+        "services/rs-svc-b/src/api_rest/routes_players.rs",
+        "services/rs-svc-b/src/api_rest/routes_sessions.rs",
+        "services/rs-svc-b/src/api_ws/mod.rs",
+        "services/rs-svc-b/src/audio/songbird_engine.rs",
+        "services/rs-svc-b/src/main.rs"
       ],
       "kivgraph": {
         "tokens": 3455,
@@ -285,12 +285,12 @@
         ],
         "qualified_name": "util::now_ms",
         "files": [
-          "services/kenalink-rs/src/api_rest/error.rs",
-          "services/kenalink-rs/src/api_rest/routes_players.rs",
-          "services/kenalink-rs/src/api_rest/routes_sessions.rs",
-          "services/kenalink-rs/src/api_ws/mod.rs",
-          "services/kenalink-rs/src/audio/songbird_engine.rs",
-          "services/kenalink-rs/src/main.rs"
+          "services/rs-svc-b/src/api_rest/error.rs",
+          "services/rs-svc-b/src/api_rest/routes_players.rs",
+          "services/rs-svc-b/src/api_rest/routes_sessions.rs",
+          "services/rs-svc-b/src/api_ws/mod.rs",
+          "services/rs-svc-b/src/audio/songbird_engine.rs",
+          "services/rs-svc-b/src/main.rs"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -306,18 +306,18 @@
           "trace_path",
           "query_graph"
         ],
-        "qualified_name": "Users-adria-Documents-programacion-projects-kena.services.kenalink-rs.src.util.now_ms",
+        "qualified_name": "workspace.services.rs-svc-b.src.util.now_ms",
         "files": [
-          "services/kenalink-rs/src/api_rest/error.rs",
-          "services/kenalink-rs/src/api_rest/routes_sessions.rs",
-          "services/kenalink-rs/src/audio/songbird_engine.rs",
-          "services/kenalink-rs/src/main.rs"
+          "services/rs-svc-b/src/api_rest/error.rs",
+          "services/rs-svc-b/src/api_rest/routes_sessions.rs",
+          "services/rs-svc-b/src/audio/songbird_engine.rs",
+          "services/rs-svc-b/src/main.rs"
         ],
         "precision": 1.0,
         "recall": 0.667,
         "missing": [
-          "services/kenalink-rs/src/api_rest/routes_players.rs",
-          "services/kenalink-rs/src/api_ws/mod.rs"
+          "services/rs-svc-b/src/api_rest/routes_players.rs",
+          "services/rs-svc-b/src/api_ws/mod.rs"
         ],
         "spurious": []
       }
@@ -329,9 +329,9 @@
         "libraries/library-shared/src/utils/retry.ts",
         "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
         "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
-        "services/api-db-go/internal/infrastructure/postgres/retry.go",
-        "services/api-db-go/internal/shared/infisical/infisical.go",
-        "services/api-music/internal/shared/infisical/infisical.go"
+        "services/go-svc-a/internal/infrastructure/postgres/retry.go",
+        "services/go-svc-a/internal/shared/infisical/infisical.go",
+        "services/go-svc-b/internal/shared/infisical/infisical.go"
       ],
       "kivgraph": {
         "tokens": 2292,
@@ -345,9 +345,9 @@
           "libraries/library-shared/src/utils/retry.ts",
           "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
           "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
-          "services/api-db-go/internal/infrastructure/postgres/retry.go",
-          "services/api-db-go/internal/shared/infisical/infisical.go",
-          "services/api-music/internal/shared/infisical/infisical.go"
+          "services/go-svc-a/internal/infrastructure/postgres/retry.go",
+          "services/go-svc-a/internal/shared/infisical/infisical.go",
+          "services/go-svc-b/internal/shared/infisical/infisical.go"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -369,9 +369,9 @@
           "packages/core/tests/cluster/master/index.test.ts",
           "packages/core/tests/cluster/worker/BotWorker.presence.test.ts",
           "packages/core/tests/cluster/worker/BotWorker.test.ts",
-          "services/api-db-go/internal/infrastructure/postgres/retry.go",
-          "services/api-db-go/internal/shared/infisical/infisical.go",
-          "services/api-music/internal/shared/infisical/infisical.go"
+          "services/go-svc-a/internal/infrastructure/postgres/retry.go",
+          "services/go-svc-a/internal/shared/infisical/infisical.go",
+          "services/go-svc-b/internal/shared/infisical/infisical.go"
         ],
         "precision": 0.7,
         "recall": 1.0,
@@ -394,9 +394,9 @@
         "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
         "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
         "packages/core/tests/cluster/worker/BotWorker.test.ts",
-        "services/api-db-go/internal/infrastructure/postgres/retry.go",
-        "services/api-db-go/internal/shared/infisical/infisical.go",
-        "services/api-music/internal/shared/infisical/infisical.go"
+        "services/go-svc-a/internal/infrastructure/postgres/retry.go",
+        "services/go-svc-a/internal/shared/infisical/infisical.go",
+        "services/go-svc-b/internal/shared/infisical/infisical.go"
       ],
       "read_tokens": 13416,
       "total_tokens": 16004
@@ -410,9 +410,9 @@
         "modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
         "modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
         "packages/core/tests/cluster/worker/BotWorker.test.ts",
-        "services/api-db-go/internal/infrastructure/postgres/retry.go",
-        "services/api-db-go/internal/shared/infisical/infisical.go",
-        "services/api-music/internal/shared/infisical/infisical.go"
+        "services/go-svc-a/internal/infrastructure/postgres/retry.go",
+        "services/go-svc-a/internal/shared/infisical/infisical.go",
+        "services/go-svc-b/internal/shared/infisical/infisical.go"
       ],
       "read_tokens": 13416,
       "total_tokens": 16004
@@ -430,7 +430,7 @@
       "grep_lines": 85,
       "grep_tokens": 3288,
       "decl_files": [
-        "services/kenalink-rs/src/util.rs"
+        "services/rs-svc-b/src/util.rs"
       ],
       "read_tokens": 106,
       "total_tokens": 3394
@@ -495,7 +495,7 @@
       },
       "codebase_memory": {
         "equivalent_tool": null,
-        "note": "no repository dimension; CALLS edges for the same name point at services/api-db-go/.../retry.go"
+        "note": "no repository dimension; CALLS edges for the same name point at services/go-svc-a/.../retry.go"
       }
     },
     "exact_answers": {
@@ -532,9 +532,9 @@
   },
   "tokenizer": "tiktoken o200k_base (proxy for the Claude tokenizer)",
   "cross_repository": {
-    "kena_structural_fact": {
-      "workspace_or_link_deps_between_kena_repos": 0,
-      "detail": "todo @kena/* se declara con rango de registro (0.0.1); node_modules/.pnpm contiene una copia del paquete publicado con su propio dist, no un enlace al repo del workspace",
+    "workspace_structural_fact": {
+      "workspace_or_link_deps_between_workspace_repos": 0,
+      "detail": "todo @workspace/* se declara con rango de registro (0.0.1); node_modules/.pnpm contiene una copia del paquete publicado con su propio dist, no un enlace al repo del workspace",
       "built_dist_effect": {
         "kivgraph_symbols_before": 96923,
         "kivgraph_symbols_after": 96923,
@@ -547,10 +547,10 @@
         "note": "library-shared y library-env se construyeron y se revirtieron; git status limpio"
       }
     },
-    "package_level_kena": {
-      "question": "que repositorios consumen @kena/shared",
+    "package_level_private": {
+      "question": "que repositorios consumen @private/shared",
       "ground_truth_repos": 22,
-      "ground_truth_rule": "importa el paquete en codigo; excluye services/api-metrics (lo declara y no lo importa) y los repos que solo lo mencionan en comentarios",
+      "ground_truth_rule": "importa el paquete en codigo; excluye services/go-svc-c (lo declara y no lo importa) y los repos que solo lo mencionan en comentarios",
       "kivgraph": {
         "tool": "find_cross_repo_consumers",
         "calls": 1,
@@ -642,10 +642,10 @@
         "projects_scanned": 21,
         "total_cross_edges": 0
       },
-      "kena_services": {
+      "workspace_services": {
         "projects": [
           "api-gateway",
-          "api-db-go",
+          "go-svc-a",
           "api-premium",
           "api-translations",
           "packages/core"
@@ -885,7 +885,7 @@
   },
   "rematch_after_adr_0046": {
     "date": "2026-08-18",
-    "note": "same generation 000003 of kena, same manual ground truth, no reindex; kivgraph built from repo HEAD with ADR 0046, codebase-memory-mcp 0.8.1 unchanged",
+    "note": "same generation 000003 of workspace, same manual ground truth, no reindex; kivgraph built from repo HEAD with ADR 0046, codebase-memory-mcp 0.8.1 unchanged",
     "fixed_context_tokens": {
       "kivgraph": 2651,
       "codebase_memory": 2956
@@ -899,7 +899,7 @@
           "precision": 0.0,
           "recall": 0.0,
           "missing": [
-            "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+            "modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
             "packages/core/src/cluster/master/index.ts",
             "packages/core/src/cluster/worker/BotWorker.ts",
             "packages/core/src/shared/utils/sharding.ts",
@@ -919,7 +919,7 @@
           "precision": 0.0,
           "recall": 0.0,
           "missing": [
-            "modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+            "modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
             "packages/core/src/cluster/master/index.ts",
             "packages/core/src/cluster/worker/BotWorker.ts",
             "packages/core/src/shared/utils/sharding.ts",
@@ -995,8 +995,8 @@
           "precision": 1.0,
           "recall": 0.667,
           "missing": [
-            "services/kenalink-rs/src/api_rest/routes_players.rs",
-            "services/kenalink-rs/src/api_ws/mod.rs"
+            "services/rs-svc-b/src/api_rest/routes_players.rs",
+            "services/rs-svc-b/src/api_ws/mod.rs"
           ],
           "spurious": []
         }
@@ -1098,7 +1098,7 @@
   },
   "stage4_second_tier_hoisting": {
     "date": "2026-08-18",
-    "note": "same generation 000003 of kena, no reindex; codebase-memory-mcp unchanged",
+    "note": "same generation 000003 of workspace, no reindex; codebase-memory-mcp unchanged",
     "questions": {
       "Q1_ts_xrepo_callers": {
         "tokens": 297,
@@ -1143,14 +1143,14 @@
     "bug_found_and_fixed": {
       "description": "first implementation conflated the group's display value (blank when already page-hoisted) with the value used to suppress a row's own field, so reachedFileGroups re-emitted kind/via_kind/via_confidence/via_provenance on every row of a group even when the page or the group already stated it",
       "symptom": "grouping silently cost more than not grouping; the byte-comparison guard correctly always chose the flat fallback, so no test failed and no wrong answer was served -- only the token saving was lost",
-      "found_by": "TestGetBlastRadiusGroupsFanInDespiteDivergingReachedFrom, a fixture with four direct callers of a root each with their own consumer, matching the real kena shape",
+      "found_by": "TestGetBlastRadiusGroupsFanInDespiteDivergingReachedFrom, a fixture with four direct callers of a root each with their own consumer, matching the real workspace shape",
       "fix": "internal/mcp/tools/trace_dependencies.go: compute an effective value (page value if hoisted, else the group's own) distinct from the group's JSON display value"
     },
     "adr": "docs/adr/0046-token-budget-of-the-mcp-payload.md stage 4"
   },
   "stage5_second_tier_hoisting_symbol_outline_xrepo": {
     "date": "2026-08-18",
-    "note": "same generation 000003 of kena, no reindex; codebase-memory-mcp unchanged; extends stage4's grouping to find_symbol, get_file_outline and find_cross_repo_consumers",
+    "note": "same generation 000003 of workspace, no reindex; codebase-memory-mcp unchanged; extends stage4's grouping to find_symbol, get_file_outline and find_cross_repo_consumers",
     "questions": {
       "withRetry_declaration_census": {
         "tool": "find_symbol",
@@ -1166,7 +1166,7 @@
         "tokens_after": 248,
         "note": "13 declarations across too few repeated (kind, exported) tuples for grouping to beat the flat page; the byte-comparison guard kept it flat, unchanged"
       },
-      "cross_repo_consumers_kena_shared": {
+      "cross_repo_consumers_workspace_shared": {
         "tool": "find_cross_repo_consumers",
         "tokens_before": 2202,
         "tokens_after": 926,

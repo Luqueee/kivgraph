@@ -274,7 +274,7 @@ func (result ReferenceResult) files() referenceFilesResult {
 // compactReferenceResult is one page with the repeated columns lifted out of
 // the rows. Every field it hoists is one an agent read fifty times to learn
 // one thing: `confidence` and `provenance` alone were 1.200 of the 4.236
-// tokens of one page over `kena`.
+// tokens of one page over `workspace`.
 //
 // Files and Groups are mutually exclusive: Groups appears only when the page
 // itself could not agree on kind, edge_kind, confidence or provenance, and a
@@ -740,7 +740,7 @@ func normalizeReferenceFilter(value, field string) (string, error) {
 // Nothing becomes unreachable. The checker resolves an import through however
 // many barrels stand in the way and names the declaration, so every consumer
 // that reaches the symbol through one carries its own IMPORTS_SYMBOL edge and
-// is listed whether the barrel is or not: on `kena`, `withRetry` has five
+// is listed whether the barrel is or not: on `workspace`, `withRetry` has five
 // consumers behind four barrels and all five are in the answer without them.
 // `edge_kinds` selects them back for the question they do answer -- a rename
 // has to edit the barrel -- and get_blast_radius, which is the tool for what

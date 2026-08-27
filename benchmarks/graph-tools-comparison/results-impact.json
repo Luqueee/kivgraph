@@ -9,7 +9,7 @@
     "os": "Darwin"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "code_files": 0
   },
@@ -24,7 +24,7 @@
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
-    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/workspace-copy",
     "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
@@ -36,10 +36,10 @@
       "family": "impact",
       "question": "Which files hold something that reaches the AutomationScheduledGuildIDs of GuildsHandler within two hops?",
       "ground_truth": [
-        "services/api-db-go/cmd/server/main.go",
-        "services/api-db-go/internal/application/handlers/guilds_mock_test.go",
-        "services/api-db-go/internal/application/routers/guilds_router.go",
-        "services/api-db-go/internal/application/routers/routers_test.go"
+        "services/go-svc-a/cmd/server/main.go",
+        "services/go-svc-a/internal/application/handlers/guilds_mock_test.go",
+        "services/go-svc-a/internal/application/routers/guilds_router.go",
+        "services/go-svc-a/internal/application/routers/routers_test.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -60,10 +60,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -87,10 +87,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -114,10 +114,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           }
@@ -144,52 +144,52 @@
           "ms": 437.494,
           "call_count": 3,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/module_notifier_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+            "go-svc-a:internal/application/handlers/capture_errors.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/module_notifier_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ],
             "precision": 0.4,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ]
           },
           "note": "`affected --depth 2` (the flag's own default is 2); graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"AutomationScheduledGuildIDs\"` refused with `No unique node match`, naming none of the 2 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `handlers_guilds_handler_automationscheduledguildids`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood rather than a reachable set",
@@ -207,18 +207,18 @@
           "ms": 0.904,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -244,17 +244,17 @@
           "ms": 0,
           "call_count": 2,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -270,10 +270,10 @@
       "family": "impact",
       "question": "Which files hold something that reaches the AutomationScheduledGuildIDs of GuildsHandler within three hops?",
       "ground_truth": [
-        "services/api-db-go/cmd/server/main.go",
-        "services/api-db-go/internal/application/handlers/guilds_mock_test.go",
-        "services/api-db-go/internal/application/routers/guilds_router.go",
-        "services/api-db-go/internal/application/routers/routers_test.go"
+        "services/go-svc-a/cmd/server/main.go",
+        "services/go-svc-a/internal/application/handlers/guilds_mock_test.go",
+        "services/go-svc-a/internal/application/routers/guilds_router.go",
+        "services/go-svc-a/internal/application/routers/routers_test.go"
       ],
       "arms": {
         "code-review-graph": {
@@ -294,10 +294,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -321,10 +321,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           },
@@ -348,10 +348,10 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "spurious": []
           }
@@ -378,52 +378,52 @@
           "ms": 417.536,
           "call_count": 3,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-            "api-db-go:internal/application/handlers/capture_errors.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/modmail_web_access.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/module_notifier_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/domain/services/member_admin_guilds.go",
-            "api-db-go:internal/domain/validations/guild_query_validations.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/guilds_router.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+            "go-svc-a:internal/application/handlers/capture_errors.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/modmail_web_access.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/module_notifier_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/domain/services/member_admin_guilds.go",
+            "go-svc-a:internal/domain/validations/guild_query_validations.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/guilds_router.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ],
             "precision": 0.4,
             "recall": 1,
             "missing": [],
             "spurious": [
-              "api-db-go:internal/application/handlers/bots_guilds_handler.go",
-              "api-db-go:internal/application/handlers/capture_errors.go",
-              "api-db-go:internal/domain/services/member_admin_guilds.go",
-              "api-db-go:internal/domain/services/modmail_web_access.go",
-              "api-db-go:internal/domain/validations/guild_query_validations.go",
-              "api-db-go:internal/domain/validations/module_notifier_validations.go"
+              "go-svc-a:internal/application/handlers/bots_guilds_handler.go",
+              "go-svc-a:internal/application/handlers/capture_errors.go",
+              "go-svc-a:internal/domain/services/member_admin_guilds.go",
+              "go-svc-a:internal/domain/services/modmail_web_access.go",
+              "go-svc-a:internal/domain/validations/guild_query_validations.go",
+              "go-svc-a:internal/domain/validations/module_notifier_validations.go"
             ]
           },
           "note": "`affected --depth 3` (the flag's own default is 2); graph.json is written `directed: false`, so networkx loads it undirected, affected.py falls back to scanning `graph.edges()` for edges whose stored orientation ends at the seed, and that orientation is node insertion order rather than call direction: the answer is a neighbour set at the given depth, not reverse reachability; `affected \"AutomationScheduledGuildIDs\"` refused with `No unique node match`, naming none of the 2 nodes whose label contains the name (graphify resolves by label substring, so tests named after the declaration refuse it too); re-asked as the node id `handlers_guilds_handler_automationscheduledguildids`, which is the `{parent_dir}_{stem}_{name}` form the extractor builds and the shipped skill does not document, because graphify has no path-qualified addressing; the node id did not resolve either, so the answer comes from `query`, a depth-2 BFS neighbourhood rather than a reachable set",
@@ -441,44 +441,44 @@
           "ms": 1.232,
           "call_count": 1,
           "claimed": [
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:internal/application/routers/routers_test.go",
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go"
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:internal/application/routers/routers_test.go",
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -504,17 +504,17 @@
           "ms": 0,
           "call_count": 2,
           "claimed": [
-            "api-db-go:cmd/server/main.go",
-            "api-db-go:internal/application/handlers/guilds_mock_test.go",
-            "api-db-go:internal/application/routers/guilds_router.go",
-            "api-db-go:internal/application/routers/routers_test.go"
+            "go-svc-a:cmd/server/main.go",
+            "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+            "go-svc-a:internal/application/routers/guilds_router.go",
+            "go-svc-a:internal/application/routers/routers_test.go"
           ],
           "score": {
             "claimed_set": [
-              "api-db-go:cmd/server/main.go",
-              "api-db-go:internal/application/handlers/guilds_mock_test.go",
-              "api-db-go:internal/application/routers/guilds_router.go",
-              "api-db-go:internal/application/routers/routers_test.go"
+              "go-svc-a:cmd/server/main.go",
+              "go-svc-a:internal/application/handlers/guilds_mock_test.go",
+              "go-svc-a:internal/application/routers/guilds_router.go",
+              "go-svc-a:internal/application/routers/routers_test.go"
             ],
             "precision": 1,
             "recall": 1,

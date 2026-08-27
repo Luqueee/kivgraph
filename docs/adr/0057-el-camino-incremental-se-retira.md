@@ -4,7 +4,7 @@
 - **Fecha:** 2026-08-21
 
 > **Corrección de 2026-08-21.** Las cifras de este ADR se midieron sobre un
-> `kena` **sin Rust**: al harness le faltaba `cargo` en el `PATH`, así que
+> `workspace` **sin Rust**: al harness le faltaba `cargo` en el `PATH`, así que
 > `rust-analyzer` rechazó los dos workspaces Cargo y el pase publicó el resto --
 > declarándolo como `not_loaded=2`, que el harness no leyó. Con los tres lenguajes
 > cargados el corpus es `4.768` ficheros y `123.524` símbolos, el pase completo
@@ -25,7 +25,7 @@ indexado que un usuario ha podido provocar es una reconstrucción completa.
 `LUQUE-2003` preguntaba si se cablea o se retira, y la única cifra que decide eso
 es el techo: qué pasos de un pase completo se saltaría el delta y cuáles seguiría
 pagando. Está medido en `benchmarks/incremental-cost/report.md`, commit
-`e78490e`, corpus `kena` con `4.683` ficheros y `477.027` aristas, caché de
+`e78490e`, corpus `workspace` con `4.683` ficheros y `477.027` aristas, caché de
 hechos **caliente** -- que es la condición honesta, porque la pregunta es qué
 cuesta reindexar después de editar.
 

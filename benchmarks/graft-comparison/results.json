@@ -9,7 +9,7 @@
     "os": "darwin"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "code_files_searched": 5330
   },
@@ -56,7 +56,7 @@
   },
   "indexing": {
     "graft": {
-      "command": "graft --dir /private/tmp/graft-kena-ctx build /Users/adria/Documents/programacion/projects/kena",
+      "command": "graft --dir /private/tmp/graft-workspace-ctx build /path/to/workspace",
       "cold_ms": 26568,
       "warm_ms": 2661,
       "files": 5186,
@@ -68,7 +68,7 @@
       "warm_is": "same build re-run with the extract cache populated and no file changed"
     },
     "graft_lsp": {
-      "command": "graft --dir /private/tmp/graft-kena-lsp build /Users/adria/Documents/programacion/projects/kena --lsp",
+      "command": "graft --dir /private/tmp/graft-workspace-lsp build /path/to/workspace --lsp",
       "cold_ms": 115584,
       "warm_ms": 0,
       "files": 5186,
@@ -101,14 +101,14 @@
   },
   "wiring": {
     "graft": {
-      "path": "/private/tmp/graft-kena-ctx/.graph/wiring.json",
+      "path": "/private/tmp/graft-workspace-ctx/.graph/wiring.json",
       "nodes": 34523,
       "edges": 77251,
       "scopes": [
-        "services/api-music-nodo (Cargo.toml)",
-        "services/kenalink-rs (Cargo.toml)",
-        "services/api-db-go (go.mod)",
-        "services/api-music (go.mod)"
+        "services/rs-svc-a (Cargo.toml)",
+        "services/rs-svc-b (Cargo.toml)",
+        "services/go-svc-a (go.mod)",
+        "services/go-svc-b (go.mod)"
       ],
       "relations": {
         "calls": 24670,
@@ -125,14 +125,14 @@
       "lsp_resolved_edges": 0
     },
     "graft_lsp": {
-      "path": "/private/tmp/graft-kena-lsp/.graph/wiring.json",
+      "path": "/private/tmp/graft-workspace-lsp/.graph/wiring.json",
       "nodes": 34523,
       "edges": 77339,
       "scopes": [
-        "services/api-music-nodo (Cargo.toml)",
-        "services/kenalink-rs (Cargo.toml)",
-        "services/api-db-go (go.mod)",
-        "services/api-music (go.mod)"
+        "services/rs-svc-a (Cargo.toml)",
+        "services/rs-svc-b (Cargo.toml)",
+        "services/go-svc-a (go.mod)",
+        "services/go-svc-b (go.mod)"
       ],
       "relations": {
         "calls": 24670,
@@ -162,7 +162,7 @@
         "symbol": "withRetry"
       },
       "ground_truth": [
-        "sdk-module-ts:src/sdk/client/KenaModule.ts",
+        "sdk-module-ts:src/sdk/client/PrivateModule.ts",
         "core:src/cluster/master/index.ts",
         "core:src/cluster/worker/BotWorker.ts",
         "core:src/shared/utils/sharding.ts",
@@ -190,7 +190,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": null
           },
@@ -219,7 +219,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": null
           },
@@ -234,7 +234,7 @@
               "tokens": 129,
               "ms": 0.326,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, go-svc-b:internal/shared/infisical/infisical.go:240, go-svc-a:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, go-svc-a:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
@@ -258,7 +258,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": [
               "library-shared:src/client/index.ts",
@@ -275,7 +275,7 @@
               "tokens": 129,
               "ms": 0.153,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, go-svc-b:internal/shared/infisical/infisical.go:240, go-svc-a:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, go-svc-a:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
@@ -299,7 +299,7 @@
               "core:src/cluster/worker/BotWorker.ts",
               "core:src/shared/utils/sharding.ts",
               "gateway:src/grpc/server.ts",
-              "sdk-module-ts:src/sdk/client/KenaModule.ts"
+              "sdk-module-ts:src/sdk/client/PrivateModule.ts"
             ],
             "spurious": [
               "library-shared:src/client/index.ts",
@@ -323,18 +323,18 @@
     },
     {
       "id": "Q2_go",
-      "question": "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+      "question": "Which call sites use withRetry in services/go-svc-a/internal/infrastructure/postgres/retry.go?",
       "language": "go",
       "subject": {
-        "repo": "api-db-go",
-        "dir": "services/api-db-go",
+        "repo": "go-svc-a",
+        "dir": "services/go-svc-a",
         "path": "internal/infrastructure/postgres/retry.go",
         "name": "withRetry",
         "symbol": "withRetry"
       },
       "ground_truth": [
-        "api-db-go:internal/infrastructure/postgres/client.go",
-        "api-db-go:internal/infrastructure/postgres/retry_test.go"
+        "go-svc-a:internal/infrastructure/postgres/client.go",
+        "go-svc-a:internal/infrastructure/postgres/retry_test.go"
       ],
       "arms": {
         "graft": {
@@ -354,8 +354,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": null
           },
@@ -380,8 +380,8 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "spurious": null
           },
@@ -396,7 +396,7 @@
               "tokens": 129,
               "ms": 0.363,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, go-svc-b:internal/shared/infisical/infisical.go:240, go-svc-a:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, go-svc-a:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
@@ -409,8 +409,8 @@
           "call_count": 2,
           "score": {
             "files": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -426,7 +426,7 @@
               "tokens": 129,
               "ms": 0.077,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, api-music:internal/shared/infisical/infisical.go:240, api-db-go:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, api-db-go:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
+              "error": "AMBIGUOUS_SYMBOL: name \"withRetry\" declares 7 symbols; repeat with the repository and path of the one you mean: library-env:src/retry.ts:41, go-svc-b:internal/shared/infisical/infisical.go:240, go-svc-a:internal/shared/infisical/infisical.go:143, sdk-module-ts:src/sdk/managers/CommandManager.ts:19, go-svc-a:internal/infrastructure/postgres/retry.go:49, library-shared:src/utils/retry.ts:135, sdk-module-ts:src/sdk/types/ModuleResult.ts:91"
             },
             {
               "tool": "find_references",
@@ -439,8 +439,8 @@
           "call_count": 2,
           "score": {
             "files": [
-              "api-db-go:internal/infrastructure/postgres/client.go",
-              "api-db-go:internal/infrastructure/postgres/retry_test.go"
+              "go-svc-a:internal/infrastructure/postgres/client.go",
+              "go-svc-a:internal/infrastructure/postgres/retry_test.go"
             ],
             "precision": 1,
             "recall": 1,
@@ -626,22 +626,22 @@
     },
     {
       "id": "Q4_rust",
-      "question": "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+      "question": "Which files call now_ms() from services/rs-svc-b/src/util.rs?",
       "language": "rust",
       "subject": {
-        "repo": "kenalink-rs",
-        "dir": "services/kenalink-rs",
+        "repo": "rs-svc-b",
+        "dir": "services/rs-svc-b",
         "path": "src/util.rs",
         "name": "util::now_ms",
         "symbol": "now_ms"
       },
       "ground_truth": [
-        "kenalink-rs:src/api_rest/error.rs",
-        "kenalink-rs:src/api_rest/routes_players.rs",
-        "kenalink-rs:src/api_rest/routes_sessions.rs",
-        "kenalink-rs:src/api_ws/mod.rs",
-        "kenalink-rs:src/audio/songbird_engine.rs",
-        "kenalink-rs:src/main.rs"
+        "rs-svc-b:src/api_rest/error.rs",
+        "rs-svc-b:src/api_rest/routes_players.rs",
+        "rs-svc-b:src/api_rest/routes_sessions.rs",
+        "rs-svc-b:src/api_ws/mod.rs",
+        "rs-svc-b:src/audio/songbird_engine.rs",
+        "rs-svc-b:src/main.rs"
       ],
       "arms": {
         "graft": {
@@ -661,12 +661,12 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": null
           },
@@ -691,12 +691,12 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "spurious": null
           },
@@ -711,7 +711,7 @@
               "tokens": 84,
               "ms": 1.43,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
+              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: rs-svc-a:src/providers/chipbot.rs:392, rs-svc-a:src/system/chipbot_files.rs:123, rs-svc-b:src/util.rs:3, rs-svc-a:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
@@ -724,12 +724,12 @@
           "call_count": 2,
           "score": {
             "files": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -745,7 +745,7 @@
               "tokens": 84,
               "ms": 0.139,
               "failed": true,
-              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: api-music-nodo:src/providers/chipbot.rs:392, api-music-nodo:src/system/chipbot_files.rs:123, kenalink-rs:src/util.rs:3, api-music-nodo:src/providers/deezer.rs:63"
+              "error": "AMBIGUOUS_SYMBOL: name \"now_ms\" declares 4 symbols; repeat with the repository and path of the one you mean: rs-svc-a:src/providers/chipbot.rs:392, rs-svc-a:src/system/chipbot_files.rs:123, rs-svc-b:src/util.rs:3, rs-svc-a:src/providers/deezer.rs:63"
             },
             {
               "tool": "find_references",
@@ -758,12 +758,12 @@
           "call_count": 2,
           "score": {
             "files": [
-              "kenalink-rs:src/api_rest/error.rs",
-              "kenalink-rs:src/api_rest/routes_players.rs",
-              "kenalink-rs:src/api_rest/routes_sessions.rs",
-              "kenalink-rs:src/api_ws/mod.rs",
-              "kenalink-rs:src/audio/songbird_engine.rs",
-              "kenalink-rs:src/main.rs"
+              "rs-svc-b:src/api_rest/error.rs",
+              "rs-svc-b:src/api_rest/routes_players.rs",
+              "rs-svc-b:src/api_rest/routes_sessions.rs",
+              "rs-svc-b:src/api_ws/mod.rs",
+              "rs-svc-b:src/audio/songbird_engine.rs",
+              "rs-svc-b:src/main.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -792,9 +792,9 @@
       "library-shared:src/utils/retry.ts",
       "sdk-module-ts:src/sdk/managers/CommandManager.ts",
       "sdk-module-ts:src/sdk/types/ModuleResult.ts",
-      "api-db-go:internal/infrastructure/postgres/retry.go",
-      "api-db-go:internal/shared/infisical/infisical.go",
-      "api-music:internal/shared/infisical/infisical.go"
+      "go-svc-a:internal/infrastructure/postgres/retry.go",
+      "go-svc-a:internal/shared/infisical/infisical.go",
+      "go-svc-b:internal/shared/infisical/infisical.go"
     ],
     "arms": {
       "graft": {
@@ -811,9 +811,9 @@
         "call_count": 1,
         "score": {
           "files": [
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go",
+            "go-svc-a:internal/infrastructure/postgres/retry.go",
+            "go-svc-a:internal/shared/infisical/infisical.go",
+            "go-svc-b:internal/shared/infisical/infisical.go",
             "library-env:src/retry.ts",
             "library-shared:src/utils/retry.ts",
             "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -840,9 +840,9 @@
         "call_count": 1,
         "score": {
           "files": [
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go",
+            "go-svc-a:internal/infrastructure/postgres/retry.go",
+            "go-svc-a:internal/shared/infisical/infisical.go",
+            "go-svc-b:internal/shared/infisical/infisical.go",
             "library-env:src/retry.ts",
             "library-shared:src/utils/retry.ts",
             "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -868,9 +868,9 @@
         "call_count": 1,
         "score": {
           "files": [
-            "api-db-go:internal/infrastructure/postgres/retry.go",
-            "api-db-go:internal/shared/infisical/infisical.go",
-            "api-music:internal/shared/infisical/infisical.go",
+            "go-svc-a:internal/infrastructure/postgres/retry.go",
+            "go-svc-a:internal/shared/infisical/infisical.go",
+            "go-svc-b:internal/shared/infisical/infisical.go",
             "library-env:src/retry.ts",
             "library-shared:src/utils/retry.ts",
             "sdk-module-ts:src/sdk/managers/CommandManager.ts",
@@ -1038,14 +1038,14 @@
           "precision": 0.8888888888888888,
           "recall": 0.36363636363636365,
           "missing": [
-            "admin.kena.lan",
+            "admin.workspace",
             "api-cdn",
             "api-gateway",
             "api-premium",
             "api-translations",
-            "captcha.kena.bot",
+            "captcha.workspace",
             "core",
-            "dash.kena.bot",
+            "dash.workspace",
             "gateway",
             "sdk-module-ts",
             "tempVoice-module",
@@ -1072,15 +1072,15 @@
         "call_count": 1,
         "score": {
           "files": [
-            "admin.kena.lan",
+            "admin.workspace",
             "api-cdn",
             "api-gateway",
             "api-premium",
             "api-translations",
             "automation-module",
-            "captcha.kena.bot",
+            "captcha.workspace",
             "core",
-            "dash.kena.bot",
+            "dash.workspace",
             "gateway",
             "greeter-module",
             "levels-module",
@@ -1106,10 +1106,10 @@
   "scope_probes": [
     {
       "id": "go_repository_scope",
-      "graft_build_root": "services/api-db-go",
+      "graft_build_root": "services/go-svc-a",
       "subject": {
-        "repo": "api-db-go",
-        "dir": "services/api-db-go",
+        "repo": "go-svc-a",
+        "dir": "services/go-svc-a",
         "path": "internal/infrastructure/postgres/retry.go",
         "name": "withRetry",
         "symbol": "withRetry"
@@ -1147,10 +1147,10 @@
     },
     {
       "id": "go_package_scope",
-      "graft_build_root": "services/api-db-go/internal/infrastructure/postgres",
+      "graft_build_root": "services/go-svc-a/internal/infrastructure/postgres",
       "subject": {
-        "repo": "api-db-go",
-        "dir": "services/api-db-go",
+        "repo": "go-svc-a",
+        "dir": "services/go-svc-a",
         "path": "internal/infrastructure/postgres/retry.go",
         "name": "withRetry",
         "symbol": "withRetry"
@@ -1186,10 +1186,10 @@
     },
     {
       "id": "rust_repository_scope",
-      "graft_build_root": "services/kenalink-rs",
+      "graft_build_root": "services/rs-svc-b",
       "subject": {
-        "repo": "kenalink-rs",
-        "dir": "services/kenalink-rs",
+        "repo": "rs-svc-b",
+        "dir": "services/rs-svc-b",
         "path": "src/util.rs",
         "name": "util::now_ms",
         "symbol": "now_ms"

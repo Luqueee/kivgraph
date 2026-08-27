@@ -132,7 +132,7 @@ files rather than one. `declarations` counts what this page holds for the file,
 so on a truncated page it is the page's count and not the file's total.
 
 These responses come from snapshot `30` of two repositories, `kivgraph` and
-`mole`.
+`go-svc-e`.
 
 ## Example: grouped
 
@@ -140,7 +140,7 @@ A directory whose declarations do not share one `kind` or one `exported`:
 
 ```json
 {
-  "repository": "mole",
+  "repository": "go-svc-e",
   "path": "internal/admin"
 }
 ```
@@ -151,9 +151,9 @@ A directory whose declarations do not share one `kind` or one `exported`:
   "total": 32,
   "returned": 19,
   "results": {
-    "repository": "mole",
+    "repository": "go-svc-e",
     "path": "internal/admin",
-    "package": "github.com/Luqueee/mole/internal/admin",
+    "package": "github.com/Luqueee/go-svc-e/internal/admin",
     "groups": [
       {
         "kind": "method",

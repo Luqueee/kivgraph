@@ -25,7 +25,7 @@ import { computeStructuralLayout, type LayoutGraph } from "./layout";
  * Most nodes the adapter will materialise. It matches the ceiling the tiles
  * endpoint enforces, so the limit that bites is the server's and not a second
  * one hidden here. The deepest level of a large snapshot needs the whole range:
- * the first symbol of `~/kena` is node 4.351, behind every repository, package
+ * the first symbol of `~/workspace` is node 4.351, behind every repository, package
  * and file the tile carries first.
  */
 export const DEFAULT_REAGRAPH_NODE_LIMIT = 10_000;
@@ -116,7 +116,7 @@ function identityOf(kind: number, id: number): number {
 }
 
 // A caption competes for pixels with every neighbour, and module paths are
-// long: `kena.bot/api-db-go/internal/domain/errors` covers a dozen nodes. The
+// long: `workspace/go-svc-a/internal/domain/errors` covers a dozen nodes. The
 // canvas shows the last two segments; the full name stays in the node data and
 // in the hover readout, so nothing is lost.
 function shortLabel(label: string): string {

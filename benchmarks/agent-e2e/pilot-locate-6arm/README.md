@@ -11,9 +11,9 @@ three arms doing the same easy thing and found no effect.
 
 ## What ran
 
-`api-db-go-821977c` — «add a requirements block to the levelling module's
+`go-svc-a-821977c` — «add a requirements block to the levelling module's
 configuration, with its validation and its reflection in the cache». Four files
-across four directories in `services/api-db-go`. The intent is written as a user
+across four directories in `services/go-svc-a`. The intent is written as a user
 request, not lifted from the commit message, which named helpers that did not
 exist yet.
 
@@ -63,7 +63,7 @@ should raise it until the arms finish on their own.
 go run ./benchmarks/agent-e2e \
   --tasks tasks-locate.json \
   --dir benchmarks/agent-e2e/pilot-locate-6arm \
-  --only api-db-go-821977c --trials 1 --budget-usd 3.00
+  --only go-svc-a-821977c --trials 1 --budget-usd 3.00
 ```
 
 The task set is `benchmarks/agent-e2e/tasks-locate.json`; a set other than the

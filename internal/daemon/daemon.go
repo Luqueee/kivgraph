@@ -17,7 +17,7 @@
 // The two doors are indistinguishable at both loads -- 9,8-10,6 MB per client over
 // HTTP against 10,0-10,7 over the socket -- and the door that matters is HTTP
 // because no MCP client configuration dials a unix socket: it takes an executable
-// or a url. Over 108.737 symbols of kena, on Linux, in benchmarks/daemon-cost.
+// or a url. Over 108.737 symbols of workspace, on Linux, in benchmarks/daemon-cost.
 //
 // The widest gap is the peak, and it does not depend on anyone asking anything:
 // 179-186 MB for eight processes against 26-29 for one daemon, because eight

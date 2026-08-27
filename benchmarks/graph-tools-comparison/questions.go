@@ -108,21 +108,21 @@ var withRetryDeclarations = []string{
 	"libraries/library-shared/src/utils/retry.ts",
 	"modules/sdk-module-ts/src/sdk/managers/CommandManager.ts",
 	"modules/sdk-module-ts/src/sdk/types/ModuleResult.ts",
-	"services/api-db-go/internal/infrastructure/postgres/retry.go",
-	"services/api-db-go/internal/shared/infisical/infisical.go",
-	"services/api-music/internal/shared/infisical/infisical.go",
+	"services/go-svc-a/internal/infrastructure/postgres/retry.go",
+	"services/go-svc-a/internal/shared/infisical/infisical.go",
+	"services/go-svc-b/internal/shared/infisical/infisical.go",
 }
 
 var nowMsDeclarations = []string{
-	"services/api-music-nodo/src/providers/chipbot.rs",
-	"services/api-music-nodo/src/providers/deezer.rs",
-	"services/api-music-nodo/src/system/chipbot_files.rs",
-	"services/kenalink-rs/src/util.rs",
+	"services/rs-svc-a/src/providers/chipbot.rs",
+	"services/rs-svc-a/src/providers/deezer.rs",
+	"services/rs-svc-a/src/system/chipbot_files.rs",
+	"services/rs-svc-b/src/util.rs",
 }
 
 // questions is the measured set: four reference questions, one impact question
 // and two outlines. Q1 has no reachable answer on this corpus and is kept for
-// exactly that reason -- kena's repositories consume each other as published
+// exactly that reason -- workspace's repositories consume each other as published
 // packages, never as source, so the honest result is an absence and dropping
 // the question would hide it.
 var questions = []question{
@@ -136,7 +136,7 @@ var questions = []question{
 			Path: "src/utils/retry.ts", Name: "withRetry", Symbol: "withRetry",
 		},
 		Truth: []string{
-			"modules/sdk-module-ts/src/sdk/client/KenaModule.ts",
+			"modules/sdk-module-ts/src/sdk/client/PrivateModule.ts",
 			"packages/core/src/cluster/master/index.ts",
 			"packages/core/src/cluster/worker/BotWorker.ts",
 			"packages/core/src/shared/utils/sharding.ts",
@@ -147,15 +147,15 @@ var questions = []question{
 	{
 		ID:       "R2_go",
 		Family:   familyReferences,
-		Ask:      "Which call sites use withRetry in services/api-db-go/internal/infrastructure/postgres/retry.go?",
+		Ask:      "Which call sites use withRetry in services/go-svc-a/internal/infrastructure/postgres/retry.go?",
 		Language: "go",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/postgres/retry.go", Name: "withRetry", Symbol: "withRetry",
 		},
 		Truth: []string{
-			"services/api-db-go/internal/infrastructure/postgres/client.go",
-			"services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+			"services/go-svc-a/internal/infrastructure/postgres/client.go",
+			"services/go-svc-a/internal/infrastructure/postgres/retry_test.go",
 		},
 		Declarations: withRetryDeclarations,
 	},
@@ -184,19 +184,19 @@ var questions = []question{
 	{
 		ID:       "R4_rust",
 		Family:   familyReferences,
-		Ask:      "Which files call now_ms() from services/kenalink-rs/src/util.rs?",
+		Ask:      "Which files call now_ms() from services/rs-svc-b/src/util.rs?",
 		Language: "rust",
 		Subject: subject{
-			Repo: "kenalink-rs", Dir: "services/kenalink-rs",
+			Repo: "rs-svc-b", Dir: "services/rs-svc-b",
 			Path: "src/util.rs", Name: "util::now_ms", Symbol: "now_ms",
 		},
 		Truth: []string{
-			"services/kenalink-rs/src/api_rest/error.rs",
-			"services/kenalink-rs/src/api_rest/routes_players.rs",
-			"services/kenalink-rs/src/api_rest/routes_sessions.rs",
-			"services/kenalink-rs/src/api_ws/mod.rs",
-			"services/kenalink-rs/src/audio/songbird_engine.rs",
-			"services/kenalink-rs/src/main.rs",
+			"services/rs-svc-b/src/api_rest/error.rs",
+			"services/rs-svc-b/src/api_rest/routes_players.rs",
+			"services/rs-svc-b/src/api_rest/routes_sessions.rs",
+			"services/rs-svc-b/src/api_ws/mod.rs",
+			"services/rs-svc-b/src/audio/songbird_engine.rs",
+			"services/rs-svc-b/src/main.rs",
 		},
 		Declarations: nowMsDeclarations,
 	},
@@ -213,15 +213,15 @@ var questions = []question{
 		Language: "go",
 		Depth:    2,
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/postgres/retry.go",
 			Name: "expBackoffJitter", Symbol: "expBackoffJitter",
 		},
 		Truth: []string{
-			"services/api-db-go/internal/infrastructure/postgres/client.go",
-			"services/api-db-go/internal/infrastructure/postgres/retry_test.go",
+			"services/go-svc-a/internal/infrastructure/postgres/client.go",
+			"services/go-svc-a/internal/infrastructure/postgres/retry_test.go",
 		},
-		Declarations: []string{"services/api-db-go/internal/infrastructure/postgres/retry.go"},
+		Declarations: []string{"services/go-svc-a/internal/infrastructure/postgres/retry.go"},
 	},
 	{
 		// 467 lines and 17 top-level declarations: big enough that reading it to
@@ -250,10 +250,10 @@ var questions = []question{
 		// measuring its own question selection.
 		ID:       "O2_go_small",
 		Family:   familyOutline,
-		Ask:      "What is declared at the top level of api-db-go postgres/retry.go?",
+		Ask:      "What is declared at the top level of go-svc-a postgres/retry.go?",
 		Language: "go",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/postgres/retry.go",
 		},
 		Truth: []string{"expBackoffJitter", "retryInfo", "withRetry"},
@@ -284,17 +284,17 @@ var impactQuestions = []question{
 		Language: "go",
 		Depth:    2,
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/application/handlers/guilds_handler.go",
 			Name: "GuildsHandler.AutomationScheduledGuildIDs", Symbol: "AutomationScheduledGuildIDs",
 		},
 		Truth: []string{
-			"services/api-db-go/cmd/server/main.go",
-			"services/api-db-go/internal/application/handlers/guilds_mock_test.go",
-			"services/api-db-go/internal/application/routers/guilds_router.go",
-			"services/api-db-go/internal/application/routers/routers_test.go",
+			"services/go-svc-a/cmd/server/main.go",
+			"services/go-svc-a/internal/application/handlers/guilds_mock_test.go",
+			"services/go-svc-a/internal/application/routers/guilds_router.go",
+			"services/go-svc-a/internal/application/routers/routers_test.go",
 		},
-		Declarations: []string{"services/api-db-go/internal/application/handlers/guilds_handler.go"},
+		Declarations: []string{"services/go-svc-a/internal/application/handlers/guilds_handler.go"},
 	},
 	{
 		ID:       "I3_go_depth3",
@@ -303,17 +303,17 @@ var impactQuestions = []question{
 		Language: "go, the frontier is entry points",
 		Depth:    3,
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/application/handlers/guilds_handler.go",
 			Name: "GuildsHandler.AutomationScheduledGuildIDs", Symbol: "AutomationScheduledGuildIDs",
 		},
 		Truth: []string{
-			"services/api-db-go/cmd/server/main.go",
-			"services/api-db-go/internal/application/handlers/guilds_mock_test.go",
-			"services/api-db-go/internal/application/routers/guilds_router.go",
-			"services/api-db-go/internal/application/routers/routers_test.go",
+			"services/go-svc-a/cmd/server/main.go",
+			"services/go-svc-a/internal/application/handlers/guilds_mock_test.go",
+			"services/go-svc-a/internal/application/routers/guilds_router.go",
+			"services/go-svc-a/internal/application/routers/routers_test.go",
 		},
-		Declarations: []string{"services/api-db-go/internal/application/handlers/guilds_handler.go"},
+		Declarations: []string{"services/go-svc-a/internal/application/handlers/guilds_handler.go"},
 	},
 }
 
@@ -321,34 +321,34 @@ var hardQuestions = []question{
 	{
 		ID:       "H1_go_method",
 		Family:   familyReferences,
-		Ask:      "Which files reference the GetAll declared on BotsHandler in services/api-db-go?",
+		Ask:      "Which files reference the GetAll declared on BotsHandler in services/go-svc-a?",
 		Language: "go, method homonym",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/application/handlers/bots_handler.go",
 			Name: "BotsHandler.GetAll", Symbol: "GetAll",
 		},
-		Truth: []string{"services/api-db-go/internal/application/routers/bots_router.go"},
+		Truth: []string{"services/go-svc-a/internal/application/routers/bots_router.go"},
 		Declarations: []string{
-			"services/api-db-go/internal/application/handlers/bots_handler.go",
-			"services/api-db-go/internal/application/handlers/command_handler.go",
-			"services/api-db-go/internal/application/handlers/premium_handler.go",
+			"services/go-svc-a/internal/application/handlers/bots_handler.go",
+			"services/go-svc-a/internal/application/handlers/command_handler.go",
+			"services/go-svc-a/internal/application/handlers/premium_handler.go",
 		},
 	},
 	{
 		ID:       "H2_go_iface",
 		Family:   familyReferences,
-		Ask:      "Which files call the FindPendingGuilds implemented by NotifierSubRepository in services/api-db-go?",
+		Ask:      "Which files call the FindPendingGuilds implemented by NotifierSubRepository in services/go-svc-a?",
 		Language: "go, called through an interface",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/postgres/notifier_sub_repository.go",
 			Name: "NotifierSubRepository.FindPendingGuilds", Symbol: "FindPendingGuilds",
 		},
-		Truth: []string{"services/api-db-go/internal/application/handlers/guilds_handler.go"},
+		Truth: []string{"services/go-svc-a/internal/application/handlers/guilds_handler.go"},
 		Declarations: []string{
-			"services/api-db-go/internal/infrastructure/pgrepo/repos.go",
-			"services/api-db-go/internal/infrastructure/postgres/notifier_sub_repository.go",
+			"services/go-svc-a/internal/infrastructure/pgrepo/repos.go",
+			"services/go-svc-a/internal/infrastructure/postgres/notifier_sub_repository.go",
 		},
 	},
 	{
@@ -362,7 +362,7 @@ var hardQuestions = []question{
 			Name: "ApiRuntimeState", Symbol: "ApiRuntimeState",
 		},
 		Truth: []string{
-			"libraries/library-shared/src/redis/cache/gateway/registry/api-registry-cache.ts",
+			"libraries/library-shared/src/redis/cache/gateway/registry/go-svc-d-cache.ts",
 			"packages/gateway/src/grpc/manager/RegistryGrpcManager.ts",
 		},
 		Declarations: []string{"libraries/library-shared/src/types/gateway-registry.ts"},
@@ -383,36 +383,36 @@ var hardQuestions = []question{
 	{
 		ID:       "H5_rs_trait",
 		Family:   familyReferences,
-		Ask:      "Which files call the delete_player implemented by MemoryStateStore in services/kenalink-rs?",
+		Ask:      "Which files call the delete_player implemented by MemoryStateStore in services/rs-svc-b?",
 		Language: "rust, called through a trait object",
 		Subject: subject{
-			Repo: "kenalink-rs", Dir: "services/kenalink-rs",
+			Repo: "rs-svc-b", Dir: "services/rs-svc-b",
 			Path: "src/state/memory.rs",
 			Name: "state::memory::impl::MemoryStateStore::StateStore::delete_player", Symbol: "delete_player",
 		},
 		Truth: []string{
-			"services/kenalink-rs/src/api_rest/routes_players.rs",
-			"services/kenalink-rs/src/api_ws/mod.rs",
-			"services/kenalink-rs/src/main.rs",
+			"services/rs-svc-b/src/api_rest/routes_players.rs",
+			"services/rs-svc-b/src/api_ws/mod.rs",
+			"services/rs-svc-b/src/main.rs",
 		},
 		Declarations: []string{
-			"services/kenalink-rs/src/api_rest/routes_players.rs",
-			"services/kenalink-rs/src/state/memory.rs",
-			"services/kenalink-rs/src/state/mod.rs",
+			"services/rs-svc-b/src/api_rest/routes_players.rs",
+			"services/rs-svc-b/src/state/memory.rs",
+			"services/rs-svc-b/src/state/mod.rs",
 		},
 	},
 	{
 		ID:       "A1_go_absent",
 		Family:   familyReferences,
-		Ask:      "Which files reference the BenchmarkDeserializeValueDate declared in services/api-db-go?",
+		Ask:      "Which files reference the BenchmarkDeserializeValueDate declared in services/go-svc-a?",
 		Language: "go, absence",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/redis/serialization_bench_test.go",
 			Name: "BenchmarkDeserializeValueDate", Symbol: "BenchmarkDeserializeValueDate",
 		},
 		Truth:        []string{},
-		Declarations: []string{"services/api-db-go/internal/infrastructure/redis/serialization_bench_test.go"},
+		Declarations: []string{"services/go-svc-a/internal/infrastructure/redis/serialization_bench_test.go"},
 	},
 	{
 		ID:       "A2_ts_absent",
@@ -430,23 +430,23 @@ var hardQuestions = []question{
 	{
 		ID:       "A3_rs_absent",
 		Family:   familyReferences,
-		Ask:      "Which files call the build_all_image_sizes declared in services/api-music-nodo?",
+		Ask:      "Which files call the build_all_image_sizes declared in services/rs-svc-a?",
 		Language: "rust, absence",
 		Subject: subject{
-			Repo: "api-music-nodo", Dir: "services/api-music-nodo",
+			Repo: "rs-svc-a", Dir: "services/rs-svc-a",
 			Path: "src/providers/spotify.rs",
 			Name: "providers::spotify::build_all_image_sizes", Symbol: "build_all_image_sizes",
 		},
 		Truth:        []string{},
-		Declarations: []string{"services/api-music-nodo/src/providers/spotify.rs"},
+		Declarations: []string{"services/rs-svc-a/src/providers/spotify.rs"},
 	},
 	{
 		ID:       "O3_rs_outline",
 		Family:   familyOutline,
-		Ask:      "What is declared at the top level of api-music-nodo audio/range.rs?",
+		Ask:      "What is declared at the top level of rs-svc-a audio/range.rs?",
 		Language: "rust",
 		Subject: subject{
-			Repo: "api-music-nodo", Dir: "services/api-music-nodo",
+			Repo: "rs-svc-a", Dir: "services/rs-svc-a",
 			Path: "src/audio/range.rs",
 		},
 		Truth: []string{
@@ -469,7 +469,7 @@ var hardQuestions = []question{
 // copy, is not a consumer of the subject.
 //
 // And a consumer can name nothing at all: `modules/sdk-module-ts/src/index.ts`
-// re-exports the subject through `export * from "@kena/shared"`, so the symbol
+// re-exports the subject through `export * from "@private/shared"`, so the symbol
 // crosses a repository boundary in a file whose text never spells it. No text
 // search can reach that row. It was found by the graph, then verified
 // independently by enumerating every star re-export of the package in the
@@ -477,7 +477,7 @@ var hardQuestions = []question{
 //
 // Two of the four have an empty or single-file answer on purpose. Proving that
 // nothing reaches across a boundary is what the routing table sells and what
-// `grep` structurally cannot do: kena holds two independent Go modules that do
+// `grep` structurally cannot do: workspace holds two independent Go modules that do
 // not import each other, and the same file duplicated in both.
 var reachQuestions = []question{
 	{
@@ -492,7 +492,7 @@ var reachQuestions = []question{
 		},
 		// Twenty-four files outside library-shared name HttpStatus. Five declare
 		// their own enum, seventeen import a repository-local one by relative
-		// path, and two import it from "@kena/shared". api-gateway does both: one
+		// path, and two import it from "@private/shared". api-gateway does both: one
 		// of its files imports the shared enum while nine import its own, so a
 		// tool that decides per repository cannot be right here. The third file
 		// names nothing: it star re-exports the package.
@@ -505,7 +505,7 @@ var reachQuestions = []question{
 			"libraries/library-shared/src/result/custom-error.ts",
 			"libraries/library-web/src/shared/CustomError.ts",
 			"services/api-gateway/src/domain/result/custom-error.ts",
-			"services/api-metrics/src/domain/result/custom-error.ts",
+			"services/go-svc-c/src/domain/result/custom-error.ts",
 			"services/api-premium/src/domain/result/custom-error.ts",
 			"services/api-translations/src/domain/result/custom-error.ts",
 		},
@@ -513,22 +513,22 @@ var reachQuestions = []question{
 	{
 		ID:       "X2_go_absent_consumers",
 		Family:   familyConsumers,
-		Ask:      "Which files outside api-db-go consume the LoadSecrets it declares?",
+		Ask:      "Which files outside go-svc-a consume the LoadSecrets it declares?",
 		Language: "go, the answer is nothing and the corpus looks otherwise",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/shared/infisical/infisical.go",
 			Name: "LoadSecrets", Symbol: "LoadSecrets",
 		},
-		// Nothing. kena holds two Go modules, kena.bot/api-db-go and
-		// kena.bot/api-music, and neither imports the other -- verified by
-		// grepping both module paths across every .go file. api-music carries its
+		// Nothing. workspace holds two Go modules, workspace/go-svc-a and
+		// workspace/go-svc-b, and neither imports the other -- verified by
+		// grepping both module paths across every .go file. go-svc-b carries its
 		// own copy of infisical.go, so three of its files name LoadSecrets and
 		// mean their own. A name-based answer claims those three.
 		Truth: []string{},
 		Declarations: []string{
-			"services/api-db-go/internal/shared/infisical/infisical.go",
-			"services/api-music/internal/shared/infisical/infisical.go",
+			"services/go-svc-a/internal/shared/infisical/infisical.go",
+			"services/go-svc-b/internal/shared/infisical/infisical.go",
 		},
 	},
 	{
@@ -538,7 +538,7 @@ var reachQuestions = []question{
 		Language: "go, nine reached declarations in one file",
 		Depth:    1,
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/application/routers/guilds_router.go",
 			Name: "RegisterGuilds", Symbol: "RegisterGuilds",
 		},
@@ -547,10 +547,10 @@ var reachQuestions = []question{
 		// receiver. Everything else it touches is fiber, which is not this
 		// project's code.
 		Truth: []string{
-			"services/api-db-go/internal/application/handlers/guilds_handler.go",
+			"services/go-svc-a/internal/application/handlers/guilds_handler.go",
 		},
 		Declarations: []string{
-			"services/api-db-go/internal/application/routers/guilds_router.go",
+			"services/go-svc-a/internal/application/routers/guilds_router.go",
 		},
 		Reached: []string{
 			"GuildsHandler", "ModmailWebAccessList", "ModmailEnabledGuildIDs",
@@ -598,7 +598,7 @@ var reachQuestions = []question{
 		Language: "go, one edge is a field type and one is named only by a method",
 		Depth:    1,
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/redis/user_cache.go",
 			Name: "UserCache", Symbol: "UserCache",
 		},
@@ -633,15 +633,15 @@ var reachQuestions = []question{
 		// standard library, and `userMetaKey` is declared in the subject's own
 		// file, which is never part of a truth.
 		Truth: []string{
-			"services/api-db-go/internal/infrastructure/redis/client.go",
-			"services/api-db-go/internal/infrastructure/redis/serialization.go",
-			"services/api-db-go/internal/domain/services/core_reader.go",
+			"services/go-svc-a/internal/infrastructure/redis/client.go",
+			"services/go-svc-a/internal/infrastructure/redis/serialization.go",
+			"services/go-svc-a/internal/domain/services/core_reader.go",
 		},
 		// The bare name is declared three times in the corpus, and the other
 		// two are TypeScript classes the Go doc comment itself points at. A
 		// reader answering this by hand has to tell them apart first.
 		Declarations: []string{
-			"services/api-db-go/internal/infrastructure/redis/user_cache.go",
+			"services/go-svc-a/internal/infrastructure/redis/user_cache.go",
 			"libraries/library-shared/src/redis/cache/core/user-cache-core.ts",
 			"libraries/library-shared/src/redis/cache/sdk/user-cache-sdk.ts",
 		},
@@ -665,7 +665,7 @@ var httpStatusDeclarations = []string{
 	"libraries/library-shared/src/result/custom-error.ts",
 	"libraries/library-web/src/shared/CustomError.ts",
 	"services/api-gateway/src/domain/result/custom-error.ts",
-	"services/api-metrics/src/domain/result/custom-error.ts",
+	"services/go-svc-c/src/domain/result/custom-error.ts",
 	"services/api-premium/src/domain/result/custom-error.ts",
 	"services/api-translations/src/domain/result/custom-error.ts",
 }
@@ -699,7 +699,7 @@ var chainQuestions = []question{
 		Ask:      "Give me the complete source of these three declarations, in one call",
 		Language: "go and typescript, two repositories",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/shared/infisical/infisical.go",
 			Name: "LoadSecrets", Symbol: "LoadSecrets",
 			First: "func LoadSecrets() (configured bool, err error) {",
@@ -707,7 +707,7 @@ var chainQuestions = []question{
 		},
 		Also: []subject{
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/application/routers/guilds_router.go",
 				Name: "RegisterGuilds", Symbol: "RegisterGuilds",
 				First: "func RegisterGuilds(app *fiber.App, h *handlers.GuildsHandler) {",
@@ -724,13 +724,13 @@ var chainQuestions = []question{
 		// One address per declaration whose whole body came back. Spans read
 		// from the files: 72-102, 34-48 and 6-18.
 		Truth: []string{
-			"api-db-go:internal/shared/infisical/infisical.go#LoadSecrets",
-			"api-db-go:internal/application/routers/guilds_router.go#RegisterGuilds",
+			"go-svc-a:internal/shared/infisical/infisical.go#LoadSecrets",
+			"go-svc-a:internal/application/routers/guilds_router.go#RegisterGuilds",
 			"library-shared:src/redis/cache/music/recommendations-cache.ts#RecommendationsCache",
 		},
 		Declarations: []string{
-			"services/api-db-go/internal/shared/infisical/infisical.go",
-			"services/api-db-go/internal/application/routers/guilds_router.go",
+			"services/go-svc-a/internal/shared/infisical/infisical.go",
+			"services/go-svc-a/internal/application/routers/guilds_router.go",
 			"libraries/library-shared/src/redis/cache/music/recommendations-cache.ts",
 		},
 	},
@@ -769,7 +769,7 @@ var chainQuestions = []question{
 		Ask:      "Give me the complete source of these twenty declarations, in one call",
 		Language: "go, twenty declarations across 18 files -- the cap the tool accepts",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/application/handlers/openapi_handler.go",
 			Name: "buildOpenAPIDoc", Symbol: "buildOpenAPIDoc",
 			First: "func buildOpenAPIDoc(app *fiber.App) map[string]any {",
@@ -777,133 +777,133 @@ var chainQuestions = []question{
 		},
 		Also: []subject{
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/dbguild/module_moderation.go",
 				Name: "NormalizeModeration", Symbol: "NormalizeModeration",
 				First: "func NormalizeModeration(m *ModuleModeration) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/dbguild/module_modmail.go",
 				Name: "NormalizeModmail", Symbol: "NormalizeModmail",
 				First: "func NormalizeModmail(m *ModuleModmail) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/mocks/module_greeter_mock.go",
 				Name: "newGreeterMessageConfig", Symbol: "newGreeterMessageConfig",
 				First: "func newGreeterMessageConfig(welcomeContent string) dbguild.GreeterMessageConfig {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/mocks/module_leveling_mock.go",
 				Name: "defaultLevelingCardCanvas", Symbol: "defaultLevelingCardCanvas",
 				First: "func defaultLevelingCardCanvas() dbguild.GreeterImageCanvas {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/mocks/module_modmail_mock.go",
 				Name: "NewModuleModmail", Symbol: "NewModuleModmail",
 				First: "func NewModuleModmail() dbguild.ModuleModmail {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/mocks/module_tickets_mock.go",
 				Name: "NewModuleTickets", Symbol: "NewModuleTickets",
 				First: "func NewModuleTickets() dbguild.ModuleTickets {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/bandwidth_validations.go",
 				Name: "ParseBandwidthIngest", Symbol: "ParseBandwidthIngest",
 				First: "func ParseBandwidthIngest(body []byte) (dbbandwidth.Batch, error) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/bandwidth_validations.go",
 				Name: "parseBandwidthEntry", Symbol: "parseBandwidthEntry",
 				First: "func parseBandwidthEntry(raw json.RawMessage, i int) (dbbandwidth.Entry, error) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/deezer_validations.go",
 				Name: "ParseUpdateArlBody", Symbol: "ParseUpdateArlBody",
 				First: "func ParseUpdateArlBody(raw []byte) (ArlUpdate, *apierrors.CustomError) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/giveaways_validations.go",
 				Name: "parseGiveawayBaseFields", Symbol: "parseGiveawayBaseFields",
 				First: "func parseGiveawayBaseFields(set map[string]any, raw map[string]json.RawMessage, updateMode bool) *apierrors.CustomError {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/messages_validations.go",
 				Name: "parseMessageRow", Symbol: "parseMessageRow",
 				First: "func parseMessageRow(m messageWriteJSON, prefix string) (dbmessage.WriteData, *apierrors.CustomError) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/moderation_flow_runs_validations.go",
 				Name: "ParseFlowRunCreate", Symbol: "ParseFlowRunCreate",
 				First: "func ParseFlowRunCreate(body []byte) (dbflowrun.CreateData, *apierrors.CustomError) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/moderation_infractions_validations.go",
 				Name: "ParseInfractionCreate", Symbol: "ParseInfractionCreate",
 				First: "func ParseInfractionCreate(body []byte) (dbinfraction.CreateData, *apierrors.CustomError) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/moderation_infractions_validations.go",
 				Name: "ParseInfractionListQuery", Symbol: "ParseInfractionListQuery",
 				First: "func ParseInfractionListQuery(limitRaw, offsetRaw, botID, guildID, userID, moderatorID, typ, status, source, caseNumberRaw, expiresBefore, createdAfter, typesRaw, statusesRaw string) (dbinfraction.ListParams, *apierrors.CustomError) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/domain/validations/track_errors_validations.go",
 				Name: "ParseTrackErrorCreate", Symbol: "ParseTrackErrorCreate",
 				First: "func ParseTrackErrorCreate(body []byte) (dbtrackerror.CreateData, *apierrors.CustomError) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/infrastructure/kpiscraper/scraper.go",
 				Name: "aggregate", Symbol: "aggregate",
 				First: "func aggregate(samples []sample) tickResult {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/infrastructure/postgres/migrate.go",
 				Name: "cutoverGuard", Symbol: "cutoverGuard",
 				First: "func cutoverGuard(ctx context.Context, cfg config.Postgres) error {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/infrastructure/redis/guild_cache.go",
 				Name: "marshalGuildToHash", Symbol: "marshalGuildToHash",
 				First: "func marshalGuildToHash(g dbguild.DBGuildWithModules) (map[string]string, error) {",
 				Last:  "}",
 			},
 			{
-				Repo: "api-db-go", Dir: "services/api-db-go",
+				Repo: "go-svc-a", Dir: "services/go-svc-a",
 				Path: "internal/infrastructure/redis/redis_search_init.go",
 				Name: "InitializeRedisSearch", Symbol: "InitializeRedisSearch",
 				First: "func InitializeRedisSearch(ctx context.Context, client *Client) {",
@@ -911,53 +911,53 @@ var chainQuestions = []question{
 			},
 		},
 		Truth: []string{
-			"api-db-go:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
-			"api-db-go:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
-			"api-db-go:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
-			"api-db-go:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
-			"api-db-go:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
-			"api-db-go:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
-			"api-db-go:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
-			"api-db-go:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
-			"api-db-go:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
-			"api-db-go:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
-			"api-db-go:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
-			"api-db-go:internal/domain/validations/messages_validations.go#parseMessageRow",
-			"api-db-go:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
-			"api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
-			"api-db-go:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
-			"api-db-go:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
-			"api-db-go:internal/infrastructure/kpiscraper/scraper.go#aggregate",
-			"api-db-go:internal/infrastructure/postgres/migrate.go#cutoverGuard",
-			"api-db-go:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
-			"api-db-go:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch",
+			"go-svc-a:internal/application/handlers/openapi_handler.go#buildOpenAPIDoc",
+			"go-svc-a:internal/domain/dbguild/module_moderation.go#NormalizeModeration",
+			"go-svc-a:internal/domain/dbguild/module_modmail.go#NormalizeModmail",
+			"go-svc-a:internal/domain/mocks/module_greeter_mock.go#newGreeterMessageConfig",
+			"go-svc-a:internal/domain/mocks/module_leveling_mock.go#defaultLevelingCardCanvas",
+			"go-svc-a:internal/domain/mocks/module_modmail_mock.go#NewModuleModmail",
+			"go-svc-a:internal/domain/mocks/module_tickets_mock.go#NewModuleTickets",
+			"go-svc-a:internal/domain/validations/bandwidth_validations.go#ParseBandwidthIngest",
+			"go-svc-a:internal/domain/validations/bandwidth_validations.go#parseBandwidthEntry",
+			"go-svc-a:internal/domain/validations/deezer_validations.go#ParseUpdateArlBody",
+			"go-svc-a:internal/domain/validations/giveaways_validations.go#parseGiveawayBaseFields",
+			"go-svc-a:internal/domain/validations/messages_validations.go#parseMessageRow",
+			"go-svc-a:internal/domain/validations/moderation_flow_runs_validations.go#ParseFlowRunCreate",
+			"go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionCreate",
+			"go-svc-a:internal/domain/validations/moderation_infractions_validations.go#ParseInfractionListQuery",
+			"go-svc-a:internal/domain/validations/track_errors_validations.go#ParseTrackErrorCreate",
+			"go-svc-a:internal/infrastructure/kpiscraper/scraper.go#aggregate",
+			"go-svc-a:internal/infrastructure/postgres/migrate.go#cutoverGuard",
+			"go-svc-a:internal/infrastructure/redis/guild_cache.go#marshalGuildToHash",
+			"go-svc-a:internal/infrastructure/redis/redis_search_init.go#InitializeRedisSearch",
 		},
 		Declarations: []string{
-			"services/api-db-go/internal/application/handlers/openapi_handler.go",
-			"services/api-db-go/internal/domain/dbguild/module_moderation.go",
-			"services/api-db-go/internal/domain/dbguild/module_modmail.go",
-			"services/api-db-go/internal/domain/mocks/module_greeter_mock.go",
-			"services/api-db-go/internal/domain/mocks/module_leveling_mock.go",
-			"services/api-db-go/internal/domain/mocks/module_modmail_mock.go",
-			"services/api-db-go/internal/domain/mocks/module_tickets_mock.go",
-			"services/api-db-go/internal/domain/validations/bandwidth_validations.go",
-			"services/api-db-go/internal/domain/validations/deezer_validations.go",
-			"services/api-db-go/internal/domain/validations/giveaways_validations.go",
-			"services/api-db-go/internal/domain/validations/messages_validations.go",
-			"services/api-db-go/internal/domain/validations/moderation_flow_runs_validations.go",
-			"services/api-db-go/internal/domain/validations/moderation_infractions_validations.go",
-			"services/api-db-go/internal/domain/validations/track_errors_validations.go",
-			"services/api-db-go/internal/infrastructure/kpiscraper/scraper.go",
-			"services/api-db-go/internal/infrastructure/postgres/migrate.go",
-			"services/api-db-go/internal/infrastructure/redis/guild_cache.go",
-			"services/api-db-go/internal/infrastructure/redis/redis_search_init.go",
+			"services/go-svc-a/internal/application/handlers/openapi_handler.go",
+			"services/go-svc-a/internal/domain/dbguild/module_moderation.go",
+			"services/go-svc-a/internal/domain/dbguild/module_modmail.go",
+			"services/go-svc-a/internal/domain/mocks/module_greeter_mock.go",
+			"services/go-svc-a/internal/domain/mocks/module_leveling_mock.go",
+			"services/go-svc-a/internal/domain/mocks/module_modmail_mock.go",
+			"services/go-svc-a/internal/domain/mocks/module_tickets_mock.go",
+			"services/go-svc-a/internal/domain/validations/bandwidth_validations.go",
+			"services/go-svc-a/internal/domain/validations/deezer_validations.go",
+			"services/go-svc-a/internal/domain/validations/giveaways_validations.go",
+			"services/go-svc-a/internal/domain/validations/messages_validations.go",
+			"services/go-svc-a/internal/domain/validations/moderation_flow_runs_validations.go",
+			"services/go-svc-a/internal/domain/validations/moderation_infractions_validations.go",
+			"services/go-svc-a/internal/domain/validations/track_errors_validations.go",
+			"services/go-svc-a/internal/infrastructure/kpiscraper/scraper.go",
+			"services/go-svc-a/internal/infrastructure/postgres/migrate.go",
+			"services/go-svc-a/internal/infrastructure/redis/guild_cache.go",
+			"services/go-svc-a/internal/infrastructure/redis/redis_search_init.go",
 		},
 	},
 }
 
 // rustQuestions is the first question this project has ever asked about Rust in
 // a real corpus. Every earlier Rust dimension -- `H5_rs_trait` -- lived on a
-// synthetic fixture, and the three sets measured over kena were measured with no
+// synthetic fixture, and the three sets measured over workspace were measured with no
 // Rust in the index at all, because the harness ran without cargo on its PATH
 // and never read the counter that said so.
 //
@@ -974,7 +974,7 @@ var rustQuestions = []question{
 		Ask:      "Which files reference the delete_session declared on MemoryStateStore?",
 		Language: "rust, the only caller goes through a trait object",
 		Subject: subject{
-			Repo: "kenalink-rs", Dir: "services/kenalink-rs",
+			Repo: "rs-svc-b", Dir: "services/rs-svc-b",
 			Path: "src/state/memory.rs",
 			Name: "MemoryStateStore.delete_session", Symbol: "delete_session",
 		},
@@ -987,10 +987,10 @@ var rustQuestions = []question{
 		// `src/state/mod.rs:15` declares it on the trait, and the call at
 		// `src/state/memory.rs:546` is inside the declaring file, which this
 		// benchmark never counts.
-		Truth: []string{"services/kenalink-rs/src/api_ws/mod.rs"},
+		Truth: []string{"services/rs-svc-b/src/api_ws/mod.rs"},
 		Declarations: []string{
-			"services/kenalink-rs/src/state/memory.rs",
-			"services/kenalink-rs/src/state/mod.rs",
+			"services/rs-svc-b/src/state/memory.rs",
+			"services/rs-svc-b/src/state/mod.rs",
 		},
 	},
 }
@@ -1019,10 +1019,10 @@ var trivialQuestions = []question{
 	{
 		ID:       "T1_go_trivial",
 		Family:   familyReferences,
-		Ask:      "Which files call newGMCClient in services/api-db-go?",
+		Ask:      "Which files call newGMCClient in services/go-svc-a?",
 		Language: "go, a rare unexported name in one small package",
 		Subject: subject{
-			Repo: "api-db-go", Dir: "services/api-db-go",
+			Repo: "go-svc-a", Dir: "services/go-svc-a",
 			Path: "internal/infrastructure/locker/memcached.go",
 			Name: "newGMCClient", Symbol: "newGMCClient",
 		},
@@ -1031,12 +1031,12 @@ var trivialQuestions = []question{
 		// nothing to disambiguate, nothing transitive, and nothing a second
 		// call could add.
 		Truth: []string{
-			"services/api-db-go/internal/infrastructure/locker/locker.go",
+			"services/go-svc-a/internal/infrastructure/locker/locker.go",
 		},
 		// One declaration, and the file is 53 lines. The native arm reads it
 		// once and has the whole answer.
 		Declarations: []string{
-			"services/api-db-go/internal/infrastructure/locker/memcached.go",
+			"services/go-svc-a/internal/infrastructure/locker/memcached.go",
 		},
 	},
 }

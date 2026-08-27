@@ -230,7 +230,7 @@ func NewGraphSnapshot(input GraphSnapshotInput) (*GraphSnapshot, error) {
 // slices it keeps using. A reader of a snapshot file does not. Its decoders
 // allocate one slice per section, fill it from the mapped bytes and pass it
 // here, and nobody else can name those slices -- so copying them produced a
-// verbatim twin and left the original as garbage. Measured over `kena` in
+// verbatim twin and left the original as garbage. Measured over `workspace` in
 // `benchmarks/snapshot-heap`, the pairs were exact rather than close:
 // `decodeSymbols` and the symbols line allocated the same bytes, and so did the
 // evidence table and both edge arrays. Nineteen point eight megabytes of a
@@ -522,7 +522,7 @@ func validEvidenceIDs(edges []PackedEdge, evidence int) bool {
 // named twice.
 //
 // The bitmap is what makes it cheap. Keying a map by every forward edge
-// allocated `13,3 MB` on `kena` for a structure discarded in the same call,
+// allocated `13,3 MB` on `workspace` for a structure discarded in the same call,
 // which `benchmarks/snapshot-heap` measured as a third of the load's garbage;
 // one bit per forward edge is `42 kB` there. What it costs instead is a walk of
 // the source's forward group, so the work is the sum of the squared

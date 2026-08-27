@@ -80,7 +80,7 @@ func MergeAll(sets []Set) Set {
 ```
 
 The response comes from snapshot `30` of two repositories, `kivgraph` and
-`mole`. The `[file changed, re-anchored +0]` marker on the header is the
+`go-svc-e`. The `[file changed, re-anchored +0]` marker on the header is the
 freshness contract at work: the file on disk no longer hashed to what the
 generation recorded, the declaration was found again by name, and it had not
 moved.

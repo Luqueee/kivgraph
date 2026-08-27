@@ -379,13 +379,13 @@ at depth 2:
       "reason": "PACKAGE_NOT_BUILDABLE",
       "repository": "kivgraph",
       "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-delta-profile",
-      "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile"
+      "detail": "LIST: build constraints exclude all Go files in /path/to/kivgraph/benchmarks/ladybug-delta-profile"
     },
     {
       "reason": "PACKAGE_NOT_BUILDABLE",
       "repository": "kivgraph",
       "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery",
-      "detail": "LIST: build constraints exclude all Go files in /Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
+      "detail": "LIST: build constraints exclude all Go files in /path/to/kivgraph/benchmarks/ladybug-recovery"
     },
     {
       "reason": "PACKAGE_PROVIDER_NOT_FOUND",
@@ -416,8 +416,8 @@ at depth 2:
   "fallback": {
     "pattern": "\\bMergeAll\\b",
     "paths": [
-      "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-delta-profile",
-      "/Users/adria/Documents/programacion/projects/kivgraph/benchmarks/ladybug-recovery"
+      "/path/to/kivgraph/benchmarks/ladybug-delta-profile",
+      "/path/to/kivgraph/benchmarks/ladybug-recovery"
     ]
   }
 }

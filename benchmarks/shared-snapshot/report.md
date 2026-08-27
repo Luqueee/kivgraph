@@ -18,7 +18,7 @@ se dice y se justifica abajo, en «Los criterios».
 |commit|`186884c`|
 |binario|`kivgraph 0.5.0`|
 |máquina|Linux `6.12.94+deb13-amd64`, 16 CPU, 23,4 GB|
-|corpus|`kena-workspace`, 51 repositorios registrados|
+|corpus|`workspace`, 51 repositorios registrados|
 |generación|`000001`, `snapshot.kvsnap` de `128.957.472` bytes|
 |llamadas|`2.000` medidas por brazo, `4.000` descartadas antes|
 |semilla|`42`|

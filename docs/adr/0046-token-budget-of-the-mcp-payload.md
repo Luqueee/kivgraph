@@ -1,6 +1,6 @@
 # ADR 0046: El presupuesto en tokens del payload MCP
 
-- **Estado:** aceptado e implementado; las cinco etapas medidas sobre `kena`
+- **Estado:** aceptado e implementado; las cinco etapas medidas sobre `workspace`
 - **Fecha:** 2026-08-18
 - **Revisa:** qué paga un agente por cada respuesta de las tools, y qué se
   puede quitar sin perder una sola arista
@@ -8,7 +8,7 @@
 ## Contexto
 
 `benchmarks/codebase-memory-comparison/` midió las mismas cuatro preguntas de
-referencias contra `codebase-memory-mcp 0.8.1` sobre `kena`. Kivgraph ganó en
+referencias contra `codebase-memory-mcp 0.8.1` sobre `workspace`. Kivgraph ganó en
 exactitud -2 de 4 respuestas exactas contra 1, sin una sola arista falsa- y
 perdió en coste: `13.586` tokens contra `3.217`, `4,2x` más caro. En dos de las
 cuatro preguntas ni siquiera bajó del coste de leer y `grep`ear.
@@ -118,7 +118,7 @@ get_blast_radius, sólo símbolos invocables:   5.103 -> 172 tok
 
 Las proyecciones de arriba se calcularon transformando las respuestas
 capturadas. Esto es el mismo corpus preguntado al servidor con el código ya
-dentro, misma generación `000003` de `kena` y misma verdad de referencia
+dentro, misma generación `000003` de `workspace` y misma verdad de referencia
 manual:
 
 ```text
@@ -216,7 +216,7 @@ compactas:
   método exportado entre variables no exportadas rompe el hoist para todo el
   directorio.
 - `find_cross_repo_consumers` hoistea `category`, `edge_kind`, `confidence`,
-  `provenance`, `evidence_kind` y `reason`; sobre `kena`, una página de `35`
+  `provenance`, `evidence_kind` y `reason`; sobre `workspace`, una página de `35`
   consumidores mezcla dependencias de paquete (`PACKAGE_DEPENDS_ON`) con
   fallos de resolución (`UNRESOLVED`), así que ninguna columna hoistea y las
   `35` filas repiten las seis.
@@ -228,7 +228,7 @@ nuevas porque cada tool hoistea columnas distintas -- no hay una firma común
 que compartir como `compactReachedSymbols`.
 
 `find_cross_repo_consumers` tenía además una asunción incorrecta: `detail` en
-una fila `UNRESOLVED` se trataba como prosa propia de esa fila. Sobre `kena`,
+una fila `UNRESOLVED` se trataba como prosa propia de esa fila. Sobre `workspace`,
 las filas que fallan por el mismo `reason` casi siempre comparten también el
 mismo `detail` palabra por palabra -es la ruta al `.d.ts` que no se pudo
 mapear, no una frase compuesta por fila-, así que agruparlo no pierde
@@ -293,7 +293,7 @@ tool.
   storage. Sin este arreglo, indexar el propio `kivgraph` con el ADR 0046
   aplicado fallaba: es lo que hizo posible medir esta sección.
 - La revancha de `benchmarks/codebase-memory-comparison` con la etapa 4
-  dentro, misma generación `000003` de `kena`, mismo rival sin tocar: las
+  dentro, misma generación `000003` de `workspace`, mismo rival sin tocar: las
   cuatro preguntas de referencias bajan de `2.883` a `2.214` tokens
   (`6,1x` contra el corpus sin el ADR, `0,69x` de los `3.217` del rival, antes
   `0,90x`); las nueve preguntas -las cuatro más el censo de declaraciones, el
@@ -301,7 +301,7 @@ tool.
   cross-repo- de `7.356` a `6.587` tokens contra los `29.633` del rival,
   `4,50x` (antes `4,03x`). `P` y `R` no cambiaron.
 - La revancha de `benchmarks/codebase-memory-comparison` con la etapa 5
-  dentro, misma generación `000003` de `kena`, mismo rival sin tocar: las
+  dentro, misma generación `000003` de `workspace`, mismo rival sin tocar: las
   cuatro preguntas de referencias bajan de `2.883` a `2.214` tokens
   (`6,1x` contra el corpus sin el ADR, `0,69x` de los `3.217` del rival); las
   nueve preguntas -las cuatro más el censo de declaraciones, el outline, el

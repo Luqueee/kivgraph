@@ -10,7 +10,7 @@ la clase referencia y **no** lo que sus propios métodos alcanzan, sin decir que
 había parado ahí.
 
 Medido en `benchmarks/graph-tools-comparison/reach.md`, pregunta `X4`, sobre
-`RecommendationsCache` en `library-shared` del corpus `kena`:
+`RecommendationsCache` en `library-shared` del corpus `workspace`:
 
 |pregunta|alcanza|
 |---|---|

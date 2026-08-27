@@ -830,7 +830,7 @@ func classifyTraversalError(err error) error {
 // A traversal walks edges, and containment was not one: DEFINES goes from a
 // file and PART_OF is the Dart part relation. Rooting only on the class
 // therefore answered a narrower question than the caller asked. Measured on
-// kena, a cache class reached its base class and stopped, while the type its two
+// workspace, a cache class reached its base class and stopped, while the type its two
 // methods name through an `import type` was reached only by asking about a
 // method.
 //
@@ -852,7 +852,7 @@ func classifyTraversalError(err error) error {
 //
 // Only the outermost layer seeds. A parameter sits inside its method and its
 // type is reach the method already accounts for, so seeding it would add nothing
-// and would let a parameter's own name shape the answer. On kena that is the
+// and would let a parameter's own name shape the answer. On workspace that is the
 // difference between two methods and two methods plus an argument.
 func containedMembers(
 	snapshot *hotsnapshot.GraphSnapshot, rootID hotsnapshot.SymbolID, root hotsnapshot.SymbolRecord,

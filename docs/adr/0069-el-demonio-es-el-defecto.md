@@ -120,7 +120,7 @@ bucle.
 
 ## Limitaciones declaradas
 
-- Las cifras son de `benchmarks/daemon-cost` sobre `kena` en la VM de Docker
+- Las cifras son de `benchmarks/daemon-cost` sobre `workspace` en la VM de Docker
   Desktop, no bare metal, y el techo por sesión depende del corpus.
 - La cuenta del event log es de **una** máquina y dos días: sostiene el orden de
   magnitud del régimen, no es una distribución.

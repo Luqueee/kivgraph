@@ -12,7 +12,7 @@ comprueba, así que el grafo no puede verlo y -esto es lo grave- nada lo declara
 ausente: no es un `UNRESOLVED`, no es un diagnóstico, no es una fila. Es
 invisible por construcción.
 
-Medido sobre el monorepo `kena`: de `3.247` ficheros `.ts`, **`186` (5,7 %) no
+Medido sobre el monorepo `workspace`: de `3.247` ficheros `.ts`, **`186` (5,7 %) no
 los reclama ningún proyecto**, y `177` de ellos viven en
 `packages/core/tests/`, porque `packages/core/tsconfig.json` declara
 `include: ["src/**/*.ts", ...]` y su árbol de tests queda fuera.
@@ -116,7 +116,7 @@ proyecto inferido no tiene ninguna que acreditar.
 
 Eso deja una limitación declarada: un uso cuyo destino vive en otro paquete
 -`describe` de `vitest`, un símbolo de `@discordjs/core`- **no es arista y
-tampoco es una fila `UNRESOLVED`**. Medido sobre `kena/packages/core` con el
+tampoco es una fila `UNRESOLVED`**. Medido sobre `workspace/packages/core` con el
 fichero real: las filas no resueltas son idénticas con y sin el pase
 -`DECLARATION_NOT_RESOLVED=7`, `PACKAGE_PROVIDER_NOT_FOUND=236`, las mismas que
 produce el proyecto configurado-, así que el pase **no añade ni una**. No hay
@@ -155,7 +155,7 @@ tests/case.test.ts  CALLS_DIRECT  -> src/case.ts#getRequiredField
 tests/case.test.ts  REFERENCES    -> tests/helpers/fixture.ts#record
 ```
 
-Sobre el caso real, `kena/packages/core` con
+Sobre el caso real, `workspace/packages/core` con
 `tests/cluster/worker/ipc/utils/ipcCase.test.ts`: `4.835 -> 4.845` símbolos,
 `14.100 -> 14.138` referencias, `0` no resueltos nuevos, y el test aparece como
 llamante de `getField`, `getRequiredField` y `normalizeMessageData`, que es

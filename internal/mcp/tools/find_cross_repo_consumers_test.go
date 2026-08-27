@@ -513,7 +513,7 @@ func crossRepoFanInRows() hotsnapshot.LadybugSnapshotRows {
 
 // TestFindCrossRepoConsumersCompactGroupsTheMajorityTupleOnce is the
 // regression guard for the real page that motivated this: a 35-consumer page
-// over `kena` had 22 package dependencies sharing one tuple and 13 unresolved
+// over `workspace` had 22 package dependencies sharing one tuple and 13 unresolved
 // rows collapsing to two (reason, detail) pairs -- `detail` was assumed to be
 // each row's own prose and was in fact a template repeated verbatim.
 // Grouping cut that page from 2.202 to 518 tokens.

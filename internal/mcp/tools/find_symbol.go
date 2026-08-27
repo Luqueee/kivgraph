@@ -141,7 +141,7 @@ type compactSymbol struct {
 }
 
 // compact spells the page without repeating what every row shares. Measured
-// over `kena`, `stable_key` was 885 of the 2.293 tokens of a 22-row page and no
+// over `workspace`, `stable_key` was 885 of the 2.293 tokens of a 22-row page and no
 // tool needs it: every one accepts the repository, path and qualified name that
 // the rows already carry. See ADR 0046.
 //

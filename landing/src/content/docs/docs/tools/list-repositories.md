@@ -48,7 +48,7 @@ that needs a second call to learn the first one is stale will not make it.
   "results": [
     {
       "name": "kivgraph",
-      "path": "/Users/adria/Documents/programacion/projects/kivgraph",
+      "path": "/path/to/kivgraph",
       "languages": [
         "go",
         "typescript"
@@ -60,8 +60,8 @@ that needs a second call to learn the first one is stale will not make it.
       "moved": false
     },
     {
-      "name": "mole",
-      "path": "/Users/adria/Documents/programacion/projects/mole",
+      "name": "go-svc-e",
+      "path": "/path/to/home/Documents/programacion/projects/go-svc-e",
       "languages": [
         "go",
         "typescript"
@@ -77,7 +77,7 @@ that needs a second call to learn the first one is stale will not make it.
 }
 ```
 
-Corpus: snapshot `30` of two repositories, `kivgraph` and `mole`.
+Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`.
 
 ## The row
 

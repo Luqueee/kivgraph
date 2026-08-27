@@ -15,12 +15,13 @@ vías: el `.d.ts.map`, las raíces del proyecto del proveedor, las del registro 
 la transformada `rootDir`/`outDir`. Las tres últimas exigen que el `.d.ts` esté
 **bajo la raíz del proveedor**, porque calculan una ruta relativa desde ella.
 
-Un consumidor que escribe `import { withRetry } from "@kena/shared"` no
+Un consumidor que escribe `import { withRetry } from "@private/shared"` no
 resuelve ahí. `pnpm` instala:
 
 ```
-kena/modules/sdk-module-ts/node_modules/@kena/shared
-  -> ../../../../node_modules/.pnpm/@kena+shared@0.0.1_<peers>/node_modules/@kena/shared
+workspace/modules/sdk-module-ts/node_modules/@private/shared
+  -> ../../../../node_modules/.pnpm/@workspace+shared@0.0.1_<peers>/
+     node_modules/@private/shared
 ```
 
 El destino es un **directorio real**, no un enlace al workspace: el tarball
@@ -33,7 +34,7 @@ el `node_modules` de quien lo instaló.
 
 El resultado medido sobre el corpus de referencia, en los tres repositorios que
 la pregunta `R1_ts_xrepo` de `benchmarks/graph-tools-comparison` cubre: `804`
-imports de `@kena/shared` -`408` en `sdk-module-ts`, `310` en `packages/core`,
+imports de `@private/shared` -`408` en `sdk-module-ts`, `310` en `packages/core`,
 `86` en `packages/gateway`- y **ninguno** con destino. Los cinco sitios de uso
 de `withRetry` que la ground truth nombra no existían como arista, y la
 respuesta a «quién usa `withRetry`» quedaba en los tres barriles de
@@ -44,8 +45,9 @@ El propio grafo lo declaraba, en `completeness.blind_spots`:
 ```
 reason            DECLARATION_SOURCE_NOT_MAPPED
 requested_symbol  expBackoffJitter
-requested_package @kena/shared
-detail            .../node_modules/.pnpm/@kena+shared@0.0.1_.../dist/utils/retry.d.ts
+requested_package @private/shared
+detail            .../node_modules/.pnpm/@workspace+shared@0.0.1_...
+                  /dist/utils/retry.d.ts
 ```
 
 El ADR 0038 ya había descartado «exigir `declarationMap` en los proveedores»
@@ -73,9 +75,10 @@ de compilación del proveedor, y aquí además cruza una publicación.
 Se pregunta por el `name` del `package.json` más cercano, no por el paquete que
 el consumidor escribió. No son el mismo:
 
-- `@kena/shared` reexporta `@kena/env`, `@kena/http` y `@kena/logger`, que
+- `@private/shared` reexporta `@workspace/env`, `@workspace/http` y
+  `@workspace/logger`, que
   `pnpm` cuelga como hermanas en el almacén. Un `vendoredHelper` importado
-  «de» `@kena/shared` está declarado en el `.d.ts` de otro paquete.
+  «de» `@private/shared` está declarado en el `.d.ts` de otro paquete.
 - Acreditar al paquete que el consumidor escribió compondría una clave contra
   un repositorio que no publica ese símbolo: una arista colgante con aspecto
   de correcta, que es lo que el ADR 0038 ya prohíbe para las fachadas.
@@ -121,7 +124,7 @@ alternativa que el ADR 0038 ya descartó.
 
 ## Consecuencias
 
-- Los `804` imports de `@kena/shared` de los tres repositorios medidos pasan de
+- Los `804` imports de `@private/shared` de los tres repositorios medidos pasan de
   `0` a `804` con destino, y los cinco sitios de uso de `withRetry` de la
   ground truth resuelven a `library-shared:src/utils/retry.ts:135` con
   `PROVIDER_EXPORT`.

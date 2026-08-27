@@ -27,7 +27,7 @@ El mismo agujero existía en Go, donde `goloader/uses.go` documenta
 `SourceQualifiedName` como «the enclosing declaration, **empty at file
 level**»: el uso en el inicializador de una variable de paquete no tiene dueño.
 
-**Medido** sobre `packages/core` del monorepo `kena`, con `facts-cli`:
+**Medido** sobre `packages/core` del monorepo `workspace`, con `facts-cli`:
 
 |población|usos perdidos|
 |---|---|
@@ -99,7 +99,7 @@ en `EdgesWithoutSource`. Hay un test negativo por cada mitad.
 - Un radio de impacto puede alcanzar un `module`. Es un consumidor legítimo -el
   código de nivel superior de ese fichero llega al símbolo- y reportarlo es más
   cierto que omitirlo.
-- El grafo crece. Sobre `kena` con las dos palancas activas, un `+0,4 %` de
+- El grafo crece. Sobre `workspace` con las dos palancas activas, un `+0,4 %` de
   símbolos: el símbolo sólo se crea donde un uso lo pidió.
 - **Exige reconstrucción completa.** No cambia el schema ni el algoritmo de las
   claves estables, pero añade símbolos y aristas que un índice anterior no

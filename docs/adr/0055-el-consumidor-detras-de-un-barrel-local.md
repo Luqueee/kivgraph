@@ -13,7 +13,7 @@ respuesta tenía siete filas `TYPE_USES`, la página entera izaba
 posiciones con ese tipo y no aparecía. `P=1,00`, `R=0,50`.
 
 El síntoma sugería un problema con los tipos y no lo era. En ese mismo fichero,
-`import type { RedisAdapter } from "@kena/shared"` resuelve perfectamente. Lo
+`import type { RedisAdapter } from "@private/shared"` resuelve perfectamente. Lo
 que difiere es **la ruta**:
 
 ```ts
@@ -21,7 +21,7 @@ import type { ApiRuntimeState, … } from "../../types/registry.js";
 ```
 
 y `src/types/registry.ts` es, entero,
-`export type { ApiRuntimeState, … } from "@kena/shared"`.
+`export type { ApiRuntimeState, … } from "@private/shared"`.
 
 Sólo se creaba vinculación para un import que **nombra un paquete**. Con una ruta
 relativa no se creaba ninguna, así que los cuatro usos no tenían a qué apuntar y
@@ -97,8 +97,8 @@ proveedor que ese barrel nombró.
 ## Lo que la corrección se dejó por el camino, y se arregló
 
 Ensanchar el recorrido a todos los ficheros del programa metió los `.d.ts` de las
-dependencias. Vincularlos nombró la **copia instalada** de `@kena/shared` como
-consumidora de un tipo que `@kena/shared` declara, en dos repositorios a la vez,
+dependencias. Vincularlos nombró la **copia instalada** de `@private/shared` como
+consumidora de un tipo que `@private/shared` declara, en dos repositorios a la vez,
 con una ruta que se sale de la raíz del repositorio (`../../node_modules/…`).
 `H3` marcó `0,50`/`1,00` durante una pasada. Es el mismo invariante que el ADR de
 `internal/facts/golang.go` ya defiende: un hecho es evidencia del repositorio que

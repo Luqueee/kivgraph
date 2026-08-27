@@ -9,7 +9,7 @@
     "os": "Darwin"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "code_files": 0
   },
@@ -24,7 +24,7 @@
     "code-review-graph": "graph database in --data-dir outside the corpus; its registry in an isolated HOME",
     "codebase-memory": "index under an isolated HOME, so the user's own ~/.cache index is untouched",
     "graft": "context directory outside the corpus at /private/tmp/st11/graft-ctx",
-    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/kena-copy",
+    "graphify": "writes graphify-out/ beside the code it reads, so it only ever runs against the private copy at /private/tmp/5way/workspace-copy",
     "kivgraph": "isolated HOME at /private/tmp/h2011; the published generation and the registry live there",
     "native": "reads only; nothing is written"
   },
@@ -36,7 +36,7 @@
       "family": "references",
       "question": "Which files reference the delete_session declared on MemoryStateStore?",
       "ground_truth": [
-        "services/kenalink-rs/src/api_ws/mod.rs"
+        "services/rs-svc-b/src/api_ws/mod.rs"
       ],
       "arms": {
         "code-review-graph": {
@@ -57,7 +57,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           },
@@ -81,7 +81,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           },
@@ -105,7 +105,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           }
@@ -128,7 +128,7 @@
             "precision": 0,
             "recall": 0,
             "missing": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "spurious": []
           },
@@ -146,11 +146,11 @@
           "ms": 0.368,
           "call_count": 1,
           "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs"
+            "rs-svc-b:src/api_ws/mod.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "precision": 1,
             "recall": 1,
@@ -180,11 +180,11 @@
           "ms": 0,
           "call_count": 3,
           "claimed": [
-            "kenalink-rs:src/api_ws/mod.rs"
+            "rs-svc-b:src/api_ws/mod.rs"
           ],
           "score": {
             "claimed_set": [
-              "kenalink-rs:src/api_ws/mod.rs"
+              "rs-svc-b:src/api_ws/mod.rs"
             ],
             "precision": 1,
             "recall": 1,

@@ -15,7 +15,7 @@ Las métricas crudas están en `results-chain.json` y las respuestas literales e
 |---|---|
 |fecha|2026-08-21|
 |commit|`559e1bf`|
-|corpus|`kena`, 37 repositorios git, `4.683` ficheros, `120.461` símbolos -- **sin Rust**, ver abajo|
+|corpus|`workspace`, 37 repositorios git, `4.683` ficheros, `120.461` símbolos -- **sin Rust**, ver abajo|
 |kivgraph|`0.3.6`|
 |tokenizador|`tiktoken` `o200k_base`|
 
@@ -182,7 +182,7 @@ go run ./benchmarks/graph-tools-comparison --set chain \
 ## El corpus medido no llevaba Rust
 
 El índice de estas preguntas se construyó sin `cargo` en el `PATH` del harness,
-así que `rust-analyzer` rechazó los dos workspaces Cargo de `kena` y el pase
+así que `rust-analyzer` rechazó los dos workspaces Cargo de `workspace` y el pase
 publicó el resto, declarándolo como `rust_workspaces_not_loaded=2`. El corpus
 real son `4.768` ficheros y `123.524` símbolos; el medido aquí, `4.683` y
 `120.461`.

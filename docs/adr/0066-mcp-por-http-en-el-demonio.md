@@ -147,7 +147,7 @@ conserva `serve` para los que no. Un cliente sin soporte HTTP no pierde nada.
 * `kivgraph stop` ya reconoce `daemon`; nada cambia ahí.
 * **Elegir HTTP no cuesta nada, y eso está medido a dos cargas.**
   `benchmarks/daemon-cost` corre las dos puertas con el transporte y los
-  recuentos dentro del digest, sobre `108.737` símbolos de `kena` en Linux. La
+  recuentos dentro del digest, sobre `108.737` símbolos de `workspace` en Linux. La
   carga se contó de un event log de uso, donde `48` de `51` servidores no
   recibieron **ninguna** llamada:
 

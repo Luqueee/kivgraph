@@ -109,7 +109,7 @@ este lleva exactamente una.
 Este ADR se aceptó con el ahorro **sin observar**, y esa sección decía que la
 cifra era aritmética sobre `71,2 MB` por servidor. Se midió el mismo día, en
 `benchmarks/daemon-cost`: tres pasadas en Linux sobre `108.737` símbolos de
-`kena`, los dos brazos leyendo el mismo fichero publicado.
+`workspace`, los dos brazos leyendo el mismo fichero publicado.
 
 **Todo lo que sigue mide el socket unix bajo carga sostenida**, que es el único
 transporte que este ADR entregó y una carga que ninguna sesión real produce. El

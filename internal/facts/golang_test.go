@@ -422,7 +422,7 @@ func TestNormalizeGoRefusesFactsFromOutsideTheRepository(t *testing.T) {
 // that motivated the classification: the same corpus indexed on two machines
 // must produce the same rows. A build cache entry lives under $HOME and is
 // keyed by content hash, so a detail that carried the path made two indexings
-// of one corpus publish two different graphs -- measured on `kena` as 288 rows
+// of one corpus publish two different graphs -- measured on `workspace` as 288 rows
 // with the same key and a different detail, interned as 48 distinct strings.
 func TestOutsideRepositoryDetailIsIndependentOfTheMachine(t *testing.T) {
 	entry := filepath.Join("Library", "Caches", "go-build", "27",

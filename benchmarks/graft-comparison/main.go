@@ -54,10 +54,10 @@ func main() {
 	cfg := config{}
 	flag.StringVar(&cfg.Kivgraph, "kivgraph", "kivgraph", "kivgraph executable to measure")
 	flag.StringVar(&cfg.Graft, "graft", "graft", "graft executable to measure")
-	flag.StringVar(&cfg.GraftContext, "graft-context", "/private/tmp/graft-kena-ctx", "graft context directory for the whole corpus")
-	flag.StringVar(&cfg.GraftLSPContext, "graft-lsp-context", "/private/tmp/graft-kena-lsp", "graft context built with --lsp, the opt-in compiler-grade tier")
+	flag.StringVar(&cfg.GraftContext, "graft-context", "/private/tmp/graft-workspace-ctx", "graft context directory for the whole corpus")
+	flag.StringVar(&cfg.GraftLSPContext, "graft-lsp-context", "/private/tmp/graft-workspace-lsp", "graft context built with --lsp, the opt-in compiler-grade tier")
 	flag.StringVar(&cfg.ScopeContext, "scope-context-root", "/private/tmp", "directory holding the per-scope graft contexts")
-	flag.StringVar(&cfg.Corpus, "corpus", "/Users/adria/Documents/programacion/projects/kena", "corpus root")
+	flag.StringVar(&cfg.Corpus, "corpus", "/path/to/workspace", "corpus root")
 	flag.StringVar(&cfg.Home, "home", "/tmp/kivbench-graft-home", "isolated HOME holding kivgraph's configuration and generation")
 	flag.StringVar(&cfg.Directory, "dir", defaultDirectory, "benchmark directory to write results into")
 	flag.BoolVar(&cfg.SkipIndexing, "skip-indexing", false, "reuse the existing graft context and kivgraph generation instead of rebuilding both")
@@ -552,7 +552,7 @@ func measureAuxiliary(
 
 	graConsumers := &armResult{}
 	hits := gra.call(ctx, tokens, "aux-xrepo-graft", graftFindAll,
-		map[string]any{"pattern": "@kena/shared"})
+		map[string]any{"pattern": "@private/shared"})
 	graConsumers.add(hits)
 	if !hits.Failed {
 		named := map[string]bool{}

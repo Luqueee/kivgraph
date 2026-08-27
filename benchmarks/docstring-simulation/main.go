@@ -217,7 +217,7 @@ type proseStats struct {
 
 // literals is the text a symbol's own body shows a user: messages, errors, keys.
 // It is a different hypothesis from prose and the measurement that motivated it
-// is grep's: the only two questions it answered in mole were answered by words
+// is grep's: the only two questions it answered in go-svc-e were answered by words
 // living inside a string -- "already running", and a log line about a file that
 // shrank -- not by a comment and not by a name. A message is also rarer than a
 // comment, which is the property the prose arm lacked.

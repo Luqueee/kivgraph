@@ -605,7 +605,7 @@ func receiverMemberStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 	return hotsnapshot.NewSnapshotStore(snapshot)
 }
 
-// containerMemberStore is the shape of the kena finding: a class spanning its
+// containerMemberStore is the shape of the workspace finding: a class spanning its
 // method, the method reaching a type in another file, and a field inside the
 // class whose only edge stays inside it.
 func containerMemberStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
@@ -613,7 +613,7 @@ func containerMemberStore(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
 		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "shared", Languages: "ts"}},
 		Packages: []hotsnapshot.PackageRow{
-			{Key: "pkg", RepositoryKey: "repo", Language: "ts", Name: "shared", ModulePath: "@kena/shared"},
+			{Key: "pkg", RepositoryKey: "repo", Language: "ts", Name: "shared", ModulePath: "@private/shared"},
 		},
 		Files: []hotsnapshot.FileRow{
 			{Key: "file-cache", RepositoryKey: "repo", PackageKey: "pkg", Path: "cache.ts", Language: "ts"},

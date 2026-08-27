@@ -34,7 +34,7 @@ type symbolIndex struct {
 // newSymbolIndex derives the index from the records themselves.
 //
 // It used to flatten a map the caller accumulated, and that map was the largest
-// thing a load allocated and threw away -- `16,5 MB` on `kena`, measured in
+// thing a load allocated and threw away -- `16,5 MB` on `workspace`, measured in
 // `benchmarks/snapshot-heap`. Nothing was in it that the records did not
 // already say: the key of symbol i is a field of symbol i, which is why the
 // check that the two agreed could never fail.

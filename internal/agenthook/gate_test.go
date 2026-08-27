@@ -90,7 +90,7 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 		{"an ambiguous name",
 			Gate{Graph: &fakeGraph{symbol: Facts{
 				Declarations: 4, Repositories: 2, References: 60,
-				Sample: []string{"kena internal/mcp/server.go:41 mcp.NewServer"}}}},
+				Sample: []string{"workspace internal/mcp/server.go:41 mcp.NewServer"}}}},
 			Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"find_references"},
 		{"a name several repositories share",

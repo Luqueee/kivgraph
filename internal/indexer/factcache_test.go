@@ -575,8 +575,8 @@ func TestFactCacheRefusesAnUnusableDirectory(t *testing.T) {
 // the repository's own root names nothing at all.
 func TestLockfilePathsClimbToTheWorkspaceRoot(t *testing.T) {
 	root := testsupport.TempDir(t)
-	workspace := filepath.Join(root, "kena")
-	repository := filepath.Join(workspace, "services", "api-music")
+	workspace := filepath.Join(root, "workspace")
+	repository := filepath.Join(workspace, "services", "go-svc-b")
 	lockfile := filepath.Join(workspace, "pnpm-lock.yaml")
 	writeFullFixture(t, lockfile, "lockfileVersion: '9.0'\n")
 

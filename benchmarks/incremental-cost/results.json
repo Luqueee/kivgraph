@@ -12,7 +12,7 @@
     "node": "v25.2.1"
   },
   "corpus": {
-    "path": "/Users/adria/Documents/programacion/projects/kena",
+    "path": "/path/to/workspace",
     "git_repositories": 37,
     "indexed_repositories": 35,
     "packages": 114,
@@ -77,13 +77,13 @@
   },
   "limitations": [
     "the delta route has no production caller, so its cost is projected from the steps applyDeltaRoute provably runs, never measured end to end",
-    "ApplyCanonicalDelta is not timed here: building a kena-scale delta needs real loader output for kena, and the fixed costs already decide the question",
+    "ApplyCanonicalDelta is not timed here: building a workspace-scale delta needs real loader output for workspace, and the fixed costs already decide the question",
     "one corpus, one machine, one warm cache; a cold cache moves the language engines from 0.57 s to minutes and makes every ratio here look better than it is",
     "the full pass numbers come from one run with per-event timestamps, not from a distribution",
     "the first run of this benchmark measured a corpus with no Rust in it, because cargo was missing from the harness PATH; the figures here replace those and the correction block records what moved"
   ],
   "correction": {
-    "what": "the first run of this benchmark indexed kena without Rust",
+    "what": "the first run of this benchmark indexed workspace without Rust",
     "why": "the harness PATH carried CARGO_HOME but not cargo itself, so rust-analyzer refused both Cargo workspaces and the pass published the rest -- which kivgraph reported as rust_workspaces_not_loaded=2 in both its JSON and its human output, and the harness ignored",
     "previous_corpus": {
       "files": 4683,

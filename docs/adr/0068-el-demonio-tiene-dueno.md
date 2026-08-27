@@ -13,7 +13,8 @@
 ## Contexto: el ahorro estaba medido y no se podía cobrar
 
 El ADR 0065 entregó `kivgraph daemon`, y `benchmarks/daemon-cost` midió lo que
-ahorra sobre `108.737` símbolos de `kena`. Con ocho clientes ociosos, que es el
+ahorra sobre `108.737` símbolos de `workspace`. Con ocho clientes ociosos,
+que es el
 caso normal:
 
 |con `8` clientes|N procesos `serve`|un demonio|factor|
@@ -115,7 +116,8 @@ grande para algo que hoy sólo edita el fichero de configuración de un cliente.
 
 ## Limitaciones declaradas
 
-- Los números de arriba son de `benchmarks/daemon-cost` sobre `kena` en la VM de
+- Los números de arriba son de `benchmarks/daemon-cost` sobre `workspace` en
+  la VM de
   Docker Desktop, no bare metal, y el techo por sesión depende del corpus.
 - La cuenta del event log es de **una** máquina y dos días. Sostiene el orden de
   magnitud del régimen -- muchos clientes, casi ninguna llamada-- y no es una

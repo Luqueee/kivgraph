@@ -198,7 +198,7 @@ The same page in the `full` view:
 ```
 
 This answer comes from snapshot `30` of two repositories, `kivgraph` and
-`mole`.
+`go-svc-e`.
 
 ## Reading the result
 
