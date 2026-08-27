@@ -772,9 +772,23 @@ func (manager Manager) removeJSON(document mcpDocument, dryRun, force bool) (Pla
 		return Plan{}, incompatibleError(document.path)
 	}
 	delete(state.section, "kivgraph")
-	state.root[document.section], err = json.Marshal(state.section)
-	if err != nil {
-		return Plan{}, fmt.Errorf("encode %s: %w", document.section, err)
+	// An emptied section is deleted rather than written back as `{}`: a remove
+	// should leave a file that looks like one nobody ever installed into, not
+	// one carrying the shape of what was taken out. The hook path already did
+	// this and said so; this one wrote the empty object.
+	//
+	// It only shows on a file that existed before, because a file this created
+	// is deleted whole on the way out. That is why it survived until an
+	// install ran against a real Claude Desktop, whose configuration held a
+	// `preferences` key and afterwards held `preferences` and an empty
+	// `mcpServers`.
+	if len(state.section) == 0 {
+		delete(state.root, document.section)
+	} else {
+		state.root[document.section], err = json.Marshal(state.section)
+		if err != nil {
+			return Plan{}, fmt.Errorf("encode %s: %w", document.section, err)
+		}
 	}
 	data, err := json.MarshalIndent(state.root, "", "  ")
 	if err != nil {
