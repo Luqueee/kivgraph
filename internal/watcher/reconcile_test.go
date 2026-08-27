@@ -7,9 +7,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -272,6 +274,84 @@ func TestReconcilerSeesRustSourcesAndManifests(t *testing.T) {
 	for _, want := range []string{"Cargo.toml", "Cargo.lock", "build.rs"} {
 		if !manifests[want] {
 			t.Fatalf("%q is not reported as a manifest change: %#v", want, result.ManifestChanges)
+		}
+	}
+}
+
+// TestReconcilerSeesEverySupportedLanguage is the regression this file was
+// missing. isSource carried its own list of extensions and it knew Go,
+// TypeScript and Rust; a repository declaring Python or Dart -- both of which
+// this build indexes and `config.SupportedLanguages` accepts -- had every one
+// of its source files skipped by the scan, so the reconciler could not see a
+// change to any of them and nothing ever asked for a reindex.
+//
+// No test held the old behaviour, which is how it survived: the two languages
+// were simply absent from a switch, and absence is what a scan reports for a
+// repository it has nothing to say about.
+func TestReconcilerSeesEverySupportedLanguage(t *testing.T) {
+	for _, testCase := range []struct {
+		language string
+		sources  []string
+	}{
+		{"go", []string{"main.go"}},
+		{"typescript", []string{"index.ts", "view.tsx", "loader.mts", "legacy.cts"}},
+		{"javascript", []string{"index.js", "view.jsx", "loader.mjs", "legacy.cjs"}},
+		{"rust", []string{"lib.rs"}},
+		{"python", []string{"module.py", "module.pyi"}},
+		{"dart", []string{"widget.dart"}},
+	} {
+		t.Run(testCase.language, func(t *testing.T) {
+			root := t.TempDir()
+			for _, name := range testCase.sources {
+				writeTestFile(t, filepath.Join(root, "src", name), "probe\n")
+			}
+			writeTestFile(t, filepath.Join(root, "notes.md"), "not a source\n")
+
+			hasher, err := NewContentHasher(nil)
+			if err != nil {
+				t.Fatalf("NewContentHasher() error = %v", err)
+			}
+			reconciler, err := NewReconciler([]workspace.Repository{{
+				Name: "probe", Path: root, RealPath: root,
+				Languages: []string{testCase.language},
+			}}, hasher)
+			if err != nil {
+				t.Fatalf("NewReconciler() error = %v", err)
+			}
+			result, err := reconciler.Reconcile(context.Background())
+			if err != nil {
+				t.Fatalf("Reconcile() error = %v", err)
+			}
+			seen := make(map[string]bool, len(result.Added))
+			for _, state := range result.Added {
+				seen[filepath.Base(state.Path)] = true
+			}
+			for _, want := range testCase.sources {
+				if !seen[want] {
+					t.Fatalf("a %s repository does not see %q: %#v",
+						testCase.language, want, result.Added)
+				}
+			}
+			if seen["notes.md"] {
+				t.Fatal("a file no language declares must not be scanned")
+			}
+		})
+	}
+}
+
+// TestALanguageAliasSeesTheSameSourcesAsItsName keeps a configuration that
+// spells a language the short way from indexing less than one that spells it
+// out. Every alias config.SupportedLanguages accepts has to answer the same.
+func TestALanguageAliasSeesTheSameSourcesAsItsName(t *testing.T) {
+	for _, pair := range [][2]string{
+		{"typescript", "ts"}, {"javascript", "js"}, {"rust", "rs"}, {"python", "py"},
+	} {
+		full, alias := config.SourceExtensions([]string{pair[0]}), config.SourceExtensions([]string{pair[1]})
+		if len(full) == 0 {
+			t.Fatalf("%q is written in nothing", pair[0])
+		}
+		if strings.Join(full, ",") != strings.Join(alias, ",") {
+			t.Fatalf("%q sees %q and %q sees %q", pair[0], full, pair[1], alias)
 		}
 	}
 }

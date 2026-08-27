@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -41,10 +42,13 @@ type Reconciler struct {
 }
 
 type reconciliationRepository struct {
-	name        string
-	root        string
-	ignored     ignoreMatcher
-	languages   map[string]struct{}
+	name      string
+	root      string
+	ignored   ignoreMatcher
+	languages map[string]struct{}
+	// extensions is what those languages are written in, resolved once
+	// because isSource is asked about every file of every scan.
+	extensions  map[string]struct{}
 	sourceRoots []string
 	manifests   map[string]struct{}
 }
@@ -116,6 +120,7 @@ func NewReconciler(repositories []workspace.Repository, hasher *ContentHasher) (
 			root:        root,
 			ignored:     ignored,
 			languages:   languages,
+			extensions:  config.SourceExtensionSet(repository.Languages),
 			sourceRoots: sourceRoots,
 			manifests:   manifests,
 		})
@@ -371,24 +376,7 @@ func (repository reconciliationRepository) isSource(path string) bool {
 	if !insideSourceRoot {
 		return false
 	}
-	extension := strings.ToLower(filepath.Ext(path))
-	for language := range repository.languages {
-		switch language {
-		case "go":
-			if extension == ".go" {
-				return true
-			}
-		case "typescript", "ts", "javascript", "js", "node":
-			if extension == ".ts" || extension == ".tsx" || extension == ".mts" || extension == ".cts" || extension == ".js" || extension == ".jsx" || extension == ".mjs" || extension == ".cjs" {
-				return true
-			}
-		case "rust", "rs":
-			if extension == ".rs" {
-				return true
-			}
-		}
-	}
-	return false
+	return config.HasSourceExtension(repository.extensions, path)
 }
 
 func (reconciler *Reconciler) owns(key FileKey) bool {
