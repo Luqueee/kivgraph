@@ -513,6 +513,51 @@ code itself, which is exactly what happened. And the `/e/` payload is **gzip**:
 `request.postDataBuffer()` and `zlib.gunzipSync`, because `postData()` returns
 unreadable binary.
 
+A browser driven straight over CDP sidesteps the whole thing, because
+`navigator.webdriver` is only set by the automation flags an automation library
+passes. Launching the Chromium that Playwright's cache already has, with
+`--remote-debugging-port` and nothing else, reports `navigator.webdriver` as
+`false` on its own -- verified, and no property had to be redefined. Under
+`xvfb-run` it needs no display of its own.
+
+### Grepping the HTML for `posthog` proves nothing
+
+`curl -s https://kivgraph.dev/ | grep -c posthog` returns **`0`** on a working
+deployment, and that is not a symptom. The boot is bundled, so the only thing
+the HTML carries is the module that reaches it. The chain is two hops:
+
+```bash
+# 1. the shell's second module script is the analytics entry
+curl -s https://kivgraph.dev/ | grep -o 'src="/_astro/Layout[^"]*"'
+
+# 2. it imports the chunk that carries the key and the host
+curl -s https://kivgraph.dev/_astro/analytics.<hash>.js | grep -o 'phc_[A-Za-z0-9]*'
+```
+
+Grepping the served page for the vendor name is the Umami habit -- there the tag
+really is in the HTML, `is:inline` -- and it does not transfer. What proves the
+deployment is the chunk carrying the `phc_` key and `https://eu.i.posthog.com`,
+and after that only the events do.
+
+### A copy event needs a focused window and a real click
+
+`CopyButton.astro` reports in the `then` of `writeText`, so the event only
+exists if the clipboard write resolved. A driven browser fails that twice over:
+the page has no focus, and a `.click()` from `Runtime.evaluate` is not a user
+gesture. The button reads `failed`, no event is sent, and nothing anywhere says
+why -- it looks exactly like analytics that do not work.
+
+Three things fix it, and all three are needed:
+
+|what|why|
+|---|---|
+|`Browser.grantPermissions` with `clipboardReadWrite`|the write is permissioned|
+|`Emulation.setFocusEmulationEnabled`|`writeText` rejects without focus|
+|`Input.dispatchMouseEvent`|a synthetic `.click()` is not a user gesture|
+
+The check that the copy actually happened is the clipboard, not the label: the
+label resets after `1500 ms` and a slow probe reads `copy` again either way.
+
 ### Regions: they are not changed
 
 US Cloud and EU Cloud are separate deployments with distinct accounts. Changing
@@ -801,3 +846,31 @@ curl -s https://kivgraph.dev/ | grep -o 'data-umami-event="[a-z_]*"' | sort -u
 In the browser, with the console open: copying the install command must produce
 **one** request to `/api/send`, not two. And on `localhost` it must produce
 none, because `data-domains` does not match.
+
+PostHog is not checked the same way, for the reason two sections above: nothing
+of it is in the HTML. What answers the question is the chunk and then the
+events.
+
+```bash
+# the deployed key is the one intended, and it is an EU key
+curl -s https://kivgraph.dev/_astro/analytics.<hash>.js | grep -o 'phc_[A-Za-z0-9]*'
+curl -o /dev/null -w '%{http_code}\n' \
+  https://eu-assets.i.posthog.com/array/<key>/config.js   # 200 if it is EU
+```
+
+Then, in a browser that PostHog will not discard, one load and one copy should
+produce `$pageview`, `$autocapture`, `$web_vitals`, `$snapshot`, `$$heatmap` and
+the copy event, each answered `200`. `$snapshot` goes to `/s/` and the rest to
+`/e/` or `/i/v0/e/`, so a filter on one path alone will miss replay.
+
+The count that matters is one `$pageview` per load. It is worth reading back out
+of PostHog rather than off the wire, which also confirms ingestion:
+
+```sql
+SELECT event, count() FROM events
+WHERE timestamp > now() - INTERVAL 1 DAY GROUP BY event
+```
+
+`$snapshot` and `$$heatmap` will not appear there. They land in the replay and
+heatmap stores, not in `events`, and their absence from that query is not a
+failure to ingest them.
