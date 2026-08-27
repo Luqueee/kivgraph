@@ -53,6 +53,28 @@ func runSkillCommand(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+func runHookCommand(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 || helpRequested(args) {
+		writeIntegrationHelp(stdout, "hook", "Manage the pre-tool-use gate", []string{
+			"hook install [--target TARGET] [--scope user|project] [--dry-run] [--force]",
+			"hook status --target TARGET [--scope user|project]",
+			"hook remove --target TARGET [--scope user|project] [--dry-run] [--force]",
+		})
+		return 0
+	}
+	switch args[0] {
+	case "install":
+		return runHookChange(integrations.ActionInstall, args[1:], stdout, stderr)
+	case "remove":
+		return runHookChange(integrations.ActionRemove, args[1:], stdout, stderr)
+	case "status":
+		return runHookStatus(args[1:], stdout, stderr)
+	default:
+		writeCommandError(stderr, "hook: unknown operation %q", args[0])
+		return 2
+	}
+}
+
 func runMCPChange(action integrations.Action, args []string, stdout, stderr io.Writer) int {
 	return runMCPChangeWithInput(action, args, os.Stdin, stdout, stderr)
 }
@@ -144,19 +166,61 @@ func runMCPStatus(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// clientIntegration is one of the two integrations that write a client-native
+// file: the Agent Skill and the pre-tool-use gate.
+//
+// They are a struct of three methods rather than two copies of the same
+// function because that is all that ever differed between them -- the flags,
+// the target selection, the per-target error handling and the plan printing
+// were identical, and a third copy for the gate would have been the point at
+// which the three started to drift.
+type clientIntegration struct {
+	kind    string
+	install func(integrations.Manager, integrations.Target, integrations.Scope, bool, bool) (integrations.Plan, error)
+	remove  func(integrations.Manager, integrations.Target, integrations.Scope, bool, bool) (integrations.Plan, error)
+	status  func(integrations.Manager, integrations.Target, integrations.Scope) (integrations.Plan, error)
+}
+
+func skillIntegration() clientIntegration {
+	return clientIntegration{
+		kind:    "skill",
+		install: integrations.Manager.InstallSkill,
+		remove:  integrations.Manager.RemoveSkill,
+		status:  integrations.Manager.StatusSkill,
+	}
+}
+
+func hookIntegration() clientIntegration {
+	return clientIntegration{
+		kind:    "hook",
+		install: integrations.Manager.InstallHook,
+		remove:  integrations.Manager.RemoveHook,
+		status:  integrations.Manager.StatusHook,
+	}
+}
+
 func runSkillChange(action integrations.Action, args []string, stdout, stderr io.Writer) int {
-	return runSkillChangeWithInput(action, args, os.Stdin, stdout, stderr)
+	return runClientChangeWithInput(skillIntegration(), action, args, os.Stdin, stdout, stderr)
+}
+
+func runHookChange(action integrations.Action, args []string, stdout, stderr io.Writer) int {
+	return runClientChangeWithInput(hookIntegration(), action, args, os.Stdin, stdout, stderr)
 }
 
 func runSkillChangeWithInput(action integrations.Action, args []string, input io.Reader, stdout, stderr io.Writer) int {
-	options, ok := parseIntegrationFlags("skill "+string(action), args, stdout, stderr, true, false)
+	return runClientChangeWithInput(skillIntegration(), action, args, input, stdout, stderr)
+}
+
+func runClientChangeWithInput(integration clientIntegration, action integrations.Action, args []string, input io.Reader, stdout, stderr io.Writer) int {
+	label := integration.kind + " " + string(action)
+	options, ok := parseIntegrationFlags(label, args, stdout, stderr, true, false)
 	if !ok {
 		return 2
 	}
 	target, scope, dryRun, force := options.Target, options.Scope, options.DryRun, options.Force
 	manager, err := integrations.New(integrations.Options{})
 	if err != nil {
-		writeCommandError(stderr, "skill %s: %v", action, err)
+		writeCommandError(stderr, "%s: %v", label, err)
 		return 1
 	}
 
@@ -164,13 +228,13 @@ func runSkillChangeWithInput(action integrations.Action, args []string, input io
 	if target != "" {
 		selectedTargets = append(selectedTargets, integrations.Target(target))
 	} else if action == integrations.ActionInstall {
-		selectedTargets, err = selectIntegrationTargets(input, stdout, manager, "skill", integrations.Scope(scope))
+		selectedTargets, err = selectIntegrationTargets(input, stdout, manager, integration.kind, integrations.Scope(scope))
 		if err != nil {
-			writeCommandError(stderr, "skill %s: %v", action, err)
+			writeCommandError(stderr, "%s: %v", label, err)
 			return 2
 		}
 	} else {
-		writeCommandError(stderr, "skill %s: --target is required", action)
+		writeCommandError(stderr, "%s: --target is required", label)
 		return 2
 	}
 
@@ -179,18 +243,18 @@ func runSkillChangeWithInput(action integrations.Action, args []string, input io
 		var plan integrations.Plan
 		switch action {
 		case integrations.ActionInstall:
-			plan, err = manager.InstallSkill(selectedTarget, integrations.Scope(scope), dryRun, force)
+			plan, err = integration.install(manager, selectedTarget, integrations.Scope(scope), dryRun, force)
 		case integrations.ActionRemove:
-			plan, err = manager.RemoveSkill(selectedTarget, integrations.Scope(scope), dryRun, force)
+			plan, err = integration.remove(manager, selectedTarget, integrations.Scope(scope), dryRun, force)
 		default:
-			err = fmt.Errorf("unsupported skill operation %q", action)
+			err = fmt.Errorf("unsupported %s operation %q", integration.kind, action)
 		}
 		if err != nil {
-			writeCommandError(stderr, "skill %s --target %s: %v", action, selectedTarget, err)
+			writeCommandError(stderr, "%s --target %s: %v", label, selectedTarget, err)
 			failed = true
 			continue
 		}
-		writeIntegrationPlan(stdout, "skill", plan)
+		writeIntegrationPlan(stdout, integration.kind, plan)
 	}
 	if failed {
 		return 1
@@ -199,26 +263,35 @@ func runSkillChangeWithInput(action integrations.Action, args []string, input io
 }
 
 func runSkillStatus(args []string, stdout, stderr io.Writer) int {
-	options, ok := parseIntegrationFlags("skill status", args, stdout, stderr, false, false)
+	return runClientStatus(skillIntegration(), args, stdout, stderr)
+}
+
+func runHookStatus(args []string, stdout, stderr io.Writer) int {
+	return runClientStatus(hookIntegration(), args, stdout, stderr)
+}
+
+func runClientStatus(integration clientIntegration, args []string, stdout, stderr io.Writer) int {
+	label := integration.kind + " status"
+	options, ok := parseIntegrationFlags(label, args, stdout, stderr, false, false)
 	if !ok {
 		return 2
 	}
 	target, scope := options.Target, options.Scope
 	if target == "" {
-		writeCommandError(stderr, "skill status: --target is required")
+		writeCommandError(stderr, "%s: --target is required", label)
 		return 2
 	}
 	manager, err := integrations.New(integrations.Options{})
 	if err != nil {
-		writeCommandError(stderr, "skill status: %v", err)
+		writeCommandError(stderr, "%s: %v", label, err)
 		return 1
 	}
-	plan, err := manager.StatusSkill(integrations.Target(target), integrations.Scope(scope))
+	plan, err := integration.status(manager, integrations.Target(target), integrations.Scope(scope))
 	if err != nil {
-		writeCommandError(stderr, "skill status: %v", err)
+		writeCommandError(stderr, "%s: %v", label, err)
 		return 1
 	}
-	writeIntegrationPlan(stdout, "skill", plan)
+	writeIntegrationPlan(stdout, integration.kind, plan)
 	return 0
 }
 
@@ -291,6 +364,8 @@ func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integra
 		detections, err = manager.DetectMCPTargets(scope)
 	case "skill":
 		detections, err = manager.DetectSkillTargets(scope)
+	case "hook":
+		detections, err = manager.DetectHookTargets(scope)
 	default:
 		return nil, fmt.Errorf("unsupported interactive integration %q", kind)
 	}

@@ -460,13 +460,13 @@ func commandTable() []commandSpec {
 	}
 }
 
-// integrationCommands are the mcp and skill operations. They are a family
-// rather than seven hand-written entries: the two kinds accept the same
+// integrationCommands are the mcp, skill and hook operations. They are a
+// family rather than nine hand-written entries: the three kinds accept the same
 // operations with the same flags, and only the writers take --dry-run and
 // --force.
 func integrationCommands() []commandSpec {
-	specs := make([]commandSpec, 0, 6)
-	for _, kind := range []string{"mcp", "skill"} {
+	specs := make([]commandSpec, 0, 9)
+	for _, kind := range []string{"mcp", "skill", "hook"} {
 		for _, operation := range []string{"install", "status", "remove"} {
 			specs = append(specs, integrationCommand(kind, operation))
 		}
@@ -500,6 +500,14 @@ func integrationCommand(kind, operation string) commandSpec {
 	case kind == "skill" && operation == "remove":
 		usage = "skill remove --target TARGET [--scope user|project]"
 		summary = "Remove only Kivgraph's Agent Skill"
+	case kind == "hook" && operation == "install":
+		summary = "Detect and install the pre-tool-use gate in one or more clients"
+	case kind == "hook" && operation == "status":
+		usage = "hook status --target TARGET [--scope user|project]"
+		summary = "Inspect the installed pre-tool-use gate"
+	case kind == "hook" && operation == "remove":
+		usage = "hook remove --target TARGET [--scope user|project]"
+		summary = "Remove only Kivgraph's pre-tool-use gate"
 	}
 	return commandSpec{
 		words:   []string{kind, operation},
@@ -515,10 +523,14 @@ func integrationCommand(kind, operation string) commandSpec {
 			"scope":  {values: integrationScopeNames},
 		},
 		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
-			if kind == "mcp" {
+			switch kind {
+			case "mcp":
 				return runMCPCommand(append([]string{operation}, args...), stdout, stderr)
+			case "hook":
+				return runHookCommand(append([]string{operation}, args...), stdout, stderr)
+			default:
+				return runSkillCommand(append([]string{operation}, args...), stdout, stderr)
 			}
-			return runSkillCommand(append([]string{operation}, args...), stdout, stderr)
 		},
 	}
 }
