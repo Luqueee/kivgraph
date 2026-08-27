@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -65,16 +66,38 @@ func TestDartReferenceKindClassifiesResolvedUses(t *testing.T) {
 	}
 }
 
+// dartFixturePath renders a fixture path in the running platform's shape,
+// volume included. Without the volume these are rooted paths that name no
+// drive, which Windows resolves against the current one and filepath.IsAbs
+// reports as relative -- so the fixture would be exercising the case the
+// function now refuses rather than the case each assertion names.
+func dartFixturePath(posix string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(`C:\`, filepath.FromSlash(strings.TrimPrefix(posix, "/")))
+	}
+	return filepath.FromSlash(posix)
+}
+
 func TestDartAnalyzerOutlinesIgnoreExternalConstructorInvocations(t *testing.T) {
-	root := filepath.FromSlash("/workspace/app")
-	if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: "/sdk/flutter/widgets.dart"}}}, root) {
+	root := dartFixturePath("/workspace/app")
+	external := dartFixturePath("/sdk/flutter/widgets.dart")
+	internal := dartFixturePath("/workspace/app/lib/widgets.dart")
+	if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: external}}}, root) {
 		t.Fatal("external constructor invocation should not become a declaration")
 	}
-	if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR_INVOCATION", Location: &analyzerLocation{File: "/workspace/app/lib/widgets.dart"}}}, root) {
+	if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR_INVOCATION", Location: &analyzerLocation{File: internal}}}, root) {
 		t.Fatal("constructor invocation should not become a declaration")
 	}
-	if isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: "/workspace/app/lib/widgets.dart"}}}, root) {
+	if isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: internal}}}, root) {
 		t.Fatal("constructor declaration in the repository should remain available")
+	}
+	// A rooted path with no volume is the shape the fix above refuses: on
+	// Windows it names the current drive rather than anything under the
+	// repository, so it cannot be a declaration this repository owns.
+	if runtime.GOOS == "windows" {
+		if !isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "CONSTRUCTOR", Location: &analyzerLocation{File: `\sdk\flutter\widgets.dart`}}}, root) {
+			t.Fatal("a path rooted on the current drive was placed inside the repository")
+		}
 	}
 	if isDartAnalyzerConstructorInvocation(analyzerOutline{Element: analyzerElement{Kind: "METHOD"}}, root) {
 		t.Fatal("methods are declarations")
@@ -161,6 +184,33 @@ func TestFileURIKeepsAbsolutePathSegments(t *testing.T) {
 	got := fileURI("/tmp/dart project/lib/main.dart")
 	if got != "file:///tmp/dart%20project/lib/main.dart" {
 		t.Fatalf("fileURI() = %q", got)
+	}
+}
+
+// A Windows path starts with its volume rather than a separator, and a URI
+// path that does not start with a slash makes the drive the authority:
+// `file://C:/x` says host "C:" and path "/x". The analysis server rejects it
+// -- "URI does not contain an absolute file path (missing drive letter)" --
+// and it rejected every request for the whole fixture that way.
+//
+// The spelling is asserted rather than the round trip alone, because the round
+// trip would agree with itself on a URI no server accepts.
+func TestFileURINamesTheVolumeInThePathAndNotTheAuthority(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("a volume is a Windows path shape")
+	}
+	path := filepath.Join(`C:\`, "dart project", "lib", "main.dart")
+
+	got := fileURI(path)
+	if got != "file:///C:/dart%20project/lib/main.dart" {
+		t.Fatalf("fileURI(%q) = %q, want the volume inside the path", path, got)
+	}
+	back, err := uriPath(got)
+	if err != nil {
+		t.Fatalf("uriPath() error = %v", err)
+	}
+	if back != path {
+		t.Fatalf("uriPath(fileURI(%q)) = %q, want the path back", path, back)
 	}
 }
 
