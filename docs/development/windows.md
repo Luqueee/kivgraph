@@ -300,6 +300,56 @@ Update services the redistributable and services no copy of it -- a security
 fix that reaches every other installation and not ours is not a trade a
 self-contained bundle wins.
 
+### The release that would have published nothing
+
+Merging `main` back in is what exposed this, and it is the worst defect the
+branch had. The build job produced `kivgraph-windows-amd64.zip`, hashed it,
+checked it for backslashes and uploaded it as a build artifact. The publish
+job then assembled the release from `*.tar.gz`, and `*.zip` was never named
+anywhere in it. Neither was `install.ps1`.
+
+Every step would have been green. A glob matching nothing is not an error; it
+is a glob matching nothing. The release page would have carried two archives
+instead of three, `SHA256SUMS` would have described exactly the files it was
+handed, its own count assertion would have passed -- and the PowerShell
+installer, whose documented command downloads the zip from that page, would
+have received a 404 on the first line it ran.
+
+Two jobs, each correct read alone, wrong only in relation to each other. That
+is not a thing review catches by reading more carefully; it is caught by a
+gate, and `TestPublishCoversEveryArchiveTheMatrixBuilds` is now that gate. It
+compares the matrix's archive extensions against the publish job and fails on
+any format the release does not carry. It checks the extension rather than the
+file name, so a new architecture costs nothing here and a new *format* has to
+be acknowledged.
+
+There was a second one in the same file, and it is the same shape as the
+Clean/ToSlash ordering: `grep -q '\\\\'` was checking the zip's entry names
+for a backslash. Four backslashes inside single quotes reach `grep` as four,
+which a BRE reads as two -- so the check searched for two consecutive
+separators and could never match the one a bad packer writes. It had been
+green because it could not be red. The separator is now built with `printf`
+and matched with `-F`, which removes the second layer of quoting rather than
+counting through it.
+
+### What `main` grew while this branch was out
+
+`main` learned to publish an MCP Bundle to the official registry, and
+`build-mcpb.sh` exits 2 for any OS that is not Linux or macOS. That step has no
+`if:`, so the Windows row would have hit it and failed the release outright --
+the opposite failure to the one above, and the louder of the two.
+
+It is opened rather than skipped, because "published platform" was the level
+chosen for this work and a registry that lists two platforms out of three is a
+quieter way of not shipping. MCPB names platforms the way Node's
+`process.platform` does, so Windows is `win32`; the entry point gains its
+`.exe`; presence and executability became separate checks, since `-x` on
+Windows reports how the shell guesses from the extension rather than anything
+about the file; and `python3` is resolved against `python` because a Git for
+Windows shell has one, the other, or both depending on the image.
+
+None of that has run. It is the same honest limit as everything below.
+
 ## What is left
 
 ADR 0079's four steps are done. What remains is smaller than any of them and
@@ -321,6 +371,12 @@ mostly not defects:
 That third one is the honest limit of this branch. It builds, installs and runs
 on a machine; it has not yet been published from CI, and a release job has ways
 to differ from a laptop that no amount of local verification anticipates.
+
+Two of those ways have already been found, and neither was found by running
+anything -- both came out of merging `main` back in, above. That is worth
+reading as evidence about the third item rather than as two items closed: the
+release path is the part of this work with the fewest facts behind it, and it
+has now produced a defect for every time anybody has looked at it.
 
 ## Reproducing this
 

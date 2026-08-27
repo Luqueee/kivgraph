@@ -34,6 +34,7 @@ if (existsSync(new URL(".env", import.meta.url))) {
 }
 
 import { detectAiAgent } from "./src/ai-agents.mjs";
+import { REPORTER_HEADERS } from "./src/ai-report.mjs";
 
 const { handler } = await import("./dist/server/entry.mjs");
 
@@ -155,23 +156,18 @@ function isInterestingPath(pathname) {
  * down, slow or unreachable, this site serves exactly as it did before. The
  * response to the crawler has already been written by the time this runs.
  *
- * Umami's collector rejects a request whose own `User-Agent` looks like a bot,
- * which is precisely what the string we are reporting about is. So the sender
- * identifies itself neutrally and honestly -- it is this server, not a browser
- * and not the crawler -- and the real agent travels as normalised metadata
- * rather than as a spoofed header. Disabling Umami's bot filter globally would
- * have been the other way to solve it, and it is the wrong one: it protects the
- * main property from exactly the contamination this whole design avoids.
+ * Umami's collector runs `isbot` over the *sender's* own `User-Agent` and
+ * discards the request when it matches -- answering `200` and writing nothing,
+ * so there is no error here to catch. `REPORTER_HEADERS` carries the only value
+ * that survives that filter and the measurements that chose it; changing it
+ * here rather than there is how this broke the first time.
  */
 function report(payload) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
   fetch(new URL("/api/send", UMAMI_URL), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "kivgraph-landing/1.0 (+https://kivgraph.dev)",
-    },
+    headers: REPORTER_HEADERS,
     body: JSON.stringify(payload),
     signal: controller.signal,
   })

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/mcpworkload"
@@ -32,19 +33,132 @@ func TestBuildCorpusHasCrossRepositoryProbeAndEdges(t *testing.T) {
 	}
 }
 
+// benchmarkCalls is the workload both benchmark tests measure, and it is a
+// sample size before it is a duration. The gate reads `p95` and `p99` per
+// operation, and nearest-rank makes each of them the maximum until there are
+// twenty and one hundred calls respectively. The workload's smallest share is
+// `get_blast_radius` at five per cent, so two thousand is the first count --
+// and a multiple of twenty, which is what makes the shares exact -- that gives
+// every one of the five operations enough calls for *both* its percentiles to
+// discard at least one sample.
+//
+// Measured on the reference machine (Ryzen 7 9700X, 16 threads, Go 1.26.6),
+// fifty repeats per count while thirty-two spinners held the load average
+// near 37, which is the contended runner these limits kept failing on. Worst
+// `p95` over fifty runs for `find_cross_repo_consumers`, against its 5 ms
+// limit:
+//
+//	calls  n    worst p95   worst p99 (limit 15 ms)
+//	   20  2      13,249       -
+//	  200  20      5,029       -
+//	  800  80      0,126       9,946
+//	 2000  200     0,067       8,689
+//
+// The limits were never the problem: the median `p95` is 0,048 ms, a hundred
+// times under the limit, and it does not move when the machine is loaded. Only
+// the tail of a two-sample maximum moves. Raising the limit to cover 13,2 ms
+// would have bought a green run by giving up the ability to see a real
+// regression; this buys it by measuring. At two thousand calls no operation's
+// `p95` or `p99` came within half its limit and no run failed the gate, in one
+// hundred loaded runs across the two counts.
+//
+//	KIVGRAPH_BENCH_SLO=1 go test ./benchmarks/mcp-client/ -run TestRunSmall -count=1
+//
+// The cost is 1,5 s per run against 0,4 s at twenty calls. The corpus stays at
+// a hundred symbols: what was too small was the number of calls, not the graph
+// they run against.
+const benchmarkCalls = 2_000
+
+// reportSLOChecks reports the run's latency checks and gates on them only when
+// `KIVGRAPH_BENCH_SLO` asks, which is what `benchmarks/AGENTS.md` requires of
+// every environment-dependent gate.
+//
+// The SLO limits are a property of the machine, not of this code, and these
+// tests run wherever `go test ./...` runs -- including a shared CI runner with
+// three jobs on it. Asserting them made the v0.2.0 release fail on a p95 of
+// 11,6 ms against a 5 ms limit, on the same commit whose CI run had just passed
+// on another runner: the numbers were the runner's.
+//
+// It then happened a second time, because that reasoning was written into one
+// of the two benchmark tests and not the other: the one-client test still
+// asserted unconditionally and failed a documentation-only pull request at
+// 5,6 ms against the same 5 ms limit, on `find_cross_repo_consumers` -- the same
+// operation as v0.2.0. Both tests share this function so the two cannot drift
+// apart again.
+//
+// What is asserted every time is that the measurement happened. A harness that
+// silently stopped evaluating its checks would pass either way, and that is
+// worse than an unmet limit.
+//
+// Both failures had a second cause underneath the runner, and removing the
+// unconditional assertion hid it rather than fixing it. `percentileMS` is
+// nearest-rank, so `p95` over `n` calls reads index `ceil(0.95n)-1`: below
+// twenty calls that index **is** `n-1` and the check compares the *slowest*
+// call against the limit, not a percentile. These tests asked for twenty calls
+// in total, and the workload gives `find_cross_repo_consumers` ten per cent of
+// them -- so the number that failed the release at 11,6 ms and a pull request
+// at 5,6 ms was the worse of *two* calls, and `get_blast_radius` gated on
+// exactly *one*. `benchmarkCalls` is what makes the statistic a statistic; see
+// its own comment for the measurements that chose it.
+func reportSLOChecks(t *testing.T, checks []sloCheck) {
+	t.Helper()
+	if len(checks) == 0 {
+		t.Fatal("the run evaluated no SLO check, so there is nothing to report or to gate")
+	}
+	gate := os.Getenv("KIVGRAPH_BENCH_SLO") != ""
+	for _, check := range unmetSLOChecks(checks) {
+		if gate {
+			t.Fatalf("SLO check failed: %#v", check)
+		}
+		t.Logf("SLO not met on this machine, which this test does not gate: %#v", check)
+	}
+}
+
+// unmetSLOChecks is the decision reportSLOChecks acts on, split out because it
+// is the half that can be tested: `testing.TB` carries an unexported method, so
+// no fake can be handed to reportSLOChecks to observe what it does with a check
+// that did not pass.
+func unmetSLOChecks(checks []sloCheck) []sloCheck {
+	var unmet []sloCheck
+	for _, check := range checks {
+		if !check.Passed {
+			unmet = append(unmet, check)
+		}
+	}
+	return unmet
+}
+
+func TestUnmetSLOChecks(t *testing.T) {
+	failed := sloCheck{Operation: "find_cross_repo_consumers", P95LimitMS: 5, P95MS: 5.563282}
+	passed := sloCheck{Operation: "find_references", P95LimitMS: 5, P95MS: 1.2, Passed: true}
+
+	for _, testCase := range []struct {
+		name   string
+		checks []sloCheck
+		want   []sloCheck
+	}{
+		{name: "no checks at all", checks: nil, want: nil},
+		{name: "every check passed", checks: []sloCheck{passed, passed}, want: nil},
+		{name: "one check missed its limit", checks: []sloCheck{passed, failed}, want: []sloCheck{failed}},
+		{name: "every check missed its limit", checks: []sloCheck{failed, failed}, want: []sloCheck{failed, failed}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := unmetSLOChecks(testCase.checks); !reflect.DeepEqual(got, testCase.want) {
+				t.Fatalf("unmetSLOChecks() = %#v, want %#v", got, testCase.want)
+			}
+		})
+	}
+}
+
 func TestRunSmallOneClientBenchmark(t *testing.T) {
-	result, err := run(context.Background(), config{Calls: 20, Warmup: 1, Symbols: 100, Edges: 1_000, Seed: 42})
+	result, err := run(context.Background(), config{Calls: benchmarkCalls, Warmup: 1, Symbols: 100, Edges: 1_000, Seed: 42})
 	if err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
 	if result.Metrics.Errors != 0 {
 		t.Fatalf("metrics = %#v", result.Metrics)
 	}
-	for _, check := range result.SLOChecks {
-		if !check.Passed {
-			t.Fatalf("SLO check failed: %#v", check)
-		}
-	}
+	reportSLOChecks(t, result.SLOChecks)
 	if len(result.Operations) != 5 {
 		t.Fatalf("operations = %d, want 5", len(result.Operations))
 	}
@@ -73,45 +187,23 @@ func TestPartitionRequestsPreservesOrderAcrossClients(t *testing.T) {
 }
 
 func TestRunSmallFourClientBenchmark(t *testing.T) {
-	result, err := run(context.Background(), config{Calls: 20, Warmup: 1, Clients: 4, Symbols: 100, Edges: 1_000, Seed: 42})
+	result, err := run(context.Background(), config{Calls: benchmarkCalls, Warmup: 1, Clients: 4, Symbols: 100, Edges: 1_000, Seed: 42})
 	if err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
-	if result.Clients != 4 || result.Workload.Calls != 20 {
+	if result.Clients != 4 || result.Workload.Calls != benchmarkCalls {
 		t.Fatalf("result = %#v", result)
 	}
 	if result.Metrics.Errors != 0 {
 		t.Fatalf("metrics = %#v", result.Metrics)
 	}
-	// The SLO limits are a property of the machine, not of this code, and this
-	// test runs wherever `go test ./...` runs -- including a shared CI runner with
-	// three jobs on it. Asserting them here made the v0.2.0 release fail on a
-	// p95 of 11,6 ms against a 5 ms limit, on the same commit whose CI run had
-	// just passed on another runner: the numbers were the runner's.
-	//
-	// So the limits are checked when someone asks for them, which is what a
-	// benchmark gate is, and reported otherwise. Every check still has to have
-	// been evaluated -- a harness that silently stopped measuring would pass this
-	// either way.
-	if len(result.SLOChecks) == 0 {
-		t.Fatal("the run evaluated no SLO check, so there is nothing to report or to gate")
-	}
-	gate := os.Getenv("KIVGRAPH_BENCH_SLO") != ""
-	for _, check := range result.SLOChecks {
-		if check.Passed {
-			continue
-		}
-		if gate {
-			t.Fatalf("SLO check failed: %#v", check)
-		}
-		t.Logf("SLO not met on this machine, which this test does not gate: %#v", check)
-	}
+	reportSLOChecks(t, result.SLOChecks)
 	totalCalls := 0
 	for _, operation := range result.Operations {
 		totalCalls += operation.Calls
 	}
-	if totalCalls != 20 {
-		t.Fatalf("operation calls = %d, want 20", totalCalls)
+	if totalCalls != benchmarkCalls {
+		t.Fatalf("operation calls = %d, want %d", totalCalls, benchmarkCalls)
 	}
 }
 
