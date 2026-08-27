@@ -77,7 +77,7 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
   [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
 - **Storage:** LadybugDB is canonical; queries are served from an immutable
   HotSnapshot published atomically, never from the database.
-- **Platforms:** `linux/amd64` and `darwin/arm64`.
+- **Platforms:** `linux/amd64`, `darwin/arm64` and `windows/amd64`.
 - **Viewer:** `kivgraph ui` serves a read-only 3D view of the published graph.
 
 ## Requirements

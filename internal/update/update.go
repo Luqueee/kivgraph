@@ -4,6 +4,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"compress/gzip"
 	"context"
@@ -13,6 +14,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -23,6 +26,8 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/Luqueee/kivgraph/internal/executable"
 )
 
 const (
@@ -33,8 +38,11 @@ const (
 	// entry of the release archive. runtime.GOOS and runtime.GOARCH are
 	// compile-time constants, so these names resolve to the platform this
 	// binary was built for.
-	bundleDirName    = "kivgraph-" + runtime.GOOS + "-" + runtime.GOARCH
-	archiveName      = bundleDirName + ".tar.gz"
+	bundleDirName = "kivgraph-" + runtime.GOOS + "-" + runtime.GOARCH
+	// archiveExtension is per platform: Windows publishes a zip, because a
+	// reader there opens a release with Explorer or Expand-Archive and
+	// neither reads a gzipped tarball.
+	archiveName      = bundleDirName + archiveExtension
 	maxDownloadBytes = 512 << 20
 	maxBundleBytes   = 512 << 20
 	maxArchiveFiles  = 10000
@@ -43,7 +51,7 @@ const (
 // releaseTargets lists the platforms with a published distribution bundle. A
 // platform outside this set has no asset to download, so Run refuses it before
 // touching the network.
-var releaseTargets = []string{"linux/amd64", "darwin/arm64"}
+var releaseTargets = []string{"linux/amd64", "darwin/arm64", "windows/amd64"}
 
 // checkReleaseTarget reports whether goos/goarch has a published bundle.
 func checkReleaseTarget(goos, goarch string) error {
@@ -53,7 +61,7 @@ func checkReleaseTarget(goos, goarch string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("updates are only available for %s, got %s", strings.Join(releaseTargets, " and "), target)
+	return fmt.Errorf("updates are only available for %s, got %s", strings.Join(releaseTargets, ", "), target)
 }
 
 // Options controls a release lookup and, unless CheckOnly is true, an atomic
@@ -327,7 +335,117 @@ func verifyChecksumFile(filePath, checksumPath, expectedName string) error {
 	return nil
 }
 
+// archiveEntry is one member of a release archive, reduced to what extraction
+// needs. Both readers produce it so that the guards below run once. A
+// containment check with two implementations is a containment check with two
+// ways to be wrong, and this branch has already found one of those.
+type archiveEntry struct {
+	// name is the archive's own slash-separated name, unvalidated.
+	name  string
+	isDir bool
+	// size is what the archive claims, which is why it bounds the copy rather
+	// than being trusted as the amount written.
+	size int64
+	mode fs.FileMode
+	open func() (io.ReadCloser, error)
+}
+
+// archiveExtractor writes entries under destination within the bounds this
+// package documents: nothing outside the bundle directory, no duplicate name,
+// no more than maxArchiveFiles members and no more than maxBundleBytes of
+// them uncompressed.
+type archiveExtractor struct {
+	destination string
+	seen        map[string]struct{}
+	total       uint64
+	entries     int
+}
+
+func (extractor *archiveExtractor) add(entry archiveEntry) error {
+	extractor.entries++
+	if extractor.entries > maxArchiveFiles {
+		return fmt.Errorf("archive contains more than %d entries", maxArchiveFiles)
+	}
+	relative, err := archivePathName(entry.name)
+	if err != nil {
+		return err
+	}
+	if _, exists := extractor.seen[relative]; exists {
+		return fmt.Errorf("archive contains duplicate entry %q", relative)
+	}
+	extractor.seen[relative] = struct{}{}
+	pathOnDisk := filepath.Join(extractor.destination, filepath.FromSlash(relative))
+	if entry.isDir {
+		if err := os.MkdirAll(pathOnDisk, 0o755); err != nil {
+			return fmt.Errorf("create directory %q: %w", relative, err)
+		}
+		return nil
+	}
+	if entry.size < 0 {
+		return fmt.Errorf("archive entry %q has negative size", relative)
+	}
+	if uint64(entry.size) > maxBundleBytes-extractor.total {
+		return fmt.Errorf("archive exceeds %d uncompressed bytes", maxBundleBytes)
+	}
+	extractor.total += uint64(entry.size)
+	if err := os.MkdirAll(filepath.Dir(pathOnDisk), 0o755); err != nil {
+		return fmt.Errorf("create parent for %q: %w", relative, err)
+	}
+	mode := entry.mode.Perm()
+	if mode == 0 {
+		mode = 0o644
+	}
+	source, err := entry.open()
+	if err != nil {
+		return fmt.Errorf("open archive entry %q: %w", relative, err)
+	}
+	output, err := os.OpenFile(pathOnDisk, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		_ = source.Close()
+		return fmt.Errorf("create archive file %q: %w", relative, err)
+	}
+	// CopyN and not Copy: the size is the archive's own claim, so a member
+	// that delivers more than it declared is truncated here rather than
+	// counted after the fact, and one that delivers less is an error rather
+	// than a short file nobody notices.
+	_, copyErr := io.CopyN(output, source, entry.size)
+	closeErr := output.Close()
+	sourceErr := source.Close()
+	if copyErr != nil {
+		return fmt.Errorf("extract archive file %q: %w", relative, copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close archive file %q: %w", relative, closeErr)
+	}
+	if sourceErr != nil {
+		return fmt.Errorf("close archive entry %q: %w", relative, sourceErr)
+	}
+	return nil
+}
+
+// extractArchive unpacks a release archive, choosing the reader by the name
+// the release published it under rather than by runtime.GOOS. The two are the
+// same in production -- archiveName is built from the platform -- and keeping
+// them separate is what lets each reader be tested everywhere instead of only
+// on the machine that ships it.
 func extractArchive(archivePath, destination string) error {
+	extractor := &archiveExtractor{destination: destination, seen: make(map[string]struct{})}
+	var err error
+	if strings.HasSuffix(archivePath, ".zip") {
+		err = readZipArchive(archivePath, extractor)
+	} else {
+		err = readTarArchive(archivePath, extractor)
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(destination, bundleDirName)); err != nil {
+		return fmt.Errorf("archive is missing %s: %w", bundleDirName, err)
+	}
+	return nil
+}
+
+func readTarArchive(archivePath string, extractor *archiveExtractor) error {
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
@@ -339,71 +457,59 @@ func extractArchive(archivePath, destination string) error {
 	}
 	defer reader.Close()
 	tarReader := tar.NewReader(io.LimitReader(reader, maxBundleBytes+1))
-	seen := make(map[string]struct{})
-	var total uint64
-	entries := 0
 	for {
 		header, nextErr := tarReader.Next()
 		if errors.Is(nextErr, io.EOF) {
-			break
+			return nil
 		}
 		if nextErr != nil {
 			return fmt.Errorf("read archive entry: %w", nextErr)
 		}
-		entries++
-		if entries > maxArchiveFiles {
-			return fmt.Errorf("archive contains more than %d entries", maxArchiveFiles)
-		}
-		relative, err := archivePathName(header.Name)
-		if err != nil {
-			return err
-		}
-		if _, exists := seen[relative]; exists {
-			return fmt.Errorf("archive contains duplicate entry %q", relative)
-		}
-		seen[relative] = struct{}{}
-		pathOnDisk := filepath.Join(destination, filepath.FromSlash(relative))
-		if header.FileInfo().IsDir() {
-			if err := os.MkdirAll(pathOnDisk, 0o755); err != nil {
-				return fmt.Errorf("create directory %q: %w", relative, err)
-			}
-			continue
-		}
+		info := header.FileInfo()
 		// TypeRegA is the pre-1.11 spelling of a regular file, and the reader
 		// has normalised it to TypeReg on the way in since then, so naming it
 		// here only widens what this accepts by a value that cannot arrive.
-		if header.Typeflag != tar.TypeReg {
-			return fmt.Errorf("archive entry %q has unsupported type %d", relative, header.Typeflag)
+		if !info.IsDir() && header.Typeflag != tar.TypeReg {
+			return fmt.Errorf("archive entry %q has unsupported type %d", header.Name, header.Typeflag)
 		}
-		if header.Size < 0 {
-			return fmt.Errorf("archive entry %q has negative size", relative)
-		}
-		if uint64(header.Size) > maxBundleBytes-total {
-			return fmt.Errorf("archive exceeds %d uncompressed bytes", maxBundleBytes)
-		}
-		total += uint64(header.Size)
-		if err := os.MkdirAll(filepath.Dir(pathOnDisk), 0o755); err != nil {
-			return fmt.Errorf("create parent for %q: %w", relative, err)
-		}
-		mode := header.FileInfo().Mode().Perm()
-		if mode == 0 {
-			mode = 0o644
-		}
-		output, err := os.OpenFile(pathOnDisk, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
-		if err != nil {
-			return fmt.Errorf("create archive file %q: %w", relative, err)
-		}
-		_, copyErr := io.CopyN(output, tarReader, header.Size)
-		closeErr := output.Close()
-		if copyErr != nil {
-			return fmt.Errorf("extract archive file %q: %w", relative, copyErr)
-		}
-		if closeErr != nil {
-			return fmt.Errorf("close archive file %q: %w", relative, closeErr)
+		if err := extractor.add(archiveEntry{
+			name:  header.Name,
+			isDir: info.IsDir(),
+			size:  header.Size,
+			mode:  info.Mode(),
+			open:  func() (io.ReadCloser, error) { return io.NopCloser(tarReader), nil },
+		}); err != nil {
+			return err
 		}
 	}
-	if _, err := os.Stat(filepath.Join(destination, bundleDirName)); err != nil {
-		return fmt.Errorf("archive is missing %s: %w", bundleDirName, err)
+}
+
+func readZipArchive(archivePath string, extractor *archiveExtractor) error {
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return fmt.Errorf("open zip archive: %w", err)
+	}
+	defer reader.Close()
+	for _, member := range reader.File {
+		info := member.FileInfo()
+		// A zip can carry a symlink or a device in its external attributes.
+		// The tarball reader refuses those by type; this is the same refusal
+		// spelled in the vocabulary this format uses.
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return fmt.Errorf("archive entry %q has unsupported mode %v", member.Name, info.Mode())
+		}
+		if member.UncompressedSize64 > math.MaxInt64 {
+			return fmt.Errorf("archive entry %q declares an impossible size", member.Name)
+		}
+		if err := extractor.add(archiveEntry{
+			name:  member.Name,
+			isDir: info.IsDir(),
+			size:  int64(member.UncompressedSize64),
+			mode:  info.Mode(),
+			open:  member.Open,
+		}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -421,6 +527,25 @@ func archivePathName(name string) (string, error) {
 		return "", fmt.Errorf("archive entry %q is outside %s", name, bundleDirName)
 	}
 	return clean, nil
+}
+
+// findBundleWorker returns file information for the worker shim the bundle
+// carries. Windows stores
+// it as `kivgraph-ts-worker.cmd` and every other platform as an extensionless
+// script, so the search is over what the platform would run rather than over
+// one spelled name.
+func findBundleWorker(root string) (fs.FileInfo, error) {
+	candidates := executable.Candidates("kivgraph-ts-worker")
+	for _, name := range candidates {
+		info, err := os.Stat(filepath.Join(root, "bin", name))
+		if err == nil {
+			return info, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("stat worker %q: %w", name, err)
+		}
+	}
+	return nil, fmt.Errorf("bundle carries no worker under any of %v", candidates)
 }
 
 func validateBundle(root, expectedVersion string) error {
@@ -450,20 +575,27 @@ func validateBundle(root, expectedVersion string) error {
 	if err := verifyBundleChecksums(root); err != nil {
 		return err
 	}
-	binaryPath := filepath.Join(root, "bin", "kivgraph")
+	// The binary carries the platform's program suffix, and "is executable" is
+	// asked of the platform rather than of the mode bits. Windows keeps none:
+	// Go reports 0666 for every plain file there, so `mode&0o111 == 0` was
+	// true of a perfectly good kivgraph.exe and this check refused every
+	// bundle it was given.
+	binaryPath := filepath.Join(root, "bin", executable.Name("kivgraph"))
 	info, err := os.Stat(binaryPath)
 	if err != nil {
 		return fmt.Errorf("stat binary: %w", err)
 	}
-	if info.Mode()&0o111 == 0 {
+	if !executable.IsProgram(info) {
 		return errors.New("bundle binary is not executable")
 	}
-	workerPath := filepath.Join(root, "bin", "kivgraph-ts-worker")
-	workerInfo, err := os.Stat(workerPath)
+	// The worker is looked up by candidate rather than by name: its shim is a
+	// `.cmd` on Windows and an extensionless script elsewhere, so the name it
+	// is stored under is not the one Name would write.
+	workerInfo, err := findBundleWorker(root)
 	if err != nil {
-		return fmt.Errorf("stat worker: %w", err)
+		return err
 	}
-	if workerInfo.Mode()&0o111 == 0 {
+	if !executable.IsProgram(workerInfo) {
 		return errors.New("bundle worker is not executable")
 	}
 	command := exec.Command(binaryPath, "version")
@@ -579,7 +711,14 @@ func replaceBundle(currentRoot, stagedRoot string) error {
 	}
 	backupRoot := currentRoot + ".previous"
 	if _, err := os.Lstat(backupRoot); err == nil {
-		return fmt.Errorf("previous bundle already exists: %s", backupRoot)
+		// A backup an earlier update left behind. On Windows that is the
+		// ordinary outcome rather than a fault: the bundle it replaced held
+		// the running binary, which could not be unlinked while it ran. It
+		// can be now, because that process has since exited. Refusing here
+		// would make the second update on a Windows machine impossible.
+		if removeErr := os.RemoveAll(backupRoot); removeErr != nil {
+			return fmt.Errorf("previous bundle %s exists and cannot be removed: %w", backupRoot, removeErr)
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect previous bundle: %w", err)
 	}
@@ -598,7 +737,7 @@ func replaceBundle(currentRoot, stagedRoot string) error {
 		return fmt.Errorf("move staged bundle into place: %w", err)
 	}
 	installed = true
-	if err := os.RemoveAll(backupRoot); err != nil {
+	if err := removeReplacedBundle(backupRoot); err != nil {
 		return fmt.Errorf("remove previous bundle: %w", err)
 	}
 	return nil

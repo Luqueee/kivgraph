@@ -159,6 +159,11 @@ ships to -- which is exactly why a compile gate cannot find them and why the
 |POSIX mode bits|2|
 |everything else, one apiece|6|
 
+That second row was wrong, and so was calling the last one a long tail of
+unrelated singletons. `update` was not waiting for a release; it was broken in
+four separate ways. And one of the six was a security guard returning nil.
+Both are below.
+
 Only the last row is work. The first is the machine the suite ran on -- an
 embeddable interpreter without the standard library a real install has. The
 second is correct and stops being true the day a release goes out, which this
@@ -369,6 +374,66 @@ about the file; and `python3` is resolved against `python` because a Git for
 Windows shell has one, the other, or both depending on the image.
 
 None of that has run. It is the same honest limit as everything below.
+
+### `kivgraph update` was not waiting for a release
+
+This document said the two `update` failures were the command "correctly
+refusing until a release exists". That was a misreading, and reading the code
+rather than the test name is what corrected it. `update` was not waiting for
+anything:
+
+```go
+var releaseTargets = []string{"linux/amd64", "darwin/arm64"}
+archiveName = bundleDirName + ".tar.gz"
+```
+
+Two platforms pinned in a list, and the container hard-coded to a tarball
+while this branch publishes a zip. Adding Windows to the list alone would have
+made the command download `kivgraph-windows-amd64.tar.gz`, which the release
+does not contain and never would.
+
+There were two more underneath, both in `validateBundle`, and both invisible
+until the platform ran:
+
+- it looked for `bin/kivgraph`, and the bundle carries `bin/kivgraph.exe`;
+- it then asked `info.Mode()&0o111 == 0`, which is true of every plain file on
+  Windows, so a perfectly good binary was refused as not executable.
+
+The last one is the branch's recurring shape once more -- a check that reads as
+careful and answers the wrong question off Unix. `internal/executable` already
+had `Name` and `IsProgram` for exactly this; the worker needed `Candidates`
+instead, because its shim is a `.cmd` on Windows and the name it is stored
+under is not the one `Name` writes.
+
+The zip reader is the part worth reviewing. A second archive reader is a second
+place for a containment check to be missing, and the checks here are what
+stands between a downloaded file and arbitrary writes on the reader's disk. So
+the guards were factored out first and both readers now feed them, and
+`extractArchive` picks its reader from the archive's *name* rather than from
+`runtime.GOOS` -- which is what lets the zip path be tested on Linux. A reader
+exercised only on the machine that ships it is a reader nobody reviews.
+
+### The one thing here that could not be reasoned about
+
+Whether Windows lets you rename a directory that contains a running
+executable. An update that cannot move the old bundle aside cannot install
+anything, and one that can but then fails to delete the backup would report a
+failure after having succeeded.
+
+It was measured rather than argued:
+`TestReplaceBundleMovesABundleWhoseBinaryIsStillRunning` copies the test binary
+into a bundle, starts it, waits for it to report itself loaded, and calls
+`replaceBundle`. **The rename succeeds.** What fails is the removal afterwards
+-- Windows keeps the executing image open -- so `removeReplacedBundle` treats
+that as the successful update it is and leaves the directory for the next
+update to clear. `replaceBundle` now clears a stale backup instead of refusing
+on one, because on Windows a leftover backup is the ordinary state of an
+installation that has updated once, and refusing would have capped every
+machine at a single update.
+
+All seventeen tests in `internal/update` pass on the host, including the
+end-to-end install: fetch a zip, verify its checksum, extract it, validate the
+bundle by running its binary, replace atomically.
 
 ## What is left
 

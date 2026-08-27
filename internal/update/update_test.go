@@ -2,6 +2,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -13,11 +14,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/executable"
 )
 
 // requireReleasePlatform guards the tests that exercise the install path. They
@@ -31,8 +36,15 @@ func requireReleasePlatform(t *testing.T) {
 }
 
 func TestRunRefusesAPlatformWithoutAPublishedBundle(t *testing.T) {
-	supported := []string{"linux/amd64", "darwin/arm64"}
-	for _, target := range []string{"windows/amd64", "linux/arm64", "darwin/amd64", "linux/386"} {
+	// Pinned rather than read from releaseTargets, so that publishing a
+	// platform is a decision taken here as well as there. The release
+	// workflow's matrix is the other half of this list; the two drifting is
+	// how a reader gets told to update to an asset that was never built.
+	supported := []string{"linux/amd64", "darwin/arm64", "windows/amd64"}
+	if strings.Join(releaseTargets, ",") != strings.Join(supported, ",") {
+		t.Fatalf("releaseTargets = %v, want %v", releaseTargets, supported)
+	}
+	for _, target := range []string{"windows/arm64", "linux/arm64", "darwin/amd64", "linux/386"} {
 		goos, goarch, _ := strings.Cut(target, "/")
 		err := checkReleaseTarget(goos, goarch)
 		if err == nil {
@@ -60,19 +72,24 @@ func TestRunRefusesAPlatformWithoutAPublishedBundle(t *testing.T) {
 // script, the installer and the workflows, so they are spelled out here rather
 // than recomputed from runtime.GOOS/GOARCH.
 func TestReleaseNamesTrackTheRunningPlatform(t *testing.T) {
-	names := map[string]string{
-		"linux/amd64":  "kivgraph-linux-amd64",
-		"darwin/arm64": "kivgraph-darwin-arm64",
+	// The extension is part of the contract and differs by platform: Windows
+	// publishes a zip because that is what a reader there can open, and an
+	// update that looked for a .tar.gz would ask the release for an asset
+	// that does not exist.
+	names := map[string]struct{ directory, archive string }{
+		"linux/amd64":   {"kivgraph-linux-amd64", "kivgraph-linux-amd64.tar.gz"},
+		"darwin/arm64":  {"kivgraph-darwin-arm64", "kivgraph-darwin-arm64.tar.gz"},
+		"windows/amd64": {"kivgraph-windows-amd64", "kivgraph-windows-amd64.zip"},
 	}
-	wantDir, ok := names[runtime.GOOS+"/"+runtime.GOARCH]
+	want, ok := names[runtime.GOOS+"/"+runtime.GOARCH]
 	if !ok {
 		t.Skipf("no bundle is published for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
-	if bundleDirName != wantDir {
-		t.Fatalf("bundleDirName = %q, want %q", bundleDirName, wantDir)
+	if bundleDirName != want.directory {
+		t.Fatalf("bundleDirName = %q, want %q", bundleDirName, want.directory)
 	}
-	if archiveName != wantDir+".tar.gz" {
-		t.Fatalf("archiveName = %q, want %q", archiveName, wantDir+".tar.gz")
+	if archiveName != want.archive {
+		t.Fatalf("archiveName = %q, want %q", archiveName, want.archive)
 	}
 }
 
@@ -214,7 +231,7 @@ func TestRunRejectsMismatchedReleaseChecksum(t *testing.T) {
 func TestRunInstallsValidatedBundleAtomically(t *testing.T) {
 	requireReleasePlatform(t)
 	root := t.TempDir()
-	oldBinary := filepath.Join(root, "kivgraph", "bin", "kivgraph")
+	oldBinary := filepath.Join(root, "kivgraph", "bin", executable.Name("kivgraph"))
 	if err := os.MkdirAll(filepath.Dir(oldBinary), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -224,6 +241,12 @@ func TestRunInstallsValidatedBundleAtomically(t *testing.T) {
 	if err := os.WriteFile(oldBinary, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+
+	// validateBundle runs the bundled binary and compares what it prints
+	// against the release. The bundled binary is this test binary, so the
+	// variable is what makes it answer as a kivgraph of that version instead
+	// of running the suite again.
+	t.Setenv(bundleVersionVariable, "0.1.1")
 
 	archive := testBundleArchive(t, "0.1.1")
 	digest := sha256.Sum256(archive)
@@ -256,12 +279,15 @@ func TestRunInstallsValidatedBundleAtomically(t *testing.T) {
 	if !result.Updated || result.LatestVersion != "0.1.1" {
 		t.Fatalf("result = %#v, want updated 0.1.1", result)
 	}
-	newOutput, err := os.ReadFile(oldBinary)
+	// The assertion is on behaviour rather than bytes: the installed binary is
+	// asked what version it is, which is the question a reader asks after an
+	// update and the one validateBundle asked before installing it.
+	answer, err := exec.Command(oldBinary, "version").Output()
 	if err != nil {
-		t.Fatalf("read installed binary: %v", err)
+		t.Fatalf("run the installed binary: %v", err)
 	}
-	if string(newOutput) != "#!/bin/sh\nprintf '%s\\n' 0.1.1\n" {
-		t.Fatalf("installed binary = %q, want new release script", newOutput)
+	if got := strings.TrimSpace(string(answer)); got != "0.1.1" {
+		t.Fatalf("installed binary reports %q, want the release that was installed", got)
 	}
 	if _, err := os.Stat(filepath.Join(root, "kivgraph.previous")); !os.IsNotExist(err) {
 		t.Fatalf("previous bundle stat error = %v, want absent", err)
@@ -301,12 +327,47 @@ func writeRelease(t *testing.T, writer http.ResponseWriter, baseURL, tag string)
 	}
 }
 
+// bundleWorkerName is the shim the distribution builder writes: a `.cmd` on
+// Windows and an extensionless script everywhere else. The fixture carries the
+// same name the real bundle does, because validateBundle looks for what the
+// platform would run and a fixture that named it differently would be testing
+// a bundle nobody ships.
+func bundleWorkerName() string {
+	if runtime.GOOS == "windows" {
+		return "kivgraph-ts-worker.cmd"
+	}
+	return "kivgraph-ts-worker"
+}
+
+// bundleProgram returns the bytes of the fake installed binary. validateBundle
+// runs it and compares what it prints against the release, so it has to be a
+// program the platform can actually execute -- which rules out the `#!/bin/sh`
+// script this fixture used to carry, because Windows has no interpreter for a
+// `#!` line.
+//
+// This test binary is that program. It prints the version and exits when
+// bundleVersionVariable is set, which the caller sets around the update, and
+// runs the suite otherwise. Eleven megabytes through an in-memory archive is
+// the price of exercising the install path on both platforms rather than one.
+func bundleProgram(t *testing.T) []byte {
+	t.Helper()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatalf("resolve the test binary: %v", err)
+	}
+	contents, err := os.ReadFile(self)
+	if err != nil {
+		t.Fatalf("read the test binary: %v", err)
+	}
+	return contents
+}
+
 func testBundleArchive(t *testing.T, version string) []byte {
 	t.Helper()
 	files := map[string][]byte{
-		bundleDirName + "/manifest.json":          []byte(fmt.Sprintf(`{"product":"kivgraph","release":"%s","target":{"os":"%s","arch":"%s"},"source":{"dirty":false}}`, version, runtime.GOOS, runtime.GOARCH)),
-		bundleDirName + "/bin/kivgraph":           []byte("#!/bin/sh\nprintf '%s\\n' " + version + "\n"),
-		bundleDirName + "/bin/kivgraph-ts-worker": []byte("#!/bin/sh\nexit 0\n"),
+		bundleDirName + "/manifest.json":                      []byte(fmt.Sprintf(`{"product":"kivgraph","release":"%s","target":{"os":"%s","arch":"%s"},"source":{"dirty":false}}`, version, runtime.GOOS, runtime.GOARCH)),
+		bundleDirName + "/bin/" + executable.Name("kivgraph"): bundleProgram(t),
+		bundleDirName + "/bin/" + bundleWorkerName():          []byte("#!/bin/sh\nexit 0\n"),
 	}
 	var checksumLines []string
 	for name, contents := range files {
@@ -318,6 +379,12 @@ func testBundleArchive(t *testing.T, version string) []byte {
 	sort.Strings(checksumLines)
 	files[bundleDirName+"/"+checksumsName] = []byte(strings.Join(checksumLines, "\n") + "\n")
 
+	// The container follows the platform, because that is what the release
+	// publishes and what archiveName tells Run to ask for.
+	if archiveExtension == ".zip" {
+		return testZipArchive(t, files)
+	}
+
 	var archive bytes.Buffer
 	gzipWriter := gzip.NewWriter(&archive)
 	tarWriter := tar.NewWriter(gzipWriter)
@@ -328,7 +395,7 @@ func testBundleArchive(t *testing.T, version string) []byte {
 			Mode: 0o644,
 			Size: int64(len(contents)),
 		}
-		if strings.HasSuffix(name, "/kivgraph") || strings.HasSuffix(name, "/kivgraph-ts-worker") {
+		if isBundleProgram(name) {
 			header.Mode = 0o755
 		}
 		if err := tarWriter.WriteHeader(header); err != nil {
@@ -354,4 +421,37 @@ func sortedFileNames(files map[string][]byte) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// isBundleProgram reports whether a bundle entry has to come out executable.
+// On Windows nothing does -- there are no mode bits -- but the archive is
+// written the same way on both so that one fixture describes one bundle.
+func isBundleProgram(name string) bool {
+	base := path.Base(name)
+	return base == executable.Name("kivgraph") || base == bundleWorkerName()
+}
+
+func testZipArchive(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	for _, name := range sortedFileNames(files) {
+		header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+		if isBundleProgram(name) {
+			header.SetMode(0o755)
+		} else {
+			header.SetMode(0o644)
+		}
+		member, err := writer.CreateHeader(header)
+		if err != nil {
+			t.Fatalf("create zip entry %q: %v", name, err)
+		}
+		if _, err := member.Write(files[name]); err != nil {
+			t.Fatalf("write zip entry %q: %v", name, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	return archive.Bytes()
 }
