@@ -49,21 +49,23 @@ type Graph interface {
 //
 // Two is not a tuning choice, it is the definition: with one declaration a text
 // search finds the thing and every use of it, and with two it cannot tell which
-// uses belong to which -- and neither can the person reading its output. This
-// is the case `CLAUDE.md` documents as ours and `benchmarks/graft-comparison`
-// measures at `11,95x` for `NewServer`.
-const ambiguousAt = 2
-
-// crowdedAt is the number of references above which a text search costs more
-// than the answer is worth.
+// uses belong to which -- and neither can the person reading its output.
 //
-// PROVISIONAL. `benchmarks/mcp-token-cost` has the corpus to fix this number
-// and the ADR must quote it: the same benchmark already reports `grep` cheaper
-// on 5 of 29 questions, and every one of those is a rare name whose reference
-// list is short. Until that pass runs, this floor is set high enough that a
-// unique name with a handful of uses is left to `grep`, which is the side to
-// err on: a wrong refusal costs the user's trust, a missed one costs tokens.
-const crowdedAt = 8
+// It is also the only threshold the measurements support. Over the six
+// questions of `benchmarks/mcp-token-cost` (commit `1a7d0266`, `cl100k_base`)
+// the answer factor splits cleanly by how many things share the name and not at
+// all by how many references the symbol has -- every question there has between
+// zero and four:
+//
+//	rare_name     MergeAll 0,85x   CanonicalColumns 0,91x   DiscoverGo 0,83x
+//	shared_name   BuildPlan 1,92x
+//	common_name   NewServer 1,68x  Publish 6,42x
+//
+// The three below `1,0` are ours to lose, and all three are unambiguous names.
+// A reference-count floor was written here first and removed: the corpus has
+// nothing above four references, so any number would have been invented. See
+// ADR 0077 for what would have to be measured to add one back.
+const ambiguousAt = 2
 
 // Gate decides whether a search should be refused in favour of the graph.
 type Gate struct {
@@ -133,29 +135,25 @@ func (gate Gate) decideFiles(question Question) Decision {
 
 // decideSymbol answers a search for a name.
 //
-// The refusal needs a positive fact, and there are only two that qualify: the
-// name is ambiguous, so a text search cannot separate what it finds, or it is
-// used widely enough that reading the matches costs more than asking. A unique
-// name with a handful of uses is left alone, and that is not a concession --
-// `CLAUDE.md` documents it, and `benchmarks/graph-tools-comparison/trivial.md`
-// measures us at `1,9x` *worse* than `grep` on exactly that shape.
+// The refusal needs a positive fact, and exactly one qualifies: the name is
+// ambiguous, so a text search cannot separate what it finds. A unique name is
+// left alone however many places use it, and that is not a concession --
+// `CLAUDE.md` documents it, `benchmarks/graph-tools-comparison/trivial.md`
+// measures us at `1,9x` *worse* than `grep` on that shape, and
+// `benchmarks/mcp-token-cost` puts all three of its unambiguous names below
+// `1,0x`. See ambiguousAt.
 func (gate Gate) decideSymbol(ctx context.Context, question Question) Decision {
 	facts, ok := gate.ask(ctx, question.Pattern, Graph.Symbol)
 	if !ok || !facts.Known() {
 		return Allow
 	}
-	switch {
-	case facts.Declarations >= ambiguousAt:
-		return denySymbol(question.Pattern, facts, fmt.Sprintf(
-			"has %d declarations in %d %s, and a text search cannot tell them apart",
-			facts.Declarations, facts.Repositories, plural(facts.Repositories, "repository", "repositories")))
-	case facts.References >= crowdedAt:
-		return denySymbol(question.Pattern, facts, fmt.Sprintf(
-			"has %d references; reading them costs more than asking which files hold them",
-			facts.References))
-	default:
+	if facts.Declarations < ambiguousAt {
 		return Allow
 	}
+	return denySymbol(question.Pattern, facts, fmt.Sprintf(
+		"has %d declarations in %d %s, and a text search cannot tell them apart",
+		facts.Declarations, facts.Repositories,
+		plural(facts.Repositories, "repository", "repositories")))
 }
 
 // denySymbol builds the refusal for a name the graph answers better.
