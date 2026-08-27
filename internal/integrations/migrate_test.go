@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"encoding/json"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ import (
 // client, which is the same as saying the new default does not work.
 func TestOurOwnStdioEntryIsMigratedWithoutForce(t *testing.T) {
 	home := t.TempDir()
-	executable := "/opt/kivgraph/bin/kivgraph"
+	executable := testsupport.InstalledExecutable()
 	path := filepath.Join(home, ".claude.json")
 	// Written by hand in the shape a previous install produced, so the fixture
 	// demonstrates the real starting state rather than a guess at it.
@@ -92,7 +93,7 @@ func TestAnotherInstallationStillNeedsForce(t *testing.T) {
 	manager, err := New(Options{
 		HomeDir:    home,
 		ProjectDir: t.TempDir(),
-		Executable: "/opt/kivgraph/bin/kivgraph",
+		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
 		Endpoint:   Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "a-token"},
 	})
@@ -120,7 +121,7 @@ func TestAURLEntryIsMigratedBackToStdio(t *testing.T) {
 	manager, err := New(Options{
 		HomeDir:    home,
 		ProjectDir: t.TempDir(),
-		Executable: "/opt/kivgraph/bin/kivgraph",
+		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
 	})
 	if err != nil {
@@ -146,7 +147,7 @@ func TestAURLEntryIsMigratedBackToStdio(t *testing.T) {
 // beside the old one leaves `command` and `url` under one key.
 func TestCodexReplacesTheTableRatherThanAppending(t *testing.T) {
 	home := t.TempDir()
-	executable := "/opt/kivgraph/bin/kivgraph"
+	executable := testsupport.InstalledExecutable()
 	codex := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(codex, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)

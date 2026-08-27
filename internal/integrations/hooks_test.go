@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"encoding/json"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,7 +93,7 @@ func TestInstallLeavesAnotherToolsGateAlone(t *testing.T) {
 	commands := commandsIn(t, document)
 	want := []string{
 		"/home/u/.cargo/bin/tokensave hook-pre-tool-use",
-		"/opt/kivgraph/bin/kivgraph hook run",
+		testsupport.InstalledExecutable() + " hook run",
 	}
 	if strings.Join(commands, "|") != strings.Join(want, "|") {
 		t.Fatalf("PreToolUse commands = %q, want %q", commands, want)
@@ -266,7 +267,7 @@ func TestTheOpenCodePluginNamesThisInstallationsBinary(t *testing.T) {
 	if strings.Contains(string(body), executablePlaceholder) {
 		t.Fatal("the plugin still carries its placeholder")
 	}
-	if !strings.Contains(string(body), `"/opt/kivgraph/bin/kivgraph"`) {
+	if !strings.Contains(string(body), escapedPath(t, testsupport.InstalledExecutable())) {
 		t.Fatal("the plugin does not name this installation's binary")
 	}
 	if !strings.Contains(string(body), "tool.execute.before") {
@@ -299,8 +300,8 @@ func TestATargetWithNoGateIsRefusedByName(t *testing.T) {
 func TestABinaryNotCalledKivgraphStillOwnsItsGate(t *testing.T) {
 	home := t.TempDir()
 	for _, executable := range []string{
-		"/tmp/kivgraph-hook",         // a development build
-		"/opt/kivgraph/bin/kivgraph", // the ordinary install
+		"/tmp/kivgraph-hook",              // a development build
+		testsupport.InstalledExecutable(), // the ordinary install
 		"/home/u/.local/bin/kivgraph-0.8.0",
 	} {
 		t.Run(filepath.Base(executable), func(t *testing.T) {
