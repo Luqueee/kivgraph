@@ -12,6 +12,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // TestStateDirectoryIsWhereTheDatabaseLives pins the derivation the daemon and
@@ -83,7 +84,7 @@ func TestProjectScopeStaysOnStdio(t *testing.T) {
 func TestAReaderNeverProvisions(t *testing.T) {
 	home := t.TempDir()
 	state := filepath.Join(home, ".local", "state", "kivgraph")
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
 	writeMinimalConfig(t, home, state)
@@ -114,7 +115,7 @@ func TestAReaderNeverProvisions(t *testing.T) {
 func TestAReaderUsesAPublishedEndpointEvenWhenItIsDown(t *testing.T) {
 	home := t.TempDir()
 	state := filepath.Join(home, ".local", "state", "kivgraph")
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
 	writeMinimalConfig(t, home, state)

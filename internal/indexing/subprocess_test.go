@@ -1,3 +1,5 @@
+//go:build unix
+
 package indexing
 
 import (
@@ -14,6 +16,13 @@ import (
 // fakeIndexChild writes an executable that answers like `index --full --json`.
 // The script records its own arguments so a test can assert what the parent
 // asked for, which is the half of the contract the event stream cannot show.
+//
+// The child is a shell script, which is what keeps this file Unix-only: there
+// is no interpreter for a `#!` line on Windows and no /bin/sh to name in one.
+// Porting it means writing every body here twice, once as a batch file, and
+// the bodies are the tests. So RunDetached goes unverified on Windows -- a
+// real gap, recorded in docs/development/windows.md rather than papered over,
+// because the code under test is not what is unportable here.
 func fakeIndexChild(t *testing.T, body string) (executable, argumentsFile string) {
 	t.Helper()
 	directory := testsupport.TempDir(t)

@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/agenthook"
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // TestTheGateStandsAsideOnEveryFailure is the contract the whole command
@@ -153,7 +154,7 @@ func TestAResearchSubagentIsRefusedWithoutAConfigurationOrADaemon(t *testing.T) 
 	t.Setenv(agenthook.DisableVariable, "")
 	// A configuration path that cannot be read takes loadForHook's failing
 	// branch, and the gate still has to answer this one.
-	t.Setenv("HOME", t.TempDir())
+	testsupport.SetHome(t, t.TempDir())
 	var out strings.Builder
 	payload := `{"cwd":"/anywhere","tool_name":"Task",` +
 		`"tool_input":{"subagent_type":"explore","prompt":"map the indexer"}}`
@@ -214,7 +215,7 @@ func TestUnderIsNotAPrefixMatch(t *testing.T) {
 // the agent actually sees.
 func TestTheCommandWritesARefusalItCanReach(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv(agenthook.DisableVariable, "")
 	repository := filepath.Join(home, "src", "widget")
 	if err := os.MkdirAll(repository, 0o700); err != nil {
@@ -276,7 +277,7 @@ func TestTheCommandWritesARefusalItCanReach(t *testing.T) {
 // came from another.
 func TestACallOutsideEveryRegisteredRepositoryIsAllowed(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv(agenthook.DisableVariable, "")
 	configPath, err := config.DefaultConfigPath()
 	if err != nil {

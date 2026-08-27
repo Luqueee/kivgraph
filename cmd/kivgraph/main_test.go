@@ -145,7 +145,7 @@ func TestRunInitAndDoctorUseConfiguredState(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 
@@ -182,7 +182,7 @@ func TestRunUpgradeRequiresPublishedGeneration(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	var initStdout, initStderr bytes.Buffer
@@ -214,7 +214,7 @@ func TestRunCleanRefusesToGuessOnAnEmptyStore(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
@@ -264,7 +264,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(home, ".config", "kivgraph", "config.yaml")
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		t.Fatalf("config error = %v, want a home with no configuration", err)
@@ -326,7 +326,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 // instead, and never binds a port to serve nothing.
 func TestRunConfiguredUIRefusesWithoutTheWebBundle(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	err := runConfiguredUI(context.Background(), []string{"--config", filepath.Join(root, "config.yaml")},
 		func(context.Context, string, http.Handler) error {
 			t.Fatal("ui opened a server with no viewer to serve")
@@ -348,7 +348,7 @@ func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	var initStdout, initStderr bytes.Buffer
@@ -414,7 +414,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{
@@ -450,7 +450,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 // place.
 func TestFollowPublishedGenerationStopsWithItsCaller(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	if _, err := config.Initialize(config.InitOptions{
 		ConfigPath:       configPath,
@@ -499,7 +499,7 @@ func TestFollowPublishedGenerationStopsWithItsCaller(t *testing.T) {
 
 func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{
@@ -541,7 +541,7 @@ func TestRunConfiguredUILoadsPublishedStore(t *testing.T) {
 // TestUIWarnsWhenTheBindIsReachable keeps.
 func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	testsupport.SetHome(t, filepath.Join(root, "home"))
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	if _, err := config.Initialize(config.InitOptions{

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // TestALongRunningCommandDoesNotSwallowItsSubcommands is the guard that makes
@@ -52,7 +53,7 @@ func TestSupervisorStatusNamesTheUnit(t *testing.T) {
 		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
 	}
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
 	configPath := writeSupervisorConfig(t, home)
@@ -76,7 +77,7 @@ func TestSupervisorStatusNamesTheUnit(t *testing.T) {
 // remote daemon and is not one, and the recorded unit would outlive the mistake.
 func TestRemoteWithoutAnAddressIsRefused(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := writeSupervisorConfig(t, home)
 
 	var stdout, stderr bytes.Buffer
@@ -94,7 +95,7 @@ func TestRemoteWithoutAnAddressIsRefused(t *testing.T) {
 // ignore the word it cannot use.
 func TestAStrayArgumentIsRefused(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := writeSupervisorConfig(t, home)
 
 	var stdout, stderr bytes.Buffer

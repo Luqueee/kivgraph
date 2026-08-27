@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestLoadAppliesDefaultsAndExpandsPaths(t *testing.T) {
@@ -459,7 +461,7 @@ func TestInitializeCreatesSecureStateAndRegistersRepositories(t *testing.T) {
 	if err := os.Mkdir(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
 
@@ -556,7 +558,7 @@ func TestInitializeKeepsACustomLocationSelfContained(t *testing.T) {
 // isolating a custom location must not move the state of a normal install.
 func TestInitializeAtTheDefaultLocationKeepsTheDefaultState(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testsupport.SetHome(t, home)
 	defaultPath, err := DefaultConfigPath()
 	if err != nil {
 		t.Fatalf("DefaultConfigPath() error = %v", err)

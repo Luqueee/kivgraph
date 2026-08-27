@@ -25,6 +25,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/dartloader"
+	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goloader"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -1544,13 +1545,13 @@ const defaultTypeScriptWorkerCommand = "kivgraph-ts-worker"
 // siblingExecutable answers an executable installed next to the running
 // binary, which is what a bundle is.
 func siblingExecutable(name string) (string, bool) {
-	executable, err := os.Executable()
+	selfPath, err := os.Executable()
 	if err != nil {
 		return "", false
 	}
-	candidate := filepath.Join(filepath.Dir(executable), name)
+	candidate := filepath.Join(filepath.Dir(selfPath), executable.Name(name))
 	info, statErr := os.Stat(candidate)
-	if statErr != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+	if statErr != nil || !executable.IsProgram(info) {
 		return "", false
 	}
 	return candidate, true
