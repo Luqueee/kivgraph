@@ -1,154 +1,142 @@
 # Windows support: what it would take
 
-Nothing here ships. This is the investigation behind the question "how much
-work is `windows/amd64`", measured rather than estimated, so that whoever
-decides to take it on knows what they are agreeing to.
+`windows/amd64` is not a supported platform and nothing here ships it. This
+document is what was learned trying, so that whoever decides to finish knows
+what is left and what it is made of.
 
-The headline is that the answer is much smaller than the shape of the
-repository suggests. A complete `windows/amd64` binary, with the native
-LadybugDB storage linked and not the pure-Go stub, cross-compiles today after
-adding **two** missing build-tag fallbacks. The cost of Windows is not in the
-Go code. It is in the distribution, in the daemon's owner, and in three
-subsystems that compile and then answer "unsupported".
+It has been rewritten once. The first version answered the question by
+cross-compiling, concluded that the port was small, and said in as many words
+that a real host had to confirm it. A real host did, and disagreed with the
+optimism while confirming the shape: the code compiled clean and then failed
+184 of its own tests. Everything below is measured on that host.
 
-## How this was measured
+## What this rests on
 
-There is no Windows host and no MSVC here, so the C compiler was Zig, which
-ships a complete `x86_64-windows-gnu` cross toolchain in one archive:
+A Windows Server 2022 virtual machine -- Go 1.26.6, mingw-w64 GCC 16.2, the
+pinned LadybugDB Windows library -- running the repository's own suite, five
+times, with the fixes between the runs.
 
-```bash
-CC='zig cc -target x86_64-windows-gnu'
-GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build ./...
-```
+|run|what changed before it|packages ok|tests failed|
+|---|---|---|---|
+|1|nothing; the tree as it was|25|184|
+|2|`fsync`|25|146|
+|3|`filesystemCapacity`, `go.work` paths|28|61|
+|4|program names, `HOME`, path order|31|38|
+|5|manifest containment, `doctor`|31|TOTAL5|
 
-The native library is the Windows asset of the pinned LadybugDB release,
-`liblbug-windows-x86_64.zip` for `v0.13.1`, which unpacks to
-`lbug_shared.dll`, `lbug_shared.lib`, `lbug.h` and `lbug.hpp`.
+Before any of that, the compile results the first version of this document
+reported still hold, and one of them was strengthened: the tree builds for
+`windows/amd64` with mingw-w64 as well as with Zig, so the CI job's toolchain
+is the one that was verified, and `go build`, `go vet` and `staticcheck` are
+all clean for that GOOS.
 
-```bash
-CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB" \
-go build -tags ladybug -o kivgraph.exe ./cmd/kivgraph
-```
+## The shape of the work
 
-That produced a `PE32+` executable whose import table names
-`lbug_shared.dll`. The whole native path links; it was not stubbed out.
+The single most useful thing measured is that **almost none of this was
+hard**. Sorted by what they actually were, the root causes fixed so far are:
 
-This is a compile-and-link result, not a run. Nothing below has been executed
-on Windows, and the section on what compiles but does not work is exactly the
-part that a real host has to confirm.
+- **A primitive Windows has that nobody wired.** The two cross-process locks,
+  `filesystemCapacity`, `preallocate`. Each had a Unix implementation and a
+  fallback that refused; each has a direct Windows equivalent -- `LockFileEx`,
+  `GetDiskFreeSpaceEx`, `SetEndOfFile` -- reachable through
+  `golang.org/x/sys/windows` or the standard library.
+- **A POSIX assumption written out by hand in several places.** `fsync` on a
+  read-only handle and on a directory, in four copies. "A program is a file
+  with an execute bit", in five. Each copy agreed with the others, which is
+  what made them dangerous: the same defect had to be found once per copy, and
+  the reason for the difference had nowhere to live. Both now have one.
+- **A path separator.** The `go.work` `use` directives, the file table in
+  `facts.NormalizeSemantic`, the containment check on a bundle's grammar
+  manifest.
+- **A test that did not know Windows exists.** `HOME` where the platform reads
+  `USERPROFILE`, mode bits where there are none, and assertions that the slash
+  form of a path is the stored form.
 
-## What already works, unchanged
+The third and fourth categories are worth dwelling on, because they are the
+ones that will keep happening.
 
-- **The pinned binding is already ported.** `go-ladybug` v0.13.1 declares
-  `#cgo windows LDFLAGS: -L${SRCDIR}/lib/dynamic/windows -llbug_shared`. No
-  patch, no fork, no vendored shim.
-- **The upstream publishes the library.** LadybugDB `v0.13.1` ships a Windows
-  asset alongside the Linux and macOS ones.
-- **The tree-sitter grammars build.** They are portable C compiled through
-  cgo, and they compiled for `windows/amd64` without a change.
-- **The platform split is nearly complete already.** Every package that
-  reaches for a Unix facility -- `supervisor`, `procstat`, `daemon`'s umask,
-  `rebuild`'s mmap, `tsworker`'s process group, `generation`'s filesystem
-  capacity -- already carries a `!unix` or `!linux && !darwin` fallback,
-  written when macOS was added and when the distribution targets were named.
-  The two gaps below are the exception, not the rule.
+### The failures that read as neutral
 
-## What fails to compile
+`facts.NormalizeSemantic` filled its file table with
+`filepath.Clean(filepath.ToSlash(p))` and looked into it with
+`filepath.ToSlash(filepath.Clean(p))`. The same two operations, opposite
+order. `filepath.Clean` produces the separator of the host, so on Windows one
+of them ends in a backslash and the other does not, and every Dart and Python
+symbol was reported as referencing a file nobody had declared. Twelve other
+normalisations in the same file already had it the right way round.
 
-Two files in the shipped tree, and that is the entire list:
+`loadGrammarProvenance` decided whether a bundle's manifest reference stayed
+inside the bundle by testing `filepath.Clean(ref) != ref`. The reference comes
+out of JSON and is slash-separated by contract, so on Windows a correctly
+written bundle was reported as trying to escape its own root -- a security
+check that fails closed against nothing but itself.
 
-|package|missing|
-|---|---|
-|`internal/storage/generation`|`acquirePublishLock`, `publishLock`|
-|`internal/indexing`|`acquireWriterLock`, `writerLock`|
+`doctor` asked whether each state directory's mode bits were narrower than
+`0700`. Go reports every directory on Windows as `0777`, so the check could
+not come out any other way. A permanent red is not a check; it is a line an
+operator learns to skip.
 
-Both are `flock` advisory locks in `*_unix.go` files with no counterpart, and
-both are called from files with no build tag, so the package does not build.
+Neither of the first two looks wrong. Both are the kind of line that gets
+written once, reads as careful, and is a no-op on every platform the project
+ships to -- which is exactly why a compile gate cannot find them and why the
+`windows-cross` job in CI is worth having but is not worth trusting.
 
-Outside the shipped tree:
+## What is still open
 
-- `benchmarks/snapshot-heap` uses `syscall.Mmap` directly. It is a benchmark,
-  not a distributed artifact, and it can simply stay off Windows.
-- Three test packages use calls that do not exist on Windows:
-  `internal/tsworker` and `internal/resilience` use `syscall.Kill`,
-  `internal/daemon` uses `syscall.Umask`.
+### One thing needs a decision, not a primitive
 
-## What compiles and then does not work
+`internal/tsworker` deadlocks. `TestReadFrameHonoursDeadlineAndCancellationOnAPipe`
+blocks in `syscall.readFile` and never returns; the package costs whatever the
+test timeout is set to. The name states the cause: Go on Windows does not
+associate the handles from `os.Pipe` with its I/O completion port, so a read
+deadline cannot interrupt a blocked read there.
 
-This is the real content of the port. Each row compiles cleanly and would
-mislead anyone who read the build as a verdict.
+This is not a test defect. `ReadFrame`'s cancellation is what the supervisor
+uses to give up on a worker that has stopped answering, so the contract itself
+is unimplementable on Windows as written. The options are a named pipe, which
+Windows *does* poll, or closing the handle from another goroutine, which is
+cruder and changes what a caller can retry. Both are design changes and belong
+in an ADR.
 
-|subsystem|behaviour on Windows|
-|---|---|
-|writer and publish locks|the two files above|
-|`internal/supervisor`|`unsupported`; the daemon has no owner|
-|`internal/procstat`|`ErrProcessListUnsupported`|
-|`withPrivateUmask`|no-op; the socket keeps the default ACL|
-|`internal/rebuild` mmap|falls back to reading the whole file|
-|`internal/watcher`|the `EMFILE`/`ENFILE` branch is unreachable|
+### Two things have never been exercised
 
-Four of them deserve more than a row.
+- **The socket ACL.** `withPrivateUmask` is a documented no-op off Unix, so
+  the daemon's socket inherits its directory's ACL and the comment beside it --
+  "the socket carries the whole graph, so it is the owner's alone" -- stops
+  being true. No run has reached it: the daemon has not started on Windows.
+- **`RunDetached`.** Its test fixture is a `#!/bin/sh` script, and Windows has
+  no interpreter for a `#!` line. The file is Unix-only now, so the code under
+  test is unverified there. What is unportable is the fixture, not the code.
 
-### The locks must be real, not stubs
+### The one prediction that came true, and the one that did not
 
-The obvious fix for the two missing files is a stub that returns an error, and
-it is the wrong one. The writer lock is what stops two Kivgraph processes over
-the same state directory from rebuilding the same graph at once, and the
-publish lock is what makes a leftover candidate directory safe to treat as
-debris. A stub that fails turns `index` into a command that cannot run; a stub
-that succeeds unconditionally turns concurrent indexing into corruption that
-appears only under load.
+The first version of this document named the generation store's use of
+`os.Rename` and `os.RemoveAll` over an open database as the item most likely
+to pass on a quiet machine and fail on a real one. It has not fired in the
+publish path, and the store's suite is now green except for a mode-bit
+assertion. It *has* fired twice, in `t.TempDir` cleanup, which is the same
+Windows rule -- a file held open cannot be deleted -- reached from the test
+harness rather than from the store. It is still worth reproducing deliberately
+with a concurrent reader before believing the store.
 
-Windows has the primitive: `LockFileEx` with `LOCKFILE_EXCLUSIVE_LOCK |
-LOCKFILE_FAIL_IMMEDIATELY`, through `golang.org/x/sys/windows`, which the
-module tree already carries. It gives the same non-blocking exclusive
-semantics and the same release-on-process-death that the comments in both Unix
-files rely on. So this is an implementation, not a fallback, and it is the one
-piece of the port that cannot be deferred.
+What the same document got wrong was the ordering: it put the daemon's owner
+and the socket first and treated the Go code as nearly done. The Go code was
+where the work was.
 
-### The daemon would have no owner
+## The daemon still has no owner
 
 `internal/supervisor` writes a systemd user unit on Linux and a launchd plist
 on macOS, and ADR 0068 makes that ownership the reason a client may be
-registered against a daemon at all. On Windows the honest answer today is
-`unsupported`, which the package already returns.
-
-Giving Windows an owner means a third backend: a Task Scheduler logon task is
-the cheap version and needs no privileges; a real service via the SCM is the
-faithful one and needs an installer running elevated. Until one exists,
-Windows gets a daemon that nothing restarts, and `kivgraph doctor` should say
-so rather than let the absence read as health.
-
-### The socket is a security decision, not a portability one
-
-`internal/daemon` listens on `AF_UNIX`, which Windows 10 1803 and later
-support, so `net.Listen("unix", path)` works. What does not carry over is the
-protection around it: `withPrivateUmask` is a documented no-op off Unix, and
-the comment beside it -- "the socket carries the whole graph, so it is the
-owner's alone" -- stops being true. The socket file inherits the default ACL
-of its directory.
-
-So a Windows daemon needs either an explicit DACL on the socket's directory or
-a named pipe with a security descriptor. Shipping the `AF_UNIX` path as-is
-would publish the entire graph to any local account, quietly, on a platform
-where the code still claims otherwise.
-
-### Windows will not delete or rename an open file
-
-`internal/storage/generation` publishes by `os.Rename` of a candidate
-directory and cleans up with `os.RemoveAll`. On Unix an open database file
-does not obstruct either. On Windows a file held open by any handle cannot be
-renamed or deleted, and the failure surfaces as `ERROR_SHARING_VIOLATION` from
-the middle of a publish rather than at the point the handle was taken.
-
-This is the item most likely to pass a test suite on a quiet machine and fail
-on a real one, because it needs a *concurrent reader* to reproduce: the
-publisher renaming a generation while a follower still has its `.lbdb` mapped.
-It is worth reproducing deliberately before believing the port.
+registered against a daemon at all. On Windows it answers `unsupported`, which
+is honest and is not support. A third backend -- a Task Scheduler logon task,
+which needs no privileges, or a real service through the SCM, which needs an
+elevated installer -- is a decision about the installer as much as about the
+daemon.
 
 ## Distribution
 
-None of this exists yet, and it is the larger half of the work.
+Unchanged from the first version of this document, and still the larger half
+of the remaining work.
 
 |file|what it assumes|
 |---|---|
@@ -158,70 +146,52 @@ None of this exists yet, and it is the larger half of the work.
 |`scripts/fetch-rust-analyzer.sh`|`uname`; `.gz`|
 |`tools/manifest.json`|one `archive_format` for every platform|
 |`.github/workflows/release.yml`|two runners, `.tar.gz` assets|
-|`.github/workflows/ci.yml`|`ubuntu-latest` and `macos-15`|
 
 Four differences are structural rather than cosmetic:
 
 - **The archives are zips.** Both `liblbug-windows-x86_64.zip` and
   `rust-analyzer-x86_64-pc-windows-msvc.zip` are zips where every other
-  platform ships a tarball. `tools/manifest.json` has a single
-  `archive_format` field per tool, so it needs a per-platform one.
-- **The library name changes.** `lbug_shared.dll` with an import library, not
-  `liblbug.so` or `liblbug.dylib`, so the fetch script's naming and the
-  bundle layout both need a Windows branch.
+  platform ships a tarball, and `tools/manifest.json` has one
+  `archive_format` per tool rather than per platform.
+- **The library name changes.** `lbug_shared.dll` with an import library.
 - **There is no `RUNPATH`.** ADR 0026's per-platform table -- `$ORIGIN/../lib`
-  against `@loader_path/../lib` -- has no third row. Windows resolves a DLL
-  from the directory of the executable, so `lbug_shared.dll` must sit beside
+  against `@loader_path/../lib` -- has no third row, because Windows resolves
+  a DLL from the directory of the executable. `lbug_shared.dll` sits beside
   `kivgraph.exe`, and the `lib/` directory of the bundle layout does not
   apply. That is a change to the bundle contract, not a flag.
-- **The installer is a different language.** `scripts/install.sh` cannot run
-  where there is no POSIX shell. A PowerShell installer is a second
-  implementation of the same security checks -- entry listing, prefix, member
-  types, symlinks -- and duplicated checks drift. Whether that is acceptable
-  is a product decision and belongs in an ADR, not in a script.
+- **The installer is a different language.** A PowerShell installer is a
+  second implementation of the same pre-extraction security checks, and
+  duplicated checks drift. Whether that is acceptable is a product decision
+  and belongs in an ADR.
 
-## Two things that are already handled
+## What is left, in order
 
-- **Path casing.** ADR 0027 settled how the engine treats a filesystem that
-  folds case, for macOS. Windows raises the same question and inherits the
-  same answer.
-- **Symlinks.** The tree reads and *skips* symlinks in a dozen walkers, which
-  is portable. Exactly one place creates one, `internal/integrations`
-  linking the installed skill, and `os.Symlink` on Windows needs Developer
-  Mode or an elevated process. A copy is the obvious fallback there.
+1. **Finish the long tail.** What remains is small and individually
+   uninteresting: tests asserting mode bits that do not exist, tests asserting
+   that the CLI supports a platform it correctly refuses, a Python analyzer
+   that the embeddable interpreter cannot satisfy. None of it needs a
+   decision.
+2. **Decide the framing cancellation.** The pipe deadlock, in an ADR. Nothing
+   downstream is trustworthy while a stuck worker cannot be given up on.
+3. **Decide the socket, and start the daemon.** Explicit DACL or named pipe,
+   and then a run that actually reaches it.
+4. **Decide the supervisor,** which decides the installer.
+5. **Then distribution,** and an ADR recording what `windows/amd64` support
+   does and does not include.
 
-## A staged plan
+Steps 2 through 4 are three decisions, and every one of them is about what
+Windows should be promised rather than about how to write it.
 
-The stages are ordered so that each one is worth landing on its own, and so
-that no stage claims support the one below it has not earned.
+## Reproducing this
 
-1. **Make it compile.** The two lock files, as real `LockFileEx`
-   implementations. Guard the three test packages and `benchmarks/snapshot-heap`
-   behind build tags. Add a `windows/amd64` cross-compile job to `ci.yml` --
-   cheap, and it stops the next Unix-only call from landing unnoticed.
-2. **Make it honest.** `doctor` and `status` name the absent supervisor and
-   the unreadable process table instead of returning a shape that reads as
-   healthy. This is ADR 0031's rule applied to a new platform.
-3. **Make it safe.** The socket ACL or the named pipe, and the open-handle
-   behaviour of the generation store reproduced with a concurrent reader on a
-   real Windows host. Nothing should be published before this stage passes.
-4. **Make it installable.** The manifest's per-platform archive format, the
-   zip and DLL-beside-the-binary bundle layout, the PowerShell installer, the
-   `windows-2022` runner in the release matrix, and an ADR that records what
-   `windows/amd64` support does and does not include.
+Nothing here needs the virtual machine to compile-check a change:
 
-Stage 1 is small and mechanical. Stage 3 is the one that decides whether this
-is a supported platform or a build that happens to succeed.
+```bash
+CC='zig cc -target x86_64-windows-gnu' \
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go vet ./...
+```
 
-## Open questions
-
-- **Does the supervisor get a Task Scheduler task or a real service?** It
-  changes whether the installer needs elevation, and that changes the
-  installer.
-- **Is `AF_UNIX` with an explicit DACL enough, or does the daemon need a named
-  pipe on Windows?** The second is more faithful to the platform and is a
-  second transport to maintain.
-- **Is `windows/arm64` in scope?** LadybugDB does not publish an asset for it
-  today, so the answer is currently no by availability rather than by choice
-  -- which is the kind of limit ADR 0026 says to name rather than leave the
-  user to discover.
+Running the suite does need a host. What that one had installed, beyond Go and
+mingw-w64, was `git` and a `python3` on `PATH` -- without them eighteen
+failures are the machine rather than the port, which is the kind of number
+that gets quoted at a planning meeting and should not be.

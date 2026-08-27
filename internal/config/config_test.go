@@ -488,8 +488,14 @@ func TestInitializeCreatesSecureStateAndRegistersRepositories(t *testing.T) {
 		if err != nil {
 			t.Fatalf("state path %q: %v", path, err)
 		}
-		if !info.IsDir() || info.Mode().Perm() != 0o700 {
-			t.Fatalf("state path %q = mode %04o dir=%v, want 0700 directory", path, info.Mode().Perm(), info.IsDir())
+		if !info.IsDir() {
+			t.Fatalf("state path %q = mode %04o dir=%v, want a directory", path, info.Mode().Perm(), info.IsDir())
+		}
+		// That Initialize creates these is the claim on every platform; that
+		// it creates them private is one only where a mode is what privacy is
+		// made of.
+		if testsupport.ModeBitsHonoured() && info.Mode().Perm() != 0o700 {
+			t.Fatalf("state path %q = mode %04o, want 0700", path, info.Mode().Perm())
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
@@ -229,7 +230,9 @@ func TestResolveAnalyzerPrefersTheBundledBinary(t *testing.T) {
 	}
 
 	directory := testsupport.TempDir(t)
-	explicit := filepath.Join(directory, "kivgraph-fake-analyzer")
+	// exec.LookPath is handed this path, and it answers for what the platform
+	// will run: a name without a program extension is not one on Windows.
+	explicit := filepath.Join(directory, executable.Name("kivgraph-fake-analyzer"))
 	if err := os.WriteFile(explicit, []byte("#!/bin/sh\necho fake\n"), 0o755); err != nil {
 		t.Fatalf("write fake analyzer: %v", err)
 	}
