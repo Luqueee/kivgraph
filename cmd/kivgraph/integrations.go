@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/integrations"
 )
@@ -15,7 +16,7 @@ func runMCPCommand(args []string, stdout, stderr io.Writer) int {
 			"mcp install [--target TARGET] [--scope user|project] [--stdio|--daemon] [--dry-run] [--force]",
 			"mcp status --target TARGET [--scope user|project] [--stdio|--daemon]",
 			"mcp remove --target TARGET [--scope user|project] [--stdio|--daemon] [--dry-run] [--force]",
-		})
+		}, integrations.KnownTargets())
 		return 0
 	}
 	switch args[0] {
@@ -37,7 +38,7 @@ func runSkillCommand(args []string, stdout, stderr io.Writer) int {
 			"skill install [--target TARGET] [--scope user|project] [--dry-run] [--force]",
 			"skill status --target TARGET [--scope user|project]",
 			"skill remove --target TARGET [--scope user|project] [--dry-run] [--force]",
-		})
+		}, integrations.KnownTargets())
 		return 0
 	}
 	switch args[0] {
@@ -59,7 +60,7 @@ func runHookCommand(args []string, stdout, stderr io.Writer) int {
 			"hook install [--target TARGET] [--scope user|project] [--dry-run] [--force]",
 			"hook status --target TARGET [--scope user|project]",
 			"hook remove --target TARGET [--scope user|project] [--dry-run] [--force]",
-		})
+		}, integrations.HookTargets())
 		return 0
 	}
 	switch args[0] {
@@ -420,13 +421,22 @@ func writeIntegrationPlan(stdout io.Writer, kind string, plan integrations.Plan)
 	}
 }
 
-func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []string) {
+// writeIntegrationHelp prints one integration family's operations.
+//
+// The targets are a parameter and not a constant because they are not the same
+// for every family: only three clients host a pre-tool-use gate, and naming the
+// other two here would send a reader to a --target that answers with an error.
+func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []string, targets []integrations.Target) {
 	paint := styleFor(stdout)
 	fmt.Fprintf(stdout, "%sUsage%s: kivgraph %s <operation> [flags]\n\n", paint.bold, paint.reset, command)
 	fmt.Fprintf(stdout, "%s%s%s\n\n", paint.dim, summary, paint.reset)
 	for _, usage := range commands {
 		fmt.Fprintf(stdout, "  %s\n", usage)
 	}
-	fmt.Fprintf(stdout, "\n%sTargets%s: claude-code, claude-desktop, codex, opencode, oh-my-pi\n", paint.bold, paint.reset)
+	names := make([]string, 0, len(targets))
+	for _, target := range targets {
+		names = append(names, string(target))
+	}
+	fmt.Fprintf(stdout, "\n%sTargets%s: %s\n", paint.bold, paint.reset, strings.Join(names, ", "))
 	fmt.Fprintln(stdout, "For install operations, omit --target to open the selector. Use arrows or j/k to move, space to toggle, a/n for all or none, Enter to confirm, and q or Esc to cancel. Pass --target for scripted, non-interactive use.")
 }

@@ -173,3 +173,12 @@ func (manager Manager) plan(action Action, document hookDocument, status, detail
 	return Plan{Action: action, Target: document.target, Scope: document.scope,
 		Path: document.path, Status: status, Detail: detail}
 }
+
+// HookTargets are the clients that can host a pre-tool-use gate.
+//
+// It is a shorter list than KnownTargets and has to be said separately: help
+// text that named all five would send a reader to a --target that answers with
+// an error.
+func HookTargets() []Target {
+	return []Target{TargetClaudeCode, TargetCodex, TargetOpenCode}
+}
