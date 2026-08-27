@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
@@ -411,6 +412,18 @@ func commandTable() []commandSpec {
 			},
 		},
 		{
+			words: []string{"hook", "run"},
+			// Hidden, like __complete, and for the same reason: an agent
+			// invokes it once per tool call and a person never types it.
+			// `hook install` is the surface a reader is meant to find,
+			// and it names this one in what it writes.
+			hidden:  true,
+			summary: "Answer an agent's pre-tool-use gate from stdin",
+			run: func(_ dependencies, _ []string, stdout, _ io.Writer) int {
+				return runHookRun(os.Stdin, stdout)
+			},
+		},
+		{
 			words:   []string{"__complete"},
 			hidden:  true,
 			summary: "Answer the candidates for a partially typed command line",
@@ -447,13 +460,13 @@ func commandTable() []commandSpec {
 	}
 }
 
-// integrationCommands are the mcp and skill operations. They are a family
-// rather than seven hand-written entries: the two kinds accept the same
+// integrationCommands are the mcp, skill and hook operations. They are a
+// family rather than nine hand-written entries: the three kinds accept the same
 // operations with the same flags, and only the writers take --dry-run and
 // --force.
 func integrationCommands() []commandSpec {
-	specs := make([]commandSpec, 0, 6)
-	for _, kind := range []string{"mcp", "skill"} {
+	specs := make([]commandSpec, 0, 9)
+	for _, kind := range []string{"mcp", "skill", "hook"} {
 		for _, operation := range []string{"install", "status", "remove"} {
 			specs = append(specs, integrationCommand(kind, operation))
 		}
@@ -487,6 +500,14 @@ func integrationCommand(kind, operation string) commandSpec {
 	case kind == "skill" && operation == "remove":
 		usage = "skill remove --target TARGET [--scope user|project]"
 		summary = "Remove only Kivgraph's Agent Skill"
+	case kind == "hook" && operation == "install":
+		summary = "Detect and install the pre-tool-use gate in one or more clients"
+	case kind == "hook" && operation == "status":
+		usage = "hook status --target TARGET [--scope user|project]"
+		summary = "Inspect the installed pre-tool-use gate"
+	case kind == "hook" && operation == "remove":
+		usage = "hook remove --target TARGET [--scope user|project]"
+		summary = "Remove only Kivgraph's pre-tool-use gate"
 	}
 	return commandSpec{
 		words:   []string{kind, operation},
@@ -498,16 +519,28 @@ func integrationCommand(kind, operation string) commandSpec {
 			return integrationFlagSet(kind+" "+operation, &options, io.Discard, writes, endpoint)
 		},
 		hints: map[string]flagHint{
-			"target": {values: integrationTargetNames},
+			"target": {values: targetNamesFor(kind)},
 			"scope":  {values: integrationScopeNames},
 		},
 		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
-			if kind == "mcp" {
+			switch kind {
+			case "mcp":
 				return runMCPCommand(append([]string{operation}, args...), stdout, stderr)
+			case "hook":
+				return runHookCommand(append([]string{operation}, args...), stdout, stderr)
+			default:
+				return runSkillCommand(append([]string{operation}, args...), stdout, stderr)
 			}
-			return runSkillCommand(append([]string{operation}, args...), stdout, stderr)
 		},
 	}
+}
+
+// targetNamesFor answers the vocabulary one family's --target accepts.
+func targetNamesFor(kind string) func() []string {
+	if kind == "hook" {
+		return hookTargetNames
+	}
+	return integrationTargetNames
 }
 
 // allCommands is the table every reader walks, longest invocation first so a
@@ -633,7 +666,19 @@ func recordedToolNames() []string {
 // which is the whole point of completing this flag: the vocabulary is long,
 // hyphenated and easy to misspell.
 func integrationTargetNames() []string {
-	targets := integrations.KnownTargets()
+	return targetNamesOf(integrations.KnownTargets())
+}
+
+// hookTargetNames are the targets `hook --target` completes to.
+//
+// A completion is a promise, and the family's targets are not all the same:
+// only four clients host a pre-tool-use gate, so offering the fifth would
+// complete a word the command then refuses.
+func hookTargetNames() []string {
+	return targetNamesOf(integrations.HookTargets())
+}
+
+func targetNamesOf(targets []integrations.Target) []string {
 	names := make([]string, 0, len(targets))
 	for _, target := range targets {
 		names = append(names, string(target))

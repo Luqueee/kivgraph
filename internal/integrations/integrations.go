@@ -325,17 +325,7 @@ func (manager Manager) targetDetectionPaths(target Target, scope Scope, skill bo
 	case TargetClaudeCode:
 		paths = append(paths, filepath.Join(base, ".claude"))
 	case TargetClaudeDesktop:
-		if manager.goos == "darwin" {
-			paths = append(paths,
-				filepath.Join(manager.homeDir, "Applications", "Claude.app"),
-				"/Applications/Claude.app",
-			)
-		} else {
-			paths = append(paths,
-				filepath.Join(manager.homeDir, ".local", "share", "applications", "claude.desktop"),
-				"/usr/share/applications/claude.desktop",
-			)
-		}
+		paths = append(paths, manager.claudeDesktopMarkers()...)
 	case TargetCodex:
 		paths = append(paths, filepath.Join(base, ".codex"))
 		if skill {

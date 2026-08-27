@@ -107,6 +107,26 @@ resultados es barato y no es una prueba, porque no distingue «nadie lo llama» 
 donde un consumidor real nunca deletrea el símbolo -- un reexport con `*` que lo
 cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
 
+## La puerta delante de `grep`
+
+`kivgraph hook install` registra un gancho que se ejecuta antes de cada tool del
+agente y niega la búsqueda cuando el grafo la contesta mejor. Lo alojan
+`claude-code`, `claude-desktop`, `codex` y `opencode`. Claude Desktop empaqueta
+un Claude Code y lo lanza sin darle configuración propia, así que lee
+`~/.claude/settings.json`: comparte fichero con `claude-code` e instalar uno
+deja el otro `managed`. Oh My Pi es el único que no puede alojarlo.
+
+Se cierra por **un solo hecho**: el nombre lo declaran dos cosas o más, así que
+una búsqueda de texto no puede separar lo que encuentra. Un nombre sin homónimo
+se deja pasar por muchos sitios que lo usen, porque ahí `grep` es más barato y
+está medido -- ver ADR 0077 para la tabla y para lo que haría falta medir para
+cerrarla también sobre recuentos altos.
+
+Todo fallo de la puerta es un permiso, y un permiso no escribe nada: en ese
+contrato un `allow` explícito se salta la petición de permiso del agente.
+
+Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando.
+
 ## Herramientas MCP en Oh My Pi
 
 - Las rutas `xd://` se descubren consultando `xd://`; nunca se construyen
