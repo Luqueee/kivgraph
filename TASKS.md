@@ -17857,7 +17857,16 @@ un número: es escribir la fila que describe qué pregunta contesta
 convención de esa página exige de cada tool. Gate de la landing: `pnpm check` y
 `pnpm build`.
 
-**Estado:** abierta.
+**Estado:** cerrada el `2026-08-27`, por el `#36`. La tabla de arriba es el
+registro de lo que se encontró, no el estado de hoy: los cinco ficheros dicen
+ya «twelve tools» y «doce tools», y el número es el correcto -- `11` tools de
+consulta en `internal/mcp/server.go` más `index_project`.
+
+Lo que la cierra no es ese número sino la fila, que es lo que la ficha pedía:
+`find_by_intent` abre la tabla «Pick the tool by the question» de
+`mcp-tools.md` con la pregunta que contesta -- «I do not know its name; which
+files do I open»-- y tiene su propia página en
+`landing/src/content/docs/docs/tools/find-by-intent.md`. Las doce la tienen.
 
 ## LUQUE-2231 - Lo que `staticcheck` ve y el gate todavía no exige
 
