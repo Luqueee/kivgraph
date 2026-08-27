@@ -19,13 +19,20 @@ import (
 // the integration commands share. If these two disagreed, the command would
 // configure clients against a daemon this configuration never starts.
 func TestStateDirectoryIsWhereTheDatabaseLives(t *testing.T) {
+	// The paths are built rather than spelled, because the derivation under
+	// test is filepath.Dir and the fixture used to hand it a POSIX path. On
+	// Windows that produced "\\home\\u\\.local\\state\\kivgraph" -- correct, and
+	// unequal to the Unix spelling the assertion still held. The claim is
+	// that the two derivations agree with each other, not that either of them
+	// names a directory somebody chose.
+	directory := filepath.Join(testsupport.TempDir(t), "state", "kivgraph")
 	loaded := config.Loaded{}
-	loaded.Config.Storage.DatabasePath = "/home/u/.local/state/kivgraph/graph.lbdb"
-	if got, want := stateDirectory(loaded), "/home/u/.local/state/kivgraph"; got != want {
-		t.Fatalf("stateDirectory() = %q, want %q", got, want)
+	loaded.Config.Storage.DatabasePath = filepath.Join(directory, "graph.lbdb")
+	if got := stateDirectory(loaded); got != directory {
+		t.Fatalf("stateDirectory() = %q, want %q", got, directory)
 	}
-	if got := daemon.EndpointPath(stateDirectory(loaded)); got != "/home/u/.local/state/kivgraph/daemon.json" {
-		t.Fatalf("EndpointPath() = %q", got)
+	if got, want := daemon.EndpointPath(stateDirectory(loaded)), filepath.Join(directory, "daemon.json"); got != want {
+		t.Fatalf("EndpointPath() = %q, want %q", got, want)
 	}
 }
 
