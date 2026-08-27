@@ -158,7 +158,15 @@ const structuredData = {
     />
 
     {/* The tracker of the self-hosted Umami instance, which is why it is
-        `is:inline`: the file is served by that instance, not bundled here. */}
+        `is:inline`: the file is served by that instance, not bundled here.
+        `data-performance` turns on the Core Web Vitals the
+        dashboard reports at p75 -- LCP, INP, CLS, FCP, TTFB -- which is what
+        makes "this page ranks and is slow" a question this site can answer.
+        `data-domains` is the guard the env pair cannot be: a preview that
+        inherits both variables would otherwise report into production.
+        Query strings are deliberately NOT excluded, because that is where
+        `utm_*`, `gclid`, `fbclid` and `msclkid` live and attribution needs
+        them. */}
     {
       umami && (
         <script
@@ -166,6 +174,8 @@ const structuredData = {
           defer
           src={umami.src}
           data-website-id={umami.websiteId}
+          data-domains={umami.domains}
+          data-performance="true"
         />
       )
     }

@@ -7,7 +7,11 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import rehypeExternalLinks from "rehype-external-links";
 import { lastmodFor } from "./src/lastmod.mjs";
-import { PROJECT_NAME, PROJECT_TAGLINE } from "./src/site.mjs";
+import {
+  PRODUCTION_ORIGIN,
+  PROJECT_NAME,
+  PROJECT_TAGLINE,
+} from "./src/site.mjs";
 
 // The deployment declares itself in `landing/.env`, and this file has to read
 // it before Vite does: the config is not a module Vite transforms, so a bare
@@ -37,7 +41,7 @@ export default defineConfig({
   // second origin: the host redirects it here rather than serving it, because
   // two hostnames answering the same HTML is the duplicate every canonical on
   // this site exists to prevent.
-  site: process.env.KIVGRAPH_LANDING_URL ?? "https://kivgraph.dev",
+  site: process.env.KIVGRAPH_LANDING_URL ?? PRODUCTION_ORIGIN,
   output: "server",
   adapter: node({ mode: "standalone" }),
   // Every canonical this site emits carries a trailing slash, and the default

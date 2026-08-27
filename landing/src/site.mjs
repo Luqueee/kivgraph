@@ -14,6 +14,22 @@
 // is static JSON copied verbatim into `dist/`, so it cannot import this. Its
 // `description` must be edited to match PROJECT_TAGLINE whenever that changes.
 
+/**
+ * The origin this site is published on, declared once because three consumers
+ * need it and two of them cannot ask `Astro.site` for it.
+ *
+ * `astro.config.mjs` needs it as the fallback of `site` -- baked at build time,
+ * and the fallback has to be the right answer because CI builds with no `.env`.
+ * The Umami tracker needs the bare host for `data-domains`, which is what stops
+ * a staging or preview deploy from reporting into the production dataset: that
+ * one must NOT follow `Astro.site`, because a staging build sets `site` to the
+ * staging origin and would then happily match itself.
+ */
+export const PRODUCTION_ORIGIN = "https://kivgraph.dev";
+
+/** The bare host of PRODUCTION_ORIGIN, which is the form `data-domains` takes. */
+export const PRODUCTION_HOST = new URL(PRODUCTION_ORIGIN).host;
+
 export const PROJECT_NAME = "Kivgraph";
 
 /**

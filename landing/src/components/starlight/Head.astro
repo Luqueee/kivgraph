@@ -186,6 +186,13 @@ const structuredData = {
     that instance and is not bundled here. */}
 {
   umami && (
-    <script is:inline defer src={umami.src} data-website-id={umami.websiteId} />
+    <script
+      is:inline
+      defer
+      src={umami.src}
+      data-website-id={umami.websiteId}
+      data-domains={umami.domains}
+      data-performance="true"
+    />
   )
 }

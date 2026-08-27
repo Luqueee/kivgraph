@@ -9,6 +9,23 @@ interface Props {
    * `w-16` of the default behind -- wide enough for `copied` and nothing else.
    */
   class?: string;
+  /**
+   * The analytics event a successful copy reports, if the copy is worth
+   * reporting. Every copy button on this site is worth it: copying a command or
+   * the agent prompt is the strongest intent signal the page can observe, since
+   * the next step happens in a terminal this site cannot see.
+   *
+   * It is optional so a button can opt out rather than opt in by accident, and
+   * the name is the caller's because only the caller knows which of the six
+   * buttons it is. See `docs/development/analytics.md` for the vocabulary.
+   */
+  event?: string;
+  /**
+   * Flat, non-personal properties for that event -- which install command, which
+   * client, which step. Values are strings because that is what a report groups
+   * by. Nothing here may identify a person.
+   */
+  eventData?: Readonly<Record<string, string>>;
 }
 
 const {
@@ -16,14 +33,46 @@ const {
   label = "copy",
   class:
     className = "w-16 shrink-0 border border-rule-strong py-1 text-center text-xs text-gray-300 transition-colors hover:bg-raise hover:text-gray-100",
+  event,
+  eventData,
 } = Astro.props;
 ---
 
-<button type="button" data-copy={value} class={className}>{label}</button>
+<button
+  type="button"
+  data-copy={value}
+  data-copy-event={event}
+  data-copy-data={eventData === undefined ? undefined : JSON.stringify(eventData)}
+  class={className}>{label}</button
+>
 
 <script>
   // One listener per button, wired once for every copy button on the page.
   const RESET_MS = 1500;
+
+  // Umami exposes `track` on `window` once its script has run. It is `defer`ed
+  // and served by another host, so it may not be there at all -- blocked, an
+  // instance that is down, or a build with no tracker configured. Reporting is
+  // therefore best-effort and never in the way of the copy that the reader
+  // actually asked for: this returns silently rather than throwing into a click
+  // handler.
+  type Umami = { track: (name: string, data?: unknown) => void };
+
+  function report(name: string, data: unknown): void {
+    const umami = (window as unknown as { umami?: Umami }).umami;
+    if (umami === undefined) {
+      return;
+    }
+    try {
+      if (data === undefined) {
+        umami.track(name);
+      } else {
+        umami.track(name, data);
+      }
+    } catch {
+      // An analytics failure is not a page failure.
+    }
+  }
 
   const buttons = Array.from(document.querySelectorAll("button[data-copy]"));
 
@@ -39,6 +88,15 @@ const {
     }
 
     const label = button.textContent ?? "copy";
+    const eventName = button.dataset.copyEvent;
+    let eventData: unknown;
+    if (button.dataset.copyData !== undefined) {
+      try {
+        eventData = JSON.parse(button.dataset.copyData);
+      } catch {
+        eventData = undefined;
+      }
+    }
 
     button.addEventListener("click", () => {
       navigator.clipboard.writeText(value).then(
@@ -47,6 +105,12 @@ const {
           window.setTimeout(() => {
             button.textContent = label;
           }, RESET_MS);
+          // Reported on success only. A copy the clipboard refused is not an
+          // intent the reader expressed, and counting it would inflate the one
+          // conversion this site has.
+          if (eventName !== undefined) {
+            report(eventName, eventData);
+          }
         },
         () => {
           button.textContent = "failed";

@@ -73,12 +73,18 @@ const links = [
       class="hidden w-full basis-full flex-col gap-y-3 pt-3 peer-checked:flex md:ml-auto md:flex md:w-auto md:basis-auto md:flex-row md:items-center md:gap-x-6 md:gap-y-2 md:pt-0"
       aria-label="Primary"
     >
+      {/* Only the link that leaves the site carries an event: an internal one is
+        already a pageview, and counting it twice would put a number on the
+        report that no visit produced. Umami reads `data-umami-event` off the
+        click, so this costs no JavaScript of ours. */}
       {
         links.map((link) => (
           <a
             href={link.href}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noopener noreferrer" : undefined}
+            data-umami-event={link.external ? "github_click" : undefined}
+            data-umami-event-where={link.external ? "topbar" : undefined}
             class="text-gray-400 underline-offset-4 transition-colors hover:text-gray-100 hover:underline"
           >
             {link.label}
