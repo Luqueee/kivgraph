@@ -447,11 +447,23 @@ func runConfiguredServe(
 		Message:    command + " started",
 		Generation: publishedGenerationID(store),
 	})
+	// The close belongs in the same deferred call as the last line written,
+	// because two defers would run in the wrong order and close the file
+	// before the "stopped" event reached it.
+	//
+	// It was missing entirely. `index` closed its writer and the long-running
+	// commands -- the ones that hold the handle for hours -- did not, which on
+	// Unix costs a descriptor until the process exits and shows up nowhere. On
+	// Windows an open file cannot be deleted, so a test's own temporary
+	// directory outlived the test and said so.
 	defer func() {
 		events.Append(eventlog.Event{
 			Kind:    eventlog.KindServe,
 			Message: command + " stopped",
 		}.WithDuration(time.Since(started)))
+		if err := events.Close(); err != nil {
+			writeWarning(os.Stderr, "events: close: %v", err)
+		}
 	}()
 	stopFollower := followPublishedGeneration(ctx, loaded, store, command, indexing.FollowOptions{})
 	defer stopFollower()
